@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanAuditLog, players, users } from '@/db/schema';
+import { clanAuditLog, players, users, eventParticipants } from '@/db/schema';
 import { requirePlatformApi, CAN_GRANT, CAN_WRITE } from '@/lib/platformAccess';
 import { PLATFORM_ROLES, type PlatformRole } from '@/lib/clanRoles';
 

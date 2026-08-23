@@ -131,6 +131,10 @@ export const clanStaff = pgTable('clan_staff', {
   // 'all' | 'assigned' — reach of that capability; 'assigned' means only boards they hold an
   // event_editors grant for.
   editorScope: text('editor_scope').notNull().default('all'),
+  // 'all' = treasurer of this whole clan; 'assigned' = only boards they were named on. Beta put the
+  // equivalent on `users`, which would make somebody a scoped treasurer everywhere at once — the
+  // exact shape the per-clan grant exists to prevent.
+  treasurerScope: text('treasurer_scope').notNull().default('all'),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   // One grant per person per clan; a second would make "what is their role here?" ambiguous.
@@ -400,6 +404,11 @@ export const events = pgTable('events', {
   // per-player payout rows, shown on the public event page, and used as the reward per place when
   // payouts are generated (manually or auto-generated at event end). Null = not configured yet.
   placementPrizes: text('placement_prizes'),
+  // The same structure as a SHARE of the pool: JSON array of percentages by place. When set it
+  // wins over the fixed amounts above, and every advertised prize is derived from the live pool —
+  // so a board whose pool grows with each approved entry advertises prizes that grow with it,
+  // instead of a number frozen at whatever the pool was the day the host typed it in.
+  placementSplitPct: text('placement_split_pct'),
   // Optional per-event game rules as JSON (see lib/eventRules.ts EventRules). Adds a third axis on
   // top of (format, scoringMode): HOW tiles become playable and how points are awarded —
   //   revealPolicy: 'all' (default; every tile visible once tilesRevealed flips) | 'scheduled'
@@ -440,6 +449,17 @@ export const tiles = pgTable('tiles', {
   trackedStat: text('tracked_stat'),
   statType: text('stat_type'),
   statGoal: integer('stat_goal'),
+  // What `statGoal` is measured against.
+  //   'gain'      (default) — progress made DURING the event: current − baseline. Every stat tile
+  //               worked this way before milestones existed, so the default keeps them identical.
+  //   'milestone' — a LIFETIME total reached during the event: complete when the member's baseline
+  //               was below the goal AND their absolute total is now at or above it. That gate is
+  //               what makes "get your first Quiver" expressible — a member who already had one has
+  //               baseline >= goal and can never complete it, while a teammate who hasn't still can.
+  //               Always evaluated PER MEMBER whatever `trackingMode` says: summing lifetime totals
+  //               across a team is meaningless (0 + 5 + 200 clears a goal of 1 for the wrong
+  //               reason). See lib/statTracking.milestoneState.
+  statBasis: text('stat_basis').default('gain').notNull(),
   // 'team' (default) = every member's progress sums toward the goal; 'individual' ('solo' is the
   // legacy spelling of the same thing) = ONE member has to reach it alone. Honoured for hiscores
   // stat tiles (lib/statTracking) and for submission-backed count tiles (lib/countProgress), which
@@ -817,6 +837,13 @@ export const users = pgTable('users', {
   // A plain member auto-provisioned via a board grant is set to role 'editor' + scope 'assigned';
   // revoking their last grant reverses that back to 'member' + 'all'. See lib/eventEditors.
   editorScope: text('editor_scope').notNull().default('all'),
+  // The same shape for MONEY. 'all' = a clan treasurer (every event's fees and payouts); 'assigned'
+  // = they only hold per-board treasurer grants, so they reach one board's Sign-ups and Payouts
+  // tabs and nothing else. Auto-provisioned by the first grant and reversed by the last revoke,
+  // exactly like editorScope. See lib/eventEditors.
+    // NOTE: treasurerScope lives on CLAN_STAFF, not here. Beta put it on the user, which in a
+    // one-clan deployment was the same thing — on a platform it would make somebody a
+    // board-scoped treasurer in every clan at once.
   // Tile authoring as a CAPABILITY rather than a role. `role` is the base tier (member <
   // moderator < treasurer < admin) and this rides on top of any of them, so "a moderator who
   // builds boards" or "a treasurer who does fees AND tiles" is one checkbox instead of a new role
@@ -882,19 +909,23 @@ export const users = pgTable('users', {
   index('users_player_idx').on(table.playerId),
 ]);
 
-// Board-scoped tile-editing grants. A row means `userId` may author tiles on `eventId` even though
-// they aren't a global editor — the per-board alternative to the all-events 'editor' role. Enforced
-// by verifyTileEditorForEvent (auth.ts) and managed via lib/eventEditors. Cascades away with either
-// the event or the user. See [[editor-role-tile-authoring]] for the global-role counterpart.
+// Board-scoped staff grants. A row means `userId` may do ONE job on `eventId` without holding the
+// clan-wide role for it — the per-board alternative to 'editor' (authoring) and 'treasurer' (money).
+// Enforced by verifyTileEditorForEvent / verifyEventTreasurer (auth.ts) and managed via
+// lib/eventEditors. Cascades away with either the event or the user. The table kept its original
+// name from when authoring was the only board-scoped job.
 export const eventEditors = pgTable('event_editors', {
   id: serial('id').primaryKey(),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // 'editor' = author this board's tiles. 'treasurer' = collect its fees and run its payouts.
+  // One row per (event, user, role): the same person can hold both jobs on one board.
+  role: text('role').notNull().default('editor'),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
   // The admin who granted this (audit only; nullable for system/backfill rows).
   grantedByUserId: integer('granted_by_user_id').references(() => users.id, { onDelete: 'set null' }),
 }, (table) => [
-  uniqueIndex('event_editors_event_user_unique').on(table.eventId, table.userId),
+  uniqueIndex('event_editors_event_user_role_unique').on(table.eventId, table.userId, table.role),
   index('event_editors_user_idx').on(table.userId),
 ]);
 
@@ -1252,6 +1283,10 @@ export const eventSignups = pgTable('event_signups', {
   // For non-paying entries — a mid-event sub-in replacing someone who already paid, a comped player,
   // a staff freebie — so swapping the roster doesn't inflate the displayed pool past the real money in.
   excludeFromPrizePool: boolean('exclude_from_prize_pool').notNull().default(false),
+  // Which team they asked to join, on an event where the host runs teams by application rather than
+  // by draft (rules.teamChoice). It is a REQUEST: approving the sign-up is what puts them on the
+  // team. Null on a normal drafted event, and on a sign-up with no preference.
+  requestedTeamId: integer('requested_team_id').references(() => teams.id, { onDelete: 'set null' }),
   signedUpAt: text('signed_up_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
   updatedAt: text('updated_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
@@ -1910,6 +1945,34 @@ export const memberClogKc = pgTable('member_clog_kc', {
  * a re-push idempotent and stops a client that read a varbit before the game populated it from
  * erasing somebody's account.
  */
+/**
+ * The item-by-item half of a member's progress: which quests, and later which combat tasks — the
+ * list a player browses, as opposed to the counters in `member_progress`.
+ *
+ * One row per (account, category) holding a JSON payload, rather than a row per item: a quest list
+ * is ~200 entries that change a handful of times a year, so a row each would be 40,000 rows for a
+ * mid-sized clan to say what one 10 kB document says. The payload carries the NAMES as the client
+ * knows them, so a quest released next month lists itself without waiting on a dataset here.
+ *
+ * Keyed on the ACCOUNT, not the seat — same reason as member_progress below. Beta keys this to
+ * clan_members, which does not survive the identity split: one person guesting in ten clans would
+ * carry ten copies of the same quest list.
+ */
+export const memberProgressItems = pgTable('member_progress_items', {
+  id: serial('id').primaryKey(),
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  /** 'quest' today; 'ca' when the combat-task walk is confirmed against a live client. */
+  category: text('category').notNull(),
+  /** JSON — see lib/memberProgressItems for the shape and how it's validated. */
+  payload: text('payload').notNull(),
+  /** Denormalised so a list doesn't have to be parsed to be counted. */
+  doneCount: integer('done_count').default(0).notNull(),
+  totalCount: integer('total_count').default(0).notNull(),
+  updatedAt: text('updated_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  uniqueIndex('member_progress_items_unique').on(table.accountId, table.category),
+]);
+
 export const memberProgress = pgTable('member_progress', {
   id: serial('id').primaryKey(),
   // The ACCOUNT this describes, not the roster seat. Jagex tracks accounts, and a person in two
@@ -1970,6 +2033,15 @@ export const moments = pgTable('moments', {
   kind: text('kind').notNull(),
   weeklyCompetitionId: integer('weekly_competition_id').references(() => weeklyCompetitions.id, { onDelete: 'cascade' }),
   eventId: integer('event_id').references(() => events.id, { onDelete: 'cascade' }),
+  /**
+   * Which side they were on WHEN IT HAPPENED, on a team event.
+   *
+   * Derivable from players(eventId, clanMemberId) — but only for where they are NOW, which is a
+   * different fact: subbing someone across teams mid-event would drag every death they'd already
+   * died over to their new side. On a clan-v-clan, "which side" is the entire question, so it's
+   * stamped at ingest instead of re-derived at read time. Null on a solo/weekly moment.
+   */
+  teamId: integer('team_id').references(() => teams.id, { onDelete: 'set null' }),
   /** The item, when there is one. Deaths have none; a pet whose name we couldn't resolve has a name only. */
   itemId: integer('item_id'),
   itemName: text('item_name'),

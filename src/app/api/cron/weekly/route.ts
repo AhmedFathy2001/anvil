@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { updateAccountOfSeat } from '@/lib/roster';
 import { db } from '@/db';
-import { accounts, clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq, asc, and, or, isNull, lt } from 'drizzle-orm';
 import {
   enrollAllPlayers,

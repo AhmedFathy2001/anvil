@@ -32,6 +32,15 @@ interface ProofRow {
   createdAt: string;
 }
 
+/** Somebody asking to join this team on a team-choice event (rules.teamChoice). */
+interface RequestRow {
+  id: number;
+  rsn: string;
+  displayName: string | null;
+  signedUpAt: string;
+  profile: { notes?: string; timezone?: string };
+}
+
 interface FeeRow {
   id: number;
   amount: number;
@@ -39,33 +48,42 @@ interface FeeRow {
   rsn: string;
   displayName: string | null;
   collectedAt: string | null;
+  collectedByName: string | null;
+  collectedByViewer: boolean;
 }
 
-const FEE_STYLE: Record<string, string> = {
-  pending: 'text-yellow-400 border-yellow-500/30',
-  reported: 'text-blue-400 border-blue-500/30',
-  collected: 'text-blue-400 border-blue-500/30',
-  confirmed: 'text-accent-green-light border-accent-green/30',
-  disputed: 'text-red-400 border-red-500/30',
+// Friendly buckets over the raw statuses, the same way the admin panel reads them. "collected" is
+// the ledger's word for "the money arrived, a second pair of eyes hasn't signed it off yet", and
+// showing it raw next to a button still offering "Mark paid" made a successful click look like a
+// no-op to the captain who had just made it.
+const FEE_BUCKET: Record<string, { label: string; cls: string }> = {
+  pending: { label: 'Unpaid', cls: 'text-yellow-400 border-yellow-500/30' },
+  reported: { label: 'Reported', cls: 'text-blue-400 border-blue-500/30' },
+  collected: { label: 'Paid', cls: 'text-blue-400 border-blue-500/30' },
+  confirmed: { label: 'Settled', cls: 'text-accent-green-light border-accent-green/30' },
+  disputed: { label: 'Disputed', cls: 'text-red-400 border-red-500/30' },
+  closed: { label: 'Closed', cls: 'text-text-muted border-card-border' },
 };
 
 export default function TeamManageClient({ teamId }: { teamId: number }) {
   const [roster, setRoster] = useState<RosterRow[]>([]);
   const [proof, setProof] = useState<ProofRow[]>([]);
   const [fees, setFees] = useState<FeeRow[]>([]);
+  const [requests, setRequests] = useState<RequestRow[]>([]);
   const [eventStarted, setStarted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<'roster' | 'proof' | 'fees' | 'invites'>('roster');
+  const [tab, setTab] = useState<'roster' | 'requests' | 'proof' | 'fees' | 'invites'>('roster');
   const [open, setOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [rosterRes, feesRes] = await Promise.all([
+      const [rosterRes, feesRes, requestsRes] = await Promise.all([
         clanFetch(`/api/team/${teamId}/roster`),
         clanFetch(`/api/team/${teamId}/fees`),
+        clanFetch(`/api/team/${teamId}/requests`),
       ]);
       if (rosterRes.ok) {
         const data = await rosterRes.json();
@@ -74,6 +92,8 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
         setStarted(!!data.eventStarted);
       }
       if (feesRes.ok) setFees((await feesRes.json()).fees ?? []);
+      // Empty on a drafted event — nobody can request a team there, so the tab just never appears.
+      if (requestsRes.ok) setRequests((await requestsRes.json()).requests ?? []);
     } finally {
       setLoading(false);
     }
@@ -92,6 +112,29 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error ?? 'Could not remove them');
+        return;
+      }
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const answerRequest = async (signupId: number, action: 'approve' | 'decline', name: string) => {
+    if (action === 'decline' && !confirm(`Turn down ${name}'s request? They stay in the event — they just aren't on this team.`)) {
+      return;
+    }
+    setBusy(signupId);
+    setError(null);
+    try {
+      const res = await clanFetch(`/api/team/${teamId}/requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signupId, action }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? 'Could not answer that request');
         return;
       }
       await load();
@@ -122,9 +165,11 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
 
   const owed = fees.filter((f) => f.status === 'pending' || f.status === 'disputed').length;
 
+
   // What the card says about itself while shut — the numbers that decide whether to open it.
   const summary = [
     `${roster.length} on the roster`,
+    requests.length > 0 ? `${requests.length} waiting to join` : null,
     owed > 0 ? `${owed} fee${owed === 1 ? '' : 's'} owed` : null,
     proof.length > 0 ? `${proof.length} proof` : null,
   ]
@@ -157,6 +202,7 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
           {(
             [
               ['roster', `Roster · ${roster.length}`],
+              ...(requests.length > 0 ? ([['requests', `Requests · ${requests.length}`]] as const) : []),
               ['proof', `Proof · ${proof.length}`],
               ['fees', owed > 0 ? `Fees · ${owed} owed` : `Fees · ${fees.length}`],
               ['invites', 'Invite links'],
@@ -226,6 +272,51 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
             </div>
           )}
 
+          {tab === 'requests' && (
+            <div className="grid gap-1.5">
+              {requests.length === 0 ? (
+                <p className="text-sm text-text-muted">Nobody is waiting to join.</p>
+              ) : (
+                requests.map((r) => (
+                  <div
+                    key={r.id}
+                    className="flex items-center gap-2.5 border border-card-border rounded-lg bg-brown-dark/40 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">
+                        {r.rsn}
+                        {r.displayName && r.displayName !== r.rsn && (
+                          <span className="text-text-muted font-normal"> · {r.displayName}</span>
+                        )}
+                      </div>
+                      {r.profile.notes && (
+                        <div className="text-[11px] text-text-muted truncate">{r.profile.notes}</div>
+                      )}
+                    </div>
+                    <div className="ml-auto flex gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        disabled={busy === r.id}
+                        onClick={() => answerRequest(r.id, 'approve', r.rsn)}
+                        className="text-xs font-semibold px-2.5 py-1 rounded border border-accent-green/30 text-accent-green-light hover:bg-accent-green/10 transition-colors disabled:opacity-50"
+                      >
+                        Accept
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy === r.id}
+                        onClick={() => answerRequest(r.id, 'decline', r.rsn)}
+                        className="text-xs font-medium px-2.5 py-1 rounded border border-card-border text-text-muted hover:text-foreground transition-colors disabled:opacity-50"
+                      >
+                        Not this time
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
           {tab === 'proof' && (
             <div className="grid gap-1.5">
               {proof.length === 0 ? (
@@ -278,25 +369,43 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
                   >
                     <div className="min-w-0">
                       <div className="text-sm font-medium truncate">{f.rsn}</div>
-                      <div className="text-[11px] text-text-muted">
+                      <div className="text-[11px] text-text-muted truncate">
                         {(f.amount / 1_000_000).toFixed(1)}M
+                        {f.collectedByName && (
+                          <>
+                            {' · '}
+                            {f.collectedByViewer ? 'you took this' : `${f.collectedByName} took this`}
+                            {f.status === 'collected' && ' · waiting on the host'}
+                          </>
+                        )}
                       </div>
                     </div>
                     <span
                       className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full border ${
-                        FEE_STYLE[f.status] ?? 'text-text-muted border-card-border'
+                        (FEE_BUCKET[f.status] ?? { cls: 'text-text-muted border-card-border' }).cls
                       }`}
                     >
-                      {f.status}
+                      {FEE_BUCKET[f.status]?.label ?? f.status}
                     </span>
-                    {f.status !== 'confirmed' && (
+                    {f.status !== 'confirmed' && f.status !== 'closed' && (
                       <button
                         type="button"
                         disabled={busy === f.id}
                         onClick={() => markPaid(f.id)}
-                        className="ml-auto shrink-0 text-xs font-semibold px-2.5 py-1.5 border border-gold/40 text-gold rounded-lg hover:bg-gold/10 transition-colors disabled:opacity-50"
+                        // Already collected: the action is still available (money can change hands
+                        // twice) but it stops SHOUTING, so the row reads as done rather than as a
+                        // request that never went through.
+                        className={`ml-auto shrink-0 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50 border ${
+                          f.status === 'pending' || f.status === 'reported'
+                            ? 'border-gold/40 text-gold hover:bg-gold/10'
+                            : 'border-card-border text-text-muted hover:text-foreground'
+                        }`}
                       >
-                        {busy === f.id ? 'Saving…' : 'Mark paid'}
+                        {busy === f.id
+                          ? 'Saving…'
+                          : f.status === 'pending' || f.status === 'reported'
+                            ? 'Mark paid'
+                            : 'Re-mark'}
                       </button>
                     )}
                   </div>

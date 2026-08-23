@@ -15,6 +15,8 @@ export interface ClanGrant {
   role: ClanRole;
   canEditTiles: boolean;
   editorScope: 'all' | 'assigned';
+  // Per clan, like every other authority field — see the note on clan_staff.treasurer_scope.
+  treasurerScope: 'all' | 'assigned';
   isOwner: boolean;
 }
 
@@ -35,6 +37,7 @@ export async function clanGrant(clanId: number, userId: number): Promise<ClanGra
     // An admin authors tiles implicitly; the flag is for granting it to lower tiers.
     canEditTiles: row.canEditTiles || atLeast(role, 'admin'),
     editorScope: (row.editorScope as 'all' | 'assigned') ?? 'all',
+    treasurerScope: (row.treasurerScope as 'all' | 'assigned') ?? 'all',
     isOwner: role === 'owner',
   };
 }

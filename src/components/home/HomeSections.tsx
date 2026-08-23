@@ -14,10 +14,9 @@ import ClanLink from '@/components/ClanLink';
  *   hero      — the clan, in numbers, including how much it did this week
  *   you       — where the viewer stands in everything running at once
  *   live      — the two things worth opening today, or (when nothing is) what's next and what ended
- *   weeklies  — every Skill and Boss of the Week, finished ones included: a finished week carries a
- *               winner, a number and the shape of the week, which is the most interesting thing on
- *               the page for anyone who missed it
- *   events    — bingos, ladders and races, live and done
+ *   what's on — one card per competition you can still enter (live first, then scheduled)
+ *   finished  — every recent result as a LINE, not a card: a finished competition is a name, a
+ *               winner and a date, and eight of them shouldn't outweigh the one you can enter
  *   clan week — the sweep's own daily rollup, so the page says what the clan actually did
  */
 
@@ -457,78 +456,195 @@ function JustFinishedCard({ w }: { w: HomeWeekly }) {
   );
 }
 
-/* ------------------------------------------------------------ weeklies ---- */
+/* ----------------------------------------------------- what's on / done ---- */
 
-export function WeeklyRail({ weeklies }: { weeklies: HomeWeekly[] }) {
-  if (weeklies.length === 0) return null;
+/**
+ * Everything the clan has run, in two registers.
+ *
+ * It used to be two sections of identical cards — eight weeklies and three events, nearly all of
+ * them finished — so the page's whole middle was a wall of grey "Done" tiles and the one board
+ * starting next month was buried in it. A finished competition is a RESULT: a name, a winner and a
+ * date. It doesn't need a card, and eight of them shouldn't outweigh the thing you can still enter.
+ *
+ * So: anything live or scheduled keeps a full card, and everything finished collapses into one
+ * dense list underneath — the same information in a fifth of the height, and read at a glance.
+ */
+export function Competitions({ view }: { view: HomeView }) {
+  // Whatever "Happening now" is already showing full-size, so the page doesn't print the live BOTW
+  // twice in a row — which it did, and which was half of why the middle read as a wall.
+  const featured = new Set<string>();
+  const anythingLive = !!view.live.weekly || !!view.live.event;
+  if (view.live.weekly) featured.add(`w${view.live.weekly.id}`);
+  if (view.live.event) featured.add(`e${view.live.event.id}`);
+  if (!anythingLive) {
+    // With nothing live it falls back to next-up and just-finished cards — same rule applies.
+    if (view.live.next) featured.add(`w${view.live.next.id}`);
+    if (view.live.justFinished) featured.add(`w${view.live.justFinished.id}`);
+  }
+
+  const liveWeeklies = view.weeklies.filter((w) => w.status !== 'completed' && !featured.has(`w${w.id}`));
+  const liveEvents = view.events.filter((e) => e.status !== 'past' && !featured.has(`e${e.id}`));
+
+  // Cards, live before scheduled, so the row reads in the order things happen.
+  const cards: { key: string; state: 'live' | 'upcoming'; node: React.ReactNode }[] = [
+    ...liveEvents.map((e) => ({
+      key: `e${e.id}`,
+      state: (e.status === 'live' ? 'live' : 'upcoming') as 'live' | 'upcoming',
+      node: <EventCompetitionCard key={`e${e.id}`} e={e} />,
+    })),
+    ...liveWeeklies.map((w) => ({
+      key: `w${w.id}`,
+      state: (w.status === 'active' ? 'live' : 'upcoming') as 'live' | 'upcoming',
+      node: <WeeklyCompetitionCard key={`w${w.id}`} w={w} />,
+    })),
+  ].sort((a, b) => (a.state === b.state ? 0 : a.state === 'live' ? -1 : 1));
+
+  const finished: FinishedRow[] = [
+    ...view.weeklies
+      .filter((w) => w.status === 'completed')
+      .map((w) => ({
+        key: `w${w.id}`,
+        href: `/weekly/${w.id}`,
+        kind: WEEK_KIND[w.type] ?? 'sotw',
+        name: w.title,
+        sub: `${w.metricLabel} · ${w.entrants} entered`,
+        winner: w.top ? { name: w.top.rsn, text: weeklyValue(w, w.top.value) } : null,
+        endedAt: w.endDate,
+      })),
+    ...view.events
+      .filter((e) => e.status === 'past')
+      .map((e) => ({
+        key: `e${e.id}`,
+        href: `/events/${e.id}`,
+        kind: e.mode,
+        name: e.name,
+        sub: e.shape,
+        winner: e.top ? { name: e.top.name, text: `${e.top.score.toLocaleString()} ${e.top.unit}` } : null,
+        endedAt: e.endDate,
+      })),
+  ]
+    .filter((r) => !featured.has(r.key))
+    .sort((a, b) => (b.endedAt ?? '').localeCompare(a.endedAt ?? ''))
+    .slice(0, FINISHED_ROWS);
+
+  if (cards.length === 0 && finished.length === 0) return null;
+
   return (
     <>
-      <SectionHead
-        title="Weekly events, past and present"
-        note="Skill and Boss of the Week"
-        more={{ href: '/events', label: 'All competitions →' }}
-      />
-      <div className="mb-9 grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(258px,1fr))]">
-        {weeklies.map((w) => (
-          <CompetitionCard
-            key={w.id}
-            kind={WEEK_KIND[w.type] ?? 'sotw'}
-            href={`/weekly/${w.id}`}
-            name={w.title}
-            shape={`${w.metricLabel} · ${unitFor(w)}`}
-            state={w.status === 'active' ? 'live' : w.status === 'upcoming' ? 'upcoming' : 'past'}
-            startDate={w.startDate}
-            endDate={w.endDate}
-            entrants={`${w.entrants} entered`}
-            top={
-              w.top
-                ? { name: w.top.tied ? `${w.top.rsn} (tied)` : w.top.rsn, text: weeklyValue(w, w.top.value) }
-                : null
-            }
-            glyph={<WeekGlyph days={w.days} totalDays={totalDays(w.startDate, w.endDate)} accent={hubKind(WEEK_KIND[w.type] ?? 'sotw').accent} />}
-            iconUrl={w.iconUrl}
+      {cards.length > 0 && (
+        <>
+          <SectionHead
+            title="On now and coming up"
+            note="everything you can still enter"
+            more={{ href: '/events', label: 'All competitions →' }}
           />
-        ))}
-      </div>
+          <div className="mb-9 grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(268px,1fr))]">
+            {cards.map((c) => c.node)}
+          </div>
+        </>
+      )}
+
+      {finished.length > 0 && (
+        <>
+          <SectionHead
+            title="Recently finished"
+            note="who won, and when"
+            more={cards.length > 0 ? undefined : { href: '/events', label: 'All competitions →' }}
+          />
+          <div className="mb-9 overflow-hidden rounded-xl border border-card-border bg-card-bg">
+            {finished.map((r) => (
+              <FinishedLine key={r.key} row={r} />
+            ))}
+          </div>
+        </>
+      )}
     </>
   );
 }
 
-/* -------------------------------------------------------------- events ---- */
+/** How many results the list carries before "All competitions" takes over. */
+const FINISHED_ROWS = 8;
 
-export function EventGrid({ events }: { events: HomeEvent[] }) {
-  if (events.length === 0) return null;
+interface FinishedRow {
+  key: string;
+  href: string;
+  kind: HubKind;
+  name: string;
+  sub: string;
+  winner: { name: string; text: string } | null;
+  endedAt: string | null;
+}
+
+/** One finished competition, as a line: what it was, who won it, when it ended. */
+function FinishedLine({ row }: { row: FinishedRow }) {
+  const meta = hubKind(row.kind);
   return (
-    <>
-      <SectionHead title="Events" note="bingos, ladders and races" more={{ href: '/events', label: 'All events →' }} />
-      <div className="mb-9 grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(268px,1fr))]">
-        {events.map((e) => (
-          <CompetitionCard
-            key={e.id}
-            kind={e.mode}
-            href={`/events/${e.id}`}
-            name={e.name}
-            shape={e.shape}
-            state={e.status}
-            startDate={e.startDate}
-            endDate={e.endDate}
-            entrants={e.chips[0] ?? 'no teams yet'}
-            top={
-              e.top
-                ? {
-                    name: e.top.name,
-                    text: `${e.top.score.toLocaleString()} ${e.top.unit}`,
-                    color: e.top.color,
-                    pct: e.top.total > 0 ? (e.top.score / e.top.total) * 100 : 0,
-                  }
-                : null
+    <ClanLink
+      href={row.href}
+      className="flex items-center gap-3 border-t border-card-border px-3.5 py-2.5 transition-colors first:border-t-0 hover:bg-card-bg-hover"
+    >
+      <span aria-hidden className="h-7 w-1 shrink-0 rounded-full" style={{ background: meta.accent }} />
+      <span aria-hidden className="hidden text-base sm:block">{meta.emoji}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[13.5px] font-semibold">{row.name}</span>
+        <span className="block truncate text-[11px] text-text-muted">{row.sub}</span>
+      </span>
+      {row.winner && (
+        <span className="hidden min-w-0 text-right sm:block">
+          <span className="block truncate text-[13px] font-medium">{row.winner.name}</span>
+          <span className="block truncate text-[11px] text-text-muted">{row.winner.text}</span>
+        </span>
+      )}
+      <span className="w-14 shrink-0 text-right font-mono text-[11px] text-text-muted">
+        {row.endedAt ? dateShort(row.endedAt) : ''}
+      </span>
+    </ClanLink>
+  );
+}
+
+function WeeklyCompetitionCard({ w }: { w: HomeWeekly }) {
+  const kind = WEEK_KIND[w.type] ?? 'sotw';
+  return (
+    <CompetitionCard
+      kind={kind}
+      href={`/weekly/${w.id}`}
+      name={w.title}
+      shape={`${w.metricLabel} · ${unitFor(w)}`}
+      state={w.status === 'active' ? 'live' : 'upcoming'}
+      startDate={w.startDate}
+      endDate={w.endDate}
+      entrants={`${w.entrants} entered`}
+      top={w.top ? { name: w.top.tied ? `${w.top.rsn} (tied)` : w.top.rsn, text: weeklyValue(w, w.top.value) } : null}
+      glyph={<WeekGlyph days={w.days} totalDays={totalDays(w.startDate, w.endDate)} accent={hubKind(kind).accent} />}
+      iconUrl={w.iconUrl}
+    />
+  );
+}
+
+function EventCompetitionCard({ e }: { e: HomeEvent }) {
+  return (
+    <CompetitionCard
+      kind={e.mode}
+      href={`/events/${e.id}`}
+      name={e.name}
+      shape={e.shape}
+      state={e.status}
+      startDate={e.startDate}
+      endDate={e.endDate}
+      entrants={e.chips[0] ?? 'no teams yet'}
+      top={
+        e.top
+          ? {
+              name: e.top.name,
+              text: `${e.top.score.toLocaleString()} ${e.top.unit}`,
+              color: e.top.color,
+              pct: e.top.total > 0 ? (e.top.score / e.top.total) * 100 : 0,
             }
-            chips={e.chips.slice(1)}
-            glyph={boardGlyphFor(e, hubKind(e.mode).accent)}
-          />
-        ))}
-      </div>
-    </>
+          : null
+      }
+      chips={e.chips.slice(1)}
+      glyph={boardGlyphFor(e, hubKind(e.mode).accent)}
+    />
   );
 }
 
@@ -578,10 +694,10 @@ export function ClanWeek({ view }: { view: HomeView }) {
 
         <div className="rounded-2xl border border-card-border bg-card-bg p-5">
           <h3 className="text-sm font-bold">Milestones</h3>
-          <p className="mt-0.5 text-[11.5px] text-text-muted">levels and thresholds crossed this week</p>
+          <p className="mt-0.5 text-[11.5px] text-text-muted">levels, thresholds and drops from this week</p>
           <div className="mt-2.5">
             {milestones.length === 0 ? (
-              <p className="py-4 text-center text-xs text-text-muted">Nothing crossed yet this week.</p>
+              <p className="py-4 text-center text-xs text-text-muted">Nothing crossed or dropped yet this week.</p>
             ) : (
               milestones.map((m, i) => (
                 <div key={i} className="flex items-center gap-2.5 border-t border-card-border/60 py-2 text-[12.5px] first:border-t-0">

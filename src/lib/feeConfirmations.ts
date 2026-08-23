@@ -202,6 +202,91 @@ export async function autoConfirmEventFees(eventId: number): Promise<number> {
 }
 
 /**
+ * Which event a fee belongs to, for the gates that only get a fee id.
+ *
+ * The fee routes are keyed by fee, not by event, because collecting money was a clan-wide job. A
+ * per-board treasurer changes that: their reach is one event, so the route has to find out which.
+ */
+export async function eventIdForFee(feeId: number): Promise<number | null> {
+  const row = await db
+    .select({ eventId: eventSignups.eventId })
+    .from(signupFees)
+    .innerJoin(eventSignups, eq(signupFees.signupId, eventSignups.id))
+    .where(eq(signupFees.id, feeId))
+    .limit(1);
+  return row[0]?.eventId ?? null;
+}
+
+/** What a close-out did, split by what each fee was before it — the honest report for the UI. */
+export interface FeeCloseOut {
+  /** Money a mod had already taken; settled rather than written off. */
+  settled: number;
+  /** Never paid (or claimed but never collected, or disputed): written off. */
+  writtenOff: number;
+  /** Already confirmed before we got here. */
+  alreadyDone: number;
+}
+
+/**
+ * End the fee ledger for a finished event.
+ *
+ * A board that's over still shows every fee nobody ever paid, and there is no clean way to make
+ * that list go away: "Mark paid" is a lie, "Reset" puts it back to unpaid, and the settle-all pass
+ * only touches money a mod already collected. So the ledger nags forever over people who simply
+ * never turned up.
+ *
+ * This closes it, and it does NOT pretend everything was paid. A fee somebody collected but nobody
+ * countersigned is SETTLED (the money exists; the second signature is never coming). Everything
+ * else — unpaid, claimed-but-uncollected, disputed — is written off to 'closed', which is its own
+ * terminal status meaning "this was never paid and nobody is chasing it any more". The note keeps
+ * what it was, so the write-off is legible a year later.
+ *
+ * Withdrawn and rejected sign-ups are swept too: their fees are the deadest money on the board and
+ * leaving them out would mean the ledger still isn't empty afterwards.
+ *
+ * Caller enforces who may do this and that the event is actually over.
+ */
+export async function closeOutEventFees(eventId: number, actorUserId: number): Promise<FeeCloseOut> {
+  const rows = await db
+    .select({ id: signupFees.id, status: signupFees.status, notes: signupFees.notes })
+    .from(signupFees)
+    .innerJoin(eventSignups, eq(signupFees.signupId, eventSignups.id))
+    .where(eq(eventSignups.eventId, eventId));
+
+  const out: FeeCloseOut = { settled: 0, writtenOff: 0, alreadyDone: 0 };
+  const now = new Date().toISOString();
+  for (const row of rows) {
+    if (row.status === 'confirmed' || row.status === 'closed') {
+      out.alreadyDone++;
+      continue;
+    }
+    if (row.status === 'collected') {
+      // Auto mode: the collector may well be the admin closing the board out, and refusing to
+      // settle their own collections here would leave exactly the fees this action exists to clear.
+      const result = await applyFeeConfirmation(row.id, actorUserId, { auto: true });
+      if (result.outcome === 'confirmed') out.settled++;
+      else out.alreadyDone++;
+      continue;
+    }
+    await db
+      .update(signupFees)
+      .set({
+        status: 'closed',
+        notes: appendNote(row.notes, `Closed at event end (was ${row.status}) — ${now}`),
+      })
+      .where(eq(signupFees.id, row.id));
+    out.writtenOff++;
+  }
+  return out;
+}
+
+/** Keep whatever the fee already said; the close-out reason is appended, never overwritten. */
+function appendNote(existing: string | null, line: string): string {
+  const prev = (existing ?? '').trim();
+  return prev ? `${prev}\n${line}` : line;
+}
+
+/**
  * Mark a fee paid, whoever is doing it.
  *
  * Extracted so the admin route and the team-staff route can't drift: the dispute rule ("the player

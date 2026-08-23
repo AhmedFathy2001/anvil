@@ -1,7 +1,8 @@
 import { db } from '@/db';
 import { tiles, eventParticipants, teams, completions, events } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
-import { parseEventRules, hasRevealPolicy, visibleTiles } from '@/lib/eventRules';
+import { parseEventRules } from '@/lib/eventRules';
+import { scoreTeams } from '@/lib/boardScoring';
 import { statKeys, statLabel } from '@/lib/tileKinds';
 import { jsonStatValue, effectiveValue, parseContributionSnapshot } from '@/lib/statTracking';
 import { liveStatsForMembers } from '@/lib/liveStats';
@@ -140,7 +141,12 @@ export interface TeamStanding {
   teamId: number;
   name: string;
   color: string;
+  /** Everything the team has earned — board points plus mission bonus. Ranks on this. */
   score: number;
+  /** The board half of `score`, which is what `pct` and `total` are about. */
+  boardScore: number;
+  /** The mission half — bonus, on top of a total it never moves. */
+  bonusScore: number;
   total: number;
   unit: string; // 'pts' | 'tiles'
   pct: number;
@@ -159,34 +165,22 @@ export async function getTeamStandings(eventId: number, scoringMode: string): Pr
     db.select().from(tiles).where(eq(tiles.eventId, eventId)),
   ]);
   const rules = parseEventRules(eventRow?.rules);
-  const eventTiles = hasRevealPolicy(rules) ? visibleTiles(rules, allEventTiles) : allEventTiles;
-  const tileIds = eventTiles.map((t) => t.id);
+  const tileIds = allEventTiles.map((t) => t.id);
   const eventCompletions = tileIds.length
     ? await db.select().from(completions).where(inArray(completions.tileId, tileIds))
     : [];
 
-  const pointsMode = scoringMode === 'points';
-  const scoredTiles = eventTiles.filter((t) => !t.optional);
-  const weightById = new Map(scoredTiles.map((t) => [t.id, pointsMode ? (t.points ?? 0) : 1]));
-  const total = scoredTiles.reduce((sum, t) => sum + (pointsMode ? (t.points ?? 0) : 1), 0);
+  const scores = new Map(
+    scoreTeams({
+      scoringMode,
+      rules,
+      tiles: allEventTiles,
+      completions: eventCompletions,
+      teams: eventTeams,
+    }).map((s) => [s.teamId, s]),
+  );
 
   return eventTeams
-    .map((team) => {
-      const score = eventCompletions
-        .filter((c) => c.teamId === team.id && weightById.has(c.tileId))
-        .reduce(
-          (sum, c) => sum + (pointsMode && c.awardedPoints != null ? c.awardedPoints : weightById.get(c.tileId) || 0),
-          0,
-        );
-      return {
-        teamId: team.id,
-        name: team.name,
-        color: team.color,
-        score,
-        total,
-        unit: pointsMode ? 'pts' : 'tiles',
-        pct: total > 0 ? Math.min(100, Math.round((score / total) * 100)) : 0,
-      };
-    })
+    .map((team) => ({ ...scores.get(team.id)!, name: team.name, color: team.color }))
     .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
 }

@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import { isTileRaceFormat, isPointsMode, eventShapeBadge } from '@/lib/utils';
 import { verifyUser } from '@/lib/auth';
-import { isEventEditor } from '@/lib/eventEditors';
+import { isEventEditor, isEventTreasurer } from '@/lib/eventEditors';
 import EventTabNav from './EventTabNav';
 import EventTitle from './EventTitle';
 import EventLockBanner from './EventLockBanner';
@@ -42,6 +42,11 @@ export default async function EventLayout({
   if (session?.role === 'editor' && session.editorScope === 'assigned') {
     if (!(await isEventEditor(session.userId, id))) redirect(await clanHref('/admin/events'));
   }
+  // Same rule for a board treasurer: middleware only knows they're scoped, not to WHICH boards.
+  const isBoardTreasurer = session?.role === 'treasurer' && session.treasurerScope === 'assigned';
+  if (isBoardTreasurer) {
+    if (!(await isEventTreasurer(session!.userId, id))) redirect(await clanHref('/admin/events'));
+  }
 
   // Same per-request cache the rail reads, so the two strips never disagree and never double-query.
   const stageCounts = await getStageCounts(id);
@@ -78,6 +83,7 @@ export default async function EventLayout({
     stage: eventStage(event),
     counts: stageCounts,
     tilesOnly: isEditor,
+    moneyOnly: isBoardTreasurer,
     taskNounPlural: nounPlural,
   });
 
@@ -124,7 +130,7 @@ export default async function EventLayout({
 
       {/* The event's own rail (rendered by the admin shell) carries navigation now; this strip
           answers the other question — where the event is in its life, and what moves it forward. */}
-      {!isEditor && (
+      {!isEditor && !isBoardTreasurer && (
         <EventLifecycleBar
           steps={steps}
           hrefFor={{
@@ -138,6 +144,7 @@ export default async function EventLayout({
         />
       )}
       {isEditor && <EventTabNav eventId={id} tilesOnly taskNounPlural={NounPlural} />}
+      {isBoardTreasurer && <EventTabNav eventId={id} moneyOnly taskNounPlural={NounPlural} />}
 
       {/* Finished events are read-only (lib/eventLock guards the APIs) — say so on every tab, and
           give admins the explicit unlock/re-lock control. */}

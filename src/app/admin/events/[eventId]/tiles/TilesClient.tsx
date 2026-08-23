@@ -19,7 +19,7 @@ import Select from '@/components/Select';
 import Input from '@/components/Input';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { isPointsMode, isTileRaceFormat } from '@/lib/utils';
-import { parseEventRules, hasRevealPolicy, parseTileMissionRules } from '@/lib/eventRules';
+import { parseEventRules, hasRevealPolicy, boardTiles, missionTiles, parseTileMissionRules } from '@/lib/eventRules';
 import EventBoard from '@/components/EventBoard';
 import {
   TILE_KIND_FILTERS,
@@ -46,6 +46,7 @@ function tileToTrackingInitial(tile: Tile) {
     trackedStat: tile.trackedStat ?? null,
     statType: tile.statType ?? null,
     statGoal: tile.statGoal ?? null,
+    statBasis: tile.statBasis ?? 'gain',
     trackingMode: tile.trackingMode || 'team',
     optional: !!tile.optional,
     autoTrackDisabled: !!tile.autoTrackDisabled,
@@ -414,6 +415,31 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     }
   }
 
+  // Add a MISSION rather than a board tile. Same endpoint with `mission: true`, which server-side
+  // skips the "a classic grid is a fixed N×N board" guard (a mission is not a cell on the grid) and
+  // leaves boardSize alone, so a 5×5 stays a 5×5.
+  async function handleAddMission() {
+    setAdding(true);
+    setImportMsg(null);
+    try {
+      const res = await clanFetch(`/api/events/${event.id}/tiles`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mission: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setImportMsg({ type: 'error', text: data.error || 'Could not add mission.' });
+        return;
+      }
+      setLocalTiles((prev) => [...prev, data as Tile]);
+      setEditingTileId(data.id);
+      router.refresh();
+    } finally {
+      setAdding(false);
+    }
+  }
+
   // Bulk-create N blank tiles (or one per pasted label) for the Quick Build list. Sequential so
   // each POST computes the next board position server-side without racing. Selects the first new
   // tile so the editor lands on it.
@@ -551,15 +577,24 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   // Tiers only matter on points boards (the tier band is derived from a tile's point value).
   const showTierFilter = pointsMode && tierBands.length > 0;
 
+  // The board and its missions are two different lists (lib/eventRules.boardTiles). A mission isn't
+  // a cell on the grid: it's announced mid-event, scores as a bonus outside the board total
+  // (lib/boardScoring) and can expire unclaimed. Leaving them in the main list made a mission "tile
+  // #259" — buried behind the filters, counted in "259 tiles", and authored by finding a checkbox
+  // under Advanced.
+  const boardOnly = useMemo(() => boardTiles(localTiles), [localTiles]);
+  const missionPool = useMemo(() => missionTiles(localTiles), [localTiles]);
+  const announcedMissions = useMemo(() => missionPool.filter((t) => t.revealedAt).length, [missionPool]);
+
   const filteredTiles = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return localTiles.filter((t) => {
+    return boardOnly.filter((t) => {
       if (kindFilter !== 'all' && tileKindKey(t) !== kindFilter) return false;
       if (categoryFilter !== 'all' && !tileHasCategory(t.category, categoryFilter)) return false;
       if (tierFilter !== 'all' && tileTierKey(t.points, tierBands) !== tierFilter) return false;
       return tileMatchesQuery(t, q);
     });
-  }, [localTiles, search, kindFilter, categoryFilter, tierFilter, tierBands]);
+  }, [boardOnly, search, kindFilter, categoryFilter, tierFilter, tierBands]);
 
   // Quick Build left-pane list honors the same search box, text-only — the kind/category/tier
   // chips live in Cards view, so applying them here would be a hidden filter. Sharing `search`
@@ -567,8 +602,8 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   const gridFiltering = search.trim().length > 0;
   const gridTiles = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return q ? localTiles.filter((t) => tileMatchesQuery(t, q)) : localTiles;
-  }, [localTiles, search]);
+    return q ? boardOnly.filter((t) => tileMatchesQuery(t, q)) : boardOnly;
+  }, [boardOnly, search]);
 
   // Collapse back to the first page whenever the result set changes.
   useEffect(() => setVisibleLimit(PAGE_SIZE), [search, kindFilter, categoryFilter, tierFilter]);
@@ -585,6 +620,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       trackedStat: string | null;
       statType: string | null;
       statGoal: number | null;
+      statBasis?: string | null;
       trackingMode: string;
       optional?: boolean;
       trackedItemIds?: number[] | null;
@@ -1376,9 +1412,9 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             )}
 
             <span className="ml-auto text-xs text-text-muted whitespace-nowrap">
-              {filteredTiles.length === localTiles.length
-                ? `${localTiles.length} ${localTiles.length === 1 ? model.noun : model.nounPlural}`
-                : `${filteredTiles.length} of ${localTiles.length} match`}
+              {filteredTiles.length === boardOnly.length
+                ? `${boardOnly.length} ${boardOnly.length === 1 ? model.noun : model.nounPlural}`
+                : `${filteredTiles.length} of ${boardOnly.length} match`}
               {filteredTiles.length > visibleTiles.length && ` · showing ${visibleTiles.length}`}
             </span>
             {(search || kindFilter !== 'all' || categoryFilter !== 'all' || tierFilter !== 'all') && (
@@ -1398,18 +1434,22 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         </div>
 
         {/* Two real columns: the board on the left, its editor on the right. Not an overlay —
-            the thing you're editing stays visible, and picking another tile just moves the pane. */}
+            the thing you're editing stays visible, and picking another tile just moves the pane.
+            NO `items-start` here: it shrink-wraps the editor's column to the editor's own height,
+            which leaves its `sticky top-4` nothing to travel inside. On a 261-tile board that meant
+            scrolling down to a tile, clicking it, and then scrolling all the way back up to edit it.
+            Stretching the column (the grid default) is what lets the editor follow the list. */}
         <div
           className={
             editingTile && inspectorDocked
-              ? 'xl:grid xl:grid-cols-[minmax(0,1fr)_23rem] xl:gap-5 xl:items-start'
+              ? 'xl:grid xl:grid-cols-[minmax(0,1fr)_23rem] xl:gap-5'
               : ''
           }
         >
         <div className="min-w-0">
 
         {selectedIds.size > 0 && (
-          <div className="sticky top-2 z-20 mb-2.5 flex flex-wrap items-center gap-2 rounded-lg border border-gold/40 bg-gold/[0.12] backdrop-blur px-3 py-2">
+          <div className="sticky top-[4.5rem] z-20 mb-2.5 flex flex-wrap items-center gap-2 rounded-lg border border-gold/40 bg-gold/[0.12] backdrop-blur px-3 py-2">
             <span className="text-sm font-semibold text-gold-light">
               {selectedIds.size} selected
             </span>
@@ -1633,6 +1673,78 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             >
               Show {Math.min(PAGE_SIZE, filteredTiles.length - visibleTiles.length)} more
             </button>
+          </div>
+        )}
+
+        {/* MISSIONS — their own lane, below the board and outside it. Deliberately not part of the
+            list above: a mission is announced mid-event, scores as a bonus on top of a board total
+            it never moves, and can expire unclaimed. It also ignores the board's filters, because
+            with four of them the filters are furniture. */}
+        {missionsAllowed && (
+          <div className="mt-6 pt-5 border-t border-card-border">
+            <div className="flex items-center gap-2.5 mb-3 flex-wrap">
+              <h3 className="text-sm font-bold flex items-center gap-2">
+                <span className="w-1 h-4 bg-purple-400 rounded-full" />
+                <span aria-hidden>⚡</span>
+                Missions
+              </h3>
+              <span className="text-xs text-text-muted">
+                {missionPool.length === 0
+                  ? 'hidden bonus objectives, dropped mid-event'
+                  : `${missionPool.length} · ${announcedMissions} announced`}
+              </span>
+              <button
+                onClick={handleAddMission}
+                disabled={adding || editLocked}
+                className="ml-auto text-xs font-semibold px-3 py-1.5 rounded-lg bg-purple-500/15 border border-purple-400/30 text-purple-200 hover:bg-purple-500/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                + Add mission
+              </button>
+            </div>
+
+            {missionPool.length === 0 ? (
+              <p className="text-xs text-text-muted">
+                A mission stays hidden until you announce it, then scores as a bonus on top of the
+                board total — so adding one never changes what the board is out of.
+              </p>
+            ) : (
+              <div className="grid gap-2.5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {missionPool.map((tile) => {
+                  const isEditing = editingTileId === tile.id;
+                  return (
+                    <button
+                      key={tile.id}
+                      onClick={() => setEditingTileId(isEditing ? null : tile.id)}
+                      className={`text-left rounded-xl border p-3 transition-colors ${
+                        isEditing
+                          ? 'border-purple-400/60 bg-purple-500/10'
+                          : 'border-card-border bg-card-bg hover:border-purple-400/40'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-purple-500/20 text-purple-200">
+                          {tile.revealedAt ? 'Announced' : 'Hidden'}
+                        </span>
+                        {tile.closedAt && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-white/10 text-text-muted">
+                            Closed
+                          </span>
+                        )}
+                        {pointsMode && tile.points != null && (
+                          <span className="ml-auto text-[10px] text-purple-200/80">+{tile.points} bonus</span>
+                        )}
+                      </span>
+                      <span className="block text-sm font-semibold text-foreground line-clamp-2 break-words" title={tile.label}>
+                        {tile.label}
+                      </span>
+                      <span className="block text-xs text-text-muted truncate">
+                        {tileConfigSummary(tile, 'mission')}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
         </div>
@@ -1948,6 +2060,15 @@ function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventS
   // Docked, this is a column in the page, not a dialog over it — so it must not take the page's
   // scroll or swallow Tab. Undocked it really is a drawer, and stays one.
   const ref = useModalA11y<HTMLDivElement>({ onClose, modal: !docked });
+
+  // Scroll the form back to the top when a DIFFERENT tile is opened. The panel persists across
+  // selections (that's the point of the docked editor — picking another tile just moves the pane),
+  // and so did its scroll position: open a tile after scrolling down in the previous one and the
+  // form started halfway through the Tile Kind grid, looking cut off.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (bodyRef.current) bodyRef.current.scrollTop = 0;
+  }, [tile.id]);
   const titleId = `tile-config-title-${tile.id}`;
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -1963,7 +2084,7 @@ function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventS
         tabIndex={-1}
         className={
           docked
-            ? 'sticky top-4 max-h-[calc(100vh-6rem)] flex flex-col rounded-xl border border-card-border bg-card-bg overflow-hidden focus:outline-none'
+            ? 'sticky top-[4.5rem] max-h-[calc(100vh-6rem)] flex flex-col rounded-xl border border-card-border bg-card-bg overflow-hidden focus:outline-none'
             : 'relative w-full max-w-md h-full bg-card-bg border-l border-card-border shadow-2xl flex flex-col focus:outline-none animate-drawer-slide'
         }
       >
@@ -1985,7 +2106,7 @@ function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventS
         </div>
 
         {/* Form */}
-        <div className="flex-1 min-h-0 p-5 overflow-y-auto">
+        <div ref={bodyRef} className="flex-1 min-h-0 p-5 overflow-y-auto">
           {lockHolder && (
             <p className="mb-3 text-xs px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-200">
               🔒 <span className="font-semibold">{lockHolder}</span> is editing this tile right now — if you both

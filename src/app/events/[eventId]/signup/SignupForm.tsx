@@ -70,6 +70,15 @@ interface Props {
   windowOpen: boolean;
   windowReason: 'not_open_yet' | 'closed' | 'event_started' | null;
   /**
+   * Team-choice events (rules.teamChoice): the host built the teams up front and the applicant
+   * names the one they're joining. Null on a drafted event, and on an invite (the link already
+   * decided). It stays a REQUEST — the host approves it — so the copy never promises a seat.
+   */
+  teamChoice: {
+    teams: { id: number; name: string; color: string }[];
+    requestedTeamId: number | null;
+  } | null;
+  /**
    * Arrived through a team's invite link (lib/teamInvites). Everything about the form is the same —
    * same questions, same accounts, same fee — but the entry lands on that team, approved, so say so
    * rather than letting someone submit believing they're entering the draft pool.
@@ -200,8 +209,10 @@ export default function SignupForm({
   windowOpen,
   windowReason,
   invite = null,
+  teamChoice = null,
 }: Props) {
   const router = useRouter();
+  const [requestedTeamId, setRequestedTeamId] = useState<number | null>(teamChoice?.requestedTeamId ?? null);
   const verifiedAccounts = useMemo(
     () => myAccounts.filter((a) => a.verifiedAt),
     [myAccounts],
@@ -309,6 +320,10 @@ export default function SignupForm({
       setError(maxAccounts > 1 ? 'Pick at least one account to play with.' : 'Pick the RSN you want to play with.');
       return;
     }
+    if (teamChoice && teamChoice.teams.length > 0 && requestedTeamId == null) {
+      setError('Pick the team you want to join.');
+      return;
+    }
     setSubmitting(true);
     try {
       const profile: SignupProfile = {
@@ -325,7 +340,12 @@ export default function SignupForm({
       const res = await clanFetch(`/api/events/${eventId}/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clanMemberIds: Array.from(selectedIds), profile, inviteToken: invite?.token }),
+        body: JSON.stringify({
+          clanMemberIds: Array.from(selectedIds),
+          profile,
+          inviteToken: invite?.token,
+          requestedTeamId,
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -390,6 +410,49 @@ export default function SignupForm({
           </p>
         </div>
       )}
+      {teamChoice && (
+        <div className="border border-card-border rounded-xl p-4 bg-card-bg">
+          <h2 className="text-sm font-bold flex items-center gap-2 mb-1">
+            <span className="w-1 h-4 bg-gold rounded-full" />
+            Which team are you joining?
+          </h2>
+          <p className="text-text-muted text-xs mb-3">
+            This event isn&apos;t drafted — the teams already exist and you apply to one. A host or
+            that team&apos;s captain approves you before you&apos;re on the roster.
+          </p>
+          {teamChoice.teams.length === 0 ? (
+            <p className="text-text-muted text-sm">
+              No teams have been created yet. Sign up anyway — the host will place you.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {teamChoice.teams.map((t) => {
+                const picked = requestedTeamId === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    disabled={isLocked}
+                    onClick={() => setRequestedTeamId(picked ? null : t.id)}
+                    className={`text-sm px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-50 ${
+                      picked ? 'font-semibold' : 'border-card-border bg-brown-dark hover:border-gold/40'
+                    }`}
+                    style={
+                      picked
+                        ? { color: t.color, borderColor: `${t.color}88`, background: `${t.color}1a` }
+                        : undefined
+                    }
+                    aria-pressed={picked}
+                  >
+                    {t.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Status / window banner */}
       {existingSignup && !isWithdrawn && (
         <div className="border border-accent-green/30 bg-accent-green/10 rounded-xl p-4 text-sm">
@@ -857,6 +920,8 @@ function FeeStatusBadge({ status }: { status: string }) {
     collected: 'bg-yellow-500/15 text-yellow-300 border-yellow-500/25',
     confirmed: 'bg-accent-green/15 text-accent-green-light border-accent-green/25',
     disputed: 'bg-red-500/15 text-red-400 border-red-500/25',
+    // Written off when the board closed — see lib/feeConfirmations#closeOutEventFees.
+    closed: 'bg-text-muted/10 text-text-muted border-card-border',
   };
   const cls = map[status] ?? map.pending;
   return (

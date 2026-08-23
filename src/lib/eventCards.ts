@@ -100,6 +100,11 @@ export async function loadEventCards(
   // Non-optional tiles only: the same denominator the board uses, and the same tiles a
   // completion has to land on to score.
   const onBoard = or(isNull(tiles.optional), eq(tiles.optional, 0));
+  // …and never a MISSION. A mission's points are a bonus on top of the board (lib/boardScoring), so
+  // they must not sit in the denominator — otherwise a card's percentage drops the moment a host
+  // authors a mission nobody has even been shown yet. Missions still SCORE (the query below has no
+  // such filter); they just aren't part of what the board is out of.
+  const boardTotalOnly = and(onBoard, or(isNull(tiles.mission), eq(tiles.mission, 0)));
 
   const teamCounts = new Map<number, number>();
   const boardTotals = new Map<number, number>();
@@ -122,7 +127,7 @@ export async function loadEventCards(
         n: sql<number>`count(*)`,
       })
       .from(tiles)
-      .where(and(inArray(tiles.eventId, ids), onBoard))
+      .where(and(inArray(tiles.eventId, ids), boardTotalOnly))
       .groupBy(tiles.eventId),
     // One row per event that has any mission tile — the other reason a completion might not
     // count yet. Cheaper than fetching the tiles to find out.

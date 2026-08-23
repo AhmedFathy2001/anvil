@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
-import { accounts, clanRoster, eventParticipants, tiles } from '@/db/schema';
+import { clanRoster, eventParticipants, tiles } from '@/db/schema';
 import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
 import { eq, and } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';

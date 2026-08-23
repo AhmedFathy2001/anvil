@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { accounts as accountsTable, clanRoster, completions, events, eventSignups, memberDailyStats, playerEventFacts, eventParticipants, submissions, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { accounts as accountsTable, clanRoster, completions, events, eventSignups, memberDailyStats, playerEventFacts, eventParticipants, submissions, teams, tiles, weeklyCompetitions, weeklyParticipants, players } from '@/db/schema';
 import { and, desc, eq, gte, inArray, isNull, or } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
 import { weeklyMetricLabel } from '@/lib/constants';

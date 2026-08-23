@@ -1,6 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import ClanLink from '@/components/ClanLink';
+import { eventStage } from '@/lib/eventStage';
+import { parseEventRules } from '@/lib/eventRules';
 import { useRouter } from 'next/navigation';
 import DateTimePicker from '@/components/DateTimePicker';
 import Select from '@/components/Select';
@@ -42,6 +45,10 @@ interface SignupRow {
   } | null;
   account: { id: number; rsn: string };
   captainTeam: { id: number; name: string; color: string } | null;
+  /** Where they play. Null while they're still in the draft pool. */
+  team: { id: number; name: string; color: string } | null;
+  /** On a team-choice event: the team they asked to join, until the request is answered. */
+  requestedTeam: { id: number; name: string; color: string } | null;
   fee: {
     id: number;
     amount: number;
@@ -108,6 +115,12 @@ export default function SignupAdminPanel({
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [feeFilter, setFeeFilter] = useState<string>('all');
+  const [teamFilter, setTeamFilter] = useState<string>('all');
+  const [closingFees, setClosingFees] = useState(false);
+  const [mountedAt] = useState(() => new Date().getTime());
+  // How players get onto a team: drafted (default) or by asking for one when they sign up.
+  const storedTeamChoice = parseEventRules(event.rules).teamChoice;
+  const [teamChoice, setTeamChoice] = useState(storedTeamChoice);
 
   const load = useCallback(async () => {
     const res = await clanFetch(`/api/admin/events/${event.id}/signups`);
@@ -200,6 +213,47 @@ export default function SignupAdminPanel({
     }
   }
 
+  /**
+   * End the fee ledger on a finished board.
+   *
+   * The settle pass only ever touched money a mod had collected, so a board that's over kept its
+   * list of people who never paid forever — with no honest way to clear it, since "Mark paid" is a
+   * lie and "Reset" just puts it back. This writes those off (see lib/feeConfirmations) and settles
+   * anything already collected, and it says which is which before doing it.
+   */
+  async function closeOutFees() {
+    const owed = outstandingFees;
+    const collected = activeSignups.filter((s) => s.fee?.status === 'collected').length;
+    const parts = [
+      owed > 0 ? `write off ${owed} unpaid fee${owed === 1 ? '' : 's'}` : '',
+      collected > 0 ? `settle ${collected} already collected` : '',
+    ].filter(Boolean);
+    if (!confirm(`Close out this board's fees? This will ${parts.join(' and ')}. It can't be undone in bulk.`)) {
+      return;
+    }
+    setClosingFees(true);
+    setActionError(null);
+    try {
+      const res = await clanFetch('/api/admin/fees/close-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventId: event.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not close those fees.');
+      const said: string[] = [];
+      if (data.settled) said.push(`${data.settled} settled`);
+      if (data.writtenOff) said.push(`${data.writtenOff} written off`);
+      setFeeNotice(said.length ? said.join(' · ') : 'Nothing left to close.');
+      await load();
+      router.refresh();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Could not close those fees.');
+    } finally {
+      setClosingFees(false);
+    }
+  }
+
   async function promoteToPool() {
     if (
       !confirm(
@@ -282,6 +336,10 @@ export default function SignupAdminPanel({
           signupDeadline: signupDeadline || null,
           paymentDeadline: paymentDeadline || null,
           captainSelectionDeadline: captainDeadline || null,
+          // Only when it actually changed. The rules blob also carries the reveal policy and the
+          // scoring modifiers, which are edited on other tabs — sending it every time would let a
+          // sign-up save overwrite them with whatever this page happened to load.
+          ...(teamChoice !== storedTeamChoice ? { rules: { ...parseEventRules(event.rules), teamChoice } } : {}),
         }),
       });
       if (!res.ok) {
@@ -313,6 +371,20 @@ export default function SignupAdminPanel({
 
   // Collected fees this viewer may sign off. With a second signature required, their own
   // collections are excluded — offering "Settle (34)" and then settling none would be a lie.
+  // Closing the ledger is a wrap-stage action: while a board is running an unpaid fee is a debt
+  // someone is still chasing. Read once per mount — a board doesn't end while you're looking at it,
+  // and the route re-checks anyway.
+  const eventOver = eventStage(event, mountedAt) === 'wrap';
+
+  // Everything still hanging: unpaid, claimed-but-uncollected, collected-but-unsigned, disputed.
+  // Confirmed and closed fees are done and don't count.
+  const outstandingFees = signups.filter(
+    (s) => s.fee && s.fee.status !== 'confirmed' && s.fee.status !== 'closed' && s.fee.status !== 'collected',
+  ).length;
+  const unfinishedFees = signups.filter(
+    (s) => s.fee && s.fee.status !== 'confirmed' && s.fee.status !== 'closed',
+  ).length;
+
   const settleableFees = activeSignups.filter(
     (s) =>
       s.fee?.status === 'collected' &&
@@ -341,6 +413,14 @@ export default function SignupAdminPanel({
       } else if (statusFilter !== 'all' && s.status !== statusFilter) {
         return false;
       }
+      if (teamFilter !== 'all') {
+        // 'none' is "still in the pool" — the list every host reads before a draft.
+        if (teamFilter === 'none') {
+          if (s.team) return false;
+        } else if (String(s.team?.id ?? '') !== teamFilter) {
+          return false;
+        }
+      }
       if (feeFilter !== 'all') {
         if (feeFilter === 'none') {
           if (s.fee) return false;
@@ -350,9 +430,18 @@ export default function SignupAdminPanel({
       }
       return true;
     });
-  }, [signups, search, statusFilter, feeFilter]);
+  }, [signups, search, statusFilter, feeFilter, teamFilter]);
 
-  const filtersActive = search.trim() !== '' || statusFilter !== 'all' || feeFilter !== 'all';
+  const filtersActive =
+    search.trim() !== '' || statusFilter !== 'all' || feeFilter !== 'all' || teamFilter !== 'all';
+
+  // Teams that actually have someone on them, in board order — a filter offering empty teams reads
+  // like a bug ("why is Red empty?") when it just means the draft hasn't reached them.
+  const teamOptions = useMemo(() => {
+    const seen = new Map<number, { id: number; name: string; color: string }>();
+    for (const s of signups) if (s.team) seen.set(s.team.id, s.team);
+    return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [signups]);
 
   // Live preview of the public prize pool: added bonus + entry fee × approved entries.
   // Mirrors lib/prizePool.ts (approved entries count regardless of fee payment).
@@ -458,6 +547,23 @@ export default function SignupAdminPanel({
           </div>
         </div>
 
+        <label className="flex items-start gap-2.5 rounded-lg border border-card-border bg-brown-dark/40 px-4 py-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={teamChoice}
+            onChange={(e) => setTeamChoice(e.target.checked)}
+            className="mt-0.5 accent-gold"
+          />
+          <span className="min-w-0">
+            <span className="text-sm font-medium">Players pick their own team when they sign up</span>
+            <span className="block text-xs text-text-muted mt-0.5">
+              For a board whose teams already exist and aren&apos;t drafted. Sign-ups stay open to
+              everyone and each applicant names the team they&apos;re joining — you or that team&apos;s
+              captain approves them, and approving is what puts them on the roster. Leave off to draft.
+            </span>
+          </span>
+        </label>
+
         <div className="rounded-lg border border-gold/25 bg-gold/5 px-4 py-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <div className="text-xs uppercase tracking-wide text-text-muted min-w-0">
             Total prize pool so far
@@ -527,6 +633,16 @@ export default function SignupAdminPanel({
                   : `${confirmationsRequired <= 0 ? 'Settle' : 'Sign off'} ${settleableFees} fee${settleableFees === 1 ? '' : 's'}`}
               </button>
             )}
+            {!loading && viewerRole === 'admin' && eventOver && unfinishedFees > 0 && (
+              <button
+                onClick={closeOutFees}
+                disabled={closingFees}
+                title="Settle what was collected and write off what never came in"
+                className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted bg-brown-dark hover:text-foreground hover:border-gold/40 transition-colors disabled:opacity-50"
+              >
+                {closingFees ? 'Closing…' : `Close out ${unfinishedFees} fee${unfinishedFees === 1 ? '' : 's'}`}
+              </button>
+            )}
             {!loading && activeSignups.length > 0 && (
               <button
                 onClick={promoteToPool}
@@ -538,6 +654,23 @@ export default function SignupAdminPanel({
             )}
           </div>
         </div>
+
+        {/* Where the sign-off rule lives. It's a clan-wide setting on another page entirely, so a
+            host working through fees here had no way to know it existed, let alone change it. */}
+        {!loading && signups.some((s) => s.fee) && (
+          <p className="text-xs text-text-muted mb-3">
+            {confirmationsRequired === 0
+              ? 'Marking a fee paid settles it outright — no second signature required.'
+              : `A paid fee settles after ${confirmationsRequired} confirmation${confirmationsRequired === 1 ? '' : 's'} from someone other than whoever collected it.`}{' '}
+            <ClanLink href="/admin/integrations?tab=fees" className="text-gold hover:underline underline-offset-2">
+              Change
+            </ClanLink>
+            {' · '}
+            <ClanLink href="/admin/fees" className="text-gold hover:underline underline-offset-2">
+              All boards with fees
+            </ClanLink>
+          </p>
+        )}
 
         {/* Filters */}
         {!loading && signups.length > 0 && (
@@ -575,9 +708,23 @@ export default function SignupAdminPanel({
                 { value: 'collected', label: 'Fee: collected' },
                 { value: 'confirmed', label: 'Fee: confirmed' },
                 { value: 'disputed', label: 'Fee: disputed' },
+                { value: 'closed', label: 'Fee: closed' },
                 { value: 'none', label: 'No fee' },
               ]}
             />
+            {teamOptions.length > 0 && (
+              <Select
+                value={teamFilter}
+                onChange={setTeamFilter}
+                ariaLabel="Filter by team"
+                className="shrink-0 sm:w-40"
+                options={[
+                  { value: 'all', label: 'All teams' },
+                  { value: 'none', label: 'Unassigned' },
+                  ...teamOptions.map((t) => ({ value: String(t.id), label: t.name })),
+                ]}
+              />
+            )}
           </div>
         )}
 
@@ -658,6 +805,25 @@ export default function SignupAdminPanel({
                           }}
                         >
                           captain · {s.captainTeam.name}
+                        </span>
+                      )}
+                      {/* Where they ended up, or what they asked for — the two things the team
+                          filter sorts by, said on the row so a filtered list explains itself. */}
+                      {!s.captainTeam && s.team && (
+                        <span
+                          className="text-[10px] font-medium px-2 py-0.5 rounded-full border truncate max-w-[7.5rem] sm:max-w-[20rem]"
+                          style={{
+                            color: s.team.color,
+                            borderColor: `${s.team.color}55`,
+                            background: `${s.team.color}1a`,
+                          }}
+                        >
+                          {s.team.name}
+                        </span>
+                      )}
+                      {!s.team && s.requestedTeam && (
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-dashed border-card-border text-text-muted truncate max-w-[7.5rem] sm:max-w-[20rem]">
+                          wants {s.requestedTeam.name}
                         </span>
                       )}
                       <SignupStatusBadge status={s.status} />

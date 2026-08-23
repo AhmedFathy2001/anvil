@@ -9,14 +9,17 @@ import {
   getUpcomingMilestones,
   getDailySeries,
   getMemberProfile,
+  listMembers,
   getMilestones,
   getRecords,
   getStandings,
   type Standing,
 } from '@/lib/memberProfile';
+import { buildPlayerShape } from '@/lib/playerShape';
+import PlayerShapeRadar from '@/components/PlayerShapeRadar';
 import ProfileTabs from './ProfileTabs';
 import { getCollectionLog } from '@/lib/clogRead';
-import { getMemberProgress } from '@/lib/memberProgressRead';
+import { getMemberItems, getMemberProgress } from '@/lib/memberProgressRead';
 import AccountProgressCard from '@/components/AccountProgressCard';
 import { SKILLS } from '@/lib/constants';
 import { verifyUser } from '@/lib/auth';
@@ -117,7 +120,7 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
   // alt; the open internet and search engines can't.
   const viewer = await verifyUser();
 
-  const [milestones, records, series, standings, history, persona, collection, activityStandings, progress] = await Promise.all([
+  const [milestones, records, series, standings, history, persona, collection, activityStandings, progress, questItems, caItems, roster] = await Promise.all([
     getMilestones(profile.id, 50),
     getRecords(profile.id),
     getDailySeries(profile.id, 365),
@@ -127,8 +130,25 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
     getCollectionLog(profile.id, profile.rsn),
     getActivityStandings(clan.id, profile.rsn),
     getMemberProgress(profile.id),
+    getMemberItems(profile.id, 'quest'),
+    getMemberItems(profile.id, 'ca'),
+    // Everyone's totals, for the shape's percentiles. One query for the whole roster (the same one
+    // the directory runs), not a snapshot parse per member.
+    listMembers(clan.id),
   ]);
   const upcoming = getUpcomingMilestones(profile);
+  const shape = buildPlayerShape({
+    members: roster.map((m) => ({
+      id: m.id,
+      // The directory hands these back already divided out of milli — the shape only cares about
+      // the ordering, so whichever unit they arrive in is the unit the percentile is taken in.
+      ehpMilli: m.ehp ?? 0,
+      ehbMilli: m.ehb ?? 0,
+      overallXp: m.overallXp ?? 0,
+    })),
+    standings: activityStandings,
+    memberId: profile.id,
+  });
 
   const eff = profile.efficiency;
   // Summed from the skill rows: `skills` carries the real skills only, so looking for an 'overall'
@@ -244,9 +264,13 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
           a signed-out visitor — see the note above the query. */}
       {persona && <Persona persona={persona} currentMemberId={profile.id} />}
 
-      <div className="mb-6">
-        <AccountProgressCard summary={progress} />
-      </div>
+      {/* What kind of account this is, before the tabs break it into numbers. Above the fold on
+          purpose: it's the one reading that answers "who am I looking at" in a glance. */}
+      {!shape.empty && (
+        <div className="mb-6">
+          <PlayerShapeRadar shape={shape} rsn={profile.rsn} />
+        </div>
+      )}
 
       <ProfileTabs
         profile={profile}
@@ -257,6 +281,9 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
         upcoming={upcoming}
         activityStandings={activityStandings}
         collection={collection}
+        accountProgress={
+          <AccountProgressCard summary={progress} quests={questItems} combat={caItems} />
+        }
       />
     </main>
   );

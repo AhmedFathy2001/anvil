@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireClanFromRequest } from '@/lib/clanContext';
 import { resolvePluginMember } from '@/lib/auth';
 import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
 import { activeScopesFor, recordMoments } from '@/lib/momentsStore';
@@ -112,7 +113,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, stored: 0, matched: 0 });
   }
 
-  const scopes = await activeScopesFor(member.clanMemberId, new Date(now));
+  const clan = await requireClanFromRequest(request);
+  const scopes = await activeScopesFor(member.clanMemberId, clan.id, new Date(now));
   // Nothing was running, so nothing is looking. Told apart from "kept none of them" in the reply so
   // a client's log can say which it was.
   if (scopes.weeklies.length === 0 && !scopes.event) {

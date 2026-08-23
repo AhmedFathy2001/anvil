@@ -162,10 +162,65 @@ export function parsePlacementPrizes(json: string | null | undefined): number[] 
 }
 
 // Persist the prize-per-placement structure on the event, independent of generating payout rows.
+// Saving fixed amounts CLEARS any percentage split: the two are alternative answers to the same
+// question, and leaving the old one behind would make the winner arbitrary.
 export async function savePlacementPrizes(eventId: number, placeAmounts: number[]): Promise<number[]> {
   const clean = placeAmounts.map((n) => Math.max(0, Math.round(Number(n) || 0)));
-  await db.update(events).set({ placementPrizes: JSON.stringify(clean) }).where(eq(events.id, eventId));
+  await db
+    .update(events)
+    .set({ placementPrizes: JSON.stringify(clean), placementSplitPct: null })
+    .where(eq(events.id, eventId));
   return clean;
+}
+
+// ─── Prizes as a share of the pool ────────────────────────────────────────────────────────────
+
+/** Parse events.placementSplitPct (JSON array of percentages by place) into a clean number[]. */
+export function parsePlacementSplit(json: string | null | undefined): number[] {
+  if (!json) return [];
+  try {
+    const arr = JSON.parse(json);
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .map((n) => (typeof n === 'number' && Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 0))
+      // Round to a tenth: hosts think in whole percents, and 33.3 is a legitimate third.
+      .map((n) => Math.round(n * 10) / 10);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Persist the split as SHARES of the pool.
+ *
+ * The point of the mode: a pool that grows with every approved entry should carry prizes that grow
+ * with it. Fixed amounts are frozen the moment they're typed, so a board that doubled its entries
+ * still advertises the smaller prize — and the alternative was a host remembering to come back and
+ * retype three numbers every time somebody signed up.
+ */
+export async function savePlacementSplit(eventId: number, placePercents: number[]): Promise<number[]> {
+  const clean = placePercents.map((n) => Math.max(0, Math.min(100, Math.round(Number(n) * 10 || 0) / 10)));
+  await db
+    .update(events)
+    .set({ placementSplitPct: JSON.stringify(clean), placementPrizes: null })
+    .where(eq(events.id, eventId));
+  return clean;
+}
+
+/**
+ * What each place is actually worth right now.
+ *
+ * A percentage split is resolved against the live pool (added bonus + fee × approved entries), so
+ * this is the ONE function every prize display and the payout generator should ask — otherwise the
+ * event page and the payouts tab quote different numbers for the same board.
+ */
+export function placementAmounts(
+  event: { placementPrizes?: string | null; placementSplitPct?: string | null },
+  poolTotal: number,
+): number[] {
+  const pct = parsePlacementSplit(event.placementSplitPct);
+  if (pct.length > 0) return pct.map((p) => Math.round((poolTotal * p) / 100));
+  return parsePlacementPrizes(event.placementPrizes);
 }
 
 // Core payout generation. (Re)builds per-player payout rows for the top `placeAmounts.length` teams,

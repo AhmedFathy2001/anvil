@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { personOfOrCreate } from '@/lib/roster';
 import { db } from '@/db';
-import { accounts, clanAuditLog, clanRoster, clanStaff, players, users } from '@/db/schema';
+import { accounts, clanAuditLog, clanRoster, clanStaff, players, users, eventParticipants } from '@/db/schema';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { DiscordUser } from '@/lib/discord-oauth';
 import { signUserToken } from '@/lib/auth';
@@ -266,7 +266,7 @@ export async function completeDiscordLogin(
   // Either level bars them: this login, or the person behind it. The platform ban is the one set
   // from /staff and it has to hold here too, or a banned human simply signs in again.
   const personBanned = await db.query.players.findFirst({
-    where: eq(players.id, user.playerId ?? -1),
+        where: eq(players.id, user.playerId ?? -1),
     columns: { banned: true },
   });
   if (user.banned || personBanned?.banned) {
@@ -289,6 +289,12 @@ export async function completeDiscordLogin(
     // Admins author implicitly; everyone else needs the explicit capability. It rides in the token
     // so edge middleware can route a moderator-who-builds-boards without a DB read.
     user.role === 'admin' || user.canEditTiles === true,
+    // Same reason: middleware has to tell a clan treasurer from someone who only runs one board's
+    // money, and it can't ask the database.
+      // Treasurer scope is per CLAN now, and a session token is not: the same login can be a
+      // clan treasurer in one and a board treasurer in another. Middleware gets the permissive
+      // value; the server gates decide against the real grant, as they already do for role.
+      'all',
   );
 
   // First-ever login lands on the getting-started checklist unless a deep link was requested — but

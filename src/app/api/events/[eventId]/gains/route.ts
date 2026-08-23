@@ -58,6 +58,8 @@ export async function GET(
     teamId: number | null;
     gains: Record<string, number>;
     current: Record<string, number>;
+    /** Value at event start — milestone tiles gate eligibility on it (baseline < goal). */
+    baseline: Record<string, number>;
     lastFetch: string | null;
     error?: string;
   }[] = [];
@@ -70,6 +72,7 @@ export async function GET(
         teamId: player.teamId,
         gains: {},
         current: {},
+      baseline: {},
         lastFetch: player.lastStatsFetch,
         error: 'No snapshot',
       });
@@ -86,6 +89,7 @@ export async function GET(
         teamId: player.teamId,
         gains: {},
         current: {},
+      baseline: {},
         lastFetch: player.lastStatsFetch,
         error: 'Invalid snapshot',
       });
@@ -108,6 +112,11 @@ export async function GET(
         // gains keyed by the composite trackedStat so clients keep indexing by tile.trackedStat.
         const gains: Record<string, number> = {};
         const current: Record<string, number> = {};
+        // What they had when the event started. MILESTONE tiles need it: a member is eligible for one
+        // only while their baseline is below the goal (lib/statTracking.milestoneState), and the goal
+        // lives on the tile rather than here — so the caller pairs this with its own goal instead of
+        // this route guessing which tile a stat belongs to.
+        const baseline: Record<string, number> = {};
         for (const { key, type } of uniqueStats) {
           const keys = statKeys(key);
           gains[key] = computeGain(snapshot, currentStats, pluginMap, keys, type);
@@ -115,6 +124,7 @@ export async function GET(
             (sum, part) => sum + effectiveValue(snapshotValue(currentStats, type, part), pluginMap, part),
             0,
           );
+          baseline[key] = keys.reduce((sum, part) => sum + snapshotValue(snapshot, type, part), 0);
         }
 
         result.push({
@@ -123,6 +133,7 @@ export async function GET(
           teamId: player.teamId,
           gains,
           current,
+          baseline,
           lastFetch: player.lastStatsFetch,
         });
       } catch {
@@ -132,6 +143,7 @@ export async function GET(
           teamId: player.teamId,
           gains: {},
           current: {},
+          baseline: {},
           lastFetch: player.lastStatsFetch,
           error: 'Invalid cached stats',
         });
@@ -143,6 +155,7 @@ export async function GET(
         teamId: player.teamId,
         gains: {},
         current: {},
+      baseline: {},
         lastFetch: null,
         error: 'Not fetched yet',
       });

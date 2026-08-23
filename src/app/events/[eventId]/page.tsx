@@ -1,15 +1,17 @@
 import { db } from '@/db';
-import { requireEventForPage } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
-import { events, tiles, teams, completions, eventSignups, clanRoster, eventParticipants, submissions, surveyQuestions, surveyResponses } from '@/db/schema';
+import { requireEventForPage } from '@/lib/eventScope';
+import { events, tiles, teams, completions, eventSignups, clanRoster, players, submissions, surveyQuestions, surveyResponses, eventStartProofs, eventParticipants } from '@/db/schema';
 import { and, eq, isNull, inArray, count } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import ScoreboardClient from './ScoreboardClient';
 import { verifyUser } from '@/lib/auth';
 import { signupWindowState, signupEditState } from '@/lib/signup';
 import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
-import { parsePlacementPrizes } from '@/lib/payouts';
+import { placementAmounts } from '@/lib/payouts';
 import EventHero from '@/components/EventHero';
+import StartProofCard from '@/components/StartProofCard';
+import { startProofState } from '@/lib/startProof';
 import EventFirsts from '@/components/events/EventFirsts';
 import { loadEventFirsts } from '@/lib/eventFirsts';
 import EventMoments from '@/components/events/EventMoments';
@@ -220,12 +222,15 @@ export default async function EventScoreboardPage({
     ? eventPlayers.filter((p) => p.clanMemberId != null && myMemberIds.includes(p.clanMemberId)).map((p) => p.id)
     : [];
 
-  // Hide the board from non-staff viewers when either (a) sign-ups haven't opened yet,
-  // or (b) the host hasn't revealed the tiles. Staff (admin / treasurer / moderator)
-  // always see it so they can finish configuring tiles ahead of the public launch.
-  const isStaff = atLeast(session?.role, 'admin') || session?.role === 'treasurer' || session?.role === 'moderator';
+  // Hide the board when either (a) sign-ups haven't opened yet, or (b) the host hasn't revealed the
+  // tiles.
+  //
+  // No staff exception. This is the PUBLIC page — the one the admin rail links to as "Player view" —
+  // and a host who can't see what a member sees can't tell whether the curtain is actually drawn.
+  // Staff who want the real board have the admin panel's Tiles tab and its team boards, where
+  // looking is a deliberate act.
   const tilesHidden = !event.tilesRevealed;
-  const hideBoardFromPlayer = !isStaff && (window.reason === 'not_open_yet' || tilesHidden);
+  const hideBoardFromPlayer = window.reason === 'not_open_yet' || tilesHidden;
 
   // Reveal-policy events (lib/eventRules): members only receive the revealed subset — hidden
   // tile content must never reach the client. Staff keep the full board. The aggregate counts
@@ -237,14 +242,11 @@ export default async function EventScoreboardPage({
   // The week's colour: pets, big drops and deaths that happened while the board ran. Scoped at
   // ingest (lib/moments), so this is a plain read — and never any part of the scoring.
   const eventMoments = await momentsForEvent(event.id, 12);
-  const boardTiles = isStaff ? eventTiles : visibleTiles(rules, eventTiles);
+  const boardTiles = visibleTiles(rules, eventTiles);
   const hiddenTileCount = hasRevealPolicy(rules) ? eventTiles.length - visibleTiles(rules, eventTiles).length : 0;
-  // Staff keep the full board, so tell the client WHICH of those tiles a member wouldn't see —
-  // otherwise an armed reveal board looks exactly like a fully-revealed one to the host. Not gated
-  // on the reveal policy: an un-announced MISSION is member-hidden on an otherwise classic board too.
-  const staffOnlyTileIds = isStaff
-    ? eventTiles.filter((t) => !isTileRevealed(rules, t)).map((t) => t.id)
-    : [];
+  // Nothing here is staff-only any more: this page shows one board, the member's. The "which tiles
+  // can't they see" overlay lives on the admin team boards, which is where a host checks that.
+  const staffOnlyTileIds: number[] = [];
   const upcomingRevealAt = hasRevealPolicy(rules) ? nextRevealAt(event, rules, eventTiles) : null;
 
   // A SHOWDOWN advertises its schedule: every slot's time and value are public from the start, and
@@ -252,7 +254,7 @@ export default async function EventScoreboardPage({
   // exactly what the format is built to withhold), so they get placeholders carrying nothing but
   // when it lands and what it's worth. Staff already receive the real tiles.
   const hiddenSchedule =
-    rules.revealPolicy === 'scheduled' && !isStaff
+    rules.revealPolicy === 'scheduled'
       ? eventTiles
           .filter((t) => !isTileRevealed(rules, t))
           .map((t) => ({ revealAt: t.revealAt, points: t.points }))
@@ -294,7 +296,9 @@ export default async function EventScoreboardPage({
   const pointsOnBoard = pointsMode
     ? requiredTiles.reduce((sum, t) => sum + (t.points ?? 0), 0)
     : null;
-  const placementPrizes = parsePlacementPrizes(event.placementPrizes);
+  // Resolved against the LIVE pool, so a board whose prizes are set as shares advertises what each
+  // place is worth right now rather than what it was worth when the host typed it in.
+  const placementPrizes = placementAmounts(event, prizePool);
 
   const prizeBreakdownParts: string[] = [];
   if ((event.signupFee ?? 0) > 0) {
@@ -325,7 +329,7 @@ export default async function EventScoreboardPage({
 
   if (ladderView) {
     // Members see only what's been revealed; staff see the whole pool so they can still configure it.
-    const ladderTiles = scoredBoardTiles(eventTiles).filter((t) => isStaff || isTileRevealed(rules, t));
+    const ladderTiles = scoredBoardTiles(eventTiles).filter((t) => isTileRevealed(rules, t));
     const expiries = rotationExpiries(
       rules,
       ladderTiles.filter((t) => t.revealedAt && !t.closedAt),
@@ -357,6 +361,44 @@ export default async function EventScoreboardPage({
     );
   }
 
+  // STARTING SHOT (lib/startProof): a player who owes one is playing without their credits counting
+  // for the next few hours, and until now the only place that said so was the My Teams hub — a page
+  // you have no reason to open when you came here to look at the board. The ask lapses six hours
+  // after the start, and `needsUpload` already carries that, so this goes quiet on its own.
+  const startProofCfg = parseEventRules(event.rules).startProof;
+  const myStartProofs: {
+    playerId: number;
+    rsn: string;
+    location: string;
+    spot: { x: number; y: number; radius: number } | null;
+    keyword: string;
+    maxSessionMinutes: number;
+    status: 'pending' | 'accepted' | 'rejected' | null;
+    reviewNote: string | null;
+  }[] = [];
+  if (startProofCfg && myPlayerIds.length > 0) {
+    const proofRows = await db
+      .select()
+      .from(eventStartProofs)
+      .where(and(eq(eventStartProofs.eventId, event.id), inArray(eventStartProofs.playerId, myPlayerIds)));
+    const proofByPlayer = new Map(proofRows.map((r) => [r.playerId, r]));
+    for (const playerId of myPlayerIds) {
+      const proof = proofByPlayer.get(playerId);
+      const state = startProofState({ cfg: startProofCfg, event, playerId, proof });
+      if (!state.needsUpload || !state.location || !state.keyword) continue;
+      myStartProofs.push({
+        playerId,
+        rsn: eventPlayers.find((p) => p.id === playerId)?.name ?? 'You',
+        location: state.location,
+        spot: state.spot,
+        keyword: state.keyword,
+        maxSessionMinutes: state.maxSessionMinutes,
+        status: (proof?.status as 'pending' | 'rejected' | undefined) ?? null,
+        reviewNote: proof?.reviewNote ?? null,
+      });
+    }
+  }
+
   return (
     <>
       <EventHero
@@ -371,6 +413,34 @@ export default async function EventScoreboardPage({
         forceEndedAt={event.forceEndedAt}
         placementPrizes={placementPrizes}
       />
+      {myStartProofs.length > 0 && (
+        <section className="mb-6">
+          <div className="rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 mb-3">
+            <p className="font-semibold text-yellow-300">Your starting shot is still missing</p>
+            <p className="text-sm text-text-muted">
+              Until it&apos;s filed, drops you submit are held for review. It only takes a screenshot —
+              and the ask expires a few hours into the event, so it&apos;s now or not at all.
+            </p>
+          </div>
+          <div className="grid gap-3">
+            {myStartProofs.map((c) => (
+              <StartProofCard
+                key={c.playerId}
+                eventId={event.id}
+                eventName={event.name}
+                playerId={c.playerId}
+                rsn={c.rsn}
+                location={c.location}
+                spot={c.spot}
+                keyword={c.keyword}
+                maxSessionMinutes={c.maxSessionMinutes}
+                status={c.status}
+                reviewNote={c.reviewNote}
+              />
+            ))}
+          </div>
+        </section>
+      )}
       <SignupBanner
         eventId={event.id}
         loggedIn={!!session}

@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { loginOf } from '@/lib/roster';
 import { db } from '@/db';
-import { clanRoster, eventParticipants, teams, eventSignups } from '@/db/schema';
+import { clanRoster, eventParticipants, teams, eventSignups, accounts } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull, or } from 'drizzle-orm';
 import { generatePlayerToken } from '@/lib/auth';
 

@@ -37,6 +37,19 @@ export type RevealOrder = 'random' | 'sequential';
 // lives per-tile in `tiles.rules` (see MissionRules). Announcing a mission stamps its `revealedAt`
 // (the decay anchor); the board's normal tiles stay visible throughout.
 export type MissionAnnounceMode = 'manual' | 'interval' | 'scheduled';
+
+/**
+ * One phase of a mission difficulty curve: which tiers may be drawn until `throughPct` of the event
+ * has passed. Declared here because this file owns the rule shape and imports nothing — the drawing
+ * itself lives in lib/missionRamp, which needs the tier bands.
+ */
+export interface RampPhase {
+  /** 1–100. The share of the event this phase covers up TO; the last phase should end at 100. */
+  throughPct: number;
+  /** Tier band keys (lib/tileFilter). Empty = no restriction during this phase. */
+  tiers: string[];
+}
+
 export interface MissionConfig {
   /** manual = admin drops each; interval = every intervalMinutes; scheduled = per-tile revealAt. */
   announceMode: MissionAnnounceMode;
@@ -44,6 +57,15 @@ export interface MissionConfig {
   order: RevealOrder;
   /** 'interval' mode: minutes between mission drops. */
   intervalMinutes: number;
+  /**
+   * Difficulty curve over the run: each phase names the tiers eligible up to a share of the event
+   * ("first third easy, middle medium and hard, last third ultra"). Empty = one pool, no phases.
+   *
+   * Shares rather than dates so a board cloned into a fortnight instead of a weekend still means
+   * the same thing. See lib/missionRamp — including why an exhausted phase falls back to the whole
+   * pool rather than announcing nothing.
+   */
+  tierRamp: RampPhase[];
 }
 
 // STARTING SHOT — the anti-stack start proof. When required, every enrolled player must upload a
@@ -140,6 +162,15 @@ export interface EventRules {
    * roster nobody approved. On a clan-v-clan it's the whole point — see lib/teamInvites.
    */
   captainInvites: boolean;
+  /**
+   * Do players choose their own team when they sign up?
+   *
+   * The alternative to a draft AND to handing out invite links: the host builds the teams up front,
+   * sign-ups stay open to everyone, and each applicant names the team they're joining. It is a
+   * REQUEST — approving the sign-up is what seats them — so a team can't be filled by strangers
+   * picking it off a list. Off by default: a normal clan event drafts.
+   */
+  teamChoice: boolean;
 }
 
 export const DEFAULT_EVENT_RULES: EventRules = {
@@ -157,6 +188,7 @@ export const DEFAULT_EVENT_RULES: EventRules = {
   mission: null,
   startProof: null,
   captainInvites: false,
+  teamChoice: false,
 };
 
 /**
@@ -232,6 +264,29 @@ function cleanLocations(raw: unknown): StartLocation[] {
   return out;
 }
 
+/** Tolerant parse of a stored ramp: bad phases are dropped, order is enforced, shares are clamped. */
+function parseTierRamp(raw: unknown): RampPhase[] {
+  if (!Array.isArray(raw)) return [];
+  const phases: RampPhase[] = [];
+  for (const entry of raw) {
+    const phase = entry as { throughPct?: unknown; tiers?: unknown };
+    const pct =
+      typeof phase?.throughPct === 'number' && Number.isFinite(phase.throughPct)
+        ? Math.max(1, Math.min(100, Math.round(phase.throughPct)))
+        : null;
+    if (pct == null) continue;
+    const tiers = Array.isArray(phase?.tiers)
+      ? phase.tiers.filter((t): t is string => typeof t === 'string' && t.length > 0)
+      : [];
+    phases.push({ throughPct: pct, tiers });
+  }
+  // Ascending, and never two phases ending at the same point — the later one could never be reached.
+  const seen = new Set<number>();
+  return phases
+    .sort((a, b) => a.throughPct - b.throughPct)
+    .filter((p) => (seen.has(p.throughPct) ? false : (seen.add(p.throughPct), true)));
+}
+
 const clampInt = (v: unknown, min: number, max: number, fallback: number): number => {
   const n = typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : NaN;
   return Number.isNaN(n) ? fallback : Math.max(min, Math.min(max, n));
@@ -261,7 +316,10 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
     };
   }
   let mission: EventRules['mission'] = null;
-  const m = obj.mission as { announceMode?: unknown; order?: unknown; intervalMinutes?: unknown } | null | undefined;
+  const m = obj.mission as
+    | { announceMode?: unknown; order?: unknown; intervalMinutes?: unknown; tierRamp?: unknown }
+    | null
+    | undefined;
   if (m && typeof m === 'object') {
     mission = {
       announceMode: MISSION_ANNOUNCE_MODES.includes(m.announceMode as MissionAnnounceMode)
@@ -269,6 +327,7 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
         : 'manual',
       order: m.order === 'sequential' ? 'sequential' : 'random',
       intervalMinutes: clampInt(m.intervalMinutes, 5, 10080, 60),
+      tierRamp: parseTierRamp(m.tierRamp),
     };
   }
   let startProof: EventRules['startProof'] = null;
@@ -309,6 +368,7 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
     mission,
     startProof,
     captainInvites: obj.captainInvites === true,
+    teamChoice: obj.teamChoice === true,
   };
 }
 
@@ -366,7 +426,12 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     return { error: 'rules.pickSeconds must be 0 (off) or an integer between 30 and 3600' };
   }
   if (o.mission !== undefined && o.mission !== null) {
-    const m = o.mission as { announceMode?: unknown; order?: unknown; intervalMinutes?: unknown };
+    const m = o.mission as {
+      announceMode?: unknown;
+      order?: unknown;
+      intervalMinutes?: unknown;
+      tierRamp?: unknown;
+    };
     if (typeof m !== 'object' || Array.isArray(m)) {
       return { error: 'rules.mission must be an object or null' };
     }
@@ -380,9 +445,33 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     if (iv !== undefined && (typeof iv !== 'number' || !Number.isInteger(iv) || iv < 5 || iv > 10080)) {
       return { error: 'rules.mission.intervalMinutes must be an integer between 5 and 10080' };
     }
+    if (m.tierRamp !== undefined) {
+      if (!Array.isArray(m.tierRamp)) {
+        return { error: 'rules.mission.tierRamp must be an array of phases' };
+      }
+      let previous = 0;
+      for (const raw of m.tierRamp) {
+        const phase = raw as { throughPct?: unknown; tiers?: unknown };
+        const pct = phase?.throughPct;
+        if (typeof pct !== 'number' || !Number.isFinite(pct) || pct < 1 || pct > 100) {
+          return { error: 'each tierRamp phase needs a throughPct between 1 and 100' };
+        }
+        // Ascending, because a phase that ends before the one before it can never be reached.
+        if (pct <= previous) {
+          return { error: 'tierRamp phases must run in order, each ending later than the last' };
+        }
+        previous = pct;
+        if (!Array.isArray(phase?.tiers) || phase.tiers.some((t) => typeof t !== 'string')) {
+          return { error: 'each tierRamp phase needs a tiers array of band keys' };
+        }
+      }
+    }
   }
   if (o.captainInvites !== undefined && typeof o.captainInvites !== 'boolean') {
     return { error: 'rules.captainInvites must be a boolean' };
+  }
+  if (o.teamChoice !== undefined && typeof o.teamChoice !== 'boolean') {
+    return { error: 'rules.teamChoice must be a boolean' };
   }
   if (o.startProof !== undefined && o.startProof !== null) {
     const s = o.startProof as {
@@ -432,7 +521,8 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     canonical.pickSeconds === 0 &&
     canonical.mission === null &&
     canonical.startProof === null &&
-    !canonical.captainInvites;
+    !canonical.captainInvites &&
+    !canonical.teamChoice;
   return { rules: isDefault ? null : JSON.stringify(canonical) };
 }
 

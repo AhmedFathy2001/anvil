@@ -6,8 +6,8 @@
 
 import { cache } from 'react';
 import { db } from '@/db';
-import { events, eventSignups, payouts, eventParticipants, surveyQuestions, surveyResponses, teams, tiles } from '@/db/schema';
-import { and, count, eq, isNotNull } from 'drizzle-orm';
+import { events, eventSignups, payouts, surveyQuestions, surveyResponses, teams, tiles, eventParticipants } from '@/db/schema';
+import { and, count, eq, isNotNull, isNull, or } from 'drizzle-orm';
 import { eventTileCount } from '@/lib/utils';
 import { computeStartReadiness, startBlockerLabel } from '@/lib/eventReadiness';
 import type { StageCounts } from '@/lib/eventStage';
@@ -31,7 +31,13 @@ export const getStageCounts = cache(async (eventId: number): Promise<StageCounts
     [questionRow],
     [responseRow],
   ] = await Promise.all([
-    db.select({ n: count() }).from(tiles).where(eq(tiles.eventId, eventId)),
+    // BOARD tiles only. A mission isn't a cell on the board — it's announced mid-event and scores
+    // as a bonus outside the board total (lib/boardScoring) — so counting it here would report a
+    // 5×5 as a 27-tile board and read as "2 tiles over" against expectedTiles.
+    db
+      .select({ n: count() })
+      .from(tiles)
+      .where(and(eq(tiles.eventId, eventId), or(isNull(tiles.mission), eq(tiles.mission, 0)))),
     db.select({ n: count() }).from(teams).where(eq(teams.eventId, eventId)),
     db
       .select({ n: count() })

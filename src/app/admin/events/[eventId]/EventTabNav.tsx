@@ -8,6 +8,8 @@ interface Props {
   // Bingo editors author tiles only — they see just the Tiles tab (the other surfaces are
   // admin-only and their write APIs reject editors anyway).
   tilesOnly?: boolean;
+  /** A board treasurer sees the two money tabs — sign-up fees and payouts. */
+  moneyOnly?: boolean;
   /** What this board calls its entries (lib/tileAuthoring) — a ladder's are Tasks, not Tiles. */
   taskNounPlural?: string;
 }
@@ -24,14 +26,17 @@ const TABS = [
   { slug: 'survey', label: 'Survey' },
 ] as const;
 
-export default function EventTabNav({ eventId, tilesOnly = false, taskNounPlural = 'Tiles' }: Props) {
-  // Clan-relative: these hrefs are bare paths, and the browser is at /c/<slug>/… ,
-
-  // so comparing against the raw pathname never matches and no tab looks active.
-
+export default function EventTabNav({ eventId, tilesOnly = false, moneyOnly = false, taskNounPlural = 'Tiles' }: Props) {
+  // Clan-relative: these hrefs are bare paths and the browser is at /c/<slug>/… , so a raw
+  // pathname comparison never matches and no tab ever looks active.
   const pathname = useClanRelativePath();
   const base = `/admin/events/${eventId}`;
-  const tabs = (tilesOnly ? TABS.filter((t) => t.slug === 'tiles') : TABS).map((t) =>
+  const visible = tilesOnly
+    ? TABS.filter((t) => t.slug === 'tiles')
+    : moneyOnly
+      ? TABS.filter((t) => t.slug === 'signups' || t.slug === 'payouts')
+      : TABS;
+  const tabs = visible.map((t) =>
     t.slug === 'tiles' ? { ...t, label: taskNounPlural } : t,
   );
 

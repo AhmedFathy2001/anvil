@@ -3,7 +3,7 @@ import { requireEventForPage } from '@/lib/eventScope';
 import { events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
-import { verifyAdminOrModerator } from '@/lib/auth';
+import { verifyEventTreasurer } from '@/lib/auth';
 import PayoutsClient from './PayoutsClient';
 import { clanHref } from '@/lib/clanPath';
 
@@ -14,14 +14,13 @@ export default async function EventPayoutsPage({
 }: {
   params: Promise<{ eventId: string }>;
 }) {
-  const session = await verifyAdminOrModerator();
-  if (!session) redirect(await clanHref('/admin'));
-
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
 
-  // Whose event is this? Ids are global and this one came from the URL.
-  await requireEventForPage(id);
+  // Per board, not per clan: this is the page a treasurer granted one event actually comes for.
+  const session = await verifyEventTreasurer(id);
+  if (!session) redirect(await clanHref('/admin'));
+
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!event) notFound();
 

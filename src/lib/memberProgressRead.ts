@@ -1,7 +1,8 @@
 import { db } from '@/db';
-import { memberProgress } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { memberProgress, memberProgressItems } from '@/db/schema';
+import { and, eq } from 'drizzle-orm';
 import { progressSummary, type ProgressSummary } from '@/lib/memberProgress';
+import { parseItems, type ItemCategory, type ProgressItem } from '@/lib/memberProgressItems';
 
 // The database half of lib/memberProgress, kept apart so the registry and its rules stay importable
 // from tests and from the client without dragging a connection along.
@@ -13,4 +14,28 @@ export async function getMemberProgress(clanMemberId: number): Promise<ProgressS
     .from(memberProgress)
     .where(eq(memberProgress.accountId, clanMemberId));
   return progressSummary(rows);
+}
+
+export interface MemberItemSet {
+  items: ProgressItem[];
+  done: number;
+  total: number;
+  updatedAt: string | null;
+}
+
+/** One member's item list for a category — the quests they've done, and which they haven't. */
+export async function getMemberItems(
+  clanMemberId: number,
+  category: ItemCategory,
+): Promise<MemberItemSet | null> {
+  const row = await db.query.memberProgressItems.findFirst({
+    where: and(
+      eq(memberProgressItems.accountId, clanMemberId),
+      eq(memberProgressItems.category, category),
+    ),
+  });
+  if (!row) return null;
+  const items = parseItems(row.payload);
+  if (items.length === 0) return null;
+  return { items, done: row.doneCount, total: row.totalCount, updatedAt: row.updatedAt };
 }

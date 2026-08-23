@@ -18,6 +18,7 @@ import LiveFixPanel from './LiveFixPanel';
 import type { RecordedTeamResult } from '@/lib/adminEventsOverview';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
+import { scoreTeams } from '@/lib/boardScoring';
 
 /** One superlative, flattened for display — see lib/eventRecap. */
 export interface RecapAwardSummary {
@@ -97,20 +98,20 @@ export default function OverviewClient({
   // a second request. Mirrors lib/statStandings: optional tiles don't score, and a points board
   // uses each completion's frozen award where it has one.
   const standings = useMemo(() => {
-    const weight = new Map(
-      localTiles.filter((t) => !t.optional).map((t) => [t.id, pointsMode ? (t.points ?? 0) : 1]),
+    const scored = new Map(
+      scoreTeams({
+        scoringMode: pointsMode ? 'points' : 'tiles',
+        tiles: localTiles,
+        completions: liveCompletions,
+        teams,
+      }).map((s) => [s.teamId, s]),
     );
     return teams
       .map((team) => ({
         team,
-        score: liveCompletions
-          .filter((c) => c.teamId === team.id && weight.has(c.tileId))
-          .reduce(
-            (sum, c) =>
-              sum + (pointsMode && c.awardedPoints != null ? c.awardedPoints : weight.get(c.tileId) ?? 0),
-            0,
-          ),
-        tiles: liveCompletions.filter((c) => c.teamId === team.id && weight.has(c.tileId)).length,
+        score: scored.get(team.id)?.score ?? 0,
+        bonus: scored.get(team.id)?.bonusScore ?? 0,
+        tiles: liveCompletions.filter((c) => c.teamId === team.id).length,
       }))
       .sort((a, b) => b.score - a.score || a.team.name.localeCompare(b.team.name));
   }, [teams, liveCompletions, localTiles, pointsMode]);
@@ -486,7 +487,7 @@ function RunHome({
   counts: StageCounts;
   problems: BoardProblem[];
   hasStatTiles: boolean;
-  standings: { team: Team; score: number; tiles: number }[];
+  standings: { team: Team; score: number; bonus: number; tiles: number }[];
   topScore: number;
   pointsMode: boolean;
   streamConnected: boolean;
@@ -632,7 +633,7 @@ function WrapHome({
 }: {
   event: Event;
   counts: StageCounts;
-  standings: { team: Team; score: number; tiles: number }[];
+  standings: { team: Team; score: number; bonus: number; tiles: number }[];
   recorded: RecordedTeamResult[];
   awards: RecapAwardSummary[];
   pointsMode: boolean;
@@ -794,7 +795,7 @@ function StandingsPanel({
   topScore,
   pointsMode,
 }: {
-  standings: { team: Team; score: number; tiles: number }[];
+  standings: { team: Team; score: number; bonus: number; tiles: number }[];
   topScore: number;
   pointsMode: boolean;
 }) {
@@ -823,6 +824,8 @@ function StandingsPanel({
             </span>
             <span className={`tabular-nums text-xs ${i === 0 ? 'text-gold' : 'text-text-muted'}`}>
               {row.score.toLocaleString()} {pointsMode ? 'pts' : ''}
+              {/* Mission points are inside that number but outside the board total, so say so. */}
+              {row.bonus > 0 && <span className="text-purple-300/80"> (+{row.bonus})</span>}
             </span>
           </div>
         ))}

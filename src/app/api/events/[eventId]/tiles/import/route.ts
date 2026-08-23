@@ -26,7 +26,7 @@ import { collectionDisplayTotal } from '@/lib/collectionSets';
 //
 // JSON body: { rows: Array<{
 //   label?, description?, tileType?, requiredAmount?, points?, category?,
-//   optional?, trackedStat?, statType?, statGoal?,
+//   optional?, trackedStat?, statType?, statGoal?, statBasis?,
 //   targetNpcs?, timedActivity?, timeThresholdSeconds?, items?
 // }> }
 // or multipart/form-data with `file` = the downloaded .xlsx workbook (only its Tiles
@@ -43,6 +43,7 @@ interface ImportRow {
   trackedStat?: string | null;
   statType?: string | null;
   statGoal?: number | null;
+  statBasis?: string | null;
   targetNpcs?: string[] | null;
   timedActivity?: string | null;
   timeThresholdSeconds?: number | null;
@@ -305,6 +306,14 @@ function tileFieldsFromRow(row: ImportRow, allowPreStart: boolean, derived: Deri
   if (row.trackedStat !== undefined) s.trackedStat = row.trackedStat || null;
   if (row.statType !== undefined) s.statType = row.statType || null;
   if (row.statGoal !== undefined) s.statGoal = row.statGoal ?? null;
+  // Anything but the explicit opt-in is a gain tile — a stray value must never silently re-interpret
+  // a board's scoring on import. A milestone tile is also settled per member by definition, so it
+  // carries the tracking mode the server will actually use rather than a 'team' that never applies.
+  if (row.statBasis !== undefined) {
+    const milestone = row.statBasis === 'milestone';
+    s.statBasis = milestone ? 'milestone' : 'gain';
+    if (milestone) s.trackingMode = 'individual';
+  }
   if (row.targetNpcs !== undefined) {
     s.targetNpcs = row.targetNpcs && row.targetNpcs.length > 0
       ? JSON.stringify(row.targetNpcs.map((n) => n.trim()))

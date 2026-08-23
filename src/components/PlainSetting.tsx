@@ -11,11 +11,15 @@ interface PlainSettingProps {
   label: string;
   placeholder?: string;
   helpText?: string;
+  /** Render a textarea instead of a one-line input — for prose settings like the house rules. */
+  multiline?: boolean;
+  /** Textarea height in rows. Ignored unless `multiline`. */
+  rows?: number;
 }
 
 // A single labelled text setting backed by the settings table — no webhook create/test, unlike
 // WebhookField. Used for plain values like the Discord invite URL or a role ID.
-export default function PlainSetting({ settingKey, label, placeholder, helpText }: PlainSettingProps) {
+export default function PlainSetting({ settingKey, label, placeholder, helpText, multiline, rows = 10 }: PlainSettingProps) {
   const [value, setValue] = useState('');
   const [original, setOriginal] = useState('');
   const [loading, setLoading] = useState(true);
@@ -70,13 +74,24 @@ export default function PlainSetting({ settingKey, label, placeholder, helpText 
         <label htmlFor={`setting-${settingKey}`} className="block text-sm font-medium mb-2">
           {label}
         </label>
-        <Input
-          id={`setting-${settingKey}`}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder={placeholder}
-          className="w-full px-3 py-2 bg-bg border border-card-border rounded-lg text-sm focus:outline-none focus:border-gold"
-        />
+        {multiline ? (
+          <textarea
+            id={`setting-${settingKey}`}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={placeholder}
+            rows={rows}
+            className="w-full px-3 py-2 bg-bg border border-card-border rounded-lg text-sm focus:outline-none focus:border-gold font-mono leading-relaxed"
+          />
+        ) : (
+          <Input
+            id={`setting-${settingKey}`}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={placeholder}
+            className="w-full px-3 py-2 bg-bg border border-card-border rounded-lg text-sm focus:outline-none focus:border-gold"
+          />
+        )}
         {helpText && <p className="text-xs text-text-muted mt-1">{helpText}</p>}
       </div>
 

@@ -37,7 +37,12 @@ export async function POST(
     return NextResponse.json({ error: 'Fee not found' }, { status: 404 });
   }
 
-  const result = await applyFeeConfirmation(id, session.userId);
+  // FORCE: settle it now, whatever the rule says. An admin who is the only person handling money
+  // can otherwise never close a fee they collected themselves — the second signature is never
+  // coming, and the alternatives are lying about who collected it or leaving it open forever. It
+  // stays deliberate (a separate button, admin only) and it lands in the audit line below.
+  const force = (await _request.json().catch(() => null))?.force === true;
+  const result = await applyFeeConfirmation(id, session.userId, force ? { auto: true } : undefined);
   if (result.outcome === 'own-collection') {
     return NextResponse.json(
       { error: "You collected this fee, so another admin must confirm it." },

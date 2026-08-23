@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import type { BroadcastChannel } from '@/lib/discord-broadcast';
 import WebhookField from '@/components/WebhookField';
 import DiscordBotSettings from '@/components/DiscordBotSettings';
+import DiscordLanguageSetting from '@/components/DiscordLanguageSetting';
 import DiscordRoleSyncSettings from '@/components/DiscordRoleSyncSettings';
 import DiscordAssignedRoles from '@/components/DiscordAssignedRoles';
 import DiscordTeamChannelSettings from '@/components/DiscordTeamChannelSettings';
@@ -51,7 +53,14 @@ function FieldHeader({ title, children }: { title: string; children?: ReactNode 
 // tab state is interactive; `channels`/`botEnabled` are fetched server-side and passed to every
 // WebhookField (which is why this isn't just a server component).
 export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps) {
-  const [tab, setTab] = useState<TabId>('bot');
+  // ?tab=fees opens straight on that group. The fee settings are the ones people are sent here FOR
+  // (from the fees page, which is where the question "how many sign-offs?" actually comes up), and
+  // landing on the bot tab with no idea which of six groups holds it is how a setting stays unfound.
+  const params = useSearchParams();
+  const requested = params.get('tab');
+  const [tab, setTab] = useState<TabId>(
+    TABS.some((t) => t.id === requested) ? (requested as TabId) : 'bot',
+  );
 
   return (
     <div>
@@ -94,6 +103,9 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
               placeholder="https://discord.gg/your-invite"
               helpText="Shown as the Discord link in the top nav and on the home page. Hidden when blank."
             />
+          </div>
+          <div className="border-t border-card-border pt-5">
+            <DiscordLanguageSetting />
           </div>
         </Card>
       )}
@@ -304,6 +316,30 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
               Kill times, XP rates and skill floors behind the Tiles tab&apos;s effort model — tune them to your clan.
             </FieldHeader>
             <BalanceRatesSetting />
+          </Card>
+          <Card>
+            <FieldHeader title="House rules">
+              Your clan&apos;s own rules, in your words — what the Discord bot lays out on{' '}
+              <code className="text-gold">/bingo rules</code>. How each board scores (points, lockout, reveals,
+              starting shot) is read off the event itself and never typed here, so this is only the prose:
+              screenshots, plugin use, what counts as cheating.
+            </FieldHeader>
+            <PlainSetting
+              settingKey="board_rules"
+              label="House rules"
+              multiline
+              rows={12}
+              placeholder={'Keep a screenshot of every drop.\nRun the plugin if you can.\nDon\'t cheat — it\'s for fun.'}
+              helpText="Discord markdown works (**bold**, bullet lists). Long rulesets are trimmed to fit an embed, so put the essentials first and link the rest below."
+            />
+            <div className="border-t border-card-border pt-4 mt-4">
+              <PlainSetting
+                settingKey="board_rules_url"
+                label="Full rules link"
+                placeholder="https://…"
+                helpText="Where the complete ruleset lives. Shown under the house rules in Discord, and the fallback when they're too long to post in full."
+              />
+            </div>
           </Card>
         </div>
       )}

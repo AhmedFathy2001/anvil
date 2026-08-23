@@ -1,6 +1,6 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
-import { settings } from '@/db/schema';
+import { settings, teams } from '@/db/schema';
 
 // The single way in and out of the `settings` key/value table.
 //

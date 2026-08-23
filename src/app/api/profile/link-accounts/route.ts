@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { players } from '@/db/schema';
+import { players, accounts } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
 
 // PATCH /api/profile/link-accounts — { link: boolean }

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
-import { clanRoster, events, eventParticipants, teams } from '@/db/schema';
+import { clanRoster, events, eventParticipants, teams, users } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
 import { eq, and, inArray, isNull } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain, verifyUser, resolveTeamMembership } from '@/lib/auth';
@@ -123,6 +123,38 @@ export async function POST(
   }
   if (player.teamId !== null) {
     return NextResponse.json({ error: 'Player has already been picked' }, { status: 400 });
+  }
+
+  // A captain is not draftable. Seating one on their own team normally takes them out of the pool
+  // the moment they're named, but that can fail quietly (no verified RSN yet, added to the event
+  // afterwards), and a captain sitting in the pool is a captain another team can draft — which
+  // ends with two captains on one team and one team with none.
+  if (player.clanMemberId != null) {
+    // clan_roster is a VIEW — not in db.query, which needs a table.
+    const owner = await findRosterSeat(eq(clanRoster.id, player.clanMemberId));
+    // clan_roster names the PERSON; a captain seat is held by a LOGIN, so resolve across.
+    const ownerLogin = owner?.playerId != null
+      ? await db.query.users.findFirst({ where: eq(users.playerId, owner.playerId) })
+      : null;
+    const ownerUserId = ownerLogin?.id ?? -1;
+    if (owner?.playerId != null) {
+      const captains = await db
+        .select({ id: teams.id, name: teams.name })
+        .from(teams)
+        .where(and(eq(teams.eventId, eId), eq(teams.captainUserId, ownerUserId)));
+      const ownTeam = captains[0];
+      if (ownTeam) {
+        return NextResponse.json(
+          {
+            error:
+              ownTeam.id === expectedTeamId
+                ? `${player.name} captains this team — they're already yours, not a pick.`
+                : `${player.name} captains ${ownTeam.name} and can't be drafted.`,
+          },
+          { status: 400 },
+        );
+      }
+    }
   }
 
   // Tiered-snake coverage: no second S while a team has none (same for A). Admins can override —

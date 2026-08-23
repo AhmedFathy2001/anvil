@@ -1,16 +1,18 @@
 import { NextResponse } from 'next/server';
+import { atLeast } from '@/lib/clanRoles';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { eventEditors, events, users, clanAuditLog } from '@/db/schema';
 import { and, eq, desc } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
-import { grantEventEditor, revokeEventEditor } from '@/lib/eventEditors';
-import { atLeast } from '@/lib/clanRoles';
+import { grantEventEditor, revokeEventEditor, type BoardRole } from '@/lib/eventEditors';
 
-// Board-scoped tile-editing grants for one event. Admin-only — this hands out authoring access.
-// GET   → current board editors + assignable users
-// POST  { userId }  → grant board editing (auto-provisions login access for a plain member)
-// DELETE ?userId=   → revoke (auto-demotes a scoped editor with no grants left back to member)
+// Board-scoped staff grants for one event. Admin-only — this hands out authoring or money access.
+// GET   → current grants (with their job) + assignable users
+// POST  { userId, role? }   → grant 'editor' (tiles) or 'treasurer' (fees + payouts) on this board;
+//                             auto-provisions login access for a plain member
+// DELETE ?userId=&role=     → revoke one job (or, with no role, every grant this person has here);
+//                             auto-demotes a scoped grantee with nothing left back to member
 
 async function loadEvent(eventId: number) {
   return db.query.events.findFirst({ where: eq(events.id, eventId), columns: { id: true, name: true } });
@@ -37,6 +39,7 @@ export async function GET(
   const grants = await db
     .select({
       userId: eventEditors.userId,
+      boardRole: eventEditors.role,
       createdAt: eventEditors.createdAt,
       displayName: users.displayName,
       discordUsername: users.discordUsername,
@@ -82,10 +85,14 @@ export async function POST(
   if (!Number.isFinite(eId)) return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
   if (!(await loadEvent(eId))) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
-  const { userId } = await request.json().catch(() => ({}));
+  const { userId, role } = await request.json().catch(() => ({}));
   if (typeof userId !== 'number' || !Number.isInteger(userId)) {
     return NextResponse.json({ error: 'userId (number) is required' }, { status: 400 });
   }
+  if (role !== undefined && role !== 'editor' && role !== 'treasurer') {
+    return NextResponse.json({ error: "role must be 'editor' or 'treasurer'" }, { status: 400 });
+  }
+  const boardRole: BoardRole = role === 'treasurer' ? 'treasurer' : 'editor';
   const target = await db.query.users.findFirst({
     where: eq(users.id, userId),
     columns: { id: true, banned: true },
@@ -93,12 +100,12 @@ export async function POST(
   if (!target) return NextResponse.json({ error: 'User not found' }, { status: 404 });
   if (target.banned) return NextResponse.json({ error: 'User is banned' }, { status: 400 });
 
-  await grantEventEditor(eId, userId, session.userId > 0 ? session.userId : null);
+  await grantEventEditor(eId, userId, session.userId > 0 ? session.userId : null, boardRole);
 
   db.insert(clanAuditLog)
     .values({
-      eventType: 'editor_granted',
-      newValue: JSON.stringify({ userId, eventId: eId }),
+      eventType: boardRole === 'treasurer' ? 'board_treasurer_granted' : 'editor_granted',
+      newValue: JSON.stringify({ userId, eventId: eId, role: boardRole }),
       actorUserId: session.userId > 0 ? session.userId : null,
     })
     .catch(() => {});
@@ -122,23 +129,31 @@ export async function DELETE(
   }
   if (!Number.isFinite(eId)) return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
 
-  const userId = parseInt(new URL(request.url).searchParams.get('userId') ?? '', 10);
+  const params_ = new URL(request.url).searchParams;
+  const userId = parseInt(params_.get('userId') ?? '', 10);
   if (!Number.isFinite(userId)) {
     return NextResponse.json({ error: 'userId query param is required' }, { status: 400 });
   }
+  const roleParam = params_.get('role');
+  if (roleParam !== null && roleParam !== 'editor' && roleParam !== 'treasurer') {
+    return NextResponse.json({ error: "role must be 'editor' or 'treasurer'" }, { status: 400 });
+  }
+  const boardRole = (roleParam ?? undefined) as BoardRole | undefined;
   // Only touch a grant that actually exists so the audit log stays truthful.
   const existing = await db.query.eventEditors.findFirst({
-    where: and(eq(eventEditors.eventId, eId), eq(eventEditors.userId, userId)),
+    where: boardRole
+      ? and(eq(eventEditors.eventId, eId), eq(eventEditors.userId, userId), eq(eventEditors.role, boardRole))
+      : and(eq(eventEditors.eventId, eId), eq(eventEditors.userId, userId)),
     columns: { id: true },
   });
   if (!existing) return NextResponse.json({ ok: true });
 
-  await revokeEventEditor(eId, userId);
+  await revokeEventEditor(eId, userId, boardRole);
 
   db.insert(clanAuditLog)
     .values({
-      eventType: 'editor_revoked',
-      oldValue: JSON.stringify({ userId, eventId: eId }),
+      eventType: boardRole === 'treasurer' ? 'board_treasurer_revoked' : 'editor_revoked',
+      oldValue: JSON.stringify({ userId, eventId: eId, role: boardRole ?? 'all' }),
       actorUserId: session.userId > 0 ? session.userId : null,
     })
     .catch(() => {});

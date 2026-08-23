@@ -33,6 +33,9 @@ const FEE_BADGE: Record<string, { label: string; cls: string }> = {
   collected: { label: 'Collected', cls: 'bg-blue-500/15 text-blue-400' },
   confirmed: { label: 'Paid', cls: 'bg-accent-green/15 text-accent-green-light' },
   disputed: { label: 'Disputed', cls: 'bg-red-500/15 text-red-400' },
+  // The board ended with this one never paid, and the host wrote it off. Says so plainly rather
+  // than leaving a "Fee due" nag on an event that's been over for months.
+  closed: { label: 'Closed', cls: 'bg-text-muted/15 text-text-muted' },
 };
 
 export default async function MyTeamsHubPage() {
@@ -175,7 +178,8 @@ export default async function MyTeamsHubPage() {
   const activeSignups = signupRows.filter((s) => {
     if (s.forceEndedAt || (s.endDate && s.endDate < now)) return false;
     const started = s.startDate != null && s.startDate <= now;
-    const feeResolved = !s.feeStatus || s.feeStatus === 'collected' || s.feeStatus === 'confirmed';
+    const feeResolved =
+      !s.feeStatus || s.feeStatus === 'collected' || s.feeStatus === 'confirmed' || s.feeStatus === 'closed';
     if (started && s.status === 'approved' && feeResolved) return false;
     return true;
   });
@@ -224,6 +228,9 @@ export default async function MyTeamsHubPage() {
         proof,
       });
       if (!state.location || !state.keyword) continue;
+      // The ask lapses six hours after the start (lib/startProof): the game has force-logged
+      // everyone by then, so there is no stack left to prove anything about. Stop nagging.
+      if (!state.windowOpen) continue;
       startProofCards.push({
         key: `${r.eventId}-${r.playerId}`,
         eventId: r.eventId,

@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { clanRoster, eventSignups } from '@/db/schema';
+import { clanRoster, eventSignups, players } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { parseProfile, type SignupProfile } from './signup';
 

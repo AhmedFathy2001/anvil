@@ -1,6 +1,7 @@
 'use client';
 
 import type { Event, Tile, Team, Completion, Submission, Player, PlayerGain } from '@/lib/types';
+import { clanFetch } from '@/lib/clanFetch';
 import type { PlayerRecap } from '@/lib/eventRecap';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import EventBoard from '@/components/EventBoard';
@@ -10,8 +11,8 @@ import LocalTime from '@/components/LocalTime';
 import { useCountdown } from '@/hooks/useCountdown';
 import { useDropProgress } from '@/hooks/useDropProgress';
 import { BoardSkeleton, ErrorBanner } from '@/components/BoardSkeleton';
-import { tileWeight, isPointsMode } from '@/lib/utils';
-import { clanFetch } from '@/lib/clanFetch';
+import { isPointsMode } from '@/lib/utils';
+import { scoreTeam } from '@/lib/boardScoring';
 
 interface Props {
   event: Event;
@@ -135,18 +136,15 @@ export default function PlayerDashboardClient({ event, team, tiles, completions:
   }
 
   const pointsMode = isPointsMode(event.scoringMode);
-  const weightById = useMemo(
-    () => new Map(tiles.map((t) => [t.id, tileWeight(event.scoringMode, t.points)])),
-    [tiles, event.scoringMode],
+  // Scored by lib/boardScoring, so this dashboard shows the same number as the scoreboard — and
+  // stops counting optional tiles toward the total, which it did on its own.
+  const score = useMemo(
+    () => scoreTeam({ scoringMode: event.scoringMode, tiles, completions, teamId: team.id }),
+    [event.scoringMode, tiles, completions, team.id],
   );
-  const completed = pointsMode
-    // Frozen awardedPoints (first-team bonus / reveal decay) wins over the live tile weight.
-    ? completions.reduce((sum, c) => sum + (c.awardedPoints != null ? c.awardedPoints : weightById.get(c.tileId) || 0), 0)
-    : completions.length;
-  const total = pointsMode
-    ? tiles.reduce((sum, t) => sum + tileWeight(event.scoringMode, t.points), 0)
-    : tiles.length;
-  const percentage = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
+  const completed = score.score;
+  const total = score.total;
+  const percentage = score.pct;
 
   const selectedTile = tiles.find((t) => t.id === selectedTileId);
   const selectedTileSubmissions = submissions.filter((s) => s.tileId === selectedTileId);

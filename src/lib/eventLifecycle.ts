@@ -8,7 +8,8 @@ import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
 import { getEventRecap } from '@/lib/eventRecap';
 import { writePlayerEventFacts } from '@/lib/playerEventFacts';
 import { processTileReveals } from '@/lib/revealEngine';
-import { parseEventRules, visibleTiles, isTileRevealed } from '@/lib/eventRules';
+import { parseEventRules, isTileRevealed } from '@/lib/eventRules';
+import { scoreTeams } from '@/lib/boardScoring';
 import { drawStartLocation } from '@/lib/startProof';
 import { log } from '@/lib/logger';
 
@@ -224,20 +225,19 @@ export async function processEventLifecycleNotifications(): Promise<void> {
       // bonus / decay) score their frozen awardedPoints; reveal-policy events count only
       // tiles that actually went live in the total (never-revealed tiles were never in play).
       const rules = parseEventRules(event.rules);
-      const pointsMode = event.scoringMode === 'points';
-      const scoredTiles = visibleTiles(rules, eventTiles).filter((t) => !t.optional);
-      const weightById = new Map(scoredTiles.map((t) => [t.id, pointsMode ? (t.points ?? 0) : 1]));
-      const totalScore = scoredTiles.reduce((sum, t) => sum + (pointsMode ? (t.points ?? 0) : 1), 0);
-
-      const standings = eventTeams.map((team) => {
-        const teamScore = eventCompletions
-          .filter((c) => c.teamId === team.id && weightById.has(c.tileId))
-          .reduce(
-            (sum, c) => sum + (pointsMode && c.awardedPoints != null ? c.awardedPoints : weightById.get(c.tileId) || 0),
-            0,
-          );
-        return { teamName: team.name, tilesCompleted: teamScore };
+      const scored = scoreTeams({
+        scoringMode: event.scoringMode,
+        rules,
+        tiles: eventTiles,
+        completions: eventCompletions,
+        teams: eventTeams,
       });
+      const totalScore = scored[0]?.total ?? 0;
+      const standings = scored.map((s) => ({
+        teamName: eventTeams.find((t) => t.id === s.teamId)?.name ?? '',
+        // The final post ranks on everything earned, mission bonus included.
+        tilesCompleted: s.score,
+      }));
 
       // Fun superlatives for the end post (MVP, biggest drop, most kills, …). Best-effort — a recap
       // hiccup must never block the actual "event ended" announcement.
@@ -261,8 +261,10 @@ export async function processEventLifecycleNotifications(): Promise<void> {
         eventId: event.id,
         eventName: event.name,
         standings,
-        totalTiles: pointsMode ? totalScore : scoredTiles.length,
-        unit: pointsMode ? 'pts' : 'tiles',
+        // In classic mode a tile weighs 1, so the scored total IS the tile count — one number
+        // covers both modes, and `unit` says which it is.
+        totalTiles: totalScore,
+        unit: scored[0]?.unit ?? (event.scoringMode === 'points' ? 'pts' : 'tiles'),
         superlatives,
       });
 

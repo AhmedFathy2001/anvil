@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { seatForRequest } from '@/lib/roster';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
-import { accounts, clanMemberships, clanRoster } from '@/db/schema';
+import { accounts, clanMemberships } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
 import { eq } from 'drizzle-orm';
 

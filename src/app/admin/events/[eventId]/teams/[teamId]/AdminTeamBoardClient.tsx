@@ -7,7 +7,8 @@ import EventBoard from '@/components/EventBoard';
 import BoardFilters from '@/components/BoardFilters';
 import TileDetailModal from '@/components/TileDetailModal';
 import { useDropProgress } from '@/hooks/useDropProgress';
-import { tileWeight, isPointsMode } from '@/lib/utils';
+import { isPointsMode } from '@/lib/utils';
+import { scoreTeam } from '@/lib/boardScoring';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
@@ -111,17 +112,10 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
   const { dropProgress, perItemProgressMap } = useDropProgress(tiles, submissions);
 
   const pointsMode = isPointsMode(event.scoringMode);
-  // Optional tiles are bonus — they don't count toward the score or the total (matches the
-  // scoreboard, stats and the rest of the app).
-  const scoredTiles = tiles.filter((t) => !t.optional);
-  const scoredTileIds = new Set(scoredTiles.map((t) => t.id));
-  const weightById = new Map(tiles.map((t) => [t.id, tileWeight(event.scoringMode, t.points)]));
-  const completed = pointsMode
-    ? completions.reduce((sum, c) => sum + (scoredTileIds.has(c.tileId) ? (weightById.get(c.tileId) || 0) : 0), 0)
-    : completions.filter((c) => scoredTileIds.has(c.tileId)).length;
-  const total = pointsMode
-    ? scoredTiles.reduce((sum, t) => sum + tileWeight(event.scoringMode, t.points), 0)
-    : scoredTiles.length;
+  // Scored by lib/boardScoring, so what staff see here matches the public board and the payouts.
+  const score = scoreTeam({ scoringMode: event.scoringMode, tiles, completions, teamId: team.id });
+  const completed = score.score;
+  const total = score.total;
 
   const selectedTile = tiles.find((t) => t.id === selectedTileId);
   const selectedTileSubmissions = submissions.filter((s) => s.tileId === selectedTileId);

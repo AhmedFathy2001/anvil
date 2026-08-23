@@ -3,7 +3,7 @@ import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { payouts } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
-import { verifyFeeCollector } from '@/lib/auth';
+import { verifyEventTreasurer } from '@/lib/auth';
 import { del } from '@/lib/storage';
 
 // POST — revert a payout back to pending: clears the paid marker and deletes any proof screenshot.
@@ -11,10 +11,6 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string; payoutId: string }> },
 ) {
-  if (!(await verifyFeeCollector())) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   const { eventId, payoutId } = await params;
   const eId = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.
@@ -24,6 +20,10 @@ export async function POST(
   const id = parseInt(payoutId, 10);
   if (!Number.isFinite(eId) || !Number.isFinite(id)) {
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+  }
+  // Event-scoped: an admin, a clan treasurer, or this board's own treasurer.
+  if (!(await verifyEventTreasurer(eId))) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const payout = await db.query.payouts.findFirst({

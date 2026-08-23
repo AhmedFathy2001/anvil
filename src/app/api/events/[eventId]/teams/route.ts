@@ -6,7 +6,7 @@ import { teams, events, users } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain } from '@/lib/auth';
 import { updateTeamDiscordIdentity } from '@/lib/discord-teams';
-import { placeCaptainOnTeam } from '@/lib/teamCaptain';
+import { captainSeatNotice, placeCaptainOnTeam } from '@/lib/teamCaptain';
 import { assertEventEditable } from '@/lib/eventLock';
 
 export async function GET(
@@ -107,8 +107,10 @@ export async function POST(
   }).returning();
 
   // Seat the captain on their own team (if they're a contestant in this event) so they show
-  // in the roster and don't sit in the draft pool waiting to be picked onto themselves.
-  await placeCaptainOnTeam(id, team.id, captainUserIdInt);
+  // in the roster and don't sit in the draft pool waiting to be picked onto themselves. When that
+  // can't happen the team is still created — the reason rides back with it, because a captain who
+  // was quietly not entered finds out by being told to go and sign up.
+  const seat = await placeCaptainOnTeam(id, team.id, captainUserIdInt);
 
   // If a draft order was already saved, fold the new team in (at the end) so the order
   // never silently drops teams created after it was first set.
@@ -124,7 +126,7 @@ export async function POST(
   }
 
   const { captainPassword: _, ...safeTeam } = team;
-  return NextResponse.json(safeTeam, { status: 201 });
+  return NextResponse.json({ ...safeTeam, captainNotice: captainSeatNotice(seat) }, { status: 201 });
 }
 
 export async function DELETE(
@@ -292,8 +294,9 @@ export async function PATCH(
 
   // If the captain seat changed, seat the new captain on this team (same rule as create —
   // only when they're an unassigned contestant in the event).
+  let captainNotice: string | null = null;
   if (updateData.captainUserId != null && updateData.captainUserId !== team.captainUserId) {
-    await placeCaptainOnTeam(eId, teamId, updateData.captainUserId);
+    captainNotice = captainSeatNotice(await placeCaptainOnTeam(eId, teamId, updateData.captainUserId));
   }
 
   // Mirror the rebrand onto Discord (role name/color + channel names) — fire-and-forget,
@@ -301,5 +304,5 @@ export async function PATCH(
   updateTeamDiscordIdentity(teamId).catch(() => {});
 
   const { captainPassword: _, ...safeTeam } = updated;
-  return NextResponse.json(safeTeam);
+  return NextResponse.json({ ...safeTeam, captainNotice });
 }

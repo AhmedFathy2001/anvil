@@ -4,8 +4,8 @@ import { db } from '@/db';
 import { events, payouts, clanRoster } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
 import { eq } from 'drizzle-orm';
-import { verifyAdminOrModerator, verifyFeeCollector } from '@/lib/auth';
-import { getEventPrizePool, parsePlacementPrizes } from '@/lib/payouts';
+import { verifyEventTreasurer } from '@/lib/auth';
+import { getEventPrizePool, parsePlacementSplit, placementAmounts } from '@/lib/payouts';
 import { getTeamStandings } from '@/lib/statStandings';
 
 // Order payouts for display: by finishing place (manual/null-place rows last), then amount desc.
@@ -19,9 +19,6 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
-  if (!(await verifyAdminOrModerator())) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.
@@ -30,6 +27,10 @@ export async function GET(
   }
   if (!Number.isFinite(id)) {
     return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
+  }
+  // Event-scoped: an admin, a clan treasurer, or whoever holds THIS board's treasurer grant.
+  if (!(await verifyEventTreasurer(id))) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
@@ -48,7 +49,10 @@ export async function GET(
     standings,
     announcedAt: event.payoutsAnnouncedAt,
     allPaid,
-    placementPrizes: parsePlacementPrizes(event.placementPrizes),
+    // What each place is worth right now — a percentage split resolves against the live pool.
+    placementPrizes: placementAmounts(event, pool.total),
+    // Non-empty when the board's prizes are SHARES, so the editor opens in the right mode.
+    placementSplitPct: parsePlacementSplit(event.placementSplitPct),
   });
 }
 
@@ -58,9 +62,6 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
-  if (!(await verifyFeeCollector())) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.
@@ -69,6 +70,10 @@ export async function POST(
   }
   if (!Number.isFinite(id)) {
     return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
+  }
+  // Event-scoped: an admin, a clan treasurer, or whoever holds THIS board's treasurer grant.
+  if (!(await verifyEventTreasurer(id))) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });

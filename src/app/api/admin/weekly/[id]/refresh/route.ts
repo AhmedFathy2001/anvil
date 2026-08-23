@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { competitionForRequest } from '@/lib/eventScope';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
-import { accounts, clanMemberships, clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { accounts, clanMemberships, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { fetchParticipantStat, type CompetitionType } from '@/lib/weekly';
 import { checkRateSpike, describeRateSpike } from '@/lib/gainsValidation';

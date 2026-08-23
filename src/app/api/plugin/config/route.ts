@@ -28,7 +28,7 @@ import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import { statKeys } from '@/lib/tileKinds';
 import { lapUnitNoun } from '@/lib/constants';
 import { ROLL_TABLES, rollItemIds } from '@/lib/rollTables';
-import { isIndividualMode } from '@/lib/statTracking';
+import { isIndividualMode, isMilestoneBasis } from '@/lib/statTracking';
 import { kcNamesForKey } from '@/lib/pluginStats';
 import { isActivityKey } from '@/lib/hiscoresActivities';
 import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
@@ -36,6 +36,7 @@ import { jsonWithEtag } from '@/lib/httpEtag';
 import { serverInfo } from '@/lib/serverInfo';
 import { parseEventRules, hasRevealPolicy, nextRevealAt, nextMissionAt, isMissionTile, parseTileMissionRules } from '@/lib/eventRules';
 import { startProofState } from '@/lib/startProof';
+import { combatTaskVarps } from '@/lib/combatTasks';
 import { isLadderFormat } from '@/lib/utils';
 import { getLadderBoards, toPluginStandings, type PluginStandings } from '@/lib/ladderStandings';
 import crypto from 'crypto';
@@ -247,6 +248,9 @@ export async function GET(request: Request) {
         startProof: null,
         // Profile sync runs with or without an event, so the PB import needs its names here too.
         pbActivities: personalBestActivities(),
+        // The varps combat-achievement completion is bit-packed into. Sent from here so a game
+        // update that adds one is a data change on the server, not a plugin release.
+        caVarps: combatTaskVarps(),
         trackedStats: [],
         // With no bingo event the plugin still pushes the active SOTW/BOTW metric so weekly moves live.
         trackedKcNames: weeklyNames.kc,
@@ -446,7 +450,11 @@ export async function GET(request: Request) {
 
     let gainedTotal = 0;
     const activeWorkers: string[] = [];
-    const sources = isIndividualMode(trackingMode)
+    // A MILESTONE tile measures a lifetime total crossed during the event, and is always settled per
+    // member (lib/statTracking.milestoneState) — so its in-game progress is the CALLER's, like an
+    // individual tile, never a team sum.
+    const milestone = isMilestoneBasis(t.statBasis);
+    const sources = milestone || isIndividualMode(trackingMode)
       ? teamPlayers.filter((p) => p.id === auth.playerId)
       : teamPlayers;
 
@@ -457,6 +465,8 @@ export async function GET(request: Request) {
       // Composite trackedStat ("chambersOfXeric,chambersOfXericChallengeMode") sums the
       // per-key gains — CoX and CM clears count toward the same tile.
       let playerGained = 0;
+      let lifetime = 0;
+      let baselineTotal = 0;
       for (const part of statKeys(statName)) {
         const baseline = readStatValue(p.statsSnapshot, statType, part);
         const hiscoresCurrent = readStatValue(p.cachedStats, statType, part);
@@ -465,8 +475,16 @@ export async function GET(request: Request) {
           ? Math.max(hiscoresCurrent ?? 0, pushed ?? 0)
           : null;
         if (baseline == null || current == null) continue;
+        baselineTotal += Math.max(0, baseline);
+        lifetime += Math.max(0, current);
         const gained = current - baseline;
-        if (gained > 0) { gainedTotal += gained; playerGained += gained; }
+        if (gained > 0) { if (!milestone) gainedTotal += gained; playerGained += gained; }
+      }
+      if (milestone) {
+        // Report the caller's lifetime against the goal — but ZERO once they were already at or above
+        // it when the event started. They can never complete this tile, and a full bar that never
+        // credits is worse than an empty one: the empty bar at least matches what will happen.
+        gainedTotal = baselineTotal < goal ? Math.min(lifetime, goal) : 0;
       }
       // A teammate is "active on THIS tile" only if one of ITS stat keys actually rose within the window
       // (not merely any live push + some cumulative gain) — so a fishing burst no longer lights up their
@@ -765,6 +783,7 @@ export async function GET(request: Request) {
     // under a config scope the plugin can READ but can't LIST, so it has to ask by name — and the
     // names live here rather than in the plugin so a new boss is a dataset change, not a release.
     pbActivities: personalBestActivities(),
+    caVarps: combatTaskVarps(),
     // Null unless this event requires a starting shot (lib/startProof). Carries the drawn location,
     // this player's keyword and whether they've filed one — the plugin's button keys off it.
     startProof,

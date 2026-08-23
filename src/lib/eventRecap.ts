@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { events, teams, tiles, eventParticipants, completions, submissions } from '@/db/schema';
+import { events, teams, tiles, eventParticipants, completions, submissions, players } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import { computeEventMvp, type StatGainMap } from '@/lib/memberBreakdown';
 import { loadPlayerOwners } from '@/lib/draftProfiles';

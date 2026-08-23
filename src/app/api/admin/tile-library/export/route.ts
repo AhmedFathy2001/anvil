@@ -3,7 +3,7 @@ import { eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { events, tiles } from '@/db/schema';
+import { tiles } from '@/db/schema';
 import { verifyTileEditorAnywhere } from '@/lib/auth';
 import { listLibrary } from '@/lib/tileLibrary';
 import { tileToCsvRow, type TileCsvRow } from '@/lib/csvTiles';

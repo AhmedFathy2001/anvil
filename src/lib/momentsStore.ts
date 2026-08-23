@@ -33,7 +33,7 @@ export interface ActiveScopes {
  * removed from one shouldn't appear on its board through a side door. The event is resolved exactly
  * as the counters ingest resolves it — drafted onto a team, event neither force-ended nor past.
  */
-export async function activeScopesFor(clanMemberId: number, now: Date = new Date()): Promise<ActiveScopes> {
+export async function activeScopesFor(clanMemberId: number, clanId: number, now: Date = new Date()): Promise<ActiveScopes> {
   const nowIso = now.toISOString();
 
   const weeklyRows = await db
@@ -67,7 +67,9 @@ export async function activeScopesFor(clanMemberId: number, now: Date = new Date
     .where(eq(eventParticipants.clanMemberId, clanMemberId));
   const active = playerRows.find((p) => p.teamId && !p.forceEndedAt && (!p.endDate || p.endDate > nowIso));
 
-  const event = active ? await eventScope(active.eventId) : null;
+  // The team comes from the same row that decided the event is theirs, so the stamp and the scope
+  // can never disagree about which side they were on.
+  const event = active ? await eventScope(active.eventId, active.teamId, clanId) : null;
   return { weeklies, event };
 }
 
@@ -79,9 +81,7 @@ export async function activeScopesFor(clanMemberId: number, now: Date = new Date
  * half of it, including when nothing was credited (the tile was finished, the source was wrong, the
  * item was the other unique). That near-miss is precisely what a highlight feed is for.
  */
-async function eventScope(eventId: number): Promise<EventScope> {
-  const owner = await db.query.events.findFirst({ where: eq(events.id, eventId) });
-  const clanId = owner?.clanId ?? 0;
+async function eventScope(eventId: number, teamId: number | null, clanId: number): Promise<EventScope> {
   const rows = await db
     .select({
       sourceNpcs: tiles.sourceNpcs,
@@ -109,6 +109,7 @@ async function eventScope(eventId: number): Promise<EventScope> {
 
   return {
     id: eventId,
+    teamId,
     sources: [...sources],
     itemIds: [...itemIds],
     minLootGp: await minLootGp(clanId),
@@ -180,6 +181,7 @@ export async function recordMoments(
         kind: row.kind,
         weeklyCompetitionId: row.weeklyCompetitionId,
         eventId: row.eventId,
+        teamId: row.teamId,
         itemId: row.itemId,
         itemName: row.itemName,
         quantity: row.quantity,
@@ -212,6 +214,8 @@ export interface MomentRow {
   rarityDenominator: number | null;
   /** Combat tasks only — the feed line leads with it. */
   tier: string | null;
+  /** Which side it happened on, stamped at ingest. Null on weekly/solo moments. */
+  teamId: number | null;
   occurredAt: string;
 }
 
@@ -230,6 +234,7 @@ export async function momentsForCompetition(competitionId: number, limit = 12): 
       kc: moments.kc,
       rarityDenominator: moments.rarityDenominator,
       tier: moments.tier,
+      teamId: moments.teamId,
       occurredAt: moments.occurredAt,
     })
     .from(moments)
@@ -253,6 +258,7 @@ export async function momentsForEvent(eventId: number, limit = 20): Promise<Mome
       kc: moments.kc,
       rarityDenominator: moments.rarityDenominator,
       tier: moments.tier,
+      teamId: moments.teamId,
       occurredAt: moments.occurredAt,
     })
     .from(moments)
@@ -292,6 +298,7 @@ export async function momentsForMembers(clanMemberIds: number[], limit = 20): Pr
       kc: moments.kc,
       rarityDenominator: moments.rarityDenominator,
       tier: moments.tier,
+      teamId: moments.teamId,
       occurredAt: moments.occurredAt,
     })
     .from(moments)

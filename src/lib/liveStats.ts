@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { clanRoster } from '@/db/schema';
+import { clanRoster, eventParticipants } from '@/db/schema';
 import { inArray } from 'drizzle-orm';
 import { parsePluginStats } from '@/lib/pluginStats';
 

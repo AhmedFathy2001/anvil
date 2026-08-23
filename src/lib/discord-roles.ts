@@ -12,7 +12,7 @@
  */
 import { db } from '@/db';
 import { getSetting } from '@/lib/settings';
-import { accounts, clanAuditLog, clanMemberships, clanRoster, detectedAccounts, eventSignups, users } from '@/db/schema';
+import { accounts, clanAuditLog, clanMemberships, clanRoster, detectedAccounts, eventSignups, users, teams, settings } from '@/db/schema';
 import { findRosterSeat, personOfOrCreate, UNCLAIMED_ACCOUNT, updateAccountOfSeat } from '@/lib/roster';
 import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { log } from '@/lib/logger';
@@ -165,6 +165,17 @@ export type BotTokenSource = 'byo' | 'own-env' | 'shared' | 'none';
  * (deliberately kept OUT of the readable settings API — see /api/admin/discord/bot) so a clan can
  * point at its own bot without a redeploy, mirroring how guild ID is settings-first.
  */
+/**
+ * The SHARED application's token, with no clan involved.
+ *
+ * The platform-level callers — the app public key, the slash-command sync — describe the one Anvil
+ * Discord app rather than any clan's BYO bot, and one of them runs at boot where no clan exists.
+ * Separated from resolveBotToken so that "no clan here" is a statement rather than a null argument.
+ */
+export function sharedBotToken(): string | null {
+  return process.env.DISCORD_BOT_TOKEN?.trim() || process.env.ANVIL_SHARED_BOT_TOKEN?.trim() || null;
+}
+
 async function resolveBotToken(clanId: number): Promise<{ token: string; source: Exclude<BotTokenSource, 'none'> } | null> {
   const byo = (await getSetting(clanId, 'discord_bot_token'))?.trim();
   if (byo) return { token: byo, source: 'byo' };
@@ -1081,4 +1092,73 @@ export function syncRolesForClanMemberFireAndForget(memberId: number): void {
   syncRolesForClanMember(memberId).catch((err) => {
     log.warn('discord-roles.sync-throw', { memberId }, err);
   });
+}
+
+/**
+ * The Discord APPLICATION's Ed25519 verify key — what inbound interactions are signed with.
+ *
+ * Nobody should have to type this. It's on the application object, so the first time an interaction
+ * arrives we ask Discord for it with the bot token we already hold and cache it in settings. An env
+ * var still wins for a self-host that would rather pin it, and the cache is keyed on the app id so
+ * swapping to a different bot token re-fetches instead of verifying against the old app's key.
+ *
+ * Returns null when no bot token is configured (nothing can be verified, so the endpoint 401s).
+ */
+const APP_PUBLIC_KEY_SETTING = 'discord_app_public_key';
+
+export async function getAppPublicKey(): Promise<string | null> {
+  const fromEnv = process.env.DISCORD_PUBLIC_KEY?.trim();
+  if (fromEnv) return fromEnv;
+
+  const cached = (await readSetting(APP_PUBLIC_KEY_SETTING))?.trim();
+  if (cached) {
+    const [appId, key] = cached.split(':');
+    if (appId && key) {
+      const token = sharedBotToken();
+      // Only reuse the cache while it belongs to the app the current token authenticates as.
+      if (token && appId === applicationIdFromToken(token)) return key;
+    }
+  }
+
+  const resolved = sharedBotToken();
+  if (!resolved) return null;
+  const res = await discordRest(resolved, '/applications/@me');
+  if (!res.ok) return null;
+  const app = (await res.json().catch(() => null)) as { id?: string; verify_key?: string } | null;
+  if (!app?.verify_key || !app.id) return null;
+  await upsertAppPublicKey(`${app.id}:${app.verify_key}`);
+  return app.verify_key;
+}
+
+/** A bot token's first dot-segment is the base64url application id — no API call needed. */
+function applicationIdFromToken(token: string): string | null {
+  const head = token.split('.')[0];
+  if (!head) return null;
+  try {
+    return Buffer.from(head, 'base64url').toString('utf8') || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * PLATFORM-LEVEL CACHE, deliberately not the settings table.
+ *
+ * `settings` is keyed (clan_id, key) — every row belongs to a clan. These values do not: they
+ * describe the SHARED Discord application that serves every clan, and instrumentation.ts reads one
+ * at boot where there is no clan to name. Storing them under some clan's id would make one clan's
+ * row silently authoritative for all of them.
+ *
+ * A process cache is honest about that. Both values derive from env (the bot token), so a cold
+ * process re-derives rather than losing anything, and the real fix — a platform_settings table —
+ * belongs with the rest of the platform surface rather than inside a merge.
+ */
+const platformCache = new Map<string, string | null>();
+
+async function upsertAppPublicKey(value: string): Promise<void> {
+  platformCache.set(APP_PUBLIC_KEY_SETTING, value);
+}
+
+async function readSetting(key: string): Promise<string | null> {
+  return platformCache.get(key) ?? null;
 }

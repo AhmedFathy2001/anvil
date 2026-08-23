@@ -8,6 +8,7 @@ import { generatePlayerToken, verifyUser } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { parseProfile, sanitizeProfile, serializeProfile, signupWindowState, signupEditState } from '@/lib/signup';
 import { checkInvite, isWellFormedToken } from '@/lib/teamInvites';
+import { parseEventRules } from '@/lib/eventRules';
 
 export async function GET(
   request: Request,
@@ -92,7 +93,20 @@ export async function GET(
     startDate: event.startDate,
   });
 
+  // Team-choice events (rules.teamChoice): the host built the teams up front and applicants name
+  // the one they're joining. Sent only when the rule is on, so a drafted event's form is unchanged.
+  const rules = parseEventRules(event.rules);
+  const choosableTeams = rules.teamChoice
+    ? await db
+        .select({ id: teams.id, name: teams.name, color: teams.color })
+        .from(teams)
+        .where(eq(teams.eventId, id))
+        .orderBy(teams.name)
+    : [];
+
   return NextResponse.json({
+    teamChoice: rules.teamChoice,
+    teams: choosableTeams,
     event: {
       id: event.id,
       name: event.name,
@@ -142,6 +156,7 @@ export async function POST(
     clanMemberIds?: number[];   // multi-account selection (up to event.maxAccountsPerPerson)
     profile?: Record<string, unknown>;
     inviteToken?: string;       // arrived through a team's invite link (lib/teamInvites)
+    requestedTeamId?: number | null; // team-choice events: the team they're asking to join
   } | null;
 
   // Resolve the picked accounts: prefer the multi-account array, fall back to the legacy single id.
@@ -264,6 +279,19 @@ export async function POST(
     await db.delete(eventParticipants).where(and(eq(eventParticipants.eventId, id), eq(eventParticipants.clanMemberId, r.clanMemberId), isNull(eventParticipants.teamId)));
   }
 
+  // The team they asked for, on a team-choice event. Validated against THIS event's teams — an id
+  // from another board would otherwise seat them somewhere they were never offered. It stays a
+  // request either way: nothing here touches their player row, approval does that.
+  const postRules = parseEventRules(event.rules);
+  let requestedTeamId: number | null = null;
+  if (postRules.teamChoice && typeof body?.requestedTeamId === 'number') {
+    const wanted = await db.query.teams.findFirst({ where: eq(teams.id, body.requestedTeamId) });
+    if (!wanted || wanted.eventId !== id) {
+      return NextResponse.json({ error: 'That team is not in this event.' }, { status: 400 });
+    }
+    requestedTeamId = wanted.id;
+  }
+
   // 2) Upsert each selected account (profile only on the primary), reactivating a withdrawn row.
   const rows: { row: typeof eventSignups.$inferSelect; account: (typeof myAccounts)[number] }[] = [];
   for (const cid of selectedIds) {
@@ -276,6 +304,8 @@ export async function POST(
         .update(eventSignups)
         .set({
           profileData: data,
+          // Only ever written on a team-choice event; null elsewhere leaves a drafted sign-up alone.
+          ...(postRules.teamChoice ? { requestedTeamId } : {}),
           updatedAt: now,
           ...(invite && prior.status !== 'approved'
             ? { status: 'approved' as const }
@@ -293,6 +323,7 @@ export async function POST(
           userId: session.userId,
           clanMemberId: cid,
           profileData: data,
+          requestedTeamId,
           // The team that invited them already decided; there is nobody left to approve it.
           status: invite ? 'approved' : 'pending',
           signedUpAt: now,

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
-import { verifyFeeCollector } from '@/lib/auth';
+import { verifyEventTreasurer } from '@/lib/auth';
 import { announcePayouts } from '@/lib/payouts';
 
 // POST — manually announce (or re-announce) the paid winners to the bingo Discord webhook.
@@ -10,9 +10,6 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
-  if (!(await verifyFeeCollector())) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.
@@ -21,6 +18,10 @@ export async function POST(
   }
   if (!Number.isFinite(id)) {
     return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
+  }
+  // Event-scoped: an admin, a clan treasurer, or whoever holds THIS board's treasurer grant.
+  if (!(await verifyEventTreasurer(id))) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const ok = await announcePayouts(id);

@@ -1,93 +1,143 @@
 import { db } from '@/db';
 import { clanGrant } from '@/lib/clanGrants';
-import { clanStaff, eventEditors, events, users } from '@/db/schema';
+import { clanStaff, eventEditors, events } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 
-// Board-scoped tile-editing grants (event_editors). A grant lets someone author one event's tiles
-// without the all-events 'editor' role. This module owns the grant lifecycle + the auto-provision
-// side effects; the auth gate lives in lib/auth (verifyTileEditorForEvent / verifyTileEditorAnywhere).
+// Board-scoped staff grants (event_editors). A grant lets someone do ONE job on ONE event without
+// holding the clan-wide role for it: 'editor' authors that board's tiles, 'treasurer' collects its
+// fees and runs its payouts. This module owns the grant lifecycle + the auto-provision side effects;
+// the auth gates live in lib/auth (verifyTileEditorForEvent / verifyEventTreasurer).
+
+/** The jobs a board grant can carry. */
+export type BoardRole = 'editor' | 'treasurer';
 
 // User ids holding a board-editing grant for this event.
 export async function getEventEditorUserIds(eventId: number): Promise<number[]> {
   const rows = await db
     .select({ userId: eventEditors.userId })
     .from(eventEditors)
-    .where(eq(eventEditors.eventId, eventId));
+    .where(and(eq(eventEditors.eventId, eventId), eq(eventEditors.role, 'editor')));
   return rows.map((r) => r.userId);
 }
 
 // Event ids this user may edit via a board grant (does NOT include the all-events reach a global
 // editor or admin has — this is purely the explicit grant set). Used to scope the admin events list.
-export async function assignedEventIdsForUser(userId: number): Promise<number[]> {
+export async function assignedEventIdsForUser(userId: number, role?: BoardRole): Promise<number[]> {
   const rows = await db
     .select({ eventId: eventEditors.eventId })
     .from(eventEditors)
-    .where(eq(eventEditors.userId, userId));
-  return rows.map((r) => r.eventId);
+    .where(
+      role
+        ? and(eq(eventEditors.userId, userId), eq(eventEditors.role, role))
+        : eq(eventEditors.userId, userId),
+    );
+  return [...new Set(rows.map((r) => r.eventId))];
 }
 
 export async function isEventEditor(userId: number, eventId: number): Promise<boolean> {
+  return hasBoardGrant(userId, eventId, 'editor');
+}
+
+/** Does this user run the money on this one board? */
+export async function isEventTreasurer(userId: number, eventId: number): Promise<boolean> {
+  return hasBoardGrant(userId, eventId, 'treasurer');
+}
+
+async function hasBoardGrant(userId: number, eventId: number, role: BoardRole): Promise<boolean> {
   const row = await db.query.eventEditors.findFirst({
-    where: and(eq(eventEditors.eventId, eventId), eq(eventEditors.userId, userId)),
+    where: and(
+      eq(eventEditors.eventId, eventId),
+      eq(eventEditors.userId, userId),
+      eq(eventEditors.role, role),
+    ),
     columns: { id: true },
   });
   return !!row;
 }
 
-// Grant board-editing on `eventId` to `userId`. Idempotent (unique index). Auto-provisions login
-// access for a plain member: bumps role member→editor + scope→assigned so they can reach this
-// board's admin Tiles tab (and only their granted boards). Higher roles already authenticate, so
-// they're left as-is — the grant just widens what they may edit.
+// Grant one board job on `eventId` to `userId`. Idempotent (unique index). Auto-provisions login
+// access for a plain member: an editor grant bumps them to role editor + scope assigned, a
+// treasurer grant to role treasurer + treasurerScope assigned — enough to reach that board's tab
+// and nothing else. Higher roles already authenticate, so they're left as-is; the grant just widens
+// what they may touch.
+//
+// The scoped role is what gets a member through the middleware at all. It goes with a SCOPE of
+// 'assigned' precisely so the clan-wide gates (verifyFeeCollector, verifyAdminOrModerator) keep
+// refusing them: the role is the door, the grant is the room.
 export async function grantEventEditor(
   eventId: number,
   userId: number,
   grantedByUserId: number | null,
+  role: BoardRole = 'editor',
 ): Promise<void> {
-  await db.insert(eventEditors).values({ eventId, userId, grantedByUserId }).onConflictDoNothing();
-
-  // The capability is provisioned IN THE BOARD'S CLAN. A board belongs to exactly one clan, so
-  // granting someone one board there must not make them an authoring member of any other.
-  const [event] = await db.select({ clanId: events.clanId }).from(events).where(eq(events.id, eventId));
-  if (!event) return;
-
-  const existing = await clanGrant(event.clanId, userId);
-  if (!existing) {
-    await db
-      .insert(clanStaff)
-      .values({ clanId: event.clanId, userId, role: 'member', canEditTiles: true, editorScope: 'assigned' })
-      .onConflictDoNothing();
-  } else if (!existing.canEditTiles) {
-    await db
-      .update(clanStaff)
-      .set({ canEditTiles: true, editorScope: 'assigned' })
-      .where(and(eq(clanStaff.clanId, event.clanId), eq(clanStaff.userId, userId)));
+  await db.insert(eventEditors).values({ eventId, userId, grantedByUserId, role }).onConflictDoNothing();
+  // WHICH CLAN? The board's. A grant on one clan's event must not change what this person is
+  // anywhere else, which is what writing to `users` did.
+  const ev = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { clanId: true } });
+  if (!ev) return;
+  const u = await db.query.clanStaff.findFirst({
+    where: and(eq(clanStaff.clanId, ev.clanId), eq(clanStaff.userId, userId)),
+    columns: { role: true },
+  });
+  if (!u || u.role === 'member') {
+    const set =
+      role === 'treasurer'
+        ? { role: 'treasurer', treasurerScope: 'assigned' }
+        : { role: 'editor', editorScope: 'assigned' };
+    if (u) {
+      await db
+        .update(clanStaff)
+        .set(set)
+        .where(and(eq(clanStaff.clanId, ev.clanId), eq(clanStaff.userId, userId)));
+    } else {
+      // No grant here yet: being handed a board IS the grant.
+      await db.insert(clanStaff).values({ clanId: ev.clanId, userId, ...set });
+    }
   }
 }
 
 // Revoke a board grant. If that leaves a *scoped* editor (role 'editor' + scope 'assigned') with
 // zero grants, reverse the auto-provision back to a plain member so they no longer hold admin
 // access. Global editors (scope 'all') and non-editor roles are never touched.
-export async function revokeEventEditor(eventId: number, userId: number): Promise<void> {
+export async function revokeEventEditor(
+  eventId: number,
+  userId: number,
+  role?: BoardRole,
+): Promise<void> {
   await db
     .delete(eventEditors)
-    .where(and(eq(eventEditors.eventId, eventId), eq(eventEditors.userId, userId)));
-  const [event] = await db.select({ clanId: events.clanId }).from(events).where(eq(events.id, eventId));
-  if (!event) return;
-
-  // Reverse the auto-provision only for a scoped grant with nothing left to reach. A clan-wide
-  // authoring capability, or any real tier, was somebody's deliberate decision and is not ours to
-  // undo because one board grant went away.
-  const existing = await clanGrant(event.clanId, userId);
-  if (existing && existing.role === 'member' && existing.editorScope === 'assigned') {
-    const remaining = await db.query.eventEditors.findFirst({
-      where: eq(eventEditors.userId, userId),
+    .where(
+      role
+        ? and(eq(eventEditors.eventId, eventId), eq(eventEditors.userId, userId), eq(eventEditors.role, role))
+        : and(eq(eventEditors.eventId, eventId), eq(eventEditors.userId, userId)),
+    );
+  const ev = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { clanId: true } });
+  if (!ev) return;
+  const u = await db.query.clanStaff.findFirst({
+    where: and(eq(clanStaff.clanId, ev.clanId), eq(clanStaff.userId, userId)),
+    columns: { role: true, editorScope: true, treasurerScope: true },
+  });
+  if (!u) return;
+  // Deprovision only the scoped flavours, and only once their LAST grant of that job is gone. A
+  // global editor or a real clan treasurer is never touched by revoking one board.
+  const remainingOfRole = async (r: BoardRole) =>
+    !!(await db.query.eventEditors.findFirst({
+      where: and(eq(eventEditors.userId, userId), eq(eventEditors.role, r)),
       columns: { id: true },
-    });
-    if (!remaining) {
-      await db
-        .delete(clanStaff)
-        .where(and(eq(clanStaff.clanId, event.clanId), eq(clanStaff.userId, userId)));
-    }
+    }));
+  if (u.role === 'editor' && u.editorScope === 'assigned' && !(await remainingOfRole('editor'))) {
+    // They may still hold treasurer grants — hand them that door instead of locking them out.
+    const nextRole = (await remainingOfRole('treasurer')) ? 'treasurer' : 'member';
+    await db
+      .update(clanStaff)
+      .set({ role: nextRole, editorScope: 'all' })
+      .where(and(eq(clanStaff.clanId, ev.clanId), eq(clanStaff.userId, userId)));
+  } else if (u.role === 'treasurer' && u.treasurerScope === 'assigned' && !(await remainingOfRole('treasurer'))) {
+    const nextRole = (await remainingOfRole('editor')) ? 'editor' : 'member';
+    await db
+      .update(clanStaff)
+      .set({ role: nextRole, treasurerScope: 'all', ...(nextRole === 'editor' ? { editorScope: 'assigned' } : {}) })
+      .where(and(eq(clanStaff.clanId, ev.clanId), eq(clanStaff.userId, userId)));
   }
 }
 
@@ -100,12 +150,12 @@ export async function setUserAssignedEvents(
   eventIds: number[],
   grantedByUserId: number | null,
 ): Promise<void> {
-  const current = new Set(await assignedEventIdsForUser(userId));
+  const current = new Set(await assignedEventIdsForUser(userId, 'editor'));
   const next = new Set(eventIds);
   for (const id of next) {
-    if (!current.has(id)) await grantEventEditor(id, userId, grantedByUserId);
+    if (!current.has(id)) await grantEventEditor(id, userId, grantedByUserId, 'editor');
   }
   for (const id of current) {
-    if (!next.has(id)) await revokeEventEditor(id, userId);
+    if (!next.has(id)) await revokeEventEditor(id, userId, 'editor');
   }
 }

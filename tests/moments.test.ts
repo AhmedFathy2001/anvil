@@ -26,7 +26,7 @@ import { clogItemNames, clogPageItems } from '../src/lib/clogDataset.ts';
 const BOTW: WeeklyScope = { id: 1, type: 'boss', metric: 'zulrah' };
 const SOTW: WeeklyScope = { id: 2, type: 'skill', metric: 'runecraft' };
 
-const board: EventScope = { id: 9, sources: ['Vorkath'], itemIds: [11286], minLootGp: 1_000_000 };
+const board: EventScope = { id: 9, teamId: 4, sources: ['Vorkath'], itemIds: [11286], minLootGp: 1_000_000 };
 
 function obs(over: Partial<Observation> = {}): Observation {
   return {
@@ -307,6 +307,19 @@ test('a task lands on the week AND the board when both are running', () => {
   assert.deepEqual(planned.map((m) => m.kind), ['ca', 'ca']);
   // Same observation, two scopes, two rows that can never collapse onto each other.
   assert.notEqual(planned[0].dedupKey, planned[1].dedupKey);
+});
+
+test('an event moment carries the side it happened on; a weekly one has no side', () => {
+  const planned = classifyObservation(
+    obs({ kind: 'death', source: 'Vorkath' }),
+    { weeklies: [BOTW], event: board },
+  );
+  const onBoard = planned.find((p) => p.eventId === board.id);
+  const onWeek = planned.find((p) => p.weeklyCompetitionId === BOTW.id);
+  // Stamped at ingest so subbing someone across teams later can't drag their deaths with them.
+  assert.equal(onBoard?.teamId, 4);
+  // A weekly competition has no sides to be on.
+  assert.equal(onWeek?.teamId ?? null, null);
 });
 
 test('the feed line leads with the tier', () => {

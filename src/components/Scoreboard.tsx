@@ -2,6 +2,7 @@
 
 import type { TeamMvp } from '@/lib/memberBreakdown';
 import ClanLink from '@/components/ClanLink';
+import type { TeamScore } from '@/lib/boardScoring';
 
 interface Team {
   id: number;
@@ -11,32 +12,35 @@ interface Team {
 
 interface ScoreboardProps {
   teams: Team[];
-  totalTiles: number;
-  completionCounts: Map<number, number>;
+  /** Per-team scores from lib/boardScoring — the one place any surface computes these. */
+  scores: Map<number, TeamScore>;
   eventId: number;
   dropProgressByTeam?: Map<number, { inProgress: number; total: number }>;
-  // When true the scores in `completionCounts`/`totalTiles` are point weights, not
-  // raw tile counts — relabel the UI accordingly ("X / Y pts", "X pts remaining").
+  // When true scores are point weights, not raw tile counts — relabel the UI accordingly
+  // ("X / Y pts", "X pts remaining").
   pointsMode?: boolean;
   // Per-team top contributor, shown as a small line on each card.
   teamMvps?: Record<number, TeamMvp | null>;
 }
 
+const ZERO: TeamScore = { teamId: 0, boardScore: 0, bonusScore: 0, score: 0, total: 0, unit: 'tiles', pct: 0 };
+
 const MEDALS = ['🥇', '🥈', '🥉'];
 
-export default function Scoreboard({ teams, totalTiles, completionCounts, eventId, dropProgressByTeam, pointsMode, teamMvps }: ScoreboardProps) {
-  const sortedTeams = [...teams].sort((a, b) => {
-    const aCount = completionCounts.get(a.id) || 0;
-    const bCount = completionCounts.get(b.id) || 0;
-    return bCount - aCount;
-  });
+export default function Scoreboard({ teams, scores, eventId, dropProgressByTeam, pointsMode, teamMvps }: ScoreboardProps) {
+  const scoreOf = (teamId: number) => scores.get(teamId) ?? ZERO;
+  // Rank on total earned, mission bonus included — it's points the team actually holds.
+  const sortedTeams = [...teams].sort((a, b) => scoreOf(b.id).score - scoreOf(a.id).score);
 
   return (
     <div className="space-y-2.5">
       {sortedTeams.map((team, index) => {
-        const completed = completionCounts.get(team.id) || 0;
-        const percentage = totalTiles > 0 ? (completed / totalTiles) * 100 : 0;
-        const tilesLeft = totalTiles - completed;
+        const score = scoreOf(team.id);
+        const completed = score.score;
+        const percentage = score.pct;
+        // What's LEFT is board work, so it counts down the board half. A mission bonus is points in
+        // hand, not board progress — subtracting it here would advertise a shorter board than exists.
+        const tilesLeft = Math.max(0, score.total - score.boardScore);
         const isLeading = index === 0 && completed > 0;
         const dropInfo = dropProgressByTeam?.get(team.id);
         const mvp = teamMvps?.[team.id] ?? null;
@@ -70,7 +74,14 @@ export default function Scoreboard({ teams, totalTiles, completionCounts, eventI
                   <span className="text-xl font-bold" style={{ color: team.color }}>
                     {completed}
                   </span>
-                  <span className="text-text-muted text-sm">/{totalTiles}{pointsMode ? ' pts' : ''}</span>
+                  <span className="text-text-muted text-sm">/{score.total}{pointsMode ? ' pts' : ''}</span>
+                  {/* Missions are bonus: they're in the big number but not in the total, which reads
+                      as an error unless the extra is named. Shown only when there is one. */}
+                  {score.bonusScore > 0 && (
+                    <span className="ml-1.5 text-[11px] rounded px-1.5 py-0.5 bg-purple-500/20 text-purple-200 border border-purple-400/30 align-middle">
+                      +{score.bonusScore} bonus
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-text-muted">
                   {tilesLeft} {pointsMode ? 'pts ' : ''}remaining

@@ -18,10 +18,12 @@ export function eventRailGroups(opts: {
   counts: StageCounts;
   /** Tile-authoring editors get the board and nothing else — the rest reject them anyway. */
   tilesOnly?: boolean;
+  /** A board treasurer: the money tabs and nothing else. */
+  moneyOnly?: boolean;
   /** What this board calls its entries, lower-case (lib/tileAuthoring). */
   taskNounPlural?: string;
 }): SidebarGroup[] {
-  const { eventId, stage, counts, tilesOnly, taskNounPlural = 'tiles' } = opts;
+  const { eventId, stage, counts, tilesOnly, moneyOnly, taskNounPlural = 'tiles' } = opts;
   const base = `/admin/events/${eventId}`;
 
   const tiles = {
@@ -78,6 +80,12 @@ export function eventRailGroups(opts: {
 
   if (tilesOnly) {
     return [{ label: 'This board', items: [tiles] }, elsewhere];
+  }
+
+  // Someone granted this board's money runs two lists: who owes an entry fee, and who is owed a
+  // prize. Everything else on the rail is a surface they can't act on anyway.
+  if (moneyOnly) {
+    return [{ label: 'This board', items: [signups, payouts] }, elsewhere];
   }
 
   if (stage === 'build') {

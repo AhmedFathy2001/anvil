@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { memberProgress } from '@/db/schema';
+import { memberProgress, memberProgressItems } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { resolvePluginMember } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { cleanProgress, progressUpdates } from '@/lib/memberProgress';
+import { cleanItems, countDone, isItemCategory, serializeItems } from '@/lib/memberProgressItems';
+import { decodeCombatTasks } from '@/lib/combatTasks';
 
 // POST /api/plugin/progress — quest points, combat-achievement points/tier, and diary counts.
 //
@@ -33,15 +35,66 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: { progress?: unknown };
+  let body: { progress?: unknown; items?: unknown; caVarps?: unknown; caPoints?: unknown };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
+  // COMBAT TASKS arrive as the game's own bits: twenty-one varps the plugin read without knowing
+  // what any of them mean. Decoding happens here, where the catalogue is, and is thrown away unless
+  // the points it implies match the total the game itself reports (lib/combatTasks).
+  const decode = decodeCombatTasks(
+    body?.caVarps && typeof body.caVarps === 'object' ? (body.caVarps as Record<string, number>) : null,
+    typeof body?.caPoints === 'number' ? body.caPoints : null,
+  );
+  const decodedTasks = decode.items;
+
+  // The item lists — which quests, later which combat tasks. Sent whole rather than diffed: the
+  // list is one document per category, it changes a handful of times a year, and half a list is
+  // worse than none. Stored only when it actually differs from what's held.
+  let itemsStored = 0;
+  const itemSets: unknown[] = [
+    ...(Array.isArray(body?.items) ? body.items : []),
+    ...(decodedTasks ? [{ category: 'ca', items: decodedTasks }] : []),
+  ];
+  for (const raw of itemSets) {
+    if (!raw || typeof raw !== 'object') continue;
+    const set = raw as { category?: unknown; items?: unknown };
+    if (!isItemCategory(set.category)) continue;
+    const items = cleanItems(set.items);
+    if (items.length === 0) continue;
+    const payload = serializeItems(items);
+    const done = countDone(items);
+    const existing = await db.query.memberProgressItems.findFirst({
+      where: and(
+        eq(memberProgressItems.accountId, member.clanMemberId),
+        eq(memberProgressItems.category, set.category),
+      ),
+    });
+    if (existing?.payload === payload) continue;
+    const now = new Date().toISOString();
+    if (existing) {
+      await db
+        .update(memberProgressItems)
+        .set({ payload, doneCount: done, totalCount: items.length, updatedAt: now })
+        .where(eq(memberProgressItems.id, existing.id));
+    } else {
+      await db.insert(memberProgressItems).values({
+        accountId: member.accountId,
+        category: set.category,
+        payload,
+        doneCount: done,
+        totalCount: items.length,
+        updatedAt: now,
+      });
+    }
+    itemsStored += 1;
+  }
+
   const incoming = cleanProgress(Array.isArray(body?.progress) ? body.progress : []);
-  if (incoming.size === 0) return NextResponse.json({ ok: true, updated: 0 });
+  if (incoming.size === 0) return NextResponse.json({ ok: true, updated: 0, itemsStored, combatTasks: decodeReport(decode) });
 
   const keys = [...incoming.keys()];
   const existing = await db
@@ -50,7 +103,7 @@ export async function POST(request: Request) {
     .where(and(eq(memberProgress.accountId, member.accountId), inArray(memberProgress.key, keys)));
 
   const updates = progressUpdates(new Map(existing.map((r) => [r.key, r.value])), incoming);
-  if (updates.size === 0) return NextResponse.json({ ok: true, updated: 0 });
+  if (updates.size === 0) return NextResponse.json({ ok: true, updated: 0, itemsStored, combatTasks: decodeReport(decode) });
 
   const now = new Date().toISOString();
   for (const [key, value] of updates) {
@@ -63,5 +116,20 @@ export async function POST(request: Request) {
       });
   }
 
-  return NextResponse.json({ ok: true, updated: updates.size });
+  return NextResponse.json({ ok: true, updated: updates.size, itemsStored, combatTasks: decodeReport(decode) });
+}
+
+/**
+ * What the server made of the combat-achievement bits, echoed back so a client that sent them can
+ * say why nothing appeared. Without this, "didn't reconcile" and "never arrived" look identical
+ * from the outside — which is exactly the hour this cost the first time.
+ */
+function decodeReport(decode: ReturnType<typeof decodeCombatTasks>) {
+  return {
+    stored: decode.items != null,
+    tasks: decode.items?.length ?? 0,
+    knownPoints: decode.knownPoints,
+    unknownTasks: decode.unknownTasks,
+    claimedPoints: decode.claimedPoints,
+  };
 }

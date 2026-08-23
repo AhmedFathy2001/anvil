@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
-import { clanAuditLog, clanRoster, events, eventSignups, eventParticipants, signupFees, teams, users } from '@/db/schema';
+import { clanAuditLog, clanRoster, events, eventSignups, eventParticipants, signupFees, teams, users, players } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
 import { and, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
@@ -95,6 +95,16 @@ export async function PATCH(
       // Approving = eligible for the draft, so make sure they're in the player pool. Idempotent —
       // skips if a player row already exists (self-serve signup / admin-on-behalf already added
       // one). This is what keeps "approved sign-ups" and "the draft pool" consistent.
+      //
+      // On a team-choice event (rules.teamChoice) they named a team when they applied, and
+      // approving IS the answer to that request — so they land on it rather than in the pool. The
+      // team is re-checked here: it can be deleted between the application and the decision.
+      let seatTeamId: number | null = null;
+      if (signup.requestedTeamId != null) {
+        const wanted = await db.query.teams.findFirst({ where: eq(teams.id, signup.requestedTeamId) });
+        if (wanted && wanted.eventId === evtId) seatTeamId = wanted.id;
+      }
+
       const existingPlayer = await db.query.eventParticipants.findFirst({
         where: and(eq(eventParticipants.eventId, evtId), eq(eventParticipants.clanMemberId, signup.clanMemberId)),
       });
@@ -112,8 +122,13 @@ export async function PATCH(
           clanMemberId: signup.clanMemberId,
           name: account?.rsn ?? 'Unknown',
           timezone,
+          teamId: seatTeamId, // null → the pool, draftable/assignable
           playerToken: generatePlayerToken(),
-        }); // teamId defaults null → lands in the pool, draftable/assignable
+        });
+      } else if (seatTeamId != null && existingPlayer.teamId == null) {
+        // Signed up before the teams existed, or applied and waited: the approval seats them now.
+        // Someone already ON a team is left alone — that placement was a decision too.
+        await db.update(eventParticipants).set({ teamId: seatTeamId }).where(eq(players.id, existingPlayer.id));
       }
 
       // Nudge the approved member to pay their fee (incentive to convert + stay active).

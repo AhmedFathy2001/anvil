@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { tiles, teams, completions, submissions, eventParticipants } from '@/db/schema';
+import { tiles, teams, completions, submissions, eventParticipants, players } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
 import {
   computeIndividualStandings,

@@ -395,6 +395,64 @@ const GROUP_MODE_ALL_HELP =
 const GROUP_REQUIRE_HELP =
   'How many DIFFERENT items from that set count as satisfying it. The default is all of them (a full set); 1 means any single item from it; 3 of 6 means "any three of these".';
 
+// Gain vs Milestone — what a stat tile's goal is measured against. Only the hiscores-backed kinds
+// (skill XP, boss KC and the non-boss counters that ride on the same snapshot) can offer this, since
+// a lifetime total is exactly what the hiscores hold.
+function StatBasisField({
+  value,
+  onChange,
+  unit,
+}: {
+  value: string;
+  onChange: (basis: string) => void;
+  /** The kind's countable noun — "XP", "kills". */
+  unit: string;
+}) {
+  const gainHelp = `Gained — ${unit} earned while the event runs. Everyone starts from zero at the whistle, whatever they had before.`;
+  const milestoneHelp = `Milestone — a LIFETIME total reached during the event. Someone who was already at or above the goal when it started can never complete this tile; a teammate who wasn't still can. This is how "get your first Quiver" is expressed.`;
+  return (
+    <div>
+      <label className="block text-xs text-text-muted mb-1">
+        Goal counts
+        <FlagHint text={`${gainHelp} ${milestoneHelp}`} />
+      </label>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          title={gainHelp}
+          onClick={() => onChange('gain')}
+          className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+            value !== 'milestone' ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
+          }`}
+        >
+          Gained during the event
+        </button>
+        <button
+          type="button"
+          title={milestoneHelp}
+          onClick={() => onChange('milestone')}
+          className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+            value === 'milestone' ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
+          }`}
+        >
+          🏆 Lifetime milestone
+        </button>
+      </div>
+      <p className="text-[10px] text-text-muted mt-0.5 leading-relaxed">
+        {value === 'milestone' ? (
+          <>
+            Completes when a member <strong className="text-foreground/80">crosses the goal during the event</strong> —
+            so a goal of 1 means their first ever. Anyone already at or above it is locked out of this tile, and
+            it&rsquo;s always settled per member (a team&rsquo;s lifetime totals don&rsquo;t add up to anything).
+          </>
+        ) : (
+          <>Counts {unit} earned while the event runs; whatever a member had beforehand doesn&rsquo;t count.</>
+        )}
+      </p>
+    </div>
+  );
+}
+
 // Team Total vs Solo — one control, rendered by every kind that stores a tracking mode, so the
 // wording of what the flag DOES is written once. `unit` is the kind's countable noun ("kills",
 // "task completions") and `goal` names what a member has to reach on their own.
@@ -480,6 +538,9 @@ export default function TileTrackingConfig({
   const [requiredAmount, setRequiredAmount] = useState<string>(initial.requiredAmount?.toString() || "");
   const [trackedStat, setTrackedStat] = useState<string>(initial.trackedStat || "");
   const [statGoal, setStatGoal] = useState<string>(initial.statGoal?.toString() || "");
+  // Whether that goal is an in-event GAIN (every stat tile before milestones existed) or a LIFETIME
+  // threshold crossed during the event. See lib/statTracking.milestoneState.
+  const [statBasis, setStatBasis] = useState<string>(initial.statBasis === 'milestone' ? 'milestone' : 'gain');
   // "solo" was the old wire value for the "Solo (Any Member)" mode; the backend only ever honoured
   // "individual", so normalize on load (the 0027 data migration flips stored rows too).
   const [trackingMode, setTrackingMode] = useState<string>(
@@ -1141,6 +1202,7 @@ export default function TileTrackingConfig({
         trackedStat: null,
         statType: null,
         statGoal: null,
+        statBasis: 'gain',
         trackingMode: 'team',
         requiredAmount: null,
         trackedItemIds: null,
@@ -1165,7 +1227,11 @@ export default function TileTrackingConfig({
         payload.statType = kind; // 'skill' | 'boss'
         payload.trackedStat = trackedStat;
         payload.statGoal = parseInt(statGoal, 10);
-        payload.trackingMode = trackingMode;
+        payload.statBasis = statBasis;
+        // A milestone is settled per member — a team's lifetime totals summed together are
+        // meaningless — so persist the mode the server will actually use rather than leaving a
+        // 'team' behind that the editor no longer shows.
+        payload.trackingMode = statBasis === 'milestone' ? 'individual' : trackingMode;
       } else if (kind === 'collection') {
         payload.perKillCap = oncePerKill ? 1 : null;
         payload.itemRequirements = trackedItems.map((i) => {
@@ -1288,6 +1354,7 @@ export default function TileTrackingConfig({
           trackedStat: updated.trackedStat,
           statType: updated.statType,
           statGoal: updated.statGoal,
+          statBasis: updated.statBasis,
           trackingMode: updated.trackingMode,
           optional: !!updated.optional,
           autoTrackDisabled: !!updated.autoTrackDisabled,
@@ -1373,7 +1440,12 @@ export default function TileTrackingConfig({
               disabled={locked}
               // Hover any kind (not just the selected one) to read what it does + how it's tracked.
               title={k.blurb}
-              className={`px-2.5 py-1.5 text-xs rounded border transition-colors disabled:opacity-50 ${
+              // Centred text on a floor height set to the TWO-line case. Three of these labels wrap
+              // ("Item set (X each)", "Agility laps & floors", "LMS placement"), and a grid row
+              // stretches to its tallest item — so with a one-line floor those rows came out 4px
+              // taller than the rest and the block read as ragged. Sizing every button for two lines
+              // is what makes the grid uniform.
+              className={`flex min-h-[2.75rem] items-center justify-center rounded border px-2 py-1.5 text-center text-xs leading-tight transition-colors disabled:opacity-50 ${
                 kind === k.key
                   ? 'bg-gold/20 border-gold text-gold'
                   : 'border-card-border text-text-muted hover:border-gold/50'
@@ -1552,7 +1624,12 @@ export default function TileTrackingConfig({
             />
           </div>
 
-          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="gains" goal="goal" teamPlay={teamPlay} />
+          <StatBasisField value={statBasis} onChange={setStatBasis} unit={kind === 'skill' ? 'XP' : 'kills'} />
+
+          {/* A milestone is per member by definition, so the Team/Solo question doesn't apply. */}
+          {statBasis !== 'milestone' && (
+            <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="gains" goal="goal" teamPlay={teamPlay} />
+          )}
         </div>
       )}
 
@@ -2883,11 +2960,11 @@ export default function TileTrackingConfig({
         <div className="px-3 pb-3 space-y-3">
 
       {/* Optional toggle */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-start gap-2">
         <button
           type="button"
           onClick={() => setOptional(!optional)}
-          className={`relative w-10 h-5 rounded-full transition-colors ${optional ? 'bg-gold' : 'bg-card-border'}`}
+          className={`relative mt-px w-10 h-5 shrink-0 rounded-full transition-colors ${optional ? 'bg-gold' : 'bg-card-border'}`}
         >
           <span
             className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${optional ? 'translate-x-5' : ''}`}
@@ -2902,19 +2979,19 @@ export default function TileTrackingConfig({
       {(missionsAllowed || mission) && (
       <>
       <div className="rounded-lg border border-gold/25 bg-gold/5 p-3 space-y-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-start gap-2">
           <button
             type="button"
             onClick={() => setMission(!mission)}
             aria-pressed={mission}
-            className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${mission ? 'bg-gold' : 'bg-card-border'}`}
+            className={`relative mt-px w-10 h-5 rounded-full transition-colors flex-shrink-0 ${mission ? 'bg-gold' : 'bg-card-border'}`}
           >
             <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${mission ? 'translate-x-5' : ''}`} />
           </button>
           <span className="text-xs text-foreground font-medium">⚡ Mission (hidden until announced mid-event)</span>
         </div>
         {mission && (
-          <div className="space-y-3 pl-1">
+          <div className="space-y-3 border-l border-gold/25 pl-3 ml-[0.6rem]">
             <p className="text-[10px] text-text-muted leading-relaxed">
               This tile stays hidden until you announce it — manually, or on the cadence set in the event&apos;s
               Mission settings — then drops live with the scoring below.

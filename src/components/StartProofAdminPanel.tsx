@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
@@ -74,7 +74,12 @@ export default function StartProofAdminPanel({
   event: { id: number; rules?: string | null };
 }) {
   const router = useRouter();
-  const rules = parseEventRules(event.rules);
+  // Memoised because the loader's effect used to depend on `rules.startProof`, and parsing on every
+  // render handed it a brand-new object each time: fetch → setData → render → new identity → fetch.
+  // The admin page sat there pulling the proof list forever. The effect now keys off a boolean too,
+  // so neither half of that loop can come back.
+  const rules = useMemo(() => parseEventRules(event.rules), [event.rules]);
+  const startProofOn = rules.startProof != null;
 
   const [enabled, setEnabled] = useState(rules.startProof != null);
   const [onMissing, setOnMissing] = useState<StartProofMissing>(rules.startProof?.onMissing ?? 'flag');
@@ -96,8 +101,8 @@ export default function StartProofAdminPanel({
   }, [event.id]);
 
   useEffect(() => {
-    if (rules.startProof != null) void load();
-  }, [load, rules.startProof]);
+    if (startProofOn) void load();
+  }, [load, startProofOn]);
 
   async function saveConfig() {
     setSaving(true);

@@ -7,9 +7,10 @@ import EventBoard from '@/components/EventBoard';
 import Scoreboard from '@/components/Scoreboard';
 import Select from '@/components/Select';
 import TileDetailModal from '@/components/TileDetailModal';
-import { formatNumber, tileWeight, isPointsMode } from '@/lib/utils';
+import { formatNumber, isPointsMode } from '@/lib/utils';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { boardTiles, missionTiles, parseEventRules } from '@/lib/eventRules';
+import { scoreTeams } from '@/lib/boardScoring';
 import { eventAxes, taskNoun } from '@/lib/eventAxes';
 import LiveDropBoard from '@/components/LiveDropBoard';
 import TeamLens from '@/components/board/TeamLens';
@@ -36,6 +37,8 @@ interface Tile {
   trackedStat?: string | null;
   statType?: string | null;
   statGoal?: number | null;
+  /** 'milestone' = statGoal is a lifetime total crossed during the event, not an in-event gain. */
+  statBasis?: string | null;
   trackingMode?: string;
   optional?: number | null;
   points?: number | null;
@@ -201,9 +204,22 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
         let totalGained = 0;
         for (const tile of statTiles) {
           let tileTotal = 0;
-          for (const player of data) {
-            const gained = player.gains?.[tile.trackedStat!] ?? 0;
-            tileTotal += gained;
+          if (tile.statBasis === 'milestone') {
+            // A milestone measures a LIFETIME total crossed during the event, per member — so the
+            // team's progress is its best ELIGIBLE member, not a sum. Someone who was already at or
+            // above the goal at the whistle contributes nothing: they can never complete this tile,
+            // and counting their lifetime would show a full bar that never credits.
+            for (const player of data) {
+              const base = player.baseline?.[tile.trackedStat!] ?? 0;
+              if (base >= (tile.statGoal ?? 0)) continue;
+              const lifetime = player.current?.[tile.trackedStat!] ?? 0;
+              if (lifetime > tileTotal) tileTotal = lifetime;
+            }
+          } else {
+            for (const player of data) {
+              const gained = player.gains?.[tile.trackedStat!] ?? 0;
+              tileTotal += gained;
+            }
           }
           tileGains[tile.id] = tileTotal;
           totalGained += tileTotal;
@@ -243,27 +259,24 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
   // or already flagged staff-only on the board (staff).
   const missions = useMemo(() => missionTiles(tiles).filter((t) => t.revealedAt), [tiles]);
 
-  // Exclude optional tiles from completion counts
   const pointsMode = isPointsMode(event.scoringMode);
-  const requiredTiles = board.filter((t) => !t.optional);
-  // Weight per tile: its point value in points mode, 1 in classic mode. A team's
-  // score is the summed weight of the required tiles it has completed, and the
-  // "total" the scoreboard divides against is the summed weight of all required tiles.
-  const weightById = new Map(requiredTiles.map((t) => [t.id, tileWeight(event.scoringMode, t.points)]));
-  const visibleWeight = requiredTiles.reduce((sum, t) => sum + tileWeight(event.scoringMode, t.points), 0);
-  // On a reveal board the denominator is the WHOLE pool, not the slice that happens to be open.
-  const totalWeight = pointsMode && boardPointsTotal != null ? Math.max(visibleWeight, boardPointsTotal) : visibleWeight;
-
-  const completionCounts = new Map<number, number>();
-  for (const c of completions) {
-    // Only count completions of required (non-optional) tiles. A frozen awardedPoints
-    // (first-team bonus / reveal decay) wins over the tile's live weight in points mode.
-    const w = weightById.get(c.tileId);
-    if (w !== undefined) {
-      const earned = pointsMode && c.awardedPoints != null ? c.awardedPoints : w;
-      completionCounts.set(c.teamId, (completionCounts.get(c.teamId) || 0) + earned);
-    }
-  }
+  // Scores come from lib/boardScoring — the same function payouts, the admin surfaces, the team
+  // pages and the Discord commands use. This screen used to compute its own, which is how it ended
+  // up scoring missions at zero while the standings that pay out scored them at full value.
+  const scores = useMemo(
+    () =>
+      new Map(
+        scoreTeams({
+          scoringMode: event.scoringMode,
+          rules: eventRules,
+          tiles,
+          completions,
+          teams,
+          boardPointsTotal,
+        }).map((s) => [s.teamId, s]),
+      ),
+    [event.scoringMode, eventRules, tiles, completions, teams, boardPointsTotal],
+  );
 
   // Build drop progress by team (only for required tiles)
   const dropProgressByTeam = new Map<number, { inProgress: number; total: number }>();
@@ -491,8 +504,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
             </h2>
             <Scoreboard
               teams={teams}
-              totalTiles={pointsMode ? totalWeight : requiredTiles.length}
-              completionCounts={completionCounts}
+              scores={scores}
               eventId={event.id}
               dropProgressByTeam={dropProgressByTeam}
               pointsMode={pointsMode}
@@ -677,16 +689,17 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
               </span>
             </div>
           )}
-          {/* Missions sit ABOVE the board and outside it: they're the thing that just dropped, they
-              expire, and they don't count toward the board's totals. Interleaving them with the
-              ordinary tiles buried the urgency and moved the denominator. */}
+          {/* Missions sit ABOVE the board and outside it: they're the thing that just dropped, and
+              they expire. Their points are a BONUS — added to a team's score but never to the board
+              total, so announcing one mid-event can't move the denominator under everyone at once
+              (see lib/boardScoring). Interleaving them with the ordinary tiles buried the urgency. */}
           {missions.length > 0 && (
             <div className="mb-4">
               <h3 className="text-sm font-bold mb-2 flex items-center gap-2">
                 <span className="w-1 h-4 bg-gold rounded-full" />
                 Missions
                 <span className="text-xs font-normal text-text-muted">
-                  bonus objectives — not part of the board total
+                  bonus points — earned on top of the board total
                 </span>
               </h3>
               <div className="rounded-xl border border-gold/25 bg-gold/5 divide-y divide-gold/15 overflow-hidden">

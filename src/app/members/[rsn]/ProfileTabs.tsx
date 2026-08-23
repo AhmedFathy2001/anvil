@@ -178,6 +178,7 @@ export default function ProfileTabs({
   upcoming,
   activityStandings,
   collection,
+  accountProgress,
 }: {
   profile: MemberProfile;
   series: DailyPoint[];
@@ -188,6 +189,8 @@ export default function ProfileTabs({
   activityStandings: Record<string, ActivityStanding>;
   /** The synced collection log + best times. Its own tab because it's a page's worth of grid. */
   collection: CollectionLogProps;
+  /** Quests / diaries / combat achievements, drawn game-style. Rendered above the log. */
+  accountProgress?: React.ReactNode;
 }) {
   const [tab, setTab] = useState<Tab>('stats');
   const [bestFilter, setBestFilter] = useState('');
@@ -203,7 +206,7 @@ export default function ProfileTabs({
    * set could be years old.
    */
   const recentFeed = useMemo(() => {
-    const entries: { key: string; kind: 'time' | 'milestone'; label: string; value: string | null; at: string }[] = [];
+    const entries: { key: string; kind: 'time' | 'milestone' | 'unlock'; label: string; value: string | null; at: string }[] = [];
     for (const b of collection.bests) {
       if (b.at) entries.push({ key: `pb-${b.activity}`, kind: 'time', label: b.activity, value: b.time, at: b.at });
     }
@@ -216,8 +219,24 @@ export default function ProfileTabs({
         at: m.noticedAt,
       });
     }
+    // Collection-log unlocks. This list read as "records only" while the Collection tab, one click
+    // away, knew the exact day someone got their Ancestral bottom — the drop is the thing a player
+    // actually wants dated, and it was the one thing missing. Only unlocks we WITNESSED carry a date
+    // (`clogProfile` already filters on firstSeenAt), so a first sync can't backfill years of items
+    // into "Lately" as if they happened today.
+    for (const u of collection.recent) {
+      entries.push({
+        key: `clog-${u.itemId}`,
+        kind: 'unlock',
+        label: u.name,
+        // The KC is the story on a drop — 12 KC is a spoon, 1,400 is a drought. Null where the item
+        // arrived in a bulk sync and the log can't say which kill produced it.
+        value: u.kcAtUnlock != null ? `${u.kcAtUnlock.toLocaleString()} KC` : null,
+        at: u.at,
+      });
+    }
     return entries.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 12);
-  }, [collection.bests, milestones]);
+  }, [collection.bests, collection.recent, milestones]);
 
   const shownTimes = useMemo(() => {
     const q = bestFilter.trim().toLowerCase();
@@ -703,10 +722,14 @@ export default function ProfileTabs({
                 <div key={entry.key} className="flex items-center gap-3 px-4 py-2.5">
                   <span
                     className={`text-[10px] uppercase tracking-widest shrink-0 w-16 ${
-                      entry.kind === 'time' ? 'text-gold' : 'text-accent-green-light'
+                      entry.kind === 'time'
+                        ? 'text-gold'
+                        : entry.kind === 'unlock'
+                          ? 'text-purple-300'
+                          : 'text-accent-green-light'
                     }`}
                   >
-                    {entry.kind === 'time' ? 'Best' : 'Milestone'}
+                    {entry.kind === 'time' ? 'Best' : entry.kind === 'unlock' ? 'Unlock' : 'Milestone'}
                   </span>
                   <span className="text-sm flex-1 truncate">{entry.label}</span>
                   {entry.value && <span className="text-sm font-mono text-gold shrink-0">{entry.value}</span>}
@@ -795,7 +818,14 @@ export default function ProfileTabs({
         </>
       )}
 
-      {tab === 'collection' && <CollectionLog {...collection} />}
+      {tab === 'collection' && (
+        <div className="space-y-6">
+          {/* The log and the three progress interfaces are one question — "what has this account
+              actually done" — so they live on one tab rather than in a card floating above it. */}
+          {accountProgress}
+          <CollectionLog {...collection} />
+        </div>
+      )}
 
       {tab === 'records' && (
         <>

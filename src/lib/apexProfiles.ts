@@ -19,7 +19,7 @@
 import { and, count, desc, eq, gt, isNull, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, clans, events, players, users } from '@/db/schema';
+import { accounts, clanMemberships, clans, events, players, users, eventParticipants } from '@/db/schema';
 import { apexDomain } from '@/lib/clanContext';
 import { getPublicShowcase } from '@/lib/pluginConfig';
 

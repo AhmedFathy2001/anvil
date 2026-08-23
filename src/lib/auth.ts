@@ -69,13 +69,14 @@ export function signUserToken(
   role: string,
   editorScope: string = 'all',
   canEditTiles: boolean = false,
+  treasurerScope: string = 'all',
 ): string {
   // editorScope rides in the token so middleware (edge, no DB) can tell a board-scoped editor
   // (role 'editor' + scope 'assigned') from a global editor and route them to /admin/events only.
   // Server gates (verifyUser/verifyAdminOrModerator) re-read the live scope from the DB, so a stale
   // token only affects coarse page-routing until the next login.
   return sign(
-    JSON.stringify({ userId, username, role, editorScope, canEditTiles, iat: Date.now() }),
+    JSON.stringify({ userId, username, role, editorScope, canEditTiles, treasurerScope, iat: Date.now() }),
     ADMIN_SESSION_SECRET,
   );
 }
@@ -97,6 +98,10 @@ export interface UserPayload {
   // board-scoped editor (edits only granted events). Always present so callers don't branch on
   // undefined; non-editor roles carry 'all' but never consult it. See users.editorScope.
   editorScope: string;
+  // 'all' = treasurer of the whole clan; 'assigned' = named boards only. Same shape as
+  // editorScope, and like it this comes from the GRANT, not from the user row: a treasurer of one
+  // clan must not hold the scope in another.
+  treasurerScope: string;
   // Tile authoring, independent of role. A capability, not a tier.
   canEditTiles: boolean;
   // Owner OF THIS CLAN. Undemotable here, and meaningless anywhere else.
@@ -176,6 +181,7 @@ export async function verifyUser(): Promise<UserPayload | null> {
       username: typeof data.username === 'string' ? data.username : 'user',
       role: grant?.role ?? borrowed?.role ?? 'member',
       editorScope: grant?.editorScope ?? 'all',
+      treasurerScope: grant?.treasurerScope ?? 'all',
       canEditTiles: grant?.canEditTiles === true || borrowed != null,
       // Never. The owner seat is the one thing a borrowed grant must not confer, or an operator can
       // transfer a clan away from the person who owns it.
@@ -196,11 +202,16 @@ export async function verifyAdmin(): Promise<boolean> {
 export async function verifyAdminOrModerator(): Promise<UserPayload | null> {
   const user = await verifyUser();
   if (!user) return null;
-  // Moderator-tier and up in THIS clan. Treasurer ties with moderator by rank — same tier, different
-  // extra capability — so one comparison covers both.
+  // Moderator-tier and up in THIS clan. Treasurer ties with moderator by rank — same tier,
+  // different extra capability — so one comparison covers both.
   //
-  // Tile authoring is deliberately not enough. It is a capability, not a tier: someone granted one
-  // board must not reach the roster, verification or weekly moderation surfaces through it.
+  // SCOPED grants are not tiers. Someone given one board to author, or one event's money to run,
+  // must not reach the roster, verification or weekly moderation surfaces through it.
+  if (user.role === 'editor' && user.editorScope === 'assigned') return null;
+  if (user.role === 'treasurer' && user.treasurerScope === 'assigned') return null;
+  // A GLOBAL editor does everything a moderator can. Named explicitly because lib/clanRoles does not
+  // rank 'editor' — it is a capability, not a tier — so atLeast() reads it as 'member'.
+  if (user.role === 'editor') return user;
   return atLeast(user.role, 'moderator') ? user : null;
 }
 
@@ -219,7 +230,12 @@ export async function verifyTileEditorForEvent(eventId: number): Promise<UserPay
   // Or a grant on this specific board. The board belongs to one clan, so a grant on it is already
   // clan-scoped — a stranger holding no grant here reaches nothing.
   const grant = await db.query.eventEditors.findFirst({
-    where: and(eq(eventEditors.eventId, eventId), eq(eventEditors.userId, user.userId)),
+    where: and(
+      eq(eventEditors.eventId, eventId),
+      eq(eventEditors.userId, user.userId),
+      // A treasurer grant on the same board buys nothing here: money and tiles are separate jobs.
+      eq(eventEditors.role, 'editor'),
+    ),
     columns: { id: true },
   });
   return grant ? user : null;
@@ -233,7 +249,7 @@ export async function verifyTileEditorAnywhere(): Promise<UserPayload | null> {
   if (!user) return null;
   if (user.canEditTiles) return user;
   const grant = await db.query.eventEditors.findFirst({
-    where: eq(eventEditors.userId, user.userId),
+    where: and(eq(eventEditors.userId, user.userId), eq(eventEditors.role, 'editor')),
     columns: { id: true },
   });
   return grant ? user : null;
@@ -244,10 +260,37 @@ export async function verifyTileEditorAnywhere(): Promise<UserPayload | null> {
 export async function verifyFeeCollector(): Promise<UserPayload | null> {
   const user = await verifyUser();
   if (!user) return null;
+  // A BOARD treasurer is not a clan treasurer: their reach is one event, checked by the
+  // event-scoped gate. This one answers for the whole clan.
+  if (user.role === 'treasurer' && user.treasurerScope === 'assigned') return null;
   // Treasurer or admin IN THIS CLAN. Moderators are mod-tier but deliberately excluded: collecting
   // money is the treasurer's job, and rank alone does not confer it.
   if (user.role === 'treasurer' || atLeast(user.role, 'admin')) return user;
   return null;
+}
+
+/**
+ * Money on ONE event: collecting its sign-up fees, running its payouts.
+ *
+ * Passes an admin, a clan treasurer (every event), and the holder of a per-board treasurer grant
+ * for this event. The board grant exists for the case a clan-wide treasurer role can't express —
+ * "this person handles the money for the September bingo and nothing else" — which is how a visiting
+ * clan's own treasurer runs their side of a clan-v-clan without being handed the whole ledger.
+ */
+export async function verifyEventTreasurer(eventId: number): Promise<UserPayload | null> {
+  const user = await verifyUser();
+  if (!user) return null;
+  if (user.role === 'admin') return user;
+  if (user.role === 'treasurer' && user.treasurerScope !== 'assigned') return user;
+  const grant = await db.query.eventEditors.findFirst({
+    where: and(
+      eq(eventEditors.eventId, eventId),
+      eq(eventEditors.userId, user.userId),
+      eq(eventEditors.role, 'treasurer'),
+    ),
+    columns: { id: true },
+  });
+  return grant ? user : null;
 }
 
 // Unified web-session membership resolver. Given the logged-in Discord user, works out

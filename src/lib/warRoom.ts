@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { draftShortlists, eventSignups, eventParticipants, teams } from '@/db/schema';
+import { draftShortlists, eventSignups, eventParticipants, teams, events } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { buildDraftBalance, tierOf, type Tier } from '@/lib/draftBalance';
 import { parseProfile, type SignupProfile } from '@/lib/signup';

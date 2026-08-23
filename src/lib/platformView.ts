@@ -16,16 +16,7 @@
 import { and, count, countDistinct, desc, eq, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import {
-  accounts,
-  clanMemberships,
-  clanStaff,
-  clans,
-  events as eventsTable,
-  players,
-  users,
-  weeklyCompetitions,
-} from '@/db/schema';
+import { accounts, clanMemberships, clanStaff, clans, events as eventsTable, players, users, weeklyCompetitions, eventParticipants } from '@/db/schema';
 import { apexDomain } from '@/lib/clanContext';
 
 export interface PlatformTotals {
@@ -296,8 +287,8 @@ export async function multiClanPeople(limit = 20): Promise<{ playerId: number; n
       name: players.displayName,
       clans: countDistinct(clanMemberships.clanId),
     })
-    .from(players)
-    .innerJoin(accounts, eq(accounts.playerId, players.id))
+    .from(eventParticipants)
+    .innerJoin(players, eq(accounts.playerId, players.id))
     .innerJoin(clanMemberships, and(eq(clanMemberships.accountId, accounts.id), isNull(clanMemberships.leftAt)))
     .groupBy(players.id, players.displayName)
     .having(sql`count(distinct ${clanMemberships.clanId}) > 1`)

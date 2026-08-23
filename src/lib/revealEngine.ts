@@ -12,6 +12,8 @@ import {
 } from '@/lib/eventRules';
 import { notifyTilesRevealed, notifyBountyClaim } from '@/lib/discord';
 import { log } from '@/lib/logger';
+import { missionPool } from '@/lib/missionRamp';
+import { getTierBands } from '@/lib/pluginConfig';
 
 // The reveal engine — flips tiles live on reveal-policy events (see lib/eventRules.ts).
 // Runs from the every-minute lifecycle tick (flush-notifications cron; the stats cron backstops),
@@ -196,6 +198,8 @@ async function announceMissionsForEvent(event: EventRow, rules: EventRules, now:
 
   let toReveal: TileRow[] = [];
   if (announceMode === 'scheduled') {
+    // Per-tile times are the host saying exactly when each one lands; a difficulty curve would be
+    // second-guessing them, so the ramp stays out of this mode entirely.
     toReveal = hidden.filter((t) => t.revealAt != null && t.revealAt <= now);
   } else if (announceMode === 'interval' && hidden.length > 0) {
     // One mission per interval, catch-up target from event start (self-heals a missed tick).
@@ -204,7 +208,15 @@ async function announceMissionsForEvent(event: EventRow, rules: EventRules, now:
       const dueBatches = Math.floor((Date.parse(now) - startMs) / (intervalMinutes * 60_000)) + 1;
       const target = Math.min(missionTiles.length, dueBatches);
       const need = target - (missionTiles.length - hidden.length);
-      if (need > 0) toReveal = draw(hidden, need, order);
+      if (need > 0) {
+        // Draw from the phase in force rather than the whole hidden set (lib/missionRamp): easy
+        // early, the hard ones near the end. No ramp configured = the whole set, as before.
+        const choice = missionPool(hidden, cfg?.tierRamp ?? [], event, Date.parse(now), await getTierBands(event.clanId));
+        if (choice.fellBack) {
+          log.info('reveal-engine.mission-ramp-exhausted', { eventId: event.id, wanted: choice.tiers });
+        }
+        toReveal = draw(choice.pool, need, order);
+      }
     }
   }
   await flipAndAnnounceMissions(event, toReveal, hidden.length);
@@ -292,7 +304,10 @@ export async function announceNextMission(eventId: number): Promise<{ announced:
   const hidden = eventTiles.filter((t) => t.mission && t.revealedAt == null);
   if (hidden.length === 0) return { announced: 0 };
   const order: RevealOrder = rules.mission?.order ?? 'random';
-  const count = await flipAndAnnounceMissions(event, draw(hidden, 1, order), hidden.length);
+  // Manual drops follow the same curve: the host pressing "announce next" on day one should get an
+  // early-phase mission, not whatever the shuffle turned up.
+  const choice = missionPool(hidden, rules.mission?.tierRamp ?? [], event, Date.parse(now), await getTierBands(event.clanId));
+  const count = await flipAndAnnounceMissions(event, draw(choice.pool, 1, order), hidden.length);
   return { announced: count };
 }
 

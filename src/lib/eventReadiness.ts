@@ -17,7 +17,7 @@ export type StartBlockerCode = 'draft-in-progress' | 'no-teams' | 'no-assigned-p
 export interface StartReadinessCounts {
   draftStatus: string;
   teamCount: number;
-  /** Players with a team (players.teamId != null). */
+  /** Players with a team (eventParticipants.teamId != null). */
   assignedPlayerCount: number;
   /** All enrolled players, assigned or not. */
   totalPlayerCount: number;

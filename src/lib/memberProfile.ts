@@ -5,7 +5,7 @@
 // page anyone can link to from becoming a way to hammer Jagex on our behalf.
 
 import { db } from '@/db';
-import { clanAuditLog, clanRoster, events, eventParticipants, users, memberDailyStats, memberMilestones, playerEventFacts, playerSnapshots, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { clanAuditLog, clanRoster, events, eventParticipants, users, memberDailyStats, memberMilestones, playerEventFacts, playerSnapshots, weeklyCompetitions, weeklyParticipants, accounts } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
 import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
