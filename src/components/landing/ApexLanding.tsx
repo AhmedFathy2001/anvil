@@ -286,7 +286,11 @@ function Figure({ n, k }: { n: string; k: string }) {
   return (
     // Its own padding, matching the sections' — so the band's numbers sit on the same left edge as
     // every heading below it.
-    <div className="border-b border-r border-card-border px-5 py-5 last:border-r-0 sm:border-b-0 sm:px-8 [&:nth-child(2n)]:border-r-0 sm:[&:nth-child(2n)]:border-r">
+    //
+    // The dividers go BETWEEN cells and the grid rewraps, so which cell ends a row changes with the
+    // breakpoint: two columns want a divider after 1 and 3, four columns after 1, 2 and 3. Restoring
+    // it at `sm` for every even cell put one back after the fourth, hanging off the end of the band.
+    <div className="border-b border-r border-card-border px-5 py-5 sm:border-b-0 sm:px-8 [&:nth-child(2n)]:border-r-0 [&:nth-child(n+3)]:border-b-0 sm:[&:nth-child(2)]:border-r">
       <div className="font-mono text-[clamp(1.4rem,2.6vw,1.9rem)] font-medium tabular-nums tracking-tight">
         {n}
       </div>

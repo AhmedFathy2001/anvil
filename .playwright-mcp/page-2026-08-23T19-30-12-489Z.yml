@@ -1,0 +1,262 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - navigation [ref=e3]:
+      - link "Anvil" [ref=e4] [cursor=pointer]:
+        - /url: /
+      - generic [ref=e6]:
+        - generic [ref=e7]: Platform
+        - link [ref=e8] [cursor=pointer]:
+          - /url: /
+        - link [ref=e12] [cursor=pointer]:
+          - /url: /clans
+        - link [ref=e17] [cursor=pointer]:
+          - /url: /leaderboard
+        - link [ref=e21] [cursor=pointer]:
+          - /url: /guide
+      - link [ref=e27] [cursor=pointer]:
+        - /url: /login
+    - main [ref=e32]:
+      - generic [ref=e33]:
+        - generic [ref=e35]:
+          - generic [ref=e36]:
+            - generic [ref=e37]: For Old School RuneScape clans
+            - heading "Everything your clan does, already counted." [level=1] [ref=e39]: Everything your clan does,already counted.
+            - paragraph [ref=e40]: Bingos, tile races, ladders, skill and boss weeks, clan against clan. Anvil holds the board and the roster; the RuneLite plugin watches the game and fills them in. Set it up once — then go play it like everybody else.
+            - generic [ref=e41]:
+              - link "Start your clan" [ref=e42] [cursor=pointer]:
+                - /url: /clans/new
+              - link "See a live event" [ref=e43] [cursor=pointer]:
+                - /url: /clans
+            - paragraph [ref=e44]: Free for one event · 30-day trial on everything else
+          - generic [ref=e46]:
+            - generic [ref=e47]:
+              - button "Bingo" [ref=e48]
+              - button "Leagues" [ref=e49]
+              - button "Tile race" [ref=e50]
+              - button "Boss week" [ref=e51]
+              - button "Ladder" [ref=e52]
+            - generic [ref=e53]:
+              - generic [ref=e54]: AF
+              - generic [ref=e55]: Summer Bingo — Team Molten
+              - generic [ref=e56]: 9 / 25
+            - generic [ref=e58]:
+              - button "✓ Dragon warhammer" [disabled] [ref=e59]:
+                - generic [ref=e60]: ✓
+                - generic [ref=e61]: Dragon warhammer
+              - button "Any Nightmare unique" [disabled] [ref=e62]
+              - button "✓ 3× Zenyte shard" [disabled] [ref=e64]:
+                - generic [ref=e65]: ✓
+                - generic [ref=e66]: 3× Zenyte shard
+              - button "Voidwaker piece" [disabled] [ref=e67]
+              - button "✓ Elite clue casket" [disabled] [ref=e69]:
+                - generic [ref=e70]: ✓
+                - generic [ref=e71]: Elite clue casket
+              - button "500 Zulrah KC" [disabled] [ref=e72]
+              - button "✓ Any boss pet" [disabled] [ref=e74]:
+                - generic [ref=e75]: ✓
+                - generic [ref=e76]: Any boss pet
+              - button "Twisted bow" [disabled] [ref=e77]
+              - button "Tumeken's shadow" [disabled] [ref=e79]
+              - button "✓ Bandos tassets" [disabled] [ref=e81]:
+                - generic [ref=e82]: ✓
+                - generic [ref=e83]: Bandos tassets
+              - button "✓ Dragon pickaxe" [disabled] [ref=e84]:
+                - generic [ref=e85]: ✓
+                - generic [ref=e86]: Dragon pickaxe
+              - button "Justiciar piece" [disabled] [ref=e87]
+              - button "✓ Ranger boots" [disabled] [ref=e89]:
+                - generic [ref=e90]: ✓
+                - generic [ref=e91]: Ranger boots
+              - button "Inquisitor's mace" [disabled] [ref=e92]
+              - button "5× Barrows chest" [disabled] [ref=e94]
+              - button "Venator shard" [disabled] [ref=e96]
+              - button "✓ Occult necklace" [disabled] [ref=e98]:
+                - generic [ref=e99]: ✓
+                - generic [ref=e100]: Occult necklace
+              - button "10k Zulrah's scales" [disabled] [ref=e101]
+              - button "✓ Abyssal whip" [disabled] [ref=e103]:
+                - generic [ref=e104]: ✓
+                - generic [ref=e105]: Abyssal whip
+              - button "Any raid purple" [disabled] [ref=e106]
+              - button "Dizana's quiver" [disabled] [ref=e108]
+              - button "Araxyte fang" [disabled] [ref=e110]
+              - button "Soulreaper axe" [disabled] [ref=e112]
+              - button "Virtus piece" [disabled] [ref=e114]
+              - button "Sunfire fanatic" [disabled] [ref=e116]
+            - paragraph [ref=e118]: Every one of those was submitted by the plugin, with the screenshot attached.
+        - generic [ref=e121]:
+          - generic [ref=e122]:
+            - generic [ref=e123]: "7"
+            - generic [ref=e124]: Event formats
+          - generic [ref=e125]:
+            - generic [ref=e126]: "15"
+            - generic [ref=e127]: Things a tile can track
+          - generic [ref=e128]:
+            - generic [ref=e129]: 43.5M
+            - generic [ref=e130]: XP counted this week
+          - generic [ref=e131]:
+            - generic [ref=e132]: "16"
+            - generic [ref=e133]: Bot languages
+        - generic [ref=e134]:
+          - generic [ref=e135]:
+            - heading "If it happens in game, it counts." [level=2] [ref=e138]
+            - paragraph [ref=e139]: 15 kinds of tile, all filled in by the plugin while you play. No screenshots to chase, no honour system, no spreadsheet.
+            - generic [ref=e140]:
+              - generic [ref=e141]:
+                - generic [ref=e142]: Drops
+                - generic [ref=e143]: N of an item, or any one from a pool
+              - generic [ref=e144]:
+                - generic [ref=e145]: Boss KC
+                - generic [ref=e146]: Kill counts, straight off the hiscores
+              - generic [ref=e147]:
+                - generic [ref=e148]: Skill XP
+                - generic [ref=e149]: Reach a level, or an experience goal
+              - generic [ref=e150]:
+                - generic [ref=e151]: Item sets
+                - generic [ref=e152]: Several items, each with its own count
+              - generic [ref=e153]:
+                - generic [ref=e154]: NPC kills
+                - generic [ref=e155]: Even ones the hiscores never tracked
+              - generic [ref=e156]:
+                - generic [ref=e157]: Agility laps
+                - generic [ref=e158]: Laps, Sepulchre floors, full runs
+              - generic [ref=e159]:
+                - generic [ref=e160]: Timed clears
+                - generic [ref=e161]: Inferno, raids, Colosseum — under a cap
+              - generic [ref=e162]:
+                - generic [ref=e163]: Deathless
+                - generic [ref=e164]: Raids finished with nobody dying
+              - generic [ref=e165]:
+                - generic [ref=e166]: PvP kills
+                - generic [ref=e167]: Anyone, a rival team, or a named bounty
+              - generic [ref=e168]:
+                - generic [ref=e169]: LMS
+                - generic [ref=e170]: Place top-N in Last Man Standing
+              - generic [ref=e171]:
+                - generic [ref=e172]: Loot value
+                - generic [ref=e173]: A haul worth X gp, priced as it drops
+              - generic [ref=e174]:
+                - generic [ref=e175]: Gathering
+                - generic [ref=e176]: Catch, cook or gather N of anything
+              - generic [ref=e177]:
+                - generic [ref=e178]: Diaries
+                - generic [ref=e179]: Achievement diary tiers, as they complete
+              - generic [ref=e180]:
+                - generic [ref=e181]: Combat tasks
+                - generic [ref=e182]: Combat achievements earned during the event
+              - generic [ref=e183]:
+                - generic [ref=e184]: Anything else
+                - generic [ref=e185]: A captain marks it, with the proof attached
+          - generic [ref=e186]:
+            - heading "And it remembers, between events." [level=2] [ref=e189]
+            - paragraph [ref=e190]: The plugin syncs the parts of your account that events are built from, so a board can ask for a first Quiver rather than one more Colosseum.
+            - generic [ref=e191]:
+              - generic [ref=e192]:
+                - generic [ref=e193]: Collection log
+                - generic [ref=e194]: Whole-log sync, per item, with rarity. Clan luck boards, spoons and droughts.
+              - generic [ref=e195]:
+                - generic [ref=e196]: Personal bests
+                - generic [ref=e197]: Every timed activity, imported from RuneLite and kept current.
+              - generic [ref=e198]:
+                - generic [ref=e199]: Quests, diaries, CAs
+                - generic [ref=e200]: Quest points, diary tiers, and combat achievement points and tier.
+              - generic [ref=e201]:
+                - generic [ref=e202]: Moments
+                - generic [ref=e203]: Pets, uniques and deaths captured as they happen — with a clip if you run OBS.
+          - generic [ref=e204]:
+            - heading "The person running the event never gets to play it." [level=2] [ref=e207]
+            - paragraph [ref=e208]: Whatever the format, the organiser spends it doing data entry. Anyone who has run one recognises the left-hand column.
+            - generic [ref=e209]:
+              - generic [ref=e210]:
+                - generic [ref=e211]: The usual way
+                - list [ref=e212]:
+                  - listitem [ref=e213]:
+                    - generic [ref=e214]: ×
+                    - text: A spreadsheet only one person understands
+                  - listitem [ref=e215]:
+                    - generic [ref=e216]: ×
+                    - text: 200 screenshots in a thread, checked by hand
+                  - listitem [ref=e217]:
+                    - generic [ref=e218]: ×
+                    - text: “Does this count?” — twice a day, for a fortnight
+                  - listitem [ref=e219]:
+                    - generic [ref=e220]: ×
+                    - text: Somebody’s drop missed because they posted it at 3am
+                  - listitem [ref=e221]:
+                    - generic [ref=e222]: ×
+                    - text: Recounting the totals the night it ends
+                  - listitem [ref=e223]:
+                    - generic [ref=e224]: ×
+                    - text: Two weeks of your own event, spent on admin
+              - generic [ref=e225]:
+                - generic [ref=e226]: With Anvil
+                - list [ref=e227]:
+                  - listitem [ref=e228]:
+                    - generic [ref=e229]: ✓
+                    - text: One page everyone reads, always current
+                  - listitem [ref=e230]:
+                    - generic [ref=e231]: ✓
+                    - text: Drops, kills and levels submit themselves
+                  - listitem [ref=e232]:
+                    - generic [ref=e233]: ✓
+                    - text: Rules decided once, when you build the thing
+                  - listitem [ref=e234]:
+                    - generic [ref=e235]: ✓
+                    - text: Nothing missed — the plugin was watching
+                  - listitem [ref=e236]:
+                    - generic [ref=e237]: ✓
+                    - text: Standings settled the moment it ends
+                  - listitem [ref=e238]:
+                    - generic [ref=e239]: ✓
+                    - text: You play in it, like everybody else
+          - generic [ref=e240]:
+            - heading "Where your clan already talks." [level=2] [ref=e243]
+            - paragraph [ref=e244]: The bot posts drops, deaths, standings and winners into the channels you choose — and answers questions in 16 languages.
+            - generic [ref=e245]:
+              - generic [ref=e246]:
+                - generic [ref=e247]: /bingo board
+                - generic [ref=e248]: The live board, in chat, without anybody leaving Discord.
+              - generic [ref=e249]:
+                - generic [ref=e250]: Roles and nicknames
+                - generic [ref=e251]: Synced from the roster, so your server matches the game.
+              - generic [ref=e252]:
+                - generic [ref=e253]: Per-channel routing
+                - generic [ref=e254]: Rare drops, deaths, clips and standings each to their own home.
+              - generic [ref=e255]:
+                - generic [ref=e256]: Private team channels
+                - generic [ref=e257]: Built when the draft lands and torn down when the event ends.
+          - generic [ref=e258]:
+            - heading "And when you want a rival." [level=2] [ref=e261]
+            - paragraph [ref=e262]: The one thing you cannot do alone — and the reason every clan sits on one platform rather than one site each.
+            - generic [ref=e263]:
+              - generic [ref=e264]:
+                - generic [ref=e265]: Play another clan
+                - generic [ref=e266]: Post an open challenge, or invite a clan you already know. Both rosters play one board. Their players get a seat for the event and nothing more — no joining, no Discord swap, no shared spreadsheet.
+              - generic [ref=e267]:
+                - generic [ref=e268]: Or find people
+                - generic [ref=e269]: Clans looking for members, players looking for clans. Applications arrive in the same queue as everything else, with the person’s account and stats already attached.
+        - generic [ref=e271]:
+          - heading "Your next event could run without you." [level=2] [ref=e272]
+          - paragraph [ref=e273]: Set the clan up in an evening. The plugin is on the RuneLite hub, and your members install it once for every clan they will ever be in. Then it is somebody else’s turn to wonder how you find the time.
+          - generic [ref=e274]:
+            - link "Start your clan" [ref=e275] [cursor=pointer]:
+              - /url: /clans/new
+            - link "Read the admin guide" [ref=e276] [cursor=pointer]:
+              - /url: /guide/admin
+          - paragraph [ref=e277]: 3 clans · 409 members · 6 events run
+  - contentinfo [ref=e278]:
+    - generic [ref=e279]:
+      - paragraph [ref=e280]:
+        - text: Built by
+        - link "Ahmed Fathy" [ref=e281] [cursor=pointer]:
+          - /url: https://github.com/AhmedFathy2001
+        - text: ·
+        - link "Anvil is source-available" [ref=e282] [cursor=pointer]:
+          - /url: https://github.com/AhmedFathy2001/anvil
+        - text: ·
+        - generic "build preview" [ref=e283]: v1.0.0
+      - generic [ref=e284]:
+        - link "Guides" [ref=e285] [cursor=pointer]:
+          - /url: /guide
+        - link "Feedback & bug reports" [ref=e286] [cursor=pointer]:
+          - /url: /feedback

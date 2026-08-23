@@ -3,6 +3,7 @@
 import { useState } from 'react';
 
 import BingoBoard from '@/components/BingoBoard';
+import { itemIconUrl } from '@/lib/tileIcons';
 
 /**
  * The product, doing the one thing worth promising.
@@ -20,13 +21,31 @@ import BingoBoard from '@/components/BingoBoard';
 
 const TEAMS = [{ id: 1, name: 'Team Molten', color: '#d4a017' }];
 
-const TILES = [
-  'Dragon warhammer', 'Any Nightmare unique', '3× Zenyte shard', 'Voidwaker piece', 'Elite clue casket',
-  '500 Zulrah KC', 'Any boss pet', 'Twisted bow', "Tumeken's shadow", 'Bandos tassets',
-  'Dragon pickaxe', 'Justiciar piece', 'Ranger boots', "Inquisitor's mace", '5× Barrows chest',
-  'Venator shard', 'Occult necklace', "10k Zulrah's scales", 'Abyssal whip', 'Any raid purple',
-  "Dizana's quiver", 'Araxyte fang', 'Soulreaper axe', 'Virtus piece', 'Sunfire fanatic',
-].map((label, i) => ({ id: i + 1, position: i, label, tileType: 'drop', points: 10 }));
+// REAL ITEM IDS, so the board pulls the same sprites the plugin renders in game — `itemIconUrl`
+// points at RuneLite's static export of the game cache, which is what every real board uses. Each id
+// was looked up in src/data/clog.json and then fetched, because a broken image on the front page is
+// worse than no image at all.
+const TILES = (
+  [
+    ['Dragon warhammer', 13576], ['Nightmare staff', 24422], ['Zenyte shard', 19529],
+    ['Voidwaker blade', 27684], ['Dexterous scroll', 21034],
+    ['Pet snakeling', 12921], ['Twisted bow', 20997], ["Tumeken's shadow", 27277],
+    ['Bandos tassets', 11834], ['Dragon pickaxe', 11920],
+    ['Justiciar faceguard', 22326], ['Ranger boots', 2577], ["Inquisitor's mace", 24417],
+    ['Venator shard', 27614], ['Occult necklace', 12002],
+    ["Zulrah's scales", 12934], ['Abyssal whip', 4151], ["Elidinis' ward", 25985],
+    ["Dizana's quiver", 28947], ['Araxyte fang', 29799],
+    ['Ultor vestige', 28285], ['Virtus mask', 26241], ['Sunfire helm', 28933],
+    ["Osmumten's fang", 26219], ['Enhanced seed', 25859],
+  ] as [string, number][]
+).map(([label, itemId], i) => ({
+  id: i + 1,
+  position: i,
+  label,
+  icon: itemIconUrl(itemId),
+  tileType: 'drop',
+  points: 10,
+}));
 
 // Nine done, scattered rather than in a line — a board mid-event, not a solved one.
 const DONE = [1, 3, 5, 7, 10, 11, 13, 17, 19];
