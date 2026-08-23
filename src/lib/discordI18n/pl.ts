@@ -199,6 +199,33 @@ const pl: PartialDiscordDict = {
     optionTeamName: 'Nazwa drużyny (zostaw puste dla własnej)',
   },
 
+  rolePanel: {
+    modalTitle:
+      'Jeszcze jedno',
+    modalLabel:
+      'Twoja nazwa w RuneScape',
+    modalPlaceholder:
+      'Dokładnie tak jak w grze',
+    granted:
+      '✅ Masz ustawione **{label}**.',
+    optionGone:
+      'Ten przycisk jest nieaktualny — poproś staff o ponowne wystawienie panelu.',
+    grantFailed:
+      '⚠️ Twoje role nie zostały nadane. Rola bota Anvil musi stać **nad** rolami, które rozdaje — poproś admina o sprawdzenie.',
+    rsnSaved:
+      '📋 Zapisano **{rsn}** jako twoją nazwę w RuneScape.',
+    rsnSavedRenamed:
+      '📋 Zapisano **{rsn}** jako twoją nazwę w RuneScape i ustawiono taki sam pseudonim.',
+    rsnPending:
+      '-# Moderator musi jeszcze potwierdzić, że konto jest twoje, zanim zacznie liczyć się w wydarzeniach.',
+    rsnInvalid:
+      'To nie wygląda na nazwę z RuneScape — od 1 do 12 znaków, dokładnie jak w grze.',
+    rsnTaken:
+      '**{rsn}** jest już przypisane do kogoś innego. Jeśli to błąd, poproś moderatora o wyjaśnienie.',
+    failed:
+      'Anvil nie zdołał tego dokończyć. Admin może sprawdzić logi strony.',
+  },
+
   errors: {
     dm: 'Uruchom to na serwerze Discord swojego klanu — komenda o planszy musi wiedzieć, który klan pyta.',
     wrongGuild:

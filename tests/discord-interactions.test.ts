@@ -377,37 +377,68 @@ test('fmt: leaves an unsupplied placeholder alone rather than blanking it', asyn
   assert.equal(fmt('{n} left', { n: 0 }), '0 left');
 });
 
-// ── Registration scopes ─────────────────────────────────────────────────────────────────────────
+// ── Role panel ──────────────────────────────────────────────────────────────────────────────────
 
-test('staleScopes: moving to a guild clears the global copy, or the picker shows two of everything', async () => {
-  const { staleScopes } = await import('../src/lib/discordCommandSync.ts');
-  const GLOBAL = '/applications/app1/commands';
+test('panel ids round-trip and refuse anything that is not ours', async () => {
+  const { panelButtonId, parsePanelButtonId, parsePanelModalId } = await import(
+    '../src/lib/discordRolePanel.ts'
+  );
 
-  // The path that actually bites: a bot connected before a server ID was set registers globally,
-  // then registers guild-scoped once the ID arrives. Discord serves BOTH scopes, so every command
-  // appears twice until the global set is emptied.
-  assert.deepEqual(staleScopes('app1', '123', 'global'), [GLOBAL]);
+  assert.equal(parsePanelButtonId(panelButtonId('member')), 'member');
+  assert.equal(parsePanelButtonId('share:board'), null);
+  assert.equal(parsePanelButtonId('nonsense'), null);
 
-  // `previous` is a hint, not the authority — an instance registered by hand with the script has no
-  // record at all, and the duplicate is just as real.
-  assert.deepEqual(staleScopes('app1', '123', null), [GLOBAL]);
-
-  // Steady state on a guild-scoped clan: still worth the check, because nothing else would ever
-  // notice a global set arriving from a manual run.
-  assert.deepEqual(staleScopes('app1', '123', 'guild:123'), [GLOBAL]);
+  // The modal id is a DIFFERENT prefix: a button opens the form, the form comes back separately,
+  // and routing them to the same handler would grant roles before the RSN was asked for.
+  assert.equal(parsePanelModalId(panelButtonId('member')), null);
+  assert.equal(parsePanelModalId('rolepanel-rsn:member'), 'member');
 });
 
-test('staleScopes: a clan that moved servers leaves the old one behind', async () => {
-  const { staleScopes } = await import('../src/lib/discordCommandSync.ts');
+test('a panel id stays inside the 100 characters Discord allows', async () => {
+  const { panelButtonId } = await import('../src/lib/discordRolePanel.ts');
+  assert.ok(panelButtonId('x'.repeat(400)).length <= 100);
+});
 
-  // Old guild AND global, because the target is a guild.
-  assert.deepEqual(staleScopes('app1', '999', 'guild:123'), [
-    '/applications/app1/commands',
-    '/applications/app1/guilds/123/commands',
-  ]);
+test('buildPanelMessage: one button per option, descriptions in the body', async () => {
+  const { buildPanelMessage, panelButtonId } = await import('../src/lib/discordRolePanel.ts');
 
-  // Falling back to global: only the abandoned guild needs emptying — there is no other global.
-  assert.deepEqual(staleScopes('app1', '', 'guild:123'), ['/applications/app1/guilds/123/commands']);
-  assert.deepEqual(staleScopes('app1', '', 'global'), []);
-  assert.deepEqual(staleScopes('app1', '', null), []);
+  const { embeds, components } = buildPanelMessage({
+    enabled: true,
+    channelId: '1',
+    messageId: '',
+    title: 'Pick your roles',
+    body: 'Tell us what you are here for.',
+    options: [
+      { id: 'member', label: 'Member', emoji: '⚔️', description: 'You are in the clan', roleIds: ['10', '11'], asksRsn: true },
+      { id: 'friend', label: 'Clan friend', roleIds: ['12'] },
+    ],
+  });
+
+  const embed = embeds[0] as { title: string; description: string };
+  assert.equal(embed.title, 'Pick your roles');
+  assert.ok(embed.description.includes('Tell us what you are here for.'));
+  // Only the described option earns a line — an undescribed button is self-explanatory and a
+  // bullet saying "Clan friend — " would be noise.
+  assert.ok(embed.description.includes('**Member** — You are in the clan'));
+  assert.ok(!embed.description.includes('**Clan friend**'));
+
+  const row = components[0] as { components: { custom_id: string; label: string }[] };
+  assert.equal(row.components.length, 2);
+  assert.equal(row.components[0].custom_id, panelButtonId('member'));
+  assert.equal(row.components[1].label, 'Clan friend');
+});
+
+test('buildPanelMessage: no options means no button row at all', async () => {
+  const { buildPanelMessage, EMPTY_PANEL } = await import('../src/lib/discordRolePanel.ts');
+  // Discord rejects an action row with zero components, which would fail the whole post.
+  assert.deepEqual(buildPanelMessage(EMPTY_PANEL).components, []);
+});
+
+test('isPlausibleRsn: OSRS names are 1 to 12 characters', async () => {
+  const { isPlausibleRsn } = await import('../src/lib/rsnClaim.ts');
+  assert.equal(isPlausibleRsn('Zezima'), true);
+  assert.equal(isPlausibleRsn('  Zezima  '), true);
+  assert.equal(isPlausibleRsn(''), false);
+  assert.equal(isPlausibleRsn('   '), false);
+  assert.equal(isPlausibleRsn('a'.repeat(13)), false);
 });

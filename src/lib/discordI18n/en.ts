@@ -211,6 +211,24 @@ export const en = {
     optionTeamName: 'Team name (leave blank for your own team)',
   },
 
+  rolePanel: {
+    modalTitle: 'One more thing',
+    modalLabel: 'Your RuneScape name',
+    modalPlaceholder: 'Exactly as it appears in game',
+    granted: '✅ You’re set up as **{label}**.',
+    /** The option was edited or removed since the panel was posted. */
+    optionGone: 'That button is out of date — ask staff to repost the panel.',
+    grantFailed:
+      '⚠️ Your roles didn’t apply. Anvil’s bot role has to sit **above** the roles it hands out — ask an admin to check.',
+    rsnSaved: '📋 Saved **{rsn}** as your RuneScape name.',
+    rsnSavedRenamed: '📋 Saved **{rsn}** as your RuneScape name, and set your nickname to match.',
+    rsnPending: '-# A moderator still has to confirm the account is yours before it counts for events.',
+    rsnInvalid: 'That doesn’t look like a RuneScape name — 1 to 12 characters, exactly as in game.',
+    rsnTaken:
+      '**{rsn}** is already linked to someone else. If that’s wrong, ask a moderator to sort it out.',
+    failed: 'Anvil couldn’t finish that. An admin can check the site logs.',
+  },
+
   errors: {
     dm: 'Run this in your clan’s Discord server — a board command needs to know which clan is asking.',
     wrongGuild:

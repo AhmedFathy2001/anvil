@@ -196,6 +196,33 @@ const sv: PartialDiscordDict = {
     optionTeamName: 'Lagnamn (lämna tomt för ditt eget lag)',
   },
 
+  rolePanel: {
+    modalTitle:
+      'En sak till',
+    modalLabel:
+      'Ditt RuneScape-namn',
+    modalPlaceholder:
+      'Exakt som det står i spelet',
+    granted:
+      '✅ Du är upplagd som **{label}**.',
+    optionGone:
+      'Den knappen är föråldrad — be staff lägga upp panelen igen.',
+    grantFailed:
+      '⚠️ Dina roller sattes inte. Anvils botroll måste ligga **ovanför** rollerna den delar ut — be en admin kolla.',
+    rsnSaved:
+      '📋 Sparade **{rsn}** som ditt RuneScape-namn.',
+    rsnSavedRenamed:
+      '📋 Sparade **{rsn}** som ditt RuneScape-namn och satte ditt smeknamn till samma sak.',
+    rsnPending:
+      '-# En moderator måste fortfarande bekräfta att kontot är ditt innan det räknas i event.',
+    rsnInvalid:
+      'Det ser inte ut som ett RuneScape-namn — 1 till 12 tecken, exakt som i spelet.',
+    rsnTaken:
+      '**{rsn}** är redan kopplat till någon annan. Stämmer det inte, be en moderator reda ut det.',
+    failed:
+      'Anvil kunde inte slutföra det. En admin kan kolla sajtens loggar.',
+  },
+
   errors: {
     dm: 'Kör den i din klans Discord-server — ett brädkommando måste veta vilken klan som frågar.',
     wrongGuild:

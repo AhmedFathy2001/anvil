@@ -69,6 +69,12 @@ import {
   type InteractionResponse,
 } from '@/lib/discordInteractions';
 import { fmt, plural, getDiscordDict, resolveLocale, type DiscordDict } from '@/lib/discordI18n';
+import {
+  handlePanelButton,
+  handlePanelModal,
+  parsePanelButtonId,
+  parsePanelModalId,
+} from '@/lib/discordRolePanel';
 
 // ── Shared embed furniture ──────────────────────────────────────────────────────────────────────
 
@@ -1068,13 +1074,37 @@ export async function handleCommand(interaction: Interaction): Promise<Interacti
 }
 
 /**
+ * Any button we sent. Two kinds so far, told apart by their custom_id prefix — Discord gives a
+ * component interaction nothing else to route on.
+ */
+export async function handleComponent(interaction: Interaction): Promise<InteractionResponse> {
+  const customId = interaction.data?.custom_id ?? '';
+
+  // The role panel's buttons live in a channel, not on a command's answer, and answer in the
+  // presser's own language whichever way they go (a role choice is nobody else's business).
+  const panelOption = parsePanelButtonId(customId);
+  if (panelOption !== null) return handlePanelButton(interaction, panelOption);
+
+  return handleShare(interaction);
+}
+
+/** The RSN form the role panel opens. Same routing story: the prefix is all we get. */
+export async function handleModal(interaction: Interaction): Promise<InteractionResponse> {
+  const panelOption = parsePanelModalId(interaction.data?.custom_id ?? '');
+  if (panelOption !== null) return handlePanelModal(interaction, panelOption);
+
+  const t = await getDiscordDict(resolveLocale(interaction.locale));
+  return textReply(t.errors.shareExpired);
+}
+
+/**
  * The Share button: the same answer, rebuilt and posted to the channel.
  *
  * In the SERVER's language, not the sharer's — a channel post is read by everyone in it, and
  * putting Swedish in front of an English-speaking clan because Sven pressed a button is a worse
  * outcome than Sven reading English for one message.
  */
-export async function handleComponent(interaction: Interaction): Promise<InteractionResponse> {
+async function handleShare(interaction: Interaction): Promise<InteractionResponse> {
   const locale = resolveLocale(interaction.guild_locale ?? interaction.locale);
   const t = await getDiscordDict(locale);
 
