@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, count, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanMemberships, clanStaff, clans } from '@/db/schema';
@@ -71,4 +71,18 @@ export async function clansOfPerson(
   }
 
   return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * How many OSRS accounts this person plays.
+ *
+ * The shell shows it under their name, which is the one place the person/account distinction is
+ * worth stating outright: "Ahmed · 3 characters" says the thing a rail full of clans otherwise
+ * implies badly. One indexed count, cheap enough to ask on every render.
+ */
+export async function characterCount(playerId: number | null | undefined): Promise<number> {
+  if (playerId == null) return 0;
+  // clan-scope: global -- a person's characters are theirs, not a clan's. That is the whole model.
+  const [row] = await db.select({ n: count() }).from(accounts).where(eq(accounts.playerId, playerId));
+  return Number(row?.n ?? 0);
 }

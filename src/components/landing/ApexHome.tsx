@@ -215,7 +215,6 @@ function summary(clans: number, running: number): string {
 }
 
 // Server component — evaluated once per request, not on client renders.
-// eslint-disable-next-line react-hooks/purity
 function greeting(): string {
   const h = new Date().getUTCHours();
   if (h < 5 || h >= 22) return 'Evening';

@@ -11,7 +11,8 @@ import { APP_VERSION, GIT_SHA } from "@/lib/serverInfo";
 import { Analytics } from "@vercel/analytics/next";
 import SiteNav from "@/components/SiteNav";
 import { countLiveTeamInvolvements } from "@/lib/myTeamNav";
-import { clansOfPerson } from "@/lib/myClans";
+import { characterCount, clansOfPerson } from "@/lib/myClans";
+import { clansWithSomethingLive } from "@/lib/apexHome";
 import PlatformRail, { type RailClan } from "@/components/PlatformRail";
 import "./globals.css";
 import ClanLink, { ClanPrefixProvider } from '@/components/ClanLink';
@@ -39,12 +40,15 @@ export const metadata: Metadata = {
  * clans' events is meant to be ordinary, so this list can be long, and the ordering is what keeps it
  * usable: your own clan, then staff seats, then everything else alphabetically.
  */
-function railOrder(clans: { slug: string; name: string; seat: string | null; staff: boolean }[]): RailClan[] {
+function railOrder(
+  clans: { id: number; slug: string; name: string; seat: string | null; staff: boolean }[],
+  live: Set<number>,
+): RailClan[] {
   const rank = (c: { seat: string | null; staff: boolean }) =>
     c.seat === 'member' ? 0 : c.staff ? 1 : 2;
   return [...clans]
     .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
-    .map((c) => ({ slug: c.slug, name: c.name }));
+    .map((c) => ({ slug: c.slug, name: c.name, live: live.has(c.id) }));
 }
 
 export default async function RootLayout({
@@ -93,6 +97,14 @@ export default async function RootLayout({
   // The person's clans, so the header can say where you are and offer the rest of what is yours.
   // Only for someone signed in — a stranger has none, and asking costs two queries.
   const myClans = session ? await clansOfPerson(session.playerId, session.userId) : [];
+  // Only the apex rail shows these, so only the apex pays for the queries.
+  const [myCharacters, liveIn] =
+    session && !clan
+      ? await Promise.all([
+          characterCount(session.playerId),
+          clansWithSomethingLive(myClans.map((c) => c.id)),
+        ])
+      : [0, new Set<number>()];
   const otherClans = myClans
     .filter((c) => c.slug !== clan?.slug)
     .map((c) => ({ slug: c.slug, name: c.name }));
@@ -119,9 +131,10 @@ export default async function RootLayout({
         {!clan ? (
           <div className="flex flex-1 flex-col md:flex-row">
             <PlatformRail
-              clans={railOrder(myClans)}
+              clans={railOrder(myClans, liveIn)}
               signedIn={!!session}
               displayName={userRow?.displayName ?? null}
+              characterCount={session ? myCharacters : undefined}
             />
             {/* Padding lives HERE, not on each page. Moving it onto the pages left every apex
                 surface I did not personally touch — guides, records, profile, /u, /p — jammed

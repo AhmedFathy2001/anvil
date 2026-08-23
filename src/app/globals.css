@@ -1,23 +1,29 @@
 @import "tailwindcss";
 
+/* The same identity, tuned. The ground drops a shade so the gold reads as heat rather than as
+   another brown, the ink warms up, and a third muted step exists — the old palette had one muted
+   grey doing the work of both "secondary text" and "barely there", which is why everything came out
+   the same weight. */
 :root {
-  --background: #1a1410;
-  --foreground: #e8dcc8;
-  --card-bg: #241e17;
-  --card-bg-hover: #2e271e;
-  --card-border: #3d3226;
-  --gold: #d4a017;
-  --gold-light: #f0c940;
-  --gold-dark: #8a6d1b;
-  --brown-light: #352c22;
-  --brown-dark: #161210;
+  --background: #141010;
+  --foreground: #f0e7d6;
+  --card-bg: #1c1714;
+  --card-bg-hover: #231d18;
+  --card-border: #332a22;
+  --card-border-soft: #251f1a;
+  --gold: #e0aa1e;
+  --gold-light: #ffd35c;
+  --gold-dark: #7a5f18;
+  --brown-light: #1a1512;
+  --brown-dark: #100d0c;
   --accent-green: #2d8544;
-  --accent-green-light: #34d058;
-  --accent-red: #c0392b;
-  --text-muted: #8a7e6c;
-  --tile-bg: #2a231b;
-  --tile-border: #4a3d2e;
-  --tile-completed: #1a3a1a;
+  --accent-green-light: #3ecf62;
+  --accent-red: #cf4a3e;
+  --text-muted: #a89b86;
+  --text-dim: #6e6355;
+  --tile-bg: #241d17;
+  --tile-border: #3b3025;
+  --tile-completed: #16301a;
 }
 
 @theme inline {
@@ -26,6 +32,7 @@
   --color-card-bg: var(--card-bg);
   --color-card-bg-hover: var(--card-bg-hover);
   --color-card-border: var(--card-border);
+  --color-card-border-soft: var(--card-border-soft);
   --color-gold: var(--gold);
   --color-gold-light: var(--gold-light);
   --color-gold-dark: var(--gold-dark);
@@ -35,6 +42,7 @@
   --color-accent-green-light: var(--accent-green-light);
   --color-accent-red: var(--accent-red);
   --color-text-muted: var(--text-muted);
+  --color-text-dim: var(--text-dim);
   --color-tile-bg: var(--tile-bg);
   --color-tile-border: var(--tile-border);
   --color-tile-completed: var(--tile-completed);

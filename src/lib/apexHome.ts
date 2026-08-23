@@ -100,3 +100,35 @@ export async function rosterSize(clanId: number): Promise<number> {
     .where(and(eq(clanMemberships.clanId, clanId), isNull(clanMemberships.leftAt), eq(clanMemberships.kind, 'member')));
   return Number(row?.n ?? 0);
 }
+
+/**
+ * Which of these clans has something running — ids only.
+ *
+ * The shell's rail wants one dot per clan and nothing else, and asking `apexHomeView` for that would
+ * drag names, XP and character counts onto every apex render. Two id-only selects instead, both
+ * bounded by the person's own clan list, which is short.
+ */
+export async function clansWithSomethingLive(clanIds: number[]): Promise<Set<number>> {
+  if (clanIds.length === 0) return new Set();
+  const nowIso = new Date().toISOString();
+
+  const [ev, wk] = await Promise.all([
+    db
+      .selectDistinct({ clanId: events.clanId })
+      .from(events)
+      .where(
+        and(
+          inArray(events.clanId, clanIds),
+          isNull(events.forceEndedAt),
+          sql`${events.startDate} is not null and ${events.startDate} <= ${nowIso}`,
+          or(isNull(events.endDate), gt(events.endDate, nowIso)),
+        ),
+      ),
+    db
+      .selectDistinct({ clanId: weeklyCompetitions.clanId })
+      .from(weeklyCompetitions)
+      .where(and(inArray(weeklyCompetitions.clanId, clanIds), eq(weeklyCompetitions.status, 'active'))),
+  ]);
+
+  return new Set([...ev, ...wk].map((r) => r.clanId));
+}
