@@ -31,7 +31,7 @@ export default async function MyTeamPage({
   const tId = parseInt(teamId, 10);
 
   const user = await verifyUser();
-  if (!user) redirect('/login');
+  if (!user) redirect(`/login?return=${encodeURIComponent(`/team/${tId}`)}`);
 
   const team = await db.query.teams.findFirst({ where: eq(teams.id, tId) });
   if (!team) notFound();

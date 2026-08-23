@@ -28,6 +28,15 @@ export default function SiteNav({ signedIn, myTeams, isStaff, discordInvite, use
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
+  // Sign in and come back to where you were. The login round trip already honours `?return=`
+  // end-to-end (login page -> /api/auth/discord/start -> cookie -> callback -> safeReturnPath), and
+  // middleware sets it for /admin and /team — but the nav button, which is how most people sign in,
+  // sent everyone to the home page. Reading someone's event board, clicking Sign in and losing the
+  // page was the common way to hit that.
+  const loginHref = pathname && pathname !== '/' && pathname !== '/login'
+    ? `/login?return=${encodeURIComponent(pathname)}`
+    : '/login';
+
   // Close the mobile menu on navigation so it never lingers over the next page.
   useEffect(() => {
     setOpen(false);
@@ -107,7 +116,7 @@ export default function SiteNav({ signedIn, myTeams, isStaff, discordInvite, use
           </div>
         ) : (
           <Link
-            href="/login"
+            href={loginHref}
             className="ml-2 px-3 py-1.5 rounded-md text-sm bg-gold/10 text-gold hover:bg-gold/20 transition-all border border-gold/30"
           >
             Sign in
@@ -194,7 +203,7 @@ export default function SiteNav({ signedIn, myTeams, isStaff, discordInvite, use
                 </div>
               ) : (
                 <Link
-                  href="/login"
+                  href={loginHref}
                   onClick={() => setOpen(false)}
                   className="block text-center px-3 py-2.5 rounded-md text-sm bg-gold/10 text-gold hover:bg-gold/20 transition-all border border-gold/30"
                 >

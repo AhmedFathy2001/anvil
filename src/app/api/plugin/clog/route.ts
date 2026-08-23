@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: { pages?: unknown; items?: unknown; syncedPages?: unknown };
+  let body: { pages?: unknown; items?: unknown; syncedPages?: unknown; counts?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -77,6 +77,11 @@ export async function POST(request: Request) {
       );
     }
     return ingestWholeLog(body.items as IncomingItem[], member, {
+      // Kill counters, when the client sends them. The whole-log transmit hands us every obtained
+      // item but historically no counts, which left the unlock stamp guessing — see ingestWholeLog.
+      counts: body.counts && typeof body.counts === 'object' && !Array.isArray(body.counts)
+        ? (body.counts as Record<string, unknown>)
+        : null,
       nowIso: new Date().toISOString(),
       pluginVersion: request.headers.get('X-Anvil-Plugin-Version')?.slice(0, 32) ?? null,
       accountHash: request.headers.get('X-Account-Hash')?.slice(0, 128) ?? null,
@@ -241,17 +246,69 @@ export async function POST(request: Request) {
 }
 
 /**
+ * A page's own kill counter, keyed by lowercased page name.
+ *
+ * The collection log prints the count on the page itself ("Chambers of Xeric kills: 80"), which is
+ * the game's number and therefore the right one to stamp an unlock with. Two sources, best first:
+ *
+ *   1. `sent` — counters riding along with THIS push, so they're as fresh as the log the client just
+ *      read. A client that doesn't send them simply contributes nothing here.
+ *   2. member_clog_kc — what a previous per-page sync stored. Older, but still the game's number
+ *      rather than an inference from hiscores.
+ *
+ * A page can carry several counters (normal and Challenge Mode clears); the largest is the one an
+ * unlock is measured against, since that's the total attempts at the page.
+ */
+async function pageKillCounts(
+  clanMemberId: number,
+  sent: Record<string, unknown> | null | undefined,
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+
+  const stored = await db
+    .select({ pageName: memberClogKc.pageName, count: memberClogKc.count })
+    .from(memberClogKc)
+    .where(eq(memberClogKc.clanMemberId, clanMemberId));
+  for (const row of stored) {
+    const key = row.pageName.toLowerCase();
+    out.set(key, Math.max(out.get(key) ?? 0, row.count));
+  }
+
+  // Sent counters override rather than max-merge with the stored ones: this push read the log just
+  // now, so where the two disagree the older number is simply out of date.
+  for (const [page, labels] of Object.entries(sent ?? {})) {
+    if (!labels || typeof labels !== 'object' || Array.isArray(labels)) continue;
+    let best: number | null = null;
+    for (const value of Object.values(labels as Record<string, unknown>)) {
+      const n = int(value, MAX_COUNT);
+      if (n != null && (best == null || n > best)) best = n;
+    }
+    if (best != null) out.set(page.trim().toLowerCase(), best);
+  }
+
+  return out;
+}
+
+/**
  * Store a WHOLE-LOG push: the complete set of obtained items, mapped onto our own page catalogue.
  *
  * Unlike the page path this is a full replace — every page is rewritten, including to empty, because
  * the payload can answer for the whole log and a leftover row would be a claim we can no longer
- * support. Kill-count lines are left alone: they only ever arrive with a drawn page, and wiping them
- * because a different sync route ran would lose data this push can't replace.
+ * support. Kill-count lines are never WIPED here — a push without them can't answer for them, and
+ * clearing them because a different sync route ran would lose data this one can't replace — but a
+ * push that DOES carry them updates them, because that's the freshest reading of the game's own
+ * counter we will ever get.
  */
 async function ingestWholeLog(
   rawItems: IncomingItem[],
   member: { clanMemberId: number },
-  meta: { nowIso: string; pluginVersion: string | null; accountHash: string | null },
+  meta: {
+    nowIso: string;
+    pluginVersion: string | null;
+    accountHash: string | null;
+    /** Optional "<page> <label>" -> count map; see the kill-count note below. */
+    counts?: Record<string, unknown> | null;
+  },
 ) {
   if (rawItems.length > MAX_ITEMS_PER_LOG) {
     return NextResponse.json({ error: `At most ${MAX_ITEMS_PER_LOG} items per push` }, { status: 400 });
@@ -290,9 +347,20 @@ async function ingestWholeLog(
 
   // Kill counts, for stamping an unlock we are watching land. Only read when this ISN'T a first
   // sync: on a first sync everything is new and none of it happened just now.
+  //
+  // TWO sources, and the order matters. bossKillsFor() INFERS the count from the live-stat overlay
+  // floored by the last hiscores snapshot, and both lag: the overlay only carries bosses some tile
+  // tracks, and hiscores only flush on logout. That inference is what stamped an Ancestral bottom at
+  // 79 KC when the drop happened on the 80th — the site's own copy was one kill behind while the
+  // game had already said 80.
+  //
+  // The log's OWN counter is the game's number, read off the page the item is on, so it wins where
+  // the client sends it. Falling back to the stored counter (member_clog_kc, written by the per-page
+  // sync) still beats inferring, because it too came from the game.
   const kills = hadLog
     ? await bossKillsFor(member.clanMemberId).catch(() => ({}) as Record<string, number>)
     : ({} as Record<string, number>);
+  const pageCounts = hadLog ? await pageKillCounts(member.clanMemberId, meta.counts) : new Map<string, number>();
 
   const rows = [...pages.entries()].flatMap(([pageName, items]) =>
     items.map((r) => {
@@ -301,7 +369,9 @@ async function ingestWholeLog(
       // The one moment this is knowable: they didn't have it, now they do, so their current KC is
       // the KC it dropped at. Every later sync copies the stamp rather than re-reading it — after
       // the fact, a pet spooned at 12 and one earned at 3,000 look identical.
-      const stamped = !before && hadLog && bossKey ? (kills[bossKey] ?? null) : null;
+      const stamped = !before && hadLog
+        ? (pageCounts.get(pageName.toLowerCase()) ?? (bossKey ? kills[bossKey] ?? null : null))
+        : null;
       return {
         clanMemberId: member.clanMemberId,
         itemId: r.itemId,
@@ -359,6 +429,27 @@ async function ingestWholeLog(
       .where(
         and(eq(memberClogItems.clanMemberId, member.clanMemberId), eq(memberClogItems.itemId, row.itemId)),
       );
+  }
+
+  // Persist any counters this push carried. They're the freshest reading of the game's own counter
+  // we'll ever get, and throwing them away would leave the next sync stamping from an inference
+  // again. Per page, and only pages that were sent — a push with no counters leaves them all alone.
+  if (meta.counts) {
+    for (const [page, labels] of Object.entries(meta.counts)) {
+      if (!labels || typeof labels !== 'object' || Array.isArray(labels)) continue;
+      const pageName = page.trim().slice(0, 120);
+      if (!pageName) continue;
+      const countRows = Object.entries(labels as Record<string, unknown>)
+        .map(([label, value]) => ({ label: label.trim().slice(0, 80), count: int(value, MAX_COUNT) }))
+        .filter((r): r is { label: string; count: number } => !!r.label && r.count != null)
+        .slice(0, 12)
+        .map((r) => ({ clanMemberId: member.clanMemberId, pageName, label: r.label, count: r.count }));
+      if (countRows.length === 0) continue;
+      await db
+        .delete(memberClogKc)
+        .where(and(eq(memberClogKc.clanMemberId, member.clanMemberId), eq(memberClogKc.pageName, pageName)));
+      await db.insert(memberClogKc).values(countRows);
+    }
   }
 
   const index = clogPageIndex();
