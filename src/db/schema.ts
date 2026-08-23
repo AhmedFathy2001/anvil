@@ -63,6 +63,18 @@ export const clans = pgTable('clans', {
   // Default approval because membership is GRANTED, never assumed, and the paths that used to mint
   // a guest seat did it silently — anyone who logged in once appeared on a roster nobody agreed to.
   guestPolicy: text('guest_policy').notNull().default('approval'),
+  // May somebody with no seat here READ this clan?
+  //   public  — anyone can look at the boards and the roster (default, and what every clan has
+  //             always done: the habit is to paste the board link into Discord)
+  //   members — only people who hold a seat or a grant; everyone else gets the clan's card and an
+  //             invitation to apply, never a 404
+  //
+  // SEPARATE FROM `events.visibility`, which is a different question wearing a similar word. That
+  // one asks which CLANS an event belongs to — ours, an invited one, or anybody's — and is about
+  // cross-clan play. This one asks whether strangers may read the clan at all. Conflating them is
+  // what made every board 404 for signed-out visitors: `events.visibility` defaults to 'clan', and
+  // 'clan' was read as "holds a seat", so an ordinary event became invisible to the public.
+  visibility: text('visibility').notNull().default('public'),
 
   // ── Billing ───────────────────────────────────────────────────────────────────────────────
   // These lived in the control plane's own database, which existed to know which CONTAINER belonged

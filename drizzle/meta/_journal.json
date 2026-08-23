@@ -190,6 +190,13 @@
       "when": 1787319849537,
       "tag": "0068_stat-basis",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "6",
+      "when": 1787900000000,
+      "tag": "0069_clan_sharing",
+      "breakpoints": true
     }
   ]
 }

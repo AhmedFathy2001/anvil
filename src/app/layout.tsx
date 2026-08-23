@@ -15,6 +15,8 @@ import { characterCount, clansOfPerson } from "@/lib/myClans";
 import { clansWithSomethingLive } from "@/lib/apexHome";
 import PlatformRail, { type RailClan } from "@/components/PlatformRail";
 import SiteFooter from "@/components/SiteFooter";
+import ClanPrivate from "@/components/ClanPrivate";
+import { canSeeClan } from "@/lib/clanAccess";
 import "./globals.css";
 import ClanLink, { ClanPrefixProvider } from '@/components/ClanLink';
 
@@ -97,6 +99,20 @@ export default async function RootLayout({
   // Clan-specific Discord invite: admin-configurable (settings) with an env fallback. The link is
   // hidden entirely when neither is set, so a fresh self-hosted instance shows no dead link.
   const discordInvite = clan ? await getDiscordInviteUrl(clan.id) : null;
+
+  // MAY THIS PERSON READ THIS CLAN AT ALL? Asked once, here, because a clan that keeps to itself
+  // keeps all of itself — boards, roster, records — and asking on each of thirty pages is thirty
+  // chances to forget. When the answer is no the page is replaced by the clan's card, which says
+  // which clan it is and how to ask in; a 404 would claim the clan does not exist, and somebody
+  // following a link from Discord could not tell that from a typo.
+  const clanReadable = clan
+    ? await canSeeClan({
+        clanId: clan.id,
+        visibility: clan.visibility,
+        playerId: session?.playerId,
+        userId: session?.userId,
+      })
+    : true;
 
   // Awaited HERE rather than inline in the JSX below. `<ClanPrefixProvider prefix={await …}>` put a
   // suspend point in the middle of the element tree, and the server then streamed the shell in a
@@ -186,7 +202,16 @@ export default async function RootLayout({
           </div>
         </nav>
         <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 py-8 flex-1">
-          {children}
+          {clanReadable ? (
+            children
+          ) : (
+            <ClanPrivate
+              name={clan!.name}
+              slug={clan!.slug}
+              signedIn={!!session}
+              guestPolicy={clan!.guestPolicy}
+            />
+          )}
         </main>
         </>
         )}

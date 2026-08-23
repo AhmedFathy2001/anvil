@@ -13,8 +13,9 @@
 import { and, eq, isNull, or } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, clanStaff, eventInvites, events, users } from '@/db/schema';
+import { accounts, clanMemberships, clanStaff, clans, eventInvites, events, users } from '@/db/schema';
 import { isBannedFromClan } from '@/lib/clanBans';
+import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { entryOf, visibilityOf } from '@/lib/eventVisibility';
 
 export { isEntry, isVisibility, type EventEntry, type EventVisibility } from '@/lib/eventVisibility';
@@ -36,6 +37,15 @@ export async function canSeeEvent(opts: {
   const visibility = visibilityOf(event.visibility);
   if (visibility === 'public') return true;
 
+  // 'clan' MEANS "THIS CLAN'S EVENT", NOT "LOGGED-IN MEMBERS ONLY". Whether a stranger may read
+  // this clan is the clan's own setting, and it is `public` unless somebody turned it off — which
+  // is what every clan has always done, since the habit is to paste the board link into Discord.
+  //
+  // Reading 'clan' as "holds a seat" is the bug this replaces: it 404'd every board for anyone
+  // signed out, including the clan's own members before they log in, and including the front page's
+  // own "See a live event" button.
+  if (visibility === 'clan' && (await clanIsPublic(event.clanId))) return true;
+
   if (opts.playerId == null) return false;
 
   // In the host clan? Then it is theirs to see, whatever the setting says. A SEAT or a GRANT —
@@ -48,6 +58,16 @@ export async function canSeeEvent(opts: {
 
   // invited — by name, or by belonging to an invited clan.
   return invitedToEvent(opts.eventId, opts.playerId);
+}
+
+/** Does this clan let strangers read it? `public` unless an admin has said otherwise. */
+async function clanIsPublic(clanId: number): Promise<boolean> {
+  const row = await db.query.clans.findFirst({
+    where: eq(clans.id, clanId),
+    columns: { visibility: true },
+  });
+  // Unknown values read as PRIVATE, the closed answer — the same rule the event vocabulary uses.
+  return clanVisibilityOf(row?.visibility) === 'public';
 }
 
 /** A live seat in this clan, of any kind. */

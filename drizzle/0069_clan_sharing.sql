@@ -1,0 +1,16 @@
+-- Does a clan show its events to people who are not in it?
+--
+-- IT ALWAYS DID, until the multi-clan port. `events.visibility` arrived defaulting to 'clan', and
+-- 'clan' was implemented as "holds a seat or a grant here" — so from the moment that shipped, every
+-- board 404'd for anyone signed out, including the clan's own members before they log in, and
+-- including the "See a live event" button on the front page. A clan site whose whole habit is
+-- pasting the board link into Discord became a wall of not-founds.
+--
+-- The mistake was reading one setting as two. `events.visibility` answers WHICH CLANS an event
+-- belongs to — ours, an invited one, or anybody's — and that is a question about cross-clan play.
+-- Whether a STRANGER may read this clan at all is a different question, it belongs to the clan, and
+-- nobody had asked it. This is that column.
+--
+-- Default 'public', because that is what every clan on the platform has been doing all along and a
+-- migration should not silently change what people's sites do.
+ALTER TABLE clans ADD COLUMN IF NOT EXISTS visibility text NOT NULL DEFAULT 'public';

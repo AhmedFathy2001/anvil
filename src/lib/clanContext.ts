@@ -34,6 +34,10 @@ export interface ClanContext {
   plan: string;
   memberCap: number | null;
   customDomain: string | null;
+  /** 'public' | 'members' — whether somebody with no seat here may read the clan. See lib/clanVisibility. */
+  visibility: string;
+  /** 'approval' | 'open' | 'closed' — how it admits somebody it does not already have. */
+  guestPolicy: string;
   /** The clan's canonical host, for building absolute URLs. Custom domain wins when set. */
   host: string;
 }
@@ -105,6 +109,8 @@ function toContext(row: typeof clans.$inferSelect): ClanContext {
     plan: row.plan,
     memberCap: row.memberCap,
     customDomain: row.customDomain,
+    visibility: row.visibility,
+    guestPolicy: row.guestPolicy,
     host: row.customDomain || `${row.slug}.${apexDomain()}`,
   };
 }

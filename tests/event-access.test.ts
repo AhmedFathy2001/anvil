@@ -64,7 +64,12 @@ before(async () => {
   const clans = await db
     .insert(s.clans)
     .values([
-      { slug: 'host', name: 'Host Clan' },
+      // THE HOST KEEPS TO ITSELF, and every "invisible to outsiders" assertion below depends on it.
+      // Whether a stranger may read a clan is the CLAN's setting, and it defaults to public — so a
+      // clan-only event in an ordinary clan is readable by anyone, which is what a clan site has
+      // always done and what tests/clan-sharing.test.ts covers. Both halves are real; this suite is
+      // the private one, and saying so here is what stopped it silently testing the other regime.
+      { slug: 'host', name: 'Host Clan', visibility: 'members' },
       { slug: 'neighbour', name: 'Neighbour Clan' },
       { slug: 'stranger', name: 'Stranger Clan' },
     ])
@@ -114,7 +119,7 @@ test('unknown settings fall back to the closed answer, not the open one', () => 
 
 // ── Seeing ────────────────────────────────────────────────────────────────────────────────────
 
-test('a clan-only event is invisible to everyone outside the clan', async () => {
+test('in a clan that keeps to itself, a clan-only event is invisible to outsiders', async () => {
   assert.equal(await A.canSeeEvent({ eventId: clanEvent, playerId: insider }), true);
   assert.equal(await A.canSeeEvent({ eventId: clanEvent, playerId: neighbour }), false);
   assert.equal(await A.canSeeEvent({ eventId: clanEvent, playerId: null }), false, 'and to the public');
@@ -194,7 +199,9 @@ test('a clan ban keeps somebody out of that clan’s PUBLIC events too', async (
 // ── Defaults ──────────────────────────────────────────────────────────────────────────────────
 
 test('an existing event is unchanged: its clan’s, open to its clan', async () => {
-  // The migration must not quietly publish a board that is running right now.
+  // The migration must not quietly change what a board that is running right now is FOR. It stays
+  // 'clan' and 'open'; who may read it is then the clan's own business, and this clan shares with
+  // nobody.
   const { db, schema: s } = await loadDb();
   const [e] = await db.insert(s.events).values({ clanId: host, name: 'Just Made', boardSize: 25 }).returning();
   assert.equal(e.visibility, 'clan');
