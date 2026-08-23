@@ -90,7 +90,7 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
 
         {/* Capped while stacked: given the whole 1180 column the board grows to a wall of sprites.
             A board wants to be about as wide as it is tall. */}
-        <div className="relative mx-auto w-full min-w-0 max-w-[620px] xl:mx-0 xl:max-w-none">
+        <div className="relative w-full min-w-0 max-w-[620px] xl:max-w-none">
           <HeroShowcase />
         </div>
         </div>
