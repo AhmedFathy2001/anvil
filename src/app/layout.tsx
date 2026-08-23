@@ -7,13 +7,14 @@ import { users as usersTable } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { avatarUrl } from "@/lib/discord-oauth";
 import { getDiscordInviteUrl } from "@/lib/pluginConfig";
-import { APP_VERSION, GIT_SHA } from "@/lib/serverInfo";
+
 import { Analytics } from "@vercel/analytics/next";
 import SiteNav from "@/components/SiteNav";
 import { countLiveTeamInvolvements } from "@/lib/myTeamNav";
 import { characterCount, clansOfPerson } from "@/lib/myClans";
 import { clansWithSomethingLive } from "@/lib/apexHome";
 import PlatformRail, { type RailClan } from "@/components/PlatformRail";
+import SiteFooter from "@/components/SiteFooter";
 import "./globals.css";
 import ClanLink, { ClanPrefixProvider } from '@/components/ClanLink';
 
@@ -148,10 +149,17 @@ export default async function RootLayout({
               displayName={userRow?.displayName ?? null}
               characterCount={session ? myCharacters : undefined}
             />
-            {/* Padding lives HERE, not on each page. Moving it onto the pages left every apex
-                surface I did not personally touch — guides, records, profile, /u, /p — jammed
-                against the rail with no margin at all. The landing bleeds out of it deliberately. */}
-            <main className="min-w-0 flex-1 px-4 py-8 sm:px-6 lg:px-8">{children}</main>
+            {/* The CONTENT COLUMN: page and footer together, beside the rail. The footer used to
+                be a sibling of this whole row, so it ran underneath the rail from x=0 while
+                everything else began at 240 — and centred its own text on the window rather than on
+                the column above it. The bottom of the page looked like it had come apart. */}
+            <div className="flex min-w-0 flex-1 flex-col">
+              {/* Padding lives HERE, not on each page. Moving it onto the pages left every apex
+                  surface I did not personally touch — guides, records, profile, /u, /p — jammed
+                  against the rail with no margin at all. The landing bleeds out of it on purpose. */}
+              <main className="flex-1 px-4 py-8 sm:px-6 lg:px-8">{children}</main>
+              <SiteFooter />
+            </div>
           </div>
         ) : (
         <>
@@ -182,46 +190,7 @@ export default async function RootLayout({
         </main>
         </>
         )}
-        {/*
-          AUTHOR ATTRIBUTION — required by LICENSE (PolyForm Noncommercial 1.0.0 + Attribution).
-          The "Built by Ahmed Fathy" credit and its link must remain visible in any deployment or
-          derivative work. There is no longer any donation-link carve-out: nothing in this footer
-          block is optional.
-        */}
-        <footer className="border-t border-card-border mt-16">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-text-muted">
-            <p>
-              Built by{" "}
-              <a
-                href="https://github.com/AhmedFathy2001"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gold hover:text-gold-light font-medium transition-colors"
-              >
-                Ahmed Fathy
-              </a>
-              {" · "}
-              <a
-                href="https://github.com/AhmedFathy2001/anvil"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-foreground transition-colors"
-              >
-                Anvil is source-available
-              </a>
-              {" · "}
-              <span title={`build ${GIT_SHA}`}>v{APP_VERSION}</span>
-            </p>
-            <div className="flex items-center gap-4">
-              <ClanLink href="/guide" className="hover:text-foreground transition-colors">
-                Guides
-              </ClanLink>
-              <ClanLink href="/feedback" className="hover:text-foreground transition-colors">
-                Feedback &amp; bug reports
-              </ClanLink>
-            </div>
-          </div>
-        </footer>
+        {clan && <SiteFooter />}
         <Analytics />
         </ClanPrefixProvider>
       </body>

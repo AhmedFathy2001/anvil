@@ -231,8 +231,15 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
         </Section>
       </div>
 
-      <div className="border-t border-card-border bg-gradient-to-b from-gold/[0.05] to-transparent px-5 py-14 sm:px-8">
-        <div className="mx-auto max-w-[1180px]">
+      {/* The closing band, and the page's other bookend: the hero opens on the mark at the left, this
+          closes on it at the right. Without it the band reserved the full column and filled half of
+          it, so the page ended on a rectangle of nothing. */}
+      <div className="forge-heat relative overflow-hidden border-t border-card-border px-5 py-14 sm:px-8">
+        <AnvilMark
+          size={340}
+          className="pointer-events-none absolute -bottom-16 right-[6%] hidden text-gold/[0.05] lg:block"
+        />
+        <div className="relative mx-auto max-w-[1180px]">
           <h2 className="display max-w-[20ch] text-[clamp(1.75rem,3.4vw,2.5rem)] font-semibold leading-[1.06] [text-wrap:balance]">
             Your next event could run without you.
           </h2>
