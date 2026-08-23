@@ -129,7 +129,7 @@ export default async function RootLayout({
             nav it always had. They were the same component until now, which is why the apex offered
             Events and Members — clan pages that 404 there because the apex has no roster. */}
         {!clan ? (
-          <div className="flex flex-1 flex-col md:flex-row">
+          <div className="flex flex-1 flex-col lg:flex-row">
             <PlatformRail
               clans={railOrder(myClans, liveIn)}
               signedIn={!!session}

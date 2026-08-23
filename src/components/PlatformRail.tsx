@@ -19,9 +19,12 @@ export interface RailClan {
  * anywhere on a long page — including the bottom of the landing. It owns its own scrollbar for the
  * case where somebody's clan list plus the nav is taller than their screen.
  *
- * RESPONSIVE BY CHANGING SHAPE, not by hiding. Under `md` it becomes a horizontal scrollable top
+ * RESPONSIVE BY CHANGING SHAPE, not by hiding. Below `lg` it becomes a horizontal scrollable top
  * bar that still shows your clans, because "which clans am I in" is the thing this rail exists to
  * answer and a hamburger hides exactly that.
+ *
+ * It turns into the sidebar at `lg`, not `md`. At 768 a 240px rail takes a third of the screen and
+ * leaves the page 528 — narrower than the phone layout it just stopped using.
  *
  * There used to be one nav and it was a clan's — so the apex offered Events and Members, which 404
  * there because the apex has no roster. This is the other half of that split: the rail is what the
@@ -69,15 +72,15 @@ export default function PlatformRail({
     // Applied at every width it also cancels the mobile column's stretch, so the bar sized itself to
     // its own content — 539px of clans against a 422px screen — and dragged the whole page sideways
     // with it. Cross-axis alignment means opposite things in the two directions this flips between.
-    <nav className="sticky top-0 z-40 flex w-full shrink-0 gap-4 overflow-x-auto border-b border-card-border bg-brown-dark p-2 md:h-screen md:w-[240px] md:flex-col md:gap-6 md:self-start md:overflow-x-visible md:overflow-y-auto md:border-b-0 md:border-r md:p-4">
+    <nav className="sticky top-0 z-40 flex w-full shrink-0 gap-4 overflow-x-auto border-b border-card-border bg-brown-dark p-2 lg:h-screen lg:w-[240px] lg:flex-col lg:gap-6 lg:self-start lg:overflow-x-visible lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-4">
       <ClanLink href="/" className="flex shrink-0 items-center gap-2.5 px-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/icon-48.png" alt="" width={24} height={24} className="rounded-md" />
-        <span className="hidden text-[17px] font-extrabold tracking-tight text-gold md:inline">Anvil</span>
+        <span className="hidden text-[17px] font-extrabold tracking-tight text-gold lg:inline">Anvil</span>
       </ClanLink>
 
-      <div className="flex shrink-0 gap-0.5 md:flex-col">
-        <div className="hidden px-2.5 pb-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-text-dim md:block">
+      <div className="flex shrink-0 gap-0.5 lg:flex-col">
+        <div className="hidden px-2.5 pb-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-text-dim lg:block">
           Platform
         </div>
         {item('/', 'Home', <HomeIcon />)}
@@ -87,8 +90,8 @@ export default function PlatformRail({
       </div>
 
       {clans.length > 0 && (
-        <div className="flex min-h-0 shrink-0 gap-0.5 md:flex-col">
-          <div className="hidden items-center gap-2 px-2.5 pb-1.5 md:flex">
+        <div className="flex min-h-0 shrink-0 gap-0.5 lg:flex-col">
+          <div className="hidden items-center gap-2 px-2.5 pb-1.5 lg:flex">
             <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-dim">
               Your clans
             </span>
@@ -96,7 +99,7 @@ export default function PlatformRail({
           </div>
           {/* Capped and scrolling: guesting into other clans' events is meant to be ordinary, so a
               dozen seats is a normal account. A rail listing all of them pushes the nav off screen. */}
-          <div className="flex gap-0.5 md:max-h-[min(34vh,320px)] md:flex-col md:overflow-y-auto">
+          <div className="flex gap-0.5 lg:max-h-[min(34vh,320px)] lg:flex-col lg:overflow-y-auto">
             {clans.map((c) => (
               <ClanLink
                 key={c.slug}
@@ -119,7 +122,7 @@ export default function PlatformRail({
 
       {/* The way out. The first cut of this rail had no sign-out at all, because it lived in the
           clan nav that the apex no longer renders. */}
-      <div className="ml-auto flex shrink-0 items-center gap-2.5 pl-2 md:ml-0 md:mt-auto md:border-t md:border-card-border-soft md:pt-3">
+      <div className="ml-auto flex shrink-0 items-center gap-2.5 pl-2 lg:ml-0 lg:mt-auto lg:border-t lg:border-card-border-soft lg:pt-3">
         {signedIn ? (
           <>
             <ClanLink href="/profile" className="group flex min-w-0 items-center gap-2.5">
@@ -129,7 +132,7 @@ export default function PlatformRail({
               <span className="min-w-0 text-[13px] group-hover:text-gold">
                 <span className="block truncate">{displayName ?? 'You'}</span>
                 {characterCount != null && (
-                  <span className="hidden font-mono text-[10.5px] text-text-dim md:block">
+                  <span className="hidden font-mono text-[10.5px] text-text-dim lg:block">
                     {characterCount} character{characterCount === 1 ? '' : 's'}
                   </span>
                 )}
