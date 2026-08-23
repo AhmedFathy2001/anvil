@@ -65,7 +65,11 @@ export default function PlatformRail({
   };
 
   return (
-    <nav className="sticky top-0 z-40 flex shrink-0 gap-4 self-start overflow-x-auto border-b border-card-border bg-brown-dark p-2 md:h-screen md:w-[240px] md:flex-col md:gap-6 md:overflow-x-visible md:overflow-y-auto md:border-b-0 md:border-r md:p-4">
+    // `self-start` is for the DESKTOP row, where it stops the rail stretching to the page's height.
+    // Applied at every width it also cancels the mobile column's stretch, so the bar sized itself to
+    // its own content — 539px of clans against a 422px screen — and dragged the whole page sideways
+    // with it. Cross-axis alignment means opposite things in the two directions this flips between.
+    <nav className="sticky top-0 z-40 flex w-full shrink-0 gap-4 overflow-x-auto border-b border-card-border bg-brown-dark p-2 md:h-screen md:w-[240px] md:flex-col md:gap-6 md:self-start md:overflow-x-visible md:overflow-y-auto md:border-b-0 md:border-r md:p-4">
       <ClanLink href="/" className="flex shrink-0 items-center gap-2.5 px-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/icon-48.png" alt="" width={24} height={24} className="rounded-md" />
