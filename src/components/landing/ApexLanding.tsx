@@ -49,7 +49,11 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
               'radial-gradient(ellipse at 45% 45%, rgba(212,160,23,0.14), rgba(212,160,23,0.03) 45%, transparent 70%)',
           }}
         />
-        <div className="mx-auto grid max-w-[1180px] items-center gap-10 px-5 py-14 sm:px-8 sm:py-16 lg:grid-cols-[minmax(0,1.02fr)_minmax(0,1fr)] lg:gap-12 lg:py-20">
+        {/* Two columns at `xl`, not `lg`. The rail becomes the 240px sidebar at `lg`, so splitting
+            the hero there too took both bites out of the same 1024px at once and left the board
+            about 300px wide — tiles too small to read their own labels. Between 1024 and 1280 the
+            hero stacks and gets the full column, which is the shape that reads best anyway. */}
+        <div className="mx-auto grid max-w-[1180px] items-center gap-10 px-5 py-14 sm:px-8 sm:py-16 xl:grid-cols-[minmax(0,1.02fr)_minmax(0,1fr)] xl:gap-12 xl:py-20">
         <div className="relative min-w-0">
           <div className="mb-5 flex items-center gap-2.5 font-mono text-[11px] uppercase tracking-[0.18em] text-gold-dark">
             For Old School RuneScape clans
@@ -84,7 +88,9 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
           </p>
         </div>
 
-        <div className="relative min-w-0">
+        {/* Capped while stacked: given the whole 1180 column the board grows to a wall of sprites.
+            A board wants to be about as wide as it is tall. */}
+        <div className="relative mx-auto w-full min-w-0 max-w-[620px] xl:mx-0 xl:max-w-none">
           <HeroShowcase />
         </div>
         </div>
