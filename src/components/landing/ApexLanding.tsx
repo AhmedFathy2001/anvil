@@ -1,3 +1,4 @@
+import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
 import HeroShowcase from '@/components/landing/HeroShowcase';
 import TileKinds, { TILE_KIND_COUNT } from '@/components/landing/TileKinds';
@@ -38,16 +39,14 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
       {/* The band bleeds; its CONTENTS sit in the same column as every section below. Letting the
           hero span an ultrawide monitor put a third of a metre of empty ground between the headline
           and the board, and the two stopped reading as one thought. */}
-      <header className="relative overflow-hidden border-b border-card-border">
-        {/* Forge heat. The single decorative element on the page, and it sits behind the product
-            rather than in front of the words. */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -left-[10%] -top-[35%] h-[620px] w-[70%] opacity-90"
-          style={{
-            background:
-              'radial-gradient(ellipse at 45% 45%, rgba(212,160,23,0.14), rgba(212,160,23,0.03) 45%, transparent 70%)',
-          }}
+      <header className="forge-ground forge-heat relative overflow-hidden border-b border-card-border">
+        {/* THE MARK, whole, behind the words. Cropping it off the corner left only the top slab and
+            half the waist showing, which reads as a stray pale rectangle rather than an anvil — a
+            silhouette has to be complete to be recognised at all. Hidden below `sm`, where there is
+            no room for it to be anything but clutter. */}
+        <AnvilMark
+          size={620}
+          className="pointer-events-none absolute -left-[60px] top-1/2 hidden -translate-y-1/2 text-gold/[0.035] sm:block xl:left-[2%]"
         />
         {/* Two columns at `xl`, not `lg`. The rail becomes the 240px sidebar at `lg`, so splitting
             the hero there too took both bites out of the same 1024px at once and left the board
@@ -59,10 +58,13 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
             For Old School RuneScape clans
             <span className="h-px w-12 bg-gradient-to-r from-gold-dark to-transparent" />
           </div>
-          <h1 className="text-[clamp(2.1rem,5.5vw,3.6rem)] font-bold leading-[1.06] tracking-[-0.03em] [text-wrap:balance]">
+          <h1 className="display text-[clamp(2.1rem,5.5vw,3.7rem)] font-semibold leading-[1.04] [text-wrap:balance]">
             Everything your clan does,
             <br />
-            <span className="text-gold">already counted</span>.
+            <span className="bg-gradient-to-b from-gold-light to-gold bg-clip-text text-transparent">
+              already counted
+            </span>
+            .
           </h1>
           <p className="mt-5 max-w-[48ch] text-[16.5px] leading-relaxed text-text-muted">
             Bingos, tile races, ladders, skill and boss weeks, clan against clan. Anvil holds the
@@ -231,7 +233,7 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
 
       <div className="border-t border-card-border bg-gradient-to-b from-gold/[0.05] to-transparent px-5 py-14 sm:px-8">
         <div className="mx-auto max-w-[1180px]">
-          <h2 className="max-w-[20ch] text-[clamp(1.7rem,3.4vw,2.5rem)] font-bold leading-[1.08] tracking-[-0.025em] [text-wrap:balance]">
+          <h2 className="display max-w-[20ch] text-[clamp(1.75rem,3.4vw,2.5rem)] font-semibold leading-[1.06] [text-wrap:balance]">
             Your next event could run without you.
           </h2>
           <p className="mt-3.5 max-w-[54ch] text-[15.5px] leading-relaxed text-text-muted">
@@ -277,8 +279,8 @@ function Section({
   return (
     <section className="pt-14 sm:pt-16">
       <div className="mb-2.5 flex items-center gap-3">
-        <span className="h-[22px] w-1 shrink-0 rounded-sm bg-gold" />
-        <h2 className="text-[clamp(1.3rem,2.6vw,1.6rem)] font-semibold leading-tight tracking-[-0.02em] [text-wrap:balance]">
+        <span className="molten h-[22px] w-1 shrink-0 rounded-sm" />
+        <h2 className="display text-[clamp(1.35rem,2.6vw,1.7rem)] font-semibold leading-tight [text-wrap:balance]">
           {title}
         </h2>
       </div>

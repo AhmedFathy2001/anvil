@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { clanPrefix, currentClan } from '@/lib/clanContext';
-import { Geist, Geist_Mono } from "next/font/google";
+import { Fraunces, Geist, Geist_Mono } from "next/font/google";
 import { verifyUser } from "@/lib/auth";
 import { db } from "@/db";
 import { users as usersTable } from "@/db/schema";
@@ -25,6 +25,18 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+// The display face, and the one deliberate piece of brand on the page.
+//
+// Old School RuneScape's own wordmark is a heavy gold serif on dark, and so is most of the art the
+// game ships. A grotesk headline reads as any SaaS product; a cut serif in gold reads as THIS GAME
+// to the only people this site is for. WONK on and SOFT at zero keep the terminals square — struck
+// rather than written, which is the other half of the name.
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin"],
+  axes: ["SOFT", "WONK", "opsz"],
 });
 
 export const metadata: Metadata = {
@@ -119,7 +131,7 @@ export default async function RootLayout({
         // to THIS element's attributes; children are still checked normally, so a real mismatch
         // inside the page is not hidden by it.
         suppressHydrationWarning
-        className={`${geistSans.variable} ${geistMono.variable} antialiased flex min-h-screen flex-col`}
+        className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} antialiased flex min-h-screen flex-col`}
       >
         {/* The clan prefix, read from the header middleware set and handed to every ClanLink below.
             It cannot be recovered further down: middleware rewrites /c/<slug>/x to /x before Next

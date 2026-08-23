@@ -97,6 +97,52 @@ body {
   color: var(--foreground);
 }
 
+/* ── Brand ──────────────────────────────────────────────────────────────────────────────────────
+   Three classes, used sparingly. The page was legible and completely anonymous before them: dark
+   ground, gold accent, and the same grotesk every other product ships. */
+
+/* The display face. A plain class rather than a Tailwind theme font, because the variation settings
+   are the point — Tailwind would give us the family and drop the axes that make it OUR serif rather
+   than a stock one. WONK swaps in the cut, angled forms; SOFT 0 keeps the corners sharp. */
+.display {
+  font-family: var(--font-fraunces), Georgia, "Times New Roman", serif;
+  font-variation-settings: "SOFT" 0, "WONK" 1, "opsz" 144;
+  letter-spacing: -0.02em;
+}
+
+/* Hammered ground. Two hairline hatches crossing at a shallow angle, at an opacity you read as
+   texture rather than see as lines — enough that a large dark panel stops looking like an empty
+   div. Sits under content via a ::before, so it never interferes with hit testing. */
+.forge-ground {
+  position: relative;
+  isolation: isolate;
+}
+
+.forge-ground::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(114deg, rgba(224, 170, 30, 0.026) 0 1px, transparent 1px 9px),
+    repeating-linear-gradient(66deg, rgba(224, 170, 30, 0.018) 0 1px, transparent 1px 14px);
+  /* Fades out downward so the texture belongs to the hero rather than tiling the whole page. */
+  mask-image: linear-gradient(to bottom, black, transparent 92%);
+}
+
+/* Heat coming off the metal. The one strong colour on an otherwise near-black page. */
+.forge-heat {
+  background:
+    radial-gradient(58% 62% at 22% 34%, rgba(224, 170, 30, 0.15), transparent 68%),
+    radial-gradient(42% 48% at 78% 12%, rgba(207, 74, 62, 0.07), transparent 70%);
+}
+
+/* Struck edge — the section markers and rules. Molten at the top, cooling toward the bottom. */
+.molten {
+  background: linear-gradient(to bottom, var(--gold-light), var(--gold) 45%, var(--gold-dark));
+}
+
 /* Slide-over drawer animations */
 @keyframes drawer-fade-in {
   from { opacity: 0; }

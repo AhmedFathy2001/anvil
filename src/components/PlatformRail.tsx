@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 
+import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
 import ClanCrest from '@/components/ClanCrest';
 
@@ -73,10 +74,13 @@ export default function PlatformRail({
     // its own content — 539px of clans against a 422px screen — and dragged the whole page sideways
     // with it. Cross-axis alignment means opposite things in the two directions this flips between.
     <nav className="sticky top-0 z-40 flex w-full shrink-0 gap-4 overflow-x-auto border-b border-card-border bg-brown-dark p-2 lg:h-screen lg:w-[240px] lg:flex-col lg:gap-6 lg:self-start lg:overflow-x-visible lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-4">
-      <ClanLink href="/" className="flex shrink-0 items-center gap-2.5 px-2">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/icon-48.png" alt="" width={24} height={24} className="rounded-md" />
-        <span className="hidden text-[17px] font-extrabold tracking-tight text-gold lg:inline">Anvil</span>
+      {/* The mark and the wordmark, drawn rather than fetched — so the rail's logo is the same
+          geometry at any size and takes the gold from the theme instead of baking it into a png. */}
+      <ClanLink href="/" className="group flex shrink-0 items-center gap-2.5 px-2">
+        <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-md bg-gold-dark/25 ring-1 ring-gold/25 transition-colors group-hover:bg-gold-dark/40">
+          <AnvilMark size={16} className="text-gold" />
+        </span>
+        <span className="display hidden text-[18px] font-semibold text-gold lg:inline">Anvil</span>
       </ClanLink>
 
       <div className="flex shrink-0 gap-0.5 lg:flex-col">
