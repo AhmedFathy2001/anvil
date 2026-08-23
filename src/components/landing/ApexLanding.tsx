@@ -234,12 +234,16 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
       {/* The closing band, and the page's other bookend: the hero opens on the mark at the left, this
           closes on it at the right. Without it the band reserved the full column and filled half of
           it, so the page ended on a rectangle of nothing. */}
-      <div className="forge-heat relative overflow-hidden border-t border-card-border px-5 py-14 sm:px-8">
+      <div className="forge-heat relative overflow-hidden border-t border-card-border py-14">
+        {/* Whole, like the hero's. A cropped silhouette reads as a stray rectangle — the exact thing
+            that had to be fixed up there, so it should not be reintroduced down here. */}
         <AnvilMark
-          size={340}
-          className="pointer-events-none absolute -bottom-16 right-[6%] hidden text-gold/[0.05] lg:block"
+          size={300}
+          className="pointer-events-none absolute bottom-8 right-[7%] hidden text-gold/[0.05] lg:block"
         />
-        <div className="relative mx-auto max-w-[1180px]">
+        {/* Padding INSIDE the max-width, as on every section above. Outside it, the band's content
+            sat 48px left of every heading on the page — aligned to nothing at all. */}
+        <div className="relative mx-auto max-w-[1180px] px-5 sm:px-8">
           <h2 className="display max-w-[20ch] text-[clamp(1.75rem,3.4vw,2.5rem)] font-semibold leading-[1.06] [text-wrap:balance]">
             Your next event could run without you.
           </h2>
