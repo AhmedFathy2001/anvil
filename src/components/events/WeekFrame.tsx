@@ -55,7 +55,7 @@ export default function WeekFrame({ weeks }: { weeks: WeeklyCard[] }) {
               </span>
             </header>
 
-            <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(272px,1fr))]">
+            <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(272px,1fr))]">
               {group.map((w) => (
                 <CompetitionCard
                   key={w.id}

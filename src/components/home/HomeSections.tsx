@@ -3,6 +3,7 @@ import { hubKind } from '@/lib/hubKinds';
 import { totalDays } from '@/lib/competitionInsights';
 import type { HubKind } from '@/lib/eventsHub';
 import type { HomeEvent, HomeView, HomeWeekly, HomeYou } from '@/lib/homeView';
+import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
 
 /**
@@ -74,11 +75,17 @@ export function Hero({ view }: { view: HomeView }) {
   ];
 
   return (
-    <section className="relative mb-4 overflow-hidden rounded-2xl border border-gold/25 bg-card-bg p-7 sm:p-8">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_80%_at_10%_0%,rgba(212,175,55,0.17),transparent_60%),radial-gradient(90%_90%_at_90%_110%,rgba(45,133,68,0.14),transparent_66%)]" />
+    // THE SAME GROUND AS THE APEX. A clan's page and the platform's page were visibly two products
+    // — one wearing a hammered ground, forge heat and a cut serif, the other a flat panel and a bold
+    // grotesk — and a person crossing between them several times an hour saw the seam every time.
+    <section className="forge-ground forge-heat relative mb-4 overflow-hidden rounded-2xl border border-gold/25 bg-card-bg p-7 sm:p-8">
+      <AnvilMark
+        size={300}
+        className="pointer-events-none absolute -right-10 -top-10 hidden text-gold/[0.045] sm:block"
+      />
       <div className="relative">
-        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-gold/70">OSRS clan events</span>
-        <h1 className="mt-2 bg-gradient-to-b from-[#ffe9a8] via-[#f2c14e] to-[#c8962c] bg-clip-text text-4xl font-black leading-none tracking-tight text-transparent sm:text-6xl">
+        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold-dark">OSRS clan events</span>
+        <h1 className="display display-lg mt-2 bg-gradient-to-b from-[#ffe9a8] via-[#f2c14e] to-[#c8962c] bg-clip-text text-[clamp(2.2rem,5vw,3.4rem)] font-semibold leading-[1.03] text-transparent">
           {view.clanName}
         </h1>
         <p className="mt-3 max-w-[54ch] text-sm text-text-muted">
@@ -249,7 +256,10 @@ export function LiveNow({ view }: { view: HomeView }) {
         title={anythingLive ? 'Happening now' : 'Nothing live right now'}
         note={anythingLive ? 'the things worth opening today' : 'what is next, and what just finished'}
       />
-      <div className="mb-9 grid gap-3.5 lg:grid-cols-2">
+      {/* Two columns only when there are two things. A fixed pair of tracks left a single live
+          event sitting in half a row with the other half blank, which reads as something failing to
+          load rather than as a clan with one thing on. */}
+      <div className={`mb-9 grid gap-3.5 ${weekly && event ? 'lg:grid-cols-2' : ''}`}>
         {weekly && <WeeklyLiveCard w={weekly} />}
         {event && <EventLiveCard e={event} />}
         {!anythingLive && next && <NextUpCard w={next} members={view.memberCount} />}
@@ -538,7 +548,9 @@ export function Competitions({ view }: { view: HomeView }) {
             note="everything you can still enter"
             more={{ href: '/events', label: 'All competitions →' }}
           />
-          <div className="mb-9 grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(268px,1fr))]">
+          {/* auto-FIT, not auto-fill: fill keeps the empty tracks, so one upcoming event rendered as
+              a 268px card marooned in a 1200px row. fit collapses them and the card takes the width. */}
+          <div className="mb-9 grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(268px,1fr))]">
             {cards.map((c) => c.node)}
           </div>
         </>
@@ -734,8 +746,8 @@ function SectionHead({
 }) {
   return (
     <div className="mb-3.5 flex flex-wrap items-center gap-3">
-      <h2 className="flex items-center gap-2 text-[17px] font-extrabold">
-        <span className="h-5 w-1 rounded-full bg-gold" />
+      <h2 className="flex items-center gap-2.5 text-[17px] font-semibold">
+        <span className="molten h-5 w-1 shrink-0 rounded-sm" />
         {title}
       </h2>
       {note && <span className="text-xs text-text-muted">{note}</span>}

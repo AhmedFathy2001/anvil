@@ -16,6 +16,7 @@ import { clansWithSomethingLive } from "@/lib/apexHome";
 import PlatformRail, { type RailClan } from "@/components/PlatformRail";
 import SiteFooter from "@/components/SiteFooter";
 import ClanPrivate from "@/components/ClanPrivate";
+import AnvilMark from "@/components/AnvilMark";
 import { canSeeClan } from "@/lib/clanAccess";
 import "./globals.css";
 import ClanLink, { ClanPrefixProvider } from '@/components/ClanLink';
@@ -183,10 +184,14 @@ export default async function RootLayout({
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between relative">
             {/* The wordmark goes to the clan you are in, not the apex. Pointing it at '/' made the
                 one control every site puts you "home" with the one that ejected you from the clan. */}
-            <ClanLink href={clan ? `/c/${clan.slug}` : '/'} className="flex items-center gap-2 group">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/icon-48.png" alt="" width={24} height={24} className="rounded" />
-              <span className="text-gold font-bold text-lg group-hover:text-gold-light transition-colors">
+            {/* THE SAME MARK THE RAIL WEARS. This was still the 48px png and a bold grotesk while the
+                apex had moved to the drawn anvil and the serif, so crossing between a clan and the
+                platform changed logo mid-session. */}
+            <ClanLink href={clan ? `/c/${clan.slug}` : '/'} className="group flex items-center gap-2.5">
+              <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-md bg-gold-dark/25 ring-1 ring-gold/25 transition-colors group-hover:bg-gold-dark/40">
+                <AnvilMark size={16} className="text-gold" />
+              </span>
+              <span className="display text-[18px] font-semibold text-gold transition-colors group-hover:text-gold-light">
                 Anvil
               </span>
             </ClanLink>

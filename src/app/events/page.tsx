@@ -96,7 +96,7 @@ export default async function EventsIndexPage({
       ) : (
         <div className="space-y-4">
           {view.live.boards.length > 0 && (
-            <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(272px,1fr))]">
+            <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(272px,1fr))]">
               {view.live.boards.map((b) => (
                 <CompetitionCard
                   key={b.id}
