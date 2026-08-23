@@ -40,7 +40,33 @@ export function useClanPrefixValue(): string {
 export default function ClanLink({ href, ...rest }: ComponentProps<typeof Link>) {
   const prefix = useClanPrefixValue();
   const resolved = typeof href === 'string' ? withClanPrefix(prefix, href) : href;
+
+  // CHANGING CLAN IS A FULL PAGE LOAD, and it has to be. Two separate things break otherwise, and
+  // both were live:
+  //
+  //   1. Every clan's pages REWRITE to the same routes. `/c/a`, `/c/b` and the apex `/` all become
+  //      `/`, so Next's client router resolves them to one destination, decides the click is a
+  //      navigation to where you already are, and does nothing at all — not even the URL moved.
+  //
+  //   2. The shell is in the ROOT layout, and Next never re-renders a root layout on a client
+  //      navigation. Even with the router fixed, arriving in another clan would keep the previous
+  //      clan's nav, name and rail, because the layout that draws them would not have run.
+  //
+  // A hard navigation is correct by construction for both: the document reloads, middleware runs
+  // again, and the layout re-renders against the clan that is actually being asked for. It costs a
+  // page load exactly when the whole page is changing anyway. Everything WITHIN a clan stays a soft
+  // navigation, which is nearly all of the clicking anyone does.
+  if (typeof resolved === 'string' && clanOf(resolved) !== clanOf(prefix)) {
+    const { href: _drop, ...anchor } = rest as Record<string, unknown>;
+    return <a href={resolved} {...(anchor as ComponentProps<'a'>)} />;
+  }
+
   return <Link href={resolved} {...rest} />;
+}
+
+/** The slug a path or prefix belongs to, or null for the apex. */
+function clanOf(path: string): string | null {
+  return /^\/c\/([a-z0-9-]{2,32})(?=\/|$)/.exec(path)?.[1] ?? null;
 }
 
 /** The same prefixing, for a handler that needs a URL rather than a link — `router.push`, mostly. */

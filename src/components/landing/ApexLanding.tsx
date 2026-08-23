@@ -58,7 +58,7 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
             For Old School RuneScape clans
             <span className="h-px w-12 bg-gradient-to-r from-gold-dark to-transparent" />
           </div>
-          <h1 className="display text-[clamp(2.1rem,5.5vw,3.7rem)] font-semibold leading-[1.04] [text-wrap:balance]">
+          <h1 className="display display-lg text-[clamp(2.1rem,5.5vw,3.7rem)] font-semibold leading-[1.04] [text-wrap:balance]">
             Everything your clan does,
             <br />
             <span className="bg-gradient-to-b from-gold-light to-gold bg-clip-text text-transparent">
@@ -244,7 +244,7 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
         {/* Padding INSIDE the max-width, as on every section above. Outside it, the band's content
             sat 48px left of every heading on the page — aligned to nothing at all. */}
         <div className="relative mx-auto max-w-[1180px] px-5 sm:px-8">
-          <h2 className="display max-w-[20ch] text-[clamp(1.75rem,3.4vw,2.5rem)] font-semibold leading-[1.06] [text-wrap:balance]">
+          <h2 className="display display-lg max-w-[20ch] text-[clamp(1.75rem,3.4vw,2.5rem)] font-semibold leading-[1.06] [text-wrap:balance]">
             Your next event could run without you.
           </h2>
           <p className="mt-3.5 max-w-[54ch] text-[15.5px] leading-relaxed text-text-muted">

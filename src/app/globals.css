@@ -103,11 +103,26 @@ body {
 
 /* The display face. A plain class rather than a Tailwind theme font, because the variation settings
    are the point — Tailwind would give us the family and drop the axes that make it OUR serif rather
-   than a stock one. WONK swaps in the cut, angled forms; SOFT 0 keeps the corners sharp. */
+   than a stock one. WONK swaps in the cut, angled forms; SOFT 0 keeps the corners sharp.
+
+   OPSZ IS NOT PINNED, and that was the whole problem. Fraunces carries an optical-size axis, and
+   pinning it to 144 — the setting for a poster-sized headline — gave every heading the hairline
+   strokes and tight fit meant for 3rem type. At a 19px section header that is thin, spiky and
+   genuinely hard to read, which is what it looked like. Leaving opsz out of font-variation-settings
+   lets `font-optical-sizing: auto` do its job: sturdy strokes and open spacing when the text is
+   small, the elegant cut when it is large. One class, correct at every size.
+
+   The negative tracking went with it for the same reason — it belongs to large type only, and is
+   applied per-element where the type is actually large. */
 .display {
   font-family: var(--font-fraunces), Georgia, "Times New Roman", serif;
-  font-variation-settings: "SOFT" 0, "WONK" 1, "opsz" 144;
-  letter-spacing: -0.02em;
+  font-variation-settings: "SOFT" 0, "WONK" 1;
+  font-optical-sizing: auto;
+}
+
+/* Large display type: tight, because at 2rem-plus the default fit reads loose. */
+.display-lg {
+  letter-spacing: -0.021em;
 }
 
 /* Hammered ground. Two hairline hatches crossing at a shallow angle, at an opacity you read as

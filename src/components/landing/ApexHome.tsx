@@ -44,7 +44,7 @@ export default function ApexHome({
           size={190}
           className="pointer-events-none absolute -top-10 right-0 hidden text-gold/[0.04] sm:block"
         />
-        <h1 className="display relative text-[clamp(1.7rem,4vw,2.1rem)] font-semibold">
+        <h1 className="display display-lg relative text-[clamp(1.7rem,4vw,2.1rem)] font-semibold">
           {greeting()}, {displayName}
         </h1>
         <p className="relative mt-2 text-[15px] text-text-muted">
@@ -200,7 +200,10 @@ function Section({
     <section>
       <div className="mb-3.5 flex items-center gap-3">
         <span className="molten h-5 w-1 shrink-0 rounded-sm" />
-        <h2 className="display text-[18.5px] font-semibold">{title}</h2>
+        {/* SANS, not the serif. These are UI labels at 19px — the serif belongs to the headline and
+            to the landing's editorial headings, and pressed into a small repeated label it reads as
+            texture rather than as a word you can scan. */}
+        <h2 className="text-[16.5px] font-semibold tracking-[-0.005em]">{title}</h2>
         {note && (
           <span className="font-mono text-[10.5px] uppercase tracking-[0.12em] text-text-dim">
             {note}
