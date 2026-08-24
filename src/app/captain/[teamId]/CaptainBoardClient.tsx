@@ -362,12 +362,12 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
 
       {tiles.length > 9 && (
         <div className="mb-4 max-w-md">
-          <input
+          <Input
             type="text"
             value={tileSearch}
             onChange={(e) => setTileSearch(e.target.value)}
             placeholder="Search tiles by name…"
-            className="w-full bg-brown-dark border border-card-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold/50"
+            className="rounded-lg focus:border-gold/50"
           />
         </div>
       )}

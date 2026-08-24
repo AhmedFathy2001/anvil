@@ -7,6 +7,7 @@ import { rosterShape } from '@/lib/rosterShape';
 import RosterShapePanel from '@/components/RosterShapePanel';
 import PlayerDrawer, { DOMAIN_LABEL, TierChip } from './PlayerDrawer';
 import { clanFetch } from '@/lib/clanFetch';
+import Input from '@/components/Input';
 
 // The captain's scouting surface: the pool with everything known about it, and their own shortlist
 // over the top. Replaces a flat applicant list that had no ordering, no filtering, and nowhere to
@@ -218,12 +219,12 @@ export default function WarRoomClient({ teamId }: { teamId: number }) {
           </div>
 
           <div className="flex gap-2 flex-wrap items-center mb-3">
-            <input
+            <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search a name…"
               aria-label="Search the pool"
-              className="flex-1 min-w-[140px] text-sm bg-brown-dark border border-card-border rounded-lg px-3 py-1.5 focus:outline-none focus:border-gold"
+              className="flex-1 min-w-[140px] rounded-lg py-1.5"
             />
             {FILTERS.map((f) => (
               <button

@@ -16,6 +16,7 @@ import type { Event } from '@/lib/types';
 import type { SignupProfile } from '@/lib/signup';
 import { formatHoursRange } from '@/lib/signup';
 import { clanFetch } from '@/lib/clanFetch';
+import Checkbox from '@/components/Checkbox';
 
 // Default 8-color palette matching the app's existing team color presets.
 const DEFAULT_TEAM_COLORS = [
@@ -547,22 +548,13 @@ export default function SignupAdminPanel({
           </div>
         </div>
 
-        <label className="flex items-start gap-2.5 rounded-lg border border-card-border bg-brown-dark/40 px-4 py-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={teamChoice}
-            onChange={(e) => setTeamChoice(e.target.checked)}
-            className="mt-0.5 accent-gold"
-          />
-          <span className="min-w-0">
-            <span className="text-sm font-medium">Players pick their own team when they sign up</span>
-            <span className="block text-xs text-text-muted mt-0.5">
-              For a board whose teams already exist and aren&apos;t drafted. Sign-ups stay open to
-              everyone and each applicant names the team they&apos;re joining — you or that team&apos;s
-              captain approves them, and approving is what puts them on the roster. Leave off to draft.
-            </span>
-          </span>
-        </label>
+        <Checkbox
+          checked={teamChoice}
+          onChange={setTeamChoice}
+          className="rounded-lg border border-card-border bg-brown-dark/40 px-4 py-3"
+          label="Players pick their own team when they sign up"
+          description="For a board whose teams already exist and aren’t drafted. Sign-ups stay open to everyone and each applicant names the team they’re joining — you or that team’s captain approves them, and approving is what puts them on the roster. Leave off to draft."
+        />
 
         <div className="rounded-lg border border-gold/25 bg-gold/5 px-4 py-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <div className="text-xs uppercase tracking-wide text-text-muted min-w-0">

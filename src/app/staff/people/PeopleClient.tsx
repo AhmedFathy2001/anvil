@@ -5,6 +5,7 @@ import Select from '@/components/Select';
 import { useRouter } from 'next/navigation';
 
 import type { PersonHit } from '@/lib/platformView';
+import Input from '@/components/Input';
 
 const PLATFORM_ROLES = ['none', 'support', 'staff', 'root'] as const;
 
@@ -190,11 +191,11 @@ function PersonCard({
               </button>
             ) : confirming ? (
               <div className="flex flex-1 flex-wrap items-center gap-2">
-                <input
+                <Input
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   placeholder="Reason (recorded)"
-                  className="min-w-48 flex-1 rounded-lg border border-card-border bg-brown-dark px-2 py-1 text-xs"
+                  className="min-w-48 flex-1 rounded-lg px-2 py-1 text-xs"
                 />
                 <button
                   onClick={() => patch({ banned: true, reason })}
@@ -249,11 +250,11 @@ export default function PeopleClient({
   return (
     <div>
       <form onSubmit={search} className="flex gap-2">
-        <input
+        <Input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="RSN, Discord name, or Discord id…"
-          className="flex-1 rounded-xl border border-card-border bg-card-bg px-4 py-2.5 text-sm outline-none focus:border-gold"
+          className="flex-1 rounded-xl bg-card-bg px-4 py-2.5 outline-none"
         />
         <button type="submit" className="rounded-xl border border-gold/40 px-4 py-2.5 text-sm text-gold">
           Search

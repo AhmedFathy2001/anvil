@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { SKILLS, SKILL_LABELS } from '@/lib/constants';
 import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
+import Checkbox from '@/components/Checkbox';
 
 interface Props {
   /** Drive the dialog from outside (the Add tiles menu). Omit for self-managed. */
@@ -196,15 +197,14 @@ export default function SkillTileGenerator({ open: controlledOpen, onOpenChange,
             </div>
             <div className="overflow-y-auto border border-card-border/60 rounded-lg p-2 grid grid-cols-3 gap-0.5 mb-3">
               {SKILLS.map((skill) => (
-                <label
+                <Checkbox
                   key={skill}
-                  className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer"
-                >
-                  <input type="checkbox" checked={selected.has(skill)} onChange={() => toggle(skill)} className="accent-gold" />
-                  <span className={selected.has(skill) ? 'text-foreground' : 'text-text-muted'}>
-                    {SKILL_LABELS[skill] ?? skill}
-                  </span>
-                </label>
+                  className="px-2 py-1.5 rounded-lg hover:bg-white/5"
+                  checked={selected.has(skill)}
+                  onChange={() => toggle(skill)}
+                  labelClassName={selected.has(skill) ? 'text-xs text-foreground' : 'text-xs text-text-muted'}
+                  label={SKILL_LABELS[skill] ?? skill}
+                />
               ))}
             </div>
 

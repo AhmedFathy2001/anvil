@@ -11,6 +11,7 @@ import MemberBreakdown from '@/components/MemberBreakdown';
 import PlayerBaselineEditor from '@/components/PlayerBaselineEditor';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
+import Input from '@/components/Input';
 
 // Every hiscores action (snapshot / refresh / reset) fans out a request per enrolled player, so
 // after a manual pull we lock the pull buttons for a cooldown to stop spam-clicking from hammering
@@ -329,12 +330,12 @@ export default function StatsClient({ event, teams, tiles, players, statStanding
             If a baseline is missing or looks wrong, use &ldquo;Capture starting stats&rdquo; above, or
             edit it per-player from the Teams &amp; Draft tab.
           </p>
-          <input
+          <Input
             type="text"
             value={standingsQuery}
             onChange={(e) => setStandingsQuery(e.target.value)}
             placeholder="Search a player, boss or skill…"
-            className="w-full max-w-sm mb-4 px-3 py-2 bg-brown-dark border border-card-border rounded-lg text-sm text-foreground placeholder:text-text-muted focus:outline-none focus:border-gold"
+            className="max-w-sm mb-4 rounded-lg placeholder:text-text-muted"
           />
           {(() => {
             // Filter by player name; matching a tile's label or tracked stat keeps that tile's

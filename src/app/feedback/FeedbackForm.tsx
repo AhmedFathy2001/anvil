@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
+import Input from '@/components/Input';
 
 export default function FeedbackForm() {
   const [kind, setKind] = useState<'bug' | 'feedback'>('bug');
@@ -71,12 +72,12 @@ export default function FeedbackForm() {
       </div>
       <div>
         <label className="block text-xs text-text-muted mb-1">Subject *</label>
-        <input
+        <Input
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
           maxLength={160}
           placeholder={kind === 'bug' ? 'e.g. Board doesn’t load on my phone' : 'e.g. Add a dark mode toggle'}
-          className="w-full text-sm px-3 py-2 bg-brown-dark border border-card-border rounded-lg focus:outline-none focus:border-gold/50"
+          className="rounded-lg focus:border-gold/50"
         />
       </div>
       <div>

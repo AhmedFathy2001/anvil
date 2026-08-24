@@ -1091,12 +1091,12 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
               <tr className="border-b border-card-border text-left text-text-muted">
                 {isAdmin && (
                   <th className="pl-4 pr-0 py-3 w-8">
-                    <input
-                      type="checkbox"
-                      className="w-4 h-4 align-middle"
+                    {/* toggleAllVisible reads the current state itself and ignores what it is
+                        handed, so it works unchanged against Checkbox's boolean. */}
+                    <Checkbox
                       checked={allVisibleSelected}
                       onChange={toggleAllVisible}
-                      aria-label="Select all shown members"
+                      ariaLabel="Select all shown members"
                       title="Select everything matching the current filters"
                     />
                   </th>
@@ -1117,12 +1117,10 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
                 >
                   {isAdmin && (
                     <td className="pl-4 pr-0 py-3">
-                      <input
-                        type="checkbox"
-                        className="w-4 h-4 align-middle"
+                      <Checkbox
                         checked={selected.has(m.id)}
                         onChange={() => toggleOne(m.id)}
-                        aria-label={`Select ${m.rsn}`}
+                        ariaLabel={`Select ${m.rsn}`}
                       />
                     </td>
                   )}
@@ -1181,12 +1179,10 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap font-medium">
                     {isAdmin && (
-                      <input
-                        type="checkbox"
-                        className="w-4 h-4 shrink-0"
+                      <Checkbox
                         checked={selected.has(m.id)}
                         onChange={() => toggleOne(m.id)}
-                        aria-label={`Select ${m.rsn}`}
+                        ariaLabel={`Select ${m.rsn}`}
                       />
                     )}
                     <span className="break-all">{m.rsn}</span>

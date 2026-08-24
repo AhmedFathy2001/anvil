@@ -6,6 +6,7 @@ import Select from '@/components/Select';
 import { SURVEY_QUESTION_TYPES, RATING_MAX, isChoiceType, type SurveyQuestionType, type SurveyQuestionView, type QuestionResult, type SurveyAnswerMap, type SurveyRespondentView } from '@/lib/survey';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
+import Checkbox from '@/components/Checkbox';
 
 interface TemplateMeta {
   id: string;
@@ -200,10 +201,13 @@ export default function SurveyClient({ eventId, ended, initialQuestions, respons
                   ariaLabel="Question type"
                   className="w-40"
                 />
-                <label className="flex items-center gap-1.5 text-xs text-text-muted cursor-pointer">
-                  <input type="checkbox" checked={q.required} onChange={(e) => update(q.key, { required: e.target.checked })} className="h-4 w-4 accent-gold" />
-                  Required
-                </label>
+                <Checkbox
+                  className="gap-1.5"
+                  checked={q.required}
+                  onChange={(required) => update(q.key, { required })}
+                  labelClassName="text-xs text-text-muted"
+                  label="Required"
+                />
               </div>
 
               {isChoiceType(q.type) && (

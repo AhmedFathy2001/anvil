@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import ManualOnlyBadge from '@/components/ManualOnlyBadge';
 import { BOSSES } from '@/lib/constants';
 import { clanFetch } from '@/lib/clanFetch';
+import Checkbox from '@/components/Checkbox';
+import Input from '@/components/Input';
 
 interface ClogItem {
   id: number;
@@ -379,12 +381,12 @@ export default function ClogGenerator({ open: controlledOpen, onOpenChange, hide
                     <span className="block mt-1 opacity-70">Dataset built {new Date(generatedAt).toLocaleDateString()}.</span>
                   )}
                 </p>
-                <input
+                <Input
                   autoFocus
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search pages (e.g. Barbarian Assault, Vorkath, Moons)…"
-                  className="w-full text-sm rounded-lg border border-card-border bg-background px-3 py-2 mb-3 focus:border-gold/50 focus:outline-none"
+                  className="rounded-lg bg-background mb-3 focus:border-gold/50"
                 />
                 <div className="flex-1 overflow-y-auto -mx-1 px-1">
                   {loading && !activities ? (
@@ -437,11 +439,14 @@ export default function ClogGenerator({ open: controlledOpen, onOpenChange, hide
                         const on = !excluded.has(it.id);
                         return (
                           <li key={it.id}>
-                            <label className="flex items-center gap-2.5 text-sm px-2.5 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer">
-                              <input type="checkbox" checked={on} onChange={() => toggle(it.id)} className="accent-gold" />
-                              <span className={on ? 'text-foreground' : 'text-text-muted line-through'}>{it.name}</span>
-                              {it.manualOnly && <ManualOnlyBadge compact className="ml-auto shrink-0" />}
-                            </label>
+                            <Checkbox
+                              className="px-2.5 py-1.5 rounded-lg hover:bg-white/5"
+                              checked={on}
+                              onChange={() => toggle(it.id)}
+                              labelClassName={on ? 'text-sm text-foreground' : 'text-sm text-text-muted line-through'}
+                              label={it.name}
+                              trailing={it.manualOnly ? <ManualOnlyBadge compact /> : null}
+                            />
                           </li>
                         );
                       })}
@@ -491,12 +496,12 @@ export default function ClogGenerator({ open: controlledOpen, onOpenChange, hide
                         {setStrategy === 'chunk' && (
                           <label className="flex items-center gap-1.5 text-[11px] text-text-muted">
                             of
-                            <input
+                            <Input
                               type="number"
                               min="2"
                               value={chunkSize}
                               onChange={(e) => setChunkSize(e.target.value)}
-                              className="w-14 text-xs rounded border border-card-border bg-background px-2 py-1 focus:border-gold/50 focus:outline-none"
+                              className="w-14 text-xs bg-background px-2 py-1 focus:border-gold/50"
                             />
                             items
                           </label>
@@ -545,7 +550,7 @@ export default function ClogGenerator({ open: controlledOpen, onOpenChange, hide
 
                   <div className="flex gap-2">
                     {(mode === 'allOf' || mode === 'anyOf' || (mode === 'sets' && setsOutput === 'anyFullSet')) && (
-                      <input
+                      <Input
                         value={tileLabel}
                         onChange={(e) => setTileLabel(e.target.value)}
                         maxLength={200}
@@ -557,32 +562,32 @@ export default function ClogGenerator({ open: controlledOpen, onOpenChange, hide
                               : `${activity}: any ${Math.max(1, parseInt(anyOfAmount, 10) || 1)} of ${keptCount}`
                         }
                         aria-label="Tile label"
-                        className="flex-1 min-w-0 text-sm rounded-lg border border-card-border bg-background px-3 py-1.5 focus:border-gold/50 focus:outline-none"
+                        className="flex-1 min-w-0 rounded-lg bg-background py-1.5 focus:border-gold/50"
                       />
                     )}
                     {mode === 'anyOf' && (
                       <label className="flex items-center gap-1.5 text-xs text-text-muted shrink-0">
                         Drops
-                        <input
+                        <Input
                           type="number"
                           min="1"
                           value={anyOfAmount}
                           onChange={(e) => setAnyOfAmount(e.target.value)}
-                          className="w-16 text-sm rounded-lg border border-card-border bg-background px-2 py-1.5 focus:border-gold/50 focus:outline-none"
+                          className="w-16 rounded-lg bg-background px-2 py-1.5 focus:border-gold/50"
                         />
                       </label>
                     )}
                     {pointsMode && (
                       <label className="flex items-center gap-1.5 text-xs text-text-muted shrink-0">
                         Points
-                        <input
+                        <Input
                           type="number"
                           min="0"
                           value={points}
                           onChange={(e) => setPoints(e.target.value)}
                           placeholder="1"
                           title={mode === 'perItem' ? 'Point value applied to every created tile' : 'Point value for the tile'}
-                          className="w-16 text-sm rounded-lg border border-card-border bg-background px-2 py-1.5 focus:border-gold/50 focus:outline-none"
+                          className="w-16 rounded-lg bg-background px-2 py-1.5 focus:border-gold/50"
                         />
                       </label>
                     )}

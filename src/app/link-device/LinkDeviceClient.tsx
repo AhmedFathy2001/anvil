@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Input from '@/components/Input';
 
 /** Code confirm + Approve/Deny for the plugin device sign-in. Success view tells the member to
  * return to RuneLite — the plugin's poll picks the approval up within seconds. */
@@ -53,14 +54,14 @@ export default function LinkDeviceClient({ initialCode }: { initialCode: string 
       <label className="block text-sm font-medium" htmlFor="device-code">
         Code shown in RuneLite
       </label>
-      <input
+      <Input
         id="device-code"
         value={code}
         onChange={(e) => setCode(e.target.value)}
         placeholder="XXXX-XXXX"
         spellCheck={false}
         autoComplete="off"
-        className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded-lg text-lg font-mono tracking-widest text-center uppercase"
+        className="rounded-lg text-lg font-mono tracking-widest text-center uppercase"
       />
       {error && <p className="text-sm text-red-400">{error}</p>}
       <div className="flex gap-2">

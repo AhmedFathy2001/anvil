@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { WeeklyStanding } from '@/lib/weeklyWorkspace';
 import { weeklyGain, weeklyStatValue } from '@/lib/weeklyLabels';
+import Input from '@/components/Input';
 
 /**
  * The two roster surfaces of a weekly, which are the same table read two ways.
@@ -176,11 +177,11 @@ export default function WeeklyRosterClient({
           </h2>
           <div className="flex items-center gap-2">
             {message && <span className="text-xs text-text-muted">{message}</span>}
-            <input
+            <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Find a name…"
-              className="bg-brown-dark border border-card-border rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-gold"
+              className="rounded-lg py-1.5 text-xs"
             />
           </div>
         </div>
@@ -225,11 +226,11 @@ export default function WeeklyRosterClient({
                   {mode === 'baselines' && (
                     <td className="px-3 py-2 text-right tabular-nums text-xs text-text-muted">
                       {editing?.id === row.participantId ? (
-                        <input
+                        <Input
                           value={editing.value}
                           onChange={(e) => setEditing({ ...editing, value: e.target.value })}
                           autoFocus
-                          className="w-28 bg-brown-dark border border-gold rounded px-2 py-1 text-right text-xs"
+                          className="w-28 border-gold px-2 py-1 text-right text-xs"
                         />
                       ) : (
                         weeklyStatValue(type, row.baselineValue)

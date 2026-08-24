@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Select from './Select';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, type TierBand } from '@/lib/tileFilter';
+import Input from '@/components/Input';
 
 interface FilterTile {
   id: number;
@@ -72,12 +73,12 @@ export default function BoardFilters({
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
         </svg>
-        <input
+        <Input
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search tiles…"
-          className="w-full text-sm pl-9 pr-9 py-2 bg-brown-dark border border-card-border rounded-lg text-foreground placeholder:text-text-muted focus:border-gold/50 focus:outline-none"
+          className="pl-9 pr-9 rounded-lg placeholder:text-text-muted focus:border-gold/50"
           aria-label="Search tiles"
         />
         {searchQuery && (

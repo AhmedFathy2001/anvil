@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { RATING_MAX, type SurveyAnswerMap, type SurveyQuestionView } from '@/lib/survey';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
+import Checkbox from '@/components/Checkbox';
 
 interface Props {
   eventId: number;
@@ -132,15 +133,14 @@ export default function SurveyResponseClient({ eventId, eventName, questions, in
             {q.type === 'multi' && (
               <div className="space-y-1.5">
                 {q.options.map((opt) => (
-                  <label key={opt} className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={Array.isArray(val) && val.includes(opt)}
-                      onChange={() => toggleMulti(q.id, opt)}
-                      className="h-4 w-4 accent-gold"
-                    />
-                    {opt}
-                  </label>
+                  <Checkbox
+                    key={opt}
+                    className="gap-2"
+                    checked={Array.isArray(val) && val.includes(opt)}
+                    onChange={() => toggleMulti(q.id, opt)}
+                    labelClassName="text-sm"
+                    label={opt}
+                  />
                 ))}
               </div>
             )}

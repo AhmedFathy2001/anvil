@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { HUB_KINDS, hubKind } from '@/lib/hubKinds';
 import type { HubItem } from '@/lib/eventsHub';
 import ClanLink from '@/components/ClanLink';
+import Input from '@/components/Input';
 
 /**
  * Everything the clan has run, boards and weeks in one list.
@@ -129,13 +130,13 @@ export default function HubRecord({
           })}
         </span>
 
-        <input
+        <Input
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search name or winner…"
           aria-label="Search the record"
-          className="ml-auto min-w-[170px] flex-1 rounded-lg border border-card-border bg-brown-dark px-3 py-2 text-sm text-foreground placeholder:text-text-muted focus:border-gold/50 focus:outline-none sm:max-w-xs sm:flex-none"
+          className="ml-auto min-w-[170px] flex-1 rounded-lg placeholder:text-text-muted focus:border-gold/50 sm:max-w-xs sm:flex-none"
         />
       </div>
 

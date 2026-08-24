@@ -5,6 +5,7 @@ import Select, { type SelectOption } from '@/components/Select';
 import Checkbox from '@/components/Checkbox';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
+import Input from '@/components/Input';
 
 interface Channel {
   id: string;
@@ -163,7 +164,7 @@ export default function AnnounceClient() {
           <label className="block text-sm font-medium mb-1">
             Title <span className="text-text-muted font-normal">(optional)</span>
           </label>
-          <input
+          <Input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}

@@ -7,6 +7,7 @@ import { CLUE_TIER_KEYS } from '@/lib/hiscoresActivities';
 import { progressToLevel } from '@/lib/xp';
 import CollectionLog, { type CollectionLogProps } from './CollectionLog';
 import LocalTime from '@/components/LocalTime';
+import Input from '@/components/Input';
 import type {
   ActivityStanding,
   CompetitionHistory,
@@ -798,11 +799,11 @@ export default function ProfileTabs({
                   Personal bests
                   <span className="text-xs text-text-muted font-normal">{collection.bests.length}</span>
                 </h3>
-                <input
+                <Input
                   value={bestFilter}
                   onChange={(e) => setBestFilter(e.target.value)}
                   placeholder="Find a time…"
-                  className="w-44 px-2 py-1 bg-brown-dark border border-card-border rounded text-xs focus:outline-none focus:border-gold"
+                  className="w-44 px-2 py-1 text-xs"
                 />
               </div>
               <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border max-h-96 overflow-y-auto">

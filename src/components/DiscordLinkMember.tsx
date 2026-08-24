@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
+import Input from '@/components/Input';
 
 // Inline "link this clan member to a Discord user" control, shown next to a member the role sync
 // couldn't resolve. Search the guild by name, pick, and it binds + syncs that member.
@@ -57,12 +58,12 @@ export default function DiscordLinkMember({ memberId }: { memberId: number }) {
 
   return (
     <span className="inline-flex flex-wrap items-center gap-1 ml-2 align-middle">
-      <input
+      <Input
         value={q}
         onChange={(e) => setQ(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && search()}
         placeholder="Discord name…"
-        className="text-[11px] bg-brown-dark border border-card-border rounded px-1.5 py-0.5 w-32 focus:outline-none focus:border-gold/50"
+        className="text-[11px] px-1.5 py-0.5 w-32 focus:border-gold/50"
       />
       <button onClick={search} disabled={busy} className="text-[10px] text-gold disabled:opacity-50">
         {busy ? '…' : 'search'}

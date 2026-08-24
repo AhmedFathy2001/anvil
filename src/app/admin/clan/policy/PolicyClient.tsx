@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import { clanFetch } from '@/lib/clanFetch';
+import Checkbox from '@/components/Checkbox';
 
 interface Policy {
   visibility: 'public' | 'members';
@@ -119,21 +120,19 @@ export default function PolicyClient() {
         title="Listing"
         lede="Whether this clan appears where people go looking for one."
       >
-        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-card-border bg-card-bg p-4 transition-colors hover:border-gold/40">
-          <input
-            type="checkbox"
-            checked={policy.listed}
-            onChange={(e) => save({ listed: e.target.checked })}
-            className="mt-0.5 h-4 w-4 accent-gold"
-          />
-          <span>
-            <span className="block text-[14.5px] font-medium">Show in Find a clan</span>
+        <Checkbox
+          className="rounded-xl border border-card-border bg-card-bg p-4 transition-colors hover:border-gold/40"
+          checked={policy.listed}
+          onChange={(listed) => save({ listed })}
+          labelClassName="block text-[14.5px] font-medium"
+          label="Show in Find a clan"
+          description={
             <span className="mt-0.5 block text-[13px] text-text-muted">
               And on the cross-clan records. Unlisted is not the same as private — a link still works
               if the setting above allows it.
             </span>
-          </span>
-        </label>
+          }
+        />
       </Group>
 
       <div className="flex h-5 items-center gap-3 text-[13px]">

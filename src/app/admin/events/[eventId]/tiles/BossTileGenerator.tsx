@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Input from '@/components/Input';
+import Checkbox from '@/components/Checkbox';
 import { clanFetch } from '@/lib/clanFetch';
 import {
   bossCategoryViews,
@@ -273,10 +274,14 @@ export default function BossTileGenerator({
                       <div className="text-[10px] uppercase tracking-wide text-text-muted mb-1">{c.label}</div>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-0.5">
                         {c.bosses.map((b) => (
-                          <label key={b.key} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer">
-                            <input type="checkbox" checked={selected.has(b.key)} onChange={() => toggle(b.key)} className="accent-gold" />
-                            <span className={selected.has(b.key) ? 'text-foreground' : 'text-text-muted'}>{b.label}</span>
-                          </label>
+                          <Checkbox
+                            key={b.key}
+                            checked={selected.has(b.key)}
+                            onChange={() => toggle(b.key)}
+                            className="px-2 py-1.5 rounded-lg hover:bg-white/5"
+                            labelClassName={selected.has(b.key) ? 'text-xs text-foreground' : 'text-xs text-text-muted'}
+                            label={b.label}
+                          />
                         ))}
                       </div>
                     </div>
@@ -340,23 +345,28 @@ export default function BossTileGenerator({
                       <div className="text-[10px] uppercase tracking-wide text-text-muted mb-1">{c.label}</div>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-0.5">
                         {c.monsters.map((m) => (
-                          <label key={`${c.key}:${m.name}`} className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg hover:bg-white/5 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={pickedMonsters.has(m.name)}
-                              onChange={() =>
+                          <Checkbox
+                            key={`${c.key}:${m.name}`}
+                            className="px-2 py-1.5 rounded-lg hover:bg-white/5"
+                            checked={pickedMonsters.has(m.name)}
+                            onChange={() =>
                                 setPickedMonsters((prev) => {
                                   const next = new Set(prev);
                                   if (next.has(m.name)) next.delete(m.name);
                                   else next.add(m.name);
                                   return next;
                                 })
-                              }
-                              className="accent-gold"
-                            />
-                            <span className={pickedMonsters.has(m.name) ? 'text-foreground' : 'text-text-muted'}>{m.name}</span>
-                            {m.slayerLevel != null && <span className="ml-auto text-[10px] text-text-muted/70">{m.slayerLevel}</span>}
-                          </label>
+                            }
+                            labelClassName={
+                              pickedMonsters.has(m.name) ? 'text-xs text-foreground' : 'text-xs text-text-muted'
+                            }
+                            label={m.name}
+                            trailing={
+                              m.slayerLevel != null ? (
+                                <span className="text-[10px] text-text-muted/70">{m.slayerLevel}</span>
+                              ) : null
+                            }
+                          />
                         ))}
                       </div>
                     </div>

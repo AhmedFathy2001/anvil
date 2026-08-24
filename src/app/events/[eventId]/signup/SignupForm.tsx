@@ -10,6 +10,7 @@ import Input from '@/components/Input';
 import Textarea from '@/components/Textarea';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
+import Checkbox from '@/components/Checkbox';
 
 interface FeeCollectorOption {
   id: number;
@@ -661,21 +662,17 @@ export default function SignupForm({
           {filteredBosses.map((b) => {
             const checked = bosses.has(b.key);
             return (
-              <label
+              <Checkbox
                 key={b.key}
-                className={`flex items-center gap-2 px-2 py-1 rounded text-xs cursor-pointer transition-colors ${
+                className={`gap-2 px-2 py-1 rounded transition-colors ${
                   checked ? 'bg-gold/15 text-gold' : 'hover:bg-brown-dark'
                 }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => toggle(bosses, b.key, setBosses)}
-                  disabled={isLocked}
-                  className="accent-gold"
-                />
-                <span className="truncate">{b.label}</span>
-              </label>
+                checked={checked}
+                onChange={() => toggle(bosses, b.key, setBosses)}
+                disabled={isLocked}
+                labelClassName="truncate text-xs"
+                label={b.label}
+              />
             );
           })}
         </div>
@@ -719,21 +716,17 @@ export default function SignupForm({
           {filteredSkills.map((s) => {
             const checked = skills.has(s);
             return (
-              <label
+              <Checkbox
                 key={s}
-                className={`flex items-center gap-2 px-2 py-1 rounded text-xs cursor-pointer transition-colors ${
+                className={`gap-2 px-2 py-1 rounded transition-colors ${
                   checked ? 'bg-gold/15 text-gold' : 'hover:bg-brown-dark'
                 }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => toggle(skills, s, setSkills)}
-                  disabled={isLocked}
-                  className="accent-gold"
-                />
-                <span>{SKILL_LABELS[s] ?? s}</span>
-              </label>
+                checked={checked}
+                onChange={() => toggle(skills, s, setSkills)}
+                disabled={isLocked}
+                labelClassName="text-xs"
+                label={SKILL_LABELS[s] ?? s}
+              />
             );
           })}
         </div>

@@ -9,6 +9,7 @@ import Select from '@/components/Select';
 import Input from '@/components/Input';
 import Textarea from '@/components/Textarea';
 import { clanFetch } from '@/lib/clanFetch';
+import Checkbox from '@/components/Checkbox';
 
 // Admin modal for writing sign-up answers on a member's behalf. Two modes:
 //   add  → pick a clan member (must have a linked Discord user — sign-ups hang off the
@@ -319,20 +320,16 @@ export default function SignupAnswersModal({
               {filteredBosses.map((b) => {
                 const checked = bosses.has(b.key);
                 return (
-                  <label
+                  <Checkbox
                     key={b.key}
-                    className={`flex items-center gap-2 px-2 py-1 rounded text-xs cursor-pointer transition-colors ${
+                    className={`gap-2 px-2 py-1 rounded transition-colors ${
                       checked ? 'bg-gold/15 text-gold' : 'hover:bg-brown-dark'
                     }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggle(bosses, b.key, setBosses)}
-                      className="accent-gold"
-                    />
-                    <span className="truncate">{b.label}</span>
-                  </label>
+                    checked={checked}
+                    onChange={() => toggle(bosses, b.key, setBosses)}
+                    labelClassName="truncate text-xs"
+                    label={b.label}
+                  />
                 );
               })}
             </div>
@@ -375,20 +372,16 @@ export default function SignupAnswersModal({
               {filteredSkills.map((s) => {
                 const checked = skills.has(s);
                 return (
-                  <label
+                  <Checkbox
                     key={s}
-                    className={`flex items-center gap-2 px-2 py-1 rounded text-xs cursor-pointer transition-colors ${
+                    className={`gap-2 px-2 py-1 rounded transition-colors ${
                       checked ? 'bg-gold/15 text-gold' : 'hover:bg-brown-dark'
                     }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggle(skills, s, setSkills)}
-                      className="accent-gold"
-                    />
-                    <span>{SKILL_LABELS[s] ?? s}</span>
-                  </label>
+                    checked={checked}
+                    onChange={() => toggle(skills, s, setSkills)}
+                    labelClassName="text-xs"
+                    label={SKILL_LABELS[s] ?? s}
+                  />
                 );
               })}
             </div>

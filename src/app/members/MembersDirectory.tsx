@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import type { MemberListRow, RosterMovement } from '@/lib/memberProfile';
 import ClanLink from '@/components/ClanLink';
+import Input from '@/components/Input';
 
 // Filtering happens in the browser, on a list the server already sent whole. A clan is hundreds of
 // rows, not thousands of pages — shipping the array once and filtering locally makes search instant
@@ -143,7 +144,7 @@ export default function MembersDirectory({
   return (
     <div>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-        <input
+        <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by name…"
@@ -151,7 +152,7 @@ export default function MembersDirectory({
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}
-          className="w-full sm:max-w-xs px-3 py-2 bg-brown-dark border border-card-border rounded-lg text-sm outline-none focus:border-gold/60 placeholder:text-text-muted/60"
+          className="sm:max-w-xs rounded-lg outline-none focus:border-gold/60"
         />
         <div className="flex flex-wrap items-center gap-1.5">
           <button type="button" onClick={() => setMembership('all')} className={chip(membership === 'all')}>

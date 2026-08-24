@@ -28,6 +28,7 @@ import { countPicksTaken } from '@/lib/draft';
 import NumberInput from '@/components/NumberInput';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
+import Input from '@/components/Input';
 
 interface DraftState {
   status: string;
@@ -1196,14 +1197,14 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
 
                 {/* Escape hatch: add someone who has no roster/RSN row yet (a Discord-only guest). */}
                 <div className="flex gap-2 border-t border-card-border pt-3">
-                  <input
+                  <Input
                     type="text"
                     value={nameToAdd}
                     onChange={(e) => setNameToAdd(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') addPlayerByName(null); }}
                     placeholder="…or add by name (no linked account)"
                     maxLength={60}
-                    className="flex-1 min-w-0 bg-brown-dark border border-card-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold/50"
+                    className="flex-1 min-w-0 rounded-lg focus:border-gold/50"
                   />
                   <button
                     onClick={() => addPlayerByName(null)}
@@ -1732,14 +1733,14 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                           </div>
                           {/* Add someone with no roster/RSN row by name (a Discord-only guest). */}
                           <div className="flex gap-2 border-t border-card-border pt-2">
-                            <input
+                            <Input
                               type="text"
                               value={nameToAdd}
                               onChange={(e) => setNameToAdd(e.target.value)}
                               onKeyDown={(e) => { if (e.key === 'Enter') addPlayerByName(team.id); }}
                               placeholder="…or add by name"
                               maxLength={60}
-                              className="flex-1 min-w-0 bg-brown-dark border border-card-border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-gold/50"
+                              className="flex-1 min-w-0 rounded-lg px-2 py-1.5 text-xs focus:border-gold/50"
                             />
                             <button
                               onClick={() => addPlayerByName(team.id)}

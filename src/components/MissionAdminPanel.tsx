@@ -8,6 +8,7 @@ import { phaseWindow } from '@/lib/missionRamp';
 import { DEFAULT_TIER_BANDS } from '@/lib/tileFilter';
 import type { Tile } from '@/lib/types';
 import { clanFetch } from '@/lib/clanFetch';
+import Input from '@/components/Input';
 
 /**
  * Mid-event mission control on the event Overview tab. Only renders when the board has mission tiles.
@@ -173,12 +174,12 @@ export default function MissionAdminPanel({
             {mode === 'interval' && (
               <div>
                 <label className="block text-xs text-text-muted mb-1">Every (minutes)</label>
-                <input
+                <Input
                   type="number"
                   min={5}
                   value={intervalMinutes}
                   onChange={(e) => setIntervalMinutes(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-card-border bg-brown-dark text-sm"
+                  className="rounded-lg"
                   aria-label="Interval minutes"
                 />
               </div>
@@ -231,7 +232,7 @@ export default function MissionAdminPanel({
                       <div key={i} className="rounded-lg border border-card-border bg-brown-dark/40 p-3">
                         <div className="flex flex-wrap items-center gap-2 mb-2">
                           <span className="text-xs text-text-muted">First</span>
-                          <input
+                          <Input
                             type="number"
                             min={1}
                             max={100}
@@ -243,7 +244,7 @@ export default function MissionAdminPanel({
                                 ),
                               )
                             }
-                            className="w-16 px-2 py-1 rounded border border-card-border bg-brown-dark text-sm text-right"
+                            className="w-16 px-2 py-1 text-right"
                             aria-label={`Phase ${i + 1} ends at percent`}
                           />
                           <span className="text-xs text-text-muted">

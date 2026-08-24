@@ -10,6 +10,7 @@ import type { LibraryTask } from '@/lib/tileLibrary';
 import { libraryShape, type Finding } from '@/lib/libraryShape';
 import { blankTileConfig, payloadToCsvRow, toTileConfig } from './taskConfig';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
+import Checkbox from '@/components/Checkbox';
 
 // The clan's task catalogue, as an editable list. Boards draw from this, so it's worth curating:
 // the tasks here decide what a generated board feels like.
@@ -451,12 +452,11 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
                             selected.has(t.id) ? 'bg-gold/[0.07]' : 'bg-card-bg hover:bg-card-bg-hover'
                           } transition-colors`}
                         >
-                          <input
-                            type="checkbox"
+                          <Checkbox
+                            className="ml-3"
                             checked={selected.has(t.id)}
                             onChange={() => toggle(t.id)}
-                            className="ml-3 accent-[var(--gold,#d4af37)]"
-                            aria-label={`Select ${t.label}`}
+                            ariaLabel={`Select ${t.label}`}
                           />
                           <span
                             className={`shrink-0 w-7 h-7 rounded-lg grid place-items-center text-[13px] ${kind.tone}`}

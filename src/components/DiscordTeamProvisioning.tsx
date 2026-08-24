@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
+import Input from '@/components/Input';
 
 interface TeamState {
   id: number;
@@ -357,11 +358,11 @@ function TeardownConfirmModal({
           </p>
           <label className="block text-xs text-text-muted">
             Type <span className="font-mono font-bold text-red-400">DELETE</span> to confirm
-            <input
+            <Input
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}
               autoFocus
-              className="mt-1 w-full bg-transparent border border-card-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:border-red-400/60"
+              className="mt-1 bg-transparent rounded-lg text-text focus:border-red-400/60"
             />
           </label>
         </div>

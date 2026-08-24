@@ -5,6 +5,7 @@ import PayoutRowControls, { type PayoutRow } from '@/components/PayoutRowControl
 import Select from '@/components/Select';
 import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
+import Input from '@/components/Input';
 
 interface Payout extends PayoutRow {
   clanMemberId: number | null;
@@ -341,11 +342,11 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
               {mode === 'fixed' && (
                 <label className="text-xs text-text-muted">
                   Prize pool basis (gp)
-                  <input
+                  <Input
                     value={poolBasis}
                     onChange={(e) => setPoolBasis(e.target.value)}
                     inputMode="numeric"
-                    className="mt-1 block w-40 bg-brown-dark border border-card-border rounded-lg px-2 py-1.5 text-sm text-foreground"
+                    className="mt-1 block w-40 rounded-lg px-2 py-1.5"
                   />
                 </label>
               )}
@@ -385,7 +386,7 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
                     {medal(i + 1)} {ordinal(i + 1)} place
                   </span>
                   <span className="relative mt-1 block">
-                    <input
+                    <Input
                       value={val}
                       onChange={(e) =>
                         mode === 'share'
@@ -393,7 +394,7 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
                           : setPlaceAmounts((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))
                       }
                       inputMode="numeric"
-                      className="block w-full bg-brown-dark border border-card-border rounded-lg px-2 py-1.5 text-sm text-right text-foreground"
+                      className="block rounded-lg px-2 py-1.5 text-right"
                     />
                     {mode === 'share' && (
                       <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-text-muted">
@@ -523,18 +524,18 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
             Add a recipient manually
           </h3>
           <div className="flex flex-wrap items-end gap-2">
-            <input
+            <Input
               value={newRsn}
               onChange={(e) => setNewRsn(e.target.value)}
               placeholder="Recipient (RSN)"
-              className="flex-1 min-w-[10rem] bg-brown-dark border border-card-border rounded-lg px-3 py-2 text-sm text-foreground"
+              className="flex-1 min-w-[10rem] rounded-lg"
             />
-            <input
+            <Input
               value={newAmount}
               onChange={(e) => setNewAmount(e.target.value)}
               inputMode="numeric"
               placeholder="Amount (gp)"
-              className="w-40 bg-brown-dark border border-card-border rounded-lg px-3 py-2 text-sm text-foreground"
+              className="w-40 rounded-lg"
             />
             <button
               onClick={addManual}
@@ -625,11 +626,11 @@ function AmountCell({
 
   return (
     <div className="flex items-center gap-1 shrink-0">
-      <input
+      <Input
         value={value}
         onChange={(e) => setValue(e.target.value)}
         inputMode="numeric"
-        className="w-28 bg-brown-dark border border-card-border rounded-lg px-2 py-1 text-sm text-right text-foreground"
+        className="w-28 rounded-lg px-2 py-1 text-right"
       />
       <span className="text-xs text-text-muted">gp</span>
       {dirty && (

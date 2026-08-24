@@ -6,6 +6,7 @@ import LocalTime from '@/components/LocalTime';
 import type { BestTime, RecentUnlock } from '@/lib/clogProfile';
 import { GROUP_ORDER, tierFor, type PageGroup, type ShowcaseItem, type ValuedItem } from '@/lib/clogRarity';
 import { formatGp } from '@/lib/itemPrices';
+import Input from '@/components/Input';
 
 // A member's synced collection log. The game's own shape — pages down the side, the chosen page's
 // items in a grid, obtained lit and the rest dimmed — because that is the only layout anyone will
@@ -308,11 +309,11 @@ export default function CollectionLog({
         {/* Pages */}
         <div className="border border-card-border rounded-xl bg-card-bg overflow-hidden flex flex-col min-h-0">
           <div className="p-2 border-b border-card-border">
-            <input
+            <Input
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Find a page…"
-              className="w-full px-2 py-1.5 bg-brown-dark border border-card-border rounded text-xs focus:outline-none focus:border-gold"
+              className="px-2 py-1.5 text-xs"
             />
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto">

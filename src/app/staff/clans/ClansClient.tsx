@@ -7,6 +7,7 @@ import type { ClanRow } from '@/lib/platformView';
 import type { ActAsGrant } from '@/lib/actAs';
 import Select from '@/components/Select';
 import { PLAN_IDS } from '@/lib/plans';
+import Input from '@/components/Input';
 
 const STATUSES = ['active', 'suspended', 'archived'] as const;
 
@@ -197,11 +198,11 @@ export default function ClansClient({
         </div>
       )}
 
-      <input
+      <Input
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder="Filter by name, slug, host or owner…"
-        className="mb-4 w-full rounded-xl border border-card-border bg-card-bg px-4 py-2.5 text-sm outline-none focus:border-gold"
+        className="mb-4 rounded-xl bg-card-bg px-4 py-2.5 outline-none"
       />
 
       <div className="overflow-x-auto rounded-xl border border-card-border bg-card-bg">
@@ -332,20 +333,20 @@ export default function ClansClient({
                       </button>
                     ) : acting === c.id ? (
                       <div className="flex flex-col gap-1.5">
-                        <input
+                        <Input
                           value={reason}
                           onChange={(e) => setReason(e.target.value)}
                           placeholder="Why (the clan sees this)"
-                          className="w-56 rounded-lg border border-card-border bg-brown-dark px-2 py-1 text-xs"
+                          className="w-56 rounded-lg px-2 py-1 text-xs"
                         />
                         <div className="flex items-center gap-1.5">
-                          <input
+                          <Input
                             type="number"
                             min={1}
                             max={24}
                             value={hours}
                             onChange={(e) => setHours(Number(e.target.value))}
-                            className="w-14 rounded-lg border border-card-border bg-brown-dark px-2 py-1 text-xs"
+                            className="w-14 rounded-lg px-2 py-1 text-xs"
                           />
                           <span className="text-xs text-gray-500">h</span>
                           <button

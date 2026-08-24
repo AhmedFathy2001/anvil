@@ -7,6 +7,7 @@ import Input from '@/components/Input';
 import Combobox from '@/components/Combobox';
 import ActionMenu, { type ActionItem } from '@/components/ActionMenu';
 import { clanFetch } from '@/lib/clanFetch';
+import Checkbox from '@/components/Checkbox';
 
 interface Character {
   id: number;
@@ -442,16 +443,12 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
           options={ROLE_OPTIONS}
         />
         {user.role !== 'admin' && (
-          <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-text-muted">
-            <input
-              type="checkbox"
-              checked={user.canEditTiles === true}
-              disabled={savingRoleId === user.id}
-              onChange={(e) => toggleTiles(user, e.target.checked)}
-              className="h-3.5 w-3.5 accent-gold"
-            />
-            Can build bingo boards
-          </label>
+          <Checkbox
+            checked={user.canEditTiles === true}
+            disabled={savingRoleId === user.id}
+            onChange={(next) => toggleTiles(user, next)}
+            label="Can build bingo boards"
+          />
         )}
       </div>
     );
@@ -576,15 +573,12 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
             <ul className="mb-4 max-h-72 overflow-y-auto divide-y divide-card-border/50 border border-card-border rounded-lg">
               {boardsEvents.map((ev) => (
                 <li key={ev.id}>
-                  <label className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-card-bg-hover transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={boardsSel.has(ev.id)}
-                      onChange={() => toggleBoard(ev.id)}
-                      className="accent-gold w-4 h-4"
-                    />
-                    <span className="text-sm text-foreground truncate">{ev.name}</span>
-                  </label>
+                  <Checkbox
+                    checked={boardsSel.has(ev.id)}
+                    onChange={() => toggleBoard(ev.id)}
+                    className="px-3 py-2 hover:bg-card-bg-hover transition-colors"
+                    label={<span className="truncate">{ev.name}</span>}
+                  />
                 </li>
               ))}
             </ul>

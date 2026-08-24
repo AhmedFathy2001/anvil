@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Input from '@/components/Input';
 
 /**
  * Create a clan.
@@ -106,12 +107,12 @@ export default function NewClanClient({ apex, signedIn }: { apex: string; signed
     <form onSubmit={submit} className="space-y-5 rounded-xl border border-card-border bg-card-bg p-6">
       <div>
         <label className="mb-1.5 block text-sm text-gray-300">Clan name</label>
-        <input
+        <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
           placeholder="The Afk Spot"
-          className="w-full rounded-xl border border-card-border bg-brown-dark px-4 py-2.5 text-sm outline-none focus:border-gold"
+          className="rounded-xl px-4 py-2.5 outline-none"
         />
         <p className="mt-1 text-xs text-gray-500">Shown on your site and in Discord posts.</p>
       </div>
@@ -119,7 +120,7 @@ export default function NewClanClient({ apex, signedIn }: { apex: string; signed
       <div>
         <label className="mb-1.5 block text-sm text-gray-300">Address</label>
         <div className="flex items-center gap-2">
-          <input
+          <Input
             value={slug}
             onChange={(e) => {
               setTouchedSlug(true);
@@ -143,11 +144,11 @@ export default function NewClanClient({ apex, signedIn }: { apex: string; signed
         <label className="mb-1.5 block text-sm text-gray-300">
           In-game clan name <span className="text-gray-600">(optional)</span>
         </label>
-        <input
+        <Input
           value={inGameName}
           onChange={(e) => setInGameName(e.target.value)}
           placeholder="The Afk Spot"
-          className="w-full rounded-xl border border-card-border bg-brown-dark px-4 py-2.5 text-sm outline-none focus:border-gold"
+          className="rounded-xl px-4 py-2.5 outline-none"
         />
         <p className="mt-1 text-xs text-gray-500">
           Exactly as it appears in OSRS. The plugin&rsquo;s roster sync refuses a roster from a
