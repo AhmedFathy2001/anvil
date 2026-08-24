@@ -73,6 +73,23 @@ export default function PersonProfile({
                     {c.staff && <span className="text-gold/70">· Staff</span>}
                   </span>
                 </ClanLink>
+
+                {/* THE WAY TO YOUR LOCKER, which had no way in from here at all.
+
+                    The locker — career, live boards, trophies, milestones, the history of
+                    everything you have played — is assembled per clan, so it lives at
+                    /c/<slug>/profile and cannot be shown on the apex: none of it has a single
+                    answer when no clan is named. But this page linked each clan to its HOME, so
+                    the only route to your own locker was to walk into a clan and find Profile in
+                    its nav. The richest surface in the product, reachable by accident. */}
+                {c.seat && (
+                  <ClanLink
+                    href={`/c/${c.slug}/profile`}
+                    className="mt-1.5 inline-block text-[12.5px] text-text-muted transition-colors hover:text-gold"
+                  >
+                    Your locker in {c.name} →
+                  </ClanLink>
+                )}
               </li>
             ))}
           </ul>

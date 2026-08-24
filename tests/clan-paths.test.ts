@@ -27,11 +27,26 @@ test('a clan owns its events, roster and administration', () => {
   }
 });
 
-test('a person owns their profile and identity, wherever they are', () => {
-  // The whole point of the identity remodel: one human, one profile, not one per clan.
-  for (const p of ['/profile', '/u/2', '/p/Drenvox%20mdps', '/clans', '/login', '/staff', '/guide']) {
+test('a person owns their identity, wherever they are', () => {
+  // The whole point of the identity remodel: one human, one identity, not one per clan.
+  for (const p of ['/u/2', '/p/Drenvox%20mdps', '/clans', '/login', '/staff', '/guide']) {
     assert.equal(isClanScopedPath(p), false, p);
   }
+});
+
+test('/profile is BOTH, which is what the prefix is for', () => {
+  // This assertion used to say `isClanScopedPath('/profile') === false`, and that classification is
+  // what made the clan locker unreachable: middleware 308s a platform path out of its prefix, so
+  // /c/<slug>/profile bounced to the apex and `buildLocker` never rendered in production. Seven
+  // hundred lines of career, boards, trophies and history, dead — and nothing reported it, because
+  // redirecting to a page that works is not an error.
+  //
+  // app/profile/page.tsx has always branched on whether a clan is named. Only the address was
+  // missing. Bare, it is you across the platform; prefixed, it is your standing in one clan — which
+  // is per-clan by nature, exactly as /members is.
+  assert.equal(isClanScopedPath('/profile'), true, 'so a link from inside a clan reaches the locker');
+  assert.equal(withClanPrefix('/c/theafkspot', '/profile'), '/c/theafkspot/profile');
+  assert.equal(withClanPrefix('', '/profile'), '/profile', 'and the apex still gets the person');
 });
 
 test('the API split does not follow the page split', () => {
@@ -55,7 +70,9 @@ test('a platform root that is a prefix of nothing still wins over the clan list'
 
 test('query strings do not defeat the match', () => {
   assert.equal(isClanScopedPath('/events?tab=live'), true);
-  assert.equal(isClanScopedPath('/profile?welcome=1'), false);
+  // ?welcome=1 is the onboarding checklist, and it is shown on the CLAN locker — so this is the
+  // exact query string that has to survive the prefix.
+  assert.equal(isClanScopedPath('/profile?welcome=1'), true);
 });
 
 test('anything not recognised is left alone rather than guessed at', () => {

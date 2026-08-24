@@ -20,6 +20,14 @@ export const CLAN_SCOPED_ROOTS = [
   '/captain',
   '/player',
   '/feedback',
+  // YOUR LOCKER IN THIS CLAN. `/profile` renders two different pages: unprefixed it is you across
+  // the platform (clans, characters, sharing), and prefixed it is your standing INSIDE one — team,
+  // board progress, trophies, the history of what you have played there. The second is per-clan by
+  // nature, exactly as /members is, so a link to it from inside a clan takes the prefix.
+  //
+  // Both halves already existed in app/profile/page.tsx, which branches on whether a clan is named.
+  // Only the address was missing, and without it the branch was unreachable.
+  '/profile',
 ] as const;
 
 /**
@@ -50,7 +58,16 @@ export const PLATFORM_ROOTS = [
   '/u/',
   '/p/',
   '/e/',
-  '/profile',
+  // NOT '/profile'. It was here, and it made the clan locker unreachable: middleware 308s a platform
+  // path out of its prefix, so /c/<slug>/profile bounced to the apex and `buildLocker` — career,
+  // live boards, trophies, milestones, the whole history of what somebody has played — never
+  // rendered in production at all. Seven hundred lines of dead code that nothing reported, because
+  // a redirect to a working page is not an error.
+  //
+  // The page is genuinely BOTH, which is what the prefix is for everywhere else: bare /profile is
+  // you across the platform, /c/<slug>/profile is you inside that clan. That does not break "one
+  // human, one profile" — the person is still one page; the locker is your standing in one clan,
+  // which is per-clan by nature, the way /c/<slug>/members is.
   '/staff',
   '/login',
   '/logout',
