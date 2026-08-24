@@ -50,6 +50,10 @@ export default async function ClansPage() {
     members: r.members,
     doing: doing.get(r.slug) ?? null,
     seat: seatBySlug.get(r.slug) ?? null,
+    verified: r.verified,
+    guestPolicy: r.guestPolicy,
+    activeThisWeek: r.activeThisWeek,
+    xpThisWeek: r.xpThisWeek,
   }));
 
   return <ClanLookup clans={clans} />;

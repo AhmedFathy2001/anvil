@@ -6,6 +6,13 @@ export interface DirectoryClan {
   host: string;
   members: number;
   events: number;
+  /** In-game name proven, so this is the clan it says it is. */
+  verified: boolean;
+  /** 'approval' | 'open' | 'closed' — whether a stranger can ask to join at all. */
+  guestPolicy: string;
+  /** Members who gained anything in seven days. A clan's pulse, not its size. */
+  activeThisWeek: number;
+  xpThisWeek: number;
 }
 
 /**
