@@ -175,9 +175,16 @@ test('no public apex page reads players.displayName', () => {
   }
 });
 
-test('/profile refuses a signed-out visitor', () => {
+test('/profile refuses a signed-out visitor, and sends them back where they were', () => {
   // The private half of the rule. It is a redirect rather than a 404 because the page exists and is
   // theirs — they just have to say who they are.
   const src = readFileSync(join(process.cwd(), 'src/app/profile/page.tsx'), 'utf-8');
-  assert.match(src, /redirect\('\/login\?return=\/profile'\)/);
+  assert.match(src, /redirect\(`\/login\?return=\$\{encodeURIComponent\(back\)\}`\)/);
+
+  // AND THE RETURN IS NOT HARDCODED. It used to be the literal '/login?return=/profile', which is
+  // the apex person page — so anyone following a link to their CLAN locker while signed out logged
+  // in and silently landed somewhere else. This asserts the property rather than the old string,
+  // which is what the previous version of this test pinned in place.
+  assert.doesNotMatch(src, /return=\/profile'/, 'the return must follow the clan, not a constant');
+  assert.match(src, /const back = clan \? `\/c\/\$\{clan\.slug\}\/profile` : '\/profile'/);
 });

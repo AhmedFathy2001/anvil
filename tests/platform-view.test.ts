@@ -94,6 +94,50 @@ test('personDetail runs', async () => {
   assert.ok(hit);
 });
 
+test('a person is listed once per CLAN, not once per seat', async () => {
+  const { db, schema: sc } = await loadDb();
+  const clanIds = await db.select({ id: sc.clans.id }).from(sc.clans).orderBy(sc.clans.id);
+
+  // A THIRD character, seated in the same clan as the first. This is the shape that broke the page:
+  // a seat is (account × clan), so three characters in one clan is three seats — and they rendered
+  // as three separate "clans", each naming the clan and nothing else, because the query joined
+  // accounts and never selected the RSN.
+  const [third] = await db
+    .insert(sc.accounts)
+    .values({ playerId: personId, rsn: 'Third Char', rsnNormalized: 'third char' })
+    .returning();
+  await db
+    .insert(sc.clanMemberships)
+    .values({ clanId: clanIds[0].id, accountId: third.id, kind: 'member', source: 'roster' });
+
+  const hit = await V.personDetail(personId);
+  assert.equal(hit!.clans.length, 2, 'two clans, not the three seats they hold across them');
+
+  const home = hit!.clans.find((c) => c.clanId === clanIds[0].id)!;
+  assert.equal(home.seats.length, 2, 'both characters seated there');
+  assert.deepEqual(
+    home.seats.map((s) => s.rsn).sort(),
+    ['Main Here', 'Third Char'],
+    'and each seat names its character, which is what made the old rows indistinguishable',
+  );
+});
+
+test('a clan they run WITHOUT a seat still appears', async () => {
+  const { db, schema: sc } = await loadDb();
+  const [elsewhere] = await db
+    .insert(sc.clans)
+    .values({ slug: 'granted', name: 'Granted Clan' })
+    .returning();
+  const [login] = await db.select({ id: sc.users.id }).from(sc.users).limit(1);
+  await db.insert(sc.clanStaff).values({ clanId: elsewhere.id, userId: login.id, role: 'admin' });
+
+  const hit = await V.personDetail(personId);
+  const granted = hit!.clans.find((c) => c.clanId === elsewhere.id);
+  assert.ok(granted, 'authority used to be its own list, so a clan run with no roster seat — which is ordinary for staff — was missing from the clans entirely');
+  assert.equal(granted!.grant, 'admin');
+  assert.equal(granted!.seats.length, 0);
+});
+
 test('personDetail on a missing id is null, not a crash', async () => {
   assert.equal(await V.personDetail(999_999), null);
 });
@@ -139,7 +183,7 @@ test('platformActions runs, and finds the entries no clan page can show', async 
 
 test('no collision when every clan claims a different name', async () => {
   const { db, schema: sc } = await loadDb();
-  const all = await db.select({ id: sc.clans.id }).from(sc.clans);
+  const all = await db.select({ id: sc.clans.id }).from(sc.clans).orderBy(sc.clans.id);
   await db.update(sc.clans).set({ inGameName: 'Alone A' }).where(eq(sc.clans.id, all[0].id));
   await db.update(sc.clans).set({ inGameName: 'Alone B' }).where(eq(sc.clans.id, all[1].id));
 
@@ -148,7 +192,7 @@ test('no collision when every clan claims a different name', async () => {
 
 test('two clans on one name is a dispute, matched case-insensitively', async () => {
   const { db, schema: sc } = await loadDb();
-  const all = await db.select({ id: sc.clans.id }).from(sc.clans);
+  const all = await db.select({ id: sc.clans.id }).from(sc.clans).orderBy(sc.clans.id);
 
   // The holder, and an impersonator differing only in case — which is exactly the case a
   // case-sensitive grouping would show as two tidy unrelated rows.
@@ -168,7 +212,7 @@ test('two clans on one name is a dispute, matched case-insensitively', async () 
 
 test('refused claims are counted against the clan that made them', async () => {
   const { db, schema: sc } = await loadDb();
-  const all = await db.select({ id: sc.clans.id }).from(sc.clans);
+  const all = await db.select({ id: sc.clans.id }).from(sc.clans).orderBy(sc.clans.id);
 
   await db.insert(sc.clanAuditLog).values([
     { clanId: all[1].id, eventType: 'ingame_name_claim_refused', newValue: '{}' },

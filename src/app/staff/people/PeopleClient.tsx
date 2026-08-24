@@ -62,8 +62,6 @@ function PersonCard({
     }
   }
 
-  const active = person.memberships.filter((m) => !m.left);
-  const past = person.memberships.filter((m) => m.left);
 
   return (
     <div className={`rounded-xl border border-card-border bg-card-bg p-4 ${busy ? 'opacity-60' : ''}`}>
@@ -100,23 +98,41 @@ function PersonCard({
 
         <div>
           <div className="mb-1.5 text-xs uppercase tracking-wide text-gray-500">
-            Clans ({active.length})
+            Clans ({person.clans.length})
           </div>
-          {active.length === 0 && past.length === 0 ? (
+          {person.clans.length === 0 ? (
             <p className="text-sm text-gray-600">None</p>
           ) : (
-            <ul className="space-y-1">
-              {active.map((m) => (
-                <li key={`${m.clanId}-${m.kind}`} className="flex items-center gap-2 text-sm">
-                  <span>{m.clanName}</span>
-                  <Pill tone={m.kind === 'member' ? 'gold' : 'gray'}>{m.kind}</Pill>
-                  {m.rank && <span className="text-xs text-gray-500">{m.rank}</span>}
-                </li>
-              ))}
-              {past.map((m) => (
-                <li key={`past-${m.clanId}`} className="flex items-center gap-2 text-sm opacity-60">
-                  <span>{m.clanName}</span>
-                  <Pill>left</Pill>
+            <ul className="space-y-2.5">
+              {person.clans.map((c) => (
+                <li key={c.clanId} className="text-sm">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span>{c.clanName}</span>
+                    {/* Authority sits WITH the clan rather than in a list of its own. Kept apart, a
+                        clan somebody runs without a roster seat — ordinary for staff — showed up
+                        under authority and nowhere else, as if they had no involvement with it. */}
+                    {c.grant && <Pill tone="gold">{c.grant}</Pill>}
+                    {c.seats.length === 0 && <span className="text-xs text-gray-600">no roster seat</span>}
+                  </span>
+
+                  {/* ONE LINE PER CHARACTER. A seat is (account × clan), so three characters in one
+                      clan is three seats — and they used to render as three identical rows naming
+                      the clan and nothing else. */}
+                  {c.seats.length > 0 && (
+                    <ul className="mt-1 space-y-0.5 pl-3">
+                      {c.seats.map((seat) => (
+                        <li
+                          key={`${seat.rsn}-${seat.kind}`}
+                          className={`flex flex-wrap items-center gap-2 text-xs ${seat.left ? 'opacity-50' : ''}`}
+                        >
+                          <span className="text-gray-300">{seat.rsn}</span>
+                          <Pill tone={seat.kind === 'member' ? 'gold' : 'gray'}>{seat.kind}</Pill>
+                          {seat.rank && <span className="text-gray-500">{seat.rank}</span>}
+                          {seat.left && <Pill>left</Pill>}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </li>
               ))}
             </ul>
@@ -124,20 +140,10 @@ function PersonCard({
         </div>
       </div>
 
-      {person.grants.length > 0 && (
-        <div className="mt-4">
-          <div className="mb-1.5 text-xs uppercase tracking-wide text-gray-500">Clan authority</div>
-          <div className="flex flex-wrap gap-2">
-            {person.grants.map((g) => (
-              <Pill key={g.clanId} tone="gold">
-                {g.clanName}: {g.role}
-              </Pill>
-            ))}
-          </div>
-          <p className="mt-1.5 text-xs text-gray-600">
-            Clan roles. They grant nothing on the platform, and nothing in any other clan.
-          </p>
-        </div>
+      {person.clans.some((c) => c.grant) && (
+        <p className="mt-3 text-xs text-gray-600">
+          Clan roles grant nothing on the platform, and nothing in any other clan.
+        </p>
       )}
 
       {error && <p className="mt-3 text-sm text-red-300">{error}</p>}

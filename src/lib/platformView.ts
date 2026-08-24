@@ -167,10 +167,26 @@ export interface PersonHit {
   bannedReason: string | null;
   /** Every OSRS account this person owns, across every clan. */
   accounts: { id: number; rsn: string; status: string; verified: boolean }[];
-  /** Where they sit, and as what. The answer the old model could not give at all. */
-  memberships: { clanId: number; clanName: string; kind: string; rank: string | null; left: boolean }[];
-  /** Clan authority, per clan. Separate axis from platform role. */
-  grants: { clanId: number; clanName: string; role: string }[];
+  /**
+   * ONE ROW PER CLAN, not per seat.
+   *
+   * A seat is (account × clan), so somebody playing three characters in one clan holds three seats
+   * there — and the page listed each of them as a separate clan. It read "Clans (5)" for a person in
+   * two, three of the rows saying "The AFK Spot" with nothing to say which character each was, since
+   * the query joined accounts and then never selected the RSN.
+   *
+   * Authority is folded in for the same reason. It used to be its own list, so a clan somebody runs
+   * WITHOUT a roster seat — which is ordinary for staff — appeared under authority and was missing
+   * from the clan list entirely, as though they were not involved with it.
+   */
+  clans: {
+    clanId: number;
+    clanName: string;
+    /** Their seats here, one per character. Empty when they hold only a grant. */
+    seats: { rsn: string; kind: string; rank: string | null; left: boolean }[];
+    /** Clan authority here, if any. A separate axis from platform role, and from holding a seat. */
+    grant: string | null;
+  }[];
   discordId: string | null;
   platformRole: string;
   userId: number | null;
@@ -231,6 +247,9 @@ export async function personDetail(playerId: number): Promise<PersonHit | null> 
       .select({
         clanId: clanMemberships.clanId,
         clanName: clans.name,
+        // THE CHARACTER. The join was already here; the column was not, so every seat row was
+        // anonymous and three seats in one clan rendered as three identical lines.
+        rsn: accounts.rsn,
         kind: clanMemberships.kind,
         rank: clanMemberships.rank,
         leftAt: clanMemberships.leftAt,
@@ -261,14 +280,7 @@ export async function personDetail(playerId: number): Promise<PersonHit | null> 
       status: a.status,
       verified: a.verifiedAt != null,
     })),
-    memberships: seats.map((s) => ({
-      clanId: s.clanId,
-      clanName: s.clanName,
-      kind: s.kind,
-      rank: s.rank,
-      left: s.leftAt != null,
-    })),
-    grants: grants.map((g) => ({ clanId: g.clanId, clanName: g.clanName, role: g.role })),
+    clans: groupByClan(seats, grants),
     discordId: login?.discordId ?? null,
     platformRole: login?.platformRole ?? 'none',
     userId: login?.id ?? null,
@@ -297,6 +309,40 @@ export async function multiClanPeople(limit = 20): Promise<{ playerId: number; n
   return rows.map((r) => ({ playerId: r.playerId, name: r.name, clans: Number(r.clans) }));
 }
 
+
+/**
+ * Seats and grants, folded into one row per clan.
+ *
+ * Both lists are keyed by clan and were rendered as two, which made a person look like they were in
+ * more clans than they are — and hid the ordinary case of somebody who RUNS a clan without holding a
+ * roster seat in it, since that clan appeared only under authority.
+ */
+function groupByClan(
+  seats: { clanId: number; clanName: string; rsn: string; kind: string; rank: string | null; leftAt: string | null }[],
+  grants: { clanId: number; clanName: string; role: string }[],
+): PersonHit['clans'] {
+  const by = new Map<number, PersonHit['clans'][number]>();
+
+  const ensure = (clanId: number, clanName: string) => {
+    const found = by.get(clanId);
+    if (found) return found;
+    const made = { clanId, clanName, seats: [], grant: null };
+    by.set(clanId, made);
+    return made;
+  };
+
+  for (const s of seats) {
+    ensure(s.clanId, s.clanName).seats.push({
+      rsn: s.rsn,
+      kind: s.kind,
+      rank: s.rank,
+      left: s.leftAt != null,
+    });
+  }
+  for (const g of grants) ensure(g.clanId, g.clanName).grant = g.role;
+
+  return [...by.values()].sort((a, b) => a.clanName.localeCompare(b.clanName));
+}
 
 // ── What operators have done ──────────────────────────────────────────────────────────────────
 
