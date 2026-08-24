@@ -16,8 +16,8 @@ import { clansWithSomethingLive } from "@/lib/apexHome";
 import PlatformRail, { type RailClan } from "@/components/PlatformRail";
 import SiteFooter from "@/components/SiteFooter";
 import ClanPrivate from "@/components/ClanPrivate";
-import AnvilMark from "@/components/AnvilMark";
 import { canSeeClan } from "@/lib/clanAccess";
+import { hasPlatformRole, isStaffRole } from "@/lib/clanRoles";
 import "./globals.css";
 import ClanLink, { ClanPrefixProvider } from '@/components/ClanLink';
 
@@ -90,12 +90,19 @@ export default async function RootLayout({
   const myTeams = session?.userId && clan ? await countLiveTeamInvolvements(clan.id, session.userId) : 0;
 
   const avatar = userRow?.discordId ? avatarUrl(userRow.discordId, userRow.discordAvatar) : null;
-  // Any staff role gets the Admin link — it lands on /admin/dashboard, which every staff role can
-  // reach; middleware + the admin sidebar scope what each sees from there. Must mirror the role set
-  // gated in src/middleware.ts (admin, treasurer, moderator, editor) or a role with access would
-  // have no visible way in (the bug this fixes: treasurers and editors were silently link-less).
-  const staffRoles = ['admin', 'treasurer', 'moderator', 'editor'];
-  const isStaff = !!session?.role && staffRoles.includes(session.role);
+  // WHO SEES THE ADMIN LINK. `isStaffRole` ranks the clan roles, and asking it rather than
+  // hand-listing them is the whole point: the list here read
+  // ['admin','treasurer','moderator','editor'] and OWNER WAS NOT IN IT, so the one person who
+  // certainly runs the clan had no way into their own admin area — while 'editor', which is not a
+  // clan role at all, sat in the list doing nothing. Authoring is a capability rather than a tier
+  // (lib/adminAccess), so it is asked separately; that is what lets a plain member with a board
+  // grant reach the tiles surface.
+  const isStaff = isStaffRole(session?.role) || !!session?.canEditTiles;
+
+  // The other axis entirely. Platform capability is not a clan role and no clan can confer it, so
+  // an operator had no link to /staff anywhere in the app — the page existed and nothing pointed at
+  // it. `support` is the lowest rung that may open it, matching app/staff/layout.
+  const isPlatformStaff = hasPlatformRole(session?.platformRole, 'support');
 
   // Clan-specific Discord invite: admin-configurable (settings) with an env fallback. The link is
   // hidden entirely when neither is set, so a fresh self-hosted instance shows no dead link.
@@ -165,6 +172,7 @@ export default async function RootLayout({
               signedIn={!!session}
               displayName={userRow?.displayName ?? null}
               characterCount={session ? myCharacters : undefined}
+              platformStaff={isPlatformStaff}
             />
             {/* The CONTENT COLUMN: page and footer together, beside the rail. The footer used to
                 be a sibling of this whole row, so it ran underneath the rail from x=0 while
@@ -184,13 +192,10 @@ export default async function RootLayout({
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between relative">
             {/* The wordmark goes to the clan you are in, not the apex. Pointing it at '/' made the
                 one control every site puts you "home" with the one that ejected you from the clan. */}
-            {/* THE SAME MARK THE RAIL WEARS. This was still the 48px png and a bold grotesk while the
-                apex had moved to the drawn anvil and the serif, so crossing between a clan and the
-                platform changed logo mid-session. */}
+            {/* The same lockup the rail wears: the real icon, and the wordmark in the display face. */}
             <ClanLink href={clan ? `/c/${clan.slug}` : '/'} className="group flex items-center gap-2.5">
-              <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-md bg-gold-dark/25 ring-1 ring-gold/25 transition-colors group-hover:bg-gold-dark/40">
-                <AnvilMark size={16} className="text-gold" />
-              </span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/icon-48.png" alt="" width={26} height={26} className="shrink-0 rounded-md" />
               <span className="display text-[18px] font-semibold text-gold transition-colors group-hover:text-gold-light">
                 Anvil
               </span>

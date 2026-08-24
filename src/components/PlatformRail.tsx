@@ -2,7 +2,6 @@
 
 import { usePathname } from 'next/navigation';
 
-import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
 import ClanCrest from '@/components/ClanCrest';
 
@@ -40,11 +39,14 @@ export default function PlatformRail({
   signedIn,
   displayName,
   characterCount,
+  platformStaff,
 }: {
   clans: RailClan[];
   signedIn: boolean;
   displayName: string | null;
   characterCount?: number;
+  /** Holds a platform role. A separate axis from any clan grant — see lib/clanRoles. */
+  platformStaff?: boolean;
 }) {
   const pathname = usePathname() ?? '/';
 
@@ -74,12 +76,13 @@ export default function PlatformRail({
     // its own content — 539px of clans against a 422px screen — and dragged the whole page sideways
     // with it. Cross-axis alignment means opposite things in the two directions this flips between.
     <nav className="sticky top-0 z-40 flex w-full shrink-0 gap-4 overflow-x-auto border-b border-card-border bg-brown-dark p-2 lg:h-screen lg:w-[240px] lg:flex-col lg:gap-6 lg:self-start lg:overflow-x-visible lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-4">
-      {/* The mark and the wordmark, drawn rather than fetched — so the rail's logo is the same
-          geometry at any size and takes the gold from the theme instead of baking it into a png. */}
+      {/* THE LOGO IS THE ARTWORK, not the drawn path. `AnvilMark` exists so the mark can be a 600px
+          watermark without going to mush — that is a background job. Where the logo is acting as the
+          logo, the real icon wins: it is what sits in the browser tab and in everybody's bookmarks,
+          and a site whose header mark and favicon are two different drawings looks unfinished. */}
       <ClanLink href="/" className="group flex shrink-0 items-center gap-2.5 px-2">
-        <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-md bg-gold-dark/25 ring-1 ring-gold/25 transition-colors group-hover:bg-gold-dark/40">
-          <AnvilMark size={16} className="text-gold" />
-        </span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/icon-48.png" alt="" width={26} height={26} className="shrink-0 rounded-md" />
         <span className="display hidden text-[18px] font-semibold text-gold lg:inline">Anvil</span>
       </ClanLink>
 
@@ -91,6 +94,9 @@ export default function PlatformRail({
         {item('/clans', 'Find a clan', <SearchIcon />)}
         {item('/leaderboard', 'Records', <ChartIcon />)}
         {item('/guide', 'Guides', <BookIcon />)}
+        {/* /staff existed and NOTHING linked to it. Platform capability is its own axis — no clan
+            role confers it — so an operator had to know the URL to reach the platform's own admin. */}
+        {platformStaff && item('/staff', 'Platform', <ShieldIcon />)}
       </div>
 
       {clans.length > 0 && (
@@ -175,6 +181,7 @@ const SearchIcon = () => <svg {...s}><circle cx="7" cy="7" r="4.4" /><path d="M1
 const ChartIcon = () => <svg {...s}><path d="M3 13V8.5M8 13V3.5M13 13V6" /></svg>;
 const BookIcon = () => <svg {...s}><path d="M3 2.8h7a2 2 0 012 2v8.4H5a2 2 0 01-2-2V2.8z" /><path d="M6 6h5M6 8.6h5" /></svg>;
 const PersonIcon = () => <svg {...s}><circle cx="8" cy="5.5" r="2.4" /><path d="M2.8 13.2c.5-2.5 2.6-3.8 5.2-3.8s4.7 1.3 5.2 3.8" /></svg>;
+const ShieldIcon = () => <svg {...s}><path d="M8 1.9l5 1.9v4.3c0 3.2-2.1 5.4-5 6.1-2.9-.7-5-2.9-5-6.1V3.8l5-1.9z" /></svg>;
 const SignOutIcon = () => (
   <svg {...s}><path d="M6 14H3.5A1.5 1.5 0 012 12.5v-9A1.5 1.5 0 013.5 2H6M10.5 11L14 8l-3.5-3M14 8H6.5" /></svg>
 );
