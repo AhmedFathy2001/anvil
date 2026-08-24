@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import type { ClanRow } from '@/lib/platformView';
 import type { ActAsGrant } from '@/lib/actAs';
+import Select from '@/components/Select';
 import { PLAN_IDS } from '@/lib/plans';
 
 const STATUSES = ['active', 'suspended', 'archived'] as const;
@@ -292,36 +293,28 @@ export default function ClansClient({
                 <td className="px-4 py-3 text-right tabular-nums">{c.events}</td>
                 <td className="px-4 py-3">
                   {canWrite ? (
-                    <select
+                    <Select
                       value={c.status}
                       disabled={busy != null}
-                      onChange={(e) => patch(c.id, { status: e.target.value })}
-                      className={`rounded-lg border border-card-border bg-brown-dark px-2 py-1 text-xs ${STATUS_STYLE[c.status] ?? ''}`}
-                    >
-                      {STATUSES.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(v) => patch(c.id, { status: v })}
+                      options={STATUSES.map((s) => ({ value: s, label: s }))}
+                      ariaLabel="Clan status"
+                      className="w-32"
+                    />
                   ) : (
                     <span className={`text-xs ${STATUS_STYLE[c.status] ?? ''}`}>{c.status}</span>
                   )}
                 </td>
                 <td className="px-4 py-3">
                   {canWrite ? (
-                    <select
+                    <Select
                       value={c.plan}
                       disabled={busy != null}
-                      onChange={(e) => patch(c.id, { plan: e.target.value })}
-                      className="rounded-lg border border-card-border bg-brown-dark px-2 py-1 text-xs"
-                    >
-                      {PLAN_IDS.map((p) => (
-                        <option key={p} value={p}>
-                          {p}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(v) => patch(c.id, { plan: v })}
+                      options={PLAN_IDS.map((p) => ({ value: p, label: p }))}
+                      ariaLabel="Plan"
+                      className="w-32"
+                    />
                   ) : (
                     <span className="text-xs text-gray-300">{c.plan}</span>
                   )}

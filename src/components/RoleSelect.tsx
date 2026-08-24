@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Select, { type SelectOption } from '@/components/Select';
 import Input from '@/components/Input';
 import { loadGuildRoles, createGuildRole, type GuildRole } from '@/lib/rolesClient';
+import Checkbox from '@/components/Checkbox';
 
 interface RoleSelectProps {
   value: string;
@@ -125,15 +126,7 @@ export default function RoleSelect({
           </button>
         </div>
         <div className="mt-2 flex items-center gap-4 flex-wrap text-xs text-text-muted">
-          <label className="inline-flex items-center gap-1.5 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={useColor}
-              onChange={(e) => setUseColor(e.target.checked)}
-              className="h-3.5 w-3.5 accent-gold"
-            />
-            Colour
-          </label>
+          <Checkbox checked={useColor} onChange={setUseColor} label="Colour" />
           {useColor && (
             <input
               type="color"

@@ -9,6 +9,7 @@ import { eventAxes, supportsRevealPolicy } from '@/lib/eventAxes';
 import { eventModeLabel } from '@/lib/utils';
 import type { Event, Tile } from '@/lib/types';
 import { clanFetch } from '@/lib/clanFetch';
+import Checkbox from '@/components/Checkbox';
 
 /**
  * How tiles OPEN on a reveal-policy event, editable after the event exists.
@@ -324,15 +325,7 @@ export default function RevealRulesPanel({ event, tiles }: { event: Event; tiles
             </div>
 
             <div>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={decayEnabled}
-                  onChange={(e) => setDecayEnabled(e.target.checked)}
-                  className="w-4 h-4 accent-gold"
-                />
-                Points change the longer a task has been open
-              </label>
+              <Checkbox checked={decayEnabled} onChange={setDecayEnabled} label="Points change the longer a task has been open" className="text-sm" />
               {decayEnabled && (
                 <div className="grid sm:grid-cols-3 gap-3 mt-3">
                   <div>
@@ -385,15 +378,7 @@ export default function RevealRulesPanel({ event, tiles }: { event: Event; tiles
             </div>
 
             {policy !== 'bounty' && (
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={lockout}
-                  onChange={(e) => setLockout(e.target.checked)}
-                  className="w-4 h-4 accent-gold"
-                />
-                First finisher locks the task for everyone else
-              </label>
+              <Checkbox checked={lockout} onChange={setLockout} label="First finisher locks the task for everyone else" className="text-sm" />
             )}
           </div>
         )}

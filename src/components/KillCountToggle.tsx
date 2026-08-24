@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 import { clanFetch } from '@/lib/clanFetch';
+import Checkbox from '@/components/Checkbox';
 
 const SETTING_KEY = 'show_kill_count';
 
@@ -61,15 +62,7 @@ export default function KillCountToggle() {
 
   return (
     <div className="space-y-4">
-      <label className="flex items-center gap-3 cursor-pointer select-none">
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={(e) => setEnabled(e.target.checked)}
-          className="h-4 w-4 accent-gold"
-        />
-        <span className="text-sm font-medium">Show kill count on rare-drop posts</span>
-      </label>
+      <Checkbox checked={enabled} onChange={setEnabled} label="Show kill count on rare-drop posts" className="text-sm font-medium" />
       <p className="text-xs text-text-muted">
         When on, a drop notification includes the boss/raid kill count the drop landed on (read from
         the in-game &quot;kill count is&quot; message). Turn off to hide it.

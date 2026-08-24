@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Select from '@/components/Select';
 import { useRouter } from 'next/navigation';
 
 import type { PersonHit } from '@/lib/platformView';
@@ -28,16 +29,22 @@ function PersonCard({
   person,
   canWrite,
   canGrant,
+  viewerPlayerId,
   onChanged,
 }: {
   person: PersonHit;
   canWrite: boolean;
   canGrant: boolean;
+  /** The viewer's own person id — their row must not offer what the API will refuse. */
+  viewerPlayerId: number | null;
   onChanged: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reason, setReason] = useState('');
+  // YOUR OWN ROW. The API refuses both of these against yourself, and a control that always errors
+  // is worse than no control: it reads as a thing you may do that happens to be broken.
+  const isSelf = viewerPlayerId != null && viewerPlayerId === person.playerId;
   const [confirming, setConfirming] = useState(false);
 
   async function patch(body: Record<string, unknown>) {
@@ -150,25 +157,29 @@ function PersonCard({
 
       {(canWrite || canGrant) && (
         <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-card-border pt-3">
-          {canGrant && person.userId != null && (
+          {isSelf && (
+            <span className="text-xs text-gray-500">
+              Your own row. A platform role and a ban are both changed by another operator — banning
+              yourself would sign you out with no way back to this page.
+            </span>
+          )}
+
+          {!isSelf && canGrant && person.userId != null && (
             <label className="flex items-center gap-2 text-xs text-gray-400">
               Platform role
-              <select
+              <Select
                 value={person.platformRole}
                 disabled={busy}
-                onChange={(e) => patch({ platformRole: e.target.value })}
-                className="rounded-lg border border-card-border bg-brown-dark px-2 py-1 text-xs"
-              >
-                {PLATFORM_ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => patch({ platformRole: v })}
+                options={PLATFORM_ROLES.map((r) => ({ value: r, label: r }))}
+                ariaLabel="Platform role"
+                className="w-32"
+              />
             </label>
           )}
 
-          {canWrite &&
+          {!isSelf &&
+            canWrite &&
             (person.banned ? (
               <button
                 onClick={() => patch({ banned: false })}
@@ -218,11 +229,14 @@ export default function PeopleClient({
   results,
   canWrite,
   canGrant,
+  viewerPlayerId,
 }: {
   initialQuery: string;
   results: PersonHit[];
   canWrite: boolean;
   canGrant: boolean;
+  /** The viewer's own person id — their row must not offer what the API will refuse. */
+  viewerPlayerId: number | null;
 }) {
   const router = useRouter();
   const [q, setQ] = useState(initialQuery);
@@ -253,6 +267,7 @@ export default function PeopleClient({
             person={p}
             canWrite={canWrite}
             canGrant={canGrant}
+            viewerPlayerId={viewerPlayerId}
             onChanged={() => router.refresh()}
           />
         ))}

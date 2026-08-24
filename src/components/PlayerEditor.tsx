@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Input from '@/components/Input';
+import Select from '@/components/Select';
 import ClanMemberPicker from '@/components/ClanMemberPicker';
 import { clanFetch } from '@/lib/clanFetch';
 
@@ -135,22 +136,20 @@ export default function PlayerEditor({ eventId, player, onClose, onSaved }: Prop
           <div>
             <label className="block text-xs text-text-muted mb-1">Tracked account</label>
             {accounts.length > 1 && (
-              <select
-                value={selectedClanMemberId ?? ''}
-                onChange={(e) => {
+              <Select
+                value={String(selectedClanMemberId ?? '')}
+                onChange={(v) => {
                   setPickedOwnerUserId(undefined);
-                  pickAccount(parseInt(e.target.value, 10));
+                  pickAccount(parseInt(v, 10));
                 }}
-                className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
-              >
-                {accounts.map((a) => (
-                  <option key={a.clanMemberId} value={a.clanMemberId}>
-                    {a.rsn}
-                    {a.status && a.status !== 'active' ? ` (${a.status})` : ''}
-                    {a.isCurrent ? ' — current' : ''}
-                  </option>
-                ))}
-              </select>
+                options={accounts.map((a) => ({
+                  value: String(a.clanMemberId),
+                  label: `${a.rsn}${a.status && a.status !== 'active' ? ` (${a.status})` : ''}${
+                    a.isCurrent ? ' — current' : ''
+                  }`,
+                }))}
+                ariaLabel="Which character"
+              />
             )}
             <button
               type="button"

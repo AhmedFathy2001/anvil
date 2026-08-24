@@ -15,6 +15,7 @@ import { formatLocalDateTime } from '@/lib/eventTime';
 import TileLibraryDraw from '@/components/TileLibraryDraw';
 import type { LibraryTask } from '@/lib/tileLibrary';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
+import Checkbox from '@/components/Checkbox';
 
 interface EventFormProps {
   presets?: EventPreset[];
@@ -668,15 +669,7 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
                   }
                 />
               </div>
-              <label className="flex items-center gap-2 text-sm text-foreground/80">
-                <input
-                  type="checkbox"
-                  checked={includeGuests}
-                  onChange={(e) => setIncludeGuests(e.target.checked)}
-                  className="accent-[var(--gold,#d4af37)]"
-                />
-                Guests race too
-              </label>
+              <Checkbox checked={includeGuests} onChange={setIncludeGuests} label="Guests race too" className="text-sm text-foreground/80" />
               <p className="text-xs text-text-muted">
                 Everyone on the roster is entered automatically when it starts — there&rsquo;s nothing to draft and
                 no sign-up. Baselines come from the hiscores at the start time.
@@ -814,15 +807,7 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
               {/* Point value over time — a tile's points slide from 100% toward a target as it ages.
                   Decay (target < 100) rewards racing; growth (target > 100) rewards clearing older tasks. */}
               <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-foreground/70">
-                  <input
-                    type="checkbox"
-                    checked={decayEnabled}
-                    onChange={(e) => setDecayEnabled(e.target.checked)}
-                    className="accent-[var(--gold,#d4af37)]"
-                  />
-                  Point value changes over time
-                </label>
+                <Checkbox checked={decayEnabled} onChange={setDecayEnabled} label="Point value changes over time" className="text-sm text-foreground/70" />
                 {decayEnabled && (
                   <div className="mt-2 grid grid-cols-2 gap-3">
                     <div className="col-span-2">
@@ -878,15 +863,7 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
 
               {/* Lockout — bounty is single-claim by definition, so only offer it on the other modes. */}
               {effectivePolicy !== 'bounty' && (
-                <label className="flex items-center gap-2 text-sm font-medium text-foreground/70">
-                  <input
-                    type="checkbox"
-                    checked={lockout}
-                    onChange={(e) => setLockout(e.target.checked)}
-                    className="accent-[var(--gold,#d4af37)]"
-                  />
-                  Lockout — the first team to finish a tile locks it for everyone else
-                </label>
+                <Checkbox checked={lockout} onChange={setLockout} label="Lockout — the first team to finish a tile locks it for everyone else" className="text-sm text-foreground/70" />
               )}
             </Section>
           )}

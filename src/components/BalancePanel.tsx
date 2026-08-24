@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import type { PlayerRatings, RatedProfile } from '@/hooks/usePlayerRatings';
 import { ratingScore } from '@/components/PlayerRatingBadge';
+import Select from '@/components/Select';
 import { clanFetch } from '@/lib/clanFetch';
 
 // Draft-side balance advisory (balance-engine plan, Phase 4/5 UI). Renders on the Teams & Draft
@@ -155,19 +156,14 @@ export default function BalancePanel({ eventId, rules, teams, ratings, draftStat
               {busy === 'auto' ? 'Balancing…' : 'Balance teams'}
             </button>
           )}
-          <select
+          <Select
             value={mode}
-            onChange={(e) => setMode(e.target.value)}
+            onChange={setMode}
             disabled={editLocked || busy === 'mode' || draftStatus === 'active'}
-            className="text-xs bg-transparent border border-card-border rounded-lg px-2 py-1.5 text-text-muted disabled:opacity-50"
-            title={MODES.find((m) => m.value === mode)?.hint}
-          >
-            {MODES.map((m) => (
-              <option key={m.value} value={m.value}>
-                {m.label}
-              </option>
-            ))}
-          </select>
+            options={MODES.map((m) => ({ value: m.value, label: m.label }))}
+            ariaLabel="Balance mode"
+            className="w-44"
+          />
           <button onClick={() => setCollapsed((c) => !c)} className="text-xs text-text-muted hover:text-foreground">
             {collapsed ? 'Show' : 'Hide'}
           </button>

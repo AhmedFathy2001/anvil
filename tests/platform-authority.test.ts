@@ -123,6 +123,29 @@ function walk(dir: string): string[] {
   return out;
 }
 
+test('an operator cannot ban themselves off the platform', () => {
+  // A LOCKOUT WITH NO WAY BACK, which is why it is guarded and why the guard is asserted.
+  //
+  // A platform ban bumps the session version and verifyUser refuses on players.banned — so the ban
+  // lands, the session dies, and signing in is refused. /staff is the only place a ban can be
+  // lifted, and it is now unreachable. Nobody can undo it without opening the database by hand.
+  //
+  // The platform ROLE branch had refused self-targeting since it was written; the ban branch had
+  // not, which left the more dangerous of the two actions as the unguarded one.
+  const src = readFileSync(join(process.cwd(), 'src/app/api/staff/people/[id]/route.ts'), 'utf-8');
+
+  assert.match(
+    src,
+    /if \(banned && playerId === actor\.user\.playerId\)/,
+    'the ban branch must refuse the actor themselves',
+  );
+
+  // And the two guards compare the RIGHT id spaces, which is the way this would go quietly wrong:
+  // the ban is keyed by PERSON (players.id) and the role by LOGIN (users.id), and swapping them
+  // would compare unrelated numbers that collide often enough to look like it works.
+  assert.match(src, /login\.id === actor\.user\.userId/, 'the role guard compares logins');
+});
+
 test('no clan-side route can reach the platform ban or the platform role', () => {
   // A source scan rather than a behavioural test, deliberately: the claim is about what does not
   // exist, and the only honest way to assert that is to look everywhere it could.

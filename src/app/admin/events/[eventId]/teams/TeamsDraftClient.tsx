@@ -3,6 +3,7 @@
 import type { Event, Tile, Team, Completion, Player } from '@/lib/types';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Select from '@/components/Select';
 import TeamEditor from '@/components/TeamEditor';
 import DraftOrderSetup from '@/components/DraftOrderSetup';
 import DraftPlayerPool from '@/components/DraftPlayerPool';
@@ -1519,24 +1520,23 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                             <span className="text-sm font-medium truncate">{p.name}</span>
                             <PlayerRatingBadge ratings={ratings} playerId={p.id} />
                           </div>
-                          <select
-                            defaultValue=""
+                          {/* An ACTION menu: it assigns and returns to empty, so the value is always
+                              '' and the prompt is the placeholder rather than a disabled option. */}
+                          <Select
+                            value=""
                             disabled={assigningPlayerId === p.id || editLocked}
-                            onChange={(e) => {
-                              const tid = parseInt(e.target.value, 10);
+                            onChange={(v) => {
+                              const tid = parseInt(v, 10);
                               if (Number.isFinite(tid)) assignToTeam(p.id, tid);
                             }}
-                            className="text-xs bg-brown-dark border border-card-border rounded-lg px-2 py-1.5 focus:outline-none focus:border-gold/50 disabled:opacity-50"
-                          >
-                            <option value="" disabled>
-                              {assigningPlayerId === p.id ? 'Assigning…' : 'Assign to team…'}
-                            </option>
-                            {draftTeams.map((team) => (
-                              <option key={team.id} value={team.id}>
-                                {team.name}
-                              </option>
-                            ))}
-                          </select>
+                            options={draftTeams.map((team) => ({
+                              value: String(team.id),
+                              label: team.name,
+                            }))}
+                            placeholder={assigningPlayerId === p.id ? 'Assigning…' : 'Assign to team…'}
+                            ariaLabel="Assign to team"
+                            className="w-40"
+                          />
                           <button
                             onClick={() => resetPlayer(p.id, p.name, false, false, true)}
                             disabled={busyPlayerId === p.id || assigningPlayerId === p.id || editLocked}

@@ -31,6 +31,8 @@ export default async function StaffPeoplePage({
           results={results}
           canWrite={hasPlatformRole(actor.role, 'staff')}
           canGrant={hasPlatformRole(actor.role, 'root')}
+          // Who is looking, so their own row does not offer them the two actions the API refuses.
+          viewerPlayerId={actor.user.playerId}
         />
       </div>
     </div>

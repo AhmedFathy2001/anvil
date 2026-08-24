@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import PayoutRowControls, { type PayoutRow } from '@/components/PayoutRowControls';
 import Select from '@/components/Select';
 import { clanFetch } from '@/lib/clanFetch';
+import Checkbox from '@/components/Checkbox';
 
 interface Payout extends PayoutRow {
   clanMemberId: number | null;
@@ -424,15 +425,7 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
               )}
             </div>
 
-            <label className="flex w-fit cursor-pointer items-center gap-2 text-xs text-text-muted">
-              <input
-                type="checkbox"
-                checked={includeSubbed}
-                onChange={(e) => setIncludeSubbed(e.target.checked)}
-                className="accent-gold"
-              />
-              Include subbed-out (benched) players in the split
-            </label>
+            <Checkbox checked={includeSubbed} onChange={setIncludeSubbed} label="Include subbed-out (benched) players in the split" className="text-xs text-text-muted" />
 
             <div className="flex flex-wrap gap-2">
               <button

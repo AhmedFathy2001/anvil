@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import Select from '@/components/Select';
 // From lib/startLocations, not lib/startProof: this is a client component, and the starting-shot
 // module pulls in node:crypto and the keyword secret behind it.
 import { DEFAULT_START_RADIUS, START_LOCATIONS } from '@/lib/startLocations';
@@ -240,20 +241,23 @@ export default function WorldMapPicker({ value, onChange, height = 380 }: Props)
         <span>Click to drop the pin · drag to pan · scroll to zoom</span>
         <span className="ml-auto flex items-center gap-1">
           <span>Jump to</span>
-          <select
+          {/* An ACTION menu, not a field: it jumps the map and goes straight back to empty, so the
+              value is always ''. The filter box earns its place here — the list of known places is
+              long. */}
+          <Select
             value=""
-            onChange={(e) => {
-              const spot = START_LOCATIONS.find((l) => l.label === e.target.value);
+            onChange={(label) => {
+              const spot = START_LOCATIONS.find((l) => l.label === label);
               if (spot?.x != null && spot.y != null) setCentre({ x: spot.x, y: spot.y });
             }}
-            aria-label="Jump to a known place"
-            className="bg-brown-dark border border-card-border rounded px-1.5 py-0.5 text-[11px] text-foreground focus:outline-none focus:border-gold"
-          >
-            <option value="">a known place…</option>
-            {START_LOCATIONS.filter((l) => l.x != null).map((l) => (
-              <option key={l.label} value={l.label}>{l.label}</option>
-            ))}
-          </select>
+            options={START_LOCATIONS.filter((l) => l.x != null).map((l) => ({
+              value: l.label,
+              label: l.label,
+            }))}
+            placeholder="a known place…"
+            ariaLabel="Jump to a known place"
+            className="w-40"
+          />
         </span>
       </div>
 

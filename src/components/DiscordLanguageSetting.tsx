@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import ClanLink from '@/components/ClanLink';
+import Select from '@/components/Select';
 import { clanFetch } from '@/lib/clanFetch';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 import { DISCORD_LOCALES } from '@/lib/discordI18n';
@@ -74,19 +75,22 @@ export default function DiscordLanguageSetting() {
         <label htmlFor="setting-discord_language" className="block text-sm font-medium mb-2">
           Bot language
         </label>
-        <select
-          id="setting-discord_language"
+        {/* Empty means "follow each member", which is the recommended setting rather than an absent
+            one — so it is a real option in the list, not the placeholder. */}
+        <Select
           value={value}
-          onChange={(e) => setValue(e.target.value)}
-          className="w-full sm:w-72 px-3 py-2 bg-bg border border-card-border rounded-lg text-sm focus:outline-none focus:border-gold"
-        >
-          <option value="">Follow each member (recommended)</option>
-          {DISCORD_LOCALES.map((locale) => (
-            <option key={locale.code} value={locale.code}>
-              {locale.label} — {locale.english}
-            </option>
-          ))}
-        </select>
+          onChange={setValue}
+          options={[
+            { value: '', label: 'Follow each member (recommended)' },
+            ...DISCORD_LOCALES.map((locale) => ({
+              value: locale.code,
+              label: `${locale.label} — ${locale.english}`,
+              keywords: [locale.english.toLowerCase()],
+            })),
+          ]}
+          ariaLabel="Bot language"
+          className="w-full sm:w-72"
+        />
         <p className="text-xs text-text-muted mt-1">
           Left alone, the bot replies in whatever language each member has their own Discord set to, and
           falls back to English for anything it doesn&apos;t speak. Pick a language to make every answer use

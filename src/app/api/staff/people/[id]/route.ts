@@ -83,6 +83,22 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const banned = Boolean(body.banned);
     const reason = typeof body.reason === 'string' ? body.reason.trim() : null;
 
+    // NOT YOURSELF, and this one is worse than the role guard above it.
+    //
+    // A platform ban bumps the session version and `verifyUser` refuses on players.banned — so the
+    // moment it lands you are signed out and cannot sign back in. You then cannot reach /staff, and
+    // /staff is the only place a ban can be lifted. Banning yourself is unrecoverable without
+    // somebody opening the database by hand.
+    //
+    // The role branch already refused self-targeting; this branch did not, which left the more
+    // dangerous of the two actions as the unguarded one.
+    if (banned && playerId === actor.user.playerId) {
+      return NextResponse.json(
+        { error: 'You cannot ban yourself — it would lock you out with no way back in.' },
+        { status: 400 },
+      );
+    }
+
     await db
       .update(players)
       .set({

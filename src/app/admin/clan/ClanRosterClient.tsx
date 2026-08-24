@@ -6,6 +6,7 @@ import Input from '@/components/Input';
 import ActionMenu, { type ActionItem } from '@/components/ActionMenu';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
+import Checkbox from '@/components/Checkbox';
 
 interface ClanMember {
   id: number;
@@ -1054,15 +1055,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
                 />
               </div>
               <div className="flex items-end">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={addIsGuest}
-                    onChange={(e) => setAddIsGuest(e.target.checked)}
-                    className="w-4 h-4"
-                  />
-                  <span className="text-sm">Add as guest</span>
-                </label>
+                <Checkbox checked={addIsGuest} onChange={setAddIsGuest} label="Add as guest" className="text-sm" />
               </div>
             </div>
             {addError && <p className="text-red-400 text-sm">{addError}</p>}

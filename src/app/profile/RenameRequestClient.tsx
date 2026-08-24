@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Input from '@/components/Input';
+import Select from '@/components/Select';
 
 type PendingRename = {
   id: number;
@@ -105,17 +106,13 @@ export default function RenameRequestClient({
 
       <div className="flex flex-wrap gap-2 mt-2.5 max-w-[640px]">
         {accounts.length > 1 && (
-          <select
-            value={clanMemberId ?? ''}
-            onChange={(e) => setClanMemberId(Number(e.target.value))}
-            className="bg-brown-light border border-card-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold"
-          >
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.rsn}
-              </option>
-            ))}
-          </select>
+          <Select
+            value={String(clanMemberId ?? '')}
+            onChange={(v) => setClanMemberId(Number(v))}
+            options={accounts.map((a) => ({ value: String(a.id), label: a.rsn }))}
+            ariaLabel="Which character"
+            className="w-48"
+          />
         )}
         <Input
           value={newRsn}

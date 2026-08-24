@@ -10,6 +10,7 @@ import Select from '@/components/Select';
 import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
+import Checkbox from '@/components/Checkbox';
 
 interface Competition {
   id: number;
@@ -476,15 +477,7 @@ export default function WeeklyManagementClient() {
             />
 
             <div>
-              <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={includeGuests}
-                  onChange={(e) => setIncludeGuests(e.target.checked)}
-                  className="h-4 w-4 accent-gold"
-                />
-                <span className="text-sm">Include guests</span>
-              </label>
+              <Checkbox checked={includeGuests} onChange={setIncludeGuests} label="Include guests" className="text-sm" />
               <p className="text-[11px] text-text-muted mt-1.5 leading-snug">
                 Everyone on the clan roster is entered automatically — no sign-up needed. Untick to
                 keep this one to full members; you can still add or remove individuals afterwards.
