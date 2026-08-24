@@ -3,6 +3,7 @@ import {
   pgView,
   text,
   integer,
+  bigint,
   serial,
   boolean,
   real,
@@ -258,7 +259,12 @@ export const accounts = pgTable('accounts', {
   liveStats: text('live_stats'),
   liveStatsAt: text('live_stats_at'), // last push timestamp (staleness / observability)
   liveStatKeyTimes: text('live_stat_key_times'),
-  statsOverallXp: integer('stats_overall_xp'), // last observed total XP — the change detector
+  // bigint, not integer: a maxed account carries ~4.6 BILLION total XP and int4 tops out at
+  // 2,147,483,647. The driver rejects the value while encoding, so the whole write fails rather
+  // than truncating — which for the sweep means the account is retried and fails forever, on
+  // precisely the accounts belonging to a clan's best players. `mode: 'number'` keeps it a JS
+  // number (4.6e9 is far inside Number.MAX_SAFE_INTEGER), so nothing downstream has to change.
+  statsOverallXp: bigint('stats_overall_xp', { mode: 'number' }), // last observed total XP — the change detector
   statsMissStreak: integer('stats_miss_streak').notNull().default(0),
   statsNextDueAt: text('stats_next_due_at'),   // null = due now
   statsLastSnapshot: text('stats_last_snapshot'),
@@ -336,6 +342,12 @@ export const events = pgTable('events', {
   //   open     — sign up and you are in (default, and what every existing event does)
   //   approval — the host says yes first
   entry: text('entry').notNull().default('open'),
+  // HOW TEAMS FORM, when more than one clan is on the board.
+  //   'draft'    — one pool of everybody from every invited clan, captains pick across them. The
+  //                only shape that existed before, and the right one for a social cross-clan event.
+  //   'per_clan' — each invited clan is one team. No draft: your seat decides your team, which is
+  //                what a rivalry means. See teams.clanId.
+  teamFormation: text('team_formation').notNull().default('draft'),
   boardSize: integer('board_size').notNull(),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
   draftStatus: text('draft_status').default('none').notNull(),
@@ -637,6 +649,10 @@ export const teams = pgTable('teams', {
   // never needed a data migration, but no code reads or writes it.
   captainPassword: text('captain_password'),
   captainUserId: integer('captain_user_id').references(() => users.id, { onDelete: 'set null' }),
+  // WHICH CLAN THIS TEAM IS, on a per_clan event. Null on every drafted team — a drafted team is
+  // deliberately nobody's clan, even when it happens to be drawn from one. Unique per event, so a
+  // clan cannot end up as two teams on one board through a double-accept.
+  clanId: integer('clan_id').references(() => clans.id, { onDelete: 'set null' }),
   // Discord team-channel provisioning (bot-driven, see lib/discord-teams.ts). The
   // dedicated role gating this team's locked channels, plus the channels themselves.
   // All null until provisioned; cleared on teardown. The role is what contestants on
@@ -1036,7 +1052,7 @@ export const clanRoster = pgView('clan_roster', {
   liveStats: text('live_stats'),
   liveStatsAt: text('live_stats_at'),
   liveStatKeyTimes: text('live_stat_key_times'),
-  statsOverallXp: integer('stats_overall_xp'),
+  statsOverallXp: bigint('stats_overall_xp', { mode: 'number' }),
   statsMissStreak: integer('stats_miss_streak').notNull(),
   statsNextDueAt: text('stats_next_due_at'),
   statsLastSnapshot: text('stats_last_snapshot'),
@@ -1429,7 +1445,7 @@ export const playerSnapshots = pgTable('player_snapshots', {
   // JSON: { skills: { attack: {xp,level,rank}, ... }, bosses: { zulrah: {score,rank}, ... } }
   payload: text('payload').notNull(),
   // Denormalized for cheap ORDER BY and the rename detector's "latest overall XP" probe.
-  overallXp: integer('overall_xp'),
+  overallXp: bigint('overall_xp', { mode: 'number' }),
 }, (table) => [
   index('player_snapshots_member_captured_idx').on(table.accountId, table.capturedAt),
   // One baseline + one current per member per competition. NULLs count as distinct in a unique
@@ -1673,7 +1689,7 @@ export const memberDailyStats = pgTable('member_daily_stats', {
   day: text('day').notNull(),
 
   // Totals as at the last sweep of that day — the absolute line on a chart.
-  overallXp: integer('overall_xp').notNull(),
+  overallXp: bigint('overall_xp', { mode: 'number' }).notNull(),
   ehpMilli: integer('ehp_milli').notNull().default(0),
   ehbMilli: integer('ehb_milli').notNull().default(0),
 
