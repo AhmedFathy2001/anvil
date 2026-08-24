@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 import { clanFetch } from '@/lib/clanFetch';
+import Checkbox from '@/components/Checkbox';
 
 interface ToggleSettingProps {
   settingKey: string;
@@ -67,18 +68,22 @@ export default function ToggleSetting({ settingKey, label, helpText, defaultOn =
 
   return (
     <div className="space-y-2">
-      <label className="flex items-center gap-3 cursor-pointer select-none">
-        <input
-          type="checkbox"
-          checked={enabled}
-          disabled={saving}
-          onChange={(e) => save(e.target.checked)}
-          className="h-4 w-4 accent-gold"
-        />
-        <span className="text-sm font-medium">{label}</span>
-        {saving && <span className="text-xs text-text-muted">Saving…</span>}
-        {!saving && message?.type === 'success' && <span className="text-xs text-green-400">{message.text}</span>}
-      </label>
+      {/* The save state rides in the label: this toggle writes immediately, so "Saving…" belongs
+          beside the thing being saved rather than somewhere else on the page. */}
+      <Checkbox
+        checked={enabled}
+        disabled={saving}
+        onChange={save}
+        label={
+          <>
+            {label}
+            {saving && <span className="ml-2 text-xs font-normal text-text-muted">Saving…</span>}
+            {!saving && message?.type === 'success' && (
+              <span className="ml-2 text-xs font-normal text-green-400">{message.text}</span>
+            )}
+          </>
+        }
+      />
       {helpText && <p className="text-xs text-text-muted leading-snug">{helpText}</p>}
       {message?.type === 'error' && <p className="text-xs text-red-400">{message.text}</p>}
     </div>

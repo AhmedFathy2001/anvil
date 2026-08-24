@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import type { LockerOtherAccount } from '@/lib/profileLocker';
+import Checkbox from '@/components/Checkbox';
 
 /**
  * Your accounts that this clan has no seat for.
@@ -58,16 +59,13 @@ export default function OtherAccountsClient({ accounts }: { accounts: LockerOthe
             className="flex items-center gap-3 border border-card-border rounded-lg px-3.5 py-2 bg-brown-dark/25"
           >
             <span className="text-sm">{a.rsn}</span>
-            <label className="ml-auto flex items-center gap-1.5 text-xs text-text-muted cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={a.shared}
-                disabled={busyId === a.accountId}
-                onChange={(e) => setShared(a.accountId, e.target.checked)}
-                className="accent-gold"
-              />
-              Share
-            </label>
+            <Checkbox
+              checked={a.shared}
+              disabled={busyId === a.accountId}
+              onChange={(next) => setShared(a.accountId, next)}
+              className="ml-auto"
+              label="Share"
+            />
           </div>
         ))}
       </div>

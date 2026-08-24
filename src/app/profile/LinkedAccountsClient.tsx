@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Checkbox from '@/components/Checkbox';
 
 export type LinkedAccount = {
   id: number;
@@ -152,23 +153,22 @@ export default function LinkedAccountsClient({ accounts }: { accounts: LinkedAcc
             </div>
           </div>
           <div className="ml-auto shrink-0 flex items-center gap-2">
-            <label
-              className="flex items-center gap-1.5 text-xs text-text-muted cursor-pointer select-none"
+            {/* The tooltip sits on a wrapper: Checkbox renders its own <label>, and the explanation
+                of what sharing means is worth keeping on hover. */}
+            <span
               title={
                 m.shared
                   ? 'On: clans you are NOT in can also see this account.'
                   : 'Off: only clans you are in — which already have it on their roster — can see this account.'
               }
             >
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={m.shared}
                 disabled={sharingId === m.accountId}
-                onChange={(e) => setShared(m.accountId, e.target.checked)}
-                className="accent-gold"
+                onChange={(next) => setShared(m.accountId, next)}
+                label="Share"
               />
-              Share
-            </label>
+            </span>
             {/* Only offered when there's something to switch to — a lone account is already primary. */}
             {!m.isPrimary && accounts.length > 1 && (
               <button

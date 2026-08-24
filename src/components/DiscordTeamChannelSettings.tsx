@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 import RoleSelect from '@/components/RoleSelect';
 import { clanFetch } from '@/lib/clanFetch';
+import Checkbox from '@/components/Checkbox';
 
 // No baked-in defaults — these are clan-specific Discord role IDs each instance enters once.
 const DEFAULT_BINGO_ROLE_ID = '';
@@ -87,23 +88,19 @@ export default function DiscordTeamChannelSettings() {
 
   return (
     <div className="space-y-4">
-      <label className="flex items-start gap-3 cursor-pointer select-none">
-        <input
-          type="checkbox"
-          checked={teamSync}
-          onChange={(e) => setTeamSync(e.target.checked)}
-          className="h-4 w-4 mt-0.5 accent-gold"
-        />
-        <span>
-          <span className="text-sm font-medium">Enable Discord team channels</span>
-          <span className="block text-xs text-text-muted">
+      <Checkbox
+        checked={teamSync}
+        onChange={setTeamSync}
+        label="Enable Discord team channels"
+        description={
+          <>
             Lets you provision a private voice + text channel per team from an event&apos;s Teams tab,
             and assign contestants their roles. Requires the bot connected in the Discord bot tab. The
             bot needs <em>Manage Roles</em> and <em>Manage Channels</em>, with its role above the team
             roles it creates.
-          </span>
-        </span>
-      </label>
+          </>
+        }
+      />
 
       <div>
         <label className="block text-sm font-medium mb-1">Contestant (bingo) role</label>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import NumberInput from '@/components/NumberInput';
 import { MAX_INVITE_HOURS, MAX_INVITE_USES } from '@/lib/teamInvites';
 import { clanFetch } from '@/lib/clanFetch';
+import Checkbox from '@/components/Checkbox';
 
 /**
  * The invite links for one team (lib/teamInvites).
@@ -153,19 +154,18 @@ export default function TeamInvitePanel({ teamId, captainToggle, bare = false }:
       )}
 
       {captainToggle && (
-        <label className="flex items-center gap-2 text-sm mb-3">
-          <input
-            type="checkbox"
-            checked={captainInvites}
-            disabled={busy}
-            onChange={(e) => toggleCaptainInvites(e.target.checked)}
-            className="accent-gold"
-          />
-          <span>
-            Let captains make their own links
-            <span className="text-text-muted"> — applies to every team in this event</span>
-          </span>
-        </label>
+        <Checkbox
+          checked={captainInvites}
+          disabled={busy}
+          onChange={toggleCaptainInvites}
+          className="mb-3"
+          label={
+            <>
+              Let captains make their own links
+              <span className="font-normal text-text-muted"> — applies to every team in this event</span>
+            </>
+          }
+        />
       )}
 
       {mayMint && (

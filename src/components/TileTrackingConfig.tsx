@@ -12,6 +12,7 @@ import { splitCategories, tileTierKey, tierColor, DEFAULT_TIER_BANDS, type TierB
 import { statKeys } from '@/lib/tileKinds';
 import { collectionDisplayTotal } from '@/lib/collectionSets';
 import { ROLL_TABLES } from '@/lib/rollTables';
+import Checkbox from '@/components/Checkbox';
 import { TRIAL_RANK_ACTIVITIES } from '@/lib/barracudaTrials';
 import type { TileConfig, TileMissionRules } from '@/lib/types';
 import { parseTileMissionRules } from '@/lib/eventRules';
@@ -1407,24 +1408,22 @@ export default function TileTrackingConfig({
           rendered to admins after the event has started. */}
       {canOverride && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
-          <label className="flex items-start gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={liveOverride}
-              onChange={(e) => setLiveOverride(e.target.checked)}
-              className="mt-0.5 accent-amber-400"
-            />
-            <span className="text-xs text-amber-200 leading-relaxed">
-              <span className="font-semibold">🔓 Override live-event lock (admin)</span>
-              <span className="block text-amber-200/80 mt-0.5">
+          <Checkbox
+            checked={liveOverride}
+            onChange={setLiveOverride}
+            tone="amber"
+            className="text-amber-200"
+            label="🔓 Override live-event lock (admin)"
+            description={
+              <span className="text-amber-200/80">
                 Unlock this tile’s label, kind and required amount to fix a misconfigured tile on the
                 running board. The change is recorded as a{' '}
                 <span className="font-semibold">live override</span> in the tile history. If you lower a
                 required amount, press <span className="font-semibold">Heal the board</span> on the
                 event&rsquo;s home page afterwards — teams already at the new target complete retroactively.
               </span>
-            </span>
-          </label>
+            }
+          />
         </div>
       )}
 
@@ -1658,22 +1657,17 @@ export default function TileTrackingConfig({
 
           {isDrop && (
             <div className="rounded-lg border border-card-border/60 p-2.5 space-y-2">
-              <label className="flex items-start gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={oncePerKill}
-                  onChange={(e) => setOncePerKill(e.target.checked)}
-                  className="mt-0.5 accent-gold"
-                />
-                <span className="text-xs text-foreground/90">
-                  Count once per kill
-                  <FlagHint text={PER_KILL_CAP_HELP} />
-                  <span className="block text-[10px] text-text-muted mt-0.5">
-                    One kill credits this tile once, however many tracked items it dropped. Off = every
-                    drop counts, so a kill that hands you two tracked items counts twice.
-                  </span>
-                </span>
-              </label>
+              <Checkbox
+                checked={oncePerKill}
+                onChange={setOncePerKill}
+                label={
+                  <>
+                    Count once per kill
+                    <FlagHint text={PER_KILL_CAP_HELP} />
+                  </>
+                }
+                description="One kill credits this tile once, however many tracked items it dropped. Off = every drop counts, so a kill that hands you two tracked items counts twice."
+              />
 
               {/* Roll tiles. A boss whose vestige is on a fixed rotation makes "get N unique ROLLS"
                   a target a team can actually chase, which a 1/500 vestige isn't — and it's just this
@@ -1904,24 +1898,25 @@ export default function TileTrackingConfig({
               )}
             </div>
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-              <label className="flex items-center gap-1.5 cursor-pointer w-fit">
-                <input
-                  type="checkbox"
-                  checked={dropsOnly}
-                  onChange={(e) => {
-                    setDropsOnly(e.target.checked);
-                    if (itemSearch.trim().length >= 2) {
-                      setShowItemDropdown(true);
-                      searchItems(itemSearch, e.target.checked);
-                    }
-                  }}
-                  className="accent-gold"
-                />
-                <span className="text-[10px] text-text-muted">
-                  Drops only
-                  <FlagHint text="Search only items something in the game actually drops — monster drop tables, raid and clue chests, and collection log unlocks. Uncheck to search every item in the game, including shop stock and skilling resources." />
-                </span>
-              </label>
+              {/* The handler does more than set the flag — it re-runs the search with the new value —
+                  so it takes the boolean Checkbox hands back rather than an event. */}
+              <Checkbox
+                checked={dropsOnly}
+                onChange={(next) => {
+                  setDropsOnly(next);
+                  if (itemSearch.trim().length >= 2) {
+                    setShowItemDropdown(true);
+                    searchItems(itemSearch, next);
+                  }
+                }}
+                className="w-fit"
+                label={
+                  <>
+                    Drops only
+                    <FlagHint text="Search only items something in the game actually drops — monster drop tables, raid and clue chests, and collection log unlocks. Uncheck to search every item in the game, including shop stock and skilling resources." />
+                  </>
+                }
+              />
               {dropsOnly && filteredToNothing && !itemSearching && (
                 <span className="text-[10px] text-text-muted/70">
                   Nothing dropped matches —{' '}
@@ -2290,22 +2285,17 @@ export default function TileTrackingConfig({
               </span>
             </summary>
             <div className="px-2.5 pb-2.5 space-y-2">
-            <label className="flex items-start gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={coopPerKill}
-                onChange={(e) => setCoopPerKill(e.target.checked)}
-                className="mt-0.5 accent-gold"
-              />
-              <span className="text-xs text-foreground/90">
-                Count a shared kill once
-                <FlagHint text={COOP_CREDIT_HELP} />
-                <span className="block text-[10px] text-text-muted mt-0.5">
-                  Members who were in the same kill credit it once between them. Off = every member who
-                  was there credits it, so a 20-man raid counts 20.
-                </span>
-              </span>
-            </label>
+            <Checkbox
+              checked={coopPerKill}
+              onChange={setCoopPerKill}
+              label={
+                <>
+                  Count a shared kill once
+                  <FlagHint text={COOP_CREDIT_HELP} />
+                </>
+              }
+              description="Members who were in the same kill credit it once between them. Off = every member who was there credits it, so a 20-man raid counts 20."
+            />
             <div>
               <label className="block text-xs text-text-muted mb-1">
                 Minimum teammates per kill

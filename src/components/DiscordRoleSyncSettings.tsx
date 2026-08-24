@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import DiscordLinkMember from './DiscordLinkMember';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 import { clanFetch } from '@/lib/clanFetch';
+import Checkbox from '@/components/Checkbox';
 
 // Booleans are stored as the string 'true' (on). For role sync / nickname sync, anything
 // other than 'true' = off. Auto-match defaults to ON, so it's stored as 'false' only when
@@ -114,79 +115,47 @@ export default function DiscordRoleSyncSettings() {
 
   return (
     <div className="space-y-4">
-      <label className="flex items-start gap-3 cursor-pointer select-none">
-        <input
-          type="checkbox"
-          checked={roleSync}
-          onChange={(e) => setRoleSync(e.target.checked)}
-          className="h-4 w-4 mt-0.5 accent-gold"
-        />
-        <span>
-          <span className="text-sm font-medium">Enable Discord role sync</span>
-          <span className="block text-xs text-text-muted">
-            Gives linked members their rank + default Discord roles. Requires the bot connected in the
-            Discord bot tab. Master switch — nickname sync also requires this on.
-          </span>
-        </span>
-      </label>
+      {/* These four were Checkbox's own markup, hand-written: the same label span, the same
+          description span, the same accent. The disabled ones even re-implemented the dimming the
+          component already does, which is why the opacity was on the label text and not the box. */}
+      <Checkbox
+        checked={roleSync}
+        onChange={setRoleSync}
+        label="Enable Discord role sync"
+        description="Gives linked members their rank + default Discord roles. Requires the bot connected in the Discord bot tab. Master switch — nickname sync also requires this on."
+      />
 
-      <label className="flex items-start gap-3 cursor-pointer select-none">
-        <input
-          type="checkbox"
-          checked={nicknameSync}
-          onChange={(e) => setNicknameSync(e.target.checked)}
-          className="h-4 w-4 mt-0.5 accent-gold"
-          disabled={!roleSync}
-        />
-        <span>
-          <span className={`text-sm font-medium ${!roleSync ? 'opacity-50' : ''}`}>
-            Set Discord nickname to linked RSN(s) on link
-          </span>
-          <span className="block text-xs text-text-muted">
-            Sets it to their RSN(s), primary first (e.g. <code className="text-gold">Drenvox mdps / Denoverse</code>),
-            trimming trailing names to fit Discord&apos;s 32-char cap. Bot needs the &quot;Manage
-            Nicknames&quot; permission and a role above the members it renames.
-          </span>
-        </span>
-      </label>
+      <Checkbox
+        checked={nicknameSync}
+        onChange={setNicknameSync}
+        disabled={!roleSync}
+        label="Set Discord nickname to linked RSN(s) on link"
+        description={
+          <>
+            Sets it to their RSN(s), primary first (e.g.{' '}
+            <code className="text-gold">Drenvox mdps / Denoverse</code>), trimming trailing names to fit
+            Discord&apos;s 32-char cap. Bot needs the &quot;Manage Nicknames&quot; permission and a role
+            above the members it renames.
+          </>
+        }
+      />
 
-      <label className="flex items-start gap-3 cursor-pointer select-none pl-7">
-        <input
-          type="checkbox"
-          checked={nicknameOverwrite}
-          onChange={(e) => setNicknameOverwrite(e.target.checked)}
-          className="h-4 w-4 mt-0.5 accent-gold"
-          disabled={!roleSync || !nicknameSync}
-        />
-        <span>
-          <span className={`text-sm font-medium ${!roleSync || !nicknameSync ? 'opacity-50' : ''}`}>
-            Overwrite existing nicknames too
-          </span>
-          <span className="block text-xs text-text-muted">
-            Also replaces a nickname someone already set, keeping everyone pinned to their RSN(s) — so
-            an in-game rename fixes their Discord name on the next sync. Off = only fill blank nicknames.
-          </span>
-        </span>
-      </label>
+      <Checkbox
+        checked={nicknameOverwrite}
+        onChange={setNicknameOverwrite}
+        disabled={!roleSync || !nicknameSync}
+        className="pl-7"
+        label="Overwrite existing nicknames too"
+        description="Also replaces a nickname someone already set, keeping everyone pinned to their RSN(s) — so an in-game rename fixes their Discord name on the next sync. Off = only fill blank nicknames."
+      />
 
-      <label className="flex items-start gap-3 cursor-pointer select-none">
-        <input
-          type="checkbox"
-          checked={autoMatch}
-          onChange={(e) => setAutoMatch(e.target.checked)}
-          className="h-4 w-4 mt-0.5 accent-gold"
-          disabled={!roleSync}
-        />
-        <span>
-          <span className={`text-sm font-medium ${!roleSync ? 'opacity-50' : ''}`}>
-            Auto-match in-game rank → Discord role by name
-          </span>
-          <span className="block text-xs text-text-muted">
-            Matches a rank to a Discord role of the same name (e.g. &quot;General&quot;). On unless you
-            map ranks to role IDs manually.
-          </span>
-        </span>
-      </label>
+      <Checkbox
+        checked={autoMatch}
+        onChange={setAutoMatch}
+        disabled={!roleSync}
+        label="Auto-match in-game rank → Discord role by name"
+        description="Matches a rank to a Discord role of the same name (e.g. &quot;General&quot;). On unless you map ranks to role IDs manually."
+      />
 
       {message && (
         <div

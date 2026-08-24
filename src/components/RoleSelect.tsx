@@ -136,16 +136,16 @@ export default function RoleSelect({
               className="h-7 w-10 shrink-0 cursor-pointer rounded border border-card-border bg-transparent p-0.5"
             />
           )}
-          <label className="inline-flex items-center gap-1.5 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={mentionable}
-              onChange={(e) => setMentionable(e.target.checked)}
-              className="h-3.5 w-3.5 accent-gold"
-            />
-            Mentionable
-            <span className="text-text-muted/70">(lets anyone @mention it)</span>
-          </label>
+          <Checkbox
+            checked={mentionable}
+            onChange={setMentionable}
+            label={
+              <>
+                Mentionable{' '}
+                <span className="font-normal text-text-muted/70">(lets anyone @mention it)</span>
+              </>
+            }
+          />
         </div>
         {error && <p className="text-xs text-red-400 mt-1">{error}</p>}
         <p className="text-xs text-text-muted mt-1">Creates a new role in your Discord server.</p>
