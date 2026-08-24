@@ -97,9 +97,10 @@ export default async function ProfilePage({
   const progressAccount = locker.accounts.find((a) => a.isPrimary) ?? locker.accounts[0] ?? null;
   const [progress, questItems, caItems] = progressAccount
     ? await Promise.all([
-        getMemberProgress(progressAccount.id),
-        getMemberItems(progressAccount.id, 'quest'),
-        getMemberItems(progressAccount.id, 'ca'),
+        // The ACCOUNT, not the seat — these read member_progress, which is account-keyed.
+        getMemberProgress(progressAccount.accountId),
+        getMemberItems(progressAccount.accountId, 'quest'),
+        getMemberItems(progressAccount.accountId, 'ca'),
       ])
     : [null, null, null];
 

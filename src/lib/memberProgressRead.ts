@@ -8,11 +8,24 @@ import { parseItems, type ItemCategory, type ProgressItem } from '@/lib/memberPr
 // from tests and from the client without dragging a connection along.
 
 /** One member's progress, folded into what a profile card draws. `empty` when nothing was pushed. */
-export async function getMemberProgress(clanMemberId: number): Promise<ProgressSummary> {
+/**
+ * TAKES AN ACCOUNT ID. The parameter used to be called `clanMemberId`.
+ *
+ * That was not a naming nit, it was the bug. Every caller obediently passed a SEAT id, the query
+ * below asks for `account_id`, and Postgres answered happily with somebody else's rows. On the
+ * preview 456 of 456 live seats had an id that differed from their account's, so this was wrong for
+ * every member on every profile: Drenvox mdps' page drew A Fish Taco's history, and Denoverse's drew
+ * a blank, because the account whose id happened to match their seat had never been tracked.
+ *
+ * Nothing failed and nothing looked broken. Both ids are small positive integers from adjacent
+ * sequences, so the wrong one is always a plausible answer — which is exactly why the name has to be
+ * the true one.
+ */
+export async function getMemberProgress(accountId: number): Promise<ProgressSummary> {
   const rows = await db
     .select({ key: memberProgress.key, value: memberProgress.value, updatedAt: memberProgress.updatedAt })
     .from(memberProgress)
-    .where(eq(memberProgress.accountId, clanMemberId));
+    .where(eq(memberProgress.accountId, accountId));
   return progressSummary(rows);
 }
 
@@ -24,13 +37,26 @@ export interface MemberItemSet {
 }
 
 /** One member's item list for a category — the quests they've done, and which they haven't. */
+/**
+ * TAKES AN ACCOUNT ID. The parameter used to be called `clanMemberId`.
+ *
+ * That was not a naming nit, it was the bug. Every caller obediently passed a SEAT id, the query
+ * below asks for `account_id`, and Postgres answered happily with somebody else's rows. On the
+ * preview 456 of 456 live seats had an id that differed from their account's, so this was wrong for
+ * every member on every profile: Drenvox mdps' page drew A Fish Taco's history, and Denoverse's drew
+ * a blank, because the account whose id happened to match their seat had never been tracked.
+ *
+ * Nothing failed and nothing looked broken. Both ids are small positive integers from adjacent
+ * sequences, so the wrong one is always a plausible answer — which is exactly why the name has to be
+ * the true one.
+ */
 export async function getMemberItems(
-  clanMemberId: number,
+  accountId: number,
   category: ItemCategory,
 ): Promise<MemberItemSet | null> {
   const row = await db.query.memberProgressItems.findFirst({
     where: and(
-      eq(memberProgressItems.accountId, clanMemberId),
+      eq(memberProgressItems.accountId, accountId),
       eq(memberProgressItems.category, category),
     ),
   });

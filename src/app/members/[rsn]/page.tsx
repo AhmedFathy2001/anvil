@@ -121,17 +121,22 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
   const viewer = await verifyUser();
 
   const [milestones, records, series, standings, history, persona, collection, activityStandings, progress, questItems, caItems, roster] = await Promise.all([
-    getMilestones(profile.id, 50),
-    getRecords(profile.id),
-    getDailySeries(profile.id, 365),
+    // TWO IDS, AND WHICH ONE EACH CALL WANTS IS THE WHOLE POINT. `profile.accountId` is the OSRS
+    // character, which is what every stats table is keyed by; `profile.id` is the seat, which is
+    // what "their place in THIS clan" is keyed by. Passing the seat to the account-keyed ones drew
+    // another member's history on every profile in the app, silently, because both are small
+    // integers and the wrong row is always a plausible one.
+    getMilestones(profile.accountId, 50),
+    getRecords(profile.accountId),
+    getDailySeries(profile.accountId, 365),
     getStandings(profile.id),
     getCompetitionHistory(profile.id, profile.rsn),
     viewer ? getPersona(profile.id) : Promise.resolve(null),
-    getCollectionLog(profile.id, profile.rsn),
+    getCollectionLog(profile.accountId, profile.rsn),
     getActivityStandings(clan.id, profile.rsn),
-    getMemberProgress(profile.id),
-    getMemberItems(profile.id, 'quest'),
-    getMemberItems(profile.id, 'ca'),
+    getMemberProgress(profile.accountId),
+    getMemberItems(profile.accountId, 'quest'),
+    getMemberItems(profile.accountId, 'ca'),
     // Everyone's totals, for the shape's percentiles. One query for the whole roster (the same one
     // the directory runs), not a snapshot parse per member.
     listMembers(clan.id),

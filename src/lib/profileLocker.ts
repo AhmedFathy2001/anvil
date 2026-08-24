@@ -47,6 +47,7 @@ export interface LockerOtherAccount {
 }
 
 export interface LockerAccount {
+  /** The SEAT on this clan's roster. What the unlink / verify APIs address. */
   id: number;
   rsn: string;
   isPrimary: boolean;
@@ -59,7 +60,12 @@ export interface LockerAccount {
   playingIn: string | null;
   /** Published to clans this account is NOT in. Off by default; see lib/accountVisibility. */
   shared: boolean;
-  /** The underlying account, which is what sharing is set on — the seat id is per clan. */
+  /**
+   * The underlying ACCOUNT — the character Jagex tracks. Sharing is set on it, and so is every
+   * stats table: history, milestones, records, the collection log, account progress. A DIFFERENT
+   * number from `id`, always, because seats and accounts come from two sequences. See MemberProfile
+   * for what came of passing the seat where this was wanted.
+   */
   accountId: number;
   /** Last plugin push, or null if this account has never talked to us. */
   lastPingAt: string | null;
@@ -618,10 +624,12 @@ export async function buildLocker(
     myRoster.slice().sort((a, b) => (b.overallXp ?? 0) - (a.overallXp ?? 0))[0] ??
     memberRows[0];
   const focusRsn = focus?.rsn ?? null;
-  const focusId = focus?.id ?? null;
+  // The ACCOUNT, not the seat. `getRecords` reads member_daily_stats, which is keyed by account —
+  // handing it the seat id charted whichever unrelated character happened to share that number.
+  const focusAccountId = focus?.accountId ?? null;
 
   const [records, focusProfile, activity] = await Promise.all([
-    focusId ? getRecords(focusId) : Promise.resolve([]),
+    focusAccountId ? getRecords(focusAccountId) : Promise.resolve([]),
     focusRsn ? getMemberProfile(clanId, focusRsn) : Promise.resolve(null),
     getClanActivityAnalytics(clanId),
   ]);

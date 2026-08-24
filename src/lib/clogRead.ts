@@ -23,9 +23,22 @@ export function formatPersonalBest(centis: number): string {
   return `${hours > 0 ? `${hours}:` : ''}${mm}:${String(seconds).padStart(2, '0')}.${String(hundredths).padStart(2, '0')}`;
 }
 
-export async function getCollectionLog(clanMemberId: number, rsn: string): Promise<CollectionLogProps> {
+/**
+ * TAKES AN ACCOUNT ID. The parameter used to be called `clanMemberId`.
+ *
+ * That was not a naming nit, it was the bug. Every caller obediently passed a SEAT id, the query
+ * below asks for `account_id`, and Postgres answered happily with somebody else's rows. On the
+ * preview 456 of 456 live seats had an id that differed from their account's, so this was wrong for
+ * every member on every profile: Drenvox mdps' page drew A Fish Taco's history, and Denoverse's drew
+ * a blank, because the account whose id happened to match their seat had never been tracked.
+ *
+ * Nothing failed and nothing looked broken. Both ids are small positive integers from adjacent
+ * sequences, so the wrong one is always a plausible answer — which is exactly why the name has to be
+ * the true one.
+ */
+export async function getCollectionLog(accountId: number, rsn: string): Promise<CollectionLogProps> {
   const [header, items, bests] = await Promise.all([
-    db.query.memberClog.findFirst({ where: eq(memberClog.accountId, clanMemberId) }),
+    db.query.memberClog.findFirst({ where: eq(memberClog.accountId, accountId) }),
     db
       .select({
         itemId: memberClogItems.itemId,
@@ -35,7 +48,7 @@ export async function getCollectionLog(clanMemberId: number, rsn: string): Promi
         kcAtUnlock: memberClogItems.kcAtUnlock,
       })
       .from(memberClogItems)
-      .where(eq(memberClogItems.accountId, clanMemberId)),
+      .where(eq(memberClogItems.accountId, accountId)),
     db
       .select({
         activity: memberPersonalBests.activity,
@@ -46,7 +59,7 @@ export async function getCollectionLog(clanMemberId: number, rsn: string): Promi
         updatedAt: memberPersonalBests.updatedAt,
       })
       .from(memberPersonalBests)
-      .where(eq(memberPersonalBests.accountId, clanMemberId)),
+      .where(eq(memberPersonalBests.accountId, accountId)),
   ]);
 
   const view = buildClogProfile({

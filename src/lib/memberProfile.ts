@@ -25,7 +25,10 @@ import { progressToLevel } from '@/lib/xp';
 import { isPlausibleRsn, normalizeRsn } from '@/lib/auth';
 
 export interface MemberListRow {
+  /** The SEAT — this member's place on this clan's roster. */
   id: number;
+  /** The ACCOUNT — the character Jagex tracks, and what every stats table is keyed by. */
+  accountId: number;
   rsn: string;
   rank: string | null;
   isGuest: boolean;
@@ -45,9 +48,15 @@ export interface MemberListRow {
 export async function listMembers(clanId: number): Promise<MemberListRow[]> {
   // The member's newest daily row carries their latest totals. A correlated subquery keeps this to a
   // single statement rather than a query per member.
+  // KEYED BY ACCOUNT, AND JOINED TO THE ROSTER BY ACCOUNT. Both joins below read `account_id` and
+  // both used to match it against `clanRoster.id`, which is the SEAT — two ids from two sequences
+  // that are never equal (456 of 456 live seats on the preview differ). So every figure in this
+  // list — total XP, EHP, EHB, and every ranking built on them — belonged to whichever unrelated
+  // character happened to hold that number. It looked entirely normal, because another account's
+  // XP is still a believable amount of XP.
   const latestDay = db
     .select({
-      clanMemberId: memberDailyStats.accountId,
+      accountId: memberDailyStats.accountId,
       day: sql<string>`MAX(${memberDailyStats.day})`.as('latest_day'),
     })
     .from(memberDailyStats)
@@ -57,6 +66,7 @@ export async function listMembers(clanId: number): Promise<MemberListRow[]> {
   const rows = await db
     .select({
       id: clanRoster.id,
+      accountId: clanRoster.accountId,
       rsn: clanRoster.rsn,
       rank: clanRoster.rank,
       kind: clanRoster.kind,
@@ -67,10 +77,10 @@ export async function listMembers(clanId: number): Promise<MemberListRow[]> {
       ehbMilli: memberDailyStats.ehbMilli,
     })
     .from(clanRoster)
-    .leftJoin(latestDay, eq(latestDay.clanMemberId, clanRoster.id))
+    .leftJoin(latestDay, eq(latestDay.accountId, clanRoster.accountId))
     .leftJoin(
       memberDailyStats,
-      and(eq(memberDailyStats.accountId, clanRoster.id), eq(memberDailyStats.day, latestDay.day)),
+      and(eq(memberDailyStats.accountId, clanRoster.accountId), eq(memberDailyStats.day, latestDay.day)),
     )
     // Members who left the clan drop off the directory; the profile page still resolves by name so
     // old links and event recaps don't 404.
@@ -84,6 +94,7 @@ export async function listMembers(clanId: number): Promise<MemberListRow[]> {
     .filter((r) => isPlausibleRsn(r.rsn))
     .map((r) => ({
       id: r.id,
+      accountId: r.accountId,
       rsn: r.rsn,
       rank: r.rank,
       isGuest: r.kind === 'guest',
@@ -124,7 +135,16 @@ export interface ActivityRow {
 }
 
 export interface MemberProfile {
+  /** The SEAT — this person's place on THIS clan's roster. What clan_member_id columns point at. */
   id: number;
+  /**
+   * The ACCOUNT — the OSRS character itself, which is what Jagex tracks and what every stats table
+   * is keyed by. A DIFFERENT NUMBER FROM `id`, always: they come from two sequences, and on the
+   * preview not one of 456 live seats had them equal. Anything reading history, milestones, records,
+   * the collection log or account progress wants THIS one; anything about the person's place in this
+   * clan — standings, competition history, persona — wants `id`.
+   */
+  accountId: number;
   rsn: string;
   rank: string | null;
   isGuest: boolean;
@@ -147,7 +167,11 @@ export interface MemberProfile {
  * competition snapshot for members last seen before that column existed — so profiles aren't blank
  * for everyone until the roster has cycled through a sweep.
  */
-async function lastSnapshotFor(member: { id: number; statsLastSnapshot: string | null }): Promise<{
+async function lastSnapshotFor(member: {
+  id: number;
+  accountId: number;
+  statsLastSnapshot: string | null;
+}): Promise<{
   snapshot: HiscoresSnapshot | null;
   at: string | null;
 }> {
@@ -158,8 +182,10 @@ async function lastSnapshotFor(member: { id: number; statsLastSnapshot: string |
       /* fall through to the older store */
     }
   }
+  // The ACCOUNT again. `member.id` is the seat, and this is the fallback path for a member whose
+  // inline snapshot is missing — so the older store quietly answered with another character's.
   const row = await db.query.playerSnapshots.findFirst({
-    where: eq(playerSnapshots.accountId, member.id),
+    where: eq(playerSnapshots.accountId, member.accountId),
     orderBy: [desc(playerSnapshots.capturedAt)],
   });
   if (!row?.payload) return { snapshot: null, at: null };
@@ -198,6 +224,7 @@ export async function getMemberProfile(clanId: number, rsn: string): Promise<Mem
   if (!snapshot) {
     return {
       id: member.id,
+      accountId: member.accountId,
       rsn: member.rsn,
       rank: member.rank,
       isGuest: member.kind === 'guest',
@@ -254,6 +281,7 @@ export async function getMemberProfile(clanId: number, rsn: string): Promise<Mem
 
   return {
     id: member.id,
+    accountId: member.accountId,
     rsn: member.rsn,
     rank: member.rank,
     isGuest: member.kind === 'guest',
@@ -281,12 +309,25 @@ export interface DailyPoint {
 }
 
 /** The member's daily rows for the last N days, oldest first — the gained chart's series. */
-export async function getDailySeries(clanMemberId: number, days = 90): Promise<DailyPoint[]> {
+/**
+ * TAKES AN ACCOUNT ID. The parameter used to be called `clanMemberId`.
+ *
+ * That was not a naming nit, it was the bug. Every caller obediently passed a SEAT id, the query
+ * below asks for `account_id`, and Postgres answered happily with somebody else's rows. On the
+ * preview 456 of 456 live seats had an id that differed from their account's, so this was wrong for
+ * every member on every profile: Drenvox mdps' page drew A Fish Taco's history, and Denoverse's drew
+ * a blank, because the account whose id happened to match their seat had never been tracked.
+ *
+ * Nothing failed and nothing looked broken. Both ids are small positive integers from adjacent
+ * sequences, so the wrong one is always a plausible answer — which is exactly why the name has to be
+ * the true one.
+ */
+export async function getDailySeries(accountId: number, days = 90): Promise<DailyPoint[]> {
   const from = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
   const rows = await db
     .select()
     .from(memberDailyStats)
-    .where(and(eq(memberDailyStats.accountId, clanMemberId), gte(memberDailyStats.day, from)))
+    .where(and(eq(memberDailyStats.accountId, accountId), gte(memberDailyStats.day, from)))
     .orderBy(memberDailyStats.day);
 
   // Densify: a day nobody played has no row, but it's a real zero, not a gap. Handing the sparse rows
@@ -318,11 +359,24 @@ export interface MilestoneRow {
   noticedAt: string;
 }
 
-export async function getMilestones(clanMemberId: number, limit = 50): Promise<MilestoneRow[]> {
+/**
+ * TAKES AN ACCOUNT ID. The parameter used to be called `clanMemberId`.
+ *
+ * That was not a naming nit, it was the bug. Every caller obediently passed a SEAT id, the query
+ * below asks for `account_id`, and Postgres answered happily with somebody else's rows. On the
+ * preview 456 of 456 live seats had an id that differed from their account's, so this was wrong for
+ * every member on every profile: Drenvox mdps' page drew A Fish Taco's history, and Denoverse's drew
+ * a blank, because the account whose id happened to match their seat had never been tracked.
+ *
+ * Nothing failed and nothing looked broken. Both ids are small positive integers from adjacent
+ * sequences, so the wrong one is always a plausible answer — which is exactly why the name has to be
+ * the true one.
+ */
+export async function getMilestones(accountId: number, limit = 50): Promise<MilestoneRow[]> {
   const rows = await db
     .select()
     .from(memberMilestones)
-    .where(eq(memberMilestones.accountId, clanMemberId))
+    .where(eq(memberMilestones.accountId, accountId))
     .orderBy(desc(memberMilestones.noticedAt))
     .limit(limit);
   return rows.map((r) => ({ kind: r.kind, metric: r.metric, threshold: r.threshold, noticedAt: r.noticedAt }));
@@ -341,8 +395,21 @@ export interface PeriodRecord {
  * maintained in a table. A year of history is ≤365 rows, so the windows are a scan over an array —
  * nothing to keep in sync, and no write cost on the hot path.
  */
-export async function getRecords(clanMemberId: number): Promise<PeriodRecord[]> {
-  const series = await getDailySeries(clanMemberId, 3650);
+/**
+ * TAKES AN ACCOUNT ID. The parameter used to be called `clanMemberId`.
+ *
+ * That was not a naming nit, it was the bug. Every caller obediently passed a SEAT id, the query
+ * below asks for `account_id`, and Postgres answered happily with somebody else's rows. On the
+ * preview 456 of 456 live seats had an id that differed from their account's, so this was wrong for
+ * every member on every profile: Drenvox mdps' page drew A Fish Taco's history, and Denoverse's drew
+ * a blank, because the account whose id happened to match their seat had never been tracked.
+ *
+ * Nothing failed and nothing looked broken. Both ids are small positive integers from adjacent
+ * sequences, so the wrong one is always a plausible answer — which is exactly why the name has to be
+ * the true one.
+ */
+export async function getRecords(accountId: number): Promise<PeriodRecord[]> {
+  const series = await getDailySeries(accountId, 3650);
   if (series.length === 0) return [];
 
   // Index by day so the windows can walk the calendar, not just the rows we happen to have — a gap
@@ -1108,7 +1175,11 @@ export async function getPersona(clanMemberId: number): Promise<Persona | null> 
   const member = await findRosterSeat(eq(clanRoster.id, clanMemberId));
   if (!member?.playerId) return null;
 
-  const user = await db.query.users.findFirst({ where: eq(users.id, member.playerId) });
+  // THE SAME MISTAKE IN THE OTHER PAIR OF ID SPACES. `member.playerId` names a PERSON; `users.id`
+  // names a LOGIN. Matching one against the other returns whichever unrelated account happens to
+  // share the number — so a member's persona could carry a stranger's display name. The login that
+  // belongs to a person is the one whose `playerId` points back at them.
+  const user = await db.query.users.findFirst({ where: eq(users.playerId, member.playerId) });
   const rows = await listMembers(member.clanId);
   const siblings = await db
     .select({ id: clanRoster.id, rsn: clanRoster.rsn, isPrimary: clanRoster.isPrimary })
