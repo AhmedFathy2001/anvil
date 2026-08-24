@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { users as usersTable } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { avatarUrl } from "@/lib/discord-oauth";
-import { getDiscordInviteUrl } from "@/lib/pluginConfig";
+import { getClanDisplayName, getDiscordInviteUrl } from "@/lib/pluginConfig";
 
 import { Analytics } from "@vercel/analytics/next";
 import SiteNav from "@/components/SiteNav";
@@ -43,11 +43,39 @@ const fraunces = Fraunces({
   axes: ["SOFT", "WONK", "opsz"],
 });
 
-export const metadata: Metadata = {
-  title: "Anvil — OSRS Clan Events",
-  description: "Where your clan's bingos, SotW/BotW, and roster all come together. Built for Old School RuneScape clans.",
-  icons: { icon: [{ url: "/favicon-32.png", sizes: "32x32" }, { url: "/icon-192.png", sizes: "192x192" }] },
+const ICONS = {
+  icon: [{ url: "/favicon-32.png", sizes: "32x32" }, { url: "/icon-192.png", sizes: "192x192" }],
 };
+
+/**
+ * The browser tab, and it belongs to whoever's page this is.
+ *
+ * A static export was right exactly once: one deployment, one clan, one title. On the platform it
+ * meant every clan's every page announced itself as "Anvil" — a member with four clans open had four
+ * identical tabs, and a clan that had just created itself and typed its own name got somebody else's
+ * product name back.
+ *
+ * The apex keeps the product title, because there the page really is the platform's.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const clan = await currentClan();
+  if (!clan) {
+    return {
+      title: "Anvil — OSRS Clan Events",
+      description:
+        "Where your clan's bingos, SotW/BotW, and roster all come together. Built for Old School RuneScape clans.",
+      icons: ICONS,
+    };
+  }
+  // The clan's own name, then the platform's — the order a tab is read in when it is truncated to
+  // twenty characters, which is the only width that matters here.
+  const name = await getClanDisplayName(clan.id, clan.name || 'Anvil');
+  return {
+    title: `${name} — Anvil`,
+    description: `Bingos, competitions and the roster for ${name}.`,
+    icons: ICONS,
+  };
+}
 
 /**
  * Which of a person's clans to show first.
