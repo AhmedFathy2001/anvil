@@ -16,7 +16,7 @@
 // Everything here is therefore opt-in, and mostly empty until people opt in. That is the correct
 // resting state for cross-clan visibility, not a defect.
 
-import { and, count, desc, eq, gt, gte, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gt, gte, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanMemberships, clans, events, memberDailyStats, players, users, eventParticipants } from '@/db/schema';
@@ -156,19 +156,31 @@ export async function apexCharacter(rsn: string): Promise<ApexCharacter | null> 
     ? await db.query.players.findFirst({ where: eq(players.id, acct.playerId) })
     : null;
 
-  // Named by their primary shared RSN, and only when linking is on — so the label is a name they
+  // Named by ANOTHER of their shared RSNs, and only when linking is on — so the label is a name they
   // published and the link is one they agreed to. Falls away entirely otherwise: this character
   // stays public, and nothing here says whose it is.
+  //
+  // ANOTHER, not their primary. The primary is simply first in the list, and it is very often THIS
+  // character — it is both the account most likely to be published and the one most likely to be
+  // looked up — so the page said "Drenvox mdps · also plays Drenvox mdps". Excluding the account
+  // being viewed is the fix; hiding the line when the names happened to match was papering over it,
+  // and still picked a useless label whenever a person shared three accounts and you were on the
+  // primary.
+  //
+  // Null when there is no other. Somebody who publishes one character has no "also", and the person
+  // page behind the link would list only the character you are already reading.
   let ownerOut: { playerId: number; label: string } | null = null;
   if (owner && !owner.banned && owner.linkAccountsPublicly) {
-    const primary = await db
+    const other = await db
       .select({ rsn: accounts.rsn })
       .from(accounts)
-      .where(and(eq(accounts.playerId, owner.id), eq(accounts.shared, true)))
+      .where(
+        and(eq(accounts.playerId, owner.id), eq(accounts.shared, true), ne(accounts.id, acct.id)),
+      )
       .orderBy(desc(accounts.isPrimary), accounts.rsn)
       .limit(1)
       .then((r) => r[0] ?? null);
-    if (primary) ownerOut = { playerId: owner.id, label: primary.rsn };
+    if (other) ownerOut = { playerId: owner.id, label: other.rsn };
   }
 
   return {

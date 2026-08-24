@@ -102,8 +102,36 @@ test('the person is named by their primary shared RSN, not their Discord name', 
 test('nor is it hiding in the character payload', async () => {
   await setLinking(true);
   const c = await P.apexCharacter('Main Guy');
-  assert.equal(c!.owner?.label, 'Main Guy');
   assert.equal(JSON.stringify(c).includes(DISCORD_NAME), false);
+});
+
+test('the owner line names a DIFFERENT character, never the one being read', async () => {
+  await setLinking(true);
+
+  // This assertion used to read `owner?.label === 'Main Guy'` on the 'Main Guy' page — it encoded
+  // the bug. The label was the person's PRIMARY shared RSN, which is just first in the list and is
+  // very often the character you are looking at, so the page said "Main Guy · also plays Main Guy".
+  const main = await P.apexCharacter('Main Guy');
+  assert.equal(main!.owner?.label, 'Alt Guy', 'their other shared character');
+
+  // And it works from the other side, which a "hide it when the names match" patch would not have:
+  // there the label is still chosen without reference to the page you are on.
+  const alt = await P.apexCharacter('Alt Guy');
+  assert.equal(alt!.owner?.label, 'Main Guy');
+});
+
+test('somebody who publishes ONE character has no owner line at all', async () => {
+  const { db, schema: s } = await loadDb();
+  await setLinking(true);
+
+  // Unshare the alt: now the person publishes only 'Main Guy', so there is no "also", and the person
+  // page behind the link would list only the character you are already reading.
+  await db.update(s.accounts).set({ shared: false }).where(eq(s.accounts.rsnNormalized, 'alt guy'));
+
+  const c = await P.apexCharacter('Main Guy');
+  assert.equal(c!.owner, null, 'no other character to name, so no line');
+
+  await db.update(s.accounts).set({ shared: true }).where(eq(s.accounts.rsnNormalized, 'alt guy'));
 });
 
 test('an unshared character stays invisible even with linking on', async () => {

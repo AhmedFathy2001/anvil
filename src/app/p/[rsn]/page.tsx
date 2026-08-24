@@ -111,24 +111,14 @@ export default async function CharacterPage({ params }: { params: Promise<{ rsn:
           {/* Only present when its owner turned linking on, and named by another RSN they shared —
               never by anything from Discord. This line used to read "played by <Discord name>".
 
-              THE LABEL IS THEIR PRIMARY SHARED RSN, which is frequently THIS character: the primary
-              account is the one most likely to be published and the one most likely to be looked up.
-              So the obvious phrasing produced "Drenvox mdps · also plays Drenvox mdps". When the name
-              would repeat, the link says what it is for instead of naming anybody. */}
+              `apexCharacter` guarantees the label names a DIFFERENT account from this one, so there
+              is no case to handle here: no other shared character means no owner line at all. */}
           {character.owner && (
             <span>
-              {character.owner.label === character.rsn ? (
-                <ClanLink href={`/u/${character.owner.playerId}`} className="text-gold hover:underline">
-                  Their other characters
-                </ClanLink>
-              ) : (
-                <>
-                  also plays{' '}
-                  <ClanLink href={`/u/${character.owner.playerId}`} className="text-gold hover:underline">
-                    {character.owner.label}
-                  </ClanLink>
-                </>
-              )}
+              also plays{' '}
+              <ClanLink href={`/u/${character.owner.playerId}`} className="text-gold hover:underline">
+                {character.owner.label}
+              </ClanLink>
             </span>
           )}
         </div>
