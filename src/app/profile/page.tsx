@@ -47,13 +47,20 @@ export default async function ProfilePage({
   // here; it selects the person-level view below rather than failing.
   const clan = await currentClan();
   const session = await verifyUser();
+  // COME BACK TO THE PAGE THEY ASKED FOR. The return was hardcoded to '/profile', which is the apex
+  // person page — so anyone who followed a link to their clan locker while signed out logged in and
+  // landed somewhere else, with no sign that they had been moved.
+  //
+  // The clan-prefix lint rule cannot catch this: '/login' IS a platform path, so the href is
+  // correct; the clan-scoped path is hiding inside a query parameter where the rule does not look.
+  const back = clan ? `/c/${clan.slug}/profile` : '/profile';
   if (!session) {
-    redirect('/login?return=/profile');
+    redirect(`/login?return=${encodeURIComponent(back)}`);
   }
 
   const user = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
   if (!user) {
-    redirect('/login');
+    redirect(`/login?return=${encodeURIComponent(back)}`);
   }
 
   if (!clan) {
