@@ -37,6 +37,9 @@ export default async function StaffLayout({ children }: { children: React.ReactN
         { href: '/staff', label: 'Overview', icon: '◎' },
         { href: '/staff/clans', label: 'Clans', icon: '🏰', matchPrefix: true },
         { href: '/staff/people', label: 'People', icon: '👤', matchPrefix: true },
+        // Read-only, and shown to support too: seeing what was done is the least dangerous thing an
+        // operator can do, and the one most often needed when somebody asks why.
+        { href: '/staff/audit', label: 'Operator log', icon: '⧉', matchPrefix: true },
       ],
     },
   ];

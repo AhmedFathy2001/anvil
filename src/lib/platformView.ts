@@ -13,10 +13,10 @@
 //     and a main plus an alt is genuinely two seats.
 //   - `leftAt IS NULL` everywhere: a clan's size is who is there now, not who ever was.
 
-import { and, count, countDistinct, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, count, countDistinct, desc, eq, isNull, like, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, clanStaff, clans, events as eventsTable, players, users, weeklyCompetitions } from '@/db/schema';
+import { accounts, clanAuditLog, clanMemberships, clanStaff, clans, events as eventsTable, players, users, weeklyCompetitions } from '@/db/schema';
 import { apexDomain } from '@/lib/clanContext';
 
 export interface PlatformTotals {
@@ -295,4 +295,149 @@ export async function multiClanPeople(limit = 20): Promise<{ playerId: number; n
     .orderBy(desc(countDistinct(clanMemberships.clanId)))
     .limit(limit);
   return rows.map((r) => ({ playerId: r.playerId, name: r.name, clans: Number(r.clans) }));
+}
+
+
+// ── What operators have done ──────────────────────────────────────────────────────────────────
+
+export interface PlatformAction {
+  id: number;
+  at: string;
+  /** 'platform_banned', 'platform_role_changed', … */
+  eventType: string;
+  /** Who did it. Null only if their login has since been deleted. */
+  actor: string | null;
+  /** The clan it was done to, when it was done to one. */
+  clan: { id: number; slug: string; name: string } | null;
+  before: string | null;
+  after: string | null;
+  notes: string | null;
+}
+
+/**
+ * Every action taken with platform authority.
+ *
+ * THE TRAIL ALREADY EXISTED AND NOTHING READ IT. Bans, role grants, owner appointments and borrowed
+ * grants have all been writing to `clan_audit_log` since they were built — with `clan_id` NULL when
+ * the action belongs to no clan — and there was no page anywhere that showed them. An audit log
+ * nobody can read is a log that does not exist: the point of recording who suspended a clan is that
+ * somebody can later ask.
+ *
+ * MATCHED BY PREFIX, not by an enumerated list. Every platform writer names its event
+ * `platform_*`, and a list here would silently miss the next one — which is the failure mode an
+ * audit view can least afford. `clan_id IS NULL` is kept alongside it as a belt: an entry belonging
+ * to no clan is a platform entry whatever it calls itself, and it appears on no clan's own history
+ * page, so this is the only place it could ever be seen.
+ */
+export async function platformActions(limit = 100): Promise<PlatformAction[]> {
+  // clan-scope: global -- reading what operators did ACROSS clans is the entire purpose here, and
+  // the platform-only entries belong to no clan at all.
+  const rows = await db
+    .select({
+      id: clanAuditLog.id,
+      at: clanAuditLog.occurredAt,
+      eventType: clanAuditLog.eventType,
+      actor: users.displayName,
+      clanId: clans.id,
+      clanSlug: clans.slug,
+      clanName: clans.name,
+      before: clanAuditLog.oldValue,
+      after: clanAuditLog.newValue,
+      notes: clanAuditLog.notes,
+    })
+    .from(clanAuditLog)
+    .leftJoin(users, eq(users.id, clanAuditLog.actorUserId))
+    .leftJoin(clans, eq(clans.id, clanAuditLog.clanId))
+    .where(or(like(clanAuditLog.eventType, 'platform\\_%'), isNull(clanAuditLog.clanId)))
+    .orderBy(desc(clanAuditLog.occurredAt), desc(clanAuditLog.id))
+    .limit(limit);
+
+  return rows.map((r) => ({
+    id: r.id,
+    at: r.at,
+    eventType: r.eventType,
+    actor: r.actor,
+    clan: r.clanId != null ? { id: r.clanId, slug: r.clanSlug!, name: r.clanName! } : null,
+    before: r.before,
+    after: r.after,
+    notes: r.notes,
+  }));
+}
+
+
+// ── Disputed names ────────────────────────────────────────────────────────────────────────────
+
+export interface NameCollision {
+  /** The in-game name two or more clans are claiming, as the verified holder spells it. */
+  inGameName: string;
+  clans: {
+    id: number;
+    slug: string;
+    name: string;
+    verified: boolean;
+    /** Refused claims recorded against this clan for this name. */
+    refusedAttempts: number;
+  }[];
+}
+
+/**
+ * Where two clans claim one in-game clan.
+ *
+ * S6 refuses the second claimant with a 409 and points them at /staff — and until now /staff had
+ * nothing to point AT. The mechanism to resolve a dispute existed (verify or unverify by hand); the
+ * dispute itself was invisible, so an operator could only act on one somebody emailed them about.
+ *
+ * MATCHED CASE-INSENSITIVELY, because that is how the claim check matches. An impersonator picking
+ * "the afk spot" against "The AFK Spot" is exactly the case worth catching, and a case-sensitive
+ * grouping would show two tidy rows and no collision.
+ *
+ * Unverified clans are included on purpose. A name held by nobody but claimed by three is not a
+ * dispute the 409 has fired on yet, and it is the moment an operator would rather hear about it.
+ */
+export async function nameCollisions(): Promise<NameCollision[]> {
+  // clan-scope: global -- a collision is by definition between clans; there is no clan to scope to.
+  const rows = await db
+    .select({
+      id: clans.id,
+      slug: clans.slug,
+      name: clans.name,
+      inGameName: clans.inGameName,
+      verifiedAt: clans.ingameNameVerifiedAt,
+    })
+    .from(clans)
+    .where(sql`${clans.inGameName} is not null and ${clans.inGameName} <> ''`);
+
+  const byName = new Map<string, typeof rows>();
+  for (const r of rows) {
+    const key = (r.inGameName ?? '').trim().toLowerCase();
+    if (!key) continue;
+    byName.set(key, [...(byName.get(key) ?? []), r]);
+  }
+
+  const contested = [...byName.values()].filter((g) => g.length > 1);
+  if (contested.length === 0) return [];
+
+  // How many times each clan has been turned away from a name, so an operator can tell a rename
+  // from somebody trying repeatedly.
+  const attempts = await db
+    .select({ clanId: clanAuditLog.clanId, n: count() })
+    .from(clanAuditLog)
+    .where(eq(clanAuditLog.eventType, 'ingame_name_claim_refused'))
+    .groupBy(clanAuditLog.clanId);
+  const attemptsBy = new Map(attempts.map((a) => [a.clanId, Number(a.n)]));
+
+  return contested.map((group) => ({
+    // Spelled as the verified holder spells it, falling back to whoever is first.
+    inGameName: (group.find((g) => g.verifiedAt) ?? group[0]).inGameName ?? '',
+    clans: group
+      .map((g) => ({
+        id: g.id,
+        slug: g.slug,
+        name: g.name,
+        verified: g.verifiedAt != null,
+        refusedAttempts: attemptsBy.get(g.id) ?? 0,
+      }))
+      // The holder first; it is the one an operator is deciding for or against.
+      .sort((a, b) => Number(b.verified) - Number(a.verified) || a.name.localeCompare(b.name)),
+  }));
 }

@@ -1,5 +1,5 @@
 
-import { platformTotals, multiClanPeople } from '@/lib/platformView';
+import { platformTotals, multiClanPeople, nameCollisions } from '@/lib/platformView';
 import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
@@ -35,7 +35,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
  * that the identity remodel merged rather than duplicated — if it were broken, it would read zero.
  */
 export default async function StaffOverview() {
-  const [t, multi] = await Promise.all([platformTotals(), multiClanPeople(10)]);
+  const [t, multi, collisions] = await Promise.all([
+    platformTotals(),
+    multiClanPeople(10),
+    nameCollisions(),
+  ]);
 
   return (
     <div>
@@ -43,6 +47,46 @@ export default async function StaffOverview() {
       <p className="mt-1 text-sm text-gray-400">
         Every clan on this deployment. Nothing here is scoped to one.
       </p>
+
+      {/* FIRST, AND ONLY WHEN THERE IS ONE. A disputed name is the single thing on this surface
+          that is waiting on a person: S6 refuses the second claimant and tells them to come here,
+          and until now there was nothing here to come to. Everything below is a number to read. */}
+      {collisions.length > 0 && (
+        <Section title="Disputed in-game names">
+          <div className="flex flex-col gap-3">
+            {collisions.map((c) => (
+              <div key={c.inGameName} className="rounded-xl border border-accent-red/40 bg-accent-red/[0.06] p-4">
+                <div className="text-sm">
+                  <span className="text-gray-400">Two clans claim </span>
+                  <span className="font-medium text-gold">{c.inGameName}</span>
+                </div>
+                <ul className="mt-2.5 flex flex-col gap-1.5">
+                  {c.clans.map((cl) => (
+                    <li key={cl.id} className="flex flex-wrap items-baseline gap-x-2.5 text-sm">
+                      <ClanLink href={`/c/${cl.slug}`} className="text-gold hover:underline">
+                        {cl.name}
+                      </ClanLink>
+                      {cl.verified ? (
+                        <span className="text-xs text-emerald-400">holds it</span>
+                      ) : (
+                        <span className="text-xs text-gray-500">unverified</span>
+                      )}
+                      {cl.refusedAttempts > 0 && (
+                        <span className="text-xs text-gray-500">
+                          {cl.refusedAttempts} refused claim{cl.refusedAttempts === 1 ? '' : 's'}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2.5 text-xs text-gray-500">
+                  Decide it on the Clans tab — verify the right one by hand, or withdraw the badge.
+                </p>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
 
       <Section title="Reach">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

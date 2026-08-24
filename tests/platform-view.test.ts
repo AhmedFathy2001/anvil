@@ -16,6 +16,7 @@
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 
@@ -95,6 +96,95 @@ test('personDetail runs', async () => {
 
 test('personDetail on a missing id is null, not a crash', async () => {
   assert.equal(await V.personDetail(999_999), null);
+});
+
+test('platformActions runs, and finds the entries no clan page can show', async () => {
+  const { db, schema: sc } = await loadDb();
+
+  const [clan] = await db.select({ id: sc.clans.id }).from(sc.clans).limit(1);
+
+  await db.insert(sc.clanAuditLog).values([
+    // Belongs to NO clan — invisible on every clan's own history, so this page is its only home.
+    {
+      clanId: null,
+      eventType: 'platform_banned',
+      newValue: JSON.stringify({ reason: 'testing' }),
+      notes: 'no clan owns this',
+    },
+    {
+      clanId: null,
+      eventType: 'platform_role_changed',
+      oldValue: JSON.stringify({ platformRole: 'none' }),
+      newValue: JSON.stringify({ platformRole: 'staff' }),
+    },
+    // Taken AGAINST a clan, but with platform authority — belongs here as well as there.
+    { clanId: clan.id, eventType: 'platform_clan_updated', newValue: JSON.stringify({ status: 'suspended' }) },
+    // An ordinary clan action. Must NOT appear: this is the operator log, not a clan's history.
+    { clanId: clan.id, eventType: 'member_renamed', newValue: JSON.stringify({ rsn: 'Whoever' }) },
+  ]);
+
+  const rows = await V.platformActions();
+  const types = rows.map((r) => r.eventType);
+
+  assert.ok(types.includes('platform_banned'), 'a clanless entry is visible nowhere else');
+  assert.ok(types.includes('platform_role_changed'));
+  assert.ok(types.includes('platform_clan_updated'), 'and platform actions against a clan');
+  assert.ok(!types.includes('member_renamed'), "a clan's own history is not the operator log");
+
+  const withClan = rows.find((r) => r.eventType === 'platform_clan_updated');
+  assert.equal(withClan?.clan?.id, clan.id, 'the clan it was done to is resolved for the link');
+});
+
+// ── Disputed names ────────────────────────────────────────────────────────────────────────────
+
+test('no collision when every clan claims a different name', async () => {
+  const { db, schema: sc } = await loadDb();
+  const all = await db.select({ id: sc.clans.id }).from(sc.clans);
+  await db.update(sc.clans).set({ inGameName: 'Alone A' }).where(eq(sc.clans.id, all[0].id));
+  await db.update(sc.clans).set({ inGameName: 'Alone B' }).where(eq(sc.clans.id, all[1].id));
+
+  assert.deepEqual(await V.nameCollisions(), []);
+});
+
+test('two clans on one name is a dispute, matched case-insensitively', async () => {
+  const { db, schema: sc } = await loadDb();
+  const all = await db.select({ id: sc.clans.id }).from(sc.clans);
+
+  // The holder, and an impersonator differing only in case — which is exactly the case a
+  // case-sensitive grouping would show as two tidy unrelated rows.
+  await db
+    .update(sc.clans)
+    .set({ inGameName: 'The AFK Spot', ingameNameVerifiedAt: new Date().toISOString() })
+    .where(eq(sc.clans.id, all[0].id));
+  await db.update(sc.clans).set({ inGameName: 'the afk spot' }).where(eq(sc.clans.id, all[1].id));
+
+  const collisions = await V.nameCollisions();
+  assert.equal(collisions.length, 1);
+  assert.equal(collisions[0].inGameName, 'The AFK Spot', 'spelled as the holder spells it');
+  assert.equal(collisions[0].clans.length, 2);
+  assert.equal(collisions[0].clans[0].verified, true, 'the holder is listed first');
+  assert.equal(collisions[0].clans[1].verified, false);
+});
+
+test('refused claims are counted against the clan that made them', async () => {
+  const { db, schema: sc } = await loadDb();
+  const all = await db.select({ id: sc.clans.id }).from(sc.clans);
+
+  await db.insert(sc.clanAuditLog).values([
+    { clanId: all[1].id, eventType: 'ingame_name_claim_refused', newValue: '{}' },
+    { clanId: all[1].id, eventType: 'ingame_name_claim_refused', newValue: '{}' },
+  ]);
+
+  const collisions = await V.nameCollisions();
+  const impersonator = collisions[0].clans.find((c) => !c.verified);
+  assert.equal(
+    impersonator?.refusedAttempts,
+    2,
+    'so an operator can tell a rename from somebody trying repeatedly',
+  );
+
+  // Leave the fixture as it was for the queries below.
+  await db.update(sc.clans).set({ inGameName: null, ingameNameVerifiedAt: null });
 });
 
 test('multiClanPeople runs — the query that could never parse', async () => {

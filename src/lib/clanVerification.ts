@@ -86,7 +86,29 @@ export async function claimFromRoster(opts: {
       ne(clans.id, opts.clanId),
     ),
   });
-  if (taken) return { outcome: 'taken', byClanSlug: taken.slug };
+  if (taken) {
+    // RECORDED, because a dispute that leaves no trace cannot be resolved. The refusal used to be a
+    // 409 and nothing else: the clan being impersonated never learned anyone had tried, and the
+    // operator asked to arbitrate had no way to see that a claim had been made, by whom, or when.
+    //
+    // Written against the clan that ATTEMPTED it — that is whose behaviour it describes — and it is
+    // a platform-visible line because deciding between two clans is a platform job.
+    await db
+      .insert(clanAuditLog)
+      .values({
+        clanId: opts.clanId,
+        eventType: 'ingame_name_claim_refused',
+        newValue: JSON.stringify({
+          inGameName: name,
+          heldBy: taken.slug,
+          accountId: opts.pusherAccountId,
+        }),
+        notes: `already verified by ${taken.slug}`,
+      })
+      .catch(() => {});
+
+    return { outcome: 'taken', byClanSlug: taken.slug };
+  }
 
   // The question only a real member passes: are you in the list you just sent?
   const me = opts.pusherRsnNormalized
