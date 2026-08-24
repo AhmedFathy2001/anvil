@@ -297,11 +297,20 @@ export async function completeDiscordLogin(
       'all',
   );
 
-  // First-ever login lands on the getting-started checklist unless a deep link was requested — but
-  // only when we are returning to a CLAN. The apex has no /profile: profiles belong to a clan's
-  // roster, so a first login that started at the directory goes back to the directory.
+  // WHERE A FIRST LOGIN LANDS, and both halves of this were wrong.
+  //
+  // It used to send a new user to the clan's getting-started card only when returning to a CLAN,
+  // reasoning that "the apex has no /profile: profiles belong to a clan's roster". The apex has had
+  // one since /profile was reclassified as both — and more to the point, signing up at the apex is
+  // now the ordinary path, not the odd one. So the branch that did nothing was the branch that
+  // covered nearly everybody: they arrived, got a session, and were dropped on a directory of
+  // strangers with no clan, no character and nothing saying what to do.
+  //
+  // Arriving from a clan still lands on that clan's locker: they have a clan already, so the one
+  // thing left really is the plugin, and the card there says so in the clan's own name.
   const returningToClan = Boolean(returnHost);
-  const destination = isNewUser && returnTo === '/' && returningToClan ? '/profile?welcome=1' : returnTo;
+  const destination =
+    isNewUser && returnTo === '/' ? (returningToClan ? '/profile?welcome=1' : '/welcome') : returnTo;
 
   // Back to the clan they started from. `returnHost` has already been resolved against the clans
   // table by the caller, so it is a host we produced rather than one a query parameter asked for.

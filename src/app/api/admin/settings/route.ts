@@ -1,4 +1,8 @@
 import { NextResponse } from 'next/server';
+import { eq } from 'drizzle-orm';
+
+import { db } from '@/db';
+import { clans } from '@/db/schema';
 import { requireClan } from '@/lib/clanContext';
 import { verificationOf } from '@/lib/clanVerification';
 import { getSetting, setSetting, getSettingMap } from '@/lib/settings';
@@ -86,8 +90,13 @@ export async function GET() {
   // clan that cannot sync its roster deserves to be told why on the page rather than by a 403 from
   // the plugin. The name itself now comes from the clans row — the settings copy is a mirror.
   const verification = await verificationOf(clan.id);
+  // Same for the DISPLAY name: the row is the source, the setting is the mirror. Serving the mirror
+  // here showed a clan created through /clans/new an empty "Clan name" box over a site that was
+  // already using the name it had typed — and saving that empty box would have been believed.
+  const clanRow = await db.query.clans.findFirst({ where: eq(clans.id, clan.id), columns: { name: true } });
   return NextResponse.json({
     ...out,
+    clan_name: clanRow?.name?.trim() || out.clan_name,
     clan_ingame_name: verification.inGameName ?? out.clan_ingame_name,
     _verification: {
       verified: verification.verified,
@@ -110,6 +119,13 @@ export async function PUT(request: Request) {
     if (raw === undefined) continue;
     const value = typeof raw === 'string' ? raw.trim() : raw;
     await setSetting(clan.id, key, value ? value : null);
+  }
+
+  // Keep the row in step with the mirror. Everything reads clans.name now, so a rename that only
+  // touched the setting would appear to save and change nothing — which is how the two came to
+  // disagree in the first place. Ignored when blank: a clan may not rename itself to nothing.
+  if (typeof body.clan_name === 'string' && body.clan_name.trim()) {
+    await db.update(clans).set({ name: body.clan_name.trim() }).where(eq(clans.id, clan.id));
   }
 
   return NextResponse.json({ success: true });

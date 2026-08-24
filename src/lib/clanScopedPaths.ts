@@ -73,6 +73,10 @@ export const PLATFORM_ROOTS = [
   '/logout',
   '/guide',
   '/link-device',
+  // First run for a PERSON, and it has to be platform: the flow's subject is somebody who has no
+  // clan yet, so there is no host that could name one.
+  '/welcome',
+  '/api/onboarding',
   '/api/profile',
   '/api/staff',
   '/api/clans',

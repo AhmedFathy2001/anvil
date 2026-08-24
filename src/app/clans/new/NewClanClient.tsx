@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
 
 /**
@@ -68,19 +69,40 @@ export default function NewClanClient({ apex, signedIn }: { apex: string; signed
   }
 
   if (done) {
-    const host = `${done}.${apex}`;
+    // THE PATH, NOT THE SUBDOMAIN. This handed out `${slug}.${apex}`, which still works — middleware
+    // 301s it — but it is the old address, and this is the exact moment somebody forms their idea of
+    // where their clan lives. Teaching them a URL that only redirects means every link they paste
+    // into Discord for the next year costs a round trip and reads as the deprecated shape.
+    const home = `/c/${done}`;
     return (
       <div className="rounded-xl border border-card-border bg-card-bg p-6">
         <h2 className="text-xl font-semibold text-gold">Your clan is live.</h2>
         <p className="mt-2 text-sm text-gray-300">
-          Nothing to wait for — it is already serving. You are its owner.
+          Nothing to wait for — it is already serving, at{' '}
+          <code className="text-gold">{apex}{home}</code>. You are its owner.
         </p>
-        <a
-          href={`https://${host}`}
-          className="mt-4 inline-block rounded-xl border border-gold/40 px-4 py-2.5 text-sm text-gold"
-        >
-          Go to {host}
-        </a>
+        <p className="mt-4 text-sm text-gray-300">
+          Four things left: name it in Discord, point it at a channel, make a board, fill it. The
+          wizard walks all four and knows which you have done.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-3">
+          {/* ClanLink, not a raw anchor, and it matters here more than almost anywhere: these cross
+              from the apex INTO a clan, and ClanLink is what turns a clan change into a real
+              navigation instead of a client route that would leave the app holding the apex's
+              context while showing a clan's page. */}
+          <ClanLink
+            href={`${home}/admin/setup`}
+            className="rounded-xl bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+          >
+            Set it up
+          </ClanLink>
+          <ClanLink
+            href={home}
+            className="rounded-xl border border-gold/40 px-4 py-2.5 text-sm text-gold transition-colors hover:border-gold"
+          >
+            Take a look first
+          </ClanLink>
+        </div>
       </div>
     );
   }

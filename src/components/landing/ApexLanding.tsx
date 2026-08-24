@@ -88,6 +88,16 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
           <p className="mt-3.5 text-[13px] text-text-dim">
             Free for one event · 30-day trial on everything else
           </p>
+          {/* BOTH CTAs above address the organiser, because they are who signs a clan up. That left
+              the far larger group — the members they bring, and anyone who just wants their own
+              account tracked — with no door at all on the front page of a platform for players. */}
+          <p className="mt-2 text-[13px] text-text-dim">
+            Not the one organising?{' '}
+            <ClanLink href="/welcome" className="text-gold hover:text-gold-light">
+              Set your player account up
+            </ClanLink>{' '}
+            and find a clan.
+          </p>
         </div>
 
         {/* Capped while stacked: given the whole 1180 column the board grows to a wall of sprites.

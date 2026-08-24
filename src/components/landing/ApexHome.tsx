@@ -242,6 +242,16 @@ function Empty() {
           Start one
         </ClanLink>
       </div>
+      {/* The same two doors the setup flow's clan step offers, so this is not a third option — it is
+          the option for somebody who would rather be walked through the whole thing than decide what
+          to press. Quiet, because most people will just pick one of the buttons above. */}
+      <p className="mt-4 text-[13px] text-text-dim">
+        Or{' '}
+        <ClanLink href="/welcome" className="text-gold hover:text-gold-light">
+          set your account up step by step
+        </ClanLink>{' '}
+        — character, clan and plugin, in order.
+      </p>
     </div>
   );
 }

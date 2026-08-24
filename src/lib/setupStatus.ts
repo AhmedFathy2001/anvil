@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { getSettingMap } from '@/lib/settings';
-import { events, tiles } from '@/db/schema';
-import { count } from 'drizzle-orm';
+import { clans, events, tiles } from '@/db/schema';
+import { count, eq } from 'drizzle-orm';
 
 // The four "zero-to-first-bingo" milestones a fresh clan needs to hit. Step status is
 // always computed live from real data (settings + counts) so the dashboard checklist and
@@ -57,13 +57,26 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
   const map = await getSettingMap(clanId, WANTED_KEYS);
   const get = (k: string) => map.get(k) || '';
 
-  const clanName = get('clan_name');
+  // The COLUMN is the name, and the setting is the mirror — see getClanDisplayName. Reading only
+  // the setting meant a clan created through /clans/new, which types its name into the form and
+  // stores it on the row, opened its own checklist to "Name your clan — not done".
+  const row = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { name: true } });
+  const clanName = row?.name?.trim() || get('clan_name');
   const webhookUrl = get('discord_webhook_url');
   const dismissed = !!get('setup_completed');
 
+  // BOTH COUNTS ARE THIS CLAN'S. They had no clan filter, which was correct exactly once — when a
+  // deployment WAS a clan and `from(events)` could only mean these events. On one platform it
+  // counted everybody's, so a brand-new clan with nothing in it opened the checklist with two of
+  // four steps already ticked and the wizard's Done screen congratulating it. Tiles reach their clan
+  // through their event; there is no tiles.clan_id to filter on.
   const [[ec], [tc]] = await Promise.all([
-    db.select({ c: count() }).from(events),
-    db.select({ c: count() }).from(tiles),
+    db.select({ c: count() }).from(events).where(eq(events.clanId, clanId)),
+    db
+      .select({ c: count() })
+      .from(tiles)
+      .innerJoin(events, eq(tiles.eventId, events.id))
+      .where(eq(events.clanId, clanId)),
   ]);
   const eventsCount = ec?.c ?? 0;
   const tilesCount = tc?.c ?? 0;
@@ -101,11 +114,14 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
 
   const completedCount = steps.filter((s) => s.done).length;
 
-  // Provisioner-managed clans arrive with clan_name (and often the invite) pre-seeded, so the old
-  // "no clan name" freshness test never fired for them and they missed the guided wizard entirely.
-  // For those, "no webhook yet + never dismissed" is the freshness signal — the wizard then opens
-  // past the already-done steps (see SetupWizardClient).
-  const provisioned = !!process.env.CLAN_NAME?.trim();
+  // Every clan now arrives named — /clans/new asks for it and stores it on the row — so the old
+  // "no clan name" freshness test never fires for anybody, and "no webhook yet + never dismissed"
+  // is the signal for all of them. The wizard then opens past the steps already done.
+  //
+  // This used to read process.env.CLAN_NAME, which is a PER-DEPLOYMENT variable in an app that is no
+  // longer one deployment per clan: set at all, it would have declared every clan on the platform
+  // provisioner-managed, including ones created here thirty seconds ago.
+  const provisioned = !!clanName;
 
   return {
     steps,
@@ -113,7 +129,11 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
     totalCount: steps.length,
     allDone: completedCount === steps.length,
     dismissed,
-    isFresh: !dismissed && !webhookUrl && (!clanName || provisioned),
+    // Never dismissed and nothing wired to Discord yet. The old third clause was `(!clanName ||
+    // provisioned)`, which distinguished a clan that had typed its name from one the provisioner
+    // named for it — a distinction with no cases left now that creation always asks. Kept as a
+    // tautology it would read like a condition, so it is gone.
+    isFresh: !dismissed && !webhookUrl,
     provisioned,
     values: {
       clanName,

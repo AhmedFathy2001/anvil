@@ -932,6 +932,17 @@ export const users = pgTable('users', {
   // inherited from separate instances at import. They resolve to the same person, and are meant to
   // be retired once that person's client has been handed this one.
   pluginToken: text('plugin_token'),
+  // FIRST RUN. Two columns and no step counter, because every step's done-ness is a fact that
+  // already exists elsewhere — an accounts row, a live seat, a plugin ping — and storing a number
+  // beside those facts would be a second answer free to disagree with them. What is genuinely not
+  // derivable is intent: that they are finished, and which steps they chose to pass on.
+  //
+  // On the login rather than the person: the flow is a login-time experience, the session hands us
+  // userId directly, and the token the plugin step gives out lives on this row too. A human with two
+  // logins would see it twice, which is the cheaper wrong answer.
+  onboardingCompletedAt: text('onboarding_completed_at'),
+  /** JSON array of step keys they skipped. Text, so adding a step is not a type change. */
+  onboardingSkipped: text('onboarding_skipped').notNull().default('[]'),
 }, (table) => [
   uniqueIndex('users_plugin_token_unique').on(table.pluginToken),
   index('users_player_idx').on(table.playerId),

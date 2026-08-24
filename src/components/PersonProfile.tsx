@@ -100,7 +100,15 @@ export default function PersonProfile({
         <h2 className="mb-3 text-lg font-semibold">Your characters</h2>
         {characters.length === 0 ? (
           <p className="rounded-xl border border-card-border bg-card-bg p-4 text-sm text-text-muted">
-            No characters linked yet. Connect the plugin from inside a clan to link one.
+            {/* This used to say "Connect the plugin from inside a clan to link one", which was
+                addressed to exactly the people who have no clan — the one thing they cannot act on.
+                It is true that a character is claimed through a seat, so the answer is the flow that
+                gets them a clan first, not an instruction that assumes they already have one. */}
+            No characters linked yet.{' '}
+            <ClanLink href="/welcome" className="text-gold hover:text-gold-light">
+              Set your account up
+            </ClanLink>{' '}
+            — it takes a couple of minutes.
           </p>
         ) : (
           <ul className="divide-y divide-card-border overflow-hidden rounded-xl border border-card-border bg-card-bg">

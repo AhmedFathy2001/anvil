@@ -342,9 +342,19 @@ export const CLAN_NAME_SETTING_KEY = 'clan_name';
 export const CLAN_INGAME_NAME_SETTING_KEY = 'clan_ingame_name';
 
 // The clan's display name — plugin sidebar (clan filter label + logged-out home card), the web
-// home hero, guides, Discord posts. Resolution: settings row, provisioner
-// env, caller-supplied fallback (pages use softer prose fallbacks like "your clan").
+// home hero, guides, Discord posts.
+//
+// READS THE COLUMN FIRST, for the same reason getInGameClanName below does, and it was the same
+// bug: `createClan` writes clans.name and no setting at all, so every clan made through /clans/new
+// resolved to the `fallback` — its own home page said "Anvil" nine times, in its title, its hero and
+// its nav. Nothing errored, because a fallback firing looks exactly like a fallback not firing.
+//
+// The setting is a MIRROR the admin UI keeps in step (see /api/admin/settings), not a second source
+// of truth. It stays readable so a clan whose column somehow lags is still named, and migration 0072
+// backfilled the column from it wherever the two had already drifted.
 export async function getClanDisplayName(clanId: number, fallback = 'Anvil'): Promise<string> {
+  const row = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { name: true } });
+  if (row?.name?.trim()) return row.name.trim();
   const value = await getSettingText(clanId, CLAN_NAME_SETTING_KEY);
   return value || process.env.CLAN_NAME?.trim() || fallback;
 }

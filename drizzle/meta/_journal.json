@@ -211,6 +211,13 @@
       "when": 1787900002000,
       "tag": "0071_team_formation",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "6",
+      "when": 1787900003000,
+      "tag": "0072_onboarding",
+      "breakpoints": true
     }
   ]
 }
