@@ -16,10 +16,10 @@
 // Everything here is therefore opt-in, and mostly empty until people opt in. That is the correct
 // resting state for cross-clan visibility, not a defect.
 
-import { and, count, desc, eq, gt, isNull, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gt, gte, inArray, isNull, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, clans, events, players, users, eventParticipants } from '@/db/schema';
+import { accounts, clanMemberships, clans, events, memberDailyStats, players, users, eventParticipants } from '@/db/schema';
 import { apexDomain } from '@/lib/clanContext';
 import { getPublicShowcase } from '@/lib/pluginConfig';
 
@@ -101,6 +101,8 @@ export async function apexClan(slug: string): Promise<ApexClan | null> {
 // ── People and characters ─────────────────────────────────────────────────────────────────────
 
 export interface ApexCharacter {
+  /** The ACCOUNT this page is about — the key every stats table uses. */
+  accountId: number;
   rsn: string;
   status: string;
   verified: boolean;
@@ -170,6 +172,7 @@ export async function apexCharacter(rsn: string): Promise<ApexCharacter | null> 
   }
 
   return {
+    accountId: acct.id,
     rsn: acct.rsn,
     status: acct.status,
     verified: acct.verifiedAt != null,
@@ -192,8 +195,20 @@ export interface ApexPerson {
    * published on purpose.
    */
   label: string;
-  /** Only the shared ones. The rest are not this page's to mention. */
-  characters: { rsn: string; clan: string | null }[];
+  /**
+   * Only the shared ones. The rest are not this page's to mention.
+   *
+   * Carries enough to be worth reading. The page was a column of names and a clan beside each, which
+   * said nothing a search result would not; these are the account's own numbers — the same ones
+   * /p/<rsn> opens with — so the person page is a way IN to the characters rather than an index of
+   * them.
+   */
+  characters: {
+    rsn: string;
+    clan: string | null;
+    overallXp: number | null;
+    xpThisWeek: number;
+  }[];
 }
 
 /**
@@ -217,12 +232,30 @@ export async function apexPerson(playerId: number): Promise<ApexPerson | null> {
 
   // clan-scope: global -- a person's published characters are global by definition.
   const shared = await db
-    .select({ id: accounts.id, rsn: accounts.rsn })
+    .select({ id: accounts.id, rsn: accounts.rsn, overallXp: accounts.statsOverallXp })
     .from(accounts)
     .where(and(eq(accounts.playerId, playerId), eq(accounts.shared, true)))
     .orderBy(desc(accounts.isPrimary), accounts.rsn);
 
   if (shared.length === 0) return null;
+
+  // ONE grouped query for the week, not one per character. Somebody with eight published accounts
+  // should not cost eight round trips to draw a column.
+  const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
+  const weekRows = await db
+    .select({ accountId: memberDailyStats.accountId, n: sql<number>`sum(${memberDailyStats.xpGained})` })
+    .from(memberDailyStats)
+    .where(
+      and(
+        inArray(
+          memberDailyStats.accountId,
+          shared.map((a) => a.id),
+        ),
+        gte(memberDailyStats.day, weekAgo),
+      ),
+    )
+    .groupBy(memberDailyStats.accountId);
+  const weekBy = new Map(weekRows.map((r) => [r.accountId, Number(r.n ?? 0)]));
 
   const characters = await Promise.all(
     shared.map(async (a) => {
@@ -241,7 +274,12 @@ export async function apexPerson(playerId: number): Promise<ApexPerson | null> {
         .limit(1)
         .then((r) => r[0] ?? null);
       const visible = seat && (await getPublicShowcase(seat.clanId));
-      return { rsn: a.rsn, clan: visible ? seat!.name : null };
+      return {
+        rsn: a.rsn,
+        clan: visible ? seat!.name : null,
+        overallXp: a.overallXp,
+        xpThisWeek: weekBy.get(a.id) ?? 0,
+      };
     }),
   );
 

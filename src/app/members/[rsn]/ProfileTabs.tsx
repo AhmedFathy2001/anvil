@@ -12,7 +12,7 @@ import type {
   CompetitionHistory,
   UpcomingMilestone,
   DailyPoint,
-  MemberProfile,
+  AccountProfile,
   MilestoneRow,
   PeriodRecord,
 } from '@/lib/memberProfile';
@@ -180,7 +180,12 @@ export default function ProfileTabs({
   collection,
   accountProgress,
 }: {
-  profile: MemberProfile;
+  /**
+   * ACCOUNT-level, not seat-level. Everything drawn here — skills, bosses, activities, efficiency —
+   * comes off the character, so the apex's /p/<rsn> renders exactly the same tabs with no clan
+   * behind it. Narrowing the prop is what proved that: nothing in this file wanted the seat.
+   */
+  profile: AccountProfile;
   series: DailyPoint[];
   records: PeriodRecord[];
   milestones: MilestoneRow[];

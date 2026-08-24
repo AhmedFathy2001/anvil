@@ -134,23 +134,26 @@ export interface ActivityRow {
   rank: number | null;
 }
 
-export interface MemberProfile {
-  /** The SEAT — this person's place on THIS clan's roster. What clan_member_id columns point at. */
-  id: number;
+/**
+ * A CHARACTER, with no clan attached.
+ *
+ * Everything Jagex tracks about an account — skills, bosses, activities, efficiency — and nothing
+ * about anybody's roster. `MemberProfile` is this plus the handful of facts that only exist relative
+ * to a clan: the seat, the in-game rank, guest or member, when they joined.
+ *
+ * Split out because THE APEX HAS NO SEATS. /p/<rsn> is one character seen from the platform, and
+ * without this it had to invent a clan to say anything at all — which is how it ended up a stub
+ * listing four fields while the clan's own profile had four tabs and a collection log.
+ */
+export interface AccountProfile {
   /**
    * The ACCOUNT — the OSRS character itself, which is what Jagex tracks and what every stats table
-   * is keyed by. A DIFFERENT NUMBER FROM `id`, always: they come from two sequences, and on the
-   * preview not one of 456 live seats had them equal. Anything reading history, milestones, records,
-   * the collection log or account progress wants THIS one; anything about the person's place in this
-   * clan — standings, competition history, persona — wants `id`.
+   * is keyed by. Never a seat id: the two come from separate sequences and on the preview not one
+   * of 456 live seats had them equal.
    */
   accountId: number;
   rsn: string;
-  rank: string | null;
-  isGuest: boolean;
   status: string;
-  joinedAt: string;
-  leftAt: string | null;
   /** When the stats below were last observed. Null if we've never successfully fetched them. */
   statsAt: string | null;
   efficiency: EfficiencyResult | null;
@@ -160,6 +163,16 @@ export interface MemberProfile {
   activities: ActivityRow[];
   totalLevel: number;
   combatLevel: number | null;
+}
+
+export interface MemberProfile extends AccountProfile {
+  /** The SEAT — this person's place on THIS clan's roster. What clan_member_id columns point at. */
+  id: number;
+  /** In-game clan rank, as this clan's roster reported it. */
+  rank: string | null;
+  isGuest: boolean;
+  joinedAt: string;
+  leftAt: string | null;
 }
 
 /**
@@ -210,27 +223,48 @@ function combatLevelFrom(snapshot: HiscoresSnapshot): number | null {
   return Math.floor(base + Math.max(melee, range, mage));
 }
 
-/** Resolve a profile by RSN (case-insensitive), or null when no such member exists. */
-export async function getMemberProfile(clanId: number, rsn: string): Promise<MemberProfile | null> {
-  const normalized = normalizeRsn(rsn);
-  if (!normalized) return null;
+/**
+ * One character's profile, straight from the account — no clan, no seat.
+ *
+ * The apex's version of `getMemberProfile`. Same pipeline, same snapshot, same numbers: it is the
+ * account row that carries `statsLastSnapshot`, so a clan was never actually needed to produce any
+ * of this. The clan was only ever needed to say which ROSTER the character sits on.
+ */
+export async function getAccountProfile(accountId: number): Promise<AccountProfile | null> {
+  const account = await db.query.accounts.findFirst({ where: eq(accounts.id, accountId) });
+  if (!account) return null;
+  return accountProfileFrom({
+    accountId: account.id,
+    rsn: account.rsn,
+    status: account.status,
+    liveStatsAt: account.liveStatsAt,
+    statsLastSnapshot: account.statsLastSnapshot,
+  });
+}
 
-  // Scoped to the clan whose page this is. The same RSN is legitimately on other clans' rosters, and
-  // an unscoped lookup would render another clan's member under this clan's banner.
-  const member = await findRosterSeat(and(eq(clanRoster.clanId, clanId), eq(clanRoster.rsnNormalized, normalized)));
-  if (!member) return null;
+/** The shared half: everything derivable from an account's last snapshot. */
+async function accountProfileFrom(row: {
+  accountId: number;
+  rsn: string;
+  status: string;
+  liveStatsAt: string | null;
+  statsLastSnapshot: string | null;
+}): Promise<AccountProfile> {
+  const { snapshot, at } = await lastSnapshotFor({
+    id: row.accountId,
+    accountId: row.accountId,
+    statsLastSnapshot: row.statsLastSnapshot,
+  });
 
-  const { snapshot, at } = await lastSnapshotFor(member);
+  const base = {
+    accountId: row.accountId,
+    rsn: row.rsn,
+    status: row.status,
+  };
+
   if (!snapshot) {
     return {
-      id: member.id,
-      accountId: member.accountId,
-      rsn: member.rsn,
-      rank: member.rank,
-      isGuest: member.kind === 'guest',
-      status: member.status,
-      joinedAt: member.joinedAt,
-      leftAt: member.leftAt,
+      ...base,
       statsAt: null,
       efficiency: null,
       skills: [],
@@ -280,15 +314,8 @@ export async function getMemberProfile(clanId: number, rsn: string): Promise<Mem
   });
 
   return {
-    id: member.id,
-    accountId: member.accountId,
-    rsn: member.rsn,
-    rank: member.rank,
-    isGuest: member.kind === 'guest',
-    status: member.status,
-    joinedAt: member.joinedAt,
-    leftAt: member.leftAt,
-    statsAt: at ?? member.liveStatsAt ?? null,
+    ...base,
+    statsAt: at ?? row.liveStatsAt ?? null,
     efficiency,
     skills,
     bosses,
@@ -297,6 +324,39 @@ export async function getMemberProfile(clanId: number, rsn: string): Promise<Mem
     combatLevel: combatLevelFrom(snapshot),
   };
 }
+
+/** Resolve a profile by RSN (case-insensitive), or null when no such member exists. */
+export async function getMemberProfile(clanId: number, rsn: string): Promise<MemberProfile | null> {
+  const normalized = normalizeRsn(rsn);
+  if (!normalized) return null;
+
+  // Scoped to the clan whose page this is. The same RSN is legitimately on other clans' rosters, and
+  // an unscoped lookup would render another clan's member under this clan's banner.
+  const member = await findRosterSeat(and(eq(clanRoster.clanId, clanId), eq(clanRoster.rsnNormalized, normalized)));
+  if (!member) return null;
+
+  // DELEGATES, so the two profiles cannot drift. Everything Jagex tracks comes off the account and is
+  // built in one place; the clan adds only what a roster knows — the seat, the in-game rank, guest or
+  // member, and the dates. Duplicating it would have left the apex and the clan as two
+  // implementations of the same numbers, disagreeing eventually.
+  const account = await accountProfileFrom({
+    accountId: member.accountId,
+    rsn: member.rsn,
+    status: member.status,
+    liveStatsAt: member.liveStatsAt,
+    statsLastSnapshot: member.statsLastSnapshot,
+  });
+
+  return {
+    ...account,
+    id: member.id,
+    rank: member.rank,
+    isGuest: member.kind === 'guest',
+    joinedAt: member.joinedAt,
+    leftAt: member.leftAt,
+  };
+}
+
 
 // ── History reads ────────────────────────────────────────────────────────────────────────────────
 
@@ -1235,7 +1295,7 @@ export interface UpcomingMilestone {
  * What this member is closest to earning. The milestone log only ever looks backwards; the question
  * a player actually asks is "what am I near?".
  */
-export function getUpcomingMilestones(profile: MemberProfile, limit = 6): UpcomingMilestone[] {
+export function getUpcomingMilestones(profile: AccountProfile, limit = 6): UpcomingMilestone[] {
   const out: UpcomingMilestone[] = [];
   const XP_STEPS = [10_000_000, 25_000_000, 50_000_000, 100_000_000, 200_000_000];
   const KC_STEPS = [100, 500, 1_000, 2_500, 5_000, 10_000, 25_000];
