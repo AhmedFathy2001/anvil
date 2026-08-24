@@ -4,6 +4,7 @@ import { clanRoster, verificationAttempts } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
 import { and, eq, gt, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { normalizeRsn, verifyUser } from '@/lib/auth';
+import { claimBlockedBy } from '@/lib/accountClaim';
 import { fetchHiscoresSnapshot, snapshotXpMap } from '@/lib/hiscores';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 
@@ -63,9 +64,17 @@ export async function POST(request: Request) {
 
   const rsnNormalized = normalizeRsn(rsn);
 
-  // If this RSN is already owned by another user, refuse before burning a Hiscores call.
-  const conflict = await findRosterSeat(eq(clanRoster.rsnNormalized, rsnNormalized));
-  if (conflict?.playerId && conflict.playerId !== session.userId) {
+  // Already somebody else's? Refuse before burning a Hiscores call.
+  //
+  // TWO BUGS LIVED IN THE THREE LINES THIS REPLACES.
+  //
+  // It read `clan_roster`, which can only see an account holding a SEAT — so a character claimed by
+  // someone not currently in any clan looked unclaimed, and this flow now creates exactly that on
+  // purpose. It also compared `conflict.playerId` (a PERSON) against `session.userId` (a LOGIN):
+  // different sequences, and on the preview data not one of the sixty logins has id = player_id, so
+  // the comparison was between unrelated numbers that collide often enough to look like it worked.
+  const conflict = await claimBlockedBy(rsnNormalized, session.playerId);
+  if (conflict) {
     return NextResponse.json(
       { error: 'This account is already linked to a different user. Ask a moderator if you think this is wrong.' },
       { status: 409 },

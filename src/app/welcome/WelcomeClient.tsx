@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
 import ConnectCard from '@/app/profile/ConnectCard';
+import LinkAccountClient from '@/app/profile/LinkAccountClient';
 import type { OnboardingState, StepKey } from '@/lib/onboarding';
 
 interface Props {
@@ -13,6 +14,8 @@ interface Props {
   displayName: string;
   discordUsername: string | null;
   clans: { slug: string; name: string }[];
+  /** RSNs already linked to this person, for the character step's done state. */
+  characters: string[];
 }
 
 /**
@@ -24,7 +27,13 @@ interface Props {
  * game client on another screen. Asking somebody to reload until it works is how a setup flow gets
  * abandoned, so the page watches instead and moves on by itself.
  */
-export default function WelcomeClient({ state: initial, displayName, discordUsername, clans }: Props) {
+export default function WelcomeClient({
+  state: initial,
+  displayName,
+  discordUsername,
+  clans,
+  characters,
+}: Props) {
   const router = useRouter();
   const [state, setState] = useState(initial);
   const [busy, setBusy] = useState(false);
@@ -62,9 +71,10 @@ export default function WelcomeClient({ state: initial, displayName, discordUser
     [],
   );
 
-  // The clan step finishes elsewhere — a join request approved, an invite accepted, a clan created in
-  // another tab. Poll while it is the outstanding one and the tab is visible.
-  const watchingClan = !state.steps.find((s) => s.key === 'clan')?.done;
+  // Two of the four finish somewhere else entirely — a join request approved, an invite accepted, a
+  // clan created in another tab, or the plugin linking a character from a game client on another
+  // screen. Poll while either is outstanding and the tab is visible.
+  const watchingClan = state.steps.some((s) => (s.key === 'clan' || s.key === 'character') && !s.done);
   useEffect(() => {
     if (!watchingClan) return;
     let alive = true;
@@ -168,16 +178,38 @@ export default function WelcomeClient({ state: initial, displayName, discordUser
               </>
             ))}
 
-          {/* ONE PANEL FOR THE LAST TWO, because it is one action. Pasting the token links your
-              character AND starts the plugin reporting; the rail still shows them apart because they
-              are different milestones, and an admin adding your RSN completes the first without the
-              second. Rebuilding the token box and the beacon here would have been a second copy of
-              something already written and already correct. */}
-          {(current.key === 'character' || current.key === 'plugin') && (
+          {current.key === 'character' &&
+            (current.done ? (
+              <Done>
+                {characters.length === 1 ? (
+                  <>
+                    <b className="text-foreground">{characters[0]}</b> is yours.
+                  </>
+                ) : (
+                  <>{characters.length} characters linked.</>
+                )}
+              </Done>
+            ) : (
+              <>
+                {/* NO CLAN NEEDED, and that is the whole change. Verifying by XP asks Hiscores
+                    whether the person holding this page can make the account gain XP — a question
+                    about them and the game, with no clan anywhere in it. Manual review is off here
+                    because it means "a moderator vouches for me" and there is no moderator to ask
+                    until they are in a clan. */}
+                <LinkAccountClient manualReview={false} />
+                <p className="mt-3.5 text-[13px] text-text-dim">
+                  Already run the plugin? It links your character on its own — skip to the last step.
+                </p>
+              </>
+            ))}
+
+          {/* The plugin panel is the token and the beacon, which ConnectCard already is. Rebuilding
+              them here would be a second copy of something written and correct. */}
+          {current.key === 'plugin' && (
             <ConnectCard
               welcomeTo={null}
               discordUsername={discordUsername}
-              linkedCount={state.steps.find((s) => s.key === 'character')?.done ? 1 : 0}
+              linkedCount={characters.length}
               verifiedCount={0}
               detectedCount={0}
               connected={state.steps.find((s) => s.key === 'plugin')?.done ?? false}
@@ -292,8 +324,8 @@ function Rail({
 /** The rail has one line per step; the panel carries the full title. */
 const SHORT: Record<StepKey, string> = {
   discord: 'Discord',
-  clan: 'Clan',
   character: 'Character',
+  clan: 'Clan',
   plugin: 'Plugin',
 };
 

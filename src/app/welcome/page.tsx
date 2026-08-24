@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { users } from '@/db/schema';
+import { accounts, users } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
 import { onboardingState } from '@/lib/onboarding';
 import { clansOfPerson } from '@/lib/myClans';
@@ -25,13 +25,16 @@ export default async function WelcomePage() {
   const session = await verifyUser();
   if (!session?.userId) redirect('/login?return=%2Fwelcome');
 
-  const [state, user, myClans] = await Promise.all([
+  const [state, user, myClans, characters] = await Promise.all([
     onboardingState(session.userId, session.playerId),
     db.query.users.findFirst({
       where: eq(users.id, session.userId),
       columns: { displayName: true, discordUsername: true },
     }),
     session.playerId == null ? Promise.resolve([]) : clansOfPerson(session.playerId, session.userId),
+    session.playerId == null
+      ? Promise.resolve([])
+      : db.select({ rsn: accounts.rsn }).from(accounts).where(eq(accounts.playerId, session.playerId)),
   ]);
 
   // Finished it already. Not a 404 — the page exists and is theirs — and not a silent re-run either:
@@ -46,6 +49,7 @@ export default async function WelcomePage() {
       displayName={user?.displayName ?? 'there'}
       discordUsername={user?.discordUsername ?? null}
       clans={myClans.map((c) => ({ slug: c.slug, name: c.name }))}
+      characters={characters.map((a) => a.rsn)}
     />
   );
 }

@@ -158,30 +158,51 @@ test('somebody brand new has done exactly one of the four', async () => {
   const state = await O.onboardingState(newbieUser, newbiePlayer);
   assert.equal(state.doneCount, 1, 'signing in is the one thing they have done');
   assert.equal(state.steps.find((s) => s.key === 'discord')!.done, true);
-  assert.equal(state.current, 'clan', 'and the clan is what everything else needs');
+  assert.equal(state.current, 'character', 'and the character is the first real move');
 });
 
-test('the order is the machinery’s: the clan step comes before the character step', async () => {
-  // Not a preference. An account is claimed through a SEAT and every plugin route resolves a clan
-  // from its Host, so a flow that asked for the character first would open a door that does not
-  // open. If the steps are ever reordered, this is the reason not to.
+test('the character step comes before the clan and depends on nothing', async () => {
+  // It went the other way first, and had to: every path that attached an account to a person ran
+  // through a SEAT, so offering the character first would have opened a door that did not open.
+  // lib/accountClaim is what changed that — proving a character is a fact about YOU, which is what
+  // accounts.verifiedAt has said all along. If `needs` here ever grows a 'clan' back, the claim has
+  // been re-coupled to a seat and this is the assertion that should stop it.
   const state = await O.onboardingState(newbieUser, newbiePlayer);
-  const keys = state.steps.map((s) => s.key);
-  assert.deepEqual(keys, ['discord', 'clan', 'character', 'plugin']);
-  assert.deepEqual(state.steps.find((s) => s.key === 'character')!.needs, ['clan']);
+  assert.deepEqual(state.steps.map((s) => s.key), ['discord', 'character', 'clan', 'plugin']);
+  assert.deepEqual(state.steps.find((s) => s.key === 'character')!.needs, []);
+  assert.deepEqual(state.steps.find((s) => s.key === 'clan')!.needs, []);
 });
 
-test('joining a clan ticks the clan step and moves the flow on', async () => {
+test('a linked character ticks its step with no clan and no seat anywhere', async () => {
+  const { db, schema: s } = await loadDb();
+  const C = await import('../src/lib/accountClaim.ts');
+  await C.claimAccountForPerson({
+    playerId: newbiePlayer,
+    rsn: 'Newbie Guy',
+    rsnNormalized: 'newbie guy',
+    method: 'stat_delta',
+    provisional: true,
+  });
+
+  const state = await O.onboardingState(newbieUser, newbiePlayer);
+  assert.equal(state.steps.find((x) => x.key === 'character')!.done, true);
+  assert.equal(state.steps.find((x) => x.key === 'clan')!.done, false, 'still in no clan');
+  assert.equal(state.current, 'clan');
+
+  const seats = await db.select().from(s.clanMemberships);
+  assert.equal(seats.length, 0, 'proving who you are seats you nowhere');
+});
+
+test('joining a clan then ticks the clan step', async () => {
   const { db, schema: s } = await loadDb();
   const [acct] = await db
-    .insert(s.accounts)
-    .values({ playerId: newbiePlayer, rsn: 'Newbie Guy', rsnNormalized: 'newbie guy' })
-    .returning();
+    .select()
+    .from(s.accounts)
+    .where(eq(s.accounts.rsnNormalized, 'newbie guy'));
   await db.insert(s.clanMemberships).values({ clanId: busyClan, accountId: acct.id, kind: 'guest' });
 
   const state = await O.onboardingState(newbieUser, newbiePlayer);
   assert.equal(state.steps.find((x) => x.key === 'clan')!.done, true);
-  assert.equal(state.steps.find((x) => x.key === 'character')!.done, true, 'the account exists now');
   assert.equal(state.current, 'plugin', 'only the plugin left');
 });
 
@@ -213,15 +234,15 @@ test('a skipped step stops being the current one, and comes back if unskipped', 
     .values({ playerId: person.id, displayName: 'Skipper', discordId: 'skipper-1' })
     .returning();
 
-  assert.equal((await O.onboardingState(u.id, person.id)).current, 'clan');
+  assert.equal((await O.onboardingState(u.id, person.id)).current, 'character');
 
-  await O.setSkipped(u.id, 'clan', true);
+  await O.setSkipped(u.id, 'character', true);
   const after = await O.onboardingState(u.id, person.id);
-  assert.equal(after.steps.find((x) => x.key === 'clan')!.skipped, true);
-  assert.equal(after.current, 'character', 'the flow moves past it');
+  assert.equal(after.steps.find((x) => x.key === 'character')!.skipped, true);
+  assert.equal(after.current, 'clan', 'the flow moves past it');
 
-  await O.setSkipped(u.id, 'clan', false);
-  assert.equal((await O.onboardingState(u.id, person.id)).current, 'clan');
+  await O.setSkipped(u.id, 'character', false);
+  assert.equal((await O.onboardingState(u.id, person.id)).current, 'character');
 });
 
 test('skipping twice is one entry, not two', async () => {

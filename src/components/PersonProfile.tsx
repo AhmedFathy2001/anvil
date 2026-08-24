@@ -1,6 +1,7 @@
 import ClanLink from '@/components/ClanLink';
 import ShareToggle from '@/components/ShareToggle';
 import LinkAccountsToggle from '@/components/LinkAccountsToggle';
+import LinkAccountClient from '@/app/profile/LinkAccountClient';
 import type { MyClan } from '@/lib/myClans';
 
 export interface PersonCharacter {
@@ -99,17 +100,20 @@ export default function PersonProfile({
       <section>
         <h2 className="mb-3 text-lg font-semibold">Your characters</h2>
         {characters.length === 0 ? (
-          <p className="rounded-xl border border-card-border bg-card-bg p-4 text-sm text-text-muted">
-            {/* This used to say "Connect the plugin from inside a clan to link one", which was
-                addressed to exactly the people who have no clan — the one thing they cannot act on.
-                It is true that a character is claimed through a seat, so the answer is the flow that
-                gets them a clan first, not an instruction that assumes they already have one. */}
-            No characters linked yet.{' '}
-            <ClanLink href="/welcome" className="text-gold hover:text-gold-light">
-              Set your account up
-            </ClanLink>{' '}
-            — it takes a couple of minutes.
-          </p>
+          /* This said "Connect the plugin from inside a clan to link one" — addressed to exactly the
+             people who have no clan, which is the one thing they could not act on. Claiming a
+             character needs no clan now (lib/accountClaim), so the answer is the form itself rather
+             than a redirect to somewhere they still cannot do it.
+
+             Manual review is off: it means "a moderator vouches for me", and on the apex there is no
+             moderator to ask. */
+          <div className="rounded-xl border border-card-border bg-card-bg p-4">
+            <p className="mb-4 text-sm text-text-muted">
+              No characters linked yet. Prove one is yours — train it a little and Hiscores will say
+              so. It stays yours in every clan you join, without proving it again.
+            </p>
+            <LinkAccountClient manualReview={false} />
+          </div>
         ) : (
           <ul className="divide-y divide-card-border overflow-hidden rounded-xl border border-card-border bg-card-bg">
             {characters.map((a) => (

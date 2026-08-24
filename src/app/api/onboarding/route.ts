@@ -5,7 +5,7 @@ import { completeOnboarding, onboardingState, setSkipped, type StepKey } from '@
 
 export const dynamic = 'force-dynamic';
 
-const STEPS: StepKey[] = ['discord', 'clan', 'character', 'plugin'];
+const STEPS: StepKey[] = ['discord', 'character', 'clan', 'plugin'];
 
 /**
  * The person's own first-run state.

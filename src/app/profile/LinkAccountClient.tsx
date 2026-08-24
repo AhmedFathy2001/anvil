@@ -32,9 +32,20 @@ function formatSkill(s: string | null | undefined): string {
   return SKILL_LABELS[s] ?? s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-export default function LinkAccountClient() {
+/**
+ * Proving a character is yours.
+ *
+ * `manualReview` is off wherever there is no clan — the apex, and the setup flow. Manual review means
+ * "a moderator vouches for me", and on the apex there is no moderator to ask: the route behind that
+ * tab needs a clan and always did. Verifying by XP has no such dependency, which is why it is the one
+ * that works from anywhere, and why it is the whole of the apex offer rather than a tab beside a
+ * disabled one.
+ */
+export default function LinkAccountClient({ manualReview = true }: { manualReview?: boolean }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('no-plugin');
+
+  if (!manualReview) return <StatDeltaPath router={router} />;
 
   return (
     <div>

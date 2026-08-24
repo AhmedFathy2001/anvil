@@ -22,19 +22,21 @@ import { clansOfPerson } from '@/lib/myClans';
  *    an admin, left a clan, or set the plugin up before ever opening this page. Only INTENT is
  *    persisted: that they finished, and which steps they chose to pass on.
  *
- * 2. THE ORDER IS THE MACHINERY'S, NOT A PREFERENCE. It is tempting to put "link your character"
- *    before "join a clan" — it is the smaller ask, and it is what a player thinks they came to do.
- *    It cannot work: an account is claimed through a SEAT (`findOrCreateSeat`), every plugin route
- *    resolves a clan from its Host, and `resolvePluginMember`'s auto-link is clan-scoped throughout.
- *    A flow that offered the character step first would present a door that does not open. So the
- *    clan comes second, and the step says why rather than leaving somebody to discover it.
+ * 2. THE ORDER IS THE MACHINERY'S, NOT A PREFERENCE — and the machinery changed, so the order did.
+ *    It first went clan-before-character, because every path that attached an account to a person ran
+ *    through a SEAT: `requireClan()` at both ends of the stat-delta flow, a clan resolved from the
+ *    Host on every plugin route. Offering the character step first would have opened a door that did
+ *    not open.
  *
- *    The step's DONE-ness is still a clan-free question, and that is not a contradiction: getting an
- *    account attached to you goes through a clan, but the account, once attached, is yours and not
- *    any clan's. Which is why the reads below are on `accounts` and not on `clan_roster`.
+ *    `lib/accountClaim` is what changed it. Proving a character is yours is a fact about YOU — the
+ *    schema has said so on `accounts.verifiedAt` the whole time ("proving ownership once proves it
+ *    everywhere") — so the claim is now clan-free and the character step is a real first move. It is
+ *    also the better one: it is the smaller ask, it is what a player came to do, and somebody who
+ *    arrives with a character already linked is a more attractive applicant to the clan they then go
+ *    and find.
  */
 
-export type StepKey = 'discord' | 'clan' | 'character' | 'plugin';
+export type StepKey = 'discord' | 'character' | 'clan' | 'plugin';
 
 export interface OnboardingStep {
   key: StepKey;
@@ -69,21 +71,21 @@ const STEP_COPY: Record<StepKey, { title: string; blurb: string; needs: StepKey[
     blurb: 'Done — this is how Anvil knows who you are, and how your clan reaches you.',
     needs: [],
   },
-  clan: {
-    title: 'Join a clan, or start one',
-    blurb:
-      'Everything else hangs off this. Boards, competitions and your character all live in a clan, and the plugin needs one to report to.',
-    needs: [],
-  },
   character: {
     title: 'Link your RuneScape account',
-    blurb: 'So a drop, a kill or a level lands on the right person instead of a name that looks like yours.',
-    needs: ['clan'],
+    blurb:
+      'Prove a character is yours and it stays yours — across every clan you ever join, without proving it again.',
+    needs: [],
+  },
+  clan: {
+    title: 'Join a clan, or start one',
+    blurb: 'Boards and competitions live in a clan. Turning up with a linked character is most of an application.',
+    needs: [],
   },
   plugin: {
     title: 'Let the plugin do the rest',
     blurb: 'Install it in RuneLite once and it fills in every board you ever play, in every clan you are ever in.',
-    needs: ['clan', 'character'],
+    needs: ['character'],
   },
 };
 

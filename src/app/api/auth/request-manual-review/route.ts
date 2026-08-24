@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
+import { claimBlockedBy } from '@/lib/accountClaim';
 import { accounts, clanAuditLog, clanMemberships, clanRoster } from '@/db/schema';
 import { findOrCreateAccount, findOrCreateSeat, findRosterSeat } from '@/lib/roster';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { normalizeRsn, verifyUser } from '@/lib/auth';
 import { onCharacterLinked } from '@/lib/identity';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
@@ -49,11 +50,21 @@ export async function POST(request: Request) {
   const rsnNormalized = normalizeRsn(rsn);
   const nowIso = new Date().toISOString();
 
-  const existing = await findRosterSeat(eq(clanRoster.rsnNormalized, rsnNormalized));
+  // THIS CLAN'S seat, if there is one. The lookup carried no clan filter, so a request made in clan
+  // A found a seat in clan B and then edited B's row — its notes, and its `leftAt`, reviving a seat
+  // in a clan the person had left — while A got no request at all.
+  const existing = await findRosterSeat(
+    and(eq(clanRoster.clanId, clan.id), eq(clanRoster.rsnNormalized, rsnNormalized)),
+  );
 
-  // Hard block: another user already owns this RSN. Surface contact path so the user
-  // doesn't keep retrying.
-  if (existing?.playerId && existing.playerId !== session.userId) {
+  // Hard block: somebody else already owns this RSN.
+  //
+  // Asked on `accounts` and in the right id space. This compared `existing.playerId` (a PERSON)
+  // against `session.userId` (a LOGIN) — separate sequences, and on the preview data not one of the
+  // sixty logins has id = player_id — and it could only see accounts holding a seat, so a character
+  // owned by somebody currently in no clan read as unclaimed.
+  const blocked = await claimBlockedBy(rsnNormalized, session.playerId);
+  if (blocked) {
     return NextResponse.json(
       { error: 'This account is already linked to another user. Contact a moderator if you believe this is wrong.' },
       { status: 409 },
@@ -63,10 +74,15 @@ export async function POST(request: Request) {
   let clanMemberId: number;
 
   if (existing) {
+    // `session.playerId`, not `session.userId` — a LOGIN id was being written into a PERSON column,
+    // which does not fail: it attaches the character to a real, unrelated person.
+    //
+    // Not routed through claimAccountForPerson, because asking for review is NOT a claim: nothing
+    // has been proven yet. `verifiedAt` is deliberately left exactly as it was.
     await db
       .update(accounts)
       .set({
-        playerId: session.userId,
+        playerId: session.playerId,
         verificationMethod: 'manual',
         provisional: 1,
         // Don't overwrite a real verifiedAt if this user is just adding context.
@@ -89,7 +105,7 @@ export async function POST(request: Request) {
     await db
       .update(accounts)
       .set({
-        playerId: session.userId,
+        playerId: session.playerId,
         verificationMethod: 'manual',
         provisional: 1,
         claimedAt: nowIso,
