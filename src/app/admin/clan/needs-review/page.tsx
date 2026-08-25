@@ -2,7 +2,10 @@ import { db } from '@/db';
 import { clanRoster, users } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { avatarUrl } from '@/lib/discord-oauth';
+import { requireClan } from '@/lib/clanContext';
+import { pendingClaimRequests } from '@/lib/claimRequests';
 import VerificationsClient, { type PendingMember } from '../../verifications/VerificationsClient';
+import ClaimRequestsClient from './ClaimRequestsClient';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +13,8 @@ export const dynamic = 'force-dynamic';
 // Same query + client the standalone /admin/verifications page used; that route now just
 // redirects here.
 export default async function ClanNeedsReviewPage() {
+  const clan = await requireClan();
+  const claimRequests = await pendingClaimRequests(clan.id);
   const rows = await db
     .select({
       id: clanRoster.id,
@@ -53,9 +58,15 @@ export default async function ClanNeedsReviewPage() {
 
   return (
     <div>
-      <p className="text-sm text-text-muted mb-4">
-        Members verified via stat-delta land here for confirmation. Review the Discord identity and approve to clear
-        the watchlist, or reject to revoke the verification and let them re-attempt.
+      <ClaimRequestsClient items={claimRequests} />
+
+      <div className="mb-1.5 flex items-center gap-2.5">
+        <span className="molten h-5 w-1 shrink-0 rounded-sm" />
+        <h2 className="text-[16.5px] font-semibold">Awaiting confirmation</h2>
+      </div>
+      <p className="mb-3.5 ml-4 max-w-[64ch] text-[13.5px] text-text-muted">
+        Members who proved control by training the account (stat-delta) and are waiting for a confirmation
+        stamp. Review the Discord identity and approve, or reject to revoke and let them re-attempt.
       </p>
       <VerificationsClient items={items} />
     </div>
