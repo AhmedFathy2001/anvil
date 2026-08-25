@@ -5,10 +5,10 @@ import { liveActAs } from '@/lib/actAs';
 import { currentClan } from '@/lib/clanContext';
 import crypto from 'crypto';
 import { db } from '@/db';
-import { resolveClanFromRequest } from '@/lib/clanContext';
-import { accounts, clanAuditLog, clanMemberships, clanRoster, detectedAccounts, eventEditors, eventParticipants, events, players, pluginLinks, teams, users } from '@/db/schema';
+import { resolveClanById, resolveClanFromRequest, type ClanContext } from '@/lib/clanContext';
+import { accounts, clanAuditLog, clanMemberships, clanRoster, clans, detectedAccounts, eventEditors, eventParticipants, events, players, pluginLinks, teams, users } from '@/db/schema';
 import { findOrCreateAccount, findOrCreateSeat, findRosterSeat, findRosterSeats, personOf, personOfOrCreate, seatsOwnedBy, seatsOwnedByAnywhere, UNCLAIMED_ACCOUNT, updateAccountOfSeat } from '@/lib/roster';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { requireSecret } from '@/lib/env';
 import { applyPendingRole } from '@/lib/pending-role';
 import { onCharacterLinked } from '@/lib/identity';
@@ -368,6 +368,129 @@ export function signPlayerToken(playerId: number, teamId: number): string {
 // Only the per-user account token (`users.plugin_token`) is accepted — legacy
 // per-event `eventParticipants.player_token`s are no longer a plugin credential.
 /**
+ * The clan a plugin request is for.
+ *
+ * THE ADDRESS FIRST, THE TOKEN AS THE ANSWER.
+ *
+ * `anvilosrs.com` is the canonical address of the whole platform: one site, every clan. A request
+ * arriving there names no clan, and that is the intended state rather than a missing detail — a
+ * person should not have to know a slug, and should not have to change anything when they join a
+ * second clan.
+ *
+ * So the order is:
+ *
+ *   1. `/c/<slug>/…`     — someone typed it, so it wins
+ *   2. the Host          — the per-clan subdomains installed plugins still have stored
+ *   3. the TOKEN         — the canonical path, resolving through the person to their seats
+ *
+ * Steps 1 and 2 exist only for URLs already in the wild. Anything new should be on the apex, where
+ * this falls through to the token every time.
+ *
+ * WHY A TOKEN CAN ANSWER AT ALL: it identifies the PERSON, and a person's seats say which clans
+ * they belong to. That was always true; it simply was not asked, because a deployment used to be a
+ * clan and the Host was free.
+ */
+export async function resolvePluginClan(
+  request: Request,
+  userId?: number | null,
+  opts?: { inGameClanName?: string | null },
+): Promise<ClanContext | null> {
+  const addressed = await resolveClanFromRequest(request);
+  if (addressed) return addressed;
+
+  let id = userId ?? null;
+  if (id == null) {
+    const header = request.headers.get('Authorization');
+    if (!header?.startsWith('Bearer ')) return null;
+    const token = header.slice(7).trim();
+    if (!token) return null;
+    const user = await userByPluginToken(token);
+    if (!user) return null;
+    id = user.id;
+  }
+
+  return clanOfPerson(id, opts?.inGameClanName ?? null);
+}
+
+/** As resolvePluginClan, but throws when nothing names a clan — the same standing requireClanFromRequest had. */
+export async function requirePluginClan(
+  request: Request,
+  opts?: { inGameClanName?: string | null },
+): Promise<ClanContext> {
+  const clan = await resolvePluginClan(request, null, opts);
+  if (!clan) throw new Error('No clan for this plugin request');
+  return clan;
+}
+
+/**
+ * Which of a person's clans a clanless request means.
+ *
+ * A live event wins, because that is what a plugin is for: someone playing a bingo wants that
+ * clan's board, whatever else they have a seat in. Between two live events the LATEST START wins —
+ * deliberately the same tie-break verifyPluginToken already applies to one clan running two events,
+ * since "the freshest board is almost always the one being played" does not stop being true because
+ * the second board belongs to a different clan.
+ *
+ * With nothing live, their most recently joined seat: the clan they most recently chose to be in is
+ * the better guess about who they mean, and it keeps notifications and the schedule pointing
+ * somewhere sensible between events.
+ */
+async function clanOfPerson(
+  userId: number,
+  inGameClanName: string | null = null,
+): Promise<ClanContext | null> {
+  // An exact answer beats every heuristic below. A roster push names the IN-GAME clan it came from,
+  // and that names one of the person's seats outright — so a member of two Anvil clans syncs the
+  // right roster instead of whichever had the most recent event. Matters more here than anywhere
+  // else on this path, because a roster sync WRITES.
+  if (inGameClanName?.trim()) {
+    const named = await db
+      .select({ clanId: clanRoster.clanId })
+      .from(clanRoster)
+      .innerJoin(clans, eq(clans.id, clanRoster.clanId))
+      .where(
+        and(
+          await seatsOwnedByAnywhere(userId),
+          isNull(clanRoster.leftAt),
+          sql`lower(${clans.inGameName}) = lower(${inGameClanName.trim()})`,
+        ),
+      )
+      .limit(1);
+    if (named.length > 0) return resolveClanById(named[0].clanId);
+  }
+
+  const nowIso = new Date().toISOString();
+
+  const live = await db
+    .select({ clanId: clanRoster.clanId, startDate: events.startDate })
+    .from(clanRoster)
+    .innerJoin(eventParticipants, eq(eventParticipants.clanMemberId, clanRoster.id))
+    .innerJoin(events, eq(events.id, eventParticipants.eventId))
+    .where(
+      and(
+        await seatsOwnedByAnywhere(userId),
+        isNull(clanRoster.leftAt),
+        isNull(events.forceEndedAt),
+        or(isNull(events.startDate), lte(events.startDate, nowIso)),
+        or(isNull(events.endDate), gte(events.endDate, nowIso)),
+      ),
+    )
+    .orderBy(desc(events.startDate))
+    .limit(1);
+
+  if (live.length > 0) return resolveClanById(live[0].clanId);
+
+  const seat = await db
+    .select({ clanId: clanRoster.clanId })
+    .from(clanRoster)
+    .where(and(await seatsOwnedByAnywhere(userId), isNull(clanRoster.leftAt)))
+    .orderBy(desc(clanRoster.joinedAt))
+    .limit(1);
+
+  return seat.length > 0 ? resolveClanById(seat[0].clanId) : null;
+}
+
+/**
  * The login a plugin token belongs to — whichever token it is.
  *
  * A person accumulates tokens: one per instance that ever issued them one, plus any device links.
@@ -535,6 +658,41 @@ async function applyRenameOnPlay(
 // this runs. Everything else — a brand-new account, or the user's own unverified ghost row — is safe
 // to auto-link (it's their own authenticated play; the worst case is squatting a fresh name, which is
 // reversible and already possible via the old play+Add path). Best-effort — never blocks plugin auth.
+/**
+ * May the caller AUTO-CLAIM this existing account row, or must they prove control first?
+ *
+ * One distinction the old code blurred, and the whole security model rests on it.
+ *
+ *   PROOF OF CONTROL is an account hash ALREADY ANCHORED to this row — `matchedByHash`. A modified
+ *   RuneLite can put any 64-bit value on the wire (`client.getAccountHash()` is not authenticated),
+ *   so a hash that matches nothing proves nothing, and a hash that is merely PRESENT must never lower
+ *   the bar. The one thing an attacker cannot do is produce a hash that already sits on a row they do
+ *   not control — that, and only that, is proof.
+ *
+ *   A PUBLIC RSN is not proof. "The plugin said I'm playing as X" is a claim, and X's name is known
+ *   to everyone. Auto-claiming an ESTABLISHED account on a name match is the hostile takeover this
+ *   exists to stop: send a victim's RSN plus a random hash and the account was yours — demonstrated
+ *   against a real roster member before this landed.
+ *
+ * So an established account — a real in-game roster member, a verified account, or one carrying a
+ * pre-assigned role — auto-claims ONLY when matched by an anchored hash. Otherwise ownership needs
+ * the XP-delta check or a moderator's approval. A bare unclaimed ghost (a guest artifact from a prior
+ * ping, nobody's proven identity) still links freely: there is no victim and no identity to steal.
+ *
+ * The `!accountHash` waiver this replaces was itself the bug in the careful path — a non-matching
+ * hash set `accountHash` truthy and skipped the guard, so sending a random hash *disabled* the very
+ * check meant to stop the takeover.
+ */
+export function autoClaimAllowed(
+  existing: { kind: string; verifiedAt: string | null; pendingRole: string | null },
+  matchedByHash: boolean,
+): boolean {
+  if (matchedByHash) return true;
+  const established =
+    existing.kind === 'member' || existing.verifiedAt != null || !!existing.pendingRole;
+  return !established;
+}
+
 async function autoLinkOrSuggestOnPlay(
   clanId: number,
   userId: number,
@@ -573,11 +731,13 @@ async function autoLinkOrSuggestOnPlay(
       (await findRosterSeat(and(eq(clanRoster.clanId, clanId), eq(clanRoster.rsnNormalized, normalizedRsn)))) ?? null;
     const existing = byHash ?? byRsn;
 
-    // Minimal guard: ONLY a row carrying a pre-assigned role stays opt-in when matched by name alone,
-    // so nobody can auto-grant themselves admin/mod by typing a member's public RSN. Every other
-    // account auto-links — a wrong link is low-stakes and admin-reversible (and admins can fix links
-    // directly from the roster). Surface the guarded case as an opt-in suggestion instead.
-    if (existing?.pendingRole && !byHash) {
+    // THE GATE. Established rows (member / verified / role-carrying) need proof of control — an
+    // anchored hash — and a public RSN is not it. This was `existing?.pendingRole && !byHash`, which
+    // guarded only role rows; every other established member auto-linked on a name, which is exactly
+    // the takeover. When refused, the character becomes an opt-in SUGGESTION in the caller's own
+    // inbox, from where "Add" runs claimAccountForUser — which applies the same gate and routes them
+    // to the XP-delta check. The real owner clears it; an attacker's suggestion clears nothing.
+    if (existing && !autoClaimAllowed(existing, !!byHash)) {
       const suggestion = await db.query.detectedAccounts.findFirst({
         where: and(eq(detectedAccounts.userId, userId), eq(detectedAccounts.rsnNormalized, normalizedRsn)),
       });
@@ -771,27 +931,14 @@ export async function claimAccountForUser(
     return { ok: false, reason: 'owned-by-other' };
   }
 
-  // A row carrying a PRE-ASSIGNED ROLE must be claimed with real proof — a hash match, or the
-  // explicit XP/link-code check — never by a forgeable name alone. Otherwise typing a member's
-  // public RSN could hand their pending admin/mod role to a stranger. This is the one guard we keep
-  // strict; everything else auto-links freely.
-  if (existing && existing.pendingRole && !byHash) {
-    return { ok: false, reason: 'needs-verification' };
-  }
-
-  // Trust the account hash as proof of control: it's a per-account secret you only get by being
-  // logged into the account in-game, so a hash captured during authenticated plugin play is enough
-  // to attach even an established identity (roster member / verified row) one-click. We only fall
-  // back to the XP-drop / link-code check when there's NO hash to trust at all AND the target is an
-  // established identity — e.g. linking from the website with no plugin session behind it. A guest
-  // row (isGuest=1, unverified) is a plugin-ping artifact — usually the claimer's own account — so
-  // it attaches even without a hash.
+  // THE GATE, one condition for every established row (see autoClaimAllowed).
   //
-  // Residual risk (accepted): a *modified* client can put any hash on the wire, so a member willing
-  // to mod their plugin — or someone with a leaked account hash — could claim a member who has
-  // never played (no hash anchored yet). It's audit-logged and admin-reversible, and once a member
-  // has played once their real hash is anchored, after which only that hash (or the owner) matches.
-  if (existing && !byHash && !accountHash && (existing.kind === 'member' || existing.verifiedAt != null)) {
+  // This used to be two checks, and the second carried the bug: `!byHash && !accountHash && …`. A
+  // present-but-non-matching hash made `!accountHash` false and skipped it, so an attacker who sent a
+  // RANDOM hash alongside a victim's RSN waived the very guard meant to stop them. Proof is an
+  // ANCHORED hash (`byHash`), never the mere presence of one. A hash-anchored match still one-clicks;
+  // everything established-but-unproven goes to the XP-delta / link-code check.
+  if (existing && !autoClaimAllowed(existing, !!byHash)) {
     return { ok: false, reason: 'needs-verification' };
   }
 
@@ -859,7 +1006,12 @@ export async function claimAccountForUser(
   // a second primary the moment they joined a second clan.
   const owned = await findRosterSeats(and(await seatsOwnedByAnywhere(userId), isNull(clanRoster.leftAt)));
   if (owned.length > 0 && !owned.some((a) => a.isPrimary === 1)) {
-    await db.update(accounts).set({ isPrimary: 1 }).where(eq(clanMemberships.id, clanMemberId));
+    // KEYED ON THE ACCOUNT, not the seat. This was `.where(eq(clanMemberships.id, clanMemberId))` —
+    // an UPDATE on `accounts` keyed on a column of `clan_memberships`, which Postgres rejects
+    // outright ("missing FROM-clause entry"). Same bug, same table, as the one in accountClaim.ts:
+    // it threw on exactly the case its own condition selects — a user's FIRST attributed account.
+    const seat = await findRosterSeat(eq(clanRoster.id, clanMemberId));
+    if (seat) await db.update(accounts).set({ isPrimary: 1 }).where(eq(accounts.id, seat.accountId));
   }
 
   // Now that the account is attributed to a Discord-authenticated user, apply any
@@ -917,10 +1069,10 @@ export async function resolvePluginMember(
   const user = await userByPluginToken(token);
   if (!user) return null;
 
-  // Which clan is this plugin talking to? The token identifies the PERSON; the Host identifies the
-  // clan, and a member row belongs to the pair. A request whose host names no clan cannot resolve a
-  // member, because there is no roster to resolve against.
-  const clan = await resolveClanFromRequest(request);
+  // Which clan is this plugin talking to? The address answers when it names one, and the TOKEN
+  // answers when it does not — see resolvePluginClan. A person with no seat anywhere still cannot
+  // resolve a member, because there is no roster to resolve against.
+  const clan = await resolvePluginClan(request, user.id);
   if (!clan) return null;
 
   const nowIso = new Date().toISOString();

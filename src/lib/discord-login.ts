@@ -4,7 +4,7 @@ import { db } from '@/db';
 import { accounts, clanAuditLog, clanRoster, clanStaff, players, users, eventParticipants } from '@/db/schema';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { DiscordUser } from '@/lib/discord-oauth';
-import { signUserToken } from '@/lib/auth';
+import { autoClaimAllowed, signUserToken } from '@/lib/auth';
 import { publicOrigin } from '@/lib/request-origin';
 import { originForHost, resolveClanByHost, sessionCookieDomain } from '@/lib/clanContext';
 import { applyPendingRole } from '@/lib/pending-role';
@@ -215,7 +215,17 @@ export async function completeDiscordLogin(
         .select()
         .from(clanRoster)
         .where(and(isNull(clanRoster.claimedAt), isNull(clanRoster.leftAt)));
-      const candidates = unlinked.filter((cm) => fuzzyAliases.has(osrsNormalize(cm.rsn)));
+      // A DISCORD DISPLAY NAME IS NOT PROOF EITHER — it is one rename away from anyone's. Matching
+      // it against a public RSN and then CLAIMING the account is the same takeover as the plugin
+      // path, and worse for a row carrying a pending role: rename your Discord to a victim's RSN,
+      // sign in, inherit their pending admin seat. So name-match may still adopt a bare unclaimed
+      // ghost, but never an established member / verified / role-carrying row. There is no hash in an
+      // OAuth login, so `matchedByHash` is always false here — the gate reduces to "not established".
+      // Those rows link the proven way instead: the owner plays with the plugin (anchored hash) or
+      // runs the XP-delta check, and applyPendingRole grants the role THEN, after proof, not before.
+      const candidates = unlinked.filter(
+        (cm) => fuzzyAliases.has(osrsNormalize(cm.rsn)) && autoClaimAllowed(cm, false),
+      );
 
       for (const cm of candidates) {
         await db

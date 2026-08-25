@@ -25,7 +25,12 @@ export default async function ClanNeedsReviewPage() {
       discordAvatar: users.discordAvatar,
     })
     .from(clanRoster)
-    .leftJoin(users, eq(clanRoster.playerId, users.id))
+    // ON THE PERSON, not the login. This joined `clanRoster.playerId` (a PERSON id) against
+    // `users.id` (a LOGIN id) — separate sequences — so the Discord identity shown next to each
+    // pending claim was some UNRELATED person's, on the one screen where a mod decides whether a
+    // claim is genuine by looking at exactly that identity. The claim gate above makes this screen
+    // load-bearing, so the join it reads has to point at the right human.
+    .leftJoin(users, eq(clanRoster.playerId, users.playerId))
     .where(and(eq(clanRoster.provisional, 1), isNull(clanRoster.leftAt)))
     .orderBy(clanRoster.claimedAt);
 
