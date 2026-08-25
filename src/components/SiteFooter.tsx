@@ -56,6 +56,9 @@ export default async function SiteFooter() {
               <ClanLink href="/pricing" className="transition-colors hover:text-foreground">
                 Pricing
               </ClanLink>
+              <ClanLink href="/portal" className="transition-colors hover:text-foreground">
+                Billing
+              </ClanLink>
             </>
           )}
           <ClanLink href="/guide" className="transition-colors hover:text-foreground">
