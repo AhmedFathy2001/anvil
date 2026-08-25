@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { requireClanFromRequest } from '@/lib/clanContext';
+import { requirePluginClan } from '@/lib/auth';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, pluginLinkCodes, pluginLinks, users } from '@/db/schema';
 import { findOrCreateAccount, findOrCreateSeat, findRosterSeat, findRosterSeats, personOf, personOfOrCreate } from '@/lib/roster';
 import { and, eq, isNull, sql } from 'drizzle-orm';
@@ -11,6 +11,7 @@ import { applyRenameToActiveWeeklyParticipants } from '@/lib/weekly';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 import { atLeast } from '@/lib/clanRoles';
 import { admit } from '@/lib/guestAdmission';
+import { autoClaimAllowed } from '@/lib/auth';
 
 // Plugin exchanges {code, rsn, accountHash} for a confirmed account link.
 // The RSN comes from Client.getLocalPlayer().getName() inside RuneLite — we trust that value
@@ -21,7 +22,7 @@ import { admit } from '@/lib/guestAdmission';
 // uses for clan-sync and other admin actions.
 export async function POST(request: Request) {
   // Unauthenticated, so the Host is the only thing that names the clan being written to.
-  const clan = await requireClanFromRequest(request);
+  const clan = await requirePluginClan(request);
   const rl = await rateLimit(request, 'plugin-link', { limit: 20, windowMs: 5 * 60 * 1000 });
   if (!rl.ok) {
     return NextResponse.json(
@@ -89,6 +90,22 @@ export async function POST(request: Request) {
     existing && accountHash && existing.accountHash === accountHash && existing.rsnNormalized !== rsnNormalized;
   // Ghost being claimed: a row exists but has no user attached yet.
   const claimingGhost = existing && existing.claimedAt == null;
+
+  // THE SAME GATE as every other claim path. This route claimed an established member on an RSN
+  // match with no check at all — the takeover, one more time — and it is only not live because
+  // nothing currently mints the link `code` it consumes. Gated here so re-adding code generation
+  // cannot silently reopen it. Proof is a hash already anchored to the row; a public RSN is not.
+  const matchedByHash = !!(accountHash && existing && existing.accountHash === accountHash);
+  if (existing && claimingGhost && !autoClaimAllowed(existing, matchedByHash)) {
+    return NextResponse.json(
+      {
+        error:
+          'This account is already on a clan roster. Link it from the plugin while logged into it, ' +
+          'or verify by XP — a name alone is not enough.',
+      },
+      { status: 409 },
+    );
+  }
 
   let clanMemberId: number;
 
@@ -172,7 +189,7 @@ export async function POST(request: Request) {
       .values({
         clanMemberId,
         eventType: 'verified',
-        newValue: JSON.stringify({ method: 'plugin', accountHash: accountHash || null }),
+        newValue: JSON.stringify({ method: 'plugin', hadHash: !!accountHash }),
         actorUserId: issuingUser.id,
       })
       .catch(() => {});
@@ -217,7 +234,7 @@ export async function POST(request: Request) {
       .values({
         clanMemberId,
         eventType: 'verified',
-        newValue: JSON.stringify({ method: 'plugin', accountHash: accountHash || null, rsn }),
+        newValue: JSON.stringify({ method: 'plugin', hadHash: !!accountHash, rsn }),
         actorUserId: issuingUser.id,
       })
       .catch(() => {});

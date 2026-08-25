@@ -5,7 +5,7 @@ import { claimMemberSeat } from '@/lib/guestAdmission';
 import { claimFromRoster, verificationOf } from '@/lib/clanVerification';
 import { db } from '@/db';
 import { getSetting, setSetting } from '@/lib/settings';
-import { requireClanFromRequest } from '@/lib/clanContext';
+import { requirePluginClan } from '@/lib/auth';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, users } from '@/db/schema';
 import { and, desc, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm';
 import { isPlausibleRsn, normalizeRsn, sanitizeRsn, verifyAdminPluginToken } from '@/lib/auth';
@@ -56,9 +56,6 @@ export async function POST(request: Request) {
   const auth = await verifyAdminPluginToken(request);
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // The roster being synced belongs to the clan whose address the plugin called.
-  const clan = await requireClanFromRequest(request);
-
   let body: { clanName?: string; members?: IncomingMember[] };
   try {
     body = await request.json();
@@ -69,6 +66,12 @@ export async function POST(request: Request) {
   const clanName = (body.clanName || '').trim();
   const members = Array.isArray(body.members) ? body.members : null;
   if (!members) return NextResponse.json({ error: 'members[] required' }, { status: 400 });
+
+  // The roster belongs to the clan the address named, or — on the apex, which names none — to the
+  // one of this person's seats whose IN-GAME name matches the roster they just sent. Resolved after
+  // the body precisely so that name is available: it is an exact answer where the fallbacks are
+  // guesses, and this is a write.
+  const clan = await requirePluginClan(request, { inGameClanName: clanName });
 
   // ── Is this clan the clan it says it is? ───────────────────────────────────────────────────
   //
@@ -141,10 +144,11 @@ export async function POST(request: Request) {
   // Scoped to the clan: unscoped, the diff below would treat every OTHER clan's members as missing
   // from this roster and soft-delete them.
   const existingRows = await db.select().from(clanRoster).where(eq(clanRoster.clanId, clan.id));
-  const byHash = new Map<string, typeof existingRows[number]>();
+  // By RSN only. A by-hash index existed to match members across renames, but clan-sync no longer
+  // reads any incoming hash (a roster cannot honestly assert other people's account hashes), so
+  // there is nothing to look up by hash here.
   const byRsn = new Map<string, typeof existingRows[number]>();
   for (const r of existingRows) {
-    if (r.accountHash) byHash.set(r.accountHash, r);
     byRsn.set(r.rsnNormalized, r);
   }
 
@@ -198,9 +202,12 @@ export async function POST(request: Request) {
     incomingNormalized.add(rsnNormalized);
 
     const rank = typeof m.rank === 'string' ? m.rank.trim().toLowerCase() : null;
-    const incomingHash = typeof m.accountHash === 'string' && m.accountHash.length > 0 ? m.accountHash : null;
+    // DELIBERATELY NOT READ from the payload — see the note above the loop. A roster sync asserts who
+    // is in the clan and at what rank; it does not, and cannot honestly, assert account hashes for
+    // other people. Kept null so nothing downstream anchors a caller-supplied hash to a member row.
+    const incomingHash: string | null = null;
 
-    const existing = (incomingHash && byHash.get(incomingHash)) || byRsn.get(rsnNormalized) || null;
+    const existing = byRsn.get(rsnNormalized) || null;
 
     if (!existing) {
       toInsert.push({ rsn, rsnNormalized, rank, accountHash: incomingHash });
@@ -552,7 +559,7 @@ export async function POST(request: Request) {
 // post. Reads from settings (always stamped) rather than clan_audit_log (only stamped
 // when there were actual diffs), so a clean sync still surfaces.
 export async function GET(request: Request) {
-  const clan = await requireClanFromRequest(request);
+  const clan = await requirePluginClan(request);
   const auth = await verifyAdminPluginToken(request);
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

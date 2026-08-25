@@ -886,7 +886,11 @@ async function maybeAutoClaimEstablishedOnPlay(
       .values({
         clanMemberId: existing.id,
         eventType: 'claimed',
-        newValue: JSON.stringify({ userId, via: 'plugin-play', method: 'plugin', accountHash }),
+        // hadHash, not the hash itself. The account hash is the credential the whole takeover fix
+        // treats as proof; writing it here put it in plaintext in an audit trail the /staff feed
+        // surfaces, so a platform operator could read one and replay it. The boolean keeps the
+        // "was there hash proof" signal without persisting the secret.
+        newValue: JSON.stringify({ userId, via: 'plugin-play', method: 'plugin', hadHash: !!accountHash }),
         actorUserId: userId,
       })
       .catch(() => {});
@@ -994,7 +998,7 @@ export async function claimAccountForUser(
     .values({
       clanMemberId,
       eventType: 'claimed',
-      newValue: JSON.stringify({ userId, via: 'opt-in', method: 'plugin', accountHash: accountHash ?? null, rsn }),
+      newValue: JSON.stringify({ userId, via: 'opt-in', method: 'plugin', hadHash: !!accountHash, rsn }),
       actorUserId: userId,
     })
     .catch(() => {});
