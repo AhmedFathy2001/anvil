@@ -23,7 +23,7 @@ export const RESERVED_SLUGS = new Set([
   // exactly the confusion the apex-only rule exists to prevent.
   'staff', 'platform', 'clans', 'profile', 'events', 'members', 'guide', 'guides', 'pricing',
   'leaderboard', 'leaderboards', 'welcome',
-  'portal', 'legal', 'privacy', 'terms', 'refunds', 'preview',
+  'portal', 'legal', 'privacy', 'terms', 'refunds', 'preview', 'about',
 ]);
 
 export interface AvailabilityResult {

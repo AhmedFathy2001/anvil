@@ -77,6 +77,9 @@ export const PLATFORM_ROOTS = [
   // clan yet, so there is no host that could name one.
   '/welcome',
   '/api/onboarding',
+  // Marketing / front door, apex only (each page 404s on a clan host).
+  '/about',
+  '/pricing',
   '/api/profile',
   '/api/staff',
   '/api/clans',

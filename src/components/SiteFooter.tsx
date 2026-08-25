@@ -1,5 +1,8 @@
+import { headers } from 'next/headers';
+
 import ClanLink from '@/components/ClanLink';
 import { APP_VERSION, GIT_SHA } from '@/lib/serverInfo';
+import { isApexHost } from '@/lib/clanContext';
 
 /**
  * The footer, and the licence's attribution.
@@ -14,7 +17,11 @@ import { APP_VERSION, GIT_SHA } from '@/lib/serverInfo';
  * "Built by Ahmed Fathy" credit and its link must remain visible in any deployment or derivative
  * work. There is no donation-link carve-out: nothing in this block is optional.
  */
-export default function SiteFooter() {
+export default async function SiteFooter() {
+  // About and Pricing are apex-only pages (they 404 on a clan host by design), so link them only
+  // where they resolve. /guide and /feedback are instance-aware and work on every host, so they
+  // always show.
+  const onApex = isApexHost((await headers()).get('host'));
   return (
     <footer className="mt-16 border-t border-card-border">
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 py-6 text-sm text-text-muted sm:flex-row sm:px-6">
@@ -40,7 +47,17 @@ export default function SiteFooter() {
           {' · '}
           <span title={`build ${GIT_SHA}`}>v{APP_VERSION}</span>
         </p>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
+          {onApex && (
+            <>
+              <ClanLink href="/about" className="transition-colors hover:text-foreground">
+                About
+              </ClanLink>
+              <ClanLink href="/pricing" className="transition-colors hover:text-foreground">
+                Pricing
+              </ClanLink>
+            </>
+          )}
           <ClanLink href="/guide" className="transition-colors hover:text-foreground">
             Guides
           </ClanLink>
