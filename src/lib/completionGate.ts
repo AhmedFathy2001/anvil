@@ -1,6 +1,7 @@
 import { db } from '@/db';
 import { completions, events, tiles } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { parseStamp } from '@/lib/dbTime';
 import {
   completionAward,
   hasRevealPolicy,
@@ -56,6 +57,24 @@ export async function evaluateCompletionGate(args: {
   // its own policy. Bounty stays BOARD-only so a mission claim never triggers board rotation.
   const tileRevealGated = hasRevealPolicy(eventRules) || isMission;
   const bounty = eventRules.revealPolicy === 'bounty';
+
+  // An event that hasn't started can't be scored — the belt to the submission route's own start
+  // check (which has always refused early drops), now fastened for every OTHER credit path too.
+  // The plugin's live stat push had no such check and would happily complete a stat tile on a board
+  // two months out, purely because the member had been drafted into it early.
+  //
+  // It's the same rule the starting shot exists for: what you did before the whistle isn't the
+  // event. The manual route lets an admin through this (board surgery); nothing automatic does.
+  const startsAt = parseStamp(event.startDate);
+  if (startsAt != null && startsAt > Date.now()) {
+    return {
+      allowed: false,
+      reason: 'This event has not started yet.',
+      awardedPoints: null,
+      bounty,
+      rules,
+    };
+  }
 
   if (tileRevealGated && tile.revealedAt == null) {
     const reason = isMission ? 'This mission has not been announced yet.' : 'This tile has not been revealed yet.';

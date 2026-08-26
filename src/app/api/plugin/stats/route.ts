@@ -144,15 +144,28 @@ export async function POST(request: Request) {
       id: players.id,
       teamId: players.teamId,
       eventId: players.eventId,
+      startDate: events.startDate,
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
     })
     .from(players)
     .innerJoin(events, eq(players.eventId, events.id))
     .where(eq(players.clanMemberId, member.clanMemberId));
-  const activePlayer = playerRows.find(
+  // Pick the same way lib/auth does, and for the same reason: a member can be on a team for a board
+  // that's running AND pre-drafted into one that starts in two months, and row order decides nothing.
+  // This used to take the first row that merely hadn't ENDED, which let an event months away win —
+  // and then credited its tiles off a live kill. Started boards come first; among them the freshest.
+  const candidates = playerRows.filter(
     (p) => p.teamId && !p.forceEndedAt && (!p.endDate || p.endDate > nowIso),
   );
+  const started = (p: (typeof candidates)[number]) => !!p.startDate && p.startDate <= nowIso;
+  candidates.sort((a, b) => {
+    if (started(a) !== started(b)) return started(a) ? -1 : 1;
+    return (b.startDate ?? '').localeCompare(a.startDate ?? '');
+  });
+  // Only a STARTED board takes credit. An unstarted one is a legitimate pick for context elsewhere
+  // (the plugin shows its board), but nothing about it should score — see lib/completionGate.
+  const activePlayer = candidates.find(started);
 
   if (activePlayer) {
     const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, activePlayer.eventId));
