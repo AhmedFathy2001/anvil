@@ -4,6 +4,7 @@ import { resolvePluginMember } from '@/lib/auth';
 import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
 import { activeScopesFor, recordMoments } from '@/lib/momentsStore';
 import type { Observation } from '@/lib/moments';
+import { stripGameMarkup } from '@/lib/gameText';
 
 // Highlight ingest: the pets, uniques, big hauls, deaths and combat tasks that happen while a competition week or
 // a bingo is running (lib/moments decides which of those it is — see that file for why the rules
@@ -103,7 +104,9 @@ export async function POST(request: Request) {
       // Combat tasks: the task as the completion line named it, and the tier that line claimed.
       // Both are only ever read for kind 'ca' — the tier is a fallback for a task our own dataset
       // doesn't carry yet, which is the one thing the client knows and we don't.
-      taskName: str(raw?.taskName, 80),
+      // Same '@component@' markup the notify hook strips — cleaned here too, so the highlight feed
+      // shows a clean name AND lib/moments' caByName lookup (which resolves the boss/tier) matches.
+      taskName: stripGameMarkup(str(raw?.taskName, 80)),
       tier: str(raw?.tier, 16),
       occurredAt: occurredAt(raw?.at, now),
       dedupKey,

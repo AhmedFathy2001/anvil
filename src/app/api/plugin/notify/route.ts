@@ -3,6 +3,7 @@ import { requirePluginClan } from '@/lib/auth';
 import { verifyPluginTokenUser } from '@/lib/auth';
 import { getNotificationWebhooks, type PluginWebhooks } from '@/lib/pluginConfig';
 import { forwardPluginNotification, pickWebhookUrl } from '@/lib/discord';
+import { stripGameMarkup, stripGameMarkupDeep } from '@/lib/gameText';
 import { playerEventEmbed } from '@/lib/discordEmbeds';
 import { leaguesIconUrl, markSeasonal } from '@/lib/leagues';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
@@ -160,6 +161,13 @@ export async function POST(request: Request) {
     finalEmbed = markSeasonal(finalEmbed, await leaguesIconUrl(clan.id));
   }
 
-  const ok = await forwardPluginNotification(url, { content: finalContent, embed: finalEmbed, attachment: image });
+  // Strip OSRS '@component@' chat markup the plugin can't (see lib/gameText). This is what turns a
+  // forwarded `⚔️ @ach_comp@This Is Madness` combat-achievement title back into `⚔️ This Is Madness`,
+  // and repairs the wiki URL, for every already-installed client.
+  const ok = await forwardPluginNotification(url, {
+    content: finalContent ? stripGameMarkup(finalContent) : finalContent,
+    embed: finalEmbed ? stripGameMarkupDeep(finalEmbed) : finalEmbed,
+    attachment: image,
+  });
   return NextResponse.json({ ok });
 }
