@@ -8,6 +8,7 @@ import { isEventEnded, toQuestionView, type SurveyAnswerMap } from '@/lib/survey
 import SurveyResponseClient from './SurveyResponseClient';
 import { atLeast } from '@/lib/clanRoles';
 import ClanLink from '@/components/ClanLink';
+import { clanHref } from '@/lib/clanPath';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +29,8 @@ export default async function EventSurveyPage({
 }) {
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
+  // Come back INSIDE the clan after logging in, not to the apex — the return is clan-prefixed.
+  const surveyReturn = await clanHref(`/events/${eventId}/survey`);
 
   // Whose event is this? Ids are global and this one came from the URL.
   await requireEventForPage(id);
@@ -70,7 +73,15 @@ export default async function EventSurveyPage({
         <div>{header}
           <Notice title={ended ? 'Log in to share your feedback' : 'The survey isn’t open yet'}>
             {ended ? (
-              <><ClanLink href="/login" className="text-gold hover:underline">Log in</ClanLink> to fill out this survey.</>
+              <>
+                <ClanLink
+                  href={`/login?return=${encodeURIComponent(surveyReturn)}`}
+                  className="text-gold hover:underline"
+                >
+                  Log in
+                </ClanLink>{' '}
+                to fill out this survey.
+              </>
             ) : (
               'It opens once the event has ended. Check back then.'
             )}

@@ -35,7 +35,10 @@ export default async function MyTeamPage({
   const tId = parseInt(teamId, 10);
 
   const user = await verifyUser();
-  if (!user) redirect(await clanHref('/login'));
+  // Both sides, reconciled: beta added return-to-where-you-were; this branch made login
+  // clan-aware. The return target is the clan-prefixed team page so you land back inside the clan,
+  // not on the apex — same pattern as /profile.
+  if (!user) redirect(`/login?return=${encodeURIComponent(await clanHref(`/team/${tId}`))}`);
 
   const team = await db.query.teams.findFirst({ where: eq(teams.id, tId) });
   if (!team) notFound();

@@ -40,7 +40,7 @@ const FEE_BADGE: Record<string, { label: string; cls: string }> = {
 
 export default async function MyTeamsHubPage() {
   const user = await verifyUser();
-  if (!user) redirect('/login');
+  if (!user) redirect('/login?return=/team');
 
   // My roster identities → my drafted player rows → teams I play on.
   const myMembers = await db
