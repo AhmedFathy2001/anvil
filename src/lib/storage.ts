@@ -60,6 +60,20 @@ function s3Config(): S3Config {
   return s3Cache;
 }
 
+/**
+ * A per-clan object key. On the shared platform one deployment serves every clan, so the single
+ * S3_KEY_PREFIX env cannot separate one clan's media from another's — every new upload would land
+ * under one prefix. Namespacing the key by clan slug (`c/<slug>/…`) restores that separation.
+ *
+ * Existing media is untouched and needs no migration: submissions store ABSOLUTE URLs, so objects
+ * uploaded before this keep resolving exactly where they are. Only NEW keys gain the clan segment.
+ * The env prefix, if set, still applies on top (deployment-level); on the merged app it is empty.
+ */
+export function clanMediaKey(clanSlug: string | null | undefined, key: string): string {
+  const clean = key.replace(/^\/+/, '');
+  return clanSlug ? `c/${clanSlug}/${clean}` : clean;
+}
+
 function prefixedKey(cfg: S3Config, key: string): string {
   const clean = key.replace(/^\/+/, '');
   return cfg.keyPrefix ? `${cfg.keyPrefix}/${clean}` : clean;

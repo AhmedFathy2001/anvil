@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { verifyUser, verifyCaptain, verifyPlayer, verifyPluginToken } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
-import { put } from '@/lib/storage';
+import { put, clanMediaKey } from '@/lib/storage';
+import { currentClan } from '@/lib/clanContext';
 import crypto from 'crypto';
 import sharp from 'sharp';
 
@@ -125,7 +126,8 @@ export async function POST(request: Request) {
   };
   const safeContentType = contentType ?? EXT_CONTENT_TYPE[finalExt] ?? 'application/octet-stream';
 
-  const filename = `submissions/${crypto.randomUUID()}.${finalExt}`;
+  const clan = await currentClan();
+  const filename = clanMediaKey(clan?.slug, `submissions/${crypto.randomUUID()}.${finalExt}`);
   const { url } = await put(filename, body, safeContentType);
 
   return NextResponse.json({ url });

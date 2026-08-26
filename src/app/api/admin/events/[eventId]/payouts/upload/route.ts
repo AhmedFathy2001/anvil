@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { put } from '@/lib/storage';
+import { put, clanMediaKey } from '@/lib/storage';
+import { currentClan } from '@/lib/clanContext';
 import crypto from 'crypto';
 import { verifyEventTreasurer } from '@/lib/auth';
 
@@ -55,7 +56,8 @@ export async function POST(
   }
 
   const finalExt = ALLOWED_EXTENSIONS.includes(ext) ? ext : 'jpg';
-  const filename = `payouts/${crypto.randomUUID()}.${finalExt}`;
+  const clan = await currentClan();
+  const filename = clanMediaKey(clan?.slug, `payouts/${crypto.randomUUID()}.${finalExt}`);
   const { url } = await put(filename, file);
 
   return NextResponse.json({ url });
