@@ -2122,3 +2122,40 @@ export type MemberClogItem = typeof memberClogItems.$inferSelect;
 export type MemberClogKc = typeof memberClogKc.$inferSelect;
 export type MemberPersonalBest = typeof memberPersonalBests.$inferSelect;
 export type Moment = typeof moments.$inferSelect;
+
+
+// ── Emission routing (H5) ──────────────────────────────────────────────────────────────────────
+// Where a person's social notifications go once one account plays in several clans. The default is
+// computed from seats + accounts.shared; these rows only hold the deviations. See lib/emissionRouting
+// and drizzle/0073 for the model.
+
+export const accountClanEmission = pgTable('account_clan_emission', {
+  id: serial('id').primaryKey(),
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  // The override. false silences this clan; true is an explicit opt-in — but the `shared` gate on a
+  // GUEST clan is not overridable to true (an unshared account never announces to a clan it only
+  // guests in), which lib/emissionRouting enforces rather than the column.
+  enabled: boolean('enabled').notNull(),
+  updatedAt: text('updated_at')
+    .default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`)
+    .notNull(),
+}, (t) => [uniqueIndex('account_clan_emission_unique').on(t.accountId, t.clanId)]);
+
+export const userWebhooks = pgTable('user_webhooks', {
+  id: serial('id').primaryKey(),
+  // The PERSON's destination — keyed on the login, so it survives moving between clans.
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  url: text('url').notNull(),
+  label: text('label'),
+  /** JSON array of channel keys this destination wants, e.g. ["rareDrops","deaths"]. */
+  kinds: text('kinds').default('[]').notNull(),
+  /** Optional gp floor for the drop-shaped kinds. Null = no floor. */
+  minRarity: integer('min_rarity'),
+  createdAt: text('created_at')
+    .default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`)
+    .notNull(),
+}, (t) => [index('user_webhooks_user_idx').on(t.userId)]);
+
+export type AccountClanEmission = typeof accountClanEmission.$inferSelect;
+export type UserWebhook = typeof userWebhooks.$inferSelect;

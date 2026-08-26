@@ -218,6 +218,13 @@
       "when": 1787900003000,
       "tag": "0072_onboarding",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1787900004000,
+      "tag": "0073_emission_routing",
+      "breakpoints": true
     }
   ]
 }

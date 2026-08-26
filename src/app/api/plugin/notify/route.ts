@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requirePluginClan } from '@/lib/auth';
-import { verifyPluginTokenUser } from '@/lib/auth';
+import { normalizeRsn, requirePluginClan, verifyPluginTokenUser } from '@/lib/auth';
 import { getNotificationWebhooks, type PluginWebhooks } from '@/lib/pluginConfig';
 import { forwardPluginNotification, pickWebhookUrl } from '@/lib/discord';
 import { stripGameMarkup, stripGameMarkupDeep } from '@/lib/gameText';
@@ -8,8 +7,9 @@ import { playerEventEmbed } from '@/lib/discordEmbeds';
 import { leaguesIconUrl, markSeasonal } from '@/lib/leagues';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { db } from '@/db';
-import { clanRoster } from '@/db/schema';
+import { accounts, clanRoster } from '@/db/schema';
 import { findRosterSeat, personOf, seatsOwnedBy } from '@/lib/roster';
+import { personalWebhookTargets, socialEmissionClans } from '@/lib/emissionRouting';
 import { and, eq, isNull } from 'drizzle-orm';
 
 // The plugin POSTs clan notifications (death / kill / rare drop / CA) here instead of straight to
@@ -57,6 +57,37 @@ function seasonalWebhookFor(webhooks: PluginWebhooks, channel: Channel): string 
 //
 // Read-only on purpose — the auto-link/verify machinery belongs on the gameplay routes, not on a
 // fire-and-forget notification.
+/**
+ * The account the poster is currently on, resolved to a row THEY own.
+ *
+ * Scoped to the person (playerId) on purpose: the token proves who is posting, and routing must use
+ * one of their OWN accounts — never resolve a hash to somebody else's row and announce it as theirs.
+ * Hash first (rename-proof), RSN second. Null when it isn't one of their accounts (unclaimed, or an
+ * alt they never linked), which sends the notification down the URL-clan fallback rather than
+ * fanning it out — see the POST handler.
+ */
+async function resolveOwnAccount(request: Request, playerId: number): Promise<{ id: number } | null> {
+  const hash = request.headers.get('X-Account-Hash')?.trim() || null;
+  if (hash) {
+    const [byHash] = await db
+      .select({ id: accounts.id })
+      .from(accounts)
+      .where(and(eq(accounts.accountHash, hash), eq(accounts.playerId, playerId)))
+      .limit(1);
+    if (byHash) return byHash;
+  }
+  const rsn = request.headers.get('X-RSN')?.trim() || null;
+  if (rsn) {
+    const [byRsn] = await db
+      .select({ id: accounts.id })
+      .from(accounts)
+      .where(and(eq(accounts.rsnNormalized, normalizeRsn(rsn)), eq(accounts.playerId, playerId)))
+      .limit(1);
+    if (byRsn) return byRsn;
+  }
+  return null;
+}
+
 async function posterRsn(request: Request, userId: number): Promise<string | null> {
   const accountHash = request.headers.get('X-Account-Hash')?.trim() || null;
   if (accountHash) {
@@ -132,14 +163,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unknown channel' }, { status: 400 });
   }
 
-  const webhooks = await getNotificationWebhooks(clan.id);
-  const url = seasonal ? seasonalWebhookFor(webhooks, channel) : webhookFor(webhooks, channel);
-  if (!url) {
-    // No webhook configured for this channel — nothing to forward. Not an error; the plugin gates on
-    // the notify flags from /api/plugin/config, but they can race a webhook being cleared on the site.
-    return new NextResponse(null, { status: 204 });
-  }
-
+  // ── Build the message once, then fan it out ─────────────────────────────────────────────────
+  //
   // Deaths and PvP kills arrive as plain text + a screenshot; give them the same embed treatment as
   // everything else. Skipped the moment the plugin sends its own embed for these channels.
   let finalEmbed: Record<string, unknown> | null = embed ?? null;
@@ -155,19 +180,58 @@ export async function POST(request: Request) {
     finalContent = undefined;
   }
 
-  // Marked server-side, after the embed is composed, so EVERY notification kind gets it without the
-  // plugin knowing about each one — and clients already in the wild get it on deploy.
+  // Seasonal stamp — server-side, so every kind gets it without the plugin knowing about each one.
+  // The icon is a per-clan setting; the poster's member clan (or the URL clan) is a fine source for
+  // a cosmetic mark that is the same across destinations.
   if (seasonal) {
     finalEmbed = markSeasonal(finalEmbed, await leaguesIconUrl(clan.id));
   }
 
-  // Strip OSRS '@component@' chat markup the plugin can't (see lib/gameText). This is what turns a
-  // forwarded `⚔️ @ach_comp@This Is Madness` combat-achievement title back into `⚔️ This Is Madness`,
-  // and repairs the wiki URL, for every already-installed client.
-  const ok = await forwardPluginNotification(url, {
-    content: finalContent ? stripGameMarkup(finalContent) : finalContent,
-    embed: finalEmbed ? stripGameMarkupDeep(finalEmbed) : finalEmbed,
-    attachment: image,
-  });
-  return NextResponse.json({ ok });
+  // Strip OSRS '@component@' chat markup the plugin can't (see lib/gameText) — turns a forwarded
+  // `⚔️ @ach_comp@This Is Madness` back into `⚔️ This Is Madness` and repairs the wiki URL.
+  const outContent = finalContent ? stripGameMarkup(finalContent) : finalContent;
+  const outEmbed = finalEmbed ? stripGameMarkupDeep(finalEmbed) : finalEmbed;
+
+  // ── ROUTE BY PERSON, not by the clan in the URL ─────────────────────────────────────────────
+  //
+  // The announcement is about whoever holds the token, so it goes to THEIR clans — the one they are
+  // a member of, plus any they guest in WITH A SHARED account — and to their personal webhooks,
+  // whatever clan's site the plugin happens to point at. This is the in-the-wild half of the
+  // multi-clan product, and it needs no plugin release because the plugin already posts once and the
+  // server owns the webhooks. See lib/emissionRouting for the model (and its privacy gate).
+  const playerId = await personOf(auth.userId);
+  const account = playerId != null ? await resolveOwnAccount(request, playerId) : null;
+  const emissionClans = account ? await socialEmissionClans(account.id) : [];
+
+  const urls = new Set<string>();
+  for (const ec of emissionClans) {
+    const webhooks = await getNotificationWebhooks(ec.clanId);
+    const url = seasonal ? seasonalWebhookFor(webhooks, channel) : webhookFor(webhooks, channel);
+    if (url) urls.add(url);
+  }
+
+  // Fallback: an account we can't place (unclaimed, or no live seat anywhere) keeps the old
+  // behaviour — post to the clan the plugin named — so a notification is never silently lost while
+  // the roster catches up. A placed account ignores the URL clan entirely; that is the fix.
+  if (emissionClans.length === 0) {
+    const webhooks = await getNotificationWebhooks(clan.id);
+    const url = seasonal ? seasonalWebhookFor(webhooks, channel) : webhookFor(webhooks, channel);
+    if (url) urls.add(url);
+  }
+
+  // The person's own destinations, independent of every clan.
+  for (const t of await personalWebhookTargets(auth.userId, channel)) urls.add(t.url);
+
+  if (urls.size === 0) {
+    // No destination anywhere. Not an error; a webhook can be cleared on the site between the
+    // plugin's config poll and this post.
+    return new NextResponse(null, { status: 204 });
+  }
+
+  let anyOk = false;
+  for (const url of urls) {
+    const ok = await forwardPluginNotification(url, { content: outContent, embed: outEmbed, attachment: image });
+    anyOk = anyOk || ok;
+  }
+  return NextResponse.json({ ok: anyOk });
 }
