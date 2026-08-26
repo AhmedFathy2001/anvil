@@ -157,8 +157,8 @@ export default function SiteNav({ signedIn, myTeams, isStaff, discordInvite, use
             </a>
           </div>
         ) : (
-          {/* ClanLink keeps login clan-aware; loginHref (from usePathname) carries the return,
-              already clan-prefixed because the current path is. */}
+          // ClanLink keeps login clan-aware; loginHref (usePathname) carries the return, already
+          // clan-prefixed because the current path is.
           <ClanLink
             href={loginHref}
             className="ml-2 px-3 py-1.5 rounded-md text-sm bg-gold/10 text-gold hover:bg-gold/20 transition-all border border-gold/30"
