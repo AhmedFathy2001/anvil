@@ -1,6 +1,6 @@
+import { requirePluginClan } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 import { personOf, seatsOwnedBy } from '@/lib/roster';
-import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { events, tiles, teams, submissions, eventParticipants, completions, clanRoster, eventStartProofs } from '@/db/schema';
 import { eq, and, sql, inArray, isNull } from 'drizzle-orm';
@@ -200,7 +200,7 @@ async function weeklyTrackedNames(clanId: number): Promise<{ kc: string[]; skill
 }
 
 export async function GET(request: Request) {
-  const clan = await requireClan();
+  const clan = await requirePluginClan(request);
   const auth = await verifyPluginToken(request);
   if (!auth) {
     // Distinguish "bad token" from "valid token but no active event" so the plugin

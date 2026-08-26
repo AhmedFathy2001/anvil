@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { resolveClanFromRequest } from '@/lib/clanContext';
+import { resolvePluginClan } from '@/lib/auth';
 import { weeklyCompetitions } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
@@ -22,7 +22,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const idParam = searchParams.get('id');
 
-  const clan = await resolveClanFromRequest(request);
+  const clan = await resolvePluginClan(request);
   if (!clan) return NextResponse.json({ competition: null, total: 0, entries: [] });
 
   const comp = idParam

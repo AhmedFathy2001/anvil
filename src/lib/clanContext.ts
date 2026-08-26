@@ -132,6 +132,19 @@ export const resolveClanByHost = cache(async (rawHost: string | null | undefined
   return row ? toContext(row) : null;
 });
 
+/**
+ * Look a clan up by id — the answer to "which clan is this row in?".
+ *
+ * The third way of asking, for callers that resolved a clan through the data rather than through
+ * the address: a plugin request on the apex names no clan, so it finds one via the person's seats
+ * and arrives here holding an id.
+ */
+export const resolveClanById = cache(async (id: number | null | undefined): Promise<ClanContext | null> => {
+  if (id == null) return null;
+  const row = await db.query.clans.findFirst({ where: eq(clans.id, id) });
+  return row ? toContext(row) : null;
+});
+
 /** Look a clan up by slug — the path-addressed half of the same question. */
 export const resolveClanBySlug = cache(async (slug: string | null | undefined): Promise<ClanContext | null> => {
   const s = slug?.trim().toLowerCase();

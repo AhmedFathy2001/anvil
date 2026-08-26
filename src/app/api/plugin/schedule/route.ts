@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { resolveClanFromRequest } from '@/lib/clanContext';
+import { resolvePluginClan } from '@/lib/auth';
 import { buildSchedule } from '@/lib/pluginConfig';
 
 // GET /api/plugin/schedule — unauthenticated list of THIS clan's active + upcoming events.
@@ -15,7 +15,7 @@ import { buildSchedule } from '@/lib/pluginConfig';
 // null on any non-2xx and the panel goes blank either way, so the difference is only whether the
 // client logs a failure for a question the apex has no answer to.
 export async function GET(request: Request) {
-  const clan = await resolveClanFromRequest(request);
+  const clan = await resolvePluginClan(request);
   if (!clan) return NextResponse.json({ bingos: [], weeklies: [] });
   return NextResponse.json(await buildSchedule(clan.id));
 }

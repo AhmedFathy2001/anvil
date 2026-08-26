@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireClan, requireClanFromRequest } from '@/lib/clanContext';
+import { requirePluginClan } from '@/lib/auth';
 import { verifyPluginTokenUser } from '@/lib/auth';
 import { getNotificationWebhooks } from '@/lib/pluginConfig';
 import { forwardPluginNotification, pickWebhookUrl } from '@/lib/discord';
@@ -42,7 +42,7 @@ async function posterRsn(request: Request, userId: number): Promise<string | nul
   if (accountHash) {
     // The name shown is the one THIS clan knows them by. Their seat in another clan may carry a
     // different RSN, and is none of this clan's business either way.
-    const clan = await requireClanFromRequest(request);
+    const clan = await requirePluginClan(request);
     const owned = await findRosterSeat(and(
         eq(clanRoster.accountHash, accountHash),
         await seatsOwnedBy(clan.id, userId),
@@ -55,7 +55,7 @@ async function posterRsn(request: Request, userId: number): Promise<string | nul
 }
 
 export async function POST(request: Request) {
-  const clan = await requireClan();
+  const clan = await requirePluginClan(request);
   const auth = await verifyPluginTokenUser(request);
   if (!auth) {
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <pluginToken>' }, { status: 401 });

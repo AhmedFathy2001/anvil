@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { requireClanFromRequest } from '@/lib/clanContext';
+import { requirePluginClan } from '@/lib/auth';
 import { clanMemberships, clanRoster, events, weeklyCompetitions } from '@/db/schema';
 import { findOrCreateAccount, findOrCreateSeat, findRosterSeat } from '@/lib/roster';
 import { eq, and, lte, gt, isNull, or } from 'drizzle-orm';
@@ -45,7 +45,7 @@ async function activeNow(clan: { id: number }) {
 // RSN, so a per-IP rate limit stops a script from mass-inflating the roster.
 export async function POST(request: Request) {
   // Unauthenticated, so the Host is the only thing that names the clan being written to.
-  const clan = await requireClanFromRequest(request);
+  const clan = await requirePluginClan(request);
   const rl = await rateLimit(request, 'plugin-hello', { limit: 30, windowMs: 5 * 60 * 1000 });
   if (!rl.ok) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });

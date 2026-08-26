@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { resolveClanFromRequest } from '@/lib/clanContext';
+import { resolvePluginClan } from '@/lib/auth';
 import { getActiveWeekly } from '@/lib/pluginConfig';
 
 // GET — returns the currently active weekly competition in THIS clan (if any). Used by older plugin
@@ -16,7 +16,7 @@ import { getActiveWeekly } from '@/lib/pluginConfig';
 // competition" and carries on; a 404 would surface as a connection failure for a question that
 // simply has no answer on the apex.
 export async function GET(request: Request) {
-  const clan = await resolveClanFromRequest(request);
+  const clan = await resolvePluginClan(request);
   if (!clan) return NextResponse.json(null);
   return NextResponse.json(await getActiveWeekly(clan.id));
 }

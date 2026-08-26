@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { requireClanFromRequest } from '@/lib/clanContext';
+import { requirePluginClan } from '@/lib/auth';
 import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { findOrCreateClanMember } from '@/lib/clan';
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   }
 
   // Unauthenticated, so the HOST is the only thing that says which clan to enrol into.
-  const clan = await requireClanFromRequest(request);
+  const clan = await requirePluginClan(request);
 
   let body: { rsn?: string };
   try {

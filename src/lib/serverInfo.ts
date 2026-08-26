@@ -31,6 +31,10 @@ export const PLUGIN_API_LEVEL = 1;
 // shipped. Sites that predate the handshake send nothing; the plugin treats "no server block" as
 // exactly this baseline.
 export const PLUGIN_CAPABILITIES = [
+  // This site resolves the clan from the TOKEN when the address names none, so the bare apex works
+  // and a per-clan subdomain is no longer required. Plugins gate the "you can simplify your URL"
+  // nudge on this, so they stay quiet against a site that still needs the old address.
+  'apex-routing',
   'stats-live', // live stat overlay pushes + unified KC/XP tracking
   'drop-tiles',
   'kill-tiles',
@@ -80,11 +84,47 @@ export const PLUGIN_CAPABILITIES = [
 ] as const;
 
 /** The `server` block returned to the plugin (and /api/version). */
+/**
+ * The address this deployment would rather be reached at.
+ *
+ * One site now serves every clan, so a per-clan subdomain is a legacy address that resolves the
+ * clan from the Host instead of from the caller's token. Both still work, but the apex is the one
+ * that keeps working when someone joins a second clan — so the plugin can compare what a user
+ * typed against this and offer to move them.
+ *
+ * SERVER-ADVERTISED RATHER THAN BAKED INTO THE PLUGIN, because Anvil is self-hostable: a hard-coded
+ * anvilosrs.com would tell every self-hoster to point their plugin at somebody else's server. Each
+ * deployment names its own, and a plugin that receives nothing simply says nothing.
+ */
+export function canonicalUrl(): string | null {
+  // The APEX is the canonical address, by definition: a clan lives at `<slug>.<apex>`, and the apex
+  // itself is the clanless surface that serves every clan. Deriving it from ANVIL_APEX_DOMAIN
+  // rather than a second setting means a deployment cannot advertise an address that disagrees
+  // with the one it actually answers on — and preview/staging get their own for free.
+  //
+  // APP_URL still wins when set, for a deployment whose public address is not simply its apex
+  // (a custom domain in front, say).
+  // Read straight from the environment rather than importing clanContext's apexDomain(): this
+  // module is pure metadata, called on every /config response, and clanContext pulls in the whole
+  // database module graph. One duplicated env read is a much smaller price than that coupling.
+  const raw = (process.env.APP_URL || '').trim()
+    || (process.env.ANVIL_APEX_DOMAIN || '').trim().toLowerCase();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw.startsWith('http') ? raw : `https://${raw}`);
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return null;
+  }
+}
+
 export function serverInfo() {
   return {
     version: APP_VERSION,
     sha: GIT_SHA,
     apiLevel: PLUGIN_API_LEVEL,
     capabilities: [...PLUGIN_CAPABILITIES],
+    // Where this deployment prefers to be called. Additive: older plugins ignore it.
+    canonicalUrl: canonicalUrl(),
   };
 }

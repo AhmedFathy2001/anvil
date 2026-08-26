@@ -331,3 +331,39 @@ On the plugin:
 - [ ] Gate the new surface on `supports("<capability>")`; missing block ⇒ baseline set.
 - [ ] Degrade to hiding the feature (optionally with a "site is older" hint), never to an
       error state.
+
+## Addressing: one site, every clan
+
+`anvilosrs.com` is the canonical address. It names no clan, and that is deliberate — a person
+should not have to know a slug, and should not have to change anything when they join a second
+clan.
+
+The clan for a plugin request is resolved in this order:
+
+1. **`/c/<slug>/api/plugin/…`** — someone typed it, so it wins
+2. **the `Host`** — the per-clan subdomains installed plugins still have stored
+3. **the bearer token** — the canonical path: the token names a person, whose seats name their clans
+
+Steps 1 and 2 exist only for addresses already in the wild; both keep working indefinitely.
+
+When the token has to decide between several clans:
+
+- a **live event** wins, and between two live events the **latest start** does — the same tie-break
+  already applied when one clan runs two boards
+- with nothing live, the **most recently joined seat**
+- a **roster sync** (`/api/plugin/clan-sync`) instead matches the in-game clan name it carries
+  against the person's seats, because that is exact where the others are guesses, and it writes
+
+`/api/plugin/schedule` and `/api/plugin/active-weekly` are unauthenticated, so they have no token to
+resolve through and answer empty on the apex. Both are legacy endpoints for older jars; newer builds
+read the same data merged into `/config`.
+
+### Telling a plugin where to go
+
+`server.canonicalUrl` on every `/config` shape carries the address the deployment prefers, and the
+`apex-routing` capability says it can resolve a clan without one. A plugin should suggest moving
+only when it sees **both** — a site that cannot do token resolution must keep its per-clan address,
+and being moved off it would break tracking.
+
+Server-advertised rather than baked into the plugin, because Anvil is self-hostable: a hard-coded
+domain would tell every self-hoster to point at somebody else's server.
