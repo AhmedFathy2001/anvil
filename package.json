@@ -21,6 +21,7 @@
     "db:studio": "drizzle-kit studio",
     "test:federation": "node --experimental-strip-types --test tests/federation-relay.test.ts",
     "test:events": "node --experimental-strip-types --test tests/event-rules.test.ts tests/event-readiness.test.ts tests/event-axes.test.ts tests/tile-authoring.test.ts",
+    "test:gate": "DATABASE_URL=file:./.test-gate.db npx tsx --test tests/completion-gate-start.test.ts",
     "test:embeds": "node --experimental-strip-types --test tests/discord-embeds.test.ts",
     "test:discord": "DATABASE_URL=file:./.test-discord.db npx tsx --test tests/discord-interactions.test.ts",
     "test:scoring": "npx tsx --test tests/board-scoring.test.ts",
