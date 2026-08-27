@@ -943,6 +943,11 @@ export const users = pgTable('users', {
   onboardingCompletedAt: text('onboarding_completed_at'),
   /** JSON array of step keys they skipped. Text, so adding a step is not a type change. */
   onboardingSkipped: text('onboarding_skipped').notNull().default('[]'),
+  // Guest-emission control, the user side: when true, this person's accounts do NOT broadcast their
+  // non-bingo social notifications to clans they only guest in — except a whitelisted (account, clan)
+  // in account_clan_emission. Their member clan and bingo evidence are never affected. See
+  // lib/emissionRouting.
+  blockGuestEmissions: boolean('block_guest_emissions').notNull().default(false),
 }, (table) => [
   uniqueIndex('users_plugin_token_unique').on(table.pluginToken),
   index('users_player_idx').on(table.playerId),

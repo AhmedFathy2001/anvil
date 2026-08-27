@@ -1,0 +1,12 @@
+-- The USER side of guest-emission control.
+--
+-- A person can stop their accounts broadcasting the non-bingo social stuff — collection-log unlocks,
+-- PvP kills, deaths, combat achievements — to clans they only GUEST in. Their member clan is never
+-- affected; evidence that completes a tile is never affected (it reaches the event's clan regardless).
+--
+-- Default false = today's behaviour: a shared account announces to its guest clans. Turning it on
+-- blocks that, EXCEPT where the person has whitelisted a specific (account, clan) pair in
+-- account_clan_emission (enabled=true) — which is also how an ALT is pointed at a clan its owner is a
+-- member of. The clan's own "block guest emissions" setting is the other half, and it wins: a clan
+-- that refuses guest noise gets none, whitelist or not.
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "block_guest_emissions" boolean DEFAULT false NOT NULL;

@@ -225,6 +225,13 @@
       "when": 1787900004000,
       "tag": "0073_emission_routing",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1787900005000,
+      "tag": "0074_guest_emissions",
+      "breakpoints": true
     }
   ]
 }
