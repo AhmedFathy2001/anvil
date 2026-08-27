@@ -21,6 +21,8 @@ import LinkedAccountsClient from './LinkedAccountsClient';
 import OtherAccountsClient from './OtherAccountsClient';
 import DetectedAccountsClient from './DetectedAccountsClient';
 import SecurityDrawer from './SecurityDrawer';
+import AnnouncementsDrawer from './AnnouncementsDrawer';
+import { emissionSettingsView } from '@/lib/emissionSettings';
 import { atLeast } from '@/lib/clanRoles';
 import ClanLink from '@/components/ClanLink';
 
@@ -93,9 +95,10 @@ export default async function ProfilePage({
   }
 
   const welcome = (await searchParams).welcome === '1';
-  const [locker, clanName] = await Promise.all([
+  const [locker, clanName, emissionView] = await Promise.all([
     buildLocker(clan.id, session.playerId, session.userId),
     getClanDisplayName(clan.id),
+    emissionSettingsView(session.userId, session.playerId),
   ]);
 
   // Quest points, combat achievements and diaries for the account they play most — the primary one,
@@ -288,6 +291,8 @@ export default async function ProfilePage({
           {locker.focusRsn && <PublicProfile rsn={locker.focusRsn} />}
         </div>
       </div>
+
+      <AnnouncementsDrawer initial={emissionView} />
 
       <SecurityDrawer
         accounts={locker.accounts.map((a) => ({ id: a.id, rsn: a.rsn }))}

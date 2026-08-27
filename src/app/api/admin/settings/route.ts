@@ -28,6 +28,9 @@ const EXPOSED_KEYS = [
   'webhook_pvp_kills',
   'webhook_clips',
   'webhook_leagues',
+  // A clan refusing SOCIAL notifications from accounts that only guest here (clogs, PKs, deaths,
+  // CAs). Members are unaffected; bingo evidence is unaffected. See lib/emissionRouting.
+  'block_guest_emissions',
   'leagues_icon_url',
   'always_notify_items',
   'show_kill_count',

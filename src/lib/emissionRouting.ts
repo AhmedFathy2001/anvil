@@ -7,9 +7,10 @@ import { getSetting } from '@/lib/settings';
 /** The clan setting key for "refuse social emissions from accounts that only guest here". */
 export const CLAN_BLOCK_GUEST_EMISSIONS_KEY = 'block_guest_emissions';
 
-/** A clan refuses incoming guest social emissions. Stored as the string 'on'; anything else is off. */
+/** A clan refuses incoming guest social emissions. Stored by ToggleSetting as 'true' | '1'. */
 export async function clanBlocksGuestEmissions(clanId: number): Promise<boolean> {
-  return (await getSetting(clanId, CLAN_BLOCK_GUEST_EMISSIONS_KEY)) === 'on';
+  const raw = await getSetting(clanId, CLAN_BLOCK_GUEST_EMISSIONS_KEY);
+  return raw === 'true' || raw === '1';
 }
 
 /** The person's own "don't broadcast to clans I guest in" preference (default: don't block). */

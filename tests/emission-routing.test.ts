@@ -168,7 +168,7 @@ test('a whitelist opts an UNSHARED guest in — overriding the shared floor', as
 test('a clan that blocks guest emissions gets none — even a shared account', async () => {
   await clearOverrides();
   const { db, schema: s } = await loadDb();
-  await db.insert(s.settings).values({ clanId: clanGuestA, key: R.CLAN_BLOCK_GUEST_EMISSIONS_KEY, value: 'on' });
+  await db.insert(s.settings).values({ clanId: clanGuestA, key: R.CLAN_BLOCK_GUEST_EMISSIONS_KEY, value: 'true' });
   const targets = await R.socialEmissionClans(sharedAccount);
   assert.deepEqual(clanIds(targets), [clanMember, clanGuestB].sort((a, b) => a - b), 'A refuses guests');
 });
@@ -176,7 +176,7 @@ test('a clan that blocks guest emissions gets none — even a shared account', a
 test('the clan veto beats a whitelist — the clan is refusing, and it is its channel', async () => {
   await clearOverrides();
   const { db, schema: s } = await loadDb();
-  await db.insert(s.settings).values({ clanId: clanGuestA, key: R.CLAN_BLOCK_GUEST_EMISSIONS_KEY, value: 'on' });
+  await db.insert(s.settings).values({ clanId: clanGuestA, key: R.CLAN_BLOCK_GUEST_EMISSIONS_KEY, value: 'true' });
   await db.insert(s.accountClanEmission).values({ accountId: sharedAccount, clanId: clanGuestA, enabled: true });
   const targets = await R.socialEmissionClans(sharedAccount);
   assert.equal(targets.some((t) => t.clanId === clanGuestA), false, 'whitelist cannot override the receiver');
@@ -186,7 +186,7 @@ test('the clan veto does NOT affect that clan’s own members', async () => {
   await clearOverrides();
   const { db, schema: s } = await loadDb();
   // Home blocks guest emissions; the account is a MEMBER of Home, so it is unaffected.
-  await db.insert(s.settings).values({ clanId: clanMember, key: R.CLAN_BLOCK_GUEST_EMISSIONS_KEY, value: 'on' });
+  await db.insert(s.settings).values({ clanId: clanMember, key: R.CLAN_BLOCK_GUEST_EMISSIONS_KEY, value: 'true' });
   const targets = await R.socialEmissionClans(sharedAccount);
   assert.equal(targets.some((t) => t.clanId === clanMember && t.kind === 'member'), true);
 });

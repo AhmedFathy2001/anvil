@@ -206,6 +206,11 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
               placeholder="https://oldschool.runescape.wiki/images/..."
               helpText="Thumbnail on seasonal posts. Left blank, Anvil looks up the current league's logo from the wiki once a day and falls back to the generic Leagues icon if it can't. Set this to pin a specific image."
             />
+            <ToggleSetting
+              settingKey="block_guest_emissions"
+              label="Only announce your own members"
+              helpText="With this on, the channels above receive drops, deaths and combat achievements from your MEMBERS only — a visitor guesting for one event won't fill your feed with their unrelated activity. Bingo submissions from guests still post as normal; this is only about the social notifications. A guest can still be allowed individually from their own profile."
+            />
           </Card>
         </div>
       )}
