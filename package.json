@@ -26,6 +26,7 @@
     "test:discord": "DATABASE_URL=file:./.test-discord.db npx tsx --test tests/discord-interactions.test.ts",
     "test:scoring": "npx tsx --test tests/board-scoring.test.ts",
     "test:milestone": "npx tsx --test tests/stat-milestone.test.ts",
+    "test:baseline": "npx tsx --test tests/stat-baseline.test.ts",
     "test:recap": "node --experimental-strip-types --test tests/recap-derive.test.ts",
     "test:schedule": "node --experimental-strip-types --test tests/schedule-lanes.test.ts",
     "test:admin": "node --experimental-strip-types --test tests/admin-attention.test.ts tests/library-shape.test.ts tests/db-time.test.ts",
