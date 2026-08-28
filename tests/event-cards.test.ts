@@ -44,8 +44,12 @@ before(async () => {
        values (3, 'Missions', 5, '${day(-30)}', '${day(-20)}', '${day(-10)}', 'points', 'bingo', '{"mission":{"policy":"manual"}}')`,
     `insert into events (id, name, board_size, created_at, start_date, end_date, scoring_mode, format, rules)
        values (4, 'Tile count', 5, '${day(-30)}', '${day(-20)}', '${day(-10)}', 'tiles', 'bingo', null)`,
+    // 5: hasn't started for another six weeks, but carries a completion anyway — the shape a board
+    // ends up in when something credited it before the start gate existed.
+    `insert into events (id, name, board_size, created_at, start_date, end_date, scoring_mode, format, rules)
+       values (5, 'Not yet', 5, '${day(-1)}', '${day(46)}', '${day(60)}', 'points', 'bingo', null)`,
   ];
-  for (let e = 1; e <= 4; e++) {
+  for (let e = 1; e <= 5; e++) {
     stmts.push(`insert into teams (id, event_id, name, color) values (${e * 10 + 1}, ${e}, 'Alpha', '#d0553f')`);
     stmts.push(`insert into teams (id, event_id, name, color) values (${e * 10 + 2}, ${e}, 'Beta', '#4aa3d4')`);
   }
@@ -60,6 +64,13 @@ before(async () => {
     `insert into completions (team_id, tile_id, completed_at) values (11, 102, '${day(-15)}')`,
     `insert into completions (team_id, tile_id, completed_at) values (12, 103, '${day(-15)}')`,
     `insert into completions (team_id, tile_id, completed_at) values (11, 104, '${day(-15)}')`,
+  );
+
+  // event 5: a 150-point tile a team somehow claimed before the board opens.
+  stmts.push(
+    `insert into tiles (id, event_id, position, label, points, optional) values (501, 5, 0, '2m Woodcutting XP', 150, 0)`,
+    `insert into tiles (id, event_id, position, label, points, optional) values (502, 5, 1, 'other', 150, 0)`,
+    `insert into completions (team_id, tile_id, completed_at) values (51, 501, '${day(-1)}')`,
   );
 
   // event 2: two revealed 10s, two never-revealed 10s. Alpha claimed one of each — only the
@@ -158,9 +169,21 @@ test('a team with no completions never becomes the leader', async () => {
 test('pastLimit caps finished events without touching live ones', async () => {
   const all = await loadEventCards({ includeUpcoming: true }, NOW);
   const capped = await loadEventCards({ includeUpcoming: true, pastLimit: 2 }, NOW);
-  assert.equal(all.length, 4);
-  assert.equal(capped.length, 2);
+  // Four finished/live boards plus the not-yet-started one added below.
+  assert.equal(all.length, 5);
+  assert.equal(capped.length, 3);
   // Same derivation either way — paging must not change what a card says.
   const first = all.find((c) => c.id === capped[0].id);
   assert.deepEqual(capped[0], first);
+});
+
+test('a board that has not started reports no standings, whatever rows exist', async () => {
+  // "SOON · leading The AFK Spot — 150 pts · 1 claimed", six weeks before the whistle. Nobody can
+  // have earned anything yet, so a row saying otherwise is an anomaly and the card must not present
+  // it as a result. Crediting an unstarted board is refused outright now; this is what stops one
+  // that predates that rule from advertising itself on the hub.
+  const c = await card(5);
+  assert.equal(c.status, 'upcoming');
+  assert.equal(c.top, null, 'no leader before the board opens');
+  assert.equal(c.board.claimed, 0, 'and nothing claimed');
 });
