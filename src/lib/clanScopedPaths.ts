@@ -81,6 +81,7 @@ export const PLATFORM_ROOTS = [
   '/about',
   '/pricing',
   '/portal',
+  '/legal',
   '/api/profile',
   '/api/staff',
   '/api/clans',

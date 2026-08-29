@@ -135,7 +135,7 @@ test('3 · access follows the relationship: host + accepted co-host in; declined
 });
 
 test('4 · the S3 privacy rule holds across clans: a clan sees only its own accounts of a shared person', async () => {
-  const seenByA = (await accountsVisibleToClan(G.A, G.pD)).map((a) => a.rsnNormalized ?? a.rsn?.toLowerCase());
+  const seenByA = (await accountsVisibleToClan(G.A, G.pD)).map((a) => a.rsn.toLowerCase());
   assert.ok(seenByA.includes('dualmain'), 'Alpha sees the account that plays in Alpha');
   assert.ok(!seenByA.includes('dualalt'), 'Alpha does NOT learn about the unshared Bravo alt');
 });

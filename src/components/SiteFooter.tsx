@@ -67,6 +67,15 @@ export default async function SiteFooter() {
           <ClanLink href="/feedback" className="transition-colors hover:text-foreground">
             Feedback &amp; bug reports
           </ClanLink>
+          <ClanLink href="/legal/privacy" className="transition-colors hover:text-foreground">
+            Privacy
+          </ClanLink>
+          <ClanLink href="/legal/terms" className="transition-colors hover:text-foreground">
+            Terms
+          </ClanLink>
+          <ClanLink href="/legal/refunds" className="transition-colors hover:text-foreground">
+            Refunds
+          </ClanLink>
         </div>
       </div>
     </footer>
