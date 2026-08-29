@@ -160,7 +160,9 @@ export async function POST(
     // tiles. Admins bypass the block (board surgery) but still get the frozen award stamped so
     // an admin-forced completion scores consistently with everyone else's.
     const gate = await evaluateCompletionGate({ event, tile, teamId });
-    if (!gate.allowed && !isAdmin) {
+    // Admins bypass the RULES blocks (board surgery) — but not the start block: a tile completed
+    // before the event began is nonsensical no matter who does it (gate.beforeStart).
+    if (!gate.allowed && (!isAdmin || gate.beforeStart)) {
       return NextResponse.json({ error: gate.reason ?? 'This tile cannot be completed right now.' }, { status: 400 });
     }
 

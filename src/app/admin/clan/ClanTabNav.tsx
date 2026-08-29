@@ -1,6 +1,5 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
 import ClanLink, { useClanRelativePath } from '@/components/ClanLink';
 
 interface Props {
@@ -22,6 +21,9 @@ export default function ClanTabNav({ isAdmin, provisionalCount }: Props) {
     { href: '/admin/clan', label: 'Members', exact: true, show: true },
     { href: '/admin/clan/needs-review', label: 'Needs review', badge: provisionalCount, show: true },
     { href: '/admin/clan/staff', label: 'People', show: isAdmin },
+    // The public face at /c/<slug> — tagline, focus, recruiting. Admin-only: what the clan advertises
+    // about itself is a clan-level decision.
+    { href: '/admin/clan/profile', label: 'Profile', show: isAdmin },
     // Who may see the clan and how guests get in. Admin-only for the same reason People is: it
     // decides who can reach the place, not how an event is run.
     { href: '/admin/clan/policy', label: 'Access', show: isAdmin },

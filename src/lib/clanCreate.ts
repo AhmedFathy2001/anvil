@@ -19,6 +19,7 @@ import { and, eq, ne } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanAuditLog, clanStaff, clans } from '@/db/schema';
 import { PLANS } from '@/lib/plans';
+import { newCheckoutRef } from '@/lib/billing';
 import {
   availabilityMessage,
   domainRuleFailure,
@@ -102,6 +103,8 @@ export async function createClan(input: CreateClanInput): Promise<CreateClanResu
           plan: 'free',
           memberCap: PLANS.free.memberCap,
           status: 'active',
+          // The stable token that ties this clan to any future Gumroad checkout (lib/billing).
+          gumroadRef: newCheckoutRef(),
         })
         .returning();
 

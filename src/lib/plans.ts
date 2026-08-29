@@ -111,6 +111,30 @@ export const PLANS: Record<PlanId, Plan> = {
   },
 };
 
+// ── Capabilities — the "premium features" half of the blend ────────────────────────────────────────
+//
+// The freemium lever is seats (memberCap, above) PLUS a small set of named capabilities. Free gets the
+// whole core product (bingo, weekly, drop tracking, Discord login, and JOINING a co-hosted event) — a
+// capability here is a genuine premium power, not table stakes. Co-hosting is "free to join, paid to
+// host": `host-multi-clan` is the gate on being the HOST of a co-hosted event; a co-host joins for free.
+export const CAPABILITIES = ['discord-notifications', 'concurrent-events', 'host-multi-clan', 'custom-domain'] as const;
+export type Capability = (typeof CAPABILITIES)[number];
+
+/** The lowest tier that unlocks each capability. Free unlocks none of these (it has the core product). */
+export const CAPABILITY_MIN_PLAN: Record<Capability, PlanId> = {
+  'discord-notifications': 'bronze',
+  'concurrent-events': 'silver',
+  'host-multi-clan': 'silver',
+  'custom-domain': 'gold',
+};
+
+const PLAN_RANK: Record<PlanId, number> = { free: 0, bronze: 1, silver: 2, gold: 3, custom: 4 };
+
+/** Does this plan's tier reach the one a capability needs? (Custom sits above Gold and has everything.) */
+export function planHasCapability(plan: Plan, capability: Capability): boolean {
+  return PLAN_RANK[plan.id] >= PLAN_RANK[CAPABILITY_MIN_PLAN[capability]];
+}
+
 export function isPlanId(v: string | null | undefined): v is PlanId {
   return v != null && (PLAN_IDS as readonly string[]).includes(v);
 }
@@ -144,6 +168,17 @@ export function planForGumroadProduct(productId: string | null | undefined): Pla
 /** Hosted checkout URL for a tier, if one is configured. */
 export function checkoutUrl(plan: Plan): string | null {
   return plan.gumroadUrlEnv ? (process.env[plan.gumroadUrlEnv] ?? null) : null;
+}
+
+/**
+ * Checkout URL carrying the clan's `ref` token — the strong correlation the webhook keys on. Gumroad
+ * forwards a product URL's params to the ping as `url_params`, so this is how a payment finds its clan
+ * even when the buyer pays with a different email than the clan's contact.
+ */
+export function checkoutUrlWithRef(plan: Plan, ref: string | null | undefined): string | null {
+  const base = checkoutUrl(plan);
+  if (!base || !ref) return base;
+  return `${base}${base.includes('?') ? '&' : '?'}ref=${encodeURIComponent(ref)}`;
 }
 
 /**

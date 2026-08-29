@@ -13,7 +13,7 @@ import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
 import { getActiveWeeklyMetrics } from '@/lib/pluginConfig';
 import { applyWeeklyValue } from '@/lib/weekly';
 import { notifyTileCompletion } from '@/lib/discord';
-import { evaluateCompletionGate } from '@/lib/completionGate';
+import { evaluateCompletionGate, eventHasStarted } from '@/lib/completionGate';
 import { handleBountyClaim } from '@/lib/revealEngine';
 
 // Real-time boss-KC / skill-XP / activity ingest. The plugin posts {stats:[{name,kc}],
@@ -141,14 +141,17 @@ export async function POST(request: Request) {
       id: eventParticipants.id,
       teamId: eventParticipants.teamId,
       eventId: eventParticipants.eventId,
+      startDate: events.startDate,
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
     })
     .from(eventParticipants)
     .innerJoin(events, eq(eventParticipants.eventId, events.id))
     .where(eq(eventParticipants.clanMemberId, member.clanMemberId));
+  // Must have STARTED and not yet ended — a live push must never complete a tile before the whistle
+  // (the completion gate enforces this too; skipping unstarted events here just avoids the work).
   const activePlayer = playerRows.find(
-    (p) => p.teamId && !p.forceEndedAt && (!p.endDate || p.endDate > nowIso),
+    (p) => p.teamId && !p.forceEndedAt && eventHasStarted(p) && (!p.endDate || p.endDate > nowIso),
   );
 
   if (activePlayer) {

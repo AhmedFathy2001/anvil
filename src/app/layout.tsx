@@ -170,9 +170,9 @@ export default async function RootLayout({
           clansWithSomethingLive(myClans.map((c) => c.id)),
         ])
       : [0, new Set<number>()];
-  const otherClans = myClans
-    .filter((c) => c.slug !== clan?.slug)
-    .map((c) => ({ slug: c.slug, name: c.name }));
+  // The switcher wants the whole set (including the current clan) with each one's relationship, so it
+  // can show a role chip and mark where you are.
+  const navClans = myClans.map((c) => ({ slug: c.slug, name: c.name, seat: c.seat, staff: c.staff }));
 
   return (
     <html lang="en">
@@ -230,7 +230,7 @@ export default async function RootLayout({
             </ClanLink>
             <SiteNav
               clan={clan ? { slug: clan.slug, name: clan.name } : null}
-              otherClans={otherClans}
+              myClans={navClans}
               signedIn={!!session}
               myTeams={myTeams}
               isStaff={isStaff}

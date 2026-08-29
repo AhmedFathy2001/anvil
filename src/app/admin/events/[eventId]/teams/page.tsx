@@ -4,6 +4,9 @@ import { events, tiles, teams, eventParticipants, completions, users } from '@/d
 import { eq, inArray } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import TeamsDraftClient from './TeamsDraftClient';
+import CoHostPanel from './CoHostPanel';
+import { cohostsForEvent } from '@/lib/coHost';
+import { settlementForEvent } from '@/lib/coHostSettlement';
 import { loadEventProfiles, attachProfiles } from '@/lib/draftProfiles';
 import { parseContributionSnapshot } from '@/lib/statTracking';
 import { eventEditLocked } from '@/lib/eventLock';
@@ -57,14 +60,19 @@ export default async function EventTeamsPage({
     captainName: rest.captainUserId != null ? captainNameById.get(rest.captainUserId) ?? null : null,
   }));
 
+  const [cohosts, settlement] = await Promise.all([cohostsForEvent(id), settlementForEvent(id)]);
+
   return (
-    <TeamsDraftClient
-      event={event}
-      tiles={eventTiles}
-      teams={safeTeams}
-      players={eventPlayers}
-      completions={eventCompletions}
-      editLocked={eventEditLocked(event)}
-    />
+    <>
+      <CoHostPanel eventId={id} initial={cohosts} cashPolicy={event.cashPolicy} settlement={settlement} />
+      <TeamsDraftClient
+        event={event}
+        tiles={eventTiles}
+        teams={safeTeams}
+        players={eventPlayers}
+        completions={eventCompletions}
+        editLocked={eventEditLocked(event)}
+      />
+    </>
   );
 }

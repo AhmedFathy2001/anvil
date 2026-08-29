@@ -9,6 +9,7 @@ import {
   parseTileMissionRules,
   type EventRules,
 } from '@/lib/eventRules';
+import { parseStamp } from '@/lib/dbTime';
 
 // The one rules check every completion-insert path runs (submission auto-credit, plugin stat
 // push, hiscores sweep, manual admin/captain toggle). Decides whether a completion may land
@@ -26,11 +27,28 @@ export interface CompletionGateResult {
   awardedPoints: number | null;
   /** True on bounty events: the caller should invoke handleBountyClaim after inserting. */
   bounty: boolean;
+  /**
+   * Blocked because the event has not started. Unlike the rules blocks (reveal / lockout), this is
+   * temporal and NON-overridable — the manual route honours it even for admins, because there is no
+   * board-surgery reason to mark a tile done before the event exists in time.
+   */
+  beforeStart?: boolean;
   rules: EventRules;
 }
 
 type EventRow = typeof events.$inferSelect;
 type TileRow = typeof tiles.$inferSelect;
+
+/**
+ * Has the event started? The one temporal truth every completion path keys off. `startDate <= now`
+ * (parseStamp reads either stored time format). A null startDate is NOT started — a running event
+ * always carries a start (the start action, scheduled or "start now", sets it), so null means draft /
+ * never-begun, and a tile must not complete there.
+ */
+export function eventHasStarted(event: Pick<EventRow, 'startDate'>, now: number = Date.now()): boolean {
+  const startMs = parseStamp(event.startDate);
+  return startMs != null && startMs <= now;
+}
 
 // The scoring fields a mission overrides on the event rules (lockout / first-clear bonus / decay).
 // expiryHours is engine-only (auto-close), not a gate concern.
@@ -56,6 +74,15 @@ export async function evaluateCompletionGate(args: {
   // its own policy. Bounty stays BOARD-only so a mission claim never triggers board rotation.
   const tileRevealGated = hasRevealPolicy(eventRules) || isMission;
   const bounty = eventRules.revealPolicy === 'bounty';
+
+  // Nothing completes before the whistle — checked first, ahead of every rules block, and applied to
+  // EVERY path (sweep, plugin push, submission auto-credit, manual toggle). A gain accruing pre-start
+  // is already held to zero by the baseline anchoring (lib/statTracking), but a manual toggle, a
+  // submission, or any non-stat tile kind has no baseline to lean on — so the completion itself is
+  // gated here. `beforeStart` marks it non-overridable for the manual route's admin bypass.
+  if (!eventHasStarted(event)) {
+    return { allowed: false, reason: "The event hasn't started yet.", awardedPoints: null, bounty, beforeStart: true, rules };
+  }
 
   if (tileRevealGated && tile.revealedAt == null) {
     const reason = isMission ? 'This mission has not been announced yet.' : 'This tile has not been revealed yet.';

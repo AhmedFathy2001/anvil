@@ -13,7 +13,7 @@
 import { and, eq, isNull, or } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, clanStaff, clans, eventInvites, events, users } from '@/db/schema';
+import { accounts, clanMemberships, clanStaff, clans, eventCohosts, eventInvites, events, users } from '@/db/schema';
 import { isBannedFromClan } from '@/lib/clanBans';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { entryOf, visibilityOf } from '@/lib/eventVisibility';
@@ -31,6 +31,7 @@ export async function canSeeEvent(opts: {
   /** Null for a signed-out visitor. */
   playerId: number | null;
 }): Promise<boolean> {
+  // clan-scope: global -- reads the very event being access-checked, by its own id; its clanId is the subject of the check below.
   const event = await db.query.events.findFirst({ where: eq(events.id, opts.eventId) });
   if (!event) return false;
 
@@ -53,6 +54,10 @@ export async function canSeeEvent(opts: {
   // their own clan's event would be a strange way to enforce privacy.
   if (await hasSeatIn(event.clanId, opts.playerId)) return true;
   if (await hasGrantIn(event.clanId, opts.playerId)) return true;
+
+  // A member of a clan that ACCEPTED a co-host seat on this event may see it (and enter it) — they're
+  // running a team here, whatever the visibility says.
+  if (await inAcceptedCohostClan(opts.eventId, opts.playerId)) return true;
 
   if (visibility === 'clan') return false;
 
@@ -78,6 +83,25 @@ async function hasSeatIn(clanId: number, playerId: number): Promise<boolean> {
     .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
     .where(
       and(eq(clanMemberships.clanId, clanId), eq(accounts.playerId, playerId), isNull(clanMemberships.leftAt)),
+    )
+    .limit(1);
+  return row.length > 0;
+}
+
+/** Does this person hold a seat in a clan that has accepted a co-host seat on this event? */
+async function inAcceptedCohostClan(eventId: number, playerId: number): Promise<boolean> {
+  const row = await db
+    .select({ id: eventCohosts.id })
+    .from(eventCohosts)
+    .innerJoin(clanMemberships, eq(clanMemberships.clanId, eventCohosts.clanId))
+    .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
+    .where(
+      and(
+        eq(eventCohosts.eventId, eventId),
+        eq(eventCohosts.status, 'accepted'),
+        eq(accounts.playerId, playerId),
+        isNull(clanMemberships.leftAt),
+      ),
     )
     .limit(1);
   return row.length > 0;
@@ -133,6 +157,7 @@ export async function canEnterEvent(opts: {
 }): Promise<EntryVerdict> {
   if (opts.playerId == null) return { outcome: 'refused', reason: 'signed-out' };
 
+  // clan-scope: global -- reads the very event being access-checked, by its own id; its clanId is the subject of the check below.
   const event = await db.query.events.findFirst({ where: eq(events.id, opts.eventId) });
   if (!event) return { outcome: 'refused', reason: 'not-visible' };
 

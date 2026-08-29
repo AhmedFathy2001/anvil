@@ -11,7 +11,7 @@ import { handleBountyClaim } from '@/lib/revealEngine';
 import { log } from '@/lib/logger';
 import { statKeys } from '@/lib/tileKinds';
 import { parsePluginStats } from '@/lib/pluginStats';
-import { computeGain, computeGainFromJson, effectiveValue, reconcileLive, pruneStaleOverlay, isIndividualMode, isMilestoneBasis, milestoneState, buildContributionSnapshot } from '@/lib/statTracking';
+import { computeGain, computeGainFromJson, effectiveValue, reconcileLive, pruneStaleOverlay, isIndividualMode, isMilestoneBasis, milestoneState, buildContributionSnapshot, needsBaselineRecapture, baselineWithOverlay } from '@/lib/statTracking';
 import { parseStatKeyTimes } from '@/lib/liveStats';
 import { readAllActivities } from '@/lib/hiscoresActivities';
 
@@ -23,6 +23,7 @@ const STALE_OVERLAY_MS = 6.5 * 60 * 60 * 1000;
 import { applyWeeklyValue, readMetricFromSnapshot, writePlayerSnapshot, type CompetitionType } from '@/lib/weekly';
 import { detectMilestones, computeDeltas, isDue, nextDueAt, recordDailyStats, recordMilestones } from '@/lib/statHistory';
 import { timingSafeStrEqual } from '@/lib/auth';
+import { shouldSiteSweep } from '@/lib/sweepOwner';
 import { normalizeRsn } from '@/lib/auth';
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
@@ -131,6 +132,19 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Exactly one process may fetch the hiscores. Checked before any work because the cost of getting
+  // it wrong is not this tick — it is Jagex blocking the box's IP, which stops tracking for every
+  // clan at once. See lib/sweepOwner for why the two failure directions are guarded differently.
+  const ownership = await shouldSiteSweep();
+  if (!ownership.run) {
+    return NextResponse.json({
+      success: true,
+      skipped: ownership.reason,
+      detail: ownership.detail,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   const start = Date.now();
   const now = new Date().toISOString();
 
@@ -219,7 +233,10 @@ export async function GET(request: Request) {
       // Benched players are pinned to frozenStats — don't re-fetch them (that would unfreeze the gain).
       // Their contribution is seeded into team-mode sums from ctx.frozenPlayers in the finalize loop.
       if (player.frozenAt) continue;
-      const needsSnapshot = !player.statsSnapshot;
+      // Recapture when there's no baseline yet OR the one we have was taken before the event started
+      // (an early admin pull, a moved-up start) — that keeps a pre-event baseline from counting the
+      // gains between its capture and the whistle. See lib/statTracking#needsBaselineRecapture.
+      const needsSnapshot = needsBaselineRecapture(player.statsSnapshot, player.snapshotAt, event.startDate);
       // Fetch when the event has stat tiles (need current stats for gains) or the player still needs
       // a baseline. Events without stat tiles only snapshot missing baselines.
       if (!hasStatTiles && !needsSnapshot) continue;
@@ -416,12 +433,16 @@ export async function GET(request: Request) {
       // Bingo: write each player's cached (and, on first fetch, baseline) snapshot; hold for eval.
       for (const b of entry.bingo) {
         if (b.needsSnapshot) {
+          // Baseline absorbs the live overlay so a session already in progress at the start doesn't
+          // leak its pre-start gains (hiscores lag). This tick's eval must use the SAME absorbed
+          // baseline, else current(with overlay) − raw baseline credits the session immediately.
+          const baselineJson = baselineWithOverlay(snapshotJson, liveMap);
           await db
             .update(eventParticipants)
-            .set({ statsSnapshot: snapshotJson, snapshotAt: ts, cachedStats: snapshotJson, lastStatsFetch: ts })
+            .set({ statsSnapshot: baselineJson, snapshotAt: ts, cachedStats: snapshotJson, lastStatsFetch: ts })
             .where(eq(eventParticipants.id, b.player.id));
           b.ctx.result.playersSnapshotted++;
-          fetchedBingo.push({ ctx: b.ctx, player: b.player, baseline: snapshot, current: snapshot, liveMap });
+          fetchedBingo.push({ ctx: b.ctx, player: b.player, baseline: JSON.parse(baselineJson), current: snapshot, liveMap });
         } else {
           await db.update(eventParticipants).set({ cachedStats: snapshotJson, lastStatsFetch: ts }).where(eq(eventParticipants.id, b.player.id));
           b.ctx.result.playersChecked++;

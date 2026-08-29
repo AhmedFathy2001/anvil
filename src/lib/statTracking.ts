@@ -1,5 +1,6 @@
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { isActivityKey, readActivityScore } from '@/lib/hiscoresActivities';
+import { parseStamp } from '@/lib/dbTime';
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 // The single definition of a hiscores-backed stat gain, shared by every consumer: the unified stat
@@ -237,6 +238,46 @@ export function effectiveSnapshotJson(
     }
   }
   return JSON.stringify({ ...snap, skills, bosses });
+}
+
+/**
+ * The stat-tile baseline that keeps PRE-EVENT gains out.
+ *
+ * A gain is `effectiveCurrent − baseline`, so the baseline is the start line: it MUST be the player's
+ * stats at (or after) the event's start, and it must already absorb any session in progress at that
+ * moment. Two things break that on their own:
+ *
+ *   1. A baseline captured BEFORE the event started — an admin pulling stats early, or a start moved
+ *      forward — is trusted forever otherwise, and every gain since counts. So a baseline whose
+ *      `snapshotAt` predates `startDate` is treated as absent and RE-CAPTURED on the first active
+ *      tick, re-anchoring it at >= start. (`parseStamp` reads either stored time format; a null
+ *      `snapshotAt` alongside a present snapshot is unknown-timing → recapture to be safe.)
+ *
+ *   2. Hiscores only flush on logout, so a player mid-session at the start has a stale hiscores
+ *      baseline while the live overlay already shows the session. Folding the overlay INTO the
+ *      baseline at capture (via effectiveSnapshotJson) bakes the pre-start portion in, so the gain
+ *      starts at 0. Residual: a plugin that hasn't pushed by the capture tick — the opt-in starting
+ *      shot's forced relog (lib/startProof) covers that, because hiscores lag is a client-trust
+ *      problem the server can't settle alone.
+ *
+ * With no `startDate` there is nothing to anchor to, so only the absent-baseline case recaptures.
+ */
+export function needsBaselineRecapture(
+  statsSnapshot: string | null | undefined,
+  snapshotAt: string | null | undefined,
+  eventStartDate: string | null | undefined,
+): boolean {
+  if (!statsSnapshot) return true;
+  const startMs = parseStamp(eventStartDate);
+  if (startMs == null) return false;
+  const baseMs = parseStamp(snapshotAt);
+  return baseMs == null || baseMs < startMs;
+}
+
+/** The baseline to persist at capture: the fetched hiscores with the live overlay folded in (case 2
+ * above). Falls back to the raw snapshot JSON if there is nothing to parse. */
+export function baselineWithOverlay(snapshotJson: string, liveMap: Record<string, number>): string {
+  return effectiveSnapshotJson(snapshotJson, snapshotJson, liveMap) ?? snapshotJson;
 }
 
 /**

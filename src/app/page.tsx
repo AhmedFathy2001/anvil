@@ -6,8 +6,11 @@ import ApexHome from '@/components/landing/ApexHome';
 import { platformStats } from '@/lib/platformStats';
 import { apexHomeView } from '@/lib/apexHome';
 import { db } from '@/db';
-import { users } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { users, clanStaff } from '@/db/schema';
+import { and, eq } from 'drizzle-orm';
+import PublicClanHome from '@/components/PublicClanHome';
+import { publicClanHomeView } from '@/lib/clanHome';
+import { getDiscordInviteUrl } from '@/lib/pluginConfig';
 import { verifyUser } from '@/lib/auth';
 import { buildHomeView } from '@/lib/homeView';
 import { viewerMemberIds } from '@/lib/competitionView';
@@ -61,6 +64,26 @@ export default async function HomePage() {
   }
   const session = await verifyUser();
   const myMemberIds = await viewerMemberIds(clan.id, session);
+  // Insider = signed in and either holds a seat here or runs the clan → the member week view. Everyone
+  // else (a signed-out visitor, or a member of some OTHER clan) gets the public clan home: what this
+  // clan IS, not what's happening for you this week. The layout already gated `members`-only clans out,
+  // so reaching here at all means the clan is readable.
+  const staffHere = session?.userId
+    ? (
+        await db
+          .select({ id: clanStaff.id })
+          .from(clanStaff)
+          .where(and(eq(clanStaff.clanId, clan.id), eq(clanStaff.userId, session.userId)))
+          .limit(1)
+      ).length > 0
+    : false;
+  const insider = !!session && (myMemberIds.length > 0 || staffHere);
+
+  if (!insider) {
+    const publicView = await publicClanHomeView(clan.id, await getDiscordInviteUrl(clan.id));
+    if (publicView) return <PublicClanHome view={publicView} signedIn={!!session?.userId} />;
+  }
+
   const view = await buildHomeView(clan.id, myMemberIds);
   // Same rule as the nav: the shortcut only exists when there's something of theirs behind it.
   const myTeams = session?.userId ? await countLiveTeamInvolvements(clan.id, session.userId) : 0;

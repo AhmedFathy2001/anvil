@@ -52,6 +52,14 @@ interface FeeRow {
   collectedByViewer: boolean;
 }
 
+interface PayoutRow {
+  id: number;
+  rsn: string;
+  place: number | null;
+  amount: number;
+  status: string;
+}
+
 // Friendly buckets over the raw statuses, the same way the admin panel reads them. "collected" is
 // the ledger's word for "the money arrived, a second pair of eyes hasn't signed it off yet", and
 // showing it raw next to a button still offering "Mark paid" made a successful click look like a
@@ -69,12 +77,14 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
   const [roster, setRoster] = useState<RosterRow[]>([]);
   const [proof, setProof] = useState<ProofRow[]>([]);
   const [fees, setFees] = useState<FeeRow[]>([]);
+  const [payouts, setPayouts] = useState<PayoutRow[]>([]);
+  const [cashPolicy, setCashPolicy] = useState<string>('host-holds');
   const [requests, setRequests] = useState<RequestRow[]>([]);
   const [eventStarted, setStarted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<'roster' | 'requests' | 'proof' | 'fees' | 'invites'>('roster');
+  const [tab, setTab] = useState<'roster' | 'requests' | 'proof' | 'fees' | 'payouts' | 'invites'>('roster');
   const [open, setOpen] = useState(false);
 
   const load = useCallback(async () => {
@@ -90,6 +100,8 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
         setRoster(data.roster ?? []);
         setProof(data.proof ?? []);
         setStarted(!!data.eventStarted);
+        setPayouts(data.payouts ?? []);
+        setCashPolicy(data.cashPolicy ?? 'host-holds');
       }
       if (feesRes.ok) setFees((await feesRes.json()).fees ?? []);
       // Empty on a drafted event — nobody can request a team there, so the tab just never appears.
@@ -163,7 +175,32 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
     }
   };
 
+  // Settle one of our own team's winnings — only offered under `each-settles` (the pay route enforces
+  // the same, server-side).
+  const payWinnings = async (payoutId: number) => {
+    setBusy(payoutId);
+    setError(null);
+    try {
+      const res = await clanFetch(`/api/team/${teamId}/payouts/${payoutId}/pay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        const b = await res.json().catch(() => null);
+        throw new Error(b?.error ?? 'Could not mark paid');
+      }
+      await load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const owed = fees.filter((f) => f.status === 'pending' || f.status === 'disputed').length;
+  const showPayouts = cashPolicy === 'each-settles' && payouts.length > 0;
+  const owedWinnings = payouts.filter((p) => p.status !== 'paid').length;
 
 
   // What the card says about itself while shut — the numbers that decide whether to open it.
@@ -205,6 +242,7 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
               ...(requests.length > 0 ? ([['requests', `Requests · ${requests.length}`]] as const) : []),
               ['proof', `Proof · ${proof.length}`],
               ['fees', owed > 0 ? `Fees · ${owed} owed` : `Fees · ${fees.length}`],
+              ...(showPayouts ? ([['payouts', owedWinnings > 0 ? `Winnings · ${owedWinnings} to pay` : `Winnings · ${payouts.length}`]] as const) : []),
               ['invites', 'Invite links'],
             ] as const
           ).map(([key, label]) => (
@@ -415,6 +453,41 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
                 Marking paid records you as the collector. If the player later names someone else, it
                 flags as disputed for the host — same as when a treasurer does it.
               </p>
+            </div>
+          )}
+
+          {tab === 'payouts' && (
+            <div className="grid gap-1.5">
+              <p className="text-xs text-text-muted mb-1">
+                This event settles per clan — you pay your own team’s winners.
+              </p>
+              {payouts.map((p) => (
+                <div key={p.id} className="flex items-center gap-2.5 border border-card-border rounded-lg bg-brown-dark/40 px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate">{p.rsn}</div>
+                    <div className="text-[11px] text-text-muted">
+                      {(p.amount / 1_000_000).toFixed(1)}M{p.place != null ? ` · ${p.place}${['th', 'st', 'nd', 'rd'][p.place] ?? 'th'} place` : ''}
+                    </div>
+                  </div>
+                  <span
+                    className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full border ${
+                      p.status === 'paid' ? 'text-accent-green-light border-accent-green/30' : 'text-yellow-400 border-yellow-500/30'
+                    }`}
+                  >
+                    {p.status === 'paid' ? 'Paid' : 'To pay'}
+                  </span>
+                  {p.status !== 'paid' && (
+                    <button
+                      type="button"
+                      disabled={busy === p.id}
+                      onClick={() => payWinnings(p.id)}
+                      className="ml-auto shrink-0 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-gold/40 text-gold transition-colors hover:bg-gold/10 disabled:opacity-50"
+                    >
+                      {busy === p.id ? 'Saving…' : 'Mark paid'}
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
           )}
 

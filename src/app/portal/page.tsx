@@ -7,7 +7,7 @@ import { db } from '@/db';
 import { clans, clanMemberships, clanStaff } from '@/db/schema';
 import { isApexHost } from '@/lib/clanContext';
 import { verifyUser } from '@/lib/auth';
-import { PLANS, PLAN_IDS, planOf, checkoutUrl, overMemberCap, TRIAL_DAYS, type Plan } from '@/lib/plans';
+import { PLANS, PLAN_IDS, planOf, checkoutUrl, checkoutUrlWithRef, overMemberCap, TRIAL_DAYS, type Plan } from '@/lib/plans';
 import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
 
@@ -47,6 +47,7 @@ export default async function PortalPage() {
       plan: clans.plan,
       trialEndsAt: clans.trialEndsAt,
       subscriptionId: clans.gumroadSubscriptionId,
+      gumroadRef: clans.gumroadRef,
     })
     .from(clanStaff)
     .innerJoin(clans, eq(clans.id, clanStaff.clanId))
@@ -124,6 +125,7 @@ export default async function PortalPage() {
                 onTrial={onTrial}
                 trialDaysLeft={trialDaysLeft}
                 hasSubscription={!!c.subscriptionId}
+                checkoutRef={c.gumroadRef}
               />
             );
           })}
@@ -147,6 +149,7 @@ function ClanBillingCard({
   onTrial,
   trialDaysLeft,
   hasSubscription,
+  checkoutRef,
 }: {
   slug: string;
   name: string;
@@ -156,6 +159,7 @@ function ClanBillingCard({
   onTrial: boolean;
   trialDaysLeft: number;
   hasSubscription: boolean;
+  checkoutRef: string | null;
 }) {
   // The next tier up that has a checkout URL configured — what "upgrade" points at.
   const higher = PLAN_IDS.map((id) => PLANS[id]).find(
@@ -203,7 +207,7 @@ function ClanBillingCard({
       {higher && (
         <div className="mt-3.5 flex items-center gap-2">
           <a
-            href={checkoutUrl(higher)!}
+            href={checkoutUrlWithRef(higher, checkoutRef)!}
             target="_blank"
             rel="noopener noreferrer"
             className="rounded-lg bg-gold px-3.5 py-1.5 text-[13px] font-semibold text-brown-dark transition-colors hover:bg-gold-light"

@@ -83,19 +83,13 @@ export async function POST(
       const stats = await getHiscoresStats(player.name);
       const statsJson = JSON.stringify(stats);
 
-      // If player already has a baseline snapshot and event has started (and not force reset),
-      // only update cachedStats (don't overwrite the baseline)
-      if (player.statsSnapshot && eventStarted && !forceReset) {
-        await db
-          .update(eventParticipants)
-          .set({
-            cachedStats: statsJson,
-            lastStatsFetch: timestamp,
-          })
-          .where(eq(eventParticipants.id, player.id));
-        refreshed++;
-      } else {
-        // First snapshot, event hasn't started, or force reset - set baseline
+      // A baseline is the start line, so it may only be set AT or AFTER the start — the sweep does
+      // this automatically, and re-anchors anything captured too early. A manual pull before the
+      // event starts therefore only WARMS cachedStats (for display); it must not set the scoring
+      // baseline, or a player grinding between the pull and the whistle would have it counted. The
+      // one exception is `forceReset`, the explicit admin correction of a mis-timed baseline.
+      const setBaseline = forceReset || (eventStarted && !player.statsSnapshot);
+      if (setBaseline) {
         await db
           .update(eventParticipants)
           .set({
@@ -106,6 +100,16 @@ export async function POST(
           })
           .where(eq(eventParticipants.id, player.id));
         snapshotted++;
+      } else {
+        // Started event with a baseline already → refresh current; not-yet-started → warm only.
+        await db
+          .update(eventParticipants)
+          .set({
+            cachedStats: statsJson,
+            lastStatsFetch: timestamp,
+          })
+          .where(eq(eventParticipants.id, player.id));
+        refreshed++;
       }
     } catch {
       failed.push(player.name);

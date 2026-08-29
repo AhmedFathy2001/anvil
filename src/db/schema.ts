@@ -4,9 +4,12 @@ import {
   text,
   integer,
   bigint,
+  bigserial,
   serial,
   boolean,
   real,
+  jsonb,
+  timestamp,
   uniqueIndex,
   index,
   primaryKey,
@@ -76,6 +79,22 @@ export const clans = pgTable('clans', {
   // what made every board 404 for signed-out visitors: `events.visibility` defaults to 'clan', and
   // 'clan' was read as "holds a seat", so an ordinary event became invisible to the public.
   visibility: text('visibility').notNull().default('public'),
+
+  // ── Public profile — the clan's home for strangers ────────────────────────────────────────
+  // A short hook under the name; a longer "about" for the profile body.
+  tagline: text('tagline'),
+  description: text('description'),
+  // What the clan is about — a JSON array of tags from {pvm, skilling, pvp, social, ironman}. An
+  // array, not one enum, because a clan is usually two of these (the profile shows both).
+  focus: jsonb('focus').notNull().default([]),
+  // The two discovery switches: taking members / open to being challenged.
+  recruiting: boolean('recruiting').notNull().default(false),
+  openToChallenges: boolean('open_to_challenges').notNull().default(false),
+  // What a recruit needs, as JSON: { minTotal?, minEhp?, region?, timezone? }.
+  requirements: jsonb('requirements').notNull().default({}),
+  // NOTE: "listed" (appears in directory + leaderboard) stays the `public_showcase` SETTING for now,
+  // set from the Access tab (api/admin/clan/policy). Promoting it to a column here would mean two
+  // sources of truth until every public_showcase reader is migrated — a separate, careful pass.
 
   // ── Billing ───────────────────────────────────────────────────────────────────────────────
   // These lived in the control plane's own database, which existed to know which CONTAINER belonged
@@ -419,6 +438,11 @@ export const events = pgTable('events', {
   maxAccountsPerPerson: integer('max_accounts_per_person').default(1).notNull(),
   accountSlotMode: text('account_slot_mode').default('per-person').notNull(),
   feeMode: text('fee_mode').default('per-person').notNull(),
+  // Co-hosted events: who holds the money. 'host-holds' (default, and every single-clan event) = the
+  // host collects all fees and pays all winners; 'each-settles' = each clan collects its own members'
+  // fees and pays its own; 'clans-collect-host-pays' = clans collect and remit to the host pot, host
+  // pays winners. See lib/coHost + lib/prizePool.
+  cashPolicy: text('cash_policy').default('host-holds').notNull(),
   // Set when the payout summary (winners + amounts) is posted to the bingo Discord webhook.
   // Guards the auto-announce (fired once every payout is marked paid) from double-posting; the
   // manual "Announce" button re-stamps it. Null = not yet announced. See lib/discord notifyPayout.
@@ -1217,6 +1241,32 @@ export const eventInvites = pgTable('event_invites', {
   uniqueIndex('event_invites_clan_unique').on(table.eventId, table.clanId).where(sql`clan_id is not null`),
   uniqueIndex('event_invites_player_unique').on(table.eventId, table.playerId).where(sql`player_id is not null`),
 ]);
+
+/**
+ * A CO-HOST: a clan the host invited to help run one event, as a first-class relationship rather than
+ * four hand-wired steps (an invite, a team, a clan tag, a staff seat). The host owns the board; a
+ * co-host brings its own roster (a team tagged with its clanId) and its own staff (team_staff seats
+ * granted to its admins), and holds no authority beyond that team. `teamId` is the team provisioned on
+ * accept. Access for a co-host clan's members flows from an accepted row (lib/eventAccess), so no
+ * duplicate event_invites row is needed.
+ */
+export const eventCohosts = pgTable('event_cohosts', {
+  id: serial('id').primaryKey(),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  // 'pending' — invited, not yet answered · 'accepted' — in, team provisioned · 'declined'
+  status: text('status').notNull().default('pending'),
+  // The team provisioned for this co-host on accept (null while pending / declined).
+  teamId: integer('team_id').references(() => teams.id, { onDelete: 'set null' }),
+  invitedByUserId: integer('invited_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  acceptedByUserId: integer('accepted_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  decidedAt: text('decided_at'),
+}, (table) => [
+  uniqueIndex('event_cohosts_event_clan_unique').on(table.eventId, table.clanId),
+  index('event_cohosts_clan_status_idx').on(table.clanId, table.status),
+]);
+export type EventCohost = typeof eventCohosts.$inferSelect;
 
 export const clanAuditLog = pgTable('clan_audit_log', {
   id: serial('id').primaryKey(),
@@ -2164,3 +2214,39 @@ export const userWebhooks = pgTable('user_webhooks', {
 
 export type AccountClanEmission = typeof accountClanEmission.$inferSelect;
 export type UserWebhook = typeof userWebhooks.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// Forge's outbox — the seam between the Go data plane and this app
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+//
+// There is ONE Postgres. Anvil.Forge is a second process that fetches hiscores, stores the result in
+// the `accounts` columns the Site already reads, and — when a snapshot MOVES — appends a line here.
+// Forge INGESTS; it never EVALUATES. Whether that gain completed a tile, crossed a milestone, moved a
+// weekly value, is a domain question with one answer, and it lives in this app. `lib/forgeConsume`
+// drains the unconsumed tail, evaluates each line against the same scoring code the TS sweep uses, and
+// stamps `consumedAt`. A durable table rather than LISTEN/NOTIFY on purpose: a fixed scoring rule can
+// reset `consumedAt` over a range and re-consume, where a fire-and-forget channel has thrown the
+// evidence away.
+//
+// The Site only ever READS this and writes `consumedAt`; Forge owns the inserts and the `id` sequence.
+// Defined here so the Site's queries are typed and the test DB (built from these migrations) carries
+// the table. In production the table is created by whichever of Forge's or the Site's migration runs
+// first — both use CREATE TABLE IF NOT EXISTS, so they coexist without a wall between them.
+export type ForgeEventKind = 'snapshot.changed' | 'account.unranked' | 'rsn.changed';
+export const forgePlayerEvents = pgTable(
+  'forge_player_events',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    accountId: integer('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    // See ForgeEventKind. Kept as text, not an enum, so Forge can add a kind the Site learns to
+    // handle later without a lock-stepped migration on both sides.
+    kind: text('kind').notNull(),
+    payload: jsonb('payload').notNull().default({}),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+  },
+  (t) => [index('forge_player_events_unconsumed_idx').on(t.id).where(sql`${t.consumedAt} IS NULL`)],
+);
+export type ForgePlayerEvent = typeof forgePlayerEvents.$inferSelect;

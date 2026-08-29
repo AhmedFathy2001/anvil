@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanRoster, events, eventParticipants, submissions, tiles } from '@/db/schema';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { clanRoster, events, eventParticipants, payouts, submissions, teams, tiles } from '@/db/schema';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { requireTeamManager } from '@/lib/teamStaff';
 
 /**
@@ -30,6 +30,7 @@ export async function GET(
   if ('response' in guard) return guard.response;
   const { management } = guard;
 
+  // clan-scope: global -- the event this managed team belongs to, by id; a co-host team's event is the host clan's.
   const event = await db.query.events.findFirst({ where: eq(events.id, management.eventId) });
   const started = !!event?.startDate && event.startDate <= new Date().toISOString();
 
@@ -78,12 +79,21 @@ export async function GET(
 
   const nameByPlayer = new Map(roster.map((r) => [r.playerId, r.name]));
 
+  // This team's winnings — shown so a co-host can settle its own under `each-settles` (the pay button
+  // is gated to that policy, server-side, in the pay route).
+  const teamPayouts = await db
+    .select({ id: payouts.id, rsn: payouts.rsn, place: payouts.place, amount: payouts.amount, status: payouts.status })
+    .from(payouts)
+    .where(and(eq(payouts.eventId, management.eventId), eq(payouts.teamId, tId)));
+
   return NextResponse.json({
     teamId: tId,
     eventId: management.eventId,
     eventStarted: started,
     isCaptain: management.isCaptain,
     isStaff: management.isStaff,
+    cashPolicy: event?.cashPolicy ?? 'host-holds',
+    payouts: teamPayouts,
     roster,
     proof: proof.map((p) => ({
       ...p,
@@ -91,6 +101,76 @@ export async function GET(
       by: nameByPlayer.get(p.creditPlayerId ?? p.playerId ?? -1) ?? null,
     })),
   });
+}
+
+/**
+ * Add one of your OWN clan's members to this team.
+ *
+ * This is how a co-host fills its side of a board: the team is tagged with a clan (teams.clanId, set
+ * when the co-host was provisioned), and its manager may add members of THAT clan to it — never
+ * anyone else's, and never onto a host team (whose roster comes from sign-ups / the draft). Pre-start
+ * only, for the same reason as removal: adding after the whistle is a sub-in, which rewrites scoring
+ * and stays with the host.
+ */
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ teamId: string }> },
+) {
+  const { teamId } = await params;
+  const tId = parseInt(teamId, 10);
+  if (!Number.isFinite(tId)) return NextResponse.json({ error: 'Invalid team id' }, { status: 400 });
+
+  const guard = await requireTeamManager(tId);
+  if ('response' in guard) return guard.response;
+  const { management } = guard;
+
+  const team = await db.query.teams.findFirst({ where: eq(teams.id, tId) });
+  if (!team) return NextResponse.json({ error: 'No such team' }, { status: 404 });
+  // Only a clan-tagged (co-host) team fills itself. A host team's roster is sign-ups + the draft.
+  if (team.clanId == null) {
+    return NextResponse.json({ error: 'This team is filled from sign-ups and the draft, not here.' }, { status: 400 });
+  }
+
+  // clan-scope: global -- the event this managed team belongs to, by id; a co-host team's event is the host clan's.
+  const event = await db.query.events.findFirst({ where: eq(events.id, management.eventId) });
+  if (event?.startDate && event.startDate <= new Date().toISOString()) {
+    return NextResponse.json({ error: 'The event has started — ask the host to sub someone in.' }, { status: 409 });
+  }
+  if (event?.draftStatus === 'active' || event?.draftStatus === 'paused') {
+    return NextResponse.json({ error: 'The draft is running — rosters are the draft’s to change right now.' }, { status: 409 });
+  }
+
+  const body = await request.json().catch(() => null);
+  const clanMemberId = Number(body?.clanMemberId);
+  if (!Number.isInteger(clanMemberId)) return NextResponse.json({ error: 'clanMemberId is required' }, { status: 400 });
+
+  // The seat must belong to THIS team's clan and be live — you may only add your own members.
+  const seat = await db
+    .select({ id: clanRoster.id, rsn: clanRoster.rsn })
+    .from(clanRoster)
+    .where(and(eq(clanRoster.id, clanMemberId), eq(clanRoster.clanId, team.clanId), isNull(clanRoster.leftAt)))
+    .then((r) => r[0]);
+  if (!seat) return NextResponse.json({ error: 'That member is not on your clan’s roster.' }, { status: 400 });
+
+  // One participant per account per event. Reuse an existing row (move it onto this team) rather than
+  // making a second — a person cannot be on the board twice.
+  const existing = await db.query.eventParticipants.findFirst({
+    where: and(eq(eventParticipants.eventId, management.eventId), eq(eventParticipants.clanMemberId, clanMemberId)),
+  });
+  if (existing) {
+    if (existing.teamId === tId) return NextResponse.json({ ok: true, playerId: existing.id, already: true });
+    if (existing.teamId != null) {
+      return NextResponse.json({ error: 'They are already on another team in this event.' }, { status: 409 });
+    }
+    await db.update(eventParticipants).set({ teamId: tId }).where(eq(eventParticipants.id, existing.id));
+    return NextResponse.json({ ok: true, playerId: existing.id });
+  }
+
+  const [row] = await db
+    .insert(eventParticipants)
+    .values({ eventId: management.eventId, clanMemberId, name: seat.rsn, teamId: tId })
+    .returning({ id: eventParticipants.id });
+  return NextResponse.json({ ok: true, playerId: row.id });
 }
 
 /**
@@ -114,6 +194,7 @@ export async function DELETE(
   if ('response' in guard) return guard.response;
   const { management } = guard;
 
+  // clan-scope: global -- the event this managed team belongs to, by id; a co-host team's event is the host clan's.
   const event = await db.query.events.findFirst({ where: eq(events.id, management.eventId) });
   if (event?.startDate && event.startDate <= new Date().toISOString()) {
     return NextResponse.json(
