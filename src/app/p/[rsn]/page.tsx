@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 
 import { apexCharacter } from '@/lib/apexProfiles';
 import { isApexHost } from '@/lib/clanContext';
+import { verifyUser } from '@/lib/auth';
 import ClanLink from '@/components/ClanLink';
 import ClanCrest from '@/components/ClanCrest';
 import AccountProgressCard from '@/components/AccountProgressCard';
@@ -43,7 +44,8 @@ export const dynamic = 'force-dynamic';
  */
 
 export async function generateMetadata({ params }: { params: Promise<{ rsn: string }> }): Promise<Metadata> {
-  const c = await apexCharacter(decodeURIComponent((await params).rsn));
+  const session = await verifyUser();
+  const c = await apexCharacter(decodeURIComponent((await params).rsn), session?.playerId ?? null);
   return c ? { title: `${c.rsn} — Anvil` } : { title: 'Not found — Anvil' };
 }
 
@@ -61,7 +63,8 @@ const NO_COMPETITIONS = {
 export default async function CharacterPage({ params }: { params: Promise<{ rsn: string }> }) {
   if (!isApexHost((await headers()).get('host'))) notFound();
 
-  const character = await apexCharacter(decodeURIComponent((await params).rsn));
+  const session = await verifyUser();
+  const character = await apexCharacter(decodeURIComponent((await params).rsn), session?.playerId ?? null);
   if (!character) notFound();
 
   const profile = await getAccountProfile(character.accountId);
@@ -160,7 +163,9 @@ export default async function CharacterPage({ params }: { params: Promise<{ rsn:
       )}
 
       <p className="mt-8 text-xs text-text-dim">
-        Shown because this account is shared. Its owner can turn that off from their profile.
+        {character.privateToViewer
+          ? 'Private — only you can see this. Share it from your profile to give it a public page.'
+          : 'Shown because this account is shared. Its owner can turn that off from their profile.'}
       </p>
     </div>
   );

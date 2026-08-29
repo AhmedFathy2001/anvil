@@ -119,6 +119,9 @@ export interface ApexCharacter {
    * once, neither asked for: who they are off-game, and that these characters are one person.
    */
   owner: { playerId: number; label: string } | null;
+  /** True when the page is shown ONLY because the viewer owns this character and it is NOT shared —
+      so the page can say "private, only you can see this" instead of the "shown because shared" note. */
+  privateToViewer: boolean;
 }
 
 /**
@@ -127,13 +130,18 @@ export interface ApexCharacter {
  * Null unless the account is shared. A character nobody published is not a public page, and saying
  * "this exists but you may not see it" would leak the thing being withheld.
  */
-export async function apexCharacter(rsn: string): Promise<ApexCharacter | null> {
+export async function apexCharacter(rsn: string, viewerPlayerId?: number | null): Promise<ApexCharacter | null> {
   const normalized = rsn.trim().toLowerCase().replace(/[\s_]+/g, ' ');
 
   // clan-scope: global -- a character belongs to a person, not to a clan; that is the whole point of
   // the account being global.
   const acct = await db.query.accounts.findFirst({ where: eq(accounts.rsnNormalized, normalized) });
-  if (!acct || !acct.shared) return null;
+  if (!acct) return null;
+  // Shared characters are public. An UNSHARED one is still visible to its OWNER — a private character
+  // is hidden from other people, not from yourself, and 404ing the owner off their own account read
+  // as data loss. Anyone else still gets the indistinguishable-from-nonexistent 404.
+  const ownedByViewer = viewerPlayerId != null && acct.playerId === viewerPlayerId;
+  if (!acct.shared && !ownedByViewer) return null;
 
   // Their clan, if they are a member of one and that clan is listed. A member seat is unique per
   // account (one clan at a time), so this is at most one row.
@@ -192,6 +200,7 @@ export async function apexCharacter(rsn: string): Promise<ApexCharacter | null> 
     lastSeenAt: acct.liveStatsAt,
     clan: seat && (await getPublicShowcase(seat.clanId)) ? { slug: seat.slug, name: seat.name } : null,
     owner: ownerOut,
+    privateToViewer: !acct.shared && ownedByViewer,
   };
 }
 

@@ -261,9 +261,21 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
   // ---- The clan's own week ----------------------------------------------------------------------
   const weekStart = dayKey(new Date(now.getTime() - 6 * 86_400_000));
   const prevStart = dayKey(new Date(now.getTime() - 13 * 86_400_000));
+  // SCOPED TO THIS CLAN'S MEMBERS. member_daily_stats is keyed by the GLOBAL account, so without the
+  // join this summed every clan's XP onto one clan's home — the cross-clan leak that only shows once
+  // two clans share a database. The join to clan_roster (member seats in THIS clan) is the scope.
   const clanRows = await db
     .select({ day: memberDailyStats.day, xpGained: memberDailyStats.xpGained })
     .from(memberDailyStats)
+    .innerJoin(
+      clanRoster,
+      and(
+        eq(clanRoster.accountId, memberDailyStats.accountId),
+        eq(clanRoster.clanId, clanId),
+        eq(clanRoster.kind, 'member'),
+        isNull(clanRoster.leftAt),
+      ),
+    )
     .where(gte(memberDailyStats.day, prevStart));
   const byDay = new Map<string, number>();
   for (const r of clanRows) byDay.set(r.day, (byDay.get(r.day) ?? 0) + r.xpGained);
@@ -275,15 +287,29 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
   const deltaPct = prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : null;
 
   // ---- Milestones ------------------------------------------------------------------------------
+  // SCOPED, and named from the same join. Both tables below are keyed by the global account, so the
+  // clan_roster join (member seats in THIS clan) both restricts the feed to this clan and hands back
+  // the RSN — the previous code looked names up against clan_roster.id, a SEAT id, while it held an
+  // ACCOUNT id (the column was renamed clan_member_id → account_id but this read was not).
   const milestoneRows = await db
     .select({
-      clanMemberId: memberMilestones.accountId,
+      accountId: memberMilestones.accountId,
+      rsn: clanRoster.rsn,
       kind: memberMilestones.kind,
       metric: memberMilestones.metric,
       threshold: memberMilestones.threshold,
       noticedAt: memberMilestones.noticedAt,
     })
     .from(memberMilestones)
+    .innerJoin(
+      clanRoster,
+      and(
+        eq(clanRoster.accountId, memberMilestones.accountId),
+        eq(clanRoster.clanId, clanId),
+        eq(clanRoster.kind, 'member'),
+        isNull(clanRoster.leftAt),
+      ),
+    )
     .where(and(gte(memberMilestones.noticedAt, `${weekStart}T00:00:00.000Z`), lte(memberMilestones.noticedAt, nowIso)))
     .orderBy(desc(memberMilestones.noticedAt))
     .limit(MILESTONE_LIMIT);
@@ -299,13 +325,22 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
   // entire back catalogue into the clan feed.
   const unlockRows = await db
     .select({
-      accountId: memberClogItems.accountId,
+      rsn: clanRoster.rsn,
       itemId: memberClogItems.itemId,
       pageName: memberClogItems.pageName,
       kcAtUnlock: memberClogItems.kcAtUnlock,
       firstSeenAt: memberClogItems.firstSeenAt,
     })
     .from(memberClogItems)
+    .innerJoin(
+      clanRoster,
+      and(
+        eq(clanRoster.accountId, memberClogItems.accountId),
+        eq(clanRoster.clanId, clanId),
+        eq(clanRoster.kind, 'member'),
+        isNull(clanRoster.leftAt),
+      ),
+    )
     .where(
       and(
         isNotNull(memberClogItems.firstSeenAt),
@@ -316,26 +351,18 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
     .orderBy(desc(memberClogItems.firstSeenAt))
     .limit(MILESTONE_LIMIT);
 
-  const nameIds = [...new Set([...milestoneRows, ...unlockRows].map((m) => ('accountId' in m ? m.accountId : m.clanMemberId)))];
-  const memberNames = nameIds.length
-    ? await db
-        .select({ id: clanRoster.id, rsn: clanRoster.rsn })
-        .from(clanRoster)
-        .where(inArray(clanRoster.id, nameIds))
-    : [];
-  const nameById = new Map(memberNames.map((m) => [m.id, m.rsn]));
   const itemNames = unlockRows.length ? clogItemNames() : new Map<number, string>();
 
   const milestones = [
     ...milestoneRows.map((m) => ({
-      rsn: nameById.get(m.clanMemberId) ?? 'Someone',
+      rsn: m.rsn ?? 'Someone',
       text: milestoneSentence(m.kind, m.metric, m.threshold),
       iconUrl: m.metric ? competitionIconUrl(m.kind === 'kc' ? 'boss' : 'skill', m.metric) : null,
       at: m.noticedAt,
       day: m.noticedAt.slice(0, 10),
     })),
     ...unlockRows.map((u) => ({
-      rsn: nameById.get(u.accountId) ?? 'Someone',
+      rsn: u.rsn ?? 'Someone',
       // The KC is the whole story on a drop — "at 12 KC" is a spoon and "at 1,400" is a drought — so
       // it rides along wherever the plugin caught it live.
       // Name it from the shipped catalogue; fall back to the PAGE when that misses. A miss means the
@@ -358,16 +385,19 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
   let you: HomeYou | null = null;
   if (viewerMemberIds.length > 0) {
     const mine = await db
-      .select({ id: clanRoster.id, rsn: clanRoster.rsn })
+      .select({ id: clanRoster.id, accountId: clanRoster.accountId, rsn: clanRoster.rsn })
       .from(clanRoster)
       .where(inArray(clanRoster.id, viewerMemberIds));
     if (mine.length > 0) {
+      // Two id spaces, deliberately kept apart: SEAT ids match the weekly-competition rows (which key
+      // on clan_member_id), ACCOUNT ids match the history tables (member_daily_stats/_milestones).
       const myIds = new Set(mine.map((m) => m.id));
+      const myAccountIds = new Set(mine.map((m) => m.accountId));
       const myDaily = clanRows.length
         ? await db
             .select({ day: memberDailyStats.day, xpGained: memberDailyStats.xpGained })
             .from(memberDailyStats)
-            .where(and(inArray(memberDailyStats.accountId, [...myIds]), gte(memberDailyStats.day, weekStart)))
+            .where(and(inArray(memberDailyStats.accountId, [...myAccountIds]), gte(memberDailyStats.day, weekStart)))
         : [];
       const liveComp = weeklies.find((w) => w.status === 'active');
       let weekly: HomeYou['weekly'] = null;
@@ -443,7 +473,7 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
         weekly,
         ladder,
         xpThisWeek: myDaily.reduce((s, r) => s + r.xpGained, 0),
-        milestones: milestoneRows.filter((m) => myIds.has(m.clanMemberId)).length,
+        milestones: milestoneRows.filter((m) => myAccountIds.has(m.accountId)).length,
         activeDays: new Set(myDaily.filter((r) => r.xpGained > 0).map((r) => r.day)).size,
         daysElapsed: 7,
       };

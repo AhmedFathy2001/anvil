@@ -5,6 +5,10 @@ import { requireClan } from '@/lib/clanContext';
 import { events, tiles } from '@/db/schema';
 import { verifyAdmin } from '@/lib/auth';
 import { validateEventRules } from '@/lib/eventRules';
+import { isTeamFormation } from '@/lib/teamFormation';
+import { isVisibility } from '@/lib/eventVisibility';
+
+const CASH_POLICIES = ['host-holds', 'each-settles', 'clans-collect-host-pays'] as const;
 
 export async function GET() {
   const clan = await requireClan();
@@ -22,11 +26,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { name, boardSize, tileLabels, tileIcons, scoringMode, format, maxAccountsPerPerson, accountSlotMode, feeMode, rules, startDate, endDate } = await request.json();
+  const { name, boardSize, tileLabels, tileIcons, scoringMode, format, maxAccountsPerPerson, accountSlotMode, feeMode, rules, startDate, endDate, teamFormation, cashPolicy, visibility } = await request.json();
 
   if (!name || !boardSize) {
     return NextResponse.json({ error: 'Name and boardSize are required' }, { status: 400 });
   }
+
+  // Multi-clan knobs — all optional, defaulting to a single-clan drafted event exactly as before.
+  //   teamFormation 'per_clan' makes each clan a team (the co-host shape); 'draft' is the default.
+  //   cashPolicy / visibility only mean anything alongside per_clan, but are validated regardless.
+  if (teamFormation !== undefined && !isTeamFormation(teamFormation)) {
+    return NextResponse.json({ error: "teamFormation must be 'draft' or 'per_clan'" }, { status: 400 });
+  }
+  if (cashPolicy !== undefined && !(CASH_POLICIES as readonly string[]).includes(cashPolicy)) {
+    return NextResponse.json({ error: 'Unknown cash policy' }, { status: 400 });
+  }
+  if (visibility !== undefined && !isVisibility(visibility)) {
+    return NextResponse.json({ error: "visibility must be 'clan', 'invited' or 'public'" }, { status: 400 });
+  }
+  const resolvedFormation = isTeamFormation(teamFormation) ? teamFormation : 'draft';
+  const resolvedCashPolicy = (CASH_POLICIES as readonly string[]).includes(cashPolicy) ? cashPolicy : 'host-holds';
+  // A per-clan event is a cross-clan event by nature, so it defaults to 'invited' — the host and the
+  // clans it invites, not the whole platform — unless the caller says otherwise.
+  const resolvedVisibility = isVisibility(visibility) ? visibility : resolvedFormation === 'per_clan' ? 'invited' : 'clan';
 
   if (format !== undefined && format !== 'bingo' && format !== 'tilerace' && format !== 'ladder') {
     return NextResponse.json({ error: "format must be 'bingo', 'tilerace' or 'ladder'" }, { status: 400 });
@@ -152,6 +174,9 @@ export async function POST(request: Request) {
       name, boardSize, scoringMode: resolvedScoringMode, format: resolvedFormat,
       maxAccountsPerPerson: resolvedMaxAccounts, accountSlotMode: resolvedAccountSlotMode, feeMode: resolvedFeeMode,
       rules: resolvedRules,
+      teamFormation: resolvedFormation,
+      cashPolicy: resolvedCashPolicy,
+      visibility: resolvedVisibility,
       startDate: resolvedStart as string | null,
       endDate: resolvedEnd as string | null,
     }).returning();
