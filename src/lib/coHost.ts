@@ -117,6 +117,35 @@ export async function acceptedCohostClanIds(eventId: number): Promise<number[]> 
 }
 
 /**
+ * Hand a clan's staff (moderator and up — the people who run its side) the team_staff seats to run a
+ * team. Idempotent: a seat only where one isn't already held, so a retry never duplicates. Shared by
+ * provisionCoHostTeam (new team) and adoptTeamAsCoHost (existing team).
+ */
+async function grantTeamStaffToClan(teamId: number, clanId: number, byUserId: number | null): Promise<void> {
+  const clan = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { name: true } });
+  const clanStaffRows = await db
+    .select({ userId: clanStaff.userId, role: clanStaff.role })
+    .from(clanStaff)
+    .where(eq(clanStaff.clanId, clanId));
+  const wanted = clanStaffRows.filter((r) => atLeast(r.role, 'moderator')).map((r) => r.userId);
+  if (wanted.length === 0) return;
+  const already = new Set(
+    (
+      await db
+        .select({ userId: teamStaff.userId })
+        .from(teamStaff)
+        .where(and(eq(teamStaff.teamId, teamId), inArray(teamStaff.userId, wanted)))
+    ).map((r) => r.userId),
+  );
+  const toGrant = wanted.filter((u) => !already.has(u));
+  if (toGrant.length > 0) {
+    await db.insert(teamStaff).values(
+      toGrant.map((userId) => ({ teamId, userId, grantedByUserId: byUserId, note: `${clan?.name ?? 'Co-host'} staff (co-host)` })),
+    );
+  }
+}
+
+/**
  * Create (or reuse) the team a co-host clan fields on an event, and hand its staff the seats to run
  * it. Idempotent: one team per (event, clan), and a staff seat only where one isn't already held.
  */
@@ -142,31 +171,80 @@ export async function provisionCoHostTeam(eventId: number, clanId: number, byUse
     teamId = team.id;
   }
 
-  // Grant team_staff to the clan's staff (moderator and up — the people who run its side), skipping
-  // anyone who already holds a seat so a retry doesn't duplicate.
-  const clanStaffRows = await db
-    .select({ userId: clanStaff.userId, role: clanStaff.role })
-    .from(clanStaff)
-    .where(eq(clanStaff.clanId, clanId));
-  const wanted = clanStaffRows.filter((r) => atLeast(r.role, 'moderator')).map((r) => r.userId);
-  if (wanted.length > 0) {
-    const already = new Set(
-      (
-        await db
-          .select({ userId: teamStaff.userId })
-          .from(teamStaff)
-          .where(and(eq(teamStaff.teamId, teamId), inArray(teamStaff.userId, wanted)))
-      ).map((r) => r.userId),
-    );
-    const toGrant = wanted.filter((u) => !already.has(u));
-    if (toGrant.length > 0) {
-      await db.insert(teamStaff).values(
-        toGrant.map((userId) => ({ teamId: teamId!, userId, grantedByUserId: byUserId, note: `${clan.name} staff (co-host)` })),
-      );
-    }
+  await grantTeamStaffToClan(teamId, clanId, byUserId);
+  return teamId;
+}
+
+/**
+ * Adopt an EXISTING team as a co-host's, keeping every player already on it.
+ *
+ * This is the cutover shape, not the fresh-invite shape. An old clan-vs-clan event is one clan's event
+ * with a team per clan drawn by hand — the players are already there, on teams that just aren't tagged.
+ * provisionCoHostTeam would make a NEW empty team and strand them; this tags the team they're on.
+ *
+ * Idempotent, and it refuses the two ways the (event, clan) unique tag could be violated: a team that
+ * already belongs to a DIFFERENT clan, and another team on the event already standing in for THIS clan.
+ */
+export async function adoptTeamAsCoHost(
+  eventId: number,
+  teamId: number,
+  coHostClanId: number,
+  byUserId: number | null,
+): Promise<{ ok: true; cohostId: number } | { ok: false; error: string }> {
+  const team = await db.query.teams.findFirst({
+    where: eq(teams.id, teamId),
+    columns: { id: true, eventId: true, clanId: true },
+  });
+  if (!team || team.eventId !== eventId) return { ok: false, error: 'That team is not on this event' };
+  if (team.clanId != null && team.clanId !== coHostClanId) return { ok: false, error: 'That team already belongs to another clan' };
+
+  const clan = await db.query.clans.findFirst({ where: eq(clans.id, coHostClanId), columns: { id: true } });
+  if (!clan) return { ok: false, error: 'No such clan' };
+
+  // Another team already standing in for this clan would collide on teams_event_clan_unique.
+  const clash = await db
+    .select({ id: teams.id })
+    .from(teams)
+    .where(and(eq(teams.eventId, eventId), eq(teams.clanId, coHostClanId)))
+    .then((r) => r[0]);
+  if (clash && clash.id !== teamId) return { ok: false, error: 'Another team on this event is already this clan’s' };
+
+  if (team.clanId == null) {
+    await db.update(teams).set({ clanId: coHostClanId }).where(eq(teams.id, teamId));
+  }
+  await grantTeamStaffToClan(teamId, coHostClanId, byUserId);
+
+  // Record the accepted co-host, pointing at the adopted team. Upsert on the (event, clan) pair.
+  const existing = await db
+    .select({ id: eventCohosts.id, status: eventCohosts.status })
+    .from(eventCohosts)
+    .where(and(eq(eventCohosts.eventId, eventId), eq(eventCohosts.clanId, coHostClanId)))
+    .then((r) => r[0]);
+
+  let cohostId: number;
+  if (existing) {
+    cohostId = existing.id;
+    await db
+      .update(eventCohosts)
+      .set({ status: 'accepted', teamId, acceptedByUserId: byUserId, decidedAt: new Date().toISOString() })
+      .where(eq(eventCohosts.id, cohostId));
+  } else {
+    const [row] = await db
+      .insert(eventCohosts)
+      .values({
+        eventId,
+        clanId: coHostClanId,
+        status: 'accepted',
+        teamId,
+        invitedByUserId: byUserId,
+        acceptedByUserId: byUserId,
+        decidedAt: new Date().toISOString(),
+      })
+      .returning({ id: eventCohosts.id });
+    cohostId = row.id;
   }
 
-  return teamId;
+  return { ok: true, cohostId };
 }
 
 /**

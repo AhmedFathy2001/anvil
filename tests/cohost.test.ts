@@ -129,3 +129,66 @@ test('a member of the accepted co-host clan can now see the invited-only event',
   // A signed-out stranger still cannot.
   assert.equal(await canSeeEvent({ eventId, playerId: null }), false);
 });
+
+// ── adoptTeamAsCoHost: the cutover shape ──────────────────────────────────────
+// An old clan-vs-clan event is one clan's event with a hand-drawn team per clan; the players are
+// already on those teams, which are just not tagged. Adoption tags the team they're on rather than
+// making a new empty one.
+let adoptEvent: number;
+let adoptTeam: number; // the pre-drawn "guest clan" team, untagged, with a player on it
+let adoptOtherTeam: number; // the host's own team on the same event
+
+test('adopting an existing team tags it, keeps its players, and records an accepted co-host', async () => {
+  const [ev] = await db.insert(s.events).values({ clanId: hostClan, name: 'Old VS', boardSize: 25 }).returning();
+  adoptEvent = ev.id;
+  const [t1] = await db.insert(s.teams).values({ eventId: adoptEvent, name: 'Guest side', color: '#3ecf62' }).returning();
+  adoptTeam = t1.id;
+  const [t2] = await db.insert(s.teams).values({ eventId: adoptEvent, name: 'Host side', color: '#d4a017' }).returning();
+  adoptOtherTeam = t2.id;
+  // A player sitting on the soon-to-be-adopted team.
+  await db.insert(s.eventParticipants).values({ eventId: adoptEvent, name: 'On guest side', teamId: adoptTeam });
+
+  const r = await C.adoptTeamAsCoHost(adoptEvent, adoptTeam, guestClan, gAdmin);
+  assert.equal(r.ok, true);
+
+  const team = await db.select().from(s.teams).where(eq(s.teams.id, adoptTeam)).then((x) => x[0]);
+  assert.equal(team.clanId, guestClan, 'existing team tagged to the co-host clan');
+  assert.equal(team.name, 'Guest side', 'name untouched — not replaced by a fresh team');
+
+  // The player is still on that team (no new team was made).
+  const parts = await db.select().from(s.eventParticipants).where(eq(s.eventParticipants.teamId, adoptTeam));
+  assert.equal(parts.length, 1, 'player preserved on the adopted team');
+
+  // Only the two hand-drawn teams exist — adoption did not add a third.
+  const allTeams = await db.select().from(s.teams).where(eq(s.teams.eventId, adoptEvent));
+  assert.equal(allTeams.length, 2, 'no extra team created');
+
+  // Delegated staff + an accepted co-host row pointing at the adopted team.
+  const staff = await db.select().from(s.teamStaff).where(eq(s.teamStaff.teamId, adoptTeam));
+  const staffUsers = new Set(staff.map((x) => x.userId));
+  assert.ok(staffUsers.has(gAdmin) && staffUsers.has(gMod), 'guest staff delegated onto the adopted team');
+  const row = await db.select().from(s.eventCohosts).where(and(eq(s.eventCohosts.eventId, adoptEvent), eq(s.eventCohosts.clanId, guestClan))).then((x) => x[0]);
+  assert.equal(row.status, 'accepted');
+  assert.equal(row.teamId, adoptTeam);
+});
+
+test('adopting is idempotent — no duplicate co-host row, team, or staff', async () => {
+  const r = await C.adoptTeamAsCoHost(adoptEvent, adoptTeam, guestClan, gAdmin);
+  assert.equal(r.ok, true);
+  const rows = await db.select().from(s.eventCohosts).where(and(eq(s.eventCohosts.eventId, adoptEvent), eq(s.eventCohosts.clanId, guestClan)));
+  assert.equal(rows.length, 1, 'still one co-host row');
+  const staff = await db.select().from(s.teamStaff).where(eq(s.teamStaff.teamId, adoptTeam));
+  assert.equal(staff.length, new Set(staff.map((x) => x.userId)).size, 'no duplicate staff seats');
+});
+
+test('adoption refuses a team on a different event, and a clan collision', async () => {
+  // A team not on this event.
+  const [otherEv] = await db.insert(s.events).values({ clanId: hostClan, name: 'Elsewhere', boardSize: 25 }).returning();
+  const [strayTeam] = await db.insert(s.teams).values({ eventId: otherEv.id, name: 'Stray', color: '#4a9fd4' }).returning();
+  const wrongEvent = await C.adoptTeamAsCoHost(adoptEvent, strayTeam.id, guestClan, gAdmin);
+  assert.equal(wrongEvent.ok, false);
+
+  // The host's own team can't also be adopted as the guest clan's — guest already holds a team here.
+  const collision = await C.adoptTeamAsCoHost(adoptEvent, adoptOtherTeam, guestClan, gAdmin);
+  assert.equal(collision.ok, false);
+});
