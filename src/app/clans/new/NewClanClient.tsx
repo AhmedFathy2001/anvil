@@ -21,18 +21,18 @@ export default function NewClanClient({ apex, signedIn }: { apex: string; signed
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
 
-  // Suggest the slug from the name until they edit it themselves, then leave it alone —
-  // silently rewriting a field someone has typed in is worse than a bad suggestion.
+  // Suggest the slug from the display name — or the in-game name when no display name is given, since
+  // that is now the required field — until they edit the slug themselves, then leave it alone.
   useEffect(() => {
     if (touchedSlug) return;
     setSlug(
-      name
+      (name || inGameName)
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '')
         .slice(0, 32),
     );
-  }, [name, touchedSlug]);
+  }, [name, inGameName, touchedSlug]);
 
   useEffect(() => {
     if (!slug) {
@@ -128,15 +128,34 @@ export default function NewClanClient({ apex, signedIn }: { apex: string; signed
   return (
     <form onSubmit={submit} className="space-y-5 rounded-xl border border-card-border bg-card-bg p-6">
       <div>
-        <label className="mb-1.5 block text-sm text-gray-300">Clan name</label>
+        <label className="mb-1.5 block text-sm text-gray-300">In-game clan name</label>
         <Input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
+          value={inGameName}
+          onChange={(e) => setInGameName(e.target.value)}
           required
           placeholder="The Afk Spot"
           className="rounded-xl px-4 py-2.5 outline-none"
         />
-        <p className="mt-1 text-xs text-gray-500">Shown on your site and in Discord posts.</p>
+        <p className="mt-1 text-xs text-gray-500">
+          Exactly as it appears in OSRS. Roster sync uses it to match your clan and refuses a roster
+          from any other — so it&rsquo;s required, and it&rsquo;s what stops someone else&rsquo;s member
+          list landing on your site.
+        </p>
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-sm text-gray-300">
+          Clan name <span className="text-gray-600">(optional)</span>
+        </label>
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={inGameName || 'The Afk Spot'}
+          className="rounded-xl px-4 py-2.5 outline-none"
+        />
+        <p className="mt-1 text-xs text-gray-500">
+          Shown on your site and in Discord posts. Leave it blank to reuse your in-game clan name.
+        </p>
       </div>
 
       <div>
@@ -164,28 +183,11 @@ export default function NewClanClient({ apex, signedIn }: { apex: string; signed
         )}
       </div>
 
-      <div>
-        <label className="mb-1.5 block text-sm text-gray-300">
-          In-game clan name <span className="text-gray-600">(optional)</span>
-        </label>
-        <Input
-          value={inGameName}
-          onChange={(e) => setInGameName(e.target.value)}
-          placeholder="The Afk Spot"
-          className="rounded-xl px-4 py-2.5 outline-none"
-        />
-        <p className="mt-1 text-xs text-gray-500">
-          Exactly as it appears in OSRS. The plugin&rsquo;s roster sync refuses a roster from a
-          different clan, so this is what stops someone else&rsquo;s member list landing on your site.
-          You can set it later.
-        </p>
-      </div>
-
       {error && <p className="text-sm text-red-300">{error}</p>}
 
       <button
         type="submit"
-        disabled={busy || slugBad || !name || !slug}
+        disabled={busy || slugBad || !inGameName || !slug}
         className="rounded-xl border border-gold/40 px-5 py-2.5 text-sm text-gold disabled:opacity-40"
       >
         {busy ? 'Creating…' : 'Create clan'}

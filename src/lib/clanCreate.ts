@@ -84,11 +84,16 @@ export type CreateClanResult =
  */
 export async function createClan(input: CreateClanInput): Promise<CreateClanResult> {
   const slug = normalizeSlug(input.slug);
-  const name = input.name.trim();
+  // The in-game clan name is now the required one — roster sync matches on it, so a clan without it
+  // can never receive a roster. The display name is optional and reuses the in-game name when blank.
+  const inGameName = input.inGameName?.trim() || null;
+  if (!inGameName) {
+    return { ok: false, error: 'Enter your in-game clan name — roster sync needs it to match your clan.' };
+  }
+  const name = input.name.trim() || inGameName;
 
-  if (!name) return { ok: false, error: 'Give the clan a name.' };
   const avail = await checkSlug(slug);
-  if (!avail.ok) return { ok: false, error: availabilityMessage('Subdomain', avail) };
+  if (!avail.ok) return { ok: false, error: availabilityMessage('Address', avail) };
 
   try {
     return await db.transaction(async (tx) => {
@@ -97,7 +102,7 @@ export async function createClan(input: CreateClanInput): Promise<CreateClanResu
         .values({
           slug,
           name,
-          inGameName: input.inGameName?.trim() || null,
+          inGameName,
           contactEmail: input.contactEmail?.trim().toLowerCase() || null,
           // Free and active from the first moment. Nothing to pay for, nothing to wait for.
           plan: 'free',

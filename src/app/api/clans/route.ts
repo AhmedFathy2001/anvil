@@ -33,7 +33,7 @@ export async function GET(request: Request) {
   const out: Record<string, unknown> = {};
   if (slug) {
     const r = await checkSlug(slug);
-    out.slug = { ok: r.ok, message: r.ok ? '' : availabilityMessage('Subdomain', r) };
+    out.slug = { ok: r.ok, message: r.ok ? '' : availabilityMessage('Address', r) };
   }
   if (domain) {
     const r = await checkDomain(domain);
