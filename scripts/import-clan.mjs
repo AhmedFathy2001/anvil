@@ -627,6 +627,52 @@ async function verify(client, clanId) {
   return problems;
 }
 
+/**
+ * One person per Discord id, across every clan imported so far.
+ *
+ * importRoster gives an account its person from the seat's `user_id`, which is a per-clan login. But
+ * the same human is a full login in one clan and a bare guest (no user row) in another — and clans
+ * import in some order, so the guest account is often created BEFORE the login that would have named
+ * its owner exists. It lands on a person of its own, and the human's characters split across two
+ * people. `accounts.discord_id` is the same on both, so that is the key that reunites them.
+ *
+ * Run at the END of every import: whichever clan is imported last, this collapses every account
+ * sharing a Discord id onto one person — the login's person when there is one, else the lowest — and
+ * deletes the people it emptied. Idempotent, and order-independent by construction.
+ */
+async function reconcileIdentity(client) {
+  const { rowCount: moved } = await client.query(`
+    WITH canon AS (
+      SELECT a.discord_id,
+             COALESCE(
+               (SELECT u.player_id FROM users u WHERE u.discord_id = a.discord_id AND u.player_id IS NOT NULL LIMIT 1),
+               MIN(a.player_id)
+             ) AS player_id
+      FROM accounts a
+      WHERE a.discord_id IS NOT NULL
+      GROUP BY a.discord_id
+    )
+    UPDATE accounts a SET player_id = c.player_id
+    FROM canon c
+    WHERE a.discord_id = c.discord_id AND a.player_id IS DISTINCT FROM c.player_id
+  `);
+
+  // Delete the people that reassignment emptied — no account, no login, and nothing else pointing at
+  // them (every FK into players is checked, so this can never strand a ban, request or invite).
+  const { rowCount: removed } = await client.query(`
+    DELETE FROM players p
+    WHERE NOT EXISTS (SELECT 1 FROM accounts            WHERE player_id = p.id)
+      AND NOT EXISTS (SELECT 1 FROM users               WHERE player_id = p.id)
+      AND NOT EXISTS (SELECT 1 FROM clan_bans           WHERE player_id = p.id)
+      AND NOT EXISTS (SELECT 1 FROM clan_join_requests  WHERE player_id = p.id)
+      AND NOT EXISTS (SELECT 1 FROM event_invites       WHERE player_id = p.id)
+  `);
+
+  if (moved || removed) {
+    stats.push({ table: 'identity reconcile', rows: moved, note: `${moved} account(s) rejoined their person, ${removed} empty person(s) removed` });
+  }
+}
+
 // ── run ──────────────────────────────────────────────────────────────────────────────────────
 
 const client = await pool.connect();
@@ -679,6 +725,9 @@ try {
     if (covered.has(t) || t.startsWith('federation_') || t.startsWith('sqlite_')) continue;
     if (srcCount(t) > 0) warnings.push(`${t}: ${srcCount(t)} rows, and no rule for it — NOT imported`);
   }
+
+  // Reunite any characters this or an earlier import split across people (same Discord id).
+  await reconcileIdentity(client);
 
   const problems = await verify(client, clanId);
 
