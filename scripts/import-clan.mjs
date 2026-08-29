@@ -100,6 +100,18 @@ const HISTORY_ON_ACCOUNT = new Set([
 ]);
 
 /**
+ * Target tables whose `clan_id` is NOT a "this row belongs to the imported clan" scope, and so must
+ * NOT be auto-filled with the clan being imported.
+ *
+ * `teams.clan_id` is the co-host tag: it names which clan a team stands in for on a multi-clan board,
+ * and is deliberately NULL for every drafted team (see 0071_team_formation). Every team in an old
+ * single-clan DB is a drafted team, so stamping the clan's id on all of them is not just wrong — it
+ * makes two teams on one event collide on `teams_event_clan_unique (event_id, clan_id)`. Leave it
+ * NULL and let the co-host flow set it when a team actually stands in for a clan.
+ */
+const CLAN_ID_NOT_A_SCOPE = new Set(['teams']);
+
+/**
  * Copy order. FK parents first, so a child's remapped id always has something to point at.
  *
  * clan_members is absent because it is not copied — it is TRANSFORMED, before any of this, into the
@@ -470,7 +482,7 @@ async function copyTable(client, srcTable, clanId, fks) {
   const rows = src.prepare(`SELECT * FROM "${srcTable}"`).all();
   if (!rows.length) return;
 
-  const wantsClan = tCols.has('clan_id') && !sCols.includes('clan_id');
+  const wantsClan = tCols.has('clan_id') && !sCols.includes('clan_id') && !CLAN_ID_NOT_A_SCOPE.has(dest);
   const cols = [...shared.map((c) => (toAccount && c === 'clan_member_id' ? 'account_id' : c)),
                 ...(wantsClan ? ['clan_id'] : [])];
   const placeholders = cols.map((_, i) => `$${i + 1}`).join(',');
