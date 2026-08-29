@@ -640,12 +640,26 @@ try {
     clanId = existing[0].id;
     console.log(`[import] clan '${SLUG}' already exists (id ${clanId})`);
   } else {
+    // An imported clan was a real, running clan, so carry two things the fresh multi-clan schema
+    // needs that the old single-clan DB kept elsewhere:
+    //   - the IN-GAME name into `in_game_name`, the column roster-sync now gates on (it lived in a
+    //     `clan_ingame_name` setting when a deployment WAS the clan);
+    //   - `ingame_name_verified_at`, because this clan already proved its name in production — a
+    //     first sync after the move should not have to re-earn a claim we already trust.
+    const ingameRow = srcTables.has('settings')
+      ? src.prepare("SELECT value FROM settings WHERE key = 'clan_ingame_name' LIMIT 1").get()
+      : null;
+    const inGameName = (ingameRow?.value ?? '').trim() || null;
     const { rows } = await client.query(
-      'INSERT INTO clans (slug, name) VALUES ($1, $2) RETURNING id',
-      [SLUG, NAME || SLUG],
+      `INSERT INTO clans (slug, name, in_game_name, ingame_name_verified_at)
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      [SLUG, NAME || SLUG, inGameName, inGameName ? new Date().toISOString() : null],
     );
     clanId = rows[0].id;
-    console.log(`[import] created clan '${SLUG}' (id ${clanId})`);
+    console.log(
+      `[import] created clan '${SLUG}' (id ${clanId})` +
+        (inGameName ? ` — in-game "${inGameName}", marked verified` : ' — no in-game name found'),
+    );
   }
 
   // users first: the roster and the staff grants both resolve through them.
