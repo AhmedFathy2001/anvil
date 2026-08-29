@@ -21,7 +21,7 @@ export default function NewClanClient({ apex, signedIn }: { apex: string; signed
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
 
-  // Suggest the subdomain from the name until they edit it themselves, then leave it alone —
+  // Suggest the slug from the name until they edit it themselves, then leave it alone —
   // silently rewriting a field someone has typed in is worse than a bad suggestion.
   useEffect(() => {
     if (touchedSlug) return;
@@ -141,7 +141,10 @@ export default function NewClanClient({ apex, signedIn }: { apex: string; signed
 
       <div>
         <label className="mb-1.5 block text-sm text-gray-300">Address</label>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          {/* THE PATH, NOT A SUBDOMAIN. Clans live at {apex}/c/<slug> now; the old
+              <slug>.<apex> form is gone (middleware only 301s it for old plugins). */}
+          <span className="whitespace-nowrap text-sm text-gray-500">{apex}/c/</span>
           <Input
             value={slug}
             onChange={(e) => {
@@ -153,7 +156,6 @@ export default function NewClanClient({ apex, signedIn }: { apex: string; signed
               slugBad ? 'border-red-900 focus:border-red-700' : 'border-card-border focus:border-gold'
             }`}
           />
-          <span className="text-sm text-gray-500">.{apex}</span>
         </div>
         {check && (
           <p className={`mt-1 text-xs ${check.ok ? 'text-emerald-400' : 'text-red-300'}`}>
