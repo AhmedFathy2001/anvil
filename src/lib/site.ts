@@ -13,12 +13,13 @@ export const SITE = {
   domain: 'anvilosrs.com',
   baseUrl: 'https://anvilosrs.com',
 
-  // The legal entity that contracts with customers. Set to your registered business name, or your
-  // full legal name if operating as a sole trader / individual.
-  legalEntity: 'Anvil', // TODO: your registered business or full legal name
+  // Who operates Anvil. There is no registered company — Anvil is run by an individual, and this is
+  // the name it trades under. Put your full legal name here instead if you ever want the terms to
+  // name you personally (e.g. if you incorporate).
+  legalEntity: 'Anvil',
 
   // How customers reach you for support, billing questions, and data requests.
-  contactEmail: 'support@anvilosrs.com', // TODO: a mailbox you actually monitor
+  contactEmail: 'help@anvilosrs.com', // inbound to be wired up
   supportDiscord: 'https://discord.gg/nqTxCQAbv4',
 
   // Payments are taken by Gumroad as Merchant of Record (our authorized reseller). Card data never
