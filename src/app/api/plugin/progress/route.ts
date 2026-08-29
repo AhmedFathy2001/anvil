@@ -69,7 +69,9 @@ export async function POST(request: Request) {
     const done = countDone(items);
     const existing = await db.query.memberProgressItems.findFirst({
       where: and(
-        eq(memberProgressItems.accountId, member.clanMemberId),
+        // ACCOUNT id — the same key the INSERT below writes. This read used member.clanMemberId (the
+        // SEAT), so it never matched the stored row and every push re-inserted / hit the unique index.
+        eq(memberProgressItems.accountId, member.accountId),
         eq(memberProgressItems.category, set.category),
       ),
     });

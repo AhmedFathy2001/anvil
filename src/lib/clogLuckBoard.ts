@@ -93,17 +93,22 @@ export function bossKeyForPage(page: string): string | null {
  * the fact it is gone forever: a pet spooned at 12 and a pet earned at 3,000 look identical once the
  * player has 3,000 kills.
  */
-export async function bossKillsFor(clanMemberId: number): Promise<Record<string, number>> {
+export async function bossKillsFor(accountId: number): Promise<Record<string, number>> {
+  // Keyed by ACCOUNT on both halves. This took one id and used it as clan_roster.id (a SEAT) for the
+  // live push and player_snapshots.account_id (an ACCOUNT) for the hiscores half — two id spaces, so
+  // one of them was always wrong. Both read the account now (liveStats hangs off the account; any of
+  // its seats in the view carries the same value, hence LIMIT 1).
   const [member] = await db
     .select({ liveStats: clanRoster.liveStats })
     .from(clanRoster)
-    .where(eq(clanRoster.id, clanMemberId));
+    .where(eq(clanRoster.accountId, accountId))
+    .limit(1);
   const kills = parsePluginStats(member?.liveStats);
 
   const snaps = await db
     .select({ payload: playerSnapshots.payload, capturedAt: playerSnapshots.capturedAt })
     .from(playerSnapshots)
-    .where(and(eq(playerSnapshots.accountId, clanMemberId), eq(playerSnapshots.kind, 'current')));
+    .where(and(eq(playerSnapshots.accountId, accountId), eq(playerSnapshots.kind, 'current')));
   const newest = snaps.sort((a, b) => b.capturedAt.localeCompare(a.capturedAt))[0];
   if (newest) {
     try {
@@ -134,17 +139,19 @@ export interface LuckBoards {
  * Only members who have synced a log are considered: without one we cannot tell "hasn't got it" from
  * "hasn't told us", and putting the second on a dry board would be a lie about a real person.
  */
-export async function getLuckBoards(limit = 15): Promise<LuckBoards> {
+export async function getLuckBoards(clanId: number, limit = 15): Promise<LuckBoards> {
   const candidates = luckCandidates();
   if (candidates.length === 0) return { dry: [], spooned: [], membersConsidered: 0, itemsConsidered: 0 };
 
-  // Everyone who has synced, and is still in the clan.
+  // Everyone who has synced, and is still in THIS clan. The clanId filter is what keeps it this
+  // clan's board: member_clog is keyed by the global account, so without it the join pulled every
+  // clan's synced logs onto one clan's luck board.
   const synced = await db
     .select({ id: memberClog.accountId, rsn: clanRoster.rsn, liveStats: clanRoster.liveStats })
     .from(memberClog)
     // Joined on the ACCOUNT, which is what the log belongs to — the seat is this clan's row about it.
     .innerJoin(clanRoster, eq(memberClog.accountId, clanRoster.accountId))
-    .where(isNull(clanRoster.leftAt));
+    .where(and(eq(clanRoster.clanId, clanId), isNull(clanRoster.leftAt)));
   if (synced.length === 0) return { dry: [], spooned: [], membersConsidered: 0, itemsConsidered: candidates.length };
 
   const memberIds = synced.map((m) => m.id);

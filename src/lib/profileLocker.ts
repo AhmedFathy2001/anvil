@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { accounts as accountsTable, clanRoster, completions, events, eventSignups, memberDailyStats, playerEventFacts, eventParticipants, submissions, teams, tiles, weeklyCompetitions, weeklyParticipants, players } from '@/db/schema';
+import { accounts as accountsTable, clanRoster, completions, events, eventSignups, memberDailyStats, playerEventFacts, eventParticipants, submissions, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, desc, eq, gte, inArray, isNull, or } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
 import { weeklyMetricLabel } from '@/lib/constants';
@@ -231,6 +231,10 @@ export async function buildLocker(
 
   const memberIds = memberRows.map((m) => m.id);
   const memberIdSet = new Set(memberIds);
+  // SEAT ids (memberIds) key the event tables (event_participants.clan_member_id, player_event_facts);
+  // ACCOUNT ids key the history tables (member_daily_stats). Keeping both to hand stops the seat id
+  // leaking into an account-keyed query, which is what made the week-streak read nothing.
+  const memberAccountIds = memberRows.map((m) => m.accountId);
   const myRsns = new Set(memberRows.map((m) => normalizeRsn(m.rsn)));
   for (const m of memberRows) {
     try {
@@ -592,7 +596,7 @@ export async function buildLocker(
   const dailyRows = await db
     .select({ day: memberDailyStats.day, xpGained: memberDailyStats.xpGained })
     .from(memberDailyStats)
-    .where(and(inArray(memberDailyStats.accountId, memberIds), gte(memberDailyStats.day, streakFrom)));
+    .where(and(inArray(memberDailyStats.accountId, memberAccountIds), gte(memberDailyStats.day, streakFrom)));
   const activeWeeks = new Set(dailyRows.filter((r) => r.xpGained > 0).map((r) => weekKey(r.day)));
   let weekStreak = 0;
   // Start from last week when this week is still empty — a Monday morning shouldn't reset a streak

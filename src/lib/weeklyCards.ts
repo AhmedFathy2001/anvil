@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { memberDailyStats, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { clanRoster, memberDailyStats, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, count, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { BOSSES, EFFICIENCY_LABELS, SKILL_LABELS } from '@/lib/constants';
 import { competitionIconUrl } from '@/lib/tileIcons';
@@ -130,39 +130,45 @@ export async function loadWeeklyCards(
   const shapeFor = new Map<number, number[]>();
   if (opts.withDailyShape && live.length > 0) {
     const earliest = live.map((c) => c.startDate.slice(0, 10)).sort()[0];
-    const [dailyRows, memberRows] = await Promise.all([
-      db
-        .select({
-          clanMemberId: memberDailyStats.accountId,
-          day: memberDailyStats.day,
-          xpGained: memberDailyStats.xpGained,
-          ehpMilliGained: memberDailyStats.ehpMilliGained,
-          ehbMilliGained: memberDailyStats.ehbMilliGained,
-          deltas: memberDailyStats.deltas,
-        })
-        .from(memberDailyStats)
-        .where(gte(memberDailyStats.day, earliest)),
-      db
-        .select({
-          competitionId: weeklyParticipants.competitionId,
-          clanMemberId: weeklyParticipants.clanMemberId,
-        })
-        .from(weeklyParticipants)
-        .where(inArray(weeklyParticipants.competitionId, live.map((c) => c.id))),
-    ]);
+    // Resolve each participant to their ACCOUNT first (weekly_participants.clan_member_id is a SEAT;
+    // member_daily_stats is account-keyed), then read the daily rows for exactly those accounts. The
+    // old code matched a set of SEAT ids against an account key — never equal, so every card's shape
+    // came back flat — and fetched the daily table with no account filter at all.
+    const memberRows = await db
+      .select({
+        competitionId: weeklyParticipants.competitionId,
+        accountId: clanRoster.accountId,
+      })
+      .from(weeklyParticipants)
+      .leftJoin(clanRoster, eq(weeklyParticipants.clanMemberId, clanRoster.id))
+      .where(inArray(weeklyParticipants.competitionId, live.map((c) => c.id)));
+    const shapeAccountIds = [...new Set(memberRows.map((m) => m.accountId).filter((id): id is number => id != null))];
+    const dailyRows = shapeAccountIds.length
+      ? await db
+          .select({
+            accountId: memberDailyStats.accountId,
+            day: memberDailyStats.day,
+            xpGained: memberDailyStats.xpGained,
+            ehpMilliGained: memberDailyStats.ehpMilliGained,
+            ehbMilliGained: memberDailyStats.ehbMilliGained,
+            deltas: memberDailyStats.deltas,
+          })
+          .from(memberDailyStats)
+          .where(and(gte(memberDailyStats.day, earliest), inArray(memberDailyStats.accountId, shapeAccountIds)))
+      : [];
 
     const parsed = dailyRows.map((r) => ({ ...r, parsed: safeParse(r.deltas) }));
     for (const comp of live) {
       const members = new Set(
         memberRows
-          .filter((m) => m.competitionId === comp.id && m.clanMemberId != null)
-          .map((m) => m.clanMemberId as number),
+          .filter((m) => m.competitionId === comp.id && m.accountId != null)
+          .map((m) => m.accountId as number),
       );
       const range = dayRange(comp.startDate, comp.endDate);
       const byDay = new Map(range.map((d) => [d, 0]));
       const type = (['skill', 'boss', 'efficiency'].includes(comp.type) ? comp.type : 'skill') as CompetitionType;
       for (const row of parsed) {
-        if (!members.has(row.clanMemberId) || !byDay.has(row.day)) continue;
+        if (!members.has(row.accountId) || !byDay.has(row.day)) continue;
         byDay.set(
           row.day,
           (byDay.get(row.day) ?? 0) +

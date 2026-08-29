@@ -187,19 +187,20 @@ export async function buildCompetitionView(
   const days = dayRange(competition.startDate, competition.endDate);
   const elapsed = daysElapsed(days, now);
 
-  // Daily rows for exactly these members, over exactly these days. Guests (no clanMemberId) have no
-  // daily history — they still rank, they just have no shape to draw.
-  const memberIdByRsn = new Map<string, number>();
-  for (const p of participants) if (p.clanMemberId != null) memberIdByRsn.set(p.rsn, p.clanMemberId);
-  const memberIds = [...new Set(memberIdByRsn.values())];
+  // Daily rows for exactly these members, over exactly these days. Keyed by ACCOUNT — member_daily_stats
+  // is account-keyed, so filtering it by the participant's SEAT id (clanMemberId) matched nothing and
+  // every competition sparkline came back flat. Guests (no account behind the seat) have no history.
+  const rsnByAccount = new Map<number, string>();
+  for (const p of participants) if (p.accountId != null) rsnByAccount.set(p.accountId, p.rsn);
+  const accountIds = [...rsnByAccount.keys()];
+  // The RSNs that have an account behind their seat — "trackable", i.e. a sparkline can be drawn.
+  const trackableRsns = new Set(participants.filter((p) => p.accountId != null).map((p) => p.rsn));
 
   let dailyRows: DailyRow[] = [];
-  if (memberIds.length > 0 && days.length > 0) {
-    const rsnByMemberId = new Map<number, string>();
-    for (const [rsn, id] of memberIdByRsn) rsnByMemberId.set(id, rsn);
+  if (accountIds.length > 0 && days.length > 0) {
     const rows = await db
       .select({
-        clanMemberId: memberDailyStats.accountId,
+        accountId: memberDailyStats.accountId,
         day: memberDailyStats.day,
         xpGained: memberDailyStats.xpGained,
         ehpMilliGained: memberDailyStats.ehpMilliGained,
@@ -209,13 +210,13 @@ export async function buildCompetitionView(
       .from(memberDailyStats)
       .where(
         and(
-          inArray(memberDailyStats.accountId, memberIds),
+          inArray(memberDailyStats.accountId, accountIds),
           gte(memberDailyStats.day, days[0]),
           lte(memberDailyStats.day, days[days.length - 1]),
         ),
       );
     dailyRows = rows.map((r) => ({
-      rsn: rsnByMemberId.get(r.clanMemberId) ?? '',
+      rsn: rsnByAccount.get(r.accountId) ?? '',
       day: r.day,
       xpGained: r.xpGained,
       ehpMilliGained: r.ehpMilliGained,
@@ -241,7 +242,7 @@ export async function buildCompetitionView(
       days: s.days,
       today: s.days[elapsed - 1] ?? 0,
       streak: activeStreak(s.days, elapsed),
-      trackable: memberIdByRsn.has(b.rsn),
+      trackable: trackableRsns.has(b.rsn),
       flagged: flag?.flagged ?? false,
       flagReason: flag?.reason ?? null,
       isMe: myRsns.has(b.rsn),
@@ -285,7 +286,7 @@ export async function buildCompetitionView(
         }
       : null;
 
-  const milestones = await loadMilestones(memberIds, memberIdByRsn, competition, days, type, metric);
+  const milestones = await loadMilestones(accountIds, rsnByAccount, competition, days, type, metric);
   const highlights = await loadHighlights(competition.id);
 
   return {
@@ -383,20 +384,18 @@ async function loadPrevious(
  * that belong to the competition and drops the rest; when none match, the panel doesn't render.
  */
 async function loadMilestones(
-  memberIds: number[],
-  memberIdByRsn: Map<string, number>,
+  accountIds: number[],
+  rsnByAccount: Map<number, string>,
   competition: { startDate: string; endDate: string },
   days: string[],
   type: CompetitionType,
   metric: string,
 ): Promise<CompetitionMilestone[]> {
-  if (memberIds.length === 0 || days.length === 0) return [];
-  const rsnByMemberId = new Map<number, string>();
-  for (const [rsn, id] of memberIdByRsn) rsnByMemberId.set(id, rsn);
+  if (accountIds.length === 0 || days.length === 0) return [];
 
   const rows = await db
     .select({
-      clanMemberId: memberMilestones.accountId,
+      accountId: memberMilestones.accountId,
       kind: memberMilestones.kind,
       metric: memberMilestones.metric,
       threshold: memberMilestones.threshold,
@@ -405,7 +404,7 @@ async function loadMilestones(
     .from(memberMilestones)
     .where(
       and(
-        inArray(memberMilestones.accountId, memberIds),
+        inArray(memberMilestones.accountId, accountIds),
         gte(memberMilestones.noticedAt, competition.startDate),
         lte(memberMilestones.noticedAt, competition.endDate),
       ),
@@ -420,7 +419,7 @@ async function loadMilestones(
 
   return relevant.slice(0, 6).map((r) => ({
     ...milestoneText(r.kind, r.metric, r.threshold),
-    rsn: rsnByMemberId.get(r.clanMemberId) ?? 'Someone',
+    rsn: rsnByAccount.get(r.accountId) ?? 'Someone',
     day: r.noticedAt.slice(0, 10),
   }));
 }

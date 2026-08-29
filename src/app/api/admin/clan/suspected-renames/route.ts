@@ -161,29 +161,47 @@ export async function GET() {
 
   // Latest known overall XP per candidate member, from stored snapshots. Pick the most
   // recent snapshot that actually recorded an overallXp.
-  const candidateMemberIds = Array.from(
+  //
+  // Snapshots are keyed by ACCOUNT; the candidates are SEATS (clan_audit_log.clan_member_id). Map
+  // seat→account, query by account, then re-key back to seat for the lookups below — the old code
+  // filtered player_snapshots.account_id with seat ids and found no XP for anyone.
+  const candidateSeatIds = Array.from(
     new Set(candidates.flatMap((c) => [c.leftId, c.joinedId])),
   );
-  const snaps = await db
-    .select({
-      clanMemberId: playerSnapshots.accountId,
-      overallXp: playerSnapshots.overallXp,
-    })
-    .from(playerSnapshots)
-    .where(inArray(playerSnapshots.accountId, candidateMemberIds))
-    .orderBy(desc(playerSnapshots.capturedAt));
-  const xpByMember = new Map<number, number>();
+  const accountBySeat = new Map<number, number>();
+  for (const seatId of candidateSeatIds) {
+    const accountId = memberById.get(seatId)?.accountId;
+    if (accountId != null) accountBySeat.set(seatId, accountId);
+  }
+  const candidateAccountIds = [...new Set(accountBySeat.values())];
+  const snaps = candidateAccountIds.length
+    ? await db
+        .select({
+          accountId: playerSnapshots.accountId,
+          overallXp: playerSnapshots.overallXp,
+        })
+        .from(playerSnapshots)
+        .where(inArray(playerSnapshots.accountId, candidateAccountIds))
+        .orderBy(desc(playerSnapshots.capturedAt))
+    : [];
+  const xpByAccount = new Map<number, number>();
   for (const s of snaps) {
-    if (!xpByMember.has(s.clanMemberId) && typeof s.overallXp === 'number') {
-      xpByMember.set(s.clanMemberId, s.overallXp);
+    if (!xpByAccount.has(s.accountId) && typeof s.overallXp === 'number') {
+      xpByAccount.set(s.accountId, s.overallXp);
     }
+  }
+  // Keyed by SEAT for the downstream lookups (xpByMember.get(c.leftId)), which use seat ids.
+  const xpByMember = new Map<number, number>();
+  for (const [seatId, accountId] of accountBySeat) {
+    const xp = xpByAccount.get(accountId);
+    if (xp != null) xpByMember.set(seatId, xp);
   }
 
   // Live-fetch fallback: only for active joined members with no snapshot XP yet (a
   // freshly-renamed account the stats cron hasn't picked up). Capped + parallel so the
   // admin request stays responsive. Inactive members without a snapshot stay unknown
   // and their pairs get excluded (we never guess).
-  const needsLive = candidateMemberIds.filter((id) => {
+  const needsLive = candidateSeatIds.filter((id) => {
     if (xpByMember.has(id)) return false;
     const m = memberById.get(id);
     if (!m || m.leftAt != null) return false;

@@ -137,6 +137,7 @@ export async function computePlayerProfiles(clanId: number, opts: { eventId?: nu
   const members = await db
     .select({
       id: clanRoster.id,
+      accountId: clanRoster.accountId,
       userId: clanRoster.playerId,
       rsn: clanRoster.rsn,
       rsnNormalized: clanRoster.rsnNormalized,
@@ -144,7 +145,11 @@ export async function computePlayerProfiles(clanId: number, opts: { eventId?: nu
       leftAt: clanRoster.leftAt,
       kind: clanRoster.kind,
     })
-    .from(clanRoster);
+    .from(clanRoster)
+    // THIS clan's roster. Without the filter this loaded every clan's members and rated a pool drawn
+    // from the whole platform — and it is why the snapshot read below matched nothing until the ids
+    // were also corrected: it was groping a global table with this clan's seat ids.
+    .where(eq(clanRoster.clanId, clanId));
   const memberById = new Map(members.map((m) => [m.id, m]));
   const memberByAlias = new Map<string, (typeof members)[number]>();
   for (const m of members) {
@@ -194,19 +199,21 @@ export async function computePlayerProfiles(clanId: number, opts: { eventId?: nu
     }
   } else {
     const active = members.filter((m) => !m.leftAt && m.kind !== 'guest');
+    // Keyed by ACCOUNT — player_snapshots is account-keyed, and filtering it by seat ids (m.id) found
+    // nothing, so every clan-wide profile came back with a null baseline snapshot.
     const snapRows = active.length
       ? await db
           .select({
-            clanMemberId: playerSnapshots.accountId,
+            accountId: playerSnapshots.accountId,
             payload: playerSnapshots.payload,
             capturedAt: playerSnapshots.capturedAt,
           })
           .from(playerSnapshots)
-          .where(inArray(playerSnapshots.accountId, active.map((m) => m.id)))
+          .where(inArray(playerSnapshots.accountId, active.map((m) => m.accountId)))
           .orderBy(desc(playerSnapshots.capturedAt))
       : [];
-    const latestByMember = new Map<number, string>();
-    for (const r of snapRows) if (!latestByMember.has(r.clanMemberId)) latestByMember.set(r.clanMemberId, r.payload);
+    const latestByAccount = new Map<number, string>();
+    for (const r of snapRows) if (!latestByAccount.has(r.accountId)) latestByAccount.set(r.accountId, r.payload);
     for (const m of active) {
       const key = personKeyOfMember(m);
       if (pool.has(key)) continue; // alts collapse onto the linked user
@@ -217,7 +224,7 @@ export async function computePlayerProfiles(clanId: number, opts: { eventId?: nu
         userId: m.userId,
         playerIds: [],
         teamId: null,
-        snapshotJson: latestByMember.get(m.id) ?? null,
+        snapshotJson: latestByAccount.get(m.accountId) ?? null,
       });
     }
   }

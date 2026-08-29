@@ -636,36 +636,49 @@ export async function getClanAnalytics(members: MemberListRow[]): Promise<ClanAn
   const sinceYear = new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10);
   const since7 = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
 
-  const activityRows = await db
-    .select({
-      day: memberDailyStats.day,
-      ehp: sql<number>`SUM(${memberDailyStats.ehpMilliGained})`,
-      ehb: sql<number>`SUM(${memberDailyStats.ehbMilliGained})`,
-    })
-    .from(memberDailyStats)
-    .where(gte(memberDailyStats.day, sinceYear))
-    .groupBy(memberDailyStats.day)
-    .orderBy(memberDailyStats.day);
+  // SCOPED TO THIS CLAN'S ACCOUNTS. member_daily_stats is keyed by the global account, so without
+  // this the SUM below added every clan's gains onto one clan's pulse chart and active count — the
+  // cross-clan leak that only surfaces once two clans share a database. `members` already carries the
+  // account id for every seat on this roster (listMembers), so it is the scope.
+  const accountIds = members.map((m) => m.accountId);
+  const empty = accountIds.length === 0;
+
+  const activityRows = empty
+    ? []
+    : await db
+        .select({
+          day: memberDailyStats.day,
+          ehp: sql<number>`SUM(${memberDailyStats.ehpMilliGained})`,
+          ehb: sql<number>`SUM(${memberDailyStats.ehbMilliGained})`,
+        })
+        .from(memberDailyStats)
+        .where(and(gte(memberDailyStats.day, sinceYear), inArray(memberDailyStats.accountId, accountIds)))
+        .groupBy(memberDailyStats.day)
+        .orderBy(memberDailyStats.day);
 
   const today = new Date().toISOString().slice(0, 10);
-  const weekRows = await db
-    .select({
-      clanMemberId: memberDailyStats.accountId,
-      hours: sql<number>`SUM(${memberDailyStats.ehpMilliGained} + ${memberDailyStats.ehbMilliGained})`,
-      // Today's slice of the same scan — one aggregate instead of a second round trip.
-      todayHours: sql<number>`SUM(CASE WHEN ${memberDailyStats.day} = ${today} THEN ${memberDailyStats.ehpMilliGained} + ${memberDailyStats.ehbMilliGained} ELSE 0 END)`,
-    })
-    .from(memberDailyStats)
-    .where(gte(memberDailyStats.day, since7))
-    .groupBy(memberDailyStats.accountId);
+  const weekRows = empty
+    ? []
+    : await db
+        .select({
+          accountId: memberDailyStats.accountId,
+          hours: sql<number>`SUM(${memberDailyStats.ehpMilliGained} + ${memberDailyStats.ehbMilliGained})`,
+          // Today's slice of the same scan — one aggregate instead of a second round trip.
+          todayHours: sql<number>`SUM(CASE WHEN ${memberDailyStats.day} = ${today} THEN ${memberDailyStats.ehpMilliGained} + ${memberDailyStats.ehbMilliGained} ELSE 0 END)`,
+        })
+        .from(memberDailyStats)
+        .where(and(gte(memberDailyStats.day, since7), inArray(memberDailyStats.accountId, accountIds)))
+        .groupBy(memberDailyStats.accountId);
 
-  const nameById = new Map(members.map((m) => [m.id, m.rsn]));
+  // Keyed by ACCOUNT id, to match weekRows.accountId — the previous map keyed by m.id (the SEAT) and
+  // so matched nothing, dropping every name off topWeek and mis-counting activeToday.
+  const nameById = new Map(members.map((m) => [m.accountId, m.rsn]));
   // Eight, not five: three go on the podium and the rest are the chasing pack under it.
   const topWeek = weekRows
-    .filter((r) => nameById.has(r.clanMemberId) && r.hours > 0)
+    .filter((r) => nameById.has(r.accountId) && r.hours > 0)
     .sort((a, b) => b.hours - a.hours)
     .slice(0, 8)
-    .map((r) => ({ rsn: nameById.get(r.clanMemberId) as string, hours: r.hours / EFFICIENCY_SCALE }));
+    .map((r) => ({ rsn: nameById.get(r.accountId) as string, hours: r.hours / EFFICIENCY_SCALE }));
 
   // Walk the calendar, not the rows: a day nobody played has no row, and a pulse chart that skipped
   // it would compress quiet weeks out of existence.
@@ -687,7 +700,7 @@ export async function getClanAnalytics(members: MemberListRow[]): Promise<ClanAn
     // Today's row only exists once the sweep has seen a gain today, so this is "played today" as
     // well as we can know it without a live heartbeat — and it reads as zero early in the morning,
     // which is honest rather than wrong.
-    activeToday: weekRows.filter((r) => nameById.has(r.clanMemberId) && Number(r.todayHours) > 0).length,
+    activeToday: weekRows.filter((r) => nameById.has(r.accountId) && Number(r.todayHours) > 0).length,
   };
 }
 
@@ -717,21 +730,29 @@ const STREAK_LOOKBACK = 60;
 export async function getRosterMovement(members: MemberListRow[]): Promise<Record<number, RosterMovement>> {
   const since = new Date(Date.now() - STREAK_LOOKBACK * 86_400_000).toISOString().slice(0, 10);
 
-  const rows = await db
-    .select({
-      clanMemberId: memberDailyStats.accountId,
-      day: memberDailyStats.day,
-      gained: sql<number>`${memberDailyStats.ehpMilliGained} + ${memberDailyStats.ehbMilliGained}`,
-    })
-    .from(memberDailyStats)
-    .where(gte(memberDailyStats.day, since));
+  // SCOPED to this clan's accounts, and keyed by ACCOUNT throughout. member_daily_stats is global,
+  // so without the scope this scanned every clan's rows; and the per-member lookup below used the
+  // SEAT id against an account-keyed map, so every member's sparkline, streak and delta came back
+  // empty. `members` carries both ids (listMembers) — account for the data, seat for the output key
+  // the roster component reads (movement[member.id]).
+  const accountIds = members.map((m) => m.accountId);
+  const rows = accountIds.length === 0
+    ? []
+    : await db
+        .select({
+          accountId: memberDailyStats.accountId,
+          day: memberDailyStats.day,
+          gained: sql<number>`${memberDailyStats.ehpMilliGained} + ${memberDailyStats.ehbMilliGained}`,
+        })
+        .from(memberDailyStats)
+        .where(and(gte(memberDailyStats.day, since), inArray(memberDailyStats.accountId, accountIds)));
 
-  const byMember = new Map<number, Map<string, number>>();
+  const byAccount = new Map<number, Map<string, number>>();
   for (const r of rows) {
     const hours = Number(r.gained) / EFFICIENCY_SCALE;
     if (!(hours > 0)) continue;
-    let days = byMember.get(r.clanMemberId);
-    if (!days) byMember.set(r.clanMemberId, (days = new Map()));
+    let days = byAccount.get(r.accountId);
+    if (!days) byAccount.set(r.accountId, (days = new Map()));
     days.set(r.day, hours);
   }
 
@@ -739,14 +760,14 @@ export async function getRosterMovement(members: MemberListRow[]): Promise<Recor
 
   // Today's row is written by the sweep, so at 00:30 nobody has one yet. Anchoring the streak on
   // yesterday in that case stops every streak in the clan reading 0 for the first hours of the day.
-  const anyToday = [...byMember.values()].some((days) => days.has(dayAt(0)));
+  const anyToday = [...byAccount.values()].some((days) => days.has(dayAt(0)));
   const anchor = anyToday ? 0 : 1;
 
   const out: Record<number, RosterMovement> = {};
   const weekByMember = new Map<number, number>();
 
   for (const m of members) {
-    const days = byMember.get(m.id) ?? new Map<string, number>();
+    const days = byAccount.get(m.accountId) ?? new Map<string, number>();
 
     const spark: number[] = [];
     for (let i = SPARK_DAYS - 1; i >= 0; i--) spark.push(days.get(dayAt(i)) ?? 0);

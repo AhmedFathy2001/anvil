@@ -651,6 +651,10 @@ export async function getEffectiveParticipants(competitionId: number) {
       // Carried so a board can join a participant to their daily history and mark a stale baseline.
       // computeLeaderboard ignores the extra columns.
       clanMemberId: weeklyParticipants.clanMemberId,
+      // The ACCOUNT behind the seat — the key every history table uses. clanMemberId is the SEAT, so
+      // a board that read member_daily_stats/_milestones by clanMemberId matched nothing; it must
+      // filter by this instead. Null only for a participant whose seat has since gone.
+      accountId: clanRoster.accountId,
       flagged: weeklyParticipants.flagged,
       flagReason: weeklyParticipants.flagReason,
     })

@@ -29,7 +29,7 @@ export default async function MembersPage() {
     getRosterLog(clan.id, 20),
     getClanActivityAnalytics(clan.id),
     getRosterMovement(members),
-    getLuckBoards(),
+    getLuckBoards(clan.id),
   ]);
 
   return (
