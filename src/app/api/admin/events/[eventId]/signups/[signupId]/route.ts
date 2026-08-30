@@ -11,6 +11,7 @@ import { sanitizeProfile, serializeProfile } from '@/lib/signup';
 import { notifySignupApproved } from '@/lib/discord';
 import { atLeast } from '@/lib/clanRoles';
 import { enrolParticipant, participantForSeat } from '@/lib/participants';
+import { assertEventEditable } from '@/lib/eventLock';
 
 // Per-signup admin actions. All admin-only — captain selection is high-stakes and we
 // don't want a moderator accidentally locking the wrong person in.
@@ -45,6 +46,13 @@ export async function PATCH(
   if (!(await eventForRequest(request, evtId))) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
+
+  // A finished event's roster is part of its recorded result. Adding a player to one changes team
+  // composition after the fact — and `settlementForEvent` derives each clan's fees from participant
+  // counts, so on a co-hosted board it moves money. The lock's own docs list "players" as covered;
+  // these three routes create them and were never asked.
+  const locked = await assertEventEditable(evtId);
+  if (locked) return locked;
   const sigId = parseInt(signupId, 10);
   if (!Number.isFinite(evtId) || !Number.isFinite(sigId)) {
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
@@ -110,6 +118,7 @@ export async function PATCH(
       // seat would find neither and approve them onto it twice. See lib/participants.
       const existingPlayer = await participantForSeat(evtId, signup.clanMemberId);
       if (!existingPlayer) {
+        // clan-scope: global -- this handler settled whose event this is at the top (eventForRequest); everything after derives its clan through event_id.
         const account = await findRosterSeat(eq(clanRoster.id, signup.clanMemberId));
         let timezone: string | null = null;
         try {
@@ -141,11 +150,13 @@ export async function PATCH(
       if (signup.status !== 'approved') void (async () => {
         try {
           const [event, user, account, fee] = await Promise.all([
+            // clan-scope: global -- this handler settled whose event this is at the top (eventForRequest); everything after derives its clan through event_id.
             db.query.events.findFirst({ where: eq(events.id, evtId) }),
             // Guest sign-ups have no user — no one to ping, so this stays null.
             signup.userId != null
               ? db.query.users.findFirst({ where: eq(users.id, signup.userId) })
               : Promise.resolve(undefined),
+            // clan-scope: global -- this handler settled whose event this is at the top (eventForRequest); everything after derives its clan through event_id.
             findRosterSeat(eq(clanRoster.id, signup.clanMemberId)),
             db.query.signupFees.findFirst({ where: eq(signupFees.signupId, sigId) }),
           ]);
@@ -274,6 +285,7 @@ export async function PATCH(
         );
       }
 
+      // clan-scope: global -- this handler settled whose event this is at the top (eventForRequest); everything after derives its clan through event_id.
       const account = await findRosterSeat(eq(clanRoster.id, signup.clanMemberId));
       if (!account) {
         return NextResponse.json(

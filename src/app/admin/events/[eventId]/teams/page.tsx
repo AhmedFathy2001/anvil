@@ -5,6 +5,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import TeamsDraftClient from './TeamsDraftClient';
 import CoHostPanel from './CoHostPanel';
+import AccessPanel from './AccessPanel';
 import { cohostsForEvent } from '@/lib/coHost';
 import { settlementForEvent } from '@/lib/coHostSettlement';
 import { loadEventProfiles, attachProfiles } from '@/lib/draftProfiles';
@@ -15,10 +16,19 @@ export const dynamic = 'force-dynamic';
 
 export default async function EventTeamsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ eventId: string }>;
+  searchParams: Promise<{ uninvited?: string }>;
 }) {
   const { eventId } = await params;
+  // Clans the create form could not invite — a typo, or the multi-clan plan gate. Carried here
+  // rather than shown on the form, because the board exists either way and this is where an admin
+  // fixes it. Silence was the old behaviour and it left an invite-only event with nobody invited.
+  const uninvited = ((await searchParams).uninvited ?? '')
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
   const id = parseInt(eventId, 10);
 
   // Whose event is this? Ids are global and this one came from the URL.
@@ -64,6 +74,19 @@ export default async function EventTeamsPage({
 
   return (
     <>
+      {uninvited.length > 0 && (
+        <div className="mb-4 rounded-xl border border-accent-red/40 bg-accent-red/10 p-4">
+          <div className="text-[14px] font-semibold text-accent-red">
+            {uninvited.length === 1 ? 'One clan was not invited' : `${uninvited.length} clans were not invited`}
+          </div>
+          <div className="mt-0.5 text-[12.5px] text-text-muted">
+            The board was created, but {uninvited.map((u) => `/c/${u}`).join(', ')} could not be
+            reached — check the address and invite them below. This event is invite-only, so until
+            somebody is invited, nobody outside your clan can see it.
+          </div>
+        </div>
+      )}
+      <AccessPanel eventId={id} />
       <CoHostPanel eventId={id} initial={cohosts} cashPolicy={event.cashPolicy} settlement={settlement} />
       <TeamsDraftClient
         event={event}

@@ -10,9 +10,10 @@
 // double-grants a staff seat, so a retried accept is safe.
 
 import { and, eq, inArray } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 
 import { db } from '@/db';
-import { clanStaff, clans, eventCohosts, events, teams, teamStaff } from '@/db/schema';
+import { clanStaff, clans, eventCohosts, eventParticipants, events, teams, teamStaff } from '@/db/schema';
 import { atLeast } from '@/lib/clanRoles';
 
 /** A stable team colour per clan, matched to the nav/profile crest hue. */
@@ -40,16 +41,66 @@ export interface CohostRow {
   clanSlug: string;
   eventName: string;
   hostClanId: number;
+  /**
+   * WHO IS ASKING, and what they are asking you to join.
+   *
+   * `clanName` above is the INVITED clan — you — which is the one thing the person deciding already
+   * knows. The panel could only say "A clan invited you to co-host X", because the host was a bare
+   * id and the event was a bare name. Accepting commits your staff and your players to somebody
+   * else's board, and it was a decision made blind.
+   */
+  hostClanName: string;
+  hostClanSlug: string;
+  eventStartDate: string | null;
+  eventEndDate: string | null;
+  eventSignupFee: number | null;
 }
+
+const hostClan = alias(clans, 'host_clan');
+
+/** The columns every co-host read returns — one shape, so the two callers cannot drift. */
+const COHOST_COLUMNS = {
+  id: eventCohosts.id,
+  eventId: eventCohosts.eventId,
+  clanId: eventCohosts.clanId,
+  status: eventCohosts.status,
+  teamId: eventCohosts.teamId,
+  clanName: clans.name,
+  clanSlug: clans.slug,
+  eventName: events.name,
+  hostClanId: events.clanId,
+  hostClanName: hostClan.name,
+  hostClanSlug: hostClan.slug,
+  eventStartDate: events.startDate,
+  eventEndDate: events.endDate,
+  eventSignupFee: events.signupFee,
+};
 
 /** Invite a clan to co-host an event. Returns the (possibly pre-existing) co-host row's id. */
 export async function inviteCoHost(eventId: number, clanId: number, byUserId: number | null): Promise<{ id: number; created: boolean }> {
   const existing = await db
-    .select({ id: eventCohosts.id })
+    .select({ id: eventCohosts.id, status: eventCohosts.status })
     .from(eventCohosts)
     .where(and(eq(eventCohosts.eventId, eventId), eq(eventCohosts.clanId, clanId)))
     .then((r) => r[0]);
-  if (existing) return { id: existing.id, created: false };
+
+  if (existing) {
+    // A DECLINE IS NOT PERMANENT. This used to hand the existing row straight back, so re-inviting a
+    // clan that had said no did nothing at all: the API answered `ok`, the host's input cleared, the
+    // row still read "declined", and the invited clan never saw it again — `pendingCoHostInvites`
+    // only lists pending ones. A misclick was unrecoverable and looked like success from both ends.
+    //
+    // Asking again is a normal thing to do, so asking again re-opens the question. An ACCEPTED row is
+    // left alone: they are already in, and there is nothing to ask.
+    if (existing.status === 'declined') {
+      await db
+        .update(eventCohosts)
+        .set({ status: 'pending', decidedAt: null, invitedByUserId: byUserId })
+        .where(eq(eventCohosts.id, existing.id));
+      return { id: existing.id, created: true };
+    }
+    return { id: existing.id, created: false };
+  }
   const [row] = await db
     .insert(eventCohosts)
     .values({ eventId, clanId, status: 'pending', invitedByUserId: byUserId })
@@ -60,40 +111,22 @@ export async function inviteCoHost(eventId: number, clanId: number, byUserId: nu
 /** Pending co-host invites addressed to a clan — what its staff see and decide on. */
 export async function pendingCoHostInvites(clanId: number): Promise<CohostRow[]> {
   return db
-    .select({
-      id: eventCohosts.id,
-      eventId: eventCohosts.eventId,
-      clanId: eventCohosts.clanId,
-      status: eventCohosts.status,
-      teamId: eventCohosts.teamId,
-      clanName: clans.name,
-      clanSlug: clans.slug,
-      eventName: events.name,
-      hostClanId: events.clanId,
-    })
+    .select(COHOST_COLUMNS)
     .from(eventCohosts)
     .innerJoin(events, eq(events.id, eventCohosts.eventId))
     .innerJoin(clans, eq(clans.id, eventCohosts.clanId))
+    .innerJoin(hostClan, eq(hostClan.id, events.clanId))
     .where(and(eq(eventCohosts.clanId, clanId), eq(eventCohosts.status, 'pending')));
 }
 
 /** Every co-host on an event (any status) — the host's roll-up. */
 export async function cohostsForEvent(eventId: number): Promise<CohostRow[]> {
   return db
-    .select({
-      id: eventCohosts.id,
-      eventId: eventCohosts.eventId,
-      clanId: eventCohosts.clanId,
-      status: eventCohosts.status,
-      teamId: eventCohosts.teamId,
-      clanName: clans.name,
-      clanSlug: clans.slug,
-      eventName: events.name,
-      hostClanId: events.clanId,
-    })
+    .select(COHOST_COLUMNS)
     .from(eventCohosts)
     .innerJoin(events, eq(events.id, eventCohosts.eventId))
     .innerJoin(clans, eq(clans.id, eventCohosts.clanId))
+    .innerJoin(hostClan, eq(hostClan.id, events.clanId))
     .where(eq(eventCohosts.eventId, eventId));
 }
 
@@ -297,4 +330,67 @@ export async function declineCoHostInvite(cohostId: number, byUserId: number): P
 
   await db.update(eventCohosts).set({ status: 'declined', decidedAt: new Date().toISOString() }).where(eq(eventCohosts.id, cohostId));
   return { ok: true };
+}
+
+/**
+ * Call a co-host arrangement off — the host withdrawing an invite, or the co-host leaving.
+ *
+ * `declineCoHostInvite` has always told an accepted co-host to "leave the event instead", and there
+ * was nowhere to do it: no endpoint, no button, on either side. An accepted co-host was permanent
+ * for both parties, which is a strange property for an arrangement whose whole point is that two
+ * clans agreed to it.
+ *
+ * AUTHORITY IS EITHER END. An admin of the host clan may withdraw, and an admin of the invited clan
+ * may leave; both are decisions about their own clan's involvement.
+ *
+ * REFUSED ONCE THE EVENT HAS STARTED. The co-host's team is on the board by then, with players,
+ * submissions and possibly a payout attached — unwinding that is a scoring decision, not a
+ * membership one, and it belongs to the host with the sub-out tools rather than to this.
+ */
+export async function endCoHosting(
+  cohostId: number,
+  byUserId: number,
+): Promise<{ ok: true; removedTeam: boolean } | { ok: false; error: string }> {
+  const row = await db.query.eventCohosts.findFirst({ where: eq(eventCohosts.id, cohostId) });
+  if (!row) return { ok: false, error: 'Not found' };
+
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
+  const event = await db.query.events.findFirst({ where: eq(events.id, row.eventId) });
+  if (!event) return { ok: false, error: 'Not found' };
+
+  const canAct = async (clanId: number) => {
+    const staff = await db
+      .select({ role: clanStaff.role })
+      .from(clanStaff)
+      .where(and(eq(clanStaff.clanId, clanId), eq(clanStaff.userId, byUserId)))
+      .then((r) => r[0]);
+    return !!staff && atLeast(staff.role, 'admin');
+  };
+  if (!(await canAct(event.clanId)) && !(await canAct(row.clanId))) {
+    return { ok: false, error: 'Only an admin of either clan can do that' };
+  }
+
+  if (event.startDate && event.startDate <= new Date().toISOString()) {
+    return { ok: false, error: 'The event has started — the host has to sub the team out instead.' };
+  }
+
+  // Take the team away only when nobody is on it. A team with players is somebody's roster work, and
+  // deleting it silently would be a worse outcome than leaving a tagged team behind for the host to
+  // deal with deliberately.
+  let removedTeam = false;
+  if (row.teamId != null) {
+    const [player] = await db
+      .select({ id: eventParticipants.id })
+      .from(eventParticipants)
+      .where(eq(eventParticipants.teamId, row.teamId))
+      .limit(1);
+    if (!player) {
+      await db.delete(teamStaff).where(eq(teamStaff.teamId, row.teamId));
+      await db.delete(teams).where(eq(teams.id, row.teamId));
+      removedTeam = true;
+    }
+  }
+
+  await db.delete(eventCohosts).where(eq(eventCohosts.id, cohostId));
+  return { ok: true, removedTeam };
 }

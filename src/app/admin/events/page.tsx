@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { events, teams, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { count, desc } from 'drizzle-orm';
+import { count, desc, eq } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { assignedEventIdsForUser } from '@/lib/eventEditors';
 import { eventTileCount } from '@/lib/utils';
@@ -15,6 +15,7 @@ import {
 } from '@/lib/adminEventsOverview';
 import EventsClient, { type ListItem } from './EventsClient';
 import { atLeast } from '@/lib/clanRoles';
+import { requireClan } from '@/lib/clanContext';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,11 +31,18 @@ export default async function AdminEventsPage() {
     ? new Set(await assignedEventIdsForUser(session!.userId, isScopedEditor ? 'editor' : 'treasurer'))
     : null;
 
+  // THIS CLAN'S boards and weeks. Both reads were unscoped, so the events list — the main admin
+  // screen — showed every clan on the deployment their neighbours' events, names and dates included.
+  const clan = await requireClan();
   const [allEventsRaw, allWeeklyRaw] = await Promise.all([
-    db.select().from(events).orderBy(desc(events.createdAt)),
+    db.select().from(events).where(eq(events.clanId, clan.id)).orderBy(desc(events.createdAt)),
     scoped
       ? Promise.resolve([])
-      : db.select().from(weeklyCompetitions).orderBy(desc(weeklyCompetitions.startDate)),
+      : db
+          .select()
+          .from(weeklyCompetitions)
+          .where(eq(weeklyCompetitions.clanId, clan.id))
+          .orderBy(desc(weeklyCompetitions.startDate)),
   ]);
 
   const allEvents = assignedIds ? allEventsRaw.filter((e) => assignedIds.has(e.id)) : allEventsRaw;
@@ -150,6 +158,7 @@ export default async function AdminEventsPage() {
   let attention: AttentionItem[] = [];
   if (canManage) {
     attention = await getAttentionItems({
+      clanId: clan.id,
       liveEventIds: runningEventRows.map((e) => e.id),
       upcomingEventIds: upcomingEventRows.map((e) => e.id),
       endedEventIds: pastEventIds,

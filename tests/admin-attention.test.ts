@@ -40,11 +40,34 @@ const QUIET: AttentionFacts = {
   oldestFeeDays: null,
   feeEvents: [],
   pendingVerifications: 0,
+  joinRequests: 0,
+  coHostInvites: 0,
   gap: null,
   unscheduled: [],
 };
 
 const facts = (over: Partial<AttentionFacts> = {}): AttentionFacts => ({ ...QUIET, ...over });
+
+test('somebody knocking reaches the queue', () => {
+  // Both of these were written end to end on the server and shown on no page a human opens. The
+  // dashboard is where "what needs you" is answered, so an unanswered request belongs in it.
+  const asked = attentionQueue(facts({ joinRequests: 3 }));
+  const join = asked.find((i) => i.key === 'join-requests');
+  assert.ok(join, 'a pending join request is something waiting on a human');
+  assert.match(join.title, /3 people asking to join/);
+  assert.equal(join.severity, 'warn');
+
+  const invited = attentionQueue(facts({ coHostInvites: 1 }));
+  const cohost = invited.find((i) => i.key === 'cohost-invites');
+  assert.ok(cohost, 'a co-host invite is a decision, not a notification');
+  assert.match(cohost.title, /1 clan invited you to co-host/);
+});
+
+test('a clan nobody is knocking on is not nagged about either', () => {
+  const q = attentionQueue(QUIET);
+  assert.equal(q.find((i) => i.key === 'join-requests'), undefined);
+  assert.equal(q.find((i) => i.key === 'cohost-invites'), undefined);
+});
 
 test('a quiet clan gets one all-clear, not an empty page', () => {
   const q = attentionQueue(QUIET);

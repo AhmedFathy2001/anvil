@@ -38,6 +38,8 @@ import { parseContributionSnapshot, type StatContributionSnapshot } from '@/lib/
 import { isEventEnded } from '@/lib/survey';
 import { atLeast } from '@/lib/clanRoles';
 import ClanLink from '@/components/ClanLink';
+import { canEnterEvent } from '@/lib/eventAccess';
+import EnterEvent from './EnterEvent';
 
 export const dynamic = 'force-dynamic';
 
@@ -209,12 +211,25 @@ export default async function EventScoreboardPage({
     }
 
     myMemberIds = (
+      // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to the viewer's own.
       await db
         .select({ id: clanRoster.id })
         .from(clanRoster)
         .where(and(eq(clanRoster.playerId, session.playerId), isNull(clanRoster.leftAt)))
     ).map((m) => m.id);
     hasVerifiedAccount = myMemberIds.length > 0;
+  }
+
+  // Can this viewer sign up at all, or do they have to be let in first?
+  //
+  // `event_signups.clan_member_id` names a seat in the HOSTING clan, so somebody without one has
+  // nowhere to sit and the ordinary banner would send them to a form that cannot succeed. It did
+  // exactly that, because `hasVerifiedAccount` above counts seats in ANY clan — which is right for
+  // the ladder strip below and wrong for this question.
+  let isOutsider = false;
+  if (session?.playerId != null) {
+    const verdict = await canEnterEvent({ eventId: id, playerId: session.playerId });
+    isOutsider = verdict.outcome === 'outsider';
   }
   // Which player rows in THIS event are the viewer's — the ladder's "you" strip needs it, and it's
   // the same membership lookup the sign-up banner already did.
@@ -441,6 +456,9 @@ export default async function EventScoreboardPage({
           </div>
         </section>
       )}
+      {isOutsider ? (
+        <EnterEvent eventId={event.id} signupFee={event.signupFee} />
+      ) : (
       <SignupBanner
         eventId={event.id}
         loggedIn={!!session}
@@ -451,6 +469,7 @@ export default async function EventScoreboardPage({
         windowReason={window.reason}
         signupFee={event.signupFee}
       />
+      )}
       {/* Post-event actions — one quiet card that folds in whichever of the recap / survey CTAs apply,
           rather than two stacked gold banners shouting the same "event ended" note twice. */}
       {(showRecapCta || showSurveyCta) && (

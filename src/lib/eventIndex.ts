@@ -10,7 +10,7 @@
 
 import { db } from '@/db';
 import { events, teams, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { count, desc } from 'drizzle-orm';
+import { count, desc, eq } from 'drizzle-orm';
 import { eventShapeBadge } from '@/lib/utils';
 import { eventStage } from '@/lib/eventStage';
 import { weeklyStage, WEEKLY_BADGE } from '@/lib/weeklyStage';
@@ -39,10 +39,16 @@ export interface EventIndexItem {
   sortAt: string;
 }
 
-export async function listEventIndex(): Promise<EventIndexItem[]> {
+export async function listEventIndex(clanId: number): Promise<EventIndexItem[]> {
   const [boards, weeklies, teamCounts, participantCounts] = await Promise.all([
-    db.select().from(events).orderBy(desc(events.createdAt)),
-    db.select().from(weeklyCompetitions).orderBy(desc(weeklyCompetitions.startDate)),
+    // Scoped. This took no clan at all, and both callers — the admin dashboard and the schedule API —
+    // are clan surfaces, so every clan's index listed every other clan's boards and weeks.
+    db.select().from(events).where(eq(events.clanId, clanId)).orderBy(desc(events.createdAt)),
+    db
+      .select()
+      .from(weeklyCompetitions)
+      .where(eq(weeklyCompetitions.clanId, clanId))
+      .orderBy(desc(weeklyCompetitions.startDate)),
     db.select({ eventId: teams.eventId, n: count() }).from(teams).groupBy(teams.eventId),
     db
       .select({ competitionId: weeklyParticipants.competitionId, n: count() })

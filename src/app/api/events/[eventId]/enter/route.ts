@@ -49,6 +49,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
     return NextResponse.json({ ok: true, alreadyIn: true, message: 'You can sign up directly.' });
   }
 
+  // clan-scope: global -- entering somebody ELSE'S event is the whole point of this route; the clan is the event's, and canEnterEvent has already ruled on access.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
@@ -70,7 +71,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
 
   // An account that is a MEMBER of another clan may still guest here — that is the whole point of
   // cross-clan play, and the one-member-seat rule is about membership, not visits.
-  const admission = await admit({ clanId: event.clanId, accountId, source: 'web' });
+  //
+  // Carry the REASON into the request. Staff clearing the queue see one list of strangers, and
+  // "wants to play in Summer Bingo" is a different decision from "wants to join the clan" — without
+  // it an event entrant is indistinguishable from a walk-up application, and gets judged as one.
+  const admission = await admit({
+    clanId: event.clanId,
+    accountId,
+    source: 'web',
+    message: `Wants to play in ${event.name}.`,
+  });
 
   if (admission.outcome === 'refused') {
     return NextResponse.json({ error: 'This clan is not taking guests.' }, { status: 403 });
@@ -123,6 +133,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
   // need no entry at all).
   let options: { id: number; rsn: string }[] = [];
   if (session?.playerId && verdict.outcome === 'outsider') {
+    // clan-scope: global -- entering somebody ELSE'S event is the whole point of this route; the clan is the event's, and canEnterEvent has already ruled on access.
     const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
     if (event) {
       const seated = await db

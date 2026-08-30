@@ -9,6 +9,7 @@ import { parseProfile, sanitizeProfile, serializeProfile } from '@/lib/signup';
 import { parseConfirmations } from '@/lib/feeConfirmations';
 import { atLeast } from '@/lib/clanRoles';
 import { enrolParticipant, participantForSeat } from '@/lib/participants';
+import { assertEventEditable } from '@/lib/eventLock';
 
 export async function GET(
   request: Request,
@@ -31,6 +32,7 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // clan-scope: global -- joined onto a driving query that is already scoped; this clause adds columns, not rows.
   const rows = await db
     .select({
       signup: eventSignups,
@@ -138,6 +140,13 @@ export async function POST(
   if (!(await eventForRequest(request, id))) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
+
+  // A finished event's roster is part of its recorded result. Adding a player to one changes team
+  // composition after the fact — and `settlementForEvent` derives each clan's fees from participant
+  // counts, so on a co-hosted board it moves money. The lock's own docs list "players" as covered;
+  // these three routes create them and were never asked.
+  const locked = await assertEventEditable(id);
+  if (locked) return locked;
   if (!Number.isFinite(id)) {
     return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
   }

@@ -151,6 +151,7 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
   const [multiClan, setMultiClan] = useState(false);
   const [cashPolicy, setCashPolicy] = useState<'host-holds' | 'each-settles' | 'clans-collect-host-pays'>('host-holds');
   const [coHostSlugs, setCoHostSlugs] = useState<string[]>([]);
+  const [coHostChecking, setCoHostChecking] = useState(false);
   const [coHostInput, setCoHostInput] = useState('');
   const [activePreset, setActivePreset] = useState<string | null>(null);
   // Starter tile labels carried by a chosen preset (blank until picked). Merged into the
@@ -252,12 +253,40 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
     setError('');
   }
 
-  /** Add a clan to the co-host invite list — normalised to a slug, deduped. */
-  function addCoHost() {
+  /**
+   * Add a clan to the co-host invite list — normalised to a slug, deduped, and CHECKED.
+   *
+   * The check is the point. These slugs are typed by hand and were not verified against anything
+   * until after the event had been created, at which point a failed invite was swallowed whole: the
+   * form fired them best-effort, discarded the responses, and navigated away. A typo produced an
+   * event that was already `visibility: 'invited'` with nobody invited to it — invisible to exactly
+   * the clans it was meant for, and silent about why.
+   *
+   * `/api/clans?slug=` answers availability for the create-a-clan form: `ok: true` means the address
+   * is FREE, which is precisely the typo case — nobody is there to invite. The negative is weaker
+   * (`ok: false` covers reserved and malformed addresses too, not only taken ones), so it is not
+   * treated as proof of anything and the invite itself stays the judge.
+   */
+  async function addCoHost() {
     const slug = coHostInput.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
     if (!slug || coHostSlugs.includes(slug)) {
       setCoHostInput('');
       return;
+    }
+    setCoHostChecking(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/clans?slug=${encodeURIComponent(slug)}`);
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.slug?.ok === true) {
+        setError(`No clan at /c/${slug}.`);
+        return;
+      }
+    } catch {
+      // The lookup is a courtesy, not a gate — if it cannot run, fall through and let the invite
+      // itself be the judge. Better a late error than a blocked form.
+    } finally {
+      setCoHostChecking(false);
     }
     setCoHostSlugs([...coHostSlugs, slug]);
     setCoHostInput('');
@@ -405,22 +434,34 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
         }).catch(() => {});
       }
 
-      // Fire the co-host invites now that the event exists. Best-effort per clan: a bad slug just
-      // doesn't get invited (the host can add it on the teams tab), never loses the event.
+      // Fire the co-host invites now that the event exists. Still per-clan and still never fatal —
+      // the event must not be lost to a failed invite — but the results are READ now. They used to be
+      // thrown away by a bare `.catch(() => {})`, so a clan that was never invited (a typo, or the
+      // multi-clan plan gate answering 402) looked exactly like one that was, on an event the form
+      // had just made invite-only.
+      const failed: string[] = [];
       if (useMultiClan && coHostSlugs.length > 0) {
         await Promise.all(
-          coHostSlugs.map((clanSlug) =>
-            clanFetch(`/api/events/${data.id}/co-hosts`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ clanSlug }),
-            }).catch(() => {}),
-          ),
+          coHostSlugs.map(async (clanSlug) => {
+            try {
+              const r = await clanFetch(`/api/events/${data.id}/co-hosts`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clanSlug }),
+              });
+              if (!r.ok) failed.push(clanSlug);
+            } catch {
+              failed.push(clanSlug);
+            }
+          }),
         );
       }
 
-      // A multi-clan event lands on the teams tab, where the co-host invites and roll-up live.
-      router.push(clanUrl(`/admin/events/${data.id}${useMultiClan ? '/teams' : ''}`));
+      // A multi-clan event lands on the teams tab, where the co-host invites and roll-up live — and
+      // where an admin can retry whichever ones did not go out. Carried in the URL rather than shown
+      // here, because the board exists either way and this form is done.
+      const failedQs = failed.length > 0 ? `?uninvited=${encodeURIComponent(failed.join(','))}` : '';
+      router.push(clanUrl(`/admin/events/${data.id}${useMultiClan ? `/teams${failedQs}` : ''}`));
       router.refresh();
     } catch {
       setError('Failed to create event');
@@ -1012,9 +1053,10 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
                     <button
                       type="button"
                       onClick={addCoHost}
-                      className="rounded-lg border border-gold/40 px-4 py-2 text-sm text-gold transition-colors hover:border-gold"
+                      disabled={coHostChecking}
+                      className="rounded-lg border border-gold/40 px-4 py-2 text-sm text-gold transition-colors hover:border-gold disabled:opacity-50"
                     >
-                      Add
+                      {coHostChecking ? 'Checking…' : 'Add'}
                     </button>
                   </div>
                   {coHostSlugs.length > 0 && (

@@ -75,6 +75,21 @@ export default function CoHostPanel({
     }
   }
 
+  async function end(id: number, name: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await clanFetch(`/api/cohosts/${id}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error ?? `Could not remove ${name}`);
+      await refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function invite() {
     const clanSlug = slug.trim().toLowerCase();
     if (!clanSlug) return;
@@ -88,6 +103,12 @@ export default function CoHostPanel({
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error ?? 'Could not invite');
+      if (data?.created === false) {
+        // Already pending or already accepted — nothing happened, and saying so beats a cleared box
+        // that looks like it worked. (A DECLINED row is re-opened server-side and comes back
+        // `created: true`, so this no longer fires for the case that used to be a dead end.)
+        setError('That clan is already on this event.');
+      }
       setSlug('');
       await refresh();
     } catch (e) {
@@ -119,6 +140,18 @@ export default function CoHostPanel({
                   <div className="font-mono text-[11px] text-text-muted">c / {c.clanSlug}</div>
                 </div>
                 <span className={`ml-auto shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] ${st.cls}`}>{st.label}</span>
+                {/* There was no way to undo any of this from either side. `declineCoHostInvite` even
+                    told an accepted co-host to "leave the event instead", pointing at a thing that
+                    did not exist. Refused once the event starts — by then their team is on the board
+                    and unwinding it is a scoring decision, not a membership one. */}
+                <button
+                  type="button"
+                  onClick={() => end(c.id, c.clanName)}
+                  disabled={busy}
+                  className="shrink-0 rounded-lg border border-card-border px-2.5 py-1 text-[11.5px] text-text-muted transition-colors hover:border-accent-red/40 hover:text-accent-red disabled:opacity-50"
+                >
+                  {c.status === 'accepted' ? 'Remove' : 'Withdraw'}
+                </button>
               </li>
             );
           })}

@@ -4,6 +4,8 @@ import { db } from '@/db';
 import { clanRoster, eventSignups, eventParticipants, teams } from '@/db/schema';
 import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import { verifyAdmin, generatePlayerToken } from '@/lib/auth';
+import { onAccountConflict } from '@/lib/participants';
+import { assertEventEditable } from '@/lib/eventLock';
 
 // Bulk: turn every still-eligible signup into a draft pool entry. Captains already have
 // player rows on their teams (created by promote-captain) — those are skipped.
@@ -29,6 +31,13 @@ export async function POST(
   if (!(await eventForRequest(request, evtId))) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
+
+  // A finished event's roster is part of its recorded result. Adding a player to one changes team
+  // composition after the fact — and `settlementForEvent` derives each clan's fees from participant
+  // counts, so on a co-hosted board it moves money. The lock's own docs list "players" as covered;
+  // these three routes create them and were never asked.
+  const locked = await assertEventEditable(evtId);
+  if (locked) return locked;
   if (!Number.isFinite(evtId)) {
     return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
   }
@@ -83,6 +92,7 @@ export async function POST(
 
   // Batch-load the clanRoster rows for display names.
   const memberIds = toInsertSignups.map((s) => s.clanMemberId);
+  // clan-scope: global -- the id came from a row this request already established, so the clan is settled upstream.
   const memberRows = await db
     .select()
     .from(clanRoster)
@@ -111,7 +121,7 @@ export async function POST(
     const inserted = await db
       .insert(eventParticipants)
       .values(inserts)
-      .onConflictDoNothing({ target: [eventParticipants.eventId, eventParticipants.accountId] })
+      .onConflictDoNothing(onAccountConflict)
       .returning();
     created = inserted.length;
   }

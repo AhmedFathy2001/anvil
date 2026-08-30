@@ -9,6 +9,8 @@ import { getSetupStatus } from '@/lib/setupStatus';
 import SetupChecklist from '@/components/SetupChecklist';
 import MemberCapNotice from '@/components/MemberCapNotice';
 import { rosterCapStatus } from '@/lib/member-cap';
+import { pendingRequestCount } from '@/lib/guestAdmission';
+import { pendingCoHostInvites } from '@/lib/coHost';
 import { listEventIndex, type EventIndexItem } from '@/lib/eventIndex';
 import { attentionQueue, openCount, type AttentionItem, type Severity } from '@/lib/adminAttention';
 import { addDays, dayOf, daysBetween, findGaps, packLanes } from '@/lib/scheduleLanes';
@@ -64,8 +66,10 @@ export default async function AdminDashboardPage() {
     feeCounts,
     oldestHeldFee,
     feeEvents,
+    joinRequests,
+    coHostInvites,
   ] = await Promise.all([
-    listEventIndex(),
+    listEventIndex(clan.id),
     db.select().from(events).where(eq(events.clanId, clan.id)).orderBy(desc(events.createdAt)),
     db.select({ eventId: tiles.eventId, n: count() }).from(tiles).groupBy(tiles.eventId),
     db.select({ eventId: teams.eventId, n: count() }).from(teams).groupBy(teams.eventId),
@@ -202,6 +206,8 @@ export default async function AdminDashboardPage() {
           href: `/admin/events/${r.eventId}/signups`,
         })),
       ),
+    pendingRequestCount(clan.id),
+    pendingCoHostInvites(clan.id).then((r) => r.length),
   ]);
 
   const tilesById = new Map(tileCountRows.map((r) => [r.eventId, r.n]));
@@ -246,6 +252,8 @@ export default async function AdminDashboardPage() {
     oldestFeeDays: daysSince(oldestHeldFee, now),
     feeEvents,
     pendingVerifications: provisionalCount,
+    joinRequests,
+    coHostInvites,
     gap: gap
       ? {
           days: gap.days,

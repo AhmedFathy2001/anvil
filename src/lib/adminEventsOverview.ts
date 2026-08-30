@@ -251,11 +251,12 @@ export async function getRunningEventSummaries(
  * thing and links to the tab that fixes it.
  */
 export async function getAttentionItems(opts: {
+  clanId: number;
   liveEventIds: number[];
   upcomingEventIds: number[];
   endedEventIds: number[];
 }): Promise<AttentionItem[]> {
-  const { liveEventIds, upcomingEventIds, endedEventIds } = opts;
+  const { clanId, liveEventIds, upcomingEventIds, endedEventIds } = opts;
   const openIds = [...liveEventIds, ...upcomingEventIds];
   const items: AttentionItem[] = [];
 
@@ -294,13 +295,23 @@ export async function getAttentionItems(opts: {
       })
       .from(weeklyParticipants)
       .innerJoin(weeklyCompetitions, eq(weeklyParticipants.competitionId, weeklyCompetitions.id))
-      .where(and(eq(weeklyParticipants.flagged, 1), eq(weeklyCompetitions.status, 'active')))
+      // Scoped to this clan. The join made it invisible to the clan-scope rule (which only watches
+      // `.from`), so an unfiltered `status = 'active'` across every clan's weeks sat here counting
+      // other clans' flagged participants into this clan's attention panel.
+      .where(
+        and(
+          eq(weeklyParticipants.flagged, 1),
+          eq(weeklyCompetitions.status, 'active'),
+          eq(weeklyCompetitions.clanId, clanId),
+        ),
+      )
       .groupBy(weeklyParticipants.competitionId, weeklyCompetitions.title),
   ]);
 
   const names = openIds.length || endedEventIds.length
     ? new Map(
         (
+          // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
           await db
             .select({ id: events.id, name: events.name })
             .from(events)

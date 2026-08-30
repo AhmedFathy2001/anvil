@@ -4,7 +4,7 @@ import { db } from '@/db';
 import { clanRoster, eventParticipants, teams, eventSignups, accounts } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull, or } from 'drizzle-orm';
 import { generatePlayerToken } from '@/lib/auth';
-import { accountsOfSeats, accountsOnBoard, type Participant } from '@/lib/participants';
+import { accountsOfSeats, accountsOnBoard, onAccountConflict, type Participant } from '@/lib/participants';
 
 export interface MemberInput {
   clanMemberId: number;
@@ -85,7 +85,7 @@ export async function upsertPlayers(
     const inserted = await db
       .insert(eventParticipants)
       .values(toInsert)
-      .onConflictDoNothing({ target: [eventParticipants.eventId, eventParticipants.accountId] })
+      .onConflictDoNothing(onAccountConflict)
       .returning();
     results.push(...inserted);
 
@@ -113,6 +113,7 @@ export async function upsertPlayers(
 // decisions aren't silently overridden.
 export async function backfillApprovedSignups(eventId: number, clanMemberIds: number[]): Promise<void> {
   if (clanMemberIds.length === 0) return;
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const members = await db.select().from(clanRoster).where(inArray(clanRoster.id, clanMemberIds));
   for (const m of members) {
     // Dedup: claimed → by (event, login); unclaimed → by (event, seat).
@@ -164,6 +165,7 @@ export interface EligibleMember {
 // The plugin-active roster for an event, flagged with whether each member already has a player row
 // (and whether it's on a team). Powers the auto-enroll panel's preview count.
 export async function listEligiblePluginMembers(eventId: number): Promise<EligibleMember[]> {
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const rows = await db
     .select({
       id: clanRoster.id,
@@ -221,6 +223,7 @@ async function loadMemberMeta(
 ): Promise<Map<number, { userId: number | null; isPrimary: boolean }>> {
   const ids = [...new Set(clanMemberIds.filter((x): x is number => x != null))];
   if (ids.length === 0) return new Map();
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const rows = await db
     .select({ id: clanRoster.id, userId: clanRoster.playerId, isPrimary: clanRoster.isPrimary })
     .from(clanRoster)
@@ -248,6 +251,7 @@ export async function accountCapError(
   if (addingByOwner.size === 0) return null;
 
   const ownerIds = [...addingByOwner.keys()];
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const existingRows = await db
     .select({ clanMemberId: eventParticipants.clanMemberId, userId: clanRoster.playerId })
     .from(eventParticipants)
@@ -280,6 +284,7 @@ function personKeyOf(clanMemberId: number | null, userId: number | null | undefi
 // per-person placement route a newly-pooled alt onto the person's existing team instead of spawning
 // a second team for them on a re-run.
 async function existingTeamByPerson(eventId: number): Promise<Map<string, number>> {
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const rows = await db
     .select({ playerId: eventParticipants.id, teamId: eventParticipants.teamId, clanMemberId: eventParticipants.clanMemberId, userId: clanRoster.playerId })
     .from(eventParticipants)

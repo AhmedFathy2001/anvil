@@ -18,16 +18,37 @@
 // (event_id, account_id) backs it in the database, which is what makes `enrolParticipant` safe to
 // call concurrently: the conflict clause turns a race into the same answer both callers wanted.
 
-import { and, eq, inArray, isNotNull } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanRoster, eventParticipants } from '@/db/schema';
 
 export type Participant = typeof eventParticipants.$inferSelect;
 
+/**
+ * How to name the unique index in an ON CONFLICT clause.
+ *
+ * The index is PARTIAL — it only covers rows that have an account — and Postgres will not infer a
+ * partial index unless the conflict target repeats its predicate word for word. Without the
+ * `targetWhere` the insert fails with "there is no unique or exclusion constraint matching the ON
+ * CONFLICT specification", which reads like the index is missing rather than like it was described
+ * incompletely. Written once here so the two cannot drift apart.
+ */
+export const onAccountConflict = {
+  target: [eventParticipants.eventId, eventParticipants.accountId],
+  // `where`, NOT `targetWhere`. On `onConflictDoNothing` Drizzle renders this key straight into the
+  // conflict-target position — `(event_id, account_id) where account_id is not null do nothing` —
+  // which is where the predicate has to sit. `targetWhere` belongs to `onConflictDoUpdate` and is
+  // silently dropped here: the object is passed as a variable, so TypeScript's excess-property check
+  // never runs on it, and the only symptom is the 42P10 above at runtime.
+  where: sql`account_id is not null`,
+};
+
 /** The account behind one roster seat, or null when the seat has gone. */
 export async function accountOfSeat(seatId: number | null | undefined): Promise<number | null> {
   if (seatId == null) return null;
+  // clan-scope: global -- asking which ACCOUNT a seat belongs to is clan-agnostic by definition; the
+  // seat id already names exactly one clan, and the answer is the same from whichever clan asks.
   const [row] = await db
     .select({ accountId: clanRoster.accountId })
     .from(clanRoster)
@@ -40,6 +61,7 @@ export async function accountOfSeat(seatId: number | null | undefined): Promise<
 export async function accountsOfSeats(seatIds: (number | null | undefined)[]): Promise<Map<number, number>> {
   const ids = [...new Set(seatIds.filter((s): s is number => s != null))];
   if (ids.length === 0) return new Map();
+  // clan-scope: global -- as above, in bulk: seat ids each name their own clan already.
   const rows = await db
     .select({ id: clanRoster.id, accountId: clanRoster.accountId })
     .from(clanRoster)
@@ -107,7 +129,7 @@ export async function enrolParticipant(values: NewParticipant): Promise<{ row: P
   const [row] = await db
     .insert(eventParticipants)
     .values({ ...values, accountId })
-    .onConflictDoNothing({ target: [eventParticipants.eventId, eventParticipants.accountId] })
+    .onConflictDoNothing(onAccountConflict)
     .returning();
   if (row) return { row, created: true };
 

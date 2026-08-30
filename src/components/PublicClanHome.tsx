@@ -1,5 +1,6 @@
 import ClanLink from '@/components/ClanLink';
 import type { PublicClanHome as View, ClanFocus } from '@/lib/clanHome';
+import ApplyToClan from '@/components/ApplyToClan';
 
 const FOCUS_LABEL: Record<ClanFocus, string> = {
   pvm: 'PvM',
@@ -104,7 +105,12 @@ export default function PublicClanHome({ view, signedIn }: { view: View; signedI
               >
                 Sign in to apply
               </ClanLink>
-            ) : null)}
+            ) : (
+              // Signed in, no Discord invite. This was `null`: the "Sign in to apply" above led here
+              // and the button vanished, leaving a panel that said the clan was recruiting with no
+              // way to answer it. Signing in made the page strictly less useful than being signed out.
+              <ApplyToClan slug={view.slug} clanName={view.name} />
+            ))}
         </div>
       )}
 

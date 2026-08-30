@@ -8,7 +8,7 @@
 // So there is one function, `admit`, and every one of those paths calls it. What it does depends on
 // the clan's policy, and the policy is a decision the clan made rather than a default nobody chose.
 
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, count, desc, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanAuditLog, clanJoinRequests, clanMemberships, clanRoster, clans } from '@/db/schema';
@@ -191,6 +191,20 @@ export interface PendingRequest {
 }
 
 /** What is waiting for this clan's staff. */
+/**
+ * How many are waiting, without building the rows.
+ *
+ * `pendingRequests` resolves each asker's home clan one query at a time, which is right for a screen
+ * that shows them and wasteful for a dashboard that only needs the number.
+ */
+export async function pendingRequestCount(clanId: number): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(clanJoinRequests)
+    .where(and(eq(clanJoinRequests.clanId, clanId), eq(clanJoinRequests.status, 'pending')));
+  return row?.n ?? 0;
+}
+
 export async function pendingRequests(clanId: number): Promise<PendingRequest[]> {
   const rows = await db
     .select({
@@ -242,6 +256,7 @@ export async function pendingRequests(clanId: number): Promise<PendingRequest[]>
  * refusing to import a player who had transferred in — the common case, not an edge one.
  */
 export async function claimMemberSeat(clanId: number, accountId: number): Promise<{ demotedFrom: number | null }> {
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const elsewhere = await db.query.clanMemberships.findFirst({
     where: and(
       eq(clanMemberships.accountId, accountId),

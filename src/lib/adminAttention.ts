@@ -63,6 +63,17 @@ export interface AttentionFacts {
   feeEvents: { name: string; ended: boolean; count: number; href: string }[];
   pendingVerifications: number;
   /**
+   * People asking to join, and clans asking to co-host — the two ways somebody knocks.
+   *
+   * Both were written end-to-end on the server and then surfaced nowhere a human looks. A join
+   * request reached `clan_join_requests` and was read back by nothing at all; a co-host invite
+   * rendered only on the Members tab, which is not a page anyone opens to find out what is waiting
+   * on them. A queue nobody is shown is the same as no queue, except that the person on the other
+   * end thinks they have asked.
+   */
+  joinRequests: number;
+  coHostInvites: number;
+  /**
    * The next stretch with nothing running at all.
    *
    * `openEnded` means it runs past the end of the window we looked at, so `days` measures how far
@@ -204,6 +215,30 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
   }
 
   // A hole in the schedule. Only worth raising if it's ahead of us and long enough to notice.
+  if (facts.joinRequests > 0) {
+    items.push({
+      key: 'join-requests',
+      severity: 'warn',
+      title: `${plural(facts.joinRequests, 'person', 'people')} asking to join`,
+      detail: 'They applied, or entered one of your events as a guest, and are waiting on an answer.',
+      href: '/admin/clan',
+      action: 'Decide',
+      at: 0,
+    });
+  }
+
+  if (facts.coHostInvites > 0) {
+    items.push({
+      key: 'cohost-invites',
+      severity: 'warn',
+      title: `${plural(facts.coHostInvites, 'clan')} invited you to co-host`,
+      detail: 'Accepting gives you your own team on their board, run by your staff.',
+      href: '/admin/clan',
+      action: 'Answer',
+      at: 0,
+    });
+  }
+
   if (facts.gap && facts.gap.days >= GAP_DAYS) {
     const waiting = facts.unscheduled[0];
     items.push({
