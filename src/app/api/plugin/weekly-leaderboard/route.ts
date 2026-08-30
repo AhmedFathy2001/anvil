@@ -5,6 +5,7 @@ import { weeklyCompetitions } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
 import { weeklyMetricLabel } from '@/lib/constants';
+import { log } from '@/lib/logger';
 
 // GET /api/plugin/weekly-leaderboard[?id=<competitionId>]
 // Returns the ranked standings for a weekly competition (the active one when no id is given),
@@ -23,6 +24,16 @@ export async function GET(request: Request) {
   const idParam = searchParams.get('id');
 
   const clan = await resolvePluginClan(request);
+  // TEMP DEBUG — diagnosing an empty SOTW board in the plugin. Remove after.
+  const authHeader = request.headers.get('authorization') || '';
+  log.info('weekly-lb.debug', {
+    id: idParam,
+    hasAuth: !!authHeader,
+    authKind: authHeader.slice(0, 7),
+    tokenLen: authHeader.startsWith('Bearer ') ? authHeader.length - 7 : 0,
+    clan: clan?.slug ?? null,
+    ua: (request.headers.get('user-agent') || '').slice(0, 40),
+  });
   if (!clan) return NextResponse.json({ competition: null, total: 0, entries: [] });
 
   const comp = idParam
