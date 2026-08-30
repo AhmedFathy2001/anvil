@@ -7,7 +7,7 @@
 // log out mid-competition, hiscores jump by the WHOLE session — including the XP
 // earned before the comp began — and `current - baseline` sweeps that pre-event XP
 // into their "gained". There is no way to separate pre- vs in-window XP from
-// hiscores data alone (Wise Old Man has the same limitation for non-plugin users).
+// hiscores data alone (any hiscores-only tracker has the same limitation for non-plugin users).
 //
 // So instead of trying to *prevent* it, we *detect* it: if the CUMULATIVE gained amount
 // could not physically have been earned in the elapsed competition time, flag the row so

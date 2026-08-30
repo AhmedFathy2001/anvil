@@ -5,7 +5,7 @@
 // `clanHref('/profile')` does not; the caller does not need to know which, and cannot get it wrong
 // by knowing wrong.
 //
-// THE SPLIT, which is the WOM shape: a clan owns its roster, its events and its administration. A
+// THE SPLIT: a clan owns its roster, its events and its administration. A
 // person owns their profile and their identity, and those follow them between clans rather than
 // existing once per clan — a human with seats in two clans having two profile URLs is exactly what
 // the identity remodel was for.

@@ -93,7 +93,7 @@ export async function probeRsnReachable(rsn: string): Promise<'reachable' | 'unr
 }
 
 /**
- * Tagged result for a weekly metric read. WOM-style separation so the caller can react
+ * Tagged result for a weekly metric read. The value/unranked/error separation lets the caller react
  * differently to "the account isn't on hiscores" (terminal — flip status to unranked,
  * stop wasting future cron slots) vs "the call broke transiently" (retry next tick).
  *
@@ -367,7 +367,7 @@ export async function applyRenameToActiveWeeklyParticipants(
 }
 
 // =============================================================================
-// Rename request flow (WOM-style)
+// Rename request flow
 // =============================================================================
 //
 // User submits "I renamed in-game" → we capture an old-name snapshot at submit

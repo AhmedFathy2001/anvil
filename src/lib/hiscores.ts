@@ -52,7 +52,7 @@ function withTimeout<T>(p: Promise<T>, ms: number, tag: string): Promise<T> {
 /**
  * One timeout-bounded hiscores fetch. Strips non-ASCII whitespace first — osrs-json-hiscores'
  * validateRSN regex rejects U+00A0 outright, and legacy rows in the DB still carry it. Throws on
- * failure; callers that want the WOM-style tagged result use `fetchSnapshotWithRetry`.
+ * failure; callers that want the tagged result use `fetchSnapshotWithRetry`.
  */
 export async function fetchHiscoresOnce(rsn: string): Promise<HiscoresSnapshot> {
   const cleanRsn = sanitizeRsn(rsn);
@@ -72,7 +72,7 @@ export function classifyHiscoresError(err: unknown): 'unranked' | 'transient' {
 }
 
 /**
- * WOM-style tagged snapshot fetch: one retry with a short backoff, terminal `unranked` short-circuits
+ * Tagged snapshot fetch: one retry with a short backoff, terminal `unranked` short-circuits
  * (a second attempt fails identically inside 1.5 s). The shared fetch primitive for the unified stat
  * sweep and weekly's per-metric wrapper — one hiscores read serves bingo tiles AND weekly.
  */

@@ -121,7 +121,7 @@ export async function POST(
 // Manually correct a participant's baseline. Used to fix the stale-baseline overcount
 // (player grinding across the comp start while logged in — see src/lib/gainsValidation.ts).
 // Setting baseline to the current value zeroes out the bogus pre-event gain and counts
-// only future progress, which mirrors how WOM treats a fresh post-logout snapshot.
+// only future progress — the standard treatment of a fresh post-logout snapshot.
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }

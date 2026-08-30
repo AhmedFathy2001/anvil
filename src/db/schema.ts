@@ -1460,8 +1460,8 @@ export const payouts = pgTable('payouts', {
   uniqueIndex('payouts_event_member_unique').on(table.eventId, table.clanMemberId),
 ]);
 
-// User-submitted RSN rename requests, reviewed by a cron pass that mirrors WOM's
-// auto-reviewer heuristic (negative-gains check + new-name reachability). Covers the
+// User-submitted RSN rename requests, reviewed by a cron pass with an auto-reviewer
+// heuristic (negative-gains check + new-name reachability). Covers the
 // gap where a user renames in-game but doesn't re-open the plugin — without this, the
 // `clan_members` row 404s forever and the user disappears from comps silently.
 //
@@ -1477,7 +1477,7 @@ export const pendingRenames = pgTable('pending_renames', {
   oldRsnNormalized: text('old_rsn_normalized').notNull(),
   newRsnNormalized: text('new_rsn_normalized').notNull(),
   // JSON snapshot of the old RSN's hiscores at submission time. The reviewer compares
-  // each skill xp against the new-name fetch — any decrease is the WOM-canonical
+  // each skill xp against the new-name fetch — any decrease is the canonical
   // "different account took the old name" signal and forces a denial.
   oldSnapshot: text('old_snapshot').notNull(),
   status: text('status').notNull().default('pending'), // 'pending' | 'approved' | 'denied'

@@ -5,6 +5,7 @@ import ApexLanding from '@/components/landing/ApexLanding';
 import ApexHome from '@/components/landing/ApexHome';
 import { platformStats } from '@/lib/platformStats';
 import { apexHomeView } from '@/lib/apexHome';
+import { apexSignals } from '@/lib/apexHomeSignals';
 import { db } from '@/db';
 import { users, clanStaff } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
@@ -46,11 +47,14 @@ async function ApexRoot() {
   const session = await verifyUser();
   if (!session) return <ApexLanding stats={await platformStats()} />;
 
-  const [view, userRow] = await Promise.all([
+  const [view, userRow, signals] = await Promise.all([
     apexHomeView(session.playerId, session.userId),
     db.query.users.findFirst({ where: eq(users.id, session.userId), columns: { displayName: true } }),
+    // The "how am I doing" half. Fetched alongside rather than inside apexHomeView so the two stay
+    // separable: this half is about the person, that half is about what wants them.
+    apexSignals(session.playerId, session.userId),
   ]);
-  return <ApexHome view={view} displayName={userRow?.displayName ?? 'there'} />;
+  return <ApexHome view={view} signals={signals} displayName={userRow?.displayName ?? 'there'} />;
 }
 
 export default async function HomePage() {

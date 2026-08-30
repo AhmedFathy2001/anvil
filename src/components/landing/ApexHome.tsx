@@ -2,6 +2,8 @@ import AnvilMark from '@/components/AnvilMark';
 import ClanCrest from '@/components/ClanCrest';
 import ClanLink from '@/components/ClanLink';
 import type { ApexHomeView, ClanCard } from '@/lib/apexHome';
+import type { ApexSignals } from '@/lib/apexHomeSignals';
+import { ArenaHero, CareerWell, Label, Lately, Roster, StreakBadge } from '@/components/home/ApexSignals';
 
 /**
  * The apex, to somebody signed in.
@@ -26,9 +28,11 @@ import type { ApexHomeView, ClanCard } from '@/lib/apexHome';
  */
 export default function ApexHome({
   view,
+  signals,
   displayName,
 }: {
   view: ApexHomeView;
+  signals: ApexSignals;
   displayName: string;
 }) {
   const live = view.clans.filter((c) => c.live.length > 0);
@@ -44,18 +48,27 @@ export default function ApexHome({
           size={190}
           className="pointer-events-none absolute -top-10 right-0 hidden text-gold/[0.04] sm:block"
         />
-        <h1 className="display display-lg relative text-[clamp(1.7rem,4vw,2.1rem)] font-semibold">
-          {greeting()}, {displayName}
-        </h1>
-        <p className="relative mt-2 text-[15px] text-text-muted">
-          {summary(view.clans.length, running, view.openSignups.length)}
-        </p>
+        {/* Deliberately small. When something is live the ARENA is the headline, and a greeting
+            competing with it would only split the reader's attention two ways. */}
+        <div className="relative flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="display text-[clamp(1.25rem,3vw,1.5rem)] font-medium">
+              {greeting()}, {displayName}
+            </h1>
+            <p className="mt-1 text-[13.5px] text-text-dim">
+              {summary(view.clans.length, running, view.openSignups.length)}
+            </p>
+          </div>
+          <StreakBadge streak={signals.streak} />
+        </div>
       </header>
 
       {view.clans.length === 0 ? (
         <Empty />
       ) : (
         <div className="flex flex-col gap-10">
+          {signals.arena && <ArenaHero arena={signals.arena} />}
+
           {live.length > 0 && (
             <Section title="Happening now" note={`${running} running`}>
               <div className="flex flex-col gap-2.5">
@@ -142,42 +155,44 @@ export default function ApexHome({
 
           {/* PERSON, ACCOUNT, SEAT — the model, made visible. Every clan surface shows one character
               at a time because that is all a clan may see; this is the only page where they sit
-              together, which is what makes it worth the space the clan list used to take. */}
+              together, with every clan each of them plays in. */}
           {view.characters.length > 0 && (
-            <Section
-              title="Your characters"
-              note={`${view.characters.length}`}
-              more={{ href: '/profile', label: 'Manage' }}
-            >
-              <ul className="divide-y divide-card-border overflow-hidden rounded-xl border border-card-border bg-card-bg">
-                {view.characters.map((ch) => (
-                  <li key={ch.id} className="flex items-center gap-3 px-4 py-3 sm:px-5">
-                    <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-md bg-brown-light font-mono text-[11px] text-text-muted">
-                      {ch.rsn.charAt(0).toUpperCase()}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <ClanLink
-                        href={`/p/${encodeURIComponent(ch.rsn)}`}
-                        className="block truncate text-[14.5px] hover:text-gold"
-                      >
-                        {ch.rsn}
-                      </ClanLink>
-                      <span className="mt-0.5 block truncate text-[12px] text-text-dim">
-                        {ch.clanName ?? 'No clan'}
-                      </span>
-                    </span>
-                    <span className="shrink-0 text-right">
-                      <span className="block font-mono text-[13px] tabular-nums">
-                        {ch.xpThisWeek > 0 ? compact(ch.xpThisWeek) : '—'}
-                      </span>
-                      <span className="block font-mono text-[10px] uppercase tracking-[0.12em] text-text-dim">
-                        xp / wk
-                      </span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </Section>
+            <div>
+              <Label
+                action={
+                  <ClanLink href="/profile" className="whitespace-nowrap text-[13px] text-gold-dark hover:text-gold">
+                    Manage characters →
+                  </ClanLink>
+                }
+              >
+                Your roster
+              </Label>
+              <Roster
+                characters={view.characters.map((ch) => ({
+                  id: ch.id,
+                  rsn: ch.rsn,
+                  xpThisWeek: ch.xpThisWeek,
+                  seats: signals.seats.get(ch.id) ?? [],
+                  next: signals.next.get(ch.id),
+                }))}
+              />
+            </div>
+          )}
+
+          {/* Not about this week at all — which is why it sits on its own plane. It is also the one
+              thing a single-clan site structurally cannot show. */}
+          {signals.career && (
+            <div>
+              <Label>Career · {signals.career.clanNames.length > 1 ? 'every clan' : 'so far'}</Label>
+              <CareerWell career={signals.career} />
+            </div>
+          )}
+
+          {signals.milestones.length > 0 && (
+            <div>
+              <Label>Lately</Label>
+              <Lately milestones={signals.milestones} />
+            </div>
           )}
         </div>
       )}
@@ -300,8 +315,3 @@ function greeting(): string {
   return 'Evening';
 }
 
-function compact(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
-  return n.toLocaleString();
-}
