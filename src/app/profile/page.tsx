@@ -1,5 +1,5 @@
 import { currentClan } from '@/lib/clanContext';
-import { accounts, players, eventParticipants, clanRoster, users, detectedAccounts } from '@/db/schema';
+import { accounts, players, clanRoster, users, detectedAccounts } from '@/db/schema';
 import { clansOfPerson } from '@/lib/myClans';
 import PersonProfile from '@/components/PersonProfile';
 import { redirect } from 'next/navigation';
@@ -21,7 +21,6 @@ import LinkedAccountsClient from './LinkedAccountsClient';
 import OtherAccountsClient from './OtherAccountsClient';
 import DetectedAccountsClient from './DetectedAccountsClient';
 import SecurityDrawer from './SecurityDrawer';
-import AnnouncementsDrawer from './AnnouncementsDrawer';
 import { emissionSettingsView } from '@/lib/emissionSettings';
 import { atLeast } from '@/lib/clanRoles';
 import ClanLink from '@/components/ClanLink';
@@ -68,9 +67,10 @@ export default async function ProfilePage({
   if (!clan) {
     // The apex: you, across the platform. The locker below is assembled per clan — boards, teams,
     // this week's progress — and none of that has a single answer when no clan is named. Rather than
-    // merge several clans into a picture true of nobody, show what IS true of the person and link
-    // into each clan for the rest.
-    const [myClans, characters, person] = await Promise.all([
+    // merge several clans into a picture true of nobody, show what IS true of the PERSON: the
+    // characters they play, who they share, their clans — and the platform-level settings that route
+    // between clans (webhooks + emission), which never belonged on any single clan's locker.
+    const [myClans, characters, person, emission] = await Promise.all([
       clansOfPerson(session.playerId, session.userId),
       session.playerId == null
         ? Promise.resolve([])
@@ -81,6 +81,9 @@ export default async function ProfilePage({
       session.playerId == null
         ? Promise.resolve(null)
         : db.query.players.findFirst({ where: eq(players.id, session.playerId) }),
+      // Emission routing + personal webhooks are PERSON-level and cross-clan by nature, so this is
+      // their home. Needs a player — a signed-in account with no character yet has nothing to route.
+      session.playerId == null ? Promise.resolve(null) : emissionSettingsView(session.userId, session.playerId),
     ]);
     return (
       <PersonProfile
@@ -90,15 +93,15 @@ export default async function ProfilePage({
         clans={myClans}
         characters={characters.map((a) => ({ id: a.id, rsn: a.rsn, shared: !!a.shared }))}
         linked={person?.linkAccountsPublicly ?? false}
+        emission={emission}
       />
     );
   }
 
   const welcome = (await searchParams).welcome === '1';
-  const [locker, clanName, emissionView] = await Promise.all([
+  const [locker, clanName] = await Promise.all([
     buildLocker(clan.id, session.playerId, session.userId),
     getClanDisplayName(clan.id),
-    emissionSettingsView(session.userId, session.playerId),
   ]);
 
   // Quest points, combat achievements and diaries for the account they play most — the primary one,
@@ -144,6 +147,19 @@ export default async function ProfilePage({
 
   return (
     <div className="max-w-6xl mx-auto">
+      {/* THE WAY BACK OUT. This locker is one clan's view of you — game data, boards, trophies. The
+          platform-level things (your characters, sharing, webhooks, where announcements go, billing)
+          live on your account across Anvil, and this is the link there so the two never blur.
+
+          A RAW anchor, not ClanLink: `/profile` is a clan-scoped root, so ClanLink would prefix it
+          back to THIS clan's locker. The apex version is the bare path, reached by a hard navigation
+          (which is right — leaving the clan for the platform is a context change, like the switcher).
+          The lint rule guards against ACCIDENTALLY dropping the prefix; here landing on the apex is
+          the entire point, so it is disabled deliberately for this one link. */}
+      {/* eslint-disable-next-line clan-scope/clan-prefix -- intentional apex link out of the clan locker */}
+      <a href="/profile" className="mb-3 inline-flex items-center gap-1.5 text-[13px] text-text-muted transition-colors hover:text-gold">
+        ← Your account across Anvil
+      </a>
       <div className="flex items-baseline gap-3 flex-wrap mb-4">
         <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2.5">
           <span className="w-1 h-7 bg-gold rounded-full" />
@@ -292,7 +308,9 @@ export default async function ProfilePage({
         </div>
       </div>
 
-      <AnnouncementsDrawer initial={emissionView} />
+      {/* Announcements routing + personal webhooks moved to the apex /profile — they are person-level
+          and cross-clan by nature, so they belong on "your account across Anvil", not one clan's
+          locker. The link at the top of this page goes there. */}
 
       <SecurityDrawer
         accounts={locker.accounts.map((a) => ({ id: a.id, rsn: a.rsn }))}

@@ -2,7 +2,9 @@ import ClanLink from '@/components/ClanLink';
 import ShareToggle from '@/components/ShareToggle';
 import LinkAccountsToggle from '@/components/LinkAccountsToggle';
 import LinkAccountClient from '@/app/profile/LinkAccountClient';
+import AnnouncementsDrawer from '@/app/profile/AnnouncementsDrawer';
 import type { MyClan } from '@/lib/myClans';
+import type { EmissionSettingsView } from '@/lib/emissionSettings';
 
 export interface PersonCharacter {
   id: number;
@@ -29,11 +31,15 @@ export default function PersonProfile({
   clans,
   characters,
   linked,
+  emission,
 }: {
   displayName: string;
   clans: MyClan[];
   characters: PersonCharacter[];
   linked: boolean;
+  /** Personal webhooks + cross-clan announcement routing — person-level, so their home is here on
+      the account, not inside any one clan's locker. Null when there's no character to route yet. */
+  emission?: EmissionSettingsView | null;
 }) {
   return (
     <div className="max-w-3xl mx-auto">
@@ -41,7 +47,10 @@ export default function PersonProfile({
         <span className="w-1 h-8 bg-gold rounded-full" />
         <div>
           <h1 className="text-3xl font-bold text-gold">{displayName}</h1>
-          <p className="text-sm text-text-muted">Your account across Anvil.</p>
+          <p className="text-sm text-text-muted">
+            Your account across Anvil — characters, sharing, webhooks and billing. Everything about a
+            clan&rsquo;s boards lives in that clan&rsquo;s locker, linked below.
+          </p>
         </div>
       </div>
 
@@ -115,26 +124,80 @@ export default function PersonProfile({
             <LinkAccountClient manualReview={false} />
           </div>
         ) : (
-          <ul className="divide-y divide-card-border overflow-hidden rounded-xl border border-card-border bg-card-bg">
-            {characters.map((a) => (
-              <li key={a.id} className="flex items-center gap-3 px-4 py-2.5">
-                <ClanLink
-                  href={`/p/${encodeURIComponent(a.rsn)}`}
-                  className="text-sm hover:text-gold"
-                >
-                  {a.rsn}
-                </ClanLink>
-                {/* Sharing is per character, not per person, so "my main is public and my ironman is
-                    nobody's business" is a thing you can actually say — and it is settable HERE,
-                    because it is the one thing a person says to clans they are not in. It used to be
-                    reachable only inside the clan locker, and the result was that nobody on the
-                    platform had ever set it: /u/, /p/ and the leaderboard's Players table were dark. */}
-                <ShareToggle accountId={a.id} shared={a.shared} rsn={a.rsn} />
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul className="divide-y divide-card-border overflow-hidden rounded-xl border border-card-border bg-card-bg">
+              {characters.map((a) => (
+                <li key={a.id} className="flex items-center gap-3 px-4 py-2.5">
+                  <ClanLink
+                    href={`/p/${encodeURIComponent(a.rsn)}`}
+                    className="text-sm hover:text-gold"
+                  >
+                    {a.rsn}
+                  </ClanLink>
+                  {/* Sharing is per character, not per person, so "my main is public and my ironman is
+                      nobody's business" is a thing you can actually say — and it is settable HERE,
+                      because it is the one thing a person says to clans they are not in. It used to be
+                      reachable only inside the clan locker, and the result was that nobody on the
+                      platform had ever set it: /u/, /p/ and the leaderboard's Players table were dark. */}
+                  <ShareToggle accountId={a.id} shared={a.shared} rsn={a.rsn} />
+                </li>
+              ))}
+            </ul>
+
+            {/* Adding a character is a platform act — it stays yours in every clan — so the way to do
+                it lives here too, not only in the empty state or inside a clan's locker. */}
+            <details className="group mt-3 rounded-xl border border-card-border bg-card-bg">
+              <summary className="flex cursor-pointer list-none select-none items-center gap-2 px-4 py-3 text-sm font-semibold">
+                <span className="text-text-muted transition-transform group-open:rotate-90" aria-hidden>
+                  ▸
+                </span>
+                Add another character
+              </summary>
+              <div className="px-4 pb-4">
+                <p className="mb-3 text-sm text-text-muted">
+                  Prove it is yours — train it a little and Hiscores will say so. It stays yours in
+                  every clan you join, without proving it again.
+                </p>
+                <LinkAccountClient manualReview={false} />
+              </div>
+            </details>
+          </>
         )}
         <LinkAccountsToggle linked={linked} sharedCount={characters.filter((c) => c.shared).length} />
+      </section>
+
+      {/* Announcements & webhooks — where your drops, deaths and CAs post, and your own Discord
+          webhooks. Person-level and cross-clan: it routes BETWEEN your clans, so it could never have
+          lived on one of them. Absent only until you have a character to route. */}
+      {emission && (
+        <section className="mt-10">
+          <h2 className="mb-1 text-lg font-semibold">Announcements &amp; webhooks</h2>
+          <p className="mb-3 max-w-[70ch] text-sm text-text-muted">
+            Where your social notifications go across every clan, and your own Discord destinations —
+            set once here, for all of them. (Bingo submissions are separate: those always reach the
+            clan running the board.)
+          </p>
+          <AnnouncementsDrawer initial={emission} defaultOpen />
+        </section>
+      )}
+
+      {/* Billing is a platform concern too — one account, one subscription, wherever you host. */}
+      <section className="mt-10">
+        <h2 className="mb-3 text-lg font-semibold">Billing &amp; plan</h2>
+        <ClanLink
+          href="/portal"
+          className="flex items-center justify-between gap-3 rounded-xl border border-card-border bg-card-bg p-4 transition-colors hover:border-gold/40"
+        >
+          <span>
+            <span className="block font-medium text-foreground">Manage billing &amp; your plan</span>
+            <span className="mt-0.5 block text-sm text-text-muted">
+              Your subscription, invoices and the tier each clan you host is on.
+            </span>
+          </span>
+          <span className="text-gold" aria-hidden>
+            →
+          </span>
+        </ClanLink>
       </section>
     </div>
   );

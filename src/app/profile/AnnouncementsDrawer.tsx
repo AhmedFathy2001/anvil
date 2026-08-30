@@ -28,7 +28,15 @@ const STATE_OPTIONS = [
  * stuff — drops, pets, deaths, combat achievements. A bingo submission is EVIDENCE and always reaches
  * the clan running the board; nothing here can send it somewhere else or hold it back.
  */
-export default function AnnouncementsDrawer({ initial }: { initial: EmissionSettingsView }) {
+export default function AnnouncementsDrawer({
+  initial,
+  defaultOpen = false,
+}: {
+  initial: EmissionSettingsView;
+  /** Open on first render — used on the apex /profile where this is a primary purpose of the page,
+      rather than a footnote drawer at the bottom of a clan locker. */
+  defaultOpen?: boolean;
+}) {
   const [view, setView] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +64,7 @@ export default function AnnouncementsDrawer({ initial }: { initial: EmissionSett
   const hasClanControls = view.accounts.some((a) => a.clans.length > 0) || view.memberClans.length > 0;
 
   return (
-    <details className="group mt-5 rounded-xl border border-card-border bg-card-bg">
+    <details open={defaultOpen || undefined} className="group mt-5 rounded-xl border border-card-border bg-card-bg">
       <summary className="flex cursor-pointer list-none select-none items-center gap-2.5 px-5 py-4 font-semibold">
         <span className="text-text-muted transition-transform group-open:rotate-90" aria-hidden>
           ▸
