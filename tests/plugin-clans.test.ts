@@ -199,6 +199,7 @@ test('the live board is reported per clan, with optional tiles left out', async 
   const rows = await pluginClansFor(userId);
   const byslug = Object.fromEntries(rows.map((r) => [r.slug, r]));
   assert.deepEqual(byslug.alpha.live, {
+    kind: 'bingo',
     eventId: byslug.alpha.live!.eventId,
     eventName: 'Alpha Bingo',
     tilesComplete: 3,
@@ -215,6 +216,7 @@ test('a points board reports points, not tile counts', async () => {
 
   const [row] = await pluginClansFor(userId);
   assert.deepEqual(row.live, {
+    kind: 'bingo',
     eventId: row.live!.eventId,
     eventName: 'Leagues',
     tilesComplete: 10,
@@ -282,4 +284,86 @@ test('a co-hosted board appears under both clans, carrying the SAME event id', a
   const byslug = Object.fromEntries(rows.map((r) => [r.slug, r]));
   assert.equal(byslug.alpha.live?.eventId, eventId);
   assert.equal(byslug.bravo.live?.eventId, eventId, 'same board, so the same id under both clans');
+});
+
+// ── A competition is something running too ────────────────────────────────────────────────────
+//
+// Reported from the field: a clan with an active Skill of the Week read as "Nothing live". It was —
+// this only ever looked at bingo boards, and SOTW/BOTW live in their own table.
+
+async function weekly(clanId: number, title: string, status = 'active') {
+  const [w] = await db
+    .insert(s.weeklyCompetitions)
+    .values({
+      clanId,
+      type: 'skill',
+      metric: 'slayer',
+      title,
+      startDate: iso(-1),
+      endDate: iso(6),
+      status,
+    })
+    .returning();
+  return w.id;
+}
+
+test('an active SOTW is live, even with no board running', async () => {
+  await seat(alpha, 'member');
+  const id = await weekly(alpha, 'Slayer SOTW');
+
+  const [row] = await pluginClansFor(userId);
+  assert.deepEqual(row.live, {
+    kind: 'weekly',
+    eventId: id,
+    eventName: 'Slayer SOTW',
+    tilesComplete: 0,
+    tilesTotal: 0,
+    pointsScored: false,
+  });
+});
+
+test('a board outranks a competition when both are running', async () => {
+  const a = await seat(alpha, 'member');
+  await board(alpha, a, 'Summer Bingo', { startDays: -1, endDays: 7, scored: 5, done: 1 });
+  await weekly(alpha, 'Slayer SOTW');
+
+  const [row] = await pluginClansFor(userId);
+  assert.equal(row.live?.kind, 'bingo', 'the board is the richer thing and what "playing" means');
+  assert.equal(row.live?.eventName, 'Summer Bingo');
+});
+
+test('a finished or upcoming competition is not live', async () => {
+  await seat(alpha, 'member');
+  await weekly(alpha, 'Last week', 'completed');
+  await weekly(alpha, 'Next week', 'upcoming');
+
+  const [row] = await pluginClansFor(userId);
+  assert.equal(row.live, null);
+});
+
+test("another clan's competition is not yours", async () => {
+  await seat(alpha, 'member');
+  await weekly(bravo, 'Their SOTW');
+
+  const [row] = await pluginClansFor(userId);
+  assert.equal(row.live, null, 'no seat in bravo, and alpha has nothing running');
+});
+
+test('a weekly id and a board id may collide, which is why the kind is part of the identity', async () => {
+  // Two tables, two id sequences. A client deduping a merged list on the id alone would fold these
+  // two unrelated things into one.
+  const a = await seat(alpha, 'member');
+  const b = await seat(bravo, 'guest');
+  const boardId = await board(alpha, a, 'Summer Bingo', { startDays: -1, endDays: 7, scored: 5, done: 1 });
+  const weeklyId = await weekly(bravo, 'Slayer SOTW');
+
+  const rows = await pluginClansFor(userId);
+  const byslug = Object.fromEntries(rows.map((r) => [r.slug, r]));
+  assert.equal(byslug.alpha.live?.kind, 'bingo');
+  assert.equal(byslug.bravo.live?.kind, 'weekly');
+  // The ids are free to be equal; the pair never is.
+  assert.notEqual(
+    `${byslug.alpha.live?.kind}:${boardId}`,
+    `${byslug.bravo.live?.kind}:${weeklyId}`,
+  );
 });

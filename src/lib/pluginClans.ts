@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { clanRoster, clans, completions, eventParticipants, events, tiles } from '@/db/schema';
+import { clanRoster, clans, completions, eventParticipants, events, tiles, weeklyCompetitions } from '@/db/schema';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { seatsOwnedByAnywhere } from '@/lib/roster';
 
@@ -28,7 +28,15 @@ const MAX_SWITCHABLE_CLANS = 20;
 
 export interface PluginClanLive {
   /**
-   * The board's id, so a client can tell two clans showing the SAME board from two boards.
+   * Which kind of thing is running — and half of the identity of it.
+   *
+   * A bingo id and a weekly id come from different tables and collide freely, so a client deduping
+   * across clans has to key on the PAIR. Without this, board 5 and Skill of the Week 5 read as the
+   * same thing and one of them silently disappears from a merged list.
+   */
+  kind: 'bingo' | 'weekly';
+  /**
+   * The id, so a client can tell two clans showing the SAME thing from two things.
    *
    * Co-hosted events belong to every host, so a person seated in two co-hosting clans sees one
    * event twice — under each clan. Deduping on the name would be a guess ("Summer Bingo" is not a
@@ -36,6 +44,7 @@ export interface PluginClanLive {
    */
   eventId: number;
   eventName: string;
+  /** Zero on a weekly: a competition has a leaderboard, not a board to fill. */
   tilesComplete: number;
   tilesTotal: number;
   /** Leagues-style points scoring — the tallies above are points, not tile counts. */
@@ -103,7 +112,10 @@ export async function pluginClansFor(userId: number | null | undefined): Promise
     .slice(0, MAX_SWITCHABLE_CLANS);
 
   const allSeatIds = ordered.flatMap((c) => c.seatIds);
-  const live = allSeatIds.length > 0 ? await liveBoardsBySeat(allSeatIds) : new Map<number, LiveEnrollment>();
+  const [live, weeklies] = await Promise.all([
+    allSeatIds.length > 0 ? liveBoardsBySeat(allSeatIds) : Promise.resolve(new Map<number, LiveEnrollment>()),
+    activeWeeklyByClan(ordered.map((c) => c.row.clanId)),
+  ]);
 
   return ordered.map(({ row, seatIds }) => {
     // The freshest live board in this clan, if any — same "latest start wins" tie-break the clan
@@ -113,25 +125,64 @@ export async function pluginClansFor(userId: number | null | undefined): Promise
       .filter((e): e is LiveEnrollment => !!e)
       .sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? ''));
     const best = here[0];
+    // A board first, because that is what "playing" most strongly means and it is the richer thing
+    // to show — but a clan running only a SOTW/BOTW is not idle, and reporting it as "nothing live"
+    // was simply wrong. Competitions live in their own table, so they are their own kind.
+    const weekly = weeklies.get(row.clanId) ?? null;
     return {
       slug: row.slug,
       name: row.name,
       kind: row.kind,
       live: best
         ? {
+            kind: 'bingo' as const,
             eventId: best.eventId,
             eventName: best.eventName,
             tilesComplete: best.tilesComplete,
             tilesTotal: best.tilesTotal,
             pointsScored: best.pointsScored,
           }
-        : null,
+        : weekly
+          ? {
+              kind: 'weekly' as const,
+              eventId: weekly.id,
+              eventName: weekly.title,
+              // A competition is a leaderboard, not a board to fill. Zeroes here rather than a
+              // fabricated fraction, so a client renders standing instead of a progress bar.
+              tilesComplete: 0,
+              tilesTotal: 0,
+              pointsScored: false,
+            }
+          : null,
     };
   });
 }
 
 interface LiveEnrollment extends PluginClanLive {
   startDate: string | null;
+}
+
+/**
+ * The running SOTW/BOTW in each of these clans, keyed by clan.
+ *
+ * Clan-wide rather than per-seat, matching what `/config` already reports for the clan the plugin is
+ * addressing: a weekly sweeps the roster in, so "is one running here" is the question, not "is this
+ * person enrolled". One query for every clan rather than one per clan — this runs on an endpoint
+ * every client polls on a timer.
+ */
+async function activeWeeklyByClan(clanIds: number[]): Promise<Map<number, { id: number; title: string }>> {
+  const out = new Map<number, { id: number; title: string }>();
+  if (clanIds.length === 0) return out;
+  const rows = await db
+    .select({ id: weeklyCompetitions.id, clanId: weeklyCompetitions.clanId, title: weeklyCompetitions.title })
+    .from(weeklyCompetitions)
+    .where(and(inArray(weeklyCompetitions.clanId, clanIds), eq(weeklyCompetitions.status, 'active')));
+  for (const r of rows) {
+    // A clan should have one active competition at a time; if it somehow has two, the first is as
+    // good an answer as any and the dropdown row only has space for one.
+    if (!out.has(r.clanId)) out.set(r.clanId, { id: r.id, title: r.title });
+  }
+  return out;
 }
 
 /**
@@ -208,6 +259,7 @@ async function liveBoardsBySeat(seatIds: number[]): Promise<Map<number, LiveEnro
     const totalPoints = scored.reduce((sum, t) => sum + (t.points ?? 1), 0);
     const pointsScored = r.scoringMode === 'points' && totalPoints > 0;
     const entry: LiveEnrollment = {
+      kind: 'bingo',
       eventId: r.eventId,
       eventName: r.eventName,
       startDate: r.startDate,
