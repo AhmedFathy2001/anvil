@@ -358,6 +358,38 @@ When the token has to decide between several clans:
 resolve through and answer empty on the apex. Both are legacy endpoints for older jars; newer builds
 read the same data merged into `/config`.
 
+### Which clan answered, and which others there are
+
+**Capability: `clan-switch`.** Both `/config` shapes carry:
+
+```jsonc
+{
+  "activeClan": { "slug": "theafkspot", "name": "The AFK Spot" },
+  "clans": [
+    { "slug": "theafkspot", "name": "The AFK Spot", "kind": "member",
+      "live": { "eventName": "Summer Bingo", "tilesComplete": 12, "tilesTotal": 25, "pointsScored": false } },
+    { "slug": "vanguard", "name": "Iron Vanguard", "kind": "guest", "live": null }
+  ]
+}
+```
+
+`activeClan` is the clan this response is about, however it was named. `clans[]` is every clan the
+token's owner holds a live seat in — suspended clans excluded, since picking one would 404 — newest
+seat first, one row per clan even when they hold a main and an alt there. Built by `lib/pluginClans`;
+part of `/config` rather than an endpoint of its own because clients already poll it on a timer.
+
+**A client is expected to echo `activeClan.slug` back as a `/c/<slug>` prefix.** Resolution order 1
+then wins, and the clan stops being re-guessed per request. That matters beyond tidiness: the routes
+a plugin calls OUTSIDE `/api/plugin` — `POST /api/events/:id/submissions`, `POST
+/api/events/:id/start-proof`, `POST /api/upload` — resolve a clan from the **address only**, so on
+the canonical address they resolve to nothing unless the caller addresses one. Echoing the slug is
+what makes them work there.
+
+The one call that should stay unaddressed while a member has made no explicit choice is `/config`
+itself, so the site keeps deciding and a member whose live board moves to their other clan follows
+it. `/api/plugin/auth/start` and `/auth/poll` are never addressed — they are about a person who does
+not have a clan yet.
+
 ### Telling a plugin where to go
 
 `server.canonicalUrl` on every `/config` shape carries the address the deployment prefers, and the

@@ -35,6 +35,12 @@ export const PLUGIN_CAPABILITIES = [
   // and a per-clan subdomain is no longer required. Plugins gate the "you can simplify your URL"
   // nudge on this, so they stay quiet against a site that still needs the old address.
   'apex-routing',
+  // /api/plugin/config names the clan it answered for (`activeClan`) and lists every clan this
+  // person holds a seat in (`clans[]`), so the plugin can show a switcher and then ADDRESS a clan
+  // with a `/c/<slug>` prefix instead of leaving the server to re-guess on every request. Gated
+  // because a plugin that offered the dropdown against a site without the fields would render it
+  // empty and strand anybody who is in two clans.
+  'clan-switch',
   'stats-live', // live stat overlay pushes + unified KC/XP tracking
   'drop-tiles',
   'kill-tiles',

@@ -34,6 +34,7 @@ import { isActivityKey } from '@/lib/hiscoresActivities';
 import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { serverInfo } from '@/lib/serverInfo';
+import { pluginClansFor } from '@/lib/pluginClans';
 import { parseEventRules, hasRevealPolicy, nextRevealAt, nextMissionAt, isMissionTile, parseTileMissionRules } from '@/lib/eventRules';
 import { startProofState } from '@/lib/startProof';
 import { combatTaskVarps } from '@/lib/combatTasks';
@@ -211,7 +212,7 @@ export async function GET(request: Request) {
       // Valid token, no live event: still resolve the read-bootstrap (schedule, weekly,
       // notification webhooks, fun-death pool) so deaths/rare-drops post and the side
       // panel shows the schedule even when the player isn't enrolled anywhere.
-      const [schedule, activeWeekly, weeklyNames, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, alwaysNotifyItemIds, showKillCount, dropRarityFloor, unlinkedActiveEvent, homeBoard] =
+      const [schedule, activeWeekly, weeklyNames, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, alwaysNotifyItemIds, showKillCount, dropRarityFloor, unlinkedActiveEvent, homeBoard, switchableClans] =
         await Promise.all([
           buildSchedule(clan.id),
           getActiveWeekly(clan.id),
@@ -226,6 +227,7 @@ export async function GET(request: Request) {
           getDropRarityFloor(clan.id),
           activeEventForUnlinkedRsn(request),
           homeBoardForUser(clan.id, userOnly.userId),
+          pluginClansFor(userOnly.userId),
         ]);
       return jsonWithEtag(request, {
         // Version + capability handshake — present on every /config shape (enrolled or not) so the
@@ -237,6 +239,11 @@ export async function GET(request: Request) {
         // The clan's display name — the sidebar's clan-filter label and the logged-out home card
         // need it even when no event/team is resolvable for this token.
         clanName: await getClanDisplayName(clan.id),
+        // WHICH CLAN THIS ANSWER IS ABOUT, and where else this person could point the plugin.
+        // The plugin echoes activeClan.slug back as a `/c/<slug>` prefix, so once it has asked
+        // once, every later call is addressed rather than re-resolved (lib/pluginClans).
+        activeClan: { slug: clan.slug, name: clan.name },
+        clans: switchableClans,
         // Server-resolved board summary off the token's USER (linked member → live enrollment), so
         // the sidebar shows the home board even at the login screen. Null when not enrolled anywhere.
         homeBoard,
@@ -742,6 +749,11 @@ export async function GET(request: Request) {
   return jsonWithEtag(request, {
     server: serverInfo(),
     clanName: await getClanDisplayName(clan.id),
+    // Same two fields as the not-enrolled shape above: which clan answered, and the rest of this
+    // person's clans for the switcher. Present on BOTH shapes so the dropdown does not empty out
+    // the moment somebody's event ends (lib/pluginClans).
+    activeClan: { slug: clan.slug, name: clan.name },
+    clans: await pluginClansFor(auth.userId),
     event: {
       id: event.id,
       name: event.name,
