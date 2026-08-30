@@ -367,7 +367,7 @@ read the same data merged into `/config`.
   "activeClan": { "slug": "theafkspot", "name": "The AFK Spot" },
   "clans": [
     { "slug": "theafkspot", "name": "The AFK Spot", "kind": "member",
-      "live": { "eventName": "Summer Bingo", "tilesComplete": 12, "tilesTotal": 25, "pointsScored": false } },
+      "live": { "eventId": 41, "eventName": "Summer Bingo", "tilesComplete": 12, "tilesTotal": 25, "pointsScored": false } },
     { "slug": "vanguard", "name": "Iron Vanguard", "kind": "guest", "live": null }
   ]
 }
@@ -377,6 +377,10 @@ read the same data merged into `/config`.
 token's owner holds a live seat in — suspended clans excluded, since picking one would 404 — newest
 seat first, one row per clan even when they hold a main and an alt there. Built by `lib/pluginClans`;
 part of `/config` rather than an endpoint of its own because clients already poll it on a timer.
+
+`live.eventId` is what lets a client tell two clans showing the **same** board from two boards. A
+co-hosted event belongs to every host, so somebody seated in two co-hosting clans receives it under
+each of them; dedup on the id, never on the name.
 
 **A client is expected to echo `activeClan.slug` back as a `/c/<slug>` prefix.** Resolution order 1
 then wins, and the clan stops being re-guessed per request. That matters beyond tidiness: the routes

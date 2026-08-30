@@ -27,6 +27,14 @@ import { seatsOwnedByAnywhere } from '@/lib/roster';
 const MAX_SWITCHABLE_CLANS = 20;
 
 export interface PluginClanLive {
+  /**
+   * The board's id, so a client can tell two clans showing the SAME board from two boards.
+   *
+   * Co-hosted events belong to every host, so a person seated in two co-hosting clans sees one
+   * event twice — under each clan. Deduping on the name would be a guess ("Summer Bingo" is not a
+   * rare name); the id is the answer.
+   */
+  eventId: number;
   eventName: string;
   tilesComplete: number;
   tilesTotal: number;
@@ -111,6 +119,7 @@ export async function pluginClansFor(userId: number | null | undefined): Promise
       kind: row.kind,
       live: best
         ? {
+            eventId: best.eventId,
             eventName: best.eventName,
             tilesComplete: best.tilesComplete,
             tilesTotal: best.tilesTotal,
@@ -199,6 +208,7 @@ async function liveBoardsBySeat(seatIds: number[]): Promise<Map<number, LiveEnro
     const totalPoints = scored.reduce((sum, t) => sum + (t.points ?? 1), 0);
     const pointsScored = r.scoringMode === 'points' && totalPoints > 0;
     const entry: LiveEnrollment = {
+      eventId: r.eventId,
       eventName: r.eventName,
       startDate: r.startDate,
       pointsScored,

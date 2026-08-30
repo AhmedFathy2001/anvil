@@ -199,11 +199,13 @@ test('the live board is reported per clan, with optional tiles left out', async 
   const rows = await pluginClansFor(userId);
   const byslug = Object.fromEntries(rows.map((r) => [r.slug, r]));
   assert.deepEqual(byslug.alpha.live, {
+    eventId: byslug.alpha.live!.eventId,
     eventName: 'Alpha Bingo',
     tilesComplete: 3,
     tilesTotal: 10,
     pointsScored: false,
   });
+  assert.ok(byslug.alpha.live!.eventId > 0, 'the id is what dedups a co-hosted board');
   assert.equal(byslug.bravo.live?.tilesComplete, 5);
 });
 
@@ -212,7 +214,13 @@ test('a points board reports points, not tile counts', async () => {
   await board(alpha, a, 'Leagues', { startDays: -1, endDays: 7, scored: 4, done: 2, points: true });
 
   const [row] = await pluginClansFor(userId);
-  assert.deepEqual(row.live, { eventName: 'Leagues', tilesComplete: 10, tilesTotal: 20, pointsScored: true });
+  assert.deepEqual(row.live, {
+    eventId: row.live!.eventId,
+    eventName: 'Leagues',
+    tilesComplete: 10,
+    tilesTotal: 20,
+    pointsScored: true,
+  });
 });
 
 test('an event that has not started yet is not what you are playing', async () => {
@@ -258,4 +266,20 @@ test("somebody else's seat is never in your list", async () => {
 
   assert.deepEqual((await pluginClansFor(userId)).map((r) => r.slug), ['alpha']);
   assert.deepEqual((await pluginClansFor(otherUser.id)).map((r) => r.slug), ['bravo']);
+});
+
+test('a co-hosted board appears under both clans, carrying the SAME event id', async () => {
+  // One event, two hosts, one person seated in each. The client has to be able to tell this from two
+  // separate boards, and the name cannot tell it — the id can.
+  const a = await seat(alpha, 'member');
+  const b = await seat(bravo, 'guest');
+  const eventId = await board(alpha, a, 'Cross-Clan Cup', { startDays: -1, endDays: 7, scored: 6, done: 2 });
+  const { eq } = await import('drizzle-orm');
+  const [team] = await db.select().from(s.teams).where(eq(s.teams.eventId, eventId));
+  await db.insert(s.eventParticipants).values({ eventId, clanMemberId: b, teamId: team.id, name: 'Probe' });
+
+  const rows = await pluginClansFor(userId);
+  const byslug = Object.fromEntries(rows.map((r) => [r.slug, r]));
+  assert.equal(byslug.alpha.live?.eventId, eventId);
+  assert.equal(byslug.bravo.live?.eventId, eventId, 'same board, so the same id under both clans');
 });
