@@ -1,0 +1,75 @@
+name: Refresh game data
+
+# Keeps the wiki-sourced catalogues current so new Jagex content flows in without a manual run:
+# combat achievements, the collection log, drop tables and slayer. Each is a snapshot of the OSRS
+# Wiki that a `data:*` script regenerates; left alone, the totals go stale (a new CA release, say,
+# never appears until someone remembers to rebuild).
+#
+# It opens a PR rather than pushing straight to a branch that deploys. A wiki outage or a schema
+# change on their side can produce a mangled catalogue, and the one thing worse than a stale total is
+# an empty one shipped automatically — so the diff gets a human glance (and the normal CI checks) on
+# the way in. Turn on auto-merge for the PR if you want it fully hands-off.
+#
+# Diaries are NOT here: they're a fixed set of regions/tiers in lib/constants (Jagex adds one every
+# few years), not a wiki fetch. Quests aren't here either — there is no quest catalogue yet; that
+# needs building before it can be refreshed.
+#
+# Efficiency/rate tables are deliberately excluded too: those derive from a third-party source, and
+# re-fetching them weekly would churn that dependency for no real benefit (the rates are stable).
+
+on:
+  schedule:
+    - cron: '17 6 * * 1' # Mondays 06:17 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Regenerate wiki-sourced catalogues
+        run: |
+          npm run data:ca
+          npm run data:clog
+          npm run data:drops
+          npm run data:slayer
+
+      - name: Open a PR if anything changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- src/data; then
+            echo "Catalogues already current — nothing to do."
+            exit 0
+          fi
+          echo "Changed files:"; git status --short -- src/data
+
+          BRANCH=chore/refresh-game-data
+          git config user.name "anvil-data-bot"
+          git config user.email "bot@anvilosrs.com"
+          git checkout -B "$BRANCH"
+          git add src/data
+          git commit -m "chore(data): weekly wiki catalogue refresh"
+          git push -f origin "$BRANCH"
+
+          # Create the PR, or (if one is already open on this branch) just leave the new commit on it.
+          gh pr create --base main --head "$BRANCH" \
+            --title "chore(data): refresh CA / clog / drops / slayer catalogues" \
+            --body "Automated weekly refresh of the wiki-sourced datasets. **Review the diff** — a malformed or partial wiki fetch shows up as a large deletion or a collapsed \`taskCount\`. CI (typecheck/lint/build) runs on this PR as usual." \
+            --label data --label automated \
+            || echo "A PR for $BRANCH already exists; the new commit was pushed to it."
