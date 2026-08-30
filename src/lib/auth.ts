@@ -480,11 +480,17 @@ async function clanOfPerson(
 
   if (live.length > 0) return resolveClanById(live[0].clanId);
 
+  // Nothing live: default to their HOME clan — the one they're a MEMBER of — before any guest seat.
+  // An account holds at most one member seat (the exclusivity index), so this is a single, correct
+  // answer: "my clan", not "whichever clan I most recently guested in". Before this, someone who
+  // guested into another clan after joining their own had the plugin quietly point at the guest clan
+  // — which for a member with events elsewhere means an empty board, exactly the LFL-vs-theafkspot
+  // case. Member-first, then most-recently-joined as the tie-break among seats of the same kind.
   const seat = await db
     .select({ clanId: clanRoster.clanId })
     .from(clanRoster)
     .where(and(await seatsOwnedByAnywhere(userId), isNull(clanRoster.leftAt)))
-    .orderBy(desc(clanRoster.joinedAt))
+    .orderBy(desc(sql`(${clanRoster.kind} = 'member')`), desc(clanRoster.joinedAt))
     .limit(1);
 
   return seat.length > 0 ? resolveClanById(seat[0].clanId) : null;

@@ -26,6 +26,12 @@ export interface LookupClan {
 type Sort = 'active' | 'size' | 'name';
 
 /**
+ * Whether a stranger can get in. The first question anybody browsing actually has, and previously
+ * only answerable by reading a line of prose at the bottom of every card in turn.
+ */
+type Door = 'any' | 'open';
+
+/**
  * Somewhere to play, or somebody to play against.
  *
  * THE QUESTION THIS PAGE ANSWERS is "would I join this clan", and a table of names and member counts
@@ -43,12 +49,17 @@ type Sort = 'active' | 'size' | 'name';
 export default function ClanLookup({ clans }: { clans: LookupClan[] }) {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<Sort>('active');
+  const [door, setDoor] = useState<Door>('any');
+
+  // Clans you are already in are not results — you know them, and they were taking slots in a list
+  // whose entire purpose is showing you somewhere new. They keep a row of their own above.
+  const mine = useMemo(() => clans.filter((c) => c.seat), [clans]);
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const filtered = q
-      ? clans.filter((c) => c.name.toLowerCase().includes(q) || c.slug.includes(q))
-      : clans;
+    let filtered = clans.filter((c) => !c.seat);
+    if (q) filtered = filtered.filter((c) => c.name.toLowerCase().includes(q) || c.slug.includes(q));
+    if (door === 'open') filtered = filtered.filter((c) => c.guestPolicy !== 'closed');
     return [...filtered].sort((a, b) => {
       if (sort === 'name') return a.name.localeCompare(b.name);
       if (sort === 'size') return b.members - a.members || a.name.localeCompare(b.name);
@@ -60,9 +71,8 @@ export default function ClanLookup({ clans }: { clans: LookupClan[] }) {
         a.name.localeCompare(b.name)
       );
     });
-  }, [clans, query, sort]);
+  }, [clans, query, sort, door]);
 
-  const busiest = Math.max(1, ...clans.map((c) => c.activeThisWeek));
 
   return (
     <div className="mx-auto w-full max-w-5xl">
@@ -90,6 +100,29 @@ export default function ClanLookup({ clans }: { clans: LookupClan[] }) {
         <div className="flex gap-1">
           {(
             [
+              ['any', 'All clans'],
+              ['open', 'Taking members'],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setDoor(key)}
+              aria-pressed={door === key}
+              className={`rounded-md border px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.1em] transition-colors ${
+                door === key
+                  ? 'border-gold/30 bg-gold/[0.07] text-gold'
+                  : 'border-transparent text-text-muted hover:bg-brown-light hover:text-foreground'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex gap-1">
+          {(
+            [
               ['active', 'Most active'],
               ['size', 'Biggest'],
               ['name', 'A–Z'],
@@ -112,6 +145,29 @@ export default function ClanLookup({ clans }: { clans: LookupClan[] }) {
         </div>
       </div>
 
+      {mine.length > 0 && (
+        <div className="mb-7">
+          <p className="mb-2 font-mono text-[0.58rem] uppercase tracking-[0.16em] text-text-dim">
+            Where you already play
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {mine.map((c) => (
+              <ClanLink
+                key={c.slug}
+                href={`/c/${c.slug}`}
+                className="flex items-center gap-2 rounded-lg border border-card-border bg-card-bg px-3 py-2 text-[13.5px] transition-colors hover:border-gold/40 hover:bg-card-bg-hover"
+              >
+                <ClanCrest name={c.name} size={20} />
+                <span className="font-medium">{c.name}</span>
+                <span className="font-mono text-[0.58rem] uppercase tracking-[0.1em] text-text-dim">
+                  {c.seat}
+                </span>
+              </ClanLink>
+            ))}
+          </div>
+        </div>
+      )}
+
       {shown.length === 0 ? (
         <p className="rounded-xl border border-dashed border-card-border px-5 py-10 text-center text-sm text-text-muted">
           {query ? `Nothing matching “${query}”.` : 'No clans are listed yet.'}
@@ -119,7 +175,7 @@ export default function ClanLookup({ clans }: { clans: LookupClan[] }) {
       ) : (
         <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(300px,1fr))]">
           {shown.map((c) => (
-            <Card key={c.slug} clan={c} busiest={busiest} />
+            <Card key={c.slug} clan={c} />
           ))}
         </div>
       )}
@@ -132,8 +188,7 @@ export default function ClanLookup({ clans }: { clans: LookupClan[] }) {
   );
 }
 
-function Card({ clan, busiest }: { clan: LookupClan; busiest: number }) {
-  const pct = Math.round((clan.activeThisWeek / busiest) * 100);
+function Card({ clan }: { clan: LookupClan }) {
 
   return (
     <ClanLink
@@ -163,22 +218,26 @@ function Card({ clan, busiest }: { clan: LookupClan; busiest: number }) {
         </span>
       </div>
 
-      {/* WHAT IS HAPPENING, given the most room. Everything else on this card is context for it. */}
-      <div className="mt-3.5 min-h-[38px]">
-        {clan.doing ? (
+      {/* WHAT IS HAPPENING, when something is. Silence when nothing is, rather than a line saying
+          so: on a quiet week that negative was the most prominent thing on four cards out of six,
+          which made the whole page read as a graveyard. A clan between events is not a dead clan,
+          and the turnout below says so without being asked. */}
+      {clan.doing && (
+        <div className="mt-3.5">
           <span className="flex items-center gap-2">
             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent-green-light" />
             <span className="min-w-0 truncate text-[13.5px]">{clan.doing}</span>
           </span>
-        ) : (
-          <span className="text-[13px] text-text-dim">Nothing running right now</span>
-        )}
-      </div>
+        </div>
+      )}
 
-      <div className="mt-auto pt-3">
+      <div className="mt-auto pt-3.5">
         <div className="flex items-baseline justify-between gap-2">
           <span className="font-mono text-[10.5px] uppercase tracking-[0.12em] text-text-dim">
-            {clan.activeThisWeek} of {clan.members} played this week
+            <b className="font-sans text-[15px] font-semibold not-italic text-foreground">
+              {clan.members > 0 ? Math.round((clan.activeThisWeek / clan.members) * 100) : 0}%
+            </b>{' '}
+            of {clan.members} played
           </span>
           {clan.xpThisWeek > 0 && (
             <span className="font-mono text-[11.5px] tabular-nums text-text-muted">
@@ -189,14 +248,24 @@ function Card({ clan, busiest }: { clan: LookupClan; busiest: number }) {
         <span className="mt-1.5 block h-[5px] overflow-hidden rounded-sm bg-brown-light">
           <span
             className="block h-full rounded-sm bg-gradient-to-r from-gold-dark to-gold"
-            style={{ width: `${pct}%` }}
+            style={{ width: `${clan.members > 0 ? Math.min(100, Math.round((clan.activeThisWeek / clan.members) * 100)) : 0}%` }}
           />
         </span>
 
         {/* CAN I EVEN GET IN. Only worth saying to somebody who is not already here — a member does
             not need telling that the door is open. */}
         {!clan.seat && (
-          <span className="mt-2.5 block text-[12px] text-text-dim">{doorway(clan.guestPolicy)}</span>
+          <span
+            className={`mt-3 inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.1em] ${
+              clan.guestPolicy === 'open'
+                ? 'bg-accent-green/10 text-accent-green-light'
+                : clan.guestPolicy === 'closed'
+                  ? 'bg-brown-light text-text-dim'
+                  : 'bg-gold/[0.08] text-gold-dark'
+            }`}
+          >
+            {doorway(clan.guestPolicy)}
+          </span>
         )}
       </div>
     </ClanLink>
@@ -205,9 +274,9 @@ function Card({ clan, busiest }: { clan: LookupClan; busiest: number }) {
 
 /** What the guest policy means to somebody standing outside. */
 function doorway(policy: string): string {
-  if (policy === 'open') return 'Anyone can join';
-  if (policy === 'closed') return 'Not taking guests';
-  return 'Takes guests by approval';
+  if (policy === 'open') return 'Open';
+  if (policy === 'closed') return 'Closed';
+  return 'By approval';
 }
 
 const share = (c: LookupClan) => (c.members > 0 ? c.activeThisWeek / c.members : 0);
