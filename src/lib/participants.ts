@@ -13,6 +13,12 @@
 // team twice, two rows on the roster, two fees owed. Nothing errored, because nothing was wrong from
 // where any single call site was standing.
 //
+// AND THE HOLE PREDATES CROSS-CLAN PLAY. The first real database migration 0079 ran against held a
+// duplicate on ONE seat in ONE clan — two rows, same event, same clan_member_id — because there was
+// no unique constraint on that pair either. The nine seat-keyed checks were all that stood between a
+// race and a duplicate player, and at least once they lost. Cross-clan play widened the hole; it did
+// not open it.
+//
 // THE ACCOUNT IS THE UNIT. This module is the only place that needs to know that, so a tenth call
 // site added later cannot get it wrong by not knowing. The partial unique index on
 // (event_id, account_id) backs it in the database, which is what makes `enrolParticipant` safe to
