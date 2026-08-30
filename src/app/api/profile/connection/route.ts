@@ -18,6 +18,7 @@ export async function GET() {
   if (!session?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const [members, pending] = await Promise.all([
+    // clan-scope: global -- the subject is a PERSON, and their seats span clans by design; scoped to the caller's own via clanRoster.playerId.
     findRosterSeats(and(eq(clanRoster.playerId, session.playerId), isNull(clanRoster.leftAt))),
     db.query.detectedAccounts.findMany({
       where: and(eq(detectedAccounts.userId, session.userId), eq(detectedAccounts.status, 'pending')),

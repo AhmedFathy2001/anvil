@@ -42,6 +42,7 @@ export async function GET(
     eventTeams.map((t) => t.captainUserId).filter((v): v is number => v != null),
   );
 
+  // clan-scope: global -- reached through team membership or a token, not through a clan — that is what lets a visiting clan's people use it.
   const rows = await db
     .select({
       signup: eventSignups,

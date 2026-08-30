@@ -184,6 +184,7 @@ async function applySnapshotChanged(
 
   // ── Weekly: fold the one snapshot into every active competition this account's seats are in. ─────
   let weeklyUpdated = 0;
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const weekly = await db
     .select({
       id: weeklyParticipants.id,
@@ -236,6 +237,7 @@ async function applySnapshotChanged(
   // (lib/statTracking). Benched players are pinned; leave them. The per-event completion pass runs
   // after the whole batch, in consumeForgeEvents.
   const snapshotJson = JSON.stringify(snapshot);
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const parts = await db
     .select({
       id: eventParticipants.id,

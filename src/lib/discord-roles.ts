@@ -656,6 +656,7 @@ async function cacheDiscordId(memberId: number, discordId: string): Promise<void
         and(
           eq(
             accounts.id,
+            // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
             db.select({ id: clanMemberships.accountId }).from(clanMemberships).where(eq(clanMemberships.id, memberId)),
           ),
           UNCLAIMED_ACCOUNT,
@@ -786,6 +787,7 @@ export async function syncRolesForClanMember(
   skipNickname = false,
 ): Promise<SyncReport> {
   // The member knows its clan; deriving it here means a caller can't pass one that disagrees.
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const member = await findRosterSeat(eq(clanRoster.id, memberId));
   if (!member) return { ok: false, reason: 'member not found', added: [], removed: [] };
   const cfg = await loadRoleSyncConfig(member.clanId);
@@ -1061,6 +1063,7 @@ export async function syncRolesForClanMember(
   let nickSet: string | undefined;
   const currentNick = currentMember.nick?.trim() || '';
   if (!skipNickname && cfg.setNicknameOnLink && (cfg.overwriteNickname || !currentNick)) {
+    // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
     const accounts = await db
       .select({ rsn: clanRoster.rsn, isPrimary: clanRoster.isPrimary })
       .from(clanRoster)

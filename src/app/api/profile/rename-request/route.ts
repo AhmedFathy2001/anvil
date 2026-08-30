@@ -16,6 +16,7 @@ export async function GET() {
   const session = await verifyUser();
   if (!session?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
   const rows = await db
     .select({
       id: pendingRenames.id,
@@ -57,9 +58,11 @@ export async function POST(request: Request) {
   // Otherwise pick: primary > only-one.
   let cm = null;
   if (typeof body.clanMemberId === 'number') {
+    // clan-scope: global -- the subject is a PERSON, and their seats span clans by design; scoped to the caller's own via clanRoster.playerId.
     cm = await findRosterSeat(and(eq(clanRoster.id, body.clanMemberId), eq(clanRoster.playerId, session.playerId)));
     if (!cm) return NextResponse.json({ error: 'Clan member not found or not owned by you' }, { status: 403 });
   } else {
+    // clan-scope: global -- the subject is a PERSON, and their seats span clans by design; scoped to the caller's own via clanRoster.playerId.
     const owned = await db
       .select({ id: clanRoster.id, isPrimary: clanRoster.isPrimary })
       .from(clanRoster)
@@ -71,6 +74,7 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+    // clan-scope: global -- the subject is a PERSON, and their seats span clans by design; scoped to the caller's own via clanRoster.playerId.
     cm = await findRosterSeat(eq(clanRoster.id, primary.id));
     if (!cm) return NextResponse.json({ error: 'Clan member not found' }, { status: 404 });
   }

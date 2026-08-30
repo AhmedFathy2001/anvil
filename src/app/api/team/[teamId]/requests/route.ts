@@ -32,6 +32,7 @@ export async function GET(
   const guard = await requireTeamManager(tId);
   if ('response' in guard) return guard.response;
 
+  // clan-scope: global -- reached through team membership or a token, not through a clan — that is what lets a visiting clan's people use it.
   const rows = await db
     .select({
       id: eventSignups.id,
@@ -114,6 +115,7 @@ export async function POST(
   const existingPlayer = await participantForSeat(signup.eventId, signup.clanMemberId);
   if (!existingPlayer) {
     // clan_roster is a VIEW, so it is not in db.query (Drizzle's relational API needs a table).
+    // clan-scope: global -- the id came from a row this request already established, so the clan is settled upstream.
     const account = await findRosterSeat(eq(clanRoster.id, signup.clanMemberId));
     await enrolParticipant({
       eventId: signup.eventId,

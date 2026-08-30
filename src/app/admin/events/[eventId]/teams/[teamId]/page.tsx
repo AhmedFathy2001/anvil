@@ -50,6 +50,7 @@ export default async function AdminTeamBoardPage({
   // with nothing to say so. The card offers to fix it when this comes back false.
   let captainSeated = true;
   if (team.captainUserId != null) {
+    // clan-scope: global -- the subject is a PERSON, whose seats span clans by design.
     const accounts = await db
       .select({ id: clanRoster.id })
       .from(clanRoster)

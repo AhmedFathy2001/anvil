@@ -100,6 +100,7 @@ export default async function EventSignupPage({
   // (already `fee` above), so this list stays length ≤ 1 and the form hides it.
   const accountFees = activeSignups.length
     ? (
+        // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
         await db
           .select({ amount: signupFees.amount, status: signupFees.status, rsn: clanRoster.rsn })
           .from(signupFees)

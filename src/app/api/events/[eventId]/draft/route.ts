@@ -51,6 +51,7 @@ export async function GET(
   // the draft board can show they draft together (guests have no owner → their own single entry).
   const memberIds = [...new Set(safeRaw.map((p) => p.clanMemberId).filter((x): x is number => x != null))];
   const ownerRows = memberIds.length
+    // clan-scope: global -- the id came from a row this request already established, so the clan is settled upstream.
     ? await db.select({ id: clanRoster.id, userId: clanRoster.playerId }).from(clanRoster).where(inArray(clanRoster.id, memberIds))
     : [];
   const ownerByMember = new Map(ownerRows.map((r) => [r.id, r.userId]));

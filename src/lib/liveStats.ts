@@ -22,6 +22,7 @@ export async function liveStatsForMembers(
   const ids = Array.from(new Set(clanMemberIds.filter((x): x is number => typeof x === 'number')));
   const out = new Map<number, Record<string, number>>();
   if (ids.length === 0) return out;
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const rows = await db
     .select({ id: clanRoster.id, liveStats: clanRoster.liveStats })
     .from(clanRoster)

@@ -212,6 +212,7 @@ async function resolveCaller(
   | { event: typeof events.$inferSelect; player: { id: number; teamId: number | null; name: string }; source: StartProofSource }
   | { error: NextResponse }
 > {
+  // clan-scope: global -- a helper called only from handlers that have already run the event guard.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return { error: NextResponse.json({ error: 'Event not found' }, { status: 404 }) };
 

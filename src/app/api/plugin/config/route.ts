@@ -97,6 +97,7 @@ async function homeBoardForUser(clanId: number, userId: number): Promise<{
   if (myMembers.length === 0) return null;
   const primaryIds = new Set(myMembers.filter((m) => m.isPrimary === 1).map((m) => m.id));
 
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const enrollments = await db
     .select({
       eventId: events.id,
@@ -167,6 +168,7 @@ async function activeEventForUnlinkedRsn(request: Request): Promise<string | nul
   if (!rsnHeader) return null;
   const norm = normalizeRsn(rsnHeader);
   if (!norm) return null;
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const rows = await db
     .select({
       name: eventParticipants.name,
@@ -293,6 +295,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken>' }, { status: 401 });
   }
 
+  // clan-scope: global -- the id came from a row this request already established, so the clan is settled upstream.
   const event = await db.query.events.findFirst({
     where: eq(events.id, auth.eventId),
   });
@@ -408,6 +411,7 @@ export async function GET(request: Request) {
   // for the team. We pull every team player's baseline + cached stats once, parse
   // them, and sum gained values per tile (or use just the calling player's value
   // when tracking_mode is 'individual').
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const teamPlayers = await db
     .select({
       id: eventParticipants.id,

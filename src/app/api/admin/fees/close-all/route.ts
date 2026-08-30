@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { closeOutEventFees } from '@/lib/feeConfirmations';
 import { eventStage } from '@/lib/eventStage';
+import { eventForRequest } from '@/lib/eventScope';
 
 /**
  * Close a finished event's fee ledger (see lib/feeConfirmations#closeOutEventFees).
@@ -25,7 +26,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'eventId is required' }, { status: 400 });
   }
 
-  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  // Whose event is this? The id arrives in the REQUEST BODY, and `session.role` is this admin's
+  // standing in the clan they are visiting — so unscoped, an admin of any clan could close out the
+  // fees on any other clan's board by posting its id.
+  const event = await eventForRequest(request, eventId);
   if (!event) {
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }

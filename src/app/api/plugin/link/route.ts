@@ -79,9 +79,11 @@ export async function POST(request: Request) {
   //   1) accountHash match — strongest, survives renames
   //   2) rsnNormalized match — for ghosts or members imported via sync
   let existing = accountHash
+    // clan-scope: global -- identity is global — one row per OSRS account however many clans it turns up in; the write below lands on `accounts`, not on anything clan-scoped.
     ? await findRosterSeat(eq(clanRoster.accountHash, accountHash))
     : null;
   if (!existing) {
+    // clan-scope: global -- identity is global — one row per OSRS account however many clans it turns up in; the write below lands on `accounts`, not on anything clan-scoped.
     existing = (await findRosterSeat(eq(clanRoster.rsnNormalized, rsnNormalized))) ?? null;
   }
 
@@ -244,6 +246,7 @@ export async function POST(request: Request) {
   // existing rows owned by this user.
   const issuingPlayerId = await personOf(issuingUser.id);
   const userAccounts = issuingPlayerId
+    // clan-scope: global -- identity is global — one row per OSRS account however many clans it turns up in; the write below lands on `accounts`, not on anything clan-scoped.
     ? await findRosterSeats(and(eq(clanRoster.playerId, issuingPlayerId), isNull(clanRoster.leftAt)))
     : [];
   const hasPrimary = userAccounts.some((a) => a.isPrimary === 1);

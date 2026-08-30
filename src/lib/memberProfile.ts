@@ -535,6 +535,7 @@ export interface MemberStandings {
 export async function getStandings(clanMemberId: number): Promise<MemberStandings> {
   // "#3 of 47" only means anything within one clan, and the seat already names which one — so the
   // clan is derived here rather than threaded through every caller.
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const seat = await findRosterSeat(eq(clanRoster.id, clanMemberId));
   if (!seat) return { ehp: null, ehb: null, xp: null };
   const rows = await listMembers(seat.clanId);
@@ -1056,6 +1057,7 @@ export async function getCompetitionHistory(clanMemberId: number, rsn: string): 
   //
   // Matched by clan_member_id OR any name this member has been known by, because a rename mid-history
   // leaves old `players` rows carrying the old RSN.
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const member = await findRosterSeat(eq(clanRoster.id, clanMemberId));
   const aliases = new Set<string>([normalizeRsn(rsn)]);
   if (member?.rsn) aliases.add(normalizeRsn(member.rsn));
@@ -1066,6 +1068,7 @@ export async function getCompetitionHistory(clanMemberId: number, rsn: string): 
     /* a malformed alias list shouldn't cost someone their history */
   }
 
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const enrolled = await db
     .select({
       eventId: eventParticipants.eventId,
@@ -1086,6 +1089,7 @@ export async function getCompetitionHistory(clanMemberId: number, rsn: string): 
   // Facts for this member across ALL events, not just the enrolled ones: a player row can be dropped
   // from an event afterwards (the admin "remove from event" path) while the fact of having played it
   // survives. Enrollment ∪ facts is the set that can't lose an event either way.
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const factRows = await db
     .select({
       eventId: playerEventFacts.eventId,
@@ -1146,6 +1150,7 @@ export async function getCompetitionHistory(clanMemberId: number, rsn: string): 
 
 
   // Weeklies: find the finished comps this member took part in, then rank them within each.
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const mine = await db
     .select({
       competitionId: weeklyParticipants.competitionId,
@@ -1253,6 +1258,7 @@ export interface Persona {
  * just the profile you're already looking at.
  */
 export async function getPersona(clanMemberId: number): Promise<Persona | null> {
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const member = await findRosterSeat(eq(clanRoster.id, clanMemberId));
   if (!member?.playerId) return null;
 

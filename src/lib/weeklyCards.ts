@@ -134,6 +134,7 @@ export async function loadWeeklyCards(
     // member_daily_stats is account-keyed), then read the daily rows for exactly those accounts. The
     // old code matched a set of SEAT ids against an account key — never equal, so every card's shape
     // came back flat — and fetched the daily table with no account filter at all.
+    // clan-scope: global -- joined onto a driving query that is already scoped; this clause adds columns, not rows.
     const memberRows = await db
       .select({
         competitionId: weeklyParticipants.competitionId,

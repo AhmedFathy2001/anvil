@@ -98,6 +98,7 @@ export async function bossKillsFor(accountId: number): Promise<Record<string, nu
   // live push and player_snapshots.account_id (an ACCOUNT) for the hiscores half — two id spaces, so
   // one of them was always wrong. Both read the account now (liveStats hangs off the account; any of
   // its seats in the view carries the same value, hence LIMIT 1).
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const [member] = await db
     .select({ liveStats: clanRoster.liveStats })
     .from(clanRoster)

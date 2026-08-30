@@ -66,6 +66,7 @@ export async function loadPlayerOwners<T extends { id: number; clanMemberId: num
 ): Promise<Map<number, number | null>> {
   const memberIds = [...new Set(players.map((p) => p.clanMemberId).filter((x): x is number => x != null))];
   const rows = memberIds.length
+    // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
     ? await db.select({ id: clanRoster.id, userId: clanRoster.playerId }).from(clanRoster).where(inArray(clanRoster.id, memberIds))
     : [];
   const byMember = new Map(rows.map((r) => [r.id, r.userId]));

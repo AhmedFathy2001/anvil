@@ -99,6 +99,7 @@ export async function POST(request: Request) {
   const nowIso = new Date().toISOString();
 
   // Merge into the member's live overlay — absolute counts only ever rise, so keep the max per key.
+  // clan-scope: global -- the id came from a row this request already established, so the clan is settled upstream.
   const memberRow = await findRosterSeat(eq(clanRoster.id, member.clanMemberId));
   const live = parsePluginStats(memberRow?.liveStats);
   const keyTimes = parseStatKeyTimes(memberRow?.liveStatKeyTimes);
@@ -136,6 +137,7 @@ export async function POST(request: Request) {
   const completed: string[] = [];
 
   // ── Bingo credit: re-evaluate the member's active-event stat tiles so a real-time clear completes now.
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const playerRows = await db
     .select({
       id: eventParticipants.id,
@@ -194,6 +196,7 @@ export async function POST(request: Request) {
         ? await db.select().from(completions).where(inArray(completions.tileId, tileIds))
         : [];
       const done = new Set(existing.map((c) => `${c.teamId}-${c.tileId}`));
+      // clan-scope: global -- the id came from a row this request already established, so the clan is settled upstream.
       const event = await db.query.events.findFirst({ where: eq(events.id, activePlayer.eventId) });
       const team = await db.query.teams.findFirst({ where: eq(teams.id, activePlayer.teamId!) });
 

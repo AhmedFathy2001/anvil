@@ -49,6 +49,7 @@ export async function GET(
   const signupIds = await teamSignupIds(management.eventId, tId);
   if (signupIds.length === 0) return NextResponse.json({ fees: [] });
 
+  // clan-scope: global -- reached through team membership or a token, not through a clan — that is what lets a visiting clan's people use it.
   const rows = await db
     .select({
       id: signupFees.id,

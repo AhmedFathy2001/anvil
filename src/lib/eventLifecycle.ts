@@ -67,6 +67,7 @@ export async function drawStartProof(
   }
 
   // Already drawn (a retried start, or the other door won) — read back what's on file.
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const existing = await db
     .select({ location: events.startProofLocation, drawnAt: events.startProofDrawnAt })
     .from(events)

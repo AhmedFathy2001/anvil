@@ -31,6 +31,7 @@ interface PersonIdentity {
 
 /** Build resolver: player row → durable person identity, via member link else RSN alias. */
 async function buildIdentityResolver(): Promise<(clanMemberId: number | null, name: string) => PersonIdentity> {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const members = await db
     .select({
       id: clanRoster.id,
@@ -91,6 +92,7 @@ export interface PlayerEventFactsRow {
 
 /** Compute the per-person facts for one event. Pure read — writePlayerEventFacts persists. */
 export async function computePlayerEventFacts(eventId: number): Promise<PlayerEventFactsRow[] | null> {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return null;
 
@@ -294,6 +296,7 @@ export async function computePlayerEventFacts(eventId: number): Promise<PlayerEv
  * haven't ended unless `force` (the backfill and admin tooling pass it for sanity re-runs).
  */
 export async function writePlayerEventFacts(eventId: number, opts: { force?: boolean } = {}): Promise<number> {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return 0;
   if (!opts.force && !isEventEnded(event)) return 0;

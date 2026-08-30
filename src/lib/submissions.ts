@@ -190,6 +190,7 @@ export async function syncDropTileCompletion(
   let raceBlocked = false;
   let tileEvent: typeof events.$inferSelect | undefined;
   if (isComplete) {
+    // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
     tileEvent = await db.query.events.findFirst({ where: eq(events.id, tile.eventId) });
     if (tileEvent?.format === 'tilerace') {
       const raceTiles = await db.query.tiles.findMany({ where: eq(tiles.eventId, tile.eventId) });
@@ -229,6 +230,7 @@ export async function syncDropTileCompletion(
       const team = await db.query.teams.findFirst({
         where: eq(teams.id, teamId),
       });
+      // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
       const event = team ? await db.query.events.findFirst({
         where: eq(events.id, team.eventId),
       }) : null;

@@ -314,6 +314,7 @@ export async function resolveTeamMembership(
   const isCaptain = team.captainUserId === user.userId;
 
   let playerId: number | null = null;
+  // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
   const myMembers = await db
     .select({ id: clanRoster.id })
     .from(clanRoster)
@@ -599,9 +600,11 @@ async function applyRenameOnPlay(
     if (!newRsn || normalizeRsn(oldRsn) === newNorm) return;
 
     // Uniqueness guard — another live member already owns the new name → defer to merge.
+    // clan-scope: global -- identity is global — one OSRS account is one account however many clans roster it.
     const clash = await findRosterSeat(and(eq(clanRoster.rsnNormalized, newNorm), isNull(clanRoster.leftAt)));
     if (clash && clash.id !== memberId) return;
 
+    // clan-scope: global -- identity is global — one OSRS account is one account however many clans roster it.
     const member = await findRosterSeat(eq(clanRoster.id, memberId));
     if (!member) return;
 
@@ -858,6 +861,7 @@ async function maybeAutoClaimEstablishedOnPlay(
   nowIso: string,
 ): Promise<void> {
   try {
+    // clan-scope: global -- identity is global — one OSRS account is one account however many clans roster it.
     const existing = await findRosterSeat(eq(clanRoster.accountHash, accountHash));
     if (!existing) return; // no row anchored to this hash — opt-in flow handles the rest
     if (existing.claimedAt != null) return; // already claimed (theirs or someone else's) — never steal
@@ -930,9 +934,11 @@ export async function claimAccountForUser(
   // produce another player's Jagex account hash). The RSN lookup only tells us whether a row
   // already exists; on its own it proves nothing about who controls the account.
   const byHash = accountHash
+    // clan-scope: global -- identity is global — one OSRS account is one account however many clans roster it.
     ? (await findRosterSeat(eq(clanRoster.accountHash, accountHash))) ?? null
     : null;
   const byRsn =
+    // clan-scope: global -- identity is global — one OSRS account is one account however many clans roster it.
     (await findRosterSeat(eq(clanRoster.rsnNormalized, normalizedRsn))) ?? null;
   const existing = byHash ?? byRsn;
 
@@ -1014,12 +1020,14 @@ export async function claimAccountForUser(
   // ANYWHERE on purpose: `isPrimary` lives on the account, which is global, so "do they already have
   // a primary" is a question about the person and not about this clan. Scoping it would hand someone
   // a second primary the moment they joined a second clan.
+  // clan-scope: global -- identity is global — one OSRS account is one account however many clans roster it.
   const owned = await findRosterSeats(and(await seatsOwnedByAnywhere(userId), isNull(clanRoster.leftAt)));
   if (owned.length > 0 && !owned.some((a) => a.isPrimary === 1)) {
     // KEYED ON THE ACCOUNT, not the seat. This was `.where(eq(clanMemberships.id, clanMemberId))` —
     // an UPDATE on `accounts` keyed on a column of `clan_memberships`, which Postgres rejects
     // outright ("missing FROM-clause entry"). Same bug, same table, as the one in accountClaim.ts:
     // it threw on exactly the case its own condition selects — a user's FIRST attributed account.
+    // clan-scope: global -- identity is global — one OSRS account is one account however many clans roster it.
     const seat = await findRosterSeat(eq(clanRoster.id, clanMemberId));
     if (seat) await db.update(accounts).set({ isPrimary: 1 }).where(eq(accounts.id, seat.accountId));
   }
@@ -1202,6 +1210,7 @@ export async function verifyPluginToken(
   if (!member) return null;
 
   const nowIso = new Date().toISOString();
+  // clan-scope: global -- identity is global — one OSRS account is one account however many clans roster it.
   const playerRows = await db
     .select({
       id: eventParticipants.id,

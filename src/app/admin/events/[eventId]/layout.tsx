@@ -18,6 +18,7 @@ import AdminSidebar from '@/app/admin/_components/AdminSidebar';
 import { atLeast } from '@/lib/clanRoles';
 import ClanLink from '@/components/ClanLink';
 import { clanHref } from '@/lib/clanPath';
+import { requireEventForPage } from '@/lib/eventScope';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,8 +32,13 @@ export default async function EventLayout({
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
 
-  const event = await db.query.events.findFirst({ where: eq(events.id, id) });
-  if (!event) notFound();
+  // WHOSE EVENT IS THIS? Ids are global and this one came from the URL. The scope checks below ask
+  // whether a board-scoped editor or treasurer may open this event, and `verifyUser` resolves their
+  // role against the clan they are VISITING — so an admin of one clan could walk into another clan's
+  // event admin by id and be handed the whole shell: name, dates, lifecycle, stage counts, and every
+  // tab beneath this layout. The write routes underneath all call eventForRequest; the pages never
+  // asked. This is the one check that settles it, for the layout and everything it wraps.
+  const event = await requireEventForPage(id);
 
   const session = await verifyUser();
   const isEditor = session?.role === 'editor';

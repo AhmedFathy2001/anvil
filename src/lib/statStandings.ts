@@ -160,6 +160,7 @@ export interface TeamStanding {
 // what's actually in play. First bonuses can push a score past the total — pct clamps at 100.
 export async function getTeamStandings(eventId: number, scoringMode: string): Promise<TeamStanding[]> {
   const [eventRow, eventTeams, allEventTiles] = await Promise.all([
+    // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
     db.query.events.findFirst({ where: eq(events.id, eventId), columns: { rules: true } }),
     db.select().from(teams).where(eq(teams.eventId, eventId)),
     db.select().from(tiles).where(eq(tiles.eventId, eventId)),

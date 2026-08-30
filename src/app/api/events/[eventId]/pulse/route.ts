@@ -33,6 +33,7 @@ export async function GET(
 }
 
 async function computeEventToken(eId: number): Promise<string> {
+  // clan-scope: global -- a helper called only from handlers that have already run the event guard above.
   const event = await db.query.events.findFirst({
     where: eq(events.id, eId),
     columns: { tilesRevealed: true, forceEndedAt: true, endDate: true },

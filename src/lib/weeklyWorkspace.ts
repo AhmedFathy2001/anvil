@@ -36,6 +36,7 @@ export interface WeeklyStanding {
 }
 
 export const getWeeklyStandings = cache(async (competitionId: number): Promise<WeeklyStanding[]> => {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const rows = await db
     .select({
       id: weeklyParticipants.id,

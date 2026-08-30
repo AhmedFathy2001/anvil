@@ -44,6 +44,7 @@ export async function placeCaptainOnTeam(
   teamId: number,
   captainUserId: number,
 ): Promise<CaptainSeatResult> {
+  // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
   const memberRows = await db
     .select({
       id: clanRoster.id,
@@ -148,6 +149,7 @@ async function enrolSignup(eventId: number, userId: number, clanMemberId: number
         .returning())[0];
   if (!row) return;
 
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event?.signupFee || event.signupFee <= 0) return;
   const fee = await db.query.signupFees.findFirst({ where: eq(signupFees.signupId, row.id) });

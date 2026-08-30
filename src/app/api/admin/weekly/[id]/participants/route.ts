@@ -21,6 +21,7 @@ export async function GET(
 
   // All participants (including leavers) plus their clan status, so the admin UI can flag who left
   // and offer the keep-override toggle.
+  // clan-scope: global -- joined onto a driving query that is already scoped; this clause adds columns, not rows.
   const participants = await db
     .select({
       ...getTableColumns(weeklyParticipants),

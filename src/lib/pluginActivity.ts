@@ -139,6 +139,7 @@ export async function buildActivity(args: {
   // Reveals are monotonic (revealedAt never un-sets), so the cursor's `rev` component is simply
   // the count of revealed tiles the client has already seen — order by (revealedAt, id) and skip
   // that many. Classic events skip the queries entirely and keep the legacy cursor shape.
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const eventRow = await db.query.events.findFirst({
     where: eq(events.id, eventId),
     columns: { rules: true },

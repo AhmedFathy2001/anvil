@@ -49,7 +49,11 @@ const HELPERS = new Map([
 ]);
 
 // Anything that counts as "this query knows about the clan".
-const CLAN_MARKERS = /\bclanId\b|\bclan_id\b|\bclanScope\b|\bforClan\b/;
+//
+// `clan.id` is here because the resolved-context spelling is at least as common as the bare
+// identifier — `seatsOwnedBy(clan.id, userId)` is a query that demonstrably knows which clan it is
+// for, and reporting it taught readers that the rule cries wolf.
+const CLAN_MARKERS = /\bclanId\b|\bclan_id\b|\bclanScope\b|\bforClan\b|\bclan\.id\b/;
 
 // NO PRIMARY-KEY EXEMPTION, deliberately.
 //
@@ -65,7 +69,18 @@ const CLAN_MARKERS = /\bclanId\b|\bclan_id\b|\bclanScope\b|\bforClan\b/;
 //
 // Per FUNCTION, not per file. A file-level check would let one guarded handler excuse an unguarded
 // neighbour, which is the shape of the bug this is here to catch.
-const EVENT_GUARDS = /\b(?:eventForRequest|requireEventForPage|eventInClan)\s*\(/;
+//
+// WEEKLY COMPETITIONS ARE THE SAME STORY. lib/eventScope answers one question — "does this clan own
+// the thing this id names?" — about the two kinds of thing that have ids in URLs, and the guards
+// come in matched pairs. Exempting only the event half meant a correctly guarded competition handler
+// still reported, which is how a rule earns the reputation that makes people stop reading it.
+const GUARDS = {
+  events: /\b(?:eventForRequest|requireEventForPage|eventInClan)\s*\(/,
+  weeklyCompetitions: /\b(?:competitionForRequest|requireCompetitionForPage|competitionInClan)\s*\(/,
+};
+// Reading a table is reading it, whichever clause names it.
+const JOINS = new Set(['from', 'innerJoin', 'leftJoin', 'rightJoin', 'fullJoin']);
+
 const ESCAPE = /clan-scope:\s*global/;
 
 export default {
@@ -115,9 +130,10 @@ export default {
       const text = source.getText(stmt);
       if (CLAN_MARKERS.test(text)) return;
       if (excused(stmt)) return;
-      if (table === 'events') {
+      const guard = GUARDS[table];
+      if (guard) {
         const fn = enclosingFunction(node);
-        if (fn && EVENT_GUARDS.test(source.getText(fn))) return;
+        if (fn && guard.test(source.getText(fn))) return;
       }
       context.report({ node, messageId: 'unscoped', data: { table } });
     }
@@ -130,11 +146,15 @@ export default {
           check(node, HELPERS.get(callee.name));
           return;
         }
+        // `.from(events)` — and the JOINS, which were a blind spot. A clan-scoped table pulled in
+        // through `.innerJoin(weeklyCompetitions, …)` is read exactly as much as one named in
+        // `.from`, and we shipped one: the admin attention panel counted every clan's flagged weekly
+        // participants because the filter said `status = 'active'` and the join said nothing.
         if (
           callee.type === 'MemberExpression' &&
           callee.property.type === 'Identifier' &&
-          callee.property.name === 'from' &&
-          node.arguments.length === 1 &&
+          JOINS.has(callee.property.name) &&
+          node.arguments.length >= 1 &&
           node.arguments[0].type === 'Identifier'
         ) {
           check(node, node.arguments[0].name);

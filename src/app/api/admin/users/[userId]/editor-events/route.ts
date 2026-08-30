@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireClanFromRequest } from '@/lib/clanContext';
 import { db } from '@/db';
 import { events, users, clanAuditLog } from '@/db/schema';
-import { desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { assignedEventIdsForUser, setUserAssignedEvents } from '@/lib/eventEditors';
 import { atLeast } from '@/lib/clanRoles';
@@ -86,8 +86,14 @@ export async function PUT(
   }
   // Only keep ids that reference real events (ignore stale ones rather than 400 the whole set).
   const requested = Array.from(new Set(rawIds as number[]));
+  // Real events BELONGING TO THIS CLAN. Checking only that an id exists let an admin grant somebody
+  // editor rights over another clan's boards — ids are global, and this list arrives in the body.
+  const clan = await requireClanFromRequest(request);
   const existing = requested.length
-    ? await db.select({ id: events.id }).from(events).where(inArray(events.id, requested))
+    ? await db
+        .select({ id: events.id })
+        .from(events)
+        .where(and(inArray(events.id, requested), eq(events.clanId, clan.id)))
     : [];
   const validIds = new Set(existing.map((e) => e.id));
   const eventIds = requested.filter((id) => validIds.has(id));

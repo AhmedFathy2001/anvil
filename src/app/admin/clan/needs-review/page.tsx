@@ -36,7 +36,9 @@ export default async function ClanNeedsReviewPage() {
     // claim is genuine by looking at exactly that identity. The claim gate above makes this screen
     // load-bearing, so the join it reads has to point at the right human.
     .leftJoin(users, eq(clanRoster.playerId, users.playerId))
-    .where(and(eq(clanRoster.provisional, 1), isNull(clanRoster.leftAt)))
+    // THIS CLAN'S. Unscoped, the review screen listed every clan's provisional members — and this is
+    // the page a moderator acts on, so it was cross-clan moderation, not just a cross-clan read.
+    .where(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.provisional, 1), isNull(clanRoster.leftAt)))
     .orderBy(clanRoster.claimedAt);
 
   const items: PendingMember[] = rows.map((r) => ({

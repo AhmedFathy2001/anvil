@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, eventParticipants, eventSignups, signupFees, weeklyParticipants } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
+import { requireClanFromRequest } from '@/lib/clanContext';
 
 // POST /api/admin/clan/merge { sourceId, targetId }
 // Merge two clan_members rows that are actually the same player (typically a left+joined
@@ -32,9 +33,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Distinct sourceId and targetId required' }, { status: 400 });
   }
 
+  // BOTH SEATS MUST BE THIS CLAN'S. Seat ids are global and these two arrive in the request body,
+  // so unscoped this let an admin of any clan merge two of another clan's members — a destructive
+  // identity edit that rewrites RSN history and moves ownership. 404 rather than an explanation, so
+  // the error cannot be used to probe which seat ids exist elsewhere.
+  const clan = await requireClanFromRequest(request);
   const [source, target] = await Promise.all([
-    findRosterSeat(eq(clanRoster.id, sourceId)),
-    findRosterSeat(eq(clanRoster.id, targetId)),
+    findRosterSeat(and(eq(clanRoster.id, sourceId), eq(clanRoster.clanId, clan.id))),
+    findRosterSeat(and(eq(clanRoster.id, targetId), eq(clanRoster.clanId, clan.id))),
   ]);
   if (!source || !target) {
     return NextResponse.json({ error: 'Source or target not found' }, { status: 404 });
@@ -136,6 +142,7 @@ export async function POST(request: Request) {
   // a merge inside one clan has no business removing an account another clan still rosters.
   await db.delete(clanMemberships).where(eq(clanMemberships.id, sourceId));
   if (source.accountId !== target.accountId) {
+    // clan-scope: global -- the id came from a row this request already established, so the clan is settled upstream.
     const stillSeated = await db
       .select({ id: clanMemberships.id })
       .from(clanMemberships)

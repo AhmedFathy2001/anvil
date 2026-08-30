@@ -27,10 +27,10 @@ export default async function EventSignupsPage({
   const clan = await requireClan();
 
   const [event, confirmationsRequired] = await Promise.all([
-    db.query.events.findFirst({ where: eq(events.id, id) }),
+    // Scoped, not fetched by bare id — see the layout for what that let through.
+    requireEventForPage(id),
     getRequiredConfirmations(clan.id),
   ]);
-  if (!event) notFound();
 
   return (
     <SignupsClient

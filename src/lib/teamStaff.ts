@@ -55,6 +55,7 @@ export async function resolveTeamManagement(teamId: number): Promise<TeamManagem
 
   // Do they also play on it? Any of their linked accounts counts — a captain is usually a player
   // too, and a staff member from another clan usually isn't.
+  // clan-scope: global -- reached through team membership or a token, not through a clan — that is what lets a visiting clan's people use it.
   const myMembers = await db
     .select({ id: clanRoster.id })
     .from(clanRoster)

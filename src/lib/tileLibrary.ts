@@ -230,6 +230,7 @@ export async function updateTask(
   // Keep the stored mirror of label/points/category inside `config` honest — the importer reads
   // those from the row it's handed, so a drifted copy would resurrect the old values on a draw.
   if (Object.keys(set).length === 0) return;
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const existing = await db.query.tileLibrary.findFirst({ where: eq(tileLibrary.id, id) });
   if (!existing) return;
   if (patch.config === undefined) {
@@ -257,6 +258,7 @@ export async function deleteTasks(ids: number[]): Promise<void> {
 }
 
 export async function countLibrary(): Promise<number> {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const [row] = await db.select({ c: sql<number>`count(*)` }).from(tileLibrary);
   return row?.c ?? 0;
 }

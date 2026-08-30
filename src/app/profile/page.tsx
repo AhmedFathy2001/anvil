@@ -119,6 +119,7 @@ export default async function ProfilePage({
 
   // The opt-in inbox and the opt-out list: accounts the plugin saw this user play, minus anything
   // they already own through another path so we never suggest an account that's on the list above.
+  // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to the viewer's own.
   const owned = await findRosterSeats(and(eq(clanRoster.playerId, session.playerId), isNull(clanRoster.leftAt)));
   const ownedRsns = new Set(owned.map((m) => m.rsnNormalized));
   const ownedHashes = new Set(owned.map((m) => m.accountHash).filter(Boolean) as string[]);

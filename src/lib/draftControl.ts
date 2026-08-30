@@ -89,6 +89,7 @@ export interface DraftControl {
 const EMPTY_TIERS: Record<Tier, number> = { S: 0, A: 0, B: 0, C: 0 };
 
 export async function buildDraftControl(clanId: number, eventId: number): Promise<DraftControl | null> {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return null;
 

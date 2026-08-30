@@ -25,6 +25,7 @@ export async function applyPendingRole(
   userId: number,
   source: 'plugin' | 'manual_approval',
 ): Promise<boolean> {
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const member = await findRosterSeat(eq(clanRoster.id, clanMemberId));
   if (!member?.pendingRole) return false;
   const pending = member.pendingRole;

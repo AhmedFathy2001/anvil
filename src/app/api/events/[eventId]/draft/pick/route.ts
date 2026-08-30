@@ -131,6 +131,7 @@ export async function POST(
   // ends with two captains on one team and one team with none.
   if (player.clanMemberId != null) {
     // clan_roster is a VIEW — not in db.query, which needs a table.
+    // clan-scope: global -- the id came from a row this request already established, so the clan is settled upstream.
     const owner = await findRosterSeat(eq(clanRoster.id, player.clanMemberId));
     // clan_roster names the PERSON; a captain seat is held by a LOGIN, so resolve across.
     const ownerLogin = owner?.playerId != null
@@ -186,10 +187,12 @@ export async function POST(
   // this event joins the SAME team, sharing this pick's number (guests have no owning user → just
   // themselves). The group leaves the pool together and counts as a single turn.
   const pickedMember = player.clanMemberId != null
+    // clan-scope: global -- the id came from a row this request already established, so the clan is settled upstream.
     ? await findRosterSeat(eq(clanRoster.id, player.clanMemberId))
     : null;
   const groupIds = [playerId];
   if (pickedMember?.claimedAt != null && pickedMember.playerId != null) {
+    // clan-scope: global -- joined onto a driving query that is already scoped; this clause adds columns, not rows.
     const siblings = await db
       .select({ id: eventParticipants.id })
       .from(eventParticipants)

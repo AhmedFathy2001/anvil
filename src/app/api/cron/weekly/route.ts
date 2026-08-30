@@ -114,6 +114,7 @@ export async function GET(request: Request) {
   // most rename-then-reappear flows within a day without burning hiscores quota.
   const REPROBE_BATCH = 10;
   const REPROBE_AGE_THRESHOLD = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+  // clan-scope: global -- the sweep runs across every clan by design; that is what a platform-wide cron is.
   const unrankedCandidates = await db
     .select({ id: clanRoster.id, rsn: clanRoster.rsn })
     .from(clanRoster)

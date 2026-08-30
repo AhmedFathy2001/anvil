@@ -32,7 +32,16 @@ const eslintConfig = defineConfig([
       },
     },
     rules: {
-      "clan-scope/require-clan-filter": "warn",
+      // AT ZERO, SO IT HOLDS THERE — the same standing the other two rules have.
+      //
+      // It sat at `warn` with 163 hits, which is the state in which a rule stops working: a genuine
+      // new unscoped read is one line in a wall of accepted ones, and nobody reads the wall. Working
+      // through them found sixteen real cross-clan bugs hiding in it — the admin events list, the
+      // fee ledger, the needs-review queue, the Discord role sweep, and a PUT/DELETE that let any
+      // clan's moderator edit or delete another clan's weekly competition. Everything left is
+      // documented with `// clan-scope: global -- <why>`, which is the difference between a decision
+      // and an oversight.
+      "clan-scope/require-clan-filter": "error",
       // An error, not a warning: unlike a missing clan filter this has no gradient of correctness —
       // the statement simply never runs, and one of the four we shipped failed silently inside a
       // try/catch. There are zero violations left, so it can be held at zero.

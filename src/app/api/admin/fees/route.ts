@@ -100,7 +100,11 @@ export async function GET(request: Request) {
     .innerJoin(clanRoster, eq(eventSignups.clanMemberId, clanRoster.id))
     .leftJoin(collector, eq(signupFees.collectedByUserId, collector.id))
     .leftJoin(reporter, eq(signupFees.reportedCollectorUserId, reporter.id))
-    .where(filters.length > 0 ? and(...filters) : undefined)
+    // THIS CLAN'S money. `filters` only ever carried a status and an optional event id from the
+    // query string, so the ledger returned every clan's fees — amounts, payer names through the
+    // clanRoster join, and who collected them. The events join is what carries the clan, which is
+    // why the rule could not see it until it learned to watch joins.
+    .where(and(eq(events.clanId, clan.id), ...(filters.length > 0 ? [and(...filters)] : [])))
     .orderBy(desc(signupFees.id));
 
   return NextResponse.json({ fees: rows });

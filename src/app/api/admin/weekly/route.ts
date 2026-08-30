@@ -14,7 +14,13 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const comps = await db.select().from(weeklyCompetitions).orderBy(weeklyCompetitions.createdAt);
+  // This clan's weeks. Unscoped, every clan's staff listed every other clan's competitions.
+  const clan = await requireClan();
+  const comps = await db
+    .select()
+    .from(weeklyCompetitions)
+    .where(eq(weeklyCompetitions.clanId, clan.id))
+    .orderBy(weeklyCompetitions.createdAt);
 
   // Get participant counts
   const participantCounts = await db

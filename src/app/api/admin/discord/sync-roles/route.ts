@@ -48,6 +48,9 @@ export async function POST(request: Request) {
     .from(clanRoster)
     .where(
       and(
+        // THIS clan's roster. Unscoped, syncing one clan's Discord roles swept every clan's members
+        // on the deployment — the sweep is bounded by the clan, not by the guild.
+        eq(clanRoster.clanId, clan.id),
         isNull(clanRoster.leftAt),
         or(eq(clanRoster.kind, 'member'), isNotNull(clanRoster.verifiedAt)),
       ),

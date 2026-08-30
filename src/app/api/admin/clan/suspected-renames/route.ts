@@ -110,6 +110,7 @@ export async function GET() {
     ),
   );
   const memberRows = memberIds.length > 0
+    // clan-scope: global -- the id came from a row this request already established, so the clan is settled upstream.
     ? await db.select().from(clanRoster).where(inArray(clanRoster.id, memberIds))
     : [];
   const memberById = new Map(memberRows.map((m) => [m.id, m]));

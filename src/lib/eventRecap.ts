@@ -198,6 +198,7 @@ async function computeRecap(eventId: number): Promise<{
   byPerson: Map<string, PersonStat>;
   personKeyByPlayerId: Map<number, string>;
 } | null> {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return null;
 

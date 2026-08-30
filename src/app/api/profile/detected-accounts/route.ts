@@ -20,6 +20,7 @@ export async function GET() {
       where: and(eq(detectedAccounts.userId, session.userId), eq(detectedAccounts.status, 'pending')),
       orderBy: (d, { desc }) => [desc(d.lastSeenAt)],
     }),
+    // clan-scope: global -- the subject is a PERSON, and their seats span clans by design; scoped to the caller's own via clanRoster.playerId.
     findRosterSeats(and(eq(clanRoster.playerId, session.playerId), isNull(clanRoster.leftAt))),
   ]);
 

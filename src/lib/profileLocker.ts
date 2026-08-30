@@ -283,6 +283,7 @@ export async function buildLocker(
   }
 
   // ── Enrollment: which events these accounts are in, live and finished ─────────────────────────
+  // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
   const playerRows = await db
     .select({
       id: eventParticipants.id,
@@ -428,6 +429,7 @@ export async function buildLocker(
   );
 
   // ── Live weeklies: where this person sits, and what would move them up ────────────────────────
+  // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
   const activeComps = await db.query.weeklyCompetitions.findMany({
     where: eq(weeklyCompetitions.status, 'active'),
   });
@@ -476,6 +478,7 @@ export async function buildLocker(
   // Mine, plus any row that lost its member id (a merged or deleted clan_member sets it null) so the
   // alias pass below can still claim an old RSN of theirs. Everyone else's rows are the bulk of the
   // table and are never a match, so they don't need reading.
+  // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
   const factRows = await db
     .select({
       eventId: playerEventFacts.eventId,
@@ -791,6 +794,7 @@ async function myShareOfEvent(params: {
 
   // On a per-person event the member's alts share one slot, so roll them together before reading
   // the row off — otherwise a two-account player sees half their own score.
+  // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
   const event = await db.query.events.findFirst({
     where: eq(events.id, eventId),
     columns: { accountSlotMode: true },
@@ -812,6 +816,7 @@ async function myShareOfEvent(params: {
 
 /** Finished weeklies these accounts scored in, with their placing among people who actually moved. */
 async function finishedWeekliesFor(memberIdSet: Set<number>, myRsns: Set<string>) {
+  // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
   const mine = await db
     .select({ competitionId: weeklyParticipants.competitionId })
     .from(weeklyParticipants)
@@ -826,6 +831,7 @@ async function finishedWeekliesFor(memberIdSet: Set<number>, myRsns: Set<string>
   if (compIds.length === 0) return [];
 
   const [comps, allParticipants] = await Promise.all([
+    // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
     db.query.weeklyCompetitions.findMany({ where: inArray(weeklyCompetitions.id, compIds) }),
     db
       .select({
@@ -871,6 +877,7 @@ async function openSignupsFor(
   nowMs: number,
   alreadyIn: Set<number> = new Set(),
 ): Promise<LockerSignup[]> {
+  // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
   const all = await db.select().from(events);
   const open = all.filter((e) => {
     if (e.forceEndedAt) return false;
@@ -901,6 +908,7 @@ async function openSignupsFor(
 
 /** Teams this user captains, newest first, with live ones ahead of finished ones. */
 async function captainSeatsFor(userId: number, nowIso: string): Promise<LockerCaptainSeat[]> {
+  // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
   const seats = await db
     .select({
       teamId: teams.id,

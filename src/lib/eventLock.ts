@@ -43,6 +43,7 @@ export const EVENT_LOCKED_ERROR =
  */
 export async function assertEventEditable(eventId: number): Promise<NextResponse | null> {
   if (!Number.isFinite(eventId)) return null;
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({
     where: eq(events.id, eventId),
     columns: { startDate: true, endDate: true, forceEndedAt: true, editUnlockedAt: true },

@@ -10,6 +10,7 @@ export async function GET() {
   const user = await verifyUser();
   if (!user || user.userId <= 0) return NextResponse.json([]);
 
+  // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
   const rows = await db
     .select({
       teamId: teams.id,

@@ -21,8 +21,8 @@ export default async function EventPayoutsPage({
   const session = await verifyEventTreasurer(id);
   if (!session) redirect(await clanHref('/admin'));
 
-  const event = await db.query.events.findFirst({ where: eq(events.id, id) });
-  if (!event) notFound();
+  // Scoped, not just fetched by id — see the layout above for what an unguarded read let through.
+  await requireEventForPage(id);
 
   return <PayoutsClient eventId={id} viewerRole={session.role} />;
 }

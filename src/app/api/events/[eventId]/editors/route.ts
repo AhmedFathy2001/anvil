@@ -15,6 +15,7 @@ import { grantEventEditor, revokeEventEditor, type BoardRole } from '@/lib/event
 //                             auto-demotes a scoped grantee with nothing left back to member
 
 async function loadEvent(eventId: number) {
+  // clan-scope: global -- a helper called only from handlers that have already run the event guard above.
   return db.query.events.findFirst({ where: eq(events.id, eventId), columns: { id: true, name: true } });
 }
 

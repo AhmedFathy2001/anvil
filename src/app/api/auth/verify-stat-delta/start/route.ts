@@ -116,6 +116,7 @@ export async function POST(request: Request) {
   // detect this from the RSN string alone — they're different by index. Instead,
   // compare hiscores snapshots: same OSRS account → near-identical XP across skills.
   // Refuse and point them at their existing linked row when the match is overwhelming.
+  // clan-scope: global -- identity is global — the same OSRS account is one account however many clans roster it.
   const existingLinked = await db
     .select({ id: clanRoster.id, rsn: clanRoster.rsn, rsnNormalized: clanRoster.rsnNormalized })
     .from(clanRoster)

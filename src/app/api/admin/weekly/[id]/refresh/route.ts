@@ -127,6 +127,7 @@ export async function POST(
       .where(
         inArray(
           accounts.id,
+          // clan-scope: global -- the id came from a row this request already established, so the clan is settled upstream.
           db.select({ id: clanMemberships.accountId }).from(clanMemberships).where(inArray(clanMemberships.id, ids)),
         ),
       );

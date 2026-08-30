@@ -31,6 +31,7 @@ export default async function JoinPage({
     : null;
 
   const event = Number.isInteger(id)
+    // clan-scope: global -- a team is reached through membership or an invite token, not through a clan — that is what lets a visiting clan's people use it.
     ? await db.query.events.findFirst({ where: eq(events.id, id) })
     : null;
 

@@ -43,6 +43,7 @@ export default async function MyTeamsHubPage() {
   if (!user) redirect('/login?return=/team');
 
   // My roster identities → my drafted player rows → teams I play on.
+  // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to the viewer's own.
   const myMembers = await db
     .select({ id: clanRoster.id })
     .from(clanRoster)
@@ -84,6 +85,7 @@ export default async function MyTeamsHubPage() {
   };
 
   if (memberIds.length > 0) {
+    // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
     const playerRows = await db
       .select({
         playerId: eventParticipants.id,
@@ -112,6 +114,7 @@ export default async function MyTeamsHubPage() {
     myPlayerRows = playerRows;
   }
 
+  // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
   const captainRows = await db
     .select({
       teamId: teams.id,
@@ -131,6 +134,7 @@ export default async function MyTeamsHubPage() {
 
   // Teams this user was given a staff seat on — typically a moderator from the other clan in a
   // clan-v-clan, who neither captains nor plays but has to run their own half.
+  // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
   const staffRows = await db
     .select({
       teamId: teams.id,
@@ -156,6 +160,7 @@ export default async function MyTeamsHubPage() {
   const pastTeams = all.filter(isPast);
 
   // My sign-ups + fee status (the pre-draft stage of the same journey).
+  // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
   const signupRows = await db
     .select({
       signupId: eventSignups.id,

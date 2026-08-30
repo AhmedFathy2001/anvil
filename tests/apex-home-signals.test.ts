@@ -11,6 +11,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+import { and, eq } from 'drizzle-orm';
 
 const DB = useTestDatabase('apex-home-signals');
 
@@ -184,7 +185,6 @@ test('between two live competitions it picks the one you are doing best in', asy
 
 // A tiny helper so the test above reads as a sentence rather than a where-clause.
 function sqlEq(s: typeof import('../src/db/schema.ts'), clanId: number, accountId: number) {
-  const { and, eq } = require('drizzle-orm');
   return and(eq(s.clanMemberships.clanId, clanId), eq(s.clanMemberships.accountId, accountId));
 }
 

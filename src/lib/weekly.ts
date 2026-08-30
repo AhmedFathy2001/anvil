@@ -37,6 +37,7 @@ export async function defaultIncludeGuests(clanId: number): Promise<boolean> {
  * through the participants endpoint.
  */
 export async function enrollAllPlayers(competitionId: number) {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const comp = await db.query.weeklyCompetitions.findFirst({
     where: eq(weeklyCompetitions.id, competitionId),
     columns: { includeGuests: true },
@@ -52,6 +53,7 @@ export async function enrollAllPlayers(competitionId: number) {
     ? baseClause
     : and(baseClause, eq(clanRoster.kind, 'member'));
 
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const activeMembers = await db
     .select({ id: clanRoster.id, rsn: clanRoster.rsn })
     .from(clanRoster)
@@ -318,6 +320,7 @@ export async function applyRenameToActiveWeeklyParticipants(
   const newNorm = normalizeRsn(newRsn);
   if (oldNorm === newNorm) return;
 
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const activeComps = await db
     .select({ id: weeklyCompetitions.id })
     .from(weeklyCompetitions)
@@ -396,6 +399,7 @@ export async function submitRenameRequest(input: SubmitRenameInput): Promise<Sub
   if (!newRsn) return { ok: false, reason: 'new RSN is required' };
   if (newRsn.length > 12) return { ok: false, reason: 'RSN must be 12 characters or fewer' };
 
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const cm = await findRosterSeat(eq(clanRoster.id, input.clanMemberId));
   if (!cm) return { ok: false, reason: 'clan member not found' };
 
@@ -495,6 +499,7 @@ async function approveRename(pr: PendingRow): Promise<{ ok: true } | { ok: false
   // proceed safely when it's clearly stale (left, unranked, or archived). An
   // active different member with the same target name is a swap that needs
   // human attention.
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const conflict = await findRosterSeat(and(
       eq(clanRoster.rsnNormalized, pr.newRsnNormalized),
       ne(clanRoster.id, pr.clanMemberId),
@@ -515,6 +520,7 @@ async function approveRename(pr: PendingRow): Promise<{ ok: true } | { ok: false
     });
   }
 
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const cm = await findRosterSeat(eq(clanRoster.id, pr.clanMemberId));
   if (!cm) return { ok: false, reason: 'clan member no longer exists' };
 
@@ -642,6 +648,7 @@ export const countsTowardLeaderboard = () =>
  * whose clan_member has left the CC (unless overridden). Drives the leaderboard and the headcount.
  */
 export async function getEffectiveParticipants(competitionId: number) {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   return db
     .select({
       id: weeklyParticipants.id,

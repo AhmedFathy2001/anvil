@@ -66,6 +66,7 @@ export async function getClanContext(guildId: string | null): Promise<ClanContex
   const wanted = guildId?.trim() || process.env.DISCORD_GUILD_ID?.trim() || '';
   if (!wanted) return null;
 
+  // clan-scope: global -- a Discord guild maps to exactly one clan, and this lookup IS that mapping.
   const guildRow = await db.query.settings.findFirst({
     where: and(eq(settings.key, 'discord_guild_id'), eq(settings.value, wanted)),
   });
@@ -129,6 +130,7 @@ export interface EventContext {
  * in progress, not something to report standings for.
  */
 export async function pickEvent(now: Date = new Date()): Promise<EventContext | null> {
+  // clan-scope: global -- a Discord guild maps to exactly one clan, and this lookup IS that mapping.
   const rows = await db.select().from(events);
   if (rows.length === 0) return null;
 
@@ -174,6 +176,7 @@ export async function pickEvent(now: Date = new Date()): Promise<EventContext | 
 
 /** Load one event by id, in the same shape pickEvent returns. */
 export async function loadEvent(eventId: number, now: Date = new Date()): Promise<EventContext | null> {
+  // clan-scope: global -- a Discord guild maps to exactly one clan, and this lookup IS that mapping.
   const row = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!row) return null;
   const stage = eventStage(row, now.getTime());
@@ -223,6 +226,7 @@ export interface CrossClanContext {
 }
 
 export async function getCrossClanContext(eventId: number): Promise<CrossClanContext> {
+  // clan-scope: global -- a Discord guild maps to exactly one clan, and this lookup IS that mapping.
   const rows = await db
     .select({
       playerId: players.id,
@@ -324,6 +328,7 @@ export async function resolveInvoker(discordId: string): Promise<InvokerIdentity
   const user = await db.query.users.findFirst({ where: eq(users.discordId, discordId) });
   if (!user) {
     // Not a site user — they may still be a roster row linked only by the legacy discord_id column.
+    // clan-scope: global -- a Discord guild maps to exactly one clan, and this lookup IS that mapping.
     const legacy = await db
       .select({ id: clanRoster.id, rsn: clanRoster.rsn })
       .from(clanRoster)
@@ -335,6 +340,7 @@ export async function resolveInvoker(discordId: string): Promise<InvokerIdentity
       rsn: legacy[0]?.rsn ?? null,
     };
   }
+  // clan-scope: global -- a Discord guild maps to exactly one clan, and this lookup IS that mapping.
   const members = await db
     .select({ id: clanRoster.id, rsn: clanRoster.rsn, isPrimary: clanRoster.isPrimary })
     .from(clanRoster)

@@ -35,6 +35,7 @@ export async function GET(
   const event = await db.query.events.findFirst({ where: eq(events.id, management.eventId) });
   const started = !!event?.startDate && event.startDate <= new Date().toISOString();
 
+  // clan-scope: global -- reached through team membership or a token, not through a clan — that is what lets a visiting clan's people use it.
   const roster = await db
     .select({
       playerId: eventParticipants.id,

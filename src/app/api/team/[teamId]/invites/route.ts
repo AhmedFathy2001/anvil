@@ -36,6 +36,7 @@ async function gate(teamId: number) {
 
   const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId) });
   if (!team) return { error: NextResponse.json({ error: 'Team not found' }, { status: 404 }) };
+  // clan-scope: global -- a team is reached through membership or an invite token, not through a clan — that is what lets a visiting clan's people use it.
   const event = await db.query.events.findFirst({ where: eq(events.id, team.eventId) });
   if (!event) return { error: NextResponse.json({ error: 'Event not found' }, { status: 404 }) };
 

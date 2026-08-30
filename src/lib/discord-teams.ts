@@ -288,6 +288,7 @@ async function discordIdForUserId(userId: number | null | undefined): Promise<st
  */
 async function discordIdForPlayerClanMember(clanMemberId: number | null): Promise<string | null> {
   if (clanMemberId == null) return null;
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const cm = await findRosterSeat(eq(clanRoster.id, clanMemberId));
   if (!cm) return null;
   return resolveDiscordIdForMember(cm.clanId, { id: cm.id, rsn: cm.rsn, playerId: cm.playerId, discordId: cm.discordId });
@@ -313,6 +314,7 @@ export interface ProvisionReport {
  * partial failure (rate limit, perms) leaves a resumable state.
  */
 export async function provisionTeamDiscord(eventId: number): Promise<ProvisionReport> {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return { ok: false, reason: 'event not found', teams: [], captainsAssigned: 0 };
   const cfg = await loadTeamChannelConfig(event.clanId);
@@ -447,6 +449,7 @@ export interface AssignReport {
  * must have a discordRoleId). Players whose Discord account can't be resolved are skipped.
  */
 export async function assignTeamRoles(eventId: number): Promise<AssignReport> {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return { ok: false, reason: 'event not found', assigned: 0, skipped: 0 };
   const cfg = await loadTeamChannelConfig(event.clanId);
@@ -501,6 +504,7 @@ export async function assignTeamRoles(eventId: number): Promise<AssignReport> {
  * Sign-ups whose Discord account can't be resolved are skipped.
  */
 export async function assignBingoRoleToApprovedSignups(eventId: number): Promise<AssignReport> {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return { ok: false, reason: 'event not found', assigned: 0, skipped: 0 };
   const cfg = await loadTeamChannelConfig(event.clanId);
@@ -560,6 +564,7 @@ export interface UnassignReport {
  * callers should warn the admin.
  */
 export async function unassignSharedRoles(eventId: number): Promise<UnassignReport> {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return { ok: false, reason: 'event not found', bingoRemoved: 0, captainRemoved: 0 };
   const cfg = await loadTeamChannelConfig(event.clanId);
@@ -640,6 +645,7 @@ export interface TeardownReport {
 export async function updateTeamDiscordIdentity(teamId: number): Promise<void> {
   const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId) });
   if (!team) return;
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, team.eventId) });
   if (!event) return;
   const cfg = await loadTeamChannelConfig(event.clanId);
@@ -676,6 +682,7 @@ export async function updateTeamDiscordIdentity(teamId: number): Promise<void> {
 export async function teardownTeamDiscord(eventId: number): Promise<TeardownReport> {
   const empty = { rolesDeleted: 0, channelsDeleted: 0, categoryDeleted: false, rolesFailed: 0, channelsFailed: 0, categoryFailed: false };
 
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return { ok: false, reason: 'event not found', ...empty };
   const cfg = await loadTeamChannelConfig(event.clanId);

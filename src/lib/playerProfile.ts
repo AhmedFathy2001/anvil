@@ -169,6 +169,7 @@ export async function computePlayerProfiles(clanId: number, opts: { eventId?: nu
   const pool = new Map<string, PoolMember>();
   let eventStartIso: string | null = null;
   if (opts.eventId != null) {
+    // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
     const event = await db.query.events.findFirst({ where: eq(events.id, opts.eventId) });
     eventStartIso = event?.startDate ?? null;
     const roster = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, opts.eventId));
@@ -234,6 +235,7 @@ export async function computePlayerProfiles(clanId: number, opts: { eventId?: nu
   // A person's baseline = their most recent enrollment snapshot from an event that STARTED before
   // the pool's reference time (the event's start, or now for clan-wide pools).
   const referenceIso = eventStartIso ?? new Date().toISOString();
+  // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
   const allEvents = await db.select({ id: events.id, startDate: events.startDate }).from(events);
   const priorEventIds = allEvents
     .filter((e) => e.startDate && e.startDate < referenceIso && e.id !== opts.eventId)

@@ -206,6 +206,7 @@ async function activeWeeklyByClan(clanIds: number[]): Promise<Map<number, { id: 
  * be reported as the one you are playing.
  */
 async function liveBoardsBySeat(seatIds: number[]): Promise<Map<number, LiveEnrollment[]>> {
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const rows = await db
     .select({
       seatId: eventParticipants.clanMemberId,

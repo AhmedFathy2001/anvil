@@ -40,6 +40,15 @@ export async function PUT(
 
   const { id } = await params;
   const compId = parseInt(id, 10);
+
+  // WHOSE COMPETITION IS THIS? Ids are global and this one came from the URL. GET four lines up has
+  // asked since the multi-clan conversion; this did not, so a moderator of any clan could rename or
+  // re-date any other clan's week by guessing an id. The role check above is satisfied by being
+  // staff SOMEWHERE, which is exactly the gap the scope guard closes.
+  if (!(await competitionForRequest(request, compId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
   const { title, startDate, endDate, status } = await request.json();
 
   const updates: Record<string, unknown> = {};
@@ -73,6 +82,12 @@ export async function DELETE(
 
   const { id } = await params;
   const compId = parseInt(id, 10);
+
+  // Same guard, and it matters more here: unscoped, this deleted another clan's competition along
+  // with every participant row and player snapshot hanging off it.
+  if (!(await competitionForRequest(request, compId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
 
   // Delete children explicitly — the schema declares ON DELETE CASCADE, but the live
   // tables predate the squashed migration baseline and may not carry it, which made

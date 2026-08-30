@@ -36,6 +36,7 @@ export interface ActiveScopes {
 export async function activeScopesFor(clanMemberId: number, clanId: number, now: Date = new Date()): Promise<ActiveScopes> {
   const nowIso = now.toISOString();
 
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const weeklyRows = await db
     .select({
       id: weeklyCompetitions.id,
@@ -55,6 +56,7 @@ export async function activeScopesFor(clanMemberId: number, clanId: number, now:
       r.type === 'skill' || r.type === 'boss' || r.type === 'efficiency')
     .map((r) => ({ id: r.id, type: r.type, metric: r.metric }));
 
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const playerRows = await db
     .select({
       eventId: eventParticipants.eventId,

@@ -159,6 +159,7 @@ async function boardEmbed(
 ): Promise<DiscordEmbed> {
   const [standings, eventRow, allTiles] = await Promise.all([
     getTeamStandings(event.id, event.scoringMode),
+    // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
     db.query.events.findFirst({ where: eq(events.id, event.id), columns: { rules: true } }),
     db
       .select({
@@ -266,6 +267,7 @@ async function leaderboardEmbed(
 
 /** The clan's authored rules, if any. */
 async function readHouseRules(): Promise<{ text: string | null; url: string | null }> {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const rows = await db
     .select({ key: settings.key, value: settings.value })
     .from(settings)
@@ -404,6 +406,7 @@ async function rulesEmbeds(
   cross: CrossClanContext,
 ): Promise<DiscordEmbed[]> {
   const [row, house, allTiles] = await Promise.all([
+    // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
     db.query.events.findFirst({ where: eq(events.id, event.id) }),
     readHouseRules(),
     db
@@ -606,6 +609,7 @@ async function teamEmbed(
 
   const [standings, roster, recent] = await Promise.all([
     getTeamStandings(event.id, event.scoringMode),
+    // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
     db
       .select({ name: eventParticipants.name, source: clanRoster.source })
       .from(eventParticipants)
@@ -684,6 +688,7 @@ async function applyEmbed(
   cross: CrossClanContext,
   memberIds: number[],
 ): Promise<DiscordEmbed> {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const row = await db.query.events.findFirst({ where: eq(events.id, event.id) });
   const window = signupWindowState({
     signupOpensAt: row?.signupOpensAt ?? null,
@@ -771,6 +776,7 @@ async function nextEmbed(
   cross: CrossClanContext,
 ): Promise<DiscordEmbed> {
   const [row, allTiles] = await Promise.all([
+    // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
     db.query.events.findFirst({ where: eq(events.id, event.id) }),
     db
       .select({ id: tiles.id, mission: tiles.mission, revealAt: tiles.revealAt, revealedAt: tiles.revealedAt, closedAt: tiles.closedAt })

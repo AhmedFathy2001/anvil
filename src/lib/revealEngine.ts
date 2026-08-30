@@ -295,6 +295,7 @@ async function closeExpiredAndClaimedMissions(event: EventRow, missionTiles: Til
  * Returns how many were announced (0 when the pool is empty). Admin-triggered from the event route.
  */
 export async function announceNextMission(eventId: number): Promise<{ announced: number }> {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return { announced: 0 };
   const rules = parseEventRules(event.rules);
@@ -339,6 +340,7 @@ export async function processTileReveals(): Promise<void> {
  * feel instant in game.
  */
 export async function handleBountyClaim(eventId: number, tileId: number): Promise<void> {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return;
   const rules = parseEventRules(event.rules);
@@ -414,6 +416,7 @@ async function announceBountyClaim(
  * cron reconcile re-closes this tile the moment any completion lands on it again.
  */
 export async function reopenBountyTileIfUnclaimed(eventId: number, tileId: number): Promise<void> {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return;
   const rules = parseEventRules(event.rules);

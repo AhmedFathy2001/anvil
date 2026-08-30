@@ -3,10 +3,11 @@ import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { events, payouts, clanRoster } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { verifyEventTreasurer } from '@/lib/auth';
 import { getEventPrizePool, parsePlacementSplit, placementAmounts } from '@/lib/payouts';
 import { getTeamStandings } from '@/lib/statStandings';
+import { acceptedCohostClanIds } from '@/lib/coHost';
 
 // Order payouts for display: by finishing place (manual/null-place rows last), then amount desc.
 function sortPayouts<T extends { place: number | null; amount: number }>(rows: T[]): T[] {
@@ -95,8 +96,16 @@ export async function POST(
   let clanMemberId: number | null = null;
   if (body?.clanMemberId != null) {
     const cmId = Number(body.clanMemberId);
+    // The recipient has to be somebody who could be ON this board. Seat ids are global and this one
+    // comes from the body, so a bare `clanRoster.id` lookup accepted any clan's seat — attaching a
+    // payout to a stranger, and answering 404-or-created in a way that says which seat ids exist.
+    //
+    // The host's own clan is not the whole answer: a co-hosted board pays a visiting clan's players,
+    // and they hold seats in THEIR clan. So the set is the host plus every accepted co-host, which is
+    // exactly who is allowed to field a team here.
+    const payableClans = [event.clanId, ...(await acceptedCohostClanIds(id))];
     const member = Number.isFinite(cmId)
-      ? await findRosterSeat(eq(clanRoster.id, cmId))
+      ? await findRosterSeat(and(eq(clanRoster.id, cmId), inArray(clanRoster.clanId, payableClans)))
       : null;
     if (!member) return NextResponse.json({ error: 'Member not found' }, { status: 404 });
     clanMemberId = cmId;

@@ -37,6 +37,7 @@ export async function getEventPrizePool(eventId: number): Promise<{
   signupFee: number;
   approvedCount: number;
 }> {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   const approvedCount = await countApprovedSignups(eventId);
   const added = event?.addedPrizePool ?? 0;
@@ -102,6 +103,7 @@ export function buildPayoutPlan(opts: {
 // Called automatically once every payout for the event is paid, and by the manual "Announce" button.
 // Best-effort: returns false (without stamping) when there's nothing paid or the event is gone.
 export async function announcePayouts(eventId: number): Promise<boolean> {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return false;
 
@@ -231,6 +233,7 @@ export async function generatePayouts(
   eventId: number,
   opts: { placeAmounts: number[]; includeSubbed?: boolean },
 ): Promise<(typeof payouts.$inferSelect)[]> {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return [];
 
@@ -306,6 +309,7 @@ export async function generatePayouts(
 // Auto-generate payouts when an event ends — but only when a placement structure is configured and no
 // payouts exist yet. Idempotent, so it's safe to call from every end path (scheduled + force-end).
 export async function autoGeneratePayoutsOnEnd(eventId: number): Promise<void> {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return;
   const placeAmounts = parsePlacementPrizes(event.placementPrizes);

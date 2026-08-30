@@ -29,6 +29,9 @@ export default async function AdminFeesPage() {
   const session = await verifyAdminOrModerator();
   if (!session) redirect(await clanHref('/admin'));
 
+  // Resolved before the ledger query, which is now scoped by it.
+  const clan = await requireClan();
+
   // One row per (event, status). Withdrawn and rejected sign-ups are excluded the same way every
   // other fee surface excludes them: nothing was collected and nobody is chasing it.
   const rows = await db
@@ -47,6 +50,8 @@ export default async function AdminFeesPage() {
     .innerJoin(events, eq(eventSignups.eventId, events.id))
     .where(
       and(
+        // This clan's ledger. Unscoped, the overview totalled every clan's outstanding fees.
+        eq(events.clanId, clan.id),
         inArray(signupFees.status, ['pending', 'reported', 'collected', 'disputed']),
         notInArray(eventSignups.status, ['withdrawn', 'rejected']),
       ),
@@ -86,7 +91,6 @@ export default async function AdminFeesPage() {
       a.name.localeCompare(b.name),
   );
 
-  const clan = await requireClan();
   const required = await getRequiredConfirmations(clan.id);
 
   return (

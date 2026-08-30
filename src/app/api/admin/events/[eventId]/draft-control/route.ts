@@ -27,6 +27,7 @@ import { parseEventRules, validateEventRules } from '@/lib/eventRules';
  */
 
 async function loadEvent(eventId: number) {
+  // clan-scope: global -- a helper called only from handlers that have already run the event guard.
   return db.query.events.findFirst({ where: eq(events.id, eventId) });
 }
 

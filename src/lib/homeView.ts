@@ -384,6 +384,7 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
   // ---- You -------------------------------------------------------------------------------------
   let you: HomeYou | null = null;
   if (viewerMemberIds.length > 0) {
+    // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
     const mine = await db
       .select({ id: clanRoster.id, accountId: clanRoster.accountId, rsn: clanRoster.rsn })
       .from(clanRoster)

@@ -45,6 +45,7 @@ export async function POST(request: Request) {
   if (linkedUser && member.playerId == null) await onCharacterLinked(clanMemberId, linkedUser.id);
 
   if (member.rsnNormalized) {
+    // clan-scope: global -- identity is global — the same OSRS account is one account however many clans roster it.
     const siblings = await db
       .select({ id: clanRoster.id, userId: clanRoster.playerId })
       .from(clanRoster)

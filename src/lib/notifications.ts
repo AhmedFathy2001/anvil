@@ -107,6 +107,7 @@ async function flushBucket(tileId: number, teamId: number): Promise<boolean> {
 
   const tile = await db.query.tiles.findFirst({ where: eq(tiles.id, row.tileId) });
   const team = await db.query.teams.findFirst({ where: eq(teams.id, row.teamId) });
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, row.eventId) });
   if (!tile || !team || !event) return false; // tile/team/event vanished — drop the post silently
 

@@ -30,6 +30,7 @@ export default async function WarRoomPage({
   // Captain-only — players who aren't the captain bounce back to the team board.
   if (team.captainUserId !== user.userId) redirect(await clanHref(`/team/${tId}`));
 
+  // clan-scope: global -- a team is reached through membership or an invite token, not through a clan — that is what lets a visiting clan's people use it.
   const event = await db.query.events.findFirst({ where: eq(events.id, team.eventId) });
   if (!event) notFound();
 

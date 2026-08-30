@@ -34,6 +34,7 @@ export async function GET(
   }
 
   const current = player.clanMemberId != null
+    // clan-scope: global -- the id came from a row this request already established, so the clan is settled upstream.
     ? await findRosterSeat(eq(clanRoster.id, player.clanMemberId))
     : null;
 
@@ -41,6 +42,7 @@ export async function GET(
   // no owner to gather siblings from, so only their own row is offered.
   const ownerUserId = current?.playerId ?? null;
   let members = ownerUserId != null
+    // clan-scope: global -- the id came from a row this request already established, so the clan is settled upstream.
     ? await db.select().from(clanRoster).where(eq(clanRoster.playerId, ownerUserId))
     : current
       ? [current]

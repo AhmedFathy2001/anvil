@@ -13,6 +13,7 @@ import { computeStartReadiness, startBlockerLabel } from '@/lib/eventReadiness';
 import type { StageCounts } from '@/lib/eventStage';
 
 export const getEventRow = cache(async (eventId: number) =>
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   db.query.events.findFirst({ where: eq(events.id, eventId) }),
 );
 

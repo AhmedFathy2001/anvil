@@ -248,8 +248,10 @@ export async function GET(request: Request) {
 
   // Weekly comps → per-participant weekly tasks. Mirror the weekly cron's participant filter: skip
   // any whose clan_members.status isn't 'active' (renamed / banned), but keep null-clanMemberId rows.
+  // clan-scope: global -- the sweep runs across every clan by design; that is what a platform-wide cron is.
   const activeComps = await db.query.weeklyCompetitions.findMany({ where: eq(weeklyCompetitions.status, 'active') });
   for (const comp of activeComps) {
+    // clan-scope: global -- the sweep runs across every clan by design; that is what a platform-wide cron is.
     const participants = await db
       .select({
         id: weeklyParticipants.id,
@@ -280,6 +282,7 @@ export async function GET(request: Request) {
   // (rename-synced) instead of eventParticipants.name (a per-event display override) is what stops a mid-event
   // rename from 404-parking tracking.
   if (clanMemberIds.size > 0) {
+    // clan-scope: global -- the sweep runs across every clan by design; that is what a platform-wide cron is.
     const members = await db
       .select({
         id: clanRoster.id,
@@ -654,6 +657,7 @@ export async function GET(request: Request) {
       .where(
         inArray(
           accounts.id,
+          // clan-scope: global -- the sweep runs across every clan by design; that is what a platform-wide cron is.
           db
             .select({ id: clanMemberships.accountId })
             .from(clanMemberships)

@@ -50,6 +50,7 @@ export async function updateAccountOfSeat(
     .where(
       eq(
         accounts.id,
+        // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
         db.select({ id: clanMemberships.accountId }).from(clanMemberships).where(eq(clanMemberships.id, seatId)),
       ),
     );
@@ -140,6 +141,7 @@ export async function findOrCreateSeat(
  * Also clears `isPrimary`, since "my main account" means nothing once it is not mine.
  */
 export async function unclaimAccountOfSeat(seatId: number): Promise<void> {
+  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const [seat] = await db
     .select({ accountId: clanRoster.accountId, rsn: clanRoster.rsn })
     .from(clanRoster)

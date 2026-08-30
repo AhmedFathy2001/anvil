@@ -103,6 +103,7 @@ export async function POST(
     // Unused guest: drop the seat so the rename can proceed, and the account behind it only if no
     // other clan is still seating it. Another clan's roster is not this admin's to edit.
     await db.delete(clanMemberships).where(eq(clanMemberships.id, conflict.id));
+    // clan-scope: global -- the id came from a row this request already established, so the clan is settled upstream.
     const stillSeated = await db
       .select({ id: clanMemberships.id })
       .from(clanMemberships)

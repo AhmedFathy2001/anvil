@@ -182,6 +182,7 @@ export async function PATCH(
     // Drop any live-overlay entry for this key too, so a stuck/bogus push for the stat being
     // corrected can't keep the effective current inflated after the baseline is fixed by hand.
     if (player.clanMemberId != null) {
+      // clan-scope: global -- the id came from a row this request already established, so the clan is settled upstream.
       const memberRow = await findRosterSeat(eq(clanRoster.id, player.clanMemberId));
       if (memberRow?.liveStats) {
         try {

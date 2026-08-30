@@ -29,10 +29,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   // Scope to the caller's own, still-linked accounts — the only rows they may promote.
+  // clan-scope: global -- the subject is a PERSON, and their seats span clans by design; scoped to the caller's own via clanRoster.playerId.
   const member = await findRosterSeat(and(eq(clanRoster.id, id), eq(clanRoster.playerId, session.playerId), isNull(clanRoster.leftAt)));
   if (!member) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (member.isPrimary === 1) return NextResponse.json({ ok: true });
 
+  // clan-scope: global -- the subject is a PERSON, and their seats span clans by design; scoped to the caller's own via clanRoster.playerId.
   const previous = await findRosterSeat(and(eq(clanRoster.playerId, session.playerId), eq(clanRoster.isPrimary, 1), isNull(clanRoster.leftAt)));
 
   await db.update(accounts).set({ isPrimary: 0 }).where(eq(accounts.playerId, session.playerId));
@@ -73,11 +75,13 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   if (!Number.isInteger(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
   // Scope to the caller's own, still-linked accounts.
+  // clan-scope: global -- the subject is a PERSON, and their seats span clans by design; scoped to the caller's own via clanRoster.playerId.
   const member = await findRosterSeat(and(eq(clanRoster.id, id), eq(clanRoster.playerId, session.playerId), isNull(clanRoster.leftAt)));
   if (!member) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   // Live-event guard: any player row in a non-force-ended event that hasn't ended yet.
   const nowIso = new Date().toISOString();
+  // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
   const activeRows = await db
     .select({ id: eventParticipants.id })
     .from(eventParticipants)
@@ -125,6 +129,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
 
   // If we just removed the primary, promote another owned account so the user still has one.
   if (member.isPrimary === 1) {
+    // clan-scope: global -- the subject is a PERSON, and their seats span clans by design; scoped to the caller's own via clanRoster.playerId.
     const [next] = await db
       .select()
       .from(clanRoster)

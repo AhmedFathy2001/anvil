@@ -28,6 +28,7 @@ export default async function PlayerDashboardPage() {
   });
   if (!team) notFound();
 
+  // clan-scope: global -- a team is reached through membership, not through a clan — that is what lets a visiting clan's staff run their own team.
   const event = await db.query.events.findFirst({
     where: eq(events.id, team.eventId),
   });

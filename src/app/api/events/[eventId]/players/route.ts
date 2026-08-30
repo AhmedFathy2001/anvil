@@ -11,6 +11,7 @@ import { liveStatsForMembers } from '@/lib/liveStats';
 import { effectiveSnapshotJson } from '@/lib/statTracking';
 import { upsertPlayers, backfillApprovedSignups, accountCapError, type MemberInput } from '@/lib/enroll';
 import { assertEventEditable } from '@/lib/eventLock';
+import { acceptedCohostClanIds } from '@/lib/coHost';
 
 export async function GET(
   request: Request,
@@ -94,10 +95,19 @@ export async function POST(
     ) as { name: string; discord?: string; timezone?: string }[];
 
     if (fromIds.length > 0) {
+      // THIS CLAN'S seats. The ids arrive in the request body, so unscoped an admin could enrol
+      // another clan's members onto their own board by posting their seat ids — and the text path
+      // below already goes through findOrCreateClanMember(clan.id, ...), so only this half was open.
+      // A co-host fills its own side through /api/team/[teamId]/roster, which does its own check.
       const memberRows = await db
         .select()
         .from(clanRoster)
-        .where(inArray(clanRoster.id, fromIds.map((i) => i.clanMemberId)));
+        .where(
+          and(
+            inArray(clanRoster.id, fromIds.map((i) => i.clanMemberId)),
+            eq(clanRoster.clanId, clan.id),
+          ),
+        );
       for (const m of memberRows) {
         members.push({ clanMemberId: m.id, name: m.rsn, discord: null, timezone: null });
       }
@@ -195,7 +205,8 @@ export async function PATCH(
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.
-  if (!(await eventForRequest(request, eId))) {
+  const scopedEvent = await eventForRequest(request, eId);
+  if (!scopedEvent) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
@@ -259,7 +270,11 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid clanMemberId' }, { status: 400 });
     }
     if (cmId !== player.clanMemberId) {
-      const member = await findRosterSeat(eq(clanRoster.id, cmId));
+      // Scoped, like the bulk path above: the seat id comes from the body, and unscoped this
+      // repointed a player row at ANY clan's member. The host plus its accepted co-hosts is the set
+      // of people who can legitimately be on this board — the same set a payout recipient uses.
+      const seatClans = [scopedEvent.clanId, ...(await acceptedCohostClanIds(eId))];
+      const member = await findRosterSeat(and(eq(clanRoster.id, cmId), inArray(clanRoster.clanId, seatClans)));
       if (!member) {
         return NextResponse.json({ error: 'Account not found' }, { status: 404 });
       }
@@ -280,6 +295,7 @@ export async function PATCH(
       // plugin resolves. If it already belongs to a DIFFERENT Discord user, leave it alone (don't
       // steal someone else's account) — the UI warns the admin about that case.
       const currentMember = player.clanMemberId != null
+        // clan-scope: global -- the id came from a row this request already established, so the clan is settled upstream.
         ? await findRosterSeat(eq(clanRoster.id, player.clanMemberId))
         : null;
       const owner = currentMember?.claimedAt ? currentMember.playerId : null;

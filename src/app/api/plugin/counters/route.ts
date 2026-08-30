@@ -67,6 +67,7 @@ export async function POST(request: Request) {
 
   // Resolve the member's active-event player row (same rule the stats ingest uses): drafted onto a team,
   // event not force-ended and not past its end date. Counters are per-event, so they land on that row.
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const playerRows = await db
     .select({
       id: eventParticipants.id,
