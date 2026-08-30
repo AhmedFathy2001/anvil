@@ -46,7 +46,7 @@ export default async function EventsIndexPage({
       href: b.hostSlug ? `/c/${b.hostSlug}/events/${b.id}` : `/events/${b.id}`,
       startDate: b.startDate,
       endDate: b.endDate,
-      foot: b.foot,
+      foot: b.hostSlug ? `${b.foot} · co-hosted · ${b.hostSlug} hosts` : b.foot,
     })),
     ...view.upcoming.weeks.map((w) => ({
       key: `w${w.id}`,
