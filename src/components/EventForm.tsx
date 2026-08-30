@@ -145,6 +145,13 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
   const [maxAccounts, setMaxAccounts] = useState(1);
   const [accountSlotMode, setAccountSlotMode] = useState<'per-person' | 'per-account'>('per-person');
   const [feeMode, setFeeMode] = useState<'per-person' | 'per-account'>('per-person');
+
+  // Multi-clan (co-host) — a team board where each invited clan fields its own team. Off by default;
+  // when on, the event is created per_clan + invited and each named clan gets a pending invite.
+  const [multiClan, setMultiClan] = useState(false);
+  const [cashPolicy, setCashPolicy] = useState<'host-holds' | 'each-settles' | 'clans-collect-host-pays'>('host-holds');
+  const [coHostSlugs, setCoHostSlugs] = useState<string[]>([]);
+  const [coHostInput, setCoHostInput] = useState('');
   const [activePreset, setActivePreset] = useState<string | null>(null);
   // Starter tile labels carried by a chosen preset (blank until picked). Merged into the
   // create payload so the board arrives pre-seeded.
@@ -179,6 +186,12 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
   // How many tiles this board will actually have — N² for a square grid, N otherwise. The generator
   // draws against this number, and the create API rejects a mismatch.
   const expectedTiles = meta.square ? size * size : size;
+
+  // Co-hosting only makes sense on a TEAM board — a whole-clan competition enters the roster as it
+  // stands, and an individual ladder has no teams for a clan to be. `useMultiClan` is the toggle
+  // actually in effect (guarded by the board kind, so flipping to a weekly can't leave it stuck on).
+  const teamBoard = !weeklyType && meta.chips[0] !== 'individual';
+  const useMultiClan = teamBoard && multiClan;
 
   // The three things you'll do after pressing create, in this format's terms.
   const nextSteps = [
@@ -237,6 +250,17 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
     setPresetLabels(null);
     setDrawn(null);
     setError('');
+  }
+
+  /** Add a clan to the co-host invite list — normalised to a slug, deduped. */
+  function addCoHost() {
+    const slug = coHostInput.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+    if (!slug || coHostSlugs.includes(slug)) {
+      setCoHostInput('');
+      return;
+    }
+    setCoHostSlugs([...coHostSlugs, slug]);
+    setCoHostInput('');
   }
 
   function applyPreset(preset: EventPreset) {
@@ -331,6 +355,9 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
           maxAccountsPerPerson: maxAccounts,
           accountSlotMode,
           feeMode,
+          // Multi-clan: each invited clan is a team, the event is invite-only, and the chosen policy
+          // decides who holds the cash. Only meaningful on a team board (guarded in the UI).
+          ...(useMultiClan ? { teamFormation: 'per_clan', cashPolicy, visibility: 'invited' } : {}),
           ...(startDate ? { startDate } : {}),
           ...(endDate ? { endDate } : {}),
           ...(effectivePolicy
@@ -378,7 +405,22 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
         }).catch(() => {});
       }
 
-      router.push(clanUrl(`/admin/events/${data.id}`));
+      // Fire the co-host invites now that the event exists. Best-effort per clan: a bad slug just
+      // doesn't get invited (the host can add it on the teams tab), never loses the event.
+      if (useMultiClan && coHostSlugs.length > 0) {
+        await Promise.all(
+          coHostSlugs.map((clanSlug) =>
+            clanFetch(`/api/events/${data.id}/co-hosts`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ clanSlug }),
+            }).catch(() => {}),
+          ),
+        );
+      }
+
+      // A multi-clan event lands on the teams tab, where the co-host invites and roll-up live.
+      router.push(clanUrl(`/admin/events/${data.id}${useMultiClan ? '/teams' : ''}`));
       router.refresh();
     } catch {
       setError('Failed to create event');
@@ -914,6 +956,104 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
                     options={[
                       { value: 'per-person', label: 'Per person — one fee' },
                       { value: 'per-account', label: 'Per account — a fee per entered account' },
+                    ]}
+                  />
+                </div>
+              </div>
+            )}
+          </Section>
+          )}
+
+          {/* Who plays — a single clan, or several. Team boards only: a whole-clan competition and an
+              individual ladder have no per-clan teams to field. */}
+          {teamBoard && (
+          <Section title="Who plays">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setMultiClan(false)}
+                className={`rounded-lg border px-3.5 py-2 text-sm transition-colors ${
+                  !multiClan ? 'border-gold bg-gold/10 text-gold' : 'border-card-border text-text-muted hover:border-gold/40'
+                }`}
+              >
+                Just this clan
+              </button>
+              <button
+                type="button"
+                onClick={() => setMultiClan(true)}
+                className={`rounded-lg border px-3.5 py-2 text-sm transition-colors ${
+                  multiClan ? 'border-gold bg-gold/10 text-gold' : 'border-card-border text-text-muted hover:border-gold/40'
+                }`}
+              >
+                Multiple clans (co-host)
+              </button>
+            </div>
+
+            {multiClan && (
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-foreground/70 mb-1.5">Invite clans</label>
+                  <div className="flex gap-2">
+                    <div className="flex flex-1 items-center gap-1.5 rounded-lg border border-card-border bg-brown-dark px-3">
+                      <span className="whitespace-nowrap text-sm text-text-dim">/c/</span>
+                      <input
+                        value={coHostInput}
+                        onChange={(e) => setCoHostInput(e.target.value.toLowerCase())}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            addCoHost();
+                          }
+                        }}
+                        placeholder="clan-slug"
+                        className="flex-1 bg-transparent py-2 text-sm text-foreground outline-none"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addCoHost}
+                      className="rounded-lg border border-gold/40 px-4 py-2 text-sm text-gold transition-colors hover:border-gold"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {coHostSlugs.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {coHostSlugs.map((slug) => (
+                        <span
+                          key={slug}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-card-border bg-card-bg px-3 py-1 text-sm text-foreground"
+                        >
+                          {slug}
+                          <button
+                            type="button"
+                            onClick={() => setCoHostSlugs(coHostSlugs.filter((s) => s !== slug))}
+                            className="text-text-dim hover:text-red-300"
+                            aria-label={`Remove ${slug}`}
+                          >
+                            &times;
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <p className="mt-1.5 text-xs text-text-muted">
+                    Each clan gets a pending invite. On accept they field their own team, and their staff
+                    can run it — roster, proof, their players&rsquo; fees. You can also invite more later
+                    from the event&rsquo;s Teams tab.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground/70 mb-1.5">Who holds the cash</label>
+                  <Select
+                    value={cashPolicy}
+                    onChange={(v) => setCashPolicy(v as typeof cashPolicy)}
+                    ariaLabel="Who holds the cash"
+                    options={[
+                      { value: 'host-holds', label: 'Host holds the pot — you collect every fee and pay every winner' },
+                      { value: 'each-settles', label: 'Each clan settles its own — collects its members’ fees, pays its own' },
+                      { value: 'clans-collect-host-pays', label: 'Clans collect → host pays — fees gather into your pot, you pay all winners' },
                     ]}
                   />
                 </div>
