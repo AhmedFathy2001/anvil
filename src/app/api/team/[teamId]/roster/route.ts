@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { clanRoster, events, eventParticipants, payouts, submissions, teams, tiles } from '@/db/schema';
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { requireTeamManager } from '@/lib/teamStaff';
+import { enrolParticipant, participantForSeat } from '@/lib/participants';
 
 /**
  * A team's own roster and its recent proof, for whoever runs that team.
@@ -146,17 +147,20 @@ export async function POST(
 
   // The seat must belong to THIS team's clan and be live — you may only add your own members.
   const seat = await db
-    .select({ id: clanRoster.id, rsn: clanRoster.rsn })
+    .select({ id: clanRoster.id, accountId: clanRoster.accountId, rsn: clanRoster.rsn })
     .from(clanRoster)
     .where(and(eq(clanRoster.id, clanMemberId), eq(clanRoster.clanId, team.clanId), isNull(clanRoster.leftAt)))
     .then((r) => r[0]);
   if (!seat) return NextResponse.json({ error: 'That member is not on your clan’s roster.' }, { status: 400 });
 
-  // One participant per account per event. Reuse an existing row (move it onto this team) rather than
-  // making a second — a person cannot be on the board twice.
-  const existing = await db.query.eventParticipants.findFirst({
-    where: and(eq(eventParticipants.eventId, management.eventId), eq(eventParticipants.clanMemberId, clanMemberId)),
-  });
+  // One participant per ACCOUNT per event. Reuse an existing row (move it onto this team) rather
+  // than making a second — a person cannot be on the board twice.
+  //
+  // By account rather than by seat, because this is exactly where the two diverge: a co-host fills
+  // its team from its OWN roster, while the same player entering the event themselves is seated as a
+  // guest of the host clan. Two seats, one person. Asking by seat found neither and made a second
+  // row. See lib/participants.
+  const existing = await participantForSeat(management.eventId, clanMemberId);
   if (existing) {
     if (existing.teamId === tId) return NextResponse.json({ ok: true, playerId: existing.id, already: true });
     if (existing.teamId != null) {
@@ -166,11 +170,14 @@ export async function POST(
     return NextResponse.json({ ok: true, playerId: existing.id });
   }
 
-  const [row] = await db
-    .insert(eventParticipants)
-    .values({ eventId: management.eventId, clanMemberId, name: seat.rsn, teamId: tId })
-    .returning({ id: eventParticipants.id });
-  return NextResponse.json({ ok: true, playerId: row.id });
+  const { row, created } = await enrolParticipant({
+    eventId: management.eventId,
+    clanMemberId,
+    accountId: seat.accountId,
+    name: seat.rsn,
+    teamId: tId,
+  });
+  return NextResponse.json({ ok: true, playerId: row.id, already: !created });
 }
 
 /**

@@ -9,6 +9,7 @@ import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { parseProfile, sanitizeProfile, serializeProfile, signupWindowState, signupEditState } from '@/lib/signup';
 import { checkInvite, isWellFormedToken } from '@/lib/teamInvites';
 import { parseEventRules } from '@/lib/eventRules';
+import { enrolParticipant, participantForSeat } from '@/lib/participants';
 
 export async function GET(
   request: Request,
@@ -339,13 +340,15 @@ export async function POST(
   for (const { row, account } of rows) {
     if (row.status !== 'pending' && row.status !== 'approved') continue;
 
-    const existingPlayer = await db.query.eventParticipants.findFirst({
-      where: and(eq(eventParticipants.eventId, id), eq(eventParticipants.clanMemberId, account.id)),
-    });
+    // By ACCOUNT, not by seat: a player entering a co-hosted board is seated as a guest of the host
+    // clan while their own clan's staff may already have rostered them on their own seat. Asking by
+    // seat finds neither row and puts them on the board twice. See lib/participants.
+    const existingPlayer = await participantForSeat(id, account.id);
     if (!existingPlayer) {
-      await db.insert(eventParticipants).values({
+      await enrolParticipant({
         eventId: id,
         clanMemberId: account.id,
+        accountId: account.accountId,
         name: account.rsn,
         // An invite is a seat on ONE team, so the entry skips the pool entirely.
         teamId: invite ? invite.teamId : null,

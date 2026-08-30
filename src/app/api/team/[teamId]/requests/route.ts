@@ -5,6 +5,7 @@ import { clanRoster, eventSignups, players, users, eventParticipants } from '@/d
 import { and, eq } from 'drizzle-orm';
 import { generatePlayerToken } from '@/lib/auth';
 import { requireTeamManager } from '@/lib/teamStaff';
+import { enrolParticipant, participantForSeat } from '@/lib/participants';
 import { parseProfile } from '@/lib/signup';
 
 /**
@@ -108,15 +109,16 @@ export async function POST(
   // Seat them. Same rule as the admin approve path: create the player row on this team, or move a
   // pooled one onto it. Someone already on another team is left where they are — that placement
   // was a decision too, and undoing it isn't this captain's call.
-  const existingPlayer = await db.query.eventParticipants.findFirst({
-    where: and(eq(eventParticipants.eventId, signup.eventId), eq(eventParticipants.clanMemberId, signup.clanMemberId)),
-  });
+  // By ACCOUNT, not by seat: the same player can hold a seat in their own clan and a guest seat in
+  // the host's, and asking by seat would find neither and enrol them twice. See lib/participants.
+  const existingPlayer = await participantForSeat(signup.eventId, signup.clanMemberId);
   if (!existingPlayer) {
     // clan_roster is a VIEW, so it is not in db.query (Drizzle's relational API needs a table).
     const account = await findRosterSeat(eq(clanRoster.id, signup.clanMemberId));
-    await db.insert(eventParticipants).values({
+    await enrolParticipant({
       eventId: signup.eventId,
       clanMemberId: signup.clanMemberId,
+      accountId: account?.accountId ?? null,
       name: account?.rsn ?? 'Unknown',
       teamId: tId,
       playerToken: generatePlayerToken(),

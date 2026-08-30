@@ -8,6 +8,7 @@ import { generatePlayerToken, verifyAdminOrModerator, verifyEventTreasurer, veri
 import { parseProfile, sanitizeProfile, serializeProfile } from '@/lib/signup';
 import { parseConfirmations } from '@/lib/feeConfirmations';
 import { atLeast } from '@/lib/clanRoles';
+import { enrolParticipant, participantForSeat } from '@/lib/participants';
 
 export async function GET(
   request: Request,
@@ -225,13 +226,13 @@ export async function POST(
     }
   }
 
-  const existingPlayer = await db.query.eventParticipants.findFirst({
-    where: and(eq(eventParticipants.eventId, id), eq(eventParticipants.clanMemberId, body.clanMemberId)),
-  });
+  // By ACCOUNT, not by seat — see lib/participants for why one player can hold two of the latter.
+  const existingPlayer = await participantForSeat(id, body.clanMemberId);
   if (!existingPlayer) {
-    await db.insert(eventParticipants).values({
+    await enrolParticipant({
       eventId: id,
       clanMemberId: body.clanMemberId,
+      accountId: account.accountId,
       name: account.rsn,
       timezone: profile.timezone ?? null,
       playerToken: generatePlayerToken(),

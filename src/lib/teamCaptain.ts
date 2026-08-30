@@ -47,6 +47,7 @@ export async function placeCaptainOnTeam(
   const memberRows = await db
     .select({
       id: clanRoster.id,
+      accountId: clanRoster.accountId,
       rsn: clanRoster.rsn,
       isPrimary: clanRoster.isPrimary,
       verifiedAt: clanRoster.verifiedAt,
@@ -100,6 +101,8 @@ export async function placeCaptainOnTeam(
     .values({
       eventId,
       clanMemberId: account.id,
+      // The board is keyed by account, not by seat (lib/participants).
+      accountId: account.accountId,
       teamId,
       name: account.rsn,
       playerToken: generatePlayerToken(),

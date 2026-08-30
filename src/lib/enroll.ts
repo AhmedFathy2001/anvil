@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { clanRoster, eventParticipants, teams, eventSignups, accounts } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull, or } from 'drizzle-orm';
 import { generatePlayerToken } from '@/lib/auth';
+import { accountsOfSeats, accountsOnBoard, type Participant } from '@/lib/participants';
 
 export interface MemberInput {
   clanMemberId: number;
@@ -21,19 +22,33 @@ export async function upsertPlayers(
   members: MemberInput[],
   assignTeamId: number | null,
 ): Promise<(typeof eventParticipants.$inferSelect)[]> {
+  // Who each seat actually IS. The board is keyed by account, not by seat — see lib/participants for
+  // why the two stopped being the same thing — so a member arriving on their own clan's seat finds
+  // the row they already have as a guest of the host clan, instead of getting a second one.
+  const seatToAccount = await accountsOfSeats(members.map((m) => m.clanMemberId));
+  const onBoard = await accountsOnBoard(eventId);
+
+  // Seat lookup is kept alongside it, for rows whose account could not be resolved — a seat deleted
+  // after its participant was made would otherwise read as a brand-new player.
   const memberIds = members.map((m) => m.clanMemberId);
-  const existing = memberIds.length
-    ? await db.select().from(eventParticipants).where(and(eq(eventParticipants.eventId, eventId), inArray(eventParticipants.clanMemberId, memberIds)))
-    : [];
-  const byMember = new Map<number, typeof eventParticipants.$inferSelect>();
-  for (const p of existing) if (p.clanMemberId != null) byMember.set(p.clanMemberId, p);
+  const bySeat = new Map<number, Participant>();
+  if (memberIds.length) {
+    const existing = await db
+      .select()
+      .from(eventParticipants)
+      .where(and(eq(eventParticipants.eventId, eventId), inArray(eventParticipants.clanMemberId, memberIds)));
+    for (const p of existing) if (p.clanMemberId != null) bySeat.set(p.clanMemberId, p);
+  }
 
   const pickedAt = assignTeamId != null ? new Date().toISOString() : null;
   const results: (typeof eventParticipants.$inferSelect)[] = [];
   const toInsert: (typeof eventParticipants.$inferInsert)[] = [];
+  // Two seats for one account inside a single call is the same person named twice; the first wins.
+  const claimed = new Set<number>();
 
   for (const m of members) {
-    const row = byMember.get(m.clanMemberId);
+    const accountId = seatToAccount.get(m.clanMemberId) ?? null;
+    const row = (accountId != null ? onBoard.get(accountId) : undefined) ?? bySeat.get(m.clanMemberId);
     if (row) {
       if (assignTeamId != null && row.teamId == null) {
         const [updated] = await db
@@ -46,9 +61,14 @@ export async function upsertPlayers(
         results.push(row); // already in the pool, or already on a team — no duplicate
       }
     } else {
+      if (accountId != null) {
+        if (claimed.has(accountId)) continue;
+        claimed.add(accountId);
+      }
       toInsert.push({
         eventId,
         clanMemberId: m.clanMemberId,
+        accountId,
         name: m.name,
         discord: m.discord,
         timezone: m.timezone,
@@ -59,7 +79,30 @@ export async function upsertPlayers(
     }
   }
   if (toInsert.length > 0) {
-    results.push(...(await db.insert(eventParticipants).values(toInsert).returning()));
+    // The index has the final say. It can only refuse a row that arrived between the read above and
+    // this write, and the row it kept is the one the caller wanted either way, so collect those
+    // rather than failing the whole enrolment for a race.
+    const inserted = await db
+      .insert(eventParticipants)
+      .values(toInsert)
+      .onConflictDoNothing({ target: [eventParticipants.eventId, eventParticipants.accountId] })
+      .returning();
+    results.push(...inserted);
+
+    if (inserted.length < toInsert.length) {
+      const landed = new Set(inserted.map((r) => r.accountId).filter((a): a is number => a != null));
+      const missed = toInsert
+        .map((r) => r.accountId)
+        .filter((a): a is number => a != null && !landed.has(a));
+      if (missed.length > 0) {
+        results.push(
+          ...(await db
+            .select()
+            .from(eventParticipants)
+            .where(and(eq(eventParticipants.eventId, eventId), inArray(eventParticipants.accountId, missed)))),
+        );
+      }
+    }
   }
   return results;
 }

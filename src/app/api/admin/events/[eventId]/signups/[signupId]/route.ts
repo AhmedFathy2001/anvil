@@ -10,6 +10,7 @@ import { generatePlayerToken } from '@/lib/auth';
 import { sanitizeProfile, serializeProfile } from '@/lib/signup';
 import { notifySignupApproved } from '@/lib/discord';
 import { atLeast } from '@/lib/clanRoles';
+import { enrolParticipant, participantForSeat } from '@/lib/participants';
 
 // Per-signup admin actions. All admin-only — captain selection is high-stakes and we
 // don't want a moderator accidentally locking the wrong person in.
@@ -105,9 +106,9 @@ export async function PATCH(
         if (wanted && wanted.eventId === evtId) seatTeamId = wanted.id;
       }
 
-      const existingPlayer = await db.query.eventParticipants.findFirst({
-        where: and(eq(eventParticipants.eventId, evtId), eq(eventParticipants.clanMemberId, signup.clanMemberId)),
-      });
+      // By ACCOUNT, not by seat — one player can hold two seats on a co-hosted board, and asking by
+      // seat would find neither and approve them onto it twice. See lib/participants.
+      const existingPlayer = await participantForSeat(evtId, signup.clanMemberId);
       if (!existingPlayer) {
         const account = await findRosterSeat(eq(clanRoster.id, signup.clanMemberId));
         let timezone: string | null = null;
@@ -117,9 +118,10 @@ export async function PATCH(
         } catch {
           /* profileData not JSON — leave timezone null */
         }
-        await db.insert(eventParticipants).values({
+        await enrolParticipant({
           eventId: evtId,
           clanMemberId: signup.clanMemberId,
+          accountId: account?.accountId ?? null,
           name: account?.rsn ?? 'Unknown',
           timezone,
           teamId: seatTeamId, // null → the pool, draftable/assignable
@@ -292,18 +294,17 @@ export async function PATCH(
         })
         .returning();
 
-      const existingPlayer = await db.query.eventParticipants.findFirst({
-        where: and(eq(eventParticipants.eventId, evtId), eq(eventParticipants.clanMemberId, signup.clanMemberId)),
-      });
+      const existingPlayer = await participantForSeat(evtId, signup.clanMemberId);
       if (existingPlayer) {
         await db
           .update(eventParticipants)
           .set({ teamId: team.id, pickNumber: 0, pickedAt: now })
           .where(eq(eventParticipants.id, existingPlayer.id));
       } else {
-        await db.insert(eventParticipants).values({
+        await enrolParticipant({
           eventId: evtId,
           clanMemberId: signup.clanMemberId,
+          accountId: account.accountId,
           name: account.rsn,
           teamId: team.id,
           pickNumber: 0,

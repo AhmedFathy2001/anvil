@@ -56,8 +56,16 @@ export interface PluginClanRow {
   name: string;
   /** 'member' | 'guest' — the seat's standing, so a dropdown can say which is your home. */
   kind: string;
-  /** The board running here that this person is on, or null. Drives the dropdown's second line. */
+  /** The most relevant thing running here, or null. Drives the dropdown's second line. */
   live: PluginClanLive | null;
+  /**
+   * How many things are running here in total — boards this person is on, plus the competition.
+   *
+   * `live` is one line in a dropdown, so it names ONE of them. Without this a clan running five
+   * boards looks exactly like a clan running one, and the one named is an arbitrary pick presented
+   * as the whole answer. A client can say "and four more" instead of quietly lying by omission.
+   */
+  liveCount: number;
 }
 
 /**
@@ -113,16 +121,19 @@ export async function pluginClansFor(userId: number | null | undefined): Promise
 
   const allSeatIds = ordered.flatMap((c) => c.seatIds);
   const [live, weeklies] = await Promise.all([
-    allSeatIds.length > 0 ? liveBoardsBySeat(allSeatIds) : Promise.resolve(new Map<number, LiveEnrollment>()),
+    allSeatIds.length > 0 ? liveBoardsBySeat(allSeatIds) : Promise.resolve(new Map<number, LiveEnrollment[]>()),
     activeWeeklyByClan(ordered.map((c) => c.row.clanId)),
   ]);
 
   return ordered.map(({ row, seatIds }) => {
-    // The freshest live board in this clan, if any — same "latest start wins" tie-break the clan
-    // resolver uses, so what the dropdown shows is what a request to that clan would resolve to.
+    // Every live board in this clan, deduped: a person with a main and an alt both drafted onto the
+    // same board holds it twice, and that is one board, not two.
+    const seen = new Set<number>();
     const here = seatIds
-      .map((id) => live.get(id))
-      .filter((e): e is LiveEnrollment => !!e)
+      .flatMap((id) => live.get(id) ?? [])
+      .filter((e) => (seen.has(e.eventId) ? false : (seen.add(e.eventId), true)))
+      // Same "latest start wins" tie-break the clan resolver uses, so the one named here is the one a
+      // request to that clan would actually resolve to.
       .sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? ''));
     const best = here[0];
     // A board first, because that is what "playing" most strongly means and it is the richer thing
@@ -133,6 +144,7 @@ export async function pluginClansFor(userId: number | null | undefined): Promise
       slug: row.slug,
       name: row.name,
       kind: row.kind,
+      liveCount: here.length + (weekly ? 1 : 0),
       live: best
         ? {
             kind: 'bingo' as const,
@@ -193,7 +205,7 @@ async function activeWeeklyByClan(clanIds: number[]): Promise<Map<number, { id: 
  * that is the same rule `evaluateCompletionGate` applies, and a board that scores nothing should not
  * be reported as the one you are playing.
  */
-async function liveBoardsBySeat(seatIds: number[]): Promise<Map<number, LiveEnrollment>> {
+async function liveBoardsBySeat(seatIds: number[]): Promise<Map<number, LiveEnrollment[]>> {
   const rows = await db
     .select({
       seatId: eventParticipants.clanMemberId,
@@ -252,7 +264,7 @@ async function liveBoardsBySeat(seatIds: number[]): Promise<Map<number, LiveEnro
     doneByTeam.set(c.teamId, set);
   }
 
-  const out = new Map<number, LiveEnrollment>();
+  const out = new Map<number, LiveEnrollment[]>();
   for (const r of playing) {
     const scored = scoredByEvent.get(r.eventId) ?? [];
     const done = doneByTeam.get(r.teamId as number) ?? new Set<number>();
@@ -269,12 +281,12 @@ async function liveBoardsBySeat(seatIds: number[]): Promise<Map<number, LiveEnro
         ? scored.filter((t) => done.has(t.id)).reduce((sum, t) => sum + (t.points ?? 1), 0)
         : scored.filter((t) => done.has(t.id)).length,
     };
+    // EVERY live board this seat is on, not just the freshest. Which one to NAME is a choice the
+    // caller makes; how many there are is a fact it cannot recover once we have thrown the rest away.
     const seatId = r.seatId as number;
-    const existing = out.get(seatId);
-    // One seat, two live boards: latest start wins, as everywhere else.
-    if (!existing || (entry.startDate ?? '').localeCompare(existing.startDate ?? '') > 0) {
-      out.set(seatId, entry);
-    }
+    const list = out.get(seatId) ?? [];
+    list.push(entry);
+    out.set(seatId, list);
   }
   return out;
 }

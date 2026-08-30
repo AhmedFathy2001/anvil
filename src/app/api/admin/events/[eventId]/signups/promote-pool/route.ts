@@ -96,6 +96,8 @@ export async function POST(
       return {
         eventId: evtId,
         clanMemberId: member.id,
+        // The board is keyed by account, not by seat — see lib/participants.
+        accountId: member.accountId,
         name: member.rsn,
         playerToken: generatePlayerToken(),
       };
@@ -104,7 +106,13 @@ export async function POST(
 
   let created = 0;
   if (inserts.length > 0) {
-    const inserted = await db.insert(eventParticipants).values(inserts).returning();
+    // Anyone the index refuses is already on this board under another seat, which is the answer this
+    // promotion wanted anyway — so it is not counted as created, and not treated as a failure.
+    const inserted = await db
+      .insert(eventParticipants)
+      .values(inserts)
+      .onConflictDoNothing({ target: [eventParticipants.eventId, eventParticipants.accountId] })
+      .returning();
     created = inserted.length;
   }
 

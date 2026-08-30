@@ -367,3 +367,66 @@ test('a weekly id and a board id may collide, which is why the kind is part of t
     `${byslug.bravo.live?.kind}:${weeklyId}`,
   );
 });
+
+// ── How many things are running, not just which one we named ──────────────────────────────────
+//
+// `live` is one line in a dropdown, so it names ONE. A clan running five boards looked exactly like
+// a clan running one, and the one named is an arbitrary pick presented as the whole answer.
+
+test('a clan with nothing running counts zero', async () => {
+  await seat(alpha, 'member');
+  const [row] = await pluginClansFor(userId);
+  assert.equal(row.liveCount, 0);
+  assert.equal(row.live, null);
+});
+
+test('every live board this person is on is counted, and the freshest is the one named', async () => {
+  const a = await seat(alpha, 'member');
+  await board(alpha, a, 'Oldest', { startDays: -10, endDays: 7, scored: 4, done: 1 });
+  await board(alpha, a, 'Middle', { startDays: -5, endDays: 7, scored: 4, done: 2 });
+  await board(alpha, a, 'Newest', { startDays: -1, endDays: 7, scored: 4, done: 3 });
+
+  const [row] = await pluginClansFor(userId);
+  assert.equal(row.liveCount, 3);
+  assert.equal(row.live?.eventName, 'Newest');
+});
+
+test('a competition counts alongside the boards', async () => {
+  const a = await seat(alpha, 'member');
+  await board(alpha, a, 'Summer Bingo', { startDays: -1, endDays: 7, scored: 4, done: 1 });
+  await weekly(alpha, 'Slayer SOTW');
+
+  const [row] = await pluginClansFor(userId);
+  assert.equal(row.liveCount, 2, 'a board and a competition are two things running');
+  assert.equal(row.live?.kind, 'bingo');
+});
+
+test('a main and an alt on the SAME board is one board, not two', async () => {
+  const main = await seat(alpha, 'member');
+  const [alt] = await db
+    .insert(s.accounts)
+    .values({ playerId: personId, rsn: 'Probe Alt', rsnNormalized: 'probe alt' })
+    .returning();
+  const [altSeat] = await db
+    .insert(s.clanMemberships)
+    .values({ clanId: alpha, accountId: alt.id, kind: 'member', source: 'roster' })
+    .returning();
+
+  const eventId = await board(alpha, main, 'Summer Bingo', { startDays: -1, endDays: 7, scored: 4, done: 1 });
+  const { eq } = await import('drizzle-orm');
+  const [team] = await db.select().from(s.teams).where(eq(s.teams.eventId, eventId));
+  await db.insert(s.eventParticipants).values({ eventId, clanMemberId: altSeat.id, teamId: team.id, name: 'Probe Alt' });
+
+  const [row] = await pluginClansFor(userId);
+  assert.equal(row.liveCount, 1, 'two seats, one board');
+});
+
+test('only what is live counts — a finished board is not "and one more"', async () => {
+  const a = await seat(alpha, 'member');
+  await board(alpha, a, 'Running', { startDays: -1, endDays: 7, scored: 4, done: 1 });
+  await board(alpha, a, 'Finished', { startDays: -30, endDays: -2, scored: 4, done: 4 });
+  await board(alpha, a, 'Upcoming', { startDays: 5, endDays: 20, scored: 4, done: 0 });
+
+  const [row] = await pluginClansFor(userId);
+  assert.equal(row.liveCount, 1);
+});

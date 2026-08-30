@@ -725,6 +725,24 @@ export const eventParticipants = pgTable('event_participants', {
   // display override (useful if an RSN changes mid-event). New enrollments should
   // always supply clanMemberId; legacy rows have it backfilled.
   clanMemberId: integer('clan_member_id').references(() => clanMemberships.id, { onDelete: 'set null' }),
+  // THE ACCOUNT — which is what actually identifies somebody on a board.
+  //
+  // `clanMemberId` is a SEAT, meaning (clan, account), and that was a faithful proxy for the person
+  // while one deployment served one clan: an account had exactly one seat, so seat and account were
+  // the same fact wearing two names. Cross-clan play separates them. The same account holds a member
+  // seat in its own clan AND a guest seat in the host clan, so the two doors onto a co-hosted board —
+  // entering it yourself, and a co-host's staff rostering their own members — hand out two DIFFERENT
+  // seat ids for one human. Every de-duplication check keyed on the seat, so both doors could seat
+  // the same person twice: doubled stat gains, two rows on the roster, two fees owed.
+  //
+  // The account is the unit that must not appear twice, and the partial unique index below is what
+  // makes that true rather than merely intended — nine separate code paths insert into this table,
+  // and a rule enforced in nine places is a rule waiting to be forgotten in a tenth.
+  //
+  // Nullable for the same reason `clan_member_id` is: a participant outlives the seat it came from,
+  // and a row can exist before any seat does. NULLs are exempt from the index, which is what the
+  // `where` clause buys — one unseated row does not block the next.
+  accountId: integer('account_id').references(() => accounts.id, { onDelete: 'set null' }),
   name: text('name').notNull(),
   discord: text('discord'),
   timezone: text('timezone'),
@@ -773,6 +791,11 @@ export const eventParticipants = pgTable('event_participants', {
   caTasks: integer('ca_tasks').default(0),
 }, (table) => [
   uniqueIndex('player_token_unique').on(table.playerToken),
+  // One row per account per event. See the accountId column above for why the seat could not carry
+  // this. Partial, so any number of rows that have no account yet can coexist.
+  uniqueIndex('event_participants_event_account_unique')
+    .on(table.eventId, table.accountId)
+    .where(sql`account_id is not null`),
   index('players_event_id_idx').on(table.eventId),
   index('players_event_team_idx').on(table.eventId, table.teamId),
   index('players_clan_member_id_idx').on(table.clanMemberId),
