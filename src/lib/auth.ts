@@ -1,12 +1,12 @@
 import { cookies } from 'next/headers';
-import { atLeast } from '@/lib/clanRoles';
+import { atLeast, type ClanRole } from '@/lib/clanRoles';
 import { clanGrant } from '@/lib/clanGrants';
 import { liveActAs } from '@/lib/actAs';
 import { currentClan } from '@/lib/clanContext';
 import crypto from 'crypto';
 import { db } from '@/db';
 import { resolveClanById, resolveClanFromRequest, type ClanContext } from '@/lib/clanContext';
-import { accounts, clanAuditLog, clanMemberships, clanRoster, clans, detectedAccounts, eventEditors, eventParticipants, events, players, pluginLinks, teams, users } from '@/db/schema';
+import { accounts, clanAuditLog, clanMemberships, clanRoster, clanStaff, clans, detectedAccounts, eventEditors, eventParticipants, events, players, pluginLinks, teams, users } from '@/db/schema';
 import { findOrCreateAccount, findOrCreateSeat, findRosterSeat, findRosterSeats, personOf, personOfOrCreate, seatsOwnedBy, seatsOwnedByAnywhere, UNCLAIMED_ACCOUNT, updateAccountOfSeat } from '@/lib/roster';
 import { and, desc, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { requireSecret } from '@/lib/env';
@@ -1240,38 +1240,53 @@ export async function verifyPluginToken(
   };
 }
 
-// Authenticates admin-only plugin actions like clan-sync. There is no separate
-// admin-linked token to manage anymore: an admin simply uses their single per-user
-// account token (`users.plugin_token`), and authority comes from their *site* role.
+// ── Staff actions over the plugin (roster sync) ─────────────────────────────────────────────
 //
-// Transition: a legacy dedicated admin link token (`pluginLinks`) is still accepted so
-// existing installs keep working until they switch to sending the account token. Drop
-// that fallback once every install has migrated.
-export async function verifyAdminPluginToken(
-  request: Request
-): Promise<{ userId: number } | null> {
+// WHO is asking and WHAT THEY MAY DO are two questions here, and they have to be asked in that
+// order, because the clan is not known until the second one.
+//
+// They used to be one question, answered by `users.role === 'admin'`. That column is deprecated —
+// the schema says so in as many words — and on a platform it cannot express the thing it is being
+// asked: with many clans on one deployment, a global role makes every admin an admin everywhere.
+// It also made roster sync unreachable for the people who actually run the clans. A clan created
+// here gets `clan_staff.role = 'owner'` and leaves `users.role` at 'member', so every clan except
+// the genesis account's was refused — and roster sync is the only path to membership AND to
+// in-game verification, which meant a new clan could not get its members in at all.
+//
+// `clan-sync` is why these are split rather than one clan-aware call. It resolves its clan from the
+// IN-GAME NAME in the body, deliberately, because that is an exact answer where every other signal
+// is a guess and this endpoint writes a roster. So the body has to be parsed before the clan is
+// known, and the caller has to be authenticated before the body is parsed.
+
+/**
+ * WHO — the person behind a plugin bearer token. Says nothing about what they may do.
+ *
+ * Transition: a legacy dedicated admin link token (`pluginLinks`) is still accepted so existing
+ * installs keep working until they switch to sending the account token. Drop that fallback once
+ * every install has migrated.
+ */
+export async function pluginTokenPerson(request: Request): Promise<{ userId: number } | null> {
   const authHeader = request.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) return null;
   const token = authHeader.slice(7).trim();
   if (!token) return null;
 
-  // Preferred: the per-user account token, authorized by the user's admin role.
+  // Preferred: the per-user account token.
   const user = await userByPluginToken(token);
-  if (user) return user.role === 'admin' ? { userId: user.id } : null;
+  if (user) return { userId: user.id };
 
-  // Legacy: dedicated admin link token. Temporary back-compat during the cutover.
   const link = await db.query.pluginLinks.findFirst({
     where: and(eq(pluginLinks.token, token), isNull(pluginLinks.revokedAt)),
   });
   if (!link) return null;
 
-  // Re-check the linked user's CURRENT role — a legacy admin token must stop granting admin power
-  // the moment the user is demoted, matching the account-token path above.
+  // The legacy token still has to name a live user; authority is asked for separately below, so a
+  // revoked grant stops it just as it stops the account-token path.
   const linkUser = await db.query.users.findFirst({
     where: eq(users.id, link.userId),
-    columns: { id: true, role: true },
+    columns: { id: true },
   });
-  if (linkUser?.role !== 'admin') return null;
+  if (!linkUser) return null;
 
   // Fire-and-forget lastUsedAt bump — ok if it races
   db.update(pluginLinks)
@@ -1280,6 +1295,47 @@ export async function verifyAdminPluginToken(
     .catch(() => {});
 
   return { userId: link.userId };
+}
+
+/**
+ * WHAT — does this person hold at least `min` in THIS clan?
+ *
+ * The same rule `verifyUser` applies to a web session, and deliberately so: an authority model with
+ * two answers depending on which client asked is a model with a hole in it. A real `clan_staff`
+ * grant first; failing that, an operator's temporary, expiring, logged act-as grant — which is
+ * gated on `platformRole` first so a normal member never pays for a lookup that could only come
+ * back empty.
+ */
+export async function pluginClanAuthority(
+  clanId: number,
+  userId: number,
+  min: ClanRole = 'admin',
+): Promise<boolean> {
+  const grant = await clanGrant(clanId, userId);
+  if (grant) return atLeast(grant.role, min);
+
+  const row = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { platformRole: true },
+  });
+  if ((row?.platformRole ?? 'none') === 'none') return false;
+  const borrowed = await liveActAs(clanId, userId);
+  return borrowed != null && atLeast(borrowed.role, min);
+}
+
+/**
+ * Is this person staff anywhere at all, at `min` or better?
+ *
+ * For the plugin's "should I show the sync button?" probe, which happens before any clan is named:
+ * the roster push that follows carries its own clan name and is authorised against THAT clan, so
+ * this only has to answer whether the button could ever do anything.
+ */
+export async function staffsAnyClan(userId: number, min: ClanRole = 'admin'): Promise<boolean> {
+  const rows = await db
+    .select({ role: clanStaff.role })
+    .from(clanStaff)
+    .where(eq(clanStaff.userId, userId));
+  return rows.some((r) => atLeast(r.role, min));
 }
 
 export function generatePluginLinkCode(): string {

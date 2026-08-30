@@ -8,7 +8,7 @@ import { getSetting, setSetting } from '@/lib/settings';
 import { requirePluginClan } from '@/lib/auth';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, users } from '@/db/schema';
 import { and, desc, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm';
-import { isPlausibleRsn, normalizeRsn, sanitizeRsn, verifyAdminPluginToken } from '@/lib/auth';
+import { isPlausibleRsn, normalizeRsn, pluginClanAuthority, pluginTokenPerson, sanitizeRsn } from '@/lib/auth';
 import { sendDiscordWebhook } from '@/lib/discord';
 import { EMBED_COLOR } from '@/lib/discordEmbeds';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
@@ -53,7 +53,8 @@ export async function POST(request: Request) {
   const rl = await rateLimit(request, 'plugin-clan-sync', { limit: 12, windowMs: 60_000 });
   if (!rl.ok) return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
 
-  const auth = await verifyAdminPluginToken(request);
+  // WHO, before the body is read. WHAT they may do is asked below, once the body has named the clan.
+  const auth = await pluginTokenPerson(request);
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   let body: { clanName?: string; members?: IncomingMember[] };
@@ -72,6 +73,21 @@ export async function POST(request: Request) {
   // the body precisely so that name is available: it is an exact answer where the fallbacks are
   // guesses, and this is a write.
   const clan = await requirePluginClan(request, { inGameClanName: clanName });
+
+  // ── May THIS person write THIS clan's roster? ──────────────────────────────────────────────
+  //
+  // Asked here rather than at the top because the clan was not known up there. Authority is per
+  // clan: being an admin of one confers nothing in another, which is the single most important
+  // thing for a deployment that serves all of them to get right.
+  if (!(await pluginClanAuthority(clan.id, auth.userId, 'admin'))) {
+    return NextResponse.json(
+      {
+        error: 'notClanAdmin',
+        message: `You are not an admin of ${clan.name} on Anvil, so you cannot sync its roster. Ask an owner to give you the Admin role on the site.`,
+      },
+      { status: 403 },
+    );
+  }
 
   // ── Is this clan the clan it says it is? ───────────────────────────────────────────────────
   //
@@ -560,8 +576,13 @@ export async function POST(request: Request) {
 // when there were actual diffs), so a clean sync still surfaces.
 export async function GET(request: Request) {
   const clan = await requirePluginClan(request);
-  const auth = await verifyAdminPluginToken(request);
+  const auth = await pluginTokenPerson(request);
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // The address named the clan here, so both questions land together. Same 401 either way: this is
+  // a staff read, and telling a stranger which of the two they failed tells them nothing useful.
+  if (!(await pluginClanAuthority(clan.id, auth.userId, 'admin'))) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   const stored = await getSetting(clan.id, 'last_clan_sync');
   if (stored) {

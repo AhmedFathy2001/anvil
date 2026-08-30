@@ -390,6 +390,35 @@ itself, so the site keeps deciding and a member whose live board moves to their 
 it. `/api/plugin/auth/start` and `/auth/poll` are never addressed — they are about a person who does
 not have a clan yet.
 
+### Staff actions: who may push a roster
+
+`GET /api/plugin/me` and `POST /api/plugin/clan-sync` are the two staff surfaces. Authority for both
+is **per clan**, read live from `clan_staff`, at `admin` or better. An operator's temporary act-as
+grant also passes, exactly as it does for a web session — one authority model, whichever client asks.
+
+The two questions are asked separately, and in this order:
+
+1. **Who** — `pluginTokenPerson` resolves the bearer token to a person. A missing or unknown token is
+   a 401 and nothing else happens.
+2. **What** — `pluginClanAuthority(clanId, userId, 'admin')`, once the clan is known.
+
+`clan-sync` needs them apart because it resolves its clan from the **in-game clan name in the body**,
+so the body has to be parsed before the clan is known, and the caller authenticated before the body
+is read. A caller who is not staff of the resolved clan gets `403 { error: 'notClanAdmin' }`.
+
+`GET /api/plugin/me` answers "should I show the sync button?". If the address names a clan, it is
+scoped to that clan. If not, it answers whether the caller is staff of **any** clan — the roster push
+that follows carries its own clan name and is authorised against that, so the probe only has to say
+whether the button could ever do anything.
+
+> **Clients must not cache `isAdmin` across a clan change.** The same token is an owner in one clan
+> and a plain member in the next, so the answer belongs to the clan it was asked about.
+
+This replaced a check on `users.role`, a global column the schema marks deprecated. It was wrong in
+both directions: a clan created on the platform gets `clan_staff.role = 'owner'` and no global role,
+so its owner was refused outright — and anyone who did hold the global role read as an admin of every
+clan on the deployment.
+
 ### Telling a plugin where to go
 
 `server.canonicalUrl` on every `/config` shape carries the address the deployment prefers, and the

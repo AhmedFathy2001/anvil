@@ -73,6 +73,7 @@
     "test:discord-i18n": "node --experimental-strip-types --test tests/discord-i18n.test.ts",
     "test:pluginapex": "npx tsx --test tests/plugin-apex.test.ts tests/plugin-canonical-url.test.ts",
     "test:pluginclans": "npx tsx --test tests/plugin-clans.test.ts",
+    "test:pluginstaff": "npx tsx --test tests/plugin-staff-authority.test.ts",
     "test:sweepowner": "npx tsx --test tests/sweep-owner.test.ts",
     "test:apexhome": "npx tsx --test tests/apex-home-signals.test.ts"
   },
