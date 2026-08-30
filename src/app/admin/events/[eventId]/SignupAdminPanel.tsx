@@ -95,6 +95,7 @@ export default function SignupAdminPanel({
   const [configSaved, setConfigSaved] = useState(false);
 
   const [signups, setSignups] = useState<SignupRow[]>([]);
+  const [boardTeams, setBoardTeams] = useState<{ id: number; name: string; color: string }[]>([]);
   const [settlingFees, setSettlingFees] = useState(false);
   const [feeNotice, setFeeNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -125,8 +126,10 @@ export default function SignupAdminPanel({
     if (res.ok) {
       const data = await res.json();
       setSignups(data.signups ?? []);
+      setBoardTeams(data.teams ?? []);
     } else {
       setSignups([]);
+      setBoardTeams([]);
     }
   }, [event.id]);
 
@@ -143,7 +146,13 @@ export default function SignupAdminPanel({
 
   async function performAction(
     sigId: number,
-    body: { action: 'approve' | 'reject' | 'withdraw' | 'promote-captain' | 'demote-captain' | 'set-prize-exclusion'; teamName?: string; teamColor?: string; excludeFromPrizePool?: boolean },
+    body: {
+      action: 'approve' | 'reject' | 'withdraw' | 'promote-captain' | 'demote-captain' | 'set-prize-exclusion' | 'set-team';
+      teamName?: string;
+      teamColor?: string;
+      excludeFromPrizePool?: boolean;
+      teamId?: number | null;
+    },
   ) {
     setActingId(sigId);
     setActionError(null);
@@ -435,6 +444,10 @@ export default function SignupAdminPanel({
 
   // Teams that actually have someone on them, in board order — a filter offering empty teams reads
   // like a bug ("why is Red empty?") when it just means the draft hasn't reached them.
+  // Every team on the board, from the API — including ones nobody is on yet, which the filter
+  // below deliberately omits. Needed by the per-row team picker.
+  const allTeams = boardTeams;
+
   const teamOptions = useMemo(() => {
     const seen = new Map<number, { id: number; name: string; color: string }>();
     for (const s of signups) if (s.team) seen.set(s.team.id, s.team);
@@ -1002,6 +1015,35 @@ export default function SignupAdminPanel({
                               >
                                 Withdraw / remove
                               </button>
+                            )}
+                            {/* Put them on a different team. A pick made at sign-up is the applicant's
+                                REQUEST and the placement was always the host's to decide, so a typo
+                                or a change of plan shouldn't need a withdrawal and a re-application.
+                                Before approval this edits what they asked for; after it, it moves
+                                them — the server does whichever applies. */}
+                            {allTeams.length > 0 && (
+                              <label className="flex items-center gap-1.5 text-xs text-text-muted">
+                                <span className="whitespace-nowrap">{s.team ? 'On team' : 'Wants'}</span>
+                                <select
+                                  value={String(s.team?.id ?? s.requestedTeam?.id ?? '')}
+                                  disabled={actingId === s.id}
+                                  onChange={(e) =>
+                                    performAction(s.id, {
+                                      action: 'set-team',
+                                      teamId: e.target.value === '' ? null : Number(e.target.value),
+                                    })
+                                  }
+                                  className="px-2 py-1 rounded border border-card-border bg-brown-dark text-xs text-foreground disabled:opacity-50 focus:outline-none focus:border-gold"
+                                  title="Change which team this sign-up is on. Clearing it returns them to the pool."
+                                >
+                                  <option value="">No team (pool)</option>
+                                  {allTeams.map((t) => (
+                                    <option key={t.id} value={t.id}>
+                                      {t.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
                             )}
                             {s.status === 'approved' && (
                               <button
