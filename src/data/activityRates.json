@@ -1,5 +1,5 @@
 {
-  "source": "Wise Old Man EHB rates (MIT, https://github.com/wise-old-man/wise-old-man) for the fast band; OSRS Wiki money-making guides (Bucket: money_making_guide) for the slow band.",
+  "source": "Third-party EHB rates (MIT) for the fast band; OSRS Wiki money-making guides (Bucket: money_making_guide) for the slow band. See THIRD_PARTY_NOTICES.md.",
   "generatedAt": "2026-08-10T20:17:32.095Z",
   "note": "Kill-rate triplets [fast, average, slow] in seconds per kill. Layered UNDER the admin `balance_rates` override and OVER the curated defaults in balanceRates.json, which still owns accessibility floors, success rates, party sizes and the superior-slayer cost.",
   "spread": {

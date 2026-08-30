@@ -97,7 +97,7 @@ export function ArenaHero({ arena }: { arena: Arena }) {
           <div
             className="display text-[clamp(3.2rem,8vw,5rem)] font-bold leading-[0.85] tabular-nums"
             style={{
-              background: 'linear-gradient(160deg, var(--text) 20%, var(--gold) 90%)',
+              background: 'linear-gradient(160deg, var(--foreground) 20%, var(--gold) 90%)',
               WebkitBackgroundClip: 'text',
               backgroundClip: 'text',
               color: 'transparent',
@@ -122,7 +122,7 @@ export function ArenaHero({ arena }: { arena: Arena }) {
               {lane.position}
             </span>
             <span
-              className={`truncate text-sm ${lane.you ? 'font-semibold text-text' : 'text-text-muted'}`}
+              className={`truncate text-sm ${lane.you ? 'font-semibold text-foreground' : 'text-text-muted'}`}
             >
               {lane.rsn}
             </span>

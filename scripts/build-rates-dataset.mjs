@@ -9,8 +9,8 @@
 //
 // Sources, and what each one actually measures:
 //
-//   Wise Old Man's EHB table  — kills/hour at efficient play, 68 bosses. MIT licensed
-//     (Copyright (c) Wise Old Man contributors, https://github.com/wise-old-man/wise-old-man).
+//   A third-party EHB table  — kills/hour at efficient play, 68 bosses. MIT licensed
+//     (attribution in THIRD_PARTY_NOTICES.md; EHB_EFFICIENT_URL below is the functional fetch).
 //     This is the FAST band: best gear, best method, no banking waste.
 //
 //   The OSRS Wiki's money-making guides — kills/hour for a documented profitable method, ~149
@@ -39,7 +39,7 @@ const CURATED_PATH = resolve(HERE, '../src/data/balanceRates.json');
 
 const USER_AGENT = 'anvil-bingo rates dataset builder (contact: clan admin)';
 
-const WOM_EHB_URL =
+const EHB_EFFICIENT_URL =
   'https://raw.githubusercontent.com/wise-old-man/wise-old-man/master/server/src/api/modules/efficiency/configs/ehb/main.ehb.ts';
 const WIKI_API = 'https://oldschool.runescape.wiki/api.php';
 const WIKI_QUERY = 'bucket("money_making_guide").select("value","json").limit(2000).run()';
@@ -90,7 +90,7 @@ const ALIASES = new Map(
 const alias = (k) => ALIASES.get(k) ?? k;
 
 async function fetchWomRates() {
-  const res = await fetch(WOM_EHB_URL, { headers: { 'User-Agent': USER_AGENT } });
+  const res = await fetch(EHB_EFFICIENT_URL, { headers: { 'User-Agent': USER_AGENT } });
   if (!res.ok) throw new Error(`WOM EHB fetch failed: HTTP ${res.status} ${res.statusText}`);
   const src = await res.text();
   const rates = new Map();
@@ -208,8 +208,8 @@ async function main() {
 
   const out = {
     source:
-      'Wise Old Man EHB rates (MIT, https://github.com/wise-old-man/wise-old-man) for the fast band; ' +
-      'OSRS Wiki money-making guides (Bucket: money_making_guide) for the slow band.',
+      'Third-party EHB rates (MIT) for the fast band; ' +
+      'OSRS Wiki money-making guides (Bucket: money_making_guide) for the slow band. See THIRD_PARTY_NOTICES.md.',
     generatedAt: new Date().toISOString(),
     note:
       'Kill-rate triplets [fast, average, slow] in seconds per kill. Layered UNDER the admin ' +

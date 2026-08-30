@@ -161,7 +161,9 @@ export async function arenaFor(accountIds: number[]): Promise<Arena | null> {
     .orderBy(desc(gainExpr))
     .limit(1);
 
-  if (behind) {
+  // Only append the chaser when the visible ladder does not already reach them — the top-five view
+  // usually does, and pushing anyway put the same person on two consecutive rungs.
+  if (behind && !lanes.some((l) => l.position === best.position + 1)) {
     lanes.push({ position: best.position + 1, rsn: behind.rsn, gained: Number(behind.gained ?? 0), you: false });
   }
 

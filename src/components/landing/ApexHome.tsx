@@ -35,9 +35,16 @@ export default function ApexHome({
   signals: ApexSignals;
   displayName: string;
 }) {
-  const live = view.clans.filter((c) => c.live.length > 0);
+  // The arena already IS one of these, in full. Listing it again three inches below was the page
+  // saying the same thing twice, which is exactly the flatness the redesign was for.
+  const arenaId = signals.arena?.competitionId ?? null;
+  const clansWithOtherLive = view.clans
+    .map((c) => ({ ...c, live: c.live.filter((l) => !(l.kind === 'weekly' && l.id === arenaId)) }))
+    .filter((c) => c.live.length > 0);
+
+  const live = clansWithOtherLive;
   const needsYou = view.clans.filter((c) => c.staff && c.live.length === 0);
-  const running = view.clans.reduce((n, c) => n + c.live.length, 0);
+  const running = live.reduce((n, c) => n + c.live.length, 0);
   const quiet =
     running === 0 && needsYou.length === 0 && view.openSignups.length === 0 && view.clans.length > 0;
 

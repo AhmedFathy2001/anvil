@@ -144,9 +144,9 @@ export interface EffortReport {
 // ---- Rates access -------------------------------------------------------------------
 
 /**
- * Kill times, sourced. `npm run data:rates` derives these from Wise Old Man's EHB table (efficient
+ * Kill times, sourced. `npm run data:rates` derives these from a third-party EHB rate table (efficient
  * play → the fast band) and the wiki's money-making guides (a documented realistic method → the
- * slow band); see scripts/build-rates-dataset.mjs.
+ * slow band); see scripts/build-rates-dataset.mjs and THIRD_PARTY_NOTICES.md.
  *
  * They replace ONLY `killSeconds`, and only where the curated entry was that shape to begin with.
  * Accessibility floors stay curated because neither source has a notion of "can an average clan

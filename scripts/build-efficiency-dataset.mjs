@@ -6,9 +6,9 @@
 // becomes a runtime dependency on somebody else's uptime, and self-hosted instances work offline.
 // What we borrow is the part that genuinely needs a community behind it — the rates themselves.
 //
-// Source: Wise Old Man's efficiency configs (MIT licensed —
-// Copyright (c) Wise Old Man contributors, https://github.com/wise-old-man/wise-old-man).
+// Source: a third-party MIT-licensed set of efficiency configs (attribution in THIRD_PARTY_NOTICES.md).
 // They track game updates continuously, which is exactly the maintenance we don't want to duplicate.
+// The RAW_BASE URL below is the functional fetch endpoint for that MIT data.
 //
 // All nine EHP variants and four EHB variants are captured, not just `main`. We only *select* main
 // today (we read main-mode hiscores and don't detect account type yet), but pulling the rest now
@@ -174,7 +174,7 @@ async function main() {
   }
 
   const out = {
-    source: 'Wise Old Man efficiency configs (MIT) — https://github.com/wise-old-man/wise-old-man',
+    source: 'Third-party efficiency configs (MIT) — see THIRD_PARTY_NOTICES.md',
     generatedAt: new Date().toISOString(),
     // Bumped by hand when the SHAPE changes. A control-plane feed can compare this to decide whether
     // a pushed table is compatible with the engine an instance is running.

@@ -1,4 +1,5 @@
-// Checks our EHP/EHB engine against Wise Old Man's, on real accounts.
+// Checks our EHP/EHB engine against the reference implementation's, on real accounts.
+// (The reference and its API are attributed in THIRD_PARTY_NOTICES.md.)
 //
 // We compute efficiency locally (src/lib/efficiency.ts) so nothing depends on their uptime at
 // runtime — but agreeing with the number the rest of the community quotes is the entire value of the
@@ -11,9 +12,9 @@
 // Usage:  npx tsx scripts/verify-efficiency.mts [username…]
 //         npx tsx scripts/verify-efficiency.mts --tolerance 0.01
 //
-// A mismatch means one of: the rate tables have drifted (re-run `npm run data:efficiency`), WOM
-// changed their algorithm, or the port is wrong. The first two are expected occasionally; treat the
-// third as a bug.
+// A mismatch means one of: the rate tables have drifted (re-run `npm run data:efficiency`), the
+// reference changed its algorithm, or the port is wrong. The first two are expected occasionally;
+// treat the third as a bug.
 
 import { computeEfficiency } from '../src/lib/efficiency';
 import type { HiscoresSnapshot } from '../src/lib/hiscores';
@@ -54,7 +55,7 @@ function toSnapshot(player: WomPlayer): HiscoresSnapshot {
   const data = player.latestSnapshot?.data ?? {};
   const skills: HiscoresSnapshot['skills'] = {};
   for (const [name, entry] of Object.entries(data.skills ?? {})) {
-    // WOM says "runecrafting"; our hiscores parser says "runecraft".
+    // The reference says "runecrafting"; our hiscores parser says "runecraft".
     const key = name === 'runecrafting' ? 'runecraft' : name;
     skills[key] = { rank: 0, level: 0, xp: Math.max(0, entry?.experience ?? 0) };
   }
@@ -67,7 +68,7 @@ function toSnapshot(player: WomPlayer): HiscoresSnapshot {
   return { skills, bosses } as HiscoresSnapshot;
 }
 
-// WOM's metric names and our boss keys differ in punctuation and case (`kreearra` vs `kreeArra`,
+// The reference's metric names and our boss keys differ in punctuation and case (`kreearra` vs `kreeArra`,
 // `tzkal_zuk` vs `tzKalZuk`), so match on letters and digits alone — the same reduction the dataset
 // builder uses — with the handful of genuine renames spelled out.
 const flatten = (s: string) => s.toLowerCase().replace(/^the[_\s]/, '').replace(/[^a-z0-9]/g, '');
@@ -92,8 +93,8 @@ async function main() {
   const players = args.filter((a, i) => !a.startsWith('--') && i !== tolIdx + 1);
   const usernames = players.length > 0 ? players : DEFAULT_PLAYERS;
 
-  console.log(`Comparing our engine against WOM for ${usernames.length} accounts (tolerance ${tolerance}h)\n`);
-  console.log(`${'account'.padEnd(14)} ${'our EHP'.padStart(10)} ${'WOM EHP'.padStart(10)}  ${'our EHB'.padStart(9)} ${'WOM EHB'.padStart(9)}   verdict`);
+  console.log(`Comparing our engine against the reference for ${usernames.length} accounts (tolerance ${tolerance}h)\n`);
+  console.log(`${'account'.padEnd(14)} ${'our EHP'.padStart(10)} ${'ref EHP'.padStart(10)}  ${'our EHB'.padStart(9)} ${'ref EHB'.padStart(9)}   verdict`);
 
   let failures = 0;
   let checked = 0;

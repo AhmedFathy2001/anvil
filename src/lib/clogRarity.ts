@@ -1,5 +1,5 @@
 import npcDrops from '@/data/npcDrops.json'; // regenerate with `npm run data:drops`
-import efficiencyRates from '@/data/efficiencyRates.json'; // Wise Old Man EHB rates (kills per hour)
+import efficiencyRates from '@/data/efficiencyRates.json'; // third-party EHB rates, kills per hour (THIRD_PARTY_NOTICES.md)
 import { BOSSES } from '@/lib/constants';
 import { clogItemNames, clogPageNames, clogPageOfItem } from '@/lib/clogDataset';
 
@@ -23,7 +23,7 @@ export interface ItemRarity {
   /** The source those odds belong to — "1 in 5,000 from Zulrah" is the sentence. */
   source: string;
   /**
-   * EFFICIENT hours to see one: the rate over Wise Old Man's kills-per-hour for that content. Null
+   * EFFICIENT hours to see one: the rate over the third-party kills-per-hour table for that content. Null
    * where we have no rate for the source.
    *
    * Efficient, not expected. Those rates are the theoretical maximum — 3.7 Tombs of Amascut an hour
