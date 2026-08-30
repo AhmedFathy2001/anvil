@@ -41,11 +41,13 @@ export async function PATCH(
   }
 
   const body = (await request.json().catch(() => null)) as {
-    action?: 'approve' | 'reject' | 'withdraw' | 'promote-captain' | 'demote-captain' | 'edit-answers' | 'set-prize-exclusion';
+    action?: 'approve' | 'reject' | 'withdraw' | 'promote-captain' | 'demote-captain' | 'edit-answers' | 'set-prize-exclusion' | 'set-team';
     teamName?: string;
     teamColor?: string;
     profile?: Record<string, unknown>;
     excludeFromPrizePool?: boolean;
+    /** set-team: the team to place them on, or null to clear the request. */
+    teamId?: number | null;
   } | null;
   if (!body || !body.action) {
     return NextResponse.json({ error: 'action is required' }, { status: 400 });
@@ -75,6 +77,53 @@ export async function PATCH(
   };
 
   switch (body.action) {
+    // Correct which team a sign-up asked for — a mistyped pick, or a captain and applicant who
+    // agreed something different after the fact. The applicant's own answer stays as they wrote it
+    // (profileData is theirs); this is the placement, which was always the host's to decide.
+    case 'set-team': {
+      const raw = body.teamId;
+      // null clears the request: back to no preference, draftable from the pool like anyone else.
+      const wantedId = raw == null ? null : Number(raw);
+      if (wantedId != null && !Number.isFinite(wantedId)) {
+        return NextResponse.json({ error: 'teamId must be a team id or null' }, { status: 400 });
+      }
+
+      // Re-read the team rather than trusting the id: a team from ANOTHER event would otherwise
+      // seat somebody onto a board they never signed up for.
+      let team: { id: number; name: string } | null = null;
+      if (wantedId != null) {
+        const found = await db.query.teams.findFirst({ where: eq(teams.id, wantedId) });
+        if (!found || found.eventId !== evtId) {
+          return NextResponse.json({ error: 'That team is not on this event.' }, { status: 400 });
+        }
+        team = { id: found.id, name: found.name };
+      }
+
+      await db
+        .update(eventSignups)
+        .set({ requestedTeamId: team?.id ?? null, updatedAt: now })
+        .where(eq(eventSignups.id, sigId));
+
+      // If they're already seated, move them with it. A pending sign-up has no player row yet, and
+      // approving reads requestedTeamId — so the correction lands either way, before or after.
+      //
+      // Deliberately moves a player who is ALREADY on a team, unlike approve (which leaves an
+      // existing placement alone). Approve is answering a request; this IS the host changing the
+      // placement, and refusing to move them would make the action useless for the case it exists
+      // for — fixing a mistake that has already been approved.
+      const seated = await db.query.players.findFirst({
+        where: and(eq(players.eventId, evtId), eq(players.clanMemberId, signup.clanMemberId)),
+      });
+      if (seated && seated.teamId !== (team?.id ?? null)) {
+        await db
+          .update(players)
+          .set({ teamId: team?.id ?? null })
+          .where(eq(players.id, seated.id));
+      }
+
+      logAction('signup_team_changed', { teamId: team?.id ?? null, teamName: team?.name ?? null });
+      return NextResponse.json({ ok: true, teamId: team?.id ?? null, teamName: team?.name ?? null });
+    }
     case 'approve': {
       const [updated] = await db
         .update(eventSignups)

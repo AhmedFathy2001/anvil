@@ -106,7 +106,10 @@ export async function GET(
       : null,
   }));
 
-  return NextResponse.json({ signups });
+  // Every team on the board, including empty ones. The panel's team FILTER deliberately lists only
+  // teams somebody is on (an empty option there reads like a bug), but the team PICKER has to offer
+  // them all — moving somebody onto a team nobody is on yet is a normal thing to want.
+  return NextResponse.json({ signups, teams: eventTeams.map((t) => ({ id: t.id, name: t.name, color: t.color })) });
 }
 
 // Admin-only: sign a member up on their behalf and fill in their answers. Exists for the
