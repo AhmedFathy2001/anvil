@@ -78,7 +78,7 @@ test('infrastructure names are reserved too', async () => {
 
 test('a new clan is free, active, and owned by its creator', async () => {
   const { db, schema: s } = await loadDb();
-  const r = await createClan({ slug: 'newclan', name: 'New Clan', ownerUserId: owner });
+  const r = await createClan({ slug: 'newclan', name: 'New Clan', inGameName: 'New Clan CC', ownerUserId: owner });
   assert.equal(r.ok, true);
   if (!r.ok) return;
 
@@ -95,7 +95,7 @@ test('a new clan is free, active, and owned by its creator', async () => {
 
 test('creation is logged in the clan\'s own history', async () => {
   const { db, schema: s } = await loadDb();
-  const r = await createClan({ slug: 'loggedclan', name: 'Logged Clan', ownerUserId: owner });
+  const r = await createClan({ slug: 'loggedclan', name: 'Logged Clan', inGameName: 'Logged CC', ownerUserId: owner });
   assert.equal(r.ok, true);
   if (!r.ok) return;
 
@@ -104,26 +104,38 @@ test('creation is logged in the clan\'s own history', async () => {
 });
 
 test('a taken slug is refused, and refused as "taken"', async () => {
-  await createClan({ slug: 'takenclan', name: 'Taken', ownerUserId: owner });
-  const again = await createClan({ slug: 'takenclan', name: 'Taken Again', ownerUserId: owner });
+  await createClan({ slug: 'takenclan', name: 'Taken', inGameName: 'Taken CC', ownerUserId: owner });
+  const again = await createClan({ slug: 'takenclan', name: 'Taken Again', inGameName: 'Taken CC', ownerUserId: owner });
   assert.equal(again.ok, false);
   if (again.ok) return;
   assert.match(again.error, /taken/i);
 });
 
 test('a reserved slug is refused even though nothing occupies it', async () => {
-  const r = await createClan({ slug: 'admin', name: 'Sneaky', ownerUserId: owner });
+  const r = await createClan({ slug: 'admin', name: 'Sneaky', inGameName: 'Sneaky CC', ownerUserId: owner });
   assert.equal(r.ok, false);
   if (r.ok) return;
   assert.match(r.error, /reserved/i);
 });
 
-test('a blank name is refused before anything is written', async () => {
+test('a blank IN-GAME name is refused before anything is written', async () => {
+  // Which name is the required one flipped when roster sync became the point: the in-game name is
+  // what a pushed roster is matched against, so a clan without one can never receive members.
   const { db, schema: s } = await loadDb();
   const before = (await db.select().from(s.clans)).length;
-  const r = await createClan({ slug: 'nonameclan', name: '   ', ownerUserId: owner });
+  const r = await createClan({ slug: 'nonameclan', name: 'Has A Display Name', inGameName: '  ', ownerUserId: owner });
   assert.equal(r.ok, false);
+  if (!r.ok) assert.match(r.error, /in-game clan name/i);
   assert.equal((await db.select().from(s.clans)).length, before, 'nothing half-created');
+});
+
+test('a blank display name falls back to the in-game one rather than being refused', async () => {
+  const { db, schema: s } = await loadDb();
+  const r = await createClan({ slug: 'fallbackclan', name: '   ', inGameName: 'Fallback CC', ownerUserId: owner });
+  assert.equal(r.ok, true, 'the display name is optional now');
+  if (!r.ok) return;
+  const clan = await db.query.clans.findFirst({ where: eq(s.clans.id, r.clanId) });
+  assert.equal(clan?.name, 'Fallback CC');
 });
 
 test('no clan is ever created without an owner', async () => {
@@ -143,11 +155,11 @@ test('no clan is ever created without an owner', async () => {
 });
 
 test('the slug is normalised, so Casing and spaces cannot smuggle a duplicate', async () => {
-  const r = await createClan({ slug: '  MixedCase  ', name: 'Mixed', ownerUserId: owner });
+  const r = await createClan({ slug: '  MixedCase  ', name: 'Mixed', inGameName: 'Mixed CC', ownerUserId: owner });
   assert.equal(r.ok, true);
   if (!r.ok) return;
   assert.equal(r.slug, 'mixedcase');
 
-  const dupe = await createClan({ slug: 'MIXEDCASE', name: 'Dupe', ownerUserId: owner });
+  const dupe = await createClan({ slug: 'MIXEDCASE', name: 'Dupe', inGameName: 'Dupe CC', ownerUserId: owner });
   assert.equal(dupe.ok, false, 'the same host, so the same clan');
 });
