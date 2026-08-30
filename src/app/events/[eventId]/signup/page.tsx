@@ -52,6 +52,10 @@ export default async function EventSignupPage({
     }
   }
 
+  // SCOPED TO THE EVENT'S CLAN. A sign-up seat (event_signups.clan_member_id) has to be a seat in the
+  // event's own clan, so the character options are the person's seats HERE — not across every clan.
+  // Without the clanId filter, someone with the same character seated in two clans (a member of one,
+  // a guest of another) saw that character listed once per seat: "Playing as … Denoverse, Denoverse".
   const myAccounts = await db
     .select({
       id: clanRoster.id,
@@ -64,6 +68,7 @@ export default async function EventSignupPage({
     .from(clanRoster)
     .where(
       and(
+        eq(clanRoster.clanId, event.clanId),
         eq(clanRoster.playerId, session.playerId),
         isNull(clanRoster.leftAt),
       ),
