@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { requirePluginClan } from '@/lib/auth';
+import { resolvePluginClan } from '@/lib/auth';
 import { clanMemberships, clanRoster, events, weeklyCompetitions } from '@/db/schema';
 import { findOrCreateAccount, findOrCreateSeat, findRosterSeat } from '@/lib/roster';
 import { eq, and, lte, gt, isNull, or } from 'drizzle-orm';
@@ -44,8 +44,17 @@ async function activeNow(clan: { id: number }) {
 // which is recoverable from the admin UI — but it's unauthenticated and creates a row per distinct
 // RSN, so a per-IP rate limit stops a script from mass-inflating the roster.
 export async function POST(request: Request) {
-  // Unauthenticated, so the Host is the only thing that names the clan being written to.
-  const clan = await requirePluginClan(request);
+  // The address names the clan, or — for a client that sends its token — the token does.
+  //
+  // Answered rather than thrown when neither does. This is a greeting: a client says "this RSN just
+  // logged in" and reads back what is running. On the canonical address an older jar sends no token,
+  // so nothing names a clan, and `requirePluginClan` threw — surfacing as a 500 on every login for a
+  // question that simply has no answer there. Nothing running is the honest answer, and it is one
+  // those builds already handle.
+  const clan = await resolvePluginClan(request);
+  if (!clan) {
+    return NextResponse.json({ activeWeekly: [], activeBingos: [] });
+  }
   const rl = await rateLimit(request, 'plugin-hello', { limit: 30, windowMs: 5 * 60 * 1000 });
   if (!rl.ok) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });

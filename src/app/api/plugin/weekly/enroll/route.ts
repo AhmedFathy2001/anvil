@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { requirePluginClan } from '@/lib/auth';
+import { resolvePluginClan } from '@/lib/auth';
 import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { findOrCreateClanMember } from '@/lib/clan';
@@ -21,7 +21,9 @@ export async function POST(request: Request) {
   }
 
   // Unauthenticated, so the HOST is the only thing that says which clan to enrol into.
-  const clan = await requirePluginClan(request);
+  // As with hello: a clanless address has no competition to enrol into, and saying so beats a 500.
+  const clan = await resolvePluginClan(request);
+  if (!clan) return NextResponse.json({ enrolled: false });
 
   let body: { rsn?: string };
   try {

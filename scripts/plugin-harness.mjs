@@ -55,6 +55,12 @@ let passed = 0;
 const failures = [];
 let currentAddress = '';
 
+/** A status plus whatever the server said about it — every refusal here carries a readable reason. */
+function why(res) {
+  const msg = res.json?.error ?? res.json?.message ?? (res.raw ?? '').slice(0, 120);
+  return `status ${res.status}${msg ? `: ${msg}` : ''}`;
+}
+
 function check(name, ok, detail) {
   if (ok) {
     passed++;
@@ -119,7 +125,8 @@ async function seed() {
       [alpha.id, user.id]);
 
     const [account] = await q(
-      `INSERT INTO accounts (player_id, rsn, rsn_normalized) VALUES ($1,$2,$3) RETURNING id`,
+      `INSERT INTO accounts (player_id, rsn, rsn_normalized, verified_at, verification_method, claimed_at, provisional, is_primary)
+       VALUES ($1,$2,$3, now()::text, 'harness', now()::text, 0, 1) RETURNING id`,
       [person.id, RSN, RSN.toLowerCase()],
     );
     const [seatA] = await q(
@@ -148,9 +155,11 @@ async function seed() {
       [event.id, seatA.id, team.id, RSN],
     );
     const tiles = [];
-    for (let i = 0; i < 4; i++) {
+    // One per address run, plus slack: a filed submission completes its tile, so runs cannot share.
+    for (let i = 0; i < 8; i++) {
       const [t] = await q(
-        `INSERT INTO tiles (event_id, position, label, points) VALUES ($1,$2,$3,1) RETURNING id`,
+        `INSERT INTO tiles (event_id, position, label, points, tile_type, required_amount)
+         VALUES ($1,$2,$3,1,'drop',1) RETURNING id`,
         [event.id, i, `Tile ${i}`],
       );
       tiles.push(t.id);
@@ -330,7 +339,7 @@ async function checkMiddleware(port) {
  * `prefix` is what the plugin puts in front of every clan-scoped path once it knows which clan it
  * means — "" while it is letting the token decide, "/c/<slug>" after.
  */
-async function runSequence(port, { label, host, prefix, expectClan, newJar, fx }) {
+async function runSequence(port, { label, host, prefix, expectClan, newJar, fx, tile = 0 }) {
   currentAddress = label;
   console.log(`\n  ${label}`);
 
@@ -372,10 +381,19 @@ async function runSequence(port, { label, host, prefix, expectClan, newJar, fx }
   check('active-weekly answers', weekly.status === 200, `status ${weekly.status}`);
 
   // 5. The board, both ways in.
-  const board = await get('/api/plugin/board', { token: TOKEN });
-  check('board (token-scoped) answers', board.status === 200, `status ${board.status}`);
+  const board = await get('/api/plugin/board', { token: TOKEN, headers: { 'X-RSN': RSN } });
+  const playingHere = expectClan === 'alpha';
+  check(playingHere ? 'board answers for the clan they are playing in'
+    : 'no board where they hold a seat but play nothing (expected)',
+    playingHere ? board.status === 200 : board.status === 401, why(board));
+  // Anonymous by design, so it resolves the clan from the ADDRESS alone. On the bare apex nothing
+  // names one and it cannot answer — correct, and no longer reachable from the plugin, which stopped
+  // calling it when the collection-log tab went. Pinned so the shape stays understood.
   const preview = await get(`/api/plugin/board?eventId=${fx.event}`);
-  check('board preview by id answers', preview.status === 200, `status ${preview.status}`);
+  const previewShouldWork = prefix === '/c/alpha' || host !== APEX;
+  check(previewShouldWork ? 'anonymous board preview answers when the address names its clan'
+    : 'anonymous board preview cannot resolve without an address (expected)',
+    previewShouldWork ? preview.status === 200 : preview.status === 404, why(preview));
 
   // 6. The pushes — the plugin's actual job.
   const stats = await post('/api/plugin/stats', { rsn: RSN, stats: { slayer: 1_000_000 } },
@@ -395,18 +413,21 @@ async function runSequence(port, { label, host, prefix, expectClan, newJar, fx }
   //    is why the plugin echoes the slug back. On the bare apex with no prefix they cannot resolve,
   //    and a client that does not address a clan gets a 404 here — the hole this whole cutover is
   //    about. Asserted as "works when addressed" rather than "always works".
+  // The board belongs to alpha. Addressing bravo must NOT reach it — that is the cross-clan leak
+  // this whole scoping exists to prevent, so there a 404 is the pass condition, not a failure.
+  const foreign = expectClan !== 'alpha';
   const submission = await post(`/api/events/${fx.event}/submissions`,
-    { tileId: fx.tiles[0], teamId: fx.team, amount: 1 }, { token: TOKEN, headers: { 'X-RSN': RSN } });
-  const addressed = prefix !== '' || host !== APEX;
-  check(addressed ? 'submission filed on an addressed clan' : 'submission on the BARE apex (known hole)',
-    addressed ? submission.status < 400 : true, `status ${submission.status}`);
-  if (!addressed && submission.status === 404) {
-    console.log('          note: 404 as expected — nothing in the URL names a clan');
-  }
+    {
+      tileId: fx.tiles[tile], teamId: fx.team, amount: 1,
+      imageUrl: 'https://harness.blob.vercel-storage.com/submissions/harness.webp',
+    },
+    { token: TOKEN, headers: { 'X-RSN': RSN } });
+  check(foreign ? 'another clan’s board is not reachable from here' : 'submission filed',
+    foreign ? submission.status === 404 : submission.status < 400, why(submission));
 
   const proof = await get(`/api/events/${fx.event}/start-proof`, { token: TOKEN, headers: { 'X-RSN': RSN } });
-  check(addressed ? 'start-proof reachable on an addressed clan' : 'start-proof on the BARE apex (known hole)',
-    addressed ? proof.status < 400 : true, `status ${proof.status}`);
+  check(foreign ? 'another clan’s starting shot is not reachable either' : 'start-proof reachable',
+    foreign ? proof.status === 404 : proof.status < 400, why(proof));
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────────────────────────
@@ -428,23 +449,23 @@ async function main() {
 
     // The three addresses a client in the field can hold, and the two shapes it can speak in.
     await runSequence(port, {
-      label: 'apex, new jar (token everywhere)', host: APEX, prefix: '',
+      label: 'apex, new jar (token everywhere)', tile: 0, host: APEX, prefix: '',
       expectClan: 'alpha', newJar: true, fx,
     });
     await runSequence(port, {
-      label: 'apex, old jar (anonymous legacy reads)', host: APEX, prefix: '',
+      label: 'apex, old jar (anonymous legacy reads)', tile: 1, host: APEX, prefix: '',
       expectClan: 'alpha', newJar: false, fx,
     });
     await runSequence(port, {
-      label: 'apex + /c/alpha prefix (what a new jar addresses)', host: APEX, prefix: '/c/alpha',
+      label: 'apex + /c/alpha prefix (what a new jar addresses)', tile: 2, host: APEX, prefix: '/c/alpha',
       expectClan: 'alpha', newJar: true, fx,
     });
     await runSequence(port, {
-      label: 'apex + /c/bravo prefix (a clan they are only a guest in)', host: APEX, prefix: '/c/bravo',
+      label: 'apex + /c/bravo prefix (a clan they are only a guest in)', tile: 3, host: APEX, prefix: '/c/bravo',
       expectClan: 'bravo', newJar: true, fx,
     });
     await runSequence(port, {
-      label: 'legacy subdomain alpha.anvilosrs.com', host: `alpha.${APEX}`, prefix: '',
+      label: 'legacy subdomain alpha.anvilosrs.com', tile: 4, host: `alpha.${APEX}`, prefix: '',
       expectClan: 'alpha', newJar: false, fx,
     });
   } finally {

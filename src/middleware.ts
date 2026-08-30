@@ -52,6 +52,56 @@ async function verifyToken(token: string, secret: string): Promise<string | null
   return payload;
 }
 
+// ── Telling our own clan header apart from a forged one ─────────────────────────────────────
+//
+// `x-anvil-clan-slug` decides which clan a request is for, and lib/clanContext prefers it over the
+// Host. A client can put any header on a request, so an unstripped one lets anybody resolve any
+// clan on a host that is not theirs — exactly the property the Host-as-allowlist-key design exists
+// to hold. It has to be stripped.
+//
+// But it cannot be stripped unconditionally, which is what it did before, because MIDDLEWARE RUNS
+// TWICE on a rewritten path:
+//
+//     pass 1   /c/bravo/api/plugin/config   no slug in  →  sets slug=bravo, rewrites to /api/…
+//     pass 2   /api/plugin/config           slug=bravo in →  deleted, and the path no longer says
+//                                                            which clan it was
+//
+// So every clan-prefixed request silently lost its clan and fell back to the Host or the token —
+// `/c/bravo/…` answering for alpha, and the routes that resolve a clan only from the address
+// (submissions, start-proof, upload) resolving nothing at all on the apex.
+//
+// The fix is to make the header self-proving. Pass 1 attaches an HMAC over the slug; the strip keeps
+// a slug that carries a valid one and drops everything else. A caller cannot forge it without the
+// secret, and never sees a valid one either — these headers travel inward to the route handler, not
+// outward to the client.
+const CLAN_HEADER_SECRET = requireSecret('ADMIN_SESSION_SECRET', 'dev-admin-secret');
+
+/** The proof that WE set this slug, on this deployment. Domain-separated from session tokens. */
+async function clanHeaderProof(slug: string): Promise<string> {
+  return hmacSign(`anvil-clan-header:${slug}`, CLAN_HEADER_SECRET);
+}
+
+/**
+ * Drop clan headers unless they are ours from an earlier pass over the same request.
+ *
+ * Fails closed: anything unproven is removed, so a forged header is worth nothing and the worst a
+ * broken proof can do is send the request back to resolving its clan from the address.
+ */
+async function stripForeignClanHeaders(request: NextRequest, downstream: Headers): Promise<void> {
+  const slug = request.headers.get('x-anvil-clan-slug');
+  const proof = request.headers.get('x-anvil-clan-proof');
+  const ours = !!slug && !!proof && constantTimeEqual(proof, await clanHeaderProof(slug));
+  if (ours) {
+    // Re-derive the prefix rather than trusting the one that arrived: only the slug is proven, and
+    // one signed value should not vouch for a second unsigned one travelling beside it.
+    downstream.set('x-anvil-clan-prefix', `/c/${slug}`);
+    return;
+  }
+  downstream.delete('x-anvil-clan-slug');
+  downstream.delete('x-anvil-clan-prefix');
+  downstream.delete('x-anvil-clan-proof');
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -69,18 +119,12 @@ export async function middleware(request: NextRequest) {
   //
   // API calls carry the prefix too — `/c/<slug>/api/...` — so a request is self-describing about
   // which clan it is for, rather than depending on a header the caller might forget to send.
-  // THESE HEADERS ARE OURS, NOT THE CALLER'S.
-  //
-  // `x-anvil-clan-slug` decides which clan a request is for, and lib/clanContext prefers it over
-  // the Host. A client can put any header on a request, so unless it is stripped here first, anyone
-  // can send `x-anvil-clan-slug: <someone else>` and have the app resolve that clan on a host that
-  // is not theirs — which is exactly the property the Host-as-allowlist-key design exists to hold.
-  //
-  // Stripped unconditionally, on every request, before anything sets it. Only the branch below,
-  // having read the slug out of the URL itself, is allowed to put it back.
+  // THESE HEADERS ARE OURS, NOT THE CALLER'S — but "ours" is the hard half. See
+  // stripForeignClanHeaders: this used to strip unconditionally, which was correct about the
+  // attacker and wrong about us, because middleware runs a SECOND time on the rewritten path and
+  // the second pass threw away what the first had just decided.
   const downstream = new Headers(request.headers);
-  downstream.delete('x-anvil-clan-slug');
-  downstream.delete('x-anvil-clan-prefix');
+  await stripForeignClanHeaders(request, downstream);
 
   const clanPath = /^\/c\/([a-z0-9-]{2,32})(\/.*)?$/.exec(pathname);
   if (clanPath) {
@@ -123,6 +167,9 @@ export async function middleware(request: NextRequest) {
     downstream.set('x-anvil-clan-slug', slug);
     // The prefix, so anything building a link back out can reproduce it without re-parsing.
     downstream.set('x-anvil-clan-prefix', `/c/${slug}`);
+    // …and the proof that this pair came from here, so the second pass over the rewritten path
+    // keeps it instead of mistaking it for something a caller sent.
+    downstream.set('x-anvil-clan-proof', await clanHeaderProof(slug));
     downstream.set('x-anvil-pathname', url.pathname);
     return NextResponse.rewrite(url, { request: { headers: downstream } });
   }

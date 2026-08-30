@@ -77,15 +77,22 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
-  const clan = await requireClan();
   const rl = await rateLimit(request, 'submissions', { limit: 60, windowMs: 60_000 });
   if (!rl.ok) return NextResponse.json({ error: 'Too many submissions — slow down.' }, { status: 429, headers: rateLimitHeaders(rl) });
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.
-  if (!(await eventForRequest(request, eId))) {
+  //
+  // THE CLAN COMES FROM THE EVENT, not from the address. It used to be `requireClan()` first, which
+  // reads the address alone — so on the canonical address, which names no clan, this 404'd before it
+  // ever looked at the event, and the plugin's main job (filing a drop) simply did not work there.
+  // The event is scoped for us either way, and an event knows which clan owns it, so asking the
+  // address a second time was never adding a check — only a way to fail.
+  const scopedEvent = await eventForRequest(request, eId);
+  if (!scopedEvent) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
+  const clan = { id: scopedEvent.clanId };
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;

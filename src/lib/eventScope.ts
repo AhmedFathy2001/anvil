@@ -17,7 +17,7 @@ import { db } from '@/db';
 import { events, weeklyCompetitions } from '@/db/schema';
 import { requireClan, resolveClanFromRequest } from '@/lib/clanContext';
 import { canSeeEvent } from '@/lib/eventAccess';
-import { verifyUser } from '@/lib/auth';
+import { resolvePluginClan, verifyUser } from '@/lib/auth';
 
 export type ScopedEvent = typeof events.$inferSelect;
 
@@ -33,13 +33,21 @@ export async function eventInClan(clanId: number, eventId: number): Promise<Scop
 }
 
 /**
- * The event named by this id on the requesting clan's host, or null.
+ * The event named by this id, for the clan this request is for, or null.
  *
  * Null covers both "no such event" and "that event is another clan's", deliberately — a caller must
  * not be able to tell the difference, or the 404 becomes a probe for which ids exist elsewhere.
+ *
+ * THE ADDRESS FIRST, THEN THE TOKEN. This used to ask the address alone, which was right when a
+ * deployment was a clan and the Host always named one. On the canonical address nothing in the URL
+ * does — so filing a submission, filing a starting shot and uploading its image, the three things a
+ * client does outside `/api/plugin`, resolved to no clan and answered 404. A bearer token names a
+ * person, whose seats name their clans, which is the same fallback every `/api/plugin` route uses
+ * (lib/auth resolvePluginClan). Nothing widens: the event still has to belong to whichever clan
+ * comes back, so a token cannot reach another clan's board.
  */
 export async function eventForRequest(request: Request, eventId: number): Promise<ScopedEvent | null> {
-  const clan = await resolveClanFromRequest(request);
+  const clan = await resolvePluginClan(request);
   if (!clan) return null;
   return eventInClan(clan.id, eventId);
 }
