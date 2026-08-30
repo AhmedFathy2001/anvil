@@ -366,7 +366,7 @@ function WeeklyLiveCard({ w }: { w: HomeWeekly }) {
 
 function EventLiveCard({ e }: { e: HomeEvent }) {
   return (
-    <CardShell href={`/events/${e.id}`} tone="gold">
+    <CardShell href={e.hostSlug ? `/c/${e.hostSlug}/events/${e.id}` : `/events/${e.id}`} tone="gold">
       <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-accent-green-light">
         <span className="h-1.5 w-1.5 rounded-full bg-accent-green-light" />
         Live
@@ -637,7 +637,7 @@ function EventCompetitionCard({ e }: { e: HomeEvent }) {
   return (
     <CompetitionCard
       kind={e.mode}
-      href={`/events/${e.id}`}
+      href={e.hostSlug ? `/c/${e.hostSlug}/events/${e.id}` : `/events/${e.id}`}
       name={e.name}
       shape={e.shape}
       state={e.status}

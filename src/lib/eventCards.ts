@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { completions, events, teams, tiles } from '@/db/schema';
+import { clans, completions, eventCohosts, events, teams, tiles } from '@/db/schema';
 import { and, count, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 import { eventAxes } from '@/lib/eventAxes';
 import { modeKeyFor, type EventMode } from '@/lib/eventModes';
@@ -40,6 +40,10 @@ export interface EventCard {
   /** How many tiles the board has, and how many have been claimed by anyone. The hub's glyph
       draws the share; on a points board `top.total` is a point total and says nothing about it. */
   board: { tiles: number; claimed: number };
+  /** The HOST clan's slug when the clan this list is for is only a CO-HOST — null when it owns the
+      event. A co-hosted event lives at its host's URL (an event belongs to exactly one clan's
+      address), so a co-host's card links across to `/c/<hostSlug>/events/<id>`. */
+  hostSlug: string | null;
 }
 
 export interface LoadEventCardsOptions {
@@ -78,9 +82,22 @@ export async function loadEventCards(
   now: Date = new Date(),
 ): Promise<EventCard[]> {
   const nowIso = now.toISOString();
-  // Every card the app renders is built here, so this one filter is what keeps one clan's boards off
-  // another clan's pages. Everything below derives from `all` and inherits the scope.
-  const all = await db.select().from(events).where(eq(events.clanId, clanId)).orderBy(desc(events.createdAt));
+  // The events this clan HOSTS, plus the ones it CO-HOSTS (an accepted seat on another clan's event).
+  // A co-hosted event is the visiting clan's too — it should appear on their events pages, linking
+  // across to the host's URL. Everything below derives from `all` and inherits this scope.
+  const cohosted = await db
+    .select({ eventId: eventCohosts.eventId, hostSlug: clans.slug })
+    .from(eventCohosts)
+    .innerJoin(events, eq(events.id, eventCohosts.eventId))
+    .innerJoin(clans, eq(clans.id, events.clanId))
+    .where(and(eq(eventCohosts.clanId, clanId), eq(eventCohosts.status, 'accepted')));
+  const hostSlugByEvent = new Map(cohosted.map((c) => [c.eventId, c.hostSlug]));
+  const cohostedIds = cohosted.map((c) => c.eventId);
+  const all = await db
+    .select()
+    .from(events)
+    .where(cohostedIds.length ? or(eq(events.clanId, clanId), inArray(events.id, cohostedIds)) : eq(events.clanId, clanId))
+    .orderBy(desc(events.createdAt));
 
   // A draft has no start date and no forced end: the host is still building it, so it is not public.
   const isDraft = (e: (typeof all)[number]) => !e.forceEndedAt && !e.startDate;
@@ -235,6 +252,8 @@ export async function loadEventCards(
     }
 
     const teamCount = teamCounts.get(event.id) ?? 0;
+    // Set only in a CO-HOST's view (the event's own clan is someone else).
+    const cardHostSlug = event.clanId === clanId ? null : hostSlugByEvent.get(event.id) ?? null;
     const axes = eventAxes({ ...event, rules });
     const chips: string[] = [];
     if (axes.competitors === 'individuals') {
@@ -243,6 +262,9 @@ export async function loadEventCards(
       chips.push(`${teamCount} team${teamCount === 1 ? '' : 's'}`);
     }
     if (claimed > 0) chips.push(`${claimed} claimed`);
+    // Appended (never first — eventsHub parses chips[0] for the entrant count) so a co-host's card
+    // reads as theirs-to-play but not theirs-to-run.
+    if (cardHostSlug) chips.push(`co-hosted · ${cardHostSlug}`);
 
     return {
       id: event.id,
@@ -256,6 +278,9 @@ export async function loadEventCards(
       format: (event.format === 'ladder' ? 'ladder' : event.format === 'tilerace' ? 'tilerace' : 'bingo') as EventCard['format'],
       mode: modeKeyFor(event.format, event.scoringMode, rules),
       board: { tiles: tileCounts.get(event.id) ?? 0, claimed },
+      // Only set when this clan is a co-host (the event's own clan is someone else). Drives the
+      // cross-clan link and a "co-hosted" hint on the card.
+      hostSlug: cardHostSlug,
       foot:
         status === 'upcoming'
           ? event.startDate

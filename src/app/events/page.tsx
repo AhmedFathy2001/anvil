@@ -42,7 +42,8 @@ export default async function EventsIndexPage({
       key: `e${b.id}`,
       kind: b.mode,
       name: b.name,
-      href: `/events/${b.id}`,
+      // A co-hosted event lives at the host's address; link across when this clan is the co-host.
+      href: b.hostSlug ? `/c/${b.hostSlug}/events/${b.id}` : `/events/${b.id}`,
       startDate: b.startDate,
       endDate: b.endDate,
       foot: b.foot,
@@ -101,7 +102,7 @@ export default async function EventsIndexPage({
                 <CompetitionCard
                   key={b.id}
                   kind={b.mode}
-                  href={`/events/${b.id}`}
+                  href={b.hostSlug ? `/c/${b.hostSlug}/events/${b.id}` : `/events/${b.id}`}
                   name={b.name}
                   shape={b.shape}
                   state="live"

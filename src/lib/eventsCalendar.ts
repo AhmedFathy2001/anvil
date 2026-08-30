@@ -1,6 +1,6 @@
 import { db } from '@/db';
-import { events, weeklyCompetitions } from '@/db/schema';
-import { and, eq, gte, isNotNull, isNull, lte, or } from 'drizzle-orm';
+import { clans, eventCohosts, events, weeklyCompetitions } from '@/db/schema';
+import { and, eq, gte, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { modeKeyFor } from '@/lib/eventModes';
 import { BOSSES, EFFICIENCY_LABELS, SKILL_LABELS } from '@/lib/constants';
 import type { HubKind } from '@/lib/eventsHub';
@@ -56,10 +56,21 @@ export async function loadCalendar(
   const from = new Date(now.getTime() - weeksBack * WEEK_MS).toISOString();
   const nowIso = now.toISOString();
 
+  // Events this clan CO-HOSTS belong on its calendar too, linking across to the host's URL.
+  const cohosted = await db
+    .select({ eventId: eventCohosts.eventId, hostSlug: clans.slug })
+    .from(eventCohosts)
+    .innerJoin(events, eq(events.id, eventCohosts.eventId))
+    .innerJoin(clans, eq(clans.id, events.clanId))
+    .where(and(eq(eventCohosts.clanId, clanId), eq(eventCohosts.status, 'accepted')));
+  const hostSlugByEvent = new Map(cohosted.map((c) => [c.eventId, c.hostSlug]));
+  const cohostedIds = cohosted.map((c) => c.eventId);
+
   const [boardRows, weekRows] = await Promise.all([
     db
       .select({
         id: events.id,
+        clanId: events.clanId,
         name: events.name,
         startDate: events.startDate,
         endDate: events.endDate,
@@ -71,7 +82,7 @@ export async function loadCalendar(
       .from(events)
       .where(
         and(
-          eq(events.clanId, clanId),
+          cohostedIds.length ? or(eq(events.clanId, clanId), inArray(events.id, cohostedIds)) : eq(events.clanId, clanId),
           // A draft has no start date: it isn't scheduled, so it isn't on a calendar.
           isNotNull(events.startDate),
           lte(events.startDate, to),
@@ -110,7 +121,7 @@ export async function loadCalendar(
       kind: modeKeyFor(b.format, b.scoringMode, b.rules),
       name: b.name,
       shortName: b.name.replace(/^Tile Race: /, '').replace(/^The Ladder — /, ''),
-      href: `/events/${b.id}`,
+      href: b.clanId === clanId ? `/events/${b.id}` : `/c/${hostSlugByEvent.get(b.id) ?? ''}/events/${b.id}`,
       start,
       // Open-ended and force-ended runs still need a right edge to draw to.
       end: b.forceEndedAt ?? b.endDate ?? (state === 'past' ? nowIso : to),

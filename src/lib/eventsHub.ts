@@ -41,6 +41,9 @@ export interface HubItem {
   entrantLabel: string;
   /** Winner once finished, leader while it runs. */
   top: { name: string; text: string; color?: string } | null;
+  /** Set when this clan CO-HOSTS the event (another clan is the host) — for a "co-hosted" hint and
+      the cross-clan link the href already carries. Null when this clan owns it. */
+  hostSlug: string | null;
 }
 
 export interface HubView {
@@ -77,7 +80,8 @@ function boardItem(e: EventCard): HubItem {
     kind: e.mode,
     group: 'boards',
     name: e.name,
-    href: `/events/${e.id}`,
+    // A co-hosted event lives at the HOST's address; link across to it, else stay on this clan's.
+    href: e.hostSlug ? `/c/${e.hostSlug}/events/${e.id}` : `/events/${e.id}`,
     startDate: e.startDate,
     endDate: e.endDate,
     state: e.status,
@@ -85,6 +89,7 @@ function boardItem(e: EventCard): HubItem {
     entrants: Number(e.chips[0]?.match(/^(\d+)/)?.[1] ?? 0),
     entrantLabel: e.chips[0]?.includes('player') ? 'players' : 'teams',
     top: e.top ? { name: e.top.name, text: `${e.top.score.toLocaleString()} ${e.top.unit}`, color: e.top.color } : null,
+    hostSlug: e.hostSlug,
   };
 }
 
@@ -102,6 +107,7 @@ function weekItem(w: WeeklyCard): HubItem {
     entrants: w.entrants,
     entrantLabel: 'entered',
     top: w.top ? { name: w.top.rsn, text: weeklyValueText(w.unit, w.top.value) } : null,
+    hostSlug: null,
   };
 }
 
