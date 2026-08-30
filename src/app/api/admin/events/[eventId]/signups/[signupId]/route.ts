@@ -6,6 +6,7 @@ import { verifyUser } from '@/lib/auth';
 import { generatePlayerToken } from '@/lib/auth';
 import { sanitizeProfile, serializeProfile } from '@/lib/signup';
 import { notifySignupApproved } from '@/lib/discord';
+import { assertEventEditable } from '@/lib/eventLock';
 
 // Per-signup admin actions. All admin-only — captain selection is high-stakes and we
 // don't want a moderator accidentally locking the wrong person in.
@@ -81,6 +82,20 @@ export async function PATCH(
     // agreed something different after the fact. The applicant's own answer stays as they wrote it
     // (profileData is theirs); this is the placement, which was always the host's to decide.
     case 'set-team': {
+      // This moves teams and players, so it answers to the same two locks every other roster
+      // edit does. Finished events are read-only (lib/eventLock) so recorded results can't
+      // drift, and mid-draft the snake pick flow owns placements — but before the draft and
+      // once it's complete a roster edit is fine, mirroring /events/[eventId]/players.
+      const locked = await assertEventEditable(evtId);
+      if (locked) return locked;
+      const evt = await db.query.events.findFirst({ where: eq(events.id, evtId) });
+      if (evt && (evt.draftStatus === 'active' || evt.draftStatus === 'paused')) {
+        return NextResponse.json(
+          { error: 'Cannot edit rosters while the draft is in progress.' },
+          { status: 409 },
+        );
+      }
+
       const raw = body.teamId;
       // null clears the request: back to no preference, draftable from the pool like anyone else.
       const wantedId = raw == null ? null : Number(raw);
@@ -115,9 +130,15 @@ export async function PATCH(
         where: and(eq(players.eventId, evtId), eq(players.clanMemberId, signup.clanMemberId)),
       });
       if (seated && seated.teamId !== (team?.id ?? null)) {
+        // Pick metadata belongs to the seat, not the player: returning someone to the pool has to
+        // drop their draft pick or they'd keep a pickNumber for a team they're no longer on.
         await db
           .update(players)
-          .set({ teamId: team?.id ?? null })
+          .set(
+            team
+              ? { teamId: team.id, pickedAt: now }
+              : { teamId: null, pickNumber: null, pickedAt: null },
+          )
           .where(eq(players.id, seated.id));
       }
 
