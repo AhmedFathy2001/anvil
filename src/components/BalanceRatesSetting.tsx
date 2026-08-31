@@ -41,7 +41,11 @@ function TripletInputs({
   return (
     <span className="flex gap-1 w-full sm:w-auto">
       {[0, 1, 2].map((i) => (
-        <span key={i} className="flex flex-1 min-w-0 flex-col items-center gap-0.5 sm:flex-none">
+        <span
+          key={i}
+          className="flex flex-1 min-w-0 flex-col items-center gap-0.5 sm:flex-none"
+          title={['Fast player', 'Average player', 'Slow player'][i]}
+        >
           <NumberInput
             value={Math.round(value[i] * scale * 100) / 100}
             onChange={(n) => {
@@ -189,7 +193,21 @@ export default function BalanceRatesSetting() {
         />
       </div>
 
+      {/* THE THREE NUMBERS ARE NAMED. Fast/Avg/Slow existed only as an aria-label and a `sm:hidden`
+          caption — visible to a screen reader and to a phone, and to nobody on a desktop, who saw
+          three identical boxes and had to clear one to work out which it was. A header row names the
+          columns once instead of repeating a caption on all ninety of them, and it sticks so the
+          names are still there after a scroll. */}
       <div className="max-h-96 overflow-y-auto border border-card-border/60 rounded-lg divide-y divide-card-border/40">
+        <div className="sticky top-0 z-10 hidden border-b border-card-border bg-card-bg px-3 py-1.5 text-[10px] uppercase tracking-wide text-text-muted sm:flex sm:items-center sm:gap-2">
+          <span className="w-48 shrink-0">{tab === 'activities' ? 'Boss / activity' : 'Skill'}</span>
+          <span className="w-24 shrink-0">Rate</span>
+          <span className="flex gap-1">
+            {['Fast', 'Avg', 'Slow'].map((h) => (
+              <span key={h} className="w-16 text-center">{h}</span>
+            ))}
+          </span>
+        </div>
         {tab === 'activities' &&
           activityRows.map((key) => {
             const a = merged.activities[key];

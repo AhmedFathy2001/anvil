@@ -6,6 +6,7 @@ import type { TierBand } from '@/lib/tileFilter';
 import { analyzeBoard, type BalanceLevel, type BalanceCheck } from '@/lib/boardBalance';
 import CollapsibleSection from '@/components/CollapsibleSection';
 import EffortTable from './EffortTable';
+import ClanLink from '@/components/ClanLink';
 
 // "Board balance" — live structural read of the tile set (recomputes as tiles change).
 // Phase 1: tier shape, category concentration, kind mix, luck exposure, hygiene checks.
@@ -72,6 +73,17 @@ export default function BoardBalancePanel({
   return (
     <CollapsibleSection title="Board balance" summary={summary} defaultOpen={false}>
       <div className="px-5 pb-5 space-y-4">
+        {/* WHERE THE NUMBERS COME FROM. Every judgement below is measured against the clan's effort
+            model, which lived four clicks away — Clan → Settings → Board — with nothing on this
+            panel saying so. Somebody who disagrees with a verdict here is exactly the person who
+            wants to go and change the rate behind it. */}
+        <p className="text-[11px] text-text-muted">
+          Measured against your clan&rsquo;s{' '}
+          <ClanLink href="/admin/integrations?tab=board" className="text-gold hover:underline">
+            effort rates
+          </ClanLink>
+          {' '}— kill times, XP rates and who can realistically do the content.
+        </p>
         {/* Checks */}
         <div className="space-y-1.5">
           {report.checks.map((c) => (
