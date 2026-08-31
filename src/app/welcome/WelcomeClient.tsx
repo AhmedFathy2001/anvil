@@ -163,7 +163,7 @@ export default function WelcomeClient({
                     href="/clans"
                     className="rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
                   >
-                    Find a clan
+                    Clan Hall
                   </ClanLink>
                   <ClanLink
                     href="/clans/new"

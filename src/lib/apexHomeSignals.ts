@@ -9,6 +9,7 @@
 import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
+import { standingFor, type PlayerStanding } from '@/lib/clanLeaderboard';
 import {
   accounts,
   clanMemberships,
@@ -482,6 +483,8 @@ export function compactXp(n: number): string {
 
 export interface ApexSignals {
   arena: Arena | null;
+  /** Where their best character places on the platform table this week. Null when nothing ranks. */
+  standing: PlayerStanding | null;
   streak: Streak;
   career: Career | null;
   milestones: RecentMilestone[];
@@ -502,8 +505,9 @@ export async function apexSignals(
 ): Promise<ApexSignals> {
   const accountIds = await accountIdsOf(playerId);
 
-  const [arena, streak, career, milestones, seats, next] = await Promise.all([
+  const [arena, standing, streak, career, milestones, seats, next] = await Promise.all([
     arenaFor(accountIds),
+    standingFor(accountIds),
     streakFor(accountIds),
     careerFor(userId),
     recentMilestones(accountIds),
@@ -511,5 +515,5 @@ export async function apexSignals(
     nextMilestoneByAccount(accountIds),
   ]);
 
-  return { arena, streak, career, milestones, seats, next };
+  return { arena, standing, streak, career, milestones, seats, next };
 }

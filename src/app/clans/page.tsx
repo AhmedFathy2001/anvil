@@ -14,8 +14,8 @@ import ClanLookup, { type LookupClan } from '@/components/ClanLookup';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'Find a clan — Anvil',
-  description: 'Clans running bingos, weekly competitions and rosters on Anvil.',
+  title: 'Clan Hall — Anvil',
+  description: 'Every clan on Anvil — who is recruiting, who is running something, and who to challenge.',
 };
 
 /**

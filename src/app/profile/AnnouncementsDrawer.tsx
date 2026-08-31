@@ -130,7 +130,7 @@ export default function AnnouncementsDrawer({
                             onChange={(v) => patch({ accountId: a.accountId, clanId: c.clanId, state: v as EmissionState })}
                             options={STATE_OPTIONS}
                             ariaLabel={`Announcements for ${a.rsn} in ${c.name}`}
-                            className="w-40 shrink-0"
+                            className="w-44 shrink-0"
                           />
                         </li>
                       ))}
@@ -138,14 +138,14 @@ export default function AnnouncementsDrawer({
                   )}
 
                   {pointable.length > 0 && (
-                    <div className="mt-2.5 flex items-center gap-2">
-                      <span className="text-[11px] text-text-muted">Also announce to a clan you&rsquo;re a member of:</span>
+                    <div className="mt-2.5 flex items-center justify-between gap-3">
+                      <span className="min-w-0 truncate text-[11px] text-text-muted">Also announce to a clan you&rsquo;re a member of:</span>
                       <Select
                         value=""
                         onChange={(v) => v && patch({ accountId: a.accountId, clanId: Number(v), state: 'always' })}
                         options={[{ value: '', label: 'Add…' }, ...pointable.map((mc) => ({ value: String(mc.clanId), label: mc.name }))]}
                         ariaLabel={`Point ${a.rsn} at a clan you are a member of`}
-                        className="w-44"
+                        className="w-44 shrink-0"
                       />
                     </div>
                   )}

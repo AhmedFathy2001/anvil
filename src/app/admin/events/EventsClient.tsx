@@ -989,7 +989,8 @@ function timeProgress(startDate: string | null, endDate: string | null) {
   const end = endDate ? Date.parse(endDate) : null;
 
   if (!end) {
-    return { pct: 0, remainingLabel: 'Open-ended', dayLabel: start ? `day ${dayNumber(start, now)}` : '' };
+    // No end date, so no total to clamp against — the count just runs, which is what open-ended means.
+    return { pct: 0, remainingLabel: 'Open-ended', dayLabel: start ? `day ${dayNumber(start, now, null)}` : '' };
   }
 
   const remaining = Math.max(0, end - now);
@@ -999,12 +1000,16 @@ function timeProgress(startDate: string | null, endDate: string | null) {
   return {
     pct,
     remainingLabel: humanDuration(remaining),
-    dayLabel: start ? `day ${dayNumber(start, now)}${totalDays ? ` of ${totalDays}` : ''}` : '',
+    // Clamp the day counter to the window. Past the end (a lifecycle tick that hasn't closed it yet,
+    // or just the minutes between the whistle and the cron) the raw count runs on — a 7-day comp read
+    // "day 8 of 7". A competition never has more days than its length, so cap it there.
+    dayLabel: start ? `day ${dayNumber(start, now, totalDays)}${totalDays ? ` of ${totalDays}` : ''}` : '',
   };
 }
 
-function dayNumber(start: number, now: number): number {
-  return Math.max(1, Math.floor((now - start) / 86_400_000) + 1);
+function dayNumber(start: number, now: number, totalDays: number | null): number {
+  const n = Math.max(1, Math.floor((now - start) / 86_400_000) + 1);
+  return totalDays ? Math.min(n, totalDays) : n;
 }
 
 function humanDuration(ms: number): string {

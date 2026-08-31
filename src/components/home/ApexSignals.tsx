@@ -1,5 +1,6 @@
 import ClanLink from '@/components/ClanLink';
 import type { Arena, Career, NextMilestone, RecentMilestone, Seat, Streak } from '@/lib/apexHomeSignals';
+import type { PlayerStanding } from '@/lib/clanLeaderboard';
 import { compactXp } from '@/lib/apexHomeSignals';
 import { milestoneMetricLabel } from '@/lib/constants';
 import { activityFor } from '@/lib/hiscoresActivities';
@@ -410,5 +411,78 @@ export function Lately({ milestones }: { milestones: RecentMilestone[] }) {
         );
       })}
     </ul>
+  );
+}
+
+// ── Where you stand ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The viewer's placing on the platform table, and the gap that makes it a target.
+ *
+ * A RANK WITHOUT ITS GAP IS TRIVIA. "14th" is a fact you read once; "14th — 40K off 13th" is
+ * something to go and do, and the difference between the two is one number.
+ *
+ * This could not have existed until characters were public by default (drizzle/0080). Before it,
+ * every account on the first real database was unshared and the platform's own leaderboard had zero
+ * rows in it — a record of a hundred and sixty-one active players that nobody, including them, could
+ * read.
+ */
+export function Standing({ standing }: { standing: PlayerStanding }) {
+  const top = standing.rank === 1;
+  const pct = standing.field > 1 ? ((standing.field - standing.rank) / (standing.field - 1)) * 100 : 100;
+
+  return (
+    <ClanLink
+      href="/leaderboard"
+      className="group flex items-center gap-5 rounded-2xl border border-card-border bg-card-bg px-5 py-4 transition-colors hover:border-gold/40 hover:bg-card-bg-hover"
+    >
+      <div className="shrink-0 text-center">
+        <div
+          className="display text-[clamp(2rem,5vw,2.8rem)] font-bold leading-[0.85] tabular-nums"
+          style={{
+            background: 'linear-gradient(160deg, var(--foreground) 20%, var(--gold) 90%)',
+            WebkitBackgroundClip: 'text',
+            backgroundClip: 'text',
+            color: 'transparent',
+          }}
+        >
+          {standing.rank}
+          <sup className="align-super text-[0.3em] text-gold-dark">{ordinal(standing.rank)}</sup>
+        </div>
+        <p className="mt-0.5 font-mono text-[0.58rem] uppercase tracking-[0.14em] text-text-dim">
+          of {standing.field.toLocaleString()}
+        </p>
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <p className="text-sm">
+          {top ? (
+            <span className="font-semibold text-gold">Nobody on Anvil gained more this week.</span>
+          ) : (
+            <>
+              <b className="display text-lg font-semibold text-gold">{compactXp(standing.gapAhead ?? 0)}</b>
+              <span className="text-text-muted"> to {standing.rank - 1}{ordinal(standing.rank - 1)}</span>
+            </>
+          )}
+        </p>
+        <p className="mt-0.5 truncate text-xs text-text-dim">
+          {standing.rsn} · {compactXp(standing.xpGained)} this week
+        </p>
+        {/* The same proportional bar the arena uses, so "close" looks close. */}
+        <span className="mt-2 block h-1.5 overflow-hidden rounded-full bg-black/40">
+          <span
+            className="block h-full rounded-full"
+            style={{
+              width: `${Math.max(4, Math.round(pct))}%`,
+              background: 'linear-gradient(90deg, #d2683c, var(--gold))',
+            }}
+          />
+        </span>
+      </div>
+
+      <span className="hidden shrink-0 font-mono text-[0.6rem] uppercase tracking-[0.14em] text-text-dim transition-colors group-hover:text-gold sm:block">
+        Records →
+      </span>
+    </ClanLink>
   );
 }

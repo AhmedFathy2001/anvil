@@ -3,7 +3,7 @@ import ClanCrest from '@/components/ClanCrest';
 import ClanLink from '@/components/ClanLink';
 import type { ApexHomeView, ClanCard } from '@/lib/apexHome';
 import type { ApexSignals } from '@/lib/apexHomeSignals';
-import { ArenaHero, CareerWell, Label, Lately, Roster, StreakBadge } from '@/components/home/ApexSignals';
+import { ArenaHero, CareerWell, Label, Lately, Roster, Standing, StreakBadge } from '@/components/home/ApexSignals';
 
 /**
  * The apex, to somebody signed in.
@@ -75,6 +75,10 @@ export default function ApexHome({
       ) : (
         <div className="flex flex-col gap-10">
           {signals.arena && <ArenaHero arena={signals.arena} />}
+
+          {/* Directly under the arena when there is one, and leading when there is not — between
+              events this is the only thing on the page that is still a contest. */}
+          {signals.standing && <Standing standing={signals.standing} />}
 
           {live.length > 0 && (
             <Section title="Happening now" note={`${running} running`}>
@@ -255,7 +259,7 @@ function Empty() {
           href="/clans"
           className="rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
         >
-          Find a clan
+          Enter the Clan Hall
         </ClanLink>
         <ClanLink
           href="/clans/new"

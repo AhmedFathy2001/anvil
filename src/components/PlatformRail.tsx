@@ -91,8 +91,8 @@ export default function PlatformRail({
           Platform
         </div>
         {item('/', 'Home', <HomeIcon />)}
-        {item('/clans', 'Find a clan', <SearchIcon />)}
-        {item('/leaderboard', 'Records', <ChartIcon />)}
+        {item('/clans', 'Clan Hall', <SearchIcon />)}
+        {item('/leaderboard', 'Hall of Records', <ChartIcon />)}
         {item('/guide', 'Guides', <BookIcon />)}
         {/* /staff existed and NOTHING linked to it. Platform capability is its own axis — no clan
             role confers it — so an operator had to know the URL to reach the platform's own admin. */}

@@ -125,7 +125,7 @@ export default function PolicyClient() {
           checked={policy.listed}
           onChange={(listed) => save({ listed })}
           labelClassName="block text-[14.5px] font-medium"
-          label="Show in Find a clan"
+          label="List in the Clan Hall"
           description={
             <span className="mt-0.5 block text-[13px] text-text-muted">
               And on the cross-clan records. Unlisted is not the same as private — a link still works

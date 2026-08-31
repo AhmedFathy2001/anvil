@@ -17,7 +17,7 @@
 // unverified clan claiming a famous name and topping a table under it — the badge is load-bearing
 // here rather than decorative.
 
-import { and, desc, eq, gte, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanMemberships, clans, memberDailyStats, settings } from '@/db/schema';
@@ -182,4 +182,96 @@ export async function topPlayers(window: LeaderboardWindow = '7d', limit = 25): 
     clanSlug: r.clanSlug,
     xpGained: Number(r.xpGained ?? 0),
   }));
+}
+
+// ── Where one person stands ──────────────────────────────────────────────────────────────────────
+
+export interface PlayerStanding {
+  /** 1-based, among every ranked character on the platform. */
+  rank: number;
+  /** How many characters are ranked at all — "3rd" means nothing without it. */
+  field: number;
+  /** The character doing the standing, and what it gained. */
+  rsn: string;
+  xpGained: number;
+  /** XP to the place above, or null at the top. The number that makes a rank a target. */
+  gapAhead: number | null;
+}
+
+/**
+ * This person's best placing on the platform table.
+ *
+ * A RANK IS ONLY MOTIVATING WITH ITS GAP. "14th" is a fact; "14th, 40K off 13th" is something to go
+ * and do, and the second costs one more aggregate than the first.
+ *
+ * Their BEST character, not a sum: the table ranks characters, so adding a main and an alt together
+ * would place a person somewhere no row exists. Somebody who wants their alt counted separately
+ * already has it counted separately.
+ *
+ * Only shared characters rank, which is the same filter `topPlayers` applies — the table has to be
+ * readable by whoever is on it. Since drizzle/0080 that is the default rather than the exception,
+ * and before it this whole surface was empty: every account on the first real database was unshared,
+ * so the platform's own leaderboard had nothing in it at all.
+ */
+export async function standingFor(
+  accountIds: number[],
+  window: LeaderboardWindow = '7d',
+): Promise<PlayerStanding | null> {
+  if (accountIds.length === 0) return null;
+  const since = sinceFor(window);
+
+  // clan-scope: global -- the platform table spans clans by definition; that is what makes it the
+  // platform's table rather than a clan's.
+  const mine = await db
+    .select({
+      rsn: accounts.rsn,
+      gained: sql<number>`coalesce(sum(${memberDailyStats.xpGained}), 0)`,
+    })
+    .from(memberDailyStats)
+    .innerJoin(accounts, eq(accounts.id, memberDailyStats.accountId))
+    .where(
+      and(
+        eq(accounts.shared, true),
+        inArray(accounts.id, accountIds),
+        since ? gte(memberDailyStats.day, since) : sql`true`,
+      ),
+    )
+    .groupBy(accounts.id, accounts.rsn)
+    .orderBy(desc(sql`coalesce(sum(${memberDailyStats.xpGained}), 0)`))
+    .limit(1)
+    .then((r) => r[0]);
+
+  if (!mine || Number(mine.gained) <= 0) return null;
+  const gained = Number(mine.gained);
+
+  // One pass for the three numbers that describe the placing: how many are ahead, how many are
+  // ranked at all, and where the next one up sits. Done in SQL because doing it in JS would mean
+  // reading every ranked character to answer a question about one.
+  const sinceClause = since ? sql`and d.day >= ${since}` : sql``;
+  const rows = await db.execute<{ ahead: number; field: number; next_up: number | null }>(sql`
+    with totals as (
+      select d.account_id, coalesce(sum(d.xp_gained), 0) as gained
+        from member_daily_stats d
+        join accounts a on a.id = d.account_id
+       where a.shared = true ${sinceClause}
+       group by d.account_id
+    )
+    select
+      (select count(*) from totals where gained > ${gained})::int as ahead,
+      (select count(*) from totals where gained > 0)::int          as field,
+      (select min(gained) from totals where gained > ${gained})    as next_up
+  `);
+
+  const row = (rows as unknown as { rows?: Record<string, unknown>[] }).rows?.[0] ?? (rows as unknown as Record<string, unknown>[])[0];
+  const ahead = Number(row?.ahead ?? 0);
+  const field = Number(row?.field ?? 1);
+  const nextUp = row?.next_up == null ? null : Number(row.next_up);
+
+  return {
+    rank: ahead + 1,
+    field,
+    rsn: mine.rsn,
+    xpGained: gained,
+    gapAhead: nextUp == null ? null : Math.max(0, nextUp - gained),
+  };
 }

@@ -11,7 +11,7 @@ import ClanShapes from '@/components/leaderboard/ClanShapes';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'Records — Anvil',
+  title: 'Hall of Records — Anvil',
   description: 'Clans on Anvil, measured against each other.',
 };
 
@@ -67,7 +67,7 @@ export default async function LeaderboardPage({
           className="pointer-events-none absolute -top-10 right-0 hidden text-gold/[0.04] sm:block"
         />
         <h1 className="display display-lg relative text-[clamp(1.7rem,4vw,2.2rem)] font-semibold">
-          Records
+          Hall of Records
         </h1>
         <p className="relative mt-2 max-w-[62ch] text-[14.5px] text-text-muted">
           Every verified clan on Anvil, on three axes at once. How much a clan gained mostly measures

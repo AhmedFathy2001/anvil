@@ -82,7 +82,7 @@ export default function ClanLookup({ clans }: { clans: LookupClan[] }) {
           className="pointer-events-none absolute -top-10 right-0 hidden text-gold/[0.04] sm:block"
         />
         <h1 className="display display-lg relative text-[clamp(1.7rem,4vw,2.2rem)] font-semibold">
-          Find a clan
+          Clan Hall
         </h1>
         <p className="relative mt-2 max-w-[62ch] text-[14.5px] text-text-muted">
           For when you want somewhere to play, or somebody to play against. Joining one never affects
