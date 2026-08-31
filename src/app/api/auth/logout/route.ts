@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { safeReturnPath } from '@/lib/safe-redirect';
 import { originForHost, resolveClanFromRequest, sessionCookieDomain } from '@/lib/clanContext';
+import { publicOrigin } from '@/lib/request-origin';
 
 const SESSION_COOKIE = 'admin_session';
 
@@ -16,8 +17,14 @@ async function clear(request: Request) {
   const safeReturn = safeReturnPath(url.searchParams.get('return'));
 
   // Stay on the clan they logged out from; fall back to the apex when the host names no clan.
+  //
+  // NOT `new URL(request.url).host`. Behind Caddy the standalone server sees its own BIND address,
+  // so that fallback sent anyone signing out from an apex page — /, /profile, /clans, /staff — to
+  // https://0.0.0.0:3000/, which exists nowhere off this machine. lib/request-origin was written for
+  // exactly this trap and says so in its own header; login two files over already used it, and this
+  // route was the one that missed it.
   const clan = await resolveClanFromRequest(request);
-  const origin = originForHost(clan?.host ?? new URL(request.url).host);
+  const origin = clan ? originForHost(clan.host) : publicOrigin(request);
 
   const res = NextResponse.redirect(new URL(safeReturn, origin));
   const domain = sessionCookieDomain();

@@ -70,13 +70,18 @@ export function signUserToken(
   editorScope: string = 'all',
   canEditTiles: boolean = false,
   treasurerScope: string = 'all',
+  // The token's copy of users.session_version, minted from the row at login. verifyUser rejects a
+  // token whose version is behind the row's, so bumping the column (a platform role change, a ban)
+  // force-invalidates every existing session for that user on its next request — not just the coarse
+  // live re-reads. A legacy token with no version reads as 0 and matches an un-bumped row.
+  sessionVersion: number = 0,
 ): string {
   // editorScope rides in the token so middleware (edge, no DB) can tell a board-scoped editor
   // (role 'editor' + scope 'assigned') from a global editor and route them to /admin/events only.
   // Server gates (verifyUser/verifyAdminOrModerator) re-read the live scope from the DB, so a stale
   // token only affects coarse page-routing until the next login.
   return sign(
-    JSON.stringify({ userId, username, role, editorScope, canEditTiles, treasurerScope, iat: Date.now() }),
+    JSON.stringify({ userId, username, role, editorScope, canEditTiles, treasurerScope, sessionVersion, iat: Date.now() }),
     ADMIN_SESSION_SECRET,
   );
 }
@@ -128,7 +133,7 @@ export async function verifyUser(): Promise<UserPayload | null> {
     // lingering until the 30-day cookie is replaced, and sessions for removed users stop working.
     const dbUser = await db.query.users.findFirst({
       where: eq(users.id, data.userId),
-      columns: { id: true, playerId: true, displayName: true, banned: true, platformRole: true },
+      columns: { id: true, playerId: true, displayName: true, banned: true, platformRole: true, sessionVersion: true },
     });
     // A deleted OR banned user has no valid session — the ban takes effect on their very next
     // request, not just next login, so kicking someone is immediate.
@@ -138,6 +143,15 @@ export async function verifyUser(): Promise<UserPayload | null> {
     // /staff. Checking only the first left the platform ban documented, writable, and enforced by
     // nothing at all.
     if (!dbUser || dbUser.banned) return null;
+    // SESSION VERSION. The row's version is bumped whenever a session must be dropped wholesale — a
+    // platform role change, a ban — so a token minted before the bump is stale and refused here, on
+    // the next request. A legacy token carries no version (reads as 0) and matches an un-bumped row,
+    // so this is inert until something actually bumps. This is what makes the bump in
+    // /api/staff/people a real force-logout rather than a write nothing reads.
+    {
+      const tokenVersion = typeof data.sessionVersion === 'number' ? data.sessionVersion : 0;
+      if (tokenVersion < (dbUser.sessionVersion ?? 0)) return null;
+    }
     if (dbUser.playerId != null) {
       const person = await db.query.players.findFirst({
         where: eq(players.id, dbUser.playerId),

@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
+import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { events, playerEventFacts } from '@/db/schema';
 import { verifyAdmin } from '@/lib/auth';
+import { resolveClanFromRequest } from '@/lib/clanContext';
 import { writePlayerEventFacts } from '@/lib/playerEventFacts';
 import { isEventEnded } from '@/lib/survey';
 import { log } from '@/lib/logger';
@@ -28,9 +30,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Scope to THIS clan. verifyAdmin() only proves admin of the clan this request is FOR, so the
+  // backfill must touch only that clan's events. Unscoped, an admin of any (even free) clan could
+  // recompute — delete+insert — every other clan's facts, racing their own lifecycle ticks and
+  // making a 300s deployment-wide job a one-request DoS. This maintenance tool is per-clan by
+  // intent (see the header); the global scan was the bug.
+  const clan = await resolveClanFromRequest(request);
+  if (!clan) {
+    return NextResponse.json({ error: 'No clan for this host' }, { status: 400 });
+  }
+
   const all = new URL(request.url).searchParams.get('all') === '1';
-  // clan-scope: global -- a maintenance backfill over every event the deployment holds.
-  const allEvents = await db.select().from(events);
+  const allEvents = await db.select().from(events).where(eq(events.clanId, clan.id));
   const existing = new Set(
     (await db.select({ eventId: playerEventFacts.eventId }).from(playerEventFacts)).map((r) => r.eventId),
   );

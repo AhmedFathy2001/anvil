@@ -38,7 +38,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const previous = await findRosterSeat(and(eq(clanRoster.playerId, session.playerId), eq(clanRoster.isPrimary, 1), isNull(clanRoster.leftAt)));
 
   await db.update(accounts).set({ isPrimary: 0 }).where(eq(accounts.playerId, session.playerId));
-  await db.update(accounts).set({ isPrimary: 1 }).where(eq(accounts.id, id));
+  // Keyed on the ACCOUNT, not the seat. `id` is a clan_roster/seat id (the URL param, matched as
+  // clanRoster.id above); isPrimary lives on `accounts`, a different id space. Passing the seat id
+  // as accounts.id set the flag on an unrelated account (often another user's) and left the caller
+  // with no primary — the same bug the DELETE path and auth.ts avoid via seat.accountId.
+  await db.update(accounts).set({ isPrimary: 1 }).where(eq(accounts.id, member.accountId));
 
   // The nickname is built from the person's verified RSNs ordered primary-first, so re-sync to put
   // the new main in front. Fire-and-forget: a Discord outage must not fail the change itself.

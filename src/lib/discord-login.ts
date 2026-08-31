@@ -305,6 +305,9 @@ export async function completeDiscordLogin(
       // clan treasurer in one and a board treasurer in another. Middleware gets the permissive
       // value; the server gates decide against the real grant, as they already do for role.
       'all',
+      // Stamp the current session version into the token so a later bump (role change / ban from
+      // /staff) invalidates this session on its next request. See signUserToken / verifyUser.
+      user.sessionVersion ?? 0,
   );
 
   // WHERE A FIRST LOGIN LANDS, and both halves of this were wrong.
