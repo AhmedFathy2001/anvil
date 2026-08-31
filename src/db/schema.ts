@@ -262,13 +262,20 @@ export const accounts = pgTable('accounts', {
   provisional: integer('provisional').default(0).notNull(),
   // Whether clans this account is NOT in may see it.
   //
-  // One token covers every account a person owns, so a clan holding one of them must not thereby
-  // learn the rest: guesting somewhere with an alt is not telling that clan about your main. The
-  // rule is enforced in lib/accountVisibility — seat in the clan, or shared.
+  // DEFAULT TRUE, because this is a cross-clan record and a record nobody may read is a filing
+  // cabinet. Off by default, the leaderboards and the clan directory could only describe a person
+  // through whichever clan you happened to be looking at — the per-clan silo that putting clans on
+  // one site was meant to end. An OSRS name is public anyway: it is on the hiscores and above the
+  // player's head.
+  //
+  // The rule it feeds is unchanged (lib/accountVisibility — seat in the clan, or shared); only its
+  // default answer moved. A clan still sees its own roster regardless, and still cannot see an
+  // account belonging to somebody with no seat who has turned this off.
   //
   // Per account rather than per person, because "my main is public, my ironman is nobody's
-  // business" is the real want and a person-level flag cannot express it.
-  shared: boolean('shared').notNull().default(false),
+  // business" is the real want and a person-level flag cannot express it — and that want is now
+  // expressed by turning ONE character off rather than by turning every character on.
+  shared: boolean('shared').notNull().default(true),
   claimedAt: text('claimed_at'),
 
   // ── Hiscores state ───────────────────────────────────────────────────────────────────────
@@ -994,7 +1001,14 @@ export const users = pgTable('users', {
   // non-bingo social notifications to clans they only guest in — except a whitelisted (account, clan)
   // in account_clan_emission. Their member clan and bingo evidence are never affected. See
   // lib/emissionRouting.
-  blockGuestEmissions: boolean('block_guest_emissions').notNull().default(false),
+  // DEFAULT ON: a clan you merely guest in stays quiet until you say otherwise.
+  //
+  // It defaulted to off while `accounts.shared` was itself off by default — the two together meant
+  // silence, and turning sharing on was a deliberate act that fairly read as "announce me". Sharing
+  // is the default now (drizzle/0080), and it says only that the leaderboards may see the character.
+  // Left as it was, flipping sharing would have started posting everybody's drops into every clan
+  // they had ever visited, which nobody asked for. The per-clan whitelist still opts one back in.
+  blockGuestEmissions: boolean('block_guest_emissions').notNull().default(true),
 }, (table) => [
   uniqueIndex('users_plugin_token_unique').on(table.pluginToken),
   index('users_player_idx').on(table.playerId),

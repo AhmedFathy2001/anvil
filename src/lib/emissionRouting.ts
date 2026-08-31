@@ -63,13 +63,18 @@ async function memberClanIdsOfPerson(playerId: number): Promise<Set<number>> {
  *                      clan back in past the person's global block, and is how an ALT is pointed at a
  *                      clan its owner is a member of (a whitelisted alt may reach a clan it holds no
  *                      seat in, but only one its owner is a member of),
- *                   4. otherwise: the person's global "block emitting to guest clans" preference, and
- *                      then the `shared` floor — an unshared account never announces to a clan it
- *                      only guests in.
+ *                   4. otherwise: the person's global "guest clans stay quiet" preference, and then
+ *                      the `shared` floor — an unshared account never announces to a clan it only
+ *                      guests in.
  *
- * The default is computed from seats + `accounts.shared`, so the common case — nothing configured —
- * routes correctly with no rows at all. The clan setting, the user column and account_clan_emission
- * hold only the deviations.
+ * THE PREFERENCE NOW DEFAULTS TO QUIET (players.block_guest_emissions, drizzle/0080). Sharing became
+ * the default in the same migration, and `shared` on its own says "the leaderboards may see this
+ * character" — not "post my drops in a clan I visited once". Visible and announced are separate
+ * disclosures, and only the first one got easier.
+ *
+ * MEMBER clans are unaffected: your own clan announces for you unless you silence it. The default
+ * still needs no rows at all — account_clan_emission, the clan setting and the user column hold only
+ * the deviations.
  */
 
 export interface EmissionClan {
@@ -135,10 +140,16 @@ export async function socialEmissionClans(accountId: number): Promise<EmissionCl
       out.push({ clanId, kind: 'guest' }); // explicit whitelist — the person opted this one in
       continue;
     }
-    // No explicit entry: the person's global block, then the shared default.
+    // No explicit entry: the person's guest preference, then the shared floor.
+    //
+    // BEING VISIBLE AND BEING ANNOUNCED ARE DIFFERENT DISCLOSURES, and sharing became the default in
+    // drizzle/0080 — so `shared` alone stopped meaning "and post my drops in a clan I visited once".
+    // The rule below is unchanged; what moved is players.block_guest_emissions, which now defaults to
+    // ON, so a guest clan is quiet until somebody says otherwise. Every lever still works: the
+    // per-clan whitelist above opts one back in, the clan's own veto still refuses, and a member
+    // clan is unaffected either way.
     if (userBlocksGuests) continue;
     if (account.shared) out.push({ clanId, kind: 'guest' });
-    // guest + unshared + no whitelist → nothing; the shared gate is still the floor.
   }
   return out;
 }

@@ -110,6 +110,31 @@ test('a shared account announces to its member clan and every clan it guests in'
   assert.equal(targets.find((t) => t.clanId === clanMember)!.kind, 'member');
 });
 
+test('a brand-new person is QUIET in guest clans, and loud in their own', async () => {
+  // THE DEFAULT ITSELF, which the cases either side of it deliberately override. Sharing became the
+  // default in drizzle/0080, and `shared` gates two different disclosures: who may SEE a character,
+  // and which clans ANNOUNCE its drops. Left alone, flipping the first would have started posting
+  // everybody's drops into every clan they had ever guested in — so users.block_guest_emissions
+  // flipped with it. Nothing here is configured; this is what somebody gets for doing nothing.
+  const { db, schema: s } = await loadDb();
+  const [person] = await db.insert(s.players).values({ displayName: 'Fresh' }).returning();
+  await db.insert(s.users).values({ playerId: person.id, displayName: 'Fresh', discordId: 'fresh-1' });
+  const [acct] = await db
+    .insert(s.accounts)
+    .values({ playerId: person.id, rsn: 'Fresh One', rsnNormalized: 'fresh one' })
+    .returning();
+  assert.equal(acct.shared, true, 'sharing is the default');
+
+  await db.insert(s.clanMemberships).values([
+    { clanId: clanMember, accountId: acct.id, kind: 'member', source: 'roster' },
+    { clanId: clanGuestA, accountId: acct.id, kind: 'guest', source: 'application' },
+  ]);
+
+  const targets = await R.socialEmissionClans(acct.id);
+  assert.deepEqual(clanIds(targets), [clanMember], 'their own clan announces; the guest clan does not');
+  assert.equal(targets[0].kind, 'member');
+});
+
 test('an UNSHARED account announces to its member clan only', async () => {
   await clearOverrides();
   const targets = await R.socialEmissionClans(unsharedAccount);

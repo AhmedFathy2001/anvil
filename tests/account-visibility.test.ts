@@ -56,10 +56,14 @@ before(async () => {
 
   const accts = await db
     .insert(s.accounts)
+    // EXPLICITLY UNSHARED. These cases are about the SEAT half of the rule — what a clan may see of
+    // somebody through its own roster — so they must not inherit the column default, which is now
+    // `true` (drizzle/0080). A fixture that leans on a default tests whatever the default happens to
+    // be that month rather than the thing it is named after.
     .values([
-      { playerId: person, rsn: 'The Main', rsnNormalized: 'the main', isPrimary: 1 },
-      { playerId: person, rsn: 'The Alt', rsnNormalized: 'the alt' },
-      { playerId: person, rsn: 'The Hermit', rsnNormalized: 'the hermit' },
+      { playerId: person, rsn: 'The Main', rsnNormalized: 'the main', isPrimary: 1, shared: false },
+      { playerId: person, rsn: 'The Alt', rsnNormalized: 'the alt', shared: false },
+      { playerId: person, rsn: 'The Hermit', rsnNormalized: 'the hermit', shared: false },
     ])
     .returning();
   mainId = accts[0].id;
@@ -118,14 +122,24 @@ test('unsharing takes it back', async () => {
   assert.deepEqual((await accountsVisibleToClan(alpha, person)).map((a) => a.rsn), ['The Main']);
 });
 
-test('sharing is off by default', async () => {
-  // The safe answer should be the one nobody has to think about.
+test('sharing is ON by default — this is a cross-clan record', async () => {
+  // Flipped in drizzle/0080. Off, the leaderboards and the clan directory could only describe a
+  // person through whichever clan you happened to be looking at, which is the silo one site was
+  // meant to end. An OSRS name is public anyway. Privacy is still one click, per character.
   const { db, schema: s } = await loadDb();
   const [fresh] = await db
     .insert(s.accounts)
     .values({ playerId: person, rsn: 'Brand New', rsnNormalized: 'brand new' })
     .returning();
-  assert.equal(fresh.shared, false);
+  assert.equal(fresh.shared, true);
+  assert.equal(
+    (await accountsVisibleToClan(alpha, person)).some((a) => a.rsn === 'Brand New'),
+    true,
+    'a clan with no seat for it can see a shared character',
+  );
+
+  // And turning it off still takes it back — the rule did not change, only its default answer.
+  await db.update(s.accounts).set({ shared: false }).where(eq(s.accounts.id, fresh.id));
   assert.equal(
     (await accountsVisibleToClan(alpha, person)).some((a) => a.rsn === 'Brand New'),
     false,
