@@ -172,12 +172,13 @@ function Composition({
 
       <div className="flex flex-col items-start sm:items-end gap-1.5">
         {counts.review > 0 && (
-          <button
-            onClick={() => onPick('review')}
+          /* Points at the QUEUE rather than filtering this table: the decisions live there. */
+          <ClanLink
+            href="/admin/people/needs-review"
             className="text-xs px-2.5 py-1 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/25 transition-colors whitespace-nowrap"
           >
             {counts.review} waiting on review
-          </button>
+          </ClanLink>
         )}
         <span className="text-[11px] text-text-muted tabular-nums">
           {counts.linked} linked · {counts.quiet} quiet {QUIET_DAYS}d+ · {counts.noPluginData} no plugin data
@@ -297,7 +298,6 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   // One reading of the clock for the page's lifetime, so "6d ago" and the Idle view can never
   // disagree with each other across a re-render.
   const [nowMs] = useState(() => Date.now());
-  const [showSettings, setShowSettings] = useState(false);
   const [members, setMembers] = useState<ClanMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -327,19 +327,8 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   const [roleError, setRoleError] = useState('');
   const [roleNotice, setRoleNotice] = useState<string | null>(null);
 
-  // Clan naming — two independent values. `clanName` is the display name (site, plugin, Discord);
-  // `inGameClanName` is the exact OSRS clan name the roster sync must report (blank = accept any).
-  const [clanName, setClanName] = useState('');
-  const [inGameClanName, setInGameClanName] = useState('');
-  const [clanNameOriginal, setClanNameOriginal] = useState('');
-  const [inGameNameOriginal, setInGameNameOriginal] = useState('');
   // Whether anyone has proved this clan is the in-game clan it names. An unverified clan cannot sync
   // its roster, and finding that out from a 403 in the plugin is a poor way to learn it.
-  const [verification, setVerification] = useState<
-    { verified: boolean; verifiedAt: string | null; inGameName: string | null } | null
-  >(null);
-  const [clanNameSaving, setClanNameSaving] = useState(false);
-  const [clanNameMessage, setClanNameMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   const [renameTarget, setRenameTarget] = useState<ClanMember | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -348,19 +337,10 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
 
   async function fetchAll() {
     setLoading(true);
-    const [mRes, sRes] = await Promise.all([
+    const [mRes] = await Promise.all([
       clanFetch('/api/admin/clan'),
-      clanFetch('/api/admin/settings'),
     ]);
     if (mRes.ok) setMembers(await mRes.json());
-    if (sRes.ok) {
-      const s = await sRes.json();
-      setClanName(s.clan_name || '');
-      setClanNameOriginal(s.clan_name || '');
-      setInGameClanName(s.clan_ingame_name || '');
-      setInGameNameOriginal(s.clan_ingame_name || '');
-      setVerification(s._verification ?? null);
-    }
     setLoading(false);
   }
 
@@ -368,25 +348,6 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot mount fetch
     fetchAll();
   }, []);
-
-  async function saveClanName() {
-    setClanNameSaving(true);
-    setClanNameMessage(null);
-    const res = await clanFetch('/api/admin/settings', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clan_name: clanName, clan_ingame_name: inGameClanName }),
-    });
-    if (res.ok) {
-      setClanNameOriginal(clanName);
-      setInGameNameOriginal(inGameClanName);
-      setClanNameMessage({ type: 'ok', text: 'Saved.' });
-    } else {
-      const data = await res.json().catch(() => ({}));
-      setClanNameMessage({ type: 'err', text: data.error || 'Failed to save' });
-    }
-    setClanNameSaving(false);
-  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -748,13 +709,22 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   }
 
   // Ordered by how often staff actually need them, with the queue that wants a decision first.
+  // TWO CHIPS ARE GONE, because each was a worse copy of a tab beside it.
+  //
+  //   "Needs review" filtered the table to provisional rows — the same people the Needs review TAB
+  //   lists, except the tab is a queue with approve and decline on it. Showing the rows without the
+  //   decisions is the half that does not help, and two things with one name on one page is a
+  //   question the reader has to answer before they can start.
+  //
+  //   "Has account" answered "who has a site account" one SEAT at a time, while the Staff tab
+  //   answers it one PERSON at a time — the unit the question is actually about, with their
+  //   characters gathered under them. It also read (0) here while Staff counted 54, which is what a
+  //   seat-shaped answer to a person-shaped question looks like.
   const filterDefs: { key: FilterMode; label: string; count: number; attn?: boolean }[] = [
-    { key: 'review', label: 'Needs review', count: counts.review, attn: true },
     { key: 'active', label: 'Active', count: counts.active },
     { key: 'quiet', label: `Quiet ${QUIET_DAYS}d+`, count: counts.quiet },
     { key: 'guests', label: 'Guests', count: counts.guests },
     { key: 'unlinked', label: 'Roster only', count: counts.unlinked },
-    { key: 'linked', label: 'Has account', count: counts.linked },
     { key: 'left', label: 'Departed', count: counts.left },
     { key: 'all', label: 'All', count: counts.total },
   ];
@@ -766,23 +736,10 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
             "Members". "Clan / Clan Roster" was the same word twice before you reached a member.
             Identity is a line, not a form — the names change about once a year; the roster is read
             every day, and the settings card used to sit on top of it regardless. */}
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap text-sm">
-            <span className="inline-flex items-center gap-2 border border-card-border rounded-full bg-card-bg px-3 py-1">
-              <span className="font-semibold">{clanName || 'Unnamed clan'}</span>
-              {inGameClanName && inGameClanName !== clanName && (
-                <span className="text-[11px] text-text-muted">in-game: {inGameClanName}</span>
-              )}
-            </span>
-            <button
-              onClick={() => setShowSettings((v) => !v)}
-              aria-expanded={showSettings}
-              className="text-xs text-gold hover:text-gold-light underline underline-offset-2"
-            >
-              {showSettings ? 'Hide clan settings' : 'Edit clan settings'}
-            </button>
-          </div>
-        </div>
+        {/* The clan's NAME used to sit here, with an "Edit clan settings" toggle above the member
+            table — clan-entity configuration filed under the people in it, and two values that
+            change once a year on top of the list read every day. Both moved to Clan → Profile. */}
+        <div className="min-w-0" />
         <div className="flex gap-2">
           <ClanLink
             href="/admin/dashboard"
@@ -803,86 +760,6 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
       <Composition counts={counts} onPick={setFilter} />
 
       {/* Clan settings — folded away by default; see the header disclosure. */}
-      <div className={`border border-card-border rounded-xl bg-card-bg p-5 mb-6 ${showSettings ? '' : 'hidden'}`}>
-        <h2 className="text-lg font-bold flex items-center gap-2 mb-1">
-          <span className="w-1 h-5 bg-gold rounded-full" />
-          Clan Settings
-        </h2>
-        <p className="text-text-muted text-sm mb-4">
-          Your display name and your in-game clan name can differ — the site shows one, the plugin
-          matches the other.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Display name</label>
-            <Input
-              type="text"
-              value={clanName}
-              onChange={(e) => {
-                setClanName(e.target.value);
-                setClanNameMessage(null);
-              }}
-              placeholder="e.g. The Golden Arrows"
-              className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
-            />
-            <p className="text-[11px] text-text-muted mt-1">
-              What the site, the plugin and Discord posts call your clan.
-            </p>
-          </div>
-          <div>
-            <label className="block text-xs text-text-muted mb-1">In-game clan name</label>
-            <Input
-              type="text"
-              value={inGameClanName}
-              onChange={(e) => {
-                setInGameClanName(e.target.value);
-                setClanNameMessage(null);
-              }}
-              placeholder="e.g. Golden Arrows CC"
-              className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm"
-            />
-            {verification && (
-              <p className={`text-[11px] mt-1 ${verification.verified ? 'text-accent-green-light' : 'text-yellow-400'}`}>
-                {verification.verified ? (
-                  <>✓ Verified as &ldquo;{verification.inGameName}&rdquo; in game.</>
-                ) : (
-                  <>
-                    Not verified yet — this clan can&apos;t sync its roster. Open the clan tab in OSRS
-                    and press Sync from an account with an <strong>Owner</strong> or{' '}
-                    <strong>Deputy Owner</strong> rank; that proves the clan is yours and only has to
-                    happen once. If your clan renamed those ranks, get in touch and we&apos;ll verify
-                    it by hand.
-                  </>
-                )}
-              </p>
-            )}
-            <p className="text-[11px] text-text-muted mt-1">
-              The plugin&apos;s roster-sync payload must match this exactly.
-            </p>
-          </div>
-        </div>
-        <div className="flex justify-end mt-3">
-          <button
-            onClick={saveClanName}
-            disabled={
-              clanNameSaving ||
-              (clanName === clanNameOriginal && inGameClanName === inGameNameOriginal)
-            }
-            className="px-4 py-2 text-sm font-semibold bg-gold hover:bg-yellow-500 text-brown-dark rounded-lg transition-colors disabled:opacity-50"
-          >
-            {clanNameSaving ? 'Saving...' : 'Save'}
-          </button>
-        </div>
-        {clanNameMessage && (
-          <p
-            className={`text-xs mt-2 ${
-              clanNameMessage.type === 'ok' ? 'text-accent-green-light' : 'text-red-400'
-            }`}
-          >
-            {clanNameMessage.text}
-          </p>
-        )}
-      </div>
 
       {/* Filters — a compact dropdown on phones, the full chip row from sm: up. */}
       <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 mb-4">
