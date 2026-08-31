@@ -38,6 +38,7 @@
     "test:leaderboard": "npx tsx --test tests/clan-leaderboard.test.ts",
     "test:seatscope": "npx tsx --test tests/seat-scope.test.ts",
     "test:participants": "npx tsx --test tests/participant-identity.test.ts",
+    "test:markdown": "npx tsx --test tests/markdown.test.ts",
     "test:accountvis": "npx tsx --test tests/account-visibility.test.ts",
     "test:clanpaths": "npx tsx --test tests/clan-paths.test.ts",
     "test:adminaccess": "npx tsx --test tests/admin-access.test.ts",

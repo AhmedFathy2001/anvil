@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Input from '@/components/Input';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
 import { clanFetch } from '@/lib/clanFetch';
+import { renderMarkdown } from '@/lib/markdown';
 
 interface PlainSettingProps {
   // Which settings key this field reads/writes (must be whitelisted in /api/admin/settings).
@@ -13,13 +14,21 @@ interface PlainSettingProps {
   helpText?: string;
   /** Render a textarea instead of a one-line input — for prose settings like the house rules. */
   multiline?: boolean;
+  /**
+   * Render a live Markdown preview under the field.
+   *
+   * For prose that is PUBLISHED rather than configured — house rules are read by players, so the
+   * author should see what they are about to publish rather than guess from a hint line that says
+   * markdown "works". Off everywhere else: a webhook URL has no preview worth drawing.
+   */
+  markdownPreview?: boolean;
   /** Textarea height in rows. Ignored unless `multiline`. */
   rows?: number;
 }
 
 // A single labelled text setting backed by the settings table — no webhook create/test, unlike
 // WebhookField. Used for plain values like the Discord invite URL or a role ID.
-export default function PlainSetting({ settingKey, label, placeholder, helpText, multiline, rows = 10 }: PlainSettingProps) {
+export default function PlainSetting({ settingKey, label, placeholder, helpText, multiline, markdownPreview, rows = 10 }: PlainSettingProps) {
   const [value, setValue] = useState('');
   const [original, setOriginal] = useState('');
   const [loading, setLoading] = useState(true);
@@ -93,6 +102,14 @@ export default function PlainSetting({ settingKey, label, placeholder, helpText,
           />
         )}
         {helpText && <p className="text-xs text-text-muted mt-1">{helpText}</p>}
+        {markdownPreview && value.trim() && (
+          <div className="mt-3 rounded-lg border border-card-border bg-background px-4 py-3">
+            <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-text-muted">
+              How it will read
+            </div>
+            <div className="text-sm text-foreground">{renderMarkdown(value)}</div>
+          </div>
+        )}
       </div>
 
       {message && (

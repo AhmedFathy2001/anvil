@@ -334,8 +334,9 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
               label="House rules"
               multiline
               rows={12}
+              markdownPreview
               placeholder={'Keep a screenshot of every drop.\nRun the plugin if you can.\nDon\'t cheat — it\'s for fun.'}
-              helpText="Discord markdown works (**bold**, bullet lists). Long rulesets are trimmed to fit an embed, so put the essentials first and link the rest below."
+              helpText="Markdown works — **bold**, *italic*, `code`, - bullets, 1. numbers, > quotes, # headings, and links. The same dialect Discord uses, so one ruleset reads right in both places. Long rulesets are trimmed to fit an embed, so put the essentials first and link the rest below."
             />
             <div className="border-t border-card-border pt-4 mt-4">
               <PlainSetting
