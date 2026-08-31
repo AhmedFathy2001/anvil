@@ -1,7 +1,7 @@
 import ClanLink from '@/components/ClanLink';
 import ShareToggle from '@/components/ShareToggle';
 import LinkAccountsToggle from '@/components/LinkAccountsToggle';
-import LinkAccountClient from '@/app/profile/LinkAccountClient';
+import AddCharacterClient from '@/app/profile/AddCharacterClient';
 import AnnouncementsDrawer from '@/app/profile/AnnouncementsDrawer';
 import type { MyClan } from '@/lib/myClans';
 import type { EmissionSettingsView } from '@/lib/emissionSettings';
@@ -118,10 +118,9 @@ export default function PersonProfile({
              moderator to ask. */
           <div className="rounded-xl border border-card-border bg-card-bg p-4">
             <p className="mb-4 text-sm text-text-muted">
-              No characters linked yet. Prove one is yours — train it a little and Hiscores will say
-              so. It stays yours in every clan you join, without proving it again.
+              No characters linked yet — here&rsquo;s the quickest way to add your first.
             </p>
-            <LinkAccountClient manualReview={false} />
+            <AddCharacterClient first />
           </div>
         ) : (
           <>
@@ -154,11 +153,7 @@ export default function PersonProfile({
                 Add another character
               </summary>
               <div className="px-4 pb-4">
-                <p className="mb-3 text-sm text-text-muted">
-                  Prove it is yours — train it a little and Hiscores will say so. It stays yours in
-                  every clan you join, without proving it again.
-                </p>
-                <LinkAccountClient manualReview={false} />
+                <AddCharacterClient />
               </div>
             </details>
           </>
