@@ -4,13 +4,20 @@ import ClanLink, { useClanRelativePath } from '@/components/ClanLink';
 
 interface Props {
   isAdmin: boolean;
-  provisionalCount: number;
 }
 
-// Tabs for the unified Clan hub. Consolidates what used to be four sidebar items —
-// Roster, Verifications, Staff, Audit log — into one surface. Staff is admin-only; the
-// rest follow the admin layout's existing admin/mod gate.
-export default function ClanTabNav({ isAdmin, provisionalCount }: Props) {
+/**
+ * Tabs for the Clan itself — its public face, its door, its wiring and its record.
+ *
+ * The other half of the old "Members & staff" hub, which held two nouns under a name for one of
+ * them. People moved to /admin/people; what stays here is the clan as a thing rather than the people
+ * in it.
+ *
+ * Settings arrives from the dissolved "System" group. It was always clan configuration — Discord,
+ * webhooks, notifications, fees, board defaults — and its own page admitted the split it caused, in
+ * a line telling readers that the clan name lives under a different menu entirely.
+ */
+export default function ClanEntityTabNav({ isAdmin }: Props) {
   // Clan-relative: these hrefs are bare paths, and the browser is at /c/<slug>/… ,
 
   // so comparing against the raw pathname never matches and no tab looks active.
@@ -18,15 +25,12 @@ export default function ClanTabNav({ isAdmin, provisionalCount }: Props) {
   const pathname = useClanRelativePath();
 
   const tabs: { href: string; label: string; badge?: number; exact?: boolean; show: boolean }[] = [
-    { href: '/admin/clan', label: 'Members', exact: true, show: true },
-    { href: '/admin/clan/needs-review', label: 'Needs review', badge: provisionalCount, show: true },
-    { href: '/admin/clan/staff', label: 'People', show: isAdmin },
-    // The public face at /c/<slug> — tagline, focus, recruiting. Admin-only: what the clan advertises
-    // about itself is a clan-level decision.
-    { href: '/admin/clan/profile', label: 'Profile', show: isAdmin },
-    // Who may see the clan and how guests get in. Admin-only for the same reason People is: it
-    // decides who can reach the place, not how an event is run.
+    // The public face at /c/<slug> — tagline, focus, recruiting.
+    { href: '/admin/clan', label: 'Profile', exact: true, show: true },
+    // Who may see the clan and how guests get in.
     { href: '/admin/clan/policy', label: 'Access', show: isAdmin },
+    // Everything the clan talks to. Was System → Advanced settings.
+    { href: '/admin/integrations', label: 'Settings', show: isAdmin },
     { href: '/admin/clan/audit', label: 'History', show: true },
   ];
 

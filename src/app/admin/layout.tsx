@@ -9,6 +9,7 @@ import { and, count, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { avatarUrl } from '@/lib/discord-oauth';
 import AdminSidebar, { type SidebarGroup } from './_components/AdminSidebar';
+import { getSetupStatus } from '@/lib/setupStatus';
 
 // Admin shell — wraps every page under /admin (including the login page).
 // On the login page there's no session yet, so the sidebar is skipped and the
@@ -79,15 +80,20 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // show them an "All events" item that would just bounce back to the dashboard.
   const canManageEvents = isAdmin || session.canEditTiles;
 
+  // Only to decide whether the sidebar still needs to nag about setup. Cheap, and the dashboard
+  // reads the same helper for its checklist, so the two never disagree about what is left.
+  const setup = isAdmin ? await getSetupStatus(clan.id) : null;
+
   const groups: SidebarGroup[] = [];
 
   // Overview is everyone's landing tile.
+  //
+  // Feedback is NOT here any more. It is reports about Anvil, and on one site there is one product
+  // and one operator, who reads them at /staff — so every clan admin was being shown a triage queue
+  // for somebody else's job. See app/staff/feedback.
   groups.push({
     label: 'Overview',
-    items: [
-      { href: '/admin/dashboard', label: 'Dashboard', icon: '⌂' },
-      { href: '/admin/feedback', label: 'Feedback', icon: '💬', matchPrefix: true },
-    ],
+    items: [{ href: '/admin/dashboard', label: 'Dashboard', icon: '⌂' }],
   });
 
   // Bingo events + schedule. Schedule is open to every staff role; the event list is admin/editor
@@ -111,32 +117,37 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     items: [{ href: '/admin/weekly', label: 'Competitions', icon: '🏆', matchPrefix: true }],
   });
 
-  // Clan management — one hub (Members · Needs review · Staff · History). The badge
-  // surfaces the provisional-member count that used to live on the Verifications item.
+  // TWO NOUNS, TWO ENTRIES. This was one item called "Members & staff" holding six tabs that spanned
+  // the people (roster, review queue, staff seats) AND the clan itself (public face, access, wiring,
+  // history). A name can only describe one of those, and it described the half that kept growing.
   groups.push({
-    label: 'Clan',
+    label: 'People',
     items: [
-      {
-        href: '/admin/clan',
-        label: 'Members & staff',
-        icon: '🛡️',
-        badge: provisionalCount,
-        matchPrefix: true,
-      },
+      { href: '/admin/people', label: 'Roster', icon: '🛡️', badge: provisionalCount, matchPrefix: true },
     ],
   });
 
   // Fees now live on each event's Sign-ups tab (no standalone queue), so there's no Money
   // group. Treasurers/mods reach them via Events → an event → Sign-ups.
 
-  // System — admin only. (Staff management now lives in the Clan hub.)
+  // The clan as a thing. "System" used to sit below this holding Advanced settings — which was clan
+  // configuration all along, and said so itself in a line pointing readers at a different menu for
+  // the clan's own name. Dissolved into here, where the noun already was.
   if (isAdmin) {
     groups.push({
-      label: 'System',
+      label: 'Clan',
       items: [
-        { href: '/admin/setup', label: 'Setup', icon: '🧭' },
+        { href: '/admin/clan', label: 'Profile', icon: '🏰', matchPrefix: true },
+        { href: '/admin/integrations', label: 'Settings', icon: '🔌' },
+        // A broadcast to the clan is an ACT, not a place — but it is the clan's act, so it lives with
+        // the clan rather than in a drawer of unrelated machinery.
         { href: '/admin/announce', label: 'Announce', icon: '📣' },
-        { href: '/admin/integrations', label: 'Advanced settings', icon: '🔌' },
+        // SETUP IS A STATE, NOT A PLACE. A permanent menu item for a wizard you finish once is a
+        // permanent invitation to redo it; while it is unfinished the dashboard checklist is already
+        // asking, and this makes the ask reachable. Once done it stops taking up a line forever.
+        ...(!setup || setup.allDone || setup.dismissed
+          ? []
+          : [{ href: '/admin/setup', label: 'Finish setup', icon: '🧭' }]),
       ],
     });
   }

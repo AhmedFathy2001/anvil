@@ -348,14 +348,14 @@ export default async function AdminDashboardPage() {
             value={activeMembers}
             delta={netRoster}
             sub={`${joined7d} joined · ${left7d} left`}
-            href="/admin/clan"
+            href="/admin/people"
           />
           <PulseTile
             label="Played this week"
             value={playedThisWeek}
             share={activeMembers > 0 ? playedThisWeek / activeMembers : 0}
             sub={`of ${activeMembers} · only members running the plugin report in`}
-            href="/admin/clan"
+            href="/admin/people"
           />
           <PulseTile
             label="Tiles completed"
@@ -944,10 +944,10 @@ function Snapshot({
         <SnapshotRow
           label="Pending mod review"
           value={`${provisionalCount} member${provisionalCount === 1 ? '' : 's'}`}
-          href="/admin/clan/needs-review"
+          href="/admin/people/needs-review"
           emphasize={provisionalCount > 0}
         />
-        <SnapshotRow label="Roster size" value={`${activeMembers} active`} href="/admin/clan" />
+        <SnapshotRow label="Roster size" value={`${activeMembers} active`} href="/admin/people" />
         <SnapshotRow
           label="Fees to collect"
           value={`${feeCounts.owed} fee${feeCounts.owed === 1 ? '' : 's'}`}

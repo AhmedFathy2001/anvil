@@ -208,7 +208,7 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
       severity: 'warn',
       title: `${plural(facts.pendingVerifications, 'person', 'people')} waiting on mod review`,
       detail: 'They self-reported through the plugin and can’t be scored until verified.',
-      href: '/admin/clan/needs-review',
+      href: '/admin/people/needs-review',
       action: 'Review them',
       at: 0,
     });
@@ -221,7 +221,7 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
       severity: 'warn',
       title: `${plural(facts.joinRequests, 'person', 'people')} asking to join`,
       detail: 'They applied, or entered one of your events as a guest, and are waiting on an answer.',
-      href: '/admin/clan',
+      href: '/admin/people',
       action: 'Decide',
       at: 0,
     });
@@ -233,7 +233,7 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
       severity: 'warn',
       title: `${plural(facts.coHostInvites, 'clan')} invited you to co-host`,
       detail: 'Accepting gives you your own team on their board, run by your staff.',
-      href: '/admin/clan',
+      href: '/admin/people',
       action: 'Answer',
       at: 0,
     });

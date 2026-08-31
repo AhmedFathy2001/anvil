@@ -17,6 +17,8 @@ export const dynamic = 'force-dynamic';
 export default async function ClanPolicyPage() {
   // Through clanHref: a bare '/admin/clan' resolves against the apex, which has no admin area —
   // so a moderator would be bounced out of the clan entirely instead of back to its roster.
-  if (!(await verifyAdmin())) redirect(await clanHref('/admin/clan'));
+  // Not /admin/clan — that IS this page now that Profile is the hub's front door, so sending a
+  // non-admin there would bounce them off it forever. People is the surface they can actually use.
+  if (!(await verifyAdmin())) redirect(await clanHref('/admin/people'));
   return <PolicyClient />;
 }

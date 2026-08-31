@@ -39,6 +39,9 @@ export default async function StaffLayout({ children }: { children: React.ReactN
         { href: '/staff/people', label: 'People', icon: '👤', matchPrefix: true },
         // Read-only, and shown to support too: seeing what was done is the least dangerous thing an
         // operator can do, and the one most often needed when somebody asks why.
+        // Reports about the product, from every clan. Was a triage queue in each clan's own admin
+        // area, which asked every clan admin to look after a queue that was never theirs.
+        { href: '/staff/feedback', label: 'Feedback', icon: '💬', matchPrefix: true },
         { href: '/staff/audit', label: 'Operator log', icon: '⧉', matchPrefix: true },
       ],
     },

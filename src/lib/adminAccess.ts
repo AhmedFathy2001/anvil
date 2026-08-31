@@ -46,11 +46,13 @@ export interface AdminAccess {
 const MODERATOR_PATHS = [
   '/admin/dashboard',
   '/admin/weekly',
+  '/admin/people',
+  // The clan hub, for History — the one tab there that is not an admin decision. The pages that ARE
+  // (Profile, Access) each check for themselves and bounce a moderator to /admin/people.
   '/admin/clan',
   '/admin/schedule',
   '/admin/verifications',
   '/admin/fees',
-  '/admin/feedback',
   '/admin/tile-library',
 ];
 

@@ -1,34 +1,25 @@
-import { db } from '@/db';
-import { requireClan } from '@/lib/clanContext';
-import { clanRoster } from '@/db/schema';
-import { and, count, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
-import ClanTabNav from './ClanTabNav';
+import ClanEntityTabNav from './ClanEntityTabNav';
 import { atLeast } from '@/lib/clanRoles';
 
 export const dynamic = 'force-dynamic';
 
-// Shell for the unified Clan hub. The parent admin layout already gates access to
-// admin/mod/editor; here we just resolve the role (Staff tab is admin-only) and the
-// provisional-member badge, then render the tab nav above whichever sub-route is active.
+// Shell for the Clan hub — the clan as a thing, not the people in it (those are /admin/people).
+// The parent admin layout already gates access; here we resolve the role, since everything except
+// History is an admin decision about how the clan presents itself and who may reach it.
 export default async function ClanLayout({ children }: { children: React.ReactNode }) {
   const session = await verifyUser();
   const isAdmin = atLeast(session?.role, 'admin');
-
-  const clan = await requireClan();
-  const provisionalCount = await db
-    .select({ c: count() })
-    .from(clanRoster)
-    .where(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.provisional, 1), isNull(clanRoster.leftAt)))
-    .then((r) => r[0]?.c ?? 0);
 
   return (
     <div>
       <header className="mb-5">
         <h1 className="text-2xl sm:text-3xl font-bold text-gold">Clan</h1>
-        <p className="text-text-muted text-sm mt-0.5">Members, staff roles, and clan history in one place.</p>
+        <p className="text-text-muted text-sm mt-0.5">
+          How the clan presents itself, who may reach it, what it is wired to, and what it has done.
+        </p>
       </header>
-      <ClanTabNav isAdmin={isAdmin} provisionalCount={provisionalCount} />
+      <ClanEntityTabNav isAdmin={isAdmin} />
       {children}
     </div>
   );

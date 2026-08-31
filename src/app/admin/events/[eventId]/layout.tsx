@@ -1,7 +1,4 @@
-import { db } from '@/db';
-import { events } from '@/db/schema';
-import { eq } from 'drizzle-orm';
-import { notFound, redirect } from 'next/navigation';
+import { redirect } from 'next/navigation';
 import { isTileRaceFormat, isPointsMode, eventShapeBadge } from '@/lib/utils';
 import { verifyUser } from '@/lib/auth';
 import { isEventEditor, isEventTreasurer } from '@/lib/eventEditors';

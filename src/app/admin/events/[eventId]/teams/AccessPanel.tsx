@@ -53,6 +53,13 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
   const [invites, setInvites] = useState<Invite[]>([]);
   const [guestPolicy, setGuestPolicy] = useState<string | null>(null);
   const [slug, setSlug] = useState('');
+  // Inviting ONE PERSON. `event_invites` always took a clan or a person and the POST always accepted
+  // `playerId`; what was missing was any way to turn a name into an id, so only half of inviting was
+  // reachable from the product.
+  const [mode, setMode] = useState<'clan' | 'person'>('clan');
+  const [rsn, setRsn] = useState('');
+  const [lookup, setLookup] = useState<{ playerId: number; rsn: string; alreadyInvited: boolean } | null>(null);
+  const [looked, setLooked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -99,6 +106,49 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error ?? 'Could not invite');
       setSlug('');
+      await load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Exact name, exact answer — the route matches a normalised RSN and never a prefix. */
+  async function findPerson() {
+    const q = rsn.trim();
+    if (!q) return;
+    setBusy(true);
+    setError(null);
+    setLooked(false);
+    try {
+      const res = await clanFetch(`/api/events/${eventId}/invites/search?q=${encodeURIComponent(q)}`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error ?? 'Could not look that up');
+      setLookup(data?.match ?? null);
+      setLooked(true);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function invitePerson() {
+    if (!lookup) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await clanFetch(`/api/events/${eventId}/invites`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId: lookup.playerId }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error ?? 'Could not invite');
+      setRsn('');
+      setLookup(null);
+      setLooked(false);
       await load();
     } catch (e) {
       setError((e as Error).message);
@@ -181,6 +231,49 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
             </ul>
           )}
 
+          <div className="mb-2 flex gap-1">
+            {(['clan', 'person'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => {
+                  setMode(m);
+                  setError(null);
+                  setLooked(false);
+                  setLookup(null);
+                }}
+                className={`rounded-lg px-3 py-1 text-[12.5px] transition-colors ${
+                  mode === m ? 'bg-gold/15 text-gold' : 'text-text-muted hover:text-foreground'
+                }`}
+              >
+                {m === 'clan' ? 'A clan' : 'One person'}
+              </button>
+            ))}
+          </div>
+
+          {mode === 'person' ? (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input
+                value={rsn}
+                onChange={(e) => {
+                  setRsn(e.target.value);
+                  setLooked(false);
+                  setLookup(null);
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && findPerson()}
+                placeholder="Their exact RSN"
+                className="flex-1 rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-gold/50"
+              />
+              <button
+                type="button"
+                onClick={lookup ? invitePerson : findPerson}
+                disabled={busy || !rsn.trim() || (looked && !lookup) || lookup?.alreadyInvited}
+                className="shrink-0 rounded-lg bg-gold px-4 py-2 text-[13px] font-semibold text-brown-dark transition-colors hover:bg-gold-light disabled:opacity-50"
+              >
+                {busy ? '…' : lookup ? `Invite ${lookup.rsn}` : 'Find'}
+              </button>
+            </div>
+          ) : (
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="flex flex-1 items-center gap-1 rounded-lg border border-card-border bg-background px-3 py-2 text-sm focus-within:border-gold/50">
               <span className="font-mono text-[13px] text-text-muted">anvilosrs.com/c/</span>
@@ -201,6 +294,18 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
               Invite
             </button>
           </div>
+          )}
+
+          {/* Said plainly, because an exact-match lookup that finds nothing is indistinguishable from
+              a typo, and the two want different next moves. */}
+          {mode === 'person' && looked && !lookup && (
+            <p className="mt-2 text-[12.5px] text-accent-red">
+              Nobody on Anvil has verified that name. Check the spelling — it has to be exact.
+            </p>
+          )}
+          {mode === 'person' && lookup?.alreadyInvited && (
+            <p className="mt-2 text-[12.5px] text-text-muted">{lookup.rsn} is already invited.</p>
+          )}
           <p className="mt-2 text-[12px] text-text-muted">
             An invited clan’s members can see this board and enter without being approved one by one.
             To have a clan run its own TEAM here, invite it as a co-host below instead.

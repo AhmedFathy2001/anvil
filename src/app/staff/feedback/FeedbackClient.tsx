@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import Select from '@/components/Select';
 import LocalTime from '@/components/LocalTime';
-import { clanFetch } from '@/lib/clanFetch';
 
 interface Item {
   id: number;
@@ -14,8 +13,9 @@ interface Item {
   contact: string | null;
   pageUrl: string | null;
   adminNotes: string | null;
-  elevated: boolean;
-  elevatedAt: string | null;
+  /** Which clan it came from — the column that makes a platform-wide list readable. */
+  clanName: string | null;
+  clanSlug: string | null;
   createdAt: string;
   reporter: string | null;
 }
@@ -33,20 +33,17 @@ const STATUS_CLS: Record<string, string> = {
   closed: 'bg-brown-light text-text-muted',
 };
 
-export default function FeedbackAdminClient() {
+export default function FeedbackClient() {
   const [items, setItems] = useState<Item[]>([]);
-  const [canElevate, setCanElevate] = useState(false);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'open' | 'all'>('open');
-  const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState('');
 
   async function load() {
-    const res = await clanFetch('/api/admin/feedback');
+    const res = await fetch('/api/staff/feedback');
     if (res.ok) {
       const data = await res.json();
       setItems(data.items);
-      setCanElevate(data.canElevate);
     }
     setLoading(false);
   }
@@ -57,21 +54,15 @@ export default function FeedbackAdminClient() {
 
   async function patch(id: number, patch: { status?: string; adminNotes?: string }) {
     setItems((list) => list.map((i) => (i.id === id ? { ...i, ...patch } : i)));
-    await clanFetch(`/api/admin/feedback/${id}`, {
+    await fetch('/api/staff/feedback', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patch),
+      // The id rides in the BODY now: the route is one platform endpoint rather than a per-row one
+      // under a clan, so there is no /[id] segment to carry it.
+      body: JSON.stringify({ id, ...patch }),
     });
   }
 
-  async function elevate(id: number) {
-    setBusyId(id);
-    setError('');
-    const res = await clanFetch(`/api/admin/feedback/${id}/elevate`, { method: 'POST' });
-    setBusyId(null);
-    if (res.ok) load();
-    else setError((await res.json().catch(() => ({}))).error || 'Could not elevate.');
-  }
 
   if (loading) return <p className="text-text-muted text-sm">Loading…</p>;
 
@@ -114,13 +105,18 @@ export default function FeedbackAdminClient() {
                     <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${STATUS_CLS[i.status] ?? ''}`}>
                       {i.status.replace('_', ' ')}
                     </span>
-                    {i.elevated && (
-                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-300">
-                        Elevated
-                      </span>
-                    )}
                   </div>
                   <div className="text-xs text-text-muted mt-0.5">
+                    {i.clanName ? (
+                      <>
+                        {/* clan-prefix: platform -- /staff is the apex, and /c/<slug> is already the
+                            absolute address of another clan; prefixing it would be nonsense here. */}
+                        <a href={`/c/${i.clanSlug}`} className="text-gold hover:underline">
+                          {i.clanName}
+                        </a>
+                        {' · '}
+                      </>
+                    ) : null}
                     {i.reporter ?? 'Unknown'} · <LocalTime date={i.createdAt} format="date" />
                     {i.pageUrl ? ` · from ${i.pageUrl}` : ''}
                   </div>
@@ -145,16 +141,6 @@ export default function FeedbackAdminClient() {
                       ariaLabel={`Status for ${i.subject}`}
                     />
                   </div>
-                  {canElevate && !i.elevated && (
-                    <button
-                      onClick={() => elevate(i.id)}
-                      disabled={busyId === i.id}
-                      className="px-3 py-1.5 text-xs border border-purple-500/40 text-purple-300 rounded-lg hover:bg-purple-500/10 disabled:opacity-50 transition-colors"
-                      title="Send this to the Anvil operator"
-                    >
-                      {busyId === i.id ? 'Elevating…' : 'Elevate to Anvil'}
-                    </button>
-                  )}
                 </div>
               </div>
             </div>

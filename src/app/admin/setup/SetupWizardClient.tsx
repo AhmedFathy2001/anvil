@@ -142,7 +142,7 @@ export default function SetupWizardClient({ initial, channels, botEnabled, provi
                 ? 'Your clan name and Discord details from sign-up are already filled in, so we skipped what’s done. '
                 : 'Steps you’ve already completed were skipped. '}
               Change any of it later in the{' '}
-              <ClanLink href="/admin/clan" className="text-gold hover:underline">
+              <ClanLink href="/admin/people" className="text-gold hover:underline">
                 Clan hub
               </ClanLink>{' '}
               or{' '}
