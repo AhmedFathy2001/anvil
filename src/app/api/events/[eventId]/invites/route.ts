@@ -42,9 +42,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
     .leftJoin(players, eq(players.id, eventInvites.playerId))
     .where(eq(eventInvites.eventId, eventId));
 
+  // The clan's own guest policy rides along: it overrides event entry in lib/guestAdmission and
+  // always has, so a panel that did not know it could promise entry the roster then refused.
+  const hostClan = await db.query.clans.findFirst({
+    where: eq(clans.id, event.clanId),
+    columns: { guestPolicy: true },
+  });
+
   return NextResponse.json({
     visibility: event.visibility,
     entry: event.entry,
+    guestPolicy: hostClan?.guestPolicy ?? null,
     invites: rows,
   });
 }

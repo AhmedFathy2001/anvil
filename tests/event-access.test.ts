@@ -168,13 +168,37 @@ test('an outsider at a public approval event has to be accepted', async () => {
   assert.deepEqual(v, { outcome: 'outsider', needsApproval: true });
 });
 
+test('a stranger still has to ask, even where entry is as open as it goes', async () => {
+  // THE SETTING THAT LET THEM IN IS GONE. `entry: 'open'` used to mean anybody who could see the
+  // board got a seat by pressing a button — and a seat is a row on the clan's roster, handed to
+  // someone with no shared Discord, no messaging and nothing about them to judge. Open now means
+  // open to the people the clan has already said yes to; everybody else asks.
+  const { db, schema: s } = await loadDb();
+  await db.update(s.events).set({ entry: 'open' }).where(eq(s.events.id, publicEvent));
+
+  const v = await A.canEnterEvent({ eventId: publicEvent, playerId: stranger });
+  assert.deepEqual(v, { outcome: 'outsider', needsApproval: true });
+});
+
 test('an INVITED outsider is not asked to apply as well', async () => {
   // The invitation was the decision. Asking again would be asking twice.
+  const { db, schema: s } = await loadDb();
+  await db.update(s.events).set({ entry: 'open' }).where(eq(s.events.id, invitedEvent));
+
+  const v = await A.canEnterEvent({ eventId: invitedEvent, playerId: neighbour });
+  assert.deepEqual(v, { outcome: 'outsider', needsApproval: false });
+});
+
+test('“ask me about everyone” means everyone, invitation or not', async () => {
+  // The stricter of the two settings, and the only thing they now differ on: a host who invited a
+  // whole clan and still wants to see the names before they play.
   const { db, schema: s } = await loadDb();
   await db.update(s.events).set({ entry: 'approval' }).where(eq(s.events.id, invitedEvent));
 
   const v = await A.canEnterEvent({ eventId: invitedEvent, playerId: neighbour });
-  assert.deepEqual(v, { outcome: 'outsider', needsApproval: false });
+  assert.deepEqual(v, { outcome: 'outsider', needsApproval: true });
+
+  await db.update(s.events).set({ entry: 'open' }).where(eq(s.events.id, invitedEvent));
 });
 
 test('an outsider cannot enter what they cannot see', async () => {

@@ -173,11 +173,29 @@ export async function canEnterEvent(opts: {
     return { outcome: 'refused', reason: 'not-visible' };
   }
 
+  // ENTRY IS A RELATIONSHIP, NOT A SWITCH.
+  //
+  // `entry: 'open'` used to mean "anybody who can see this board gets a seat by pressing a button" —
+  // and a seat is a row on somebody's clan roster. On one global site that is a stranger with no
+  // shared Discord, no messaging, and nothing about them the host could judge, writing themselves
+  // onto a roster. There is no setting worth having that does that, so there is no longer one.
+  //
+  // What replaces it is the question that was always the real one: has this clan already said yes to
+  // this person, in some form?
+  //
+  //   - their clan is co-hosting, or was invited to the event  → yes, at the clan level
+  //   - they were invited by name                              → yes, personally
+  //   - anybody else                                           → they may ASK, and a human answers
+  //
+  // So `open` now means "open to the people I have already said yes to", and `approval` means "ask me
+  // about every one of them, invited or not" — which is a real thing a host might want when they
+  // invited a whole clan but still want to see the names.
+  const vouched =
+    (await invitedToEvent(opts.eventId, opts.playerId)) ||
+    (await inAcceptedCohostClan(opts.eventId, opts.playerId));
+
   const entry = entryOf(event.entry);
-  // An INVITED outsider has already been decided about — that is what the invitation was. Asking
-  // them to apply as well would be asking twice.
-  const invited = await invitedToEvent(opts.eventId, opts.playerId);
-  return { outcome: 'outsider', needsApproval: entry === 'approval' && !invited };
+  return { outcome: 'outsider', needsApproval: entry === 'approval' || !vouched };
 }
 
 /** Every event a person may see across the platform — for a cross-clan "what can I enter" list. */

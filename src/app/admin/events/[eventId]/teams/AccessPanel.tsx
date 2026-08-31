@@ -20,9 +20,19 @@ const VISIBILITY: { value: string; label: string; hint: string }[] = [
   { value: 'public', label: 'Anyone', hint: 'Listed and readable by anybody on Anvil.' },
 ];
 
+// Neither of these lets a stranger seat themselves — that setting existed, and a seat is a row on
+// your roster. What they choose between is how the people you have ALREADY said yes to are treated.
 const ENTRY: { value: string; label: string; hint: string }[] = [
-  { value: 'open', label: 'Anyone who can see it', hint: 'Outsiders join as guests without asking.' },
-  { value: 'approval', label: 'You approve them', hint: 'Entries from outside land in your clan’s queue.' },
+  {
+    value: 'open',
+    label: 'Clans and people I invited',
+    hint: 'They just play. Anyone else has to ask, and you answer.',
+  },
+  {
+    value: 'approval',
+    label: 'Ask me about everyone',
+    hint: 'Even an invited clan’s players land in your queue first.',
+  },
 ];
 
 /**
@@ -41,6 +51,7 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
   const [visibility, setVisibility] = useState<string | null>(null);
   const [entry, setEntry] = useState<string | null>(null);
   const [invites, setInvites] = useState<Invite[]>([]);
+  const [guestPolicy, setGuestPolicy] = useState<string | null>(null);
   const [slug, setSlug] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +63,7 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
     setVisibility(d.visibility);
     setEntry(d.entry);
     setInvites(d.invites ?? []);
+    setGuestPolicy(d.guestPolicy ?? null);
   }, [eventId]);
 
   useEffect(() => {
@@ -124,7 +136,17 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
 
       <div className="grid gap-5 px-5 py-4 md:grid-cols-2">
         <Choice title="Who can see it" options={VISIBILITY} value={visibility} onPick={(v) => patch('visibility', v)} />
-        <Choice title="Who can enter it" options={ENTRY} value={entry ?? 'open'} onPick={(v) => patch('entry', v)} />
+        <div>
+          <Choice title="Who can enter it" options={ENTRY} value={entry ?? 'open'} onPick={(v) => patch('entry', v)} />
+          {/* The clan's own door is the stricter of the two and always wins in lib/guestAdmission —
+              this setting could promise entry that the roster policy then refused, silently. */}
+          {guestPolicy === 'closed' && (
+            <p className="mt-2 text-[12.5px] text-accent-red">
+              Your clan is not taking guests, so nobody from outside can enter whatever this says.
+              Change it under Clan → Access.
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Only meaningful while the board is invite-only — but shown whenever invites EXIST, so
