@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { resolvePluginClan } from '@/lib/auth';
-import { weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { and, eq } from 'drizzle-orm';
-import { findOrCreateClanMember } from '@/lib/clan';
+import { clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { and, eq, isNull } from 'drizzle-orm';
+import { findRosterSeat } from '@/lib/roster';
 import { fetchParticipantStat, type CompetitionType } from '@/lib/weekly';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
@@ -47,7 +47,27 @@ export async function POST(request: Request) {
   });
   if (!active) return NextResponse.json({ enrolled: false, reason: 'no-active-comp' });
 
-  const clanMemberId = await findOrCreateClanMember(clan.id, rsn);
+  // ENROLMENT IS NOT A ROSTER WRITE. This called findOrCreateClanMember, so an unauthenticated POST
+  // of any name whatsoever minted an account, seated it as a guest in the addressed clan, and put it
+  // on that clan's live leaderboard. Verified against preview: one curl enrolled "AbuseProbe01" into
+  // The AFK Spot's running SOTW from off the machine entirely.
+  //
+  // Multi-clan is what made it worth doing. Before, the plugin pointed at its own clan and the blast
+  // radius was one deployment; now /c/<anyslug>/ addresses every clan on the platform from one
+  // origin, so a single loop could pollute all of them. The per-IP limit caps the rate, not the
+  // reach.
+  //
+  // `hello` had the identical bug and fixed it the same way — a login ping says an account exists
+  // and is playing, and says NOTHING about membership. So this asks for a seat rather than making
+  // one. A member playing during a live SOTW is enrolled exactly as before; a stranger gets a plain
+  // no and the database is untouched.
+  const seat = await findRosterSeat(
+    and(eq(clanRoster.clanId, clan.id), eq(clanRoster.rsnNormalized, rsnNormalized), isNull(clanRoster.leftAt)),
+  );
+  if (!seat) {
+    return NextResponse.json({ enrolled: false, reason: 'not-a-member' });
+  }
+  const clanMemberId = seat.id;
 
   const existing = await db.query.weeklyParticipants.findFirst({
     where: and(

@@ -135,6 +135,27 @@ test('a brand-new person is QUIET in guest clans, and loud in their own', async 
   assert.equal(targets[0].kind, 'member');
 });
 
+test('a clanless account routes to NO clan — not to whichever one addressed it', async () => {
+  // The abuse this closes. /api/plugin/notify authenticates with verifyPluginTokenUser, which checks
+  // only that the bearer token maps to a user — no seat, no membership. The route then fell back to
+  // "post to the clan the URL named" whenever routing came back empty, which was harmless while the
+  // plugin pointed at its own clan and became a cross-clan write the moment /c/<slug>/ made the URL
+  // chooseable: any signed-in account with no seat could put body-supplied content into any clan's
+  // Discord, 30 a minute.
+  //
+  // Routing is the whole answer now, so a person with no clan has no clan destination — their own
+  // webhooks still fire, which is what a clanless player configured.
+  const { db, schema: s } = await loadDb();
+  const [person] = await db.insert(s.players).values({ displayName: 'Nomad' }).returning();
+  await db.insert(s.users).values({ playerId: person.id, displayName: 'Nomad', discordId: 'nomad-1' });
+  const [acct] = await db
+    .insert(s.accounts)
+    .values({ playerId: person.id, rsn: 'No Clan Here', rsnNormalized: 'no clan here' })
+    .returning();
+
+  assert.deepEqual(await R.socialEmissionClans(acct.id), [], 'no seats anywhere means no destinations');
+});
+
 test('an UNSHARED account announces to its member clan only', async () => {
   await clearOverrides();
   const targets = await R.socialEmissionClans(unsharedAccount);

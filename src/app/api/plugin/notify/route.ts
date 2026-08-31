@@ -210,14 +210,24 @@ export async function POST(request: Request) {
     if (url) urls.add(url);
   }
 
-  // Fallback: an account we can't place (unclaimed, or no live seat anywhere) keeps the old
-  // behaviour — post to the clan the plugin named — so a notification is never silently lost while
-  // the roster catches up. A placed account ignores the URL clan entirely; that is the fix.
-  if (emissionClans.length === 0) {
-    const webhooks = await getNotificationWebhooks(clan.id);
-    const url = seasonal ? seasonalWebhookFor(webhooks, channel) : webhookFor(webhooks, channel);
-    if (url) urls.add(url);
-  }
+  // THE ADDRESSED CLAN IS NOT A DESTINATION. There used to be a fallback here: an account we could
+  // not place posted to whichever clan the URL named, so a notification was "never silently lost
+  // while the roster catches up".
+  //
+  // That was safe when the plugin pointed at its own clan and the URL clan WAS your clan. On one
+  // platform the URL is chooseable, and `verifyPluginTokenUser` above checks only that the bearer
+  // token maps to a user — no seat, no membership, nothing. So any signed-in account with no live
+  // seat could address /c/<someone-else>/api/plugin/notify and have this route post `content` and
+  // `embed` — both straight off the request body — into that clan's Discord, thirty times a minute.
+  //
+  // A person with no clan has no clan destination. That is not a gap to paper over with whichever
+  // clan the caller happened to name; it is the answer. Their own webhooks below still fire, which
+  // is what a clanless player actually configured, and a member whose seat has not synced yet is
+  // quiet for a few minutes rather than loud in a stranger's server.
+  //
+  // Note this is also what keeps the guest-quiet default honest (drizzle/0080): somebody whose only
+  // seats are guest seats routes to no clan by design, and the fallback would have posted to the
+  // addressed one anyway, straight past the gate.
 
   // The person's own destinations, independent of every clan.
   for (const t of await personalWebhookTargets(auth.userId, channel)) urls.add(t.url);
