@@ -102,17 +102,22 @@ export default async function AdminEventsPage() {
     createdAt: w.createdAt,
   }));
 
+  // A weekly is past once its status says so OR its end has simply passed. Honouring endDate here —
+  // not only the status the weekly-lifecycle cron writes — means an ended competition leaves "Running
+  // now" the moment it ends, instead of lingering as "LIVE" for the up-to-15-min gap until the cron
+  // closes it (and indefinitely wherever that cron isn't firing). The Finished bucket fills its row
+  // from weekly_participants (getPastWeeklyResults), which never needed the 'completed' status.
   const isPast = (item: ListItem) =>
     item.kind === 'event'
       ? !!item.forceEndedAt || (!!item.endDate && item.endDate < now)
-      : item.status === 'completed';
+      : item.status === 'completed' || item.endDate < now;
 
   // "Running" is narrower than "not past": a board with no start date, or one scheduled for next
   // week, is being SET UP — a different job, and a different card.
   const isRunning = (item: ListItem) =>
     item.kind === 'event'
       ? !isPast(item) && !!item.startDate && item.startDate <= now
-      : item.status === 'active';
+      : !isPast(item) && item.status === 'active';
 
   const sortKey = (item: ListItem) =>
     item.kind === 'event' ? item.startDate ?? item.createdAt : item.startDate;
