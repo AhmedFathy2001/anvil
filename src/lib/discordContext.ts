@@ -22,7 +22,7 @@
 // Everything here is read-only and cheap; commands compose it and never re-derive it.
 
 import { db } from '@/db';
-import { events, players, teams, clanRoster, settings, users, eventParticipants } from '@/db/schema';
+import { clanRoster, clans, eventParticipants, events, players, settings, teams, users } from '@/db/schema';
 import { en, plural, type DiscordDict } from '@/lib/discordI18n';
 import { eq, and, isNull, inArray } from 'drizzle-orm';
 import { getClanDisplayName } from '@/lib/pluginConfig';
@@ -39,8 +39,6 @@ export interface ClanContext {
   guildId: string;
   /** Which clan this is. The whole point of resolving by guild. */
   clanId: number;
-  /** Whether this clan participates in federation at all. Always false — federation was removed. */
-  federated: boolean;
   /**
    * The clan's chosen bot language, or null for "follow whoever is asking".
    *
@@ -84,7 +82,6 @@ export async function getClanContext(guildId: string | null): Promise<ClanContex
     origin: configuredOrigin(),
     guildId: wanted,
     // Federation was removed; clans live in one app now.
-    federated: false,
     language: languageRow?.value?.trim() || null,
   };
 }
@@ -203,16 +200,22 @@ export async function loadEvent(eventId: number, now: Date = new Date()): Promis
 /**
  * Who from OUTSIDE this clan is playing in this event.
  *
- * A visiting player is a roster row with `source: 'federation'` — one created when another Anvil
- * clan's member exchanged in (see the /federation/v1/exchange route's inserts). That is the ONLY
- * precise signal, and specifically NOT `isGuest`: a guest is anyone who isn't a full member of this
- * clan, which on a normal roster is mostly friends and alts. Counting those as "visiting from other
- * clans" would fire on almost every board and say something untrue.
+ * A visiting player is one whose SEAT belongs to another clan. That is a precise signal and, on this
+ * platform, a real one: a co-host fills its side of a board from its own roster, so its players are
+ * seated in its own clan while playing on somebody else's event.
  *
- * Their HOME clan is not recorded anywhere — the exchange stores only that they arrived through
- * federation — so this reports HOW MANY are visiting and WHICH TEAMS they're on, but never which
- * clan they came from. Naming the clans needs a home-instance column on clan_members; it is worth
- * adding and deliberately not guessed at here.
+ * It used to key on `source: 'federation'` — a row written by the federation exchange route, which
+ * was deleted with federation itself. Nothing has written that value since, and no row in any
+ * imported clan carries it, so this whole feature reported "0 visiting" on every board forever while
+ * fifteen languages carried translations for a sentence that could not be produced.
+ *
+ * Still specifically NOT `isGuest`: a guest is anyone who is not a full member of this clan, which on
+ * a normal roster is mostly friends and alts. Counting those would fire on almost every board and say
+ * something untrue. Somebody who entered a public event as a guest is seated HERE and so is not
+ * counted, which is the same conservative call as before.
+ *
+ * And the thing the old comment said needed a new column: the visiting clan can now be NAMED, because
+ * a co-host's team carries `teams.clanId`.
  */
 export interface CrossClanContext {
   /** Any visiting players in this event at all. */
@@ -226,18 +229,30 @@ export interface CrossClanContext {
 }
 
 export async function getCrossClanContext(eventId: number): Promise<CrossClanContext> {
+  // clan-scope: global -- the event being described, by its own id; its clanId is what every row
+  // below is compared against.
+  const event = await db.query.events.findFirst({
+    where: eq(events.id, eventId),
+    columns: { clanId: true },
+  });
+  if (!event) {
+    return { shared: false, visitingPlayers: 0, visitingTeamIds: new Set(), visitingTeamNames: [] };
+  }
+
   // clan-scope: global -- a Discord guild maps to exactly one clan, and this lookup IS that mapping.
   const rows = await db
     .select({
       playerId: players.id,
       teamId: eventParticipants.teamId,
-      source: clanRoster.source,
+      seatClanId: clanRoster.clanId,
     })
     .from(eventParticipants)
     .leftJoin(clanRoster, eq(eventParticipants.clanMemberId, clanRoster.id))
     .where(eq(eventParticipants.eventId, eventId));
 
-  const isVisiting = (r: (typeof rows)[number]) => r.source === 'federation';
+  // Seated somewhere else. A row with no seat at all is not evidence of anything, so it is not
+  // counted either way.
+  const isVisiting = (r: (typeof rows)[number]) => r.seatClanId != null && r.seatClanId !== event.clanId;
 
   const visitingTeamIds = new Set<number>();
   const perTeam = new Map<number, { total: number; visiting: number }>();
@@ -259,13 +274,17 @@ export async function getCrossClanContext(eventId: number): Promise<CrossClanCon
     .filter(([, b]) => b.total > 0 && b.visiting === b.total)
     .map(([id]) => id);
 
+  // The CLAN's name where the team is a co-host's, falling back to the team's own. A board whose
+  // visiting side is "LFL" reads better than one whose visiting side is "Team 2", and the tag is
+  // exactly what makes it knowable.
   const visitingTeamNames = wholeVisitingTeamIds.length
     ? (
         await db
-          .select({ name: teams.name })
+          .select({ name: teams.name, clanName: clans.name })
           .from(teams)
+          .leftJoin(clans, eq(clans.id, teams.clanId))
           .where(inArray(teams.id, wholeVisitingTeamIds))
-      ).map((t) => t.name)
+      ).map((t) => t.clanName ?? t.name)
     : [];
 
   return {

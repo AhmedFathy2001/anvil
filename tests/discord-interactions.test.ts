@@ -202,7 +202,7 @@ test('COMMAND_DEFINITIONS: every subcommand the tree advertises is one the dispa
 
 // ── Guild guard + provenance ────────────────────────────────────────────────────────────────────
 
-const clan: ClanContext = { clanId: 1, name: 'The Afk Spot', origin: 'https://afk.example', guildId: '111', federated: true, language: null };
+const clan: ClanContext = { clanId: 1, name: 'The Afk Spot', origin: 'https://afk.example', guildId: '111', language: null };
 
 test('checkGuild: only this clan\'s own server is served', () => {
   assert.equal(checkGuild(clan, '111'), 'ok');

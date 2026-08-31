@@ -22,10 +22,20 @@ export type LinkedAccount = {
   accountId: number;
 };
 
+// EVERY method that exists in the column, because the fallback used to print the raw value and the
+// column holds snake_case identifiers and one dead feature. Real rows on preview render as
+// "Verified via federation" and "Verified via discord_name_match" — the first names something that
+// was deleted, the second is a database word shown to a player.
+//
+// `federation` stays in the DATA: it is the honest historical record of how that account was proved,
+// and rewriting history to tidy a label would be the worse trade. It just stops being said out loud
+// in a vocabulary the reader has no use for.
 const METHOD_LABEL: Record<string, string> = {
   plugin: 'Verified by the plugin',
   stat_delta: 'Verified by XP gain',
   manual: 'Verified by a moderator',
+  discord_name_match: 'Verified by Discord name',
+  federation: 'Verified',
 };
 
 // The account list with per-account Make primary / Remove. Removing unlinks the account from the
@@ -140,7 +150,9 @@ export default function LinkedAccountsClient({ accounts }: { accounts: LinkedAcc
               {m.verified ? (
                 <>
                   <span className="text-accent-green-light">✓</span>{' '}
-                  {METHOD_LABEL[m.verificationMethod ?? ''] ?? `Verified via ${m.verificationMethod ?? 'link'}`}
+                  {/* A method nobody mapped is still a verified account; say that much and no more,
+                      rather than leaking whatever string happens to be in the column. */}
+                  {METHOD_LABEL[m.verificationMethod ?? ''] ?? 'Verified'}
                 </>
               ) : (
                 <span className="text-yellow-400">Not verified yet</span>
