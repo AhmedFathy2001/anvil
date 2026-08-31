@@ -15,6 +15,7 @@ import { applyWeeklyValue } from '@/lib/weekly';
 import { notifyTileCompletion } from '@/lib/discord';
 import { evaluateCompletionGate, eventHasStarted } from '@/lib/completionGate';
 import { handleBountyClaim } from '@/lib/revealEngine';
+import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 
 // Real-time boss-KC / skill-XP / activity ingest. The plugin posts {stats:[{name,kc}],
 // skills:[{name,xp}], activities:[{key,value}]} with
@@ -46,6 +47,17 @@ export async function POST(request: Request) {
   const member = await resolvePluginMember(request);
   if (!member) {
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' }, { status: 401 });
+  }
+
+  // AFTER auth, and keyed on the PERSON rather than the address. Stat pushes are the highest-volume ingest there is — the plugin sends on skill and KC change — so
+  // this sits well above real play and is still a hard ceiling on a tampered client.
+  //
+  // Several clanmates behind one household connection are one IP and must not share a budget, while
+  // one tampered client is one token however many addresses it arrives from — so the identity is the
+  // honest bucket. Same shape as the notify limit.
+  const rl = await rateLimit(request, `plugin-stats:${member.userId}`, { limit: 120, windowMs: 60_000 });
+  if (!rl.ok) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
   }
 
   let body: {

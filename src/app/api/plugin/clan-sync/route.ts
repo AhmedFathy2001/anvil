@@ -102,14 +102,31 @@ export async function POST(request: Request) {
   const verification = await verificationOf(clan.id);
 
   if (!verification.verified) {
+    // VERIFIED ACCOUNTS ONLY may claim a clan name.
+    //
+    // The proof here is practical, not cryptographic — a modified client can send any roster it
+    // likes, and the file that implements it says so. What that means is that prevention is bounded
+    // and ATTRIBUTION is the thing worth buying: whoever claims a name should be somebody who has
+    // proved they control the character they claimed it with.
+    //
+    // Unfiltered, they did not have to be. An account nobody had verified could be the claiming
+    // identity, so a squatted name led back to a row anyone could have created. Requiring
+    // verification costs a legitimate owner nothing — an admin pushing a roster is a linked, playing
+    // account that verified long ago — and turns anonymous squatting into squatting by a proven
+    // Jagex account, which is a thing the platform can act on.
     const mine = await db
-      .select({ rsnNormalized: accounts.rsnNormalized, id: accounts.id })
+      .select({ rsnNormalized: accounts.rsnNormalized, id: accounts.id, verifiedAt: accounts.verifiedAt })
       .from(accounts)
       .innerJoin(users, eq(users.playerId, accounts.playerId))
       .where(eq(users.id, auth.userId));
 
     const byRsn = new Map(members.map((m) => [normalizeRsn(m.rsn ?? ''), m.rank ?? null]));
-    const pusher = mine.find((a) => byRsn.has(a.rsnNormalized));
+    // The match first, the verification second — so the refusal can tell "you are not in this roster"
+    // from "you are, on a character nobody has proved is yours". Those want opposite next moves, and
+    // filtering unverified accounts out of the lookup would have reported the first for the second.
+    const anyMatch = mine.find((a) => byRsn.has(a.rsnNormalized));
+    const pusher = anyMatch?.verifiedAt ? anyMatch : undefined;
+    const matchedButUnverified = anyMatch != null && !anyMatch.verifiedAt;
 
     const claim = await claimFromRoster({
       clanId: clan.id,
@@ -135,10 +152,15 @@ export async function POST(request: Request) {
                 error: 'notClanOwner',
                 message: `Your rank in ${clanName} is "${claim.rank ?? 'unknown'}". The first roster sync has to come from an owner or deputy owner — after that anyone with site admin can sync.`,
               }
-            : {
-                error: 'notInRoster',
-                message: `You do not appear in the ${clanName} member list, so this clan cannot be verified from your account.`,
-              };
+            : matchedButUnverified
+              ? {
+                  error: 'accountNotVerified',
+                  message: `You are in the ${clanName} member list, but that character is not verified on Anvil yet. Verify it on your profile, then sync again — a clan name is claimed by a proven account, so the claim can be traced to a real one.`,
+                }
+              : {
+                  error: 'notInRoster',
+                  message: `You do not appear in the ${clanName} member list, so this clan cannot be verified from your account.`,
+                };
       return NextResponse.json(detail, { status: 403 });
     }
   }

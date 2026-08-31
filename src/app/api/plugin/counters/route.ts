@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { eventParticipants, events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { resolvePluginMember } from '@/lib/auth';
+import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 
 // Real-time ingest for the fun end-of-event "recap" counters (total deaths, total loot GP, and PvP
 // kills for the active event). The plugin pushes ABSOLUTE per-event totals — idempotent, so a retry
@@ -33,6 +34,17 @@ export async function POST(request: Request) {
   const member = await resolvePluginMember(request);
   if (!member) {
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' }, { status: 401 });
+  }
+
+  // AFTER auth, and keyed on the PERSON rather than the address. Recap counters are absolute totals and max-merged, so a flood cannot corrupt a number. It can
+  // still burn writes.
+  //
+  // Several clanmates behind one household connection are one IP and must not share a budget, while
+  // one tampered client is one token however many addresses it arrives from — so the identity is the
+  // honest bucket. Same shape as the notify limit.
+  const rl = await rateLimit(request, `plugin-counters:${member.userId}`, { limit: 60, windowMs: 60_000 });
+  if (!rl.ok) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
   }
 
   let body: {
