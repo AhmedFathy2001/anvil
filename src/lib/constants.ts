@@ -421,6 +421,36 @@ export function weeklyMetricLabel(type: string, metric: string): string {
   return BOSSES.find((b) => b.key === metric)?.label ?? metric;
 }
 
+/**
+ * What to call the thing a milestone was crossed in.
+ *
+ * The metric on a milestone is a HISCORES KEY — `chambersOfXeric`, `alchemicalHydra` — and the apex
+ * feed used to render it by upper-casing the first letter, which turns a key into a slightly
+ * different key ("ChambersOfXeric") rather than into English. Anything that shows a metric to a
+ * person goes through here instead.
+ *
+ * A `kc` milestone can be a boss OR one of the non-boss hiscores rows (clue tiers, Colosseum, LMS),
+ * so the boss table alone is not enough — the caller passes the activity fallback in, because that
+ * table lives in a module this one must not depend on.
+ */
+export function milestoneMetricLabel(
+  kind: string,
+  metric: string | null | undefined,
+  activityLabel?: (key: string) => string | null,
+): string {
+  if (!metric) return '';
+  if (kind === 'kc') {
+    return (
+      BOSSES.find((b) => b.key === metric)?.label ??
+      activityLabel?.(metric) ??
+      // Last resort, and still better than a raw key: split the camelCase into words.
+      metric.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase())
+    );
+  }
+  if (kind === 'ehp' || kind === 'ehb') return EFFICIENCY_LABELS[metric] ?? metric.toUpperCase();
+  return SKILL_LABELS[metric] ?? metric.replace(/^./, (c) => c.toUpperCase());
+}
+
 /** Milli-hours → a display string. Two decimals: a week's honest gain is often under 10 hours. */
 export function formatEfficiencyHours(milli: number): string {
   const hours = milli / EFFICIENCY_SCALE;

@@ -150,6 +150,14 @@ export default async function RootLayout({
       })
     : true;
 
+  // HAVE THEY PROVED ANY CHARACTER? Only asked when the answer above was no, and it decides which of
+  // two very different people is standing there. `canSeeClan` matches a seat through
+  // accounts.player_id, so somebody the roster sync listed this morning still fails it until they
+  // claim a character — and the card was telling that person "you are just not on the list" while
+  // their RSN sat in clan_memberships, then offering to let them apply as a guest to their own clan.
+  const hasCharacter =
+    !clanReadable && session?.playerId != null ? (await characterCount(session.playerId)) > 0 : false;
+
   // Awaited HERE rather than inline in the JSX below. `<ClanPrefixProvider prefix={await …}>` put a
   // suspend point in the middle of the element tree, and the server then streamed the shell in a
   // different shape than the client rebuilt it — the hydration diff showed <main> on the client
@@ -247,6 +255,7 @@ export default async function RootLayout({
               name={clan!.name}
               slug={clan!.slug}
               signedIn={!!session}
+              hasCharacter={hasCharacter}
               guestPolicy={clan!.guestPolicy}
             />
           )}

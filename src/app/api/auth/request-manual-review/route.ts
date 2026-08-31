@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { requireClan } from '@/lib/clanContext';
+import { currentClan } from '@/lib/clanContext';
 import { claimBlockedBy } from '@/lib/accountClaim';
 import { accounts, clanAuditLog, clanMemberships, clanRoster } from '@/db/schema';
-import { findOrCreateAccount, findOrCreateSeat, findRosterSeat } from '@/lib/roster';
+import { findOrCreateAccount, findRosterSeat } from '@/lib/roster';
 import { and, eq } from 'drizzle-orm';
 import { normalizeRsn, verifyUser } from '@/lib/auth';
 import { onCharacterLinked } from '@/lib/identity';
@@ -23,7 +23,14 @@ export async function POST(request: Request) {
   if (!session || session.userId <= 0) {
     return NextResponse.json({ error: 'Sign in with Discord first' }, { status: 401 });
   }
-  const clan = await requireClan();
+  // NOT requireClan(). Claiming a character is a fact about the PERSON, not about a clan — which is
+  // why verify-stat-delta/check resolves a nullable clan for exactly the same reason. Insisting on
+  // one here made this unreachable from the apex, and the apex is the ONLY place a member of a
+  // private clan can stand: canSeeClan needs a seat joined through accounts.player_id, and an
+  // unclaimed character has none. So the people who most need the "a mod vouches for me" path —
+  // maxed accounts with no XP to gain, anyone who cannot log in right now — were the people it
+  // refused. Null selects the claim-only path; a clan, when there is one, still gets its seat.
+  const clan = await currentClan();
 
   // Manual claims sit in a mod queue forever once submitted, so a tighter limit
   // discourages spam without blocking legitimate retries.
@@ -53,9 +60,9 @@ export async function POST(request: Request) {
   // THIS CLAN'S seat, if there is one. The lookup carried no clan filter, so a request made in clan
   // A found a seat in clan B and then edited B's row — its notes, and its `leftAt`, reviving a seat
   // in a clan the person had left — while A got no request at all.
-  const existing = await findRosterSeat(
-    and(eq(clanRoster.clanId, clan.id), eq(clanRoster.rsnNormalized, rsnNormalized)),
-  );
+  const existing = clan
+    ? await findRosterSeat(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.rsnNormalized, rsnNormalized)))
+    : null;
 
   // Hard block: somebody else already owns this RSN.
   //
@@ -115,6 +122,13 @@ export async function POST(request: Request) {
     // Linking a character is a claim about WHO YOU ARE, not a claim on this clan's roster. Under
     // the default policy this raises a request instead of seating them; the account is still linked
     // to them either way, which is what they actually asked for.
+    // No clan named — the apex, where the claim is the whole request and there is no roster to join.
+    // The character is linked to them either way, which is what they actually asked for; a seat, if
+    // they want one, comes from the clan's own door.
+    if (!clan) {
+      return NextResponse.json({ ok: true, claimed: true, provisional: true });
+    }
+
     const admission = await admit({ clanId: clan.id, accountId: account.id });
     if (admission.outcome !== 'seated') {
       return NextResponse.json(

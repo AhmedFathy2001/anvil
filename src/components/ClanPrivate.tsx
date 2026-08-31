@@ -13,16 +13,26 @@ import ClanLink from '@/components/ClanLink';
  * SIGNED OUT IS ITS OWN CASE. Most people who land here are members who have not logged in, and
  * telling them the clan is private would be wrong — from their side it is theirs. So the sign-in
  * prompt leads, and the private notice is the explanation underneath.
+ *
+ * AND SO IS SIGNED IN WITH NOTHING PROVED. `canSeeClan` matches a seat through accounts.player_id,
+ * so a member the roster sync listed this morning still fails it until they claim a character. This
+ * page used to tell exactly that person "you are just not on the list" — while their RSN sat on the
+ * roster — and then offer to let them apply as a guest to their own clan. Claiming is done on the
+ * apex profile precisely because it works without a clan, which is the only thing that CAN work
+ * from here, so that is what they are pointed at.
  */
 export default function ClanPrivate({
   name,
   slug,
   signedIn,
+  hasCharacter,
   guestPolicy,
 }: {
   name: string;
   slug: string;
   signedIn: boolean;
+  /** Whether they have proved ANY character is theirs. See below for why it changes the message. */
+  hasCharacter: boolean;
   /** 'approval' | 'open' | 'closed' — whether asking to join is even a thing here. */
   guestPolicy: string;
 }) {
@@ -40,7 +50,33 @@ export default function ClanPrivate({
 
       <h1 className="display display-lg text-[26px] font-semibold">{name}</h1>
 
-      {signedIn ? (
+      {signedIn && !hasCharacter ? (
+        <>
+          <p className="mt-3 text-[15px] leading-relaxed text-text-muted">
+            This clan shares with its members, and we cannot tell yet whether you are one — you have
+            not proved a character is yours.
+          </p>
+          <p className="mt-1.5 text-[14px] text-text-dim">
+            If you play here, link a character and this opens by itself.
+          </p>
+          <div className="mt-7 flex flex-wrap justify-center gap-3">
+            {/* Claiming works WITHOUT a clan, and the apex profile is the only surface reachable
+                from behind this wall — so this deliberately leaves the clan. */}
+            <a
+              href="/profile" /* clan-prefix: platform */
+              className="rounded-lg bg-gold px-5 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+            >
+              Link a character
+            </a>
+            <ClanLink
+              href="/clans"
+              className="rounded-lg border border-card-border px-5 py-2.5 text-sm transition-colors hover:border-gold-dark hover:bg-card-bg"
+            >
+              Find another clan
+            </ClanLink>
+          </div>
+        </>
+      ) : signedIn ? (
         <>
           <p className="mt-3 text-[15px] leading-relaxed text-text-muted">
             This clan keeps its events and roster to its own members. Nothing is missing — you are

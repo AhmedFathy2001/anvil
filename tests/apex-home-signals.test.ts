@@ -200,10 +200,14 @@ test('any character counts toward the streak', async () => {
   // Someone whose main is resting while an alt grinds has not stopped playing. A streak that
   // punished them for that would be measuring the wrong thing.
   const { db, schema: s } = await loadDb();
+  // TODAY, not two days ago. `day(2)` only lands inside the week in progress from Wednesday on —
+  // run this on a Monday or a Tuesday and it falls into LAST week, the seventh pip is false, and the
+  // suite fails for reasons that have nothing to do with streaks. Anchoring the newest row to day(0)
+  // makes "the week in progress" true on every weekday.
   await db.insert(s.memberDailyStats).values([
-    { accountId: altAcc, day: day(2), overallXp: 1_000_000, xpGained: 50_000 },
-    { accountId: altAcc, day: day(9), overallXp: 950_000, xpGained: 40_000 },
-    { accountId: altAcc, day: day(16), overallXp: 910_000, xpGained: 30_000 },
+    { accountId: altAcc, day: day(0), overallXp: 1_000_000, xpGained: 50_000 },
+    { accountId: altAcc, day: day(7), overallXp: 950_000, xpGained: 40_000 },
+    { accountId: altAcc, day: day(14), overallXp: 910_000, xpGained: 30_000 },
   ]);
 
   const st = await S.streakFor([mainAcc, altAcc]);

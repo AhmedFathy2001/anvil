@@ -1,6 +1,8 @@
 import ClanLink from '@/components/ClanLink';
 import type { Arena, Career, NextMilestone, RecentMilestone, Seat, Streak } from '@/lib/apexHomeSignals';
 import { compactXp } from '@/lib/apexHomeSignals';
+import { milestoneMetricLabel } from '@/lib/constants';
+import { activityFor } from '@/lib/hiscoresActivities';
 
 /**
  * The apex home's "how am I doing" half.
@@ -357,7 +359,10 @@ export function CareerWell({ career }: { career: Career }) {
 // ── Lately ───────────────────────────────────────────────────────────────────────────────────────
 
 function milestoneLine(m: RecentMilestone): { badge: string; text: string } {
-  const metric = m.metric ? m.metric.charAt(0).toUpperCase() + m.metric.slice(1) : '';
+  // NOT `charAt(0).toUpperCase()`. That turned a hiscores key into a slightly different key —
+  // "chambersOfXeric" read as "ChambersOfXeric" on the front page — because upper-casing a letter is
+  // not translation. The boss table knows the English name; this asks it.
+  const metric = milestoneMetricLabel(m.kind, m.metric, (k) => activityFor(k)?.label ?? null);
   switch (m.kind) {
     case 'level':
       return { badge: String(m.threshold), text: `${m.threshold} ${metric}` };
