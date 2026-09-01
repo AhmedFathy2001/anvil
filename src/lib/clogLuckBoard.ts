@@ -4,7 +4,8 @@ import { and, eq, inArray, isNull } from 'drizzle-orm';
 import npcDrops from '@/data/npcDrops.json'; // regenerate with `npm run data:drops`
 import { BOSSES } from '@/lib/constants';
 import { clogItemNames, clogPageItems, clogPageNames } from '@/lib/clogDataset';
-import { buildLuckBoards, type LuckEntry, type LuckSource } from '@/lib/clogProfile';
+import { aggregateLuck, assessLuckAt, bundleSize, dropsFromQuantity, type LuckTotal } from '@/lib/clogLuck';
+import { buildLuckBoards, expectationFor, type LuckEntry, type LuckRateSource, type LuckSource } from '@/lib/clogProfile';
 import { parsePluginStats } from '@/lib/pluginStats';
 
 // The clan's luck boards: who is dry, and who was spooned.
@@ -22,7 +23,9 @@ import { parsePluginStats } from '@/lib/pluginStats';
 interface DropEntry {
   i: number; // item id
   d: number; // 1-in-d per roll
-  q?: number;
+  q?: number; // fixed quantity per drop
+  m?: number; // ranged quantity, low
+  n?: number; // ranged quantity, high
   r?: number; // rolls per kill
 }
 
@@ -35,9 +38,10 @@ const MAX_ITEMS_PER_SOURCE = 12;
 export interface LuckCandidate {
   itemId: number;
   itemName: string;
-  source: string;
-  bossKey: string;
-  rate: { denominator: number; rolls: number };
+  /** The collection log page it's displayed under. */
+  page: string;
+  /** Every killable source that drops it and that the hiscores count. */
+  sources: LuckRateSource[];
 }
 
 /**
@@ -51,33 +55,73 @@ export function luckCandidates(): LuckCandidate[] {
   const drops = npcDrops as unknown as Record<string, DropEntry[]>;
   const bossByLabel = new Map(BOSSES.map((b) => [b.label.toLowerCase(), b.key]));
   const names = clogItemNames();
+
+  // Index every drop table by ITEM first. An item is not owned by the page it displays under: a
+  // dragon thrownaxe hangs on the Alchemical Hydra page but falls off six slayer bosses at two
+  // different rates, and reading only the page's own boss charged a Drake farmer's whole stack
+  // against zero Drake kills — which is what put people on the spooned board for being ordinary.
+  const byItem = new Map<number, LuckRateSource[]>();
+  for (const [source, table] of Object.entries(drops)) {
+    const bossKey = bossByLabel.get(source.toLowerCase());
+    if (!bossKey) continue; // nothing to count kills with
+    for (const drop of table) {
+      if (!Number.isFinite(drop.d) || drop.d <= 0) continue;
+      const list = byItem.get(drop.i) ?? [];
+      list.push({
+        source,
+        bossKey,
+        denominator: drop.d,
+        rolls: drop.r && drop.r > 0 ? drop.r : 1,
+        bundle: bundleSize(drop),
+      });
+      byItem.set(drop.i, list);
+    }
+  }
+
   const out: LuckCandidate[] = [];
-
   for (const page of clogPageNames()) {
-    const table = drops[page];
-    const bossKey = bossByLabel.get(page.toLowerCase());
-    // No drop table under that name, or no hiscores counter for it — nothing to be dry against.
-    if (!table || !bossKey) continue;
-
-    const onPage = new Set(clogPageItems(page).map((i) => i.id));
-    const rare = table
-      .filter((d) => onPage.has(d.i) && Number.isFinite(d.d) && d.d >= MIN_DENOMINATOR)
-      .sort((a, b) => b.d - a.d)
+    const onPage = clogPageItems(page);
+    const rare = onPage
+      .map((entry) => ({ entry, sources: byItem.get(entry.id) ?? [] }))
+      // Rare EVERYWHERE it comes from. Judging by the page's own rate would let an item that is
+      // common elsewhere onto the board, where the expectation from that common source swamps the
+      // count and every holder reads as dry.
+      .filter((c) => c.sources.length > 0 && Math.min(...c.sources.map((r) => r.denominator)) >= MIN_DENOMINATOR)
+      .sort(
+        (a, b) =>
+          Math.min(...b.sources.map((r) => r.denominator)) - Math.min(...a.sources.map((r) => r.denominator)),
+      )
       .slice(0, MAX_ITEMS_PER_SOURCE);
 
-    for (const drop of rare) {
+    for (const { entry, sources } of rare) {
       out.push({
-        itemId: drop.i,
-        itemName: names.get(drop.i) ?? `Item ${drop.i}`,
-        source: page,
-        bossKey,
-        rate: { denominator: drop.d, rolls: drop.r && drop.r > 0 ? drop.r : 1 },
+        itemId: entry.id,
+        itemName: names.get(entry.id) ?? (entry.name || `Item ${entry.id}`),
+        page,
+        sources,
       });
     }
   }
 
-  candidateCache = out;
-  return out;
+  // One row per ITEM, not per page it appears on. A pet sits on its boss's page and on All Pets, and
+  // a slayer unique on both the boss and the Slayer page — scoring each copy would count the same
+  // drop twice, once on the board and again in anyone's personal total. The page that names one of
+  // the item's own sources wins over a catch-all, so the entry reads "Alchemical Hydra", not "Slayer".
+  const deduped = new Map<number, LuckCandidate>();
+  for (const candidate of out) {
+    const existing = deduped.get(candidate.itemId);
+    if (!existing) {
+      deduped.set(candidate.itemId, candidate);
+      continue;
+    }
+    const names = new Set(candidate.sources.map((r) => r.source.toLowerCase()));
+    if (names.has(candidate.page.toLowerCase()) && !names.has(existing.page.toLowerCase())) {
+      deduped.set(candidate.itemId, candidate);
+    }
+  }
+
+  candidateCache = [...deduped.values()];
+  return candidateCache;
 }
 
 /** The hiscores boss key a log page counts kills for, or null when the page isn't a boss. */
@@ -197,14 +241,21 @@ export async function getLuckBoards(limit = 15): Promise<LuckBoards> {
   const shaped = candidates.map((c) => ({
     itemId: c.itemId,
     itemName: c.itemName,
-    source: c.source,
-    rate: c.rate,
-    members: synced.map((m): LuckSource => ({
-      clanMemberId: m.id,
-      rsn: m.rsn,
-      kills: kills.get(m.id)?.[c.bossKey] ?? 0,
-      obtained: owned.get(`${m.id}:${c.itemId}`) ?? 0,
-    })),
+    source: c.page,
+    sources: c.sources,
+    members: synced.map((m): LuckSource => {
+      const memberKills = kills.get(m.id) ?? {};
+      const { expected, bundle, kills: totalKills } = expectationFor(c.sources, memberKills);
+      return {
+        clanMemberId: m.id,
+        rsn: m.rsn,
+        kills: totalKills,
+        expected,
+        // The stack collapses to the number of times the table actually hit. Without this a single
+        // 750-axe drop reads as 750 drops against an expectation of two.
+        obtained: dropsFromQuantity(owned.get(`${m.id}:${c.itemId}`) ?? 0, bundle),
+      };
+    }),
   }));
 
   const boards = buildLuckBoards(shaped, limit);
@@ -212,5 +263,78 @@ export async function getLuckBoards(limit = 15): Promise<LuckBoards> {
     ...boards,
     membersConsidered: synced.length,
     itemsConsidered: candidates.length,
+  };
+}
+
+// ── One member's luck ────────────────────────────────────────────────────────────────────────────
+
+export interface MemberLuckItem {
+  itemId: number;
+  itemName: string;
+  page: string;
+  sources: LuckRateSource[];
+  kills: number;
+  expected: number;
+  obtained: number;
+  assessment: ReturnType<typeof assessLuckAt>;
+}
+
+export interface MemberLuck {
+  total: LuckTotal;
+  /** Their driest tracked drops, worst first. */
+  dry: MemberLuckItem[];
+  /** Their luckiest, best first. */
+  spooned: MemberLuckItem[];
+}
+
+/**
+ * One member's luck across everything the rates can speak to.
+ *
+ * Returns null when they've never synced a log: we cannot tell "hasn't got it" from "hasn't told us",
+ * and a personal luck score built on the second would be a number about our own ignorance.
+ *
+ * Only items they have kills for count. Never having fought something is not bad luck, and letting
+ * untouched content into the total would drag everyone toward the same meaningless middle.
+ */
+export async function getMemberLuck(clanMemberId: number, listLimit = 5): Promise<MemberLuck | null> {
+  const [synced] = await db
+    .select({ id: memberClog.clanMemberId })
+    .from(memberClog)
+    .where(eq(memberClog.clanMemberId, clanMemberId));
+  if (!synced) return null;
+
+  const candidates = luckCandidates();
+  const kills = await bossKillsFor(clanMemberId);
+
+  const itemIds = [...new Set(candidates.map((c) => c.itemId))];
+  const ownedRows = await db
+    .select({ itemId: memberClogItems.itemId, quantity: memberClogItems.quantity })
+    .from(memberClogItems)
+    .where(and(eq(memberClogItems.clanMemberId, clanMemberId), inArray(memberClogItems.itemId, itemIds)));
+  const owned = new Map(ownedRows.map((r) => [r.itemId, r.quantity]));
+
+  const items: MemberLuckItem[] = [];
+  for (const candidate of candidates) {
+    const { expected, bundle, kills: kc } = expectationFor(candidate.sources, kills);
+    if (expected <= 0) continue;
+    const obtained = dropsFromQuantity(owned.get(candidate.itemId) ?? 0, bundle);
+    items.push({
+      itemId: candidate.itemId,
+      itemName: candidate.itemName,
+      page: candidate.page,
+      sources: candidate.sources,
+      kills: kc,
+      expected,
+      obtained,
+      assessment: assessLuckAt(expected, kc, obtained),
+    });
+  }
+
+  const total = aggregateLuck(items);
+  const byTail = (a: MemberLuckItem, b: MemberLuckItem) => a.assessment.tail - b.assessment.tail;
+  return {
+    total,
+    dry: items.filter((i) => i.assessment.verdict === 'dry').sort(byTail).slice(0, listLimit),
+    spooned: items.filter((i) => i.assessment.verdict === 'spooned').sort(byTail).slice(0, listLimit),
   };
 }

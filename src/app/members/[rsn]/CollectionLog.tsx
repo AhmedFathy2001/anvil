@@ -6,6 +6,7 @@ import LocalTime from '@/components/LocalTime';
 import type { BestTime, RecentUnlock } from '@/lib/clogProfile';
 import { GROUP_ORDER, tierFor, type PageGroup, type ShowcaseItem, type ValuedItem } from '@/lib/clogRarity';
 import { formatGp } from '@/lib/itemPrices';
+import PersonalLuck, { type PersonalLuckProps } from './PersonalLuck';
 
 // A member's synced collection log. The game's own shape — pages down the side, the chosen page's
 // items in a grid, obtained lit and the rest dimmed — because that is the only layout anyone will
@@ -53,11 +54,14 @@ export interface CollectionLogProps {
   bestsByPage: Record<string, BestTime[]>;
   /** The same times as one flat list, for the searchable table. When each was set, where known. */
   bests: { activity: string; time: string; at: string | null }[];
+  /** Their luck across every drop the rates can speak to. Null when nothing is trackable yet. */
+  luck: PersonalLuckProps | null;
 }
 
 export default function CollectionLog({
   rsn,
   synced,
+  luck,
   pages,
   catalogue,
   quantities,
@@ -152,6 +156,8 @@ export default function CollectionLog({
 
   return (
     <div className="space-y-6">
+      {luck && <PersonalLuck {...luck} />}
+
       {/* The shelf. A log's meaning is its rarest slot, not the fraction of a list it fills, so the
           page opens on what was hard to get and puts the percentage beside it. */}
       {(showcase.length > 0 || valuable.length > 0) && (

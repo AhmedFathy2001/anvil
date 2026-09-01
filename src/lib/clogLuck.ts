@@ -69,6 +69,39 @@ export function poissonAtLeast(k: number, expected: number): number {
   return Math.max(0, 1 - poissonAtMost(k - 1, expected));
 }
 
+/**
+ * Items per drop, from the wiki dataset's quantity field.
+ *
+ * This is the difference between "how many items do you own" and "how many times did the table hit",
+ * and only the second one is luck. A dragon thrownaxe drops 500-1000 at a time: someone holding 750
+ * of them had ONE lucky roll, not 750, and scoring the raw stack called them 375x spooned for a drop
+ * they got exactly once. A fixed quantity is `q`; a ranged one is `m`..`n` and averages, because the
+ * roll that decides the size is uniform and independent of the roll that decided the drop.
+ */
+export function bundleSize(quantity: { q?: number; m?: number; n?: number } | undefined | null): number {
+  if (!quantity) return 1;
+  const { q, m, n } = quantity;
+  if (Number.isFinite(m) && Number.isFinite(n) && (m as number) > 0 && (n as number) >= (m as number)) {
+    return ((m as number) + (n as number)) / 2;
+  }
+  if (Number.isFinite(q) && (q as number) > 0) return q as number;
+  return 1;
+}
+
+/**
+ * Turn a collection log quantity into the number of DROPS behind it.
+ *
+ * Rounded, and floored at one for anyone who owns any at all: the log proves the table hit at least
+ * once, and a stack that came in under the average bundle must not round down to "never dropped".
+ */
+export function dropsFromQuantity(quantity: number, bundle: number): number {
+  const owned = Math.max(0, quantity);
+  if (owned <= 0) return 0;
+  const size = Number.isFinite(bundle) && bundle > 0 ? bundle : 1;
+  if (size <= 1) return Math.round(owned);
+  return Math.max(1, Math.round(owned / size));
+}
+
 export type LuckVerdict = 'dry' | 'on-rate' | 'spooned';
 
 /**
@@ -100,7 +133,18 @@ export interface LuckAssessment {
  * them lucky and moved on.
  */
 export function assessLuck(chance: number, kills: number, obtained: number): LuckAssessment {
-  const expected = expectedDrops(chance, kills);
+  return assessLuckAt(expectedDrops(chance, kills), kills, obtained);
+}
+
+/**
+ * Assess against an expectation that has already been worked out.
+ *
+ * The single-source form above can't express the common case: one item, several sources, each with
+ * its own rate. A dragon thrownaxe comes off six different slayer bosses at 1-in-2000 and 1-in-10000,
+ * and crediting only the page's own boss counts a Drake farmer's stack against zero Drake kills. Sum
+ * the expectations first, then judge the total against the count once.
+ */
+export function assessLuckAt(expected: number, kills: number, obtained: number): LuckAssessment {
   const got = Math.max(0, obtained);
   const dryTail = poissonAtMost(got, expected);
   const spoonTail = poissonAtLeast(got, expected);
@@ -150,4 +194,77 @@ export function formatOdds(tail: number): string | null {
   if (!Number.isFinite(tail) || tail <= 0 || tail >= 1) return null;
   const n = Math.round(1 / tail);
   return n >= 2 ? `1 in ${n.toLocaleString()}` : null;
+}
+
+// ── One person's luck, across everything they've killed ──────────────────────────────────────────
+
+export interface LuckTotal {
+  /** Tracked drops that had any expectation for this member at all. */
+  items: number;
+  /** Drops the rates owed them across all of it. */
+  expected: number;
+  /** Drops they actually got — bundles collapsed to rolls, not raw item counts. */
+  obtained: number;
+  /** obtained − expected. Positive is drops ahead; negative is the number they're owed. */
+  net: number;
+  ratio: number;
+  verdict: LuckVerdict;
+  /** How surprising the whole log is, 0–1. */
+  tail: number;
+  /** Where they sit among all possible outcomes, 0–100. 50 is dead on the rate. */
+  percentile: number;
+}
+
+/**
+ * Combine per-item assessments into a single verdict for one member.
+ *
+ * This is exact rather than an averaged score, and that's the reason to do it this way: a sum of
+ * independent Poisson counts is itself Poisson with the summed mean, so the whole collection log can
+ * be judged with the same one-item maths and no fudge factor. Averaging per-item ratios would let a
+ * 3x on a common drop cancel a 0.1x on a rare one, which is not how anyone experiences being dry.
+ *
+ * Items with no expectation are skipped, not counted as zero — never having fought something is not
+ * bad luck.
+ */
+export function aggregateLuck(parts: { expected: number; obtained: number }[]): LuckTotal {
+  let expected = 0;
+  let obtained = 0;
+  let items = 0;
+  for (const part of parts) {
+    if (!Number.isFinite(part.expected) || part.expected <= 0) continue;
+    expected += part.expected;
+    obtained += Math.max(0, part.obtained);
+    items++;
+  }
+
+  const dryTail = poissonAtMost(obtained, expected);
+  const spoonTail = poissonAtLeast(obtained, expected);
+  let verdict: LuckVerdict = 'on-rate';
+  if (expected > 0) {
+    if (dryTail < TAIL_THRESHOLD) verdict = 'dry';
+    else if (spoonTail < TAIL_THRESHOLD) verdict = 'spooned';
+  }
+
+  // Midpoint of the step this count occupies, so the discreteness doesn't push someone exactly on
+  // the rate off 50 — with a mean of 2, P(X ≤ 2) alone is 0.68 and would read as lucky.
+  const percentile = expected > 0 ? Math.round(((dryTail + (1 - spoonTail)) / 2) * 1000) / 10 : 50;
+
+  return {
+    items,
+    expected,
+    obtained,
+    net: obtained - expected,
+    ratio: expected > 0 ? obtained / expected : 0,
+    verdict,
+    tail: verdict === 'dry' ? dryTail : verdict === 'spooned' ? spoonTail : Math.min(dryTail, spoonTail),
+    percentile,
+  };
+}
+
+/** "owed 3.2 more" / "3.2 ahead" — the net in the words people use about it. */
+export function formatNet(net: number): string {
+  const size = Math.abs(net);
+  const shown = size >= 10 ? Math.round(size).toLocaleString() : size.toFixed(1);
+  if (size < 0.05) return 'exactly on rate';
+  return net < 0 ? `owed ${shown} more` : `${shown} ahead`;
 }

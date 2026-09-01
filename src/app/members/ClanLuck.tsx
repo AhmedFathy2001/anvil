@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { itemIconUrl } from '@/lib/tileIcons';
-import { formatCount, formatMultiple, formatOdds, formatRate } from '@/lib/clogLuck';
-import type { LuckEntry } from '@/lib/clogProfile';
+import { formatCount, formatMultiple, formatOdds } from '@/lib/clogLuck';
+import { formatSources, type LuckEntry } from '@/lib/clogProfile';
 
 // Who the game has been cruel to, and who it hasn't. Both boards read from synced collection logs
 // crossed with hiscores kill counts and the wiki's drop rates — so an entry is a claim we can show
@@ -105,7 +105,7 @@ export default function ClanLuck({ dry, spooned, membersConsidered, itemsConside
                   headline={formatCount(e.assessment.obtained, e.assessment.expected)}
                   detail={[
                     `${e.assessment.kills.toLocaleString()} KC`,
-                    formatRate(e.rate.denominator),
+                    formatSources(e.sources),
                     formatOdds(e.assessment.tail) ? `${formatOdds(e.assessment.tail)} end up here` : null,
                   ]
                     .filter(Boolean)
@@ -139,7 +139,7 @@ export default function ClanLuck({ dry, spooned, membersConsidered, itemsConside
                   headline={formatCount(e.assessment.obtained, e.assessment.expected)}
                   detail={[
                     `${e.assessment.kills.toLocaleString()} KC`,
-                    formatRate(e.rate.denominator),
+                    formatSources(e.sources),
                     formatOdds(e.assessment.tail) ? `${formatOdds(e.assessment.tail)} end up here` : null,
                   ]
                     .filter(Boolean)
