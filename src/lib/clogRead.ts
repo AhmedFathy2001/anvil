@@ -48,7 +48,7 @@ export async function getCollectionLog(clanMemberId: number, rsn: string): Promi
       })
       .from(memberPersonalBests)
       .where(eq(memberPersonalBests.clanMemberId, clanMemberId)),
-    getMemberLuck(clanMemberId),
+    getMemberLuck(clanMemberId, 10),
   ]);
 
   const view = buildClogProfile({

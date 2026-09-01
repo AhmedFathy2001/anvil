@@ -23,6 +23,8 @@ export interface PersonalLuckProps {
   total: LuckTotal;
   dry: LuckItemView[];
   spooned: LuckItemView[];
+  /** On its own tab there is room for the whole breakdown and the caveats behind it. */
+  full?: boolean;
 }
 
 const VERDICT = {
@@ -48,11 +50,12 @@ function ItemRow({ item, tone }: { item: LuckItemView; tone: 'dry' | 'spoon' }) 
   );
 }
 
-export default function PersonalLuck({ total, dry, spooned }: PersonalLuckProps) {
+export default function PersonalLuck({ total, dry, spooned, full = false }: PersonalLuckProps) {
   // Nothing to say about a log with no tracked kills behind it — better silent than a made-up score.
   if (total.items === 0 || total.expected <= 0) return null;
   const verdict = VERDICT[total.verdict];
   const odds = formatOdds(total.tail);
+  const assumed = [...dry, ...spooned].some((i) => i.sources.some((r) => r.assumed));
 
   return (
     <div className="border border-card-border rounded-xl bg-card-bg p-4">
@@ -92,6 +95,16 @@ export default function PersonalLuck({ total, dry, spooned }: PersonalLuckProps)
           <span>luckiest</span>
         </div>
       </div>
+
+      {/* Raid odds rest on an assumption, and saying so is the difference between a number someone
+          can argue with and one that quietly misleads. */}
+      {full && assumed && (
+        <p className="mt-3 text-[11px] text-text-muted/80 leading-relaxed">
+          Raid rates are an estimate. The hiscores record completions but not points, invocation
+          level or party size — the things the odds actually turn on — so raid luck assumes a typical
+          raid. Staff can correct that assumption in the admin settings.
+        </p>
+      )}
 
       {(dry.length > 0 || spooned.length > 0) && (
         <div className="grid sm:grid-cols-2 gap-x-5 gap-y-3 mt-4 pt-3 border-t border-card-border">

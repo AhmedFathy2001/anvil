@@ -280,6 +280,11 @@ export interface LuckRateSource {
   rolls: number;
   /** Average items per drop — 1 for a single, ~750 for a dragon thrownaxe stack. */
   bundle: number;
+  /**
+   * True when the rate rests on an assumption rather than a measured table — raids, where the
+   * hiscores record completions but not the points, invocation or party size the odds turn on.
+   */
+  assumed?: boolean;
 }
 
 /**

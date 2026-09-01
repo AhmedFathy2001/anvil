@@ -36,6 +36,7 @@ import {
   type LuckSource,
 } from '../src/lib/clogProfile.ts';
 import { clogPageItems, clogPageNames } from '../src/lib/clogDataset.ts';
+import { raidSourcesByItem, raidUniqueChances } from '../src/lib/raidLuck.ts';
 
 test('chancePerKill: rolls combine as independent chances, never as a sum', () => {
   assert.equal(chancePerKill(100), 0.01, 'a single roll is exact, not 0.010000000000000009');
@@ -391,4 +392,52 @@ test('formatSources: never names one rate for an item that has several', () => {
     { source: 'B', bossKey: 'b', denominator: 10_000, rolls: 1, bundle: 1 },
   ];
   assert.equal(formatSources(many), '1 in 2,000–10,000 across 2 sources');
+});
+
+// ── raids ────────────────────────────────────────────────────────────────────────────────────────
+
+test('raidSourcesByItem: the two halves multiply, and the assumption is the overridable one', () => {
+  const base = raidSourcesByItem();
+  const tbow = [...base.entries()].find(([, s]) => s.some((r) => r.bossKey === 'chambersOfXeric'));
+  assert.ok(tbow, 'Chambers of Xeric contributes sources at all');
+
+  // A Twisted bow is 1-in-30 of the unique table; at an assumed 1-in-30 unique chance that is
+  // 1-in-900 per raid. Multiplying the two is the whole model.
+  const cox = (over?: unknown) => {
+    const map = raidSourcesByItem(over);
+    for (const sources of map.values()) {
+      const hit = sources.find((s) => s.bossKey === 'chambersOfXeric' && Math.abs(s.denominator - 900) < 1);
+      if (hit) return hit;
+    }
+    return null;
+  };
+  assert.ok(cox(), 'a 1-in-30 share at a 1-in-30 unique chance lands on 1-in-900');
+
+  const halved = raidSourcesByItem({ chambersOfXeric: 15 });
+  const found = [...halved.values()].flat().find((s) => s.bossKey === 'chambersOfXeric' && Math.abs(s.denominator - 450) < 1);
+  assert.ok(found, 'halving the assumed unique chance halves every rate under it');
+
+  // Every raid rate is flagged, because the UI has to be able to say so.
+  assert.ok([...base.values()].flat().every((s) => s.assumed === true));
+});
+
+test('raidUniqueChances: a bad override is ignored rather than trusted', () => {
+  const defaults = raidUniqueChances();
+  assert.equal(raidUniqueChances({ chambersOfXeric: 'banana' }).chambersOfXeric, defaults.chambersOfXeric);
+  assert.equal(raidUniqueChances({ chambersOfXeric: -5 }).chambersOfXeric, defaults.chambersOfXeric);
+  assert.equal(raidUniqueChances({ chambersOfXeric: 0 }).chambersOfXeric, defaults.chambersOfXeric);
+  assert.equal(raidUniqueChances(null).chambersOfXeric, defaults.chambersOfXeric);
+  assert.equal(raidUniqueChances({ chambersOfXeric: 15 }).chambersOfXeric, 15, 'a real number is taken');
+});
+
+test('raid uniques from several modes add up rather than picking one', () => {
+  // A Scythe drops in both normal and hard mode, and someone who runs both is owed both.
+  const map = raidSourcesByItem();
+  const multiMode = [...map.values()].find(
+    (s) => s.some((r) => r.bossKey === 'theatreOfBlood') && s.some((r) => r.bossKey === 'theatreOfBloodHardMode'),
+  );
+  assert.ok(multiMode, 'the Theatre contributes both its modes as separate sources');
+  const e = expectationFor(multiMode!, { theatreOfBlood: 500, theatreOfBloodHardMode: 500 });
+  const normalOnly = expectationFor(multiMode!, { theatreOfBlood: 500 });
+  assert.ok(e.expected > normalOnly.expected, 'hard-mode completions add expectation, not replace it');
 });

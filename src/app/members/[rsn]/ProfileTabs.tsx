@@ -6,6 +6,7 @@ import { SKILL_LABELS, BOSSES } from '@/lib/constants';
 import { CLUE_TIER_KEYS } from '@/lib/hiscoresActivities';
 import { progressToLevel } from '@/lib/xp';
 import CollectionLog, { type CollectionLogProps } from './CollectionLog';
+import PersonalLuck from './PersonalLuck';
 import LocalTime from '@/components/LocalTime';
 import type {
   ActivityStanding,
@@ -21,7 +22,7 @@ import type {
 // The whole payload is one member's snapshot plus at most a year of ~50-byte daily rows — smaller
 // than the images on the page — which is what makes fetching it all up front the cheap option.
 
-type Tab = 'stats' | 'records' | 'collection' | 'trophies';
+type Tab = 'stats' | 'records' | 'collection' | 'luck' | 'trophies';
 type Metric = 'ehp' | 'ehb' | 'xp';
 type Window = 7 | 30 | 90;
 
@@ -39,6 +40,9 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'stats', label: 'Overview' },
   { key: 'records', label: 'Records' },
   { key: 'collection', label: 'Collection' },
+  // Luck earns a tab rather than a corner of the log: it answers a different question ("am I dry?")
+  // and has its own per-item breakdown, which was never going to fit above the grid.
+  { key: 'luck', label: 'Luck' },
   { key: 'trophies', label: 'Trophies' },
 ];
 
@@ -354,6 +358,16 @@ export default function ProfileTabs({
           </button>
         ))}
       </div>
+
+      {tab === 'luck' &&
+        (collection.luck ? (
+          <PersonalLuck {...collection.luck} full />
+        ) : (
+          <div className="border border-dashed border-card-border rounded-xl p-8 text-center text-sm text-text-muted">
+            No luck to read yet — it needs a synced collection log and kills at something the rates
+            cover.
+          </div>
+        ))}
 
       {tab === 'stats' && (
         <>

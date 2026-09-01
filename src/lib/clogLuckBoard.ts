@@ -1,10 +1,11 @@
 import { db } from '@/db';
-import { clanMembers, memberClog, memberClogItems, playerSnapshots } from '@/db/schema';
+import { clanMembers, memberClog, memberClogItems, playerSnapshots, settings } from '@/db/schema';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import npcDrops from '@/data/npcDrops.json'; // regenerate with `npm run data:drops`
 import { BOSSES } from '@/lib/constants';
 import { clogItemNames, clogPageItems, clogPageNames } from '@/lib/clogDataset';
 import { aggregateLuck, assessLuckAt, bundleSize, dropsFromQuantity, type LuckTotal } from '@/lib/clogLuck';
+import { raidSourcesByItem, RAID_LUCK_SETTING_KEY } from '@/lib/raidLuck';
 import { buildLuckBoards, expectationFor, type LuckEntry, type LuckRateSource, type LuckSource } from '@/lib/clogProfile';
 import { parsePluginStats } from '@/lib/pluginStats';
 
@@ -49,8 +50,12 @@ export interface LuckCandidate {
  * source the hiscores count kills for. Computed once per process — all three inputs ship in the repo.
  */
 let candidateCache: LuckCandidate[] | null = null;
-export function luckCandidates(): LuckCandidate[] {
-  if (candidateCache) return candidateCache;
+let candidateCacheKey = '';
+export function luckCandidates(raidOverrides?: unknown): LuckCandidate[] {
+  // Keyed on the raid assumption: it is the one input an admin can change at runtime, and a cache
+  // that ignored it would serve the previous clan's odds until the process restarted.
+  const cacheKey = JSON.stringify(raidOverrides ?? null);
+  if (candidateCache && candidateCacheKey === cacheKey) return candidateCache;
 
   const drops = npcDrops as unknown as Record<string, DropEntry[]>;
   const bossByLabel = new Map(BOSSES.map((b) => [b.label.toLowerCase(), b.key]));
@@ -76,6 +81,14 @@ export function luckCandidates(): LuckCandidate[] {
       });
       byItem.set(drop.i, list);
     }
+  }
+
+  // Raids reach the same map by a different road: no kill table exists for them, so their rates are
+  // the wiki's unique-table shares times an assumed per-raid unique chance (lib/raidLuck). Merged in
+  // here, they are just more sources — which is what makes an item that drops from both a raid and a
+  // boss add up correctly instead of picking one.
+  for (const [itemId, sources] of raidSourcesByItem(raidOverrides)) {
+    byItem.set(itemId, [...(byItem.get(itemId) ?? []), ...sources]);
   }
 
   const out: LuckCandidate[] = [];
@@ -121,7 +134,22 @@ export function luckCandidates(): LuckCandidate[] {
   }
 
   candidateCache = [...deduped.values()];
+  candidateCacheKey = cacheKey;
   return candidateCache;
+}
+
+/**
+ * The clan's raid assumption, if they've set one. Parse failures fall back to the defaults rather
+ * than to nothing: a malformed setting should not silently delete every raid from the boards.
+ */
+export async function raidOverrides(): Promise<unknown> {
+  const row = await db.query.settings.findFirst({ where: eq(settings.key, RAID_LUCK_SETTING_KEY) });
+  if (!row?.value) return null;
+  try {
+    return JSON.parse(row.value);
+  } catch {
+    return null;
+  }
 }
 
 /** The hiscores boss key a log page counts kills for, or null when the page isn't a boss. */
@@ -179,7 +207,7 @@ export interface LuckBoards {
  * "hasn't told us", and putting the second on a dry board would be a lie about a real person.
  */
 export async function getLuckBoards(limit = 15): Promise<LuckBoards> {
-  const candidates = luckCandidates();
+  const candidates = luckCandidates(await raidOverrides());
   if (candidates.length === 0) return { dry: [], spooned: [], membersConsidered: 0, itemsConsidered: 0 };
 
   // Everyone who has synced, and is still in the clan.
@@ -303,7 +331,7 @@ export async function getMemberLuck(clanMemberId: number, listLimit = 5): Promis
     .where(eq(memberClog.clanMemberId, clanMemberId));
   if (!synced) return null;
 
-  const candidates = luckCandidates();
+  const candidates = luckCandidates(await raidOverrides());
   const kills = await bossKillsFor(clanMemberId);
 
   const itemIds = [...new Set(candidates.map((c) => c.itemId))];
