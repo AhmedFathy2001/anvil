@@ -27,7 +27,7 @@ const MAX_KC = 1_000_000;
 /** A moment more than a day old is a replayed queue we no longer have the scopes to place. */
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
-const KINDS = ['pet', 'drop', 'death', 'ca'] as const;
+const KINDS = ['pet', 'drop', 'death', 'ca', 'level'] as const;
 
 function str(v: unknown, max = MAX_NAME): string | null {
   return typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null;

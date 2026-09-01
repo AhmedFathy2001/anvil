@@ -216,6 +216,8 @@ export interface MomentRow {
   rarityDenominator: number | null;
   /** Combat tasks only — the feed line leads with it. */
   tier: string | null;
+  /** 'level' reads this to tell a 99 from a total-level milestone from a max. */
+  sourceKind: string | null;
   /** Which side it happened on, stamped at ingest. Null on weekly/solo moments. */
   teamId: number | null;
   occurredAt: string;
@@ -236,6 +238,7 @@ export async function momentsForCompetition(competitionId: number, limit = 12): 
       kc: moments.kc,
       rarityDenominator: moments.rarityDenominator,
       tier: moments.tier,
+      sourceKind: moments.sourceKind,
       teamId: moments.teamId,
       occurredAt: moments.occurredAt,
     })
@@ -260,6 +263,7 @@ export async function momentsForEvent(eventId: number, limit = 20): Promise<Mome
       kc: moments.kc,
       rarityDenominator: moments.rarityDenominator,
       tier: moments.tier,
+      sourceKind: moments.sourceKind,
       teamId: moments.teamId,
       occurredAt: moments.occurredAt,
     })
@@ -300,6 +304,7 @@ export async function momentsForMembers(clanMemberIds: number[], limit = 20): Pr
       kc: moments.kc,
       rarityDenominator: moments.rarityDenominator,
       tier: moments.tier,
+      sourceKind: moments.sourceKind,
       teamId: moments.teamId,
       occurredAt: moments.occurredAt,
     })

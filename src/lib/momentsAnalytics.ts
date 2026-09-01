@@ -21,6 +21,7 @@ export interface MemberTally {
   deaths: number;
   loot: number;
   ca: number;
+  levels: number;
   total: number;
   /** Value of the hauls this person's 'loot'/'unique' lines carried, as the client priced them. */
   lootGp: number;
@@ -43,7 +44,7 @@ export interface Standout {
 }
 
 export interface MomentsSummary {
-  counts: { pet: number; unique: number; death: number; loot: number; ca: number; total: number };
+  counts: { pet: number; unique: number; death: number; loot: number; ca: number; level: number; total: number };
   /** Everyone who appeared in the feed, biggest contributor first. */
   members: MemberTally[];
   /** Most deaths first — the counter people ask for by name. Only people who actually died. */
@@ -62,10 +63,10 @@ export interface MomentsSummary {
   gpSeen: number;
 }
 
-const EMPTY_COUNTS = { pet: 0, unique: 0, death: 0, loot: 0, ca: 0, total: 0 };
+const EMPTY_COUNTS = { pet: 0, unique: 0, death: 0, loot: 0, ca: 0, level: 0, total: 0 };
 
 function blank(rsn: string): MemberTally {
-  return { rsn, pets: 0, uniques: 0, deaths: 0, loot: 0, ca: 0, total: 0, lootGp: 0 };
+  return { rsn, pets: 0, uniques: 0, deaths: 0, loot: 0, ca: 0, levels: 0, total: 0, lootGp: 0 };
 }
 
 /** Rank a list of {name,count}, biggest first, ties broken by name so the order never wobbles. */
@@ -144,6 +145,12 @@ export function summariseMoments(rows: MomentRow[], limit = 8): MomentsSummary {
         tally.ca += 1;
         counts.ca += 1;
         if (!hardestTask || caTierRank(row.tier) > caTierRank(hardestTask.tier)) hardestTask = standout;
+        break;
+      // Named explicitly, because the arm below treats whatever it doesn't recognise as a drop —
+      // which would have filed a 99 as a haul worth zero gp and let it into the loot rankings.
+      case 'level':
+        tally.levels += 1;
+        counts.level += 1;
         break;
       default: {
         // 'unique' and 'loot' are both drops; they differ in why they were kept.

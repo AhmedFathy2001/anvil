@@ -333,3 +333,73 @@ test('the feed line leads with the tier', () => {
     'completed a combat task',
   );
 });
+
+// ── Levels ────────────────────────────────────────────────────────────────────────────────────
+//
+// Ahmed hit 99 Cooking mid-board and the site had nowhere to put it: the feed knew pets, drops,
+// deaths and combat tasks, and a 99 was none of them. It went to Discord (when it went anywhere at
+// all) and left no trace on the site that a clan reads afterwards.
+//
+// A level carries no item and no source, so it rides in the columns that already exist: the skill
+// in `itemName`, the number in `quantity`, and which KIND of number in `sourceKind`.
+
+const lvl = (over: Partial<Observation> = {}): Observation =>
+  obs({ kind: 'level', itemName: 'Cooking', quantity: 99, sourceKind: 'skill', ...over });
+
+test('a 99 during a bingo is a moment, whatever the board asked for', () => {
+  const planned = classifyObservation(lvl(), { weeklies: [], event: board });
+  assert.equal(planned.length, 1);
+  assert.equal(planned[0].kind, 'level');
+  assert.equal(planned[0].eventId, 9);
+  assert.equal(planned[0].teamId, 4, 'it belongs to the side they play for');
+  assert.equal(planned[0].quantity, 99);
+});
+
+test('a skill week claims the 99 that is its own skill', () => {
+  const planned = classifyObservation(lvl({ itemName: 'Runecraft' }), {
+    weeklies: [SOTW],
+    event: null,
+  });
+  assert.equal(planned.length, 1);
+  assert.equal(planned[0].kind, 'level');
+  assert.equal(planned[0].weeklyCompetitionId, 2);
+});
+
+test('a skill week ignores a 99 in some other skill', () => {
+  // Lovely for them, nothing to do with the week being raced.
+  assert.deepEqual(classifyObservation(lvl(), { weeklies: [SOTW], event: null }), []);
+});
+
+test('a boss week ignores a 99 but keeps a max', () => {
+  assert.deepEqual(classifyObservation(lvl(), { weeklies: [BOTW], event: null }), []);
+
+  const maxed = classifyObservation(
+    lvl({ itemName: null, quantity: 2277, sourceKind: 'max' }),
+    { weeklies: [BOTW], event: null },
+  );
+  assert.equal(maxed.length, 1, 'a max is everybody’s story');
+  assert.equal(maxed[0].kind, 'level');
+});
+
+test('the sentence says which kind of number it was', () => {
+  const say = (over: Partial<Parameters<typeof momentSentence>[0]>) =>
+    momentSentence({
+      kind: 'level',
+      itemName: 'Cooking',
+      quantity: 99,
+      sourceKind: 'skill',
+      source: null,
+      valueGp: null,
+      ...over,
+    });
+
+  assert.equal(say({}), 'reached level 99 Cooking');
+  assert.equal(
+    say({ itemName: null, quantity: 1800, sourceKind: 'total' }),
+    'reached 1,800 total level',
+  );
+  assert.equal(
+    say({ itemName: null, quantity: 2277, sourceKind: 'max' }),
+    'maxed, with a total level of 2,277',
+  );
+});

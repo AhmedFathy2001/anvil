@@ -21,11 +21,11 @@ import { clogPageItems, clogPageNames } from '@/lib/clogDataset';
  */
 
 /** What we store. 'loot' is a haul that was notable for its price rather than its rarity. */
-export type MomentKind = 'pet' | 'unique' | 'death' | 'loot' | 'ca';
+export type MomentKind = 'pet' | 'unique' | 'death' | 'loot' | 'ca' | 'level';
 
 /** What the plugin says it saw. Everything except `occurredAt`/`dedupKey` is best-effort. */
 export interface Observation {
-  kind: 'pet' | 'drop' | 'death' | 'ca';
+  kind: 'pet' | 'drop' | 'death' | 'ca' | 'level';
   itemId?: number | null;
   itemName?: string | null;
   quantity?: number | null;
@@ -38,6 +38,10 @@ export interface Observation {
   taskName?: string | null;
   /** 'ca' only: the tier the line named. Only used when the task isn't in our own dataset. */
   tier?: string | null;
+  //
+  // 'level' rides in columns that already exist rather than adding its own: `itemName` carries the
+  // skill (null when the news is the total), `quantity` the number reached, and `sourceKind` says
+  // which of the three it is — 'skill' for a 99, 'total' for a milestone, 'max' for the last one.
   occurredAt: string;
   /** Client-side idempotency key — a pet fires three chat lines and a kill fires two loot events. */
   dedupKey: string;
@@ -403,11 +407,23 @@ function weeklyKindFor(obs: Observation, weekly: WeeklyScope): MomentKind | null
   }
 
   if (weekly.type === 'skill') {
+    // A 99 in the very skill being raced is the biggest thing that can happen in a skill week, and a
+    // 99 in some other skill has nothing to do with it. A total-level milestone belongs to no single
+    // skill, so no skill week claims it.
+    if (obs.kind === 'level') {
+      return obs.sourceKind === 'skill' && !!obs.itemName && norm(obs.itemName) === norm(weekly.metric)
+        ? 'level'
+        : null;
+    }
     // A skill week has no boss to drop from or die to, so only its pets qualify. Which pets those
     // are is the one thing the collection log can't tell us — see src/data/skillPets.json.
     if (obs.kind !== 'pet' || !obs.itemName) return null;
     return petsForSkill(weekly.metric).has(norm(obs.itemName)) ? 'pet' : null;
   }
+
+  // A boss week is about a boss. Somebody's 99 Cooking that week is lovely and is not this week's
+  // story; a max is, because a max is everybody's story.
+  if (obs.kind === 'level') return obs.sourceKind === 'max' ? 'level' : null;
 
   const fromThisBoss = matchesBoss(obs.source, weekly.metric);
   if (obs.kind === 'death') {
@@ -439,9 +455,11 @@ function weeklyKindFor(obs: Observation, weekly: WeeklyScope): MomentKind | null
  * wrong, or the drop credited nothing), or when it is simply worth a lot of money.
  */
 function eventKindFor(obs: Observation, event: EventScope, info: DropInfo | null): MomentKind | null {
-  // Every pet and every death during a bingo is a story — no filter, that IS the feed.
+  // Every pet and every death during a bingo is a story — no filter, that IS the feed. A 99 or a max
+  // reached mid-board is the same kind of story, and the board doesn't have to have asked for it.
   if (obs.kind === 'pet') return 'pet';
   if (obs.kind === 'death') return 'death';
+  if (obs.kind === 'level') return 'level';
 
   if (obs.kind === 'ca') {
     const { tier, monster } = caFacts(obs);
@@ -464,6 +482,7 @@ export function momentSentence(m: {
   itemName: string | null;
   quantity: number;
   source: string | null;
+  sourceKind?: string | null;
   valueGp: number | null;
   tier?: string | null;
 }): string {
@@ -480,6 +499,13 @@ export function momentSentence(m: {
       return m.source ? `got ${qty}${item} from ${m.source}` : `got ${qty}${item}`;
     case 'death':
       return m.source ? `died to ${m.source}` : 'died';
+    case 'level': {
+      // The quantity column holds the number reached, and sourceKind says what kind of number it is.
+      const n = m.quantity.toLocaleString();
+      if (m.sourceKind === 'max') return `maxed, with a total level of ${n}`;
+      if (m.sourceKind === 'total') return `reached ${n} total level`;
+      return m.itemName ? `reached level ${n} ${m.itemName}` : `reached level ${n}`;
+    }
     case 'ca': {
       // The tier is the whole size of the news, so it leads even when we can't name the task.
       const tier = m.tier ? `${m.tier} ` : '';
@@ -498,4 +524,5 @@ export const MOMENT_EMOJI: Record<string, string> = {
   death: '💀',
   loot: '💰',
   ca: '⚔️',
+  level: '🎉',
 };

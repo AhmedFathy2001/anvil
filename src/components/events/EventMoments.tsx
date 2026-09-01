@@ -5,8 +5,8 @@ import type { MomentRow } from '@/lib/momentsStore';
  * What the board's week actually looked like — the pets, the drops, the deaths.
  *
  * None of this scores. That's the point: the scoreboard already says who is winning, and it says
- * nothing about the twenty minutes somebody spent dying to the boss their tile wanted, or the
- * 40M that fell out of a chest for a tile nobody had. Those are the things people tell each other
+ * nothing about the twenty minutes somebody spent dying to the boss their tile wanted, the 99 that
+ * landed on the Tuesday, or the 40M that fell out of a chest for a tile nobody had. Those are the things people tell each other
  * about afterwards, and until now the clan's Discord was the only place they existed.
  *
  * Plugin-reported, so it covers whoever has it installed — the same caveat every live surface here
@@ -24,7 +24,7 @@ export default function EventMoments({ moments }: { moments: MomentRow[] }) {
           Moments
         </h2>
         <span className="text-[11.5px] text-text-muted">
-          what happened while the board ran — pets, big drops and deaths. Nothing here scores.
+          what happened while the board ran — pets, big drops, 99s and deaths. Nothing here scores.
         </span>
       </div>
 
