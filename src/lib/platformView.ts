@@ -439,6 +439,14 @@ export interface NameCollision {
  *
  * Unverified clans are included on purpose. A name held by nobody but claimed by three is not a
  * dispute the 409 has fired on yet, and it is the moment an operator would rather hear about it.
+ *
+ * AND THE REFUSALS, which is the case this missed entirely. `clans.in_game_name` is written by a
+ * SUCCESSFUL claim and by nothing else — the settings form writes the setting, not the column — so a
+ * clan turned away from a name it really owns never gets the column set, the group has one member,
+ * and the squat that caused the refusal is invisible here. Which is the exact shape a squatter
+ * produces: they claim first, the real clan is refused, and the only trace was an audit row nothing
+ * read. The refusal log is therefore a second source of contested names, not merely an annotation on
+ * names found some other way.
  */
 export async function nameCollisions(): Promise<NameCollision[]> {
   // clan-scope: global -- a collision is by definition between clans; there is no clan to scope to.
@@ -460,21 +468,75 @@ export async function nameCollisions(): Promise<NameCollision[]> {
     byName.set(key, [...(byName.get(key) ?? []), r]);
   }
 
-  const contested = [...byName.values()].filter((g) => g.length > 1);
+  // Every refusal, with the name it was refused for. clan_id is the clan that ATTEMPTED; the name
+  // and the holder ride in the payload.
+  //
+  // clan-scope: global -- a refusal is a fact about two clans, and the operator arbitrating is the
+  // one surface that is allowed to see both.
+  const refusals = await db
+    .select({ clanId: clanAuditLog.clanId, newValue: clanAuditLog.newValue })
+    .from(clanAuditLog)
+    .where(eq(clanAuditLog.eventType, 'ingame_name_claim_refused'));
+
+  const attemptsBy = new Map<number, number>();
+  const refusedNameFor = new Map<string, string>();
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  for (const r of refusals) {
+    if (r.clanId != null) {
+      attemptsBy.set(r.clanId, (attemptsBy.get(r.clanId) ?? 0) + 1);
+    }
+    let name = '';
+    try {
+      name = String((JSON.parse(r.newValue ?? '{}') as { inGameName?: unknown }).inGameName ?? '');
+    } catch {
+      continue; // a payload we cannot read is not a dispute we can describe
+    }
+    const key = name.trim().toLowerCase();
+    if (!key || r.clanId == null) continue;
+    // Remember how the refusal spelled it, so a group assembled purely from refusals still has a
+    // name to show — the attempter's own row carries none, that being the point.
+    if (!refusedNameFor.has(key)) refusedNameFor.set(key, name.trim());
+
+    // Fold the refused clan into the group for that name. It has no in_game_name of its own — being
+    // refused is precisely why — so it is carried here with a null one and reads as unverified,
+    // which is what it is.
+    const group = byName.get(key) ?? [];
+    if (!group.some((g) => g.id === r.clanId)) {
+      const known = byId.get(r.clanId);
+      if (known) {
+        byName.set(key, [...group, known]);
+      } else {
+        const [row] = await db
+          .select({
+            id: clans.id,
+            slug: clans.slug,
+            name: clans.name,
+            inGameName: clans.inGameName,
+            verifiedAt: clans.ingameNameVerifiedAt,
+          })
+          .from(clans)
+          .where(eq(clans.id, r.clanId))
+          .limit(1);
+        if (row) {
+          byId.set(row.id, row);
+          byName.set(key, [...group, row]);
+        }
+      }
+    }
+  }
+
+  // Keyed, not just grouped: the key IS the lowercased name, so a group assembled purely from
+  // refusals still knows what it is called even though no member row carries the name.
+  const contested = [...byName.entries()].filter(([, g]) => g.length > 1);
   if (contested.length === 0) return [];
 
-  // How many times each clan has been turned away from a name, so an operator can tell a rename
-  // from somebody trying repeatedly.
-  const attempts = await db
-    .select({ clanId: clanAuditLog.clanId, n: count() })
-    .from(clanAuditLog)
-    .where(eq(clanAuditLog.eventType, 'ingame_name_claim_refused'))
-    .groupBy(clanAuditLog.clanId);
-  const attemptsBy = new Map(attempts.map((a) => [a.clanId, Number(a.n)]));
-
-  return contested.map((group) => ({
-    // Spelled as the verified holder spells it, falling back to whoever is first.
-    inGameName: (group.find((g) => g.verifiedAt) ?? group[0]).inGameName ?? '',
+  return contested.map(([key, group]) => ({
+    // Spelled as the verified holder spells it; then as anybody holding it does; then as the refusal
+    // recorded it. The last one carries a group whose only members were turned away.
+    inGameName:
+      (group.find((g) => g.verifiedAt) ?? group.find((g) => g.inGameName))?.inGameName ??
+      refusedNameFor.get(key) ??
+      '',
     clans: group
       .map((g) => ({
         id: g.id,

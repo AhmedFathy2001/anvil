@@ -229,6 +229,45 @@ test('refused claims are counted against the clan that made them', async () => {
 
   // Leave the fixture as it was for the queries below.
   await db.update(sc.clans).set({ inGameName: null, ingameNameVerifiedAt: null });
+  await db.delete(sc.clanAuditLog);
+});
+
+test('a squat is visible even though the victim holds no name', async () => {
+  // THE CASE THAT WAS INVISIBLE. `clans.in_game_name` is written by a SUCCESSFUL claim and by
+  // nothing else — the settings form writes the setting, not the column — so a clan turned away from
+  // a name it really owns never gets the column set. Grouping only on that column therefore found
+  // ONE clan holding the name, filtered the group out for being a group of one, and showed nothing.
+  //
+  // Which is precisely the shape a squatter produces: claim first, let the real clan be refused, and
+  // the only trace is an audit row that until now nothing read.
+  const { db, schema: sc } = await loadDb();
+  const all = await db.select({ id: sc.clans.id, slug: sc.clans.slug }).from(sc.clans).orderBy(sc.clans.id);
+  const squatter = all[0];
+  const victim = all[1];
+
+  await db
+    .update(sc.clans)
+    .set({ inGameName: 'The AFK Spot', ingameNameVerifiedAt: new Date().toISOString() })
+    .where(eq(sc.clans.id, squatter.id));
+  // The victim's claim was refused, so their column stays null — only the audit row exists.
+  await db.insert(sc.clanAuditLog).values({
+    clanId: victim.id,
+    eventType: 'ingame_name_claim_refused',
+    newValue: JSON.stringify({ inGameName: 'The AFK Spot', heldBy: squatter.slug, accountId: 1 }),
+  });
+
+  const collisions = await V.nameCollisions();
+  assert.equal(collisions.length, 1, 'the dispute is surfaced');
+  assert.equal(collisions[0].inGameName, 'The AFK Spot');
+  assert.equal(collisions[0].clans.length, 2, 'both the holder and the clan it turned away');
+  assert.equal(collisions[0].clans[0].verified, true, 'the holder is listed first');
+
+  const turnedAway = collisions[0].clans.find((c) => c.id === victim.id);
+  assert.ok(turnedAway, 'the refused clan is in the group despite holding no name');
+  assert.equal(turnedAway.refusedAttempts, 1);
+
+  await db.update(sc.clans).set({ inGameName: null, ingameNameVerifiedAt: null });
+  await db.delete(sc.clanAuditLog);
 });
 
 test('multiClanPeople runs — the query that could never parse', async () => {
