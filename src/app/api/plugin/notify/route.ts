@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { normalizeRsn, requirePluginClan, verifyPluginTokenUser } from '@/lib/auth';
-import { getNotificationWebhooks, type PluginWebhooks } from '@/lib/pluginConfig';
+import {
+  getNotificationWebhooks,
+  NOTIFY_CHANNELS,
+  type NotifyChannel,
+  type PluginWebhooks,
+} from '@/lib/pluginConfig';
 import { forwardPluginNotification, pickWebhookUrl } from '@/lib/discord';
 import { stripGameMarkup, stripGameMarkupDeep } from '@/lib/gameText';
 import { playerEventEmbed } from '@/lib/discordEmbeds';
@@ -22,8 +27,12 @@ import { and, eq, isNull } from 'drizzle-orm';
 // can't tie up the function.
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
-const CHANNELS = ['rareDrops', 'deaths', 'combatAchievements', 'pvpKills'] as const;
-type Channel = (typeof CHANNELS)[number];
+// Clips are the one channel that never arrives here (multi-MB video goes to /api/plugin/clip), so
+// the accepted set is every channel minus that one. Older plugins post "combatAchievements" for
+// levels, quests, diaries and clog slots; that name is still in the list, and the routing table
+// resolves it exactly as it always did, so a plugin that predates the split keeps working.
+const CHANNELS = NOTIFY_CHANNELS.filter((c) => c !== 'clips');
+type Channel = Exclude<NotifyChannel, 'clips'>;
 
 function isChannel(value: unknown): value is Channel {
   return typeof value === 'string' && (CHANNELS as readonly string[]).includes(value);

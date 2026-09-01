@@ -7,6 +7,7 @@ import { listBotChannels } from '@/lib/discord-broadcast';
 import { createChannelWebhook, findOrCreateAnvilWebhook, DEFAULT_WEBHOOK_NAME } from '@/lib/discord-webhooks';
 import { botCanManageWebhooks } from '@/lib/discord-permissions';
 import { parseWebhookUrls } from '@/lib/discord';
+import { WEBHOOK_SETTING_KEYS } from '@/lib/pluginConfig';
 
 // The setting keys a bot-created webhook URL may be written to — the same set the WebhookField
 // component renders. Constrains the write to known webhook destinations even though this route is
@@ -16,12 +17,9 @@ const WEBHOOK_KEYS = new Set([
   'discord_webhook_bingo',
   'discord_webhook_weekly',
   'discord_webhook_signups',
-  'webhook_rare_drops',
-  'webhook_deaths',
-  'webhook_combat_achievements',
-  'webhook_pvp_kills',
-  'webhook_clips',
-  'webhook_leagues',
+  // Every plugin destination, base included — derived so a channel added there is immediately
+  // creatable from the bot picker instead of silently rejected by a list nobody remembered to edit.
+  ...WEBHOOK_SETTING_KEYS,
 ]);
 
 // Discord caps webhook names at 80 chars.

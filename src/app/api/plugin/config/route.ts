@@ -22,6 +22,8 @@ import {
   getClanDisplayName,
   getTierBands,
   personalBestActivities,
+  NOTIFY_CHANNELS,
+  type NotifyChannel,
   type PluginWebhooks,
 } from '@/lib/pluginConfig';
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
@@ -59,13 +61,14 @@ const pluginRollTables = ROLL_TABLES.map((t) => ({
 // themselves — it posts to /api/plugin/notify and the server forwards to Discord. Sending the raw
 // URLs would let a plugin call them directly, which the RuneLite plugin hub forbids. Clips are
 // excluded: those post to a user-pasted webhook configured in the plugin, not via the site.
+//
+// One flag per channel, derived rather than listed: a channel added to NOTIFY_CHANNELS shows up here
+// without a second edit, and the two can't drift into disagreeing about what exists.
 function notifyFlags(webhooks: PluginWebhooks) {
-  return {
-    rareDrops: !!webhooks.rareDrops,
-    deaths: !!webhooks.deaths,
-    combatAchievements: !!webhooks.combatAchievements,
-    pvpKills: !!webhooks.pvpKills,
-  };
+  return Object.fromEntries(NOTIFY_CHANNELS.map((c) => [c, !!webhooks[c]])) as Record<
+    NotifyChannel,
+    boolean
+  >;
 }
 
 function generateCodeword(playerId: number, eventId: number): string {

@@ -9,8 +9,13 @@ import type { EmissionSettingsView, EmissionState } from '@/lib/emissionSettings
 
 const KIND_LABELS: Record<string, string> = {
   rareDrops: 'Rare drops',
+  pets: 'Pets',
   deaths: 'Deaths',
   combatAchievements: 'Combat achievements',
+  levels: 'Levels & milestones',
+  quests: 'Quests',
+  diaries: 'Achievement diaries',
+  collectionLog: 'Collection log',
   pvpKills: 'PvP kills',
 };
 const KINDS = Object.keys(KIND_LABELS);

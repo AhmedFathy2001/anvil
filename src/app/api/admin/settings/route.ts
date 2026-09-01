@@ -22,9 +22,17 @@ const EXPOSED_KEYS = [
   'discord_invite_url',
   // Role pinged on bingo event start/finish posts. Blank = no ping.
   'discord_member_ping_role_id',
+  // Plugin notification destinations. The base is what a clan sets when it wants one channel for
+  // everything; the rest are optional splits that fall back to it. See lib/pluginConfig.
+  'webhook_plugin_default',
   'webhook_rare_drops',
+  'webhook_pets',
   'webhook_deaths',
   'webhook_combat_achievements',
+  'webhook_levels',
+  'webhook_quests',
+  'webhook_diaries',
+  'webhook_collection_log',
   'webhook_pvp_kills',
   'webhook_clips',
   'webhook_leagues',

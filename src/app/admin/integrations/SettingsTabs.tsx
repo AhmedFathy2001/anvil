@@ -155,13 +155,35 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
 
           <Card>
             <FieldHeader title="Plugin notifications">
-              Channels the Anvil plugin posts to directly — drops, deaths, CA tiers, PvP kills, clips. Members fetch
-              these on launch, so remapping takes effect on their next login. Leave blank to disable one.
+              One channel for everything the Anvil plugin posts — drops, pets, deaths, CA tiers, levels, quests,
+              diaries, collection log, PvP kills and clips. Set this and you&rsquo;re done; split whichever ones you want
+              their own channel below. Members fetch these on launch, so remapping takes effect on their next login.
+            </FieldHeader>
+            <WebhookField
+              settingKey="webhook_plugin_default"
+              label="All plugin notifications"
+              helpText="Everything the plugin posts goes here unless you give it a channel of its own below."
+              channels={channels}
+              botEnabled={botEnabled}
+            />
+          </Card>
+
+          <Card>
+            <FieldHeader title="Split plugin channels">
+              Optional. Leave any of these blank and it uses the channel above; with neither set, that kind of post
+              is off.
             </FieldHeader>
             <WebhookField
               settingKey="webhook_rare_drops"
               label="Rare drops channel"
               helpText="Valuable drops and pets are posted here by the plugin."
+              channels={channels}
+              botEnabled={botEnabled}
+            />
+            <WebhookField
+              settingKey="webhook_pets"
+              label="Pets channel"
+              helpText="Splits pet drops out of the rare-drops channel. Blank keeps them with the drops."
               channels={channels}
               botEnabled={botEnabled}
             />
@@ -176,6 +198,34 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
               settingKey="webhook_combat_achievements"
               label="Combat achievements channel"
               helpText="CA tier clears (and high-tier task completions) are posted here by the plugin."
+              channels={channels}
+              botEnabled={botEnabled}
+            />
+            <WebhookField
+              settingKey="webhook_levels"
+              label="Levels channel"
+              helpText="99s, total-level milestones and maxes. Blank keeps them with combat achievements."
+              channels={channels}
+              botEnabled={botEnabled}
+            />
+            <WebhookField
+              settingKey="webhook_quests"
+              label="Quests channel"
+              helpText="Quest completions, at whatever difficulty each member has chosen to announce. Blank keeps them with combat achievements."
+              channels={channels}
+              botEnabled={botEnabled}
+            />
+            <WebhookField
+              settingKey="webhook_diaries"
+              label="Achievement diaries channel"
+              helpText="Diary tier completions. Blank keeps them with combat achievements."
+              channels={channels}
+              botEnabled={botEnabled}
+            />
+            <WebhookField
+              settingKey="webhook_collection_log"
+              label="Collection log channel"
+              helpText="New collection log slots. Blank keeps them with combat achievements."
               channels={channels}
               botEnabled={botEnabled}
             />

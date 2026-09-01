@@ -192,34 +192,97 @@ export async function getActiveWeeklyMetrics(clanId: number): Promise<ActiveWeek
 export interface PluginWebhooks {
   // Discord webhook URLs the plugin posts to directly. Null when unset on the site.
   rareDrops: string | null;
+  pets: string | null;
   deaths: string | null;
   combatAchievements: string | null;
+  levels: string | null;
+  quests: string | null;
+  diaries: string | null;
+  collectionLog: string | null;
   pvpKills: string | null;
   clips: string | null;
   /** Seasonal (Leagues) worlds: every notification from one routes here instead of the above. */
   leagues: string | null;
 }
 
+/** The plugin channels a clan can point somewhere. Excludes `leagues`, which only ever diverts. */
+export const NOTIFY_CHANNELS = [
+  'rareDrops',
+  'pets',
+  'deaths',
+  'combatAchievements',
+  'levels',
+  'quests',
+  'diaries',
+  'collectionLog',
+  'pvpKills',
+  'clips',
+] as const;
+export type NotifyChannel = (typeof NOTIFY_CHANNELS)[number];
+
+/** One channel becomes one webhook setting: rareDrops → webhook_rare_drops. */
+const SETTING_KEY: Record<NotifyChannel | 'leagues', string> = {
+  rareDrops: 'webhook_rare_drops',
+  pets: 'webhook_pets',
+  deaths: 'webhook_deaths',
+  combatAchievements: 'webhook_combat_achievements',
+  levels: 'webhook_levels',
+  quests: 'webhook_quests',
+  diaries: 'webhook_diaries',
+  collectionLog: 'webhook_collection_log',
+  pvpKills: 'webhook_pvp_kills',
+  clips: 'webhook_clips',
+  leagues: 'webhook_leagues',
+};
+
+/** The base every channel falls back to. Set only this and the whole plugin talks to one channel. */
+export const PLUGIN_WEBHOOK_BASE_KEY = 'webhook_plugin_default';
+
+// Where a channel went BEFORE it had a setting of its own.
+//
+// Levels, quests, diaries and collection-log slots all posted to the combat-achievements channel,
+// and pets to rare drops — one hook, five kinds of post. Splitting them without this map would
+// silently switch every existing clan's 99s and quest completions off the day they upgraded: their
+// combat-achievements hook is set, their `webhook_levels` is not.
+//
+// So an unset channel asks its old home before giving up. A clan that never touches the new fields
+// keeps exactly the behaviour it has; one that fills them in gets the split. Nothing to migrate.
+const INHERITS_FROM: Partial<Record<NotifyChannel, NotifyChannel>> = {
+  pets: 'rareDrops',
+  levels: 'combatAchievements',
+  quests: 'combatAchievements',
+  diaries: 'combatAchievements',
+  collectionLog: 'combatAchievements',
+};
+
 export const WEBHOOK_SETTING_KEYS = [
-  'webhook_rare_drops',
-  'webhook_deaths',
-  'webhook_combat_achievements',
-  'webhook_pvp_kills',
-  'webhook_clips',
-  'webhook_leagues',
+  PLUGIN_WEBHOOK_BASE_KEY,
+  ...Object.values(SETTING_KEY),
 ] as const;
 
-// Plugin-posted notification destinations, read from the settings key/value table.
+/**
+ * Plugin-posted notification destinations, read from the settings key/value table.
+ *
+ * Each channel resolves in three steps: its OWN hook, then the base hook, then the channel it used
+ * to share (see INHERITS_FROM). That makes both setups one field away — a clan that wants
+ * everything in #anvil sets the base and stops, a clan that wants nine channels fills nine boxes —
+ * and neither has to know the other exists.
+ *
+ * `leagues` is deliberately outside all of it. It means "divert seasonal posts HERE", so inheriting
+ * a base would divert every seasonal post away from the channels the clan just configured, which is
+ * the opposite of what setting a base asked for.
+ */
 export async function getNotificationWebhooks(clanId: number): Promise<PluginWebhooks> {
   const map = await getSettingMap(clanId, [...WEBHOOK_SETTING_KEYS]);
-  return {
-    rareDrops: map.get('webhook_rare_drops') || null,
-    deaths: map.get('webhook_deaths') || null,
-    combatAchievements: map.get('webhook_combat_achievements') || null,
-    pvpKills: map.get('webhook_pvp_kills') || null,
-    clips: map.get('webhook_clips') || null,
-    leagues: map.get('webhook_leagues') || null,
-  };
+  const base = map.get(PLUGIN_WEBHOOK_BASE_KEY) || null;
+  const own = (channel: NotifyChannel) => map.get(SETTING_KEY[channel]) || null;
+
+  const resolved = {} as Record<NotifyChannel, string | null>;
+  for (const channel of NOTIFY_CHANNELS) {
+    const inherited = INHERITS_FROM[channel];
+    resolved[channel] = own(channel) || base || (inherited ? own(inherited) : null);
+  }
+  return { ...resolved, leagues: map.get(SETTING_KEY.leagues) || null };
 }
 
 // Newline-separated list settings the plugin reads. Edited on Admin → Integrations.

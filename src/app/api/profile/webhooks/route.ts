@@ -11,7 +11,20 @@ export const dynamic = 'force-dynamic';
 // The channel keys a personal destination may ask for — the social notify channels. Clips are not
 // here: the plugin posts a clip straight to a webhook the user pasted into it, never through the
 // server relay, so a personal clip webhook would never fire.
-const KINDS = ['rareDrops', 'deaths', 'combatAchievements', 'pvpKills'] as const;
+// The kinds a personal hook may subscribe to — the same channels a clan can split, minus clips
+// (which never route per-person). Kept as an explicit list rather than imported from pluginConfig:
+// that module reaches the database, and this route only needs the names.
+const KINDS = [
+  'rareDrops',
+  'pets',
+  'deaths',
+  'combatAchievements',
+  'levels',
+  'quests',
+  'diaries',
+  'collectionLog',
+  'pvpKills',
+] as const;
 
 // A person may hold a handful of destinations, not hundreds — a cap keeps a runaway client honest.
 const MAX_WEBHOOKS = 10;

@@ -38,6 +38,7 @@ export interface SetupStatus {
     inGameClanName: string;
     inviteUrl: string;
     webhookUrl: string;
+    pluginWebhook: string;
     rareDrops: string;
     deaths: string;
   };
@@ -48,6 +49,7 @@ const WANTED_KEYS = [
   'clan_ingame_name',
   'discord_webhook_url',
   'discord_invite_url',
+  'webhook_plugin_default',
   'webhook_rare_drops',
   'webhook_deaths',
   'setup_completed',
@@ -140,6 +142,7 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
       inGameClanName: get('clan_ingame_name'),
       inviteUrl: get('discord_invite_url'),
       webhookUrl,
+      pluginWebhook: get('webhook_plugin_default'),
       rareDrops: get('webhook_rare_drops'),
       deaths: get('webhook_deaths'),
     },

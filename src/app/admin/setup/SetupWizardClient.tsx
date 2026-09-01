@@ -14,6 +14,7 @@ interface Props {
     inGameClanName: string;
     inviteUrl: string;
     webhookUrl: string;
+    pluginWebhook: string;
     rareDrops: string;
     deaths: string;
   };
@@ -34,13 +35,16 @@ const TOTAL_STEPS = 3;
 
 // A step whose fields are already satisfied is skipped at open (Back still reaches it, prefilled).
 // Step 1's invite is optional — a set clan name alone satisfies it (managed sign-up asked for the
-// invite already; leaving it blank there was a choice). Step 3 is all-optional, so it only counts
-// as done when BOTH webhooks exist — otherwise it must still be offered.
+// invite already; leaving it blank there was a choice).
+//
+// Step 3 is all-optional, and satisfied by the ONE field that covers everything — a clan that set the
+// base has answered the question the step is asking, and being shown it again would imply they had
+// not. Failing that it wants both splits, since either alone leaves a feed still unrouted.
 function firstIncompleteStep(initial: Props['initial']): number {
   const done = [
     !!initial.clanName.trim(),
     !!initial.webhookUrl.trim(),
-    !!(initial.rareDrops.trim() && initial.deaths.trim()),
+    !!(initial.pluginWebhook.trim() || (initial.rareDrops.trim() && initial.deaths.trim())),
   ];
   const first = done.indexOf(false);
   return first === -1 ? TOTAL_STEPS : first; // everything done → straight to the Done screen
@@ -215,21 +219,30 @@ export default function SetupWizardClient({ initial, channels, botEnabled, provi
         {/* Step 3 — Optional extras */}
         {step === 2 && (
           <StepShell
-            title="Drop & death feeds (optional)"
-            subtitle="If your clan uses the Anvil plugin, it can post rare drops and deaths to their own channels. Skip this — you can add it anytime under Advanced settings."
+            title="Plugin feeds (optional)"
+            subtitle="If your clan uses the Anvil plugin, it can post drops, deaths, 99s, quests and more to Discord. One channel is enough to start — skip this and add it anytime under Advanced settings."
           >
             <WebhookField
-              settingKey="webhook_rare_drops"
-              label="Rare drops channel"
-              helpText="Valuable drops and pets post here (optional)."
+              settingKey="webhook_plugin_default"
+              label="Plugin notifications channel"
+              helpText="Everything the plugin posts goes here. You can split any of it into its own channel later."
               channels={channels}
               botEnabled={botEnabled}
             />
             <div className="border-t border-card-border pt-4">
               <WebhookField
+                settingKey="webhook_rare_drops"
+                label="Rare drops channel (optional)"
+                helpText="Give drops a channel of their own instead of the one above."
+                channels={channels}
+                botEnabled={botEnabled}
+              />
+            </div>
+            <div className="border-t border-card-border pt-4">
+              <WebhookField
                 settingKey="webhook_deaths"
-                label="Deaths channel"
-                helpText="Death notifications post here (optional)."
+                label="Deaths channel (optional)"
+                helpText="Give deaths a channel of their own instead of the one above."
                 channels={channels}
                 botEnabled={botEnabled}
               />
