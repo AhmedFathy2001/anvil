@@ -97,6 +97,10 @@ const HISTORY_ON_ACCOUNT = new Set([
   'member_clog_items',
   'member_clog_kc',
   'member_progress',
+  // Same shape and same reason as member_progress above: keyed on clan_member_id in the old world,
+  // on account_id here. It was the one history table with no rule, so 101 rows of quest/CA progress
+  // were reported as "no rule for it — NOT imported" and would have been left behind.
+  'member_progress_items',
 ]);
 
 /**
@@ -140,6 +144,7 @@ const ORDER = [
   'member_milestones',
   'member_personal_bests',
   'member_progress',
+  'member_progress_items',
   'member_clog',
   'member_clog_items',
   'member_clog_kc',
