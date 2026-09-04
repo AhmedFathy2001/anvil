@@ -336,6 +336,50 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
                 helpText="Only drops rarer than 1-in-this post on rarity alone. Applies to every member: their plugin can be stricter, never looser. Blank = 10,000 (a lower number means more posts — 1/2000 fills the channel with herb rolls)."
               />
             </div>
+            <div className="border-t border-card-border pt-4">
+              <LineListSetting
+                settingKey="guaranteed_drops"
+                label="Drops that are guaranteed"
+                helpText="Items the source hands over every time, so the post skips the lucky-drop line — nobody was spooned by a kit they were always getting. Most are already known from the wiki drop tables; this is for the ones it can't be asked about, like a raid chest's. One per line: an item name, or `item name | source, source` to limit it."
+                placeholder={'One per line, e.g.\nMenaphite ornament kit | Tombs of Amascut\nAncient blood ornament kit'}
+              />
+            </div>
+          </Card>
+          <Card>
+            <FieldHeader title="Moments feed">
+              What the clan&apos;s <b>Lately</b> feed keeps when no competition and no board is running.
+              Pets are always kept and never need a floor. During a competition or a board those
+              decide instead — these only catch what would otherwise have been thrown away.
+            </FieldHeader>
+            <PlainSetting
+              settingKey="moments_clan_min_loot_gp"
+              label="Keep drops worth at least (gp)"
+              placeholder="5000000"
+              helpText="A drop the wiki calls genuinely rare is kept whatever it's worth, so this is the bar for everything else. Blank = 5,000,000. Lower it and the feed fills with ordinary hauls."
+            />
+            <div className="border-t border-card-border pt-4">
+              <PlainSetting
+                settingKey="moments_clan_min_ca_tier"
+                label="Keep combat tasks from tier"
+                placeholder="Master"
+                helpText="Easy, Medium, Hard, Elite, Master or Grandmaster. Blank = Master. Type 'none' to keep combat tasks out of the feed entirely."
+              />
+            </div>
+            <div className="border-t border-card-border pt-4">
+              <ToggleSetting
+                settingKey="moments_clan_deaths"
+                label="Keep deaths too"
+                helpText="Off by default. Inside an event a death is half the story; a clan-wide feed of everyone dying all week is a different and much worse thing to read."
+              />
+            </div>
+            <div className="border-t border-card-border pt-4">
+              <PlainSetting
+                settingKey="moments_min_loot_gp"
+                label="During a board, keep hauls worth at least (gp)"
+                placeholder="1000000"
+                helpText="A board's own floor, kept separate because a board is a week of content people chose — context worth keeping there is noise on an always-on feed. Blank = 1,000,000."
+              />
+            </div>
           </Card>
         </div>
       )}

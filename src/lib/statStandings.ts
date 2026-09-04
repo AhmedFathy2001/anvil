@@ -4,7 +4,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { parseEventRules } from '@/lib/eventRules';
 import { scoreTeams } from '@/lib/boardScoring';
 import { statKeys, statLabel } from '@/lib/tileKinds';
-import { jsonStatValue, effectiveValue, parseContributionSnapshot } from '@/lib/statTracking';
+import { jsonStatValue, effectiveValue, computeGainFromJson, parseContributionSnapshot } from '@/lib/statTracking';
 import { liveStatsForMembers } from '@/lib/liveStats';
 
 export interface StatStandingPlayer {
@@ -104,12 +104,18 @@ export async function getStatStandings(eventId: number): Promise<StatTileStandin
             teamId: p.teamId,
             baseline,
             current,
-            gained: Math.max(0, current - baseline),
+            // Same rule while benched: no starting point, nothing attributable.
+            gained: computeGainFromJson(p.statsSnapshot, p.frozenStats, {}, keys, tile.statType!),
             hasBaseline: !!p.statsSnapshot,
           };
         }
         // Effective current folds in the plugin's real-time push (max per key), so standings reflect a
         // fresh kill / training burst before the hiscores sweep catches up — for boss KC AND skill XP.
+        //
+        // Note what `current` is and isn't: the overlay is MEMBER-scoped, not event-scoped, so this
+        // column is "what they have right now", read at page load. It is not something the event
+        // captured. That's why a board months from starting shows a current for the one member who
+        // runs the plugin and nothing for everyone else — nothing was written to the event at all.
         const plug = (p.clanMemberId != null && memberLive.get(p.clanMemberId)) || {};
         const current = keys.reduce(
           (sum, k) => sum + effectiveValue(jsonStatValue(p.cachedStats, tile.statType!, k), plug, k),
@@ -121,7 +127,12 @@ export async function getStatStandings(eventId: number): Promise<StatTileStandin
           teamId: p.teamId,
           baseline,
           current,
-          gained: Math.max(0, current - baseline),
+          // Through the shared scorer rather than `current - baseline`, which is how this page came
+          // to show "+4,580,360 (100%)" on a row it was itself flagging as having no baseline: a
+          // missing snapshot reads as a baseline of zero, so the gain becomes the whole account.
+          // It also clamps PER KEY, matching what actually scores — subtracting the summed totals
+          // let a composite tile net one key's drop against another's rise.
+          gained: computeGainFromJson(p.statsSnapshot, p.cachedStats, plug, keys, tile.statType!),
           hasBaseline: !!p.statsSnapshot,
         };
       })

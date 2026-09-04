@@ -6,8 +6,11 @@ import { SKILL_LABELS, BOSSES } from '@/lib/constants';
 import { CLUE_TIER_KEYS } from '@/lib/hiscoresActivities';
 import { progressToLevel } from '@/lib/xp';
 import CollectionLog, { type CollectionLogProps } from './CollectionLog';
+import PersonalLuck from './PersonalLuck';
 import LocalTime from '@/components/LocalTime';
 import Input from '@/components/Input';
+import { momentSentence } from '@/lib/moments';
+import type { MomentRow } from '@/lib/momentsStore';
 import type {
   ActivityStanding,
   CompetitionHistory,
@@ -22,7 +25,7 @@ import type {
 // The whole payload is one member's snapshot plus at most a year of ~50-byte daily rows — smaller
 // than the images on the page — which is what makes fetching it all up front the cheap option.
 
-type Tab = 'stats' | 'records' | 'collection' | 'trophies';
+type Tab = 'stats' | 'records' | 'collection' | 'luck' | 'trophies';
 type Metric = 'ehp' | 'ehb' | 'xp';
 type Window = 7 | 30 | 90;
 
@@ -40,6 +43,9 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'stats', label: 'Overview' },
   { key: 'records', label: 'Records' },
   { key: 'collection', label: 'Collection' },
+  // Luck earns a tab rather than a corner of the log: it answers a different question ("am I dry?")
+  // and has its own per-item breakdown, which was never going to fit above the grid.
+  { key: 'luck', label: 'Luck' },
   { key: 'trophies', label: 'Trophies' },
 ];
 
@@ -157,6 +163,23 @@ function Rows({ children, cap, rowPx = 37 }: { children: React.ReactNode; cap: n
   );
 }
 
+/**
+ * The "Lately" gutter label, per kind.
+ *
+ * A lookup rather than nested ternaries because there are six of these now: the three the player
+ * worked toward (a best, a milestone, an unlock) and the three that happened to them (a drop, a
+ * combat task, a death). Colour carries the same split — gold and purple for earned, green for
+ * arrived, red for the one nobody is celebrating.
+ */
+const LATELY_KIND: Record<string, { label: string; tone: string }> = {
+  time: { label: 'Best', tone: 'text-gold' },
+  unlock: { label: 'Unlock', tone: 'text-purple-300' },
+  milestone: { label: 'Milestone', tone: 'text-accent-green-light' },
+  drop: { label: 'Drop', tone: 'text-gold' },
+  task: { label: 'Task', tone: 'text-purple-300' },
+  death: { label: 'Death', tone: 'text-red-400' },
+};
+
 function Section({ title, aside, children }: { title: string; aside?: string; children: React.ReactNode }) {
   return (
     <section className="mb-8">
@@ -179,6 +202,7 @@ export default function ProfileTabs({
   upcoming,
   activityStandings,
   collection,
+  moments,
   accountProgress,
 }: {
   /**
@@ -195,6 +219,8 @@ export default function ProfileTabs({
   activityStandings: Record<string, ActivityStanding>;
   /** The synced collection log + best times. Its own tab because it's a page's worth of grid. */
   collection: CollectionLogProps;
+  /** Drops, pets and combat tasks we watched happen — see lib/moments. Merged into "Lately". */
+  moments: MomentRow[];
   /** Quests / diaries / combat achievements, drawn game-style. Rendered above the log. */
   accountProgress?: React.ReactNode;
 }) {
@@ -212,7 +238,13 @@ export default function ProfileTabs({
    * set could be years old.
    */
   const recentFeed = useMemo(() => {
-    const entries: { key: string; kind: 'time' | 'milestone' | 'unlock'; label: string; value: string | null; at: string }[] = [];
+    const entries: {
+      key: string;
+      kind: 'time' | 'milestone' | 'unlock' | 'drop' | 'task' | 'death';
+      label: string;
+      value: string | null;
+      at: string;
+    }[] = [];
     for (const b of collection.bests) {
       if (b.at) entries.push({ key: `pb-${b.activity}`, kind: 'time', label: b.activity, value: b.time, at: b.at });
     }
@@ -241,8 +273,22 @@ export default function ProfileTabs({
         at: u.at,
       });
     }
+    // Drops, pets and combat tasks. The other three sources are all things the player WORKED
+    // toward; these are the things that happened TO them, which is the half of "what have you been
+    // up to?" the feed was missing — and, since the clan backstop, the half that keeps arriving on
+    // a week with no competition and no board running.
+    for (const m of moments) {
+      entries.push({
+        key: `moment-${m.id}`,
+        kind: m.kind === 'ca' ? 'task' : m.kind === 'death' ? 'death' : 'drop',
+        label: momentSentence(m),
+        // The KC is the story on a drop, the same as it is on a log unlock above.
+        value: m.kc != null && m.kc > 0 ? `${m.kc.toLocaleString()} KC` : null,
+        at: m.occurredAt,
+      });
+    }
     return entries.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 12);
-  }, [collection.bests, collection.recent, milestones]);
+  }, [collection.bests, collection.recent, milestones, moments]);
 
   const shownTimes = useMemo(() => {
     const q = bestFilter.trim().toLowerCase();
@@ -360,6 +406,16 @@ export default function ProfileTabs({
           </button>
         ))}
       </div>
+
+      {tab === 'luck' &&
+        (collection.luck ? (
+          <PersonalLuck {...collection.luck} full />
+        ) : (
+          <div className="border border-dashed border-card-border rounded-xl p-8 text-center text-sm text-text-muted">
+            No luck to read yet — it needs a synced collection log and kills at something the rates
+            cover.
+          </div>
+        ))}
 
       {tab === 'stats' && (
         <>
@@ -727,15 +783,9 @@ export default function ProfileTabs({
               {recentFeed.map((entry) => (
                 <div key={entry.key} className="flex items-center gap-3 px-4 py-2.5">
                   <span
-                    className={`text-[10px] uppercase tracking-widest shrink-0 w-16 ${
-                      entry.kind === 'time'
-                        ? 'text-gold'
-                        : entry.kind === 'unlock'
-                          ? 'text-purple-300'
-                          : 'text-accent-green-light'
-                    }`}
+                    className={`text-[10px] uppercase tracking-widest shrink-0 w-16 ${LATELY_KIND[entry.kind].tone}`}
                   >
-                    {entry.kind === 'time' ? 'Best' : entry.kind === 'unlock' ? 'Unlock' : 'Milestone'}
+                    {LATELY_KIND[entry.kind].label}
                   </span>
                   <span className="text-sm flex-1 truncate">{entry.label}</span>
                   {entry.value && <span className="text-sm font-mono text-gold shrink-0">{entry.value}</span>}

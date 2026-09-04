@@ -19,12 +19,13 @@ import type {
 //
 // Both tabs render from data the server already sent, so switching costs nothing.
 
-type Tab = 'roster' | 'activities' | 'luck';
+type Tab = 'roster' | 'activities' | 'luck' | 'lately';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'roster', label: 'Roster' },
   { key: 'activities', label: 'Clues & minigames' },
   { key: 'luck', label: 'Luck' },
+  { key: 'lately', label: 'Lately' },
 ];
 
 export default function MembersTabs({
@@ -34,6 +35,7 @@ export default function MembersTabs({
   activities,
   movement,
   luck,
+  lately,
 }: {
   members: MemberListRow[];
   analytics: ClanAnalytics;
@@ -42,6 +44,15 @@ export default function MembersTabs({
   movement: Record<number, RosterMovement>;
   /** Dry streaks + spoons, from synced collection logs (lib/clogLuckBoard). */
   luck: React.ComponentProps<typeof ClanLuck>;
+  /**
+   * The clan's moments feed, rendered on the server and handed over whole.
+   *
+   * It reads the drop dataset and the combat-achievement catalogue to write each line — about a
+   * megabyte of JSON — so rendering it here would ship all of that to the browser for a tab most
+   * visitors never open. As a node it stays on the server, the same way the profile page passes its
+   * account-progress card down.
+   */
+  lately: React.ReactNode;
 }) {
   const [tab, setTab] = useState<Tab>('roster');
 
@@ -75,6 +86,8 @@ export default function MembersTabs({
       {tab === 'activities' && <ClanActivities activities={activities} />}
 
       {tab === 'luck' && <ClanLuck {...luck} />}
+
+      {tab === 'lately' && lately}
     </>
   );
 }

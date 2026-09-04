@@ -144,6 +144,11 @@ export default async function CharacterPage({ params }: { params: Promise<{ rsn:
           series={series}
           records={records}
           milestones={milestones}
+          // Empty here on purpose. A moment belongs to the clan it happened in, and this is the
+          // PLATFORM profile — a page anyone can reach for a character that may sit in several
+          // clans. Showing the feed would carry one clan's social content onto a page its members
+          // never chose to publish it on. The clan profile (/c/<slug>/members/<rsn>) has it.
+          moments={[]}
           history={NO_COMPETITIONS}
           upcoming={upcoming}
           // Standings are a clan's answer — "#3 of 47" says nothing on a page with no clan behind

@@ -14,7 +14,7 @@ import StartProofCard from '@/components/StartProofCard';
 import { startProofState } from '@/lib/startProof';
 import EventFirsts from '@/components/events/EventFirsts';
 import { loadEventFirsts } from '@/lib/eventFirsts';
-import EventMoments from '@/components/events/EventMoments';
+import MomentsFeed from '@/components/MomentsFeed';
 import { momentsForEvent } from '@/lib/momentsStore';
 import { isPointsMode, eventShapeBadge } from '@/lib/utils';
 import { eventAxes } from '@/lib/eventAxes';
@@ -526,7 +526,7 @@ export default async function EventScoreboardPage({
         {/* Who got it moving, and who drew first blood. Above the board because they're the part
             that stops being true the moment someone else claims one. */}
         <EventFirsts firsts={firsts} />
-        <EventMoments moments={eventMoments} />
+        <MomentsFeed moments={eventMoments} />
         <ScoreboardClient
           event={event}
           tiles={boardTiles}

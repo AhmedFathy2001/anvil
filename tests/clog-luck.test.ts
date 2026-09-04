@@ -7,7 +7,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  aggregateLuck,
   assessLuck,
+  assessLuckAt,
+  bundleSize,
+  dropsFromQuantity,
+  formatNet,
   chanceOfNothing,
   chancePerKill,
   expectedDrops,
@@ -23,11 +28,15 @@ import {
   buildClogProfile,
   buildLuckBoards,
   buildPageItems,
+  expectationFor,
+  formatSources,
   matchBestsToPages,
   titleCaseActivity,
+  type LuckRateSource,
   type LuckSource,
 } from '../src/lib/clogProfile.ts';
 import { clogPageItems, clogPageNames } from '../src/lib/clogDataset.ts';
+import { raidSourcesByItem, raidUniqueChances } from '../src/lib/raidLuck.ts';
 
 test('chancePerKill: rolls combine as independent chances, never as a sum', () => {
   assert.equal(chancePerKill(100), 0.01, 'a single roll is exact, not 0.010000000000000009');
@@ -114,14 +123,16 @@ test('the phrasings a clan actually reads', () => {
 
 // ── boards ───────────────────────────────────────────────────────────────────────────────────────
 
-const RATE = { denominator: 500, rolls: 1 };
+const RATE: LuckRateSource = { source: 'Zulrah', bossKey: 'zulrah', denominator: 500, rolls: 1, bundle: 1 };
+// Expectation is summed by the caller now (an item can come off several bosses), so the fixture does
+// what the real path does: one source at 1-in-500.
 const member = (id: number, rsn: string, kills: number, obtained: number): LuckSource =>
-  ({ accountId: id, rsn, kills, obtained });
+  ({ accountId: id, rsn, kills, expected: kills / 500, obtained });
 
 test('buildLuckBoards: both tails from one pass, and owners can be dry', () => {
   const { dry, spooned } = buildLuckBoards([
     {
-      itemId: 1, itemName: 'Pet', source: 'Zulrah', rate: RATE,
+      itemId: 1, itemName: 'Pet', source: 'Zulrah', sources: [RATE],
       members: [
         member(1, 'Grinder', 5_000, 1),   // 1 of 10 — dry, and they OWN one
         member(2, 'Fair', 5_000, 10),     // on rate
@@ -138,15 +149,15 @@ test('buildLuckBoards: both tails from one pass, and owners can be dry', () => {
 test('buildLuckBoards: sorted by how unlikely, not by the raw multiple', () => {
   const { spooned } = buildLuckBoards([
     // 3 of 1 expected is a coin flip's worth of luck; 25 of 10 is a story, despite the smaller ratio.
-    { itemId: 1, itemName: 'Small sample', source: 'A', rate: RATE, members: [member(1, 'Ratio-high', 500, 3)] },
-    { itemId: 2, itemName: 'Real run', source: 'B', rate: RATE, members: [member(2, 'Truly-lucky', 5_000, 25)] },
+    { itemId: 1, itemName: 'Small sample', source: 'A', sources: [RATE], members: [member(1, 'Ratio-high', 500, 3)] },
+    { itemId: 2, itemName: 'Real run', source: 'B', sources: [RATE], members: [member(2, 'Truly-lucky', 5_000, 25)] },
   ]);
   assert.equal(spooned[0].rsn, 'Truly-lucky');
 });
 
 test('boards respect their limit', () => {
   const many = Array.from({ length: 40 }, (_, i) => member(i + 1, `M${i}`, 5_000, 0));
-  assert.equal(buildLuckBoards([{ itemId: 1, itemName: 'Pet', source: 'Z', rate: RATE, members: many }], 5).dry.length, 5);
+  assert.equal(buildLuckBoards([{ itemId: 1, itemName: 'Pet', source: 'Z', sources: [RATE], members: many }], 5).dry.length, 5);
 });
 
 // ── profile assembly ─────────────────────────────────────────────────────────────────────────────
@@ -270,4 +281,163 @@ test("titleCaseActivity: an apostrophe doesn't start a word, and connectors stay
   assert.equal(titleCaseActivity("tzhaar-ket-rak's challenges"), "Tzhaar-Ket-Rak's Challenges");
   // Anything already cased is left alone rather than re-cased.
   assert.equal(titleCaseActivity('TzHaar-Ket-Rak'), 'TzHaar-Ket-Rak');
+});
+
+// ── bulk drops, several sources, and one person's whole log ──────────────────────────────────────
+
+test('bundleSize: a stack that drops 500-1000 at a time counts as one roll, not 750', () => {
+  assert.equal(bundleSize({ q: 1 }), 1, 'the ordinary single drop');
+  assert.equal(bundleSize({ m: 500, n: 1000 }), 750, 'a range averages');
+  assert.equal(bundleSize({ q: 5 }), 5);
+  assert.equal(bundleSize(undefined), 1, 'no quantity information means one');
+  assert.equal(bundleSize({ m: 0, n: 0 }), 1, 'a nonsense range falls back rather than dividing by zero');
+});
+
+test('dropsFromQuantity: owning any at all proves the table hit at least once', () => {
+  assert.equal(dropsFromQuantity(750, 750), 1, 'one dragon thrownaxe drop');
+  assert.equal(dropsFromQuantity(1500, 750), 2);
+  // The under-average stack is the case that matters: 500 of a 500-1000 drop is still one drop, and
+  // rounding it to zero would tell someone who owns the item that they have never had it.
+  assert.equal(dropsFromQuantity(500, 750), 1);
+  assert.equal(dropsFromQuantity(0, 750), 0, 'owning none is still none');
+  assert.equal(dropsFromQuantity(3, 1), 3, 'unstacked drops are unchanged');
+});
+
+test('bulk drops no longer read as a spoon: 750 axes is one drop against two expected', () => {
+  const chance = chancePerKill(2000, 1);
+  const expected = expectedDrops(chance, 4_000);
+  const raw = assessLuckAt(expected, 4_000, 750);          // what the old model scored
+  const fixed = assessLuckAt(expected, 4_000, dropsFromQuantity(750, 750));
+  assert.equal(raw.verdict, 'spooned', 'the raw stack really did look like a 375x spoon');
+  assert.equal(fixed.verdict, 'on-rate', 'one drop against two expected is nothing to report');
+  assert.equal(fixed.notable, false);
+});
+
+test('expectationFor: expectations add across every source, and the bundle follows the odds', () => {
+  const sources: LuckRateSource[] = [
+    { source: 'Chaos Elemental', bossKey: 'chaosElemental', denominator: 300, rolls: 1, bundle: 1 },
+    { source: 'Chaos Fanatic', bossKey: 'chaosFanatic', denominator: 1000, rolls: 1, bundle: 1 },
+  ];
+  const both = expectationFor(sources, { chaosElemental: 1500, chaosFanatic: 1500 });
+  assert.ok(Math.abs(both.expected - 6.5) < 1e-9, `1500/300 + 1500/1000 = 6.5, got ${both.expected}`);
+  assert.equal(both.kills, 3000, 'kills are summed for display');
+
+  // Kills at a source the item does not come from must not create expectation.
+  assert.equal(expectationFor(sources, { zulrah: 10_000 }).expected, 0);
+
+  // Weighted by where the drops were actually likely to come from, not a flat average.
+  const mixed: LuckRateSource[] = [
+    { source: 'Common', bossKey: 'a', denominator: 100, rolls: 1, bundle: 10 },
+    { source: 'Rare', bossKey: 'b', denominator: 10_000, rolls: 1, bundle: 1000 },
+  ];
+  const w = expectationFor(mixed, { a: 1000, b: 1000 });
+  assert.ok(w.bundle > 10 && w.bundle < 200, `dominated by the common source, got ${w.bundle}`);
+});
+
+test('expectationFor: with no kills anywhere it reports nothing rather than a false zero-expectation', () => {
+  const sources: LuckRateSource[] = [{ source: 'A', bossKey: 'a', denominator: 500, rolls: 1, bundle: 4 }];
+  const none = expectationFor(sources, {});
+  assert.equal(none.expected, 0);
+  assert.equal(none.bundle, 4, 'the flat bundle still describes the drop, so a count can be read');
+});
+
+test('aggregateLuck: a whole log is judged as one Poisson, not an average of ratios', () => {
+  // Dead on the rate across the board.
+  const fair = aggregateLuck([
+    { expected: 5, obtained: 5 },
+    { expected: 3, obtained: 3 },
+  ]);
+  assert.equal(fair.expected, 8);
+  assert.equal(fair.obtained, 8);
+  assert.equal(fair.verdict, 'on-rate');
+  assert.ok(Math.abs(fair.percentile - 50) < 12, `on-rate should sit near the middle, got ${fair.percentile}`);
+
+  // Genuinely dry over a large sample.
+  const dry = aggregateLuck([{ expected: 20, obtained: 6 }]);
+  assert.equal(dry.verdict, 'dry');
+  assert.ok(dry.net < 0 && Math.abs(dry.net - -14) < 1e-9);
+  assert.ok(dry.percentile < 5, `deep dry should be a low percentile, got ${dry.percentile}`);
+
+  const lucky = aggregateLuck([{ expected: 5, obtained: 15 }]);
+  assert.equal(lucky.verdict, 'spooned');
+  assert.ok(lucky.percentile > 95);
+
+  // Content they have never touched must not count as bad luck.
+  const untouched = aggregateLuck([{ expected: 0, obtained: 0 }, { expected: 4, obtained: 4 }]);
+  assert.equal(untouched.items, 1, 'only the item with an expectation counts');
+  assert.equal(untouched.expected, 4);
+});
+
+test('aggregateLuck: one big dry item is not cancelled by a small spoon', () => {
+  // Averaging ratios would call this fine: 0.1x and 3x average to ~1.5x. Counts say otherwise.
+  const total = aggregateLuck([
+    { expected: 20, obtained: 2 },
+    { expected: 1, obtained: 3 },
+  ]);
+  assert.equal(total.verdict, 'dry');
+  assert.ok(total.net < 0, `still owed drops overall, got ${total.net}`);
+});
+
+test('formatNet: says how many drops, in the direction people mean it', () => {
+  assert.match(formatNet(-3.2), /owed 3\.2 more/);
+  assert.match(formatNet(4.6), /4\.6 ahead/);
+  assert.equal(formatNet(0), 'exactly on rate');
+});
+
+test('formatSources: never names one rate for an item that has several', () => {
+  const one: LuckRateSource[] = [{ source: 'A', bossKey: 'a', denominator: 2000, rolls: 1, bundle: 1 }];
+  assert.equal(formatSources(one), '1 in 2,000');
+  const many: LuckRateSource[] = [
+    ...one,
+    { source: 'B', bossKey: 'b', denominator: 10_000, rolls: 1, bundle: 1 },
+  ];
+  assert.equal(formatSources(many), '1 in 2,000–10,000 across 2 sources');
+});
+
+// ── raids ────────────────────────────────────────────────────────────────────────────────────────
+
+test('raidSourcesByItem: the two halves multiply, and the assumption is the overridable one', () => {
+  const base = raidSourcesByItem();
+  const tbow = [...base.entries()].find(([, s]) => s.some((r) => r.bossKey === 'chambersOfXeric'));
+  assert.ok(tbow, 'Chambers of Xeric contributes sources at all');
+
+  // A Twisted bow is 1-in-30 of the unique table; at an assumed 1-in-30 unique chance that is
+  // 1-in-900 per raid. Multiplying the two is the whole model.
+  const cox = (over?: unknown) => {
+    const map = raidSourcesByItem(over);
+    for (const sources of map.values()) {
+      const hit = sources.find((s) => s.bossKey === 'chambersOfXeric' && Math.abs(s.denominator - 900) < 1);
+      if (hit) return hit;
+    }
+    return null;
+  };
+  assert.ok(cox(), 'a 1-in-30 share at a 1-in-30 unique chance lands on 1-in-900');
+
+  const halved = raidSourcesByItem({ chambersOfXeric: 15 });
+  const found = [...halved.values()].flat().find((s) => s.bossKey === 'chambersOfXeric' && Math.abs(s.denominator - 450) < 1);
+  assert.ok(found, 'halving the assumed unique chance halves every rate under it');
+
+  // Every raid rate is flagged, because the UI has to be able to say so.
+  assert.ok([...base.values()].flat().every((s) => s.assumed === true));
+});
+
+test('raidUniqueChances: a bad override is ignored rather than trusted', () => {
+  const defaults = raidUniqueChances();
+  assert.equal(raidUniqueChances({ chambersOfXeric: 'banana' }).chambersOfXeric, defaults.chambersOfXeric);
+  assert.equal(raidUniqueChances({ chambersOfXeric: -5 }).chambersOfXeric, defaults.chambersOfXeric);
+  assert.equal(raidUniqueChances({ chambersOfXeric: 0 }).chambersOfXeric, defaults.chambersOfXeric);
+  assert.equal(raidUniqueChances(null).chambersOfXeric, defaults.chambersOfXeric);
+  assert.equal(raidUniqueChances({ chambersOfXeric: 15 }).chambersOfXeric, 15, 'a real number is taken');
+});
+
+test('raid uniques from several modes add up rather than picking one', () => {
+  // A Scythe drops in both normal and hard mode, and someone who runs both is owed both.
+  const map = raidSourcesByItem();
+  const multiMode = [...map.values()].find(
+    (s) => s.some((r) => r.bossKey === 'theatreOfBlood') && s.some((r) => r.bossKey === 'theatreOfBloodHardMode'),
+  );
+  assert.ok(multiMode, 'the Theatre contributes both its modes as separate sources');
+  const e = expectationFor(multiMode!, { theatreOfBlood: 500, theatreOfBloodHardMode: 500 });
+  const normalOnly = expectationFor(multiMode!, { theatreOfBlood: 500 });
+  assert.ok(e.expected > normalOnly.expected, 'hard-mode completions add expectation, not replace it');
 });

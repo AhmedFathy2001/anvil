@@ -2,32 +2,51 @@ import { MOMENT_EMOJI, momentSentence } from '@/lib/moments';
 import type { MomentRow } from '@/lib/momentsStore';
 
 /**
- * What the board's week actually looked like — the pets, the drops, the deaths.
+ * What actually happened — the pets, the drops, the deaths.
  *
- * None of this scores. That's the point: the scoreboard already says who is winning, and it says
- * nothing about the twenty minutes somebody spent dying to the boss their tile wanted, the 99 that
- * landed on the Tuesday, or the 40M that fell out of a chest for a tile nobody had. Those are the things people tell each other
- * about afterwards, and until now the clan's Discord was the only place they existed.
+ * None of it scores. That's the point: a scoreboard says who is winning and says nothing about the
+ * twenty minutes somebody spent dying to the boss their tile wanted, the 99 that landed on the
+ * Tuesday, or the 40M that fell out of a chest for a tile nobody had. Those are the things people
+ * tell each other about afterwards, and until now the clan's Discord was the only place they existed.
+ *
+ * The same feed serves a board, a competition week and the clan itself — the rows are identical and
+ * only the framing changes, so the caller supplies the heading and the line under it.
  *
  * Plugin-reported, so it covers whoever has it installed — the same caveat every live surface here
- * carries. A quiet feed means a quiet week or a clan that mostly plays without the plugin, and
- * neither is worth an empty panel, so it renders nothing at all when there's nothing to show.
+ * carries. A quiet feed means a quiet week or a clan that mostly plays without the plugin. Where the
+ * feed is one panel among many an empty one is just clutter, so it renders nothing; where the reader
+ * ASKED for it (a tab they clicked) silence needs explaining, which is what `emptyNote` is for.
  */
-export default function EventMoments({ moments }: { moments: MomentRow[] }) {
-  if (moments.length === 0) return null;
+export default function MomentsFeed({
+  moments,
+  title = 'Moments',
+  blurb = 'what happened while the board ran — pets, big drops and deaths. Nothing here scores.',
+  emptyNote,
+}: {
+  moments: MomentRow[];
+  title?: string;
+  blurb?: string;
+  emptyNote?: string;
+}) {
+  if (moments.length === 0 && !emptyNote) return null;
 
   return (
     <section className="mb-6">
       <div className="mb-2.5 flex flex-wrap items-center gap-3">
         <h2 className="flex items-center gap-2 text-[15px] font-bold">
           <span aria-hidden className="h-4 w-1 rounded-full bg-gold" />
-          Moments
+          {title}
         </h2>
-        <span className="text-[11.5px] text-text-muted">
-          what happened while the board ran — pets, big drops, 99s and deaths. Nothing here scores.
-        </span>
+        <span className="text-[11.5px] text-text-muted">{blurb}</span>
       </div>
 
+      {moments.length === 0 && (
+        <p className="rounded-xl border border-card-border bg-card-bg px-4 py-6 text-center text-[13px] text-text-muted">
+          {emptyNote}
+        </p>
+      )}
+
+      {moments.length > 0 && (
       <div className="divide-y divide-card-border/60 rounded-xl border border-card-border bg-card-bg px-4">
         {moments.map((m) => (
           <div key={m.id} className="flex items-center gap-2.5 py-2 text-[13px]">
@@ -42,6 +61,7 @@ export default function EventMoments({ moments }: { moments: MomentRow[] }) {
           </div>
         ))}
       </div>
+      )}
     </section>
   );
 }

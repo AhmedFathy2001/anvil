@@ -1,8 +1,11 @@
 import { db } from '@/db';
-import { getSetting } from '@/lib/settings';
-import { events, moments, eventParticipants, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { getSetting, getSettingMap } from '@/lib/settings';
+import { clanMemberships, events, moments, eventParticipants, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import {
+  DEFAULT_CLAN_SCOPE,
+  isClanWorthy,
+  type ClanScope,
   classifyObservation,
   DEFAULT_MIN_LOOT_GP,
   type EventScope,
@@ -21,9 +24,18 @@ import {
 /** Bingo hauls at or above this are kept whatever they came from. Clan-overridable. */
 const MIN_LOOT_SETTING_KEY = 'moments_min_loot_gp';
 
+// The always-on feed's three floors. Separate keys from the board's because they answer a different
+// question — "is this worth keeping on an ordinary day?" rather than "is this about our board?" —
+// and a clan that wants a chatty board feed and a quiet clan one should be able to have both.
+export const CLAN_MIN_LOOT_SETTING_KEY = 'moments_clan_min_loot_gp';
+export const CLAN_MIN_CA_TIER_SETTING_KEY = 'moments_clan_min_ca_tier';
+export const CLAN_DEATHS_SETTING_KEY = 'moments_clan_deaths';
+
 export interface ActiveScopes {
   weeklies: WeeklyScope[];
   event: EventScope | null;
+  /** The always-on backstop. Never null in practice — it is what catches a quiet week. */
+  clan: ClanScope;
 }
 
 /**
@@ -72,7 +84,7 @@ export async function activeScopesFor(clanMemberId: number, clanId: number, now:
   // The team comes from the same row that decided the event is theirs, so the stamp and the scope
   // can never disagree about which side they were on.
   const event = active ? await eventScope(active.eventId, active.teamId, clanId) : null;
-  return { weeklies, event };
+  return { weeklies, event, clan: await clanScope(clanId) };
 }
 
 /**
@@ -115,6 +127,34 @@ async function eventScope(eventId: number, teamId: number | null, clanId: number
     sources: [...sources],
     itemIds: [...itemIds],
     minLootGp: await minLootGp(clanId),
+  };
+}
+
+/**
+ * The clan's own floors, or the shipped defaults.
+ *
+ * Read per push rather than cached: these are three tiny reads on a route that already does several,
+ * and a clan that has just turned deaths on should see the next one, not the one after a cache
+ * expires.
+ */
+async function clanScope(clanId: number): Promise<ClanScope> {
+  const byKey = await getSettingMap(clanId, [
+    CLAN_MIN_LOOT_SETTING_KEY,
+    CLAN_MIN_CA_TIER_SETTING_KEY,
+    CLAN_DEATHS_SETTING_KEY,
+  ]);
+
+  const rawLoot = Number(byKey.get(CLAN_MIN_LOOT_SETTING_KEY));
+  const rawTier = byKey.get(CLAN_MIN_CA_TIER_SETTING_KEY)?.trim();
+  return {
+    minLootGp: Number.isFinite(rawLoot) && rawLoot >= 0 ? rawLoot : DEFAULT_CLAN_SCOPE.minLootGp,
+    // Blank means the default, the same as every other setting on that page — clearing a box should
+    // restore what shipped, not silently switch a feature off. Turning combat tasks OFF is written
+    // as a tier we can't rank ("none"), which reads as what it is and can't be reached by accident.
+    minCaTier: rawTier ? rawTier : DEFAULT_CLAN_SCOPE.minCaTier,
+    deaths: byKey.has(CLAN_DEATHS_SETTING_KEY)
+      ? byKey.get(CLAN_DEATHS_SETTING_KEY) === 'on'
+      : DEFAULT_CLAN_SCOPE.deaths,
   };
 }
 
@@ -203,6 +243,24 @@ export async function recordMoments(
   return { stored, matched: planned.length };
 }
 
+/** The columns every feed reads. One list so a new one can't quietly drift from the others. */
+const MOMENT_COLUMNS = {
+  id: moments.id,
+  rsn: moments.rsn,
+  kind: moments.kind,
+  itemId: moments.itemId,
+  itemName: moments.itemName,
+  quantity: moments.quantity,
+  valueGp: moments.valueGp,
+  source: moments.source,
+  kc: moments.kc,
+  rarityDenominator: moments.rarityDenominator,
+  tier: moments.tier,
+  sourceKind: moments.sourceKind,
+  teamId: moments.teamId,
+  occurredAt: moments.occurredAt,
+};
+
 export interface MomentRow {
   id: number;
   rsn: string;
@@ -226,22 +284,7 @@ export interface MomentRow {
 /** A competition's feed, newest first. */
 export async function momentsForCompetition(competitionId: number, limit = 12): Promise<MomentRow[]> {
   return db
-    .select({
-      id: moments.id,
-      rsn: moments.rsn,
-      kind: moments.kind,
-      itemId: moments.itemId,
-      itemName: moments.itemName,
-      quantity: moments.quantity,
-      valueGp: moments.valueGp,
-      source: moments.source,
-      kc: moments.kc,
-      rarityDenominator: moments.rarityDenominator,
-      tier: moments.tier,
-      sourceKind: moments.sourceKind,
-      teamId: moments.teamId,
-      occurredAt: moments.occurredAt,
-    })
+    .select(MOMENT_COLUMNS)
     .from(moments)
     .where(eq(moments.weeklyCompetitionId, competitionId))
     .orderBy(desc(moments.occurredAt))
@@ -251,22 +294,7 @@ export async function momentsForCompetition(competitionId: number, limit = 12): 
 /** A board's feed, newest first. */
 export async function momentsForEvent(eventId: number, limit = 20): Promise<MomentRow[]> {
   return db
-    .select({
-      id: moments.id,
-      rsn: moments.rsn,
-      kind: moments.kind,
-      itemId: moments.itemId,
-      itemName: moments.itemName,
-      quantity: moments.quantity,
-      valueGp: moments.valueGp,
-      source: moments.source,
-      kc: moments.kc,
-      rarityDenominator: moments.rarityDenominator,
-      tier: moments.tier,
-      sourceKind: moments.sourceKind,
-      teamId: moments.teamId,
-      occurredAt: moments.occurredAt,
-    })
+    .select(MOMENT_COLUMNS)
     .from(moments)
     .where(eq(moments.eventId, eventId))
     .orderBy(desc(moments.occurredAt))
@@ -289,25 +317,34 @@ export async function allMomentsForEvent(eventId: number, cap = 5000): Promise<M
  * Unscoped rows are impossible by construction (nothing is stored that belonged to nothing), so
  * this is always "things that happened while something was running".
  */
+/**
+ * The clan's always-on feed: everything worth keeping, whether or not a board was running.
+ *
+ * Scoped by joining through the SEAT, because that is what a moment is stamped with and a seat
+ * belongs to exactly one clan — a straight column filter would need a clan_id on moments that the
+ * ingest has no reason to write twice.
+ *
+ * The cost is over-reading — the bar can reject most of a busy board's week — so the query takes a
+ * window several times the asked-for size and stops there rather than paging until it fills. A feed
+ * that comes back short is telling the truth about a quiet stretch.
+ */
+export async function momentsForClan(clanId: number, limit = 20): Promise<MomentRow[]> {
+  const clan = await clanScope(clanId);
+  const window = Math.min(limit * 12, 600);
+  const rows = await db
+    .select(MOMENT_COLUMNS)
+    .from(moments)
+    .innerJoin(clanMemberships, eq(moments.clanMemberId, clanMemberships.id))
+    .where(eq(clanMemberships.clanId, clanId))
+    .orderBy(desc(moments.occurredAt))
+    .limit(window);
+  return rows.filter((row) => isClanWorthy(row, clan)).slice(0, limit);
+}
+
 export async function momentsForMembers(clanMemberIds: number[], limit = 20): Promise<MomentRow[]> {
   if (clanMemberIds.length === 0) return [];
   return db
-    .select({
-      id: moments.id,
-      rsn: moments.rsn,
-      kind: moments.kind,
-      itemId: moments.itemId,
-      itemName: moments.itemName,
-      quantity: moments.quantity,
-      valueGp: moments.valueGp,
-      source: moments.source,
-      kc: moments.kc,
-      rarityDenominator: moments.rarityDenominator,
-      tier: moments.tier,
-      sourceKind: moments.sourceKind,
-      teamId: moments.teamId,
-      occurredAt: moments.occurredAt,
-    })
+    .select(MOMENT_COLUMNS)
     .from(moments)
     .where(inArray(moments.clanMemberId, clanMemberIds))
     .orderBy(desc(moments.occurredAt))

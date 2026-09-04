@@ -36,7 +36,16 @@ export interface Observation {
   kc?: number | null;
   /** 'ca' only: the task as the completion line named it ("Vault of Death"). */
   taskName?: string | null;
-  /** 'ca' only: the tier the line named. Only used when the task isn't in our own dataset. */
+  /**
+   * 'ca' only: the tier the completion line named — always one of the six, never absent.
+   *
+   * Every combat task has a tier and the line always says it, so the plugin drops a line whose tier
+   * word it can't resolve and the ingest route rejects a `ca` observation without a rankable one.
+   * Optional here only because the other three kinds have no tier to carry.
+   *
+   * Read as a FALLBACK: our own dataset is asked first, and this answers for a task added to the
+   * game since it was built — the one thing the client knows and we don't.
+   */
   tier?: string | null;
   //
   // 'level' rides in columns that already exist rather than adding its own: `itemName` carries the
@@ -64,6 +73,28 @@ export interface EventScope {
   /** Hauls worth at least this much are kept whatever they came from. */
   minLootGp: number;
 }
+
+/**
+ * The clan itself, as a scope — what is worth keeping when nothing is running.
+ *
+ * Every other scope answers "is this about the thing we're doing?", so between a competition ending
+ * and the next board starting, nothing was kept at all: a Twisted bow on a quiet Tuesday was thrown
+ * away because there was no week for it to belong to. This scope has no subject to be about, so it
+ * can only ask whether the moment stands on its own — which makes its floors the ones that decide
+ * whether the clan feed is worth reading, and the reason every one of them is clan-editable.
+ */
+export interface ClanScope {
+  /** Hauls worth at least this much are kept. Higher than a board's: this one is always on. */
+  minLootGp: number;
+  /** The lowest combat-task tier worth keeping. A tier we can't rank ("none") turns them off. */
+  minCaTier: string;
+  /**
+   * Keep deaths too. Off by default, and deliberately: inside an event a death is half the story,
+   * but a clan-wide feed of everyone dying all week is a different, much worse thing to read.
+   */
+  deaths: boolean;
+}
+
 
 export interface PlannedMoment {
   kind: MomentKind;
@@ -278,6 +309,28 @@ const CA_TIER_ORDER = ['Easy', 'Medium', 'Hard', 'Elite', 'Master', 'Grandmaster
 export const MIN_ON_TOPIC_CA_TIER = 'Hard';
 export const MIN_OFF_TOPIC_CA_TIER = 'Master';
 
+/**
+ * How rare a drop has to be to reach the CLAN feed on rarity alone.
+ *
+ * The board's bar is 1-in-100, and rightly: on a board the near-misses are half the story, and the
+ * page around them says which board they happened on. A clan feed has no such frame — a line
+ * arrives with nothing to explain why it is there — so a 1-in-101 roll of bolt tips is not it.
+ */
+export const CLAN_MIN_RARITY_DENOMINATOR = 500;
+
+/**
+ * What a clan gets before anyone touches the settings. Declared here rather than beside
+ * {@link ClanScope} because it reads the tier floor above, which does not exist yet up there.
+ */
+export const DEFAULT_CLAN_SCOPE: ClanScope = {
+  // Five times a board's floor. On a board a 1m haul is context for the week; on a feed that never
+  // stops the number has to mean "everyone would want to see this".
+  minLootGp: 5_000_000,
+  // Master and Grandmaster are an achievement on their own terms, which is exactly the test here.
+  minCaTier: MIN_OFF_TOPIC_CA_TIER,
+  deaths: false,
+};
+
 export interface CaTask {
   name: string;
   /** What the task is about, as the wiki files it. Null for the handful with no single monster. */
@@ -301,16 +354,31 @@ export function caTierRank(tier: string | null | undefined): number {
   return CA_TIER_ORDER.findIndex((t) => t.toLowerCase() === wanted);
 }
 
-/** Is this tier at least that one? A tier we can't rank never clears a floor. */
+/**
+ * Is this tier at least that one?
+ *
+ * The FLOOR is the half that can genuinely be nonsense: it is free text an admin types, so a floor
+ * we can't rank is never cleared. That is what lets a clan switch combat tasks off by naming a tier
+ * that doesn't exist ("none"), and what makes a typo keep nothing rather than everything.
+ *
+ * The tier being ranked is the observation's, which by the time it reaches here is one of the six
+ * (see Observation.tier) — the guard on it is the last line of a defence that already held twice.
+ */
 function caTierAtLeast(tier: string | null | undefined, floor: string): boolean {
   const rank = caTierRank(tier);
-  return rank >= 0 && rank >= caTierRank(floor);
+  const floorRank = caTierRank(floor);
+  return rank >= 0 && floorRank >= 0 && rank >= floorRank;
 }
 
 /**
  * The tier and monster to judge (and display) a reported task by: ours when we know the task, the
  * client's tier as a fallback so a task added to the game after this dataset was built still counts
  * for the two tiers that never need context.
+ *
+ * The tier is therefore always known — one side or the other has it. The monster is the half that
+ * can be null, either because our dataset has never heard of the task or because it is one of the
+ * handful the wiki files under no single monster; a task with no monster can never read as on-topic
+ * for a week or a board, so it falls to the stricter floor, which is the right way to be unsure.
  */
 export function caFacts(obs: Observation): { tier: string | null; monster: string | null } {
   const known = caTask(obs.taskName);
@@ -335,7 +403,7 @@ export function mappedPetNames(): string[] {
  */
 export function classifyObservation(
   obs: Observation,
-  scopes: { weeklies: WeeklyScope[]; event: EventScope | null },
+  scopes: { weeklies: WeeklyScope[]; event: EventScope | null; clan?: ClanScope | null },
 ): PlannedMoment[] {
   const planned: PlannedMoment[] = [];
   // A combat task has no item and no loot source, so it borrows the two columns that mean "what
@@ -386,7 +454,98 @@ export function classifyObservation(
     }
   }
 
+  // The clan scope is a BACKSTOP, not a fourth copy: it only catches what nothing else wanted. A
+  // drop that already belongs to the week being raced does not need a second row saying it also
+  // happened — the clan feed reads across every scope, so one row is enough to appear in all of
+  // them. What this adds is the moment that would otherwise have been thrown away for happening on
+  // a quiet Tuesday.
+  if (planned.length === 0 && scopes.clan) {
+    const kind = clanKindFor(obs, scopes.clan, info);
+    if (kind) {
+      planned.push({
+        ...base,
+        kind,
+        weeklyCompetitionId: null,
+        eventId: null,
+        teamId: null,
+        rarityDenominator: rate ? Math.round(rate) : null,
+        dedupKey: `${obs.dedupKey}:clan`,
+      });
+    }
+  }
+
   return planned;
+}
+
+/**
+ * What this observation is to the clan, with nothing running.
+ *
+ * No subject to be about, so every test is "does this stand on its own?" — which makes this the
+ * strictest of the three, and rightly: a week's feed is read because a week is happening, while
+ * this one has to earn attention on an ordinary day.
+ */
+function clanKindFor(obs: Observation, clan: ClanScope, info: DropInfo | null): MomentKind | null {
+  // A pet is always the news, whatever else was or wasn't going on. There is no floor to set here
+  // and no clan that would want one.
+  if (obs.kind === 'pet') return 'pet';
+
+  if (obs.kind === 'death') return clan.deaths ? 'death' : null;
+
+  if (obs.kind === 'ca') {
+    // No board and no week to be on-topic for, so the tier is the whole test. A floor we can't rank
+    // ("none", or a typo) keeps nothing — see caTierAtLeast.
+    return caTierAtLeast(caFacts(obs).tier, clan.minCaTier) ? 'ca' : null;
+  }
+
+  // Two ways for a drop to matter with no board to measure it against: the drop table says it is
+  // genuinely rare, or it is simply worth a lot of money. Rarity first, so a rare untradeable
+  // (a jar, a pet-adjacent unique) isn't judged on a price it doesn't have.
+  if (clanRareDrop(info, obs.quantity ?? 1)) return 'unique';
+  return (obs.valueGp ?? 0) >= clan.minLootGp ? 'loot' : null;
+}
+
+/**
+ * Rare enough for the clan feed, and an ITEM rather than a pile.
+ *
+ * Two tightenings over the board's test. The bar is {@link CLAN_MIN_RARITY_DENOMINATOR} rather than
+ * 1-in-100, and the QUANTITY has to be one — the dataset prices an item by its rarest line, which
+ * for something like Onyx bolts (e) is a single-bolt roll, so a stack of 39 inherits a rarity that
+ * was never about the stack. On a board that reads as a near-miss worth keeping; on a feed with no
+ * frame it reads as us not knowing what a drop is.
+ */
+function clanRareDrop(info: DropInfo | null, quantity: number): boolean {
+  return !!info && info.stack <= 1 && quantity <= 1 && info.denominator >= CLAN_MIN_RARITY_DENOMINATOR;
+}
+
+/**
+ * Would this stored row clear the clan's own bar?
+ *
+ * The clan feed reads across every scope, and the other scopes keep far more than it should show: a
+ * board keeps every death, and every drop from a boss it names, because on the board's own page that
+ * IS the story — "the tile wanted a hilt and you got a chestplate" only reads that way next to the
+ * tile. Dumped into one clan-wide list the same rows are a log of everyone's Tuesday.
+ *
+ * So the bar is applied when the feed is READ, not when the row is written: the row still belongs to
+ * the board that wanted it, the board's own page still shows it, and the floors stay editable
+ * without rewriting history. The drop test is the same one {@link clanKindFor} uses, so a drop kept
+ * on a quiet week and a drop shown from a board are held to one standard.
+ */
+export function isClanWorthy(
+  row: {
+    kind: string;
+    tier?: string | null;
+    itemId?: number | null;
+    source?: string | null;
+    quantity?: number | null;
+    valueGp?: number | null;
+  },
+  clan: ClanScope,
+): boolean {
+  if (row.kind === 'pet') return true;
+  if (row.kind === 'death') return clan.deaths;
+  if (row.kind === 'ca') return caTierAtLeast(row.tier, clan.minCaTier);
+  if (clanRareDrop(dropInfo(row.source, row.itemId), row.quantity ?? 1)) return true;
+  return (row.valueGp ?? 0) >= clan.minLootGp;
 }
 
 /**

@@ -7,9 +7,9 @@ import {
   type PluginWebhooks,
 } from '@/lib/pluginConfig';
 import { forwardPluginNotification, pickWebhookUrl } from '@/lib/discord';
-import { stripGameMarkup, stripGameMarkupDeep } from '@/lib/gameText';
 import { playerEventEmbed } from '@/lib/discordEmbeds';
 import { leaguesIconUrl, markSeasonal } from '@/lib/leagues';
+import { stripChatTags, stripChatTagsDeep } from '@/lib/chatTags';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { db } from '@/db';
 import { accounts, clanRoster } from '@/db/schema';
@@ -176,8 +176,13 @@ export async function POST(request: Request) {
   //
   // Deaths and PvP kills arrive as plain text + a screenshot; give them the same embed treatment as
   // everything else. Skipped the moment the plugin sends its own embed for these channels.
-  let finalEmbed: Record<string, unknown> | null = embed ?? null;
-  let finalContent = content;
+  //
+  // The plugin composes these embeds from chat lines, and until every client is on a release that
+  // strips Jagex's @tag@ colour codes (lib/chatTags) one can be anywhere in one — a title, a field,
+  // the wiki URL built from a task name. Cleaned here so a post reads right today rather than on the
+  // plugin-hub's schedule; on a client that already strips them this is a no-op.
+  let finalEmbed: Record<string, unknown> | null = embed ? stripChatTagsDeep(embed) : null;
+  let finalContent = stripChatTags(content);
   if (!finalEmbed && content && (channel === 'deaths' || channel === 'pvpKills')) {
     finalEmbed = playerEventEmbed({
       kind: channel === 'deaths' ? 'death' : 'pvp_kill',
@@ -196,10 +201,10 @@ export async function POST(request: Request) {
     finalEmbed = markSeasonal(finalEmbed, await leaguesIconUrl(clan.id));
   }
 
-  // Strip OSRS '@component@' chat markup the plugin can't (see lib/gameText) — turns a forwarded
+  // Strip OSRS '@component@' chat markup the plugin can't (see lib/chatTags) — turns a forwarded
   // `⚔️ @ach_comp@This Is Madness` back into `⚔️ This Is Madness` and repairs the wiki URL.
-  const outContent = finalContent ? stripGameMarkup(finalContent) : finalContent;
-  const outEmbed = finalEmbed ? stripGameMarkupDeep(finalEmbed) : finalEmbed;
+  const outContent = finalContent ? stripChatTags(finalContent) : finalContent;
+  const outEmbed = finalEmbed ? stripChatTagsDeep(finalEmbed) : finalEmbed;
 
   // ── ROUTE BY PERSON, not by the clan in the URL ─────────────────────────────────────────────
   //

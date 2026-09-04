@@ -59,10 +59,13 @@ before(async () => {
     { id: 2, clanId, name: 'Showdown', boardSize: 5, createdAt: day(-30), startDate: day(-20), endDate: day(-10), scoringMode: 'points', format: 'bingo', rules: '{"revealPolicy":"scheduled"}' },
     { id: 3, clanId, name: 'Missions', boardSize: 5, createdAt: day(-30), startDate: day(-20), endDate: day(-10), scoringMode: 'points', format: 'bingo', rules: '{"mission":{"policy":"manual"}}' },
     { id: 4, clanId, name: 'Tile count', boardSize: 5, createdAt: day(-30), startDate: day(-20), endDate: day(-10), scoringMode: 'tiles', format: 'bingo', rules: null },
+    // 5: hasn't started for another six weeks, but carries a completion anyway — the shape a board
+    // ends up in when something credited it before the start gate existed.
+    { id: 5, clanId, name: 'Not yet', boardSize: 5, createdAt: day(-1), startDate: day(46), endDate: day(60), scoringMode: 'points', format: 'bingo', rules: null },
   ]);
 
   await db.insert(s.teams).values(
-    [1, 2, 3, 4].flatMap((e) => [
+    [1, 2, 3, 4, 5].flatMap((e) => [
       { id: e * 10 + 1, eventId: e, name: 'Alpha', color: '#d0553f' },
       { id: e * 10 + 2, eventId: e, name: 'Beta', color: '#4aa3d4' },
     ]),
@@ -86,6 +89,9 @@ before(async () => {
     // event 4: tile-scored.
     { id: 401, eventId: 4, position: 0, label: 'a', points: 10 },
     { id: 402, eventId: 4, position: 1, label: 'b', points: 10 },
+    // event 5: a 150-point tile a team somehow claimed before the board opens.
+    { id: 501, eventId: 5, position: 0, label: '2m Woodcutting XP', points: 150, optional: 0 },
+    { id: 502, eventId: 5, position: 1, label: 'other', points: 150, optional: 0 },
   ]);
 
   await db.insert(s.completions).values([
@@ -94,6 +100,9 @@ before(async () => {
     { teamId: 11, tileId: 102, completedAt: day(-15) },
     { teamId: 12, tileId: 103, completedAt: day(-15) },
     { teamId: 11, tileId: 104, completedAt: day(-15) },
+    // Event 5 hasn't opened, and this exists anyway — credited before the start gate shipped. The
+    // card must not report points for a board nobody has been allowed to play yet.
+    { teamId: 51, tileId: 501, completedAt: day(-1) },
     // Alpha claimed one revealed and one hidden — only the revealed one scores, so Alpha is on 10.
     { teamId: 21, tileId: 201, completedAt: day(-15) },
     { teamId: 21, tileId: 203, completedAt: day(-15) },
@@ -168,8 +177,9 @@ test('a team with no completions never becomes the leader', async () => {
 test('pastLimit caps finished events without touching live ones', async () => {
   const all = await loadEventCards(clanId, { includeUpcoming: true }, NOW);
   const capped = await loadEventCards(clanId, { includeUpcoming: true, pastLimit: 2 }, NOW);
-  assert.equal(all.length, 4);
-  assert.equal(capped.length, 2);
+  // Four finished/live boards plus the not-yet-started one.
+  assert.equal(all.length, 5);
+  assert.equal(capped.length, 3);
   // Same derivation either way — paging must not change what a card says.
   const first = all.find((c) => c.id === capped[0].id);
   assert.deepEqual(capped[0], first);

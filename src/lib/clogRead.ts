@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { clogPageItems, clogPageNames } from '@/lib/clogDataset';
 import { buildClogProfile, matchBestsToPages, titleCaseActivity, type BestTime } from '@/lib/clogProfile';
 import { buildShowcase, buildValueShowcase, clogItemRarity, groupOf, type PageGroup } from '@/lib/clogRarity';
+import { getMemberLuck } from '@/lib/clogLuckBoard';
 import { getItemPrices } from '@/lib/itemPrices';
 import { BOSSES } from '@/lib/constants';
 import type { CollectionLogProps } from '@/app/members/[rsn]/CollectionLog';
@@ -36,8 +37,8 @@ export function formatPersonalBest(centis: number): string {
  * sequences, so the wrong one is always a plausible answer — which is exactly why the name has to be
  * the true one.
  */
-export async function getCollectionLog(accountId: number, rsn: string): Promise<CollectionLogProps> {
-  const [header, items, bests] = await Promise.all([
+export async function getCollectionLog(accountId: number, rsn: string, clanId: number | null = null): Promise<CollectionLogProps> {
+  const [header, items, bests, luck] = await Promise.all([
     db.query.memberClog.findFirst({ where: eq(memberClog.accountId, accountId) }),
     db
       .select({
@@ -60,6 +61,7 @@ export async function getCollectionLog(accountId: number, rsn: string): Promise<
       })
       .from(memberPersonalBests)
       .where(eq(memberPersonalBests.accountId, accountId)),
+    getMemberLuck(accountId, clanId, 10),
   ]);
 
   const view = buildClogProfile({
@@ -142,6 +144,15 @@ export async function getCollectionLog(accountId: number, rsn: string): Promise<
     groups,
     closest,
     recent: view.recent,
+    // Only the fields the panel renders: the assessment objects behind them are server-side detail
+    // and would ship a payload the client has no use for.
+    luck: luck
+      ? {
+          total: luck.total,
+          dry: luck.dry.map(shapeLuckItem),
+          spooned: luck.spooned.map(shapeLuckItem),
+        }
+      : null,
     bestsByPage: Object.fromEntries(byPage) as Record<string, BestTime[]>,
     bests: formatted
       .sort((a, b) => a.activity.localeCompare(b.activity))
@@ -150,5 +161,28 @@ export async function getCollectionLog(accountId: number, rsn: string): Promise<
         time: b.time,
         at: b.at,
       })),
+  };
+}
+
+/** Trim one luck item to what the client panel actually draws. */
+function shapeLuckItem(item: {
+  itemId: number;
+  itemName: string;
+  page: string;
+  sources: { source: string; bossKey: string; denominator: number; rolls: number; bundle: number }[];
+  kills: number;
+  expected: number;
+  obtained: number;
+  assessment: { tail: number };
+}) {
+  return {
+    itemId: item.itemId,
+    itemName: item.itemName,
+    page: item.page,
+    sources: item.sources,
+    kills: item.kills,
+    expected: item.expected,
+    obtained: item.obtained,
+    tail: item.assessment.tail,
   };
 }

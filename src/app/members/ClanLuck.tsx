@@ -2,7 +2,7 @@
 
 import { itemIconUrl } from '@/lib/tileIcons';
 import { formatCount, formatMultiple, formatOdds, formatRate } from '@/lib/clogLuck';
-import type { LuckEntry } from '@/lib/clogProfile';
+import { formatSources, type LuckEntry } from '@/lib/clogProfile';
 import ClanLink from '@/components/ClanLink';
 
 // Who the game has been cruel to, and who it hasn't. Both boards read from synced collection logs
@@ -105,7 +105,7 @@ export default function ClanLuck({ dry, spooned, membersConsidered, itemsConside
                   headline={formatCount(e.assessment.obtained, e.assessment.expected)}
                   detail={[
                     `${e.assessment.kills.toLocaleString()} KC`,
-                    formatRate(e.rate.denominator),
+                    formatSources(e.sources),
                     formatOdds(e.assessment.tail) ? `${formatOdds(e.assessment.tail)} end up here` : null,
                   ]
                     .filter(Boolean)
@@ -139,7 +139,7 @@ export default function ClanLuck({ dry, spooned, membersConsidered, itemsConside
                   headline={formatCount(e.assessment.obtained, e.assessment.expected)}
                   detail={[
                     `${e.assessment.kills.toLocaleString()} KC`,
-                    formatRate(e.rate.denominator),
+                    formatSources(e.sources),
                     formatOdds(e.assessment.tail) ? `${formatOdds(e.assessment.tail)} end up here` : null,
                   ]
                     .filter(Boolean)

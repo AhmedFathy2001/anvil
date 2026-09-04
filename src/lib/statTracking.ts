@@ -123,6 +123,18 @@ export function computeGain(
   keys: string[],
   statType: string,
 ): number {
+  // NO BASELINE IS NOT A BASELINE OF ZERO.
+  //
+  // snapshotValue() answers 0 for a missing snapshot, which is right for a missing KEY (they were
+  // unranked at the start) and catastrophic for a missing SNAPSHOT: the gain becomes current − 0,
+  // so a player whose starting stats were never captured has their ENTIRE ACCOUNT counted as
+  // progress. A member who has never touched Woodcutting in the event completes "2m Woodcutting XP"
+  // on 4.5m of lifetime XP, the instant anything reads their stats.
+  //
+  // The admin surfaces already say this — "gains won't track until a baseline is captured", with a
+  // Fix baseline button — so the maths was the half that disagreed. Untracked scores nothing until
+  // someone captures a starting point. (api/plugin/config always skipped these; now everything does.)
+  if (!baseline) return 0;
   let gained = 0;
   for (const key of keys) {
     const base = snapshotValue(baseline, statType, key);
@@ -171,6 +183,16 @@ export function milestoneState(
   statType: string,
   goal: number,
 ): MilestoneState {
+  // Same rule as computeGain, and it bites harder here: with no baseline, baselineTotal is 0, every
+  // goal looks un-met at the start, and a member who already owns the thing reads as eligible for a
+  // "first ever" tile. We can't prove they didn't already have it, so we don't claim they didn't.
+  if (!baseline) {
+    let lifetimeOnly = 0;
+    for (const key of keys) {
+      lifetimeOnly += effectiveValue(snapshotValue(current, statType, key), liveMap, key);
+    }
+    return { lifetime: lifetimeOnly, eligible: false, reached: false };
+  }
   let lifetime = 0;
   let baselineTotal = 0;
   for (const key of keys) {

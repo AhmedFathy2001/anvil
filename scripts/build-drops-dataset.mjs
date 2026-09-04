@@ -24,6 +24,32 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const NPC_DROPS_PATH = resolve(HERE, '../src/data/npcDrops.json');
 const DROPPABLE_PATH = resolve(HERE, '../src/data/droppableItems.json');
+const RAID_REWARDS_PATH = resolve(HERE, '../src/data/raidRewards.json');
+
+// Raid uniques are not a kill table, which is why they are absent from npcDrops.json: the chest
+// rolls ONE unique with a chance that depends on how the raid went (points at Chambers of Xeric,
+// invocation level at Tombs of Amascut), and only then picks which unique. The wiki files those
+// tables under the CHEST rather than the raid, and marks them "reward" instead of "combat" — so
+// they are collected separately here, as each item's SHARE of the unique table.
+//
+// The per-raid chance of any unique at all is the half the hiscores cannot tell us (no points, no
+// invocation), so it stays a configurable assumption on the site rather than a number baked in here.
+const RAID_CHESTS = {
+  'Ancient chest': { key: 'chambersOfXeric', label: 'Chambers of Xeric' },
+  'Monumental chest': { key: 'theatreOfBlood', label: 'Theatre of Blood' },
+  'Chest (Tombs of Amascut)': { key: 'tombsOfAmascut', label: 'Tombs of Amascut' },
+};
+// A "#Hard Mode"-style anchor on the wiki's own row maps the row to the harder hiscores counter.
+const RAID_MODES = {
+  // The plain-mode anchor is still an anchor: without this the Theatre's purples, which the wiki
+  // files under "#Normal Mode", are dropped for not matching a harder counter.
+  'normal mode': { chambersOfXeric: 'chambersOfXeric', theatreOfBlood: 'theatreOfBlood', tombsOfAmascut: 'tombsOfAmascut' },
+  'entry mode': { theatreOfBlood: null, tombsOfAmascut: null },
+  'story mode': { tombsOfAmascut: null },
+  'hard mode': { theatreOfBlood: 'theatreOfBloodHardMode' },
+  'challenge mode': { chambersOfXeric: 'chambersOfXericChallengeMode' },
+  'expert mode': { tombsOfAmascut: 'tombsOfAmascutExpertMode' },
+};
 const CLOG_PATH = resolve(HERE, '../src/data/clog.json');
 
 const WIKI_API = 'https://oldschool.runescape.wiki/api.php';
@@ -200,6 +226,7 @@ async function main() {
   const bySource = new Map(); // monster page → drop entries, one per wiki drop-table line
   const unresolved = new Map(); // item page name → times seen, for the report
   const dropTypeCounts = {};
+  const raidRewards = {};
   let rateless = 0;
 
   for (const row of dropRows) {
@@ -219,6 +246,27 @@ async function main() {
 
     const dropType = typeof meta['Drop type'] === 'string' ? meta['Drop type'] : 'unknown';
     dropTypeCounts[dropType] = (dropTypeCounts[dropType] ?? 0) + 1;
+
+    // Raid chests: keep the unique table's SHARES, before the combat-only filter drops them.
+    const chestPage = typeof row.page_name === 'string' ? row.page_name.split('#')[0].trim() : '';
+    const chest = RAID_CHESTS[chestPage];
+    if (chest && dropType === 'reward') {
+      const share = parseRarity(meta.Rarity);
+      // A share of "always" is not a share of anything: those rows are the chest's guaranteed
+      // supplies, not one of the many uniques it picks between.
+      if (share != null && share > 1) {
+        // "Monumental chest#Hard Mode" — the mode lives on the anchor of the row's own source.
+        const from = typeof meta['Dropped from'] === 'string' ? meta['Dropped from'] : '';
+        const anchor = (from.split('#')[1] ?? '').trim().toLowerCase();
+        const key = RAID_MODES[anchor]?.[chest.key] ?? (anchor ? null : chest.key);
+        if (key) {
+          const list = raidRewards[key] ?? { label: chest.label + (anchor ? ` (${anchor})` : ''), chest: chestPage, items: [] };
+          // `d` is the item's 1-in-N share of the unique table, NOT a per-raid rate.
+          list.items.push({ i: itemId, d: share });
+          raidRewards[key] = list;
+        }
+      }
+    }
     if (dropType === 'combat') combatIds.add(itemId);
     else otherIds.add(itemId);
     droppableNames.add(itemName.split('#')[0].trim().toLowerCase());
@@ -226,13 +274,31 @@ async function main() {
     // npcDrops.json is the *kill* table — the effort model prices tiles as "kill this many of
     // X", so chest rewards, pickpockets and skilling loot have no place in it.
     if (dropType !== 'combat') continue;
-    const source = typeof row.page_name === 'string' && row.page_name ? row.page_name : meta['Dropped from'];
-    if (typeof source !== 'string' || !source) continue;
+    const page = typeof row.page_name === 'string' && row.page_name ? row.page_name : meta['Dropped from'];
+    if (typeof page !== 'string' || !page) continue;
+    // A row can name a VARIANT of the fight it is filed under — "Yama#Contract", "Abyssal
+    // demon#Catacombs of Kourend" — while page_name stays the bare page. Nearly all of those are
+    // the same monster somewhere else, and merging them into the base is right: the client reports
+    // "Abyssal demon" and expects that table.
+    //
+    // The exception is a variant that HANDS SOMETHING OVER. The Yama Contract gives the Oathplate
+    // set outright while an ordinary kill rolls it at 1/600, so merging listed the same item twice
+    // under "Yama", at 1-in-1 and 1-in-600 — which reads as guaranteed to anything taking the best
+    // rate, and as a 100% chance to anything summing them (the plugin's rarity service sums). So a
+    // variant's always-drops are kept OUT of the base and filed under the anchored key instead.
+    // Everything else merges as it always did, because a base key that vanished would silently
+    // break every by-name lookup in the app — rarity, luck, and the effort model all ask for a
+    // plain boss name.
+    const from = typeof meta['Dropped from'] === 'string' ? meta['Dropped from'] : '';
+    const anchor = from.split('#')[1]?.trim();
+    const isVariant = !!anchor && from.split('#')[0].trim() === page;
     const d = parseRarity(meta.Rarity);
     if (d == null) {
       rateless++;
       continue;
     }
+    // A variant's guaranteed line goes to the anchored key alone; everything else to the base.
+    const source = isVariant && d === 1 ? `${page}#${anchor}` : page;
     // One entry per drop line, not per item: a monster often lists the same item twice (a common
     // small stack and a rare big one), and the rates differ. `r` (rolls) is only written when the
     // table is rolled more than once per kill, matching the dataset's existing shape.
@@ -271,6 +337,15 @@ async function main() {
 
   writeFileSync(NPC_DROPS_PATH, JSON.stringify(npcDrops) + '\n');
   writeFileSync(DROPPABLE_PATH, JSON.stringify(droppable) + '\n');
+  // Deduplicate: the wiki lists an item once per mode table, and a mode we did not map would
+  // otherwise stack duplicates onto the base raid.
+  for (const entry of Object.values(raidRewards)) {
+    const seen = new Map();
+    for (const item of entry.items) if (!seen.has(item.i)) seen.set(item.i, item);
+    entry.items = [...seen.values()].sort((a, b) => a.d - b.d);
+  }
+  writeFileSync(RAID_REWARDS_PATH, JSON.stringify(raidRewards, null, 2) + '\n');
+  console.log(`raid rewards: ${Object.entries(raidRewards).map(([k, v]) => `${k} ${v.items.length}`).join(', ')}`);
 
   const entryCount = Object.values(npcDrops).reduce((n, list) => n + list.length, 0);
   const topUnresolved = [...unresolved.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15);

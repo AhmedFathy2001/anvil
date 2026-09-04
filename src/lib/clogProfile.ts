@@ -1,5 +1,5 @@
 import { clogItemNames, clogPageItems, clogPageNames, clogTotalSlots } from '@/lib/clogDataset';
-import { assessLuck, chancePerKill, type LuckAssessment } from '@/lib/clogLuck';
+import { assessLuckAt, chancePerKill, type LuckAssessment } from '@/lib/clogLuck';
 
 // Reading a synced collection log back out: the member's own page, and the clan's luck boards.
 //
@@ -271,12 +271,77 @@ export interface DropRate {
   rolls: number;
 }
 
+/** One killable source of an item: its rate there, and the bundle size it drops in. */
+export interface LuckRateSource {
+  source: string;
+  /** Hiscores key, so we can look up how much of it this member has actually killed. */
+  bossKey: string;
+  denominator: number;
+  rolls: number;
+  /** Average items per drop — 1 for a single, ~750 for a dragon thrownaxe stack. */
+  bundle: number;
+  /**
+   * True when the rate rests on an assumption rather than a measured table — raids, where the
+   * hiscores record completions but not the points, invocation or party size the odds turn on.
+   */
+  assumed?: boolean;
+}
+
+/**
+ * What the rates owe one member for one item, across every source of it at once.
+ *
+ * Expectations add: each source contributes its own chance times the kills they have there, so a
+ * player who split 3,000 kills across Drakes and Hydras is owed what both tables owe, not what one
+ * of them does.
+ *
+ * The bundle is weighted by each source's share of that expectation, because the question it answers
+ * is "how big were the drops you actually got" — and those came, in proportion, from wherever they
+ * were most likely to. Falls back to a flat mean when nothing is expected anywhere.
+ */
+export function expectationFor(
+  sources: LuckRateSource[],
+  kills: Record<string, number>,
+): { expected: number; bundle: number; kills: number } {
+  let expected = 0;
+  let weighted = 0;
+  let totalKills = 0;
+  for (const rate of sources) {
+    const count = Math.max(0, kills[rate.bossKey] ?? 0);
+    totalKills += count;
+    const share = chancePerKill(rate.denominator, rate.rolls) * count;
+    expected += share;
+    weighted += share * rate.bundle;
+  }
+  const flat = sources.length > 0 ? sources.reduce((a, r) => a + r.bundle, 0) / sources.length : 1;
+  return { expected, bundle: expected > 0 ? weighted / expected : flat, kills: totalKills };
+}
+
+/**
+ * How to say the rate when an item has more than one source.
+ *
+ * Printing a single denominator was fine while a page owned its items; now that six bosses can drop
+ * the same axe at two different rates, naming just one of them would be the same misinformation the
+ * expectation fix removes. One source reads as it always did.
+ */
+export function formatSources(sources: LuckRateSource[]): string {
+  if (sources.length === 0) return 'unknown';
+  const rates = sources.map((s) => s.denominator);
+  const low = Math.min(...rates);
+  const high = Math.max(...rates);
+  const rate = (d: number) => (d >= 100 ? Math.round(d).toLocaleString() : d.toFixed(1));
+  if (sources.length === 1) return `1 in ${rate(low)}`;
+  const spread = low === high ? `1 in ${rate(low)}` : `1 in ${rate(low)}–${rate(high)}`;
+  return `${spread} across ${sources.length} sources`;
+}
+
 export interface LuckSource {
   /** The ACCOUNT the log belongs to — luck follows the player, not the roster they sit on. */
   accountId: number;
   rsn: string;
-  /** Absolute kill count for the page's source, from the hiscores. */
+  /** Total kills across every source of the item — for display, not for the maths. */
   kills: number;
+  /** What the rates owed them, already summed across sources by `expectationFor`. */
+  expected: number;
   /**
    * How many they have. The collection log counts what you've obtained, not just whether you have
    * it, and that count is the whole metric: presence alone can't tell one seed in 30,000 Gauntlet
@@ -291,8 +356,10 @@ export interface LuckEntry {
   rsn: string;
   itemId: number;
   itemName: string;
+  /** The collection log page it shows under. */
   source: string;
-  rate: DropRate;
+  /** Every source that drops it, so the UI can say "and 5 others" rather than imply one rate. */
+  sources: LuckRateSource[];
   assessment: LuckAssessment;
 }
 
@@ -308,18 +375,16 @@ export interface LuckEntry {
  * is a board of noise.
  */
 export function buildLuckBoards(
-  candidates: { itemId: number; itemName: string; source: string; rate: DropRate; members: LuckSource[] }[],
+  candidates: { itemId: number; itemName: string; source: string; sources: LuckRateSource[]; members: LuckSource[] }[],
   limit = 15,
 ): { dry: LuckEntry[]; spooned: LuckEntry[] } {
   const dry: LuckEntry[] = [];
   const spooned: LuckEntry[] = [];
 
   for (const candidate of candidates) {
-    const chance = chancePerKill(candidate.rate.denominator, candidate.rate.rolls);
-    if (chance <= 0) continue;
     for (const member of candidate.members) {
-      if (member.kills <= 0) continue;
-      const assessment = assessLuck(chance, member.kills, member.obtained);
+      if (member.kills <= 0 || member.expected <= 0) continue;
+      const assessment = assessLuckAt(member.expected, member.kills, member.obtained);
       if (!assessment.notable) continue;
       const entry: LuckEntry = {
         accountId: member.accountId,
@@ -327,7 +392,7 @@ export function buildLuckBoards(
         itemId: candidate.itemId,
         itemName: candidate.itemName,
         source: candidate.source,
-        rate: candidate.rate,
+        sources: candidate.sources,
         assessment,
       };
       (assessment.verdict === 'dry' ? dry : spooned).push(entry);

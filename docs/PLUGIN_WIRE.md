@@ -74,7 +74,49 @@ the clan's clips channel); `leagues-channel` (`POST /api/plugin/notify` accepts
 `POST /api/plugin/clog` and `/api/plugin/pb`); `start-proof` (the anti-stack starting shot
 — a `startProof` block on `/api/plugin/config` and `POST /api/events/:id/start-proof`);
 `moments` (`POST /api/plugin/moments` — the pets/uniques/deaths highlight feed for a
-competition week or a running board).
+competition week or a running board); `drop-facts` (a `dropFacts` block on
+`/api/plugin/config`, below).
+
+### `drop-facts`
+
+Two things about a drop the client cannot work out for itself, so the server says them.
+Present on both `/api/plugin/config` shapes (enrolled and not) — the drops channel posts
+with or without a live board. Built in `src/lib/dropFacts.ts` from the wiki datasets the
+repo already ships, so a new boss is `npm run data:drops` rather than a plugin release.
+
+```jsonc
+"dropFacts": {
+  // pet name (lowercased) -> where it really comes from.
+  //   kind "npc"   — killable sources, so the plugin gets a rate and a kill count.
+  //                  Several is normal: a Vet'ion jr. is one of two, and the plugin
+  //                  disambiguates with what it saw and then with the player's own KC.
+  //   kind "event" — raids and minigames, which have no kill table. Names the content.
+  //   kind "skill" — no monster at all; `sources` is empty and `skill` is all there is.
+  "pets": {
+    "baby mole":   { "sources": ["Giant Mole"], "kind": "npc" },
+    "vet'ion jr.": { "sources": ["Calvar'ion", "Vet'ion"], "kind": "npc" },
+    "olmlet":      { "sources": ["Chambers of Xeric"], "kind": "event" },
+    "beaver":      { "sources": [], "kind": "skill", "skill": "woodcutting" }
+  },
+  // item name (lowercased) -> the sources that drop it EVERY time, lowercased.
+  // A single "*" means "wherever it drops" (a clan override that named no sources).
+  // The plugin suppresses the lucky-drop reaction line for these: an ornament kit the
+  // boss owes you is nobody's spoon.
+  "guaranteed": {
+    "ancient blood ornament kit": ["duke sucellus", "the leviathan", "the whisperer", "vardorvis"],
+    "menaphite ornament kit": ["tombs of amascut"]
+  }
+}
+```
+
+An item counts as guaranteed only when EVERY wiki line under that source is an always-drop,
+so a source that both gives and rolls the same item (Yama's Contract vs an ordinary kill)
+reads as not guaranteed rather than robbing a real drop of its moment. Raids have no kill
+table, so their guarantees come from a seeded supplement plus the clan's `guaranteed_drops`
+setting (Admin → Integrations).
+
+Without the capability the plugin keeps its old behaviour: a pet is attributed to the last
+loot event it saw, and nothing is known to be guaranteed.
 
 ### `leagues-channel`
 

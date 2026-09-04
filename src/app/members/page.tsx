@@ -9,6 +9,8 @@ import {
 import { requireClan } from '@/lib/clanContext';
 import MembersTabs from './MembersTabs';
 import { getLuckBoards } from '@/lib/clogLuckBoard';
+import { momentsForClan } from '@/lib/momentsStore';
+import MomentsFeed from '@/components/MomentsFeed';
 
 export const metadata: Metadata = {
   title: 'Members — Anvil',
@@ -24,12 +26,15 @@ export default async function MembersPage() {
   // Analytics reuses the list rather than re-querying it, so the whole page is a handful of
   // statements. The activity read is its own query, but a narrow one — two columns off the roster,
   // where the alternative was every member's full hiscores snapshot.
-  const [analytics, rosterLog, activities, movement, luck] = await Promise.all([
+  const [analytics, rosterLog, activities, movement, luck, moments] = await Promise.all([
     getClanAnalytics(members),
     getRosterLog(clan.id, 20),
     getClanActivityAnalytics(clan.id),
     getRosterMovement(members),
     getLuckBoards(clan.id),
+    // Every scope's moments together — see momentsForClan for why a board's drop and a quiet
+    // Tuesday's pet are the same news to someone reading this page.
+    momentsForClan(clan.id, 30),
   ]);
 
   return (
@@ -49,6 +54,14 @@ export default async function MembersPage() {
         activities={activities}
         movement={movement}
         luck={luck}
+        lately={
+          <MomentsFeed
+            moments={moments}
+            title="Lately"
+            blurb="pets, big drops and combat tasks, as they happened. Nothing here scores."
+            emptyNote="Nothing yet. Moments arrive from the Anvil plugin — pets and rare drops always, and anything else that clears the floors on Admin → Integrations."
+          />
+        }
       />
     </main>
   );

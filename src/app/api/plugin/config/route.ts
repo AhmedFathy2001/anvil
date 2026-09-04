@@ -19,6 +19,7 @@ import {
   getAlwaysNotifyItemIds,
   getShowKillCount,
   getDropRarityFloor,
+  getDropFacts,
   getClanDisplayName,
   getTierBands,
   personalBestActivities,
@@ -217,7 +218,7 @@ export async function GET(request: Request) {
       // Valid token, no live event: still resolve the read-bootstrap (schedule, weekly,
       // notification webhooks, fun-death pool) so deaths/rare-drops post and the side
       // panel shows the schedule even when the player isn't enrolled anywhere.
-      const [schedule, activeWeekly, weeklyNames, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, alwaysNotifyItemIds, showKillCount, dropRarityFloor, unlinkedActiveEvent, homeBoard, switchableClans] =
+      const [schedule, activeWeekly, weeklyNames, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, alwaysNotifyItemIds, showKillCount, dropRarityFloor, facts, unlinkedActiveEvent, homeBoard, switchableClans] =
         await Promise.all([
           buildSchedule(clan.id),
           getActiveWeekly(clan.id),
@@ -230,6 +231,7 @@ export async function GET(request: Request) {
           getAlwaysNotifyItemIds(clan.id),
           getShowKillCount(clan.id),
           getDropRarityFloor(clan.id),
+          getDropFacts(clan.id),
           activeEventForUnlinkedRsn(request),
           homeBoardForUser(clan.id, userOnly.userId),
           pluginClansFor(userOnly.userId),
@@ -293,6 +295,10 @@ export async function GET(request: Request) {
         alwaysNotifyItemIds,
         showKillCount,
         dropRarityFloor,
+        // What only the server can know about a drop (lib/dropFacts): which monster a pet really
+        // comes from, and which items a source hands over every kill. Posted drops read from these
+        // instead of guessing from the last loot event.
+        dropFacts: facts,
       });
     }
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken>' }, { status: 401 });
@@ -582,7 +588,7 @@ export async function GET(request: Request) {
   // Read-bootstrap extras merged in so the plugin's login flow is a single GET:
   // schedule + active weekly (was two separate endpoints) plus the notification
   // webhooks and fun-death pool the plugin posts with directly.
-  const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, alwaysNotifyItemIds, showKillCount, dropRarityFloor, tiers] =
+  const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, alwaysNotifyItemIds, showKillCount, dropRarityFloor, tiers, facts] =
     await Promise.all([
       buildSchedule(clan.id),
       getActiveWeekly(clan.id),
@@ -595,6 +601,7 @@ export async function GET(request: Request) {
       getShowKillCount(clan.id),
       getDropRarityFloor(clan.id),
       getTierBands(clan.id),
+          getDropFacts(clan.id),
     ]);
 
   // Team-level tile completions (drops, stats, manual — all tile types). The plugin uses this to
@@ -821,6 +828,9 @@ export async function GET(request: Request) {
     alwaysNotifyItemIds,
     showKillCount,
     dropRarityFloor,
+    // See the unenrolled branch above — the drop channel posts with or without a live board, so the
+    // facts behind those posts ship on both shapes.
+    dropFacts: facts,
     completedTiles,
     trackedStats,
     trackedKcNames,

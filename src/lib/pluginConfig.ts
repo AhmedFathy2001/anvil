@@ -5,6 +5,8 @@ import { and, count, eq, inArray } from 'drizzle-orm';
 import { BOSSES, FUN_DEATH_MESSAGES, weeklyMetricLabel, COUNTER_TARGETS } from '@/lib/constants';
 import { DEFAULT_TIER_BANDS, normalizeTierBands, type TierBand } from '@/lib/tileFilter';
 import { getItemMapping } from '@/lib/osrsItems';
+import { clogItemNames } from '@/lib/clogDataset';
+import { guaranteedDropsFor, parseGuaranteedOverrides, petFacts, type DropFacts } from '@/lib/dropFacts';
 
 // Shared builders for the plugin's read-bootstrap. These back both the standalone
 // /api/plugin/schedule and /api/plugin/active-weekly routes (kept for older jars) and
@@ -469,6 +471,47 @@ export async function getTierBands(clanId: number): Promise<TierBand[]> {
   }
 }
 
+// Drop facts (lib/dropFacts): which monster a pet really comes from, and which items a source hands
+// over on every kill. Assembled here because it is a /config payload like every other setting on
+// this page, and because projecting the guaranteed map needs the same item names the always-notify
+// list is resolved through. The dataset half is pure and lives in lib/dropFacts.
+export const GUARANTEED_DROPS_SETTING_KEY = 'guaranteed_drops';
+
+// Cached per clan: the dataset half is identical everywhere, but the override row is the clan's own,
+// so one shared entry would serve one clan's guaranteed-drop edits to every other.
+const dropFactsCache = new Map<number, { value: DropFacts; at: number; overrides: string }>();
+const DROP_FACTS_TTL_MS = 5 * 60_000;
+
+export async function getDropFacts(clanId: number): Promise<DropFacts> {
+  const overrides = (await getSetting(clanId, GUARANTEED_DROPS_SETTING_KEY)) ?? '';
+  const hit = dropFactsCache.get(clanId);
+  if (hit && hit.overrides === overrides && Date.now() - hit.at < DROP_FACTS_TTL_MS) {
+    return hit.value;
+  }
+
+  // Names for the items a drop post could be about. The collection log covers most of them; the
+  // notable list covers the untradeable oddities it doesn't carry — the DT2 ornament kits and Yama's
+  // sigil pieces are exactly that, and exactly what this is for. A mapping outage narrows the map to
+  // log items instead of failing the whole config response.
+  const names = new Map<number, string>(clogItemNames());
+  try {
+    const notable = new Set(await getAlwaysNotifyItemIds(clanId));
+    if (notable.size > 0) {
+      for (const item of await getItemMapping()) {
+        if (notable.has(item.id) && !names.has(item.id)) names.set(item.id, item.name);
+      }
+    }
+  } catch {
+    // keep going with the catalogue alone
+  }
+
+  const value: DropFacts = {
+    pets: petFacts(),
+    guaranteed: { ...guaranteedDropsFor((id) => names.get(id)), ...parseGuaranteedOverrides(overrides) },
+  };
+  dropFactsCache.set(clanId, { value, at: Date.now(), overrides });
+  return value;
+}
 // --- Public showcase listing ------------------------------------------------------------------
 // Opt-OUT flag for the "Clans on Anvil" page on the Anvil site (anvilosrs.com/clans): when on, the
 // unauthenticated GET /api/public/showcase serves this clan's name + a handful of aggregate counts

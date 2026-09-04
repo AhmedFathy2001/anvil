@@ -87,6 +87,11 @@ export const PLUGIN_CAPABILITIES = [
   // server decides which competition week or board they belong to (lib/moments). Gated because a
   // plugin that pushed these at a site without the endpoint would just collect 404s.
   'moments',
+  // Drop facts (lib/dropFacts): /api/plugin/config carries `dropFacts`, telling the plugin which
+  // monster a pet actually comes from and which items a source hands over every kill. Gated because
+  // the plugin's fallbacks differ — without it, a pet is attributed to the last loot event it saw
+  // and nothing is known to be guaranteed.
+  'drop-facts',
 ] as const;
 
 /** The `server` block returned to the plugin (and /api/version). */

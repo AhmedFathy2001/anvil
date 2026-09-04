@@ -17,6 +17,9 @@ import {
   matchesBoss,
   momentSentence,
   petsForSkill,
+  DEFAULT_CLAN_SCOPE,
+  isClanWorthy,
+  type ClanScope,
   type EventScope,
   type Observation,
   type WeeklyScope,
@@ -27,6 +30,11 @@ const BOTW: WeeklyScope = { id: 1, type: 'boss', metric: 'zulrah' };
 const SOTW: WeeklyScope = { id: 2, type: 'skill', metric: 'runecraft' };
 
 const board: EventScope = { id: 9, teamId: 4, sources: ['Vorkath'], itemIds: [11286], minLootGp: 1_000_000 };
+
+/** The always-on backstop, as shipped. */
+const clan: ClanScope = DEFAULT_CLAN_SCOPE;
+/** No scopes at all — a quiet week, which is the whole case the backstop exists for. */
+const quiet = { weeklies: [], event: null, clan };
 
 function obs(over: Partial<Observation> = {}): Observation {
   return {
@@ -332,6 +340,132 @@ test('the feed line leads with the tier', () => {
     momentSentence({ kind: 'ca', itemName: null, quantity: 1, source: null, valueGp: null, tier: null }),
     'completed a combat task',
   );
+});
+
+
+// ---- the clan backstop: what is kept when nothing is running -------------------------------------
+
+test('with nothing running, a pet is still the news', () => {
+  const rows = classifyObservation(obs({ kind: 'pet', itemName: 'Baby mole', itemId: 12646 }), quiet);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].kind, 'pet');
+  // Unscoped: it belonged to no week and no board, which is exactly why it needed catching.
+  assert.equal(rows[0].weeklyCompetitionId, null);
+  assert.equal(rows[0].eventId, null);
+  assert.equal(rows[0].teamId, null);
+  assert.match(rows[0].dedupKey, /:clan$/);
+});
+
+test('a haul is kept on its own terms, and a small one is not', () => {
+  const big = classifyObservation(obs({ valueGp: 9_000_000, source: 'Vorkath' }), quiet);
+  assert.equal(big.length, 1);
+  assert.equal(big[0].kind, 'loot');
+  // Under the clan floor and rare from nowhere: a normal Tuesday.
+  assert.deepEqual(classifyObservation(obs({ valueGp: 2_000_000, source: 'Vorkath' }), quiet), []);
+});
+
+test('a genuinely rare drop is kept whatever it is worth', () => {
+  // Rarity is read first so an untradeable with no price is still a moment.
+  const rows = classifyObservation(obs({ source: 'Vorkath', itemId: 22006, valueGp: 0 }), quiet);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].kind, 'unique');
+});
+
+test('deaths stay out unless the clan asks for them', () => {
+  assert.deepEqual(classifyObservation(obs({ kind: 'death', source: 'Vorkath' }), quiet), []);
+  const on = classifyObservation(obs({ kind: 'death', source: 'Vorkath' }), {
+    ...quiet,
+    clan: { ...clan, deaths: true },
+  });
+  assert.equal(on.length, 1);
+  assert.equal(on[0].kind, 'death');
+});
+
+test('combat tasks clear the clan floor, or are turned off entirely', () => {
+  const master = obs({ kind: 'ca', taskName: 'Phantom Muspah Speed-Chaser', tier: 'Master' });
+  assert.equal(classifyObservation(master, quiet).length, 1);
+  // An Easy task on an ordinary day is not news. (Tiers always arrive — every combat task has one,
+  // the completion line says it, and both the plugin and the ingest route drop a line without one.)
+  assert.deepEqual(
+    classifyObservation(obs({ kind: 'ca', taskName: 'Nothing We Know Of', tier: 'Easy' }), quiet),
+    [],
+  );
+  // A floor we can't rank is how a clan says "no combat tasks here" — and the safe answer to a
+  // misspelled tier, which should keep nothing rather than everything.
+  assert.deepEqual(classifyObservation(master, { ...quiet, clan: { ...clan, minCaTier: 'none' } }), []);
+  assert.deepEqual(classifyObservation(master, { ...quiet, clan: { ...clan, minCaTier: 'Msater' } }), []);
+});
+
+test('the backstop only catches what nothing else wanted', () => {
+  // A Zulrah drop during a Zulrah week belongs to the week. One row, not two: the clan feed reads
+  // across every scope, so a second unscoped copy would just show the same drop twice.
+  const rows = classifyObservation(
+    obs({ source: 'Zulrah', itemId: 12922, valueGp: 30_000_000 }),
+    { weeklies: [BOTW], event: null, clan },
+  );
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].weeklyCompetitionId, BOTW.id);
+});
+
+test('a week that is about one boss no longer throws away everything else', () => {
+  // A competition week claims only its own boss, so a huge drop from anywhere else used to be
+  // discarded for happening during the wrong week. The backstop is what keeps it.
+  const scopes = { weeklies: [BOTW], event: null, clan };
+  const rows = classifyObservation(obs({ source: 'Vorkath', valueGp: 20_000_000 }), scopes);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].weeklyCompetitionId, null, 'not the Zulrah week — it came from Vorkath');
+  assert.equal(rows[0].kind, 'loot');
+});
+
+test('a running board already keeps more than the clan floor would', () => {
+  // Not a gap to fill: a board takes any haul over ITS floor (1m here) whatever the source, which
+  // is below the clan's. So the backstop finds nothing left to catch, and the drop stays one row
+  // on the board it happened during rather than being duplicated onto the clan.
+  const rows = classifyObservation(obs({ source: 'Zulrah', valueGp: 20_000_000 }), {
+    weeklies: [],
+    event: board,
+    clan,
+  });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].eventId, board.id);
+});
+
+test('no clan scope at all keeps the old behaviour exactly', () => {
+  // Callers that predate the backstop (and every existing test above) pass two scopes and get the
+  // same answers they always did.
+  assert.deepEqual(classifyObservation(obs({ kind: 'pet', itemName: 'Baby mole' }), { weeklies: [], event: null }), []);
+});
+
+
+// ---- the clan BAR: what the feed shows, as opposed to what got stored -----------------------------
+
+test('a board keeps its near-misses; the clan feed does not show them', () => {
+  // Exactly the rows that filled the Lately tab: a common drop from a boss the board named, and a
+  // death. Both belong on the board's own page and neither is clan news.
+  assert.equal(isClanWorthy({ kind: 'loot', source: 'Alchemical Hydra', itemId: 1377, valueGp: 120_000 }, clan), false);
+  assert.equal(isClanWorthy({ kind: 'death', source: 'The Whisperer' }, clan), false);
+  // 1,157 blood runes out of a raid chest is a good raid, not a moment.
+  assert.equal(isClanWorthy({ kind: 'loot', source: 'Chambers of Xeric', itemId: 565, quantity: 1157, valueGp: 400_000 }, clan), false);
+});
+
+test('the things everyone would want to see still come through', () => {
+  assert.equal(isClanWorthy({ kind: 'pet', itemName: 'Baby mole' } as never, clan), true);
+  // 87.8M of Oathplate legs clears the gp floor whatever its rate is.
+  assert.equal(isClanWorthy({ kind: 'unique', source: 'Yama', itemId: 30756, valueGp: 87_800_000 }, clan), true);
+  // A Master task still reads as one.
+  assert.equal(isClanWorthy({ kind: 'ca', tier: 'Master' }, clan), true);
+  assert.equal(isClanWorthy({ kind: 'ca', tier: 'Hard' }, clan), false);
+});
+
+test('a stack does not inherit the rarity of one of the item', () => {
+  // The dataset prices Onyx bolts (e) by a single-bolt line, so a stack of 39 was arriving as a
+  // "1 in 101" unique. Quantity is what tells a drop from a pile.
+  const bolts = { kind: 'unique', source: 'Alchemical Hydra', itemId: 9245, valueGp: 0 };
+  assert.equal(isClanWorthy({ ...bolts, quantity: 39 }, clan), false);
+});
+
+test('deaths come through once the clan asks for them', () => {
+  assert.equal(isClanWorthy({ kind: 'death', source: 'The Whisperer' }, { ...clan, deaths: true }), true);
 });
 
 // ── Levels ────────────────────────────────────────────────────────────────────────────────────

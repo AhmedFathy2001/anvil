@@ -107,9 +107,18 @@ test('skills work too — first 99, or a total-XP milestone', () => {
   assert.equal(already.reached, false, 'already had 99 before it started');
 });
 
-test('missing snapshots are treated as zero, not as a crash', () => {
+test('no baseline means not eligible — we cannot prove they did not already have it', () => {
+  // A missing baseline is not a baseline of zero. Reading it as one made every goal look un-met at
+  // the start, so somebody who already owned the thing counted as eligible for a "first ever" tile.
   const s = milestoneState(null, null, NO_LIVE, ['solHeredit'], 'boss', 1);
-  assert.deepEqual(s, { lifetime: 0, eligible: true, reached: false });
+  assert.deepEqual(s, { lifetime: 0, eligible: false, reached: false });
+});
+
+test('no baseline still reports the lifetime, so the UI can show what it knows', () => {
+  // The number isn't wrong, only its meaning: this is what they HAVE, not what they gained.
+  const s = milestoneState(null, snap({ solHeredit: 40 }), NO_LIVE, ['solHeredit'], 'boss', 1);
+  assert.equal(s.lifetime, 40);
+  assert.equal(s.reached, false, 'a 40-KC veteran must not complete a first-Quiver tile');
 });
 
 test('isMilestoneBasis: only the explicit value opts in', () => {

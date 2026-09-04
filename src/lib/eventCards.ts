@@ -240,10 +240,17 @@ export async function loadEventCards(
     // started (the event page does the same — ScoreboardClient's boardPointsTotal).
     const total = points ? boardTotals.get(event.id) ?? 0 : tileCounts.get(event.id) ?? 0;
     const unit = points ? 'pts' : 'tiles';
-    const claimed = claimCounts.get(event.id) ?? 0;
+    const claimedRaw = claimCounts.get(event.id) ?? 0;
+
+    // A board that hasn't started has no standings to report. Nobody can have earned anything yet —
+    // and if a row says otherwise it's an anomaly, not a result, so the card must not dress it up as
+    // "leading X — 150 pts" six weeks before the whistle. (A completion on an unstarted board is
+    // refused outright now; this is what stops one that predates that rule advertising itself.)
+    const scoreable = status !== 'upcoming';
+    const claimed = scoreable ? claimedRaw : 0;
 
     let top: EventCard['top'] = null;
-    for (const [teamId, score] of teamScores.get(event.id) ?? []) {
+    for (const [teamId, score] of scoreable ? teamScores.get(event.id) ?? [] : []) {
       const value = points ? score.points : score.tiles;
       if (top && value <= top.score) continue;
       const team = teamById.get(teamId);

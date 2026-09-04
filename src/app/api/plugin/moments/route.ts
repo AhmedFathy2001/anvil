@@ -3,8 +3,8 @@ import { requirePluginClan } from '@/lib/auth';
 import { resolvePluginMember } from '@/lib/auth';
 import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
 import { activeScopesFor, recordMoments } from '@/lib/momentsStore';
-import type { Observation } from '@/lib/moments';
-import { stripGameMarkup } from '@/lib/gameText';
+import { caTierRank, type Observation } from '@/lib/moments';
+import { stripChatTags } from '@/lib/chatTags';
 
 // Highlight ingest: the pets, uniques, big hauls, deaths and combat tasks that happen while a competition week or
 // a bingo is running (lib/moments decides which of those it is — see that file for why the rules
@@ -29,8 +29,28 @@ const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 const KINDS = ['pet', 'drop', 'death', 'ca', 'level'] as const;
 
+// Every name on this route came off a chat line, so it can still carry the game's own styling from
+// a client that predates the plugin's strip (lib/chatTags). A CA task name is the one that matters:
+// the feed looks the task up in our own dataset by name to find its tier and boss, and "@ach_comp@"
+// on the front of it means no match, no boss, and a task that can never read as on-topic.
 function str(v: unknown, max = MAX_NAME): string | null {
-  return typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null;
+  if (typeof v !== 'string') return null;
+  const clean = stripChatTags(v).trim();
+  return clean ? clean.slice(0, max) : null;
+}
+
+/**
+ * A combat-task tier, or null.
+ *
+ * There is no such thing as a task without one. The completion line names it, and the plugin drops
+ * the line outright when the word isn't a tier it recognises — so anything arriving here with a
+ * `ca` kind and an unrankable tier is a malformed request, not a task we happen to know less about.
+ * Rejecting it here is what keeps that out of the rules, where every branch reading a null tier
+ * would be describing a case the game cannot produce.
+ */
+function caTier(v: unknown): string | null {
+  const name = str(v, 16);
+  return name && caTierRank(name) >= 0 ? name : null;
 }
 
 function int(v: unknown, max: number): number | null {
@@ -92,6 +112,9 @@ export async function POST(request: Request) {
     // per chat line. A client that doesn't send one is too old to trust with a feed.
     const dedupKey = str(raw?.key, 64);
     if (!dedupKey) continue;
+    // A combat task is a name AND a tier; without both there is nothing to judge it by and nothing
+    // worth a feed line. The plugin always sends both, so this only ever catches a hand-rolled call.
+    if (kind === 'ca' && (!str(raw?.taskName, 80) || !caTier(raw?.tier))) continue;
     observations.push({
       kind: kind as Observation['kind'],
       itemId: int(raw?.itemId, 100_000_000),
@@ -102,12 +125,12 @@ export async function POST(request: Request) {
       sourceKind: str(raw?.sourceKind, 16),
       kc: int(raw?.kc, MAX_KC),
       // Combat tasks: the task as the completion line named it, and the tier that line claimed.
-      // Both are only ever read for kind 'ca' — the tier is a fallback for a task our own dataset
+      // Both are only ever read for kind 'ca' — the tier is the fallback for a task our own dataset
       // doesn't carry yet, which is the one thing the client knows and we don't.
-      // Same '@component@' markup the notify hook strips — cleaned here too, so the highlight feed
-      // shows a clean name AND lib/moments' caByName lookup (which resolves the boss/tier) matches.
-      taskName: stripGameMarkup(str(raw?.taskName, 80)),
-      tier: str(raw?.tier, 16),
+      // Same markup the notify hook strips — cleaned here too, so the highlight feed shows a clean
+      // name AND lib/moments' caByName lookup (which resolves the boss/tier) matches.
+      taskName: stripChatTags(str(raw?.taskName, 80)),
+      tier: caTier(raw?.tier),
       occurredAt: occurredAt(raw?.at, now),
       dedupKey,
     });

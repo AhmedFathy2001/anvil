@@ -18,6 +18,7 @@ import {
 import { buildPlayerShape } from '@/lib/playerShape';
 import PlayerShapeRadar from '@/components/PlayerShapeRadar';
 import ProfileTabs from './ProfileTabs';
+import { momentsForMembers } from '@/lib/momentsStore';
 import { getCollectionLog } from '@/lib/clogRead';
 import { getMemberItems, getMemberProgress } from '@/lib/memberProgressRead';
 import AccountProgressCard from '@/components/AccountProgressCard';
@@ -120,7 +121,7 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
   // alt; the open internet and search engines can't.
   const viewer = await verifyUser();
 
-  const [milestones, records, series, standings, history, persona, collection, activityStandings, progress, questItems, caItems, roster] = await Promise.all([
+  const [milestones, records, series, standings, history, persona, collection, activityStandings, progress, questItems, caItems, moments, roster] = await Promise.all([
     // TWO IDS, AND WHICH ONE EACH CALL WANTS IS THE WHOLE POINT. `profile.accountId` is the OSRS
     // character, which is what every stats table is keyed by; `profile.id` is the seat, which is
     // what "their place in THIS clan" is keyed by. Passing the seat to the account-keyed ones drew
@@ -132,11 +133,17 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
     getStandings(profile.id),
     getCompetitionHistory(profile.id, profile.rsn),
     viewer ? getPersona(profile.id) : Promise.resolve(null),
-    getCollectionLog(profile.accountId, profile.rsn),
+    getCollectionLog(profile.accountId, profile.rsn, clan.id),
     getActivityStandings(clan.id, profile.rsn),
     getMemberProgress(profile.accountId),
     getMemberItems(profile.accountId, 'quest'),
     getMemberItems(profile.accountId, 'ca'),
+    // The drops, pets and combat tasks we watched happen. "Lately" was built from personal bests
+    // and log unlocks alone, which meant the one feed asking "what has this person been up to?"
+    // could not mention the Twisted bow they got on Tuesday.
+    //
+    // Keyed by the SEAT, not the account: a moment is stamped with the seat it happened under.
+    momentsForMembers([profile.id], 20),
     // Everyone's totals, for the shape's percentiles. One query for the whole roster (the same one
     // the directory runs), not a snapshot parse per member.
     listMembers(clan.id),
@@ -286,6 +293,7 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
         upcoming={upcoming}
         activityStandings={activityStandings}
         collection={collection}
+        moments={moments}
         accountProgress={
           <AccountProgressCard summary={progress} quests={questItems} combat={caItems} />
         }

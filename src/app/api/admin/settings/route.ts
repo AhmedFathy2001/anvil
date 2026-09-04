@@ -41,6 +41,17 @@ const EXPOSED_KEYS = [
   'block_guest_emissions',
   'leagues_icon_url',
   'always_notify_items',
+  // The moments feed's floors (lib/moments). The board one is per-event context; the three clan
+  // ones decide what the always-on feed keeps when no competition and no board are running, which
+  // is the difference between a page worth opening and a log of everyone's Tuesday.
+  'moments_min_loot_gp',
+  'moments_clan_min_loot_gp',
+  'moments_clan_min_ca_tier',
+  'moments_clan_deaths',
+  // Drops the wiki can't be asked about, one per line as `item` or `item | source, source`. They
+  // suppress the lucky-drop reaction on a post: a kit the boss hands over every kill was nobody's
+  // spoon. See lib/dropFacts — most guarantees come from the drop dataset without being typed here.
+  'guaranteed_drops',
   'show_kill_count',
   // Clan-wide floor (1-in-N) on rarity-triggered drop posts; members can be stricter, not looser.
   'drop_rarity_floor',
