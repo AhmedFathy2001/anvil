@@ -1,6 +1,6 @@
 import { db } from '@/db';
-import { cofferEntries, completions, eventParticipants, events, submissions, teams, tiles } from '@/db/schema';
-import { and, eq, inArray } from 'drizzle-orm';
+import { completions, eventParticipants, events, submissions, teams, tiles } from '@/db/schema';
+import { eq, inArray } from 'drizzle-orm';
 import {
   decayedPoints,
   isMissionTile,
@@ -239,28 +239,4 @@ async function resolveClaimants(
     });
   }
   return out;
-}
-
-/** Settle one event by id — the admin panel's "pay out what's owed" and the manual-drop path. */
-export async function settleMissionAwardsForEvent(eventId: number): Promise<SettledAward[]> {
-  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
-  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
-  if (!event) return [];
-  return settleMissionAwards(event);
-}
-
-/** Prizes won on this event that a treasurer still has to send. Drives the "gp owed" nudge. */
-export async function unpaidAwards(eventId: number): Promise<{ count: number; gp: number }> {
-  // clan-scope: global -- keyed by an event id the caller has already settled.
-  const rows = await db
-    .select({ amount: cofferEntries.amount })
-    .from(cofferEntries)
-    .where(
-      and(
-        eq(cofferEntries.eventId, eventId),
-        eq(cofferEntries.kind, 'award'),
-        eq(cofferEntries.status, 'reserved'),
-      ),
-    );
-  return { count: rows.length, gp: rows.reduce((sum, r) => sum + Math.abs(Number(r.amount)), 0) };
 }
