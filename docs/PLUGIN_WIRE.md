@@ -75,7 +75,42 @@ the clan's clips channel); `leagues-channel` (`POST /api/plugin/notify` accepts
 — a `startProof` block on `/api/plugin/config` and `POST /api/events/:id/start-proof`);
 `moments` (`POST /api/plugin/moments` — the pets/uniques/deaths highlight feed for a
 competition week or a running board); `drop-facts` (a `dropFacts` block on
-`/api/plugin/config`, below).
+`/api/plugin/config`, below); `mission-prizes` (what a mission pays, place by place —
+below).
+
+### `mission-prizes`
+
+A mission can pay its finishers in gp out of the clan's coffer, and pay different amounts
+by finishing position. Two additions to `/api/plugin/config`, both inside `event`:
+
+```
+"missions": [
+  {
+    "tileId": 812, "label": "Any Zuk kill", "points": 400,
+    "revealedAt": "2026-09-04T19:00:00.000Z",
+    "decay": { "targetPct": 50, "hours": 6 }, "lockout": false,
+    "prizes": [ { "place": 1, "gp": 50000000 }, { "place": 2, "gp": 10000000 } ],
+    "maxClaims": 3
+  }
+],
+"cofferAvailable": 1240000000
+```
+
+`prizes` lists only the places that win gp — a points-only place is omitted rather than
+sent as a zero. `maxClaims` is how many finishers the mission accepts before it closes
+(absent = unlimited; the older `lockout: true` is the same thing with one place).
+`cofferAvailable` is the clan balance those prizes are actually funded from, and is sent
+only when a mission on the board promises gp.
+
+**Both may be absent, and the absence means something.** A mission with no `prizes` pays
+points alone. `cofferAvailable` below a prize means the pot cannot cover it today: the
+mission still drops and still scores, but the winner takes points instead of gp. A client
+showing "50m to first" next to an empty pot is showing a promise the site will not keep, so
+render the two together or not at all.
+
+Points are NOT duplicated here — a place's points are the tile's own value under the decay
+ramp the plugin already mirrors, unless the board says otherwise, and the site freezes the
+real number onto the completion at claim time either way.
 
 ### `drop-facts`
 

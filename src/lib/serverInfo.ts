@@ -62,6 +62,10 @@ export const PLUGIN_CAPABILITIES = [
   'reveal-modes', // showdown / lucky-draw / bounty / rotating reveal policies
   'config-etag', // conditional GET on /api/plugin/config + /board
   'bingo-missions', // mid-event announced mission tiles on a normal bingo (lockout/bonus/decay/expiry)
+  // A mission can pay places: /api/plugin/config carries each open mission's prize ladder (points
+  // and gp per finishing position) and the clan coffer's available balance, so the in-game board can
+  // say what is actually on the line — including that the pot is dry and the place pays points.
+  'mission-prizes',
   // Live push for the hiscores counters that are neither a boss nor a skill. The wire accepts any
   // key in HISCORES_ACTIVITIES; which of them a client can actually read is the plugin's business.
   'activity-stats',
