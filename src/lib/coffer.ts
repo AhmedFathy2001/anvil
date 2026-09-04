@@ -288,3 +288,19 @@ export async function topDonors(clanId: number, limit = 10): Promise<{ rsn: stri
     .limit(Math.min(50, Math.max(1, limit)));
   return rows.map((r) => ({ rsn: r.rsn, total: Number(r.total) }));
 }
+
+/**
+ * Does this clan keep a coffer at all?
+ *
+ * Asked by the site nav, which only advertises the page once there is something on it — most clans
+ * will never run a prize mission, and a link to an empty pot is not navigation. One indexed row
+ * lookup, not a sum: existence is the whole question.
+ */
+export async function clanHasCoffer(clanId: number): Promise<boolean> {
+  const row = await db
+    .select({ id: cofferEntries.id })
+    .from(cofferEntries)
+    .where(eq(cofferEntries.clanId, clanId))
+    .limit(1);
+  return row.length > 0;
+}

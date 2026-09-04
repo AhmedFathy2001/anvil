@@ -21,6 +21,8 @@ interface Props {
   signedIn: boolean;
   /** Live teams / captain seats / open sign-ups. 0 hides the My Team item entirely. */
   myTeams: number;
+  /** The clan keeps a coffer — only then does the page have anything to show. */
+  hasCoffer?: boolean;
   isStaff: boolean;
   discordInvite: string | null;
   user: NavUser | null;
@@ -62,7 +64,7 @@ const DiscordIcon = (
   </svg>
 );
 
-export default function SiteNav({ signedIn, myTeams, isStaff, discordInvite, user, clan, myClans }: Props) {
+export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff, discordInvite, user, clan, myClans }: Props) {
   const [open, setOpen] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const switcherRef = useRef<HTMLDivElement | null>(null);
@@ -123,6 +125,7 @@ export default function SiteNav({ signedIn, myTeams, isStaff, discordInvite, use
         ...(signedIn && myTeams > 0
           ? [{ href: '/team', label: myTeams > 1 ? `My Teams · ${myTeams}` : 'My Team' }]
           : []),
+        ...(hasCoffer ? [{ href: '/coffer', label: 'Coffer' }] : []),
       ]
     : [
         { href: '/clans', label: 'Clans' },

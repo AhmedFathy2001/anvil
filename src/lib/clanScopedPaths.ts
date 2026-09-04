@@ -20,6 +20,9 @@ export const CLAN_SCOPED_ROOTS = [
   '/captain',
   '/player',
   '/feedback',
+  // The clan's pot. Money belongs to a clan the way its roster does — a person with seats in two
+  // clans is looking at two different coffers, never one of their own.
+  '/coffer',
   // YOUR LOCKER IN THIS CLAN. `/profile` renders two different pages: unprefixed it is you across
   // the platform (clans, characters, sharing), and prefixed it is your standing INSIDE one — team,
   // board progress, trophies, the history of what you have played there. The second is per-clan by
@@ -48,6 +51,7 @@ export const CLAN_SCOPED_API_ROOTS = [
   '/api/upload',
   '/api/hiscores',
   '/api/items',
+  '/api/coffer',
 ] as const;
 
 /** Roots that are the platform's, and must never be prefixed. */

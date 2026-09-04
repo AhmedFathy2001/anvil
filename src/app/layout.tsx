@@ -11,6 +11,7 @@ import { getClanDisplayName, getDiscordInviteUrl } from "@/lib/pluginConfig";
 import { Analytics } from "@vercel/analytics/next";
 import SiteNav from "@/components/SiteNav";
 import { countLiveTeamInvolvements } from "@/lib/myTeamNav";
+import { clanHasCoffer } from "@/lib/coffer";
 import { characterCount, clansOfPerson } from "@/lib/myClans";
 import { clansWithSomethingLive } from "@/lib/apexHome";
 import PlatformRail, { type RailClan } from "@/components/PlatformRail";
@@ -116,6 +117,9 @@ export default async function RootLayout({
   // or an open sign-up. Between events that's nobody, and a nav item whose page says "you're not on
   // a team" isn't navigation.
   const myTeams = session?.userId && clan ? await countLiveTeamInvolvements(clan.id, session.userId) : 0;
+  // The Coffer link appears once a clan actually keeps one. Same rule as "My Team": a nav item whose
+  // page reads "nothing here yet" is not navigation, and most clans will never run prize missions.
+  const hasCoffer = clan ? await clanHasCoffer(clan.id) : false;
 
   const avatar = userRow?.discordId ? avatarUrl(userRow.discordId, userRow.discordAvatar) : null;
   // WHO SEES THE ADMIN LINK. `isStaffRole` ranks the clan roles, and asking it rather than
@@ -241,6 +245,7 @@ export default async function RootLayout({
               myClans={navClans}
               signedIn={!!session}
               myTeams={myTeams}
+              hasCoffer={hasCoffer}
               isStaff={isStaff}
               discordInvite={discordInvite}
               user={session && userRow ? { displayName: userRow.displayName, avatarUrl: avatar } : null}
