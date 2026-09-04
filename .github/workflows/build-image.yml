@@ -2,8 +2,8 @@ name: Build & deploy
 
 # Build the Anvil image, push it to GitHub Container Registry (GHCR), then deploy it. The box never
 # builds — it pulls this pre-built image.
-#   main  → tags :stable (+ :latest) → deploys the box
-#   beta  → tags :beta               → deploys the box
+#   main  → tags :stable (+ :latest) → deploys anvilosrs.com
+#   beta  → tags :beta               → deploys beta.anvilosrs.com
 #   v* tag → tags :1.2.3 + :1.2      → publishes pinned release images for self-hosters, NO deploy
 # Every push also gets an immutable :sha-<full> tag, which is what the box is pinned to and what the
 # health gate checks for — so "did it actually deploy" is answered by the running commit, not by an
@@ -69,14 +69,13 @@ jobs:
 
   deploy:
     needs: build
-    # MAIN ONLY, and that is not a preference — there is one deployment. Every host in the Caddyfile
-    # (the apex, the legacy per-clan names, bring-your-own domains) proxies the same anvil-site
-    # container, and no beta host exists any more. Deploying on beta as well would land two pushes of
-    # the same commit on the same box and race each other for the container.
+    # Two environments, one per branch: beta.anvilosrs.com from beta, anvilosrs.com from main. They
+    # are separate containers against separate databases, so a beta push never touches production and
+    # promoting is the same commit deploying a second time against a different one.
     #
-    # A beta push still builds and pushes its image, so the artifact is there and tested; the day a
-    # beta host comes back, this becomes a branch→host lookup rather than a rewrite.
-    if: github.ref == 'refs/heads/main'
+    # Branch pushes only: a v* tag publishes pinned images for self-hosters but must not redeploy
+    # anything (the commit it points at already deployed when its branch was pushed).
+    if: startsWith(github.ref, 'refs/heads/')
     runs-on: ubuntu-latest
     # Repo secrets (Settings → Secrets and variables → Actions):
     #   SSH_HOST / SSH_USER / SSH_KEY — the box, for the pull + recreate
@@ -88,6 +87,11 @@ jobs:
       SSH_HOST: ${{ secrets.SSH_HOST }}
       SSH_USER: ${{ secrets.SSH_USER }}
       ROLLOUT_SECRET: ${{ secrets.ROLLOUT_SECRET }}
+      # Which environment this push is. Kept in one place so the deploy, the health gate and the
+      # announcement cannot disagree about which host they are talking about.
+      CHANNEL: ${{ github.ref == 'refs/heads/beta' && 'beta' || 'stable' }}
+      SITE_HOST: ${{ github.ref == 'refs/heads/beta' && 'beta.anvilosrs.com' || 'anvilosrs.com' }}
+      SERVICE: ${{ github.ref == 'refs/heads/beta' && 'anvil-site-beta' || 'anvil-site' }}
     steps:
       # Full history: the patch notes are the commit subjects in this push.
       - uses: actions/checkout@v4
@@ -101,7 +105,6 @@ jobs:
           AFTER: ${{ github.sha }}
         run: |
           set -euo pipefail
-          CHANNEL=stable  # main only — see the job's `if`
           IMAGE="ghcr.io/ahmedfathy2001/anvil-site:sha-$AFTER"
 
           install -m 700 -d ~/.ssh
@@ -109,9 +112,10 @@ jobs:
           chmod 600 ~/.ssh/id_deploy
           ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-          # Pin the channel to this exact image and recreate the one container. Pulling by immutable
-          # sha tag rather than :stable is what makes a redeploy of the same branch a no-op instead
-          # of a coin flip about which build the daemon has cached.
+          # Pin this channel's tag to the exact image, then recreate only that channel's container.
+          # Pulling by immutable sha tag rather than :stable is what makes a redeploy of the same
+          # branch a no-op instead of a coin flip about which build the daemon has cached, and
+          # --no-deps is what stops a site deploy restarting Caddy or Postgres underneath it.
           #
           # One quoted command rather than a heredoc: a heredoc terminator has to sit at column 0,
           # which cannot happen inside an indented YAML block scalar — it would run to end of file
@@ -120,7 +124,7 @@ jobs:
           cd /opt/anvil
           docker pull '$IMAGE'
           docker tag '$IMAGE' 'anvil-site:$CHANNEL'
-          docker compose up -d --no-deps anvil-site"
+          docker compose up -d --no-deps '$SERVICE'"
           ssh -i ~/.ssh/id_deploy -o BatchMode=yes "$SSH_USER@$SSH_HOST" "$REMOTE_CMD"
 
       # The gate. A deploy is not "the command exited 0", it is "the site answers with the commit we
@@ -133,15 +137,15 @@ jobs:
         run: |
           set -euo pipefail
           for i in $(seq 1 60); do
-            live=$(curl -sS --max-time 10 https://anvilosrs.com/api/version | jq -r '.sha // empty' || true)
+            live=$(curl -sS --max-time 10 "https://$SITE_HOST/api/version" | jq -r '.sha // empty' || true)
             if [ "$live" = "$AFTER" ]; then
               echo "serving $live"
               exit 0
             fi
-            echo "attempt $i: serving '${live:-nothing}', want $AFTER"
+            echo "attempt $i: $SITE_HOST serving '${live:-nothing}', want $AFTER"
             sleep 5
           done
-          echo "::error::the site never came up on $AFTER — check the container on the box"
+          echo "::error::$SITE_HOST never came up on $AFTER — check $SERVICE on the box"
           exit 1
 
       # Announce it. The site holds the webhook and writes the message; we hand over the version and
@@ -155,7 +159,6 @@ jobs:
           AFTER: ${{ github.sha }}
         run: |
           set -euo pipefail
-          CHANNEL=stable
           # A curated RELEASE_NOTES.md if present, else the commit subjects in this push.
           if [ -f RELEASE_NOTES.md ]; then
             NOTES="$(cat RELEASE_NOTES.md)"
@@ -170,5 +173,5 @@ jobs:
             '{version:$v, notes:$n, channel:$c, sha:$s}')"
           curl -sS --max-time 30 -X POST \
             -H "Authorization: Bearer $ROLLOUT_SECRET" -H 'Content-Type: application/json' \
-            --data "$BODY" https://anvilosrs.com/api/admin/deploy-notify
+            --data "$BODY" "https://$SITE_HOST/api/admin/deploy-notify"
           echo
