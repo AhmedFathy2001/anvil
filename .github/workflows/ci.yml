@@ -5,12 +5,16 @@ name: CI
 # promote fast-forward) bypass this by design — build-image.yml already builds every branch push,
 # and the promoted commit was tested when its PR landed on beta.
 #
+# feat/drop-federation is in the list because it is where the platform work lands and where
+# production is cut from; a gate that only watched main and beta was not watching the branch
+# anything actually merges into.
+#
 # The build needs no real credentials: requireSecret()/env.ts fall back to dev defaults during
 # `next build` (NEXT_PHASE=phase-production-build), same as the Docker builder stage.
 
 on:
   pull_request:
-    branches: [main, beta]
+    branches: [main, beta, feat/drop-federation]
   workflow_dispatch: {}
 
 permissions:

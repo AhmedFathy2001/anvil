@@ -1,13 +1,20 @@
 name: Build & deploy
 
-# Build the Anvil clan-app image, push it to GitHub Container Registry (GHCR), then roll it out to
-# clans on the pushed branch's release channel via the control plane's health-gated rollout endpoint.
-# The box never builds — it pulls this pre-built image.
-#   main  → tags :stable (+ :latest) → rolls the STABLE fleet
-#   beta  → tags :beta               → rolls only the BETA canary clans
-#   v* tag → tags :1.2.3 + :1.2      → publishes pinned release images for self-hosters, NO rollout
-# Every push also gets an immutable :sha-<full> tag; the control plane pins each channel to that exact
-# ref, which is what makes "promote beta → stable" a pointer copy (same tested artifact, no rebuild).
+# Build the Anvil image, push it to GitHub Container Registry (GHCR), then deploy it. The box never
+# builds — it pulls this pre-built image.
+#   main  → tags :stable (+ :latest) → deploys the box
+#   beta  → tags :beta               → deploys the box
+#   v* tag → tags :1.2.3 + :1.2      → publishes pinned release images for self-hosters, NO deploy
+# Every push also gets an immutable :sha-<full> tag, which is what the box is pinned to and what the
+# health gate checks for — so "did it actually deploy" is answered by the running commit, not by an
+# exit code.
+#
+# WHAT CHANGED, AND WHY THIS JOB WAS BROKEN. This used to POST a control plane, which recreated one
+# container per clan and health-gated each in turn. There is one deployment now: clans are rows, the
+# control plane is deleted, and the endpoint it called (/api/admin/rollout) has answered 404 on every
+# push since — building the image fine and then failing the job with nothing deployed. So the deploy
+# is now what it actually is: pull, recreate one container, wait for it to answer with the commit we
+# just built, then ask the site to announce itself.
 
 on:
   push:
@@ -62,42 +69,94 @@ jobs:
 
   deploy:
     needs: build
-    # Branch pushes only: a v* tag publishes pinned images for self-hosters but must not re-roll the
-    # fleet (the commit it points at already deployed when its branch was pushed).
-    if: startsWith(github.ref, 'refs/heads/')
+    # MAIN ONLY, and that is not a preference — there is one deployment. Every host in the Caddyfile
+    # (the apex, the legacy per-clan names, bring-your-own domains) proxies the same anvil-site
+    # container, and no beta host exists any more. Deploying on beta as well would land two pushes of
+    # the same commit on the same box and race each other for the container.
+    #
+    # A beta push still builds and pushes its image, so the artifact is there and tested; the day a
+    # beta host comes back, this becomes a branch→host lookup rather than a rewrite.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    # One-time setup — add this repo secret (Settings → Secrets and variables → Actions):
-    #   ROLLOUT_SECRET — must match ROLLOUT_SECRET in admin.env on the box
-    # Until ROLLOUT_SECRET is set the deploy is skipped (the build still publishes the image).
-    # Deploy notifications are OWNED BY THE CONTROL PLANE (Anvil.Admin): it posts the internal ops
-    # summary + the per-clan opt-in "you were updated" messages after the rollout, so no Discord
-    # webhook secret lives here. We just hand it the version + patch notes below.
+    # Repo secrets (Settings → Secrets and variables → Actions):
+    #   SSH_HOST / SSH_USER / SSH_KEY — the box, for the pull + recreate
+    #   ROLLOUT_SECRET               — matches ROLLOUT_SECRET in site.env; authorises the announce
+    # The Discord webhook is NOT here on purpose. It lives in the site's own env
+    # (DEPLOY_DISCORD_WEBHOOK) and the site posts its own deploy message — see
+    # src/app/api/admin/deploy-notify. CI has no business holding a Discord URL.
     env:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
       ROLLOUT_SECRET: ${{ secrets.ROLLOUT_SECRET }}
     steps:
-      # Need history so we can diff commit subjects for the patch notes (fetch-depth 0 = full clone).
+      # Full history: the patch notes are the commit subjects in this push.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Roll out to all active clans (sequential, health-gated)
+      - name: Deploy to the box
+        if: env.SSH_HOST != '' && env.SSH_USER != ''
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          AFTER: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          CHANNEL=stable  # main only — see the job's `if`
+          IMAGE="ghcr.io/ahmedfathy2001/anvil-site:sha-$AFTER"
+
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          # Pin the channel to this exact image and recreate the one container. Pulling by immutable
+          # sha tag rather than :stable is what makes a redeploy of the same branch a no-op instead
+          # of a coin flip about which build the daemon has cached.
+          #
+          # One quoted command rather than a heredoc: a heredoc terminator has to sit at column 0,
+          # which cannot happen inside an indented YAML block scalar — it would run to end of file
+          # and take the rest of the step with it.
+          REMOTE_CMD="set -eu
+          cd /opt/anvil
+          docker pull '$IMAGE'
+          docker tag '$IMAGE' 'anvil-site:$CHANNEL'
+          docker compose up -d --no-deps anvil-site"
+          ssh -i ~/.ssh/id_deploy -o BatchMode=yes "$SSH_USER@$SSH_HOST" "$REMOTE_CMD"
+
+      # The gate. A deploy is not "the command exited 0", it is "the site answers with the commit we
+      # just built" — /api/version reports the GIT_SHA baked into the image at build time. Migrations
+      # run at container start, so this is also waiting for those to finish.
+      - name: Wait for the new build to serve
+        if: env.SSH_HOST != '' && env.SSH_USER != ''
+        env:
+          AFTER: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 60); do
+            live=$(curl -sS --max-time 10 https://anvilosrs.com/api/version | jq -r '.sha // empty' || true)
+            if [ "$live" = "$AFTER" ]; then
+              echo "serving $live"
+              exit 0
+            fi
+            echo "attempt $i: serving '${live:-nothing}', want $AFTER"
+            sleep 5
+          done
+          echo "::error::the site never came up on $AFTER — check the container on the box"
+          exit 1
+
+      # Announce it. The site holds the webhook and writes the message; we hand over the version and
+      # the notes, which are the two things only CI knows. Never fails the job: a deploy that worked
+      # must not report as failed because a Discord post did not.
+      - name: Announce the deploy
         if: env.ROLLOUT_SECRET != ''
-        # The control plane pulls the image we just pushed, then recreates each active clan one at a
-        # time, health-checking each before moving on. We pass {version, notes} so it can post patch
-        # notes to clans that opted in. 200 = every clan healthy; 207 = partial rollout (some clan
-        # failed its health check) — fail the job so it's loud, the report body says which clan.
-        # GitHub context values go through env (never inlined into the shell); notes come from git
-        # log + jq --arg, so a crafted commit message can't inject into the command.
+        continue-on-error: true
         env:
           BEFORE: ${{ github.event.before }}
           AFTER: ${{ github.sha }}
-          REF: ${{ github.ref }}
         run: |
           set -euo pipefail
-          # Channel + the immutable image ref the control plane pins this channel to.
-          if [ "$REF" = "refs/heads/beta" ]; then CHANNEL=beta; else CHANNEL=stable; fi
-          IMAGE_TAG="ghcr.io/ahmedfathy2001/anvil-site:sha-$AFTER"
-          # Patch notes: a curated RELEASE_NOTES.md if present, else the commit subjects in this push.
+          CHANNEL=stable
+          # A curated RELEASE_NOTES.md if present, else the commit subjects in this push.
           if [ -f RELEASE_NOTES.md ]; then
             NOTES="$(cat RELEASE_NOTES.md)"
           elif [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
@@ -105,24 +164,11 @@ jobs:
           else
             NOTES="$(git log --no-merges --format='- %s' "$BEFORE..$AFTER")"
           fi
-          # "v1.0.0" exactly on a release tag, "v1.0.0-12-gabc1234" past it, short SHA before any
-          # tag exists — human-readable version headers for the deploy/patch-note posts.
           VERSION="$(git describe --tags --always)"
-          BODY="$(jq -n --arg v "$VERSION" --arg n "$NOTES" --arg c "$CHANNEL" --arg i "$IMAGE_TAG" \
-            '{version:$v, notes:$n, channel:$c, imageTag:$i}')"
-          report=$(mktemp)
-          status=$(curl -sS -o "$report" -w '%{http_code}' --max-time 900 \
-            -X POST -H "Authorization: Bearer $ROLLOUT_SECRET" -H 'Content-Type: application/json' \
-            --data "$BODY" \
-            https://anvilosrs.com/api/admin/rollout)
-          echo "HTTP $status"
-          cat "$report"; echo
-          if [ "$status" = "200" ]; then
-            echo "all clans healthy"
-          elif [ "$status" = "207" ]; then
-            echo "::error::partial rollout — at least one clan failed its health check (see report above)"
-            exit 1
-          else
-            echo "::error::rollout failed (HTTP $status)"
-            exit 1
-          fi
+          # jq --arg, not interpolation: a crafted commit subject must not be able to inject here.
+          BODY="$(jq -n --arg v "$VERSION" --arg n "$NOTES" --arg c "$CHANNEL" --arg s "$AFTER" \
+            '{version:$v, notes:$n, channel:$c, sha:$s}')"
+          curl -sS --max-time 30 -X POST \
+            -H "Authorization: Bearer $ROLLOUT_SECRET" -H 'Content-Type: application/json' \
+            --data "$BODY" https://anvilosrs.com/api/admin/deploy-notify
+          echo
