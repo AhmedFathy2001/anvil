@@ -71,8 +71,18 @@ export default async function AdminDashboardPage() {
   ] = await Promise.all([
     listEventIndex(clan.id),
     db.select().from(events).where(eq(events.clanId, clan.id)).orderBy(desc(events.createdAt)),
-    db.select({ eventId: tiles.eventId, n: count() }).from(tiles).groupBy(tiles.eventId),
-    db.select({ eventId: teams.eventId, n: count() }).from(teams).groupBy(teams.eventId),
+    db
+      .select({ eventId: tiles.eventId, n: count() })
+      .from(tiles)
+      .innerJoin(events, eq(tiles.eventId, events.id))
+      .where(eq(events.clanId, clan.id))
+      .groupBy(tiles.eventId),
+    db
+      .select({ eventId: teams.eventId, n: count() })
+      .from(teams)
+      .innerJoin(events, eq(teams.eventId, events.id))
+      .where(eq(events.clanId, clan.id))
+      .groupBy(teams.eventId),
     db
       .select({ c: count() })
       .from(clanRoster)
@@ -104,22 +114,38 @@ export default async function AdminDashboardPage() {
     db
       .select({ c: count() })
       .from(clanAuditLog)
-      .where(and(eq(clanAuditLog.eventType, 'joined'), sinceDay(clanAuditLog.occurredAt, now, 7)))
+      .where(
+        and(
+          eq(clanAuditLog.clanId, clan.id),
+          eq(clanAuditLog.eventType, 'joined'),
+          sinceDay(clanAuditLog.occurredAt, now, 7),
+        ),
+      )
       .then((r) => r[0]?.c ?? 0),
     db
       .select({ c: count() })
       .from(clanAuditLog)
-      .where(and(eq(clanAuditLog.eventType, 'left'), sinceDay(clanAuditLog.occurredAt, now, 7)))
+      .where(
+        and(
+          eq(clanAuditLog.clanId, clan.id),
+          eq(clanAuditLog.eventType, 'left'),
+          sinceDay(clanAuditLog.occurredAt, now, 7),
+        ),
+      )
       .then((r) => r[0]?.c ?? 0),
     db
       .select({ c: count() })
       .from(completions)
-      .where(sinceDay(completions.completedAt, now, 7))
+      .innerJoin(tiles, eq(completions.tileId, tiles.id))
+      .innerJoin(events, eq(tiles.eventId, events.id))
+      .where(and(eq(events.clanId, clan.id), sinceDay(completions.completedAt, now, 7)))
       .then((r) => r[0]?.c ?? 0),
     db
       .select({ c: count() })
       .from(completions)
-      .where(betweenDays(completions.completedAt, now, 14, 7))
+      .innerJoin(tiles, eq(completions.tileId, tiles.id))
+      .innerJoin(events, eq(tiles.eventId, events.id))
+      .where(and(eq(events.clanId, clan.id), betweenDays(completions.completedAt, now, 14, 7)))
       .then((r) => r[0]?.c ?? 0),
     db
       .select({
@@ -137,6 +163,7 @@ export default async function AdminDashboardPage() {
       .from(clanAuditLog)
       .leftJoin(clanRoster, eq(clanAuditLog.clanMemberId, clanRoster.id))
       .leftJoin(actor, eq(clanAuditLog.actorUserId, actor.id))
+      .where(eq(clanAuditLog.clanId, clan.id))
       .orderBy(desc(clanAuditLog.occurredAt))
       .limit(60),
     // Two different questions, which one number was conflating:
@@ -149,8 +176,10 @@ export default async function AdminDashboardPage() {
       .select({ status: signupFees.status, c: count() })
       .from(signupFees)
       .innerJoin(eventSignups, eq(signupFees.signupId, eventSignups.id))
+      .innerJoin(events, eq(eventSignups.eventId, events.id))
       .where(
         and(
+          eq(events.clanId, clan.id),
           inArray(signupFees.status, ['pending', 'reported', 'collected', 'disputed']),
           notInArray(eventSignups.status, ['withdrawn', 'rejected']),
         ),
@@ -169,8 +198,10 @@ export default async function AdminDashboardPage() {
       .select({ at: signupFees.collectedAt })
       .from(signupFees)
       .innerJoin(eventSignups, eq(signupFees.signupId, eventSignups.id))
+      .innerJoin(events, eq(eventSignups.eventId, events.id))
       .where(
         and(
+          eq(events.clanId, clan.id),
           eq(signupFees.status, 'collected'),
           notInArray(eventSignups.status, ['withdrawn', 'rejected']),
         ),
@@ -193,6 +224,7 @@ export default async function AdminDashboardPage() {
       .innerJoin(events, eq(eventSignups.eventId, events.id))
       .where(
         and(
+          eq(events.clanId, clan.id),
           eq(signupFees.status, 'collected'),
           notInArray(eventSignups.status, ['withdrawn', 'rejected']),
         ),
