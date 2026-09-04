@@ -1,3 +1,4 @@
+import type { MissionReward } from '@/lib/eventRules';
 // Canonical shared types used across client components
 
 import type { SignupProfile } from '@/lib/signup';
@@ -224,6 +225,8 @@ export interface TileMissionRules {
   firstBonus: number;
   decay: { targetPct: number; hours: number } | null;
   expiryHours: number | null;
+  /** The placement ladder: what each finishing position wins, in points and in coffer gp. */
+  reward: MissionReward | null;
 }
 
 export interface PlayerGain {

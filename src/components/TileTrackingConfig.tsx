@@ -15,7 +15,8 @@ import { ROLL_TABLES } from '@/lib/rollTables';
 import Checkbox from '@/components/Checkbox';
 import { TRIAL_RANK_ACTIVITIES } from '@/lib/barracudaTrials';
 import type { TileConfig, TileMissionRules } from '@/lib/types';
-import { parseTileMissionRules } from '@/lib/eventRules';
+import { parseTileMissionRules, type MissionReward } from '@/lib/eventRules';
+import MissionRewardEditor from '@/components/MissionRewardEditor';
 import NumberInput from '@/components/NumberInput';
 import { clanFetch } from '@/lib/clanFetch';
 
@@ -56,6 +57,11 @@ interface Props {
    * policy to drop it with.
    */
   missionsAllowed?: boolean;
+  /**
+   * Gp the clan coffer can actually cover right now. Passed only so the prize editor can say when a
+   * mission is promising more than the pot holds — the board still drops either way.
+   */
+  cofferAvailable?: number | null;
 }
 
 // A tile is exactly ONE kind. The kind decides which fields are meaningful — the form
@@ -522,6 +528,7 @@ export default function TileTrackingConfig({
   categorySuggestions,
   teamPlay = true,
   missionsAllowed = true,
+  cofferAvailable = null,
 }: Props) {
   // Difficulty bands, ascending — the tier picker sets points to a band's floor, and the
   // current points value maps back to whichever band it falls in.
@@ -571,6 +578,8 @@ export default function TileTrackingConfig({
   const [missionExpiryHours, setMissionExpiryHours] = useState<string>(
     initial.missionRules?.expiryHours != null ? String(initial.missionRules.expiryHours) : "",
   );
+  // The placement ladder — points and/or coffer gp per finishing position. Null = flat scoring.
+  const [missionReward, setMissionReward] = useState<MissionReward | null>(initial.missionRules?.reward ?? null);
   // Assemble the per-mission scoring the save sends (null when this tile isn't a mission).
   const buildMissionRules = (): TileMissionRules | null => {
     if (!mission) return null;
@@ -582,6 +591,7 @@ export default function TileTrackingConfig({
     }
     return {
       lockout: missionLockout,
+      reward: missionReward,
       firstBonus: missionFirstBonus ? Math.max(0, parseInt(missionFirstBonus, 10) || 0) : 0,
       decay,
       expiryHours: missionExpiryHours ? Math.max(1, parseInt(missionExpiryHours, 10) || 6) : null,
@@ -3004,22 +3014,31 @@ export default function TileTrackingConfig({
                 Bonus &amp; decay only change points — switch the event to points scoring to use them. Lockout &amp; expiry still work.
               </p>
             )}
-            <div>
-              <label className="block text-xs text-text-muted mb-1">
-                First-clear bonus{' '}
-                <span className="text-text-muted/60">(extra points for the first {teamPlay ? 'team' : 'player'})</span>
-              </label>
-              <Input
-                type="number"
-                value={missionFirstBonus}
-                onChange={(e) => setMissionFirstBonus(e.target.value)}
-                min="0"
-                placeholder="e.g. 500"
-                disabled={!pointsMode}
-                className="w-32"
-                aria-label="First-clear bonus"
-              />
-            </div>
+            <MissionRewardEditor
+              value={missionReward}
+              onChange={setMissionReward}
+              pointsMode={!!pointsMode}
+              teamPlay={!!teamPlay}
+              cofferAvailable={cofferAvailable ?? null}
+            />
+            {missionReward == null && (
+              <div>
+                <label className="block text-xs text-text-muted mb-1">
+                  First-clear bonus{' '}
+                  <span className="text-text-muted/60">(extra points for the first {teamPlay ? 'team' : 'player'})</span>
+                </label>
+                <Input
+                  type="number"
+                  value={missionFirstBonus}
+                  onChange={(e) => setMissionFirstBonus(e.target.value)}
+                  min="0"
+                  placeholder="e.g. 500"
+                  disabled={!pointsMode}
+                  className="w-32"
+                  aria-label="First-clear bonus"
+                />
+              </div>
+            )}
             <div>
               <label className="block text-xs text-text-muted mb-1">Value over time</label>
               <div className="flex gap-1.5 mb-1.5">

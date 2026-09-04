@@ -11,6 +11,7 @@ import { eventEditLocked } from '@/lib/eventLock';
 import { parseEventRules, hasMissions } from '@/lib/eventRules';
 import { eventAxes, supportsMissions } from '@/lib/eventAxes';
 import { atLeast } from '@/lib/clanRoles';
+import { getCofferBalance } from '@/lib/coffer';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,6 +54,10 @@ export default async function EventTilesPage({
   // turned missions on for the event.
   const missionsAllowed = supportsMissions(axes) && hasMissions(parseEventRules(event.rules));
 
+  // What the coffer can cover, so a mission prize can be authored against a real number instead of
+  // a hope. Only read where missions are actually on offer — every other board pays no gp.
+  const coffer = missionsAllowed ? await getCofferBalance(clan.id) : null;
+
   return (
     <TilesClient
       event={event}
@@ -62,6 +67,7 @@ export default async function EventTilesPage({
       editLocked={eventEditLocked(event)}
       teamPlay={teamPlay}
       missionsAllowed={missionsAllowed}
+      cofferAvailable={coffer?.available ?? null}
     />
   );
 }
