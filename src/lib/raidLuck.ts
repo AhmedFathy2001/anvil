@@ -59,9 +59,30 @@ export function raidUniqueChances(overrides?: unknown): Record<string, number> {
  * simply another source with a 1-in-N, and an item that comes from both a raid and a boss adds its
  * expectations like any other multi-source drop.
  */
+/**
+ * Tiers that roll their base raid's unique table, differing only in how often a unique appears.
+ *
+ * The dataset has no table of their own for these, so their killcount was worth exactly nothing:
+ * `DEFAULT_RAID_UNIQUE_CHANCE` named them, the loop below never reached them, and a Challenge Mode
+ * or Expert raider had their whole KC scored as zero expectation — which is the shape that puts
+ * somebody on the spooned board for ordinary luck.
+ *
+ * Theatre of Blood is absent on purpose: hard mode HAS its own table (the same seven uniques), so
+ * it already resolves.
+ */
+const SHARES_UNIQUE_TABLE: Record<string, { base: string; label: string }> = {
+  chambersOfXericChallengeMode: { base: 'chambersOfXeric', label: 'Chambers of Xeric (challenge mode)' },
+  tombsOfAmascutExpertMode: { base: 'tombsOfAmascut', label: 'Tombs of Amascut (expert mode)' },
+};
+
 export function raidSourcesByItem(overrides?: unknown): Map<number, LuckRateSource[]> {
   const chances = raidUniqueChances(overrides);
-  const tables = raidRewards as unknown as Record<string, RaidTable>;
+  const raw = raidRewards as unknown as Record<string, RaidTable>;
+  const tables: Record<string, RaidTable> = { ...raw };
+  for (const [key, { base, label }] of Object.entries(SHARES_UNIQUE_TABLE)) {
+    if (tables[key] || !raw[base]) continue;
+    tables[key] = { ...raw[base], label };
+  }
   const out = new Map<number, LuckRateSource[]>();
 
   for (const [bossKey, table] of Object.entries(tables)) {

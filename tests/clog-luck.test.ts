@@ -441,3 +441,52 @@ test('raid uniques from several modes add up rather than picking one', () => {
   const normalOnly = expectationFor(multiMode!, { theatreOfBlood: 500 });
   assert.ok(e.expected > normalOnly.expected, 'hard-mode completions add expectation, not replace it');
 });
+
+// ── Which sources an item is measured against ───────────────────────────────────────────────────
+//
+// Every case here was a real board entry that flattered somebody, and each has a different cause.
+// They are pinned by NAME rather than by count because the numbers move whenever the wiki dataset is
+// regenerated, while "a Nightmare drop is measured against Nightmare kills" does not.
+
+import { luckCandidates } from '../src/lib/clogLuckBoard.ts';
+
+const board = () => new Map(luckCandidates().map((c) => [c.itemName.toLowerCase(), c]));
+const sourcesOf = (name: string) => (board().get(name)?.sources ?? []).map((s) => s.source);
+
+test('a boss the hiscores count under another wording still counts', () => {
+  // "The Nightmare" is the wiki's page; the hiscores call it "Nightmare". Unmatched, every Nightmare
+  // unique was scored against Phosani's killcount alone.
+  const s = sourcesOf('nightmare staff');
+  assert.ok(s.some((x) => /Phosani/i.test(x)), `expected Phosani's among ${JSON.stringify(s)}`);
+  assert.ok(s.some((x) => /^The Nightmare$/i.test(x)), `expected The Nightmare among ${JSON.stringify(s)}`);
+});
+
+test('raid tiers share their base table, so higher-tier killcount is worth something', () => {
+  // raidRewards.json has no table for CoX challenge mode or ToA expert. Their killcount was scored
+  // as zero expectation, which is what puts a CM-only raider on the spooned board.
+  assert.ok(
+    sourcesOf('twisted bow').some((x) => /challenge mode/i.test(x)),
+    'Chambers challenge mode should contribute to the twisted bow',
+  );
+  assert.ok(
+    sourcesOf("tumeken's shadow (uncharged)").some((x) => /expert mode/i.test(x)),
+    'Tombs expert mode should contribute to the shadow',
+  );
+});
+
+test('a drop shared with monsters the hiscores cannot count leaves the board', () => {
+  // Dragon knives and thrownaxes hang on the Alchemical Hydra page but also fall off Drakes, Wyrms
+  // and Hydras — no killcount exists for any of them, so the expectation would be computed from
+  // Alch Hydra kills alone and anyone who got theirs on a slayer task looks spooned.
+  for (const item of ['dragon knife', 'dragon thrownaxe']) {
+    assert.equal(board().get(item), undefined, `${item} cannot be scored and must not be listed`);
+  }
+});
+
+test('a guaranteed reward is not a rate, and does not drag its item off the board', () => {
+  // Yama's contract hands out oathplate outright (1-in-1). Merging that variant page in correctly
+  // brought the row along; reading it as a rate then made the item look too common to list.
+  const s = sourcesOf('oathplate helm');
+  assert.ok(s.length > 0, 'oathplate helm should still be on the board');
+  assert.ok(s.every((x) => !/#/.test(x)), `variant anchors should be resolved, got ${JSON.stringify(s)}`);
+});

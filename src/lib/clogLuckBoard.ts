@@ -59,7 +59,21 @@ export function luckCandidates(raidOverrides?: unknown): LuckCandidate[] {
   if (candidateCache && candidateCacheKey === cacheKey) return candidateCache;
 
   const drops = npcDrops as unknown as Record<string, DropEntry[]>;
-  const bossByLabel = new Map(BOSSES.map((b) => [b.label.toLowerCase(), b.key]));
+  // A drop table's key is a WIKI PAGE, and two of the ways it can differ from a hiscores boss label
+  // are not real differences:
+  //   "Yama#Contract"  — the same boss under a variant anchor, which the generator files separately
+  //   "The Nightmare"  — the same boss, worded with the article the hiscores leave off
+  // Both were being read as sources we cannot count kills for, which is the opposite of true.
+  const norm = (label: string) => label.split('#')[0].trim().toLowerCase().replace(/^the\s+/, '');
+  const bossByLabel = new Map<string, string>();
+  for (const b of BOSSES) {
+    bossByLabel.set(b.label.toLowerCase(), b.key);
+    // The stripped form only as a fallback: an exact label must never lose to another boss's alias.
+    const n = norm(b.label);
+    if (!bossByLabel.has(n)) bossByLabel.set(n, b.key);
+  }
+  const trackedKey = (source: string) =>
+    bossByLabel.get(source.toLowerCase()) ?? bossByLabel.get(norm(source));
   const names = clogItemNames();
 
   // Index every drop table by ITEM first. An item is not owned by the page it displays under: a
@@ -67,11 +81,33 @@ export function luckCandidates(raidOverrides?: unknown): LuckCandidate[] {
   // different rates, and reading only the page's own boss charged a Drake farmer's whole stack
   // against zero Drake kills — which is what put people on the spooned board for being ordinary.
   const byItem = new Map<number, LuckRateSource[]>();
+  // Items with a real route we CANNOT count. Dragon knives and thrownaxes hang on the Alchemical
+  // Hydra page but also fall off Drakes, Wyrms and Hydras — slayer monsters the hiscores keep no
+  // killcount for. Dropping those sources silently left the expectation computed from Alch Hydra
+  // kills alone, so somebody who got theirs on a slayer task was measured against an expectation of
+  // nearly zero and posted to the spooned board for being completely ordinary.
+  //
+  // There is no rescuing these with a rarity threshold: the missing term is kills, not rates, and
+  // an unknown killcount is unbounded — a 1-in-10,000 Drake drop outweighs a 1-in-2,000 Hydra one
+  // the moment somebody has ten times the Drake kills, which slayer mains routinely do.
+  //
+  // So they leave the board. That is the same bargain the rest of this file already makes: three
+  // datasets have to agree, and an item we cannot account for is one we cannot call anybody lucky
+  // over.
+  const unaccounted = new Set<number>();
   for (const [source, table] of Object.entries(drops)) {
-    const bossKey = bossByLabel.get(source.toLowerCase());
-    if (!bossKey) continue; // nothing to count kills with
+    const bossKey = trackedKey(source);
     for (const drop of table) {
       if (!Number.isFinite(drop.d) || drop.d <= 0) continue;
+      // A 1-in-1 line is a GUARANTEED reward, not a roll — Yama's contract hands out oathplate
+      // pieces outright. Merging the variant page (above) correctly brought those rows along, and
+      // then the rarest-source test read 1-in-1 and threw the item off the board for being common.
+      // Nobody is lucky for a drop everybody gets, so it is not a rate and does not belong here.
+      if (drop.d <= 1) continue;
+      if (!bossKey) {
+        unaccounted.add(drop.i);
+        continue; // nothing to count kills with
+      }
       const list = byItem.get(drop.i) ?? [];
       list.push({
         source,
@@ -90,6 +126,11 @@ export function luckCandidates(raidOverrides?: unknown): LuckCandidate[] {
   // boss add up correctly instead of picking one.
   for (const [itemId, sources] of raidSourcesByItem(raidOverrides)) {
     byItem.set(itemId, [...(byItem.get(itemId) ?? []), ...sources]);
+    // A raid's killcount covers the whole raid, so the wiki's per-component pages ("Verzik Vitur",
+    // "Tumeken's Warden") are not additional uncountable routes — they are the same raid under
+    // another name. Without this the scythe and the shadow were thrown off the board as
+    // unaccounted, which is the opposite of true: they are the best-accounted items on it.
+    unaccounted.delete(itemId);
   }
 
   const out: LuckCandidate[] = [];
@@ -100,7 +141,15 @@ export function luckCandidates(raidOverrides?: unknown): LuckCandidate[] {
       // Rare EVERYWHERE it comes from. Judging by the page's own rate would let an item that is
       // common elsewhere onto the board, where the expectation from that common source swamps the
       // count and every holder reads as dry.
-      .filter((c) => c.sources.length > 0 && Math.min(...c.sources.map((r) => r.denominator)) >= MIN_DENOMINATOR)
+      // `unaccounted` is checked here rather than while indexing, so a raid source added above can
+      // still not rescue an item that ALSO falls off something uncountable — the missing kills are
+      // missing either way.
+      .filter(
+        (c) =>
+          c.sources.length > 0 &&
+          !unaccounted.has(c.entry.id) &&
+          Math.min(...c.sources.map((r) => r.denominator)) >= MIN_DENOMINATOR,
+      )
       .sort(
         (a, b) =>
           Math.min(...b.sources.map((r) => r.denominator)) - Math.min(...a.sources.map((r) => r.denominator)),
