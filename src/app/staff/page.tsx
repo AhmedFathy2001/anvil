@@ -1,5 +1,5 @@
 
-import { platformTotals, multiClanPeople, nameCollisions } from '@/lib/platformView';
+import { platformTotals, multiClanPeople, nameCollisions, allClans } from '@/lib/platformView';
 import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
@@ -35,11 +35,20 @@ function Section({ title, children }: { title: string; children: React.ReactNode
  * that the identity remodel merged rather than duplicated — if it were broken, it would read zero.
  */
 export default async function StaffOverview() {
-  const [t, multi, collisions] = await Promise.all([
+  const [t, multi, collisions, clans] = await Promise.all([
     platformTotals(),
     multiClanPeople(10),
     nameCollisions(),
+    allClans(),
   ]);
+
+  // WHAT IS WAITING ON A PERSON, as opposed to what the numbers say. Every one of these is a state a
+  // clan can sit in indefinitely without anything failing: The AFK Spot had no owner for weeks and
+  // nothing said so, because nothing was looking. A dashboard of totals is a report; this is the
+  // part that is a tool.
+  const ownerless = clans.filter((c) => c.status === 'active' && !c.owner);
+  const unverified = clans.filter((c) => c.status === 'active' && !c.verified);
+  const overCap = clans.filter((c) => c.memberCap != null && c.members > c.memberCap);
 
   return (
     <div>
@@ -47,6 +56,28 @@ export default async function StaffOverview() {
       <p className="mt-1 text-sm text-gray-400">
         Every clan on this deployment. Nothing here is scoped to one.
       </p>
+
+      {(ownerless.length > 0 || unverified.length > 0 || overCap.length > 0) && (
+        <Section title="Needs a look">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Attention
+              title="No owner"
+              blurb="Its own transfer flow needs a current owner, so it cannot fix this itself."
+              clans={ownerless}
+            />
+            <Attention
+              title="Unverified"
+              blurb="Nobody has proved the in-game clan is theirs — it cannot sync a roster."
+              clans={unverified}
+            />
+            <Attention
+              title="Over its seat cap"
+              blurb="Nothing is blocked; the cap is a number to revisit, not a door."
+              clans={overCap}
+            />
+          </div>
+        </Section>
+      )}
 
       {/* FIRST, AND ONLY WHEN THERE IS ONE. A disputed name is the single thing on this surface
           that is waiting on a person: S6 refuses the second claimant and tells them to come here,
@@ -134,6 +165,40 @@ export default async function StaffOverview() {
           </ul>
         )}
       </Section>
+    </div>
+  );
+}
+
+/** One column of the "needs a look" grid. Renders nothing when its list is empty. */
+function Attention({
+  title,
+  blurb,
+  clans,
+}: {
+  title: string;
+  blurb: string;
+  clans: { id: number; slug: string; name: string }[];
+}) {
+  if (clans.length === 0) return null;
+  return (
+    <div className="rounded-xl border border-card-border bg-card-bg p-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <h3 className="text-sm font-semibold">{title}</h3>
+        <span className="text-xs tabular-nums text-gold">{clans.length}</span>
+      </div>
+      <p className="mt-1 text-xs text-text-muted">{blurb}</p>
+      <ul className="mt-2.5 flex flex-wrap gap-1.5">
+        {clans.map((c) => (
+          <li key={c.id}>
+            <ClanLink
+              href={`/c/${c.slug}`}
+              className="rounded-full border border-card-border px-2 py-0.5 text-xs text-text-muted transition-colors hover:border-gold/30 hover:text-foreground"
+            >
+              {c.name}
+            </ClanLink>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

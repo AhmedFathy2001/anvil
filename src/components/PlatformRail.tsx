@@ -83,7 +83,7 @@ export default function PlatformRail({
       <ClanLink href="/" className="group flex shrink-0 items-center gap-2.5 px-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/icon-48.png" alt="" width={26} height={26} className="shrink-0 rounded-md" />
-        <span className="display hidden text-[18px] font-semibold text-gold lg:inline">Anvil</span>
+        <span className="display text-[18px] font-semibold text-gold">Anvil</span>
       </ClanLink>
 
       <div className="flex shrink-0 gap-0.5 lg:flex-col">
@@ -101,6 +101,9 @@ export default function PlatformRail({
 
       {clans.length > 0 && (
         <div className="flex min-h-0 shrink-0 gap-0.5 lg:flex-col">
+          {/* A divider only where the row is horizontal. On the desktop rail the section heading
+              below already does this job, and a rule as well would be one line too many. */}
+          <span aria-hidden className="mx-1 w-px self-stretch bg-card-border lg:hidden" />
           <div className="hidden items-center gap-2 px-2.5 pb-1.5 lg:flex">
             <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-dim">
               Your clans
