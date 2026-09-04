@@ -589,6 +589,7 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     canonical.pickSeconds === 0 &&
     canonical.mission === null &&
     canonical.startProof === null &&
+    canonical.monthlyAward === null &&
     !canonical.captainInvites &&
     !canonical.teamChoice;
   return { rules: isDefault ? null : JSON.stringify(canonical) };
