@@ -15,7 +15,8 @@ import assert from 'node:assert/strict';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 // Pure comparators — no database, so no dynamic import dance.
-import { canGrantRole, canModify } from '../src/lib/clanRoles.ts';
+import { canGrantRole, canModify, atLeast } from '../src/lib/clanRoles.ts';
+import { readFileSync } from 'node:fs';
 
 const DB = useTestDatabase('clan-authority');
 
@@ -180,4 +181,35 @@ test('the bootstrap grant never demotes someone who already holds more', async (
   // Signing in again must not take the owner's seat away from them.
   await seedClanAdminForTest(clan.id, person.id);
   assert.equal((await clanGrant(clan.id, person.id))?.role, 'owner');
+});
+
+
+// ── Owner is not "admin" ────────────────────────────────────────────────────────────────────────
+
+test('owner outranks admin, so an admin-tier gate must admit the owner', () => {
+  assert.equal(atLeast('owner', 'admin'), true);
+  assert.equal(atLeast('admin', 'admin'), true);
+  assert.equal(atLeast('moderator', 'admin'), false);
+});
+
+test('no gate in lib/auth compares the acting role to admin by equality', () => {
+  // `verifyEventTreasurer` did, and it is the one role nobody can remove: the clan's OWNER was
+  // redirected off their own event's payouts page to the dashboard, with nothing said about why.
+  // Its siblings all used `atLeast` already, so this was a single inconsistent line — the kind that
+  // reads as correct and is wrong for exactly one person.
+  //
+  // Scoped to lib/auth.ts because that is where the ACTING user's authority is decided. Comparing a
+  // TARGET's role to 'admin' elsewhere is a different, legitimate question ("is this person an
+  // admin?"), and this must not flag it.
+  const src = readFileSync('src/lib/auth.ts', 'utf8');
+  const offenders = src
+    .split('\n')
+    .map((line, i) => [i + 1, line.replace(/\/\/.*$/, '')] as const)
+    .filter(([, code]) => /\brole\s*===\s*['"]admin['"]/.test(code));
+
+  assert.deepEqual(
+    offenders.map(([n, code]) => `auth.ts:${n} ${code.trim()}`),
+    [],
+    'use atLeast(role, "admin") — equality silently excludes the owner',
+  );
 });

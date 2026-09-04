@@ -5,6 +5,7 @@ import { db } from '@/db';
 import { submissions, tiles, teams, eventParticipants, events, users, eventStartProofs } from '@/db/schema';
 import { eq, and, sql, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyUser, verifyCaptain, verifyPlayer, verifyPluginToken, resolveTeamMembership } from '@/lib/auth';
+import { atLeast } from '@/lib/clanRoles';
 import { resolveTeamManagement } from '@/lib/teamStaff';
 import { syncDropTileCompletion, countTileProgress } from '@/lib/submissions';
 import { countProgress, memberProgress } from '@/lib/countProgress';
@@ -503,7 +504,8 @@ export async function DELETE(
   // session is resolved against the submission's own team below. Keep the acting user's identity
   // (not just an isAdmin boolean) so the deletion audit names the real admin, not "Admin (admin)".
   const actingUser = await verifyUser();
-  const isAdmin = actingUser?.role === 'admin';
+  // atLeast, not equality — owner outranks admin, so `=== 'admin'` excludes the clan's owner.
+  const isAdmin = atLeast(actingUser?.role, 'admin');
   const captain = await verifyCaptain();
   const player = await verifyPlayer();
 

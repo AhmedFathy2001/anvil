@@ -328,7 +328,11 @@ export async function verifyFeeCollector(): Promise<UserPayload | null> {
 export async function verifyEventTreasurer(eventId: number): Promise<UserPayload | null> {
   const user = await verifyUser();
   if (!user) return null;
-  if (user.role === 'admin') return user;
+  // `atLeast`, NOT equality: owner outranks admin, so `role === 'admin'` is false for the one person
+  // who cannot be removed from the clan. The owner was redirected off their own event's payouts page
+  // to the dashboard, with nothing to say why. Every sibling gate here already asks it this way —
+  // this was the last equality check left.
+  if (atLeast(user.role, 'admin')) return user;
   if (user.role === 'treasurer' && user.treasurerScope !== 'assigned') return user;
   const grant = await db.query.eventEditors.findFirst({
     where: and(
