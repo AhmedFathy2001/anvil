@@ -498,6 +498,24 @@ async function copyTable(client, srcTable, clanId, fks) {
     `INSERT INTO "${dest}" (${cols.map((c) => `"${c}"`).join(',')}) VALUES (${placeholders})` +
     (hasId ? ' RETURNING id' : '');
 
+  // KEEP THE ID WHEN IT IS FREE.
+  //
+  // Every id this import changes breaks a link somebody already has. An event's id is in the URL of
+  // its board, its invites and every message anyone pasted into Discord; renumbering turned an
+  // invite for "The AFK Spot VS LFL" into one that reads "that invite belongs to a different event",
+  // because the event it named was now a different board.
+  //
+  // The first clan into an empty database can keep every id it had. A second clan keeps the ones
+  // nobody took and moves only where it would collide — which is why the clan with the history and
+  // the shared links should be imported first.
+  const takenIds = hasId
+    ? new Set((await client.query(`SELECT id FROM "${dest}"`)).rows.map((r) => Number(r.id)))
+    : null;
+  const insertKeepingId = hasId
+    ? `INSERT INTO "${dest}" ("id",${cols.map((c) => `"${c}"`).join(',')})` +
+      ` VALUES ($1,${cols.map((_, i) => `$${i + 2}`).join(',')}) RETURNING id`
+    : null;
+
   const map = mapOf(srcTable);
   let written = 0;
   let orphaned = 0;
@@ -539,9 +557,24 @@ async function copyTable(client, srcTable, clanId, fks) {
     if (skip) continue;
     if (wantsClan) values.push(clanId);
 
-    const { rows: out } = await client.query(insert, values);
-    if (hasId && row.id != null && out[0]?.id != null) map.set(row.id, out[0].id);
+    const keepId = hasId && row.id != null && !takenIds.has(Number(row.id));
+    const { rows: out } = keepId
+      ? await client.query(insertKeepingId, [row.id, ...values])
+      : await client.query(insert, values);
+    if (hasId && row.id != null && out[0]?.id != null) {
+      map.set(row.id, out[0].id);
+      takenIds.add(Number(out[0].id));
+    }
     written++;
+  }
+
+  // A sequence still sitting at 1 while explicit ids occupy 1..N hands the next INSERT a duplicate
+  // key. Advance it past whatever is now in the table.
+  if (hasId) {
+    await client.query(
+      `SELECT setval(pg_get_serial_sequence($1, 'id'), COALESCE((SELECT MAX(id) FROM "${dest}"), 1), true)`,
+      [dest],
+    );
   }
 
   stats.push({
