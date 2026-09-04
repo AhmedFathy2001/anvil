@@ -48,6 +48,18 @@ export const maxDuration = 300;
 const CONCURRENCY = 3;
 const PER_REQUEST_GAP_MS = 400;
 const TIME_BUDGET_MS = 240_000;
+// How many ROSTER members one tick may sweep, on top of whatever competitions needed.
+//
+// The wall-clock budget alone would already stop a tick running away, but it caps the wrong thing:
+// it would happily let filler use the entire 240s, which at ~2.5 rps is ~600 requests every 15
+// minutes — a large, permanent increase in what Jagex sees from this one IP, spent on players who
+// are not racing anybody.
+//
+// The ladder tops out at a 2h recheck (lib/statHistory nextDueAfterMiss), so ~500 seats need about
+// 60 fetches a tick to stay current. 120 is roughly double that: enough that a clan's directory
+// fills in and stays warm, small enough that the sweep cannot become the thing that gets the box
+// rate-limited. Anything over the cap simply waits for the next tick.
+const ROSTER_FILLER_PER_TICK = 120;
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -110,6 +122,8 @@ interface MemberWork {
   lastSnapshot: string | null;
   /** Whether the member already has a derived activity blob — false means backfill it this tick. */
   hasActivities: boolean;
+  /** True while no competition has claimed them: swept only on leftover budget. */
+  rosterOnly: boolean;
 }
 
 // A bingo player fetched this tick, held for the single-threaded completion pass.
@@ -179,6 +193,8 @@ export async function GET(request: Request) {
         nextDueAt: null,
         lastSnapshot: null,
         hasActivities: false,
+        // Flipped to false the moment a competition claims this member (see ensureEntry callers).
+        rosterOnly: true,
       };
       work.set(key, entry);
     }
@@ -186,6 +202,8 @@ export async function GET(request: Request) {
     if (accountId != null && entry.accountId == null) entry.accountId = accountId;
     return entry;
   }
+  /** A competition wants this member, so they are priority work rather than filler. */
+  const claim = (entry: MemberWork) => { entry.rosterOnly = false; return entry; };
 
   // Bingo events → per-event ctx + per-player bingo tasks.
   // clan-scope: global -- the stats sweep runs across every clan; that is what a cron tick IS.
@@ -240,7 +258,7 @@ export async function GET(request: Request) {
       // Fetch when the event has stat tiles (need current stats for gains) or the player still needs
       // a baseline. Events without stat tiles only snapshot missing baselines.
       if (!hasStatTiles && !needsSnapshot) continue;
-      const entry = ensureEntry(player.clanMemberId, player.name);
+      const entry = claim(ensureEntry(player.clanMemberId, player.name));
       entry.bingo.push({ ctx, player, needsSnapshot });
       entry.staleKey = olderOf(entry.staleKey, player.lastStatsFetch);
     }
@@ -272,11 +290,33 @@ export async function GET(request: Request) {
       .orderBy(asc(weeklyParticipants.lastUpdated));
 
     for (const p of participants) {
-      const entry = ensureEntry(p.clanMemberId, p.rsn);
+      const entry = claim(ensureEntry(p.clanMemberId, p.rsn));
       entry.weekly.push({ comp: { id: comp.id, type: comp.type as CompetitionType, metric: comp.metric, startDate: comp.startDate }, participant: p });
       entry.staleKey = olderOf(entry.staleKey, p.lastUpdated);
     }
   }
+
+  // ── Third source: the roster itself ──────────────────────────────────────────────────────────
+  //
+  // Competitions were the only two sources, so a clan not currently running one was never swept at
+  // all: LFL had 275 members, an entirely empty stats table on /members, and a footnote blaming
+  // "we haven't seen that account yet" — which named the wrong cause. Nobody there was in a
+  // competition, so nobody was ever queued.
+  //
+  // These are FILLER, not equal work. They are appended after the competition queue and only get
+  // fetched if that queue drains inside the tick's budget, so a busy board never loses a request to
+  // a roster nobody is racing on. The Jagex budget is shared by every clan on this box, and the
+  // failure mode of spending it badly is the IP blocked and tracking dead for all of them.
+  //
+  // They ride the same backoff ladder as everyone else (statsNextDueAt / statsMissStreak), so an
+  // idle account settles to an occasional check rather than being polled every tick forever.
+  //
+  // clan-scope: global -- same reason as the events query above: a cron tick IS every clan.
+  const rosterSeats = await db
+    .select({ id: clanRoster.id, rsn: clanRoster.rsn, accountId: clanRoster.accountId })
+    .from(clanRoster)
+    .where(and(isNull(clanRoster.leftAt), eq(clanRoster.kind, 'member'), eq(clanRoster.status, 'active')));
+  for (const seat of rosterSeats) ensureEntry(seat.id, seat.rsn, seat.accountId);
 
   // Resolve the canonical fetch RSN + live overlay per linked member. Fetching by clan_members.rsn
   // (rename-synced) instead of eventParticipants.name (a per-event display override) is what stops a mid-event
@@ -323,17 +363,22 @@ export async function GET(request: Request) {
   // since all of them share one IP as far as Jagex is concerned.
   const nowDate = new Date();
   const allWork = Array.from(work.values());
-  const queue = allWork
-    .filter((entry) => {
-      const needsBaseline =
-        entry.bingo.some((b) => b.needsSnapshot) || entry.weekly.some((w) => w.participant.baselineValue === null);
-      return needsBaseline || isDue(entry.nextDueAt, nowDate);
-    })
-    .sort((a, b) => a.staleKey.localeCompare(b.staleKey));
-  const deferred = allWork.length - queue.length;
+  const due = allWork.filter((entry) => {
+    const needsBaseline =
+      entry.bingo.some((b) => b.needsSnapshot) || entry.weekly.some((w) => w.participant.baselineValue === null);
+    return needsBaseline || isDue(entry.nextDueAt, nowDate);
+  });
+  // TWO QUEUES, ONE BUDGET. Competition work goes first and roster filler takes whatever is left of
+  // the tick — never the other way round, and never interleaved. Both are oldest-fetched-first
+  // within themselves, so whatever does not fit rolls into the next tick rather than starving.
+  const queue = due.filter((e) => !e.rosterOnly).sort((a, b) => a.staleKey.localeCompare(b.staleKey));
+  const fillerDue = due.filter((e) => e.rosterOnly).sort((a, b) => a.staleKey.localeCompare(b.staleKey));
+  const filler = fillerDue.slice(0, ROSTER_FILLER_PER_TICK);
+  const deferred = allWork.length - due.length;
   const fetchedBingo: FetchedBingo[] = [];
   const unrankedMemberIds = new Set<number>();
   let membersFetched = 0;
+  let fillerFetched = 0;
   let weeklyUpdated = 0;
   let fetchErrors = 0;
   let historyWrites = 0;
@@ -346,7 +391,7 @@ export async function GET(request: Request) {
     lastDispatch = Date.now();
   }
 
-  const pending = [...queue];
+  const pending = [...queue, ...filler];
   const workers = Array.from({ length: CONCURRENCY }, async () => {
     while (pending.length > 0) {
       if (Date.now() - start > TIME_BUDGET_MS) break; // budget hit — leave the rest for next tick
@@ -369,6 +414,7 @@ export async function GET(request: Request) {
       }
 
       membersFetched++;
+      if (entry.rosterOnly) fillerFetched++;
       const snapshot = result.snapshot;
       const snapshotJson = JSON.stringify(snapshot);
 
@@ -679,6 +725,14 @@ export async function GET(request: Request) {
     activeEvents: activeEvents.length,
     activeComps: activeComps.length,
     membersQueued: queue.length,
+    // Roster filler: how many were eligible this tick, and how many the budget actually reached.
+    // `rosterQueued` high with `rosterFetched` at zero every tick means competitions are using the
+    // whole budget and a quiet clan's directory will stay empty — that is the number to watch.
+    rosterQueued: filler.length,
+    // How many were eligible but over the per-tick cap. Persistently large means the roster is
+    // bigger than the cap can keep warm, not that anything is broken.
+    rosterHeld: fillerDue.length - filler.length,
+    rosterFetched: fillerFetched,
     // How many the backoff ladder held back this tick — the number to watch when tuning it.
     membersDeferred: deferred,
     membersFetched,
