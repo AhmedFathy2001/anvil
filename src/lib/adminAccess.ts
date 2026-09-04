@@ -53,6 +53,9 @@ const MODERATOR_PATHS = [
   '/admin/schedule',
   '/admin/verifications',
   '/admin/fees',
+  // The coffer is the same job as fees — a treasurer's — so it reaches the same tier. The page
+  // itself re-checks with verifyFeeCollector, which is what actually keeps a plain moderator out.
+  '/admin/coffer',
   '/admin/tile-library',
 ];
 

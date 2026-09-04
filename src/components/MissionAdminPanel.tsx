@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Select from '@/components/Select';
-import { parseEventRules, isMissionTile, type MissionAnnounceMode, type RampPhase } from '@/lib/eventRules';
+import { parseEventRules, isMissionTile, type MissionAnnounceMode, type MissionDaily, type RampPhase } from '@/lib/eventRules';
+import MissionDailyEditor, { DEFAULT_DAILY } from '@/components/MissionDailyEditor';
 import { phaseWindow } from '@/lib/missionRamp';
 import { DEFAULT_TIER_BANDS } from '@/lib/tileFilter';
 import type { Tile } from '@/lib/types';
@@ -41,6 +42,9 @@ export default function MissionAdminPanel({
   const [mode, setMode] = useState<MissionAnnounceMode>(rules.mission?.announceMode ?? 'manual');
   const [order, setOrder] = useState<'random' | 'sequential'>(rules.mission?.order ?? 'random');
   const [intervalMinutes, setIntervalMinutes] = useState(String(rules.mission?.intervalMinutes ?? 60));
+  // The recurring schedule. Seeded from the browser's own zone, which is right far more often than
+  // UTC is — a host in Sydney setting "20:00" means their 20:00.
+  const [daily, setDaily] = useState<MissionDaily>(rules.mission?.daily ?? DEFAULT_DAILY());
   // The difficulty curve. Empty = one pool, which is what missions did before this existed.
   const [ramp, setRamp] = useState<RampPhase[]>(rules.mission?.tierRamp ?? []);
   const [saving, setSaving] = useState(false);
@@ -65,6 +69,7 @@ export default function MissionAdminPanel({
             announceMode: mode,
             order,
             intervalMinutes: Math.max(5, parseInt(intervalMinutes, 10) || 60),
+            daily: mode === 'daily' ? daily : null,
             // Phases with no tiers ticked are a restriction on nothing — drop them rather than
             // storing a phase that silently means "anything".
             tierRamp: ramp.filter((p) => p.tiers.length > 0),
@@ -155,6 +160,7 @@ export default function MissionAdminPanel({
                 options={[
                   { value: 'manual', label: 'Manually (button below)' },
                   { value: 'interval', label: 'On a timer' },
+                  { value: 'daily', label: 'On a daily schedule' },
                   { value: 'scheduled', label: 'At set times (per mission)' },
                 ]}
               />
@@ -182,6 +188,11 @@ export default function MissionAdminPanel({
                   className="rounded-lg"
                   aria-label="Interval minutes"
                 />
+              </div>
+            )}
+            {mode === 'daily' && (
+              <div className="sm:col-span-3">
+                <MissionDailyEditor value={daily} onChange={setDaily} eventId={event.id} />
               </div>
             )}
             {mode === 'scheduled' && (
