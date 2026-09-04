@@ -40,7 +40,7 @@ export async function enrollAllPlayers(competitionId: number) {
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const comp = await db.query.weeklyCompetitions.findFirst({
     where: eq(weeklyCompetitions.id, competitionId),
-    columns: { includeGuests: true },
+    columns: { includeGuests: true, clanId: true },
   });
   // A comp that vanished between scheduling and this call has nobody to enroll.
   if (!comp) return 0;
@@ -48,12 +48,20 @@ export async function enrollAllPlayers(competitionId: number) {
   // Skip unranked/banned/archived members — re-enrolling them just re-creates rows the
   // cron will immediately quarantine. They become eligible again when a re-probe job
   // (or manual mod action) flips status back to 'active'.
-  const baseClause = and(isNull(clanRoster.leftAt), eq(clanRoster.status, 'active'));
+  // WHOSE roster. This read had a blanket "the caller already settled the clan" suppression on it,
+  // which is true of the COMPETITION and says nothing about the roster: the query below names no
+  // clan, so on one database holding many it enrolled every active seat on the platform into one
+  // clan's competition. It put 272 of LFL's members onto The AFK Spot's Boss of the Week within
+  // seconds of the two clans sharing a database, and the standings read as if that were the truth.
+  const baseClause = and(
+    eq(clanRoster.clanId, comp.clanId),
+    isNull(clanRoster.leftAt),
+    eq(clanRoster.status, 'active'),
+  );
   const whereClause = trackGuests
     ? baseClause
     : and(baseClause, eq(clanRoster.kind, 'member'));
 
-  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const activeMembers = await db
     .select({ id: clanRoster.id, rsn: clanRoster.rsn })
     .from(clanRoster)

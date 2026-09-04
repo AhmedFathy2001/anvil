@@ -47,6 +47,12 @@ export async function GET(request: Request) {
     : [];
   const bannedIds = new Set(banRows.map((b) => b.playerId));
   const userDiscordId = new Map(userRows.map((u) => [u.playerId, u.discordId]));
+  // Person -> login. A seat names the PERSON who owns its account; `clan_roster` has no user column
+  // and never did, so the row spread below carried no `userId` at all and the badge that reads it
+  // drew "Roster only" on every member of every clan — 215 of 215, with "0 linked" above them, on a
+  // roster where 117 accounts were reachable from a login. The join was already being made here for
+  // the Discord id; it just was not being handed back.
+  const userIdByPerson = new Map(userRows.map((u) => [u.playerId, u.id]));
 
   // The role shown beside a member is their role IN THIS CLAN. Read from the grants rather than the
   // person, so the roster of one clan never advertises someone's standing in another.
@@ -77,6 +83,7 @@ export async function GET(request: Request) {
         // spread through, because spreading the row is what quietly dropped it: the client read
         // `isGuest`, got undefined, and drew every guest as a member.
         isGuest: r.kind === 'guest' ? 1 : 0,
+        userId: r.playerId != null ? userIdByPerson.get(r.playerId) ?? null : null,
         userBanned: r.playerId != null && bannedIds.has(r.playerId),
         userRole: r.playerId != null ? userRole.get(r.playerId) ?? null : null,
         effectiveDiscordId: did,
