@@ -249,17 +249,6 @@ export async function settleMissionAwardsForEvent(eventId: number): Promise<Sett
   return settleMissionAwards(event);
 }
 
-/**
- * The prizes a mission is advertising, for the surfaces that show one before anybody has claimed it
- * (the Discord drop post, the in-game board, the web tile). Places with no gp are left out — the
- * point is to say "there is money on this", not to list a table of zeroes.
- */
-export function missionPrizeSummary(rules: Pick<MissionRules, 'reward'>): { place: number; gp: number }[] {
-  return (rules.reward?.places ?? [])
-    .map((p, i) => ({ place: i + 1, gp: p.gp }))
-    .filter((p) => p.gp > 0);
-}
-
 /** Prizes won on this event that a treasurer still has to send. Drives the "gp owed" nudge. */
 export async function unpaidAwards(eventId: number): Promise<{ count: number; gp: number }> {
   // clan-scope: global -- keyed by an event id the caller has already settled.

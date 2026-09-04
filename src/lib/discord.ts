@@ -4,6 +4,7 @@ import { startBlockerLabel, type StartBlockerCode } from '@/lib/eventReadiness';
 import { eventAxes, taskNoun } from '@/lib/eventAxes';
 import { formatEfficiencyHours, weeklyKindLabel } from '@/lib/constants';
 import { formatGp } from '@/lib/adminEventsFormat';
+import { placeLabel } from '@/lib/eventRules';
 import { deriveTileIcon, skillIconUrl, bossItemForStatKey, itemIconUrl, type IconableTile } from '@/lib/tileIcons';
 import {
   EMBED_COLOR,
@@ -729,11 +730,6 @@ interface MissionPrizeNotifyParams {
   eventId?: number | null;
 }
 
-const PLACE_LABEL = ['1st', '2nd', '3rd'];
-function placeName(place: number): string {
-  return PLACE_LABEL[place - 1] ?? `${place}th`;
-}
-
 /**
  * A mission prize, the moment it is settled against the coffer.
  *
@@ -749,10 +745,10 @@ export async function notifyMissionPrize(params: MissionPrizeNotifyParams): Prom
   if (points != null) fields.push(statField('Points', points));
   const embed: DiscordEmbed = {
     ...eventAuthor(eventId, eventName),
-    title: clamp(funded ? `💰 ${rsn} won ${formatGp(offeredGp)}` : `🏅 ${rsn} took ${placeName(place)}`, LIMIT.title),
+    title: clamp(funded ? `💰 ${rsn} won ${formatGp(offeredGp)}` : `🏅 ${rsn} took ${placeLabel(place)}`, LIMIT.title),
     description: funded
-      ? `**${placeName(place)}** on **${tileLabel}**. A treasurer will send it over.`
-      : `**${placeName(place)}** on **${tileLabel}** — the coffer is empty, so this one pays points only.`,
+      ? `**${placeLabel(place)}** on **${tileLabel}**. A treasurer will send it over.`
+      : `**${placeLabel(place)}** on **${tileLabel}** — the coffer is empty, so this one pays points only.`,
     color: EMBED_COLOR.gold,
     ...(fields.length ? { fields } : {}),
   };

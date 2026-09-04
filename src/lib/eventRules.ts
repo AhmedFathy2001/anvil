@@ -966,6 +966,25 @@ export function parseMissionReward(raw: unknown): MissionReward | null {
   return { places, restPoints, maxClaims };
 }
 
+/**
+ * The prizes a mission is advertising, for the surfaces that show one before anybody has claimed it
+ * (the Discord drop post, the in-game board, the tile a player opens). Places with no gp are left
+ * out — the point is to say "there is money on this", not to print a table of zeroes.
+ */
+export function missionPrizeSummary(rules: Pick<MissionRules, 'reward'>): { place: number; gp: number }[] {
+  return (rules.reward?.places ?? [])
+    .map((p, i) => ({ place: i + 1, gp: p.gp }))
+    .filter((p) => p.gp > 0);
+}
+
+/** "1st", "2nd", "11th" — one spelling of a finishing position, shared by every surface. */
+export function placeLabel(place: number): string {
+  const mod100 = place % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${place}th`;
+  const suffix = ['th', 'st', 'nd', 'rd'][place % 10] ?? 'th';
+  return `${place}${suffix}`;
+}
+
 /** Ten places is already a stretch for one mission; the cap is here so a paste can't author 10,000. */
 export const MAX_MISSION_PLACES = 10;
 /** 2^53-safe and far past any real prize: a place can't be worth more than 100b gp. */

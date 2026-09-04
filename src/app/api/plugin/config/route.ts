@@ -38,12 +38,11 @@ import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { serverInfo } from '@/lib/serverInfo';
 import { pluginClansFor } from '@/lib/pluginClans';
-import { parseEventRules, hasRevealPolicy, nextRevealAt, nextMissionAt, isMissionTile, parseTileMissionRules } from '@/lib/eventRules';
+import { parseEventRules, hasRevealPolicy, nextRevealAt, nextMissionAt, isMissionTile, parseTileMissionRules, missionPrizeSummary } from '@/lib/eventRules';
 import { startProofState } from '@/lib/startProof';
 import { combatTaskVarps } from '@/lib/combatTasks';
 import { isLadderFormat } from '@/lib/utils';
 import { getLadderBoards, toPluginStandings, type PluginStandings } from '@/lib/ladderStandings';
-import { missionPrizeSummary } from '@/lib/missionAwards';
 import { getCofferBalance } from '@/lib/coffer';
 import crypto from 'crypto';
 
