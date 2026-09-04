@@ -35,6 +35,13 @@ export const en = {
       clan: 'Running the clan',
     },
     cards: {
+      clan: {
+        eyebrow: 'For anyone starting one',
+        title: 'Start a clan',
+        blurb:
+          'Two names and an address, and it is live. Then Discord, your roster, and the first board.',
+        minutes: '~4 min, free',
+      },
       plugin: {
         eyebrow: 'For players',
         title: 'RuneLite plugin setup',
@@ -94,6 +101,139 @@ export const en = {
     },
   },
 
+  clan: {
+    metaTitle: 'Start a clan — Anvil',
+    metaDescription:
+      'Create a clan on Anvil: name it, pick its address, connect Discord, sync your roster and run your first event.',
+    eyebrow: 'Anvil · starting out',
+    title: 'Start a clan',
+    dek: 'Two names and an address, and your clan is live — free, and there is nothing to wait for. This is that, plus the four things worth doing straight afterwards.',
+    facts: [
+      { strong: 'Free', rest: 'no card, no trial' },
+      { strong: 'Live', rest: 'the moment you submit' },
+      { strong: '~4 min', rest: 'to a working clan' },
+    ],
+    footnote:
+      'You can change every one of these later from Admin → Clan, except the address — that one is worth a moment’s thought now.',
+
+    before: {
+      title: 'Before you start',
+      body: [
+        'You need a Discord account, and that is the whole list. Sign in on `{apex}` first: a clan needs an owner, and signing in is how the site knows that is you. Start from **Start a clan** on the platform pages, or go straight to `{apex}/clans/new`.',
+        'It costs nothing. There is no plan to pick, no card to enter, and no trial that expires and takes your board with it — a clan starts free and stays usable.',
+      ],
+      note: {
+        tag: 'You will be its owner',
+        body: 'Owner is the one role nobody can take from you, and it goes to whoever creates the clan. Add staff afterwards from Admin → Clan; see the {moderatorGuide}.',
+      },
+    },
+
+    create: {
+      title: 'Name it, and pick its address',
+      intro:
+        'Three fields, and only two real decisions. The form checks the address as you type and tells you before you submit.',
+      fields: [
+        {
+          term: 'In-game clan name',
+          body: 'Required, and it has to match OSRS **exactly**. This is not decoration: roster sync matches on it and refuses a roster reported under any other name. That is what stops somebody else’s member list landing on your site.',
+        },
+        {
+          term: 'Clan name',
+          body: 'Optional. What people see — on the site, and on every Discord post. Leave it blank and your in-game name is used for both.',
+        },
+        {
+          term: 'Address',
+          body: 'Your clan lives at `{apex}/c/your-slug`. It is suggested from the name you typed, you can edit it, and a handful of words are reserved. Pick one you will still like in a year: it is the link that ends up pinned in your Discord.',
+        },
+      ],
+      note: {
+        tag: 'The in-game name is a lock, not a label',
+        body: 'If your clan renames in game, change it here too — until you do, roster sync refuses the new name. That is the check working, not a fault.',
+      },
+    },
+
+    live: {
+      title: 'It is live',
+      body: [
+        'Press **Create clan** and it exists. No provisioning, no queue, no “we are building your site, check back in a few minutes” — a clan is a row, so it is serving before the page finishes changing.',
+        'You land on a choice of **Set it up**, which opens the wizard, or **Take a look first**. Nothing breaks if you wander off and come back tomorrow; the wizard remembers which steps you have done.',
+      ],
+    },
+
+    setup: {
+      title: 'The setup wizard',
+      intro:
+        'Four things stand between a fresh clan and a running event. The wizard walks them in order and skips whatever you have already done.',
+      steps: [
+        {
+          term: 'Name it in Discord',
+          body: 'Your display name, your in-game clan name, and an invite link to your server. The invite is what lets sign-up pages and guides point people at you.',
+        },
+        {
+          term: 'Connect Discord',
+          body: 'One shared bot, so there is no application to register and no token to paste. Approve it once and it can post to your channels and read your roles.',
+        },
+        {
+          term: 'Give it a channel',
+          body: 'An announcements channel for event posts. Optionally split the plugin’s feeds out: rare drops in one channel, deaths in another, so neither drowns the other.',
+        },
+        {
+          term: 'Make a board',
+          body: 'The first event. Pick a format, add tiles, open sign-ups — that is the {adminGuide}, and it is the longest of the four by a distance.',
+        },
+      ],
+      after: [
+        'You can skip the wizard entirely and do all of it from Admin → Clan later. It exists because the order matters when you have never done it: Discord before channels, channels before a board that wants to post to them.',
+      ],
+    },
+
+    members: {
+      title: 'Getting your members in',
+      body: [
+        'Nobody has to sign up, register, or be invited one at a time. Your roster comes from the game.',
+      ],
+      ways: [
+        {
+          term: 'Roster sync (do this one)',
+          body: 'Open the clan window in game with the plugin running and press the **Anvil** button in its title bar. Your whole member list arrives with ranks intact, and it refuses a roster from a clan whose name does not match yours. Repeat it whenever people join or leave — see the {pluginGuide}.',
+        },
+        {
+          term: 'They just play',
+          body: 'Anyone running the plugin who logs in is recognised automatically. If they are not on the roster yet they are tracked as a **guest** — visible, countable, and one sync away from being a member.',
+        },
+        {
+          term: 'By hand',
+          body: 'Admin → Clan takes names one at a time, for the person on mobile or the official client who cannot run the plugin at all.',
+        },
+      ],
+      note: {
+        tag: 'Guests are not a problem to solve',
+        body: 'A guest is simply somebody we have seen who is not on your roster — a visiting clan’s player, an alt, someone who joined this morning. They can play in events without ever becoming a member.',
+      },
+    },
+
+    first: {
+      title: 'Your first event',
+      body: [
+        'The shortest path to something happening: make a board, add a handful of tiles the plugin can see by itself, open sign-ups, and start it. Drops, kill counts and XP then file themselves.',
+        'Two guides carry the weight here. The {adminGuide} runs start to finish — Discord, teams, launching, and what to do when it ends. The {boardGuide} is about tiles specifically: what each kind can actually detect, and the ones that import cleanly and then never fire.',
+        'If you would rather not build a board at all in your first week, run a **Skill of the Week** or **Boss of the Week** instead. Everyone on the roster is enrolled automatically, the standings move off the hiscores, and there is nothing to author.',
+      ],
+    },
+
+    together: {
+      title: 'Events across several clans',
+      body: [
+        'An event does not have to belong to one clan. Several clans can run the same board together — two, or a dozen — with each side keeping its own roster, its own staff and its own half of the moderation.',
+        'They can also share one pool of players rather than sitting on opposite sides of a scoreboard: one event, everybody in it, however the teams end up cut. Clan-versus-clan is one shape this takes, not the only one.',
+        'Each visiting clan gets an invite link per team, so you never collect a single RSN by hand, and a seat that lets their own moderator approve their own members’ proof. The {clanVsClanGuide} covers hosting one.',
+      ],
+      note: {
+        tag: 'Nothing to buy',
+        body: 'Joining somebody else’s event is free, and so is hosting one. A clan that only ever turns up to other people’s boards never needs anything beyond its own free clan.',
+      },
+    },
+  },
   plugin: {
     metaTitle: 'RuneLite plugin setup — Anvil',
     metaDescription:
@@ -230,7 +370,7 @@ export const en = {
         { text: 'Tracked kill: Zulrah (7/10)', tone: 'plain' },
       ],
       outro:
-        'You should also see the **Anvil side panel** fill in with your event, your team and your tile progress, and a **Bingo** tab appear inside your in-game Collection Log.',
+        'You should also see the **Anvil side panel** fill in with your clans, your live events, your placing and the sync buttons — and an **Anvil** button appear in the title bar of your in-game Collection Log, next to WikiSync and RuneProfile.',
       guestNote: {
         tag: 'Guest vs member',
         body: 'If chat says _Tracked as a guest_, you’re being tracked but you’re not on the clan roster yet. An admin fixes that by syncing the in-game clan roster — ask {discordLink}.',
@@ -259,12 +399,12 @@ export const en = {
             body: 'a banner when anyone on your team finishes a tile. Several at once: the hardest gets the banner, the rest go to chat.',
           },
           {
-            label: 'Bingo tab in Collection Log',
-            body: 'puts your board inside the in-game Collection Log, alongside your saved proofs.',
+            label: 'Banner sound + volume',
+            body: 'plays a sound with the banner. Nothing plays until you add at least one .wav yourself, via **Add clip** under “Banner sounds” in the Anvil side panel.',
           },
           {
-            label: 'Banner sound + volume',
-            body: 'plays a sound with the banner. Nothing plays until you add at least one .wav yourself, via the “Banner sounds” button in that Bingo tab.',
+            label: 'Distinct mission sound',
+            body: 'gives a mission dropping — and someone claiming one — its own chime, so you can tell it from an ordinary tile completion without looking.',
           },
           {
             label: 'Two-frame drop proof',
@@ -442,7 +582,7 @@ export const en = {
         'Type `::anvillog` in game chat (or set the **Export debug log hotkey** in the plugin’s Support section). It writes a log file to your `.runelite/anvil-debug` folder, opens the folder, and copies the path to your clipboard — send that file to an admin and they can see exactly what went wrong.',
       missingNote: {
         tag: 'Missing proofs?',
-        body: 'Pets and duplicate Champion’s scrolls need a manual screenshot. Those get saved to `.runelite/osrs-bingo-pending/` and show up as a **Saved proofs** row in the Collection Log’s Bingo tab.',
+        body: 'Pets and duplicate Champion’s scrolls need a manual screenshot. The plugin takes one for you and saves it to `.runelite/osrs-bingo-pending/` — **Copy folder path** in the Anvil side panel opens it — so you attach it on the site rather than hunting for a shot after the fact.',
       },
     },
   },
@@ -1486,7 +1626,7 @@ export const en = {
     roster: {
       title: 'Keeping the roster true',
       body: [
-        'The roster comes from one place: an admin runs a sync from the in-game clan list, through the plugin’s Bingo tab in the Collection Log. Everything else — verifications, links, sign-ups — hangs off it.',
+        'The roster comes from one place: an admin runs a sync from the in-game clan list, with the **Anvil** button in the clan window’s title bar (or **Sync roster** in the plugin’s side panel). Everything else — verifications, links, sign-ups — hangs off it.',
         'So the maintenance job is small but real: run the sync after any recruitment round, promote the guests who have actually joined, and look at people the site has flagged as needing review rather than waiting for them to complain.',
       ],
       note: {
