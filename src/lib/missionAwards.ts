@@ -96,7 +96,7 @@ export async function settleMissionAwards(event: EventRow, missionTiles?: TileRo
     for (let i = 0; i < order.length; i++) {
       const claim = order[i];
       const place = i + 1;
-      const offeredGp = missionPlaceGp(rules.reward, place);
+      const offeredGp = missionPlaceGp(rules, place);
       if (offeredGp <= 0) continue; // this place wins points only — nothing to settle here
       if (await findAwardForCompletion(claim.id)) continue; // already decided on an earlier pass
 
@@ -175,7 +175,9 @@ async function reconcilePoints(args: {
   if (event.scoringMode !== 'points') return null;
   const atMs = parseStamp(claim.completedAt) ?? Date.now();
   const base = decayedPoints(tile.points, tile.revealedAt, rules.decay, atMs);
-  const should = missionPlacePoints({ reward: rules.reward, place, funded, baseValue: base });
+  const should = Math.round(
+    missionPlacePoints({ reward: rules.reward, place, funded, baseValue: base }) * (rules.multiplier || 1),
+  );
   if (claim.awardedPoints === should) return should;
   await db.update(completions).set({ awardedPoints: should }).where(eq(completions.id, claim.id));
   log.info('mission-award.points-corrected', {

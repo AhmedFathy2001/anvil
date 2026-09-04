@@ -61,6 +61,22 @@ export interface MissionDaily {
   window: { from: string; to: string } | null;
   /** Drops per weekday, index 0 = Sunday. 0 means the schedule skips that day entirely. */
   perDay: number[];
+  /**
+   * Value multiplier per weekday, index 0 = Sunday. 1 = normal; 2 is a double-points weekend.
+   *
+   * Stamped onto each mission as it drops (MissionRules.multiplier), so a Saturday mission is worth
+   * double whenever it is finished — the weekend is when the mission LANDED, not when you got round
+   * to it.
+   */
+  multiplier: number[];
+  /**
+   * Does the multiplier apply to the gp prize too?
+   *
+   * Off by default, and that default is the whole reason this is a separate flag: doubling points
+   * costs a clan nothing, and doubling prizes empties the coffer twice as fast. A host who wants a
+   * double-prize weekend should have to say so.
+   */
+  multiplyPrizes: boolean;
 }
 
 /**
@@ -800,20 +816,28 @@ export function completionAward(args: {
   reward?: MissionReward | null;
   place?: number;
   funded?: boolean;
+  /**
+   * The mission's stamped value multiplier (a double-points weekend). 1, or absent, is normal.
+   * Applied LAST, over whatever the ladder or the tile decided — doubling a weekend should double
+   * what the board already said the task was worth, not replace the reasoning behind it.
+   */
+  multiplier?: number;
   nowMs?: number;
 }): number | null {
   if (args.scoringMode !== 'points') return null;
   const { rules, reward } = args;
+  const mult = args.multiplier && args.multiplier > 0 ? args.multiplier : 1;
   const base = decayedPoints(args.tilePoints, args.tileRevealedAt, rules.decay, args.nowMs);
   // A ladder is the whole answer for this completion: it names what every place is worth, so a
   // first-clear bonus on top would pay the same "you were first" twice.
   if (reward) {
-    return missionPlacePoints({ reward, place: args.place ?? 1, funded: args.funded !== false, baseValue: base });
+    const pts = missionPlacePoints({ reward, place: args.place ?? 1, funded: args.funded !== false, baseValue: base });
+    return Math.round(pts * mult);
   }
-  if (rules.firstBonus <= 0 && rules.decay == null) return null;
+  if (rules.firstBonus <= 0 && rules.decay == null && mult === 1) return null;
   let pts = base;
   if (args.isFirst && rules.firstBonus > 0) pts += rules.firstBonus;
-  return pts;
+  return Math.round(pts * mult);
 }
 
 /**
@@ -866,6 +890,17 @@ export interface MissionRules {
   expiryHours: number | null;
   /** The placement ladder — what 1st, 2nd, 3rd… actually win. Null = flat: everyone gets tile value. */
   reward: MissionReward | null;
+  /**
+   * Points multiplier, STAMPED ONTO THE TILE WHEN IT DROPS. 1 = normal.
+   *
+   * A double-points weekend is a property of the moment a mission was announced, not of the moment
+   * somebody finishes it: a Saturday mission claimed on Monday is still a Saturday mission. So the
+   * schedule writes the day's multiplier here at announce and nothing recomputes it afterwards —
+   * the same trick `revealedAt` plays for the decay ramp.
+   */
+  multiplier: number;
+  /** The same, for the gp prize. Separate because doubling points is free and doubling gp is not. */
+  prizeMultiplier: number;
 }
 
 // ---- The placement ladder ----------------------------------------------------------------------
@@ -918,6 +953,8 @@ export const DEFAULT_MISSION_RULES: MissionRules = {
   decay: null,
   expiryHours: null,
   reward: null,
+  multiplier: 1,
+  prizeMultiplier: 1,
 };
 
 /** Tolerant parse of a tile's `rules` JSON. Anything missing/malformed → the no-modifier default. */
@@ -942,6 +979,8 @@ export function parseTileMissionRules(raw: string | null | undefined): MissionRu
     decay,
     expiryHours: o.expiryHours == null ? null : clampInt(o.expiryHours, 1, 8760, 24),
     reward: parseMissionReward(o.reward),
+    multiplier: clampMultiplier(o.multiplier),
+    prizeMultiplier: clampMultiplier(o.prizeMultiplier),
   };
 }
 
@@ -967,8 +1006,13 @@ export function parseMissionDaily(raw: unknown): MissionDaily | null {
   // somebody who half-filled the form was plainly reaching for.
   const raw7 = Array.isArray(o.perDay) ? o.perDay : [];
   const perDay = Array.from({ length: 7 }, (_, i) => clampInt(raw7[i], 0, 12, 1));
+  const rawMult = Array.isArray((o as { multiplier?: unknown }).multiplier)
+    ? ((o as { multiplier: unknown[] }).multiplier)
+    : [];
+  const multiplier = Array.from({ length: 7 }, (_, i) => clampMultiplier(rawMult[i]));
+  const multiplyPrizes = (o as { multiplyPrizes?: unknown }).multiplyPrizes === true;
   if (times.length === 0 && !window) return null;
-  return { timezone, times, window, perDay };
+  return { timezone, times, window, perDay, multiplier, multiplyPrizes };
 }
 
 const HHMM = /^\d{1,2}:\d{2}$/;
@@ -1014,6 +1058,18 @@ export function placeLabel(place: number): string {
   return `${place}${suffix}`;
 }
 
+/**
+ * A value multiplier: 1–10, in halves, defaulting to 1 (normal).
+ *
+ * Halves rather than integers because "1.5x on Sundays" is a real thing clans run, and capped at 10
+ * because a typo in a multiplier field is how a board pays somebody 400,000 points for a chicken.
+ */
+function clampMultiplier(v: unknown): number {
+  const n = typeof v === 'number' ? v : Number(v);
+  if (!Number.isFinite(n) || n <= 0) return 1;
+  return Math.min(10, Math.max(0.5, Math.round(n * 2) / 2));
+}
+
 /** Ten places is already a stretch for one mission; the cap is here so a paste can't author 10,000. */
 export const MAX_MISSION_PLACES = 10;
 /** 2^53-safe and far past any real prize: a place can't be worth more than 100b gp. */
@@ -1024,10 +1080,25 @@ export function missionOffersGp(rules: Pick<MissionRules, 'reward'>): boolean {
   return (rules.reward?.places ?? []).some((p) => p.gp > 0);
 }
 
-/** The gp a given finishing place is owed, 0 when that place wins no money. */
-export function missionPlaceGp(reward: MissionReward | null | undefined, place: number): number {
-  if (!reward || place < 1) return 0;
-  return reward.places[place - 1]?.gp ?? 0;
+/**
+ * The gp a given finishing place is owed, 0 when that place wins no money.
+ *
+ * Takes the whole rules object rather than the ladder alone so the mission's stamped prize
+ * multiplier lands here, in the ONE place that answers "how much is owed" — the gate and the settle
+ * pass both call it, and a doubled prize that only one of them knew about would be a promise the
+ * coffer never reserved.
+ */
+export function missionPlaceGp(
+  rules: Pick<MissionRules, 'reward' | 'prizeMultiplier'> | MissionReward | null | undefined,
+  place: number,
+): number {
+  if (!rules || place < 1) return 0;
+  // Accept a bare ladder too: plenty of callers only have that, and they mean multiplier 1.
+  const isRules = 'reward' in rules;
+  const reward = isRules ? rules.reward : rules;
+  const mult = isRules && rules.prizeMultiplier > 0 ? rules.prizeMultiplier : 1;
+  const gp = reward?.places[place - 1]?.gp ?? 0;
+  return Math.round(gp * mult);
 }
 
 /**
@@ -1069,6 +1140,12 @@ export function serializeTileMissionRules(input: Partial<MissionRules> | null | 
   if (!input) return null;
   const m = parseTileMissionRules(JSON.stringify(input));
   const isDefault =
-    !m.lockout && m.firstBonus === 0 && m.decay === null && m.expiryHours === null && m.reward === null;
+    !m.lockout &&
+    m.firstBonus === 0 &&
+    m.decay === null &&
+    m.expiryHours === null &&
+    m.reward === null &&
+    m.multiplier === 1 &&
+    m.prizeMultiplier === 1;
   return isDefault ? null : JSON.stringify(m);
 }

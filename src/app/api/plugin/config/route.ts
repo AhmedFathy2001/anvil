@@ -757,6 +757,9 @@ export async function GET(request: Request) {
             category: t.category ?? null,
             decay: m ? m.decay : rules.decay,
             lockout: m ? m.lockout : rules.lockout,
+            // A double-value day, stamped when this one dropped. Absent = ordinary; the client
+            // multiplies the value it already computes from `points` and the decay ramp.
+            ...(m && m.multiplier !== 1 ? { multiplier: m.multiplier } : {}),
             ...(prizes.length ? { prizes } : {}),
             ...(m?.reward?.maxClaims != null ? { maxClaims: m.reward.maxClaims } : {}),
           };

@@ -27,7 +27,14 @@ export function DEFAULT_DAILY(): MissionDaily {
   } catch {
     /* a browser with no zone info keeps UTC */
   }
-  return { timezone, times: ['20:00'], window: null, perDay: [2, 1, 1, 1, 1, 1, 2] };
+  return {
+    timezone,
+    times: ['20:00'],
+    window: null,
+    perDay: [2, 1, 1, 1, 1, 1, 2],
+    multiplier: [1, 1, 1, 1, 1, 1, 1],
+    multiplyPrizes: false,
+  };
 }
 
 export default function MissionDailyEditor({
@@ -150,6 +157,52 @@ export default function MissionDailyEditor({
         </div>
       </div>
 
+      <div>
+        <label className="block text-xs text-text-muted mb-1.5">
+          Value multiplier <span className="text-text-muted/60">(a double-points weekend; 1 = normal)</span>
+        </label>
+        <div className="flex flex-wrap gap-1.5">
+          {DAY_LABELS.map((label, i) => (
+            <div key={label} className="flex flex-col items-center gap-1">
+              <span className="text-[10px] text-text-muted">{label}</span>
+              <Input
+                type="number"
+                min="0.5"
+                max="10"
+                step="0.5"
+                value={String(value.multiplier[i] ?? 1)}
+                onChange={(e) => {
+                  const multiplier = [...value.multiplier];
+                  const n = parseFloat(e.target.value);
+                  multiplier[i] = Number.isFinite(n) ? Math.min(10, Math.max(0.5, Math.round(n * 2) / 2)) : 1;
+                  onChange({ ...value, multiplier });
+                }}
+                className={`w-14 text-center ${(value.multiplier[i] ?? 1) !== 1 ? 'text-gold' : ''}`}
+                aria-label={`Value multiplier on ${label}`}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 mt-2">
+          <button
+            type="button"
+            onClick={() => onChange({ ...value, multiplyPrizes: !value.multiplyPrizes })}
+            aria-pressed={value.multiplyPrizes}
+            className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${value.multiplyPrizes ? 'bg-gold' : 'bg-card-border'}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${value.multiplyPrizes ? 'translate-x-5' : ''}`} />
+          </button>
+          <span className="text-xs text-text-muted">
+            Multiply the gp prizes too{' '}
+            <span className="text-text-muted/60">— a double weekend then empties the coffer twice as fast</span>
+          </span>
+        </div>
+        <p className="text-[10px] text-text-muted mt-1.5 leading-relaxed">
+          Stamped on each mission as it drops, so a Saturday mission is still worth double if it is
+          finished on Monday. Missions already live keep whatever they dropped with.
+        </p>
+      </div>
+
       <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
         <span>Time zone</span>
         <Input
@@ -174,6 +227,9 @@ export default function MissionDailyEditor({
               <span className={day.times.length ? 'text-foreground' : 'text-text-muted/50'}>
                 {day.times.length ? day.times.join(', ') : '—'}
               </span>
+              {day.times.length > 0 && (value.multiplier[day.weekday] ?? 1) !== 1 && (
+                <span className="text-gold">{value.multiplier[day.weekday]}x</span>
+              )}
             </div>
           ))}
         </div>

@@ -620,6 +620,8 @@ interface TilesRevealedNotifyParams {
   eventId?: number | null;
   /** When the next batch is due, for a live countdown. Null on bounty (draws on a claim instead). */
   nextRevealAt?: string | null;
+  /** A double-value day, from the daily schedule. 1 (or absent) is an ordinary drop. */
+  multiplier?: number;
 }
 
 // Reveal-engine post: fired once per reveal batch (scheduled due-times, interval draws, bounty
@@ -628,6 +630,7 @@ interface TilesRevealedNotifyParams {
 export async function notifyTilesRevealed(params: TilesRevealedNotifyParams): Promise<boolean> {
   const { eventName, tiles, pointsMode, hiddenRemaining, bounty, mission, eventId, nextRevealAt } = params;
   if (tiles.length === 0) return false;
+  const boost = params.multiplier && params.multiplier !== 1 ? params.multiplier : null;
 
   const noun = mission ? 'mission' : 'tile';
   const single = tiles.length === 1;
@@ -635,10 +638,11 @@ export async function notifyTilesRevealed(params: TilesRevealedNotifyParams): Pr
   // A single reveal is the common case (batch size 1, bounty, most mission drops) and deserves to
   // read as one thing rather than a bullet list of one: the tile's name IS the headline, its art is
   // the thumbnail, and its value is a boxed field like every other number Anvil posts.
+  const boostTag = boost ? `${boost % 1 === 0 ? boost : boost.toFixed(1)}x ` : '';
   const title = mission
     ? single
-      ? `⚡ New mission: ${tiles[0].label}`
-      : `⚡ ${tiles.length} new missions are live!`
+      ? `⚡ New ${boostTag}mission: ${tiles[0].label}`
+      : `⚡ ${tiles.length} new ${boostTag}missions are live!`
     : bounty
       ? `🎯 New bounty: ${tiles[0].label}`
       : single
@@ -658,13 +662,14 @@ export async function notifyTilesRevealed(params: TilesRevealedNotifyParams): Pr
         );
   if (tiles.length > 15) lines.push(`…and ${tiles.length - 15} more`);
 
+  const boostLine = boost ? `\n**${boost % 1 === 0 ? boost : boost.toFixed(1)}x points** — today only.` : '';
   const description = single
-    ? bounty
-      ? 'First to finish it claims it — nobody else can score it.'
-      : mission
-        ? 'Live now. Go get it.'
-        : 'Live now — it counts from this moment.'
-    : clamp(lines.join('\n'), LIMIT.description);
+    ? (bounty
+        ? 'First to finish it claims it — nobody else can score it.'
+        : mission
+          ? 'Live now. Go get it.'
+          : 'Live now — it counts from this moment.') + boostLine
+    : clamp(lines.join('\n') + boostLine, LIMIT.description);
 
   const fields: DiscordEmbedField[] = [];
   if (single && pointsMode && tiles[0].points != null) {

@@ -96,6 +96,12 @@ by finishing position. Two additions to `/api/plugin/config`, both inside `event
 "cofferAvailable": 1240000000
 ```
 
+A mission dropped on a boosted day also carries `"multiplier": 2` (absent = 1x): the value
+the client already computes from `points` and the decay ramp is multiplied by it. The
+multiplier is stamped when the mission drops, so it stays true for a Saturday mission
+finished on Monday, and `prizes` are already sent multiplied where the host boosted those
+too.
+
 `prizes` lists only the places that win gp — a points-only place is omitted rather than
 sent as a zero. `maxClaims` is how many finishers the mission accepts before it closes
 (absent = unlimited; the older `lockout: true` is the same thing with one place).

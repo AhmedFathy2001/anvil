@@ -9,6 +9,8 @@ const FIXED = {
   times: ['20:00', '22:30'],
   window: null,
   perDay: [2, 1, 1, 1, 1, 1, 2],
+  multiplier: [1, 1, 1, 1, 1, 1, 1],
+  multiplyPrizes: false,
 };
 
 const WINDOW = {
@@ -16,6 +18,8 @@ const WINDOW = {
   times: [],
   window: { from: '18:00', to: '23:00' },
   perDay: [2, 1, 1, 1, 1, 1, 2],
+  multiplier: [1, 1, 1, 1, 1, 1, 1],
+  multiplyPrizes: false,
 };
 
 const iso = (ms: number) => new Date(ms).toISOString();

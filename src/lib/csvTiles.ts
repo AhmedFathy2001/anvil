@@ -481,7 +481,8 @@ function missionRulesFromCells(args: {
   const reward = places.length > 0 || maxClaims != null ? { places, restPoints: null, maxClaims } : null;
   const expiryHours = args.expiry != null && args.expiry >= 1 ? Math.floor(args.expiry) : null;
   if (!reward && expiryHours == null) return null;
-  return { lockout: false, firstBonus: 0, decay: null, expiryHours, reward };
+  // Multipliers are stamped by the schedule when a mission drops, never authored in a sheet.
+  return { lockout: false, firstBonus: 0, decay: null, expiryHours, reward, multiplier: 1, prizeMultiplier: 1 };
 }
 
 /** Split a by-place cell on pipes, keeping empty slots so position still means the place. */

@@ -91,6 +91,11 @@ The prize columns are lists **by place**, so position in the list is the finishi
 Blank entries mean the default rather than zero: no gp, or the tile's own point value. Set
 `missionMaxClaims` to `1` for the old lock-out behaviour, where the first finisher closes it.
 
+A **double-value day** (a weekend at 2x, say) is set on the event's daily schedule, not per
+tile: whatever multiplier the day carries is stamped onto each mission as it drops, so a
+Saturday mission is still worth double when it is finished on Monday. Points are multiplied
+by default; gp prizes only if the host ticks that too.
+
 **Gp comes out of the clan coffer** (`/coffer`), and a coffer can run dry. When it cannot
 cover a place, that mission still drops and still scores — the winner takes the tile's
 points instead of the gp. Nothing is silently reduced to zero, and the ledger records the

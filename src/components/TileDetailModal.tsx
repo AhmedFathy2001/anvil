@@ -187,7 +187,11 @@ export default function TileDetailModal({
   const isTimed = tile.tileType === 'timed';
   // A mission's gp prizes, read off the tile's own rules. Empty for every normal tile, and for a
   // mission that pays in points alone.
-  const missionPrizes = missionPrizeSummary(parseTileMissionRules(tile.rules));
+  const missionRules = parseTileMissionRules(tile.rules);
+  const missionPrizes = missionPrizeSummary(missionRules);
+  // A mission that dropped on a boosted day carries the multiplier with it, so the badge is the
+  // truth about this tile rather than a statement about what day it is now.
+  const missionBoost = missionRules.multiplier !== 1 ? missionRules.multiplier : null;
   const isDiary = tile.tileType === 'diary';
   const isCa = tile.tileType === 'ca';
   const isGain = tile.tileType === 'gain';
@@ -550,6 +554,11 @@ export default function TileDetailModal({
                 {pointsMode && !tile.optional && (
                   <span className="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-medium">
                     {tile.points ?? 1} pt{(tile.points ?? 1) !== 1 ? 's' : ''}
+                  </span>
+                )}
+                {missionBoost && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-gold/20 text-gold font-medium">
+                    {missionBoost}x points
                   </span>
                 )}
                 {/* What a mission actually pays. Sits next to the points badge because it is the

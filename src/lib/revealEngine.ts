@@ -7,14 +7,16 @@ import {
   hasMissions,
   nextRevealAt,
   parseTileMissionRules,
+  serializeTileMissionRules,
   missionClaimCap,
   missionPrizeSummary,
+  type MissionRules,
   type EventRules,
   type RevealOrder,
 } from '@/lib/eventRules';
 import { settleMissionAwards } from '@/lib/missionAwards';
 import { dueSlotCount } from '@/lib/missionSchedule';
-import { localDayKey } from '@/lib/zonedTime';
+import { dayKeyFields, localDayKey } from '@/lib/zonedTime';
 import { notifyTilesRevealed, notifyBountyClaim, notifyMissionPrize } from '@/lib/discord';
 import { log } from '@/lib/logger';
 import { missionPool } from '@/lib/missionRamp';
@@ -202,6 +204,8 @@ async function announceMissionsForEvent(event: EventRow, rules: EventRules, now:
   const hidden = missionTiles.filter((t) => t.revealedAt == null);
 
   let toReveal: TileRow[] = [];
+  // 1x unless a daily schedule says today is worth more; every other announce mode is plain.
+  let dailyBoost = { points: 1, prize: 1 };
   if (announceMode === 'scheduled') {
     // Per-tile times are the host saying exactly when each one lands; a difficulty curve would be
     // second-guessing them, so the ramp stays out of this mode entirely.
@@ -240,6 +244,11 @@ async function announceMissionsForEvent(event: EventRow, rules: EventRules, now:
       (t) => t.revealedAt != null && localDayKey(Date.parse(t.revealedAt), cfg.daily!.timezone) === dayKey,
     ).length;
     const need = Math.min(hidden.length, due - announcedToday);
+    // Today's multiplier, read from the LOCAL weekday — a Saturday in Sydney is not a Saturday in
+    // UTC, and "double on weekends" means the clan's weekend.
+    const weekday = dayKeyFields(dayKey).weekday;
+    const dayMult = cfg.daily.multiplier[weekday] ?? 1;
+    dailyBoost = { points: dayMult, prize: cfg.daily.multiplyPrizes ? dayMult : 1 };
     if (need > 0) {
       const choice = missionPool(hidden, cfg?.tierRamp ?? [], event, nowMs, await getTierBands(event.clanId));
       if (choice.fellBack) {
@@ -248,7 +257,7 @@ async function announceMissionsForEvent(event: EventRow, rules: EventRules, now:
       toReveal = draw(choice.pool, need, order);
     }
   }
-  await flipAndAnnounceMissions(event, toReveal, hidden.length);
+  await flipAndAnnounceMissions(event, toReveal, hidden.length, dailyBoost);
   // Money before the close-out: settling decides what each claim actually won, and the prize post
   // reads as the answer to the claim rather than a correction filed after it.
   const paid = await settleAndAnnounceAwards(event, missionTiles);
@@ -288,7 +297,17 @@ async function settleAndAnnounceAwards(event: EventRow, missionTiles: TileRow[])
 }
 
 /** Conditionally flip the drawn missions live and announce the batch to Discord (mission wording). */
-async function flipAndAnnounceMissions(event: EventRow, toReveal: TileRow[], hiddenCount: number): Promise<number> {
+async function flipAndAnnounceMissions(
+  event: EventRow,
+  toReveal: TileRow[],
+  hiddenCount: number,
+  /**
+   * A double-value day, from the daily schedule. STAMPED onto the missions as they drop rather than
+   * consulted when somebody finishes: a Saturday mission claimed on Monday is still a Saturday
+   * mission, and the tile has to be able to say so on its own long after the weekend.
+   */
+  boost: { points: number; prize: number } = { points: 1, prize: 1 },
+): Promise<number> {
   if (toReveal.length === 0) return 0;
   const now = new Date().toISOString();
   const flipped = await db
@@ -297,11 +316,35 @@ async function flipAndAnnounceMissions(event: EventRow, toReveal: TileRow[], hid
     .where(and(inArray(tiles.id, toReveal.map((t) => t.id)), isNull(tiles.revealedAt)))
     .returning({ id: tiles.id, label: tiles.label, points: tiles.points, icon: tiles.icon });
   if (flipped.length > 0) {
-    log.info('reveal-engine.mission-announce', { eventId: event.id, count: flipped.length });
+    log.info('reveal-engine.mission-announce', {
+      eventId: event.id,
+      count: flipped.length,
+      ...(boost.points !== 1 || boost.prize !== 1 ? { boost } : {}),
+    });
+    // Stamp the day's multiplier onto exactly the tiles that actually turned — after the flip, so a
+    // mission that lost the race to another tick never carries a boost it was not announced with.
+    const boosted = new Map<number, MissionRules>();
+    if (boost.points !== 1 || boost.prize !== 1) {
+      for (const t of flipped.map((f) => toReveal.find((r) => r.id === f.id)!).filter(Boolean)) {
+        const rules: MissionRules = {
+          ...parseTileMissionRules(t.rules),
+          multiplier: boost.points,
+          prizeMultiplier: boost.prize,
+        };
+        boosted.set(t.id, rules);
+        await db
+          .update(tiles)
+          .set({ rules: serializeTileMissionRules(rules) })
+          .where(eq(tiles.id, t.id));
+      }
+    }
     // What each one pays, so the drop post says what is on the line rather than leaving the money
     // to be discovered by whoever wins it. Read off the tiles we drew, which carry their own rules.
     const prizeByTile = new Map(
-      toReveal.map((t) => [t.id, missionPrizeSummary(parseTileMissionRules(t.rules))[0]?.gp ?? 0]),
+      toReveal.map((t) => [
+        t.id,
+        missionPrizeSummary(boosted.get(t.id) ?? parseTileMissionRules(t.rules))[0]?.gp ?? 0,
+      ]),
     );
     notifyTilesRevealed({
           clanId: event.clanId,
@@ -310,12 +353,13 @@ async function flipAndAnnounceMissions(event: EventRow, toReveal: TileRow[], hid
         label: t.label,
         points: t.points,
         icon: t.icon,
-        prizeGp: prizeByTile.get(t.id) || undefined,
+        prizeGp: Math.round((prizeByTile.get(t.id) ?? 0) * boost.prize) || undefined,
       })),
       pointsMode: event.scoringMode === 'points',
       hiddenRemaining: Math.max(0, hiddenCount - flipped.length),
       mission: true,
       eventId: event.id,
+      multiplier: boost.points,
     }).catch(() => {});
   }
   return flipped.length;

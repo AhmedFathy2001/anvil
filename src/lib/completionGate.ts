@@ -152,7 +152,8 @@ export async function evaluateCompletionGate(args: {
   // cover it RIGHT NOW. Both decisions are frozen here: the points below are computed from them,
   // and lib/missionAwards reserves against the same answer after the row is inserted.
   const place = existing.length + 1;
-  const placeGp = missionPlaceGp(reward, place);
+  // The mission's own rules, so a weekend's stamped prize multiplier is part of what is owed.
+  const placeGp = mission ? missionPlaceGp(mission, place) : 0;
   let funded = true;
   if (placeGp > 0) {
     const balance = await getCofferBalance(event.clanId);
@@ -168,6 +169,7 @@ export async function evaluateCompletionGate(args: {
     reward,
     place,
     funded,
+    multiplier: mission?.multiplier,
   });
   return {
     allowed: true,
