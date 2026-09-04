@@ -34,6 +34,18 @@ const fi: PartialGuideDict = {
       clan: 'Klaanin pyörittäminen',
     },
     cards: {
+      discord: {
+        eyebrow: 'Sille joka hoitaa palvelinta',
+        title: 'Anvil Discordissa',
+        blurb: 'Yksi kutsu, sitten kanavat joille kukin syöte julkaisee, roolit, kauttaviivakomennot ja mitä tarkistaa kun se hiljenee.',
+        minutes: '~5 min',
+      },
+      clan: {
+        eyebrow: 'Sinulle joka perustat sellaisen',
+        title: 'Perusta klaani',
+        blurb: 'Kaksi nimeä ja osoite, ja se on pystyssä. Sitten Discord, jäsenlista ja ensimmäinen taulu.',
+        minutes: '~4 min, ilmainen',
+      },
       plugin: {
         eyebrow: 'Pelaajille',
         title: 'RuneLite-pluginin käyttöönotto',
@@ -89,6 +101,311 @@ const fi: PartialGuideDict = {
         blurb:
           'Klaani vastaan klaani ilman että kerää yhtäkään RSN:ää käsin: yksi kutsulinkki joukkuetta kohden, ja paikka jolla heidän oma moderaattorinsa hoitaa oman puoliskonsa.',
         minutes: '~5 min joukkuetta kohden',
+      },
+    },
+  },
+
+  clan: {
+    metaTitle: 'Perusta klaani — Anvil',
+    metaDescription: 'Luo klaani Anvilissa: nimeä se, valitse osoite, yhdistä Discord, synkronoi jäsenlista ja pidä ensimmäinen tapahtumasi.',
+    eyebrow: 'Anvil · aloittaminen',
+    title: 'Perusta klaani',
+    dek: 'Kaksi nimeä ja osoite, ja klaanisi on pystyssä — ilmaiseksi, eikä mitään tarvitse odottaa. Tässä on se, ja lisäksi ne neljä asiaa jotka kannattaa tehdä heti perään.',
+    facts: [
+      {
+        strong: 'Ilmainen',
+        rest: 'ei korttia, ei kokeilujaksoa',
+      },
+      {
+        strong: 'Pystyssä',
+        rest: 'sillä hetkellä kun lähetät',
+      },
+      {
+        strong: '~4 min',
+        rest: 'toimivaan klaaniin',
+      },
+    ],
+    footnote: 'Kaikkea tätä voi muuttaa myöhemmin kohdasta Admin → Klaani, paitsi osoitetta — sitä kannattaa miettiä hetki nyt.',
+    before: {
+      title: 'Ennen kuin aloitat',
+      body: [
+        'Tarvitset Discord-tilin, ja siinä on koko lista. Kirjaudu ensin sisään osoitteessa `{apex}`: klaanilla pitää olla omistaja, ja kirjautuminen on se, mistä sivusto tietää sen olevan sinä. Aloita platform-sivujen kohdasta **Perusta klaani**, tai mene suoraan osoitteeseen `{apex}/clans/new`.',
+        'Se ei maksa mitään. Ei pakettia valittavana, ei korttia syötettävänä eikä kokeilujaksoa joka päättyy ja vie taulusi mukanaan — klaani alkaa ilmaisena ja pysyy käytettävänä.',
+      ],
+      note: {
+        tag: 'Sinusta tulee sen omistaja',
+        body: 'Omistaja on se yksi rooli jota kukaan ei voi ottaa sinulta, ja se menee sille joka luo klaanin. Lisää henkilökuntaa jälkeenpäin kohdasta Admin → Klaani; katso [Vuorolistalla]({moderatorGuide}).',
+      },
+    },
+    create: {
+      title: 'Nimeä se ja valitse osoite',
+      intro: 'Kolme kenttää ja vain kaksi todellista päätöstä. Lomake tarkistaa osoitteen kirjoittaessasi ja kertoo ennen lähettämistä.',
+      fields: [
+        {
+          term: 'Klaanin nimi pelissä',
+          body: 'Pakollinen, ja sen on vastattava OSRS:ää **täsmälleen**. Tämä ei ole koristetta: jäsenlistan synkronointi täsmää siihen ja hylkää jäsenlistan joka ilmoitetaan millä tahansa muulla nimellä. Juuri se estää jonkun toisen jäsenlistaa päätymästä sivustollesi.',
+        },
+        {
+          term: 'Klaanin nimi',
+          body: 'Valinnainen. Se mitä ihmiset näkevät — sivustolla ja jokaisessa Discord-julkaisussa. Jätä tyhjäksi, niin pelinimeäsi käytetään molempiin.',
+        },
+        {
+          term: 'Osoite',
+          body: 'Klaanisi asuu osoitteessa `{apex}/c/sinun-slug`. Se ehdotetaan kirjoittamasi nimen pohjalta, voit muokata sitä, ja kourallinen sanoja on varattu. Valitse sellainen josta pidät vielä vuoden päästä: se on linkki joka päätyy kiinnitetyksi Discordiisi.',
+        },
+      ],
+      note: {
+        tag: 'Pelinimi on lukko, ei nimilappu',
+        body: 'Jos klaanisi vaihtaa nimeä pelissä, vaihda se täälläkin — siihen asti synkronointi hylkää uuden nimen. Se on tarkistus toiminnassa, ei vika.',
+      },
+    },
+    live: {
+      title: 'Se on pystyssä',
+      body: [
+        'Paina **Luo klaani**, ja se on olemassa. Ei valmistelua, ei jonoa, ei ”rakennamme sivustoasi, palaa muutaman minuutin päästä” — klaani on rivi, joten se palvelee jo ennen kuin sivu ehtii vaihtua.',
+        'Päädyt valintaan: **Aseta se** avaa ohjatun toiminnon, tai **Katsele ensin**. Mikään ei mene rikki jos poistut ja palaat huomenna; ohjattu toiminto muistaa mitkä vaiheet olet tehnyt.',
+      ],
+    },
+    setup: {
+      title: 'Ohjattu käyttöönotto',
+      intro: 'Neljä asiaa erottaa tuoreen klaanin käynnissä olevasta tapahtumasta. Ohjattu toiminto käy ne järjestyksessä ja ohittaa sen minkä olet jo tehnyt.',
+      steps: [
+        {
+          term: 'Nimeä se Discordissa',
+          body: 'Näyttönimesi, klaanin nimi pelissä ja kutsulinkki palvelimellesi. Kutsu on se, minkä avulla ilmoittautumissivut ja oppaat voivat ohjata ihmisiä luoksesi.',
+        },
+        {
+          term: 'Yhdistä Discord',
+          body: 'Yksi jaettu botti, joten ei sovellusta rekisteröitävänä eikä tokenia liitettävänä. Hyväksy se kerran, niin se voi julkaista kanavillesi ja lukea roolisi.',
+        },
+        {
+          term: 'Anna sille kanava',
+          body: 'Ilmoituskanava tapahtumajulkaisuille. Halutessasi jaa lisäosan syötteet erilleen: harvinaiset dropit yhdelle kanavalle, kuolemat toiselle, jottei kumpikaan huku toiseen.',
+        },
+        {
+          term: 'Tee taulu',
+          body: 'Ensimmäinen tapahtuma. Valitse muoto, lisää ruudut, avaa ilmoittautuminen — se on [Ensimmäisen tapahtuman pitäminen]({adminGuide}), ja selvästi pisin näistä neljästä.',
+        },
+      ],
+      after: [
+        'Voit ohittaa ohjatun toiminnon kokonaan ja tehdä kaiken myöhemmin kohdasta Admin → Klaani. Se on olemassa koska järjestys merkitsee kun ei ole koskaan tehnyt tätä: Discord ennen kanavia, kanavat ennen taulua joka haluaa julkaista niille.',
+      ],
+    },
+    members: {
+      title: 'Jäsenten saaminen mukaan',
+      body: [
+        'Kenenkään ei tarvitse ilmoittautua, rekisteröityä tai tulla kutsutuksi yksitellen. Jäsenlistasi tulee pelistä.',
+      ],
+      ways: [
+        {
+          term: 'Jäsenlistan synkronointi (tee tämä)',
+          body: 'Avaa pelissä klaani-ikkuna lisäosan ollessa käynnissä ja paina otsikkopalkin **Anvil**-painiketta. Koko jäsenlistasi saapuu arvoineen, ja lista klaanista jonka nimi ei täsmää omaasi hylätään. Toista se kun väkeä tulee tai lähtee — katso [pelaajan asennusopas]({pluginGuide}).',
+        },
+        {
+          term: 'He vain pelaavat',
+          body: 'Jokainen joka kirjautuu sisään lisäosa käynnissä tunnistetaan automaattisesti. Jos he eivät vielä ole listalla, heitä seurataan **vieraana** — näkyvinä, laskettavina ja yhden synkronoinnin päässä jäsenyydestä.',
+        },
+        {
+          term: 'Käsin',
+          body: 'Admin → Klaani ottaa nimiä yksitellen, sitä varten joka pelaa mobiililla tai virallisella clientilla eikä voi ajaa lisäosaa lainkaan.',
+        },
+      ],
+      note: {
+        tag: 'Vieraat eivät ole ratkaistava ongelma',
+        body: 'Vieras on yksinkertaisesti joku jonka olemme nähneet ja joka ei ole listallasi — vierailevan klaanin pelaaja, alt, joku joka liittyi tänä aamuna. He voivat osallistua tapahtumiin koskaan jäseneksi tulematta.',
+      },
+    },
+    first: {
+      title: 'Ensimmäinen tapahtumasi',
+      body: [
+        'Lyhin tie siihen että jotain tapahtuu: tee taulu, lisää kourallinen ruutuja jotka lisäosa näkee itse, avaa ilmoittautuminen ja aloita. Dropit, tappomäärät ja XP kirjaavat sitten itsensä.',
+        'Kaksi opasta kantaa tässä kuorman. [Ensimmäisen tapahtuman pitäminen]({adminGuide}) kulkee alusta loppuun — Discord, joukkueet, käynnistys ja mitä tehdä kun se päättyy. [Taulu joka seuraa itseään]({boardGuide}) käsittelee nimenomaan ruutuja: mitä kukin laji oikeasti pystyy havaitsemaan, ja ne jotka tuodaan siististi eivätkä sitten koskaan laukea.',
+        'Jos et halua rakentaa taulua lainkaan ensimmäisellä viikolla, pidä sen sijaan **Skill of the Week** tai **Boss of the Week**. Kaikki listalla ovat automaattisesti mukana, tilanne tulee hiscoresista, eikä mitään tarvitse kirjoittaa.',
+      ],
+    },
+    together: {
+      title: 'Tapahtumat useiden klaanien kesken',
+      body: [
+        'Tapahtuman ei tarvitse kuulua yhdelle klaanille. Useat klaanit voivat pitää samaa taulua yhdessä — kaksi tai tusina — kunkin puolen säilyttäessä oman jäsenlistansa, oman henkilökuntansa ja oman puolikkaansa valvonnasta.',
+        'Ne voivat myös jakaa yhden pelaajajoukon sen sijaan että istuisivat pistetaulun vastakkaisilla puolilla: yksi tapahtuma, kaikki mukana, riippumatta siitä miten joukkueet lopulta jaetaan. Klaani vastaan klaani on yksi muoto tästä, ei ainoa.',
+        'Jokainen vieraileva klaani saa kutsulinkin joukkuetta kohden, joten et koskaan kerää yhtäkään RSN:ää käsin, ja paikan jolla heidän oma valvojansa voi hyväksyä omien jäsentensä todisteet. [Vierailevan klaanin isännöinti]({clanVsClanGuide}) käsittelee sellaisen järjestämistä.',
+      ],
+      note: {
+        tag: 'Mitään ei tarvitse ostaa',
+        body: 'Toisen tapahtumaan osallistuminen on ilmaista, ja sellaisen järjestäminen myös. Klaani joka vain ilmestyy muiden tauluille ei koskaan tarvitse muuta kuin oman ilmaisen klaaninsa.',
+      },
+    },
+  },
+
+  discord: {
+    metaTitle: 'Anvil Discordissa — Anvil',
+    metaDescription: 'Yhdistä Anvil-botti Discord-palvelimellesi: yksi kutsu, kanavat joille kukin syöte julkaisee, rooli- ja nimimerkkisynkronointi, kauttaviivakomennot ja mitä tarkistaa kun se hiljenee.',
+    eyebrow: 'Anvil · Discord',
+    title: 'Anvil Discordissa',
+    dek: 'Yksi botti, yksi kutsu, eikä sovellusta rekisteröitävänä. Tässä on mitä se julkaisee, minne se julkaisee, mitä se saa muuttaa palvelimellasi — ja mitä katsoa sinä päivänä kun se lakkaa.',
+    facts: [
+      {
+        strong: 'Yksi botti',
+        rest: 'jaettu, ei mitään luotavaa',
+      },
+      {
+        strong: '~5 min',
+        rest: 'kutsusta ensimmäiseen julkaisuun',
+      },
+      {
+        strong: 'Valinnainen',
+        rest: 'jokainen syöte on pois kunnes osoitat sen jonnekin',
+      },
+    ],
+    footnote: 'Kaikki tämä on kohdassa Admin → Asetukset, jaettuna välilehdille Discord-botti, Webhookit, Roolit ja kanavat sekä Ilmoitukset.',
+    bot: {
+      title: 'Yksi botti, jo rakennettu',
+      body: [
+        'Ei Discord-sovellusta luotavana, ei tokenia luotavana eikä salaisuutta liitettävänä. Anvil ajaa yhtä bottia jonka jokainen klaani jakaa, joten yhdistäminen on kutsu eikä mitään muuta.',
+        'Voit silti tuoda omasi — liitä token kohtaan **Discord-botti**, niin sitä käytetään sen sijaan. Kannattaa vain jos haluat botin kantavan klaanisi nimeä ja kuvaa jäsenlistassa; kaikki tässä oppaassa toimii samoin kummin päin tahansa.',
+      ],
+      permissions: [
+        {
+          term: 'Näytä kanavat, lähetä viestejä, upota linkkejä, liitä tiedostoja',
+          body: 'Perusta. Ilman näitä se on palvelimellasi ja vaiti.',
+        },
+        {
+          term: 'Hallinnoi webhookeja',
+          body: 'Jotta Webhookit-välilehden **Luo**-painike voi tehdä webhookin puolestasi sen sijaan että kopioisit URL-osoitteita käsin Discordista.',
+        },
+        {
+          term: 'Hallinnoi rooleja',
+          body: 'Vain jos otat roolisynkronoinnin käyttöön. Silloin se voi jakaa kartoittamasi roolit — eikä se voi koskaan koskea omaansa ylempään rooliin, mikä on Discordin sääntö, ei meidän.',
+        },
+        {
+          term: 'Hallinnoi nimimerkkejä',
+          body: 'Vain jos otat nimimerkkisynkronoinnin käyttöön, jotta jäsenen palvelinnimimerkki voidaan asettaa hänen RSN:kseen.',
+        },
+        {
+          term: 'Hallinnoi kanavia',
+          body: 'Vain joukkueiden yksityisiä kanavia varten draftin aikana. Ohita se, niin kaikki muu toimii silti.',
+        },
+      ],
+      note: {
+        tag: 'Se pyytää kaikki viisi kerralla',
+        body: 'Discord ei voi pyytää oikeutta jälkikäteen, joten kutsulinkki pyytää koko setin, ja ne ominaisuudet joita et koskaan ota käyttöön eivät koskaan käytä omiaan. Kutsulinkin avaaminen uudelleen on myös tapa korjata oikeus jonka joku poisti.',
+      },
+    },
+    connect: {
+      title: 'Yhdistäminen',
+      intro: 'Kaksi asiaa, tässä järjestyksessä. Botin on oltava palvelimellasi, ja Anvilin on tiedettävä mikä palvelin on sinun.',
+      steps: [
+        {
+          term: 'Kutsu botti',
+          body: 'Admin → Asetukset → **Discord-botti** → **Kutsu / kutsu botti uudelleen**. Linkki esivalitsee palvelimesi kun tunnus on asetettu, joten et voi lisätä sitä väärään vahingossa.',
+        },
+        {
+          term: 'Aseta palvelintunnus',
+          body: 'Napsauta palvelimesi kuvaketta Discordissa hiiren oikealla → **Kopioi palvelimen tunnus** (vaatii kehittäjätilan Discordin omista lisäasetuksista) ja liitä se. Tämä kenttä tekee yhteydestä nimenomaan sinun.',
+        },
+      ],
+      after: [
+        'Paneeli kertoo sitten totuuden aikeesi sijaan: onko botti todella tuon palvelimen jäsen ja mitä oikeuksia siltä puuttuu. Vihreä rivi siellä on enemmän arvoinen kuin tallennettu lomake.',
+      ],
+      note: {
+        tag: 'Palvelintunnus on koko sidos',
+        body: 'Palvelin kuuluu Anvilissa täsmälleen yhdelle klaanille, ja kauttaviivakomennot palvelimelta jota kukaan ei ole ottanut omakseen hylätään sen sijaan että arvattaisiin. Kunnes asetat sen, botti on kutsuttu ja toimeton.',
+      },
+    },
+    channels: {
+      title: 'Minne asiat julkaistaan',
+      body: [
+        'Anvil julkaisee **webhookien** kautta, yksi per kanava, ja jokainen niistä on valinnainen. Mitään ei julkaista minnekään ennen kuin osoitat syötteen kanavalle — tuore klaani on hiljainen tarkoituksella, ei vahingossa.',
+        'Webhookit-välilehti voi luoda ne puolestasi: valitse kanava, paina **Luo**, ja botti tekee webhookin oikeudellaan. Itse Discordissa tekemäsi URL-osoitteen liittäminen toimii aivan samoin.',
+      ],
+      feeds: [
+        {
+          term: 'Ilmoitukset',
+          body: 'Tärkein. Tapahtumien alut ja loput, ilmoittautumisen avautuminen, tilanteet, viikkotulokset. Aseta tämä äläkä mitään muuta, niin sinulla on toimiva klaani.',
+        },
+        {
+          term: 'Lisäosan oletus',
+          body: 'Minne kaikki pelistä tuleva menee kun sillä ei ole omaa kanavaa. Aseta tämä toisena.',
+        },
+        {
+          term: 'Eriytetyt syötteet',
+          body: 'Harvinaiset dropit, lemmikit, kuolemat, collection log, combat achievementit, tasot, questit, diaryt, klipit, PvP-tapot ja Leagues saavat kukin oman kanavansa. Tuo eriyttäminen on ero syötteen jota luetaan ja syötteen jonka ihmiset mykistävät välillä.',
+        },
+      ],
+      note: {
+        tag: 'Eriytä kuolemat ensin',
+        body: 'Kuolemat ovat useimmilla tauluilla suurivolyymisin syöte ja se joka hautaa kaiken muun. Jos eriytät vain yhden asian, eriytä se.',
+      },
+    },
+    roles: {
+      title: 'Roolit ja nimimerkit',
+      body: [
+        'Kaksi synkronointia, molemmat pois kunnes otat ne käyttöön, ja molemmat jäsenlistan ohjaamia eikä sen mitä joku kirjoittaa Discordiin.',
+      ],
+      ways: [
+        {
+          term: 'Roolisynkronointi',
+          body: 'Kartoita pelin arvot Discord-rooleihin, niin Anvil pitää ne linjassa. Lisäksi on erilliset roolit jäsenille, vieraille, kapteeneille ja käynnissä olevalle tapahtumalle, joten voit pingata oikeat ihmiset ylläpitämättä listaa käsin.',
+        },
+        {
+          term: 'Nimimerkkisynkronointi',
+          body: 'Asettaa jäsenen palvelinnimimerkin hänen RSN:kseen. Oletuksena se täyttää tyhjän nimimerkin ja sille voi käskeä korvata itse valitun — se on asetus jota kannattaa miettiä ennen, ei jälkeen.',
+        },
+      ],
+      note: {
+        tag: 'Botin roolin on oltava hallitsemiensa yläpuolella',
+        body: 'Discord ei anna minkään botin koskea omaansa vastaavaan tai ylempään rooliin, ja se kieltäytyy siitä hiljaa sinun päästäsi — synkronointi ei silloin yksinkertaisesti tee mitään. Vedä Anvil-rooli ylös kohdassa Palvelimen asetukset → Roolit, niin se alkaa toimia; mitään ei tarvitse kutsua uudelleen.',
+      },
+    },
+    commands: {
+      title: 'Kauttaviivakomennot',
+      body: [
+        'Botti vastaa komentoon `/bingo` palvelimellasi: **board**, **rules**, **leaderboard**, **me** ja **team**. Ne lukevat käynnissä olevaa tapahtumaa, joten kenenkään ei tarvitse poistua Discordista nähdäkseen tilanteensa.',
+        'Ne ilmestyvät noin minuutin kuluttua botin liittymisestä. Jos ne eivät ilmesty lainkaan, kutsu myönsi botin muttei sen komentoja — ne ovat kaksi erillistä oikeutta, ja vanhempi kutsulinkki pyysi vain toista. Avaa kutsulinkki uudelleen Discord-botti-välilehdeltä; se ei poista bottia eikä nollaa mitään.',
+      ],
+      note: {
+        tag: 'Se vastaa kunkin omalla kielellä',
+        body: 'Oletuksena botti vastaa sillä kielellä jonka kyseinen jäsen on asettanut Discordiinsa, englanti varalla. Valitse yksi kieli kohdasta **Botin kieli** ohittaaksesi tämän kaikilta — se on myös ainoa tie arabiaan, koska Discordissa ei ole arabiankielistä clientkieltä havaittavaksi.',
+      },
+    },
+    posts: {
+      title: 'Mitä se julkaisee ja milloin',
+      body: [
+        'Kaksi lähdettä, ja kannattaa tietää kumpi on kumpi kun jokin näyttää väärältä.',
+        '**Sivusto** julkaisee tapahtumista: taulun avautuminen, ilmoittautuminen, aloitus, tilanteet, tulos. Ne lähtevät Anvilista itsestään ja toimivat riippumatta siitä onko kenelläkään lisäosaa.',
+        '**Lisäosa** julkaisee mitä pelissä tapahtuu: dropit, lemmikit, kuolemat, tasot, collection log -paikat, combat achievementit. Ne ovat olemassa vain sitä ajaville jäsenille, joten hiljainen drop-kanava tarkoittaa yleensä hiljaista lisäosaa eikä rikkinäistä webhookia.',
+      ],
+      note: {
+        tag: 'Mitään ei julkaista kahdesti',
+        body: 'Droppi joka täydentää ruudun on yksi julkaisu, ei yksi lisäosalta ja toinen taululta.',
+      },
+    },
+    quiet: {
+      title: 'Kun se hiljenee',
+      body: [
+        'Järjestyksessä, koska kukin sulkee pois seuraavan:',
+      ],
+      checks: [
+        {
+          term: 'Onko botti todella palvelimella?',
+          body: 'Discord-botti-välilehti kertoo sen suoraan. ”Token kelpaa” ja ”palvelimellasi” ovat eri asioita, eikä ensimmäinen tarkoita toista — jaetulla botilla token on aina kelvollinen.',
+        },
+        {
+          term: 'Onko palvelintunnus oikein?',
+          body: 'Väärä mutta aito tunnus näyttää täsmälleen oikealta, kunnes huomaat julkaisujen menevän muualle.',
+        },
+        {
+          term: 'Onko webhook yhä olemassa?',
+          body: 'Discord-kanavan poistaminen poistaa sen webhookin, ja Anvil säilyttää kuolleen URL-osoitteen. Luo se uudelleen Webhookit-välilehdellä.',
+        },
+        {
+          term: 'Onko botin rooli tarpeeksi korkealla?',
+          body: 'Vain rooli- ja nimimerkkisynkronoinnille — katso yllä. Tämä on se joka epäonnistuu hiljaa.',
+        },
+      ],
+      note: {
+        tag: 'Se ei voi toivottaa liittyviä tervetulleiksi',
+        body: 'Discord ilmoittaa liittymisistä vain gateway-yhteyden kautta, jota jaettu botti ei pidä auki jokaiselle palvelimelle. Siksi ei ole ”tervetuloa”-julkaisua — laita ilmoittautumislinkki sen sijaan #roolit- tai #aloita-tästä-kanavalle, josta ihmiset joka tapauksessa katsovat.',
       },
     },
   },

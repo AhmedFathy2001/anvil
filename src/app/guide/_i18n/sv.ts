@@ -33,6 +33,18 @@ const sv: PartialGuideDict = {
       clan: 'Att sköta klanen',
     },
     cards: {
+      discord: {
+        eyebrow: 'För den som sköter servern',
+        title: 'Anvil i Discord',
+        blurb: 'En inbjudan, sedan kanalerna varje flöde postar i, roller, snedstreckskommandon, och vad du kollar när det tystnar.',
+        minutes: '~5 min',
+      },
+      clan: {
+        eyebrow: 'För dig som startar en',
+        title: 'Starta en klan',
+        blurb: 'Två namn och en adress, så är den live. Sedan Discord, medlemslistan och första brädet.',
+        minutes: '~4 min, gratis',
+      },
       plugin: {
         eyebrow: 'För spelare',
         title: 'Installera RuneLite-pluginet',
@@ -88,6 +100,311 @@ const sv: PartialGuideDict = {
         blurb:
           'Klan mot klan utan att samla in ett enda RSN för hand: en inbjudningslänk per lag, och en plats som låter deras egen moderator sköta sin halva.',
         minutes: '~5 min per lag',
+      },
+    },
+  },
+
+  clan: {
+    metaTitle: 'Starta en klan — Anvil',
+    metaDescription: 'Skapa en klan på Anvil: namnge den, välj adress, koppla Discord, synka medlemslistan och kör ditt första event.',
+    eyebrow: 'Anvil · komma igång',
+    title: 'Starta en klan',
+    dek: 'Två namn och en adress, så är din klan live — gratis, och det finns inget att vänta på. Det är detta, plus de fyra sakerna som är värda att göra direkt efteråt.',
+    facts: [
+      {
+        strong: 'Gratis',
+        rest: 'inget kort, ingen provperiod',
+      },
+      {
+        strong: 'Live',
+        rest: 'i samma stund du skickar',
+      },
+      {
+        strong: '~4 min',
+        rest: 'till en fungerande klan',
+      },
+    ],
+    footnote: 'Allt detta kan du ändra senare under Admin → Klan, utom adressen — den är värd en tanke nu.',
+    before: {
+      title: 'Innan du börjar',
+      body: [
+        'Du behöver ett Discord-konto, och det är hela listan. Logga in på `{apex}` först: en klan måste ha en ägare, och inloggningen är hur sidan vet att det är du. Börja från **Starta en klan** på plattformssidorna, eller gå direkt till `{apex}/clans/new`.',
+        'Det kostar ingenting. Ingen plan att välja, inget kort att fylla i, och ingen provperiod som går ut och tar ditt bräde med sig — en klan startar gratis och fortsätter fungera.',
+      ],
+      note: {
+        tag: 'Du blir dess ägare',
+        body: 'Ägare är den enda roll ingen kan ta ifrån dig, och den går till den som skapar klanen. Lägg till personal efteråt under Admin → Klan; se [På schemat]({moderatorGuide}).',
+      },
+    },
+    create: {
+      title: 'Namnge den, och välj adress',
+      intro: 'Tre fält, och bara två verkliga beslut. Formuläret kontrollerar adressen medan du skriver och säger till innan du skickar.',
+      fields: [
+        {
+          term: 'Klannamn i spelet',
+          body: 'Obligatoriskt, och det måste stämma **exakt** med OSRS. Det är ingen dekoration: rostersynkroniseringen matchar på det och avvisar en medlemslista som rapporteras under något annat namn. Det är det som hindrar någon annans medlemslista från att hamna på din sida.',
+        },
+        {
+          term: 'Klannamn',
+          body: 'Valfritt. Det folk ser — på sidan och i varje Discord-inlägg. Lämna det tomt så används ditt spelnamn för båda.',
+        },
+        {
+          term: 'Adress',
+          body: 'Din klan bor på `{apex}/c/din-slug`. Den föreslås utifrån namnet du skrev, du kan ändra den, och en handfull ord är reserverade. Välj en du fortfarande gillar om ett år: det är länken som hamnar fastnålad i din Discord.',
+        },
+      ],
+      note: {
+        tag: 'Spelnamnet är ett lås, inte en etikett',
+        body: 'Om din klan byter namn i spelet, ändra det här också — tills dess avvisar rostersynkroniseringen det nya namnet. Det är kontrollen som fungerar, inte ett fel.',
+      },
+    },
+    live: {
+      title: 'Den är live',
+      body: [
+        'Tryck **Skapa klan**, så finns den. Ingen provisionering, ingen kö, inget ”vi bygger din sida, kom tillbaka om några minuter” — en klan är en rad, så den körs redan innan sidan hunnit byta.',
+        'Du landar på ett val mellan **Sätt upp den**, som öppnar guiden, och **Titta runt först**. Inget går sönder om du går därifrån och kommer tillbaka i morgon; guiden minns vilka steg du gjort.',
+      ],
+    },
+    setup: {
+      title: 'Installationsguiden',
+      intro: 'Fyra saker står mellan en färsk klan och ett event i gång. Guiden går igenom dem i ordning och hoppar över det du redan gjort.',
+      steps: [
+        {
+          term: 'Namnge den i Discord',
+          body: 'Ditt visningsnamn, ditt klannamn i spelet och en inbjudningslänk till din server. Inbjudan är det som låter anmälningssidor och guider peka folk till dig.',
+        },
+        {
+          term: 'Koppla Discord',
+          body: 'En delad bot, så det finns ingen applikation att registrera och ingen token att klistra in. Godkänn den en gång, så kan den posta i dina kanaler och läsa dina roller.',
+        },
+        {
+          term: 'Ge den en kanal',
+          body: 'En annonseringskanal för eventinlägg. Dela eventuellt upp pluginets flöden: sällsynta drops i en kanal, dödsfall i en annan, så att de inte dränker varandra.',
+        },
+        {
+          term: 'Gör ett bräde',
+          body: 'Det första eventet. Välj format, lägg till rutor, öppna anmälan — det är [Kör ditt första event]({adminGuide}), och klart den längsta av de fyra.',
+        },
+      ],
+      after: [
+        'Du kan hoppa över guiden helt och göra allt senare under Admin → Klan. Den finns för att ordningen spelar roll när man aldrig gjort det förut: Discord före kanaler, kanaler före ett bräde som vill posta i dem.',
+      ],
+    },
+    members: {
+      title: 'Få in dina medlemmar',
+      body: [
+        'Ingen behöver anmäla sig, registrera sig eller bjudas in en i taget. Din medlemslista kommer från spelet.',
+      ],
+      ways: [
+        {
+          term: 'Rostersynkronisering (ta den här)',
+          body: 'Öppna klanfönstret i spelet med pluginet igång och tryck **Anvil**-knappen i titelraden. Hela din medlemslista kommer in med rangerna kvar, och en lista från en klan vars namn inte stämmer med ditt avvisas. Upprepa det när folk kommer eller går — se [installationsguiden för spelare]({pluginGuide}).',
+        },
+        {
+          term: 'De bara spelar',
+          body: 'Alla som loggar in med pluginet igång känns igen automatiskt. Är de inte på listan än spåras de som **gäst** — synliga, räknebara och en synkronisering från att vara medlem.',
+        },
+        {
+          term: 'För hand',
+          body: 'Admin → Klan tar namn ett i taget, för den som spelar på mobil eller den officiella klienten och inte kan köra pluginet alls.',
+        },
+      ],
+      note: {
+        tag: 'Gäster är inget problem att lösa',
+        body: 'En gäst är helt enkelt någon vi sett som inte står på din lista — en spelare från en gästklan, ett alt, någon som gick med i morse. De kan delta i event utan att någonsin bli medlem.',
+      },
+    },
+    first: {
+      title: 'Ditt första event',
+      body: [
+        'Kortaste vägen till att något händer: gör ett bräde, lägg till en handfull rutor som pluginet ser själv, öppna anmälan, och starta. Drops, killcounts och XP skriver då in sig själva.',
+        'Två guider bär lasset här. [Kör ditt första event]({adminGuide}) går från början till slut — Discord, lag, start, och vad man gör när det tar slut. [Bygg ett bräde som följer sig självt]({boardGuide}) handlar särskilt om rutor: vad varje sort faktiskt kan upptäcka, och de som importeras snyggt och sedan aldrig utlöser.',
+        'Vill du helst inte bygga ett bräde alls första veckan, kör en **Skill of the Week** eller **Boss of the Week** i stället. Alla på listan är med automatiskt, ställningen kommer från hiscores, och det finns inget att skriva.',
+      ],
+    },
+    together: {
+      title: 'Event över flera klaner',
+      body: [
+        'Ett event behöver inte tillhöra en klan. Flera klaner kan köra samma bräde tillsammans — två, eller ett dussin — där varje sida behåller sin egen medlemslista, sin egen personal och sin egen halva av modereringen.',
+        'De kan också dela en pool av spelare i stället för att sitta på var sin sida av en tabell: ett event, alla med, hur lagen än delas upp. Klan mot klan är en form av detta, inte den enda.',
+        'Varje gästklan får en inbjudningslänk per lag, så att du aldrig samlar in ett enda RSN för hand, och en plats som låter deras egen moderator godkänna sina egna medlemmars bevis. [Vara värd för en gästklan]({clanVsClanGuide}) täcker att arrangera ett.',
+      ],
+      note: {
+        tag: 'Inget att köpa',
+        body: 'Att delta i någon annans event är gratis, och att arrangera ett är också gratis. En klan som bara dyker upp på andras bräden behöver aldrig mer än sin egen gratisklan.',
+      },
+    },
+  },
+
+  discord: {
+    metaTitle: 'Anvil i Discord — Anvil',
+    metaDescription: 'Koppla Anvil-boten till din Discord-server: en inbjudan, kanalerna varje flöde postar i, roll- och smeknamnssynk, snedstreckskommandon, och vad du kollar när det tystnar.',
+    eyebrow: 'Anvil · Discord',
+    title: 'Anvil i Discord',
+    dek: 'En bot, en inbjudan, och ingen applikation att registrera. Här står vad den postar, var den postar det, vad den får ändra på din server — och vad du tittar på den dag den slutar.',
+    facts: [
+      {
+        strong: 'En bot',
+        rest: 'delad, inget att skapa',
+      },
+      {
+        strong: '~5 min',
+        rest: 'från inbjudan till första inlägget',
+      },
+      {
+        strong: 'Tillval',
+        rest: 'varje flöde är av tills du riktar det någonstans',
+      },
+    ],
+    footnote: 'Allt här ligger under Admin → Inställningar, fördelat på flikarna Discord-bot, Webhooks, Roller och kanaler samt Aviseringar.',
+    bot: {
+      title: 'En bot, redan byggd',
+      body: [
+        'Det finns ingen Discord-applikation att skapa, ingen token att generera och ingen hemlighet att klistra in. Anvil kör en bot som varje klan delar, så att koppla är en inbjudan och inget mer.',
+        'Du kan ändå ta med din egen — klistra in en token under **Discord-bot** så används den i stället. Värt det bara om du vill att boten ska bära din klans namn och avatar i medlemslistan; allt i den här guiden fungerar likadant oavsett.',
+      ],
+      permissions: [
+        {
+          term: 'Se kanaler, skicka meddelanden, bädda in länkar, bifoga filer',
+          body: 'Grunderna. Utan dem är den på din server och tyst.',
+        },
+        {
+          term: 'Hantera webhooks',
+          body: 'Så att knappen **Skapa** på Webhooks-fliken kan göra en webhook åt dig i stället för att du kopierar URL:er ur Discord för hand.',
+        },
+        {
+          term: 'Hantera roller',
+          body: 'Bara om du slår på rollsynk. Då kan den dela ut rollerna du kopplar — och den kan aldrig röra en roll ovanför sin egen, vilket är Discords regel, inte vår.',
+        },
+        {
+          term: 'Hantera smeknamn',
+          body: 'Bara om du slår på smeknamnssynk, så att en medlems servernamn kan sättas till deras RSN.',
+        },
+        {
+          term: 'Hantera kanaler',
+          body: 'Bara för privata lagkanaler under en draft. Hoppa över den så fungerar allt annat ändå.',
+        },
+      ],
+      note: {
+        tag: 'Den ber om alla fem på en gång',
+        body: 'Discord kan inte be om en behörighet i efterhand, så inbjudningslänken begär hela uppsättningen, och funktionerna du aldrig slår på använder aldrig sina. Att öppna inbjudningslänken igen är också hur du reparerar en behörighet någon tagit bort.',
+      },
+    },
+    connect: {
+      title: 'Att koppla den',
+      intro: 'Två saker, i den här ordningen. Boten måste finnas på din server, och Anvil måste veta vilken server som är din.',
+      steps: [
+        {
+          term: 'Bjud in boten',
+          body: 'Admin → Inställningar → **Discord-bot** → **Bjud in / bjud in boten igen**. Länken förväljer din server när id:t är satt, så du kan inte lägga till den på fel server av misstag.',
+        },
+        {
+          term: 'Ange server-id',
+          body: 'Högerklicka din serverikon i Discord → **Kopiera server-ID** (kräver Utvecklarläge, under Discords egna avancerade inställningar) och klistra in det. Det är fältet som gör kopplingen till din.',
+        },
+      ],
+      after: [
+        'Panelen berättar sedan sanningen i stället för din avsikt: om boten faktiskt är medlem på den servern, och vilka behörigheter den saknar. En grön rad där är värd mer än ett sparat formulär.',
+      ],
+      note: {
+        tag: 'Server-id:t är hela bindningen',
+        body: 'En server tillhör exakt en klan på Anvil, och snedstreckskommandon från en server som ingen gjort anspråk på avvisas i stället för att gissas. Tills du anger det är boten inbjuden och overksam.',
+      },
+    },
+    channels: {
+      title: 'Var saker postas',
+      body: [
+        'Anvil postar genom **webhooks**, en per kanal, och varenda en är valfri. Inget postas någonstans förrän du riktar ett flöde mot en kanal — en färsk klan är tyst med flit, inte av misstag.',
+        'Webhooks-fliken kan skapa dem åt dig: välj en kanal, tryck **Skapa**, så gör boten webhooken med sin behörighet. Att klistra in en URL du gjort själv i Discord fungerar precis likadant.',
+      ],
+      feeds: [
+        {
+          term: 'Annonseringar',
+          body: 'Den viktigaste. Event som startar och slutar, anmälan som öppnar, ställningar, veckoresultat. Ange bara den, så har du en fungerande klan.',
+        },
+        {
+          term: 'Plugin-standard',
+          body: 'Dit allt från spelet går när det inte har en egen kanal. Ange den som nummer två.',
+        },
+        {
+          term: 'De uppdelade flödena',
+          body: 'Sällsynta drops, pets, dödsfall, collection log, combat achievements, nivåer, quests, diaries, klipp, PvP-kills och Leagues får var sin kanal. Den uppdelningen är skillnaden mellan ett flöde folk läser och ett de tystar.',
+        },
+      ],
+      note: {
+        tag: 'Dela av dödsfallen först',
+        body: 'Dödsfall är flödet med störst volym på de flesta bräden och det som begraver allt annat. Delar du av bara en sak, dela av den.',
+      },
+    },
+    roles: {
+      title: 'Roller och smeknamn',
+      body: [
+        'Två synkroniseringar, båda av tills du slår på dem, och båda styrda av medlemslistan snarare än av något någon skriver i Discord.',
+      ],
+      ways: [
+        {
+          term: 'Rollsynkronisering',
+          body: 'Koppla dina ranger från spelet till Discord-roller, så håller Anvil dem i takt. Det finns också enskilda roller för medlemmar, gäster, lagkaptener och det pågående eventet, så att du kan pinga rätt personer utan att sköta en lista för hand.',
+        },
+        {
+          term: 'Smeknamnssynkronisering',
+          body: 'Sätter en medlems servernamn till deras RSN. Den fyller som standard i ett tomt smeknamn och kan instrueras att skriva över ett som någon valt själv — det är inställningen att fundera över före, inte efter.',
+        },
+      ],
+      note: {
+        tag: 'Botens roll måste ligga ovanför dem den hanterar',
+        body: 'Discord låter ingen bot röra en roll på eller ovanför sin egen, och nekar det tyst från din sida — synkroniseringen gör då helt enkelt ingenting. Dra upp Anvil-rollen under Serverinställningar → Roller, så börjar den fungera; inget behöver bjudas in igen.',
+      },
+    },
+    commands: {
+      title: 'Snedstreckskommandon',
+      body: [
+        'Boten svarar på `/bingo` på din server: **board**, **rules**, **leaderboard**, **me** och **team**. De läser det pågående eventet, så ingen behöver lämna Discord för att se hur de ligger till.',
+        'De dyker upp ungefär en minut efter att boten gått med. Dyker de inte upp alls gav inbjudan boten men inte dess kommandon — det är två separata behörigheter, och en äldre inbjudningslänk bad bara om den ena. Öppna länken igen från Discord-bot-fliken; det sparkar inte ut boten och återställer ingenting.',
+      ],
+      note: {
+        tag: 'Den svarar på var och ens eget språk',
+        body: 'Som standard svarar boten på det språk medlemmen ställt in sin Discord på, med engelska som reserv. Välj ett enda språk under **Botspråk** för att åsidosätta det för alla — det är också enda vägen till arabiska, eftersom Discord inte har något arabiskt klientspråk att upptäcka.',
+      },
+    },
+    posts: {
+      title: 'Vad den postar, och när',
+      body: [
+        'Två källor, och det är värt att veta vilken som är vilken när något ser fel ut.',
+        '**Sidan** postar om event: ett bräde som öppnar, anmälan, en start, ställningar, resultatet. De kommer från Anvil självt och fungerar oavsett om någon har pluginet.',
+        '**Pluginet** postar vad som händer i spelet: drops, pets, dödsfall, nivåer, collection log-platser, combat achievements. De finns bara för medlemmar som kör det, så en tyst drops-kanal betyder oftast ett tyst plugin snarare än en trasig webhook.',
+      ],
+      note: {
+        tag: 'Inget postas två gånger',
+        body: 'Ett drop som fullbordar en ruta är ett inlägg, inte ett från pluginet och ytterligare ett från brädet.',
+      },
+    },
+    quiet: {
+      title: 'När det tystnar',
+      body: [
+        'I ordning, eftersom varje punkt utesluter nästa:',
+      ],
+      checks: [
+        {
+          term: 'Är boten faktiskt på servern?',
+          body: 'Discord-bot-fliken säger det direkt. ”Token giltig” och ”på din server” är två olika fakta, och det första innebär inte det andra — med en delad bot är token alltid giltig.',
+        },
+        {
+          term: 'Är server-id:t rätt?',
+          body: 'Ett fel-men-äkta id ser precis ut som ett rätt, tills du märker att inläggen hamnar någon annanstans.',
+        },
+        {
+          term: 'Finns webhooken kvar?',
+          body: 'Att radera en Discord-kanal raderar dess webhook, och Anvil behåller den döda URL:en. Skapa den på nytt på Webhooks-fliken.',
+        },
+        {
+          term: 'Ligger botens roll tillräckligt högt?',
+          body: 'Bara för roll- och smeknamnssynk — se ovan. Det är den som misslyckas tyst.',
+        },
+      ],
+      note: {
+        tag: 'Den kan inte hälsa nya välkomna',
+        body: 'Discord rapporterar bara anslutningar över en gateway-koppling, som en delad bot inte håller öppen för varje server. Det finns därför inget ”välkommen”-inlägg — lägg anmälningslänken i en #roller- eller #börja-här-kanal i stället, där folk ändå tittar.',
       },
     },
   },

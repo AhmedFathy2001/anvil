@@ -34,6 +34,18 @@ const es: PartialGuideDict = {
       clan: 'Llevar el clan',
     },
     cards: {
+      discord: {
+        eyebrow: 'Para quien lleva el servidor',
+        title: 'Anvil en Discord',
+        blurb: 'Una invitación, luego los canales donde publica cada flujo, roles, comandos slash, y qué comprobar cuando se para.',
+        minutes: '~5 min',
+      },
+      clan: {
+        eyebrow: 'Para quien empieza uno',
+        title: 'Crear un clan',
+        blurb: 'Dos nombres y una dirección, y está en línea. Después Discord, tu lista de miembros y el primer tablero.',
+        minutes: '~4 min, gratis',
+      },
       plugin: {
         eyebrow: 'Para jugadores',
         title: 'Configurar el plugin de RuneLite',
@@ -89,6 +101,311 @@ const es: PartialGuideDict = {
         blurb:
           'Clan contra clan sin recoger ni un solo RSN a mano: un enlace de invitación por equipo, y un puesto para que su propio moderador lleve su mitad.',
         minutes: '~5 min por equipo',
+      },
+    },
+  },
+
+  clan: {
+    metaTitle: 'Crear un clan — Anvil',
+    metaDescription: 'Crea un clan en Anvil: ponle nombre, elige su dirección, conecta Discord, sincroniza tu lista de miembros y organiza tu primer evento.',
+    eyebrow: 'Anvil · empezar',
+    title: 'Crear un clan',
+    dek: 'Dos nombres y una dirección, y tu clan está en línea — gratis, y no hay nada que esperar. Eso es esto, más las cuatro cosas que conviene hacer justo después.',
+    facts: [
+      {
+        strong: 'Gratis',
+        rest: 'sin tarjeta, sin prueba',
+      },
+      {
+        strong: 'En línea',
+        rest: 'en cuanto lo envías',
+      },
+      {
+        strong: '~4 min',
+        rest: 'hasta un clan funcionando',
+      },
+    ],
+    footnote: 'Todo esto se puede cambiar luego desde Admin → Clan, salvo la dirección — esa merece un momento de reflexión ahora.',
+    before: {
+      title: 'Antes de empezar',
+      body: [
+        'Necesitas una cuenta de Discord, y esa es toda la lista. Inicia sesión primero en `{apex}`: un clan necesita un propietario, y el inicio de sesión es como el sitio sabe que eres tú. Empieza desde **Crear un clan** en las páginas de la plataforma, o ve directo a `{apex}/clans/new`.',
+        'No cuesta nada. No hay plan que elegir, ni tarjeta que introducir, ni prueba que caduque y se lleve tu tablero — un clan empieza gratis y sigue siendo usable.',
+      ],
+      note: {
+        tag: 'Serás su propietario',
+        body: 'Propietario es el único rol que nadie puede quitarte, y va a quien crea el clan. Añade staff después desde Admin → Clan; ver [En el turno]({moderatorGuide}).',
+      },
+    },
+    create: {
+      title: 'Ponle nombre y elige su dirección',
+      intro: 'Tres campos, y solo dos decisiones reales. El formulario comprueba la dirección mientras escribes y te avisa antes de enviar.',
+      fields: [
+        {
+          term: 'Nombre del clan en el juego',
+          body: 'Obligatorio, y tiene que coincidir **exactamente** con OSRS. No es decoración: la sincronización de la lista se basa en él y rechaza cualquier lista de miembros que se reporte con otro nombre. Eso es lo que impide que la lista de otro acabe en tu sitio.',
+        },
+        {
+          term: 'Nombre del clan',
+          body: 'Opcional. Lo que ve la gente — en el sitio y en cada publicación de Discord. Déjalo en blanco y se usará tu nombre del juego para ambos.',
+        },
+        {
+          term: 'Dirección',
+          body: 'Tu clan vive en `{apex}/c/tu-slug`. Se sugiere a partir del nombre que escribiste, puedes editarla, y unas cuantas palabras están reservadas. Elige una que te siga gustando dentro de un año: es el enlace que acabará fijado en tu Discord.',
+        },
+      ],
+      note: {
+        tag: 'El nombre del juego es un cerrojo, no una etiqueta',
+        body: 'Si tu clan se renombra en el juego, cámbialo aquí también — hasta entonces la sincronización rechazará el nombre nuevo. Es el control funcionando, no un fallo.',
+      },
+    },
+    live: {
+      title: 'Está en línea',
+      body: [
+        'Pulsa **Crear clan** y existe. Sin aprovisionamiento, sin cola, sin «estamos construyendo tu sitio, vuelve en unos minutos» — un clan es una fila, así que ya está sirviendo antes de que la página termine de cambiar.',
+        'Aterrizas en una elección entre **Configurarlo**, que abre el asistente, y **Echar un vistazo primero**. No se rompe nada si te vas y vuelves mañana; el asistente recuerda qué pasos has hecho.',
+      ],
+    },
+    setup: {
+      title: 'El asistente de configuración',
+      intro: 'Cuatro cosas separan un clan recién creado de un evento en marcha. El asistente las recorre en orden y salta lo que ya hayas hecho.',
+      steps: [
+        {
+          term: 'Ponle nombre en Discord',
+          body: 'Tu nombre visible, tu nombre de clan en el juego y un enlace de invitación a tu servidor. La invitación es lo que permite que las páginas de inscripción y las guías dirijan gente hacia ti.',
+        },
+        {
+          term: 'Conectar Discord',
+          body: 'Un bot compartido, así que no hay aplicación que registrar ni token que pegar. Apruébalo una vez y podrá publicar en tus canales y leer tus roles.',
+        },
+        {
+          term: 'Dale un canal',
+          body: 'Un canal de anuncios para las publicaciones de evento. Opcionalmente separa los flujos del plugin: drops raros en un canal, muertes en otro, para que ninguno ahogue al otro.',
+        },
+        {
+          term: 'Haz un tablero',
+          body: 'El primer evento. Elige un formato, añade casillas, abre inscripciones — eso es [Organizar tu primer evento]({adminGuide}), y con diferencia la más larga de las cuatro.',
+        },
+      ],
+      after: [
+        'Puedes saltarte el asistente por completo y hacerlo todo luego desde Admin → Clan. Existe porque el orden importa cuando nunca lo has hecho: Discord antes que los canales, los canales antes que un tablero que quiere publicar en ellos.',
+      ],
+    },
+    members: {
+      title: 'Meter a tus miembros',
+      body: [
+        'Nadie tiene que inscribirse, registrarse ni ser invitado uno a uno. Tu lista de miembros viene del juego.',
+      ],
+      ways: [
+        {
+          term: 'Sincronización de la lista (haz esta)',
+          body: 'Abre la ventana de clan en el juego con el plugin activo y pulsa el botón **Anvil** en su barra de título. Toda tu lista llega con los rangos intactos, y una lista de un clan cuyo nombre no coincide con el tuyo se rechaza. Repítelo cuando entre o salga gente — ver la [guía de instalación para jugadores]({pluginGuide}).',
+        },
+        {
+          term: 'Simplemente juegan',
+          body: 'Cualquiera que inicie sesión con el plugin activo se reconoce automáticamente. Si aún no está en la lista, se le sigue como **invitado** — visible, contable, y a una sincronización de ser miembro.',
+        },
+        {
+          term: 'A mano',
+          body: 'Admin → Clan acepta nombres de uno en uno, para quien juega en móvil o en el cliente oficial y no puede usar el plugin en absoluto.',
+        },
+      ],
+      note: {
+        tag: 'Los invitados no son un problema que resolver',
+        body: 'Un invitado es simplemente alguien a quien hemos visto y que no está en tu lista — un jugador de un clan visitante, un alt, alguien que entró esta mañana. Pueden participar en eventos sin llegar a ser miembros nunca.',
+      },
+    },
+    first: {
+      title: 'Tu primer evento',
+      body: [
+        'El camino más corto para que pase algo: haz un tablero, añade un puñado de casillas que el plugin vea por sí solo, abre inscripciones y arranca. Los drops, los contadores de kills y la XP se registran solos a partir de ahí.',
+        'Dos guías cargan con el peso aquí. [Organizar tu primer evento]({adminGuide}) va de principio a fin — Discord, equipos, lanzamiento, y qué hacer cuando termina. [Construir un tablero que se sigue solo]({boardGuide}) trata específicamente de casillas: qué puede detectar realmente cada tipo, y cuáles se importan limpiamente y luego no se disparan nunca.',
+        'Si prefieres no construir ningún tablero en tu primera semana, organiza un **Skill of the Week** o un **Boss of the Week** en su lugar. Todos los de la lista entran automáticamente, la clasificación sale de los hiscores, y no hay nada que redactar.',
+      ],
+    },
+    together: {
+      title: 'Eventos entre varios clanes',
+      body: [
+        'Un evento no tiene por qué pertenecer a un solo clan. Varios clanes pueden llevar el mismo tablero juntos — dos, o una docena — conservando cada lado su propia lista de miembros, su propio staff y su propia mitad de la moderación.',
+        'También pueden compartir un mismo grupo de jugadores en vez de sentarse en lados opuestos de una clasificación: un evento, todos dentro, se repartan como se repartan los equipos. Clan contra clan es una forma de esto, no la única.',
+        'Cada clan visitante recibe un enlace de invitación por equipo, así que nunca recoges un solo RSN a mano, y un asiento que permite a su propio moderador aprobar las pruebas de sus propios miembros. [Acoger a un clan visitante]({clanVsClanGuide}) cubre cómo organizarlo.',
+      ],
+      note: {
+        tag: 'Nada que comprar',
+        body: 'Participar en el evento de otro es gratis, y organizar uno también. Un clan que solo aparece en los tableros de los demás nunca necesita más que su propio clan gratuito.',
+      },
+    },
+  },
+
+  discord: {
+    metaTitle: 'Anvil en Discord — Anvil',
+    metaDescription: 'Conecta el bot de Anvil a tu servidor de Discord: una invitación, los canales donde publica cada flujo, sincronización de roles y apodos, comandos slash, y qué comprobar cuando se queda en silencio.',
+    eyebrow: 'Anvil · Discord',
+    title: 'Anvil en Discord',
+    dek: 'Un bot, una invitación, y ninguna aplicación que registrar. Esto es lo que publica, dónde lo publica, qué puede cambiar en tu servidor — y qué mirar el día que se pare.',
+    facts: [
+      {
+        strong: 'Un bot',
+        rest: 'compartido, nada que crear',
+      },
+      {
+        strong: '~5 min',
+        rest: 'de la invitación a la primera publicación',
+      },
+      {
+        strong: 'Opcional',
+        rest: 'cada flujo está apagado hasta que lo apuntas a algún sitio',
+      },
+    ],
+    footnote: 'Todo esto vive en Admin → Ajustes, repartido entre las pestañas Bot de Discord, Webhooks, Roles y canales, y Notificaciones.',
+    bot: {
+      title: 'Un bot, ya construido',
+      body: [
+        'No hay aplicación de Discord que crear, ni token que generar, ni secreto que pegar. Anvil ejecuta un bot que comparten todos los clanes, así que conectarlo es una invitación y nada más.',
+        'Aun así puedes traer el tuyo — pega un token en **Bot de Discord** y se usará en su lugar. Solo merece la pena si quieres que el bot lleve el nombre y el avatar de tu clan en la lista de miembros; todo lo de esta guía funciona igual de cualquier modo.',
+      ],
+      permissions: [
+        {
+          term: 'Ver canales, enviar mensajes, insertar enlaces, adjuntar archivos',
+          body: 'Lo básico. Sin esto está en tu servidor y callado.',
+        },
+        {
+          term: 'Gestionar webhooks',
+          body: 'Para que el botón **Crear** de la pestaña Webhooks pueda hacer uno por ti, en vez de que copies URLs de Discord a mano.',
+        },
+        {
+          term: 'Gestionar roles',
+          body: 'Solo si activas la sincronización de roles. Entonces puede repartir los roles que asocies — y nunca puede tocar un rol por encima del suyo, que es regla de Discord, no nuestra.',
+        },
+        {
+          term: 'Gestionar apodos',
+          body: 'Solo si activas la sincronización de apodos, para que el apodo de servidor de un miembro se pueda poner a su RSN.',
+        },
+        {
+          term: 'Gestionar canales',
+          body: 'Solo para canales privados por equipo durante un draft. Sáltatelo y todo lo demás sigue funcionando.',
+        },
+      ],
+      note: {
+        tag: 'Pide los cinco de una vez',
+        body: 'Discord no tiene forma de pedir un permiso más tarde, así que el enlace de invitación solicita el conjunto completo, y las funciones que nunca actives nunca usan el suyo. Volver a abrir el enlace de invitación es también cómo se repara un permiso que alguien quitó.',
+      },
+    },
+    connect: {
+      title: 'Conectarlo',
+      intro: 'Dos cosas, en este orden. El bot tiene que estar en tu servidor, y Anvil tiene que saber cuál es el tuyo.',
+      steps: [
+        {
+          term: 'Invita al bot',
+          body: 'Admin → Ajustes → **Bot de Discord** → **Invitar / reinvitar al bot**. El enlace preselecciona tu servidor una vez puesto el ID, así que no puedes añadirlo al equivocado por accidente.',
+        },
+        {
+          term: 'Pon el ID del servidor',
+          body: 'Clic derecho en el icono de tu servidor en Discord → **Copiar ID del servidor** (requiere el modo desarrollador, en los ajustes avanzados de Discord) y pégalo. Este campo es lo que hace la conexión específicamente tuya.',
+        },
+      ],
+      after: [
+        'El panel te dice entonces la verdad en vez de tu intención: si el bot es realmente miembro de ese servidor, y qué permisos le faltan. Una línea verde ahí vale más que un formulario guardado.',
+      ],
+      note: {
+        tag: 'El ID del servidor es todo el vínculo',
+        body: 'Un servidor pertenece exactamente a un clan en Anvil, y los comandos slash de un servidor que nadie ha reclamado se rechazan en vez de adivinarse. Hasta que lo pongas, el bot está invitado y ocioso.',
+      },
+    },
+    channels: {
+      title: 'Dónde se publica cada cosa',
+      body: [
+        'Anvil publica mediante **webhooks**, uno por canal, y todos son opcionales. No se publica nada en ninguna parte hasta que apuntas un flujo a un canal — un clan recién creado está en silencio a propósito, no por accidente.',
+        'La pestaña Webhooks puede crearlos por ti: elige un canal, pulsa **Crear**, y el bot fabrica el webhook con su permiso. Pegar una URL que hayas hecho tú en Discord funciona igual.',
+      ],
+      feeds: [
+        {
+          term: 'Anuncios',
+          body: 'El principal. Inicios y finales de evento, apertura de inscripciones, clasificaciones, resultados semanales. Pon este y nada más y ya tienes un clan funcionando.',
+        },
+        {
+          term: 'Predeterminado del plugin',
+          body: 'Adonde va todo lo que viene del juego y no tiene canal propio. Ponlo en segundo lugar.',
+        },
+        {
+          term: 'Los flujos separados',
+          body: 'Drops raros, mascotas, muertes, collection log, combat achievements, niveles, quests, diaries, clips, kills de PvP y Leagues llevan cada uno su canal. Esa separación es la diferencia entre un flujo que la gente lee y uno que silencia.',
+        },
+      ],
+      note: {
+        tag: 'Separa las muertes primero',
+        body: 'Las muertes son el flujo de mayor volumen en la mayoría de tableros y el que entierra todo lo demás. Si solo separas una cosa, separa esa.',
+      },
+    },
+    roles: {
+      title: 'Roles y apodos',
+      body: [
+        'Dos sincronizaciones, ambas apagadas hasta que las actives, y ambas guiadas por la lista de miembros y no por lo que alguien escriba en Discord.',
+      ],
+      ways: [
+        {
+          term: 'Sincronización de roles',
+          body: 'Asocia tus rangos del juego a roles de Discord y Anvil los mantiene alineados. También hay roles sueltos para miembros, invitados, capitanes y el evento en curso, para poder mencionar a la gente correcta sin mantener una lista a mano.',
+        },
+        {
+          term: 'Sincronización de apodos',
+          body: 'Pone el apodo de servidor de un miembro a su RSN. Por defecto rellena un apodo vacío y se le puede decir que sobrescriba uno que alguien eligió — ese es el ajuste que conviene pensar antes, no después.',
+        },
+      ],
+      note: {
+        tag: 'El rol del bot debe estar por encima de los que gestiona',
+        body: 'Discord no deja que ningún bot toque un rol al mismo nivel o por encima del suyo, y lo rechaza en silencio desde tu lado — la sincronización simplemente no hace nada. Sube el rol de Anvil en Ajustes del servidor → Roles y empieza a funcionar; no hay que reinvitar nada.',
+      },
+    },
+    commands: {
+      title: 'Comandos slash',
+      body: [
+        'El bot responde a `/bingo` en tu servidor: **board**, **rules**, **leaderboard**, **me** y **team**. Leen el evento en curso, así que nadie tiene que salir de Discord para ver cómo va.',
+        'Aparecen alrededor de un minuto después de que el bot entre. Si no aparecen nunca, la invitación concedió el bot pero no sus comandos — son dos permisos separados, y un enlace de invitación antiguo solo pedía uno. Vuelve a abrir el enlace desde la pestaña Bot de Discord; no expulsa al bot ni reinicia nada.',
+      ],
+      note: {
+        tag: 'Responde en el idioma de cada uno',
+        body: 'Por defecto el bot responde en el idioma que ese miembro tenga configurado en Discord, con el inglés como reserva. Elige un único idioma en **Idioma del bot** para imponerlo a todos — también es la única forma de tener árabe, ya que Discord no tiene idioma de cliente árabe que detectar.',
+      },
+    },
+    posts: {
+      title: 'Qué publica y cuándo',
+      body: [
+        'Dos fuentes, y conviene saber cuál es cuál cuando algo parece raro.',
+        'El **sitio** publica eventos: un tablero que abre, inscripciones, un arranque, clasificaciones, el resultado. Salen del propio Anvil y funcionan tenga o no alguien el plugin.',
+        'El **plugin** publica lo que pasa en el juego: drops, mascotas, muertes, niveles, casillas del collection log, combat achievements. Solo existen para los miembros que lo usan, así que un canal de drops en silencio suele significar un plugin en silencio, no un webhook roto.',
+      ],
+      note: {
+        tag: 'Nada se publica dos veces',
+        body: 'Un drop que completa una casilla es una publicación, no una del plugin y otra del tablero.',
+      },
+    },
+    quiet: {
+      title: 'Cuando se queda en silencio',
+      body: [
+        'En orden, porque cada punto descarta el siguiente:',
+      ],
+      checks: [
+        {
+          term: '¿Está el bot realmente en el servidor?',
+          body: 'La pestaña Bot de Discord lo dice directamente. «Token válido» y «en tu servidor» son hechos distintos y el primero no implica el segundo — con un bot compartido el token siempre es válido.',
+        },
+        {
+          term: '¿Es correcto el ID del servidor?',
+          body: 'Un ID equivocado pero real se ve exactamente igual que uno correcto, hasta que notas que las publicaciones van a otra parte.',
+        },
+        {
+          term: '¿Sigue existiendo el webhook?',
+          body: 'Borrar un canal de Discord borra su webhook, y Anvil se queda con la URL muerta. Vuelve a crearlo en la pestaña Webhooks.',
+        },
+        {
+          term: '¿Está el rol del bot lo bastante alto?',
+          body: 'Solo para la sincronización de roles y apodos — ver arriba. Este es el que falla en silencio.',
+        },
+      ],
+      note: {
+        tag: 'No puede dar la bienvenida a quien entra',
+        body: 'Discord solo informa de las entradas por una conexión gateway, que un bot compartido no mantiene abierta para cada servidor. Por eso no hay publicación de bienvenida — pon el enlace de inscripción en un canal #roles o #empieza-aquí, que es donde la gente mira de todas formas.',
       },
     },
   },

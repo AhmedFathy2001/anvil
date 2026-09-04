@@ -34,6 +34,18 @@ const nl: PartialGuideDict = {
       clan: 'De clan runnen',
     },
     cards: {
+      discord: {
+        eyebrow: 'Voor wie de server beheert',
+        title: 'Anvil in Discord',
+        blurb: 'Eén uitnodiging, dan de kanalen waar elke feed post, rollen, slash-commando’s, en wat je nakijkt als het stopt.',
+        minutes: '~5 min',
+      },
+      clan: {
+        eyebrow: 'Voor wie er een begint',
+        title: 'Een clan starten',
+        blurb: 'Twee namen en een adres, en hij staat live. Daarna Discord, je ledenlijst en het eerste bord.',
+        minutes: '~4 min, gratis',
+      },
       plugin: {
         eyebrow: 'Voor spelers',
         title: 'RuneLite-plugin instellen',
@@ -89,6 +101,311 @@ const nl: PartialGuideDict = {
         blurb:
           'Clan tegen clan zonder ook maar één RSN met de hand te verzamelen: één uitnodigingslink per team, en een plek waarmee hun eigen moderator hun helft runt.',
         minutes: '~5 min per team',
+      },
+    },
+  },
+
+  clan: {
+    metaTitle: 'Een clan starten — Anvil',
+    metaDescription: 'Een clan aanmaken op Anvil: een naam geven, een adres kiezen, Discord koppelen, je ledenlijst synchroniseren en je eerste event draaien.',
+    eyebrow: 'Anvil · beginnen',
+    title: 'Een clan starten',
+    dek: 'Twee namen en een adres, en je clan staat live — gratis, en er valt niets af te wachten. Dat is dit, plus de vier dingen die je er meteen daarna bij wilt doen.',
+    facts: [
+      {
+        strong: 'Gratis',
+        rest: 'geen kaart, geen proefperiode',
+      },
+      {
+        strong: 'Live',
+        rest: 'zodra je verzendt',
+      },
+      {
+        strong: '~4 min',
+        rest: 'tot een werkende clan',
+      },
+    ],
+    footnote: 'Dit kun je later allemaal aanpassen via Admin → Clan, behalve het adres — daar is het nu even over nadenken waard.',
+    before: {
+      title: 'Voordat je begint',
+      body: [
+        'Je hebt een Discord-account nodig, en dat is de hele lijst. Meld je eerst aan op `{apex}`: een clan heeft een eigenaar nodig, en via het aanmelden weet de site dat jij dat bent. Begin bij **Een clan starten** op de platformpagina’s, of ga direct naar `{apex}/clans/new`.',
+        'Het kost niets. Geen abonnement te kiezen, geen kaart in te vullen, en geen proefperiode die verloopt en je bord meeneemt — een clan begint gratis en blijft bruikbaar.',
+      ],
+      note: {
+        tag: 'Jij wordt de eigenaar',
+        body: 'Eigenaar is de ene rol die niemand je kan afnemen, en die gaat naar wie de clan aanmaakt. Voeg daarna staf toe via Admin → Clan; zie [Op het rooster]({moderatorGuide}).',
+      },
+    },
+    create: {
+      title: 'Naam geven en een adres kiezen',
+      intro: 'Drie velden, en maar twee echte beslissingen. Het formulier controleert het adres terwijl je typt en zegt het je vóór je verzendt.',
+      fields: [
+        {
+          term: 'Clannaam in het spel',
+          body: 'Verplicht, en hij moet **exact** overeenkomen met OSRS. Dit is geen versiering: de rostersynchronisatie matcht hierop en weigert een ledenlijst die onder een andere naam wordt gemeld. Dat is wat voorkomt dat andermans ledenlijst op jouw site belandt.',
+        },
+        {
+          term: 'Clannaam',
+          body: 'Optioneel. Wat mensen zien — op de site en in elke Discord-post. Laat het leeg en je spelnaam wordt voor beide gebruikt.',
+        },
+        {
+          term: 'Adres',
+          body: 'Je clan staat op `{apex}/c/jouw-slug`. Hij wordt voorgesteld op basis van de naam die je typte, je kunt hem aanpassen, en een handvol woorden is gereserveerd. Kies er een die je over een jaar nog mooi vindt: dit is de link die in je Discord vastgepind komt te staan.',
+        },
+      ],
+      note: {
+        tag: 'De spelnaam is een slot, geen label',
+        body: 'Als je clan in het spel hernoemt, verander hem hier ook — tot die tijd weigert de rostersynchronisatie de nieuwe naam. Dat is de controle die werkt, geen storing.',
+      },
+    },
+    live: {
+      title: 'Hij staat live',
+      body: [
+        'Druk op **Clan aanmaken** en hij bestaat. Geen provisioning, geen wachtrij, geen „we bouwen je site, kom over een paar minuten terug” — een clan is een rij, dus hij draait al voordat de pagina klaar is met wisselen.',
+        'Je komt uit bij een keuze tussen **Instellen**, wat de wizard opent, en **Eerst rondkijken**. Er gaat niets stuk als je wegloopt en morgen terugkomt; de wizard onthoudt welke stappen je gedaan hebt.',
+      ],
+    },
+    setup: {
+      title: 'De installatiewizard',
+      intro: 'Vier dingen staan tussen een verse clan en een lopend event. De wizard loopt ze op volgorde af en slaat over wat je al gedaan hebt.',
+      steps: [
+        {
+          term: 'Naam geven in Discord',
+          body: 'Je weergavenaam, je clannaam in het spel, en een uitnodigingslink naar je server. Die uitnodiging is wat aanmeldpagina’s en gidsen naar je laat verwijzen.',
+        },
+        {
+          term: 'Discord koppelen',
+          body: 'Eén gedeelde bot, dus geen applicatie te registreren en geen token te plakken. Keur hem één keer goed en hij kan in je kanalen posten en je rollen lezen.',
+        },
+        {
+          term: 'Geef hem een kanaal',
+          body: 'Een aankondigingskanaal voor eventposts. Splits eventueel de feeds van de plugin uit: zeldzame drops in het ene kanaal, doden in het andere, zodat ze elkaar niet overstemmen.',
+        },
+        {
+          term: 'Maak een bord',
+          body: 'Het eerste event. Kies een formaat, voeg tegels toe, open aanmeldingen — dat is [Je eerste event draaien]({adminGuide}), en veruit de langste van de vier.',
+        },
+      ],
+      after: [
+        'Je kunt de wizard helemaal overslaan en alles later via Admin → Clan doen. Hij bestaat omdat de volgorde ertoe doet als je het nooit eerder gedaan hebt: Discord vóór kanalen, kanalen vóór een bord dat erin wil posten.',
+      ],
+    },
+    members: {
+      title: 'Je leden binnenhalen',
+      body: [
+        'Niemand hoeft zich aan te melden, te registreren of één voor één uitgenodigd te worden. Je ledenlijst komt uit het spel.',
+      ],
+      ways: [
+        {
+          term: 'Rostersynchronisatie (doe deze)',
+          body: 'Open het clanvenster in het spel met de plugin actief en druk op de **Anvil**-knop in de titelbalk. Je hele ledenlijst komt binnen met rangen en al, en een lijst van een clan waarvan de naam niet klopt wordt geweigerd. Herhaal het wanneer mensen komen of gaan — zie de [installatiegids voor spelers]({pluginGuide}).',
+        },
+        {
+          term: 'Ze spelen gewoon',
+          body: 'Iedereen die met de plugin inlogt wordt automatisch herkend. Staat iemand nog niet op de lijst, dan wordt die als **gast** gevolgd — zichtbaar, telbaar, en één synchronisatie verwijderd van lidmaatschap.',
+        },
+        {
+          term: 'Met de hand',
+          body: 'Via Admin → Clan voeg je namen één voor één toe, voor de persoon op mobiel of de officiële client die de plugin helemaal niet kan draaien.',
+        },
+      ],
+      note: {
+        tag: 'Gasten zijn geen probleem om op te lossen',
+        body: 'Een gast is simpelweg iemand die we gezien hebben en die niet op je lijst staat — een speler van een bezoekende clan, een alt, iemand die vanochtend lid werd. Ze kunnen meedoen aan events zonder ooit lid te worden.',
+      },
+    },
+    first: {
+      title: 'Je eerste event',
+      body: [
+        'De kortste weg naar iets dat gebeurt: maak een bord, voeg een handvol tegels toe die de plugin zelf kan zien, open aanmeldingen en start. Drops, killcounts en XP schrijven zichzelf dan in.',
+        'Twee gidsen dragen hier het gewicht. [Je eerste event draaien]({adminGuide}) loopt van begin tot eind — Discord, teams, starten, en wat te doen als het afloopt. [Een bord bouwen dat zichzelf bijhoudt]({boardGuide}) gaat specifiek over tegels: wat elk soort echt kan detecteren, en welke netjes importeren en dan nooit afgaan.',
+        'Wil je in je eerste week liever helemaal geen bord bouwen, draai dan een **Skill of the Week** of **Boss of the Week**. Iedereen op de lijst doet automatisch mee, de stand komt van de hiscores, en er valt niets te schrijven.',
+      ],
+    },
+    together: {
+      title: 'Events over meerdere clans',
+      body: [
+        'Een event hoeft niet bij één clan te horen. Meerdere clans kunnen hetzelfde bord samen draaien — twee, of een stuk of twaalf — waarbij elke kant zijn eigen ledenlijst, eigen staf en eigen helft van de moderatie houdt.',
+        'Ze kunnen ook één poule spelers delen in plaats van aan weerszijden van een scorebord te zitten: één event, iedereen erin, hoe de teams ook uitvallen. Clan-tegen-clan is één vorm hiervan, niet de enige.',
+        'Elke bezoekende clan krijgt een uitnodigingslink per team, zodat je nooit één RSN met de hand verzamelt, en een zetel waarmee hun eigen moderator het bewijs van hun eigen leden kan goedkeuren. [Een bezoekende clan ontvangen]({clanVsClanGuide}) behandelt het organiseren.',
+      ],
+      note: {
+        tag: 'Niets te kopen',
+        body: 'Meedoen aan andermans event is gratis, en er zelf een organiseren ook. Een clan die alleen ooit op andermans borden verschijnt heeft nooit meer nodig dan zijn eigen gratis clan.',
+      },
+    },
+  },
+
+  discord: {
+    metaTitle: 'Anvil in Discord — Anvil',
+    metaDescription: 'Koppel de Anvil-bot aan je Discord-server: één uitnodiging, de kanalen waar elke feed post, rol- en bijnaamsynchronisatie, slash-commando’s, en wat je nakijkt als het stil wordt.',
+    eyebrow: 'Anvil · Discord',
+    title: 'Anvil in Discord',
+    dek: 'Eén bot, één uitnodiging, en geen applicatie te registreren. Dit is wat hij post, waar hij het post, wat hij in je server mag veranderen — en waar je naar kijkt op de dag dat het stopt.',
+    facts: [
+      {
+        strong: 'Eén bot',
+        rest: 'gedeeld, niets aan te maken',
+      },
+      {
+        strong: '~5 min',
+        rest: 'van uitnodiging tot eerste post',
+      },
+      {
+        strong: 'Opt-in',
+        rest: 'elke feed staat uit tot je hem ergens op richt',
+      },
+    ],
+    footnote: 'Alles hier staat onder Admin → Instellingen, verdeeld over de tabbladen Discord-bot, Webhooks, Rollen & kanalen en Meldingen.',
+    bot: {
+      title: 'Eén bot, al gebouwd',
+      body: [
+        'Er is geen Discord-applicatie aan te maken, geen token te genereren en geen geheim te plakken. Anvil draait één bot die elke clan deelt, dus koppelen is een uitnodiging en verder niets.',
+        'Je kunt nog steeds je eigen meebrengen — plak een token onder **Discord-bot** en die wordt in plaats daarvan gebruikt. Alleen de moeite waard als je wilt dat de bot de naam en avatar van je clan draagt in de ledenlijst; alles in deze gids werkt hoe dan ook hetzelfde.',
+      ],
+      permissions: [
+        {
+          term: 'Kanalen bekijken, berichten sturen, links insluiten, bestanden bijvoegen',
+          body: 'De basis. Zonder deze staat hij in je server en zwijgt hij.',
+        },
+        {
+          term: 'Webhooks beheren',
+          body: 'Zodat de knop **Aanmaken** op het tabblad Webhooks er een voor je kan maken, in plaats van dat jij URL’s met de hand uit Discord kopieert.',
+        },
+        {
+          term: 'Rollen beheren',
+          body: 'Alleen als je rolsynchronisatie aanzet. Hij kan dan de rollen uitdelen die je koppelt — en hij kan nooit aan een rol boven de zijne komen, wat Discords regel is, niet de onze.',
+        },
+        {
+          term: 'Bijnamen beheren',
+          body: 'Alleen als je bijnaamsynchronisatie aanzet, zodat de servernaam van een lid op hun RSN gezet kan worden.',
+        },
+        {
+          term: 'Kanalen beheren',
+          body: 'Alleen voor privékanalen per team tijdens een draft. Sla hem over en al het andere werkt gewoon.',
+        },
+      ],
+      note: {
+        tag: 'Hij vraagt alle vijf tegelijk',
+        body: 'Discord kan een permissie niet later alsnog vragen, dus de uitnodigingslink vraagt de hele set en de functies die je nooit aanzet gebruiken de hunne nooit. De link opnieuw openen is ook hoe je een permissie herstelt die iemand heeft weggehaald.',
+      },
+    },
+    connect: {
+      title: 'Koppelen',
+      intro: 'Twee dingen, in deze volgorde. De bot moet in je server zitten, en Anvil moet weten welke server de jouwe is.',
+      steps: [
+        {
+          term: 'Nodig de bot uit',
+          body: 'Admin → Instellingen → **Discord-bot** → **Bot uitnodigen / opnieuw uitnodigen**. De link selecteert je server vooraf zodra het ID ingesteld is, dus je kunt hem niet per ongeluk aan de verkeerde toevoegen.',
+        },
+        {
+          term: 'Stel het server-ID in',
+          body: 'Rechtsklik op je servericoon in Discord → **Server-ID kopiëren** (vereist Ontwikkelaarsmodus, onder Discords eigen geavanceerde instellingen) en plak het. Dit veld maakt de koppeling specifiek van jou.',
+        },
+      ],
+      after: [
+        'Het paneel vertelt je daarna de waarheid in plaats van je bedoeling: of de bot echt lid is van die server, en welke permissies hij mist. Een groene regel daar is meer waard dan een opgeslagen formulier.',
+      ],
+      note: {
+        tag: 'Het server-ID is de hele koppeling',
+        body: 'Een server hoort op Anvil bij precies één clan, en slash-commando’s uit een server die niemand geclaimd heeft worden geweigerd in plaats van geraden. Tot je het instelt is de bot uitgenodigd en werkloos.',
+      },
+    },
+    channels: {
+      title: 'Waar dingen posten',
+      body: [
+        'Anvil post via **webhooks**, één per kanaal, en elk daarvan is optioneel. Er wordt nergens iets gepost tot je een feed op een kanaal richt — een verse clan is stil met opzet, niet per ongeluk.',
+        'Het tabblad Webhooks kan ze voor je maken: kies een kanaal, druk op **Aanmaken**, en de bot maakt de webhook met zijn permissie. Een URL plakken die je zelf in Discord maakte werkt precies zo.',
+      ],
+      feeds: [
+        {
+          term: 'Aankondigingen',
+          body: 'De belangrijkste. Starts en eindes van events, aanmeldingen die opengaan, standen, weekresultaten. Stel alleen deze in en je hebt een werkende clan.',
+        },
+        {
+          term: 'Standaard voor de plugin',
+          body: 'Waar alles uit het spel heen gaat dat geen eigen kanaal heeft. Stel deze als tweede in.',
+        },
+        {
+          term: 'De gesplitste feeds',
+          body: 'Zeldzame drops, pets, doden, collection log, combat achievements, levels, quests, diaries, clips, PvP-kills en Leagues krijgen elk een eigen kanaal. Dat splitsen is het verschil tussen een feed die mensen lezen en een die ze dempen.',
+        },
+      ],
+      note: {
+        tag: 'Splits eerst de doden af',
+        body: 'Doden zijn op de meeste borden de feed met het meeste volume en degene die al het andere bedelft. Als je maar één ding splitst, splits dat.',
+      },
+    },
+    roles: {
+      title: 'Rollen en bijnamen',
+      body: [
+        'Twee synchronisaties, allebei uit tot je ze aanzet, en allebei aangestuurd door de ledenlijst in plaats van door wat iemand in Discord typt.',
+      ],
+      ways: [
+        {
+          term: 'Rolsynchronisatie',
+          body: 'Koppel je rangen uit het spel aan Discord-rollen en Anvil houdt ze gelijk. Er zijn ook losse rollen voor leden, gasten, captains en het lopende event, zodat je de juiste mensen kunt pingen zonder met de hand een lijst bij te houden.',
+        },
+        {
+          term: 'Bijnaamsynchronisatie',
+          body: 'Zet de servernaam van een lid op hun RSN. Standaard vult hij een lege bijnaam in, en je kunt hem opdragen er een te overschrijven die iemand zelf koos — dat is de instelling om vooraf over na te denken, niet achteraf.',
+        },
+      ],
+      note: {
+        tag: 'De rol van de bot moet boven de rollen staan die hij beheert',
+        body: 'Discord laat geen enkele bot aan een rol op of boven zijn eigen komen, en weigert dat van jouw kant zwijgend — de synchronisatie doet dan gewoon niets. Sleep de Anvil-rol omhoog in Serverinstellingen → Rollen en hij werkt; opnieuw uitnodigen hoeft niet.',
+      },
+    },
+    commands: {
+      title: 'Slash-commando’s',
+      body: [
+        'De bot beantwoordt `/bingo` in je server: **board**, **rules**, **leaderboard**, **me** en **team**. Ze lezen het lopende event, dus niemand hoeft Discord te verlaten om te zien hoe hij ervoor staat.',
+        'Ze verschijnen ongeveer een minuut nadat de bot binnenkomt. Verschijnen ze helemaal niet, dan gaf de uitnodiging de bot wel maar zijn commando’s niet — dat zijn twee losse permissies, en een oudere uitnodigingslink vroeg er maar één. Open de link opnieuw op het tabblad Discord-bot; dat schopt de bot er niet uit en zet niets terug.',
+      ],
+      note: {
+        tag: 'Hij antwoordt in ieders eigen taal',
+        body: 'Standaard antwoordt de bot in de taal die dat lid in Discord ingesteld heeft, met Engels als terugval. Kies één taal onder **Bottaal** om dat voor iedereen te overschrijven — dat is ook de enige manier om Arabisch te krijgen, omdat Discord geen Arabische clienttaal heeft om te detecteren.',
+      },
+    },
+    posts: {
+      title: 'Wat hij post, en wanneer',
+      body: [
+        'Twee bronnen, en het is nuttig te weten welke welke is als er iets niet klopt.',
+        'De **site** post events: een bord dat opengaat, aanmeldingen, een start, standen, de uitslag. Die komen uit Anvil zelf en blijven werken of iemand nu de plugin heeft of niet.',
+        'De **plugin** post wat er in het spel gebeurt: drops, pets, doden, levels, collection log-slots, combat achievements. Die bestaan alleen voor leden die hem draaien, dus een stil dropskanaal betekent meestal een stille plugin, niet een kapotte webhook.',
+      ],
+      note: {
+        tag: 'Niets wordt dubbel gepost',
+        body: 'Een drop die een tegel afrondt is één post, niet één van de plugin en nog een van het bord.',
+      },
+    },
+    quiet: {
+      title: 'Als het stil wordt',
+      body: [
+        'Op volgorde, want elk punt sluit het volgende uit:',
+      ],
+      checks: [
+        {
+          term: 'Zit de bot echt in de server?',
+          body: 'Het tabblad Discord-bot zegt het rechtstreeks. „Token geldig” en „in je server” zijn verschillende feiten en het eerste impliceert het tweede niet — bij een gedeelde bot is het token altijd geldig.',
+        },
+        {
+          term: 'Klopt het server-ID?',
+          body: 'Een verkeerd-maar-echt ID ziet er precies zo uit als een goed ID, tot je merkt dat de posts ergens anders heen gaan.',
+        },
+        {
+          term: 'Bestaat de webhook nog?',
+          body: 'Een Discord-kanaal verwijderen verwijdert zijn webhook, en Anvil houdt de dode URL. Maak hem opnieuw aan op het tabblad Webhooks.',
+        },
+        {
+          term: 'Staat de rol van de bot hoog genoeg?',
+          body: 'Alleen voor rol- en bijnaamsynchronisatie — zie hierboven. Dit is degene die zwijgend faalt.',
+        },
+      ],
+      note: {
+        tag: 'Hij kan mensen die binnenkomen niet begroeten',
+        body: 'Discord meldt binnenkomsten alleen via een gateway-verbinding, die een gedeelde bot niet voor elke server openhoudt. Er is dus geen „welkom”-post — zet de aanmeldlink in plaats daarvan in een #rollen- of #begin-hier-kanaal, waar mensen toch al kijken.',
       },
     },
   },
