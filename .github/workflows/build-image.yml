@@ -9,12 +9,18 @@ name: Build & deploy
 # health gate checks for — so "did it actually deploy" is answered by the running commit, not by an
 # exit code.
 #
-# WHAT CHANGED, AND WHY THIS JOB WAS BROKEN. This used to POST a control plane, which recreated one
-# container per clan and health-gated each in turn. There is one deployment now: clans are rows, the
-# control plane is deleted, and the endpoint it called (/api/admin/rollout) has answered 404 on every
-# push since — building the image fine and then failing the job with nothing deployed. So the deploy
-# is now what it actually is: pull, recreate one container, wait for it to answer with the commit we
-# just built, then ask the site to announce itself.
+# PROMOTION IS A POINTER COPY. Work lands on beta and gets built, deployed and looked at. Promoting
+# is then `git push origin beta:main` — a fast-forward — and because that commit ALREADY has an
+# image, this workflow retags it rather than building again. Production therefore runs the exact
+# bytes beta was tested on, not a rebuild of the same source that happened to compile the same way.
+#
+# The build is skipped only when the sha- tag already exists. A first push to either branch builds
+# normally, so nothing depends on remembering to do things in the right order.
+#
+# WHAT THIS REPLACED. It used to POST a control plane that recreated one container per clan and
+# health-gated each in turn. There is one deployment now: clans are rows, the control plane is
+# deleted, and the endpoint it called (/api/admin/rollout) answered 404 on every push for a month —
+# building the image and then failing the job with nothing deployed.
 
 on:
   push:
@@ -29,6 +35,8 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      reused: ${{ steps.existing.outputs.found }}
     steps:
       - uses: actions/checkout@v4
 
@@ -40,6 +48,20 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Has this exact commit already been built? On a promotion it has — beta built it — so the
+      # channel tag becomes a pointer to those bytes instead of a rebuild of the same source.
+      - name: Look for an existing image for this commit
+        id: existing
+        run: |
+          set -euo pipefail
+          if docker buildx imagetools inspect "ghcr.io/ahmedfathy2001/anvil-site:sha-${{ github.sha }}" >/dev/null 2>&1; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "this commit is already built — the channel tags will point at it"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "no image for this commit yet — building"
+          fi
 
       - name: Image metadata
         id: meta
@@ -54,7 +76,24 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=sha,format=long
 
+      # Promotion: copy the manifest to this channel's tags. No pull, no rebuild, no chance of the
+      # bytes differing from what was tested.
+      - name: Retag the tested image
+        if: steps.existing.outputs.found == 'true'
+        run: |
+          set -euo pipefail
+          src="ghcr.io/ahmedfathy2001/anvil-site:sha-${{ github.sha }}"
+          # One imagetools call per tag the metadata step decided on, minus the sha- tag itself,
+          # which already points where we want it.
+          echo "${{ steps.meta.outputs.tags }}" | while read -r tag; do
+            [ -n "$tag" ] || continue
+            case "$tag" in *":sha-"*) continue ;; esac
+            echo "  $tag -> $src"
+            docker buildx imagetools create -t "$tag" "$src"
+          done
+
       - name: Build & push (linux/amd64 — the box is an Intel i7)
+        if: steps.existing.outputs.found != 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
