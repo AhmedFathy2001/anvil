@@ -485,8 +485,15 @@ export async function GET(request: Request) {
         });
         if (outcome.outcome === 'updated' || outcome.outcome === 'first-captured') weeklyUpdated++;
         // Competition-scoped snapshot (frozen baseline + per-tick current), bounded at 2 rows/member/comp.
-        if (w.participant.clanMemberId != null) {
-          await writePlayerSnapshot(w.participant.clanMemberId, w.comp.id, snapshot);
+        //
+        // entry.accountId, NOT participant.clanMemberId. This passed a SEAT id into a column that
+        // means ACCOUNT, and the two id spaces overlap: on the migrated database 535 of 561 seats
+        // share an id with some other real account, so the write mostly SUCCEEDED and filed the
+        // snapshot under a stranger. Only the seats numbered above the highest account failed loudly
+        // enough to notice. The field's own comment three declarations up says which one this is:
+        // "History hangs off this; the seat is only where it is displayed."
+        if (entry.accountId != null) {
+          await writePlayerSnapshot(entry.accountId, w.comp.id, snapshot);
         }
       }
     }
