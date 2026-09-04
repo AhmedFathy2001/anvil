@@ -21,7 +21,7 @@
     "db:studio": "drizzle-kit studio",
     "test": "node scripts/test-all.mjs",
     "harness:plugin": "node scripts/plugin-harness.mjs",
-    "test:missions": "npx tsx --test tests/mission-rewards.test.ts tests/mission-schedule.test.ts",
+    "test:missions": "npx tsx --test tests/mission-rewards.test.ts tests/mission-schedule.test.ts tests/mission-csv.test.ts",
     "test:roles": "npx tsx --test tests/clan-roles.test.ts",
     "test:clan": "npx tsx --test tests/clan-host.test.ts",
     "test:db": "npx tsx --test tests/db-semantics.test.ts",

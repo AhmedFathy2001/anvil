@@ -80,8 +80,14 @@ export async function buildTileSpreadsheet(opts: {
   for (const t of tiles) ws.addRow(tileToCsvCells(t));
 
   // Dropdowns on the fiddly columns. Column letters follow TILE_CSV_COLUMNS order:
-  //   C=type  F=optional  H=trackedStat  I=statType  P=groupMode  Q=perKillCap  R=coopCredit. exceljs sets validation
-  //   pre-wire a generous row range; lenient (allowBlank, no hard error) so pasting still works.
+  //   C=type  F=optional  H=trackedStat  I=statType  Q=groupMode  R=perKillCap  S=coopCredit
+  //   U=mission. exceljs sets validation pre-wire a generous row range; lenient (allowBlank, no
+  //   hard error) so pasting still works.
+  //
+  // The letters were one behind: `revealAt` was inserted at O and the three trailing dropdowns kept
+  // their old cells, so "any/all" was offered on `items` and "per-member/per-kill" on `perKillCap`.
+  // Harmless enough to go unnoticed — the validation is lenient and imports never read it — but it
+  // put the wrong menu on three columns of every sheet the site hands out.
   const listValidation = (formulae: string[]): ExcelJS.DataValidation => ({
     type: 'list',
     allowBlank: true,
@@ -93,9 +99,10 @@ export async function buildTileSpreadsheet(opts: {
     ws.getCell(`C${r}`).dataValidation = listValidation(['"standard,drop,kill,lap,gain,timed,deathless,diary,ca,lms,value,valuetotal"']);
     ws.getCell(`F${r}`).dataValidation = listValidation(['"true,false"']);
     ws.getCell(`I${r}`).dataValidation = listValidation(['"skill,boss"']);
-    ws.getCell(`P${r}`).dataValidation = listValidation(['"any,all"']);
-    ws.getCell(`Q${r}`).dataValidation = listValidation(['"1"']);
-    ws.getCell(`R${r}`).dataValidation = listValidation(['"per-member,per-kill"']);
+    ws.getCell(`Q${r}`).dataValidation = listValidation(['"any,all"']);
+    ws.getCell(`R${r}`).dataValidation = listValidation(['"1"']);
+    ws.getCell(`S${r}`).dataValidation = listValidation(['"per-member,per-kill"']);
+    ws.getCell(`U${r}`).dataValidation = listValidation(['"true,false"']);
     ws.getCell(`H${r}`).dataValidation = listValidation([`'${SHEET_KEYS}'!$A$2:$A$${keyCount + 1}`]);
   }
 

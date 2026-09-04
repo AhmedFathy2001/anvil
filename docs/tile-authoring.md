@@ -65,6 +65,37 @@ A blank `label` auto-fills as `Tile N`.
 | `timeThresholdSeconds` | **Timed** tiles — time cap in seconds; **LMS** tiles — placement cap (1 = win, 3 = top-3); **Deathless** tiles — exact party size (blank = any); **Drop** tiles — exact raid party size for the drop to count (blank = any) | 1–86400 (e.g. 1800 = 30:00) |
 | `revealAt` | **Showdown boards only** (scheduled reveal policy) — when this tile goes live | ISO or `2026-08-01 19:00` (local, stored UTC); blank = stays hidden; other boards ignore it |
 | `items` | **Drop** tiles — tracked item(s) | See §3 for the mini-format |
+| `mission` | `true`/`false` — hidden until announced mid-event | Boards with missions enabled; see §3.5 |
+| `missionPrizes` | Coffer gp by finishing place, **pipe-separated** | e.g. `50m\|10m` = 50m to first, 10m to second |
+| `missionPoints` | Points by finishing place, **pipe-separated** | e.g. `0\|200`; blank entry = the tile's own value |
+| `missionMaxClaims` | Close the mission after this many finishers | ≥ 1; blank = stays open until it expires |
+| `missionExpiryHours` | Auto-close this many hours after it drops | ≥ 1; blank = never |
+
+---
+
+## 3.5. Missions, and what they pay
+
+A **mission** is a tile that stays hidden until the event drops it — manually, on a timer, or
+on a daily schedule the host sets under the event's Missions panel. Flag it with
+`mission` and it is invisible to players until announced.
+
+The prize columns are lists **by place**, so position in the list is the finishing position:
+
+| `missionPrizes` | `missionPoints` | What happens |
+| --- | --- | --- |
+| `50m` | `0` | First takes 50m and no points; everyone after scores the tile normally |
+| `50m` | *(blank)* | First takes 50m **and** the tile's points |
+| `20m\|10m\|` | `300\|200\|100` | A podium: gp for the top two, points for all three |
+| *(blank)* | `500\|250` | No money — first is worth 500, second 250 |
+
+Blank entries mean the default rather than zero: no gp, or the tile's own point value. Set
+`missionMaxClaims` to `1` for the old lock-out behaviour, where the first finisher closes it.
+
+**Gp comes out of the clan coffer** (`/coffer`), and a coffer can run dry. When it cannot
+cover a place, that mission still drops and still scores — the winner takes the tile's
+points instead of the gp. Nothing is silently reduced to zero, and the ledger records the
+prize as unfunded so it can say why. A prize can also be typed the way people say it: `50m`,
+`1.5b`, `500k`.
 
 ---
 
