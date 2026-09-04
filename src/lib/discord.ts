@@ -755,6 +755,64 @@ export async function notifyMissionPrize(params: MissionPrizeNotifyParams): Prom
   return sendBingoWebhook(params.clanId, { embeds: [embed] });
 }
 
+interface MonthlyChampionNotifyParams {
+  /** The clan this posts for — decides which webhook it lands in. */
+  clanId: number;
+  eventName: string;
+  /** 'YYYY-MM' of the month that just closed. */
+  month: string;
+  rsn: string;
+  points: number;
+  tasks: number;
+  runnersUp: { rsn: string; points: number }[];
+  /** Whether the champion role actually moved, so the post doesn't promise a role nobody got. */
+  roleGranted: boolean;
+  eventId?: number | null;
+}
+
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+/** 'YYYY-MM' → "August 2026", falling back to the raw key rather than to nonsense. */
+function monthName(key: string): string {
+  const [y, m] = key.split('-').map((n) => parseInt(n, 10));
+  const name = MONTH_NAMES[m - 1];
+  return name && Number.isFinite(y) ? `${name} ${y}` : key;
+}
+
+/**
+ * The month closing on a ladder.
+ *
+ * Posted by the engine rather than by a person, because the moment it marks — midnight on the last
+ * day — is the one nobody is awake for. Says what the winner scored, who was close, and whether the
+ * clan's champion role actually moved; a post claiming a role that failed to apply is worse than one
+ * that says nothing about roles at all.
+ */
+export async function notifyMonthlyChampion(params: MonthlyChampionNotifyParams): Promise<boolean> {
+  const { eventName, month, rsn, points, tasks, runnersUp, roleGranted, eventId } = params;
+  const fields: DiscordEmbedField[] = [statField('Points', points), statField('Tasks', tasks)];
+  if (runnersUp.length > 0) {
+    fields.push(
+      field(
+        'Close behind',
+        runnersUp.map((r, i) => `${i === 0 ? '🥈' : '🥉'} **${r.rsn}** — ${r.points}`).join('\n'),
+      ),
+    );
+  }
+  const embed: DiscordEmbed = {
+    ...eventAuthor(eventId, eventName),
+    title: clamp(`👑 ${monthName(month)} goes to ${rsn}`, LIMIT.title),
+    description: roleGranted
+      ? 'The champion role is theirs until somebody takes it off them.'
+      : 'The board resets today — everyone starts the new month level.',
+    color: EMBED_COLOR.gold,
+    fields,
+  };
+  return sendBingoWebhook(params.clanId, { embeds: [embed] });
+}
+
 interface TeamWithPlayers {
   name: string;
   color: string;

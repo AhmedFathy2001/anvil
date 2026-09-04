@@ -75,6 +75,20 @@ export interface RampPhase {
   tiers: string[];
 }
 
+/**
+ * Closing out a month on a ladder that keeps running.
+ *
+ * A monthly board is a window over completedAt, not a table that gets wiped, so "the month ended"
+ * has never been an event the site noticed. This is the clan asking it to: name the winner, and hand
+ * them a role kept for exactly that.
+ */
+export interface MonthlyAwardConfig {
+  /** Post the month's winner to the clan's event channel. */
+  announce: boolean;
+  /** Discord role to move onto the winner, taking it off whoever held it. Null = no role. */
+  roleId: string | null;
+}
+
 export interface MissionConfig {
   /** manual = admin drops each; interval = every intervalMinutes; scheduled = per-tile revealAt. */
   announceMode: MissionAnnounceMode;
@@ -183,6 +197,8 @@ export interface EventRules {
   mission: MissionConfig | null;
   /** Starting-shot policy. Null = not required (classic). Non-null = every player must upload one. */
   startProof: StartProofConfig | null;
+  /** Ladder boards: what happens when a month ends. Null = nothing, which is the historical behaviour. */
+  monthlyAward: MonthlyAwardConfig | null;
   /**
    * May a team's own captain (and its staff seats) mint invite links for it? Off by default: on a
    * normal clan event the host builds the teams, and a captain handing out seats would be filling a
@@ -201,6 +217,7 @@ export interface EventRules {
 }
 
 export const DEFAULT_EVENT_RULES: EventRules = {
+  monthlyAward: null,
   revealPolicy: 'all',
   revealIntervalMinutes: 60,
   revealBatchSize: 1,
@@ -358,6 +375,16 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
       tierRamp: parseTierRamp(m.tierRamp),
     };
   }
+  // Month-end on a ladder. Absent (the normal case) means the month simply rolls over, which is
+  // what every board did before this existed.
+  let monthlyAward: EventRules['monthlyAward'] = null;
+  const ma = obj.monthlyAward as { announce?: unknown; roleId?: unknown } | null | undefined;
+  if (ma && typeof ma === 'object') {
+    monthlyAward = {
+      announce: ma.announce !== false,
+      roleId: typeof ma.roleId === 'string' && ma.roleId.trim() ? ma.roleId.trim() : null,
+    };
+  }
   let startProof: EventRules['startProof'] = null;
   const sp = obj.startProof as
     | { onMissing?: unknown; autoAcceptPlugin?: unknown; locations?: unknown; maxSessionMinutes?: unknown }
@@ -377,6 +404,7 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
     };
   }
   return {
+    monthlyAward,
     revealPolicy: policy,
     revealIntervalMinutes: clampInt(obj.revealIntervalMinutes, 5, 10080, 60),
     revealBatchSize: clampInt(obj.revealBatchSize, 1, 50, 1),

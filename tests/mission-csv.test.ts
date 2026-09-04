@@ -96,7 +96,7 @@ test('a normal tile exports blank mission cells, so ordinary sheets are unchange
   const tile = { label: 'Plain', points: 5, tileType: 'standard' } as unknown as Tile;
   const cells = tileToCsvCells(tile);
   const header = [...TILE_CSV_COLUMNS];
-  for (const col of ['mission', 'missionPrizes', 'missionPoints', 'missionMaxClaims', 'missionExpiryHours']) {
+  for (const col of ['mission', 'missionPrizes', 'missionPoints', 'missionMaxClaims', 'missionExpiryHours'] as const) {
     assert.equal(cells[header.indexOf(col)], '', `${col} should be blank`);
   }
 });

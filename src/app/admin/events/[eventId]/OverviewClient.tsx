@@ -7,9 +7,10 @@ import EventBoard from '@/components/EventBoard';
 import BoardFilters from '@/components/BoardFilters';
 import TileDetailModal from '@/components/TileDetailModal';
 import MissionAdminPanel from '@/components/MissionAdminPanel';
+import MonthEndPanel from '@/components/MonthEndPanel';
 import StartProofAdminPanel from '@/components/StartProofAdminPanel';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
-import { isPointsMode, eventNoun } from '@/lib/utils';
+import { isPointsMode, eventNoun, isLadderFormat } from '@/lib/utils';
 import { eventAxes, supportsMissions } from '@/lib/eventAxes';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { STAGE_BLURB, type EventStage, type StageCounts } from '@/lib/eventStage';
@@ -205,6 +206,12 @@ export default function OverviewClient({
           tiles={localTiles}
           allowed={supportsMissions(eventAxes(currentEvent))}
         />
+      )}
+
+      {/* Month end — only a ladder has months worth closing: its monthly board is a window over the
+          same completions the all-time one reads, so the month ending is a moment, not a reset. */}
+      {stage !== 'wrap' && (
+        <MonthEndPanel event={currentEvent} allowed={isLadderFormat(currentEvent.format)} />
       )}
 
       {/* Starting shot — the anti-stack proof everyone files at the start (lib/startProof). Turned
