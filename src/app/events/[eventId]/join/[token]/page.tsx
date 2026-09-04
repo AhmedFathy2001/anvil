@@ -65,7 +65,11 @@ export default async function JoinPage({
   // Signing in has to happen before the form, and the link is where they came from — so send them
   // back HERE afterwards rather than to the generic sign-up page, or the team gets lost on the way.
   const user = await verifyUser();
-  if (!user) redirect(`/login?return=${encodeURIComponent(invitePath(id, token))}`);
+  // The return must carry the clan prefix. `/login` lives on the apex, so after signing in the
+  // browser lands on whatever this path says — and a bare `/events/11/join/…` is not a page: events
+  // live under `/c/<slug>`. The invite therefore worked right up until the moment someone actually
+  // used it, and then answered "Not found" to the one person it was minted for.
+  if (!user) redirect(`/login?return=${encodeURIComponent(await clanHref(invitePath(id, token)))}`);
 
   const team = await db.query.teams.findFirst({ where: eq(teams.id, invite.teamId) });
   if (!team) redirect(await clanHref(`/events/${id}`));

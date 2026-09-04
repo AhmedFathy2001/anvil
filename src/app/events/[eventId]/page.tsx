@@ -1,5 +1,6 @@
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
+import { clanHref } from '@/lib/clanPath';
 import { requireEventForPage } from '@/lib/eventScope';
 import { events, tiles, teams, completions, eventSignups, clanRoster, players, submissions, surveyQuestions, surveyResponses, eventStartProofs, eventParticipants } from '@/db/schema';
 import { and, eq, isNull, inArray, count } from 'drizzle-orm';
@@ -461,6 +462,7 @@ export default async function EventScoreboardPage({
       ) : (
       <SignupBanner
         eventId={event.id}
+        signupReturn={await clanHref(`/events/${event.id}/signup`)}
         loggedIn={!!session}
         mySignup={mySignup}
         editOpen={editOpen}
@@ -557,6 +559,7 @@ function SignupBanner({
   windowOpen,
   windowReason,
   signupFee,
+  signupReturn,
 }: {
   eventId: number;
   loggedIn: boolean;
@@ -566,6 +569,8 @@ function SignupBanner({
   windowOpen: boolean;
   windowReason: string | null;
   signupFee: number | null;
+  /** Where login should come back to — clan-prefixed, because `/login` is on the apex. */
+  signupReturn: string;
 }) {
   // Don't show anything once the event is underway and the viewer isn't already signed up —
   // the banner is just noise at that point.
@@ -602,7 +607,9 @@ function SignupBanner({
     title = 'Sign-ups are open';
     body = signupFee ? `Sign-up fee: ${signupFee.toLocaleString()} gp.` : 'Free to enter.';
     ctaText = 'Log in to sign up';
-    ctaLabel = `/login?return=/events/${eventId}/signup`;
+    // Prefixed. `/login` is a platform path so ClanLink leaves it alone — which is right, and is
+    // also why the return inside it has to arrive already carrying the clan.
+    ctaLabel = `/login?return=${encodeURIComponent(signupReturn)}`;
   } else if (!hasVerifiedAccount) {
     title = 'Verify an RSN to sign up';
     body = 'You need at least one verified RuneScape account before you can join.';
