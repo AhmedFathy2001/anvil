@@ -1,4 +1,4 @@
-import ClanLink from '@/components/ClanLink';
+import LanguagePicker from './LanguagePicker';
 import { LOCALES, findLocale, guideHref, type GuideLocale, type GuidePage } from '../_i18n';
 import { rt } from '../_i18n/rich';
 
@@ -13,36 +13,18 @@ export type { GuidePage };
 
 export function LanguageBar({ current, page, label }: { current: string; page: GuidePage; label: string }) {
   return (
-    <nav className="mb-6 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs" aria-label={label}>
-      <span className="uppercase tracking-widest text-text-muted/70 mr-1">{label}</span>
-      {LOCALES.map((l) => {
-        const active = l.code === current;
-        return (
-          <ClanLink
-            key={l.code}
-            href={guideHref(l.code, page)}
-            hrefLang={l.code}
-            lang={l.code}
-            dir={l.dir}
-            title={l.english}
-            aria-current={active ? 'page' : undefined}
-            className={
-              active
-                ? 'px-2 py-0.5 rounded-full border border-gold/40 bg-gold/10 text-gold'
-                : 'px-2 py-0.5 rounded-full border border-card-border text-text-muted hover:text-foreground hover:border-gold/30 transition-colors'
-            }
-          >
-            {l.label}
-            {!l.complete && (
-              <span className="text-text-muted/50" aria-hidden>
-                {' '}
-                ·
-              </span>
-            )}
-          </ClanLink>
-        );
-      })}
-    </nav>
+    <LanguagePicker
+      current={current}
+      label={label}
+      locales={LOCALES.map((l) => ({
+        code: l.code,
+        label: l.label,
+        english: l.english,
+        dir: l.dir,
+        complete: l.complete,
+        href: guideHref(l.code, page),
+      }))}
+    />
   );
 }
 

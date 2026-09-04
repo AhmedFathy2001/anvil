@@ -13,7 +13,7 @@
 //     and a main plus an alt is genuinely two seats.
 //   - `leftAt IS NULL` everywhere: a clan's size is who is there now, not who ever was.
 
-import { and, count, countDistinct, desc, eq, isNull, like, or, sql } from 'drizzle-orm';
+import { and, count, countDistinct, desc, eq, inArray, isNull, like, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanAuditLog, clanMemberships, clanStaff, clans, events as eventsTable, players, users, weeklyCompetitions } from '@/db/schema';
@@ -375,7 +375,37 @@ export interface PlatformAction {
  * to no clan is a platform entry whatever it calls itself, and it appears on no clan's own history
  * page, so this is the only place it could ever be seen.
  */
-export async function platformActions(limit = 100): Promise<PlatformAction[]> {
+/**
+ * What operators did, optionally narrowed.
+ *
+ * MODERATING NEEDS MORE THAN "EVERYTHING, NEWEST FIRST". Two hundred undifferentiated rows answer
+ * "what has happened" and nothing else — not "what did this operator do", not "what has been done to
+ * this clan", which are the two questions anyone actually opens a log with. The filters are the
+ * whole difference between a record and a tool.
+ *
+ * `scope: 'moderation'` narrows to the acts that change what somebody can DO — bans, role changes,
+ * ownership. Those are the ones worth reading a week later.
+ */
+export interface ActionFilters {
+  clanId?: number | null;
+  actorUserId?: number | null;
+  type?: string | null;
+  scope?: 'all' | 'moderation';
+}
+
+export const MODERATION_TYPES = [
+  'platform_banned',
+  'platform_unbanned',
+  'platform_role_changed',
+  'platform_owner_appointed',
+  'platform_act_as_granted',
+  'platform_act_as_revoked',
+] as const;
+
+export async function platformActions(
+  limit = 100,
+  filters: ActionFilters = {},
+): Promise<PlatformAction[]> {
   // clan-scope: global -- reading what operators did ACROSS clans is the entire purpose here, and
   // the platform-only entries belong to no clan at all.
   const rows = await db
@@ -394,7 +424,17 @@ export async function platformActions(limit = 100): Promise<PlatformAction[]> {
     .from(clanAuditLog)
     .leftJoin(users, eq(users.id, clanAuditLog.actorUserId))
     .leftJoin(clans, eq(clans.id, clanAuditLog.clanId))
-    .where(or(like(clanAuditLog.eventType, 'platform\\_%'), isNull(clanAuditLog.clanId)))
+    .where(
+      and(
+        or(like(clanAuditLog.eventType, 'platform\\_%'), isNull(clanAuditLog.clanId)),
+        filters.clanId ? eq(clanAuditLog.clanId, filters.clanId) : sql`true`,
+        filters.actorUserId ? eq(clanAuditLog.actorUserId, filters.actorUserId) : sql`true`,
+        filters.type ? eq(clanAuditLog.eventType, filters.type) : sql`true`,
+        filters.scope === 'moderation'
+          ? inArray(clanAuditLog.eventType, [...MODERATION_TYPES])
+          : sql`true`,
+      ),
+    )
     .orderBy(desc(clanAuditLog.occurredAt), desc(clanAuditLog.id))
     .limit(limit);
 
@@ -548,4 +588,115 @@ export async function nameCollisions(): Promise<NameCollision[]> {
       // The holder first; it is the one an operator is deciding for or against.
       .sort((a, b) => Number(b.verified) - Number(a.verified) || a.name.localeCompare(b.name)),
   }));
+}
+
+// ── Browsing people, as opposed to searching for one ─────────────────────────────────────────────
+//
+// The People tool was search-only: an empty box showed an empty page, which is the right shape for
+// "somebody reported this name" and useless for "who is on this platform". With 494 people behind
+// it, the answer to the second question was a blank screen.
+//
+// The row here is deliberately LIGHT. findPeople assembles each hit through personDetail — four
+// queries per person, which is fine for the handful a search returns and is a hundred queries for a
+// page of twenty-five. Browsing needs a count and a name, and the full assembly stays where it was:
+// behind picking one.
+
+export interface PeopleBrowseRow {
+  playerId: number;
+  name: string | null;
+  accounts: number;
+  clans: number;
+  hasLogin: boolean;
+  banned: boolean;
+}
+
+export interface PeopleBrowseFilters {
+  q?: string;
+  /** Only people holding a seat in this clan. */
+  clanId?: number | null;
+  /** Only people who have signed in with Discord, or only those who never have. */
+  login?: 'yes' | 'no' | null;
+  banned?: boolean;
+  /** Only people who hold seats in more than one clan. */
+  multiClan?: boolean;
+}
+
+export const PEOPLE_PAGE_SIZE = 25;
+
+export async function browsePeople(
+  filters: PeopleBrowseFilters = {},
+  page = 1,
+): Promise<{ rows: PeopleBrowseRow[]; total: number; page: number; pages: number }> {
+  const q = filters.q?.trim().toLowerCase() ?? '';
+  const like = `%${q}%`;
+
+  // Built as one expression so the count and the page agree by construction: two queries with
+  // hand-copied predicates drift, and a pager that disagrees with its own total is worse than none.
+  const where = sql`
+    ${q ? sql`exists (
+      select 1 from ${accounts} a where a.player_id = ${players.id}
+        and (lower(a.rsn) like ${like} or lower(a.rsn_normalized) like ${like})
+    ) or exists (
+      select 1 from ${users} u where u.player_id = ${players.id}
+        and (lower(u.display_name) like ${like} or lower(u.discord_username) like ${like} or u.discord_id = ${filters.q?.trim() ?? ''})
+    ) or lower(${players.displayName}) like ${like}` : sql`true`}
+    and ${filters.clanId ? sql`exists (
+      select 1 from ${clanMemberships} m join ${accounts} a2 on a2.id = m.account_id
+       where a2.player_id = ${players.id} and m.clan_id = ${filters.clanId} and m.left_at is null
+    )` : sql`true`}
+    and ${
+      filters.login === 'yes'
+        ? sql`exists (select 1 from ${users} u2 where u2.player_id = ${players.id})`
+        : filters.login === 'no'
+          ? sql`not exists (select 1 from ${users} u2 where u2.player_id = ${players.id})`
+          : sql`true`
+    }
+    and ${filters.banned ? sql`${players.banned} = true` : sql`true`}
+    and ${filters.multiClan ? sql`(
+      select count(distinct m3.clan_id) from ${clanMemberships} m3
+        join ${accounts} a3 on a3.id = m3.account_id
+       where a3.player_id = ${players.id} and m3.left_at is null
+    ) > 1` : sql`true`}
+  `;
+
+  // clan-scope: global -- the platform's people list spans every clan by definition.
+  const [{ n: total }] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(players)
+    .where(where);
+
+  const pages = Math.max(1, Math.ceil(Number(total) / PEOPLE_PAGE_SIZE));
+  const safePage = Math.min(Math.max(1, page), pages);
+
+  const rows = await db
+    .select({
+      playerId: players.id,
+      name: players.displayName,
+      banned: players.banned,
+      accounts: sql<number>`(select count(*)::int from ${accounts} a4 where a4.player_id = ${players.id})`,
+      clans: sql<number>`(
+        select count(distinct m4.clan_id)::int from ${clanMemberships} m4
+          join ${accounts} a5 on a5.id = m4.account_id
+         where a5.player_id = ${players.id} and m4.left_at is null
+      )`,
+      hasLogin: sql<boolean>`exists (select 1 from ${users} u3 where u3.player_id = ${players.id})`,
+    })
+    .from(players)
+    .where(where)
+    // Most-connected first: the people worth looking at on an operator's list are the ones in
+    // several clans or with several characters, not whoever registered earliest.
+    .orderBy(desc(sql`(
+      select count(distinct m5.clan_id) from ${clanMemberships} m5
+        join ${accounts} a6 on a6.id = m5.account_id
+       where a6.player_id = ${players.id} and m5.left_at is null
+    )`), players.displayName)
+    .limit(PEOPLE_PAGE_SIZE)
+    .offset((safePage - 1) * PEOPLE_PAGE_SIZE);
+
+  return {
+    rows: rows.map((r) => ({ ...r, accounts: Number(r.accounts), clans: Number(r.clans), banned: !!r.banned })),
+    total: Number(total),
+    page: safePage,
+    pages,
+  };
 }

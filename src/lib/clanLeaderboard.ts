@@ -144,7 +144,18 @@ export interface LeaderboardPlayer {
  * reduces to sharing here, and a cross-clan table is not a way around a privacy setting: someone who
  * has published nothing contributes to their clan's total without being listed themselves.
  */
-export async function topPlayers(window: LeaderboardWindow = '7d', limit = 25): Promise<LeaderboardPlayer[]> {
+/**
+ * The cross-clan player table, optionally narrowed to one clan.
+ *
+ * `clanSlug` narrows rather than re-scopes: this is still the platform's table, read through one
+ * clan. A table of everyone is the right default and the wrong answer to "how are MY people doing",
+ * which is the question anyone with a clan actually arrives with.
+ */
+export async function topPlayers(
+  window: LeaderboardWindow = '7d',
+  limit = 25,
+  clanSlug?: string | null,
+): Promise<LeaderboardPlayer[]> {
   const since = sinceFor(window);
 
   // clan-scope: global -- a cross-clan player table spans clans by definition.
@@ -170,6 +181,7 @@ export async function topPlayers(window: LeaderboardWindow = '7d', limit = 25): 
       and(
         eq(accounts.shared, true),
         since ? gte(memberDailyStats.day, since) : sql`true`,
+        clanSlug ? eq(clans.slug, clanSlug) : sql`true`,
       ),
     )
     .groupBy(accounts.id, accounts.rsn, clans.name, clans.slug)
