@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { cofferEntries, clanMemberships, accounts, type CofferEntry } from '@/db/schema';
+import { cofferEntries, clanRoster, type CofferEntry } from '@/db/schema';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { foldBalance, type CofferBalance } from '@/lib/cofferMath';
 
@@ -255,15 +255,16 @@ export async function listCofferEntries(args: {
   statuses?: string[];
   limit?: number;
 }): Promise<CofferLedgerRow[]> {
-  // clan-scope: takes the clan id its caller already settled.
   const where = [eq(cofferEntries.clanId, args.clanId)];
   if (args.kinds?.length) where.push(inArray(cofferEntries.kind, args.kinds));
   if (args.statuses?.length) where.push(inArray(cofferEntries.status, args.statuses));
+  // clan-scope: global -- the ledger rows are already this clan's (filtered below); the roster join
+  // only puts a name on a seat one of them names, and a seat can only belong to the clan that owns
+  // the row pointing at it.
   const rows = await db
-    .select({ entry: cofferEntries, memberName: accounts.rsn })
+    .select({ entry: cofferEntries, memberName: clanRoster.rsn })
     .from(cofferEntries)
-    .leftJoin(clanMemberships, eq(cofferEntries.clanMemberId, clanMemberships.id))
-    .leftJoin(accounts, eq(clanMemberships.accountId, accounts.id))
+    .leftJoin(clanRoster, eq(cofferEntries.clanMemberId, clanRoster.id))
     .where(and(...where))
     .orderBy(desc(cofferEntries.id))
     .limit(Math.min(500, Math.max(1, args.limit ?? 100)));
@@ -272,17 +273,17 @@ export async function listCofferEntries(args: {
 
 /** Who has put the most in. Approved donations only — a pending claim is not a contribution yet. */
 export async function topDonors(clanId: number, limit = 10): Promise<{ rsn: string; total: number }[]> {
-  // clan-scope: takes the clan id its caller already settled.
+  // clan-scope: global -- as above: the donations are filtered to this clan, and the join only
+  // resolves the name of a seat one of them already names.
   const rows = await db
     .select({
-      rsn: sql<string>`coalesce(${accounts.rsn}, ${cofferEntries.rsn}, 'Anonymous')`,
+      rsn: sql<string>`coalesce(${clanRoster.rsn}, ${cofferEntries.rsn}, 'Anonymous')`,
       total: sql<number>`coalesce(sum(${cofferEntries.amount}), 0)`,
     })
     .from(cofferEntries)
-    .leftJoin(clanMemberships, eq(cofferEntries.clanMemberId, clanMemberships.id))
-    .leftJoin(accounts, eq(clanMemberships.accountId, accounts.id))
+    .leftJoin(clanRoster, eq(cofferEntries.clanMemberId, clanRoster.id))
     .where(and(eq(cofferEntries.clanId, clanId), eq(cofferEntries.kind, 'donation'), eq(cofferEntries.status, 'approved')))
-    .groupBy(sql`coalesce(${accounts.rsn}, ${cofferEntries.rsn}, 'Anonymous')`)
+    .groupBy(sql`coalesce(${clanRoster.rsn}, ${cofferEntries.rsn}, 'Anonymous')`)
     .orderBy(sql`sum(${cofferEntries.amount}) desc`)
     .limit(Math.min(50, Math.max(1, limit)));
   return rows.map((r) => ({ rsn: r.rsn, total: Number(r.total) }));
