@@ -231,7 +231,7 @@ const de: PartialGuideDict = {
         { text: 'Tracked kill: Zulrah (7/10)', tone: 'plain' },
       ],
       outro:
-        'Du solltest außerdem sehen, wie sich das **Anvil-Seitenpanel** mit deinem Event, deinem Team und deinem Feldfortschritt füllt — und wie ein **Bingo**-Reiter im Collection Log im Spiel auftaucht.',
+        'Außerdem füllt sich das **Anvil-Seitenpanel** mit deinen Clans, den laufenden Events, deiner Platzierung und den Sync-Schaltflächen — und in der Titelleiste deines Collection Log im Spiel erscheint eine **Anvil**-Schaltfläche, neben WikiSync und RuneProfile.',
       guestNote: {
         tag: 'Gast oder Mitglied',
         body: 'Sagt der Chat _Tracked as a guest_, wirst du erfasst, stehst aber noch nicht auf der Clan-Mitgliederliste. Das behebt ein Admin, indem er die Mitgliederliste aus dem Spiel synchronisiert — frag {discordLink}.',
@@ -260,12 +260,12 @@ const de: PartialGuideDict = {
             body: 'ein Banner, wenn jemand aus deinem Team ein Feld abschließt. Mehrere gleichzeitig: das schwerste bekommt das Banner, der Rest geht in den Chat.',
           },
           {
-            label: 'Bingo tab in Collection Log',
-            body: 'legt dein Board in das Collection Log im Spiel, neben deine gespeicherten Nachweise.',
+            label: 'Distinct mission sound',
+            body: 'gibt einer eintreffenden Mission — und dem Moment, in dem jemand sie holt — einen eigenen Ton, damit du sie ohne Hinsehen von einem normalen Feld unterscheidest.',
           },
           {
             label: 'Banner sound + volume',
-            body: 'spielt einen Ton zum Banner. Es passiert nichts, bis du selbst mindestens eine .wav-Datei hinzufügst, über die Schaltfläche „Banner sounds“ in diesem Bingo-Reiter.',
+            body: 'spielt zum Banner einen Ton ab. Es passiert nichts, bis du selbst mindestens eine .wav-Datei hinzufügst, über **Add clip** unter „Banner sounds“ im Anvil-Seitenpanel.',
           },
           {
             label: 'Two-frame drop proof',
@@ -452,7 +452,7 @@ const de: PartialGuideDict = {
         'Tippe `::anvillog` in den Spielchat (oder setze **Export debug log hotkey** im Support-Abschnitt des Plugins). Es schreibt eine Logdatei in deinen Ordner `.runelite/anvil-debug`, öffnet den Ordner und kopiert den Pfad in die Zwischenablage — schick diese Datei einem Admin, dann sieht er genau, was schiefgelaufen ist.',
       missingNote: {
         tag: 'Fehlen Nachweise?',
-        body: 'Pets und doppelte Champion’s Scrolls brauchen einen manuellen Screenshot. Die werden nach `.runelite/osrs-bingo-pending/` gespeichert und erscheinen als Zeile **Saved proofs** im Bingo-Reiter des Collection Log.',
+        body: 'Pets und doppelte Champion’s scrolls brauchen einen manuellen Screenshot. Das Plugin macht ihn für dich und legt ihn in `.runelite/osrs-bingo-pending/` ab — **Copy folder path** im Anvil-Seitenpanel öffnet den Ordner — damit du ihn auf der Seite anhängst, statt hinterher nach einem Bild zu suchen.',
       },
     },
   },

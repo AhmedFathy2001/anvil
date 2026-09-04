@@ -230,7 +230,7 @@ const ja: PartialGuideDict = {
         { text: 'Tracked kill: Zulrah (7/10)', tone: 'plain' },
       ],
       outro:
-        'さらに **Anvil のサイドパネル**にイベント、チーム、マスの進捗が埋まり、ゲーム内の Collection Log に **Bingo** タブが現れるはずです。',
+        '**Anvil サイドパネル**にも、所属クラン・進行中のイベント・自分の順位・同期ボタンが表示されます。さらにゲーム内 Collection Log のタイトルバーに、WikiSync や RuneProfile と並んで **Anvil** ボタンが現れます。',
       guestNote: {
         tag: 'ゲストとメンバーの違い',
         body: 'チャットに _Tracked as a guest_ と出る場合、記録はされていますがまだクランのメンバー名簿に載っていません。管理者がゲーム内のクラン名簿を同期すれば解決します —— {discordLink}で聞いてみてください。',
@@ -259,12 +259,12 @@ const ja: PartialGuideDict = {
             body: 'チームの誰かがマスを達成したときにバナーを出します。同時に複数なら、いちばん難しいものがバナーになり、残りはチャットに流れます。',
           },
           {
-            label: 'Bingo tab in Collection Log',
-            body: 'ゲーム内の Collection Log の中に、保存済みの証跡と並べてボードを表示します。',
+            label: 'Distinct mission sound',
+            body: 'ミッションが降ってきたとき、そして誰かが取ったときに専用の音を鳴らします。画面を見なくても通常のタイル完了と区別できます。',
           },
           {
             label: 'Banner sound + volume',
-            body: 'バナーと一緒に音を鳴らします。その Bingo タブの「Banner sounds」ボタンから自分で .wav を 1 つ以上追加するまでは、何も鳴りません。',
+            body: 'バナーと一緒に音を鳴らします。Anvil サイドパネルの「Banner sounds」にある **Add clip** から .wav を自分で 1 つ以上追加するまでは、何も鳴りません。',
           },
           {
             label: 'Two-frame drop proof',
@@ -451,7 +451,7 @@ const ja: PartialGuideDict = {
         'ゲーム内チャットで `::anvillog` と入力します（またはプラグインの Support セクションで **Export debug log hotkey** を設定）。`.runelite/anvil-debug` フォルダにログを書き出し、フォルダを開き、パスをクリップボードにコピーします —— そのファイルを管理者に送れば、何が起きたのかを正確に見てもらえます。',
       missingNote: {
         tag: '証跡が見当たらない？',
-        body: 'ペットと重複した Champion’s scroll は手動のスクリーンショットが必要です。それらは `.runelite/osrs-bingo-pending/` に保存され、Collection Log の Bingo タブに **Saved proofs** の行として現れます。',
+        body: 'ペットと重複した Champion’s scroll は手動のスクリーンショットが必要です。プラグインが代わりに撮って `.runelite/osrs-bingo-pending/` に保存します（Anvil サイドパネルの **Copy folder path** でフォルダが開きます）。後から画像を探すのではなく、サイト側で添付してください。',
       },
     },
   },
@@ -1502,7 +1502,7 @@ const ja: PartialGuideDict = {
     roster: {
       title: 'メンバー名簿を正しく保つ',
       body: [
-        'メンバー名簿の出どころは 1 つだけです：管理者が、プラグインの Collection Log 内 Bingo タブから、ゲーム内のクラン一覧の同期を実行します。他のすべて —— 確認、紐づけ、参加登録 —— はそこにぶら下がっています。',
+        'メンバー名簿の出どころは 1 つだけです：管理者が、クランウィンドウのタイトルバーの **Anvil** ボタン（またはプラグインのサイドパネルの **Sync roster**）から、ゲーム内のクラン一覧の同期を実行します。他のすべて —— 確認、紐づけ、参加登録 —— はそこにぶら下がっています。',
         'だから保守の手間は小さいけれど実在します：勧誘のたびに同期を回す、実際に加入したゲストを昇格させる、そしてサイトが「要確認」と印を付けた人を、苦情が来るのを待たずに自分から見に行く。',
       ],
       note: {

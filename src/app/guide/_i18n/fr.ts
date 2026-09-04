@@ -232,7 +232,7 @@ const fr: PartialGuideDict = {
         { text: 'Tracked kill: Zulrah (7/10)', tone: 'plain' },
       ],
       outro:
-        'Vous devriez aussi voir le **panneau latéral Anvil** se remplir avec votre événement, votre équipe et votre progression sur les cases — et un onglet **Bingo** apparaître dans le Collection Log en jeu.',
+        'Tu devrais aussi voir le **panneau latéral Anvil** se remplir avec tes clans, tes événements en cours, ton classement et les boutons de synchronisation — et un bouton **Anvil** apparaître dans la barre de titre de ton Collection Log en jeu, à côté de WikiSync et RuneProfile.',
       guestNote: {
         tag: 'Invité ou membre',
         body: 'Si le chat dit _Tracked as a guest_, vous êtes suivi mais vous n’êtes pas encore sur la liste des membres du clan. Un admin corrige ça en synchronisant la liste depuis le jeu — demandez {discordLink}.',
@@ -261,12 +261,12 @@ const fr: PartialGuideDict = {
             body: 'une bannière quand quelqu’un de votre équipe termine une case. Plusieurs d’un coup : la plus difficile obtient la bannière, le reste part dans le chat.',
           },
           {
-            label: 'Bingo tab in Collection Log',
-            body: 'place votre grille dans le Collection Log en jeu, à côté de vos preuves enregistrées.',
+            label: 'Distinct mission sound',
+            body: 'donne son propre son à une mission qui tombe — et à quelqu’un qui la réclame — pour que tu la distingues d’une case ordinaire sans regarder.',
           },
           {
             label: 'Banner sound + volume',
-            body: 'joue un son avec la bannière. Rien ne se joue tant que vous n’ajoutez pas vous-même au moins un .wav, via le bouton « Banner sounds » dans cet onglet Bingo.',
+            body: 'joue un son avec la bannière. Rien ne se déclenche tant que tu n’ajoutes pas toi-même au moins un .wav, via **Add clip** sous « Banner sounds » dans le panneau latéral Anvil.',
           },
           {
             label: 'Two-frame drop proof',
@@ -453,7 +453,7 @@ const fr: PartialGuideDict = {
         'Tapez `::anvillog` dans le chat du jeu (ou réglez **Export debug log hotkey** dans la section Support du plugin). Cela écrit un fichier journal dans votre dossier `.runelite/anvil-debug`, ouvre le dossier, et copie le chemin dans votre presse-papiers — envoyez ce fichier à un admin et il verra exactement ce qui a échoué.',
       missingNote: {
         tag: 'Des preuves manquantes ?',
-        body: 'Les pets et les Champion’s scrolls en double demandent une capture manuelle. Elles sont enregistrées dans `.runelite/osrs-bingo-pending/` et apparaissent en ligne **Saved proofs** dans l’onglet Bingo du Collection Log.',
+        body: 'Les familiers et les Champion’s scrolls en double demandent une capture manuelle. Le plugin la prend pour toi et l’enregistre dans `.runelite/osrs-bingo-pending/` — **Copy folder path** dans le panneau latéral Anvil ouvre le dossier — pour que tu la joignes sur le site au lieu de chercher une image après coup.',
       },
     },
   },
@@ -530,7 +530,7 @@ const fr: PartialGuideDict = {
     roster: {
       title: 'Faire entrer votre liste de membres',
       body: [
-        'L’appartenance au clan vient d’un seul endroit : une synchronisation de la liste depuis le jeu. Installez [le plugin RuneLite d’Anvil]({pluginGuide}) sur le compte d’un _admin_, ouvrez l’onglet **Bingo** du Collection Log en jeu, et appuyez sur **Sync clan roster**. Cela pousse votre véritable liste de clan depuis le jeu vers le site en un clic.',
+        'L’appartenance au clan vient d’un seul endroit : une synchronisation de la liste depuis le jeu. Installez [le plugin RuneLite d’Anvil]({pluginGuide}) sur le compte d’un _admin_, ouvrez la fenêtre de clan en jeu et appuyez sur le bouton **Anvil** de sa barre de titre. Cela pousse votre véritable liste de clan depuis le jeu vers le site en un clic.',
         'Quiconque relie ou vérifie un compte sur le site sans figurer sur cette liste est un **invité** — suivi, visible, mais pas membre tant qu’un admin ne le promeut pas ou que la synchronisation suivante ne le récupère pas. C’est délibéré : cela veut dire que personne ne peut s’auto-promouvoir dans votre clan en tapant un nom.',
         'Vous pouvez aussi ajouter quelqu’un à la main depuis **Clan → Members & staff**, y compris l’inscrire à un événement en son nom quand il ne peut pas accéder au site.',
       ],
@@ -1504,7 +1504,7 @@ const fr: PartialGuideDict = {
     roster: {
       title: 'Garder la liste des membres honnête',
       body: [
-        'La liste des membres vient d’un seul endroit : un admin lance une synchronisation depuis la liste de clan en jeu, via l’onglet Bingo du plugin dans le Collection Log. Tout le reste — vérifications, liaisons, inscriptions — en dépend.',
+        'La liste des membres vient d’un seul endroit : un admin lance une synchronisation depuis la liste de clan en jeu, avec le bouton **Anvil** de la barre de titre de la fenêtre de clan (ou **Sync roster** dans le panneau latéral du plugin). Tout le reste — vérifications, liaisons, inscriptions — en dépend.',
         'Le travail d’entretien est donc petit mais réel : lancez la synchronisation après chaque vague de recrutement, promouvez les invités qui ont réellement rejoint, et regardez les personnes que le site a signalées plutôt que d’attendre qu’elles se plaignent.',
       ],
       note: {

@@ -229,7 +229,7 @@ const pl: PartialGuideDict = {
         { text: 'Tracked kill: Zulrah (7/10)', tone: 'plain' },
       ],
       outro:
-        'Powinieneś też zobaczyć, jak **panel boczny Anvil** wypełnia się twoim wydarzeniem, drużyną i postępem na polach, oraz jak w Collection Logu w grze pojawia się zakładka **Bingo**.',
+        'Zobaczysz też, jak **panel boczny Anvil** wypełnia się twoimi klanami, trwającymi wydarzeniami, twoją pozycją i przyciskami synchronizacji — a na pasku tytułu Collection Log w grze pojawia się przycisk **Anvil**, obok WikiSync i RuneProfile.',
       guestNote: {
         tag: 'Gość a członek',
         body: 'Jeśli czat mówi _Tracked as a guest_, jesteś śledzony, ale nie ma cię jeszcze na składzie klanu. Admin naprawia to, synchronizując skład klanu z gry —— poproś {discordLink}.',
@@ -258,12 +258,12 @@ const pl: PartialGuideDict = {
             body: 'baner, gdy ktokolwiek z twojej drużyny kończy pole. Kilka naraz: najtrudniejsze dostaje baner, reszta idzie na czat.',
           },
           {
-            label: 'Bingo tab in Collection Log',
-            body: 'umieszcza twoją planszę w Collection Logu w grze, obok zapisanych dowodów.',
+            label: 'Distinct mission sound',
+            body: 'nadaje pojawiającej się misji — i komuś, kto ją zgarnia — własny dźwięk, żebyś odróżnił ją od zwykłego pola bez patrzenia.',
           },
           {
             label: 'Banner sound + volume',
-            body: 'odtwarza dźwięk razem z banerem. Nic nie zagra, dopóki sam nie dodasz przynajmniej jednego pliku .wav przyciskiem „Banner sounds” w tej zakładce Bingo.',
+            body: 'odtwarza dźwięk razem z banerem. Nic nie zabrzmi, dopóki sam nie dodasz przynajmniej jednego pliku .wav przez **Add clip** pod „Banner sounds” w panelu bocznym Anvil.',
           },
           {
             label: 'Two-frame drop proof',
@@ -441,7 +441,7 @@ const pl: PartialGuideDict = {
         'Wpisz `::anvillog` na czacie w grze (albo ustaw **Export debug log hotkey** w sekcji Support pluginu). Zapisze to plik logu w folderze `.runelite/anvil-debug`, otworzy folder i skopiuje ścieżkę do schowka —— wyślij ten plik adminowi, a zobaczy dokładnie, co poszło nie tak.',
       missingNote: {
         tag: 'Brakuje dowodów?',
-        body: 'Pety i powtórzone Champion’s scrolle wymagają ręcznego zrzutu. Zapisują się w `.runelite/osrs-bingo-pending/` i pojawiają jako wiersz **Saved proofs** w zakładce Bingo w Collection Logu.',
+        body: 'Pety i powtórzone Champion’s scrolle wymagają ręcznego zrzutu ekranu. Plugin robi go za ciebie i zapisuje w `.runelite/osrs-bingo-pending/` — **Copy folder path** w panelu bocznym Anvil otwiera ten folder — więc załączasz go na stronie, zamiast szukać obrazka po fakcie.',
       },
     },
   },
@@ -1481,7 +1481,7 @@ const pl: PartialGuideDict = {
     roster: {
       title: 'Utrzymywanie składu w zgodzie z prawdą',
       body: [
-        'Skład bierze się z jednego miejsca: admin uruchamia synchronizację z listy klanu w grze, przez zakładkę Bingo pluginu w Collection Logu. Wszystko inne —— weryfikacje, powiązania, zapisy —— wisi na tym.',
+        'Skład bierze się z jednego miejsca: admin uruchamia synchronizację z listy klanu w grze, przyciskiem **Anvil** na pasku tytułu okna klanu (albo **Sync roster** w panelu bocznym pluginu)u. Wszystko inne —— weryfikacje, powiązania, zapisy —— wisi na tym.',
         'Więc utrzymanie jest małe, ale prawdziwe: puść synchronizację po każdej turze rekrutacji, awansuj gości, którzy naprawdę dołączyli, i zaglądaj do ludzi, których strona oznaczyła jako wymagających przeglądu, zamiast czekać, aż zaczną narzekać.',
       ],
       note: {

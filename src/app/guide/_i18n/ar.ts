@@ -230,7 +230,7 @@ const ar: PartialGuideDict = {
         { text: 'Tracked kill: Zulrah (7/10)', tone: 'plain' },
       ],
       outro:
-        'يُفترض أيضًا أن ترى **لوحة Anvil الجانبية** وقد امتلأت بفعاليتك وفريقك وتقدّمك في المربعات، وأن تظهر فيك تبويبة **Bingo** داخل الـ Collection Log في اللعبة.',
+        'من المفترض أيضًا أن تمتلئ **لوحة Anvil الجانبية** بعشائرك وفعالياتك الجارية وترتيبك وأزرار المزامنة — وأن يظهر زر **Anvil** في شريط عنوان الـ Collection Log داخل اللعبة، بجوار WikiSync وRuneProfile.',
       guestNote: {
         tag: 'ضيف أم عضو',
         body: 'إن قالت الدردشة _Tracked as a guest_، فأنت متتبَّع لكنك لست في سجل أعضاء العشيرة بعد. يصلح ذلك مسؤولٌ بمزامنة سجل الأعضاء من داخل اللعبة — اسأل {discordLink}.',
@@ -259,12 +259,12 @@ const ar: PartialGuideDict = {
             body: 'لافتة حين ينهي أي فرد من فريقك مربعًا. وإن اجتمعت عدة إنجازات: الأصعب يأخذ اللافتة والبقية إلى الدردشة.',
           },
           {
-            label: 'Bingo tab in Collection Log',
-            body: 'يضع لوحتك داخل الـ Collection Log في اللعبة، بجوار إثباتاتك المحفوظة.',
+            label: 'Distinct mission sound',
+            body: 'يمنح المهمّة عند نزولها — وعند احتساب أحدهم لها — صوتًا خاصًا بها، فتميّزها عن إتمام مربّع عادي دون أن تنظر.',
           },
           {
             label: 'Banner sound + volume',
-            body: 'يشغّل صوتًا مع اللافتة. لا يُشغَّل شيء حتى تضيف ملف .wav واحدًا على الأقل بنفسك، من زر “Banner sounds” في تبويبة Bingo تلك.',
+            body: 'يشغّل صوتًا مع اللافتة. لن يصدر أي صوت حتى تضيف بنفسك ملف ‎.wav‎ واحدًا على الأقل عبر **Add clip** ضمن “Banner sounds” في لوحة Anvil الجانبية.',
           },
           {
             label: 'Two-frame drop proof',
@@ -451,7 +451,7 @@ const ar: PartialGuideDict = {
         'اكتب `::anvillog` في دردشة اللعبة (أو اضبط **Export debug log hotkey** في قسم Support بالإضافة). يكتب ملف سجل في مجلد `.runelite/anvil-debug`، ويفتح المجلد، وينسخ المسار إلى حافظتك — أرسل ذلك الملف إلى مسؤول ليرى بالضبط ما الذي حدث.',
       missingNote: {
         tag: 'إثباتات ناقصة؟',
-        body: 'الحيوانات الأليفة ونسخ Champion’s scroll المكررة تحتاج لقطة يدوية. تُحفظ تلك في `.runelite/osrs-bingo-pending/` وتظهر كصف **Saved proofs** في تبويبة Bingo داخل الـ Collection Log.',
+        body: 'الحيوانات الأليفة وتكرار الـ Champion’s scroll تحتاج لقطة شاشة يدوية. يلتقطها الملحق نيابةً عنك ويحفظها في `.runelite/osrs-bingo-pending/` — و**Copy folder path** في لوحة Anvil الجانبية يفتح المجلد — فترفقها في الموقع بدلًا من البحث عن صورة لاحقًا.',
       },
     },
   },

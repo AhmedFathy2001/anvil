@@ -231,7 +231,7 @@ const nl: PartialGuideDict = {
         { text: 'Tracked kill: Zulrah (7/10)', tone: 'plain' },
       ],
       outro:
-        'Je hoort ook het **Anvil-zijpaneel** te zien vollopen met je event, je team en je voortgang op de vakjes — en een **Bingo**-tabblad te zien verschijnen in de Collection Log in het spel.',
+        'Je ziet ook het **Anvil-zijpaneel** zich vullen met je clans, je lopende events, je positie en de sync-knoppen — en er verschijnt een **Anvil**-knop in de titelbalk van je Collection Log in het spel, naast WikiSync en RuneProfile.',
       guestNote: {
         tag: 'Gast of lid',
         body: 'Zegt de chat _Tracked as a guest_, dan word je bijgehouden maar sta je nog niet op de ledenlijst van de clan. Dat lost een admin op door de ledenlijst vanuit het spel te synchroniseren — vraag het {discordLink}.',
@@ -260,12 +260,12 @@ const nl: PartialGuideDict = {
             body: 'een banner wanneer iemand uit je team een vakje afrondt. Meerdere tegelijk: het moeilijkste krijgt de banner, de rest gaat naar de chat.',
           },
           {
-            label: 'Bingo tab in Collection Log',
-            body: 'zet je bord in de Collection Log in het spel, naast je bewaarde bewijzen.',
+            label: 'Distinct mission sound',
+            body: 'geeft een binnenkomende missie — en iemand die er een claimt — een eigen geluid, zodat je het zonder kijken van een gewoon vakje onderscheidt.',
           },
           {
             label: 'Banner sound + volume',
-            body: 'speelt een geluid bij de banner. Er klinkt niets tot je zelf minstens één .wav toevoegt, via de knop “Banner sounds” in dat Bingo-tabblad.',
+            body: 'speelt een geluid bij de banner. Er gebeurt niets tot je zelf minstens één .wav toevoegt, via **Add clip** onder “Banner sounds” in het Anvil-zijpaneel.',
           },
           {
             label: 'Two-frame drop proof',
@@ -452,7 +452,7 @@ const nl: PartialGuideDict = {
         'Typ `::anvillog` in de spelchat (of stel **Export debug log hotkey** in bij het Support-onderdeel van de plugin). Hij schrijft een logbestand naar je map `.runelite/anvil-debug`, opent de map, en kopieert het pad naar je klembord — stuur dat bestand naar een admin en die ziet precies wat er misging.',
       missingNote: {
         tag: 'Bewijs kwijt?',
-        body: 'Pets en dubbele Champion’s scrolls vragen een handmatige schermafbeelding. Die worden opgeslagen in `.runelite/osrs-bingo-pending/` en verschijnen als een rij **Saved proofs** in het Bingo-tabblad van de Collection Log.',
+        body: 'Pets en dubbele Champion’s scrolls hebben een handmatige screenshot nodig. De plugin maakt hem voor je en bewaart hem in `.runelite/osrs-bingo-pending/` — **Copy folder path** in het Anvil-zijpaneel opent de map — zodat je hem op de site toevoegt in plaats van achteraf naar een plaatje te zoeken.',
       },
     },
   },
@@ -1503,7 +1503,7 @@ const nl: PartialGuideDict = {
     roster: {
       title: 'De ledenlijst eerlijk houden',
       body: [
-        'De ledenlijst komt uit precies één plek: een admin draait een synchronisatie vanuit de clanlijst in het spel, via het Bingo-tabblad van de plugin in de Collection Log. Al het andere — verificaties, koppelingen, inschrijvingen — hangt daaraan.',
+        'De ledenlijst komt uit precies één plek: een admin draait een synchronisatie vanuit de clanlijst in het spel, met de **Anvil**-knop in de titelbalk van het clanvenster (of **Sync roster** in het zijpaneel van de plugin). Al het andere — verificaties, koppelingen, inschrijvingen — hangt daaraan.',
         'Het onderhoudswerk is dus klein maar echt: draai de synchronisatie na elke wervingsronde, promoveer de gasten die daadwerkelijk zijn toegetreden, en kijk naar de mensen die de site heeft gemarkeerd in plaats van te wachten tot ze klagen.',
       ],
       note: {

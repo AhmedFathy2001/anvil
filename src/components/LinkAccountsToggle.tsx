@@ -47,11 +47,18 @@ export default function LinkAccountsToggle({
   return (
     <div className="mt-3 flex items-start gap-3 rounded-xl border border-card-border bg-card-bg p-4">
       <div className="min-w-0 text-sm">
+        {/* SEPARATE FROM SHARING, and it has to say so. Sharing decides WHICH clans can see a
+            character; this decides whether the shared ones are publicly tied to each other. With
+            Share ticked on every character and this off — a normal, deliberate combination — the
+            old copy ("Nothing says they belong to one person") read as a contradiction of the
+            ticked boxes right above it, and was reported as sharing being broken. */}
         <p className="font-medium text-foreground">Show these as the same player</p>
         <p className="mt-0.5 text-xs text-text-muted">
+          Separate from sharing: sharing decides who can see a character, this decides whether your
+          shared ones are publicly tied together.{' '}
           {linked
-            ? 'Your shared characters are listed together on a public page, and each links to it.'
-            : 'Your shared characters are public individually. Nothing says they belong to one person.'}
+            ? 'They are listed together on a public page, and each links to it.'
+            : 'They stay public individually, and nothing says they belong to one person.'}
           {sharedCount < 2 && ' Takes effect once you have shared more than one.'}
         </p>
         {error && <p className="mt-1 text-xs text-red-400">{error}</p>}
@@ -66,7 +73,7 @@ export default function LinkAccountsToggle({
             : 'border-card-border text-text-muted hover:text-foreground hover:bg-brown-light'
         }`}
       >
-        {busy ? '…' : linked ? 'Linked' : 'Not linked'}
+        {busy ? '…' : linked ? 'Linked' : 'Not linked together'}
       </button>
     </div>
   );

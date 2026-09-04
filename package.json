@@ -58,6 +58,7 @@
     "test:schedule": "node --experimental-strip-types --test tests/schedule-lanes.test.ts",
     "test:admin": "node --experimental-strip-types --test tests/admin-attention.test.ts tests/library-shape.test.ts tests/db-time.test.ts",
     "test:tenantenv": "npx tsx --test tests/tenant-env-isolation.test.ts",
+    "test:guidesearch": "npx tsx --test tests/guide-search.test.ts",
     "test:invites": "node --experimental-strip-types --test tests/team-invites.test.ts",
     "test:fees": "node --experimental-strip-types --test tests/fee-rules.test.ts",
     "test:cap": "node --experimental-strip-types --test tests/member-cap.test.ts",

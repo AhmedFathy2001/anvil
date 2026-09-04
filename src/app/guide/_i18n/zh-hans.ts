@@ -229,7 +229,7 @@ const zhHans: PartialGuideDict = {
         { text: 'Tracked kill: Zulrah (7/10)', tone: 'plain' },
       ],
       outro:
-        '你还应当看到 **Anvil 侧边栏**填入了你的活动、队伍和格子进度 —— 并且游戏内的 Collection Log 中出现了一个 **Bingo** 标签页。',
+        '你还会看到 **Anvil 侧边栏**填入你的氏族、正在进行的活动、你的名次以及同步按钮，并且游戏内 Collection Log 的标题栏上会出现一个 **Anvil** 按钮，就在 WikiSync 和 RuneProfile 旁边。',
       guestNote: {
         tag: '访客与成员之别',
         body: '如果聊天里显示 _Tracked as a guest_，说明你已被记录，但还没进入氏族成员名单。管理员同步一次游戏内成员名单即可解决 —— 去{discordLink}问一声。',
@@ -258,12 +258,12 @@ const zhHans: PartialGuideDict = {
             body: '队里任何人完成一个格子时弹出横幅。若同时完成多个：最难的那个用横幅，其余进聊天框。',
           },
           {
-            label: 'Bingo tab in Collection Log',
-            body: '把你的棋盘放进游戏内的 Collection Log，与你保存的凭证并列。',
+            label: 'Distinct mission sound',
+            body: '让任务掉落时、以及有人认领时发出各自的提示音，不用看屏幕也能和普通格子完成区分开。',
           },
           {
             label: 'Banner sound + volume',
-            body: '横幅出现时播放声音。在你通过该 Bingo 标签页中的 “Banner sounds” 按钮至少添加一个 .wav 之前，不会有任何声音。',
+            body: '在横幅出现时播放声音。在你自己通过 Anvil 侧边栏“Banner sounds”下的 **Add clip** 添加至少一个 .wav 之前，不会有任何声音。',
           },
           {
             label: 'Two-frame drop proof',
@@ -450,7 +450,7 @@ const zhHans: PartialGuideDict = {
         '在游戏聊天框里输入 `::anvillog`（或在插件的 Support 区块里设置 **Export debug log hotkey**）。它会往你的 `.runelite/anvil-debug` 文件夹写一份日志文件、打开该文件夹，并把路径复制到剪贴板 —— 把那个文件发给管理员，他们就能看到究竟哪里出了问题。',
       missingNote: {
         tag: '凭证不见了？',
-        body: '宠物和重复的 Champion’s scroll 需要手动截图。它们会保存到 `.runelite/osrs-bingo-pending/`，并在 Collection Log 的 Bingo 标签页里以 **Saved proofs** 一行出现。',
+        body: '宠物和重复的 Champion’s scroll 需要手动截图。插件会替你截好并保存到 `.runelite/osrs-bingo-pending/`（Anvil 侧边栏的 **Copy folder path** 可以打开该文件夹），你在网站上直接附加即可，不必事后再去翻找图片。',
       },
     },
   },
@@ -1501,7 +1501,7 @@ const zhHans: PartialGuideDict = {
     roster: {
       title: '让成员名单保持诚实',
       body: [
-        '成员名单只有一个来源：由管理员从游戏内的氏族列表跑一次同步，入口是插件在 Collection Log 里的 Bingo 标签页。其他一切 —— 验证、关联、报名 —— 都挂在它上面。',
+        '成员名单只有一个来源：由管理员从游戏内的氏族列表跑一次同步，入口是氏族窗口标题栏上的 **Anvil** 按钮（或插件侧边栏的 **Sync roster**）。其他一切 —— 验证、关联、报名 —— 都挂在它上面。',
         '所以维护工作量很小但是实打实的：每轮招新之后跑一次同步、把真正加入了的访客提升为成员，并主动去看站点标记出来需要复核的人，而不是等他们来抱怨。',
       ],
       note: {

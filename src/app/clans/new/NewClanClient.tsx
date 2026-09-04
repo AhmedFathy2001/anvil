@@ -17,6 +17,7 @@ export default function NewClanClient({ apex, signedIn }: { apex: string; signed
   const [inGameName, setInGameName] = useState('');
   const [touchedSlug, setTouchedSlug] = useState(false);
   const [check, setCheck] = useState<{ ok: boolean; message: string } | null>(null);
+  const [nameCheck, setNameCheck] = useState<{ ok: boolean; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -46,6 +47,21 @@ export default function NewClanClient({ apex, signedIn }: { apex: string; signed
     }, 350);
     return () => clearTimeout(t);
   }, [slug]);
+
+  // The in-game name is checked the same way, and for a better reason than the slug: a taken slug is
+  // a naming race, a taken in-game name means somebody else is already claiming to BE this clan, and
+  // finding that out on submit — after typing everything else — is the wrong moment.
+  useEffect(() => {
+    if (!inGameName.trim()) {
+      setNameCheck(null);
+      return;
+    }
+    const t = setTimeout(async () => {
+      const res = await fetch(`/api/clans?inGameName=${encodeURIComponent(inGameName.trim())}`);
+      if (res.ok) setNameCheck((await res.json()).inGameName ?? null);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [inGameName]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -124,6 +140,7 @@ export default function NewClanClient({ apex, signedIn }: { apex: string; signed
   }
 
   const slugBad = check != null && !check.ok;
+  const nameBad = nameCheck != null && !nameCheck.ok;
 
   return (
     <form onSubmit={submit} className="space-y-5 rounded-xl border border-card-border bg-card-bg p-6">
@@ -134,13 +151,19 @@ export default function NewClanClient({ apex, signedIn }: { apex: string; signed
           onChange={(e) => setInGameName(e.target.value)}
           required
           placeholder="The Afk Spot"
-          className="rounded-xl px-4 py-2.5 outline-none"
+          className={`rounded-xl px-4 py-2.5 outline-none ${
+            nameBad ? 'border-red-900 focus:border-red-700' : ''
+          }`}
         />
-        <p className="mt-1 text-xs text-gray-500">
-          Exactly as it appears in OSRS. Roster sync uses it to match your clan and refuses a roster
-          from any other — so it&rsquo;s required, and it&rsquo;s what stops someone else&rsquo;s member
-          list landing on your site.
-        </p>
+        {nameBad ? (
+          <p className="mt-1 text-xs text-red-400">{nameCheck?.message}</p>
+        ) : (
+          <p className="mt-1 text-xs text-gray-500">
+            Exactly as it appears in OSRS. Roster sync uses it to match your clan and refuses a roster
+            from any other — so it&rsquo;s required, and it&rsquo;s what stops someone else&rsquo;s member
+            list landing on your site.
+          </p>
+        )}
       </div>
 
       <div>
@@ -187,11 +210,21 @@ export default function NewClanClient({ apex, signedIn }: { apex: string; signed
 
       <button
         type="submit"
-        disabled={busy || slugBad || !inGameName || !slug}
+        disabled={busy || slugBad || nameBad || !inGameName || !slug}
         className="rounded-xl border border-gold/40 px-5 py-2.5 text-sm text-gold disabled:opacity-40"
       >
         {busy ? 'Creating…' : 'Create clan'}
       </button>
-    </form>
+          {/* The rail button says "start or join", because from a nav those are one intent. This is the
+          half of it that is not this form — without it, somebody who meant to JOIN their clan has
+          landed on the page that creates a second one, and the next thing they do is create it. */}
+      <p className="pt-1 text-center text-xs text-gray-500">
+        Looking for a clan that already exists?{' '}
+        <ClanLink href="/clans" className="text-gold hover:text-gold-light">
+          Find it in the Clan Hall
+        </ClanLink>{' '}
+        and apply from its page.
+      </p>
+</form>
   );
 }

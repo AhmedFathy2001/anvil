@@ -230,7 +230,7 @@ const ko: PartialGuideDict = {
         { text: 'Tracked kill: Zulrah (7/10)', tone: 'plain' },
       ],
       outro:
-        '**Anvil 사이드 패널**에 이벤트, 팀, 칸 진행도가 채워지고, 게임 내 Collection Log에 **Bingo** 탭이 생기는 것도 보여야 합니다.',
+        '**Anvil 사이드 패널**도 소속 클랜, 진행 중인 이벤트, 내 순위, 동기화 버튼으로 채워집니다. 그리고 게임 내 Collection Log 제목 표시줄에 WikiSync·RuneProfile 옆으로 **Anvil** 버튼이 나타납니다.',
       guestNote: {
         tag: '게스트와 멤버의 차이',
         body: '채팅에 _Tracked as a guest_ 라고 뜨면 기록은 되고 있지만 아직 클랜 멤버 명단에는 없다는 뜻입니다. 관리자가 게임 내 클랜 명단을 동기화하면 해결됩니다 —— {discordLink} 물어보세요.',
@@ -259,12 +259,12 @@ const ko: PartialGuideDict = {
             body: '팀원 중 누군가가 칸을 완료하면 배너를 띄웁니다. 여러 개가 동시에 나오면 가장 어려운 것이 배너를 차지하고 나머지는 채팅으로 갑니다.',
           },
           {
-            label: 'Bingo tab in Collection Log',
-            body: '저장된 증빙 옆에, 게임 내 Collection Log 안에 보드를 넣어 줍니다.',
+            label: 'Distinct mission sound',
+            body: '미션이 떨어질 때와 누군가 가져갈 때 전용 소리를 냅니다. 화면을 보지 않아도 일반 타일 완료와 구분됩니다.',
           },
           {
             label: 'Banner sound + volume',
-            body: '배너와 함께 소리를 냅니다. 그 Bingo 탭의 “Banner sounds” 버튼으로 .wav를 하나 이상 직접 추가하기 전까지는 아무 소리도 나지 않습니다.',
+            body: '배너와 함께 소리를 재생합니다. Anvil 사이드 패널의 “Banner sounds”에 있는 **Add clip**으로 .wav를 직접 하나 이상 추가하기 전에는 아무 소리도 나지 않습니다.',
           },
           {
             label: 'Two-frame drop proof',
@@ -451,7 +451,7 @@ const ko: PartialGuideDict = {
         '게임 채팅에 `::anvillog`를 입력하세요(또는 플러그인 Support 영역에서 **Export debug log hotkey**를 지정하세요). `.runelite/anvil-debug` 폴더에 로그 파일을 쓰고, 폴더를 열고, 경로를 클립보드에 복사합니다 —— 그 파일을 관리자에게 보내면 무엇이 잘못됐는지 정확히 볼 수 있습니다.',
       missingNote: {
         tag: '증빙이 안 보인다면?',
-        body: '펫과 중복된 Champion’s scroll은 수동 스크린샷이 필요합니다. 그것들은 `.runelite/osrs-bingo-pending/`에 저장되고 Collection Log의 Bingo 탭에 **Saved proofs** 줄로 나타납니다.',
+        body: '펫과 중복 Champion’s scroll은 수동 스크린샷이 필요합니다. 플러그인이 대신 찍어 `.runelite/osrs-bingo-pending/`에 저장하며(Anvil 사이드 패널의 **Copy folder path**로 폴더가 열립니다), 나중에 사진을 찾는 대신 사이트에서 첨부하면 됩니다.',
       },
     },
   },
@@ -1502,7 +1502,7 @@ const ko: PartialGuideDict = {
     roster: {
       title: '멤버 명단을 정직하게 유지하기',
       body: [
-        '멤버 명단의 출처는 단 하나입니다: 관리자가 플러그인의 Collection Log 내 Bingo 탭을 통해 게임 내 클랜 목록에서 동기화를 돌립니다. 그 밖의 모든 것 —— 확인, 연결, 신청 —— 이 거기에 매달려 있습니다.',
+        '멤버 명단의 출처는 단 하나입니다: 관리자가 클랜 창 제목 표시줄의 **Anvil** 버튼(또는 플러그인 사이드 패널의 **Sync roster**)으로 게임 내 클랜 목록에서 동기화를 돌립니다. 그 밖의 모든 것 —— 확인, 연결, 신청 —— 이 거기에 매달려 있습니다.',
         '그래서 유지 보수는 작지만 실재합니다: 모집을 돌릴 때마다 동기화를 실행하고, 실제로 합류한 게스트를 승격시키고, 사이트가 “확인 필요”로 표시한 사람들을 불평이 들어오기 전에 먼저 들여다보세요.',
       ],
       note: {

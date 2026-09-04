@@ -236,7 +236,7 @@ const da: PartialGuideDict = {
         { text: 'Tracked kill: Zulrah (7/10)', tone: 'plain' },
       ],
       outro:
-        'Du bør også se **Anvil-sidepanelet** fyldes ud med dit event, dit hold og din fremgang på felterne — og en **Bingo**-fane dukke op inde i din Collection Log i spillet.',
+        'Du bør også se **Anvil-sidepanelet** fyldes ud med dine klaner, dine igangværende events, din placering og synkroniseringsknapperne — og en **Anvil**-knap dukke op i titellinjen på din Collection Log i spillet, ved siden af WikiSync og RuneProfile.',
       guestNote: {
         tag: 'Gæst kontra medlem',
         body: 'Står der _Tracked as a guest_ i chatten, bliver du tracket, men du står endnu ikke på klanens medlemsliste. Det retter en admin ved at synkronisere medlemslisten fra spillet — spørg {discordLink}.',
@@ -265,12 +265,12 @@ const da: PartialGuideDict = {
             body: 'et banner, når nogen på dit hold gør et felt færdigt. Flere på én gang: det sværeste får banneret, resten går i chatten.',
           },
           {
-            label: 'Bingo tab in Collection Log',
-            body: 'lægger dit bræt ind i Collection Log i spillet, side om side med dine gemte beviser.',
+            label: 'Distinct mission sound',
+            body: 'giver det sin egen lyd, når en mission lander — og når nogen henter den — så du kan høre forskel på den og et almindeligt felt uden at kigge.',
           },
           {
             label: 'Banner sound + volume',
-            body: 'afspiller en lyd sammen med banneret. Der sker ingenting, før du selv tilføjer mindst én .wav-fil via knappen “Banner sounds” i den Bingo-fane.',
+            body: 'afspiller en lyd sammen med banneret. Der sker ingenting, før du selv tilføjer mindst én .wav-fil via **Add clip** under “Banner sounds” i Anvil-sidepanelet.',
           },
           {
             label: 'Two-frame drop proof',
@@ -457,7 +457,7 @@ const da: PartialGuideDict = {
         'Skriv `::anvillog` i spillets chat (eller sæt **Export debug log hotkey** i pluginnets Support-afsnit). Den skriver en logfil til din `.runelite/anvil-debug`-mappe, åbner mappen og kopierer stien til din udklipsholder — send filen til en admin, så kan de se præcis, hvad der gik galt.',
       missingNote: {
         tag: 'Mangler der beviser?',
-        body: 'Pets og ekstra Champion’s scrolls kræver et manuelt screenshot. De bliver gemt i `.runelite/osrs-bingo-pending/` og dukker op som en **Saved proofs**-række i Bingo-fanen i Collection Log.',
+        body: 'Pets og ekstra Champion’s scrolls kræver et manuelt screenshot. Pluginnet tager det for dig og gemmer det i `.runelite/osrs-bingo-pending/` — **Copy folder path** i Anvil-sidepanelet åbner mappen — så du vedhæfter det på siden i stedet for at lede efter et billede bagefter.',
       },
     },
   },
@@ -1508,7 +1508,7 @@ const da: PartialGuideDict = {
     roster: {
       title: 'At holde medlemslisten ærlig',
       body: [
-        'Medlemslisten kommer ét sted fra: en admin kører en synkronisering fra klanlisten i spillet via pluginnets Bingo-fane i Collection Log. Alt andet — verificeringer, tilknytninger, tilmeldinger — hænger på den.',
+        'Medlemslisten kommer ét sted fra: en admin kører en synkronisering fra klanlisten i spillet med **Anvil**-knappen i titellinjen på klanvinduet (eller **Sync roster** i pluginnets sidepanel). Alt andet — verificeringer, tilknytninger, tilmeldinger — hænger på den.',
         'Så vedligeholdelsesjobbet er lille, men reelt: kør synkroniseringen efter enhver rekrutteringsrunde, forfrem de gæster, der faktisk er kommet med, og kig på de folk, siden har markeret som noget, der skal ses på, frem for at vente på, at de brokker sig.',
       ],
       note: {

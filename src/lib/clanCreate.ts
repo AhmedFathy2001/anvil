@@ -14,7 +14,7 @@
 // to own it. The naming RULES live in lib/clanNames, which has no database import; this file is the
 // half that has to ask.
 
-import { and, count, eq, ne } from 'drizzle-orm';
+import { and, count, eq, ne, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanAuditLog, clanStaff, clans } from '@/db/schema';
@@ -47,6 +47,39 @@ export async function checkSlug(slug: string, exceptClanId?: number): Promise<Av
 }
 
 /** The same for a custom domain. */
+/**
+ * Is this in-game clan name free?
+ *
+ * The in-game name is not a label, it is a CLAIM about a real OSRS clan, and roster sync gates on
+ * it: a member list is accepted only when the plugin reports this exact name. Two clans holding the
+ * same one means one real clan's roster can land on either site, and the clan that did not ask for
+ * it has no way to tell.
+ *
+ * Case- and whitespace-insensitive, because "The AFK Spot" and "The Afk Spot" are the same clan in
+ * game and matching already ignores case (see clan-sync). The database index that mirrors this is
+ * `clans_ingame_name_unique`.
+ *
+ * There WAS a unique index here, but only over rows with `ingame_name_verified_at is not null` —
+ * first VERIFIED claim wins. That leaves the window this closes: two unverified clans can both hold
+ * a name, and nothing tells either of them until one tries to verify.
+ */
+export async function checkInGameName(name: string, exceptClanId?: number): Promise<AvailabilityResult> {
+  const wanted = name.trim().toLowerCase();
+  if (!wanted) return { ok: false, reason: 'invalid' };
+
+  const clash = await db
+    .select({ id: clans.id })
+    .from(clans)
+    .where(
+      exceptClanId
+        ? and(sql`lower(trim(${clans.inGameName})) = ${wanted}`, ne(clans.id, exceptClanId))
+        : sql`lower(trim(${clans.inGameName})) = ${wanted}`,
+    )
+    .limit(1);
+
+  return clash.length ? { ok: false, reason: 'taken' } : { ok: true };
+}
+
 export async function checkDomain(domain: string, exceptClanId?: number): Promise<AvailabilityResult> {
   const d = normalizeSlug(domain);
   if (!d) return { ok: true };
@@ -120,6 +153,16 @@ export async function createClan(input: CreateClanInput): Promise<CreateClanResu
 
   const avail = await checkSlug(slug);
   if (!avail.ok) return { ok: false, error: availabilityMessage('Address', avail) };
+
+  const nameFree = await checkInGameName(inGameName);
+  if (!nameFree.ok) {
+    return {
+      ok: false,
+      error:
+        'A clan on Anvil already uses that in-game name. Two clans cannot share one, because roster ' +
+        'sync matches on it — if this is your clan, get in touch and we will sort it out.',
+    };
+  }
 
   try {
     const created = await db.transaction(async (tx) => {

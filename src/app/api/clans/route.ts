@@ -6,7 +6,7 @@ import { db } from '@/db';
 import { clanStaff, clans } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
 import { isApexHost } from '@/lib/clanContext';
-import { checkDomain, checkSlug, availabilityMessage, createClan } from '@/lib/clanCreate';
+import { checkDomain, checkInGameName, checkSlug, availabilityMessage, createClan } from '@/lib/clanCreate';
 import { rateLimitByKey } from '@/lib/rate-limit';
 
 /**
@@ -20,7 +20,7 @@ import { rateLimitByKey } from '@/lib/rate-limit';
  * only thing that says who to make owner.
  */
 
-/** GET /api/clans?slug=x&domain=y — availability, for typing into the form. */
+/** GET /api/clans?slug=x&domain=y&inGameName=z — availability, for typing into the form. */
 export async function GET(request: Request) {
   if (!isApexHost((await headers()).get('host'))) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -29,6 +29,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const slug = (url.searchParams.get('slug') ?? '').trim().toLowerCase();
   const domain = (url.searchParams.get('domain') ?? '').trim().toLowerCase();
+  const inGameName = (url.searchParams.get('inGameName') ?? '').trim();
 
   const out: Record<string, unknown> = {};
   if (slug) {
@@ -38,6 +39,15 @@ export async function GET(request: Request) {
   if (domain) {
     const r = await checkDomain(domain);
     out.domain = { ok: r.ok, message: r.ok ? '' : availabilityMessage('Domain', r) };
+  }
+  if (inGameName) {
+    // Said plainly rather than through availabilityMessage: "In-game clan name is taken" reads like
+    // a naming race, and this is not one — the other clan is claiming to BE this clan.
+    const r = await checkInGameName(inGameName);
+    out.inGameName = {
+      ok: r.ok,
+      message: r.ok ? '' : 'A clan on Anvil already uses that in-game name — roster sync matches on it, so it can only belong to one.',
+    };
   }
   return NextResponse.json(out);
 }

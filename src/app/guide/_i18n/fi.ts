@@ -231,7 +231,7 @@ const fi: PartialGuideDict = {
         { text: 'Tracked kill: Zulrah (7/10)', tone: 'plain' },
       ],
       outro:
-        'Sinun pitäisi myös nähdä **Anvilin sivupaneelin** täyttyvän tapahtumallasi, joukkueellasi ja ruutuedistymiselläsi — sekä **Bingo**-välilehden ilmestyvän pelinsisäiseen Collection Logiin.',
+        'Näet myös **Anvilin sivupaneelin** täyttyvän klaaneistasi, käynnissä olevista tapahtumista, sijoituksestasi ja synkronointipainikkeista — ja pelin Collection Login otsikkopalkkiin ilmestyy **Anvil**-painike WikiSyncin ja RuneProfilen viereen.',
       guestNote: {
         tag: 'Vieras vai jäsen',
         body: 'Jos chat sanoo _Tracked as a guest_, sinua seurataan mutta et ole vielä klaanin jäsenlistalla. Ylläpitäjä korjaa sen synkronoimalla jäsenlistan pelistä — kysy {discordLink}.',
@@ -260,12 +260,12 @@ const fi: PartialGuideDict = {
             body: 'banneri kun kuka tahansa joukkueestasi saa ruudun valmiiksi. Useita kerralla: vaikein saa bannerin, loput menevät chattiin.',
           },
           {
-            label: 'Bingo tab in Collection Log',
-            body: 'sijoittaa taulusi pelinsisäiseen Collection Logiin, tallennettujen todisteidesi viereen.',
+            label: 'Distinct mission sound',
+            body: 'antaa saapuvalle tehtävälle — ja sen lunastamiselle — oman äänensä, jotta erotat sen tavallisesta ruudusta katsomatta.',
           },
           {
             label: 'Banner sound + volume',
-            body: 'soittaa äänen bannerin kanssa. Mitään ei soi ennen kuin lisäät itse vähintään yhden .wav-tiedoston sen Bingo-välilehden “Banner sounds” -painikkeesta.',
+            body: 'soittaa äänen bannerin kanssa. Mitään ei kuulu, ennen kuin lisäät itse vähintään yhden .wav-tiedoston kohdasta **Add clip** “Banner sounds” -otsikon alla Anvilin sivupaneelissa.',
           },
           {
             label: 'Two-frame drop proof',
@@ -452,7 +452,7 @@ const fi: PartialGuideDict = {
         'Kirjoita `::anvillog` pelin chattiin (tai aseta **Export debug log hotkey** pluginin Support-osiossa). Se kirjoittaa lokitiedoston `.runelite/anvil-debug`-kansioosi, avaa kansion ja kopioi polun leikepöydälle — lähetä se tiedosto ylläpitäjälle, niin he näkevät tarkalleen mikä meni pieleen.',
       missingNote: {
         tag: 'Puuttuuko todisteita?',
-        body: 'Petit ja Champion’s scrollien duplikaatit vaativat käsin otetun kuvakaappauksen. Ne tallentuvat kansioon `.runelite/osrs-bingo-pending/` ja näkyvät **Saved proofs** -rivinä Collection Login Bingo-välilehdellä.',
+        body: 'Lemmikit ja toistuvat Champion’s scrollit vaativat käsin otetun kuvakaappauksen. Plugin ottaa sen puolestasi ja tallentaa kansioon `.runelite/osrs-bingo-pending/` — **Copy folder path** Anvilin sivupaneelissa avaa sen — joten liität sen sivustolle sen sijaan että etsisit kuvaa jälkikäteen.',
       },
     },
   },

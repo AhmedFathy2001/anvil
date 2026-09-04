@@ -34,6 +34,12 @@ export const en = {
       running: 'Running an event',
       clan: 'Running the clan',
     },
+    search: {
+      placeholder: 'Search the guides — try "webhook", "tiles", or "drops not showing"',
+      results: '{n} guides',
+      empty: 'Nothing matched. Try a plainer word — "tiles", "payout", "bot" — or browse the list below.',
+      clear: 'Clear search',
+    },
     cards: {
       clan: {
         eyebrow: 'For anyone starting one',
@@ -41,6 +47,13 @@ export const en = {
         blurb:
           'Two names and an address, and it is live. Then Discord, your roster, and the first board.',
         minutes: '~4 min, free',
+      },
+      discord: {
+        eyebrow: 'For whoever runs the server',
+        title: 'Anvil in Discord',
+        blurb:
+          'One invite, then the channels each feed posts to, roles, slash commands, and what to check when it stops.',
+        minutes: '~5 min',
       },
       plugin: {
         eyebrow: 'For players',
@@ -124,7 +137,7 @@ export const en = {
       ],
       note: {
         tag: 'You will be its owner',
-        body: 'Owner is the one role nobody can take from you, and it goes to whoever creates the clan. Add staff afterwards from Admin → Clan; see the {moderatorGuide}.',
+        body: 'Owner is the one role nobody can take from you, and it goes to whoever creates the clan. Add staff afterwards from Admin → Clan; see [On the rota]({moderatorGuide}).',
       },
     },
 
@@ -179,7 +192,7 @@ export const en = {
         },
         {
           term: 'Make a board',
-          body: 'The first event. Pick a format, add tiles, open sign-ups — that is the {adminGuide}, and it is the longest of the four by a distance.',
+          body: 'The first event. Pick a format, add tiles, open sign-ups — that is [Running your first event]({adminGuide}), and it is the longest of the four by a distance.',
         },
       ],
       after: [
@@ -195,7 +208,7 @@ export const en = {
       ways: [
         {
           term: 'Roster sync (do this one)',
-          body: 'Open the clan window in game with the plugin running and press the **Anvil** button in its title bar. Your whole member list arrives with ranks intact, and it refuses a roster from a clan whose name does not match yours. Repeat it whenever people join or leave — see the {pluginGuide}.',
+          body: 'Open the clan window in game with the plugin running and press the **Anvil** button in its title bar. Your whole member list arrives with ranks intact, and it refuses a roster from a clan whose name does not match yours. Repeat it whenever people join or leave — see the [player setup guide]({pluginGuide}).',
         },
         {
           term: 'They just play',
@@ -216,7 +229,7 @@ export const en = {
       title: 'Your first event',
       body: [
         'The shortest path to something happening: make a board, add a handful of tiles the plugin can see by itself, open sign-ups, and start it. Drops, kill counts and XP then file themselves.',
-        'Two guides carry the weight here. The {adminGuide} runs start to finish — Discord, teams, launching, and what to do when it ends. The {boardGuide} is about tiles specifically: what each kind can actually detect, and the ones that import cleanly and then never fire.',
+        'Two guides carry the weight here. [Running your first event]({adminGuide}) runs start to finish — Discord, teams, launching, and what to do when it ends. [Building a board that tracks itself]({boardGuide}) is about tiles specifically: what each kind can actually detect, and the ones that import cleanly and then never fire.',
         'If you would rather not build a board at all in your first week, run a **Skill of the Week** or **Boss of the Week** instead. Everyone on the roster is enrolled automatically, the standings move off the hiscores, and there is nothing to author.',
       ],
     },
@@ -226,7 +239,7 @@ export const en = {
       body: [
         'An event does not have to belong to one clan. Several clans can run the same board together — two, or a dozen — with each side keeping its own roster, its own staff and its own half of the moderation.',
         'They can also share one pool of players rather than sitting on opposite sides of a scoreboard: one event, everybody in it, however the teams end up cut. Clan-versus-clan is one shape this takes, not the only one.',
-        'Each visiting clan gets an invite link per team, so you never collect a single RSN by hand, and a seat that lets their own moderator approve their own members’ proof. The {clanVsClanGuide} covers hosting one.',
+        'Each visiting clan gets an invite link per team, so you never collect a single RSN by hand, and a seat that lets their own moderator approve their own members’ proof. [Hosting a visiting clan]({clanVsClanGuide}) covers hosting one.',
       ],
       note: {
         tag: 'Nothing to buy',
@@ -234,6 +247,180 @@ export const en = {
       },
     },
   },
+  discord: {
+    metaTitle: 'Anvil in Discord — Anvil',
+    metaDescription:
+      'Connect the Anvil bot to your Discord server: one invite, the channels each feed posts to, role and nickname sync, slash commands, and what to check when it goes quiet.',
+    eyebrow: 'Anvil · Discord',
+    title: 'Anvil in Discord',
+    dek: 'One bot, one invite, and no application to register. This is what it posts, where it posts it, what it can change in your server — and what to look at on the day it stops.',
+    facts: [
+      { strong: 'One bot', rest: 'shared, nothing to create' },
+      { strong: '~5 min', rest: 'invite to first post' },
+      { strong: 'Opt-in', rest: 'every feed is off until you point it somewhere' },
+    ],
+    footnote:
+      'Everything here lives under Admin → Settings, split across the Discord bot, Webhooks, Roles & channels and Notifications tabs.',
+
+    bot: {
+      title: 'One bot, already built',
+      body: [
+        'There is no Discord application to create, no token to generate and no secret to paste. Anvil runs one bot and every clan shares it, so connecting is an invite and nothing else.',
+        'You can still bring your own — paste a token under **Discord bot** and it is used instead. Worth it only if you want the bot to wear your clan’s name and avatar in the member list; everything in this guide works the same either way.',
+      ],
+      permissions: [
+        {
+          term: 'View Channels, Send Messages, Embed Links, Attach Files',
+          body: 'The basics. Without these it is in your server and silent.',
+        },
+        {
+          term: 'Manage Webhooks',
+          body: 'So the **Create** button on the Webhooks tab can make a webhook for you instead of you copying URLs out of Discord by hand.',
+        },
+        {
+          term: 'Manage Roles',
+          body: 'Only if you turn role sync on. It can then hand out the roles you map — and it can never touch a role above its own, which is Discord’s rule, not ours.',
+        },
+        {
+          term: 'Manage Nicknames',
+          body: 'Only if you turn nickname sync on, so a member’s server nickname can be set to their RSN.',
+        },
+        {
+          term: 'Manage Channels',
+          body: 'Only for per-team private channels during a draft. Skip it and everything else still works.',
+        },
+      ],
+      note: {
+        tag: 'It asks for all five at once',
+        body: 'Discord has no way to ask for a permission later, so the invite link requests the full set and the features you never enable simply never use theirs. Re-running the invite link is also how you repair a permission somebody removed.',
+      },
+    },
+
+    connect: {
+      title: 'Connecting it',
+      intro:
+        'Two things, in this order. The bot has to be in your server, and Anvil has to know which server is yours.',
+      steps: [
+        {
+          term: 'Invite the bot',
+          body: 'Admin → Settings → **Discord bot** → **Invite / re-invite the bot**. The link pre-selects your server once the ID is set, so you cannot add it to the wrong one by accident.',
+        },
+        {
+          term: 'Set the server ID',
+          body: 'Right-click your server icon in Discord → **Copy Server ID** (needs Developer Mode on, under Discord’s own Advanced settings) and paste it in. This is the field that makes the connection specific to you.',
+        },
+      ],
+      after: [
+        'The panel then tells you the truth rather than your intent: whether the bot is actually a member of that server, and which permissions it is missing. A green line there is worth more than a saved form.',
+      ],
+      note: {
+        tag: 'The server ID is the whole binding',
+        body: 'A guild belongs to exactly one clan on Anvil, and slash commands from a server nobody has claimed are refused rather than guessed at. Until you set it, the bot is invited and idle.',
+      },
+    },
+
+    channels: {
+      title: 'Where things post',
+      body: [
+        'Anvil posts through **webhooks**, one per channel, and every one of them is optional. Nothing posts anywhere until you point a feed at a channel — a fresh clan is silent by design rather than by accident.',
+        'The Webhooks tab can create them for you: pick a channel, press **Create**, and the bot makes the webhook using its Manage Webhooks permission. Pasting a URL you made yourself in Discord works identically.',
+      ],
+      feeds: [
+        {
+          term: 'Announcements',
+          body: 'The main one. Event starts and endings, sign-ups opening, standings, weekly results. Set this and nothing else and you have a working clan.',
+        },
+        {
+          term: 'Plugin default',
+          body: 'Where anything from the game goes when it has no channel of its own. Set this second.',
+        },
+        {
+          term: 'The split feeds',
+          body: 'Rare drops, pets, deaths, collection log, combat achievements, levels, quests, diaries, clips, PvP kills and Leagues each take their own channel. Splitting them is the difference between a feed people read and one they mute.',
+        },
+      ],
+      note: {
+        tag: 'Split deaths off first',
+        body: 'Deaths are the highest-volume feed on most boards and the one that buries everything else. If you only split one thing, split that.',
+      },
+    },
+
+    roles: {
+      title: 'Roles and nicknames',
+      body: [
+        'Two syncs, both off until you turn them on, and both driven by the roster rather than by anything anyone types in Discord.',
+      ],
+      ways: [
+        {
+          term: 'Role sync',
+          body: 'Map your in-game ranks to Discord roles and Anvil keeps them in step. There are also single roles for members, guests, captains and the current event, so you can @ the right people without maintaining a list by hand.',
+        },
+        {
+          term: 'Nickname sync',
+          body: 'Sets a member’s server nickname to their RSN. It fills in a blank nickname by default and can be told to overwrite one someone chose themselves — which is the setting to think about before enabling, not after.',
+        },
+      ],
+      note: {
+        tag: 'The bot’s role has to sit above the ones it manages',
+        body: 'Discord refuses to let any bot touch a role at or above its own, and it refuses silently from your side — the sync simply does nothing. Drag the Anvil role up in Server Settings → Roles and it starts working; nothing needs re-inviting.',
+      },
+    },
+
+    commands: {
+      title: 'Slash commands',
+      body: [
+        'The bot answers `/bingo` in your server: **board**, **rules**, **leaderboard**, **me** and **team**. They read the live event, so nobody has to leave Discord to check where they stand.',
+        'They appear a minute or so after the bot joins. If they never appear at all, the invite granted the bot but not its commands — the two are separate permissions and an older invite link only asked for one. Re-run the invite link from the Discord bot tab; it does not kick the bot or reset anything.',
+      ],
+      note: {
+        tag: 'It replies in each person’s own language',
+        body: 'By default the bot answers in whatever language that member has their Discord set to, falling back to English. Pick a single language under **Bot language** to override that for everyone — which is also the only way to get Arabic, since Discord has no Arabic client language to detect.',
+      },
+    },
+
+    posts: {
+      title: 'What it posts, and when',
+      body: [
+        'Two sources, and it is worth knowing which is which when something looks wrong.',
+        'The **site** posts events: a board opening, sign-ups, a start, standings, the result. Those fire from Anvil itself and keep working whether or not anybody has the plugin.',
+        'The **plugin** posts what happens in game: drops, pets, deaths, levels, collection log slots, combat achievements. Those only exist for members running it, so a quiet drops channel usually means a quiet plugin rather than a broken webhook.',
+      ],
+      note: {
+        tag: 'Nothing posts twice',
+        body: 'A drop that completes a tile is one post, not one from the plugin and another from the board.',
+      },
+    },
+
+    quiet: {
+      title: 'When it goes quiet',
+      body: [
+        'In order, because each one rules out the next:',
+      ],
+      checks: [
+        {
+          term: 'Is the bot actually in the server?',
+          body: 'The Discord bot tab says so directly. "Token valid" and "in your server" are different facts and the first does not imply the second — with a shared bot the token is always valid.',
+        },
+        {
+          term: 'Is the server ID right?',
+          body: 'A wrong-but-real ID looks exactly like a right one until you notice the posts are going somewhere else.',
+        },
+        {
+          term: 'Is the webhook still there?',
+          body: 'Deleting a Discord channel deletes its webhook, and Anvil keeps the dead URL. Re-create it on the Webhooks tab.',
+        },
+        {
+          term: 'Is the bot’s role high enough?',
+          body: 'Only for role and nickname sync — see above. This is the one that fails silently.',
+        },
+      ],
+      note: {
+        tag: 'It cannot greet people who join',
+        body: 'Discord only reports joins over a gateway connection, which a shared bot does not hold for every server. So there is no "welcome" post — put the sign-up link in a #roles or #start-here channel instead, which is where people look anyway.',
+      },
+    },
+  },
+
   plugin: {
     metaTitle: 'RuneLite plugin setup — Anvil',
     metaDescription:

@@ -229,7 +229,7 @@ const it: PartialGuideDict = {
         { text: 'Tracked kill: Zulrah (7/10)', tone: 'plain' },
       ],
       outro:
-        'Dovresti anche vedere il **pannello laterale di Anvil** riempirsi con il tuo evento, la tua squadra e i tuoi progressi, e una scheda **Bingo** comparire dentro il Collection Log in gioco.',
+        'Dovresti anche vedere il **pannello laterale di Anvil** riempirsi con i tuoi clan, gli eventi in corso, la tua posizione e i pulsanti di sincronizzazione — e comparire un pulsante **Anvil** nella barra del titolo del Collection Log in gioco, accanto a WikiSync e RuneProfile.',
       guestNote: {
         tag: 'Ospite o membro',
         body: 'Se la chat dice _Tracked as a guest_, sei tracciato ma non sei ancora nel roster del clan. Un admin lo risolve sincronizzando il roster del clan in gioco —— chiedi {discordLink}.',
@@ -258,12 +258,12 @@ const it: PartialGuideDict = {
             body: 'un banner quando chiunque nella tua squadra completa una casella. Se ne arrivano più insieme: la più difficile prende il banner, le altre vanno in chat.',
           },
           {
-            label: 'Bingo tab in Collection Log',
-            body: 'mette il tuo tabellone dentro il Collection Log in gioco, accanto alle prove salvate.',
+            label: 'Distinct mission sound',
+            body: 'dà un suono tutto suo a una missione che arriva — e a qualcuno che la reclama — così la distingui da una casella normale senza guardare.',
           },
           {
             label: 'Banner sound + volume',
-            body: 'riproduce un suono insieme al banner. Non suona nulla finché non aggiungi almeno un file .wav tu stesso, con il pulsante “Banner sounds” in quella scheda Bingo.',
+            body: 'riproduce un suono insieme al banner. Non succede nulla finché non aggiungi almeno un .wav tu, con **Add clip** sotto “Banner sounds” nel pannello laterale di Anvil.',
           },
           {
             label: 'Two-frame drop proof',
@@ -441,7 +441,7 @@ const it: PartialGuideDict = {
         'Scrivi `::anvillog` nella chat di gioco (o imposta l’**Export debug log hotkey** nella sezione Support del plugin). Scrive un file di log nella cartella `.runelite/anvil-debug`, apre la cartella e copia il percorso negli appunti —— manda quel file a un admin e potrà vedere esattamente cosa è andato storto.',
       missingNote: {
         tag: 'Prove mancanti?',
-        body: 'I pet e i Champion’s scroll duplicati richiedono uno screenshot manuale. Vengono salvati in `.runelite/osrs-bingo-pending/` e compaiono come riga **Saved proofs** nella scheda Bingo del Collection Log.',
+        body: 'I pet e i Champion’s scroll doppi richiedono uno screenshot manuale. Il plugin lo scatta per te e lo salva in `.runelite/osrs-bingo-pending/` — **Copy folder path** nel pannello laterale di Anvil apre la cartella — così lo alleghi sul sito invece di cercare un’immagine dopo.',
       },
     },
   },
@@ -1481,7 +1481,7 @@ const it: PartialGuideDict = {
     roster: {
       title: 'Tenere il roster veritiero',
       body: [
-        'Il roster viene da un solo posto: un admin lancia una sincronizzazione dalla lista del clan in gioco, dalla scheda Bingo del plugin nel Collection Log. Tutto il resto —— verifiche, collegamenti, iscrizioni —— pende da lì.',
+        'Il roster viene da un solo posto: un admin lancia una sincronizzazione dalla lista del clan in gioco, con il pulsante **Anvil** nella barra del titolo della finestra del clan (o **Sync roster** nel pannello laterale del plugin). Tutto il resto —— verifiche, collegamenti, iscrizioni —— pende da lì.',
         'Quindi la manutenzione è piccola ma reale: lancia la sincronizzazione dopo ogni tornata di reclutamento, promuovi gli ospiti che sono davvero entrati, e guarda le persone che il sito ha segnalato come da rivedere invece di aspettare che si lamentino.',
       ],
       note: {

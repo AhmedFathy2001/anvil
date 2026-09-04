@@ -133,6 +133,24 @@ export default function PlatformRail({
         </div>
       )}
 
+      {/* THE WAY IN, which the rail did not have.
+          /clans/new was reachable from pricing, about, the portal and both landing pages — every
+          surface a person sees BEFORE they have an account — and from nowhere at all once they were
+          signed in and looking at this nav. Someone in one clan who wanted a second had to go back
+          to marketing to find the button. Signed-in only for the same reason the form is: a clan
+          needs an owner, and the session is what names one. */}
+      {signedIn && (
+        <ClanLink
+          href="/clans/new"
+          className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md border border-dashed border-card-border px-2.5 py-1.5 text-[13px] text-text-muted transition-colors hover:border-gold/40 hover:text-gold lg:justify-start"
+        >
+          <span className="shrink-0 text-text-dim">
+            <PlusIcon />
+          </span>
+          Start or join a clan
+        </ClanLink>
+      )}
+
       {/* The way out. The first cut of this rail had no sign-out at all, because it lived in the
           clan nav that the apex no longer renders. */}
       <div className="ml-auto flex shrink-0 items-center gap-2.5 pl-2 lg:ml-0 lg:mt-auto lg:border-t lg:border-card-border-soft lg:pt-3">
@@ -184,6 +202,7 @@ const SearchIcon = () => <svg {...s}><circle cx="7" cy="7" r="4.4" /><path d="M1
 const ChartIcon = () => <svg {...s}><path d="M3 13V8.5M8 13V3.5M13 13V6" /></svg>;
 const BookIcon = () => <svg {...s}><path d="M3 2.8h7a2 2 0 012 2v8.4H5a2 2 0 01-2-2V2.8z" /><path d="M6 6h5M6 8.6h5" /></svg>;
 const PersonIcon = () => <svg {...s}><circle cx="8" cy="5.5" r="2.4" /><path d="M2.8 13.2c.5-2.5 2.6-3.8 5.2-3.8s4.7 1.3 5.2 3.8" /></svg>;
+const PlusIcon = () => <svg {...s}><path d="M8 3.5v9M3.5 8h9" /></svg>;
 const ShieldIcon = () => <svg {...s}><path d="M8 1.9l5 1.9v4.3c0 3.2-2.1 5.4-5 6.1-2.9-.7-5-2.9-5-6.1V3.8l5-1.9z" /></svg>;
 const SignOutIcon = () => (
   <svg {...s}><path d="M6 14H3.5A1.5 1.5 0 012 12.5v-9A1.5 1.5 0 013.5 2H6M10.5 11L14 8l-3.5-3M14 8H6.5" /></svg>

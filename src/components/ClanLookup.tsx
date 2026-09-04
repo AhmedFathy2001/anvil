@@ -191,6 +191,16 @@ export default function ClanLookup({ clans }: { clans: LookupClan[] }) {
         Every clan here chose to be listed. A clan that keeps to itself is still reachable by link if
         it allows that — being unlisted is not the same as being private.
       </p>
+
+      {/* The other half of the rail's "start or join": someone who searched this page and did not
+          find their clan has arrived at the moment where making one is the answer. */}
+      <p className="mt-2 text-xs text-text-dim">
+        Not here?{' '}
+        <ClanLink href="/clans/new" className="text-gold hover:text-gold-light">
+          Start your own
+        </ClanLink>{' '}
+        — it is free, and live as soon as you submit.
+      </p>
     </div>
   );
 }
