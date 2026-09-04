@@ -715,12 +715,26 @@ export function completionAward(args: {
   tilePoints: number | null | undefined;
   tileRevealedAt: string | null | undefined;
   isFirst: boolean;
+  /**
+   * A mission's placement ladder, when this completion is landing on one. With it, `place` says
+   * where in the order this claim came (1 = first) and `funded` whether that place's gp prize was
+   * actually covered by the coffer — the two facts that decide which of the ladder's numbers apply.
+   */
+  reward?: MissionReward | null;
+  place?: number;
+  funded?: boolean;
   nowMs?: number;
 }): number | null {
   if (args.scoringMode !== 'points') return null;
-  const { rules } = args;
+  const { rules, reward } = args;
+  const base = decayedPoints(args.tilePoints, args.tileRevealedAt, rules.decay, args.nowMs);
+  // A ladder is the whole answer for this completion: it names what every place is worth, so a
+  // first-clear bonus on top would pay the same "you were first" twice.
+  if (reward) {
+    return missionPlacePoints({ reward, place: args.place ?? 1, funded: args.funded !== false, baseValue: base });
+  }
   if (rules.firstBonus <= 0 && rules.decay == null) return null;
-  let pts = decayedPoints(args.tilePoints, args.tileRevealedAt, rules.decay, args.nowMs);
+  let pts = base;
   if (args.isFirst && rules.firstBonus > 0) pts += rules.firstBonus;
   return pts;
 }
@@ -773,9 +787,61 @@ export interface MissionRules {
   decay: { targetPct: number; hours: number } | null;
   /** Hours after announce a mission auto-closes if unclaimed. Null = never (open till claimed/end). */
   expiryHours: number | null;
+  /** The placement ladder — what 1st, 2nd, 3rd… actually win. Null = flat: everyone gets tile value. */
+  reward: MissionReward | null;
 }
 
-export const DEFAULT_MISSION_RULES: MissionRules = { lockout: false, firstBonus: 0, decay: null, expiryHours: null };
+// ---- The placement ladder ----------------------------------------------------------------------
+//
+// What finishing a mission is WORTH, by the order you finished it in. The shape exists because
+// "first to clear it wins the gp" is only one of the arrangements clans actually run, and the ones
+// next to it are just as ordinary: a podium that pays three places, a race where first takes the
+// money and everybody else still banks points, a drop where the points shrink down the order. All of
+// those are the same object with different numbers in it.
+//
+// Two currencies, side by side, because they are not the same thing and clans mix them freely:
+//   points — the leaderboard. Frozen into completions.awardedPoints at claim time like every other
+//            scoring modifier, so a later edit never rewrites somebody's finished month.
+//   gp     — real money out of the clan coffer (lib/coffer). Reserved at claim, sent by a treasurer.
+//
+// The case that forced the third field: a prize the coffer cannot pay. Anvil will not quietly hand
+// someone 0 for winning, so a place that offers gp also says what it is worth when the pot is dry —
+// `unfundedPoints`, which is where "no reward except the points" lives. That decision is made ONCE,
+// when the claim settles, against the balance then; nothing about it is recomputed later.
+export interface MissionPlace {
+  /** Points for this place. Null = the tile's own value (decay-adjusted), which is the usual default. */
+  points: number | null;
+  /** Coffer prize in gp. 0 = this place is points-only. */
+  gp: number;
+  /**
+   * Points awarded INSTEAD when `gp` could not be funded. Null = the tile's own value.
+   * Ignored when `gp` is 0 — there is nothing to fail to fund.
+   */
+  unfundedPoints: number | null;
+}
+
+export interface MissionReward {
+  /** Ranked places, index 0 = the first claim. Empty = no ladder at all. */
+  places: MissionPlace[];
+  /**
+   * What a claim past the last listed place earns. Null = the tile's own value (so a two-place
+   * podium still lets everyone else score normally); 0 = the places are the only thing worth points.
+   */
+  restPoints: number | null;
+  /**
+   * Close the mission after this many claims. Null = it stays open until it expires or the event
+   * ends. The generalisation of `lockout`, which is exactly maxClaims = 1.
+   */
+  maxClaims: number | null;
+}
+
+export const DEFAULT_MISSION_RULES: MissionRules = {
+  lockout: false,
+  firstBonus: 0,
+  decay: null,
+  expiryHours: null,
+  reward: null,
+};
 
 /** Tolerant parse of a tile's `rules` JSON. Anything missing/malformed → the no-modifier default. */
 export function parseTileMissionRules(raw: string | null | undefined): MissionRules {
@@ -798,7 +864,77 @@ export function parseTileMissionRules(raw: string | null | undefined): MissionRu
     firstBonus: clampInt(o.firstBonus, 0, 100000, 0),
     decay,
     expiryHours: o.expiryHours == null ? null : clampInt(o.expiryHours, 1, 8760, 24),
+    reward: parseMissionReward(o.reward),
   };
+}
+
+/** Tolerant parse of the placement ladder. Anything unusable → null, i.e. flat tile-value scoring. */
+export function parseMissionReward(raw: unknown): MissionReward | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const o = raw as { places?: unknown; restPoints?: unknown; maxClaims?: unknown };
+  const places: MissionPlace[] = Array.isArray(o.places)
+    ? o.places.slice(0, MAX_MISSION_PLACES).map((p) => {
+        const v = (p ?? {}) as { points?: unknown; gp?: unknown; unfundedPoints?: unknown };
+        return {
+          points: v.points == null ? null : clampInt(v.points, 0, 1_000_000, 0),
+          gp: clampInt(v.gp, 0, MAX_MISSION_GP, 0),
+          unfundedPoints: v.unfundedPoints == null ? null : clampInt(v.unfundedPoints, 0, 1_000_000, 0),
+        };
+      })
+    : [];
+  const restPoints = o.restPoints == null ? null : clampInt(o.restPoints, 0, 1_000_000, 0);
+  const maxClaims = o.maxClaims == null ? null : clampInt(o.maxClaims, 1, 1000, 1);
+  // A ladder with no places, no tail rule and no cap says nothing — store null rather than an object
+  // that reads as configured but changes no outcome.
+  if (places.length === 0 && restPoints == null && maxClaims == null) return null;
+  return { places, restPoints, maxClaims };
+}
+
+/** Ten places is already a stretch for one mission; the cap is here so a paste can't author 10,000. */
+export const MAX_MISSION_PLACES = 10;
+/** 2^53-safe and far past any real prize: a place can't be worth more than 100b gp. */
+export const MAX_MISSION_GP = 100_000_000_000;
+
+/** Does this mission promise gp to anybody? Cheap check before touching the coffer at all. */
+export function missionOffersGp(rules: Pick<MissionRules, 'reward'>): boolean {
+  return (rules.reward?.places ?? []).some((p) => p.gp > 0);
+}
+
+/** The gp a given finishing place is owed, 0 when that place wins no money. */
+export function missionPlaceGp(reward: MissionReward | null | undefined, place: number): number {
+  if (!reward || place < 1) return 0;
+  return reward.places[place - 1]?.gp ?? 0;
+}
+
+/**
+ * How many claims a mission accepts before it closes. `maxClaims` is the explicit answer; `lockout`
+ * is the old boolean that meant exactly one. Null = unlimited.
+ */
+export function missionClaimCap(rules: Pick<MissionRules, 'reward' | 'lockout'>): number | null {
+  if (rules.reward?.maxClaims != null) return rules.reward.maxClaims;
+  return rules.lockout ? 1 : null;
+}
+
+/**
+ * Points for finishing in `place`, given whether that place's gp was actually funded.
+ *
+ * `baseValue` is what the tile is worth right now (decayed/grown), which is what every "null" in the
+ * ladder falls back to — so a place that only sets a gp prize keeps the tile's own points behaviour
+ * instead of quietly zeroing it.
+ */
+export function missionPlacePoints(args: {
+  reward: MissionReward | null | undefined;
+  place: number;
+  funded: boolean;
+  baseValue: number;
+}): number {
+  const { reward, place, funded, baseValue } = args;
+  if (!reward) return baseValue;
+  const p = reward.places[place - 1];
+  if (!p) return reward.restPoints ?? baseValue;
+  // Unfunded only means something where money was promised. A points-only place is never "unfunded".
+  const chosen = p.gp > 0 && !funded ? p.unfundedPoints : p.points;
+  return chosen ?? baseValue;
 }
 
 /**
@@ -808,6 +944,7 @@ export function parseTileMissionRules(raw: string | null | undefined): MissionRu
 export function serializeTileMissionRules(input: Partial<MissionRules> | null | undefined): string | null {
   if (!input) return null;
   const m = parseTileMissionRules(JSON.stringify(input));
-  const isDefault = !m.lockout && m.firstBonus === 0 && m.decay === null && m.expiryHours === null;
+  const isDefault =
+    !m.lockout && m.firstBonus === 0 && m.decay === null && m.expiryHours === null && m.reward === null;
   return isDefault ? null : JSON.stringify(m);
 }

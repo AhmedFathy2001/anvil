@@ -5,10 +5,14 @@ import {
   completionAward,
   hasRevealPolicy,
   isMissionTile,
+  missionClaimCap,
+  missionPlaceGp,
   parseEventRules,
   parseTileMissionRules,
   type EventRules,
+  type MissionRules,
 } from '@/lib/eventRules';
+import { getCofferBalance } from '@/lib/coffer';
 import { parseStamp } from '@/lib/dbTime';
 
 // The one rules check every completion-insert path runs (submission auto-credit, plugin stat
@@ -34,6 +38,13 @@ export interface CompletionGateResult {
    */
   beforeStart?: boolean;
   rules: EventRules;
+  /**
+   * Set when the completion is landing on a mission that pays a placement ladder: where in the
+   * order this claim came, the gp its place is owed, and whether the coffer could cover it at the
+   * moment the points were frozen. The caller passes it to lib/missionAwards after the insert so
+   * the reservation is made against the same decision the points were computed from.
+   */
+  missionAward?: { place: number; gp: number; funded: boolean };
 }
 
 type EventRow = typeof events.$inferSelect;
@@ -98,8 +109,14 @@ export async function evaluateCompletionGate(args: {
     return { allowed: false, reason, awardedPoints: null, bounty, rules };
   }
 
+  // A mission's placement ladder needs to know the finishing ORDER, so it joins lockout and the
+  // first-clear bonus in the set of rules that care who got here first.
+  const mission: MissionRules | null = isMission ? parseTileMissionRules(tile.rules) : null;
+  const reward = mission?.reward ?? null;
+  const claimCap = mission ? missionClaimCap(mission) : rules.lockout ? 1 : null;
+
   // Only hit the DB when a rule actually cares who completed the tile before.
-  const needExisting = rules.lockout || rules.firstBonus > 0;
+  const needExisting = rules.lockout || rules.firstBonus > 0 || reward != null || claimCap != null;
   let existing: { teamId: number }[] = [];
   if (needExisting) {
     existing = await db
@@ -116,6 +133,31 @@ export async function evaluateCompletionGate(args: {
       rules,
     };
   }
+  // A claim cap is lockout for more than one winner: the places fill up, and once they are gone the
+  // mission is over for anyone who hasn't already scored it.
+  if (claimCap != null && !existing.some((c) => c.teamId === teamId) && existing.length >= claimCap) {
+    return {
+      allowed: false,
+      reason:
+        claimCap === 1
+          ? 'Another team completed this tile first — it is locked.'
+          : `All ${claimCap} places on this mission have been taken.`,
+      awardedPoints: null,
+      bounty,
+      rules,
+    };
+  }
+
+  // Where this claim lands in the order, and — for a place that pays gp — whether the coffer can
+  // cover it RIGHT NOW. Both decisions are frozen here: the points below are computed from them,
+  // and lib/missionAwards reserves against the same answer after the row is inserted.
+  const place = existing.length + 1;
+  const placeGp = missionPlaceGp(reward, place);
+  let funded = true;
+  if (placeGp > 0) {
+    const balance = await getCofferBalance(event.clanId);
+    funded = balance.available >= placeGp;
+  }
 
   const awardedPoints = completionAward({
     scoringMode: event.scoringMode,
@@ -123,6 +165,15 @@ export async function evaluateCompletionGate(args: {
     tilePoints: tile.points,
     tileRevealedAt: tile.revealedAt,
     isFirst: existing.length === 0,
+    reward,
+    place,
+    funded,
   });
-  return { allowed: true, awardedPoints, bounty, rules };
+  return {
+    allowed: true,
+    awardedPoints,
+    bounty,
+    rules,
+    ...(placeGp > 0 ? { missionAward: { place, gp: placeGp, funded } } : {}),
+  };
 }
