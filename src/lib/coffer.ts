@@ -227,6 +227,47 @@ export async function reserveAward(args: {
   }
 }
 
+/**
+ * Record a prize that could NOT be paid, so the ledger can answer the first question the winner
+ * asks. It holds no money (status 'unfunded' never counts toward the balance) and is never retried:
+ * the funding decision belongs to the moment the mission was claimed, and a donation that arrives an
+ * hour later does not retroactively change what somebody won. Same idempotency key as a real award.
+ */
+export async function recordUnfundedAward(args: {
+  clanId: number;
+  amount: number;
+  eventId: number;
+  tileId: number;
+  completionId: number;
+  place: number;
+  clanMemberId: number | null;
+  rsn: string | null;
+}): Promise<CofferEntry | null> {
+  const existing = await findAwardForCompletion(args.completionId);
+  if (existing) return existing;
+  try {
+    const [row] = await db
+      .insert(cofferEntries)
+      .values({
+        clanId: args.clanId,
+        kind: 'award',
+        amount: -Math.max(0, Math.floor(args.amount)),
+        status: 'unfunded',
+        eventId: args.eventId,
+        tileId: args.tileId,
+        completionId: args.completionId,
+        place: args.place,
+        clanMemberId: args.clanMemberId,
+        rsn: args.rsn,
+        note: 'Coffer was empty when this was claimed',
+      })
+      .returning();
+    return row;
+  } catch {
+    return findAwardForCompletion(args.completionId);
+  }
+}
+
 export async function findAwardForCompletion(completionId: number): Promise<CofferEntry | null> {
   // clan-scope: global -- keyed by a completion id whose event the caller has already settled.
   const row = await db.query.cofferEntries.findFirst({

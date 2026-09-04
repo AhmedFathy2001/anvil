@@ -7,10 +7,12 @@ import {
   hasMissions,
   nextRevealAt,
   parseTileMissionRules,
+  missionClaimCap,
   type EventRules,
   type RevealOrder,
 } from '@/lib/eventRules';
-import { notifyTilesRevealed, notifyBountyClaim } from '@/lib/discord';
+import { settleMissionAwards } from '@/lib/missionAwards';
+import { notifyTilesRevealed, notifyBountyClaim, notifyMissionPrize } from '@/lib/discord';
 import { log } from '@/lib/logger';
 import { missionPool } from '@/lib/missionRamp';
 import { getTierBands } from '@/lib/pluginConfig';
@@ -220,7 +222,42 @@ async function announceMissionsForEvent(event: EventRow, rules: EventRules, now:
     }
   }
   await flipAndAnnounceMissions(event, toReveal, hidden.length);
-  await closeExpiredAndClaimedMissions(event, missionTiles, now);
+  // Money before the close-out: settling decides what each claim actually won, and the prize post
+  // reads as the answer to the claim rather than a correction filed after it.
+  const paid = await settleAndAnnounceAwards(event, missionTiles);
+  await closeExpiredAndClaimedMissions(event, missionTiles, now, paid);
+}
+
+/**
+ * Reserve the gp every fresh mission claim is owed, and post what each winner got.
+ *
+ * Returns the tiles whose prize was announced this tick, so the close-out doesn't also post its
+ * "mission claimed" line for them — the prize post already names the finisher, and two messages for
+ * one moment is how a Discord channel starts getting muted.
+ */
+async function settleAndAnnounceAwards(event: EventRow, missionTiles: TileRow[]): Promise<Set<number>> {
+  const announced = new Set<number>();
+  try {
+    const settled = await settleMissionAwards(event, missionTiles);
+    for (const a of settled) {
+      announced.add(a.tileId);
+      void notifyMissionPrize({
+        clanId: event.clanId,
+        eventName: event.name,
+        tileLabel: a.tileLabel,
+        rsn: a.rsn ?? 'Someone',
+        place: a.place,
+        offeredGp: a.offeredGp,
+        funded: a.funded,
+        points: a.points,
+        eventId: event.id,
+      }).catch(() => {});
+    }
+  } catch (err) {
+    // A coffer that can't be read must not stop missions closing on time.
+    log.warn('reveal-engine.mission-award-fail', { eventId: event.id, err: String(err) });
+  }
+  return announced;
 }
 
 /** Conditionally flip the drawn missions live and announce the batch to Discord (mission wording). */
@@ -252,7 +289,12 @@ async function flipAndAnnounceMissions(event: EventRow, toReveal: TileRow[], hid
  * the claim time + announce the finisher), and any mission past its `expiryHours` window is EXPIRED.
  * Mirrors the bounty reconcile + rotating-window trim, scoped to missions, with no next-tile draw.
  */
-async function closeExpiredAndClaimedMissions(event: EventRow, missionTiles: TileRow[], now: string): Promise<void> {
+async function closeExpiredAndClaimedMissions(
+  event: EventRow,
+  missionTiles: TileRow[],
+  now: string,
+  prizeAnnounced: Set<number> = new Set(),
+): Promise<void> {
   const open = missionTiles.filter((t) => t.revealedAt != null && t.closedAt == null);
   if (open.length === 0) return;
 
@@ -260,19 +302,25 @@ async function closeExpiredAndClaimedMissions(event: EventRow, missionTiles: Til
     .select({ tileId: completions.tileId, completedAt: completions.completedAt })
     .from(completions)
     .where(inArray(completions.tileId, open.map((t) => t.id)));
-  const claimedAt = new Map<number, string>();
+  // Claims per mission, in finishing order — a ladder can pay several places, so "is it claimed?"
+  // is now "how many of its places are gone?" and the close happens on the LAST one.
+  const claimsByTile = new Map<number, string[]>();
   for (const c of comps) {
-    const prev = claimedAt.get(c.tileId);
-    if (!prev || c.completedAt < prev) claimedAt.set(c.tileId, c.completedAt);
+    const list = claimsByTile.get(c.tileId) ?? [];
+    list.push(c.completedAt);
+    claimsByTile.set(c.tileId, list);
   }
+  for (const list of claimsByTile.values()) list.sort();
 
   const nowMs = Date.parse(now);
   for (const t of open) {
     const m = parseTileMissionRules(t.rules);
+    const cap = missionClaimCap(m);
+    const claims = claimsByTile.get(t.id) ?? [];
     let closeAt: string | null = null;
     let claimed = false;
-    if (m.lockout && claimedAt.has(t.id)) {
-      closeAt = claimedAt.get(t.id)!; // lockout claim → close at the claim moment
+    if (cap != null && claims.length >= cap) {
+      closeAt = claims[cap - 1]; // the claim that took the last place → close at that moment
       claimed = true;
     } else if (m.expiryHours != null && t.revealedAt) {
       const revealedMs = Date.parse(t.revealedAt);
@@ -284,7 +332,7 @@ async function closeExpiredAndClaimedMissions(event: EventRow, missionTiles: Til
       .set({ closedAt: closeAt })
       .where(and(eq(tiles.id, t.id), isNull(tiles.closedAt)))
       .returning({ id: tiles.id });
-    if (done.length > 0 && claimed) {
+    if (done.length > 0 && claimed && !prizeAnnounced.has(t.id)) {
       void announceBountyClaim(event.clanId, event.id, event.name, { id: t.id, label: t.label, points: t.points }, t.id);
     }
   }

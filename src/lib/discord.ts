@@ -3,6 +3,7 @@ import { getSettingText } from '@/lib/settings';
 import { startBlockerLabel, type StartBlockerCode } from '@/lib/eventReadiness';
 import { eventAxes, taskNoun } from '@/lib/eventAxes';
 import { formatEfficiencyHours, weeklyKindLabel } from '@/lib/constants';
+import { formatGp } from '@/lib/adminEventsFormat';
 import { deriveTileIcon, skillIconUrl, bossItemForStatKey, itemIconUrl, type IconableTile } from '@/lib/tileIcons';
 import {
   EMBED_COLOR,
@@ -707,6 +708,53 @@ export async function notifyBountyClaim(params: BountyClaimNotifyParams): Promis
     description: `**${rsn}** got there first.\n🔒 Locked — nobody else can claim it.`,
     color: EMBED_COLOR.gold,
     ...(points != null ? { fields: [statField('Points', points)] } : {}),
+  };
+  return sendBingoWebhook(params.clanId, { embeds: [embed] });
+}
+
+interface MissionPrizeNotifyParams {
+  /** The clan this posts for — decides which webhook it lands in. */
+  clanId: number;
+  eventName: string;
+  tileLabel: string;
+  /** The winner, and where they finished (1 = first). */
+  rsn: string;
+  place: number;
+  /** What the place was worth in gp — announced whether or not the coffer could cover it. */
+  offeredGp: number;
+  /** False when the pot was dry: they take the points instead, and the post says so plainly. */
+  funded: boolean;
+  /** Points the claim ended up holding. Null on a non-points event. */
+  points: number | null;
+  eventId?: number | null;
+}
+
+const PLACE_LABEL = ['1st', '2nd', '3rd'];
+function placeName(place: number): string {
+  return PLACE_LABEL[place - 1] ?? `${place}th`;
+}
+
+/**
+ * A mission prize, the moment it is settled against the coffer.
+ *
+ * Posted for the money, not for the finish — the mission-claimed post already covers "somebody got
+ * there first". What this one adds is what they actually won, INCLUDING when the answer is nothing:
+ * a clan that runs prizes out of a pot will empty that pot, and saying so in the same channel that
+ * promised the gp is the difference between a dry week and a broken promise.
+ */
+export async function notifyMissionPrize(params: MissionPrizeNotifyParams): Promise<boolean> {
+  const { eventName, tileLabel, rsn, place, offeredGp, funded, points, eventId } = params;
+  const fields: DiscordEmbedField[] = [];
+  if (funded) fields.push(statField('Prize', `${formatGp(offeredGp)} gp`));
+  if (points != null) fields.push(statField('Points', points));
+  const embed: DiscordEmbed = {
+    ...eventAuthor(eventId, eventName),
+    title: clamp(funded ? `💰 ${rsn} won ${formatGp(offeredGp)}` : `🏅 ${rsn} took ${placeName(place)}`, LIMIT.title),
+    description: funded
+      ? `**${placeName(place)}** on **${tileLabel}**. A treasurer will send it over.`
+      : `**${placeName(place)}** on **${tileLabel}** — the coffer is empty, so this one pays points only.`,
+    color: EMBED_COLOR.gold,
+    ...(fields.length ? { fields } : {}),
   };
   return sendBingoWebhook(params.clanId, { embeds: [embed] });
 }
