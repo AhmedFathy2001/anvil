@@ -1,9 +1,12 @@
 import { redirect } from 'next/navigation';
 
-import { verifyAdmin } from '@/lib/auth';
+import { verifyAdmin, verifyUser } from '@/lib/auth';
+import { clanGrant } from '@/lib/clanGrants';
+import { requireClan } from '@/lib/clanContext';
 import { clanHref } from '@/lib/clanPath';
 import ProfileClient from './ProfileClient';
 import ClanNameSettings from './ClanNameSettings';
+import DeleteClan from './DeleteClan';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,10 +22,17 @@ export default async function ClanProfilePage() {
   // Not /admin/clan — that IS this page now that Profile is the hub's front door, so sending a
   // non-admin there would bounce them off it forever. People is the surface they can actually use.
   if (!(await verifyAdmin())) redirect(await clanHref('/admin/people'));
+
+  // Deleting is the owner's alone, so it is resolved here rather than trusted from the client — an
+  // admin sees this page without ever seeing the button.
+  const [clan, session] = await Promise.all([requireClan(), verifyUser()]);
+  const grant = session ? await clanGrant(clan.id, session.userId) : null;
+
   return (
     <>
       <ClanNameSettings />
       <ProfileClient />
+      <DeleteClan slug={clan.slug} isOwner={!!grant?.isOwner} />
     </>
   );
 }
