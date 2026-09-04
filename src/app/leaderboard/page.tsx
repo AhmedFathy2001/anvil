@@ -46,13 +46,18 @@ const WINDOWS: { key: LeaderboardWindow; label: string }[] = [
 export default async function LeaderboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ w?: string; m?: string }>;
+  searchParams: Promise<{ w?: string; m?: string; c?: string }>;
 }) {
   if (!isApexHost((await headers()).get('host'))) notFound();
 
   const params = await searchParams;
   const window: LeaderboardWindow = params.w === '30d' || params.w === 'all' ? params.w : '7d';
-  const [all, players] = await Promise.all([clanStandings(window), topPlayers(window)]);
+  const all = await clanStandings(window);
+  // Which clan the PLAYER table is read through. Validated against the clans actually standing, so a
+  // hand-typed slug narrows to nothing rather than quietly showing everyone — a filter that ignores
+  // what you asked for is worse than one that comes back empty.
+  const clanFilter = params.c && all.some((r) => r.slug === params.c) ? params.c : null;
+  const players = await topPlayers(window, 25, clanFilter);
 
   // Ordered by experience because a table needs an order, not because it is the most interesting
   // column — the other two axes are drawn on every row rather than sorted by.
@@ -78,7 +83,11 @@ export default async function LeaderboardPage({
 
       <div className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-3">
         <Switch
-          options={WINDOWS.map((w) => ({ key: w.key, label: w.label, href: `/leaderboard?w=${w.key}` }))}
+          options={WINDOWS.map((w) => ({
+            key: w.key,
+            label: w.label,
+            href: `/leaderboard?w=${w.key}${clanFilter ? `&c=${clanFilter}` : ''}`,
+          }))}
           active={window}
         />
       </div>
@@ -95,9 +104,28 @@ export default async function LeaderboardPage({
           total — a cross-clan table isn&rsquo;t a way around a privacy setting.
         </p>
 
+        {/* Narrowing the table, not re-scoping the page: the clan standings above stay whole. The
+            window stays selected as you switch clans, because losing it is the annoying half of
+            every filter pair that does not carry the other. */}
+        {clans.length > 1 && (
+          <div className="mb-4 ml-4">
+            <Switch
+              options={[
+                { key: '', label: 'All clans', href: `/leaderboard?w=${window}` },
+                ...clans.map((c) => ({
+                  key: c.slug,
+                  label: c.name,
+                  href: `/leaderboard?w=${window}&c=${c.slug}`,
+                })),
+              ]}
+              active={clanFilter ?? ''}
+            />
+          </div>
+        )}
+
         {players.length === 0 ? (
           <p className="rounded-xl border border-dashed border-card-border px-5 py-8 text-center text-sm text-text-muted">
-            Nobody has shared an account yet.
+            {clanFilter ? 'Nobody in this clan has shared an account yet.' : 'Nobody has shared an account yet.'}
           </p>
         ) : (
           <ul className="divide-y divide-card-border overflow-hidden rounded-xl border border-card-border bg-card-bg">

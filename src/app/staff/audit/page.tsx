@@ -1,4 +1,4 @@
-import { platformActions, type PlatformAction } from '@/lib/platformView';
+import { allClans, platformActions, MODERATION_TYPES, type PlatformAction } from '@/lib/platformView';
 import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
@@ -31,8 +31,34 @@ const WHAT: Record<string, string> = {
 /** The two that change who can sign in. Worth spotting in a long list. */
 const SEVERE = new Set(['platform_banned', 'platform_role_changed']);
 
-export default async function StaffAuditPage() {
-  const actions = await platformActions(200);
+export default async function StaffAuditPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ clan?: string; type?: string; scope?: string }>;
+}) {
+  const sp = await searchParams;
+  const scope = sp.scope === 'moderation' ? 'moderation' : 'all';
+  const clanId = sp.clan ? Number(sp.clan) : null;
+  const type = sp.type && sp.type in WHAT ? sp.type : null;
+
+  const [actions, clans] = await Promise.all([
+    platformActions(200, { clanId, type, scope }),
+    allClans(),
+  ]);
+
+  // The URL is the filter state, so a narrowed log is a link an operator can keep or send.
+  const href = (next: Record<string, string | null>) => {
+    const p = new URLSearchParams();
+    const merged: Record<string, string | null> = {
+      clan: clanId ? String(clanId) : null,
+      type,
+      scope: scope === 'all' ? null : scope,
+      ...next,
+    };
+    for (const [k, v] of Object.entries(merged)) if (v) p.set(k, v);
+    const qs = p.toString();
+    return `/staff/audit${qs ? `?${qs}` : ''}`;
+  };
 
   return (
     <div>
@@ -42,9 +68,35 @@ export default async function StaffAuditPage() {
         so they appear on no clan&rsquo;s own history — this is the only place they are visible.
       </p>
 
+      {/* Narrowing, because "everything, newest first" answers neither of the questions a log is
+          actually opened with: what did this operator do, and what has been done to this clan. */}
+      <div className="mt-5 flex flex-wrap items-center gap-1.5 text-xs">
+        <Chip href={href({ scope: null })} active={scope === 'all'}>Everything</Chip>
+        <Chip href={href({ scope: 'moderation' })} active={scope === 'moderation'}>
+          Changes access
+        </Chip>
+        <span className="mx-1 text-gray-700">|</span>
+        <Chip href={href({ clan: null })} active={clanId == null}>Any clan</Chip>
+        {clans.map((c) => (
+          <Chip key={c.id} href={href({ clan: String(c.id) })} active={clanId === c.id}>
+            {c.name}
+          </Chip>
+        ))}
+        {type && (
+          <>
+            <span className="mx-1 text-gray-700">|</span>
+            <Chip href={href({ type: null })} active>
+              {WHAT[type] ?? type} ✕
+            </Chip>
+          </>
+        )}
+      </div>
+
       {actions.length === 0 ? (
         <p className="mt-8 rounded-xl border border-dashed border-card-border px-5 py-10 text-center text-sm text-gray-400">
-          Nothing yet. Bans, role changes, owner appointments and borrowed grants land here.
+          {clanId || type || scope === 'moderation'
+            ? 'Nothing matches those filters.'
+            : 'Nothing yet. Bans, role changes, owner appointments and borrowed grants land here.'}
         </p>
       ) : (
         <ul className="mt-6 divide-y divide-card-border overflow-hidden rounded-xl border border-card-border bg-card-bg">
@@ -117,4 +169,28 @@ function parse(raw: string | null): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+/** A filter chip that is a link, so the narrowed log is an address rather than a session. */
+function Chip({
+  href,
+  active,
+  children,
+}: {
+  href: string;
+  active: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <ClanLink
+      href={href}
+      className={
+        active
+          ? 'rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-gold'
+          : 'rounded-full border border-card-border px-2 py-0.5 text-text-muted transition-colors hover:border-gold/30 hover:text-foreground'
+      }
+    >
+      {children}
+    </ClanLink>
+  );
 }
