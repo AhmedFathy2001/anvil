@@ -1,3 +1,7 @@
+// The daily-schedule maths lives in lib/missionSchedule; the import is one-way (that file takes
+// only the TYPE from here), so there is no runtime cycle.
+import { nextSlotAfter } from '@/lib/missionSchedule';
+
 // Per-event game rules — the third axis on top of (format, scoringMode). Stored as JSON in
 // `events.rules` (NULL = classic behaviour). Rules decide HOW tiles become playable (the reveal
 // policy) and how points are awarded per completion (first-team bonus, reveal decay, lockout).
@@ -36,7 +40,28 @@ export type RevealOrder = 'random' | 'sequential';
 // `rules.mission` announce policy below; each mission's SCORING (lockout/firstBonus/decay/expiry)
 // lives per-tile in `tiles.rules` (see MissionRules). Announcing a mission stamps its `revealedAt`
 // (the decay anchor); the board's normal tiles stay visible throughout.
-export type MissionAnnounceMode = 'manual' | 'interval' | 'scheduled';
+export type MissionAnnounceMode = 'manual' | 'interval' | 'scheduled' | 'daily';
+
+/**
+ * A recurring daily drop schedule — the shape of "one a day around when we play, two on weekends".
+ *
+ * Written in LOCAL wall time plus a zone, because that is what the clan means: 20:00 stays 20:00
+ * across a DST switch, and a weekend is Saturday where they live. lib/missionSchedule turns it into
+ * instants; lib/zonedTime does the conversion.
+ */
+export interface MissionDaily {
+  /** IANA zone the times are written in ('Europe/London'). Everything else here is local to it. */
+  timezone: string;
+  /** Fixed local times, 'HH:MM'. Used when `window` is null — the drop lands on the hour, sharp. */
+  times: string[];
+  /**
+   * Roll each drop somewhere inside this local range instead, so nobody can camp the exact minute.
+   * May wrap midnight (22:00 -> 02:00), which reads as running into the small hours.
+   */
+  window: { from: string; to: string } | null;
+  /** Drops per weekday, index 0 = Sunday. 0 means the schedule skips that day entirely. */
+  perDay: number[];
+}
 
 /**
  * One phase of a mission difficulty curve: which tiers may be drawn until `throughPct` of the event
@@ -57,6 +82,8 @@ export interface MissionConfig {
   order: RevealOrder;
   /** 'interval' mode: minutes between mission drops. */
   intervalMinutes: number;
+  /** 'daily' mode: the recurring local-time schedule. Null in every other mode. */
+  daily: MissionDaily | null;
   /**
    * Difficulty curve over the run: each phase names the tiers eligible up to a share of the event
    * ("first third easy, middle medium and hard, last third ultra"). Empty = one pool, no phases.
@@ -217,7 +244,7 @@ export const MIN_START_RADIUS = 3;
 export const MAX_START_RADIUS = 200;
 
 const REVEAL_POLICIES: RevealPolicy[] = ['all', 'scheduled', 'interval', 'bounty', 'rotating'];
-const MISSION_ANNOUNCE_MODES: MissionAnnounceMode[] = ['manual', 'interval', 'scheduled'];
+const MISSION_ANNOUNCE_MODES: MissionAnnounceMode[] = ['manual', 'interval', 'scheduled', 'daily'];
 const BALANCE_MODES: BalanceMode[] = ['off', 'advisory', 'tiered-snake', 'dynamic-order', 'spread-cap', 'auto'];
 const START_PROOF_MISSING: StartProofMissing[] = ['flag', 'reject'];
 
@@ -317,7 +344,7 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
   }
   let mission: EventRules['mission'] = null;
   const m = obj.mission as
-    | { announceMode?: unknown; order?: unknown; intervalMinutes?: unknown; tierRamp?: unknown }
+    | { announceMode?: unknown; order?: unknown; intervalMinutes?: unknown; tierRamp?: unknown; daily?: unknown }
     | null
     | undefined;
   if (m && typeof m === 'object') {
@@ -327,6 +354,7 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
         : 'manual',
       order: m.order === 'sequential' ? 'sequential' : 'random',
       intervalMinutes: clampInt(m.intervalMinutes, 5, 10080, 60),
+      daily: parseMissionDaily(m.daily),
       tierRamp: parseTierRamp(m.tierRamp),
     };
   }
@@ -436,7 +464,19 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
       return { error: 'rules.mission must be an object or null' };
     }
     if (m.announceMode !== undefined && !MISSION_ANNOUNCE_MODES.includes(m.announceMode as MissionAnnounceMode)) {
-      return { error: "rules.mission.announceMode must be 'manual', 'interval', or 'scheduled'" };
+      return { error: "rules.mission.announceMode must be 'manual', 'interval', 'scheduled', or 'daily'" };
+    }
+    if (m.announceMode === 'daily') {
+      // A daily schedule that names no time and no window would fire nothing forever, which is a
+      // config bug wearing the costume of a quiet week. Refuse it at the door.
+      const d = parseMissionDaily((m as { daily?: unknown }).daily);
+      if (!d) return { error: 'rules.mission.daily is required when announceMode is "daily"' };
+      if (d.times.length === 0 && !d.window) {
+        return { error: 'rules.mission.daily needs either times or a window' };
+      }
+      if (!d.perDay.some((n) => n > 0)) {
+        return { error: 'rules.mission.daily.perDay must let at least one weekday drop a mission' };
+      }
     }
     if (m.order !== undefined && m.order !== 'random' && m.order !== 'sequential') {
       return { error: "rules.mission.order must be 'random' or 'sequential'" };
@@ -673,13 +713,14 @@ export function rotationExpiries(
  * interval → one interval after the last announced mission (or event start); manual/none → null.
  */
 export function nextMissionAt(
-  event: { startDate?: string | null },
+  event: { startDate?: string | null; id?: number },
   rules: EventRules,
   tiles: RevealStateTile[],
   nowMs: number = Date.now(),
 ): string | null {
   const cfg = rules.mission;
   if (!cfg) return null;
+  const eventId = event.id;
   const missionTiles = tiles.filter(isMissionTile);
   const hidden = missionTiles.filter((t) => t.revealedAt == null);
   if (hidden.length === 0) return null;
@@ -688,6 +729,13 @@ export function nextMissionAt(
     if (!earliest) return null;
     const at = Date.parse(earliest);
     return Number.isFinite(at) ? new Date(Math.max(at, nowMs)).toISOString() : null;
+  }
+  if (cfg.announceMode === 'daily') {
+    // The schedule answers this directly — no need to look at what has already dropped, because a
+    // day's slots are a property of the day, not of the pool.
+    if (!cfg.daily) return null;
+    const next = nextSlotAfter({ cfg: cfg.daily, nowMs, seed: eventId ?? 0 });
+    return next == null ? null : new Date(next).toISOString();
   }
   if (cfg.announceMode === 'interval') {
     const lastAnnounced = missionTiles
@@ -867,6 +915,34 @@ export function parseTileMissionRules(raw: string | null | undefined): MissionRu
     reward: parseMissionReward(o.reward),
   };
 }
+
+/**
+ * Tolerant parse of a daily drop schedule. A malformed one returns null, which reads downstream as
+ * "no schedule" rather than as a schedule that fires at unpredictable times.
+ */
+export function parseMissionDaily(raw: unknown): MissionDaily | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const o = raw as { timezone?: unknown; times?: unknown; window?: unknown; perDay?: unknown };
+  const timezone = typeof o.timezone === 'string' && o.timezone.trim() ? o.timezone.trim() : 'UTC';
+  const times = Array.isArray(o.times)
+    ? o.times.filter((t): t is string => typeof t === 'string' && HHMM.test(t.trim())).map((t) => t.trim()).slice(0, 12)
+    : [];
+  let window: MissionDaily['window'] = null;
+  const w = o.window as { from?: unknown; to?: unknown } | null | undefined;
+  if (w && typeof w === 'object' && typeof w.from === 'string' && typeof w.to === 'string') {
+    if (HHMM.test(w.from.trim()) && HHMM.test(w.to.trim())) {
+      window = { from: w.from.trim(), to: w.to.trim() };
+    }
+  }
+  // Seven numbers, Sunday first. A short or junk array reads as "one a day", which is the schedule
+  // somebody who half-filled the form was plainly reaching for.
+  const raw7 = Array.isArray(o.perDay) ? o.perDay : [];
+  const perDay = Array.from({ length: 7 }, (_, i) => clampInt(raw7[i], 0, 12, 1));
+  if (times.length === 0 && !window) return null;
+  return { timezone, times, window, perDay };
+}
+
+const HHMM = /^\d{1,2}:\d{2}$/;
 
 /** Tolerant parse of the placement ladder. Anything unusable → null, i.e. flat tile-value scoring. */
 export function parseMissionReward(raw: unknown): MissionReward | null {

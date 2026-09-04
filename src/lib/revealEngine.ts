@@ -12,6 +12,8 @@ import {
   type RevealOrder,
 } from '@/lib/eventRules';
 import { settleMissionAwards } from '@/lib/missionAwards';
+import { dueSlotCount } from '@/lib/missionSchedule';
+import { localDayKey } from '@/lib/zonedTime';
 import { notifyTilesRevealed, notifyBountyClaim, notifyMissionPrize } from '@/lib/discord';
 import { log } from '@/lib/logger';
 import { missionPool } from '@/lib/missionRamp';
@@ -219,6 +221,30 @@ async function announceMissionsForEvent(event: EventRow, rules: EventRules, now:
         }
         toReveal = draw(choice.pool, need, order);
       }
+    }
+  } else if (announceMode === 'daily' && cfg?.daily && hidden.length > 0) {
+    // Today's schedule against today's drops. Counting only TODAY is what keeps a missed tick
+    // self-healing without ever catching up on a day that has already passed — nobody wants
+    // Monday's mission landing on Wednesday because the box was down.
+    const nowMs = Date.parse(now);
+    const startMs = Date.parse(event.startDate!);
+    const due = dueSlotCount({
+      cfg: cfg.daily,
+      nowMs,
+      startMs: Number.isFinite(startMs) ? startMs : null,
+      seed: event.id,
+    });
+    const dayKey = localDayKey(nowMs, cfg.daily.timezone);
+    const announcedToday = missionTiles.filter(
+      (t) => t.revealedAt != null && localDayKey(Date.parse(t.revealedAt), cfg.daily!.timezone) === dayKey,
+    ).length;
+    const need = Math.min(hidden.length, due - announcedToday);
+    if (need > 0) {
+      const choice = missionPool(hidden, cfg?.tierRamp ?? [], event, nowMs, await getTierBands(event.clanId));
+      if (choice.fellBack) {
+        log.info('reveal-engine.mission-ramp-exhausted', { eventId: event.id, wanted: choice.tiers });
+      }
+      toReveal = draw(choice.pool, need, order);
     }
   }
   await flipAndAnnounceMissions(event, toReveal, hidden.length);
