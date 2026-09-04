@@ -170,7 +170,14 @@ export default function ClanLookup({ clans }: { clans: LookupClan[] }) {
 
       {shown.length === 0 ? (
         <p className="rounded-xl border border-dashed border-card-border px-5 py-10 text-center text-sm text-text-muted">
-          {query ? `Nothing matching “${query}”.` : 'No clans are listed yet.'}
+          {query
+            ? `Nothing matching “${query}”.`
+            : mine.length > 0
+              // The list deliberately excludes clans you are already in (they sit above, under
+              // "Where you already play"). With few clans on the platform that empties it — and
+              // "No clans are listed yet" is then simply false, and reads as a broken page.
+              ? 'You are already in every clan listed here.'
+              : 'No clans are listed yet.'}
         </p>
       ) : (
         <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(300px,1fr))]">

@@ -138,7 +138,13 @@ export default async function ProfilePage({
     .map((d) => ({ id: d.id, rsn: d.rsn, lastSeenAt: d.lastSeenAt }));
 
   const avatar = user.discordId ? avatarUrl(user.discordId, user.discordAvatar) : null;
-  const isStaff = atLeast(user.role, 'admin') || user.role === 'moderator';
+  // session.role, NOT user.role. `users.role` is the LEGACY GLOBAL column, and lib/auth says what
+  // reading it costs: "it made every admin an admin of every clan on the deployment, which is the
+  // single worst thing a shared app can get wrong." This page was the last place still doing it —
+  // opening your locker in a clan you only guest in showed an ADMIN badge and an Admin button,
+  // because the answer came from a different clan entirely. verifyUser resolves the grant for the
+  // clan actually being looked at.
+  const isStaff = atLeast(session.role, 'admin') || session.role === 'moderator';
   // Server component — Date.now() runs once per request, not on client renders.
   // eslint-disable-next-line react-hooks/purity
   const nowMs = Date.now();
@@ -176,7 +182,7 @@ export default async function ProfilePage({
         displayName={user.displayName}
         discordUsername={user.discordUsername}
         avatar={avatar}
-        role={user.role}
+        role={session.role}
         isStaff={isStaff}
         accounts={locker.accounts}
         connection={locker.connection}
