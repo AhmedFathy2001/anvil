@@ -623,6 +623,15 @@ export interface PeopleBrowseFilters {
 
 export const PEOPLE_PAGE_SIZE = 25;
 
+// THE OUTER ROW'S ID, SPELLED OUT.
+//
+// Every subquery below correlates against the player being listed, and `${players.id}` is not a safe
+// way to say so: inside `.select()` and `.orderBy()` Drizzle renders a column with no table on it —
+// `a4.player_id = "id"` — and Postgres then has two candidates for `"id"`, the outer row and the
+// subquery's own table. It only qualifies inside `.where()`, which is why the filters worked and the
+// page did not: `column reference "id" is ambiguous`, 500, on /staff/people.
+const PLAYER_ID = sql.raw('"players"."id"');
+
 export async function browsePeople(
   filters: PeopleBrowseFilters = {},
   page = 1,
@@ -634,28 +643,28 @@ export async function browsePeople(
   // hand-copied predicates drift, and a pager that disagrees with its own total is worse than none.
   const where = sql`
     ${q ? sql`exists (
-      select 1 from ${accounts} a where a.player_id = ${players.id}
+      select 1 from ${accounts} a where a.player_id = ${PLAYER_ID}
         and (lower(a.rsn) like ${like} or lower(a.rsn_normalized) like ${like})
     ) or exists (
-      select 1 from ${users} u where u.player_id = ${players.id}
+      select 1 from ${users} u where u.player_id = ${PLAYER_ID}
         and (lower(u.display_name) like ${like} or lower(u.discord_username) like ${like} or u.discord_id = ${filters.q?.trim() ?? ''})
     ) or lower(${players.displayName}) like ${like}` : sql`true`}
     and ${filters.clanId ? sql`exists (
       select 1 from ${clanMemberships} m join ${accounts} a2 on a2.id = m.account_id
-       where a2.player_id = ${players.id} and m.clan_id = ${filters.clanId} and m.left_at is null
+       where a2.player_id = ${PLAYER_ID} and m.clan_id = ${filters.clanId} and m.left_at is null
     )` : sql`true`}
     and ${
       filters.login === 'yes'
-        ? sql`exists (select 1 from ${users} u2 where u2.player_id = ${players.id})`
+        ? sql`exists (select 1 from ${users} u2 where u2.player_id = ${PLAYER_ID})`
         : filters.login === 'no'
-          ? sql`not exists (select 1 from ${users} u2 where u2.player_id = ${players.id})`
+          ? sql`not exists (select 1 from ${users} u2 where u2.player_id = ${PLAYER_ID})`
           : sql`true`
     }
     and ${filters.banned ? sql`${players.banned} = true` : sql`true`}
     and ${filters.multiClan ? sql`(
       select count(distinct m3.clan_id) from ${clanMemberships} m3
         join ${accounts} a3 on a3.id = m3.account_id
-       where a3.player_id = ${players.id} and m3.left_at is null
+       where a3.player_id = ${PLAYER_ID} and m3.left_at is null
     ) > 1` : sql`true`}
   `;
 
@@ -673,13 +682,13 @@ export async function browsePeople(
       playerId: players.id,
       name: players.displayName,
       banned: players.banned,
-      accounts: sql<number>`(select count(*)::int from ${accounts} a4 where a4.player_id = ${players.id})`,
+      accounts: sql<number>`(select count(*)::int from ${accounts} a4 where a4.player_id = ${PLAYER_ID})`,
       clans: sql<number>`(
         select count(distinct m4.clan_id)::int from ${clanMemberships} m4
           join ${accounts} a5 on a5.id = m4.account_id
-         where a5.player_id = ${players.id} and m4.left_at is null
+         where a5.player_id = ${PLAYER_ID} and m4.left_at is null
       )`,
-      hasLogin: sql<boolean>`exists (select 1 from ${users} u3 where u3.player_id = ${players.id})`,
+      hasLogin: sql<boolean>`exists (select 1 from ${users} u3 where u3.player_id = ${PLAYER_ID})`,
     })
     .from(players)
     .where(where)
@@ -688,7 +697,7 @@ export async function browsePeople(
     .orderBy(desc(sql`(
       select count(distinct m5.clan_id) from ${clanMemberships} m5
         join ${accounts} a6 on a6.id = m5.account_id
-       where a6.player_id = ${players.id} and m5.left_at is null
+       where a6.player_id = ${PLAYER_ID} and m5.left_at is null
     )`), players.displayName)
     .limit(PEOPLE_PAGE_SIZE)
     .offset((safePage - 1) * PEOPLE_PAGE_SIZE);
