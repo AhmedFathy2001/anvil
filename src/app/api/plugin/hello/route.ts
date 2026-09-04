@@ -90,6 +90,12 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
+      // WHICH CLAN ANSWERED, and about whom. "Tracked as a guest" is a claim about a person in a
+      // clan, and the message named neither — so a member of two clans reading it had no way to tell
+      // a wrong answer from a surprising one. It is the same gap that made a missed 99 undiagnosable.
+      clanName: clan.name,
+      clanSlug: clan.slug,
+      rsn,
       knownMember: false,
       isGuest: result.outcome === 'seated',
       // What actually happened, so the plugin can say "waiting for staff" rather than implying they
@@ -111,6 +117,11 @@ export async function POST(request: Request) {
 
   const knownMember = existing.kind === 'member' && !existing.leftAt;
   return NextResponse.json({
+    // Same reason as the branch above: the answer says who it is about and which clan gave it.
+    clanName: clan.name,
+    clanSlug: clan.slug,
+    rsn,
+    seatKind: existing.kind,
     knownMember,
     isGuest: !knownMember,
     ...(await activeNow(clan)),

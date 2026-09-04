@@ -189,14 +189,25 @@ export async function verifyUser(): Promise<UserPayload | null> {
     const borrowed =
       !grant && clan && platformRole !== 'none' ? await liveActAs(clan.id, dbUser.id) : null;
 
+    // A BOARD GRANT IS A GRANT. Someone can hold `event_editors` on one of this clan's boards while
+    // holding no seat in the clan at all — which is the ordinary shape on a co-hosted event, where
+    // the visiting side authors its own half. Read from clan_staff alone they came out `member`, the
+    // /admin shell turned them away at the door, and the board they had been given was unreachable.
+    //
+    // Expressed as the role that already exists for this rather than a new one: a board-scoped
+    // editor. lib/adminAccess then confines them to the authoring surfaces, and the event layout to
+    // the boards they actually hold — both were already written, and neither had anyone to apply to.
+    const boardGrant =
+      !grant && !borrowed && clan ? await hasBoardGrantInClan(clan.id, dbUser.id) : false;
+
     return {
       userId: dbUser.id,
       playerId,
       username: typeof data.username === 'string' ? data.username : 'user',
-      role: grant?.role ?? borrowed?.role ?? 'member',
-      editorScope: grant?.editorScope ?? 'all',
+      role: grant?.role ?? borrowed?.role ?? (boardGrant ? 'editor' : 'member'),
+      editorScope: grant?.editorScope ?? (boardGrant ? 'assigned' : 'all'),
       treasurerScope: grant?.treasurerScope ?? 'all',
-      canEditTiles: grant?.canEditTiles === true || borrowed != null,
+      canEditTiles: grant?.canEditTiles === true || borrowed != null || boardGrant,
       // Never. The owner seat is the one thing a borrowed grant must not confer, or an operator can
       // transfer a clan away from the person who owns it.
       isOwner: grant?.isOwner === true,
@@ -206,6 +217,29 @@ export async function verifyUser(): Promise<UserPayload | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Does this person hold an authoring grant on any board this clan owns?
+ *
+ * Asked only when they hold no clan seat, so it costs nothing for staff and one indexed read for a
+ * member. Scoped to the clan being visited: a grant on another clan's board is that clan's business
+ * and buys nothing here.
+ */
+async function hasBoardGrantInClan(clanId: number, userId: number): Promise<boolean> {
+  const [row] = await db
+    .select({ id: eventEditors.id })
+    .from(eventEditors)
+    .innerJoin(events, eq(events.id, eventEditors.eventId))
+    .where(
+      and(
+        eq(eventEditors.userId, userId),
+        eq(eventEditors.role, 'editor'),
+        eq(events.clanId, clanId),
+      ),
+    )
+    .limit(1);
+  return !!row;
 }
 
 export async function verifyAdmin(): Promise<boolean> {

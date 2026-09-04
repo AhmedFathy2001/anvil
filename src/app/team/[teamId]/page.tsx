@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
-import { events, tiles, teams, completions, eventParticipants } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { clans, events, tiles, teams, completions, eventParticipants } from '@/db/schema';
+import { eq, inArray } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import { verifyUser } from '@/lib/auth';
 import { resolveTeamManagement } from '@/lib/teamStaff';
@@ -19,6 +19,8 @@ import type { Completion } from '@/lib/types';
 import { atLeast } from '@/lib/clanRoles';
 import { clanHref } from '@/lib/clanPath';
 import ClanLink from '@/components/ClanLink';
+import EventBriefing from '@/components/team/EventBriefing';
+import { acceptedCohostClanIds } from '@/lib/coHost';
 
 export const dynamic = 'force-dynamic';
 
@@ -120,6 +122,30 @@ export default async function MyTeamPage({
   // it early actually matters. Staff who need to look at an unrevealed board have the Tiles tab in
   // the admin panel, where looking is a deliberate act rather than a side effect of opening their
   // own team page.
+  // Read once for the briefing panel: who else is in this event, and whether THIS team is the side
+  // that collects. A team with no clan tag is the host's own — the same reading lib/coHostSettlement
+  // uses, so the panel and the settlement can never disagree about who holds the money.
+  const cohostIds = await acceptedCohostClanIds(event.id);
+  const cohostNames = cohostIds.length
+    ? (await db.select({ id: clans.id, name: clans.name }).from(clans).where(inArray(clans.id, cohostIds))).map((c) => c.name)
+    : [];
+  const hostClanName =
+    (await db.select({ name: clans.name }).from(clans).where(eq(clans.id, event.clanId)).limit(1))[0]?.name ?? null;
+  const isHostTeam = team.clanId == null || team.clanId === event.clanId;
+  const briefing = {
+    hostClan: hostClanName,
+    cohosts: cohostNames,
+    format: event.format ?? 'bingo',
+    scoringMode: event.scoringMode ?? '',
+    startDate: event.startDate ?? null,
+    endDate: event.endDate ?? null,
+    tileCount: allEventTiles.length,
+    teamCount: new Set(rawEventPlayers.map((pl) => pl.teamId).filter((t): t is number => t != null)).size,
+    signupFee: event.signupFee ?? null,
+    cashPolicy: event.cashPolicy ?? 'host-holds',
+    weCollect: (event.signupFee ?? 0) > 0 && (isHostTeam || (event.cashPolicy ?? 'host-holds') !== 'host-holds'),
+  };
+
   const boardHidden = !event.tilesRevealed;
   // Reveal-policy events (lib/eventRules): only revealed tiles ever reach the client, even for
   // staff viewing their own team.
@@ -211,6 +237,9 @@ export default async function MyTeamPage({
       )}
       {membership.canManage && (
               <div className="mb-6">
+                {/* The terms this team is playing under. A visiting clan's manager has no admin page
+                    to read them on, and the host's screen is the only place they were written down. */}
+                <EventBriefing {...briefing} />
                 {/* Roster, requests, proof, fees and invite links in one shut card. */}
                 <TeamManageClient teamId={tId} />
               </div>
