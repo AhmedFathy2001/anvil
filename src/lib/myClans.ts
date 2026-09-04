@@ -11,6 +11,14 @@ export interface MyClan {
   seat: 'member' | 'guest' | null;
   /** Whether they hold authority here, which is a separate thing from a seat. */
   staff: boolean;
+  /**
+   * WHICH authority, when they hold one — 'owner', 'admin', 'moderator', 'treasurer', 'editor'.
+   *
+   * `staff` alone could not answer "what am I here?", so the switcher fell back to the seat kind and
+   * an owner with a roster seat was labelled "member" while the same person in a clan they had not
+   * joined was labelled "staff" — two different words for the owner of two clans.
+   */
+  role: string | null;
 }
 
 /**
@@ -52,21 +60,25 @@ export async function clansOfPerson(
         if (seat === 'member') existing.seat = 'member';
         continue;
       }
-      byId.set(r.id, { id: r.id, slug: r.slug, name: r.name, seat, staff: false });
+      byId.set(r.id, { id: r.id, slug: r.slug, name: r.name, seat, staff: false, role: null });
     }
   }
 
   if (userId != null) {
     const grants = await db
-      .select({ id: clans.id, slug: clans.slug, name: clans.name })
+      .select({ id: clans.id, slug: clans.slug, name: clans.name, role: clanStaff.role })
       .from(clanStaff)
       .innerJoin(clans, eq(clans.id, clanStaff.clanId))
       .where(eq(clanStaff.userId, userId));
 
     for (const r of grants) {
       const existing = byId.get(r.id);
-      if (existing) existing.staff = true;
-      else byId.set(r.id, { id: r.id, slug: r.slug, name: r.name, seat: null, staff: true });
+      if (existing) {
+        existing.staff = true;
+        existing.role = r.role;
+      } else {
+        byId.set(r.id, { id: r.id, slug: r.slug, name: r.name, seat: null, staff: true, role: r.role });
+      }
     }
   }
 

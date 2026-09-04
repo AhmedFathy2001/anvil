@@ -80,7 +80,12 @@ export default function PersonProfile({
                     {c.seat === 'member' && <span className="text-gold">Member</span>}
                     {c.seat === 'guest' && <span>Guest</span>}
                     {!c.seat && <span>No roster seat</span>}
-                    {c.staff && <span className="text-gold/70">· Staff</span>}
+                    {/* Named rather than flattened to "Staff": this page shows BOTH axes on
+                        purpose, and "Member · Staff" told the owner of the clan strictly less than
+                        the row already knew. */}
+                    {c.staff && (
+                      <span className="text-gold/70 capitalize">· {c.role || 'staff'}</span>
+                    )}
                   </span>
                 </ClanLink>
 

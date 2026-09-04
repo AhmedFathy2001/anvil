@@ -15,6 +15,8 @@ export interface NavClan {
   name: string;
   seat: 'member' | 'guest' | null;
   staff: boolean;
+  /** The clan grant they hold here, if any — 'owner', 'admin', 'moderator', 'treasurer', 'editor'. */
+  role?: string | null;
 }
 
 interface Props {
@@ -49,9 +51,19 @@ function Crest({ slug, name, size = 18 }: { slug: string; name: string; size?: n
   );
 }
 
+/**
+ * What to call this person here.
+ *
+ * AUTHORITY OUTRANKS THE SEAT, and it is named rather than flattened to "staff". The old order
+ * checked the seat first, so the owner of two clans saw "member" beside the one whose roster they
+ * had joined and "staff" beside the one they had not — two labels, neither of them "owner", for the
+ * same relationship. A seat says whether you are on the roster; a grant says whether you run the
+ * place, and that is the more useful of the two to put on a switcher.
+ */
 function roleLabel(c: NavClan): string {
-  if (c.seat === 'member') return 'member';
+  if (c.role) return c.role;
   if (c.staff) return 'staff';
+  if (c.seat === 'member') return 'member';
   if (c.seat === 'guest') return 'guest';
   return '';
 }

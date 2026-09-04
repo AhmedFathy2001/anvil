@@ -4,6 +4,7 @@ import { and, eq, inArray, isNull, isNotNull } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import LocalTime from '@/components/LocalTime';
 import { verifyUser } from '@/lib/auth';
+import { currentClan } from '@/lib/clanContext';
 import { isTileRaceFormat } from '@/lib/utils';
 import { parseEventRules } from '@/lib/eventRules';
 import { startProofState } from '@/lib/startProof';
@@ -42,8 +43,35 @@ export default async function MyTeamsHubPage() {
   const user = await verifyUser();
   if (!user) redirect('/login?return=/team');
 
+  // WHICH EVENTS THIS PAGE MAY SHOW.
+  //
+  // The person is the subject — their seats span clans by design — but the page renders under ONE
+  // clan's host and wears that clan's nav, so "my teams" has to mean "my teams here". Without this
+  // filter it meant "my teams anywhere": /c/lfl/team listed The AFK Spot's July Bingo, an event LFL
+  // has nothing to do with, directly under LFL's header.
+  //
+  // Belonging is ownership OR co-hosting, because a co-hosted board genuinely is this clan's too —
+  // that is how "The AFK Spot VS LFL" correctly stays on LFL's page while the July board does not.
+  // A team carries its clan in `teams.clanId`, which is the co-host tag rather than a scope.
+  // `currentClan`, not `requireClan`: on the APEX no clan is named, and there "my teams" honestly
+  // does mean everywhere — the same span /profile covers. Filtering only when a clan IS named keeps
+  // that page working instead of 404ing a URL that used to load.
+  const clan = await currentClan();
+  let inThisClan = undefined as ReturnType<typeof inArray> | undefined;
+  if (clan) {
+    const [ownedRows, coHostRows] = await Promise.all([
+      db.select({ id: events.id }).from(events).where(eq(events.clanId, clan.id)),
+      db.select({ id: teams.eventId }).from(teams).where(eq(teams.clanId, clan.id)),
+    ]);
+    const clanEventIds = [...new Set([...ownedRows, ...coHostRows].map((r) => r.id))];
+    // A clan with no events is the normal state of a new one, and `inArray` with an empty list is
+    // not a portable "match nothing". An impossible id is, and it keeps the page on its ordinary
+    // path so the existing empty state renders rather than a second one written for this branch.
+    inThisClan = clanEventIds.length > 0 ? inArray(events.id, clanEventIds) : eq(events.id, -1);
+  }
+
   // My roster identities → my drafted player rows → teams I play on.
-  // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to the viewer's own.
+  // clan-scope: this clan -- identities are the person's (they span clans), events are filtered to here.
   const myMembers = await db
     .select({ id: clanRoster.id })
     .from(clanRoster)
@@ -85,7 +113,7 @@ export default async function MyTeamsHubPage() {
   };
 
   if (memberIds.length > 0) {
-    // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
+    // clan-scope: this clan -- see clanEventIds above.
     const playerRows = await db
       .select({
         playerId: eventParticipants.id,
@@ -109,12 +137,14 @@ export default async function MyTeamsHubPage() {
       .from(eventParticipants)
       .innerJoin(teams, eq(eventParticipants.teamId, teams.id))
       .innerJoin(events, eq(eventParticipants.eventId, events.id))
-      .where(and(inArray(eventParticipants.clanMemberId, memberIds), isNotNull(eventParticipants.teamId)));
+      .where(
+        and(inArray(eventParticipants.clanMemberId, memberIds), isNotNull(eventParticipants.teamId), inThisClan),
+      );
     for (const r of playerRows) add(r, 'player');
     myPlayerRows = playerRows;
   }
 
-  // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
+  // clan-scope: this clan -- see clanEventIds above.
   const captainRows = await db
     .select({
       teamId: teams.id,
@@ -129,12 +159,12 @@ export default async function MyTeamsHubPage() {
     })
     .from(teams)
     .innerJoin(events, eq(teams.eventId, events.id))
-    .where(eq(teams.captainUserId, user.userId));
+    .where(and(eq(teams.captainUserId, user.userId), inThisClan));
   for (const r of captainRows) add(r, 'captain');
 
   // Teams this user was given a staff seat on — typically a moderator from the other clan in a
   // clan-v-clan, who neither captains nor plays but has to run their own half.
-  // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
+  // clan-scope: this clan -- see clanEventIds above.
   const staffRows = await db
     .select({
       teamId: teams.id,
@@ -150,7 +180,7 @@ export default async function MyTeamsHubPage() {
     .from(teamStaff)
     .innerJoin(teams, eq(teamStaff.teamId, teams.id))
     .innerJoin(events, eq(teams.eventId, events.id))
-    .where(eq(teamStaff.userId, user.userId));
+    .where(and(eq(teamStaff.userId, user.userId), inThisClan));
   for (const r of staffRows) add(r, 'staff');
 
   const now = new Date().toISOString();
@@ -160,7 +190,7 @@ export default async function MyTeamsHubPage() {
   const pastTeams = all.filter(isPast);
 
   // My sign-ups + fee status (the pre-draft stage of the same journey).
-  // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
+  // clan-scope: this clan -- see clanEventIds above.
   const signupRows = await db
     .select({
       signupId: eventSignups.id,
@@ -176,7 +206,7 @@ export default async function MyTeamsHubPage() {
     .from(eventSignups)
     .innerJoin(events, eq(eventSignups.eventId, events.id))
     .leftJoin(signupFees, eq(signupFees.signupId, eventSignups.id))
-    .where(eq(eventSignups.userId, user.userId));
+    .where(and(eq(eventSignups.userId, user.userId), inThisClan));
   // Only surface sign-ups still worth acting on. Drop ended events, and — once an event has
   // started — drop fully-resolved sign-ups (approved, with the fee collected/confirmed or no fee),
   // since the "Sign-ups & fees" card is just clutter at that point.
