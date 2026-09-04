@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
-import { getSetting, setSetting } from '@/lib/settings';
+import { setSetting } from '@/lib/settings';
 import { verifyAdmin } from '@/lib/auth';
 import {
+  clanGuildId,
   discordRest,
   getBotTokenOnly,
   getBotTokenSource,
@@ -19,8 +20,9 @@ import { syncClanCommandsInBackground } from '@/lib/discordCommandSync';
 
 
 async function readGuildId(clanId: number): Promise<string> {
-  const guildIdSetting = await getSetting(clanId, 'discord_guild_id');
-  return guildIdSetting || process.env.DISCORD_GUILD_ID || '';
+  // No env fallback — see clanGuildId. This surface is where the leak was visible: it reported a
+  // clan as connected to the operator's guild before that clan had chosen one.
+  return clanGuildId(clanId);
 }
 
 // Validate a token by asking Discord who it is. Returns the bot's id + display name, or null if the

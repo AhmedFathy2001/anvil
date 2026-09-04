@@ -794,7 +794,9 @@ export async function notifyTeamWin(params: TeamWinNotifyParams): Promise<boolea
 // settings-driven (admin UI) with an env fallback; no role is pinged when neither is set.
 const MEMBER_ROLE_KEY = 'discord_member_ping_role_id';
 async function memberPingRoleId(clanId: number): Promise<string | null> {
-  return (await getSettingUrl(clanId, MEMBER_ROLE_KEY)) || process.env.DISCORD_MEMBER_ROLE_ID?.trim() || null;
+  // A role id only means anything inside one guild, so an env default is the same cross-clan leak
+  // the guild id had — it would point this clan at a role in the operator's server.
+  return (await getSettingUrl(clanId, MEMBER_ROLE_KEY)) || null;
 }
 
 // Public site origin, derived from the OAuth redirect URI (cron has no request context to read a

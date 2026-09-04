@@ -62,8 +62,16 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
   // The COLUMN is the name, and the setting is the mirror — see getClanDisplayName. Reading only
   // the setting meant a clan created through /clans/new, which types its name into the form and
   // stores it on the row, opened its own checklist to "Name your clan — not done".
-  const row = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { name: true } });
+  // The in-game name is the SAME bug one field over, and it was still live: creation asks for it,
+  // requires it, and writes it to the row, but the wizard read only the mirror — so a clan created
+  // through /clans/new opened step 1 with an empty "In-game clan name" over a row that had it, and
+  // saving that empty box would have been believed.
+  const row = await db.query.clans.findFirst({
+    where: eq(clans.id, clanId),
+    columns: { name: true, inGameName: true },
+  });
   const clanName = row?.name?.trim() || get('clan_name');
+  const inGameClanName = row?.inGameName?.trim() || get('clan_ingame_name');
   const webhookUrl = get('discord_webhook_url');
   const dismissed = !!get('setup_completed');
 
@@ -139,7 +147,7 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
     provisioned,
     values: {
       clanName,
-      inGameClanName: get('clan_ingame_name'),
+      inGameClanName,
       inviteUrl: get('discord_invite_url'),
       webhookUrl,
       pluginWebhook: get('webhook_plugin_default'),

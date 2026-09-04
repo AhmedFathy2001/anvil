@@ -401,7 +401,8 @@ export async function getDropRarityFloor(clanId: number): Promise<number> {
 //   clan_name        — the DISPLAY name. What the site, the plugin sidebar, Discord posts and the
 //                      other clans call this clan. Free-form; rename at will.
 //   clan_ingame_name — the EXACT in-game clan name, used only to gate the plugin's roster sync
-//                      (/api/plugin/clan-sync). Blank = accept a sync from any clan.
+//                      (/api/plugin/clan-sync). Blank = UNGATED, so any roster the caller's token
+//                      can reach is accepted; creation requires the name so only legacy rows are.
 // A clan whose OSRS clan is "Anvl CC" can therefore present itself as "The Anvil" everywhere.
 export const CLAN_NAME_SETTING_KEY = 'clan_name';
 export const CLAN_INGAME_NAME_SETTING_KEY = 'clan_ingame_name';
@@ -421,7 +422,9 @@ export async function getClanDisplayName(clanId: number, fallback = 'Anvil'): Pr
   const row = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { name: true } });
   if (row?.name?.trim()) return row.name.trim();
   const value = await getSettingText(clanId, CLAN_NAME_SETTING_KEY);
-  return value || process.env.CLAN_NAME?.trim() || fallback;
+  // No env fallback: CLAN_NAME names the box's own clan, so on a multi-clan instance it would put
+  // the operator's clan name on somebody else's site.
+  return value || fallback;
 }
 
 // The exact in-game clan name the plugin's roster-sync payload must report.
@@ -439,7 +442,9 @@ export async function getInGameClanName(clanId: number): Promise<string | null> 
   // The settings row remains readable for a clan whose column has not been filled — belt and
   // braces while both exist.
   const value = await getSettingText(clanId, CLAN_INGAME_NAME_SETTING_KEY);
-  return value || process.env.CLAN_INGAME_NAME?.trim() || null;
+  // Same reason as getClanDisplayName — and worse here, since this value is a GATE: inheriting the
+  // operator's in-game name would make this clan accept the operator's roster and reject its own.
+  return value || null;
 }
 
 // The clan's Discord invite, shown in the nav, on the home page and in the setup guides. Same
@@ -451,7 +456,9 @@ export const DISCORD_INVITE_SETTING_KEY = 'discord_invite_url';
 
 export async function getDiscordInviteUrl(clanId: number): Promise<string | null> {
   const value = await getSettingText(clanId, DISCORD_INVITE_SETTING_KEY);
-  return value || process.env.DISCORD_INVITE_URL?.trim() || null;
+  // No env fallback: this is rendered as "Join our Discord" to a clan's own members, so inheriting
+  // one would invite them into the operator's server.
+  return value || null;
 }
 
 // Difficulty-tier bands (points → tier), stored as a JSON array under this key. Admin-editable so

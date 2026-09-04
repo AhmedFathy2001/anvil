@@ -14,12 +14,13 @@
 // to own it. The naming RULES live in lib/clanNames, which has no database import; this file is the
 // half that has to ask.
 
-import { and, eq, ne } from 'drizzle-orm';
+import { and, count, eq, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanAuditLog, clanStaff, clans } from '@/db/schema';
 import { PLANS } from '@/lib/plans';
 import { newCheckoutRef } from '@/lib/billing';
+import { setSetting } from '@/lib/settings';
 import {
   availabilityMessage,
   domainRuleFailure,
@@ -82,6 +83,31 @@ export type CreateClanResult =
  * route, which is how we know it is not hypothetical. One transaction means the clan and its owner
  * exist together or not at all.
  */
+/**
+ * A single-clan instance adopts its box's Discord configuration, ONCE, at creation.
+ *
+ * This is what replaced the env fallbacks that `clanGuildId` used to have. Reading
+ * `DISCORD_GUILD_ID` at request time answered "which server does this clan post to?" with a value
+ * belonging to whoever owns the box, so on a managed instance every new clan silently pointed at
+ * the operator's server. Writing it once, and only into the first clan an instance ever has, keeps
+ * self-hosting a matter of filling in an env file while making the value visible and editable on
+ * the settings page rather than an invisible default that outranked it.
+ *
+ * Second and later clans get nothing: on a multi-clan instance the env var describes the host, not
+ * them.
+ */
+async function adoptEnvDiscordIfFirstClan(clanId: number): Promise<void> {
+  const guild = process.env.DISCORD_GUILD_ID?.trim();
+  const invite = process.env.DISCORD_INVITE_URL?.trim();
+  if (!guild && !invite) return;
+
+  const total = await db.select({ n: count() }).from(clans).then((r) => r[0]?.n ?? 0);
+  if (total !== 1) return;
+
+  if (guild) await setSetting(clanId, 'discord_guild_id', guild);
+  if (invite) await setSetting(clanId, 'discord_invite_url', invite);
+}
+
 export async function createClan(input: CreateClanInput): Promise<CreateClanResult> {
   const slug = normalizeSlug(input.slug);
   // The in-game clan name is now the required one — roster sync matches on it, so a clan without it
@@ -96,7 +122,7 @@ export async function createClan(input: CreateClanInput): Promise<CreateClanResu
   if (!avail.ok) return { ok: false, error: availabilityMessage('Address', avail) };
 
   try {
-    return await db.transaction(async (tx) => {
+    const created = await db.transaction(async (tx) => {
       const [clan] = await tx
         .insert(clans)
         .values({
@@ -129,6 +155,9 @@ export async function createClan(input: CreateClanInput): Promise<CreateClanResu
 
       return { ok: true as const, clanId: clan.id, slug };
     });
+
+    if (created.ok) await adoptEnvDiscordIfFirstClan(created.clanId);
+    return created;
   } catch (e) {
     // The unique index on slug is the real arbiter: two people can pass checkSlug at the same moment
     // and only one insert can win. Reported as "taken" rather than a server error, because from the

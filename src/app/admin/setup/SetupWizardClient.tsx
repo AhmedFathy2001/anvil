@@ -177,7 +177,7 @@ export default function SetupWizardClient({ initial, channels, botEnabled, provi
             </Field>
             <Field
               label="In-game clan name"
-              hint="Optional — the exact OSRS clan name. The plugin's roster sync must report this name; leave blank to accept a sync from any clan."
+              hint="The exact OSRS clan name. Roster sync only accepts a member list reported under this name — that is what stops another clan's roster landing on your site."
             >
               <Input
                 value={inGameClanName}

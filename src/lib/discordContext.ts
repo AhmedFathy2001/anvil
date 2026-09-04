@@ -61,7 +61,7 @@ export interface ClanContext {
  * answer — being installed somewhere is not the same as being that clan.
  */
 export async function getClanContext(guildId: string | null): Promise<ClanContext | null> {
-  const wanted = guildId?.trim() || process.env.DISCORD_GUILD_ID?.trim() || '';
+  const wanted = guildId?.trim() || '';
   if (!wanted) return null;
 
   // clan-scope: global -- a Discord guild maps to exactly one clan, and this lookup IS that mapping.

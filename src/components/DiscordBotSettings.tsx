@@ -28,10 +28,14 @@ interface BotStatus {
   sharedAvailable: boolean;
 }
 
+// A clan admin is told which bot is posting for them, not where the operator keeps its token.
+// 'own-env' and 'shared' are the same fact from this side of the screen — the managed Anvil bot —
+// and the old 'own-env' wording ("from the environment") described the host's deployment to its
+// customers.
 const SOURCE_LABEL: Record<BotSource, string> = {
   shared: 'Using the shared Anvil bot',
   byo: 'Using your own bot',
-  'own-env': 'Using your bot token (from the environment)',
+  'own-env': 'Using the shared Anvil bot',
   none: 'No bot connected',
 };
 

@@ -94,7 +94,9 @@ export async function syncClanCommands(): Promise<CommandSyncResult> {
   const app = (await appRes.json().catch(() => null)) as { id?: string } | null;
   if (!app?.id) return { ok: false, reason: 'app-lookup-malformed' };
 
-  const guildId = (await readSetting('discord_guild_id'))?.trim() || process.env.DISCORD_GUILD_ID?.trim() || '';
+  // Settings only — an env fallback here would register this clan's commands into the operator's
+  // guild. See clanGuildId.
+  const guildId = (await readSetting('discord_guild_id'))?.trim() || '';
   const scope: 'guild' | 'global' = guildId ? 'guild' : 'global';
   const path = guildId
     ? `/applications/${app.id}/guilds/${guildId}/commands`

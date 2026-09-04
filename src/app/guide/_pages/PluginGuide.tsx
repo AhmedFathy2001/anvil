@@ -51,7 +51,7 @@ export default async function PluginGuide({ lang }: { lang: string }) {
         where: and(eq(settings.clanId, clan.id), eq(settings.key, 'discord_invite_url')),
       })
     : null;
-  const discordInvite = inviteRow?.value?.trim() || process.env.DISCORD_INVITE_URL?.trim() || null;
+  const discordInvite = inviteRow?.value?.trim() || null;
 
   // Which login this instance uses decides one paragraph in step 2: a managed instance authenticates
   // Discord through the shared Anvil login (a visible hop to another domain, worth explaining before

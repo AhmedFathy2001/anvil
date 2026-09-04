@@ -200,6 +200,26 @@ export async function getBotTokenOnly(clanId: number): Promise<{ token: string; 
   return resolveBotToken(clanId);
 }
 
+/**
+ * The Discord server this clan posts to.
+ *
+ * SETTINGS ONLY — there is deliberately no environment fallback, and adding one back is a data
+ * leak rather than a convenience. `DISCORD_GUILD_ID` configures a BOX; a guild id identifies ONE
+ * clan's server. While this read fell back to the env var, every clan created on a managed
+ * instance inherited the operator's own server: the bot-status panel told a stranger's clan owner
+ * it was "connected as Anvil in <the operator's guild>", the roles-and-channels picker listed the
+ * operator's channels to them, and a webhook created from that screen would have been created in
+ * the operator's server. It was reported from a clan that had never connected Discord at all and
+ * was already showing a guild id.
+ *
+ * Self-hosting still works: a single-clan instance gets its env value written into that clan's
+ * settings once, at creation (lib/clanCreate), so the value is visible and editable on the page
+ * instead of being an invisible default that outranks what the page shows.
+ */
+export async function clanGuildId(clanId: number): Promise<string> {
+  return (await getSetting(clanId, 'discord_guild_id'))?.trim() || '';
+}
+
 /** True when a shared managed bot is available to fall back to (provisioner-injected env). */
 export function isSharedBotAvailable(): boolean {
   return !!process.env.ANVIL_SHARED_BOT_TOKEN;
@@ -211,13 +231,12 @@ export function isSharedBotAvailable(): boolean {
  * gate on their own setting, then call this for the token + guild. Returns null when no token
  * resolves (see resolveBotToken) or the guild ID is missing, which callers treat as "skip silently".
  *
- * Guild ID is settings-driven (not env) so admins can change/test without redeploying; an env
- * override is allowed for local dev.
+ * Guild ID is settings-driven — see clanGuildId for why there is no env fallback.
  */
 export async function getBotCredentials(clanId: number): Promise<{ botToken: string; guildId: string } | null> {
   const resolved = await resolveBotToken(clanId);
   if (!resolved) return null;
-  const guildId = (await getSetting(clanId, 'discord_guild_id')) || process.env.DISCORD_GUILD_ID || '';
+  const guildId = await clanGuildId(clanId);
   if (!guildId) return null;
   return { botToken: resolved.token, guildId };
 }
