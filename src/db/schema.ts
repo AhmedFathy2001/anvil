@@ -130,6 +130,16 @@ export const clans = pgTable('clans', {
   uniqueIndex('clans_verified_ingame_name_unique')
     .on(sql`lower(${table.inGameName})`)
     .where(sql`ingame_name_verified_at is not null`),
+  // One clan per in-game name FULL STOP, verified or not — trimmed as well as lowercased, since
+  // "The AFK Spot" and "The Afk Spot " are one clan in game.
+  //
+  // The partial index above left a window this closes: two UNVERIFIED clans could both hold a name,
+  // and nothing told either of them until one tried to verify. That is not a naming race, it is two
+  // sites claiming to be the same real clan — and roster sync gates on this value, so a member list
+  // reported by that clan matches both. It happened: "the afk spot" was held twice on production.
+  uniqueIndex('clans_ingame_name_unique')
+    .on(sql`lower(trim(${table.inGameName}))`)
+    .where(sql`in_game_name is not null and trim(in_game_name) <> ''`),
   // One subscription is one clan. Two clans claiming the same paid subscription is a billing bug
   // that should be impossible rather than merely unlikely.
   uniqueIndex('clans_gumroad_subscription_unique').on(table.gumroadSubscriptionId),

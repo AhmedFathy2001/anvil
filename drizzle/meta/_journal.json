@@ -281,6 +281,13 @@
       "when": 1787900012000,
       "tag": "0081_split_notification_kinds",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1788529153338,
+      "tag": "0082_clan_ingame_name_unique",
+      "breakpoints": true
     }
   ]
 }
