@@ -8,6 +8,7 @@ import {
   nextRevealAt,
   parseTileMissionRules,
   missionClaimCap,
+  missionPrizeSummary,
   type EventRules,
   type RevealOrder,
 } from '@/lib/eventRules';
@@ -297,10 +298,20 @@ async function flipAndAnnounceMissions(event: EventRow, toReveal: TileRow[], hid
     .returning({ id: tiles.id, label: tiles.label, points: tiles.points, icon: tiles.icon });
   if (flipped.length > 0) {
     log.info('reveal-engine.mission-announce', { eventId: event.id, count: flipped.length });
+    // What each one pays, so the drop post says what is on the line rather than leaving the money
+    // to be discovered by whoever wins it. Read off the tiles we drew, which carry their own rules.
+    const prizeByTile = new Map(
+      toReveal.map((t) => [t.id, missionPrizeSummary(parseTileMissionRules(t.rules))[0]?.gp ?? 0]),
+    );
     notifyTilesRevealed({
           clanId: event.clanId,
       eventName: event.name,
-      tiles: flipped.map((t) => ({ label: t.label, points: t.points, icon: t.icon })),
+      tiles: flipped.map((t) => ({
+        label: t.label,
+        points: t.points,
+        icon: t.icon,
+        prizeGp: prizeByTile.get(t.id) || undefined,
+      })),
       pointsMode: event.scoringMode === 'points',
       hiddenRemaining: Math.max(0, hiddenCount - flipped.length),
       mission: true,

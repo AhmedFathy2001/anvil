@@ -603,8 +603,11 @@ interface TilesRevealedNotifyParams {
   /** The clan this posts for — decides which webhook it lands in. */
   clanId: number;
   eventName: string;
-  /** `icon` (when the tile has one) becomes the thumbnail on a single-tile reveal. */
-  tiles: { label: string; points: number | null; icon?: string | null }[];
+  /**
+   * `icon` (when the tile has one) becomes the thumbnail on a single-tile reveal. `prizeGp` is the
+   * gp riding on the tile's first place — the number that decides whether anyone gets out of bed.
+   */
+  tiles: { label: string; points: number | null; icon?: string | null; prizeGp?: number }[];
   /** Show per-tile point values (points-scoring events only). */
   pointsMode: boolean;
   /** Hidden tiles left after this reveal — the "more to come" teaser. */
@@ -646,7 +649,13 @@ export async function notifyTilesRevealed(params: TilesRevealedNotifyParams): Pr
     ? []
     : tiles
         .slice(0, 15)
-        .map((t) => `• **${t.label}**${pointsMode && t.points != null ? ` — ${t.points} pts` : ''}`);
+        .map(
+          (t) =>
+            `• **${t.label}**${pointsMode && t.points != null ? ` — ${t.points} pts` : ''}` +
+            // Several missions dropping at once are rarely worth the same, and which of them carries
+            // money is the whole reason anyone reads the list.
+            (t.prizeGp ? ` · 💰 ${formatGp(t.prizeGp)}` : ''),
+        );
   if (tiles.length > 15) lines.push(`…and ${tiles.length - 15} more`);
 
   const description = single
@@ -660,6 +669,11 @@ export async function notifyTilesRevealed(params: TilesRevealedNotifyParams): Pr
   const fields: DiscordEmbedField[] = [];
   if (single && pointsMode && tiles[0].points != null) {
     fields.push(statField('Worth', `${tiles[0].points} pts`));
+  }
+  // The prize on a single drop gets a box of its own, next to the points, because "first takes 50m"
+  // is the announcement — the points are the consolation.
+  if (single && tiles[0].prizeGp) {
+    fields.push(statField('First takes', `${formatGp(tiles[0].prizeGp)} gp`));
   }
   // Missions drop from their own pool; a "still hidden" count would spoil the surprise.
   if (!mission && hiddenRemaining > 0) {
