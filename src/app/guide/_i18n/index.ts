@@ -80,7 +80,7 @@ export function findLocale(code: string | undefined): LocaleMeta | undefined {
  * and the route wrappers — and a guide missing from one of them is a page nobody can reach in their
  * own language.
  */
-export type GuidePage = '' | 'plugin' | 'admin' | 'clan' | 'clan-vs-clan' | 'board' | 'captain' | 'formats' | 'fees' | 'moderator';
+export type GuidePage = '' | 'plugin' | 'admin' | 'clan-vs-clan' | 'board' | 'captain' | 'formats' | 'fees' | 'moderator';
 
 /** `/guide/plugin` for English, `/guide/da/plugin` for the rest — English keeps the shareable URL. */
 export function guideHref(locale: string, page: GuidePage): string {

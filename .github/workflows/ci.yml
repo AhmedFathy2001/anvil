@@ -4,7 +4,6 @@ name: CI
 # the `checks` job to be green before a PR can merge. Direct pushes by admins (the beta → main
 # promote fast-forward) bypass this by design — build-image.yml already builds every branch push,
 # and the promoted commit was tested when its PR landed on beta.
-
 #
 # The build needs no real credentials: requireSecret()/env.ts fall back to dev defaults during
 # `next build` (NEXT_PHASE=phase-production-build), same as the Docker builder stage.
