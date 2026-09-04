@@ -199,8 +199,8 @@ export default async function PluginGuide({ lang }: { lang: string }) {
         <p className="text-text-muted">{rt(p.bingo.intro, v)}</p>
         <Figure
           src="/guide/plugin-bingo.png"
-          width={534}
-          height={494}
+          width={516}
+          height={488}
           alt={p.bingo.figure.alt}
           caption={p.bingo.figure.caption}
           legend={legend(p.bingo.figure.legend, v)}
