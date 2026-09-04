@@ -216,7 +216,6 @@ export default function ClansClient({
               <th className="px-4 py-3 text-right">Events</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Plan</th>
-              <th className="px-4 py-3">Seat cap</th>
               {canWrite && <th className="px-4 py-3">Access</th>}
             </tr>
           </thead>
@@ -321,23 +320,6 @@ export default function ClansClient({
                     <span className="text-xs text-gray-300">{c.plan}</span>
                   )}
                 </td>
-                {/* The cap the PLAN implies is only a starting point. A clan mid-migration, one being
-                    let off while something is fixed, or one on a deal that is not a tier all need a
-                    number the price list does not have — so this overrides it, and empty means no cap
-                    at all rather than a cap of nothing. Changing the plan resets it unless the same
-                    request says otherwise, which is why this sends only the cap. */}
-                <td className="px-4 py-3">
-                  {canWrite ? (
-                    <CapCell
-                      cap={c.memberCap}
-                      members={c.members}
-                      disabled={busy != null}
-                      onCommit={(v) => patch(c.id, { memberCap: v })}
-                    />
-                  ) : (
-                    <span className="text-xs text-gray-300">{c.memberCap ?? 'none'}</span>
-                  )}
-                </td>
                 {canWrite && (
                   <td className="px-4 py-3">
                     {liveByClan.has(c.id) ? (
@@ -402,59 +384,6 @@ export default function ClansClient({
       </div>
 
       {shown.length === 0 && <p className="mt-4 text-sm text-gray-500">No clan matches that.</p>}
-    </div>
-  );
-}
-
-/**
- * A cap you can type, where empty means uncapped.
- *
- * Committed on blur rather than per keystroke: a number typed a digit at a time would otherwise send
- * "1", then "15", then "150" — and the middle values are real caps that briefly put a clan over.
- */
-function CapCell({
-  cap,
-  members,
-  disabled,
-  onCommit,
-}: {
-  cap: number | null;
-  members: number;
-  disabled: boolean;
-  onCommit: (value: number | null) => void;
-}) {
-  const [draft, setDraft] = useState(cap == null ? '' : String(cap));
-  const over = cap != null && members > cap;
-
-  function commit() {
-    const t = draft.trim();
-    const next = t === '' ? null : Number(t);
-    if (t !== '' && (!Number.isInteger(next) || (next as number) <= 0)) {
-      setDraft(cap == null ? '' : String(cap));
-      return;
-    }
-    if (next !== cap) onCommit(next);
-  }
-
-  return (
-    <div className="flex items-center gap-1.5">
-      <Input
-        value={draft}
-        disabled={disabled}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-        }}
-        placeholder="none"
-        aria-label="Member cap"
-        className="w-20 rounded-lg px-2 py-1 text-xs"
-      />
-      {over && (
-        <span className="text-[10.5px] text-amber-400/80" title={`${members} seats against a cap of ${cap}`}>
-          over
-        </span>
-      )}
     </div>
   );
 }

@@ -77,14 +77,6 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
   const [roster, setRoster] = useState<RosterRow[]>([]);
   const [proof, setProof] = useState<ProofRow[]>([]);
   const [fees, setFees] = useState<FeeRow[]>([]);
-  // Why the fee list looks the way it does — the server decides, because the client cannot tell an
-  // event that charges nothing from one whose money somebody else is holding.
-  const [feeContext, setFeeContext] = useState<{
-    signupFee: number;
-    cashPolicy: string;
-    isHostTeam: boolean;
-    collects: boolean;
-  } | null>(null);
   const [payouts, setPayouts] = useState<PayoutRow[]>([]);
   const [cashPolicy, setCashPolicy] = useState<string>('host-holds');
   const [requests, setRequests] = useState<RequestRow[]>([]);
@@ -111,11 +103,7 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
         setPayouts(data.payouts ?? []);
         setCashPolicy(data.cashPolicy ?? 'host-holds');
       }
-      if (feesRes.ok) {
-        const body = await feesRes.json();
-        setFees(body.fees ?? []);
-        setFeeContext(body.context ?? null);
-      }
+      if (feesRes.ok) setFees((await feesRes.json()).fees ?? []);
       // Empty on a drafted event — nobody can request a team there, so the tab just never appears.
       if (requestsRes.ok) setRequests((await requestsRes.json()).requests ?? []);
     } finally {
@@ -253,16 +241,7 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
               ['roster', `Roster · ${roster.length}`],
               ...(requests.length > 0 ? ([['requests', `Requests · ${requests.length}`]] as const) : []),
               ['proof', `Proof · ${proof.length}`],
-              [
-                'fees',
-                // Not a count when this team isn't the one collecting: "Fees · 0" beside a tab that
-                // then explains the host holds them reads as a number that failed to load.
-                feeContext && !feeContext.collects
-                  ? 'Fees'
-                  : owed > 0
-                    ? `Fees · ${owed} owed`
-                    : `Fees · ${fees.length}`,
-              ],
+              ['fees', owed > 0 ? `Fees · ${owed} owed` : `Fees · ${fees.length}`],
               ...(showPayouts ? ([['payouts', owedWinnings > 0 ? `Winnings · ${owedWinnings} to pay` : `Winnings · ${payouts.length}`]] as const) : []),
               ['invites', 'Invite links'],
             ] as const
@@ -419,7 +398,7 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
           {tab === 'fees' && (
             <div className="grid gap-1.5">
               {fees.length === 0 ? (
-                <FeesEmpty context={feeContext} />
+                <p className="text-sm text-text-muted">This event has no sign-up fee.</p>
               ) : (
                 fees.map((f) => (
                   <div
@@ -522,37 +501,5 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
       </>
       )}
     </section>
-  );
-}
-
-/**
- * What an empty fee list actually means.
- *
- * It used to mean one thing on screen — "this event has no sign-up fee" — and three things in fact.
- * On a ten-million-gp clan-v-clan whose host holds the money, the visiting side was told the event
- * was free while a tab beside it counted fees.
- */
-function FeesEmpty({
-  context,
-}: {
-  context: { signupFee: number; cashPolicy: string; isHostTeam: boolean; collects: boolean } | null;
-}) {
-  if (!context || context.signupFee === 0) {
-    return <p className="text-sm text-text-muted">This event has no sign-up fee.</p>;
-  }
-  const fee = context.signupFee.toLocaleString();
-  if (!context.collects) {
-    return (
-      <p className="text-sm text-text-muted">
-        The host collects the {fee} gp entry fee for this event, and settles up with each clan
-        afterwards — there is nothing for you to chase here.
-      </p>
-    );
-  }
-  return (
-    <p className="text-sm text-text-muted">
-      Nobody on this team has a sign-up to collect against yet. Players added straight to the roster
-      skip the sign-up form, which is where the {fee} gp fee is attached.
-    </p>
   );
 }

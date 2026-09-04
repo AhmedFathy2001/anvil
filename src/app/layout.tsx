@@ -10,7 +10,6 @@ import { getClanDisplayName, getDiscordInviteUrl } from "@/lib/pluginConfig";
 
 import { Analytics } from "@vercel/analytics/next";
 import SiteNav from "@/components/SiteNav";
-import ShellGuard from "@/components/ShellGuard";
 import { countLiveTeamInvolvements } from "@/lib/myTeamNav";
 import { characterCount, clansOfPerson } from "@/lib/myClans";
 import { clansWithSomethingLive } from "@/lib/apexHome";
@@ -199,8 +198,6 @@ export default async function RootLayout({
             It cannot be recovered further down: middleware rewrites /c/<slug>/x to /x before Next
             routes it, so by render time the framework's path no longer has it. */}
         <ClanPrefixProvider prefix={prefix}>
-        {/* Catches a shell left over from the clan you were in a moment ago — see ShellGuard. */}
-        <ShellGuard prefix={prefix} />
         {/* ONE NAV PER PLACE. The apex gets a rail of what the PLATFORM has; a clan keeps the top
             nav it always had. They were the same component until now, which is why the apex offered
             Events and Members — clan pages that 404 there because the apex has no roster. */}

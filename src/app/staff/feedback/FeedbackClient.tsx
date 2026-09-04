@@ -1,7 +1,5 @@
 'use client';
 
-import ClanLink from '@/components/ClanLink';
-
 import { useEffect, useState } from 'react';
 import Select from '@/components/Select';
 import LocalTime from '@/components/LocalTime';
@@ -111,12 +109,11 @@ export default function FeedbackClient() {
                   <div className="text-xs text-text-muted mt-0.5">
                     {i.clanName ? (
                       <>
-                        {/* ClanLink, not a raw anchor. `/c/<slug>` is already a clan's absolute
-                            address so nothing gets prefixed onto it — and going from /staff into a
-                            clan CHANGES the shell, which ClanLink knows to do as a document load. */}
-                        <ClanLink href={`/c/${i.clanSlug}`} className="text-gold hover:underline">
+                        {/* clan-prefix: platform -- /staff is the apex, and /c/<slug> is already the
+                            absolute address of another clan; prefixing it would be nonsense here. */}
+                        <a href={`/c/${i.clanSlug}`} className="text-gold hover:underline">
                           {i.clanName}
-                        </ClanLink>
+                        </a>
                         {' · '}
                       </>
                     ) : null}

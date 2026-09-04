@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { clanRoster, events, eventSignups, eventParticipants, signupFees, teams, users } from '@/db/schema';
+import { clanRoster, eventSignups, eventParticipants, signupFees, users } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { markFeeCollected } from '@/lib/feeConfirmations';
 import { requireTeamManager } from '@/lib/teamStaff';
@@ -34,31 +34,6 @@ async function teamSignupIds(eventId: number, teamId: number): Promise<number[]>
   return signups.map((s) => s.id);
 }
 
-/**
- * Whether THIS team collects, and what it is collecting.
- *
- * `host-holds` means exactly that: one clan takes the money and settles up afterwards
- * (lib/coHostSettlement turns it into who-owes-whom). A visiting team offered a collection list
- * under that policy is being invited to do something the event has already decided it will not do.
- */
-async function feeContext(eventId: number, teamId: number) {
-  // clan-scope: global -- the event is reached by id, through a team the caller already manages.
-  const [event, team] = await Promise.all([
-    db.query.events.findFirst({ where: eq(events.id, eventId) }),
-    db.query.teams.findFirst({ where: eq(teams.id, teamId) }),
-  ]);
-  const signupFee = event?.signupFee ?? 0;
-  const cashPolicy = event?.cashPolicy ?? 'host-holds';
-  // A team with no clan tag is the host's own — lib/coHostSettlement reads it the same way.
-  const isHostTeam = team?.clanId == null || team.clanId === event?.clanId;
-  return {
-    signupFee,
-    cashPolicy,
-    isHostTeam,
-    collects: signupFee > 0 && (isHostTeam || cashPolicy !== 'host-holds'),
-  };
-}
-
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ teamId: string }> },
@@ -71,14 +46,8 @@ export async function GET(
   if ('response' in guard) return guard.response;
   const { management } = guard;
 
-  // WHAT THE CLIENT CANNOT INFER. An empty list has three completely different meanings — the event
-  // charges nothing, somebody else collects, or these players never had a sign-up to collect against
-  // — and the panel read all three as the first, announcing "this event has no sign-up fee" on a
-  // ten-million-gp event whose fees the host was holding. So the answer says which it is.
-  const context = await feeContext(management.eventId, tId);
-
   const signupIds = await teamSignupIds(management.eventId, tId);
-  if (signupIds.length === 0) return NextResponse.json({ fees: [], context });
+  if (signupIds.length === 0) return NextResponse.json({ fees: [] });
 
   // clan-scope: global -- reached through team membership or a token, not through a clan — that is what lets a visiting clan's people use it.
   const rows = await db
@@ -112,7 +81,6 @@ export async function GET(
   rows.sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9) || a.rsn.localeCompare(b.rsn));
 
   return NextResponse.json({
-    context,
     fees: rows.map((r) => ({
       ...r,
       collectedByName: r.collectedByUserId != null ? collectorName.get(r.collectedByUserId) ?? null : null,

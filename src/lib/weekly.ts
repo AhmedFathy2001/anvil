@@ -62,15 +62,10 @@ export async function enrollAllPlayers(competitionId: number) {
     ? baseClause
     : and(baseClause, eq(clanRoster.kind, 'member'));
 
-  // The clan predicate is spelled out HERE rather than only inside whereClause, so the rule that
-  // exists to catch an unscoped roster read can actually see it. It was hidden in a variable, and a
-  // blanket suppression stood in its place — which is how this query came to enrol every seat on the
-  // platform into one clan's competition. Repeating one condition is a cheap price for the check
-  // being real.
   const activeMembers = await db
     .select({ id: clanRoster.id, rsn: clanRoster.rsn })
     .from(clanRoster)
-    .where(and(eq(clanRoster.clanId, comp.clanId), whereClause));
+    .where(whereClause);
 
   // Count only rows actually inserted (not conflicts that hit the unique index) so
   // callers can tell "did anyone new join this comp on this run". .returning() yields

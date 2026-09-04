@@ -30,7 +30,9 @@ async function siteOrigin(): Promise<string> {
   if (configured) return configured;
   const h = await headers();
   const host = h.get('host');
-  return host ? `https://${host}` : 'https://your-clan.example.com';
+  // The platform's own address. Only reached when neither APP_URL nor a Host header is set,
+  // which is a build-time render rather than a real request — one site now, not a URL per clan.
+  return host ? `https://${host}` : 'https://anvilosrs.com';
 }
 
 export async function pluginGuideMetadata(lang: string): Promise<Metadata> {

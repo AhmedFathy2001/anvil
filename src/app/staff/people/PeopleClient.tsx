@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Select from '@/components/Select';
 import { useRouter } from 'next/navigation';
 
-import type { PersonHit, PeopleBrowseRow } from '@/lib/platformView';
+import type { PersonHit } from '@/lib/platformView';
 import Input from '@/components/Input';
 
 const PLATFORM_ROLES = ['none', 'support', 'staff', 'root'] as const;
@@ -228,18 +228,12 @@ function PersonCard({
 export default function PeopleClient({
   initialQuery,
   results,
-  browse,
-  filters,
-  clans,
   canWrite,
   canGrant,
   viewerPlayerId,
 }: {
   initialQuery: string;
   results: PersonHit[];
-  browse: { rows: PeopleBrowseRow[]; total: number; page: number; pages: number };
-  filters: { clanId: string; login: string; banned: boolean; multiClan: boolean };
-  clans: { id: number; name: string }[];
   canWrite: boolean;
   canGrant: boolean;
   /** The viewer's own person id — their row must not offer what the API will refuse. */
@@ -248,28 +242,9 @@ export default function PeopleClient({
   const router = useRouter();
   const [q, setQ] = useState(initialQuery);
 
-  // One URL builder for the search box, every filter and the pager, so changing one never silently
-  // drops the others — which is the usual way a filtered list becomes untrustworthy.
-  function go(next: Partial<Record<string, string | number | boolean | null>>) {
-    const p = new URLSearchParams();
-    const merged: Record<string, string | number | boolean | null> = {
-      q,
-      clan: filters.clanId,
-      login: filters.login,
-      banned: filters.banned,
-      multi: filters.multiClan,
-      ...next,
-    };
-    for (const [k, v] of Object.entries(merged)) {
-      if (v === '' || v === false || v == null) continue;
-      p.set(k, String(v));
-    }
-    router.push(`/staff/people?${p.toString()}`);
-  }
-
   function search(e: React.FormEvent) {
     e.preventDefault();
-    go({ page: null });
+    router.push(`/staff/people?q=${encodeURIComponent(q)}`);
   }
 
   return (
@@ -286,103 +261,6 @@ export default function PeopleClient({
         </button>
       </form>
 
-      {/* FILTERS. Search answers "somebody reported this name"; these answer "who is on this
-          platform", which the page could not answer at all while it was search-only. */}
-      <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
-        <Select
-          value={filters.clanId}
-          onChange={(v) => go({ clan: v, page: null })}
-          options={[{ value: '', label: 'Any clan' }, ...clans.map((c) => ({ value: String(c.id), label: c.name }))]}
-          ariaLabel="Clan"
-          className="w-44"
-        />
-        <Select
-          value={filters.login}
-          onChange={(v) => go({ login: v, page: null })}
-          options={[
-            { value: '', label: 'Any login state' },
-            { value: 'yes', label: 'Has signed in' },
-            { value: 'no', label: 'Never signed in' },
-          ]}
-          ariaLabel="Login state"
-          className="w-44"
-        />
-        <label className="flex items-center gap-1.5 text-text-muted">
-          <input type="checkbox" checked={filters.multiClan} onChange={(e) => go({ multi: e.target.checked, page: null })} />
-          In more than one clan
-        </label>
-        <label className="flex items-center gap-1.5 text-text-muted">
-          <input type="checkbox" checked={filters.banned} onChange={(e) => go({ banned: e.target.checked, page: null })} />
-          Platform-banned
-        </label>
-      </div>
-
-      {results.length === 0 && (
-        <div className="mt-5">
-          <div className="mb-2 text-xs text-gray-500">
-            {browse.total.toLocaleString()} {browse.total === 1 ? 'person' : 'people'}
-            {browse.pages > 1 && ` · page ${browse.page} of ${browse.pages}`}
-          </div>
-          <div className="overflow-hidden rounded-xl border border-card-border bg-card-bg">
-            <table className="w-full text-sm">
-              <thead className="border-b border-card-border text-left text-xs uppercase tracking-wide text-gray-400">
-                <tr>
-                  <th className="px-4 py-2.5">Person</th>
-                  <th className="px-4 py-2.5 text-right">Characters</th>
-                  <th className="px-4 py-2.5 text-right">Clans</th>
-                  <th className="px-4 py-2.5">Login</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-card-border">
-                {browse.rows.map((r) => (
-                  <tr key={r.playerId} className="hover:bg-brown-light/40">
-                    <td className="px-4 py-2.5">
-                      {/* Opening a row runs the same search the box does, so one code path assembles
-                          a person and the list stays cheap. */}
-                      <button
-                        onClick={() => go({ q: r.name ?? '', page: null })}
-                        className="text-left font-medium hover:text-gold"
-                      >
-                        {r.name ?? `#${r.playerId}`}
-                      </button>
-                      {r.banned && <Pill tone="red">banned</Pill>}
-                    </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{r.accounts}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{r.clans}</td>
-                    <td className="px-4 py-2.5 text-xs text-gray-400">{r.hasLogin ? 'Discord' : '—'}</td>
-                  </tr>
-                ))}
-                {browse.rows.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-6 text-center text-sm text-gray-500">
-                      Nobody matches those filters.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          {browse.pages > 1 && (
-            <div className="mt-3 flex items-center gap-2 text-xs">
-              <button
-                disabled={browse.page <= 1}
-                onClick={() => go({ page: browse.page - 1 })}
-                className="rounded-lg border border-card-border px-2.5 py-1 disabled:opacity-40"
-              >
-                ← Previous
-              </button>
-              <button
-                disabled={browse.page >= browse.pages}
-                onClick={() => go({ page: browse.page + 1 })}
-                className="rounded-lg border border-card-border px-2.5 py-1 disabled:opacity-40"
-              >
-                Next →
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
       <div className="mt-6 space-y-4">
         {results.map((p) => (
           <PersonCard
@@ -395,8 +273,12 @@ export default function PeopleClient({
           />
         ))}
         {initialQuery && results.length === 0 && (
+          <p className="text-sm text-gray-500">Nobody matches that.</p>
+        )}
+        {!initialQuery && (
           <p className="text-sm text-gray-500">
-            Nobody matches “{initialQuery}” — the list below is everyone else.
+            Search by any name they are known by. An RSN and a Discord handle resolve to the same
+            person, which is the point — a clan reports one and a Discord report names the other.
           </p>
         )}
       </div>
