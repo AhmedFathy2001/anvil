@@ -208,6 +208,94 @@ const no: PartialDiscordDict = {
     unsupported: 'Den interaksjonstypen støttes ikke ennå.',
     shareExpired: 'Det svaret er for gammelt til å dele — kjør kommandoen på nytt.',
   },
+
+  commands: {
+    sotw: 'Skill of the Week — livestilling',
+    botw: 'Boss of the Week — livestilling',
+    eff: 'Effektivitet (EHP/EHB) — topplisten og din plassering',
+    coffer: 'Klankisten — saldo, givere og staff legger til/fjerner',
+    clog: 'Collection log — et medlems antall og klanens fremste samlere',
+    luck: 'Drop-flaks — klanens tørreste og heldigste, eller et medlems',
+    guide: 'Les en oppsettsguide — oversikten eller ett trinn, med en lenke',
+  },
+
+  multi: {
+    liveTitle: '📋 Aktive brett',
+    liveIntro: '{n} brett er aktive akkurat nå.',
+    standingsTitle: '🏆 Aktuelle stillinger',
+    standingsIntro: 'Stilling på tvers av {n} aktive brett.',
+    teamsOne: '1 lag',
+    teamsMany: '{n} lag',
+    leader: 'ledet av {team} ({score})',
+  },
+
+  weekly: {
+    sotwTitle: '📈 {title}',
+    botwTitle: '⚔️ {title}',
+    sotwEmpty: 'Ingen Skill of the Week kjører i {clan} akkurat nå.',
+    botwEmpty: 'Ingen Boss of the Week kjører i {clan} akkurat nå.',
+    ends: 'Slutter {when}.',
+    noEntries: 'Ingen har meldt seg på ennå.',
+    you: 'Du: {place} av {total}.',
+    youNone: 'Du er ikke påmeldt — bli med via pluginen eller på nettsiden.',
+    fieldMetric: 'Metrikk',
+    fieldEntries: 'Påmeldte',
+  },
+
+  eff: {
+    title: '⚡ Effektivitet — {metric}',
+    empty: 'Ingen effektivitetsdata ennå — medlemmene trenger en stats-oppdatering først.',
+    you: 'Du: #{rank} av {total}.',
+    fieldRanked: 'Rangert',
+  },
+
+  coffer: {
+    title: '💰 {clan} — kiste',
+    none: 'Ingen kiste ennå — {clan} har ikke registrert noen gp-bevegelser.',
+    available: 'Tilgjengelig',
+    reserved: 'Reservert',
+    pending: 'Venter',
+    donorsHeading: '**Største givere**',
+    recentHeading: '**Siste bevegelser**',
+    needAccount:
+      'Koble Anvil-kontoen din på nettsiden først — endringer i kisten henger på nettside-innloggingen din, ikke Discord-navnet ditt.',
+    notStaff: 'Bare kasserere, admins og eiere kan flytte kisten.',
+    badAmount: 'Oppgi et beløp som skal legges til eller fjernes, f.eks. `5m` eller `2500000`.',
+    outOfRange: 'Det beløpet er utenfor gyldig område.',
+    added: '✅ La til {amount} i kisten — {available} tilgjengelig nå.',
+    removed: '✅ Fjernet {amount} fra kisten — {available} tilgjengelig nå.',
+  },
+
+  clog: {
+    title: '📖 {who} — collection log',
+    notSynced: '{who} har ikke synkronisert en collection log ennå — synkronisér den fra Anvil-pluginen.',
+    rankLine: '#{rank} av {total} samlere i {clan}.',
+    topHeading: '**Største samlere**',
+    slots: 'Slots',
+    collectors: 'Samlere',
+  },
+
+  luck: {
+    boardsTitle: '🍀 {clan} — flaks',
+    memberTitle: '🍀 {who} — flaks',
+    dryHeading: '**Tørrest**',
+    spoonedHeading: '**Heldigst**',
+    emptyBoards: 'Ingen flaksdata ennå — medlemmene må synkronisere collection log-ene sine.',
+    notSynced: '{who} har ikke synkronisert en collection log ennå.',
+    totalLine: 'Totalt: {net} på tvers av {items} sporede drops.',
+    fromLogs: 'Fra {n} synkroniserte logger.',
+  },
+
+  guide: {
+    notFound: 'Jeg har ingen guide med det navnet.',
+    stepsHeading: '**Trinn**',
+    stepsField: 'Trinn',
+    stepTitle: 'Trinn {n}/{total} — {title}',
+    noSuchStep: 'Denne guiden har {total} trinn — velg et tall fra 1 til {total}.',
+    readFull: '📖 Les hele guiden: {url}',
+    openStep: '🔗 Åpne dette trinnet på siden: {url}',
+    jumpHint: '-# Hopp til et trinn: `/guide topic:{topic} step:1`',
+  },
 };
 
 export default no;

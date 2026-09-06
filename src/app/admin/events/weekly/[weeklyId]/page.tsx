@@ -26,11 +26,12 @@ export default async function WeeklyHomePage({ params }: { params: Promise<{ wee
     verifyFeeCollector(),
   ]);
 
-  // The prize card only appears for a clan that runs a coffer, or one that has already promised
-  // something on this competition. A clan with no ledger has no gp to pay from, and offering the
-  // control anyway is how a host sets a ladder that can never be funded.
+  // The card is ALWAYS rendered. It used to hide itself when the clan had no coffer rows, which got
+  // the audience exactly backwards: `clanHasCoffer` means "has moved gp at least once", so the only
+  // people who saw the prize editor were the ones already using it, and a clan setting up its first
+  // one found a page with nothing on it and no word about why. An empty coffer is a sentence to say,
+  // not a control to withhold.
   const prizes = parseWeeklyPrizes(comp.prizes);
-  const showPrizes = hasCoffer || prizes.places.length > 0;
 
   return (
     <WeeklyHomeClient
@@ -46,16 +47,13 @@ export default async function WeeklyHomePage({ params }: { params: Promise<{ wee
       stage={weeklyStage(comp)}
       standings={standings}
       counts={counts}
-      prizes={
-        showPrizes
-          ? {
-              initial: prizes,
-              cofferAvailable: balance.available,
-              settledAt: comp.prizesSettledAt,
-              canEdit: Boolean(feeCollector),
-            }
-          : null
-      }
+      prizes={{
+        initial: prizes,
+        cofferAvailable: balance.available,
+        settledAt: comp.prizesSettledAt,
+        canEdit: Boolean(feeCollector),
+        hasCoffer,
+      }}
     />
   );
 }

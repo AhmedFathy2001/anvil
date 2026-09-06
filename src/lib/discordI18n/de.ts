@@ -208,6 +208,94 @@ const de: PartialDiscordDict = {
     unsupported: 'Diese Interaktionsart wird noch nicht unterstützt.',
     shareExpired: 'Diese Antwort ist zu alt zum Teilen — führ den Befehl noch einmal aus.',
   },
+
+  commands: {
+    sotw: 'Skill of the Week — Live-Tabelle',
+    botw: 'Boss of the Week — Live-Tabelle',
+    eff: 'Effizienz-Rangliste (EHP/EHB) und dein Platz darin',
+    coffer: 'Die Clankasse — Kontostand, Spender und Staff-Zu-/Abgänge',
+    clog: 'Sammel-Log — die Zahl eines Mitglieds und die Top-Sammler des Clans',
+    luck: 'Drop-Glück — die trockensten und glücklichsten des Clans, oder eines Mitglieds',
+    guide: 'Eine Einrichtungsanleitung lesen — Überblick oder ein Schritt, mit Link',
+  },
+
+  multi: {
+    liveTitle: '📋 Live-Bretter',
+    liveIntro: '{n} Bretter laufen gerade.',
+    standingsTitle: '🏆 Live-Tabelle',
+    standingsIntro: 'Tabelle über {n} laufende Bretter.',
+    teamsOne: '1 Team',
+    teamsMany: '{n} Teams',
+    leader: 'angeführt von {team} ({score})',
+  },
+
+  weekly: {
+    sotwTitle: '📈 {title}',
+    botwTitle: '⚔️ {title}',
+    sotwEmpty: 'In {clan} läuft gerade kein Skill of the Week.',
+    botwEmpty: 'In {clan} läuft gerade kein Boss of the Week.',
+    ends: 'Endet {when}.',
+    noEntries: 'Noch niemand ist dabei.',
+    you: 'Du: {place} von {total}.',
+    youNone: 'Du bist nicht dabei — mach im Plugin oder auf der Website mit.',
+    fieldMetric: 'Metrik',
+    fieldEntries: 'Teilnehmer',
+  },
+
+  eff: {
+    title: '⚡ Effizienz — {metric}',
+    empty: 'Noch keine Effizienzdaten — die Mitglieder brauchen erst einen Statistik-Durchlauf.',
+    you: 'Du: #{rank} von {total}.',
+    fieldRanked: 'Gewertet',
+  },
+
+  coffer: {
+    title: '💰 {clan} — Clankasse',
+    none: 'Noch keine Clankasse — {clan} hat keine gp-Bewegungen erfasst.',
+    available: 'Verfügbar',
+    reserved: 'Reserviert',
+    pending: 'Ausstehend',
+    donorsHeading: '**Top-Spender**',
+    recentHeading: '**Letzte Bewegungen**',
+    needAccount:
+      'Verknüpfe zuerst deinen Anvil-Account auf der Website — Kassenänderungen hängen an deinem Website-Login, nicht an deinem Discord-Namen.',
+    notStaff: 'Nur Schatzmeister, Admins und Owner können die Kasse bewegen.',
+    badAmount: 'Gib einen Betrag zum Hinzufügen oder Abziehen an, z. B. `5m` oder `2500000`.',
+    outOfRange: 'Dieser Betrag liegt außerhalb des zulässigen Bereichs.',
+    added: '✅ {amount} zur Kasse hinzugefügt — jetzt {available} verfügbar.',
+    removed: '✅ {amount} aus der Kasse entfernt — jetzt {available} verfügbar.',
+  },
+
+  clog: {
+    title: '📖 {who} — Sammel-Log',
+    notSynced: '{who} hat noch kein Sammel-Log synchronisiert — synchronisiere es im Anvil-Plugin.',
+    rankLine: '#{rank} von {total} Sammlern in {clan}.',
+    topHeading: '**Top-Sammler**',
+    slots: 'Slots',
+    collectors: 'Sammler',
+  },
+
+  luck: {
+    boardsTitle: '🍀 {clan} — Glück',
+    memberTitle: '🍀 {who} — Glück',
+    dryHeading: '**Am trockensten**',
+    spoonedHeading: '**Am glücklichsten**',
+    emptyBoards: 'Noch keine Glücksdaten — die Mitglieder müssen ihre Sammel-Logs synchronisieren.',
+    notSynced: '{who} hat noch kein Sammel-Log synchronisiert.',
+    totalLine: 'Insgesamt: {net} über {items} erfasste Drops.',
+    fromLogs: 'Aus {n} synchronisierten Logs.',
+  },
+
+  guide: {
+    notFound: 'Ich habe keine Anleitung mit diesem Namen.',
+    stepsHeading: '**Schritte**',
+    stepsField: 'Schritte',
+    stepTitle: 'Schritt {n}/{total} — {title}',
+    noSuchStep: 'Diese Anleitung hat {total} Schritte — wähl eine Zahl von 1 bis {total}.',
+    readFull: '📖 Die vollständige Anleitung lesen: {url}',
+    openStep: '🔗 Diesen Schritt auf der Website öffnen: {url}',
+    jumpHint: '-# Zu einem Schritt springen: `/guide topic:{topic} step:1`',
+  },
 };
 
 export default de;

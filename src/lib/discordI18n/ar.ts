@@ -202,6 +202,94 @@ const ar: PartialDiscordDict = {
     unsupported: 'هذا النوع من التفاعل غير مدعوم بعد.',
     shareExpired: 'هذه الإجابة أقدم من أن تُشارَك — شغّل الأمر من جديد.',
   },
+
+  commands: {
+    sotw: 'مهارة الأسبوع — الترتيب المباشر',
+    botw: 'زعيم الأسبوع — الترتيب المباشر',
+    eff: 'تصنيف الكفاءة (EHP/EHB) وموقعك فيه',
+    coffer: 'خزينة العشيرة — الرصيد والمتبرعون وإضافة/سحب المشرفين',
+    clog: 'سجل المجموعات — عدد العضو وأفضل الجامعين في العشيرة',
+    luck: 'حظ الغنائم — أجفّ أعضاء العشيرة وأوفرهم حظًا، أو عضو بعينه',
+    guide: 'اقرأ دليل الإعداد — نظرة عامة أو خطوة واحدة، مع رابط',
+  },
+
+  multi: {
+    liveTitle: '📋 لوحات مباشرة',
+    liveIntro: 'اللوحات المباشرة الآن: {n}.',
+    standingsTitle: '🏆 الترتيب المباشر',
+    standingsIntro: 'الترتيب عبر اللوحات المباشرة، وعددها {n}.',
+    teamsOne: 'فريق واحد',
+    teamsMany: 'فرق: {n}',
+    leader: 'يتصدّرها {team} ({score})',
+  },
+
+  weekly: {
+    sotwTitle: '📈 {title}',
+    botwTitle: '⚔️ {title}',
+    sotwEmpty: 'لا توجد مهارة أسبوع جارية في {clan} الآن.',
+    botwEmpty: 'لا يوجد زعيم أسبوع جارٍ في {clan} الآن.',
+    ends: 'ينتهي {when}.',
+    noEntries: 'لم يشارك أحد بعد.',
+    you: 'أنت: {place} من {total}.',
+    youNone: 'لست مشاركًا — انضم من الإضافة أو من الموقع.',
+    fieldMetric: 'المقياس',
+    fieldEntries: 'المشاركون',
+  },
+
+  eff: {
+    title: '⚡ الكفاءة — {metric}',
+    empty: 'لا بيانات كفاءة بعد — يحتاج الأعضاء إلى مسح إحصائي أولًا.',
+    you: 'أنت: #{rank} من {total}.',
+    fieldRanked: 'المصنّفون',
+  },
+
+  coffer: {
+    title: '💰 {clan} — الخزينة',
+    none: 'لا خزينة بعد — لم تسجّل {clan} أي حركة gp.',
+    available: 'متاح',
+    reserved: 'محجوز',
+    pending: 'قيد الانتظار',
+    donorsHeading: '**أبرز المتبرعين**',
+    recentHeading: '**آخر الحركات**',
+    needAccount:
+      'اربط حساب Anvil على الموقع أولًا — تغييرات الخزينة مرتبطة بتسجيل دخولك في الموقع لا باسم Discord.',
+    notStaff: 'أمناء الصندوق والمشرفون والمالكون وحدهم يمكنهم تحريك الخزينة.',
+    badAmount: 'حدّد مبلغًا للإضافة أو السحب، مثل `5m` أو `2500000`.',
+    outOfRange: 'هذا المبلغ خارج النطاق.',
+    added: '✅ أُضيف {amount} إلى الخزينة — {available} متاح الآن.',
+    removed: '✅ سُحب {amount} من الخزينة — {available} متاح الآن.',
+  },
+
+  clog: {
+    title: '📖 {who} — سجل المجموعات',
+    notSynced: 'لم يُزامن {who} سجل مجموعات بعد — زامنه من إضافة Anvil.',
+    rankLine: '#{rank} من {total} جامعًا في {clan}.',
+    topHeading: '**أبرز الجامعين**',
+    slots: 'الخانات',
+    collectors: 'الجامعون',
+  },
+
+  luck: {
+    boardsTitle: '🍀 {clan} — الحظ',
+    memberTitle: '🍀 {who} — الحظ',
+    dryHeading: '**الأجفّ حظًا**',
+    spoonedHeading: '**الأوفر حظًا**',
+    emptyBoards: 'لا بيانات حظ بعد — على الأعضاء مزامنة سجلات مجموعاتهم.',
+    notSynced: 'لم يُزامن {who} سجل مجموعات بعد.',
+    totalLine: 'الإجمالي: {net} عبر {items} غنيمة مُتتبَّعة.',
+    fromLogs: 'من سجلات مُزامَنة عددها {n}.',
+  },
+
+  guide: {
+    notFound: 'لا أملك دليلًا بهذا الاسم.',
+    stepsHeading: '**الخطوات**',
+    stepsField: 'الخطوات',
+    stepTitle: 'الخطوة {n}/{total} — {title}',
+    noSuchStep: 'هذا الدليل من {total} خطوات — اختر رقمًا من 1 إلى {total}.',
+    readFull: '📖 اقرأ الدليل كاملًا: {url}',
+    openStep: '🔗 افتح هذه الخطوة على الموقع: {url}',
+    jumpHint: '-# انتقل إلى خطوة: `/guide topic:{topic} step:1`',
+  },
 };
 
 export default ar;

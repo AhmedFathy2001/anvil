@@ -9,7 +9,7 @@
 # clan is added.
 set -eu
 
-JOB="${1:?usage: site-cron.sh <flush-notifications|stats|weekly|backup>}"
+JOB="${1:?usage: site-cron.sh <flush-notifications|stats|weekly|backup|discord-commands>}"
 LOG="${ANVIL_CRON_LOG:-/opt/anvil/site-cron.log}"
 ENV_FILE="${ANVIL_ENV_FILE:-/opt/anvil/site.env}"
 BASE="${ANVIL_CRON_BASE:-https://anvilosrs.com}"

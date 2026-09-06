@@ -105,6 +105,53 @@ export async function settleDonation(args: {
   return row ?? null;
 }
 
+/**
+ * A donation staff are RECORDING rather than approving, credited to one member or several.
+ *
+ * Two things it is not. It is not `fileDonation`, which is a member's claim about their own gift and
+ * waits for somebody to believe it — a treasurer typing this IS the approval, so the rows land
+ * approved. And it is not an adjustment, which belongs to nobody: the whole point of naming the
+ * donors is that the coffer page's top-donor list is the only thanks most of them get, and gp that
+ * arrived as "the clan" thanks nobody.
+ *
+ * Several people is ONE ROW EACH, not one row with a list. A donation from three people is three
+ * donations that happened to arrive together — it is what the ledger already means by a donation,
+ * what the top-donor sum already counts, and it survives one of them later being disputed.
+ */
+export async function recordDonations(args: {
+  clanId: number;
+  donors: { clanMemberId: number | null; rsn: string | null; amount: number }[];
+  userId: number | null;
+  note?: string | null;
+}): Promise<CofferEntry[]> {
+  const donors = args.donors
+    .map((d) => ({ ...d, amount: Math.floor(d.amount) }))
+    .filter((d) => d.amount > 0);
+  if (donors.length === 0) return [];
+
+  const now = new Date().toISOString();
+  const shared = donors.length > 1 ? `${args.note ? `${args.note} — ` : ''}part of a ${donors.length}-way donation` : args.note;
+  const rows = await db
+    .insert(cofferEntries)
+    .values(
+      donors.map((d) => ({
+        clanId: args.clanId,
+        kind: 'donation',
+        amount: d.amount,
+        status: 'approved',
+        clanMemberId: d.clanMemberId,
+        rsn: d.rsn,
+        createdByUserId: args.userId,
+        settledByUserId: args.userId,
+        settledAt: now,
+        note: shared ?? null,
+      })),
+    )
+    .returning();
+  for (const row of rows) announce(args.clanId, row);
+  return rows;
+}
+
 /** A staff correction: seed the pot, write off gp spent elsewhere, fix a fat-fingered donation. */
 export async function recordAdjustment(args: {
   clanId: number;

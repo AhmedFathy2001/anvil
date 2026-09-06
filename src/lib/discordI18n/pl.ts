@@ -211,6 +211,94 @@ const pl: PartialDiscordDict = {
     unsupported: 'Ten typ interakcji nie jest jeszcze obsługiwany.',
     shareExpired: 'Ta odpowiedź jest za stara, żeby ją udostępnić — uruchom komendę ponownie.',
   },
+
+  commands: {
+    sotw: 'Skill of the Week — wyniki na żywo',
+    botw: 'Boss of the Week — wyniki na żywo',
+    eff: 'Ranking wydajności (EHP/EHB) i twoje miejsce',
+    coffer: 'Skarbiec klanu — stan, darczyńcy, staff dodaje/odejmuje',
+    clog: 'Collection log — liczba osoby i najlepsi zbieracze klanu',
+    luck: 'Szczęście w dropach — najbardziej pechowi i szczęśliwi w klanie lub osoba',
+    guide: 'Przeczytaj poradnik — całość lub jeden krok, z linkiem',
+  },
+
+  multi: {
+    liveTitle: '📋 Plansze na żywo',
+    liveIntro: 'Aktywnych plansz teraz: {n}.',
+    standingsTitle: '🏆 Wyniki na żywo',
+    standingsIntro: 'Wyniki z aktywnych plansz — łącznie {n}.',
+    teamsOne: '1 drużyna',
+    teamsMany: 'drużyn: {n}',
+    leader: 'prowadzi {team} ({score})',
+  },
+
+  weekly: {
+    sotwTitle: '📈 {title}',
+    botwTitle: '⚔️ {title}',
+    sotwEmpty: 'W {clan} nie trwa teraz żaden Skill of the Week.',
+    botwEmpty: 'W {clan} nie trwa teraz żaden Boss of the Week.',
+    ends: 'Koniec {when}.',
+    noEntries: 'Nikt jeszcze nie dołączył.',
+    you: 'Ty: {place} z {total}.',
+    youNone: 'Nie bierzesz udziału — dołącz w pluginie lub na stronie.',
+    fieldMetric: 'Metryka',
+    fieldEntries: 'Zapisani',
+  },
+
+  eff: {
+    title: '⚡ Wydajność — {metric}',
+    empty: 'Brak jeszcze danych o wydajności — najpierw musi przejść aktualizacja statystyk.',
+    you: 'Ty: #{rank} z {total}.',
+    fieldRanked: 'W rankingu',
+  },
+
+  coffer: {
+    title: '💰 {clan} — skarbiec',
+    none: 'Jeszcze brak skarbca — {clan} nie zarejestrował żadnych ruchów gp.',
+    available: 'Dostępne',
+    reserved: 'Zarezerwowane',
+    pending: 'Oczekujące',
+    donorsHeading: '**Najwięksi darczyńcy**',
+    recentHeading: '**Ostatnie ruchy**',
+    needAccount:
+      'Najpierw podepnij swoje konto Anvil na stronie — zmiany w skarbcu są powiązane z logowaniem na stronie, a nie z nazwą z Discorda.',
+    notStaff: 'Tylko skarbnicy, admini i właściciele mogą ruszać skarbiec.',
+    badAmount: 'Podaj kwotę do dodania lub odjęcia, np. `5m` lub `2500000`.',
+    outOfRange: 'Ta kwota jest poza zakresem.',
+    added: '✅ Dodano {amount} do skarbca — teraz dostępne: {available}.',
+    removed: '✅ Odjęto {amount} ze skarbca — teraz dostępne: {available}.',
+  },
+
+  clog: {
+    title: '📖 {who} — collection log',
+    notSynced: '{who} nie zsynchronizował(a) jeszcze collection log — zsynchronizuj go w pluginie Anvil.',
+    rankLine: '#{rank} z {total} zbieraczy w {clan}.',
+    topHeading: '**Najlepsi zbieracze**',
+    slots: 'Sloty',
+    collectors: 'Zbieracze',
+  },
+
+  luck: {
+    boardsTitle: '🍀 {clan} — szczęście',
+    memberTitle: '🍀 {who} — szczęście',
+    dryHeading: '**Najbardziej pechowi**',
+    spoonedHeading: '**Najszczęśliwsi**',
+    emptyBoards: 'Brak jeszcze danych o szczęściu — członkowie muszą zsynchronizować swoje collection logi.',
+    notSynced: '{who} nie zsynchronizował(a) jeszcze collection log.',
+    totalLine: 'Łącznie: {net} na {items} śledzonych dropach.',
+    fromLogs: 'Z zsynchronizowanych logów: {n}.',
+  },
+
+  guide: {
+    notFound: 'Nie mam poradnika o takiej nazwie.',
+    stepsHeading: '**Kroki**',
+    stepsField: 'Kroki',
+    stepTitle: 'Krok {n}/{total} — {title}',
+    noSuchStep: 'Ten poradnik ma kroków: {total} — wybierz numer od 1 do {total}.',
+    readFull: '📖 Przeczytaj cały poradnik: {url}',
+    openStep: '🔗 Otwórz ten krok na stronie: {url}',
+    jumpHint: '-# Przejdź do kroku: `/guide topic:{topic} step:1`',
+  },
 };
 
 export default pl;

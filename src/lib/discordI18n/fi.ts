@@ -208,6 +208,94 @@ const fi: PartialDiscordDict = {
     unsupported: 'Tätä vuorovaikutustyyppiä ei vielä tueta.',
     shareExpired: 'Tuo vastaus on liian vanha jaettavaksi — aja komento uudelleen.',
   },
+
+  commands: {
+    sotw: 'Skill of the Week — livetilanne',
+    botw: 'Boss of the Week — livetilanne',
+    eff: 'Tehokkuus (EHP/EHB) — tulostaulu ja oma sijoituksesi',
+    coffer: 'Klaanikirstu — saldo, lahjoittajat ja staffin lisäys/poisto',
+    clog: 'Collection log — jäsenen määrä ja klaanin parhaat keräilijät',
+    luck: 'Droppionni — klaanin kuivin ja onnekkain, tai jäsenen',
+    guide: 'Lue asennusopas — yleiskatsaus tai yksi vaihe, linkin kanssa',
+  },
+
+  multi: {
+    liveTitle: '📋 Aktiiviset taulut',
+    liveIntro: '{n} taulua on aktiivisena juuri nyt.',
+    standingsTitle: '🏆 Aktiiviset tilanteet',
+    standingsIntro: 'Tilanne {n} aktiivisen taulun kesken.',
+    teamsOne: '1 joukkue',
+    teamsMany: '{n} joukkuetta',
+    leader: 'johdossa {team} ({score})',
+  },
+
+  weekly: {
+    sotwTitle: '📈 {title}',
+    botwTitle: '⚔️ {title}',
+    sotwEmpty: 'Klaanissa {clan} ei ole Skill of the Week -kisaa käynnissä juuri nyt.',
+    botwEmpty: 'Klaanissa {clan} ei ole Boss of the Week -kisaa käynnissä juuri nyt.',
+    ends: 'Päättyy {when}.',
+    noEntries: 'Kukaan ei ole vielä ilmoittautunut.',
+    you: 'Sinä: {place}/{total}.',
+    youNone: 'Et ole ilmoittautunut — liity mukaan lisäosassa tai sivustolla.',
+    fieldMetric: 'Mittari',
+    fieldEntries: 'Ilmoittautuneita',
+  },
+
+  eff: {
+    title: '⚡ Tehokkuus — {metric}',
+    empty: 'Ei vielä tehokkuusdataa — jäsenet tarvitsevat ensin tilastojen päivityksen.',
+    you: 'Sinä: #{rank}/{total}.',
+    fieldRanked: 'Sijoitettuja',
+  },
+
+  coffer: {
+    title: '💰 {clan} — kirstu',
+    none: 'Ei vielä kirstua — {clan} ei ole kirjannut yhtään gp-siirtoa.',
+    available: 'Käytettävissä',
+    reserved: 'Varattu',
+    pending: 'Odottaa',
+    donorsHeading: '**Suurimmat lahjoittajat**',
+    recentHeading: '**Viimeisimmät siirrot**',
+    needAccount:
+      'Yhdistä Anvil-tilisi sivustolla ensin — kirstun muutokset on sidottu sivuston kirjautumiseesi, ei Discord-nimeesi.',
+    notStaff: 'Vain rahastonhoitajat, adminit ja omistajat voivat siirtää kirstua.',
+    badAmount: 'Anna lisättävä tai poistettava summa, esim. `5m` tai `2500000`.',
+    outOfRange: 'Summa on sallitun alueen ulkopuolella.',
+    added: '✅ Lisättiin {amount} kirstuun — {available} käytettävissä nyt.',
+    removed: '✅ Poistettiin {amount} kirstusta — {available} käytettävissä nyt.',
+  },
+
+  clog: {
+    title: '📖 {who} — collection log',
+    notSynced: '{who} ei ole vielä synkronoinut collection logia — synkronoi se Anvil-lisäosasta.',
+    rankLine: '#{rank}/{total} keräilijästä klaanissa {clan}.',
+    topHeading: '**Parhaat keräilijät**',
+    slots: 'Slots',
+    collectors: 'Keräilijät',
+  },
+
+  luck: {
+    boardsTitle: '🍀 {clan} — onni',
+    memberTitle: '🍀 {who} — onni',
+    dryHeading: '**Kuivin**',
+    spoonedHeading: '**Onnekkain**',
+    emptyBoards: 'Ei vielä onnidataa — jäsenten täytyy synkronoida collection loginsa.',
+    notSynced: '{who} ei ole vielä synkronoinut collection logia.',
+    totalLine: 'Yhteensä: {net} yli {items} seuratun dropin.',
+    fromLogs: '{n} synkronoidusta lokista.',
+  },
+
+  guide: {
+    notFound: 'Minulla ei ole sen nimistä opasta.',
+    stepsHeading: '**Vaiheet**',
+    stepsField: 'Vaiheet',
+    stepTitle: 'Vaihe {n}/{total} — {title}',
+    noSuchStep: 'Tässä oppaassa on {total} vaihetta — valitse numero väliltä 1–{total}.',
+    readFull: '📖 Lue koko opas: {url}',
+    openStep: '🔗 Avaa tämä vaihe sivustolla: {url}',
+    jumpHint: '-# Hyppää vaiheeseen: `/guide topic:{topic} step:1`',
+  },
 };
 
 export default fi;

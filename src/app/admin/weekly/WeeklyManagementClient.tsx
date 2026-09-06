@@ -11,6 +11,9 @@ import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import Checkbox from '@/components/Checkbox';
+import WeeklyPrizeLadder from '@/components/WeeklyPrizeLadder';
+import { formatGp } from '@/lib/adminEventsFormat';
+import { NO_WEEKLY_PRIZES, type WeeklyPrizes } from '@/lib/weeklyPrizes';
 
 interface Competition {
   id: number;
@@ -36,7 +39,16 @@ interface Participant {
   clanStatus: string | null;
 }
 
-export default function WeeklyManagementClient() {
+export default function WeeklyManagementClient({
+  cofferAvailable,
+  hasCoffer,
+  canSetPrizes,
+}: {
+  cofferAvailable: number;
+  hasCoffer: boolean;
+  /** Treasurer or admin. A moderator gets the form without the money half of it. */
+  canSetPrizes: boolean;
+}) {
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -56,6 +68,7 @@ export default function WeeklyManagementClient() {
   const [endDate, setEndDate] = useState('');
   // Guests race too unless the admin says otherwise — the clan roster is the entry list.
   const [includeGuests, setIncludeGuests] = useState(true);
+  const [prizes, setPrizes] = useState<WeeklyPrizes>(NO_WEEKLY_PRIZES);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
 
@@ -100,7 +113,17 @@ export default function WeeklyManagementClient() {
     const res = await clanFetch('/api/admin/weekly', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, metric, title, startDate, endDate, includeGuests }),
+      // Only sent when there is something to send: the route refuses a ladder from anyone but a
+      // treasurer, and a moderator scheduling a free competition should not trip that.
+      body: JSON.stringify({
+        type,
+        metric,
+        title,
+        startDate,
+        endDate,
+        includeGuests,
+        ...(prizes.places.length > 0 ? { prizes } : {}),
+      }),
     });
 
     if (!res.ok) {
@@ -115,6 +138,7 @@ export default function WeeklyManagementClient() {
     setMetric('');
     setStartDate('');
     setEndDate('');
+    setPrizes(NO_WEEKLY_PRIZES);
     setCreating(false);
     fetchCompetitions();
   }
@@ -483,6 +507,27 @@ export default function WeeklyManagementClient() {
                 keep this one to full members; you can still add or remove individuals afterwards.
               </p>
             </div>
+
+            {canSetPrizes && (
+              <div className="border-t border-card-border pt-4">
+                <div className="flex items-center justify-between gap-3 flex-wrap mb-1">
+                  <p className="text-sm font-medium">Prizes (optional)</p>
+                  <span className="text-[11px] text-text-muted">
+                    {formatGp(cofferAvailable)} gp available in the coffer
+                  </span>
+                </div>
+                <p className="text-[11px] text-text-muted mb-3 leading-snug">
+                  Paid out of the clan coffer when it ends, off the final standings. Leave it empty and
+                  set them later from the competition's own page — nothing is reserved until it finishes.
+                </p>
+                <WeeklyPrizeLadder
+                  value={prizes}
+                  onChange={setPrizes}
+                  cofferAvailable={cofferAvailable}
+                  hasCoffer={hasCoffer}
+                />
+              </div>
+            )}
 
 
             {createError && <p className="text-red-400 text-sm">{createError}</p>}

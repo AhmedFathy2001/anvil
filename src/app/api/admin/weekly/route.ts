@@ -7,6 +7,8 @@ import { eq, count } from 'drizzle-orm';
 import { enrollAllPlayers } from '@/lib/weekly';
 import { notifyWeeklyStart } from '@/lib/discord';
 import { EFFICIENCY_METRICS } from '@/lib/constants';
+import { verifyFeeCollector } from '@/lib/auth';
+import { parseWeeklyPrizes, serializeWeeklyPrizes } from '@/lib/weeklyPrizes';
 
 export async function GET() {
   const user = await verifyAdminOrModerator();
@@ -44,7 +46,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { type, metric, title, startDate, endDate, includeGuests } = await request.json();
+  const { type, metric, title, startDate, endDate, includeGuests, prizes } = await request.json();
 
   if (!type || !metric || !title || !startDate || !endDate) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -57,6 +59,21 @@ export async function POST(request: Request) {
   // the two our engine computes. A typo here would otherwise create a comp that never scores.
   if (type === 'efficiency' && !EFFICIENCY_METRICS.some((m) => m.key === metric)) {
     return NextResponse.json({ error: 'Efficiency metric must be ehp or ehb' }, { status: 400 });
+  }
+
+  // A ladder may ride along with the competition, so a host sets the prizes in the same breath as
+  // the dates rather than creating the week and then going to find where prizes live. It is the one
+  // field here a moderator may not set: the rest of this form schedules a competition, and this
+  // spends the clan's money — the same grant the dedicated prizes route asks for.
+  let prizesJson: string | null = null;
+  if (prizes) {
+    if (!(await verifyFeeCollector())) {
+      return NextResponse.json(
+        { error: 'Only a treasurer or admin can set the prizes. Create the competition without them and ask one to add them.' },
+        { status: 403 },
+      );
+    }
+    prizesJson = serializeWeeklyPrizes(parseWeeklyPrizes(JSON.stringify(prizes)));
   }
 
   // Determine initial status based on dates
@@ -78,6 +95,7 @@ export async function POST(request: Request) {
     // Guests race alongside members unless the admin unticked the box. Absent (an older client)
     // means include — the clan roster is the entry list, and a weekly is a clan-wide activity.
     includeGuests: includeGuests === false ? 0 : 1,
+    prizes: prizesJson,
   }).returning();
 
   const comp = result[0];

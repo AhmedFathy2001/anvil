@@ -10,18 +10,17 @@
 // exactly what exists), which makes it idempotent and safe to re-run on every boot and every time a
 // clan connects a bot — no diffing, no drift, and a failed attempt heals itself next time.
 //
-// WHO RUNS IT. A managed clan is on the SHARED Anvil application, whose commands the control plane
-// owns and registers once globally. Every clan container re-registering that same application would
-// be N redundant writes racing each other for no benefit, so this refuses to run on a shared token.
-// Only a clan with its own bot — self-hosted, or bring-your-own on a managed instance — registers.
+// WHO RUNS IT. The one multi-clan deployment IS the registrar now — Anvil.Admin is retired. It holds
+// the shared bot token (ANVIL_SHARED_BOT_TOKEN) and registers that application's commands GLOBALLY:
+// one set that every server the bot is in receives, including clans that onboard next month. That is
+// syncGlobalCommands, run on boot and by the daily cron (both idempotent full-set PUTs, so a deploy
+// that changed the tree lands on the next of either). A BYO or self-hosted clan has its OWN
+// application and registers against it (syncClanCommands, below) — guild-scoped so a connect shows
+// up immediately, and NEVER globally, or Discord lists every command twice.
 
 import { buildLocalizedCommands } from '@/lib/discordCommandDefs';
 import { sharedBotToken } from '@/lib/discord-roles';
-import { getBotTokenOnly, getBotTokenSource } from '@/lib/discord-roles';
 import { log } from '@/lib/logger';
-import { db } from '@/db';
-import { settings } from '@/db/schema';
-import { eq } from 'drizzle-orm';
 
 const API = 'https://discord.com/api/v10';
 
@@ -80,7 +79,6 @@ async function put(token: string, path: string, body: unknown): Promise<Response
  */
 export async function syncClanCommands(): Promise<CommandSyncResult> {
   const token = sharedBotToken();
-  // The control plane owns the shared application's commands (see the note at the top).
   if (!token) return { ok: false, reason: 'no-bot-token' };
 
   const resolved = token;
@@ -125,6 +123,42 @@ export async function syncClanCommands(): Promise<CommandSyncResult> {
   return { ok: true, scope, count: registered.length };
 }
 
+/**
+ * Register the SHARED bot's commands GLOBALLY — the whole platform's registration in one PUT.
+ *
+ * This is the multi-clan platform's path and the multi-clan platform's ONLY: it keys on
+ * ANVIL_SHARED_BOT_TOKEN specifically, not sharedBotToken(), so a self-host (which carries
+ * DISCORD_BOT_TOKEN and registers guild-scoped) can never trip this and end up with a global copy of
+ * every command sitting alongside its guild copy — Discord would then show each one twice.
+ *
+ * Idempotent: a full-set PUT, safe to run on boot and again from the daily cron. Global registration
+ * takes up to an hour to propagate, which is why it is a self-heal backstop and not the only path.
+ * `not-shared` is a normal answer, not a failure — a deployment that isn't the shared platform simply
+ * has nothing to do here.
+ */
+export async function syncGlobalCommands(): Promise<CommandSyncResult> {
+  const token = process.env.ANVIL_SHARED_BOT_TOKEN?.trim();
+  if (!token) return { ok: false, reason: 'not-shared' };
+
+  const appRes = await fetch(`${API}/applications/@me`, {
+    headers: { Authorization: `Bot ${token}` },
+    signal: AbortSignal.timeout(10_000),
+  }).catch(() => null);
+  if (!appRes?.ok) return { ok: false, scope: 'global', reason: `app-lookup-${appRes?.status ?? 'unreachable'}` };
+  const app = (await appRes.json().catch(() => null)) as { id?: string } | null;
+  if (!app?.id) return { ok: false, scope: 'global', reason: 'app-lookup-malformed' };
+
+  const res = await put(token, `/applications/${app.id}/commands`, await buildLocalizedCommands());
+  if (!res?.ok) {
+    const detail = res ? `${res.status}: ${await res.text().catch(() => '')}`.slice(0, 300) : 'unreachable';
+    log.warn('discord-commands.global-sync-failed', { detail });
+    return { ok: false, scope: 'global', reason: detail };
+  }
+  const registered = (await res.json().catch(() => [])) as unknown[];
+  log.info('discord-commands.global-synced', { count: registered.length });
+  return { ok: true, scope: 'global', count: registered.length };
+}
+
 /** Fire-and-forget wrapper for the side paths (settings save, boot). Never throws, never blocks. */
 export function syncClanCommandsInBackground(trigger: string): void {
   void syncClanCommands()
@@ -134,4 +168,15 @@ export function syncClanCommandsInBackground(trigger: string): void {
       }
     })
     .catch((e) => log.warn('discord-commands.sync-threw', { trigger, error: (e as Error).message }));
+}
+
+/** Fire-and-forget global sync for the shared platform's boot hook. Never throws, never blocks. */
+export function syncGlobalCommandsInBackground(trigger: string): void {
+  void syncGlobalCommands()
+    .then((r) => {
+      if (!r.ok && r.reason !== 'not-shared') {
+        log.warn('discord-commands.global-sync-skipped', { trigger, reason: r.reason });
+      }
+    })
+    .catch((e) => log.warn('discord-commands.global-sync-threw', { trigger, error: (e as Error).message }));
 }
