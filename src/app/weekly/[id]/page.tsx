@@ -117,6 +117,7 @@ export default async function WeeklyLeaderboardPage({
                 trackableTotal={view.trackableTotal}
                 trackedTotal={view.trackedTotal}
                 guestGain={view.guestGain}
+                pendingTotal={view.pendingTotal}
               />
               <DayStrip
                 days={view.days}

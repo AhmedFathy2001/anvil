@@ -77,6 +77,7 @@ export function RaceChart({
   trackableTotal,
   trackedTotal,
   guestGain,
+  pendingTotal,
 }: {
   entries: CompetitionEntry[];
   days: string[];
@@ -92,6 +93,8 @@ export function RaceChart({
   trackableTotal: number;
   trackedTotal: number;
   guestGain: number;
+  /** Gains placed on today because the hiscores have not caught up — see competitionView. */
+  pendingTotal: number;
 }) {
   const top = entries.slice(0, 5).filter((e) => e.gained > 0);
   if (top.length === 0 || elapsed < 2) return null;
@@ -177,14 +180,17 @@ export function RaceChart({
         ))}
       </div>
 
-      {coverage < 0.95 && (
+      {(pendingTotal > 0 || guestGain > 0) && (
         <p className="mt-3 border-t border-card-border/60 pt-3 text-[11.5px] leading-relaxed text-text-muted">
-          The day-by-day accounts for{' '}
-          <b className="font-semibold text-foreground">{shortValue(trackedTotal, type)}</b> of the{' '}
-          <b className="font-semibold text-foreground">{shortValue(trackableTotal, type)}</b> gained by clan
-          members{coverage > 0 && <> ({Math.round(coverage * 100)}%)</>}. A gain only lands on a day once the
-          sweep has an earlier snapshot to compare against, so the days before it first saw a member
-          aren&apos;t in here.
+          {pendingTotal > 0 && (
+            <>
+              <b className="font-semibold text-foreground">{shortValue(pendingTotal, type)}</b> of this is
+              shown on today because the hiscores have not caught up with the plugin yet. It is counted
+              either way — the plugin reports a kill immediately and the standings use it, while a day-by-day
+              line can only be drawn from hiscores readings. Those kills are the newest ones, so today is
+              where they belong; the shape settles as the hiscores absorb them.
+            </>
+          )}
           {guestGain > 0 && (
             <>
               {' '}

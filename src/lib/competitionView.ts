@@ -129,6 +129,12 @@ export interface CompetitionView {
   trust: DailyTrust;
   /** Fraction of trackableTotal the daily rows account for, for the copy that explains a thin week. */
   coverage: number;
+  /**
+   * How much of the week is sitting on TODAY because the hiscores have not caught up with the
+   * plugin yet. Not an error — the standings already count it — but it is why the shape can look
+   * back-loaded, and the chart says so rather than letting someone wonder.
+   */
+  pendingTotal: number;
 }
 
 const UNIT: Record<CompetitionType, string> = { skill: 'XP', boss: 'KC', efficiency: 'hours' };
@@ -232,8 +238,34 @@ export async function buildCompetitionView(
     participants.filter((p) => p.clanMemberId != null && viewerMemberIds.includes(p.clanMemberId)).map((p) => p.rsn),
   );
 
+  // THE CHART HAS TO AGREE WITH THE STANDINGS.
+  //
+  // A competition scores off the hiscores PLUS the plugin's live overlay, so it counts a kill the
+  // moment the plugin reports it. The daily series has only the hiscores, because that is the only
+  // source with a per-day history — and until the hiscores absorb those kills, the two disagree.
+  //
+  // Disagreeing quietly is the worst of the options. On a live board it drew SPO0KZ at 35 against
+  // Drenvox at 12 while the leaderboard beside it read 41 and 43 — the chart said the wrong person
+  // was winning, which is exactly what the coverage guard exists to prevent and what it let through
+  // at 56%.
+  //
+  // So the unattributed remainder lands on the CURRENT day. For the overlay — the usual case — that
+  // is where it belongs: those kills happened since the last hiscores read, which is hours ago, not
+  // days. For somebody the sweep first saw mid-week it is the wrong DAY but the right TOTAL, and a
+  // shape that is coarse beats a ranking that is wrong. The caption says so either way.
+  const dayIndex = Math.max(0, elapsed - 1);
+  let pendingTotal = 0;
   const entries: CompetitionEntry[] = board.map((b) => {
-    const s = seriesByRsn.get(b.rsn) ?? { rsn: b.rsn, days: days.map(() => 0) };
+    const base = seriesByRsn.get(b.rsn) ?? { rsn: b.rsn, days: days.map(() => 0) };
+    const recorded = base.days.slice(0, elapsed).reduce((sum, d) => sum + d, 0);
+    // Only ever adds. A member whose hiscores have run AHEAD of the competition's own total (a
+    // corrected baseline, a re-probe) must not have their line pulled backwards.
+    const pending = Math.max(0, b.gained - recorded);
+    if (trackableRsns.has(b.rsn)) pendingTotal += pending;
+    const s =
+      pending > 0
+        ? { ...base, days: base.days.map((d, i) => (i === dayIndex ? d + pending : d)) }
+        : base;
     const flag = flagByRsn.get(b.rsn);
     return {
       rsn: b.rsn,
@@ -249,8 +281,11 @@ export async function buildCompetitionView(
     };
   });
 
-  const totals = dailyTotals(series, days.length);
-  const leaders = dailyLeaders(series, days.length);
+  // Rebuilt from the reconciled entries so the clan's per-day totals, the day leaders and the race
+  // chart all tell the same story as the standings.
+  const reconciled = entries.map((e) => ({ rsn: e.rsn, days: e.days }));
+  const totals = dailyTotals(reconciled, days.length);
+  const leaders = dailyLeaders(reconciled, days.length);
   const clanTotal = entries.reduce((s, e) => s + Math.max(0, e.gained), 0);
   const trackedTotal = entries.reduce((s, e) => s + Math.max(0, e.trackedGain), 0);
   // The denominator for "did we watch this week" is what COULD have been watched. A guest has no
@@ -331,6 +366,7 @@ export async function buildCompetitionView(
         : [],
     trust,
     coverage,
+    pendingTotal,
   };
 }
 
