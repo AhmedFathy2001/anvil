@@ -517,3 +517,32 @@ test('a variant rate we cannot count takes its item off the board', () => {
   // so the honest answer is that this one is not measurable rather than a number nobody can trust.
   assert.equal(board().get('yami'), undefined);
 });
+
+test('a raid supply tier is not a unique table', () => {
+  // A raid chest rolls one big group of bulk consumables at a single share. Almost none are log
+  // items so they never reached the board, but the two or three that are (Dark relic, Torn prayer
+  // scroll, Cache of runes) were modelled at 1-in-990 raids while arriving every few — one member
+  // showed 72 dark relics against 1.4 expected.
+  for (const item of ['dark relic', 'torn prayer scroll', 'cache of runes']) {
+    assert.equal(board().get(item), undefined, `${item} is bulk supply, not a unique`);
+  }
+});
+
+test('a reward paid as a stack is not that many drops', () => {
+  // The log counts ITEMS, so one roll paying 30 vials reads as 30 successes: "Vial of blood —
+  // 1,563 of 0.2 expected", which alone dragged a personal score to "luckier than 100% of
+  // outcomes". raidRewards.json has no quantity column to divide by.
+  assert.equal(board().get('vial of blood'), undefined);
+});
+
+test('the real raid uniques survive both rules', () => {
+  for (const item of [
+    'twisted bow',
+    'scythe of vitur (uncharged)',
+    'ghrazi rapier',
+    'avernic defender hilt',
+    "lil' zik",
+  ]) {
+    assert.ok(board().has(item), `${item} is a genuine unique and must stay on the board`);
+  }
+});

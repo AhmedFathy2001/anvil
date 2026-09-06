@@ -1,4 +1,5 @@
 import raidRewards from '@/data/raidRewards.json';
+import { clogItemNames } from '@/lib/clogDataset';
 import type { LuckRateSource } from '@/lib/clogProfile';
 
 // Raid luck, and the one number we have to assume to get it.
@@ -75,8 +76,51 @@ const SHARES_UNIQUE_TABLE: Record<string, { base: string; label: string }> = {
   tombsOfAmascutExpertMode: { base: 'tombsOfAmascut', label: 'Tombs of Amascut (expert mode)' },
 };
 
+/**
+ * Raid rewards a per-kill rate cannot describe, so the luck board leaves them alone.
+ *
+ * TWO KINDS, both of which put people on the spooned board for nothing.
+ *
+ * SUPPLY TIERS. A raid chest rolls one big group of bulk consumables — death runes, grimy herbs,
+ * ores, uncut gems — filed at a single share alongside the uniques. Almost none of them are
+ * collection log items, so they never reached the board; the two or three that ARE (Dark relic,
+ * Torn prayer scroll, Cache of runes) were modelled at 1-in-990 raids while arriving every few.
+ * One member showed 72 dark relics against 1.4 expected. Detected rather than listed: a tier is
+ * supply when it is a crowd and the collection log wants almost none of it, which is what separates
+ * Chambers' 33 items from Theatre hard mode's five uniques that happen to share a rate.
+ *
+ * STACKS. The collection log counts ITEMS, not drops, so one roll that pays 30 vials of blood reads
+ * as 30 successes. That is the whole of "Vial of blood — 1,563 of 0.2 expected", and it dragged a
+ * personal score to "luckier than 100% of outcomes". `raidRewards.json` carries no quantity field
+ * at all, so unlike npcDrops (whose q/m/n `bundleSize` already divides correctly) there is nothing
+ * to divide BY. Listed explicitly rather than guessed: marking an item unscoreable needs only the
+ * knowledge that it stacks, while scoring it would need an average nobody here has.
+ */
+const STACKED_RAID_REWARDS = new Set<number>([
+  22446, // Vial of blood — Theatre of Blood pays these in a stack
+]);
+
+/** A tier is bulk supply when it is a crowd the collection log almost entirely ignores. */
+function supplyTierItems(table: RaidTable, isLogged: (id: number) => boolean): Set<number> {
+  const byShare = new Map<number, number[]>();
+  for (const item of table.items) {
+    byShare.set(item.d, [...(byShare.get(item.d) ?? []), item.i]);
+  }
+  const supply = new Set<number>();
+  for (const ids of byShare.values()) {
+    if (ids.length < 5) continue; // a handful sharing a rate is a unique table, not a supply roll
+    const logged = ids.filter(isLogged);
+    if (logged.length * 2 >= ids.length) continue; // mostly log items — these are the uniques
+    for (const id of logged) supply.add(id);
+  }
+  return supply;
+}
+
 export function raidSourcesByItem(overrides?: unknown): Map<number, LuckRateSource[]> {
   const chances = raidUniqueChances(overrides);
+  // What the collection log actually lists, which is how a supply tier is told from a unique one.
+  const logged = clogItemNames();
+  const isLogged = (id: number) => logged.has(id);
   const raw = raidRewards as unknown as Record<string, RaidTable>;
   const tables: Record<string, RaidTable> = { ...raw };
   for (const [key, { base, label }] of Object.entries(SHARES_UNIQUE_TABLE)) {
@@ -88,8 +132,10 @@ export function raidSourcesByItem(overrides?: unknown): Map<number, LuckRateSour
   for (const [bossKey, table] of Object.entries(tables)) {
     const unique = chances[bossKey];
     if (!Number.isFinite(unique) || unique <= 0) continue;
+    const supply = supplyTierItems(table, isLogged);
     for (const item of table.items) {
       if (!Number.isFinite(item.d) || item.d <= 0) continue;
+      if (supply.has(item.i) || STACKED_RAID_REWARDS.has(item.i)) continue;
       const list = out.get(item.i) ?? [];
       list.push({
         source: table.label,
