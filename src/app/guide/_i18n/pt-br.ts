@@ -33,6 +33,12 @@ const ptBr: PartialGuideDict = {
       running: 'Conduzindo um evento',
       clan: 'Tocando o clã',
     },
+    search: {
+      placeholder: 'Busque nos guias — tente "webhook", "casas" ou "os drops não aparecem"',
+      results: '{n} guias',
+      empty: 'Nada encontrado. Tente uma palavra mais simples — "casas", "pagamento", "bot" — ou percorra a lista abaixo.',
+      clear: 'Limpar a busca',
+    },
     cards: {
       discord: {
         eyebrow: 'Para quem cuida do servidor',
@@ -86,6 +92,13 @@ const ptBr: PartialGuideDict = {
         title: 'Taxas e premiação',
         blurb:
           'Cobrar uma taxa de inscrição, recebê-la, a segunda assinatura que a encerra, e transformar o bolo em pagamentos feitos.',
+        minutes: '~5 min',
+      },
+      coffer: {
+        eyebrow: 'Para tesoureiros',
+        title: 'O caixa do clã',
+        blurb:
+          'Um caixa para o gp do clã: o que entra, as três formas de pagar prêmios e quem pode mexer nele.',
         minutes: '~5 min',
       },
       moderator: {
@@ -1706,6 +1719,135 @@ const ptBr: PartialGuideDict = {
     },
   },
 
+  coffer: {
+    metaTitle: 'O caixa do clã — guia Anvil para tesoureiros',
+    metaDescription:
+      'O caixa de gp do clã no Anvil: registrar doações e creditá-las a quem doou, as três formas de pagar um prêmio, quem pode mover o dinheiro e o que acontece quando o caixa não dá.',
+    eyebrow: 'Anvil · para tesoureiros',
+    title: 'O caixa do clã',
+    dek: 'A maioria dos clãs guarda o gp no banco de alguém e a contabilidade na memória de alguém. O caixa é um único bolo com uma linha para cada movimento — quem deu, para que está prometido e quem de fato enviou.',
+    facts: [
+      { strong: '3 números', rest: 'em caixa, comprometido, livre para prometer' },
+      { strong: '3 saídas', rest: 'competições semanais, casas de missão, o bolo de um board' },
+      { strong: 'Tesoureiro', rest: 'ou admin — nunca o cargo sozinho' },
+    ],
+    footnote:
+      'Tudo isso fica em Admin → **Coffer**, exceto as escadas de prêmio, que vivem naquilo pelo qual se paga. A metade pública é `/coffer`: o saldo, os maiores doadores e os movimentos recentes, para os membros.',
+
+    what: {
+      title: 'O que é',
+      body: [
+        'Um livro-caixa, não uma carteira. O Anvil nunca guarda o gp de vocês — ele fica onde o clã já o mantém — então o caixa é o registro do que entrou, do que foi prometido e do que realmente foi entregue. A utilidade está em a promessa e o pagamento serem duas linhas diferentes.',
+        'A página começa com três números, e são três porque respondem a três perguntas diferentes:',
+      ],
+      rows: [
+        {
+          term: 'Em caixa',
+          body: 'doações aprovadas e ajustes. O que o clã recebeu, menos o que deu como perdido.',
+        },
+        {
+          term: 'Comprometido',
+          body: 'gp que um prêmio reivindicou — ganho mas ainda não enviado, mais qualquer bolo separado para um board. Reservado, mesmo que ainda esteja no banco de alguém.',
+        },
+        {
+          term: 'Livre para prometer',
+          body: 'em caixa menos comprometido. O único número contra o qual um prêmio novo é conferido, porque a alternativa é prometer os mesmos 50M a dois vencedores enquanto o tesoureiro dorme.',
+        },
+      ],
+      note: {
+        tag: 'Uma doação pendente não conta em lugar nenhum',
+        body: 'Alguém digitar «doei 100M» é uma afirmação sobre o passado, não gp num banco. Ela fica fora dos três números até a equipe reconhecê-la, de modo que nunca financia um prêmio que depois não se consegue pagar.',
+      },
+    },
+
+    inbound: {
+      title: 'Fazer gp entrar',
+      body: [
+        'Dois caminhos, que só diferem em quem os começa. Um membro declara a própria doação em `/coffer` e ela espera que a equipe acredite; um tesoureiro registra uma que já chegou, e o simples ato de digitá-la **é** a aprovação.',
+        'De um jeito ou de outro, ela é creditada a uma **pessoa**. Isso pesa mais do que parece: a lista de maiores doadores na página pública é o único agradecimento que a maioria vai receber, e gp que chega como «o clã» não agradece a ninguém.',
+      ],
+      rows: [
+        {
+          term: 'Um membro declara',
+          body: 'pela página pública do caixa, com print se tiver. Chega como pendente e aparece na sua fila. Aprovar é o que a transforma em dinheiro de verdade.',
+        },
+        {
+          term: 'Você registra',
+          body: 'Admin → Coffer → **Record a donation**. Procure na lista quem doou, ponha um valor ao lado do nome, pronto. Convidados também podem ser creditados — quem não é membro pleno pode perfeitamente ter contribuído.',
+        },
+        {
+          term: 'Várias pessoas juntas',
+          body: 'selecione todas, digite o total e aperte **Split**, depois ajuste uma cota à mão se precisar. Ele escreve uma linha para cada uma em vez de uma linha com uma lista, então cada uma aparece na lista de doadores com o próprio nome.',
+        },
+      ],
+      note: {
+        tag: 'Um ajuste é outra coisa',
+        body: '**Correct the pot** serve para gp que se moveu fora de tudo isso — dar o pontapé inicial no caixa, gastá-lo em algo que o Anvil nunca viu, corrigir um erro. De propósito não pertence a ninguém, e deliberadamente não é o jeito de registrar uma doação.',
+      },
+    },
+
+    out: {
+      title: 'As três formas de pagar',
+      intro: 'Todo prêmio no Anvil sai desse mesmo bolo, e cada caminho decide os vencedores de um jeito. Configure a escada onde vive aquilo que se ganha — o caixa nunca pergunta quem ganhou o quê.',
+      rows: [
+        {
+          term: 'Uma semanal, na própria página',
+          body: 'um Skill ou Boss of the Week carrega uma escada de colocações: o primeiro leva isto, o segundo aquilo. É liquidada **uma vez**, quando a competição termina, pela classificação final — enquanto ela roda nada muda de mãos. Configure ao criar a competição, ou depois pela página dela.',
+        },
+        {
+          term: 'Uma casa de missão, no board',
+          body: 'missões pagam na ordem em que as pessoas terminam, então a escada é reivindicada em vez de liquidada: o primeiro time a fechá-la leva o gp do primeiro lugar. Configura-se na seção rewards da casa, em qualquer board que permita missões.',
+        },
+        {
+          term: 'O bolo de prêmios de um board',
+          body: 'um bingo divide o próprio bolo entre as colocações, então o caixa só lhe entrega um número. Event → **Payouts** → *From the clan coffer*. Ele soma às inscrições e ao que você acrescentou à mão, e a divisão entre colocações é definida nessa mesma página.',
+        },
+      ],
+      note: {
+        tag: 'Quando dá empate',
+        body: 'Uma escada semanal pode **dividir empates**: todos os empatados juntam as colocações que ocupam e levam uma parte igual, então três jogadores com 40 kc cada levam um terço do primeiro, segundo e terceiro em vez de o primeiro deles levar tudo. Deixe desligado e a ordem da tabela decide. As duas escolhas se defendem — decidir depois de sair o resultado, não.',
+      },
+    },
+
+    who: {
+      title: 'Quem pode mover',
+      intro: 'Dinheiro é uma permissão à parte, não um cargo. Um moderador pode aprovar uma submissão e nunca tocar no caixa, e isso é proposital, não esquecimento.',
+      rows: [
+        {
+          term: 'Tesoureiro ou admin',
+          body: 'o livro inteiro: registrar e aprovar doações, ajustar o caixa, configurar escadas de prêmio, marcar um prêmio como enviado. O dono conta como admin aqui.',
+        },
+        {
+          term: 'Um moderador',
+          body: 'nada disso. Nem verá a página do caixa — arrecadar dinheiro é trabalho do tesoureiro, e o cargo sozinho nunca deu esse direito.',
+        },
+        {
+          term: 'Um tesoureiro de board',
+          body: 'o dinheiro de um evento: as taxas, os pagamentos, o bolo de prêmios. Concedido por board, é assim que um clã visitante toca a própria metade de um clã contra clã sem receber a sua contabilidade. No caixa do clã ele não mexe.',
+        },
+        {
+          term: 'Qualquer membro',
+          body: 'pode declarar uma doação e ler a página pública. É só isso.',
+        },
+      ],
+      note: {
+        tag: 'Conte ao clã, num canal',
+        body: 'Aponte **Coffer channel** para um canal do Discord em Admin → Settings → Webhooks e cada movimento é publicado com o saldo que deixa para trás. É o único feed sem plano B: deixe vazio e nada sobre o dinheiro é publicado em lugar nenhum. Veja [Anvil no Discord]({discordGuide}).',
+      },
+    },
+
+    short: {
+      title: 'Quando o caixa não dá',
+      body: [
+        'Um prêmio maior que o caixa não é recusado. É lançado como **devido e sem cobertura** — uma linha de verdade, com o nome de um vencedor — porque a alternativa é um vencedor sem nada e sem registro de que algo lhe foi prometido.',
+        'A solução, então, é a de sempre: fazer gp entrar e depois pagar. O que não se deve fazer é alterar a escada em silêncio depois; o livro já diz o que foi anunciado, e vê-los se contradizer é pior do que estar curto.',
+      ],
+      note: {
+        tag: 'O Anvil não envia nada',
+        body: 'Todo prêmio termina com uma pessoa entregando gp no jogo e marcando uma linha. O trabalho do livro é garantir que essa linha exista, que diga quem e quanto, e que uma semana depois ninguém precise reconstruí-la pelo histórico do Discord.',
+      },
+    },
+  },
   moderator: {
     metaTitle: 'De plantão — guia do moderador do Anvil',
     metaDescription:

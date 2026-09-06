@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
 import { formatGp, parseGpInput } from '@/lib/adminEventsFormat';
+import GuideLink from '@/components/GuideLink';
 
 interface PoolState {
   funded: number;
@@ -89,7 +90,10 @@ export default function CofferPoolCard({
     <div className="border-t border-card-border pt-4">
       <div className="flex items-center justify-between gap-3 flex-wrap mb-1">
         <p className="text-sm font-medium">From the clan coffer</p>
-        <span className="text-xs text-text-muted">{formatGp(state.balance.available)} gp available</span>
+        <div className="flex items-center gap-3">
+          <GuideLink href="/guide/coffer#out">How prizes work</GuideLink>
+          <span className="text-xs text-text-muted">{formatGp(state.balance.available)} gp available</span>
+        </div>
       </div>
       <p className="text-xs text-text-muted mb-3">
         Adds to this board&apos;s prize pool and comes straight out of the coffer, where it shows as

@@ -33,6 +33,12 @@ const fi: PartialGuideDict = {
       running: 'Tapahtuman pyörittäminen',
       clan: 'Klaanin pyörittäminen',
     },
+    search: {
+      placeholder: 'Hae oppaista — kokeile "webhook", "ruudut" tai "dropit eivät näy"',
+      results: '{n} opasta',
+      empty: 'Ei osumia. Kokeile tavallisempaa sanaa — "ruudut", "maksu", "botti" — tai selaa alla olevaa listaa.',
+      clear: 'Tyhjennä haku',
+    },
     cards: {
       discord: {
         eyebrow: 'Sille joka hoitaa palvelinta',
@@ -79,6 +85,13 @@ const fi: PartialGuideDict = {
         title: 'Maksut ja palkintojen jako',
         blurb:
           'Osallistumismaksun asettaminen, sen kerääminen, toinen allekirjoitus joka sulkee sen, ja potin muuttaminen maksetuiksi sijoituksiksi.',
+        minutes: '~5 min',
+      },
+      coffer: {
+        eyebrow: 'Rahastonhoitajille',
+        title: 'Klaanin kassa',
+        blurb:
+          'Yksi kassa klaanin gp:lle: mitä sinne tulee, kolme tapaa maksaa palkintoja, ja kuka saa siihen koskea.',
         minutes: '~5 min',
       },
       moderator: {
@@ -1728,6 +1741,135 @@ const fi: PartialGuideDict = {
     },
   },
 
+  coffer: {
+    metaTitle: 'Klaanin kassa — Anvilin opas rahastonhoitajalle',
+    metaDescription:
+      'Klaanin gp-kassa Anvilissa: lahjoitusten kirjaaminen ja niiden antajien nimeäminen, kolme tapaa maksaa palkinto, kuka saa siirtää rahaa, ja mitä tapahtuu kun kassa ei riitä.',
+    eyebrow: 'Anvil · rahastonhoitajille',
+    title: 'Klaanin kassa',
+    dek: 'Useimmilla klaaneilla gp on yhden ihmisen pankissa ja kirjanpito yhden ihmisen muistissa. Kassa on yksi potti, jossa on rivi jokaisesta liikkeestä — kuka antoi sen, mihin se on luvattu, ja kuka sen oikeasti lähetti.',
+    facts: [
+      { strong: '3 lukua', rest: 'kassassa, luvattu, vapaana luvattavaksi' },
+      { strong: '3 ulostuloa', rest: 'viikkokisat, tehtäväruudut, laudan potti' },
+      { strong: 'Rahastonhoitaja', rest: 'tai admin — ei koskaan pelkkä arvo' },
+    ],
+    footnote:
+      'Kaikki tämä on kohdassa Admin → **Coffer**, paitsi palkintoportaat, jotka ovat siinä mistä maksetaan. Julkinen puoli on `/coffer`: saldo, suurimmat lahjoittajat ja viimeisimmät liikkeet, jäsenille.',
+
+    what: {
+      title: 'Mikä se on',
+      body: [
+        'Kirjanpito, ei lompakko. Anvil ei koskaan pidä hallussaan teidän gp:tänne — se pysyy siellä missä klaani sitä jo säilyttää — joten kassa on merkintä siitä mitä tuli sisään, mitä on luvattu ja mitä on oikeasti annettu. Hyöty on siinä, että lupaus ja maksu ovat kaksi eri riviä.',
+        'Sivu alkaa kolmella luvulla, ja niitä on kolme koska ne vastaavat kolmeen eri kysymykseen:',
+      ],
+      rows: [
+        {
+          term: 'Kassassa',
+          body: 'hyväksytyt lahjoitukset ja oikaisut. Mitä klaani on saanut, miinus se mitä se on kirjannut pois.',
+        },
+        {
+          term: 'Luvattu',
+          body: 'gp, jonka palkinto on vaatinut — voitettu mutta ei vielä lähetetty, plus laudalle varattu potti. Varattua, vaikka se yhä olisi jonkun pankissa.',
+        },
+        {
+          term: 'Vapaana luvattavaksi',
+          body: 'kassassa miinus luvattu. Ainoa luku, jota vasten uutta palkintoa verrataan, koska vaihtoehto on luvata samat 50m kahdelle voittajalle rahastonhoitajan nukkuessa.',
+        },
+      ],
+      note: {
+        tag: 'Odottava lahjoitus ei laske mihinkään',
+        body: 'Se että joku kirjoittaa "annoin 100m", on väite menneisyydestä, ei gp pankissa. Se on kaikkien kolmen luvun ulkopuolella kunnes henkilökunta tunnustaa sen, joten se ei voi koskaan rahoittaa palkintoa jota ei sitten pystytä maksamaan.',
+      },
+    },
+
+    inbound: {
+      title: 'Gp:n saaminen sisään',
+      body: [
+        'Kaksi reittiä, ja ne eroavat vain siinä kuka aloittaa. Jäsen ilmoittaa oman lahjoituksensa osoitteessa `/coffer` ja se odottaa että henkilökunta uskoo sen; rahastonhoitaja kirjaa jo saapuneen, ja hänen kirjaamisensa **on** hyväksyntä.',
+        'Kummassakin tapauksessa se kirjataan **henkilölle**. Sillä on enemmän väliä kuin miltä kuulostaa: julkisen sivun lahjoittajalista on ainoa kiitos jonka useimmat lahjoittajat koskaan saavat, ja "klaanilta" saapunut gp ei kiitä ketään.',
+      ],
+      rows: [
+        {
+          term: 'Jäsen ilmoittaa lahjoituksen',
+          body: 'julkiselta kassasivulta, kuvakaappauksen kanssa jos sellainen on. Se saapuu odottavana ja ilmestyy jonoosi. Hyväksyminen on se, mikä tekee siitä oikeaa rahaa.',
+        },
+        {
+          term: 'Sinä kirjaat sen',
+          body: 'Admin → Coffer → **Record a donation**. Hae listalta kuka sen antoi, laita summa nimen kohdalle, valmis. Myös vieraat voidaan kirjata — joku joka ei ole täysjäsen on silti voinut maksaa kassaan.',
+        },
+        {
+          term: 'Useampi yhdessä',
+          body: 'valitse kaikki, kirjoita kokonaissumma ja paina **Split**, ja säädä yksittäistä osuutta käsin jos on tarpeen. Se kirjoittaa yhden rivin kullekin eikä yhtä riviä listalla, joten jokainen näkyy lahjoittajalistassa omalla nimellään.',
+        },
+      ],
+      note: {
+        tag: 'Oikaisu on eri asia',
+        body: '**Correct the pot** on gp:lle joka on liikkunut kaiken tämän ulkopuolella — kassan alkupääoma, sen käyttäminen johonkin mitä Anvil ei nähnyt, virheen korjaaminen. Se ei tarkoituksella kuulu kenellekään, eikä se ole tapa kirjata lahja.',
+      },
+    },
+
+    out: {
+      title: 'Kolme tapaa maksaa ulos',
+      intro: 'Jokainen Anvilin palkinto tulee tästä samasta potista, ja jokainen reitti ratkaisee voittajat omalla tavallaan. Aseta portaat sinne minne voitettava asia kuuluu — kassa ei koskaan kysy kuka voitti mitä.',
+      rows: [
+        {
+          term: 'Viikkokisa, omalla sivullaan',
+          body: 'Skill tai Boss of the Week kantaa sijoitusportaita: ensimmäinen saa tämän, toinen tuon. Se selvitetään **kerran** kisan päättyessä lopputilanteen perusteella — mikään ei vaihda omistajaa kesken kisan. Aseta se kisaa luodessasi tai myöhemmin kisan omalta sivulta.',
+        },
+        {
+          term: 'Tehtäväruutu laudalla',
+          body: 'tehtävät maksavat siinä järjestyksessä kuin ihmiset saavat ne valmiiksi, joten niiden portaat lunastetaan eikä selvitetä: ensimmäinen joukkue joka läpäisee sen, ottaa ykkössijan gp:n. Asetetaan ruudun rewards-osiossa, millä tahansa laudalla joka sallii tehtävät.',
+        },
+        {
+          term: 'Laudan palkintopotti',
+          body: 'bingo jakaa oman pottinsa sijoituksille, joten kassa ojentaa sille vain yhden luvun. Event → **Payouts** → *From the clan coffer*. Se lisätään ilmoittautumismaksuihin ja siihen mitä olet itse lisännyt, ja jako sijoille asetetaan samalla sivulla.',
+        },
+      ],
+      note: {
+        tag: 'Kun tulee tasapeli',
+        body: 'Viikkoportaat voivat **jakaa tasapelin**: kaikki tasoissa olevat yhdistävät miehittämänsä sijat ja ottavat yhtä suuren osuuden, joten kolme 40 kc:n pelaajaa ottavat kukin kolmasosan ensimmäisestä, toisesta ja kolmannesta sen sijaan että ensimmäinen heistä veisi kaiken. Jätä pois päältä, ja laudan oma järjestys ratkaisee. Kumpikin on puolustettavissa — jälkikäteen päättäminen ei.',
+      },
+    },
+
+    who: {
+      title: 'Kuka saa siirtää sitä',
+      intro: 'Raha on oma oikeutensa, ei arvoaste. Moderaattori voi hyväksyä lähetyksen koskematta koskaan kassaan, ja se on tarkoituksellista eikä unohdus.',
+      rows: [
+        {
+          term: 'Rahastonhoitaja tai admin',
+          body: 'koko kirjanpito: lahjoitusten kirjaaminen ja hyväksyminen, kassan oikaisu, palkintoportaiden asettaminen, palkinnon merkitseminen lähetetyksi. Omistaja lasketaan tässä adminiksi.',
+        },
+        {
+          term: 'Moderaattori',
+          body: 'ei mitään näistä. He eivät näe kassasivua lainkaan — rahan kerääminen on rahastonhoitajan työ, eikä pelkkä arvo ole koskaan antanut siihen oikeutta.',
+        },
+        {
+          term: 'Laudan rahastonhoitaja',
+          body: 'yhden tapahtuman rahat: sen maksut, sen palkinnot, sen palkintopotti. Myönnetään lautakohtaisesti, ja juuri niin vieraileva klaani hoitaa oman puolensa klaanien välisestä kisasta saamatta koko kirjanpitoanne. He eivät voi koskea klaanin kassaan.',
+        },
+        {
+          term: 'Kuka tahansa jäsen',
+          body: 'voi ilmoittaa lahjoituksen ja lukea julkista sivua. Siinä kaikki.',
+        },
+      ],
+      note: {
+        tag: 'Kerro klaanille, kanavalla',
+        body: 'Osoita **Coffer channel** Discord-kanavalle kohdassa Admin → Settings → Webhooks, niin jokainen liike julkaistaan sen jättämän saldon kanssa. Se on ainoa syöte ilman varareittiä: jätä tyhjäksi, eikä rahasta julkaista mitään missään. Katso [Anvil Discordissa]({discordGuide}).',
+      },
+    },
+
+    short: {
+      title: 'Kun kassa ei riitä',
+      body: [
+        'Kassaa suurempaa palkintoa ei hylätä. Se kirjataan **velaksi ilman katetta** — oikeana rivinä, jossa on voittajan nimi — koska vaihtoehto on voittaja ilman mitään ja ilman merkintää siitä että mitään koskaan luvattiin.',
+        'Ratkaisu on siis tavallinen: hanki gp:tä sisään ja maksa sitten. Sitä mitä ei pidä tehdä, on muuttaa portaita hiljaa jälkikäteen; kirjanpito kertoo jo mitä ilmoitettiin, ja niiden ristiriita on pahempaa kuin rahan puute.',
+      ],
+      note: {
+        tag: 'Anvil ei lähetä mitään',
+        body: 'Jokainen palkinto päättyy siihen että ihminen ojentaa gp:n pelissä ja rastittaa rivin. Kirjanpidon tehtävä on varmistaa että rivi on olemassa, että siinä lukee kuka ja kuinka paljon, ja ettei kenenkään tarvitse viikkoa myöhemmin kaivaa sitä Discordin historiasta.',
+      },
+    },
+  },
   moderator: {
     metaTitle: 'Vuorossa — Anvilin moderaattoriopas',
     metaDescription:

@@ -33,6 +33,12 @@ const pl: PartialGuideDict = {
       running: 'Prowadzenie wydarzenia',
       clan: 'Prowadzenie klanu',
     },
+    search: {
+      placeholder: 'Szukaj w poradnikach — spróbuj "webhook", "pola" albo "dropy się nie pokazują"',
+      results: '{n} poradników',
+      empty: 'Nic nie pasuje. Spróbuj prostszego słowa — "pola", "wypłata", "bot" — albo przejrzyj listę poniżej.',
+      clear: 'Wyczyść wyszukiwanie',
+    },
     cards: {
       discord: {
         eyebrow: 'Dla prowadzącego serwer',
@@ -86,6 +92,13 @@ const pl: PartialGuideDict = {
         title: 'Wpisowe i wypłaty',
         blurb:
           'Ustalanie wpisowego, zbieranie go, drugi podpis, który je zamyka, i zamiana puli nagród w faktycznie wypłacone miejsca.',
+        minutes: '~5 min',
+      },
+      coffer: {
+        eyebrow: 'Dla skarbników',
+        title: 'Skarbiec klanu',
+        blurb:
+          'Jeden skarbiec na klanowe gp: co do niego wpływa, trzy sposoby wypłacania nagród i kto może go ruszać.',
         minutes: '~5 min',
       },
       moderator: {
@@ -1706,6 +1719,135 @@ const pl: PartialGuideDict = {
     },
   },
 
+  coffer: {
+    metaTitle: 'Skarbiec klanu — poradnik Anvil dla skarbników',
+    metaDescription:
+      'Klanowy skarbiec gp w Anvilu: zapisywanie darowizn i przypisywanie ich tym, którzy je wpłacili, trzy sposoby wypłaty nagrody, kto może ruszać pieniądze i co się dzieje, gdy w skarbcu brakuje.',
+    eyebrow: 'Anvil · dla skarbników',
+    title: 'Skarbiec klanu',
+    dek: 'Większość klanów trzyma gp na czyimś banku, a księgowość w czyjejś pamięci. Skarbiec to jedna pula z osobną linią dla każdego ruchu — kto to dał, na co jest obiecane i kto to naprawdę wysłał.',
+    facts: [
+      { strong: '3 liczby', rest: 'w skarbcu, zajęte, wolne do obiecania' },
+      { strong: '3 wyjścia', rest: 'tygodniówki, pola misji, pula planszy' },
+      { strong: 'Skarbnik', rest: 'albo admin — nigdy sama ranga' },
+    ],
+    footnote:
+      'Wszystko to znajdziesz w Admin → **Coffer**, poza drabinkami nagród, które żyją przy tym, za co się płaci. Publiczna połowa to `/coffer`: saldo, najwięksi darczyńcy i ostatnie ruchy — dla członków.',
+
+    what: {
+      title: 'Czym jest',
+      body: [
+        'To księga, nie portfel. Anvil nigdy nie trzyma waszego gp — zostaje tam, gdzie klan już je przechowuje — więc skarbiec jest zapisem tego, co wpłynęło, co zostało obiecane i co faktycznie przekazano. Jego wartość polega na tym, że obietnica i wypłata to dwie różne linie.',
+        'Strona zaczyna się od trzech liczb, a są trzy, bo odpowiadają na trzy różne pytania:',
+      ],
+      rows: [
+        {
+          term: 'W skarbcu',
+          body: 'zatwierdzone darowizny i korekty. To, co klan dostał, minus to, co spisał na straty.',
+        },
+        {
+          term: 'Zajęte',
+          body: 'gp, do którego zgłosiła się nagroda — wygrane, ale jeszcze niewysłane, plus pula odłożona na planszę. Zarezerwowane, nawet jeśli wciąż leży na czyimś banku.',
+        },
+        {
+          term: 'Wolne do obiecania',
+          body: 'w skarbcu minus zajęte. Jedyna liczba, z którą porównuje się nową nagrodę, bo alternatywą jest obiecanie tych samych 50M dwóm zwycięzcom, gdy skarbnik śpi.',
+        },
+      ],
+      note: {
+        tag: 'Oczekująca darowizna nie liczy się nigdzie',
+        body: 'To, że ktoś wpisze „dałem 100M", jest twierdzeniem o przeszłości, a nie gp na banku. Stoi poza wszystkimi trzema liczbami, dopóki obsługa jej nie uzna — dzięki temu nigdy nie sfinansuje nagrody, której potem nie da się wypłacić.',
+      },
+    },
+
+    inbound: {
+      title: 'Jak wpływa gp',
+      body: [
+        'Dwie drogi, różnią się tylko tym, kto je zaczyna. Członek zgłasza własną darowiznę z `/coffer` i czeka, aż obsługa mu uwierzy; skarbnik zapisuje tę, która już dotarła, a samo jej wpisanie **jest** zatwierdzeniem.',
+        'Tak czy inaczej trafia na konto **osoby**. To waży więcej, niż brzmi: lista największych darczyńców na publicznej stronie to jedyne podziękowanie, jakie większość z nich kiedykolwiek dostanie, a gp, które wpływa jako „klan", nie dziękuje nikomu.',
+      ],
+      rows: [
+        {
+          term: 'Zgłasza ją członek',
+          body: 'z publicznej strony skarbca, ze zrzutem ekranu, jeśli go ma. Trafia jako oczekująca i pojawia się w twojej kolejce. Zatwierdzenie jest tym, co czyni z niej prawdziwe pieniądze.',
+        },
+        {
+          term: 'Zapisujesz ją ty',
+          body: 'Admin → Coffer → **Record a donation**. Wyszukaj na liście, kto ją wpłacił, wpisz kwotę obok nazwy, gotowe. Goście też mogą być uznani — ktoś, kto nie jest pełnym członkiem, mógł spokojnie dorzucić się do puli.',
+        },
+        {
+          term: 'Kilka osób razem',
+          body: 'wybierz wszystkich, wpisz sumę i naciśnij **Split**, a potem popraw ręcznie pojedynczy udział. Zapisuje po jednej linii na osobę zamiast jednej linii z listą, więc każdy trafia na listę darczyńców pod własną nazwą.',
+        },
+      ],
+      note: {
+        tag: 'Korekta to co innego',
+        body: '**Correct the pot** służy do gp, które przemieściło się poza tym wszystkim — zasilenie skarbca, wydanie go na coś, czego Anvil nigdy nie widział, poprawienie pomyłki. Celowo nie należy do nikogo i świadomie nie jest sposobem na zapisanie daru.',
+      },
+    },
+
+    out: {
+      title: 'Trzy sposoby wypłaty',
+      intro: 'Każda nagroda w Anvilu pochodzi z tej jednej puli, a każda droga wyłania zwycięzców inaczej. Ustaw drabinkę tam, gdzie żyje to, co się wygrywa — skarbiec nigdy nie pyta, kto co wygrał.',
+      rows: [
+        {
+          term: 'Tygodniówka, na własnej stronie',
+          body: 'Skill albo Boss of the Week ma drabinkę miejsc: pierwszy dostaje to, drugi tamto. Rozlicza się **raz**, po zakończeniu rywalizacji, na podstawie końcowej tabeli — w trakcie nic nie zmienia właściciela. Ustaw ją przy tworzeniu rywalizacji albo później z jej własnej strony.',
+        },
+        {
+          term: 'Pole misji, na planszy',
+          body: 'misje płacą w kolejności ukończenia, więc ich drabinkę się zgłasza, a nie rozlicza: pierwsza drużyna, która ją zaliczy, bierze gp za pierwsze miejsce. Ustawia się w sekcji rewards pola, na każdej planszy dopuszczającej misje.',
+        },
+        {
+          term: 'Pula nagród planszy',
+          body: 'bingo samo dzieli swoją pulę na miejsca, więc skarbiec podaje mu tylko jedną liczbę. Event → **Payouts** → *From the clan coffer*. Dolicza się do wpisowego i do tego, co dołożyłeś ręcznie, a podział na miejsca ustawia się na tej samej stronie.',
+        },
+      ],
+      note: {
+        tag: 'Gdy jest remis',
+        body: 'Drabinka tygodniowa potrafi **dzielić remisy**: wszyscy z równym wynikiem łączą zajmowane miejsca i biorą równą część, więc trzech graczy po 40 kc bierze po jednej trzeciej pierwszego, drugiego i trzeciego zamiast tego, by pierwszy z nich zgarnął całość. Zostaw wyłączone, a rozstrzygnie kolejność tabeli. Obie decyzje da się obronić — decydowanie po ogłoszeniu wyników już nie.',
+      },
+    },
+
+    who: {
+      title: 'Kto może nim ruszać',
+      intro: 'Pieniądze to osobne uprawnienie, nie ranga. Moderator może zatwierdzać zgłoszenia i nigdy nie dotknąć skarbca — to zamierzone, nie przeoczenie.',
+      rows: [
+        {
+          term: 'Skarbnik albo admin',
+          body: 'cała księga: zapisywanie i zatwierdzanie darowizn, korygowanie skarbca, ustawianie drabinek nagród, oznaczanie nagrody jako wysłanej. Właściciel liczy się tu jako admin.',
+        },
+        {
+          term: 'Moderator',
+          body: 'nic z tego. W ogóle nie zobaczy strony skarbca — zbieranie pieniędzy to zadanie skarbnika, a sama ranga nigdy nie dawała do tego prawa.',
+        },
+        {
+          term: 'Skarbnik planszy',
+          body: 'pieniądze jednego wydarzenia: jego wpisowe, wypłaty, pula nagród. Nadawane per plansza — właśnie tak klan w gościach prowadzi swoją połowę meczu klan kontra klan, nie dostając do ręki waszej księgi. Do klanowego skarbca nie sięgnie.',
+        },
+        {
+          term: 'Dowolny członek',
+          body: 'może zgłosić darowiznę i czytać publiczną stronę. I to wszystko.',
+        },
+      ],
+      note: {
+        tag: 'Powiedz o tym klanowi, na kanale',
+        body: 'Wskaż **Coffer channel** na kanał Discorda w Admin → Settings → Webhooks, a każdy ruch zostanie opublikowany razem z saldem, jakie po sobie zostawia. To jedyny kanał bez rozwiązania zastępczego: zostaw pusty, a o pieniądzach nie pojawi się nigdzie ani słowo. Zobacz [Anvil na Discordzie]({discordGuide}).',
+      },
+    },
+
+    short: {
+      title: 'Gdy w skarbcu brakuje',
+      body: [
+        'Nagroda większa niż skarbiec nie zostaje odrzucona. Zapisuje się ją jako **należną i niepokrytą** — prawdziwa linia z nazwą zwycięzcy — bo alternatywą jest zwycięzca bez niczego i bez śladu, że cokolwiek mu obiecano.',
+        'Rozwiązanie jest więc zwyczajne: zdobądź gp, potem wypłać. Czego robić nie należy, to po cichu zmieniać drabinkę po fakcie; księga już mówi, co ogłoszono, a ich wzajemna sprzeczność jest gorsza niż sam brak środków.',
+      ],
+      note: {
+        tag: 'Anvil niczego nie wysyła',
+        body: 'Każda nagroda kończy się tym, że człowiek przekazuje gp w grze i odhacza linię. Zadaniem księgi jest dopilnować, by ta linia istniała, by mówiła kto i ile, i by tydzień później nikt nie musiał odtwarzać tego z historii Discorda.',
+      },
+    },
+  },
   moderator: {
     metaTitle: 'Na dyżurze — przewodnik moderatora Anvil',
     metaDescription:

@@ -33,6 +33,12 @@ const es: PartialGuideDict = {
       running: 'Organizar un evento',
       clan: 'Llevar el clan',
     },
+    search: {
+      placeholder: 'Busca en las guías — prueba "webhook", "casillas" o "no aparecen los drops"',
+      results: '{n} guías',
+      empty: 'Nada coincide. Prueba una palabra más sencilla — "casillas", "pago", "bot" — o mira la lista de abajo.',
+      clear: 'Borrar la búsqueda',
+    },
     cards: {
       discord: {
         eyebrow: 'Para quien lleva el servidor',
@@ -79,6 +85,13 @@ const es: PartialGuideDict = {
         title: 'Cuotas y premios',
         blurb:
           'Cobrar una cuota de inscripción, recaudarla, la segunda firma que la cierra, y convertir un bote en puestos pagados.',
+        minutes: '~5 min',
+      },
+      coffer: {
+        eyebrow: 'Para tesoreros',
+        title: 'La caja del clan',
+        blurb:
+          'Una sola caja para el oro del clan: qué entra, las tres formas en que paga premios, y quién puede tocarla.',
         minutes: '~5 min',
       },
       moderator: {
@@ -1728,6 +1741,135 @@ const es: PartialGuideDict = {
     },
   },
 
+  coffer: {
+    metaTitle: 'La caja del clan — guía de Anvil para tesoreros',
+    metaDescription:
+      'La caja de oro del clan en Anvil: registrar donaciones y acreditarlas a quien las hizo, las tres formas de pagar un premio, quién puede mover el dinero, y qué pasa cuando la caja no llega.',
+    eyebrow: 'Anvil · para tesoreros',
+    title: 'La caja del clan',
+    dek: 'La mayoría de los clanes guarda su oro en el banco de alguien y su contabilidad en la memoria de alguien. La caja es un solo fondo con una línea por movimiento — quién lo dio, a qué está prometido, y quién lo envió de verdad.',
+    facts: [
+      { strong: '3 cifras', rest: 'en caja, comprometido, libre para prometer' },
+      { strong: '3 salidas', rest: 'competiciones semanales, casillas de misión, el bote de un tablero' },
+      { strong: 'Tesorero', rest: 'o admin — nunca el rango por sí solo' },
+    ],
+    footnote:
+      'Todo esto está en Admin → **Coffer**, salvo las escalas de premios, que viven en aquello por lo que se paga. La mitad pública es `/coffer`: el saldo, los mayores donantes y los movimientos recientes, para los miembros.',
+
+    what: {
+      title: 'Qué es',
+      body: [
+        'Un libro de cuentas, no un monedero. Anvil nunca guarda vuestro oro — se queda donde el clan ya lo tiene — así que la caja es el registro de lo que entró, de lo que está prometido y de lo que realmente se entregó. Su utilidad está en que la promesa y el pago son dos líneas distintas.',
+        'La página abre con tres cifras, y son tres porque responden a tres preguntas distintas:',
+      ],
+      rows: [
+        {
+          term: 'En caja',
+          body: 'donaciones aprobadas y ajustes. Lo que el clan ha recibido, menos lo que ha dado por perdido.',
+        },
+        {
+          term: 'Comprometido',
+          body: 'oro que un premio ha reclamado — ganado pero aún no enviado, más cualquier bote apartado para un tablero. Reservado, aunque siga en el banco de alguien.',
+        },
+        {
+          term: 'Libre para prometer',
+          body: 'en caja menos comprometido. La única cifra contra la que se contrasta un premio nuevo, porque la alternativa es prometer los mismos 50M a dos ganadores mientras el tesorero duerme.',
+        },
+      ],
+      note: {
+        tag: 'Una donación pendiente no cuenta en ningún sitio',
+        body: 'Que alguien escriba «di 100M» es una afirmación sobre el pasado, no oro en un banco. Queda fuera de las tres cifras hasta que el staff la reconozca, de modo que nunca puede financiar un premio que luego no se pueda pagar.',
+      },
+    },
+
+    inbound: {
+      title: 'Meter oro',
+      body: [
+        'Dos caminos, y solo se diferencian en quién los empieza. Un miembro declara su propia donación desde `/coffer` y esta espera a que el staff se la crea; un tesorero registra una que ya llegó, y el hecho de teclearla **es** la aprobación.',
+        'En ambos casos se acredita a una **persona**. Pesa más de lo que parece: la lista de mayores donantes de la página pública es el único agradecimiento que la mayoría recibirá, y el oro que llega como «el clan» no agradece a nadie.',
+      ],
+      rows: [
+        {
+          term: 'La declara un miembro',
+          body: 'desde la página pública de la caja, con captura si la tiene. Llega como pendiente y aparece en tu cola. Aprobarla es lo que la convierte en dinero real.',
+        },
+        {
+          term: 'La registras tú',
+          body: 'Admin → Coffer → **Record a donation**. Busca en la lista quién la dio, pon una cantidad junto al nombre, listo. También se puede acreditar a invitados — quien no es miembro de pleno derecho igualmente pudo aportar.',
+        },
+        {
+          term: 'Varios juntos',
+          body: 'selecciónalos a todos, escribe el total y pulsa **Split**, y luego ajusta a mano una parte si hace falta. Escribe una línea por persona en vez de una línea con una lista, así cada uno aparece en la lista de donantes con su propio nombre.',
+        },
+      ],
+      note: {
+        tag: 'Un ajuste es otra cosa',
+        body: '**Correct the pot** es para oro que se movió al margen de todo esto — arrancar la caja, gastarla en algo que Anvil nunca vio, corregir un error. A propósito no pertenece a nadie, y deliberadamente no es la forma de registrar un regalo.',
+      },
+    },
+
+    out: {
+      title: 'Las tres formas en que paga',
+      intro: 'Todo premio en Anvil sale de este mismo fondo, y cada vía decide a los ganadores a su manera. Configura la escala donde vive aquello que se gana — la caja nunca pregunta quién ganó qué.',
+      rows: [
+        {
+          term: 'Una semanal, en su propia página',
+          body: 'un Skill o Boss of the Week lleva una escala de puestos: el primero se lleva esto, el segundo aquello. Se liquida **una sola vez** al terminar la competición, según la clasificación final — mientras corre no cambia nada de manos. Configúrala al crear la competición, o después desde la página de la propia competición.',
+        },
+        {
+          term: 'Una casilla de misión, en el tablero',
+          body: 'las misiones pagan en el orden en que la gente termina, así que su escala se reclama en lugar de liquidarse: el primer equipo que la complete se lleva el oro del primer puesto. Se configura en la sección rewards de la casilla, en cualquier tablero que permita misiones.',
+        },
+        {
+          term: 'El bote de un tablero',
+          body: 'un bingo reparte su propio bote entre los puestos, así que la caja solo le pasa una cifra. Event → **Payouts** → *From the clan coffer*. Se suma a las cuotas de inscripción y a lo que hayas añadido a mano, y el reparto entre puestos se configura en esa misma página.',
+        },
+      ],
+      note: {
+        tag: 'Cuando hay empate',
+        body: 'Una escala semanal puede **repartir los empates**: todos los empatados juntan los puestos que ocupan y se llevan una parte igual, de modo que tres jugadores con 40 kc cada uno se llevan un tercio del primero, segundo y tercero en vez de que el primero de ellos se lo lleve todo. Déjalo desactivado y decide el orden de la clasificación. Ambas opciones son defendibles — decidirlo con los resultados ya puestos no lo es.',
+      },
+    },
+
+    who: {
+      title: 'Quién puede moverla',
+      intro: 'El dinero es un permiso aparte, no un rango. Un moderador puede aprobar una prueba sin tocar nunca la caja, y eso es deliberado, no un descuido.',
+      rows: [
+        {
+          term: 'Tesorero o admin',
+          body: 'todo el libro: registrar y aprobar donaciones, ajustar la caja, configurar escalas de premios, marcar un premio como enviado. El propietario cuenta aquí como admin.',
+        },
+        {
+          term: 'Un moderador',
+          body: 'nada de eso. Ni siquiera verá la página de la caja — recaudar dinero es trabajo del tesorero, y el rango por sí solo nunca ha dado ese derecho.',
+        },
+        {
+          term: 'Un tesorero de tablero',
+          body: 'el dinero de un solo evento: sus cuotas, sus pagos, su bote. Se concede por tablero, y así un clan visitante lleva su propia mitad de un clan contra clan sin que le entreguen vuestra contabilidad. A la caja del clan no llega.',
+        },
+        {
+          term: 'Cualquier miembro',
+          body: 'puede declarar una donación y leer la página pública. Eso es todo.',
+        },
+      ],
+      note: {
+        tag: 'Cuéntaselo al clan, en un canal',
+        body: 'Apunta **Coffer channel** a un canal de Discord en Admin → Settings → Webhooks y cada movimiento se publica con el saldo que deja detrás. Es el único feed sin alternativa: déjalo vacío y no se publica nada sobre el dinero en ningún sitio. Ver [Anvil en Discord]({discordGuide}).',
+      },
+    },
+
+    short: {
+      title: 'Cuando la caja no llega',
+      body: [
+        'Un premio mayor que la caja no se rechaza. Se anota como **debido y sin cobertura** — una línea real, con el nombre de un ganador — porque la alternativa es un ganador sin nada y sin rastro de que se le prometiera algo.',
+        'Así que la solución es la de siempre: mete oro y luego paga. Lo que no hay que hacer es cambiar la escala en silencio después; el libro ya dice qué se anunció, y que ambos se contradigan es peor que ir corto.',
+      ],
+      note: {
+        tag: 'Anvil no envía nada',
+        body: 'Todo premio acaba con una persona entregando oro en el juego y marcando una línea. El trabajo del libro es asegurar que esa línea existe, que dice quién y cuánto, y que una semana después nadie tenga que reconstruirla del historial de Discord.',
+      },
+    },
+  },
   moderator: {
     metaTitle: 'De guardia — guía del moderador de Anvil',
     metaDescription:

@@ -25,6 +25,7 @@ const CARD_KEY = {
   'clan-vs-clan': 'clanVsClan',
   moderator: 'moderator',
   fees: 'fees',
+  coffer: 'coffer',
 } as const;
 
 const ITEMS = (Object.keys(SEARCH_TERMS) as (keyof typeof SEARCH_TERMS)[]).map((page) => {

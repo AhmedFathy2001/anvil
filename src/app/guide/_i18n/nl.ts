@@ -33,6 +33,12 @@ const nl: PartialGuideDict = {
       running: 'Een event draaien',
       clan: 'De clan runnen',
     },
+    search: {
+      placeholder: 'Zoek in de handleidingen — probeer "webhook", "vakjes" of "drops komen niet binnen"',
+      results: '{n} handleidingen',
+      empty: 'Niets gevonden. Probeer een gewoner woord — "vakjes", "uitbetaling", "bot" — of blader door de lijst hieronder.',
+      clear: 'Zoekopdracht wissen',
+    },
     cards: {
       discord: {
         eyebrow: 'Voor wie de server beheert',
@@ -79,6 +85,13 @@ const nl: PartialGuideDict = {
         title: 'Inleg en uitbetalingen',
         blurb:
           'Inleg heffen, hem innen, de tweede handtekening die hem afsluit, en een pot omzetten in betaalde plaatsen.',
+        minutes: '~5 min',
+      },
+      coffer: {
+        eyebrow: 'Voor penningmeesters',
+        title: 'De clankas',
+        blurb:
+          'Eén pot voor het gp van de clan: wat erin gaat, de drie manieren waarop hij prijzen uitbetaalt, en wie eraan mag komen.',
         minutes: '~5 min',
       },
       moderator: {
@@ -1728,6 +1741,135 @@ const nl: PartialGuideDict = {
     },
   },
 
+  coffer: {
+    metaTitle: 'De clankas — Anvil-handleiding voor penningmeesters',
+    metaDescription:
+      'De gp-pot van de clan in Anvil: donaties vastleggen en toeschrijven aan wie ze gaf, de drie manieren waarop een prijs wordt betaald, wie het geld mag verplaatsen, en wat er gebeurt als de pot te klein is.',
+    eyebrow: 'Anvil · voor penningmeesters',
+    title: 'De clankas',
+    dek: 'De meeste clans bewaren hun gp op iemands bank en hun boekhouding in iemands hoofd. De kas is één pot met een regel voor elke beweging — wie hem gaf, waaraan hij beloofd is, en wie hem daadwerkelijk stuurde.',
+    facts: [
+      { strong: '3 getallen', rest: 'in kas, vastgelegd, vrij te beloven' },
+      { strong: '3 uitgangen', rest: 'weekcompetities, missievakjes, de pot van een bord' },
+      { strong: 'Penningmeester', rest: 'of admin — nooit rang alleen' },
+    ],
+    footnote:
+      'Alles hier staat onder Admin → **Coffer**, behalve de prijsladders, die staan bij datgene waarvoor betaald wordt. De publieke helft is `/coffer`: het saldo, de grootste gevers en de recente bewegingen, voor de leden.',
+
+    what: {
+      title: 'Wat het is',
+      body: [
+        'Een grootboek, geen portemonnee. Anvil houdt jullie gp nooit vast — het blijft waar de clan het al bewaart — dus de kas is de vastlegging van wat binnenkwam, wat beloofd is en wat er daadwerkelijk is overhandigd. Het nut zit erin dat de belofte en de betaling twee verschillende regels zijn.',
+        'De pagina begint met drie getallen, en het zijn er drie omdat ze drie verschillende vragen beantwoorden:',
+      ],
+      rows: [
+        {
+          term: 'In kas',
+          body: 'goedgekeurde donaties en correcties. Wat de clan gekregen heeft, min wat ze heeft afgeschreven.',
+        },
+        {
+          term: 'Vastgelegd',
+          body: 'gp waar een prijs aanspraak op maakt — gewonnen maar nog niet verstuurd, plus een pot die voor een bord opzij is gezet. Bestemd, ook al staat het nog op iemands bank.',
+        },
+        {
+          term: 'Vrij te beloven',
+          body: 'in kas min vastgelegd. Het enige getal waar een nieuwe prijs tegenaan wordt gehouden, want het alternatief is dezelfde 50m aan twee winnaars beloven terwijl de penningmeester slaapt.',
+        },
+      ],
+      note: {
+        tag: 'Een wachtende donatie telt nergens mee',
+        body: 'Dat iemand "ik heb 100m gegeven" typt, is een bewering over het verleden, geen gp op een bank. Ze staat buiten alle drie de getallen tot de staf haar erkent, zodat ze nooit een prijs kan financieren die daarna niet betaald kan worden.',
+      },
+    },
+
+    inbound: {
+      title: 'Gp binnenkrijgen',
+      body: [
+        'Twee routes, en ze verschillen alleen in wie ze begint. Een lid meldt zijn eigen donatie via `/coffer` en die wacht tot de staf hem gelooft; een penningmeester legt er een vast die al binnen is, en dat hij hem intikt **is** de goedkeuring.',
+        'Hoe dan ook wordt hij aan een **persoon** toegeschreven. Dat weegt zwaarder dan het klinkt: de lijst met grootste gevers op de publieke pagina is het enige bedankje dat de meeste gevers ooit krijgen, en gp dat binnenkomt als "de clan" bedankt niemand.',
+      ],
+      rows: [
+        {
+          term: 'Een lid meldt er een',
+          body: 'via de publieke kaspagina, met een schermafbeelding als die er is. Hij komt binnen als wachtend en verschijnt in je wachtrij. Goedkeuren is wat er echt geld van maakt.',
+        },
+        {
+          term: 'Jij legt er een vast',
+          body: 'Admin → Coffer → **Record a donation**. Zoek in de ledenlijst wie hem gaf, zet een bedrag naast de naam, klaar. Gasten kunnen ook worden toegeschreven — wie geen volwaardig lid is, kan best hebben bijgedragen.',
+        },
+        {
+          term: 'Meerdere samen',
+          body: 'kies ze allemaal, tik het totaal in en druk op **Split**, en pas daarna een enkel aandeel met de hand aan. Het schrijft één regel per persoon in plaats van één regel met een lijst, zodat ieder van hen onder zijn eigen naam in de geverslijst staat.',
+        },
+      ],
+      note: {
+        tag: 'Een correctie is iets anders',
+        body: '**Correct the pot** is voor gp dat zich buiten dit alles om heeft verplaatst — de pot vullen, hem uitgeven aan iets dat Anvil nooit zag, een fout rechtzetten. Hij hoort met opzet bij niemand, en is bewust niet de manier om een gift vast te leggen.',
+      },
+    },
+
+    out: {
+      title: 'De drie manieren waarop hij uitbetaalt',
+      intro: 'Elke prijs in Anvil komt uit deze ene pot, en elke route bepaalt de winnaars anders. Zet de ladder waar het gewonnene thuishoort — de kas vraagt nooit wie wat won.',
+      rows: [
+        {
+          term: 'Een weekcompetitie, op haar eigen pagina',
+          body: 'een Skill of Boss of the Week draagt een plaatsenladder: eerste krijgt dit, tweede dat. Ze wordt **één keer** afgerekend als de competitie eindigt, op basis van de eindstand — tijdens de rit verandert er niets van eigenaar. Zet hem terwijl je de competitie aanmaakt, of later op de eigen pagina van de competitie.',
+        },
+        {
+          term: 'Een missievakje, op het bord',
+          body: 'missies betalen in de volgorde waarin mensen klaar zijn, dus hun ladder wordt geclaimd in plaats van afgerekend: het eerste team dat hem haalt, pakt het gp van de eerste plaats. Wordt gezet in het rewards-gedeelte van het vakje, op elk bord dat missies toestaat.',
+        },
+        {
+          term: 'De prijzenpot van een bord',
+          body: 'een bingo verdeelt zijn eigen pot over plaatsen, dus de kas geeft hem gewoon één getal. Event → **Payouts** → *From the clan coffer*. Het komt bij het inschrijfgeld en bij wat je zelf hebt toegevoegd, en de verdeling over plaatsen zet je op diezelfde pagina.',
+        },
+      ],
+      note: {
+        tag: 'Als mensen gelijk eindigen',
+        body: 'Een weekladder kan **gelijke standen delen**: iedereen die gelijk staat, legt de plaatsen die ze bezetten samen en neemt een gelijk deel, zodat drie mensen met elk 40 kc een derde van de eerste, tweede en derde plaats nemen in plaats van dat de eerste van hen alles pakt. Laat het uit en de eigen volgorde van het bord beslist. Beide zijn te verdedigen — beslissen nadat de uitslag binnen is niet.',
+      },
+    },
+
+    who: {
+      title: 'Wie hem mag verplaatsen',
+      intro: 'Geld is een eigen bevoegdheid, geen rang. Een moderator kan een inzending goedkeuren en de kas nooit aanraken, en dat is opzet en geen vergetelheid.',
+      rows: [
+        {
+          term: 'Penningmeester of admin',
+          body: 'het hele grootboek: donaties vastleggen en goedkeuren, de pot corrigeren, prijsladders zetten, een prijs als verstuurd markeren. De eigenaar telt hier als admin.',
+        },
+        {
+          term: 'Een moderator',
+          body: 'niets daarvan. Ze zien de kaspagina helemaal niet — geld ophalen is het werk van de penningmeester, en rang alleen heeft dat recht nooit gegeven.',
+        },
+        {
+          term: 'Een bordpenningmeester',
+          body: 'het geld van één event: de kosten, de uitbetalingen, de prijzenpot. Wordt per bord gegeven, en zo draait een bezoekende clan zijn eigen helft van een clan-tegen-clan zonder jullie grootboek in handen te krijgen. Aan de clankas komen ze niet.',
+        },
+        {
+          term: 'Elk lid',
+          body: 'kan een donatie melden en de publieke pagina lezen. Meer is het niet.',
+        },
+      ],
+      note: {
+        tag: 'Vertel het de clan, in een kanaal',
+        body: 'Richt **Coffer channel** onder Admin → Settings → Webhooks op een Discord-kanaal, dan wordt elke beweging geplaatst met het saldo dat ze achterlaat. Het is de enige feed zonder terugval: laat hem leeg en er wordt nergens iets over het geld geplaatst. Zie [Anvil in Discord]({discordGuide}).',
+      },
+    },
+
+    short: {
+      title: 'Als de pot te klein is',
+      body: [
+        'Een prijs die groter is dan de kas wordt niet geweigerd. Hij wordt geboekt als **verschuldigd en niet gedekt** — een echte regel met de naam van een winnaar erop — want het alternatief is een winnaar zonder iets en zonder spoor dat er ooit iets beloofd is.',
+        'De oplossing is dus de gewone: haal gp binnen en betaal daarna. Wat je niet moet doen is de ladder achteraf stilletjes aanpassen; het grootboek zegt al wat er is aangekondigd, en dat die twee elkaar tegenspreken is erger dan tekortkomen.',
+      ],
+      note: {
+        tag: 'Anvil verstuurt niets',
+        body: 'Elke prijs eindigt ermee dat een mens in het spel gp overhandigt en een regel afvinkt. De taak van het grootboek is te zorgen dat die regel bestaat, dat er wie en hoeveel op staat, en dat niemand hem een week later uit de Discord-geschiedenis hoeft op te diepen.',
+      },
+    },
+  },
   moderator: {
     metaTitle: 'Aan de beurt — Anvils moderatorhandleiding',
     metaDescription:

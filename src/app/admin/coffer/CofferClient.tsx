@@ -7,6 +7,7 @@ import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
 import { formatGp, parseGpInput } from '@/lib/adminEventsFormat';
 import { splitEvenly } from '@/lib/splitGp';
+import GuideLink from '@/components/GuideLink';
 import type { CofferBalance } from '@/lib/cofferMath';
 import type { CofferLedgerRow } from '@/lib/coffer';
 
@@ -168,6 +169,7 @@ export default function CofferClient({
       <h1 className="text-2xl font-bold mb-1 flex items-center gap-2">
         <span className="w-1 h-6 bg-gold rounded-full" />
         Coffer
+        <GuideLink href="/guide/coffer">How the coffer works</GuideLink>
       </h1>
       <p className="text-sm text-text-muted mb-5">
         The pot mission prizes are paid from. Members report what they hand in; nothing counts until
