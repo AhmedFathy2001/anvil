@@ -208,6 +208,94 @@ const nl: PartialDiscordDict = {
     unsupported: 'Dat interactietype wordt nog niet ondersteund.',
     shareExpired: 'Dat antwoord is te oud om te delen — voer het commando opnieuw uit.',
   },
+
+  commands: {
+    sotw: 'Skill of the Week — live stand',
+    botw: 'Boss of the Week — live stand',
+    eff: 'Efficiëntie-ranglijst (EHP/EHB) en waar jij staat',
+    coffer: 'De clankas — saldo, donateurs, en staff voegt toe/haalt weg',
+    clog: 'Collectielogboek — het aantal van een lid en de topverzamelaars van de clan',
+    luck: 'Drop-geluk — de droogste en gelukkigste van de clan, of van een lid',
+    guide: 'Lees een instelgids — het overzicht of één stap, met een link',
+  },
+
+  multi: {
+    liveTitle: '📋 Live borden',
+    liveIntro: '{n} borden lopen nu.',
+    standingsTitle: '🏆 Live stand',
+    standingsIntro: 'Stand over {n} lopende borden.',
+    teamsOne: '1 team',
+    teamsMany: '{n} teams',
+    leader: 'aangevoerd door {team} ({score})',
+  },
+
+  weekly: {
+    sotwTitle: '📈 {title}',
+    botwTitle: '⚔️ {title}',
+    sotwEmpty: 'Er loopt nu geen Skill of the Week in {clan}.',
+    botwEmpty: 'Er loopt nu geen Boss of the Week in {clan}.',
+    ends: 'Eindigt {when}.',
+    noEntries: 'Nog niemand doet mee.',
+    you: 'Jij: {place} van {total}.',
+    youNone: 'Je doet niet mee — sluit aan via de plugin of op de site.',
+    fieldMetric: 'Metriek',
+    fieldEntries: 'Deelnemers',
+  },
+
+  eff: {
+    title: '⚡ Efficiëntie — {metric}',
+    empty: 'Nog geen efficiëntiedata — leden hebben eerst een statistiekronde nodig.',
+    you: 'Jij: #{rank} van {total}.',
+    fieldRanked: 'Gerangschikt',
+  },
+
+  coffer: {
+    title: '💰 {clan} — clankas',
+    none: 'Nog geen clankas — {clan} heeft geen gp-bewegingen vastgelegd.',
+    available: 'Beschikbaar',
+    reserved: 'Gereserveerd',
+    pending: 'In behandeling',
+    donorsHeading: '**Topdonateurs**',
+    recentHeading: '**Laatste bewegingen**',
+    needAccount:
+      'Koppel eerst je Anvil-account op de site — kaswijzigingen hangen aan je site-login, niet aan je Discord-naam.',
+    notStaff: 'Alleen penningmeesters, admins en owners kunnen de kas beheren.',
+    badAmount: 'Geef een bedrag om toe te voegen of weg te halen, bv. `5m` of `2500000`.',
+    outOfRange: 'Dat bedrag valt buiten het bereik.',
+    added: '✅ {amount} aan de kas toegevoegd — nu {available} beschikbaar.',
+    removed: '✅ {amount} uit de kas gehaald — nu {available} beschikbaar.',
+  },
+
+  clog: {
+    title: '📖 {who} — collectielogboek',
+    notSynced: '{who} heeft nog geen collectielogboek gesynchroniseerd — synchroniseer het via de Anvil-plugin.',
+    rankLine: '#{rank} van {total} verzamelaars in {clan}.',
+    topHeading: '**Topverzamelaars**',
+    slots: 'Slots',
+    collectors: 'Verzamelaars',
+  },
+
+  luck: {
+    boardsTitle: '🍀 {clan} — geluk',
+    memberTitle: '🍀 {who} — geluk',
+    dryHeading: '**Droogst**',
+    spoonedHeading: '**Gelukkigst**',
+    emptyBoards: 'Nog geen geluksdata — leden moeten hun collectielogboek synchroniseren.',
+    notSynced: '{who} heeft nog geen collectielogboek gesynchroniseerd.',
+    totalLine: 'Totaal: {net} over {items} bijgehouden drops.',
+    fromLogs: 'Uit {n} gesynchroniseerde logboeken.',
+  },
+
+  guide: {
+    notFound: 'Ik heb geen gids met die naam.',
+    stepsHeading: '**Stappen**',
+    stepsField: 'Stappen',
+    stepTitle: 'Stap {n}/{total} — {title}',
+    noSuchStep: 'Deze gids heeft {total} stappen — kies een getal van 1 tot {total}.',
+    readFull: '📖 Lees de volledige gids: {url}',
+    openStep: '🔗 Open deze stap op de site: {url}',
+    jumpHint: '-# Spring naar een stap: `/guide topic:{topic} step:1`',
+  },
 };
 
 export default nl;

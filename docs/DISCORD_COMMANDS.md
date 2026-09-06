@@ -1,13 +1,15 @@
 # Discord slash commands
 
-Anvil's bot answers `/bingo …` inside a clan's Discord server: the board, the standings, the rules,
-your own card. Everything it answers is read-only, and it needs no login — Discord already vouched
-for who typed the command, and `users.discord_id` is Anvil's identity column.
+Anvil's bot answers inside a clan's Discord server: the board, the standings, the rules, your own
+card, the weeklies, the coffer, collection logs, luck, and the setup guides. It needs no login —
+Discord already vouched for who typed the command, and `users.discord_id` is Anvil's identity column.
+
+`/bingo` is about ONE board:
 
 ```
-/bingo board          the board that's running right now
+/bingo board          every board running now (lists them all when several are live)
 /bingo rules          how this board scores + your clan's house rules
-/bingo leaderboard    team standings
+/bingo leaderboard    team standings (every live board when several run)
 /bingo apply          how to get in — sign-ups, the fee, where you stand
 /bingo next           what's coming — next reveal, mission or deadline
 /bingo me             your team, your tiles, your standing
@@ -15,8 +17,34 @@ for who typed the command, and `users.discord_id` is Anvil's identity column.
 /bingo help           what the bot can answer in here
 ```
 
+The rest answer about the CLAN, and resolve no board:
+
+```
+/sotw                 Skill of the Week — every active one, with your rank
+/botw                 Boss of the Week — with the boss's own picture
+/eff [metric]         clan EHP/EHB leaderboard (metric: ehp|ehb), and your rank
+/coffer balance       the coffer — balance, top donors, recent movements
+/coffer add <amt>     add gp to the coffer   ← treasurer / admin / owner only
+/coffer remove <amt>  remove gp from the coffer   ← treasurer / admin / owner only
+/clog [member]        a member's collection-log count + the clan's top collectors
+/luck [member]        the clan's driest and luckiest drops, or one member's
+/guide <topic> [step] a setup guide — the overview or one step, with a link to it
+```
+
+Almost everything is **read-only**. The one exception is `/coffer add|remove`, which records a
+manual coffer adjustment — gated on the invoker's **site** role in this clan (treasurer, admin or
+owner in `clan_staff`, exactly `verifyFeeCollector`'s rule), **never** a Discord role, because it is
+the clan's money and rank in a chat server has never conferred it.
+
 Every answer is **ephemeral** — only the person who ran it sees it. A bot that dumps a leaderboard
-into general every time someone is curious gets muted.
+into general every time someone is curious gets muted. (A coffer write also posts to the coffer feed
+channel, the way every coffer movement does.)
+
+`/guide` renders a setup guide in Discord: `/guide topic:plugin` lists its steps, and
+`/guide topic:plugin step:5` shows that one step's text with a deep link straight to it on the site.
+The whole guide is a web page with figures and callouts an embed can't reproduce, so this is partial
+rendering plus a link — the content comes from the same guide dictionary the website uses, in the
+reader's language.
 
 ---
 
@@ -181,12 +209,15 @@ setup step, so it runs automatically and heals itself:
 
 | Who | When | Scope |
 | --- | --- | --- |
-| Control plane (shared Anvil app) | every boot — `Anvil.Admin/src/instrumentation.ts` | **global**, so one write covers every managed clan including ones onboarding later |
-| A clan with its own bot | when its token is saved, and every boot — `lib/discordCommandSync.ts` | **guild** when a server is configured (instant), else global |
+| The shared platform (shared Anvil app) | every boot, and a daily cron — `syncGlobalCommands`, `/api/cron/discord-commands` | **global**, so one write covers every server the bot is in, including clans onboarding later |
+| A clan with its own bot | when its token is saved, and every boot — `syncClanCommands` | **guild** when a server is configured (instant), else global |
 
-A clan on the shared bot never registers anything itself: the control plane owns that application,
-and N containers re-registering it would be N redundant writes racing each other. `getBotTokenSource()`
-is what draws that line.
+The site owns registration now — Anvil.Admin is retired, and there is one multi-clan deployment. On
+boot, `src/instrumentation.ts` picks the path by deployment: `ANVIL_SHARED_BOT_TOKEN` present →
+`syncGlobalCommands` (the shared app, global); otherwise `syncClanCommands` (a self-host's own app,
+guild-scoped). They are never both run, or Discord lists every command twice. The daily cron
+(`deploy/cron/anvil-cron` → `site-cron.sh discord-commands`) re-runs the global reconcile as a
+self-heal — a boot that couldn't reach Discord, or a set that drifted, converges on the next tick.
 
 Nothing to do when a clan signs up — global registration already covers them.
 

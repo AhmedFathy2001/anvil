@@ -196,6 +196,94 @@ const ko: PartialDiscordDict = {
     unsupported: '그 상호작용 유형은 아직 지원하지 않습니다.',
     shareExpired: '그 답변은 너무 오래되어 공유할 수 없습니다 —— 명령을 다시 실행하세요.',
   },
+
+  commands: {
+    sotw: '이번 주 스킬 —— 실시간 순위',
+    botw: '이번 주 보스 —— 실시간 순위',
+    eff: '효율(EHP/EHB) 순위표와 내 위치',
+    coffer: '클랜 금고 —— 잔액, 기부자, 운영진의 추가/차감',
+    clog: '컬렉션 로그 —— 멤버의 수집 수와 클랜 최고 수집가',
+    luck: '드롭 운 —— 클랜에서 가장 안 풀린 사람과 가장 잘 풀린 사람, 또는 개인',
+    guide: '설정 가이드 읽기 —— 개요나 한 단계, 링크 포함',
+  },
+
+  multi: {
+    liveTitle: '📋 진행 중인 보드',
+    liveIntro: '지금 {n}개의 보드가 진행 중입니다.',
+    standingsTitle: '🏆 실시간 순위',
+    standingsIntro: '진행 중인 {n}개 보드의 통합 순위.',
+    teamsOne: '팀 1개',
+    teamsMany: '팀 {n}개',
+    leader: '{team}이(가) 선두 ({score})',
+  },
+
+  weekly: {
+    sotwTitle: '📈 {title}',
+    botwTitle: '⚔️ {title}',
+    sotwEmpty: '지금 {clan}에서 진행 중인 이번 주 스킬이 없습니다.',
+    botwEmpty: '지금 {clan}에서 진행 중인 이번 주 보스가 없습니다.',
+    ends: '{when} 종료됩니다.',
+    noEntries: '아직 아무도 참가하지 않았습니다.',
+    you: '당신: {total}명 중 {place}.',
+    youNone: '참가하지 않았습니다 —— 플러그인이나 사이트에서 참가하세요.',
+    fieldMetric: '항목',
+    fieldEntries: '참가자',
+  },
+
+  eff: {
+    title: '⚡ 효율 —— {metric}',
+    empty: '아직 효율 데이터가 없습니다 —— 멤버는 먼저 통계 수집이 필요합니다.',
+    you: '당신: {total}명 중 #{rank}.',
+    fieldRanked: '순위 등재',
+  },
+
+  coffer: {
+    title: '💰 {clan} —— 금고',
+    none: '아직 금고가 없습니다 —— {clan}은(는) gp 이동을 기록하지 않았습니다.',
+    available: '사용 가능',
+    reserved: '예약됨',
+    pending: '대기 중',
+    donorsHeading: '**최고 기부자**',
+    recentHeading: '**최근 이동**',
+    needAccount:
+      '먼저 사이트에서 Anvil 계정을 연결하세요 —— 금고 변경은 Discord 이름이 아니라 사이트 로그인에 묶입니다.',
+    notStaff: '금고를 움직일 수 있는 건 회계, 관리자, 소유자뿐입니다.',
+    badAmount: '추가하거나 차감할 금액을 지정하세요. 예: `5m` 또는 `2500000`.',
+    outOfRange: '그 금액은 범위를 벗어났습니다.',
+    added: '✅ 금고에 {amount} 추가 —— 현재 {available} 사용 가능.',
+    removed: '✅ 금고에서 {amount} 차감 —— 현재 {available} 사용 가능.',
+  },
+
+  clog: {
+    title: '📖 {who} —— 컬렉션 로그',
+    notSynced: '{who} 님은 아직 컬렉션 로그를 동기화하지 않았습니다 —— Anvil 플러그인에서 동기화하세요.',
+    rankLine: '{clan}의 수집가 {total}명 중 #{rank}.',
+    topHeading: '**최고 수집가**',
+    slots: '슬롯',
+    collectors: '수집가',
+  },
+
+  luck: {
+    boardsTitle: '🍀 {clan} —— 운',
+    memberTitle: '🍀 {who} —— 운',
+    dryHeading: '**가장 안 풀린**',
+    spoonedHeading: '**가장 잘 풀린**',
+    emptyBoards: '아직 운 데이터가 없습니다 —— 멤버는 컬렉션 로그를 동기화해야 합니다.',
+    notSynced: '{who} 님은 아직 컬렉션 로그를 동기화하지 않았습니다.',
+    totalLine: '전체: 추적 드롭 {items}개에서 {net}.',
+    fromLogs: '동기화된 로그 {n}개 기준.',
+  },
+
+  guide: {
+    notFound: '그런 이름의 가이드가 없습니다.',
+    stepsHeading: '**단계**',
+    stepsField: '단계',
+    stepTitle: '{n}/{total}단계 —— {title}',
+    noSuchStep: '이 가이드는 {total}단계입니다 —— 1부터 {total}까지 중에서 번호를 고르세요.',
+    readFull: '📖 전체 가이드 읽기: {url}',
+    openStep: '🔗 이 단계를 사이트에서 열기: {url}',
+    jumpHint: '-# 특정 단계로 이동: `/guide topic:{topic} step:1`',
+  },
 };
 
 export default ko;

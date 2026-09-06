@@ -195,6 +195,94 @@ const zhHans: PartialDiscordDict = {
     unsupported: '这种交互类型暂不支持。',
     shareExpired: '那条回答太旧了，无法分享 —— 请重新运行命令。',
   },
+
+  commands: {
+    sotw: '本周技能 —— 实时排名',
+    botw: '本周首领 —— 实时排名',
+    eff: '效率（EHP/EHB）排行榜，以及你的名次',
+    coffer: '家族金库 —— 余额、捐赠者，以及管理组增减',
+    clog: '收藏册 —— 成员的收集数与家族顶尖收藏者',
+    luck: '掉落运气 —— 家族里最背和最旺的，或某位成员的',
+    guide: '阅读设置指南 —— 概览或某一步，附链接',
+  },
+
+  multi: {
+    liveTitle: '📋 进行中的版面',
+    liveIntro: '现在有 {n} 块版面进行中。',
+    standingsTitle: '🏆 实时排名',
+    standingsIntro: '{n} 块进行中版面的综合排名。',
+    teamsOne: '1 支队伍',
+    teamsMany: '{n} 支队伍',
+    leader: '由 {team} 领先（{score}）',
+  },
+
+  weekly: {
+    sotwTitle: '📈 {title}',
+    botwTitle: '⚔️ {title}',
+    sotwEmpty: '{clan} 现在没有正在进行的本周技能。',
+    botwEmpty: '{clan} 现在没有正在进行的本周首领。',
+    ends: '{when}结束。',
+    noEntries: '还没有人参加。',
+    you: '你：{total} 中的{place}。',
+    youNone: '你还没参加 —— 在插件里或网站上加入。',
+    fieldMetric: '项目',
+    fieldEntries: '参加人数',
+  },
+
+  eff: {
+    title: '⚡ 效率 —— {metric}',
+    empty: '暂无效率数据 —— 成员需先经过一次数据抓取。',
+    you: '你：{total} 中的第 {rank} 名。',
+    fieldRanked: '已排名',
+  },
+
+  coffer: {
+    title: '💰 {clan} —— 金库',
+    none: '还没有金库 —— {clan} 未记录任何 gp 变动。',
+    available: '可用',
+    reserved: '预留',
+    pending: '待定',
+    donorsHeading: '**顶尖捐赠者**',
+    recentHeading: '**最近变动**',
+    needAccount:
+      '请先在网站上绑定你的 Anvil 账号 —— 金库变动挂在你的网站登录上，而不是 Discord 名字。',
+    notStaff: '只有司库、管理员和所有者才能动金库。',
+    badAmount: '请给出要增减的数额，例如 `5m` 或 `2500000`。',
+    outOfRange: '该数额超出范围。',
+    added: '✅ 已向金库加入 {amount} —— 现有 {available} 可用。',
+    removed: '✅ 已从金库取出 {amount} —— 现有 {available} 可用。',
+  },
+
+  clog: {
+    title: '📖 {who} —— 收藏册',
+    notSynced: '{who} 还没有同步过收藏册 —— 从 Anvil 插件同步。',
+    rankLine: '在 {clan} 的 {total} 名收藏者中排第 {rank}。',
+    topHeading: '**顶尖收藏者**',
+    slots: '格位',
+    collectors: '收藏者',
+  },
+
+  luck: {
+    boardsTitle: '🍀 {clan} —— 运气',
+    memberTitle: '🍀 {who} —— 运气',
+    dryHeading: '**最背**',
+    spoonedHeading: '**最旺**',
+    emptyBoards: '暂无运气数据 —— 成员需要同步各自的收藏册。',
+    notSynced: '{who} 还没有同步过收藏册。',
+    totalLine: '总体：在 {items} 项追踪掉落上 {net}。',
+    fromLogs: '来自 {n} 份已同步的收藏册。',
+  },
+
+  guide: {
+    notFound: '我没有叫这个名字的指南。',
+    stepsHeading: '**步骤**',
+    stepsField: '步骤',
+    stepTitle: '第 {n}/{total} 步 —— {title}',
+    noSuchStep: '本指南共有 {total} 步 —— 请从 1 到 {total} 之间选一个数字。',
+    readFull: '📖 阅读完整指南：{url}',
+    openStep: '🔗 在网站上打开这一步：{url}',
+    jumpHint: '-# 跳转到某一步：`/guide topic:{topic} step:1`',
+  },
 };
 
 export default zhHans;
