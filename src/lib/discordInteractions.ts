@@ -38,6 +38,8 @@ export const CALLBACK_TYPE = {
   CHANNEL_MESSAGE: 4,
   /** "Anvil is thinking…" — buys 15 minutes to PATCH the real answer in. */
   DEFERRED_CHANNEL_MESSAGE: 5,
+  /** Suggestions for the option the member is typing (docs: Autocomplete). */
+  AUTOCOMPLETE_RESULT: 8,
 } as const;
 
 /** Message flags. EPHEMERAL = only the person who ran the command sees it. */
@@ -63,6 +65,8 @@ export interface InteractionOption {
   type: number;
   value?: string | number | boolean;
   options?: InteractionOption[];
+  /** Set on the one option Discord is currently completing, in an AUTOCOMPLETE interaction. */
+  focused?: boolean;
 }
 
 export interface InteractionUser {
@@ -134,6 +138,46 @@ export function readSubcommand(interaction: Interaction): {
   const options: Record<string, string | number | boolean> = {};
   for (const o of top.options ?? []) if (o.value !== undefined) options[o.name] = o.value;
   return { sub: top.name, options };
+}
+
+/**
+ * On an AUTOCOMPLETE interaction, the option Discord is completing (marked `focused`), the value the
+ * member has typed so far, and the sibling options already filled in — so an `account` suggester can
+ * read a `member` option, say. Recurses one subcommand level, the deepest Anvil goes.
+ */
+export function readFocusedOption(interaction: Interaction): {
+  command: string;
+  sub: string | null;
+  name: string;
+  value: string;
+  siblings: Record<string, string | number | boolean>;
+} | null {
+  const top = interaction.data?.options ?? [];
+  let opts = top;
+  let sub: string | null = null;
+  if (top[0]?.type === OPTION_TYPE.SUB_COMMAND) {
+    sub = top[0].name;
+    opts = top[0].options ?? [];
+  }
+  const focused = opts.find((o) => o.focused);
+  if (!focused) return null;
+  const siblings: Record<string, string | number | boolean> = {};
+  for (const o of opts) if (!o.focused && o.value !== undefined) siblings[o.name] = o.value;
+  return {
+    command: interaction.data?.name ?? '',
+    sub,
+    name: focused.name,
+    value: focused.value === undefined ? '' : String(focused.value),
+    siblings,
+  };
+}
+
+/** Up to 25 type-ahead suggestions for the focused option. Names and values are capped at 100. */
+export function autocompleteReply(choices: { name: string; value: string }[]): InteractionResponse {
+  return {
+    type: CALLBACK_TYPE.AUTOCOMPLETE_RESULT,
+    data: { choices: choices.slice(0, 25).map((c) => ({ name: c.name.slice(0, 100), value: c.value.slice(0, 100) })) },
+  };
 }
 
 // ── Signature verification ──────────────────────────────────────────────────────────────────────
@@ -221,6 +265,8 @@ export interface InteractionResponse {
     embeds?: unknown[];
     flags?: number;
     components?: ActionRow[];
+    /** AUTOCOMPLETE_RESULT only: the suggestions shown as the member types. */
+    choices?: { name: string; value: string }[];
   };
 }
 

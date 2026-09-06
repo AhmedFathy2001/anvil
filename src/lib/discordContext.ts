@@ -235,6 +235,8 @@ export interface InvokerIdentity {
   memberIds: number[];
   /** The ACCOUNTS behind those seats — the key clog/luck/stat history is stored under. */
   accountIds: number[];
+  /** Each account with its RSN — for naming a specific account and the `account:` picker. */
+  accounts: { accountId: number; rsn: string }[];
   /** The account behind their primary seat, for the single-account commands. */
   primaryAccountId: number | null;
   /** Primary RSN for prose, when they have one. */
@@ -268,11 +270,16 @@ export async function resolveInvoker(discordId: string, clanId: number): Promise
           .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.discordId, discordId), isNull(clanRoster.leftAt)));
 
   const primary = rows.find((m) => m.isPrimary === 1) ?? rows[0];
+  const seen = new Set<number>();
+  const accounts = rows
+    .filter((m) => !seen.has(m.accountId) && seen.add(m.accountId))
+    .map((m) => ({ accountId: m.accountId, rsn: m.rsn }));
   return {
     userId: user?.id ?? null,
     displayName: user?.displayName ?? null,
     memberIds: rows.map((m) => m.id),
-    accountIds: [...new Set(rows.map((m) => m.accountId))],
+    accountIds: accounts.map((a) => a.accountId),
+    accounts,
     primaryAccountId: primary?.accountId ?? null,
     rsn: primary?.rsn ?? null,
   };

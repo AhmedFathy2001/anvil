@@ -102,6 +102,25 @@ const LANGUAGE_OPTION = {
   choices: DISCORD_LOCALES.map((l) => ({ name: l.english, value: l.code })),
 } as const;
 
+// Type-ahead options (125 pages, per-user account lists — too many/too personal for static choices),
+// answered by handleAutocomplete in lib/discordCommands. `autocomplete` and `choices` are mutually
+// exclusive to Discord, so these carry neither a choices list nor a hard-coded set.
+const PAGE_OPTION = {
+  name: 'page',
+  description: 'A boss or activity page — type to search (like !log <boss>)',
+  type: OPTION_TYPE.STRING,
+  required: false,
+  autocomplete: true,
+} as const;
+
+const ACCOUNT_OPTION = {
+  name: 'account',
+  description: 'Which account — type to pick (defaults to the main)',
+  type: OPTION_TYPE.STRING,
+  required: false,
+  autocomplete: true,
+} as const;
+
 const CLAN_DEFINITIONS = [
   { name: 'sotw', description: 'Skill of the Week — live standings', contexts: [0], options: [LANGUAGE_OPTION] },
   { name: 'botw', description: 'Boss of the Week — live standings', contexts: [0], options: [LANGUAGE_OPTION] },
@@ -150,15 +169,15 @@ const CLAN_DEFINITIONS = [
   },
   {
     name: 'clog',
-    description: "Collection log — a member's count and the clan's top collectors",
+    description: "Collection log — a member's count, one boss's page, or the clan's top collectors",
     contexts: [0],
-    options: [MEMBER_OPTION, LANGUAGE_OPTION],
+    options: [PAGE_OPTION, ACCOUNT_OPTION, MEMBER_OPTION, LANGUAGE_OPTION],
   },
   {
     name: 'luck',
     description: "Drop luck — the clan's driest and luckiest, or a member's",
     contexts: [0],
-    options: [MEMBER_OPTION, LANGUAGE_OPTION],
+    options: [MEMBER_OPTION, ACCOUNT_OPTION, LANGUAGE_OPTION],
   },
   {
     name: 'guide',
