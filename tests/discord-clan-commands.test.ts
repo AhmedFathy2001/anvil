@@ -95,3 +95,23 @@ test('a clan share id fits inside the 100 characters Discord allows on a custom_
   assert.ok(id.length <= 100, `custom_id is ${id.length} chars`);
   assert.ok(id.startsWith('cx:'));
 });
+
+// ── language: option ────────────────────────────────────────────────────────────────────────────
+
+test('applyLanguage: an explicit choice wins; blank or unknown falls through', async () => {
+  const { applyLanguage } = await load();
+  const { getDiscordDict } = await import('../src/lib/discordI18n/index.ts');
+  const base = { t: await getDiscordDict('en'), locale: 'en' };
+
+  assert.equal((await applyLanguage({ language: 'de' }, base)).locale, 'de');
+  assert.equal((await applyLanguage({ language: 'ar' }, base)).locale, 'ar');
+  assert.equal((await applyLanguage({ language: 'zh-hans' }, base)).locale, 'zh-hans');
+  // The returned dict actually is that language, not English.
+  const ar = await applyLanguage({ language: 'ar' }, base);
+  assert.notEqual(ar.t.commands.guide, base.t.commands.guide);
+
+  // Nothing asked, or a code we don't speak → leave the resolved locale alone.
+  assert.equal((await applyLanguage({}, base)).locale, 'en');
+  assert.equal((await applyLanguage({ language: 'xx' }, base)).locale, 'en');
+  assert.equal((await applyLanguage({ language: '' }, base)).locale, 'en');
+});

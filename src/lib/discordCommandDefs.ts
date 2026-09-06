@@ -90,9 +90,21 @@ const NOTE_OPTION = {
   required: false,
 } as const;
 
+// Ask for one answer in a specific language, overriding the member's own Discord locale (and the
+// clan's bot-language setting) for that one reply. Choices come straight from the locale table, so
+// every language the bot speaks is offered and none can drift. The handler applies it in
+// lib/discordCommands (applyLanguage), where the explicit choice beats everything else.
+const LANGUAGE_OPTION = {
+  name: 'language',
+  description: 'Reply in a specific language (default: your own Discord language)',
+  type: OPTION_TYPE.STRING,
+  required: false,
+  choices: DISCORD_LOCALES.map((l) => ({ name: l.english, value: l.code })),
+} as const;
+
 const CLAN_DEFINITIONS = [
-  { name: 'sotw', description: 'Skill of the Week — live standings', contexts: [0], options: [] },
-  { name: 'botw', description: 'Boss of the Week — live standings', contexts: [0], options: [] },
+  { name: 'sotw', description: 'Skill of the Week — live standings', contexts: [0], options: [LANGUAGE_OPTION] },
+  { name: 'botw', description: 'Boss of the Week — live standings', contexts: [0], options: [LANGUAGE_OPTION] },
   {
     name: 'eff',
     description: 'Efficiency (EHP/EHB) leaderboard, and where you rank',
@@ -108,6 +120,7 @@ const CLAN_DEFINITIONS = [
           { name: 'EHB', value: 'ehb' },
         ],
       },
+      LANGUAGE_OPTION,
     ],
   },
   {
@@ -115,7 +128,12 @@ const CLAN_DEFINITIONS = [
     description: 'The clan coffer — balance, donors, and staff add/remove',
     contexts: [0],
     options: [
-      { name: 'balance', description: 'Balance, top donors, and recent movements', type: OPTION_TYPE.SUB_COMMAND },
+      {
+        name: 'balance',
+        description: 'Balance, top donors, and recent movements',
+        type: OPTION_TYPE.SUB_COMMAND,
+        options: [LANGUAGE_OPTION],
+      },
       {
         name: 'add',
         description: 'Add gp to the coffer (treasurer, admin or owner)',
@@ -134,13 +152,13 @@ const CLAN_DEFINITIONS = [
     name: 'clog',
     description: "Collection log — a member's count and the clan's top collectors",
     contexts: [0],
-    options: [MEMBER_OPTION],
+    options: [MEMBER_OPTION, LANGUAGE_OPTION],
   },
   {
     name: 'luck',
     description: "Drop luck — the clan's driest and luckiest, or a member's",
     contexts: [0],
-    options: [MEMBER_OPTION],
+    options: [MEMBER_OPTION, LANGUAGE_OPTION],
   },
   {
     name: 'guide',
@@ -172,6 +190,7 @@ const CLAN_DEFINITIONS = [
         type: OPTION_TYPE.INTEGER,
         required: false,
       },
+      LANGUAGE_OPTION,
     ],
   },
 ] as const;

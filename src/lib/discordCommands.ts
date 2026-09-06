@@ -71,7 +71,7 @@ import {
   type Interaction,
   type InteractionResponse,
 } from '@/lib/discordInteractions';
-import { fmt, plural, getDiscordDict, resolveLocale, type DiscordDict } from '@/lib/discordI18n';
+import { fmt, plural, getDiscordDict, resolveLocale, findDiscordLocale, type DiscordDict } from '@/lib/discordI18n';
 
 // ── Shared embed furniture ──────────────────────────────────────────────────────────────────────
 
@@ -1146,6 +1146,23 @@ export function decodeClanShare(
 }
 
 /**
+ * A `language:` option (present on the read commands) overrides the answer's language for that one
+ * reply — beating the member's detected locale AND the clan's bot-language setting, because an
+ * explicit ask is the clearest intent there is. Blank or unknown leaves the resolved locale alone.
+ * Rides through the Share button too (the id carries the option), so a shared answer keeps the
+ * language the sharer chose.
+ */
+export async function applyLanguage(
+  options: Record<string, string | number | boolean>,
+  base: { t: DiscordDict; locale: string },
+): Promise<{ t: DiscordDict; locale: string }> {
+  const lang = typeof options.language === 'string' ? options.language.trim() : '';
+  const meta = lang ? findDiscordLocale(lang) : undefined;
+  if (!meta) return base;
+  return { t: await getDiscordDict(meta.code), locale: meta.code };
+}
+
+/**
  * Answer a clan command (sotw/botw/eff/coffer/clog/luck): private, with a Share button when the
  * result allows it. A write (coffer add/remove) never gets a button — re-running one from a click
  * would move gp twice — and a bare-sentence result is never worth a channel post.
@@ -1204,9 +1221,10 @@ export async function handleCommand(interaction: Interaction): Promise<Interacti
     const { sub, options } = readSubcommand(interaction);
     const discordId = invokerId(interaction);
     const identity = discordId ? await resolveInvoker(discordId, clan.clanId) : null;
+    const lang = await applyLanguage(options, { t, locale: dictLocale });
     return replyClanCommand(
       clanHandler,
-      { t, clan, identity, sub, options, who: invokerName(interaction), locale: dictLocale },
+      { t: lang.t, clan, identity, sub, options, who: invokerName(interaction), locale: lang.locale },
       { name, ephemeral: true },
     );
   }
@@ -1242,9 +1260,10 @@ export async function handleComponent(interaction: Interaction): Promise<Interac
     const sub = CLAN_WRITE_SUBS[clanShare.n]?.has(clanShare.s ?? '') ? null : clanShare.s;
     const discordId = invokerId(interaction);
     const identity = discordId ? await resolveInvoker(discordId, clan.clanId) : null;
+    const lang = await applyLanguage(clanShare.o, { t, locale: dictLocale });
     return replyClanCommand(
       clanHandler,
-      { t, clan, identity, sub, options: clanShare.o, who: invokerName(interaction), locale: dictLocale },
+      { t: lang.t, clan, identity, sub, options: clanShare.o, who: invokerName(interaction), locale: lang.locale },
       { name: clanShare.n, ephemeral: false, sharedBy: invokerName(interaction) },
     );
   }
