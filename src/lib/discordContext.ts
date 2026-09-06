@@ -248,32 +248,31 @@ export interface InvokerIdentity {
  */
 export async function resolveInvoker(discordId: string, clanId: number): Promise<InvokerIdentity> {
   const user = await db.query.users.findFirst({ where: eq(users.discordId, discordId) });
-  if (!user) {
-    // Not a site user — they may still be a roster row linked only by the legacy discord_id column.
-    const legacy = await db
-      .select({ id: clanRoster.id, accountId: clanRoster.accountId, rsn: clanRoster.rsn, isPrimary: clanRoster.isPrimary })
-      .from(clanRoster)
-      .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.discordId, discordId), isNull(clanRoster.leftAt)));
-    const primaryLegacy = legacy.find((m) => m.isPrimary === 1) ?? legacy[0];
-    return {
-      userId: null,
-      displayName: null,
-      memberIds: legacy.map((m) => m.id),
-      accountIds: [...new Set(legacy.map((m) => m.accountId))],
-      primaryAccountId: primaryLegacy?.accountId ?? null,
-      rsn: primaryLegacy?.rsn ?? null,
-    };
-  }
-  const members = await db
-    .select({ id: clanRoster.id, accountId: clanRoster.accountId, rsn: clanRoster.rsn, isPrimary: clanRoster.isPrimary })
-    .from(clanRoster)
-    .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.playerId, user.id), isNull(clanRoster.leftAt)));
-  const primary = members.find((m) => m.isPrimary === 1) ?? members[0];
+
+  // A Discord login points at a PERSON (users.player_id → players.id), and every account belongs to
+  // the person. So the roster is matched by the login's PLAYER id — never by the login's own id.
+  // They were seeded 1:1, so `user.id` happened to work until someone held a second account; from
+  // that point `player_id = user.id` matches nobody and the member wrongly reads as "no accounts".
+  //
+  // Two fallbacks to the name-matched roster cache (clan_roster.discord_id): no login at all, or a
+  // login not yet linked to a player.
+  const rows =
+    user?.playerId != null
+      ? await db
+          .select({ id: clanRoster.id, accountId: clanRoster.accountId, rsn: clanRoster.rsn, isPrimary: clanRoster.isPrimary })
+          .from(clanRoster)
+          .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.playerId, user.playerId), isNull(clanRoster.leftAt)))
+      : await db
+          .select({ id: clanRoster.id, accountId: clanRoster.accountId, rsn: clanRoster.rsn, isPrimary: clanRoster.isPrimary })
+          .from(clanRoster)
+          .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.discordId, discordId), isNull(clanRoster.leftAt)));
+
+  const primary = rows.find((m) => m.isPrimary === 1) ?? rows[0];
   return {
-    userId: user.id,
-    displayName: user.displayName,
-    memberIds: members.map((m) => m.id),
-    accountIds: [...new Set(members.map((m) => m.accountId))],
+    userId: user?.id ?? null,
+    displayName: user?.displayName ?? null,
+    memberIds: rows.map((m) => m.id),
+    accountIds: [...new Set(rows.map((m) => m.accountId))],
     primaryAccountId: primary?.accountId ?? null,
     rsn: primary?.rsn ?? null,
   };
