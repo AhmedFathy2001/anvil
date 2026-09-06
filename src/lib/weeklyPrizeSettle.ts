@@ -29,6 +29,9 @@ export interface SettleResult {
  * pays two places, because third was not won and sliding somebody up into it would be inventing a
  * result. A place the coffer cannot cover is recorded as unfunded rather than skipped, so the clan
  * can see it promised something it could not pay instead of the row simply never existing.
+ *
+ * When the ladder splits ties, one finishing position can produce several payments — see winnersFor.
+ * Each still takes its own ledger slot, which is what the (competition, place) unique index needs.
  */
 export async function settleWeeklyPrizes(competitionId: number): Promise<SettleResult> {
   const comp = await db.query.weeklyCompetitions.findFirst({
@@ -73,7 +76,13 @@ export async function settleWeeklyPrizes(competitionId: number): Promise<SettleR
   let reserved = 0;
   let unfunded = 0;
   for (const winner of winnersFor(prizes, standings)) {
-    const note = `${comp.title} — ${ordinal(winner.place)}`;
+    // The RANK, not the slot. A three-way split for first writes slots 1, 2 and 3 — the numbers that
+    // keep the unique index honest — but all three of those people finished first, and a ledger line
+    // telling one of them they came third would be wrong in the only place a winner will read it.
+    const note =
+      winner.sharedWith > 1
+        ? `${comp.title} — ${ordinal(winner.rank)}, split ${winner.sharedWith} ways`
+        : `${comp.title} — ${ordinal(winner.rank)}`;
     const row = await reserveWeeklyAward({
       clanId: comp.clanId,
       amount: winner.gp,

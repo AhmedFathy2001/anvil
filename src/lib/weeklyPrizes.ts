@@ -27,11 +27,22 @@ export interface WeeklyPrizes {
    * and two of them on zero, and paying gp for turning up is not what anybody meant by "top three".
    */
   payZeroGain: boolean;
+  /**
+   * What to do when people finish DEAD LEVEL.
+   *
+   * Off, the board's own order decides and one of them takes the bigger prize — which is fine for
+   * XP, where an exact tie means nobody trained, and indefensible for a boss week, where three
+   * people on 40 kc each is Tuesday. On, everyone tied pools the places they occupy and splits it
+   * evenly, which is what a host does by hand anyway.
+   */
+  splitTies: boolean;
 }
 
-export const NO_WEEKLY_PRIZES: WeeklyPrizes = { places: [], payZeroGain: false };
+export const NO_WEEKLY_PRIZES: WeeklyPrizes = { places: [], payZeroGain: false, splitTies: false };
 
-const MAX_PLACES = 10;
+/** Ten is what the editor offers and what the parser keeps; a longer ladder is a typo. */
+export const MAX_WEEKLY_PLACES = 10;
+const MAX_PLACES = MAX_WEEKLY_PLACES;
 /** Guards a typo'd ladder from reserving a number nobody meant. Clans can raise it by asking. */
 const MAX_GP_PER_PLACE = 5_000_000_000;
 
@@ -55,13 +66,13 @@ export function parseWeeklyPrizes(raw: string | null | undefined): WeeklyPrizes 
     return NO_WEEKLY_PRIZES;
   }
   if (!parsed || typeof parsed !== 'object') return NO_WEEKLY_PRIZES;
-  const o = parsed as { places?: unknown; payZeroGain?: unknown };
+  const o = parsed as { places?: unknown; payZeroGain?: unknown; splitTies?: unknown };
   const list = Array.isArray(o.places) ? o.places : [];
   const places: WeeklyPlace[] = list
     .slice(0, MAX_PLACES)
     .map((p) => ({ gp: clampGp((p as { gp?: unknown })?.gp) }));
   while (places.length > 0 && places[places.length - 1].gp <= 0) places.pop();
-  return { places, payZeroGain: o.payZeroGain === true };
+  return { places, payZeroGain: o.payZeroGain === true, splitTies: o.splitTies === true };
 }
 
 export function serializeWeeklyPrizes(prizes: WeeklyPrizes): string | null {
@@ -75,10 +86,43 @@ export function totalPrizeGp(prizes: WeeklyPrizes): number {
 }
 
 export interface PrizeWinner {
+  /**
+   * The LEDGER SLOT this payment occupies, 1-based and unique within the competition.
+   *
+   * Equal to the finishing position everywhere except inside a split, where three people tied for
+   * first take slots 1, 2 and 3 while all three finished first. It is a slot rather than a rank
+   * because the coffer keys a weekly award on (competition, place) — that unique index is what makes
+   * the settle pass safe to run twice, and it can only hold if every payment has its own number.
+   */
   place: number;
+  /** Where they actually finished. What the board showed, and what a winner will say they got. */
+  rank: number;
+  /** How many finished level with them. 1 is an outright win; more means this gp is a share. */
+  sharedWith: number;
   gp: number;
   clanMemberId: number | null;
   rsn: string;
+}
+
+type Standing = { clanMemberId: number | null; rsn: string; gained: number };
+
+/** The gp a ladder attaches to one finishing position. Positions past the ladder are worth nothing. */
+const gpAt = (prizes: WeeklyPrizes, position: number) => prizes.places[position - 1]?.gp ?? 0;
+
+/**
+ * Consecutive runs of standings on the SAME gain — the tie groups.
+ *
+ * Consecutive because the standings arrive sorted: two people level with each other are neighbours,
+ * and anyone else on that number would have to be between them.
+ */
+function tieGroups(standings: Standing[]): Standing[][] {
+  const groups: Standing[][] = [];
+  for (const row of standings) {
+    const last = groups[groups.length - 1];
+    if (last && last[0].gained === row.gained) last.push(row);
+    else groups.push([row]);
+  }
+  return groups;
 }
 
 /**
@@ -89,21 +133,54 @@ export interface PrizeWinner {
  * than sliding the next person up: if only two people entered a three-place ladder, third is not
  * won, and quietly promoting somebody into it would be inventing a result.
  *
- * A tie is not resolved here either. Whatever order the standings arrive in is the order paid, and
- * that is the same order the leaderboard showed all week — a payout that disagreed with the board
- * everyone was reading would be the worse surprise.
+ * TIES, which are the reason this is not a one-line loop. Off (`splitTies` false) the board's own
+ * order is paid, unchanged, because it is the order everybody watched all week. On, each set of
+ * people level with each other pools the places they occupy and takes an equal share: three tied for
+ * first on a 100m / 50m / 25m ladder take 58,333,333 gp each, not 100m to whoever the sort put on
+ * top. The pooled positions can run past the end of the ladder — six people tied for first on a
+ * three-place ladder split those three places six ways — which is exactly the case a per-place
+ * payout cannot express, and the reason a split pays by SLOT rather than by place.
+ *
+ * The remainder of an uneven division is handed out a gp at a time from the top, so the shares add
+ * up to the pool exactly and the ledger balances against the ladder that was advertised.
  */
-export function winnersFor(
-  prizes: WeeklyPrizes,
-  standings: { clanMemberId: number | null; rsn: string; gained: number }[],
-): PrizeWinner[] {
+export function winnersFor(prizes: WeeklyPrizes, standings: Standing[]): PrizeWinner[] {
   const out: PrizeWinner[] = [];
-  for (let i = 0; i < prizes.places.length; i++) {
-    const place = prizes.places[i];
-    const who = standings[i];
-    if (!who || place.gp <= 0) continue;
-    if (!prizes.payZeroGain && who.gained <= 0) continue;
-    out.push({ place: i + 1, gp: place.gp, clanMemberId: who.clanMemberId, rsn: who.rsn });
+  const paying = (who: Standing) => prizes.payZeroGain || who.gained > 0;
+
+  if (!prizes.splitTies) {
+    for (let i = 0; i < prizes.places.length; i++) {
+      const gp = prizes.places[i].gp;
+      const who = standings[i];
+      if (!who || gp <= 0 || !paying(who)) continue;
+      out.push({ place: i + 1, rank: i + 1, sharedWith: 1, gp, clanMemberId: who.clanMemberId, rsn: who.rsn });
+    }
+    return out;
+  }
+
+  let position = 1; // 1-based finishing position of the next group's first member
+  let slot = 1; // 1-based ledger slot of the next payment
+  for (const group of tieGroups(standings)) {
+    const rank = position;
+    position += group.length;
+
+    // Everything this group's positions are collectively worth, then split evenly.
+    let pool = 0;
+    for (let i = 0; i < group.length; i++) pool += gpAt(prizes, rank + i);
+    if (pool <= 0) continue;
+
+    const share = Math.floor(pool / group.length);
+    let remainder = pool - share * group.length;
+    for (const who of group) {
+      const gp = share + (remainder > 0 ? 1 : 0);
+      if (remainder > 0) remainder--;
+      // A zero-gain finisher still OCCUPIES the position (nobody is promoted past them), they are
+      // simply not paid for it — so their share is dropped rather than redistributed.
+      if (gp > 0 && paying(who)) {
+        out.push({ place: slot, rank, sharedWith: group.length, gp, clanMemberId: who.clanMemberId, rsn: who.rsn });
+      }
+      slot++;
+    }
   }
   return out;
 }

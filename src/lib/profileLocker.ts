@@ -9,7 +9,7 @@ import { getStatStandings, getTeamStandings } from '@/lib/statStandings';
 import { parseContributionSnapshot } from '@/lib/statTracking';
 import { loadPlayerOwners } from '@/lib/draftProfiles';
 import { signupWindowState } from '@/lib/signup';
-import { competitionIconUrl } from '@/lib/tileIcons';
+import { competitionImageUrl } from '@/lib/tileIcons';
 import {
   getClanActivityAnalytics,
   getMemberProfile,
@@ -463,7 +463,7 @@ export async function buildLocker(
         title: comp.title,
         kind: WEEKLY_KIND[comp.type] ?? 'SOTW',
         metricLabel: weeklyMetricLabel(comp.type, comp.metric),
-        iconUrl: competitionIconUrl(comp.type === 'boss' ? 'boss' : 'skill', comp.metric),
+        iconUrl: competitionImageUrl(comp.type === 'boss' ? 'boss' : 'skill', comp.metric),
         endDate: comp.endDate,
         gained: me.gained,
         // Rank only means something once they're on the board; before that the honest answer is

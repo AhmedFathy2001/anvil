@@ -6,6 +6,8 @@ import Select from '@/components/Select';
 import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
 import Input from '@/components/Input';
+import { atLeast } from '@/lib/clanRoles';
+import CofferPoolCard from './CofferPoolCard';
 
 interface Payout extends PayoutRow {
   clanMemberId: number | null;
@@ -29,6 +31,8 @@ interface Standing {
 interface Pool {
   total: number;
   added: number;
+  /** The slice taken out of the clan coffer, derived from its ledger row. */
+  cofferFunded: number;
   signupFee: number;
   approvedCount: number;
 }
@@ -107,7 +111,10 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
   const [announcing, setAnnouncing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const canManage = viewerRole === 'admin' || viewerRole === 'treasurer';
+  // `atLeast`, NOT equality on 'admin': owner outranks admin, so an owner reading their own board's
+  // payouts got the view without any of the buttons. The server gate that let them onto this page
+  // (verifyEventTreasurer) has always passed them; only this line disagreed.
+  const canManage = viewerRole === 'treasurer' || atLeast(viewerRole, 'admin');
 
   const load = useCallback(async () => {
     try {
@@ -300,10 +307,14 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
             <span className="font-bold text-gold">{pool.total.toLocaleString()} gp</span>
           </div>
           <div className="text-xs text-text-muted">
-            {pool.added.toLocaleString()} added + {pool.signupFee.toLocaleString()} fee ×{' '}
-            {pool.approvedCount} entr{pool.approvedCount === 1 ? 'y' : 'ies'}
+            {pool.added.toLocaleString()} added
+            {pool.cofferFunded > 0 && ` + ${pool.cofferFunded.toLocaleString()} from the coffer`} +{' '}
+            {pool.signupFee.toLocaleString()} fee × {pool.approvedCount} entr
+            {pool.approvedCount === 1 ? 'y' : 'ies'}
           </div>
         </div>
+
+        <CofferPoolCard eventId={eventId} canManage={canManage} onSaved={load} />
 
         {canManage && (
           <div className="space-y-3">

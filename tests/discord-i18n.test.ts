@@ -93,7 +93,14 @@ for (const file of localeFiles) {
     const mod = await import(join(I18N, file));
     const dict = leaves(mod.default);
     for (const [key, value] of dict) {
-      if (key !== 'help.command' && !key.startsWith('help.subs.') && key !== 'help.optionTeamName') continue;
+      // The strings registered AS Discord command/option descriptions: /bingo's help.* keys and the
+      // clan-wide commands' commands.* keys. Everything else is answer text, uncapped.
+      const isCommandDesc =
+        key === 'help.command' ||
+        key.startsWith('help.subs.') ||
+        key === 'help.optionTeamName' ||
+        key.startsWith('commands.');
+      if (!isCommandDesc) continue;
       assert.ok(value.length <= 100, `${code}.ts "${key}" is ${value.length} chars; Discord caps it at 100`);
     }
   });

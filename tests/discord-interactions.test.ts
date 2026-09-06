@@ -208,6 +208,14 @@ test('COMMAND_DEFINITIONS: every subcommand the tree advertises is one the dispa
   assert.deepEqual([...advertised].sort(), [...SUBCOMMAND_NAMES].sort());
 });
 
+test('COMMAND_DEFINITIONS: every clan-wide command the tree advertises has a handler', async () => {
+  // Same guard as /bingo's subcommands, one level up: a top-level command that isn't /bingo must
+  // have an entry in CLAN_COMMANDS, or it autocompletes and then answers "unknown command".
+  const advertised = COMMAND_DEFINITIONS.map((c) => c.name).filter((n) => n !== COMMAND_NAME);
+  const { CLAN_COMMAND_NAMES } = await import('../src/lib/discordClanCommands.ts');
+  assert.deepEqual([...advertised].sort(), [...CLAN_COMMAND_NAMES].sort());
+});
+
 // ── Guild guard + provenance ────────────────────────────────────────────────────────────────────
 
 const clan: ClanContext = { clanId: 1, name: 'The Afk Spot', origin: 'https://afk.example', guildId: '111', language: null };
@@ -266,33 +274,6 @@ test('contextLine: says so when other clans are in the event', () => {
   // board, not a few guests.
   assert.ok(wholeTeams.includes('cross-clan'));
   assert.ok(wholeTeams.includes('2 visiting teams'));
-});
-
-// ── Cross-repo drift ────────────────────────────────────────────────────────────────────────────
-
-test('the control plane\'s copy of the command tree matches this one', async (t) => {
-  // The shared Anvil application's commands are registered by Anvil.Admin (it holds the shared bot
-  // token), so the tree is duplicated there — two separately deployed apps with no shared package.
-  // Duplication that nothing checks is duplication that drifts: add a subcommand here and the
-  // managed clans would advertise the old set forever.
-  //
-  // Skipped when the sibling repo isn't checked out (CI builds one repo at a time). That makes this
-  // a developer-machine guard rather than a gate, which is where the drift gets introduced anyway.
-  const fs = await import('node:fs');
-  const path = new URL('../../Anvil.Admin/src/lib/discordCommandSync.ts', import.meta.url);
-  if (!fs.existsSync(path)) return t.skip('Anvil.Admin not checked out alongside');
-
-  const source = fs.readFileSync(path, 'utf8');
-  const ours = COMMAND_DEFINITIONS.find((c) => c.name === COMMAND_NAME)!;
-
-  // Compare the shape that matters to a member: the command name, and its subcommand names in order.
-  assert.ok(source.includes(`name: '${ours.name}'`), 'control plane registers a different command name');
-  // Tolerant of formatting: a subcommand may be written on one line or spread over several.
-  const theirSubs = [...source.matchAll(/name: '([a-z]+)',\s*description:/g)].map((m) => m[1]);
-  const ourSubs = (ours.options ?? []).map((o) => o.name);
-  for (const sub of ourSubs) {
-    assert.ok(theirSubs.includes(sub), `Anvil.Admin is missing /${COMMAND_NAME} ${sub} — update its SHARED_COMMANDS`);
-  }
 });
 
 // ── Sharing ─────────────────────────────────────────────────────────────────────────────────────

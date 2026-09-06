@@ -9,6 +9,7 @@ import ScoreboardClient from './ScoreboardClient';
 import { verifyUser } from '@/lib/auth';
 import { signupWindowState, signupEditState } from '@/lib/signup';
 import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
+import { eventPoolGp } from '@/lib/coffer';
 import { placementAmounts } from '@/lib/payouts';
 import EventHero from '@/components/EventHero';
 import StartProofCard from '@/components/StartProofCard';
@@ -297,11 +298,12 @@ export default async function EventScoreboardPage({
   // task, which guarantees the recap has at least the MVP award, so we never link to an empty page.
   const showRecapCta = isEventEnded(event) && !!mvp;
 
-  const approvedCount = await countApprovedSignups(id);
+  const [approvedCount, cofferFunded] = await Promise.all([countApprovedSignups(id), eventPoolGp(id)]);
   const prizePool = computePrizePool({
     addedPrizePool: event.addedPrizePool,
     signupFee: event.signupFee,
     approvedCount,
+    cofferFunded,
   });
 
   // Hero props: shape/points badge and the advertised prize-per-placement structure (public).
@@ -324,6 +326,11 @@ export default async function EventScoreboardPage({
   }
   if ((event.addedPrizePool ?? 0) > 0) {
     prizeBreakdownParts.push(`${event.addedPrizePool!.toLocaleString()} gp added`);
+  }
+  // Named rather than folded into "added": a pool out of the clan's own coffer is the clan paying
+  // for this, which is worth reading on the page people enter from.
+  if (cofferFunded > 0) {
+    prizeBreakdownParts.push(`${cofferFunded.toLocaleString()} gp from the clan coffer`);
   }
 
   // The ladder view model — seasons, movement, streaks, the hall, the feed — all derived from the

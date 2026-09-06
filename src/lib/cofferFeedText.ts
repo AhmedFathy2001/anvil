@@ -29,6 +29,14 @@ export function cofferLine(entry: CofferEntry, balanceAfter: number | null): str
       return entry.status === 'paid'
         ? `✅ ${who} was paid **${gp(entry.amount)}**${note}${left}`
         : `🏆 ${who} is owed **${gp(entry.amount)}**${note}${left}`;
+    case 'pool':
+      // Nobody's name on it: a pool is handed to a BOARD, which splits it however that board's
+      // prizes say. Saying "the clan" here rather than a winner is the honest version.
+      return entry.status === 'cancelled'
+        ? `↩️ The **${gp(entry.amount)}** prize pool was called off${note}${left}`
+        : entry.status === 'paid'
+          ? `✅ **${gp(entry.amount)}** of prize money was paid out${note}${left}`
+          : `🎁 **${gp(entry.amount)}** set aside as a prize pool${note}${left}`;
     case 'refund':
       return `↩️ ${gp(entry.amount)} returned to the coffer${note}${left}`;
     default:

@@ -9,6 +9,16 @@ import { STAGE_BLURB } from '@/lib/eventStage';
 import { weeklyGain, weeklyMetricLabel } from '@/lib/weeklyLabels';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
+import WeeklyPrizeEditor from './WeeklyPrizeEditor';
+import type { WeeklyPrizes } from '@/lib/weeklyPrizes';
+
+/** Everything the prize card needs. Null where the clan runs no coffer and has promised nothing. */
+interface PrizeContext {
+  initial: WeeklyPrizes;
+  cofferAvailable: number;
+  settledAt: string | null;
+  canEdit: boolean;
+}
 
 interface Comp {
   id: number;
@@ -31,11 +41,13 @@ export default function WeeklyHomeClient({
   stage,
   standings,
   counts,
+  prizes,
 }: {
   comp: Comp;
   stage: EventStage;
   standings: WeeklyStanding[];
   counts: WeeklyCounts;
+  prizes: PrizeContext | null;
 }) {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
@@ -167,6 +179,16 @@ export default function WeeklyHomeClient({
             )}
           </div>
         </section>
+      )}
+
+      {prizes && (
+        <WeeklyPrizeEditor
+          competitionId={comp.id}
+          initial={prizes.initial}
+          cofferAvailable={prizes.cofferAvailable}
+          settledAt={prizes.settledAt}
+          canEdit={prizes.canEdit}
+        />
       )}
 
       <section className="border border-card-border rounded-xl bg-card-bg p-5">

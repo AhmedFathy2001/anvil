@@ -223,6 +223,89 @@ export const en = {
     unsupported: 'That interaction type is not supported yet.',
     shareExpired: 'That answer is too old to share — run the command again.',
   },
+
+  // Top-level command descriptions, shown in Discord's picker (localized in buildLocalizedCommands).
+  commands: {
+    sotw: 'Skill of the Week — live standings',
+    botw: 'Boss of the Week — live standings',
+    eff: 'Efficiency (EHP/EHB) leaderboard, and where you rank',
+    coffer: 'The clan coffer — balance, donors, and staff add/remove',
+    clog: "Collection log — a member's count and the clan's top collectors",
+    luck: "Drop luck — the clan's driest and luckiest, or a member's",
+  },
+
+  // /bingo board + leaderboard when several boards are live at once.
+  multi: {
+    liveTitle: '📋 Live boards',
+    liveIntro: '{n} boards are live right now.',
+    standingsTitle: '🏆 Live standings',
+    standingsIntro: 'Standings across {n} live boards.',
+    teamsOne: '1 team',
+    teamsMany: '{n} teams',
+    leader: 'led by {team} ({score})',
+  },
+
+  // /sotw + /botw
+  weekly: {
+    sotwTitle: '📈 {title}',
+    botwTitle: '⚔️ {title}',
+    sotwEmpty: 'No Skill of the Week is running in {clan} right now.',
+    botwEmpty: 'No Boss of the Week is running in {clan} right now.',
+    ends: 'Ends {when}.',
+    noEntries: 'No one has entered yet.',
+    you: 'You: {place} of {total}.',
+    youNone: "You're not entered — join in the plugin or on the site.",
+    fieldMetric: 'Metric',
+    fieldEntries: 'Entered',
+  },
+
+  // /eff
+  eff: {
+    title: '⚡ Efficiency — {metric}',
+    empty: 'No efficiency data yet — members need a stats sweep first.',
+    you: 'You: #{rank} of {total}.',
+    fieldRanked: 'Ranked',
+  },
+
+  // /coffer
+  coffer: {
+    title: '💰 {clan} — coffer',
+    none: 'No coffer yet — {clan} has recorded no gp movements.',
+    available: 'Available',
+    reserved: 'Reserved',
+    pending: 'Pending',
+    donorsHeading: '**Top donors**',
+    recentHeading: '**Recent movements**',
+    needAccount:
+      'Link your Anvil account on the site first — coffer changes are tied to your site login, not your Discord name.',
+    notStaff: 'Only treasurers, admins and owners can move the coffer.',
+    badAmount: 'Give an amount to add or remove, e.g. `5m` or `2500000`.',
+    outOfRange: 'That amount is out of range.',
+    added: '✅ Added {amount} to the coffer — {available} available now.',
+    removed: '✅ Removed {amount} from the coffer — {available} available now.',
+  },
+
+  // /clog
+  clog: {
+    title: '📖 {who} — collection log',
+    notSynced: "{who} hasn't synced a collection log yet — sync it from the Anvil plugin.",
+    rankLine: '#{rank} of {total} collectors in {clan}.',
+    topHeading: '**Top collectors**',
+    slots: 'Slots',
+    collectors: 'Collectors',
+  },
+
+  // /luck
+  luck: {
+    boardsTitle: '🍀 {clan} — luck',
+    memberTitle: '🍀 {who} — luck',
+    dryHeading: '**Driest**',
+    spoonedHeading: '**Luckiest**',
+    emptyBoards: 'No luck data yet — members need to sync their collection logs.',
+    notSynced: "{who} hasn't synced a collection log yet.",
+    totalLine: 'Overall: {net} across {items} tracked drops.',
+    fromLogs: 'From {n} synced logs.',
+  },
 };
 
 export type DiscordDict = typeof en;

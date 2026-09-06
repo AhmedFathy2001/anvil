@@ -32,7 +32,11 @@ export default function CofferClient({
   const [adjusting, setAdjusting] = useState(false);
 
   const pendingDonations = entries.filter((e) => e.kind === 'donation' && e.status === 'pending');
-  const owedPrizes = entries.filter((e) => e.kind === 'award' && e.status === 'reserved');
+  // Pools belong in this queue too: gp set aside for a board is money a treasurer still has to send,
+  // and leaving it out would mean the one movement nobody is ever prompted to complete.
+  const owedPrizes = entries.filter(
+    (e) => (e.kind === 'award' || e.kind === 'pool') && e.status === 'reserved',
+  );
 
   async function act(entryId: number, action: 'approve' | 'reject' | 'pay' | 'cancel') {
     setBusy(entryId);
@@ -148,17 +152,17 @@ export default function CofferClient({
 
       <Section title="Prizes to send" count={owedPrizes.length}>
         {owedPrizes.length === 0 ? (
-          <Empty>Nobody is owed gp right now.</Empty>
+          <Empty>Nothing is waiting to be sent.</Empty>
         ) : (
           owedPrizes.map((e) => (
             <Row key={e.id}>
               <div className="min-w-0">
                 <p className="text-sm font-medium truncate">
-                  <span className="text-gold">{formatGp(Math.abs(e.amount))}</span> to{' '}
-                  {e.memberName ?? e.rsn ?? 'a winner'}
+                  <span className="text-gold">{formatGp(Math.abs(e.amount))}</span>{' '}
+                  {e.kind === 'pool' ? 'for a board' : `to ${e.memberName ?? e.rsn ?? 'a winner'}`}
                 </p>
                 <p className="text-[11px] text-text-muted truncate">
-                  {e.note ?? 'Mission prize'}
+                  {e.note ?? (e.kind === 'pool' ? 'Prize pool' : 'Mission prize')}
                   {e.place ? ` · place ${e.place}` : ''}
                 </p>
               </div>
@@ -259,6 +263,7 @@ export default function CofferClient({
 function kindLabel(e: CofferLedgerRow): string {
   if (e.kind === 'donation') return 'donation';
   if (e.kind === 'award') return e.place ? `prize (place ${e.place})` : 'prize';
+  if (e.kind === 'pool') return 'prize pool';
   if (e.kind === 'refund') return 'refund';
   return 'adjustment';
 }
