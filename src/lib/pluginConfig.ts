@@ -4,6 +4,7 @@ import { clans, events, tiles, weeklyCompetitions } from '@/db/schema';
 import { and, count, eq, inArray } from 'drizzle-orm';
 import { BOSSES, FUN_DEATH_MESSAGES, weeklyMetricLabel, COUNTER_TARGETS } from '@/lib/constants';
 import { DEFAULT_TIER_BANDS, normalizeTierBands, type TierBand } from '@/lib/tileFilter';
+import { bossUniqueIds } from '@/lib/moments';
 import { getItemMapping } from '@/lib/osrsItems';
 import { clogItemNames } from '@/lib/clogDataset';
 import { guaranteedDropsFor, parseGuaranteedOverrides, petFacts, type DropFacts } from '@/lib/dropFacts';
@@ -371,7 +372,19 @@ const NOTABLE_ID_TTL_MS = 5 * 60_000;
 // Substring-resolve the notable name patterns (baked-in + admin) to the set of matching item ids — the same
 // `.contains()` semantics the plugin used on names. Cached briefly (the list is essentially static); on an
 // item-data outage it degrades to the last good set (or empty), and the plugin's name allowlist still covers.
-export async function getAlwaysNotifyItemIds(clanId: number): Promise<number[]> {
+export async function getAlwaysNotifyItemIds(clanId: number, racedBoss?: string | null): Promise<number[]> {
+  // THE BOSS BEING RACED THIS WEEK, whatever its drops are worth.
+  //
+  // The plugin discards a drop under 100k gp unless something has asked for it by id, which is a
+  // sensible floor for a Tuesday and the wrong one during a Boss of the Week: a Kq head is 1-in-128
+  // and worth about two thousand, so a KQ week reported the chainbody and silently dropped the head.
+  // The site already knows which boss is being raced and which items the collection log calls its
+  // own, so it can say so — and because the plugin honours this list by id, no client update is
+  // needed for it to start arriving.
+  //
+  // Added FIRST and unconditionally: these are ids, not name patterns, so they bypass the substring
+  // matching below entirely.
+  const raced = racedBoss ? [...bossUniqueIds(racedBoss)] : [];
   const admin = await getLineSetting(clanId, ALWAYS_NOTIFY_SETTING_KEY);
   const patterns = [...NOTABLE_ITEM_PATTERNS, ...admin.map((s) => s.toLowerCase()).filter(Boolean)];
   const key = patterns.join('');
@@ -382,9 +395,10 @@ export async function getAlwaysNotifyItemIds(clanId: number): Promise<number[]> 
   try {
     items = await getItemMapping();
   } catch {
-    return notableIdCache?.ids ?? [];
+    // Item data is out; the raced boss's ids come from a shipped file and still stand on their own.
+    return [...new Set([...raced, ...(notableIdCache?.ids ?? [])])];
   }
-  const ids = new Set<number>();
+  const ids = new Set<number>(raced);
   for (const it of items) {
     const n = it.name.toLowerCase();
     for (const p of patterns) {

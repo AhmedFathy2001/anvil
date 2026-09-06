@@ -218,7 +218,7 @@ export async function GET(request: Request) {
       // Valid token, no live event: still resolve the read-bootstrap (schedule, weekly,
       // notification webhooks, fun-death pool) so deaths/rare-drops post and the side
       // panel shows the schedule even when the player isn't enrolled anywhere.
-      const [schedule, activeWeekly, weeklyNames, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, alwaysNotifyItemIds, showKillCount, dropRarityFloor, facts, unlinkedActiveEvent, homeBoard, switchableClans] =
+      const [schedule, activeWeekly, weeklyNames, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, dropRarityFloor, facts, unlinkedActiveEvent, homeBoard, switchableClans] =
         await Promise.all([
           buildSchedule(clan.id, { member: true }),
           getActiveWeekly(clan.id),
@@ -228,7 +228,6 @@ export async function GET(request: Request) {
           getDeathTaunts(clan.id),
           getSpoonTaunts(clan.id),
           getAlwaysNotifyItems(clan.id),
-          getAlwaysNotifyItemIds(clan.id),
           getShowKillCount(clan.id),
           getDropRarityFloor(clan.id),
           getDropFacts(clan.id),
@@ -236,6 +235,12 @@ export async function GET(request: Request) {
           homeBoardForUser(clan.id, userOnly.userId),
           pluginClansFor(userOnly.userId),
         ]);
+        // Needs the active weekly, so it resolves after it: a boss week makes that boss's collection-log
+        // items always-reportable regardless of price. See getAlwaysNotifyItemIds.
+        const alwaysNotifyItemIds = await getAlwaysNotifyItemIds(
+          clan.id,
+          activeWeekly?.type === 'boss' ? activeWeekly.metric : null,
+        );
       return jsonWithEtag(request, {
         // Version + capability handshake — present on every /config shape (enrolled or not) so the
         // plugin can gate features per-site. Old plugins ignore it (GSON drops unknown fields).
@@ -588,7 +593,7 @@ export async function GET(request: Request) {
   // Read-bootstrap extras merged in so the plugin's login flow is a single GET:
   // schedule + active weekly (was two separate endpoints) plus the notification
   // webhooks and fun-death pool the plugin posts with directly.
-  const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, alwaysNotifyItemIds, showKillCount, dropRarityFloor, tiers, facts] =
+  const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, dropRarityFloor, tiers, facts] =
     await Promise.all([
       buildSchedule(clan.id, { member: true }),
       getActiveWeekly(clan.id),
@@ -597,12 +602,17 @@ export async function GET(request: Request) {
       getDeathTaunts(clan.id),
       getSpoonTaunts(clan.id),
       getAlwaysNotifyItems(clan.id),
-      getAlwaysNotifyItemIds(clan.id),
       getShowKillCount(clan.id),
       getDropRarityFloor(clan.id),
       getTierBands(clan.id),
           getDropFacts(clan.id),
     ]);
+
+  // As above: a boss week makes that boss's collection-log items always-reportable, price aside.
+  const alwaysNotifyItemIds = await getAlwaysNotifyItemIds(
+    clan.id,
+    activeWeekly?.type === 'boss' ? activeWeekly.metric : null,
+  );
 
   // Team-level tile completions (drops, stats, manual — all tile types). The plugin uses this to
   // fire a banner for the whole team when any tile is completed, regardless of who finished it.
