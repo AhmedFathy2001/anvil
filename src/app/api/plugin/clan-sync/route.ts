@@ -298,7 +298,19 @@ export async function POST(request: Request) {
   }
 
   // ── 3) Bulk insert new members ───────────────────────────────────────────
-  const auditPayload: { clanMemberId: number; eventType: string; oldValue?: string | null; newValue?: string | null; notes?: string | null }[] = [];
+  // WHOSE log. Every row here used to be written without a clanId, which put the whole of a clan's
+  // roster history in the one place it did not belong: `/admin/clan/audit` filters by clan and so
+  // showed the clan nothing, while the operator log treats a clan-less row as a platform action and
+  // so showed joins and rank changes to platform staff. The schema comment beside the column has
+  // said "every writer sets it" the whole time; this writer did not.
+  const auditPayload: {
+    clanId: number;
+    clanMemberId: number;
+    eventType: string;
+    oldValue?: string | null;
+    newValue?: string | null;
+    notes?: string | null;
+  }[] = [];
 
   // Plan limit. This insert is the ONLY place billable members are created (guests are free and
   // made elsewhere), so the cap is enforced here or nowhere. syncCapGrace also maintains the grace
@@ -361,6 +373,7 @@ export async function POST(request: Request) {
       const src = toInsert[i];
       changes.push({ type: 'joined', rsn: ins.rsn, memberId: ins.id });
       auditPayload.push({
+        clanId: clan.id,
         clanMemberId: ins.id,
         eventType: 'joined',
         newValue: JSON.stringify({ rsn: ins.rsn, rank: src.rank }),
@@ -406,6 +419,7 @@ export async function POST(request: Request) {
     if (u.renamed) {
       changes.push({ type: 'renamed', rsn: u.setRsn, oldRsn: u.oldRsn, memberId: u.id });
       auditPayload.push({
+        clanId: clan.id,
         clanMemberId: u.id,
         eventType: 'renamed',
         oldValue: JSON.stringify({ rsn: u.oldRsn ?? null }),
@@ -419,6 +433,7 @@ export async function POST(request: Request) {
     if (u.returning) {
       changes.push({ type: 'returned', rsn: u.setRsn, memberId: u.id });
       auditPayload.push({
+        clanId: clan.id,
         clanMemberId: u.id,
         eventType: 'returned',
         newValue: JSON.stringify({ rsn: u.setRsn }),
@@ -434,6 +449,7 @@ export async function POST(request: Request) {
         memberId: u.id,
       });
       auditPayload.push({
+        clanId: clan.id,
         clanMemberId: u.id,
         eventType: 'rank_changed',
         oldValue: JSON.stringify({ rank: u.oldRank }),
@@ -488,6 +504,7 @@ export async function POST(request: Request) {
   for (const left of leftResult) {
     changes.push({ type: 'left', rsn: left.rsn, memberId: left.id });
     auditPayload.push({
+      clanId: clan.id,
       clanMemberId: left.id,
       eventType: 'left',
       oldValue: JSON.stringify({ rsn: left.rsn }),

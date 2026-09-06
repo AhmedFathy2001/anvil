@@ -13,6 +13,8 @@ const ko: PartialGuideDict = {
     step: '단계',
     optional: '선택',
     minRead: '읽는 데 약 {n}분',
+    copyLink: '이 섹션의 링크 복사',
+    linkCopied: '링크를 복사했습니다',
     language: '언어',
     partialNotice:
       '이 가이드는 {language}로 일부만 번역되어 있습니다. 아직 번역되지 않은 부분은 영어로 표시됩니다.',

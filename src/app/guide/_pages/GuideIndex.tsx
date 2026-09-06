@@ -62,34 +62,34 @@ export default async function GuideIndex({ lang }: { lang: string }) {
     <div className="max-w-3xl" lang={locale.code} dir={locale.dir}>
       <LanguageBar current={locale.code} page="" label={t.common.language} />
 
-      <div className="flex items-center gap-2 mb-2">
-        <span className="w-1 h-6 bg-gold rounded-full" />
-        <h1 className="text-3xl font-bold">{t.index.title}</h1>
-      </div>
-      <p className="text-text-muted mb-8">{rt(t.index.dek)}</p>
+      <header className="mb-6">
+        <h1 className="text-2xl font-bold text-gold sm:text-3xl">{t.index.title}</h1>
+        <p className="mt-1 text-sm text-text-muted">{rt(t.index.dek)}</p>
+      </header>
 
       <GuideSearch cards={cards} labels={t.index.search}>
-      <div className="space-y-10">
+      <div className="space-y-8">
         {GROUPS.map((group) => (
           <section key={group.key}>
-            <h2 className="text-[11px] uppercase tracking-widest text-text-muted mb-3">
+            <h2 className="mb-3 flex items-center gap-2 text-[17px] font-bold">
+              <span aria-hidden className="h-5 w-1 shrink-0 rounded-full bg-gold" />
               {t.index.groups[group.key]}
             </h2>
-            <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid gap-3 sm:grid-cols-2">
               {group.pages.map((page) => {
                 const card = t.index.cards[CARD_KEY[page]];
                 return (
                   <ClanLink
                     key={page}
                     href={guideHref(locale.code, page)}
-                    className="group border border-card-border rounded-xl bg-card-bg p-5 hover:border-gold/40 transition-colors"
+                    className="group rounded-xl border border-card-border bg-card-bg p-4 transition-colors hover:border-gold/40 hover:bg-brown-light/20"
                   >
-                    <div className="text-[11px] uppercase tracking-widest text-gold mb-2">{card.eyebrow}</div>
-                    <div className="text-lg font-semibold mb-1 group-hover:text-gold-light transition-colors">
+                    <div className="mb-2 text-[11px] uppercase tracking-widest text-gold/80">{card.eyebrow}</div>
+                    <div className="mb-1 text-[15px] font-bold transition-colors group-hover:text-gold-light">
                       {card.title}
                     </div>
-                    <p className="text-sm text-text-muted mb-3">{card.blurb}</p>
-                    <div className="text-xs text-text-muted">{card.minutes}</div>
+                    <p className="mb-3 text-[13px] text-text-muted">{card.blurb}</p>
+                    <div className="text-[11.5px] text-text-muted/80">{card.minutes}</div>
                   </ClanLink>
                 );
               })}

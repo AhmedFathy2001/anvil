@@ -14,6 +14,8 @@ const de: PartialGuideDict = {
     step: 'Schritt',
     optional: 'optional',
     minRead: '{n} Min. Lesezeit',
+    copyLink: 'Link zu diesem Abschnitt kopieren',
+    linkCopied: 'Link kopiert',
     language: 'Sprache',
     partialNotice:
       'Diese Anleitung ist nur teilweise ins {language} übersetzt. Was noch nicht übersetzt ist, erscheint auf Englisch.',

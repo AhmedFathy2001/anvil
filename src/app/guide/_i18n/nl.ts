@@ -14,6 +14,8 @@ const nl: PartialGuideDict = {
     step: 'Stap',
     optional: 'optioneel',
     minRead: '{n} min lezen',
+    copyLink: 'Kopieer een link naar dit onderdeel',
+    linkCopied: 'Link gekopieerd',
     language: 'Taal',
     partialNotice:
       'Deze handleiding is maar gedeeltelijk vertaald naar het {language}. Wat nog niet vertaald is, staat er in het Engels.',

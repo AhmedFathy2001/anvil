@@ -1,4 +1,4 @@
-import { allClans, platformActions, MODERATION_TYPES, type PlatformAction } from '@/lib/platformView';
+import { allClans, platformActions, type PlatformAction } from '@/lib/platformView';
 import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
@@ -132,7 +132,7 @@ function Row({ action }: { action: PlatformAction }) {
       {detail && <span className="text-[13px] text-gray-400">{detail}</span>}
 
       <span className="ml-auto shrink-0 text-[12.5px] text-gray-500">
-        {action.actor ?? 'a deleted login'}
+        {action.actor ?? (action.hadActor ? 'a deleted login' : 'Anvil')}
       </span>
     </li>
   );

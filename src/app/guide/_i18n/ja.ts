@@ -13,6 +13,8 @@ const ja: PartialGuideDict = {
     step: 'ステップ',
     optional: '任意',
     minRead: '読了目安 {n} 分',
+    copyLink: 'このセクションへのリンクをコピー',
+    linkCopied: 'リンクをコピーしました',
     language: '言語',
     partialNotice:
       'このガイドは{language}への翻訳が一部だけです。未翻訳の部分は英語で表示されます。',
