@@ -46,6 +46,7 @@ import { clanGrant, type ClanGrant } from '@/lib/clanGrants';
 import { atLeast } from '@/lib/clanRoles';
 import { getLuckBoards, getMemberLuck } from '@/lib/clogLuckBoard';
 import { formatCount, formatNet, formatOdds } from '@/lib/clogLuck';
+import { guideCommand } from '@/lib/discordGuides';
 
 const STATS_ICON = 'https://oldschool.runescape.wiki/images/Stats_icon.png';
 const CLOG_ITEM_ID = 22711; // Collection log
@@ -64,6 +65,9 @@ export interface ClanCommandCtx {
   options: Record<string, string | number | boolean>;
   /** The invoker's display name, for prose. */
   who: string;
+  /** The resolved locale code the answer is in — for commands that read another dictionary in the
+   *  same language (e.g. /guide reads the guide i18n). Matches `t`. */
+  locale: string;
 }
 
 /**
@@ -514,6 +518,7 @@ export const CLAN_COMMANDS: Record<string, ClanCommand> = {
   coffer: cofferResult,
   clog: clogResult,
   luck: luckResult,
+  guide: guideCommand,
 };
 
 /** Subcommands that WRITE — never re-run from a Share button, and never advertised as shareable. */

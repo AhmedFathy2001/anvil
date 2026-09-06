@@ -13,6 +13,8 @@
 #   stats                every 15 min   — the hiscores sweep; self-limiting (oldest-first, bounded)
 #   weekly               every 15 min   — competition lifecycle: enrol, flip status, announce
 #   backup               daily          — pg_dump to object storage
+#   discord-commands     daily          — reconcile the shared bot's slash commands with the code
+#                                          (boot already does it; this self-heals drift or a missed boot)
 #
 # Staggering is by minute offset rather than by a queue: stats and weekly both want the quarter
 # hour, and running them in the same second means the weekly enrolment races the sweep that is about
@@ -25,3 +27,4 @@ PATH=/usr/local/bin:/usr/bin:/bin
 2,17,32,47 * * * * root /opt/anvil/site-cron.sh stats
 5,20,35,50 * * * * root /opt/anvil/site-cron.sh weekly
 17 4 * * *     root /opt/anvil/site-cron.sh backup
+40 4 * * *     root /opt/anvil/site-cron.sh discord-commands

@@ -1063,7 +1063,9 @@ function reply(result: SubResult, opts: { t: DiscordDict; ephemeral: boolean; sh
 async function resolveClan(
   interaction: Interaction,
   locale: string,
-): Promise<{ ok: true; clan: ClanContext; t: DiscordDict } | { ok: false; response: InteractionResponse }> {
+): Promise<
+  { ok: true; clan: ClanContext; t: DiscordDict; locale: string } | { ok: false; response: InteractionResponse }
+> {
   const t = await getDiscordDict(locale);
   const clan = await getClanContext(interaction.guild_id ?? null);
   if (!clan) {
@@ -1072,14 +1074,17 @@ async function resolveClan(
       response: textReply(interaction.guild_id ? t.errors.wrongGuild.replace('{clan}', 'this server') : t.errors.dm),
     };
   }
-  // The clan's chosen language, when it has one, overrides whatever Discord detected.
-  const t2 = clan.language ? await getDiscordDict(resolveLocale(null, clan.language)) : t;
+  // The clan's chosen language, when it has one, overrides whatever Discord detected. The effective
+  // code travels with the dict, for a command that reads another dictionary — the guides — in the
+  // same language.
+  const effectiveLocale = clan.language ? resolveLocale(null, clan.language) : locale;
+  const t2 = clan.language ? await getDiscordDict(effectiveLocale) : t;
   const guildCheck = checkGuild(clan, interaction.guild_id);
   if (guildCheck === 'dm') return { ok: false, response: textReply(t2.errors.dm) };
   if (guildCheck === 'wrong-guild') {
     return { ok: false, response: textReply(fmt(t2.errors.wrongGuild, { clan: clan.name })) };
   }
-  return { ok: true, clan, t: t2 };
+  return { ok: true, clan, t: t2, locale: effectiveLocale };
 }
 
 /**
@@ -1176,7 +1181,7 @@ export async function handleCommand(interaction: Interaction): Promise<Interacti
 
   const base = await resolveClan(interaction, locale);
   if (!base.ok) return base.response;
-  const { clan, t } = base;
+  const { clan, t, locale: dictLocale } = base;
 
   // /bingo — the board commands, which resolve an event (and every live board) first.
   if (name === COMMAND_NAME) {
@@ -1201,7 +1206,7 @@ export async function handleCommand(interaction: Interaction): Promise<Interacti
     const identity = discordId ? await resolveInvoker(discordId, clan.clanId) : null;
     return replyClanCommand(
       clanHandler,
-      { t, clan, identity, sub, options, who: invokerName(interaction) },
+      { t, clan, identity, sub, options, who: invokerName(interaction), locale: dictLocale },
       { name, ephemeral: true },
     );
   }
@@ -1224,7 +1229,7 @@ export async function handleComponent(interaction: Interaction): Promise<Interac
 
   const base = await resolveClan(interaction, locale);
   if (!base.ok) return base.response;
-  const { clan, t } = base;
+  const { clan, t, locale: dictLocale } = base;
 
   const customId = interaction.data?.custom_id ?? '';
 
@@ -1239,7 +1244,7 @@ export async function handleComponent(interaction: Interaction): Promise<Interac
     const identity = discordId ? await resolveInvoker(discordId, clan.clanId) : null;
     return replyClanCommand(
       clanHandler,
-      { t, clan, identity, sub, options: clanShare.o, who: invokerName(interaction) },
+      { t, clan, identity, sub, options: clanShare.o, who: invokerName(interaction), locale: dictLocale },
       { name: clanShare.n, ephemeral: false, sharedBy: invokerName(interaction) },
     );
   }

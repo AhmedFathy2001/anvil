@@ -142,6 +142,38 @@ const CLAN_DEFINITIONS = [
     contexts: [0],
     options: [MEMBER_OPTION],
   },
+  {
+    name: 'guide',
+    description: 'Read a setup guide — the overview or one step, with a link',
+    contexts: [0],
+    options: [
+      {
+        name: 'topic',
+        description: 'Which guide',
+        type: OPTION_TYPE.STRING,
+        required: true,
+        // Values MUST match GUIDE_OUTLINES keys in lib/discordGuides (asserted in the tests).
+        choices: [
+          { name: 'Plugin setup', value: 'plugin' },
+          { name: 'Discord setup', value: 'discord' },
+          { name: 'Boards & tiles', value: 'board' },
+          { name: 'Start a clan', value: 'clan' },
+          { name: 'Fees & prizes', value: 'fees' },
+          { name: 'Event formats', value: 'formats' },
+          { name: 'Captain & draft', value: 'captain' },
+          { name: 'Running an event', value: 'admin' },
+          { name: 'Moderating proof', value: 'moderator' },
+          { name: 'Clan vs clan', value: 'clanvsclan' },
+        ],
+      },
+      {
+        name: 'step',
+        description: 'Jump to a step number (leave blank for the overview)',
+        type: OPTION_TYPE.INTEGER,
+        required: false,
+      },
+    ],
+  },
 ] as const;
 
 export const COMMAND_DEFINITIONS = [BINGO_DEFINITION, ...CLAN_DEFINITIONS] as const;

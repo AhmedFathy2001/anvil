@@ -232,6 +232,7 @@ export const en = {
     coffer: 'The clan coffer — balance, donors, and staff add/remove',
     clog: "Collection log — a member's count and the clan's top collectors",
     luck: "Drop luck — the clan's driest and luckiest, or a member's",
+    guide: 'Read a setup guide — the overview or one step, with a link',
   },
 
   // /bingo board + leaderboard when several boards are live at once.
@@ -305,6 +306,18 @@ export const en = {
     notSynced: "{who} hasn't synced a collection log yet.",
     totalLine: 'Overall: {net} across {items} tracked drops.',
     fromLogs: 'From {n} synced logs.',
+  },
+
+  // /guide — the setup guides, rendered in part with a link to the full page (lib/discordGuides).
+  guide: {
+    notFound: "I don't have a guide by that name.",
+    stepsHeading: '**Steps**',
+    stepsField: 'Steps',
+    stepTitle: 'Step {n}/{total} — {title}',
+    noSuchStep: 'This guide has {total} steps — pick a number from 1 to {total}.',
+    readFull: '📖 Read the full guide: {url}',
+    openStep: '🔗 Open this step on the site: {url}',
+    jumpHint: '-# Jump to a step: `/guide topic:{topic} step:1`',
   },
 };
 

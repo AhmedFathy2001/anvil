@@ -11,11 +11,13 @@ export async function register() {
 
   // Slash commands: whatever this build defines becomes what Discord has registered. Without it a
   // command added in code never appears and one removed lingers in members' autocomplete — both
-  // silently. No-ops on the shared Anvil bot (the control plane owns that application's commands)
-  // and on an instance with no bot at all. See lib/discordCommandSync.
+  // silently. The shared multi-clan platform registers the shared bot's commands GLOBALLY; a
+  // self-host or BYO clan registers its own application guild-scoped. Never both, or Discord lists
+  // every command twice. No-ops on an instance with no bot. See lib/discordCommandSync.
   try {
-    const { syncClanCommandsInBackground } = await import('@/lib/discordCommandSync');
-    syncClanCommandsInBackground('boot');
+    const sync = await import('@/lib/discordCommandSync');
+    if (process.env.ANVIL_SHARED_BOT_TOKEN) sync.syncGlobalCommandsInBackground('boot');
+    else sync.syncClanCommandsInBackground('boot');
   } catch {
     /* a clan that can't reach Discord at boot still boots */
   }

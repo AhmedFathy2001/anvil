@@ -25,6 +25,7 @@ whole database and takes each row's clan from the row:
 | `weekly` | every competition's lifecycle — enrol, flip status, announce |
 | `flush-notifications` | the pending-notification queue, and scheduled event start/end posts |
 | `backup` | the database |
+| `discord-commands` | the shared bot's global slash-command set — a daily reconcile with the code (boot registers it too; this self-heals drift or a boot that couldn't reach Discord). Global-only, shared-platform-only. |
 
 So calling them once per clan would run the *same global sweep* N times: N concurrent passes over
 the same accounts, each one hitting the Jagex hiscores. The poll budget is the scarce resource in
