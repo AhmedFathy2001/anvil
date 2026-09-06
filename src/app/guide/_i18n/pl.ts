@@ -1800,7 +1800,7 @@ const pl: PartialGuideDict = {
         },
         {
           term: 'Pula nagród planszy',
-          body: 'bingo samo dzieli swoją pulę na miejsca, więc skarbiec podaje mu tylko jedną liczbę. Event → **Payouts** → *From the clan coffer*. Dolicza się do wpisowego i do tego, co dołożyłeś ręcznie, a podział na miejsca ustawia się na tej samej stronie.',
+          body: 'bingo samo dzieli swoją pulę na miejsca, więc skarbiec podaje mu tylko jedną liczbę. Event → **Payouts** → *From the clan coffer*. Dolicza się do wpisowego i do tego, co dołożyłeś ręcznie,  Wybierasz też, czy skarbiec od razu **blokuje** to gp, czy tylko zapisuje obietnicę — przecież jeszcze nie wypłynęło, a plansza za sześć tygodni nie potrzebuje połowy puli zamrożonej do tego czasu.a podział na miejsca ustawia się na tej samej stronie.',
         },
       ],
       note: {

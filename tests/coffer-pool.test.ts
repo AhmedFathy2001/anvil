@@ -54,3 +54,31 @@ test('an event with no coffer pool computes exactly as it did before', () => {
   assert.equal(computePrizePool(opts), computePrizePool({ ...opts, cofferFunded: 0 }));
   assert.equal(computePrizePool({ ...opts, cofferFunded: null }), 70_000_000);
 });
+
+// ── Holding, or merely promising ────────────────────────────────────────────────────────────────
+//
+// A pool is a promise about gp that has not moved yet. Held, it leaves the available balance at
+// once so nothing else can promise it; planned, it is on the ledger and advertised on the event
+// while the coffer stays spendable. The whole point is that those are different facts.
+
+test('a planned pool promises without holding — the coffer stays spendable', () => {
+  const balance = foldBalance([
+    { kind: 'donation', status: 'approved', total: 1_000_000_000 },
+    { kind: 'pool', status: 'planned', total: -400_000_000 },
+  ]);
+  assert.equal(balance.reserved, 0);
+  assert.equal(balance.available, 1_000_000_000);
+  assert.equal(countsTowardBalance({ kind: 'pool', status: 'planned' }), false);
+});
+
+test('holding the same pool takes it out of what can be promised again', () => {
+  const planned = foldBalance([
+    { kind: 'donation', status: 'approved', total: 1_000_000_000 },
+    { kind: 'pool', status: 'planned', total: -400_000_000 },
+  ]);
+  const held = foldBalance([
+    { kind: 'donation', status: 'approved', total: 1_000_000_000 },
+    { kind: 'pool', status: 'reserved', total: -400_000_000 },
+  ]);
+  assert.equal(planned.available - held.available, 400_000_000);
+});

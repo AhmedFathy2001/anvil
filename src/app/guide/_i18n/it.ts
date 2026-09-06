@@ -1800,7 +1800,7 @@ const it: PartialGuideDict = {
         },
         {
           term: 'Il montepremi di una board',
-          body: 'un bingo divide da sé il proprio montepremi tra le posizioni, quindi la cassa gli passa solo un numero. Event → **Payouts** → *From the clan coffer*. Si somma alle quote d\'iscrizione e a quanto hai aggiunto tu, e la divisione tra le posizioni si imposta nella stessa pagina.',
+          body: 'un bingo divide da sé il proprio montepremi tra le posizioni, quindi la cassa gli passa solo un numero. Event → **Payouts** → *From the clan coffer*. Si somma alle quote d\'iscrizione e a quanto hai aggiunto tu,  Scegli anche se la cassa **vincola** subito quei gp o si limita a registrare la promessa: non sono ancora usciti, e una board fra sei settimane non ha bisogno di metà del fondo bloccata fino ad allora.e la divisione tra le posizioni si imposta nella stessa pagina.',
         },
       ],
       note: {

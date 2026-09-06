@@ -1821,7 +1821,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'En tavlas prispott',
-          body: 'ett bingo fördelar själv sin pott över placeringar, så kassan räcker den bara ett tal. Event → **Payouts** → *From the clan coffer*. Det läggs till anmälningsavgifterna och det du lagt till för hand, och fördelningen över platser sätts på samma sida.',
+          body: 'ett bingo fördelar själv sin pott över placeringar, så kassan räcker den bara ett tal. Event → **Payouts** → *From the clan coffer*. Det läggs till anmälningsavgifterna och det du lagt till för hand,  Du väljer också om kassan **håller** de gp:na direkt eller bara noterar löftet — de har ju inte lämnat än, och en tavla om sex veckor behöver inte halva potten låst till dess.och fördelningen över platser sätts på samma sida.',
         },
       ],
       note: {

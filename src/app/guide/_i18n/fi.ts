@@ -1822,7 +1822,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Laudan palkintopotti',
-          body: 'bingo jakaa oman pottinsa sijoituksille, joten kassa ojentaa sille vain yhden luvun. Event → **Payouts** → *From the clan coffer*. Se lisätään ilmoittautumismaksuihin ja siihen mitä olet itse lisännyt, ja jako sijoille asetetaan samalla sivulla.',
+          body: 'bingo jakaa oman pottinsa sijoituksille, joten kassa ojentaa sille vain yhden luvun. Event → **Payouts** → *From the clan coffer*. Se lisätään ilmoittautumismaksuihin ja siihen mitä olet itse lisännyt,  Valitset myös, **varaako** kassa nuo gp:t heti vai kirjaako se vain lupauksen — ne eivät ole vielä lähteneet, eikä kuuden viikon päässä oleva lauta tarvitse puolta potista jäädytettynä siihen asti.ja jako sijoille asetetaan samalla sivulla.',
         },
       ],
       note: {

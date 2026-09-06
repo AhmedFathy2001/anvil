@@ -1822,7 +1822,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'De prijzenpot van een bord',
-          body: 'een bingo verdeelt zijn eigen pot over plaatsen, dus de kas geeft hem gewoon één getal. Event → **Payouts** → *From the clan coffer*. Het komt bij het inschrijfgeld en bij wat je zelf hebt toegevoegd, en de verdeling over plaatsen zet je op diezelfde pagina.',
+          body: 'een bingo verdeelt zijn eigen pot over plaatsen, dus de kas geeft hem gewoon één getal. Event → **Payouts** → *From the clan coffer*. Het komt bij het inschrijfgeld en bij wat je zelf hebt toegevoegd,  Je kiest ook of de kas dat gp meteen **vasthoudt** of alleen de belofte vastlegt — het is nog niet weg, en een bord over zes weken hoeft niet de halve pot tot dan vastgezet te hebben.en de verdeling over plaatsen zet je op diezelfde pagina.',
         },
       ],
       note: {

@@ -1823,7 +1823,7 @@ const fr: PartialGuideDict = {
         },
         {
           term: 'La cagnotte d\'un plateau',
-          body: 'un bingo répartit lui-même sa cagnotte entre les places, la caisse lui tend donc juste un chiffre. Event → **Payouts** → *From the clan coffer*. Cela s\'ajoute aux frais d\'inscription et à ce que vous avez ajouté vous-même, et la répartition entre les places se règle sur cette même page.',
+          body: 'un bingo répartit lui-même sa cagnotte entre les places, la caisse lui tend donc juste un chiffre. Event → **Payouts** → *From the clan coffer*. Cela s\'ajoute aux frais d\'inscription et à ce que vous avez ajouté vous-même,  Vous choisissez aussi si la caisse **bloque** ces po tout de suite ou se contente d\'enregistrer la promesse — ils ne sont pas encore partis, et un plateau dans six semaines n\'a pas besoin que la moitié de la cagnotte soit gelée jusque-là.et la répartition entre les places se règle sur cette même page.',
         },
       ],
       note: {

@@ -1822,7 +1822,7 @@ const es: PartialGuideDict = {
         },
         {
           term: 'El bote de un tablero',
-          body: 'un bingo reparte su propio bote entre los puestos, así que la caja solo le pasa una cifra. Event → **Payouts** → *From the clan coffer*. Se suma a las cuotas de inscripción y a lo que hayas añadido a mano, y el reparto entre puestos se configura en esa misma página.',
+          body: 'un bingo reparte su propio bote entre los puestos, así que la caja solo le pasa una cifra. Event → **Payouts** → *From the clan coffer*. Se suma a las cuotas de inscripción y a lo que hayas añadido a mano,  También eliges si la caja **retiene** ese oro ya o solo anota la promesa: todavía no ha salido, y un tablero dentro de seis semanas no necesita medio bote congelado hasta entonces.y el reparto entre puestos se configura en esa misma página.',
         },
       ],
       note: {

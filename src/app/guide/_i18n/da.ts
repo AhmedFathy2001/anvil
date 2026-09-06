@@ -1827,7 +1827,7 @@ const da: PartialGuideDict = {
         },
         {
           term: 'En plades præmiepulje',
-          body: 'et bingo fordeler selv sin pulje på placeringer, så kassen rækker den bare ét tal. Event → **Payouts** → *From the clan coffer*. Det lægger sig til tilmeldingsgebyrerne og det du selv har lagt oveni, og fordelingen på pladser sættes på samme side.',
+          body: 'et bingo fordeler selv sin pulje på placeringer, så kassen rækker den bare ét tal. Event → **Payouts** → *From the clan coffer*. Det lægger sig til tilmeldingsgebyrerne og det du selv har lagt oveni,  Du vælger også, om kassen **holder** de gp med det samme eller kun noterer løftet — de har jo ikke forladt kassen endnu, og en plade om seks uger har ikke brug for at halvdelen af puljen er låst indtil da.og fordelingen på pladser sættes på samme side.',
         },
       ],
       note: {

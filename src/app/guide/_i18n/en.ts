@@ -1810,7 +1810,7 @@ export const en = {
         },
         {
           term: 'A board’s prize pool',
-          body: 'a bingo divides its own pot across placements, so the coffer just hands it one number. Event → **Payouts** → *From the clan coffer*. It joins the entry fees and anything you added by hand, and the split across places is set on that same page.',
+          body: 'a bingo divides its own pot across placements, so the coffer just hands it one number. Event → **Payouts** → *From the clan coffer*. It joins the entry fees and anything you added by hand, and the split across places is set on that same page. You also choose whether the coffer **holds** that gp now or only records the promise — it has not left yet, and a board six weeks out does not need half the pot frozen until then.',
         },
       ],
       note: {

@@ -4,11 +4,14 @@ import { useCallback, useEffect, useState } from 'react';
 import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
 import { formatGp, parseGpInput } from '@/lib/adminEventsFormat';
+import Checkbox from '@/components/Checkbox';
 import GuideLink from '@/components/GuideLink';
 
 interface PoolState {
   funded: number;
   status: string | null;
+  /** Whether the gp is actually held right now, as opposed to merely promised. */
+  held: boolean;
   balance: { available: number };
 }
 
@@ -35,6 +38,9 @@ export default function CofferPoolCard({
 }) {
   const [state, setState] = useState<PoolState | null>(null);
   const [input, setInput] = useState('');
+  // Held by default. The gp is promised either way; this decides whether the coffer can also spend
+  // it while the promise stands, and the answer that surprises nobody is no.
+  const [hold, setHold] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -45,6 +51,7 @@ export default function CofferPoolCard({
       const data: PoolState = await res.json();
       setState(data);
       setInput(data.funded > 0 ? String(data.funded) : '');
+      if (data.funded > 0) setHold(data.held);
     } catch {
       // A card that can't load is a card that isn't shown — the pool total above still reads right.
     }
@@ -58,25 +65,28 @@ export default function CofferPoolCard({
 
   const paid = state.status === 'paid';
 
-  async function save(amount: number) {
+  async function save(amount: number, holding = hold) {
     setSaving(true);
     setMsg(null);
     try {
       const res = await clanFetch(`/api/admin/events/${eventId}/prize-pool`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount }),
+        body: JSON.stringify({ amount, hold: holding }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Could not set the prize pool.');
       setState(data);
       setInput(data.funded > 0 ? String(data.funded) : '');
+      if (data.funded > 0) setHold(data.held);
       setMsg({
         type: 'success',
         text:
-          data.funded > 0
-            ? `${formatGp(data.funded)} gp set aside for this board.`
-            : 'Taken back — the gp is available in the coffer again.',
+          data.funded === 0
+            ? 'Taken back — nothing is promised to this board now.'
+            : data.held
+              ? `${formatGp(data.funded)} gp held for this board.`
+              : `${formatGp(data.funded)} gp promised, not held — the coffer can still spend it.`,
       });
       onSaved();
     } catch (e) {
@@ -96,8 +106,8 @@ export default function CofferPoolCard({
         </div>
       </div>
       <p className="text-xs text-text-muted mb-3">
-        Adds to this board&apos;s prize pool and comes straight out of the coffer, where it shows as
-        committed until a treasurer marks it sent. The split across placements is set below, as usual.
+        Adds to this board&apos;s prize pool and comes out of the coffer when it is paid. The split
+        across placements is set below, as usual.
       </p>
 
       {paid ? (
@@ -140,9 +150,28 @@ export default function CofferPoolCard({
             </span>
           )}
         </div>
+      ) : null}
+
+      {!paid && canManage ? (
+        <div className="mt-3">
+          <Checkbox
+            checked={hold}
+            onChange={(checked) => {
+              setHold(checked);
+              // Applied straight away when a pool already exists: leaving the page with a ticked box
+              // and an unheld pool would be the screen telling you something untrue about your money.
+              if (state.funded > 0) void save(parseGpInput(input) ?? state.funded, checked);
+            }}
+            disabled={saving}
+            label="Hold this gp in the coffer until it's paid"
+            description="It hasn't left yet, so this decides whether the coffer may spend it in the meantime. Held, nothing else — no other board, no mission prize — can promise the same gp. Unheld, the pool is still advertised on the event and still on the ledger, but the coffer stays free to fund something sooner."
+          />
+        </div>
       ) : (
         <p className="text-xs text-text-muted">
-          {state.funded > 0 ? `${formatGp(state.funded)} gp set aside.` : 'Nothing set aside.'}
+          {state.funded > 0
+            ? `${formatGp(state.funded)} gp ${state.held ? 'held' : 'promised, not held'}.`
+            : 'Nothing set aside.'}
         </p>
       )}
     </div>

@@ -1822,7 +1822,7 @@ const de: PartialGuideDict = {
         },
         {
           term: 'Der Preistopf eines Boards',
-          body: 'ein Bingo verteilt seinen Topf selbst auf Platzierungen, die Kasse reicht ihm also nur eine Zahl. Event → **Payouts** → *From the clan coffer*. Sie kommt zu den Startgeldern und zu dem, was du selbst zugelegt hast, und die Aufteilung auf Plätze wird auf derselben Seite gesetzt.',
+          body: 'ein Bingo verteilt seinen Topf selbst auf Platzierungen, die Kasse reicht ihm also nur eine Zahl. Event → **Payouts** → *From the clan coffer*. Sie kommt zu den Startgeldern und zu dem, was du selbst zugelegt hast,  Du entscheidest außerdem, ob die Kasse dieses Gold sofort **bindet** oder nur das Versprechen festhält — es ist ja noch nicht weg, und ein Board in sechs Wochen braucht nicht den halben Topf bis dahin eingefroren.und die Aufteilung auf Plätze wird auf derselben Seite gesetzt.',
         },
       ],
       note: {

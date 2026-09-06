@@ -1821,7 +1821,7 @@ const no: PartialGuideDict = {
         },
         {
           term: 'En tavles premiepott',
-          body: 'en bingo fordeler selv potten sin på plasseringer, så kassa rekker den bare ett tall. Event → **Payouts** → *From the clan coffer*. Det legges til påmeldingsavgiftene og det du selv har lagt oppå, og fordelingen på plasser settes på samme side.',
+          body: 'en bingo fordeler selv potten sin på plasseringer, så kassa rekker den bare ett tall. Event → **Payouts** → *From the clan coffer*. Det legges til påmeldingsavgiftene og det du selv har lagt oppå,  Du velger også om kassa **holder** de gp-ene med en gang eller bare noterer løftet — de har jo ikke forlatt kassa ennå, og en tavle om seks uker trenger ikke halve potten låst til da.og fordelingen på plasser settes på samme side.',
         },
       ],
       note: {

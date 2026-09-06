@@ -32,6 +32,14 @@ export function cofferLine(entry: CofferEntry, balanceAfter: number | null): str
     case 'pool':
       // Nobody's name on it: a pool is handed to a BOARD, which splits it however that board's
       // prizes say. Saying "the clan" here rather than a winner is the honest version.
+      //
+      // Held and merely planned are different sentences, because they are different facts about the
+      // coffer: one says the gp is gone from the available balance, the other says it is a promise
+      // and the pot can still be spent. A channel that reported them identically would be the reason
+      // somebody spends the same gp twice.
+      if (entry.status === 'planned') {
+        return `📌 **${gp(entry.amount)}** promised as a prize pool — not held yet${note}${left}`;
+      }
       return entry.status === 'cancelled'
         ? `↩️ The **${gp(entry.amount)}** prize pool was called off${note}${left}`
         : entry.status === 'paid'

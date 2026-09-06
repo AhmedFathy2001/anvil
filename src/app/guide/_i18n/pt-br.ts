@@ -1800,7 +1800,7 @@ const ptBr: PartialGuideDict = {
         },
         {
           term: 'O bolo de prêmios de um board',
-          body: 'um bingo divide o próprio bolo entre as colocações, então o caixa só lhe entrega um número. Event → **Payouts** → *From the clan coffer*. Ele soma às inscrições e ao que você acrescentou à mão, e a divisão entre colocações é definida nessa mesma página.',
+          body: 'um bingo divide o próprio bolo entre as colocações, então o caixa só lhe entrega um número. Event → **Payouts** → *From the clan coffer*. Ele soma às inscrições e ao que você acrescentou à mão,  Você também escolhe se o caixa **segura** esse gp já ou só registra a promessa — ele ainda não saiu, e um board daqui a seis semanas não precisa de metade do bolo congelada até lá.e a divisão entre colocações é definida nessa mesma página.',
         },
       ],
       note: {
