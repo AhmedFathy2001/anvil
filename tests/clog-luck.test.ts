@@ -3,7 +3,7 @@
 //
 // Run: npx tsx --test tests/clog-luck.test.ts
 
-import { test } from 'node:test';
+import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
@@ -448,7 +448,16 @@ test('raid uniques from several modes add up rather than picking one', () => {
 // They are pinned by NAME rather than by count because the numbers move whenever the wiki dataset is
 // regenerated, while "a Nightmare drop is measured against Nightmare kills" does not.
 
-import { luckCandidates } from '../src/lib/clogLuckBoard.ts';
+// DYNAMIC, and the placeholder above is why. `clogLuckBoard` pulls in lib/db at module scope, which
+// throws without a connection string — a static import here would take a suite of pure functions
+// down with it in any environment that has no database, CI included. `luckCandidates` itself never
+// opens a connection; it reads three shipped JSON files.
+let luckCandidates: typeof import('../src/lib/clogLuckBoard.ts')['luckCandidates'];
+
+before(async () => {
+  process.env.DATABASE_URL ??= 'postgres://unused:unused@127.0.0.1:5432/unused';
+  ({ luckCandidates } = await import('../src/lib/clogLuckBoard.ts'));
+});
 
 const board = () => new Map(luckCandidates().map((c) => [c.itemName.toLowerCase(), c]));
 const sourcesOf = (name: string) => (board().get(name)?.sources ?? []).map((s) => s.source);
