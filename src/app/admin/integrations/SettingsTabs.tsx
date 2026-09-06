@@ -151,6 +151,18 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
                 botEnabled={botEnabled}
               />
             </div>
+            {/* The only webhook here with no fallback to the announcements channel. The others carry
+                clan news and a general channel is a fine home for them; this is a running commentary
+                on the clan's money, and a clan that has not asked for it should get silence. */}
+            <div className="border-t border-card-border pt-4">
+              <WebhookField
+                settingKey="discord_webhook_coffer"
+                label="Coffer channel (optional)"
+                helpText="Every movement of the clan's gp — donations reported and approved, prizes owed and paid, adjustments — each with the balance it leaves behind. Unlike the channels above this one has no fallback: leave it blank and nothing about the coffer is posted anywhere."
+                channels={channels}
+                botEnabled={botEnabled}
+              />
+            </div>
           </Card>
 
           <Card>
