@@ -130,7 +130,10 @@ async function resolveTarget(
     accountIds: ctx.identity?.accountIds ?? [],
     primaryAccountId: ctx.identity?.primaryAccountId ?? null,
     rsn: ctx.identity?.rsn ?? null,
-    who: ctx.who,
+    // Name the ACCOUNT (RSN), not the Discord handle — /clog and /luck are about a game account, and
+    // "Drenvox mdps — collection log" reads truer than the asker's Discord name. Falls back to the
+    // Discord name only when we don't know their RSN.
+    who: ctx.identity?.rsn ?? ctx.who,
   };
 }
 
@@ -368,16 +371,24 @@ async function clogResult(ctx: ClanCommandCtx): Promise<ClanResult> {
   const target = await resolveTarget(ctx);
   const board = await topCollectors(clan.clanId);
 
-  const accountId = target.primaryAccountId ?? target.accountIds[0] ?? null;
-  const header = accountId != null ? board.find((b) => b.accountId === accountId) : undefined;
+  // A person can hold several accounts, only some synced. Show their BEST-synced one rather than the
+  // primary — the primary might be the unsynced alt, which is what made a fully-synced main wrongly
+  // read as "hasn't synced". The rest are noted so a multi-account member isn't misrepresented.
+  const mine = new Set(target.accountIds);
+  const synced = board.filter((b) => mine.has(b.accountId)).sort((a, b) => b.obtained - a.obtained);
+  const header = synced[0];
+  const subject = header?.rsn ?? target.who;
 
   const body: string[] = [];
   if (!header) {
-    // Not on the leaderboard means never synced (topCollectors only lists synced logs).
-    body.push(fmt(t.clog.notSynced, { who: target.who }));
+    // None of their accounts are on the leaderboard, which only lists synced logs.
+    body.push(fmt(t.clog.notSynced, { who: subject }));
   } else {
-    const rank = board.findIndex((b) => b.accountId === accountId) + 1;
+    const rank = board.findIndex((b) => b.accountId === header.accountId) + 1;
     body.push(fmt(t.clog.rankLine, { rank, total: board.length, clan: clan.name }));
+    if (synced.length > 1) {
+      body.push(fmt(t.clog.alsoSynced, { names: synced.slice(1).map((s) => clamp(s.rsn, 20)).join(', ') }));
+    }
   }
   if (board.length) {
     body.push(
@@ -391,7 +402,7 @@ async function clogResult(ctx: ClanCommandCtx): Promise<ClanResult> {
   return {
     embeds: [
       {
-        title: clamp(fmt(t.clog.title, { who: target.who }), LIMIT.title),
+        title: clamp(fmt(t.clog.title, { who: subject }), LIMIT.title),
         url: pathUrl(clan, '/members'),
         description: clamp(body.join('\n'), LIMIT.description),
         color: EMBED_COLOR.gold,
@@ -420,10 +431,17 @@ function luckItemLine(itemName: string, obtained: number, expected: number, tail
 async function memberLuckResult(ctx: ClanCommandCtx): Promise<ClanResult> {
   const { t, clan } = ctx;
   const target = await resolveTarget(ctx);
-  const accountId = target.primaryAccountId ?? target.accountIds[0] ?? null;
-  if (accountId == null) return { text: fmt(t.luck.notSynced, { who: target.who }) };
-
-  const luck = await getMemberLuck(accountId, clan.clanId, 5);
+  // Try their accounts in order — primary first, then the rest — so a member whose primary is an
+  // unsynced alt still gets the luck of the account that HAS a synced log, not "hasn't synced".
+  const ordered = [
+    ...(target.primaryAccountId != null ? [target.primaryAccountId] : []),
+    ...target.accountIds.filter((a) => a !== target.primaryAccountId),
+  ];
+  let luck: Awaited<ReturnType<typeof getMemberLuck>> = null;
+  for (const a of ordered) {
+    luck = await getMemberLuck(a, clan.clanId, 5);
+    if (luck) break;
+  }
   if (!luck) return { text: fmt(t.luck.notSynced, { who: target.who }) };
 
   const body: string[] = [
