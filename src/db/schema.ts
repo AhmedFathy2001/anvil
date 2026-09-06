@@ -11,6 +11,7 @@ import {
   jsonb,
   timestamp,
   uniqueIndex,
+  unique,
   index,
   primaryKey,
 } from 'drizzle-orm/pg-core';
@@ -2399,3 +2400,64 @@ export const cofferEntries = pgTable('coffer_entries', {
     .where(sql`${t.weeklyCompetitionId} IS NOT NULL`),
 ]);
 export type CofferEntry = typeof cofferEntries.$inferSelect;
+
+// ── What broke, and how often ────────────────────────────────────────────────────────────────────
+//
+// The platform had no way to learn it was broken. A board that 500s at two in the morning, mid-event,
+// was discovered when somebody posted in Discord — the app writes a line to stdout and the line goes
+// into a container log nobody reads. `@vercel/analytics` is the only observability dependency here
+// and it does nothing at all on a self-hosted box.
+//
+// AGGREGATED, NOT A LOG. One row per distinct failure (see lib/errorFingerprint), with a count and a
+// last-seen. A raw event table would be a second, worse container log: the same broken tile handler
+// firing four thousand times overnight is ONE thing to fix, and a digest that says so is readable
+// where four thousand rows are not.
+//
+// Retention is the pruning pass in lib/errorEvents, not a policy document: this table exists to say
+// what is wrong NOW, and a failure nobody has seen for a month is either fixed or not worth a row.
+export const errorEvents = pgTable('error_events', {
+  id: serial('id').primaryKey(),
+  // The identity of a FAILURE, not of an occurrence — stable across the many times it happens, and
+  // deliberately blind to ids and numbers so "event 5 not found" and "event 91 not found" are one
+  // row rather than two hundred.
+  fingerprint: text('fingerprint').notNull(),
+  // Which clan the request was for. Null for the apex and for anything that failed before a clan
+  // could be resolved — both legitimate, and worth telling apart from "every clan".
+  clanId: integer('clan_id').references(() => clans.id, { onDelete: 'set null' }),
+  name: text('name').notNull(),
+  message: text('message').notNull(),
+  /** Top frames only, truncated. Enough to find the code; not a place to accumulate megabytes. */
+  stack: text('stack'),
+  /** Where it happened, with ids stripped the same way the fingerprint strips them. */
+  path: text('path'),
+  method: text('method'),
+  /** Next's own words for the context: 'render' | 'route' | 'action' | 'middleware', and the router. */
+  source: text('source'),
+  /** The build this happened on, so a fix can be told from a recurrence. */
+  release: text('release'),
+  count: integer('count').notNull().default(1),
+  firstSeenAt: text('first_seen_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  lastSeenAt: text('last_seen_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  /**
+   * The count at the last digest. The digest reports the DELTA, so a failure that is still happening
+   * keeps being reported and one that stopped goes quiet on its own.
+   */
+  notifiedCount: integer('notified_count').notNull().default(0),
+  notifiedAt: text('notified_at'),
+  /** Set by a human on /staff/errors. A resolved row that happens again clears this and re-reports. */
+  resolvedAt: text('resolved_at'),
+  resolvedByUserId: integer('resolved_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+}, (t) => [
+  // The upsert key. One row per (failure, clan): the same bug in two clans is usually one bug, but
+  // "only this clan" is the single most useful thing to be able to see at a glance.
+  //
+  // NULLS NOT DISTINCT, and the table does not work without it. `clan_id` is null for every apex
+  // failure, and Postgres treats NULLs as distinct in a unique key by default — so the ON CONFLICT
+  // in lib/errorEvents would never match, and one broken apex page firing in a loop would insert a
+  // fresh row per occurrence instead of incrementing one. That is the exact failure mode this table
+  // exists to make readable, reproduced inside the table itself.
+  unique('error_events_fingerprint_clan_unique').on(t.fingerprint, t.clanId).nullsNotDistinct(),
+  index('error_events_last_seen_idx').on(t.lastSeenAt),
+  index('error_events_clan_idx').on(t.clanId),
+]);
+export type ErrorEvent = typeof errorEvents.$inferSelect;
