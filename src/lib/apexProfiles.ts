@@ -122,6 +122,14 @@ export interface ApexCharacter {
   /** True when the page is shown ONLY because the viewer owns this character and it is NOT shared —
       so the page can say "private, only you can see this" instead of the "shown because shared" note. */
   privateToViewer: boolean;
+  /**
+   * Whether the person reading this owns the character, shared or not.
+   *
+   * Distinct from `privateToViewer`, which only fires on the private half of that: an owner looking
+   * at their own PUBLISHED page still needs the one control nobody else does — the link to hand
+   * somebody.
+   */
+  viewerOwns: boolean;
 }
 
 /**
@@ -201,6 +209,7 @@ export async function apexCharacter(rsn: string, viewerPlayerId?: number | null)
     clan: seat && (await getPublicShowcase(seat.clanId)) ? { slug: seat.slug, name: seat.name } : null,
     owner: ownerOut,
     privateToViewer: !acct.shared && ownedByViewer,
+    viewerOwns: ownedByViewer,
   };
 }
 

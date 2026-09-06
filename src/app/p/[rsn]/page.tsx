@@ -10,6 +10,8 @@ import ClanCrest from '@/components/ClanCrest';
 import AccountProgressCard from '@/components/AccountProgressCard';
 import ProfileTabs from '@/app/members/[rsn]/ProfileTabs';
 import { getCollectionLog } from '@/lib/clogRead';
+import { configuredOrigin } from '@/lib/request-origin';
+import ProfileShare from './ProfileShare';
 import { getMemberItems, getMemberProgress } from '@/lib/memberProgressRead';
 import {
   getAccountProfile,
@@ -43,10 +45,43 @@ export const dynamic = 'force-dynamic';
  * indistinguishable from one that does not exist.
  */
 
+/**
+ * What this page looks like when somebody pastes the link.
+ *
+ * It was a title and nothing else, so a character profile dropped into a Discord channel unfurled as
+ * a bare filename — which is most of why nobody shared one. A profile whose whole purpose is to be
+ * handed to somebody has to survive the handing over: the card carries the numbers the page opens
+ * with, so the link says something before anyone clicks it.
+ *
+ * A private page (visible only to its owner) is marked noindex. It already 404s for everyone else,
+ * but a page that exists at a guessable URL should not also be inviting a crawler to remember it.
+ */
 export async function generateMetadata({ params }: { params: Promise<{ rsn: string }> }): Promise<Metadata> {
   const session = await verifyUser();
   const c = await apexCharacter(decodeURIComponent((await params).rsn), session?.playerId ?? null);
-  return c ? { title: `${c.rsn} — Anvil` } : { title: 'Not found — Anvil' };
+  if (!c) return { title: 'Not found — Anvil' };
+
+  const profile = await getAccountProfile(c.accountId);
+  const bits: string[] = [];
+  if (profile && profile.totalLevel > 0) bits.push(`${profile.totalLevel.toLocaleString()} total level`);
+  if (c.overallXp != null) bits.push(`${compact(c.overallXp)} XP`);
+  if (profile?.combatLevel != null) bits.push(`combat ${profile.combatLevel}`);
+  if (c.clan) bits.push(c.clan.name);
+  const description = bits.length > 0
+    ? `${c.rsn} — ${bits.join(' · ')}. Skills, bosses, collection log and milestones, tracked on Anvil.`
+    : `${c.rsn} on Anvil — skills, bosses, collection log and milestones.`;
+
+  const title = `${c.rsn} — Anvil`;
+  const origin = configuredOrigin();
+  const url = origin ? `${origin}/p/${encodeURIComponent(c.rsn)}` : undefined;
+
+  return {
+    title,
+    description,
+    ...(c.privateToViewer ? { robots: { index: false, follow: false } } : {}),
+    openGraph: { title, description, type: 'profile', ...(url ? { url } : {}), siteName: 'Anvil' },
+    twitter: { card: 'summary', title, description },
+  };
 }
 
 /** Nothing to say without a clan, but the tabs still want the shape. */
@@ -167,11 +202,13 @@ export default async function CharacterPage({ params }: { params: Promise<{ rsn:
         </div>
       )}
 
-      <p className="mt-8 text-xs text-text-dim">
-        {character.privateToViewer
-          ? 'Private — only you can see this. Share it from your profile to give it a public page.'
-          : 'Shown because this account is shared. Its owner can turn that off from their profile.'}
-      </p>
+      {character.viewerOwns ? (
+        <ProfileShare rsn={character.rsn} shared={!character.privateToViewer} />
+      ) : (
+        <p className="mt-8 text-xs text-text-dim">
+          Shown because this account is shared. Its owner can turn that off from their profile.
+        </p>
+      )}
     </div>
   );
 }

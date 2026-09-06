@@ -253,7 +253,15 @@ export function Roster({ characters }: { characters: RosterCharacter[] }) {
                 {c.rsn.charAt(0).toUpperCase()}
               </span>
               <div className="min-w-0">
-                <p className="truncate text-[0.95rem] font-semibold leading-tight">{c.rsn}</p>
+                {/* The character's own page. It was plain text, which made this card a dead end —
+                    and for somebody in no clan it is the only route to the one page that is about
+                    them rather than about a clan. */}
+                <ClanLink
+                  href={`/p/${encodeURIComponent(c.rsn)}`}
+                  className="block truncate text-[0.95rem] font-semibold leading-tight transition-colors hover:text-gold"
+                >
+                  {c.rsn}
+                </ClanLink>
                 <p className="mt-0.5 font-mono text-[0.56rem] uppercase tracking-[0.13em] text-text-dim">
                   {home ? home.clanName : 'No home clan'}
                 </p>
