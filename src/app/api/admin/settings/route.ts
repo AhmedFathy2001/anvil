@@ -5,18 +5,17 @@ import { db } from '@/db';
 import { clans } from '@/db/schema';
 import { requireClan } from '@/lib/clanContext';
 import { verificationOf } from '@/lib/clanVerification';
-import { getSetting, setSetting, getSettingMap } from '@/lib/settings';
+import { setSetting, getSettingMap } from '@/lib/settings';
 import { verifyAdmin } from '@/lib/auth';
 import { sendTestWebhook } from '@/lib/discord';
+import { WEBHOOK_PAGE_SETTING_KEYS } from '@/lib/webhookFields';
 
 const EXPOSED_KEYS = [
-  'discord_webhook_url',
-  'discord_webhook_bingo',
-  'discord_webhook_weekly',
-  'discord_webhook_signups',
-  // The coffer ledger's own channel. Opt-in with no fallback: a clan that has not asked for a
-  // running commentary on its money should not get one in its announcements channel.
-  'discord_webhook_coffer',
+  // Every destination and switch the Integrations → Webhooks page renders: the announcements
+  // channels, the coffer ledger's own channel, all eleven plugin splits and the two audience
+  // toggles. Derived from the fields themselves so a channel added to the page is saveable without
+  // a second edit here — the drift that made the coffer channel unsettable by the bot picker.
+  ...WEBHOOK_PAGE_SETTING_KEYS,
   // Display name (site, plugin, Discord posts) vs the exact in-game clan
   // name the roster sync must report. Independent on purpose — see lib/pluginConfig.ts.
   'clan_name',
@@ -25,29 +24,6 @@ const EXPOSED_KEYS = [
   'discord_invite_url',
   // Role pinged on bingo event start/finish posts. Blank = no ping.
   'discord_member_ping_role_id',
-  // Plugin notification destinations. The base is what a clan sets when it wants one channel for
-  // everything; the rest are optional splits that fall back to it. See lib/pluginConfig.
-  'webhook_plugin_default',
-  'webhook_rare_drops',
-  'webhook_pets',
-  'webhook_deaths',
-  'webhook_combat_achievements',
-  'webhook_levels',
-  'webhook_quests',
-  'webhook_diaries',
-  'webhook_collection_log',
-  'webhook_pvp_kills',
-  'webhook_clips',
-  'webhook_leagues',
-  // A clan refusing SOCIAL notifications from accounts that only guest here (clogs, PKs, deaths,
-  // CAs). Members are unaffected; bingo evidence is unaffected. See lib/emissionRouting.
-  'block_guest_emissions',
-  // Whether GUESTS count toward this clan's own activity on /members — the week headline, the
-  // podium, clan EHP/EHB and the active counts. Off by default: a guest is someone we have seen who
-  // is not on the roster, and their hours are not the clan's. '1' turns it on for a clan whose
-  // regulars never formally join. The directory lists guests either way.
-  'members_count_guests',
-  'leagues_icon_url',
   'always_notify_items',
   // The moments feed's floors (lib/moments). The board one is per-event context; the three clan
   // ones decide what the always-on feed keeps when no competition and no board are running, which

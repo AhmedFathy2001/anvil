@@ -8,19 +8,18 @@ import { createChannelWebhook, findOrCreateAnvilWebhook, DEFAULT_WEBHOOK_NAME } 
 import { botCanManageWebhooks } from '@/lib/discord-permissions';
 import { parseWebhookUrls } from '@/lib/discord';
 import { WEBHOOK_SETTING_KEYS } from '@/lib/pluginConfig';
+import { WEBHOOK_URL_KEYS } from '@/lib/webhookFields';
 
-// The setting keys a bot-created webhook URL may be written to — the same set the WebhookField
-// component renders. Constrains the write to known webhook destinations even though this route is
-// admin-gated, so a bad `settingKey` can't clobber an unrelated setting.
-const WEBHOOK_KEYS = new Set([
-  'discord_webhook_url',
-  'discord_webhook_bingo',
-  'discord_webhook_weekly',
-  'discord_webhook_signups',
-  // Every plugin destination, base included — derived so a channel added there is immediately
-  // creatable from the bot picker instead of silently rejected by a list nobody remembered to edit.
-  ...WEBHOOK_SETTING_KEYS,
-]);
+// The setting keys a bot-created webhook URL may be written to. Constrains the write to known
+// webhook destinations even though this route is admin-gated, so a bad `settingKey` can't clobber
+// an unrelated setting.
+//
+// DERIVED, both halves. This used to be a hand-written list beside a comment warning about lists
+// nobody remembers to edit, and then the coffer channel was added and nobody remembered to edit it:
+// the field rendered, a pasted URL saved, and the bot picker answered "Unknown webhook setting."
+// Now the fields themselves are the list, plus every plugin destination, so a channel added in
+// either place is creatable the same day.
+const WEBHOOK_KEYS = new Set<string>([...WEBHOOK_URL_KEYS, ...WEBHOOK_SETTING_KEYS]);
 
 // Discord caps webhook names at 80 chars.
 const NAME_MAX = 80;

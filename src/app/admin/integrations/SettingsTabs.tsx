@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import type { BroadcastChannel } from '@/lib/discord-broadcast';
-import WebhookField from '@/components/WebhookField';
+import WebhooksPanel from './WebhooksPanel';
 import DiscordBotSettings from '@/components/DiscordBotSettings';
 import DiscordLanguageSetting from '@/components/DiscordLanguageSetting';
 import DiscordRoleSyncSettings from '@/components/DiscordRoleSyncSettings';
@@ -51,7 +51,8 @@ function FieldHeader({ title, children }: { title: string; children?: ReactNode 
 
 // Advanced settings, grouped into tabs so it's walkable instead of one long scroll. Client so the
 // tab state is interactive; `channels`/`botEnabled` are fetched server-side and passed to every
-// WebhookField (which is why this isn't just a server component).
+// webhook field (which is why this isn't just a server component). The Webhooks tab is big enough to
+// have its own tabs and its own search, so it lives in WebhooksPanel.
 export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps) {
   // ?tab=fees opens straight on that group. The fee settings are the ones people are sent here FOR
   // (from the fees page, which is where the question "how many sign-offs?" actually comes up), and
@@ -110,179 +111,7 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
         </Card>
       )}
 
-      {tab === 'webhooks' && (
-        <div className="space-y-4">
-          <Card>
-            <FieldHeader title="Master announcements webhook">
-              The one channel Anvil posts everything to by default — event start / end, draft, submissions, weekly
-              results, sign-up nudges. Set only this for a simple single-channel setup, or split specific posts into
-              their own channels below.
-            </FieldHeader>
-            <WebhookField channels={channels} botEnabled={botEnabled} />
-          </Card>
-
-          <Card>
-            <FieldHeader title="Separate channels">
-              Split bingo, weekly and sign-up posts into their own channels. Leave blank to fall back to the master
-              webhook.
-            </FieldHeader>
-            <WebhookField
-              settingKey="discord_webhook_bingo"
-              label="Bingo events channel"
-              helpText="Event start/end, draft, blackout, and submission notifications post here."
-              channels={channels}
-              botEnabled={botEnabled}
-            />
-            <div className="border-t border-card-border pt-4">
-              <WebhookField
-                settingKey="discord_webhook_weekly"
-                label="SOTW / BOTW channel"
-                helpText="Weekly competition start and results (winner) notifications post here."
-                channels={channels}
-                botEnabled={botEnabled}
-              />
-            </div>
-            <div className="border-t border-card-border pt-4">
-              <WebhookField
-                settingKey="discord_webhook_signups"
-                label="Sign-up approvals channel"
-                helpText="Posts a fee-payment nudge (pinging the member) each time a sign-up is approved."
-                channels={channels}
-                botEnabled={botEnabled}
-              />
-            </div>
-            {/* The only webhook here with no fallback to the announcements channel. The others carry
-                clan news and a general channel is a fine home for them; this is a running commentary
-                on the clan's money, and a clan that has not asked for it should get silence. */}
-            <div className="border-t border-card-border pt-4">
-              <WebhookField
-                settingKey="discord_webhook_coffer"
-                label="Coffer channel (optional)"
-                helpText="Every movement of the clan's gp — donations reported and approved, prizes owed and paid, adjustments — each with the balance it leaves behind. Unlike the channels above this one has no fallback: leave it blank and nothing about the coffer is posted anywhere."
-                channels={channels}
-                botEnabled={botEnabled}
-              />
-            </div>
-          </Card>
-
-          <Card>
-            <FieldHeader title="Plugin notifications">
-              One channel for everything the Anvil plugin posts — drops, pets, deaths, CA tiers, levels, quests,
-              diaries, collection log, PvP kills and clips. Set this and you&rsquo;re done; split whichever ones you want
-              their own channel below. Members fetch these on launch, so remapping takes effect on their next login.
-            </FieldHeader>
-            <WebhookField
-              settingKey="webhook_plugin_default"
-              label="All plugin notifications"
-              helpText="Everything the plugin posts goes here unless you give it a channel of its own below."
-              channels={channels}
-              botEnabled={botEnabled}
-            />
-          </Card>
-
-          <Card>
-            <FieldHeader title="Split plugin channels">
-              Optional. Leave any of these blank and it uses the channel above; with neither set, that kind of post
-              is off.
-            </FieldHeader>
-            <WebhookField
-              settingKey="webhook_rare_drops"
-              label="Rare drops channel"
-              helpText="Valuable drops and pets are posted here by the plugin."
-              channels={channels}
-              botEnabled={botEnabled}
-            />
-            <WebhookField
-              settingKey="webhook_pets"
-              label="Pets channel"
-              helpText="Splits pet drops out of the rare-drops channel. Blank keeps them with the drops."
-              channels={channels}
-              botEnabled={botEnabled}
-            />
-            <WebhookField
-              settingKey="webhook_deaths"
-              label="Deaths channel"
-              helpText="Death notifications (and the occasional surprise) are posted here by the plugin."
-              channels={channels}
-              botEnabled={botEnabled}
-            />
-            <WebhookField
-              settingKey="webhook_combat_achievements"
-              label="Combat achievements channel"
-              helpText="CA tier clears (and high-tier task completions) are posted here by the plugin."
-              channels={channels}
-              botEnabled={botEnabled}
-            />
-            <WebhookField
-              settingKey="webhook_levels"
-              label="Levels channel"
-              helpText="99s, total-level milestones and maxes. Blank keeps them with combat achievements."
-              channels={channels}
-              botEnabled={botEnabled}
-            />
-            <WebhookField
-              settingKey="webhook_quests"
-              label="Quests channel"
-              helpText="Quest completions, at whatever difficulty each member has chosen to announce. Blank keeps them with combat achievements."
-              channels={channels}
-              botEnabled={botEnabled}
-            />
-            <WebhookField
-              settingKey="webhook_diaries"
-              label="Achievement diaries channel"
-              helpText="Diary tier completions. Blank keeps them with combat achievements."
-              channels={channels}
-              botEnabled={botEnabled}
-            />
-            <WebhookField
-              settingKey="webhook_collection_log"
-              label="Collection log channel"
-              helpText="New collection log slots. Blank keeps them with combat achievements."
-              channels={channels}
-              botEnabled={botEnabled}
-            />
-            <WebhookField
-              settingKey="webhook_pvp_kills"
-              label="PvP kills channel"
-              helpText="When 'Notify on PvP kill' is enabled in the plugin, a screenshot of the kill is posted here."
-              channels={channels}
-              botEnabled={botEnabled}
-            />
-            <WebhookField
-              settingKey="webhook_clips"
-              label="Clips channel"
-              helpText="On-demand OBS replay clips (captured via the plugin's clip hotkey) are posted here when small enough for Discord."
-              channels={channels}
-              botEnabled={botEnabled}
-            />
-            <WebhookField
-              settingKey="webhook_leagues"
-              label="Leagues channel"
-              helpText="While a member is on a seasonal (Leagues) world, ALL their notifications go here instead of the channels above — league drops and kill counts are meaningless next to main-game ones, and mixing them makes both channels unreadable. Leave blank to keep everything in the normal channels; seasonal posts are marked either way."
-              channels={channels}
-              botEnabled={botEnabled}
-            />
-            <PlainSetting
-              settingKey="leagues_icon_url"
-              label="Leagues icon (optional)"
-              placeholder="https://oldschool.runescape.wiki/images/..."
-              helpText="Thumbnail on seasonal posts. Left blank, Anvil looks up the current league's logo from the wiki once a day and falls back to the generic Leagues icon if it can't. Set this to pin a specific image."
-            />
-            <ToggleSetting
-              settingKey="block_guest_emissions"
-              label="Only announce your own members"
-              helpText="With this on, the channels above receive drops, deaths and combat achievements from your MEMBERS only — a visitor guesting for one event won't fill your feed with their unrelated activity. Bingo submissions from guests still post as normal; this is only about the social notifications. A guest can still be allowed individually from their own profile."
-            />
-            {/* The other half of the same question, kept beside it: the first decides whose activity
-                you HEAR about, this one decides whose activity COUNTS as yours. */}
-            <ToggleSetting
-              settingKey="members_count_guests"
-              label="Count guests in your clan's activity"
-              helpText="Off by default. The Members page headline, the week's podium and your clan EHP/EHB are your members' — a guest is somebody we have seen who is not on your roster, and their hours are not your clan's. Turn this on if your regulars never formally join and you want them counted. Guests appear in the member list either way."
-            />
-          </Card>
-        </div>
-      )}
+      {tab === 'webhooks' && <WebhooksPanel channels={channels} botEnabled={botEnabled} />}
 
       {tab === 'roles' && (
         <div className="space-y-4">
