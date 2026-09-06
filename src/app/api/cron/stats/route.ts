@@ -22,6 +22,7 @@ import { readAllActivities } from '@/lib/hiscoresActivities';
 const STALE_OVERLAY_MS = 6.5 * 60 * 60 * 1000;
 import { applyWeeklyValue, readMetricFromSnapshot, writePlayerSnapshot, type CompetitionType } from '@/lib/weekly';
 import { detectMilestones, computeDeltas, isDue, nextDueAt, recordDailyStats, recordMilestones } from '@/lib/statHistory';
+import { mergeSeatsByAccount } from '@/lib/sweepWork';
 import { timingSafeStrEqual } from '@/lib/auth';
 import { shouldSiteSweep } from '@/lib/sweepOwner';
 import { normalizeRsn } from '@/lib/auth';
@@ -381,25 +382,7 @@ export async function GET(request: Request) {
   // unranked quarantine both resolve a seat id to its account before writing, so any one of the
   // merged seats stands for all of them. The per-seat work rides along in `bingo` and `weekly`,
   // which carry their own ids and still fan out.
-  const merged = new Map<string, MemberWork>();
-  for (const entry of work.values()) {
-    const key =
-      entry.accountId != null ? `acc:${entry.accountId}` : `rsn:${normalizeRsn(entry.fetchRsn)}`;
-    const seen = merged.get(key);
-    if (!seen) {
-      merged.set(key, entry);
-      continue;
-    }
-    seen.bingo.push(...entry.bingo);
-    seen.weekly.push(...entry.weekly);
-    seen.staleKey = olderOf(seen.staleKey, entry.staleKey);
-    // A null due time means "due now", so it wins over any scheduled one.
-    seen.nextDueAt = seen.nextDueAt === null || entry.nextDueAt === null ? null : (seen.nextDueAt < entry.nextDueAt ? seen.nextDueAt : entry.nextDueAt);
-    // Claimed by a competition anywhere = priority everywhere. Filler only if nobody wants them.
-    seen.rosterOnly = seen.rosterOnly && entry.rosterOnly;
-    seen.clanMemberId = seen.clanMemberId ?? entry.clanMemberId;
-  }
-  const allWork = Array.from(merged.values());
+  const allWork = mergeSeatsByAccount(work.values(), normalizeRsn);
   const due = allWork.filter((entry) => {
     const needsBaseline =
       entry.bingo.some((b) => b.needsSnapshot) || entry.weekly.some((w) => w.participant.baselineValue === null);
