@@ -110,8 +110,11 @@ export default async function CofferPage() {
                       {e.amount >= 0 ? '+' : '−'}
                       {formatGp(Math.abs(e.amount))}
                     </span>{' '}
-                    {e.kind === 'award' ? 'won by' : e.kind === 'donation' ? 'from' : '·'}{' '}
-                    {e.memberName ?? e.rsn ?? 'the clan'}
+                    {e.kind === 'pool'
+                      ? 'prize money for an event'
+                      : `${e.kind === 'award' ? 'won by' : e.kind === 'donation' ? 'from' : '·'} ${
+                          e.memberName ?? e.rsn ?? 'the clan'
+                        }`}
                   </span>
                   {e.status === 'unfunded' && (
                     <span className="text-[10px] text-amber-300 flex-shrink-0">pot was empty</span>

@@ -298,6 +298,116 @@ export async function findAwardForCompletion(completionId: number): Promise<Coff
   return row ?? null;
 }
 
+// ---- Event prize pools -------------------------------------------------------------------------
+//
+// A board pays its own prizes: entry fees plus whatever the host adds, split across placements by
+// lib/payouts. What it could not do was take that money out of the CLAN'S coffer — a host funding a
+// bingo out of clan funds moved the gp by hand and the ledger never heard about it.
+//
+// So this is deliberately the dumbest movement in the file. One row per event, no places, no
+// winners, no idempotency key beyond "one pool per event": the coffer commits an amount to a board
+// and stops there, because the board already knows how to divide it. The gp shows as committed the
+// moment it is set aside, so a second event cannot promise the same 500m, and a treasurer marks it
+// paid on the coffer page like any other prize.
+
+/** The pool row for an event, if it has one. Cancelled rows read as no pool. */
+export async function getEventPool(eventId: number): Promise<CofferEntry | null> {
+  // clan-scope: global -- keyed by an event id whose clan the caller has already settled.
+  const row = await db.query.cofferEntries.findFirst({
+    where: and(
+      eq(cofferEntries.eventId, eventId),
+      eq(cofferEntries.kind, 'pool'),
+      inArray(cofferEntries.status, ['reserved', 'paid']),
+    ),
+  });
+  return row ?? null;
+}
+
+/** What an event's pool is worth, as a positive number. 0 when it has none. */
+export async function eventPoolGp(eventId: number): Promise<number> {
+  const row = await getEventPool(eventId);
+  return row ? Math.abs(row.amount) : 0;
+}
+
+export type SetPoolResult =
+  | { ok: true; entry: CofferEntry | null }
+  | { ok: false; error: string };
+
+/**
+ * Set (or clear) what an event takes from the coffer.
+ *
+ * Editing means editing the SAME row rather than stacking a second one, so a host who types 500m,
+ * thinks better of it and types 300m has committed 300m — not 800m, and not two lines on the ledger
+ * arguing about which is current. Clearing it cancels the row: the gp was never sent, so it comes
+ * straight back to available rather than leaving a refund to be reconciled.
+ *
+ * Once a treasurer has marked it PAID the amount is history and this refuses. The money is gone; a
+ * change of mind then is an adjustment, which is a different sentence about a different fact.
+ */
+export async function setEventPool(args: {
+  clanId: number;
+  eventId: number;
+  amount: number;
+  userId: number | null;
+  note?: string | null;
+}): Promise<SetPoolResult> {
+  const amount = Math.max(0, Math.floor(args.amount));
+  const existing = await getEventPool(args.eventId);
+  if (existing?.status === 'paid') {
+    return { ok: false, error: 'That prize money has already been paid out. Record a change as an adjustment instead.' };
+  }
+  const current = existing ? Math.abs(existing.amount) : 0;
+  if (amount === current) return { ok: true, entry: existing };
+
+  // Only the INCREASE has to be affordable: gp already committed to this pool is not competing with
+  // itself, and a host trimming an over-promise should never be blocked for having made it.
+  if (amount > current) {
+    const balance = await getCofferBalance(args.clanId);
+    if (balance.available < amount - current) {
+      return {
+        ok: false,
+        error: `The coffer only has ${balance.available.toLocaleString()} gp available.`,
+      };
+    }
+  }
+
+  if (amount === 0 && existing) {
+    const [row] = await db
+      .update(cofferEntries)
+      .set({ status: 'cancelled', settledByUserId: args.userId, settledAt: new Date().toISOString() })
+      .where(and(eq(cofferEntries.id, existing.id), eq(cofferEntries.status, 'reserved')))
+      .returning();
+    announce(args.clanId, row);
+    return { ok: true, entry: null };
+  }
+  if (amount === 0) return { ok: true, entry: null };
+
+  if (existing) {
+    const [row] = await db
+      .update(cofferEntries)
+      .set({ amount: -amount, note: args.note ?? existing.note })
+      .where(and(eq(cofferEntries.id, existing.id), eq(cofferEntries.status, 'reserved')))
+      .returning();
+    announce(args.clanId, row);
+    return { ok: true, entry: row ?? existing };
+  }
+
+  const [row] = await db
+    .insert(cofferEntries)
+    .values({
+      clanId: args.clanId,
+      kind: 'pool',
+      amount: -amount,
+      status: 'reserved',
+      eventId: args.eventId,
+      createdByUserId: args.userId,
+      note: args.note ?? null,
+    })
+    .returning();
+  announce(args.clanId, row);
+  return { ok: true, entry: row };
+}
+
 /** Treasurer sent the gp (or took it back). Conditional on the row still being in the state it left. */
 export async function settleAward(args: {
   clanId: number;
@@ -316,7 +426,9 @@ export async function settleAward(args: {
       and(
         eq(cofferEntries.id, args.entryId),
         eq(cofferEntries.clanId, args.clanId),
-        eq(cofferEntries.kind, 'award'),
+        // Pools settle the same way an award does — a treasurer sends the gp and says so. The only
+        // difference is who receives it, and that is the board's business rather than the ledger's.
+        inArray(cofferEntries.kind, ['award', 'pool']),
         inArray(cofferEntries.status, args.paid ? ['reserved'] : ['reserved', 'paid']),
       ),
     )

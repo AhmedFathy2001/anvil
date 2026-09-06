@@ -21,14 +21,6 @@ export async function countApprovedSignups(eventId: number): Promise<number> {
   return rows.length;
 }
 
-// Total displayed prize pool = host-added bonus + entry fee × approved entries.
-// Nulls (free event / no bonus) read as 0.
-export function computePrizePool(opts: {
-  addedPrizePool: number | null;
-  signupFee: number | null;
-  approvedCount: number;
-}): number {
-  const added = opts.addedPrizePool ?? 0;
-  const fees = (opts.signupFee ?? 0) * opts.approvedCount;
-  return added + fees;
-}
+// The pot arithmetic lives in lib/prizePoolMath, which is free of `@/db`; re-exported so every
+// caller keeps its single import of this module.
+export { computePrizePool } from '@/lib/prizePoolMath';

@@ -7,6 +7,7 @@ import { verifyUser } from '@/lib/auth';
 import { parseProfile, signupWindowState, signupEditState } from '@/lib/signup';
 import { checkInvite, isWellFormedToken } from '@/lib/teamInvites';
 import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
+import { eventPoolGp } from '@/lib/coffer';
 import { parseEventRules } from '@/lib/eventRules';
 import PrizePoolHero from '@/components/PrizePoolHero';
 import SignupForm from './SignupForm';
@@ -140,11 +141,12 @@ export default async function EventSignupPage({
         startDate: event.startDate,
       });
 
-  const approvedCount = await countApprovedSignups(id);
+  const [approvedCount, cofferFunded] = await Promise.all([countApprovedSignups(id), eventPoolGp(id)]);
   const prizePool = computePrizePool({
     addedPrizePool: event.addedPrizePool,
     signupFee: event.signupFee,
     approvedCount,
+    cofferFunded,
   });
 
   const eventRules = parseEventRules(event.rules);

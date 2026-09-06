@@ -34,6 +34,7 @@ import {
 } from '@/lib/eventRules';
 import { signupWindowState } from '@/lib/signup';
 import { computePrizePool, countApprovedSignups } from '@/lib/prizePool';
+import { eventPoolGp } from '@/lib/coffer';
 import { formatGp } from '@/lib/adminEventsFormat';
 import { eventShapeBadge } from '@/lib/utils';
 import {
@@ -415,11 +416,15 @@ async function rulesEmbeds(
       .where(eq(tiles.eventId, event.id)),
   ]);
   const rules = parseEventRules(row?.rules);
-  const approved = await countApprovedSignups(event.id).catch(() => 0);
+  const [approved, cofferFunded] = await Promise.all([
+    countApprovedSignups(event.id).catch(() => 0),
+    eventPoolGp(event.id).catch(() => 0),
+  ]);
   const pool = computePrizePool({
     addedPrizePool: row?.addedPrizePool ?? null,
     signupFee: row?.signupFee ?? null,
     approvedCount: approved,
+    cofferFunded,
   });
 
   const missionPool = missionTiles(allTiles);

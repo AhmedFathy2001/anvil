@@ -6,7 +6,7 @@
 //
 // Three numbers, and they are not interchangeable:
 //   confirmed — approved donations + adjustments + refunds. What the clan HAS.
-//   reserved  — prizes claimed but not yet sent (award rows still 'reserved'). Owed, not gone.
+//   reserved  — gp already committed: prizes claimed but not yet sent, and pools handed to an event.
 //   available — confirmed − reserved. The ONLY number a prize may be funded against, because the
 //               alternative is promising the same 50m to two winners while a treasurer is asleep.
 //
@@ -22,6 +22,9 @@ export function countsTowardBalance(entry: { kind: string; status: string }): bo
     case 'refund':
       return entry.status !== 'rejected' && entry.status !== 'cancelled';
     case 'award':
+    // A prize pool handed to an event is the same movement as an award, one step earlier: the gp is
+    // committed to a board that splits it its own way, rather than to a person who won a place.
+    case 'pool':
       // Reserved gp is spoken for even before it is sent — that is the whole point of reserving it.
       return entry.status === 'reserved' || entry.status === 'paid';
     default:
@@ -52,8 +55,8 @@ export function foldBalance(groups: { kind: string; status: string; total: numbe
   for (const g of groups) {
     if (g.kind === 'donation' && g.status === 'pending') pending += g.total;
     if (!countsTowardBalance(g)) continue;
-    // Award totals are stored negative; `reserved` reads better as gp owed, so flip the sign.
-    if (g.kind === 'award') reserved += -g.total;
+    // Award and pool totals are stored negative; `reserved` reads better as gp owed, so flip the sign.
+    if (g.kind === 'award' || g.kind === 'pool') reserved += -g.total;
     else confirmed += g.total;
   }
   const available = Math.max(0, confirmed - reserved);

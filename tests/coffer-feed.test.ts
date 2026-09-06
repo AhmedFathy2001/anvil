@@ -77,3 +77,21 @@ test('the balance rides along when we know it, and is omitted when we do not', (
 test('a movement nobody owns still reads as a sentence', () => {
   assert.match(cofferLine(entry({ rsn: null, kind: 'adjustment', amount: 10 }), null), /coffer/);
 });
+
+// ── Event prize pools ───────────────────────────────────────────────────────────────────────────
+
+const pool = (over: Partial<Entry> = {}) =>
+  entry({ kind: 'pool', amount: -500_000_000, status: 'reserved', rsn: null, clanMemberId: null, eventId: 7, ...over });
+
+test('a prize pool is announced as the clan committing money, not as somebody winning it', () => {
+  const line = cofferLine(pool(), 1_000_000_000);
+  assert.match(line, /set aside as a prize pool/);
+  // Nobody won anything yet — the board decides that later, out of the pot.
+  assert.doesNotMatch(line, /won|owed/);
+  assert.match(line, /500,000,000 gp/);
+});
+
+test('a pool paid out and a pool called off read differently', () => {
+  assert.match(cofferLine(pool({ status: 'paid' }), null), /paid out/);
+  assert.match(cofferLine(pool({ status: 'cancelled' }), null), /called off/);
+});

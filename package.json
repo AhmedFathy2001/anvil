@@ -66,6 +66,7 @@
     "test:cofferfeed": "npx tsx --test tests/coffer-feed.test.ts",
     "test:pureimports": "npx tsx --test tests/pure-module-imports.test.ts",
     "test:webhooks": "npx tsx --test tests/webhook-fields.test.ts",
+    "test:cofferpool": "npx tsx --test tests/coffer-pool.test.ts",
     "test:invites": "node --experimental-strip-types --test tests/team-invites.test.ts",
     "test:fees": "node --experimental-strip-types --test tests/fee-rules.test.ts",
     "test:cap": "node --experimental-strip-types --test tests/member-cap.test.ts",
