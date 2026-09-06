@@ -627,6 +627,14 @@ export interface ClanAnalytics {
   activeThisWeek: number;
   /** Members with any gain on today's row — "playing today", as far as the sweep can tell. */
   activeToday: number;
+  /**
+   * Highest lifetime EHP among the people who COUNT here.
+   *
+   * Computed server-side rather than in the pulse component, which had been reducing over the full
+   * seat list it renders — so excluding guests from every other figure still left them able to own
+   * the all-time line. One definition of "whose activity is the clan's", in one place.
+   */
+  allTimeLeader: { rsn: string; ehp: number } | null;
 }
 
 /**
@@ -718,6 +726,10 @@ export async function getClanAnalytics(
     totalEhb: members.reduce((sum, m) => sum + (m.ehb ?? 0), 0),
     activity,
     topWeek,
+    allTimeLeader: members.reduce<{ rsn: string; ehp: number } | null>(
+      (best, m) => ((m.ehp ?? 0) > (best?.ehp ?? -1) ? { rsn: m.rsn, ehp: m.ehp ?? 0 } : best),
+      null,
+    ),
     activeThisWeek: weekRows.filter((r) => r.hours > 0).length,
     // Today's row only exists once the sweep has seen a gain today, so this is "played today" as
     // well as we can know it without a live heartbeat — and it reads as zero early in the morning,

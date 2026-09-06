@@ -62,7 +62,7 @@ function Chip({ value, label }: { value: string; label: string }) {
  */
 function headline(
   topWeek: { rsn: string; hours: number }[],
-  allTimeLeader: MemberListRow | null,
+  allTimeLeader: { rsn: string; ehp: number } | null,
 ): { lead: string; hours: string | null; tail: string; sub: string | null } {
   if (topWeek.length === 0) {
     return {
@@ -104,10 +104,8 @@ export default function ClanPulse({
   const { memberCount, guestCount, totalEhp, totalEhb, activity, topWeek, activeThisWeek, activeToday } = analytics;
   const hasActivity = activity.some((a) => a.value > 0);
 
-  const allTimeLeader = members.reduce<MemberListRow | null>(
-    (best, m) => ((m.ehp ?? 0) > (best?.ehp ?? -1) ? m : best),
-    null,
-  );
+  // From analytics, not from `members`: that prop is every seat this page lists, guests included.
+  const allTimeLeader = analytics.allTimeLeader;
   const story = headline(topWeek, allTimeLeader);
 
   const podium = topWeek.slice(0, 3);

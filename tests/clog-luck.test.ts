@@ -500,3 +500,20 @@ test('a guaranteed reward is not a rate, and does not drag its item off the boar
   assert.ok(s.length > 0, 'oathplate helm should still be on the board');
   assert.ok(s.every((x) => !/#/.test(x)), `variant anchors should be resolved, got ${JSON.stringify(s)}`);
 });
+
+
+test('two rates on one page are one activity, not two chances at it', () => {
+  // Yama's page lists the pet at 1-in-2,500 and again at 1-in-100 — the second is a contract, which
+  // has no killcount of its own. Pushed as two sources they were ADDED, so the expectation came out
+  // ~26x too high and every Yama killer sat in the Dry column owing pets they were never owed.
+  for (const c of luckCandidates()) {
+    const keys = c.sources.map((s) => s.bossKey);
+    assert.equal(new Set(keys).size, keys.length, `${c.itemName} has two sources for one boss`);
+  }
+});
+
+test('a variant rate we cannot count takes its item off the board', () => {
+  // Contracts roll the pet 25x better than a normal kill and nothing counts how many you have done,
+  // so the honest answer is that this one is not measurable rather than a number nobody can trust.
+  assert.equal(board().get('yami'), undefined);
+});

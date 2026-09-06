@@ -117,6 +117,37 @@ export function luckCandidates(raidOverrides?: unknown): LuckCandidate[] {
       if (cur === undefined || drop.d < cur) into.set(drop.i, drop.d);
     }
   }
+
+  // ONE RATE PER (item, source). A wiki page can list the same drop twice at different odds when a
+  // VARIANT of that activity rolls it better — Yama's page carries the pet at both 1-in-2,500 and
+  // 1-in-100, the second being a contract. Contracts have no killcount of their own, so the two
+  // lines are alternative rates for one kill rather than two independent chances at it, and pushing
+  // both made `expectationFor` ADD them: the pet's expectation came out ~26x too high and every
+  // Yama killer sat in the Dry column owing five pets they were never owed.
+  //
+  // The base activity is the RAREST line — the better one belongs to the variant you cannot count —
+  // so that is the rate kept. The variant's own rate is handed to the unaccounted test, where the
+  // ratio decides: 1-in-100 against 1-in-2,500 is 25x better and inside the window, so the pet
+  // leaves the board rather than being scored against a mix nobody can measure.
+  const rateFor = new Map<string, number>();
+  for (const [source, table] of Object.entries(drops)) {
+    const key = trackedKey(source);
+    if (!key) continue;
+    for (const drop of table) {
+      if (!Number.isFinite(drop.d) || drop.d <= 1) continue;
+      const k = `${drop.i}:${key}`;
+      const seen = rateFor.get(k);
+      if (seen === undefined) {
+        rateFor.set(k, drop.d);
+        continue;
+      }
+      // Keep the base (rarest); the better duplicate is a variant route we cannot count.
+      rateFor.set(k, Math.max(seen, drop.d));
+      const variant = Math.min(seen, drop.d);
+      const cur = bestUntracked.get(drop.i);
+      if (cur === undefined || variant < cur) bestUntracked.set(drop.i, variant);
+    }
+  }
   const unaccounted = new Set<number>();
   for (const [itemId, untracked] of bestUntracked) {
     const tracked = bestTracked.get(itemId);
@@ -134,11 +165,15 @@ export function luckCandidates(raidOverrides?: unknown): LuckCandidate[] {
       // Nobody is lucky for a drop everybody gets, so it is not a rate and does not belong here.
       if (drop.d <= 1) continue;
       if (!bossKey) continue; // nothing to count kills with; see UNACCOUNTED_RATIO above
+      // One source per (item, boss) at the base rate — see rateFor. A second line for the same pair
+      // is the variant, already accounted for above.
+      const rate = rateFor.get(`${drop.i}:${bossKey}`) ?? drop.d;
       const list = byItem.get(drop.i) ?? [];
+      if (list.some((r) => r.bossKey === bossKey)) continue;
       list.push({
         source,
         bossKey,
-        denominator: drop.d,
+        denominator: rate,
         rolls: drop.r && drop.r > 0 ? drop.r : 1,
         bundle: bundleSize(drop),
       });
