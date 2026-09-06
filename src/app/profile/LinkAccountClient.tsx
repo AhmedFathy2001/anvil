@@ -41,11 +41,18 @@ function formatSkill(s: string | null | undefined): string {
  * that works from anywhere, and why it is the whole of the apex offer rather than a tab beside a
  * disabled one.
  */
-export default function LinkAccountClient({ manualReview = true }: { manualReview?: boolean }) {
+export default function LinkAccountClient({
+  manualReview = true,
+  initialRsn = '',
+}: {
+  manualReview?: boolean;
+  /** Pre-filled name, for arriving from a suggestion rather than from memory. */
+  initialRsn?: string;
+}) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('no-plugin');
 
-  if (!manualReview) return <StatDeltaPath router={router} />;
+  if (!manualReview) return <StatDeltaPath router={router} initialRsn={initialRsn} />;
 
   return (
     <div>
@@ -58,7 +65,7 @@ export default function LinkAccountClient({ manualReview = true }: { manualRevie
         </TabButton>
       </div>
 
-      {tab === 'no-plugin' && <StatDeltaPath router={router} />}
+      {tab === 'no-plugin' && <StatDeltaPath router={router} initialRsn={initialRsn} />}
       {tab === 'manual' && <ManualReviewPath router={router} />}
     </div>
   );
@@ -169,8 +176,14 @@ function ManualReviewPath({ router }: { router: ReturnType<typeof useRouter> }) 
   );
 }
 
-function StatDeltaPath({ router }: { router: ReturnType<typeof useRouter> }) {
-  const [rsn, setRsn] = useState('');
+function StatDeltaPath({
+  router,
+  initialRsn = '',
+}: {
+  router: ReturnType<typeof useRouter>;
+  initialRsn?: string;
+}) {
+  const [rsn, setRsn] = useState(initialRsn);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState<AttemptState | null>(null);

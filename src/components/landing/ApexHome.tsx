@@ -3,6 +3,7 @@ import ClanCrest from '@/components/ClanCrest';
 import ClanLink from '@/components/ClanLink';
 import type { ApexHomeView, ClanCard } from '@/lib/apexHome';
 import type { ApexSignals } from '@/lib/apexHomeSignals';
+import type { FoundSeat } from '@/lib/foundYou';
 import { ArenaHero, CareerWell, Label, Lately, Roster, Standing, StreakBadge } from '@/components/home/ApexSignals';
 
 /**
@@ -30,10 +31,13 @@ export default function ApexHome({
   view,
   signals,
   displayName,
+  found = [],
 }: {
   view: ApexHomeView;
   signals: ApexSignals;
   displayName: string;
+  /** Roster seats that name-match this login's Discord and nobody has claimed. See lib/foundYou. */
+  found?: FoundSeat[];
 }) {
   // The arena already IS one of these, in full. Listing it again three inches below was the page
   // saying the same thing twice, which is exactly the flatness the redesign was for.
@@ -71,7 +75,58 @@ export default function ApexHome({
       </header>
 
       {view.clans.length === 0 ? (
-        <Empty />
+        // NOT a dead end. This used to be one card — "you're not in a clan yet" and two buttons —
+        // which threw away everything we know about the person reading it. They have characters,
+        // those characters have a week and a career, and none of that needs a clan to be worth
+        // looking at. So the personal half of this page renders either way, and the clan doors sit
+        // under it as an invitation rather than as the entire page.
+        <div className="flex flex-col gap-10">
+          {found.length > 0 && (
+            <div>
+              <Label>We think we found you</Label>
+              <FoundSeats seats={found} />
+            </div>
+          )}
+
+          <Empty hasCharacters={view.characters.length > 0} />
+
+          {view.characters.length > 0 && (
+            <div>
+              <Label
+                action={
+                  <ClanLink href="/profile" className="whitespace-nowrap text-[13px] text-gold-dark hover:text-gold">
+                    Manage characters →
+                  </ClanLink>
+                }
+              >
+                Your roster
+              </Label>
+              <Roster
+                characters={view.characters.map((ch) => ({
+                  id: ch.id,
+                  rsn: ch.rsn,
+                  xpThisWeek: ch.xpThisWeek,
+                  seats: signals.seats.get(ch.id) ?? [],
+                  next: signals.next.get(ch.id),
+                }))}
+              />
+            </div>
+          )}
+
+          {signals.career && (
+            <div>
+              <Label>Career · so far</Label>
+              <CareerWell career={signals.career} />
+            </div>
+          )}
+
+          {signals.milestones.length > 0 && (
+            <div>
+              <Label>Lately</Label>
+              <Lately milestones={signals.milestones} />
+            </div>
+          )}
+        </div>
       ) : (
         <div className="flex flex-col gap-10">
           {signals.arena && <ArenaHero arena={signals.arena} />}
@@ -246,13 +301,23 @@ function Section({
   );
 }
 
-function Empty() {
+/**
+ * The clan doors, for somebody in none.
+ *
+ * Reads differently depending on whether we are tracking anything of theirs yet, because the two
+ * readers want opposite things. With characters linked the page above is already useful and a clan
+ * is an addition; with none, connecting one IS the next step and a clan can wait.
+ */
+function Empty({ hasCharacters }: { hasCharacters: boolean }) {
   return (
     <div className="rounded-2xl border border-card-border bg-card-bg p-7 sm:p-8">
-      <h2 className="display text-xl font-semibold">You&rsquo;re not in a clan yet</h2>
+      <h2 className="display text-xl font-semibold">
+        {hasCharacters ? 'Not in a clan yet' : 'Let’s find your account'}
+      </h2>
       <p className="mt-2 max-w-[52ch] text-[14.5px] leading-relaxed text-text-muted">
-        Join one that&rsquo;s recruiting, or start your own — a clan takes an evening to set up, and
-        the plugin does the rest.
+        {hasCharacters
+          ? 'Your characters are tracked either way — the week above is yours, clan or no clan. Join one that’s recruiting, or start your own; a clan takes an evening to set up.'
+          : 'Connect a character and Anvil starts tracking its XP, kills, collection log and milestones — no clan required. Join one when you want the events.'}
       </p>
       <div className="mt-5 flex flex-wrap gap-3">
         <ClanLink
@@ -326,3 +391,38 @@ function greeting(): string {
   return 'Evening';
 }
 
+/**
+ * Seats we believe are this person's, offered rather than granted.
+ *
+ * The match is a Discord name-match the roster sync happened to record, which is a guess — so this
+ * asks, and the answer is proved the normal way. Linking the character is what attaches the seat;
+ * this only saves somebody having to know which of their names to type.
+ */
+function FoundSeats({ seats }: { seats: FoundSeat[] }) {
+  return (
+    <div className="flex flex-col gap-2.5">
+      {seats.map((s) => (
+        <div
+          key={`${s.clanSlug}/${s.rsn}`}
+          className="flex flex-wrap items-center gap-3 rounded-xl border border-gold/25 bg-gold/[0.04] px-4 py-3.5 sm:px-5"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[15px] font-medium">{s.rsn}</span>
+            <span className="mt-0.5 block truncate text-[12.5px] text-text-muted">
+              on {s.clanName}&rsquo;s roster{s.member ? '' : ' as a guest'} · not connected yet
+            </span>
+          </span>
+          <ClanLink
+            href={`/profile?connect=${encodeURIComponent(s.rsn)}`}
+            className="shrink-0 rounded-lg bg-gold px-3.5 py-2 text-[13px] font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+          >
+            That&rsquo;s me
+          </ClanLink>
+        </div>
+      ))}
+      <p className="text-[12px] text-text-dim">
+        Matched by Discord name, so it is a guess — connecting the character is what proves it.
+      </p>
+    </div>
+  );
+}

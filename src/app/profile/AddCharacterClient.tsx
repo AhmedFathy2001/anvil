@@ -15,14 +15,27 @@ import LinkAccountClient from './LinkAccountClient';
 //
 // So this leads with the token and "just play", watches for the first login the way ConnectCard
 // does, and folds the by-name path away behind a disclosure for the people who actually need it.
-export default function AddCharacterClient({ first = false }: { first?: boolean }) {
+export default function AddCharacterClient({
+  first = false,
+  suggestedRsn = '',
+}: {
+  first?: boolean;
+  /**
+   * A name we already believe is theirs, from `?connect=` — the apex home's "that's me".
+   *
+   * It opens the by-name path rather than the plugin one on purpose: somebody who arrived by
+   * clicking a suggestion is at a browser, not in game, and the token flow would ask them to go and
+   * be somewhere else before anything happens.
+   */
+  suggestedRsn?: string;
+}) {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
-  const [showManual, setShowManual] = useState(false);
+  const [showManual, setShowManual] = useState(Boolean(suggestedRsn));
   const [heard, setHeard] = useState(false);
   // How many characters are linked right now, so a login that lands while this is open is seen as a
   // CHANGE rather than the baseline it's measured against.
@@ -161,7 +174,7 @@ export default function AddCharacterClient({ first = false }: { first?: boolean 
               No plugin — prove it is yours by training. We snapshot the hiscores, pick a skill, and verify the
               XP you gain in it.
             </p>
-            <LinkAccountClient manualReview={false} />
+            <LinkAccountClient manualReview={false} initialRsn={suggestedRsn} />
           </div>
         )}
       </div>

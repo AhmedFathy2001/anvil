@@ -40,7 +40,7 @@ export const dynamic = 'force-dynamic';
 export default async function ProfilePage({
   searchParams,
 }: {
-  searchParams: Promise<{ welcome?: string }>;
+  searchParams: Promise<{ welcome?: string; connect?: string }>;
 }) {
   // NOT requireClan(). This page is the person's, and a person has no clan on the apex — so the one
   // surface the identity model insists follows you between clans answered 404 there, and a signed-in
@@ -48,6 +48,10 @@ export default async function ProfilePage({
   // here; it selects the person-level view below rather than failing.
   const clan = await currentClan();
   const session = await verifyUser();
+  const params = await searchParams;
+  // A name the apex home believes is theirs. Trimmed and capped at the RSN limit because it is a URL
+  // parameter that ends up in an input: it is a convenience, not a claim about anybody.
+  const suggestedRsn = (params.connect ?? '').trim().slice(0, 12);
   // COME BACK TO THE PAGE THEY ASKED FOR. The return was hardcoded to '/profile', which is the apex
   // person page — so anyone who followed a link to their clan locker while signed out logged in and
   // landed somewhere else, with no sign that they had been moved.
@@ -94,11 +98,12 @@ export default async function ProfilePage({
         characters={characters.map((a) => ({ id: a.id, rsn: a.rsn, shared: !!a.shared }))}
         linked={person?.linkAccountsPublicly ?? false}
         emission={emission}
+        suggestedRsn={suggestedRsn}
       />
     );
   }
 
-  const welcome = (await searchParams).welcome === '1';
+  const welcome = params.welcome === '1';
   const [locker, clanName] = await Promise.all([
     buildLocker(clan.id, session.playerId, session.userId),
     getClanDisplayName(clan.id),
