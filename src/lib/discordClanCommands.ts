@@ -14,7 +14,7 @@
 import { and, desc, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanRoster, memberClog, weeklyCompetitions } from '@/db/schema';
+import { clanRoster, memberClog, memberClogItems, memberClogKc, weeklyCompetitions } from '@/db/schema';
 
 import {
   EMBED_COLOR,
@@ -28,7 +28,8 @@ import {
 import { fmt, type DiscordDict } from '@/lib/discordI18n';
 import { resolveInvoker, type ClanContext, type InvokerIdentity } from '@/lib/discordContext';
 
-import { competitionImageUrl, itemIconUrl } from '@/lib/tileIcons';
+import { competitionImageUrl, itemIconUrl, bossImageUrl } from '@/lib/tileIcons';
+import { clogPageItems, clogPageIndex, clogPageNames } from '@/lib/clogDataset';
 import { getEffectiveParticipants } from '@/lib/weekly';
 import { weeklyMetricLabel } from '@/lib/weeklyLabels';
 import { weeklyUnit } from '@/lib/weeklyStage';
@@ -113,21 +114,26 @@ function pathUrl(clan: ClanContext, path: string): string | undefined {
  * Resolve who a personal command is ABOUT: the invoker by default, or the member named in a `member`
  * option. A USER option arrives as a Discord user id, so it re-runs the same clan-scoped resolution.
  */
-async function resolveTarget(
-  ctx: ClanCommandCtx,
-): Promise<{ accountIds: number[]; primaryAccountId: number | null; rsn: string | null; who: string }> {
+interface Target {
+  accounts: { accountId: number; rsn: string }[];
+  primaryAccountId: number | null;
+  rsn: string | null;
+  who: string;
+}
+
+async function resolveTarget(ctx: ClanCommandCtx): Promise<Target> {
   const named = typeof ctx.options.member === 'string' ? ctx.options.member.trim() : '';
   if (named) {
     const other = await resolveInvoker(named, ctx.clan.clanId);
     return {
-      accountIds: other.accountIds,
+      accounts: other.accounts,
       primaryAccountId: other.primaryAccountId,
       rsn: other.rsn,
       who: other.rsn ?? other.displayName ?? 'That member',
     };
   }
   return {
-    accountIds: ctx.identity?.accountIds ?? [],
+    accounts: ctx.identity?.accounts ?? [],
     primaryAccountId: ctx.identity?.primaryAccountId ?? null,
     rsn: ctx.identity?.rsn ?? null,
     // Name the ACCOUNT (RSN), not the Discord handle — /clog and /luck are about a game account, and
@@ -135,6 +141,41 @@ async function resolveTarget(
     // Discord name only when we don't know their RSN.
     who: ctx.identity?.rsn ?? ctx.who,
   };
+}
+
+/**
+ * Which account a personal command is about: the one named in an `account:` option (matched by RSN
+ * among the person's accounts), else their PRIMARY, else their first. Null accountId = not on the
+ * roster at all.
+ */
+function chooseAccount(target: Target, accountOpt: unknown): { accountId: number | null; rsn: string } {
+  const q = typeof accountOpt === 'string' ? accountOpt.trim().toLowerCase() : '';
+  if (q) {
+    const hit =
+      target.accounts.find((a) => a.rsn.toLowerCase() === q) ??
+      target.accounts.find((a) => a.rsn.toLowerCase().includes(q));
+    if (hit) return { accountId: hit.accountId, rsn: hit.rsn };
+  }
+  const acc = target.accounts.find((a) => a.accountId === target.primaryAccountId) ?? target.accounts[0];
+  return { accountId: acc?.accountId ?? null, rsn: acc?.rsn ?? target.who };
+}
+
+/** Autocomplete source for the boss/page picker: pages that start with, then contain, the query. */
+export function suggestClogPages(query: string): { name: string; value: string }[] {
+  const names = clogPageNames();
+  const low = query.trim().toLowerCase();
+  if (!low) return names.slice(0, 25).map((n) => ({ name: n, value: n }));
+  const starts = names.filter((n) => n.toLowerCase().startsWith(low));
+  const contains = names.filter((n) => !n.toLowerCase().startsWith(low) && n.toLowerCase().includes(low));
+  return [...starts, ...contains].slice(0, 25).map((n) => ({ name: n, value: n }));
+}
+
+/** Free-typed page → the catalogue's canonical page name (exact, then substring), or null. */
+function resolveClogPage(query: string): string | null {
+  const names = clogPageNames();
+  const low = query.trim().toLowerCase();
+  if (!low) return null;
+  return names.find((n) => n.toLowerCase() === low) ?? names.find((n) => n.toLowerCase().includes(low)) ?? null;
 }
 
 // ── /sotw + /botw ─────────────────────────────────────────────────────────────────────────────────
@@ -367,28 +408,37 @@ async function topCollectors(clanId: number) {
 }
 
 async function clogResult(ctx: ClanCommandCtx): Promise<ClanResult> {
-  const { t, clan } = ctx;
   const target = await resolveTarget(ctx);
-  const board = await topCollectors(clan.clanId);
+  const picked = chooseAccount(target, ctx.options.account);
+  // A specific boss/page named → that page's items for the chosen account (RuneProfile-style).
+  const page = typeof ctx.options.page === 'string' ? ctx.options.page.trim() : '';
+  if (page) return clogPageResult(ctx, target, picked, page);
+  return clogOverviewResult(ctx, target, picked);
+}
 
-  // A person can hold several accounts, only some synced. Show their BEST-synced one rather than the
-  // primary — the primary might be the unsynced alt, which is what made a fully-synced main wrongly
-  // read as "hasn't synced". The rest are noted so a multi-account member isn't misrepresented.
-  const mine = new Set(target.accountIds);
-  const synced = board.filter((b) => mine.has(b.accountId)).sort((a, b) => b.obtained - a.obtained);
-  const header = synced[0];
-  const subject = header?.rsn ?? target.who;
+/** The whole-log summary: the chosen account's count + rank, and the clan's top collectors. */
+async function clogOverviewResult(
+  ctx: ClanCommandCtx,
+  target: Target,
+  picked: { accountId: number | null; rsn: string },
+): Promise<ClanResult> {
+  const { t, clan } = ctx;
+  const board = await topCollectors(clan.clanId);
+  const header = picked.accountId != null ? board.find((b) => b.accountId === picked.accountId) : undefined;
 
   const body: string[] = [];
   if (!header) {
-    // None of their accounts are on the leaderboard, which only lists synced logs.
-    body.push(fmt(t.clog.notSynced, { who: subject }));
+    body.push(fmt(t.clog.notSynced, { who: picked.rsn }));
+    // If another of their accounts HAS synced, point at it rather than leaving a dead end.
+    const otherSynced = target.accounts
+      .filter((a) => a.accountId !== picked.accountId && board.some((b) => b.accountId === a.accountId))
+      .map((a) => a.rsn);
+    if (otherSynced.length) body.push(fmt(t.clog.tryAccount, { names: otherSynced.join(', ') }));
   } else {
-    const rank = board.findIndex((b) => b.accountId === header.accountId) + 1;
+    const rank = board.findIndex((b) => b.accountId === picked.accountId) + 1;
     body.push(fmt(t.clog.rankLine, { rank, total: board.length, clan: clan.name }));
-    if (synced.length > 1) {
-      body.push(fmt(t.clog.alsoSynced, { names: synced.slice(1).map((s) => clamp(s.rsn, 20)).join(', ') }));
-    }
+    const others = target.accounts.filter((a) => a.accountId !== picked.accountId).map((a) => a.rsn);
+    if (others.length) body.push(fmt(t.clog.otherAccounts, { names: others.join(', ') }));
   }
   if (board.length) {
     body.push(
@@ -402,18 +452,76 @@ async function clogResult(ctx: ClanCommandCtx): Promise<ClanResult> {
   return {
     embeds: [
       {
-        title: clamp(fmt(t.clog.title, { who: subject }), LIMIT.title),
+        title: clamp(fmt(t.clog.title, { who: picked.rsn }), LIMIT.title),
         url: pathUrl(clan, '/members'),
         description: clamp(body.join('\n'), LIMIT.description),
         color: EMBED_COLOR.gold,
         author: authorOf(clan),
         ...thumb(itemIconUrl(CLOG_ITEM_ID)),
         fields: header
-          ? [
-              statField(t.clog.slots, `${header.obtained}/${header.total}`),
-              statField(t.clog.collectors, board.length),
-            ]
+          ? [statField(t.clog.slots, `${header.obtained}/${header.total}`), statField(t.clog.collectors, board.length)]
           : [statField(t.clog.collectors, board.length)],
+      },
+    ],
+    shareable: true,
+  };
+}
+
+/** One collection-log page for one account: its items, which are collected, and the page's KC. */
+async function clogPageResult(
+  ctx: ClanCommandCtx,
+  target: Target,
+  picked: { accountId: number | null; rsn: string },
+  pageQuery: string,
+): Promise<ClanResult> {
+  const { t, clan } = ctx;
+  if (picked.accountId == null) return { text: fmt(t.clog.notSynced, { who: target.who }) };
+
+  const page = resolveClogPage(pageQuery);
+  if (!page) return { text: fmt(t.clog.pageNotFound, { q: clamp(pageQuery, 60) }) };
+
+  const synced = await db.query.memberClog.findFirst({ where: eq(memberClog.accountId, picked.accountId) });
+  if (!synced) return { text: fmt(t.clog.pageNotSynced, { who: picked.rsn, page }) };
+
+  // Per-page count intersects the account's obtained ids with the catalogue — a shared item (a pet)
+  // is filed under one page but counts on every page it belongs to. See lib/clogDataset.
+  const catalogue = clogPageItems(page); // ordered [{ id, name }]
+  const pageIds = clogPageIndex().get(page) ?? new Set<number>();
+  const owned = await db
+    .select({ itemId: memberClogItems.itemId })
+    .from(memberClogItems)
+    .where(eq(memberClogItems.accountId, picked.accountId));
+  const ownedSet = new Set(owned.map((r) => r.itemId).filter((id) => pageIds.has(id)));
+  const got = catalogue.filter((it) => ownedSet.has(it.id));
+
+  const kcRows = await db
+    .select({ label: memberClogKc.label, count: memberClogKc.count })
+    .from(memberClogKc)
+    .where(and(eq(memberClogKc.accountId, picked.accountId), eq(memberClogKc.pageName, page)));
+
+  const body: string[] = [fmt(t.clog.pageProgress, { obtained: got.length, total: catalogue.length })];
+  if (kcRows.length) {
+    body.push(fmt(t.clog.pageKc, { kc: kcRows.map((k) => `${k.label} ${k.count.toLocaleString()}`).join(' · ') }));
+  }
+  if (got.length) {
+    body.push('', t.clog.pageHave, ...got.slice(0, 24).map((it) => `• ${clamp(it.name, 60)}`));
+    if (got.length > 24) body.push(`-# ${fmt(t.common.more, { n: got.length - 24 })}`);
+  } else {
+    body.push('', t.clog.pageNone);
+  }
+  if (clan.origin) body.push('', fmt(t.clog.pageFull, { url: `${clan.origin}/members` }));
+  body.push('', clanLine(clan));
+
+  return {
+    embeds: [
+      {
+        title: clamp(fmt(t.clog.pageTitle, { who: picked.rsn, page }), LIMIT.title),
+        url: pathUrl(clan, '/members'),
+        description: clamp(body.join('\n'), LIMIT.description),
+        color: EMBED_COLOR.gold,
+        author: authorOf(clan),
+        // The boss's own picture (falls back to its signature drop, then the log book).
+        ...thumb(bossImageUrl(page) ?? itemIconUrl(CLOG_ITEM_ID)),
       },
     ],
     shareable: true,
@@ -431,18 +539,11 @@ function luckItemLine(itemName: string, obtained: number, expected: number, tail
 async function memberLuckResult(ctx: ClanCommandCtx): Promise<ClanResult> {
   const { t, clan } = ctx;
   const target = await resolveTarget(ctx);
-  // Try their accounts in order — primary first, then the rest — so a member whose primary is an
-  // unsynced alt still gets the luck of the account that HAS a synced log, not "hasn't synced".
-  const ordered = [
-    ...(target.primaryAccountId != null ? [target.primaryAccountId] : []),
-    ...target.accountIds.filter((a) => a !== target.primaryAccountId),
-  ];
-  let luck: Awaited<ReturnType<typeof getMemberLuck>> = null;
-  for (const a of ordered) {
-    luck = await getMemberLuck(a, clan.clanId, 5);
-    if (luck) break;
-  }
-  if (!luck) return { text: fmt(t.luck.notSynced, { who: target.who }) };
+  const picked = chooseAccount(target, ctx.options.account);
+  if (picked.accountId == null) return { text: fmt(t.luck.notSynced, { who: picked.rsn }) };
+
+  const luck = await getMemberLuck(picked.accountId, clan.clanId, 5);
+  if (!luck) return { text: fmt(t.luck.notSynced, { who: picked.rsn }) };
 
   const body: string[] = [
     fmt(t.luck.totalLine, { net: formatNet(luck.total.net), items: luck.total.items }),
@@ -467,7 +568,7 @@ async function memberLuckResult(ctx: ClanCommandCtx): Promise<ClanResult> {
   return {
     embeds: [
       {
-        title: clamp(fmt(t.luck.memberTitle, { who: target.who }), LIMIT.title),
+        title: clamp(fmt(t.luck.memberTitle, { who: picked.rsn }), LIMIT.title),
         url: pathUrl(clan, '/members'),
         description: clamp(body.join('\n'), LIMIT.description),
         color: luck.total.net < 0 ? EMBED_COLOR.blue : EMBED_COLOR.green,
@@ -521,10 +622,10 @@ async function clanLuckResult(ctx: ClanCommandCtx): Promise<ClanResult> {
 }
 
 async function luckResult(ctx: ClanCommandCtx): Promise<ClanResult> {
-  // A named member (or the invoker asking about themselves) gets the personal breakdown; the bare
-  // command shows the clan's boards.
+  // Naming a member OR a specific account asks about a person; the bare command shows clan boards.
   const named = typeof ctx.options.member === 'string' && ctx.options.member.trim().length > 0;
-  return named ? memberLuckResult(ctx) : clanLuckResult(ctx);
+  const account = typeof ctx.options.account === 'string' && ctx.options.account.trim().length > 0;
+  return named || account ? memberLuckResult(ctx) : clanLuckResult(ctx);
 }
 
 // ── Registry ────────────────────────────────────────────────────────────────────────────────────

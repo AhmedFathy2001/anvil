@@ -291,10 +291,20 @@ export const en = {
     title: '📖 {who} — collection log',
     notSynced: "{who} hasn't synced a collection log yet — sync it from the Anvil plugin.",
     rankLine: '#{rank} of {total} collectors in {clan}.',
-    alsoSynced: '-# Also synced: {names}',
+    otherAccounts: '-# Other accounts: {names} — add `account:` to switch.',
+    tryAccount: '-# {names} has synced — add `account:` to see it.',
     topHeading: '**Top collectors**',
     slots: 'Slots',
     collectors: 'Collectors',
+    // A single boss/page (like the in-game `!log <boss>`).
+    pageTitle: '📖 {who} — {page}',
+    pageProgress: '**{obtained}/{total}** collected.',
+    pageKc: 'KC: {kc}',
+    pageHave: '**Collected**',
+    pageNone: "Nothing from this page collected yet.",
+    pageFull: '-# The full checklist is on the site: {url}',
+    pageNotFound: 'No collection-log page matches "{q}".',
+    pageNotSynced: "{who} hasn't synced a collection log, so there's nothing to show for {page}.",
   },
 
   // /luck

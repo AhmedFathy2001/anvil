@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeStrEqual } from '@/lib/auth';
 import { getAppPublicKey } from '@/lib/discord-roles';
-import { handleCommand, handleComponent } from '@/lib/discordCommands';
+import { handleCommand, handleComponent, handleAutocomplete } from '@/lib/discordCommands';
 import {
   INTERACTION_TYPE,
   pong,
@@ -71,6 +71,16 @@ export async function POST(req: NextRequest) {
   // Discord's liveness check, sent when the URL is first saved and periodically after.
   if (interaction.type === INTERACTION_TYPE.PING) {
     return NextResponse.json(pong());
+  }
+
+  // Autocomplete: Discord asks for suggestions as the member types an option. Must answer fast and
+  // never with an error envelope (that shows as a failed command), so it has its own path.
+  if (interaction.type === INTERACTION_TYPE.AUTOCOMPLETE) {
+    try {
+      return NextResponse.json(await handleAutocomplete(interaction));
+    } catch {
+      return NextResponse.json({ type: 8, data: { choices: [] } });
+    }
   }
 
   const isCommand = interaction.type === INTERACTION_TYPE.APPLICATION_COMMAND;

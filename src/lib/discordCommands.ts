@@ -59,7 +59,13 @@ import {
   type EventContext,
   type CrossClanContext,
 } from '@/lib/discordContext';
-import { CLAN_COMMANDS, CLAN_WRITE_SUBS, type ClanCommand, type ClanCommandCtx } from '@/lib/discordClanCommands';
+import {
+  CLAN_COMMANDS,
+  CLAN_WRITE_SUBS,
+  suggestClogPages,
+  type ClanCommand,
+  type ClanCommandCtx,
+} from '@/lib/discordClanCommands';
 import { COMMAND_NAME, SUBCOMMAND_ORDER } from '@/lib/discordCommandDefs';
 import {
   embedReply,
@@ -67,6 +73,8 @@ import {
   invokerId,
   invokerName,
   readSubcommand,
+  readFocusedOption,
+  autocompleteReply,
   shareRow,
   type Interaction,
   type InteractionResponse,
@@ -1277,4 +1285,36 @@ export async function handleComponent(interaction: Interaction): Promise<Interac
   if (!resolved.ok) return resolved.response;
   const result = await handler({ ...resolved.ctx, options: parsed.options });
   return reply(result, { t, ephemeral: false, sharedBy: invokerName(interaction) });
+}
+
+/**
+ * Type-ahead suggestions as a member fills in an option. Must be fast and never error (an error
+ * shows as a broken command), so it resolves the clan, reads the focused option, and answers with at
+ * most 25 choices — falling back to an empty list for anything it doesn't recognise.
+ *
+ *   page    → collection-log pages matching what's typed (there are ~125, too many for static choices)
+ *   account → the target's own account RSNs (the `member` sibling option picks whose, else the invoker)
+ */
+export async function handleAutocomplete(interaction: Interaction): Promise<InteractionResponse> {
+  const focused = readFocusedOption(interaction);
+  if (!focused) return autocompleteReply([]);
+
+  if (focused.name === 'page') return autocompleteReply(suggestClogPages(focused.value));
+
+  if (focused.name === 'account') {
+    const clan = await getClanContext(interaction.guild_id ?? null);
+    if (!clan) return autocompleteReply([]);
+    const memberOpt = typeof focused.siblings.member === 'string' ? focused.siblings.member : '';
+    const discordId = memberOpt || invokerId(interaction) || '';
+    if (!discordId) return autocompleteReply([]);
+    const identity = await resolveInvoker(discordId, clan.clanId);
+    const q = focused.value.trim().toLowerCase();
+    return autocompleteReply(
+      identity.accounts
+        .filter((a) => !q || a.rsn.toLowerCase().includes(q))
+        .map((a) => ({ name: a.rsn, value: a.rsn })),
+    );
+  }
+
+  return autocompleteReply([]);
 }
