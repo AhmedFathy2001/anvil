@@ -12,12 +12,14 @@ import ClanLink from '@/components/ClanLink';
 import WeeklyPrizeEditor from './WeeklyPrizeEditor';
 import type { WeeklyPrizes } from '@/lib/weeklyPrizes';
 
-/** Everything the prize card needs. Null where the clan runs no coffer and has promised nothing. */
+/** Everything the prize card needs. */
 interface PrizeContext {
   initial: WeeklyPrizes;
   cofferAvailable: number;
   settledAt: string | null;
   canEdit: boolean;
+  /** False when the clan has never moved gp — the card says so rather than hiding. */
+  hasCoffer: boolean;
 }
 
 interface Comp {
@@ -47,7 +49,7 @@ export default function WeeklyHomeClient({
   stage: EventStage;
   standings: WeeklyStanding[];
   counts: WeeklyCounts;
-  prizes: PrizeContext | null;
+  prizes: PrizeContext;
 }) {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
@@ -181,15 +183,14 @@ export default function WeeklyHomeClient({
         </section>
       )}
 
-      {prizes && (
-        <WeeklyPrizeEditor
-          competitionId={comp.id}
-          initial={prizes.initial}
-          cofferAvailable={prizes.cofferAvailable}
-          settledAt={prizes.settledAt}
-          canEdit={prizes.canEdit}
-        />
-      )}
+      <WeeklyPrizeEditor
+        competitionId={comp.id}
+        initial={prizes.initial}
+        cofferAvailable={prizes.cofferAvailable}
+        settledAt={prizes.settledAt}
+        canEdit={prizes.canEdit}
+        hasCoffer={prizes.hasCoffer}
+      />
 
       <section className="border border-card-border rounded-xl bg-card-bg p-5">
         <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
