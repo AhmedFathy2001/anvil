@@ -5,6 +5,7 @@
 
 import { BOSSES, SKILLS } from './constants';
 import bossIcons from '@/data/bossIcons.json';
+import bossImages from '@/data/bossImages.json';
 
 export function itemIconUrl(itemId: number): string {
   return `https://static.runelite.net/cache/item/icon/${itemId}.png`;
@@ -67,6 +68,19 @@ const BOSS_NAME_ALIASES: Record<string, string> = {
   'toa': 'tombs of amascut',
 };
 
+// Generated from the OSRS wiki (npm run data:bossimages): activity name → the boss's own picture.
+// Same keys as BOSS_ICONS. Only bosses the wiki has a monster/logo image for — a skilling activity
+// or a combined wildy page has none, which is why bossItemFor's drop sprite stays the fallback.
+const BOSS_IMAGES = bossImages as Record<string, string>;
+
+/** The BOSS_ICONS/BOSS_IMAGES key for a boss/activity name — lowercase, drop a leading "the ",
+ *  apply the display-name aliases. Shared so the drop-sprite and the picture resolve alike. */
+function bossKey(name: string): string {
+  let key = name.trim().toLowerCase();
+  if (key.startsWith('the ')) key = key.slice(4);
+  return BOSS_NAME_ALIASES[key] ?? key;
+}
+
 /**
  * Representative item for a boss/activity NAME — curated signature reward first, then the
  * activity's first collection-log item. Covers every clog activity, so boss-KC and kill
@@ -76,13 +90,33 @@ export function bossItemFor(name: string | null | undefined): number | null {
   if (!name) return null;
   const notable = notableItemFor(name);
   if (notable != null) return notable;
-  let key = name.trim().toLowerCase();
-  if (key.startsWith('the ')) key = key.slice(4);
-  key = BOSS_NAME_ALIASES[key] ?? key;
+  const key = bossKey(name);
   if (BOSS_ICONS[key] != null) return BOSS_ICONS[key];
   const base = key.split(':')[0].trim();
   const aliasedBase = BOSS_NAME_ALIASES[base] ?? base;
   return BOSS_ICONS[aliasedBase] ?? null;
+}
+
+/**
+ * The boss's OWN picture (the monster or the raid logo), from the wiki. Falls back to the signature
+ * DROP sprite when the wiki has no image for it, so a "Boss of the Week" thumbnail is never blank —
+ * the fallback is the same art bossItemFor would have shown before this dataset existed.
+ */
+export function bossImageUrl(name: string | null | undefined): string | null {
+  if (!name) return null;
+  const key = bossKey(name);
+  if (BOSS_IMAGES[key] != null) return BOSS_IMAGES[key];
+  const base = key.split(':')[0].trim();
+  const aliasedBase = BOSS_NAME_ALIASES[base] ?? base;
+  if (BOSS_IMAGES[aliasedBase] != null) return BOSS_IMAGES[aliasedBase];
+  const item = bossItemFor(name);
+  return item != null ? itemIconUrl(item) : null;
+}
+
+/** As {@link bossImageUrl}, but from a hiscores boss KEY ("zulrah", "kreeArra"). */
+export function bossImageForStatKey(key: string | null | undefined): string | null {
+  if (!key) return null;
+  return bossImageUrl(BOSSES.find((b) => b.key === key)?.label ?? key);
 }
 
 /** OSRS wiki icon for a hiscores skill key ("mining"), or null for unknown skills. */
@@ -220,4 +254,15 @@ export function competitionIconUrl(type: string, metric: string): string | null 
   if (type === 'efficiency') return 'https://oldschool.runescape.wiki/images/Stats_icon.png';
   const item = bossItemForStatKey(metric);
   return item != null ? itemIconUrl(item) : null;
+}
+
+/**
+ * As {@link competitionIconUrl}, but a boss competition shows the BOSS ITSELF rather than its
+ * signature drop — the face a Boss of the Week embed wants. Skill and efficiency are unchanged
+ * (a skill has no monster), and a boss with no wiki image still falls back to the drop sprite.
+ */
+export function competitionImageUrl(type: string, metric: string): string | null {
+  if (type === 'skill') return skillIconUrl(metric);
+  if (type === 'efficiency') return 'https://oldschool.runescape.wiki/images/Stats_icon.png';
+  return bossImageForStatKey(metric);
 }

@@ -28,7 +28,7 @@ import {
 import { fmt, type DiscordDict } from '@/lib/discordI18n';
 import { resolveInvoker, type ClanContext, type InvokerIdentity } from '@/lib/discordContext';
 
-import { competitionIconUrl, itemIconUrl } from '@/lib/tileIcons';
+import { competitionImageUrl, itemIconUrl } from '@/lib/tileIcons';
 import { getEffectiveParticipants } from '@/lib/weekly';
 import { weeklyMetricLabel } from '@/lib/weeklyLabels';
 import { weeklyUnit } from '@/lib/weeklyStage';
@@ -197,7 +197,7 @@ async function weeklyResult(ctx: ClanCommandCtx, kind: 'skill' | 'boss'): Promis
       description: clamp(body.join('\n'), LIMIT.description),
       color: EMBED_COLOR.gold,
       author: authorOf(clan),
-      ...thumb(competitionIconUrl(c.type, c.metric)),
+      ...thumb(competitionImageUrl(c.type, c.metric)),
       fields: [
         field(t.weekly.fieldMetric, weeklyMetricLabel(c.type, c.metric)),
         statField(t.weekly.fieldEntries, board.length),
