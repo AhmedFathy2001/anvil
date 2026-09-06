@@ -196,6 +196,94 @@ const ja: PartialDiscordDict = {
     unsupported: 'その種類のインタラクションはまだ対応していません。',
     shareExpired: 'その回答は古すぎて共有できません —— コマンドを実行し直してください。',
   },
+
+  commands: {
+    sotw: '今週のスキル —— ライブ順位',
+    botw: '今週のボス —— ライブ順位',
+    eff: '効率（EHP/EHB）ランキングと自分の順位',
+    coffer: 'クランの金庫 —— 残高・寄付者・運営による増減',
+    clog: 'コレクションログ —— メンバーの数とクランの上位収集者',
+    luck: 'ドロップ運 —— クランで最も渋い人と当たる人、または個人の',
+    guide: 'セットアップガイドを読む —— 概要か 1 ステップ、リンク付き',
+  },
+
+  multi: {
+    liveTitle: '📋 進行中のボード',
+    liveIntro: '今 {n} 件のボードが進行中です。',
+    standingsTitle: '🏆 ライブ順位',
+    standingsIntro: '{n} 件の進行中ボードを通じた順位。',
+    teamsOne: '1 チーム',
+    teamsMany: '{n} チーム',
+    leader: '{team} が首位（{score}）',
+  },
+
+  weekly: {
+    sotwTitle: '📈 {title}',
+    botwTitle: '⚔️ {title}',
+    sotwEmpty: '今 {clan} で開催中の今週のスキルはありません。',
+    botwEmpty: '今 {clan} で開催中の今週のボスはありません。',
+    ends: '{when}に終了。',
+    noEntries: 'まだ誰も参加していません。',
+    you: 'あなた：{total} 中 {place}。',
+    youNone: '未参加です —— プラグインかサイトから参加してください。',
+    fieldMetric: '項目',
+    fieldEntries: '参加者',
+  },
+
+  eff: {
+    title: '⚡ 効率 —— {metric}',
+    empty: 'まだ効率データがありません —— メンバーはまず統計スイープが必要です。',
+    you: 'あなた：{total} 中 #{rank}。',
+    fieldRanked: 'ランク入り',
+  },
+
+  coffer: {
+    title: '💰 {clan} —— 金庫',
+    none: 'まだ金庫がありません —— {clan} は gp の動きを記録していません。',
+    available: '利用可能',
+    reserved: '予約済み',
+    pending: '保留中',
+    donorsHeading: '**上位の寄付者**',
+    recentHeading: '**最近の動き**',
+    needAccount:
+      '先にサイトで Anvil アカウントを連携してください —— 金庫の変更は Discord 名ではなくサイトのログインに紐づきます。',
+    notStaff: '金庫を動かせるのは会計・管理者・オーナーだけです。',
+    badAmount: '増減する金額を指定してください。例：`5m` や `2500000`。',
+    outOfRange: 'その金額は範囲外です。',
+    added: '✅ 金庫に {amount} を追加 —— 現在 {available} 利用可能。',
+    removed: '✅ 金庫から {amount} を引き出し —— 現在 {available} 利用可能。',
+  },
+
+  clog: {
+    title: '📖 {who} —— コレクションログ',
+    notSynced: '{who} はまだコレクションログを同期していません —— Anvil プラグインから同期してください。',
+    rankLine: '{clan} の {total} 人の収集者中 #{rank}。',
+    topHeading: '**上位の収集者**',
+    slots: 'スロット',
+    collectors: '収集者',
+  },
+
+  luck: {
+    boardsTitle: '🍀 {clan} —— 運',
+    memberTitle: '🍀 {who} —— 運',
+    dryHeading: '**最も渋い**',
+    spoonedHeading: '**最も幸運**',
+    emptyBoards: 'まだ運のデータがありません —— メンバーはコレクションログの同期が必要です。',
+    notSynced: '{who} はまだコレクションログを同期していません。',
+    totalLine: '総合：{items} 件の追跡ドロップで {net}。',
+    fromLogs: '同期済みログ {n} 件から。',
+  },
+
+  guide: {
+    notFound: 'その名前のガイドはありません。',
+    stepsHeading: '**ステップ**',
+    stepsField: 'ステップ',
+    stepTitle: 'ステップ {n}/{total} —— {title}',
+    noSuchStep: 'このガイドは {total} ステップです —— 1 から {total} までの番号を選んでください。',
+    readFull: '📖 ガイド全文を読む：{url}',
+    openStep: '🔗 このステップをサイトで開く：{url}',
+    jumpHint: '-# ステップへジャンプ：`/guide topic:{topic} step:1`',
+  },
 };
 
 export default ja;
