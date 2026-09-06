@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { accounts as accountsTable, clanRoster, completions, events, eventSignups, memberDailyStats, playerEventFacts, eventParticipants, submissions, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, desc, eq, gte, inArray, isNull, or } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
+import { getSetting } from '@/lib/settings';
 import { weeklyMetricLabel } from '@/lib/constants';
 import { computeMemberBreakdown, rollupByOwner, type StatGainMap } from '@/lib/memberBreakdown';
 import { getStatStandings, getTeamStandings } from '@/lib/statStandings';
@@ -638,7 +639,11 @@ export async function buildLocker(
   const [records, focusProfile, activity] = await Promise.all([
     focusAccountId ? getRecords(focusAccountId) : Promise.resolve([]),
     focusRsn ? getMemberProfile(clanId, focusRsn) : Promise.resolve(null),
-    getClanActivityAnalytics(clanId),
+    // Same setting the members page reads, so the two surfaces cannot disagree about whose records
+    // are the clan's.
+    getSetting(clanId, 'members_count_guests').then((v) =>
+      getClanActivityAnalytics(clanId, { countGuests: v === '1' }),
+    ),
   ]);
 
   const bests: LockerBests = {

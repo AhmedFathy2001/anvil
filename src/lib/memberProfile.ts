@@ -900,14 +900,25 @@ const ACTIVITY_BOARDS: { key: string; label?: string }[] = [
 const BOARD_SIZE = 8;
 
 /** Every non-departed member's activity map, with their name. One query, small blobs. */
-async function readClanActivities(clanId: number): Promise<{ rsn: string; activities: Record<string, ActivityReading> }[]> {
+async function readClanActivities(
+  clanId: number,
+  countGuests = false,
+): Promise<{ rsn: string; activities: Record<string, ActivityReading> }[]> {
   const rows = await db
     .select({
       rsn: clanRoster.rsn,
       statsActivities: clanRoster.statsActivities,
     })
     .from(clanRoster)
-    .where(and(eq(clanRoster.clanId, clanId), isNull(clanRoster.leftAt)));
+    // Members only by default, for the same reason the pulse is: a clue title or a minigame board
+    // topped by somebody who is not on your roster is not your clan's record.
+    .where(
+      and(
+        eq(clanRoster.clanId, clanId),
+        isNull(clanRoster.leftAt),
+        ...(countGuests ? [] : [eq(clanRoster.kind, 'member')]),
+      ),
+    );
 
   return rows
     .filter((r) => isPlausibleRsn(r.rsn) && r.statsActivities)
@@ -938,8 +949,11 @@ function rankFor(
 }
 
 /** The clan's clues, minigames and collection logs, plus the fun titles that fall out of them. */
-export async function getClanActivityAnalytics(clanId: number): Promise<ClanActivityAnalytics> {
-  const rows = await readClanActivities(clanId);
+export async function getClanActivityAnalytics(
+  clanId: number,
+  opts: { countGuests?: boolean } = {},
+): Promise<ClanActivityAnalytics> {
+  const rows = await readClanActivities(clanId, opts.countGuests ?? false);
 
   const sum = (key: string) => rows.reduce((total, r) => total + (r.activities[key]?.score ?? 0), 0);
 

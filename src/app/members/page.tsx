@@ -32,7 +32,7 @@ export default async function MembersPage() {
   const [analytics, rosterLog, activities, movement, luck, moments] = await Promise.all([
     getClanAnalytics(members, { countGuests }),
     getRosterLog(clan.id, 20),
-    getClanActivityAnalytics(clan.id),
+    getClanActivityAnalytics(clan.id, { countGuests }),
     getRosterMovement(members),
     getLuckBoards(clan.id),
     // Every scope's moments together — see momentsForClan for why a board's drop and a quiet
