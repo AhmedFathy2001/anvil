@@ -2,7 +2,7 @@ import { db } from '@/db';
 import { clanRoster, memberDailyStats, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, count, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { BOSSES, EFFICIENCY_LABELS, SKILL_LABELS } from '@/lib/constants';
-import { competitionIconUrl } from '@/lib/tileIcons';
+import { competitionImageUrl } from '@/lib/tileIcons';
 import { dayRange, metricGain, type CompetitionType } from '@/lib/competitionInsights';
 
 /**
@@ -201,7 +201,7 @@ export async function loadWeeklyCards(
       kind: KIND[c.type] ?? 'sotw',
       name: c.title,
       metricLabel: metricLabel(c.type, c.metric),
-      iconUrl: competitionIconUrl(c.type, c.metric),
+      iconUrl: competitionImageUrl(c.type, c.metric),
       state,
       startDate: c.startDate,
       endDate: c.endDate,

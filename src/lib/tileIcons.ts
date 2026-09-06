@@ -215,10 +215,10 @@ export function deriveTileIcon(tile: IconableTile): string | null {
   }
   if (type === 'value') return itemIconUrl(COINS_ITEM_ID);
   if (type === 'kill') {
+    // The boss itself — bossImageUrl falls back to its signature drop when the wiki has no picture.
     try {
       const npcs = tile.targetNpcs ? (JSON.parse(tile.targetNpcs) as string[]) : [];
-      const item = bossItemFor(Array.isArray(npcs) ? npcs[0] : null);
-      return item != null ? itemIconUrl(item) : null;
+      return bossImageUrl(Array.isArray(npcs) ? npcs[0] : null);
     } catch { return null; }
   }
   // Agility laps: the skill icon. Course-specific art would need a per-course sprite table for a
@@ -229,17 +229,16 @@ export function deriveTileIcon(tile: IconableTile): string | null {
   // PvP kills: the wilderness skull — the universal "dangerous PvP" marker.
   if (type === 'pvp') return 'https://oldschool.runescape.wiki/images/Skull_(status)_icon.png';
 
-  // Stat tiles: skill icon for skill XP, the boss's representative item for KC. Composite
-  // trackedStat (comma-separated keys, gains summed) uses the FIRST key's icon.
+  // Stat tiles: skill icon for skill XP, the boss itself for KC. Composite trackedStat
+  // (comma-separated keys, gains summed) uses the FIRST key's icon.
   if (tile.trackedStat) {
     const firstKey = tile.trackedStat.split(',')[0].trim();
     if ((tile.statType ?? 'skill') === 'skill') return skillIconUrl(firstKey);
     // Non-boss counters (clues, GOTR, BH…) have no clog activity to derive a drop from.
     const activityIcon = activityIconUrl(firstKey);
     if (activityIcon) return activityIcon;
-    const label = BOSSES.find((b) => b.key === firstKey)?.label;
-    const item = bossItemFor(label);
-    return item != null ? itemIconUrl(item) : null;
+    // The boss's picture, falling back to its signature drop where the wiki has none.
+    return bossImageForStatKey(firstKey);
   }
   return null;
 }
