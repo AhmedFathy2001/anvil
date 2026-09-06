@@ -19,6 +19,7 @@
  * every clan, global player lookups. Those write the reason down:
  *
  *   // clan-scope: global -- the sweep runs across every clan by design
+ *   // clan-scope: this clan -- events are filtered to this clan by clanEventIds above
  *
  * on, above, or inside the statement. An unexplained cross-clan read is a bug; an explained one is a
  * decision, and the comment is what makes the difference reviewable.
@@ -81,7 +82,18 @@ const GUARDS = {
 // Reading a table is reading it, whichever clause names it.
 const JOINS = new Set(['from', 'innerJoin', 'leftJoin', 'rightJoin', 'fullJoin']);
 
-const ESCAPE = /clan-scope:\s*global/;
+// TWO HONEST ANSWERS, NOT ONE.
+//
+//   global    -- this read deliberately spans clans (staff panels, cron sweeps).
+//   this clan -- this read IS scoped; the predicate is just somewhere the rule cannot see it,
+//                because it lives in a variable, a helper, or an id list built above.
+//
+// Only `global` was accepted, so the second case had to either repeat its predicate inline or
+// claim to be cross-clan — and claiming `global` for a scoped read is a lie that the next reader
+// has no way to catch. Somebody wrote `clan-scope: this clan` instead, meaning exactly the right
+// thing, and the rule rejected it and went red across five queries. A rule nobody can satisfy
+// honestly is a rule that gets ignored, which is how the enrolment sweep shipped.
+const ESCAPE = /clan-scope:\s*(global|this clan)/;
 
 export default {
   meta: {
@@ -91,7 +103,8 @@ export default {
     messages: {
       unscoped:
         "Query on clan-scoped table '{{table}}' has no clan filter. Add the clan predicate, or " +
-        'document the cross-clan read with `// clan-scope: global -- <why>`.',
+        'document it: `// clan-scope: global -- <why>` for a read that spans clans by design, ' +
+        '`// clan-scope: this clan -- <where the predicate is>` for one already scoped elsewhere.',
     },
   },
 
