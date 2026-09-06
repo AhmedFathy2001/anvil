@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { memberClog, memberClogItems, memberPersonalBests } from '@/db/schema';
+import { accounts, memberClog, memberClogItems, memberClogKc, memberPersonalBests } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { clogPageItems, clogPageNames } from '@/lib/clogDataset';
 import { buildClogProfile, matchBestsToPages, titleCaseActivity, type BestTime } from '@/lib/clogProfile';
@@ -7,6 +7,7 @@ import { buildShowcase, buildValueShowcase, clogItemRarity, groupOf, type PageGr
 import { getMemberLuck } from '@/lib/clogLuckBoard';
 import { getItemPrices } from '@/lib/itemPrices';
 import { BOSSES } from '@/lib/constants';
+import { killcountsForPage } from '@/lib/clogKillcounts';
 import type { CollectionLogProps } from '@/app/members/[rsn]/CollectionLog';
 
 // Reading a member's synced log for their profile page. One place, because the catalogue slice the
@@ -38,7 +39,7 @@ export function formatPersonalBest(centis: number): string {
  * the true one.
  */
 export async function getCollectionLog(accountId: number, rsn: string, clanId: number | null = null): Promise<CollectionLogProps> {
-  const [header, items, bests, luck] = await Promise.all([
+  const [header, items, bests, luck, counters, account] = await Promise.all([
     db.query.memberClog.findFirst({ where: eq(memberClog.accountId, accountId) }),
     db
       .select({
@@ -62,7 +63,34 @@ export async function getCollectionLog(accountId: number, rsn: string, clanId: n
       .from(memberPersonalBests)
       .where(eq(memberPersonalBests.accountId, accountId)),
     getMemberLuck(accountId, clanId, 10),
+    // The game's own counter lines, when the plugin has read them. Only pages a player actually
+    // OPENS carry these — the one-button whole-log sync renders items without page headers — so most
+    // members have none and the hiscores below are the only source they will ever have.
+    db
+      .select({ pageName: memberClogKc.pageName, label: memberClogKc.label, count: memberClogKc.count })
+      .from(memberClogKc)
+      .where(eq(memberClogKc.accountId, accountId)),
+    db.query.accounts.findFirst({
+      where: eq(accounts.id, accountId),
+      columns: { statsLastSnapshot: true },
+    }),
   ]);
+
+  // Boss killcounts off the last sweep, as the fallback. Parsed once here rather than per page.
+  const bossKills: Record<string, number> = {};
+  try {
+    const snap = account?.statsLastSnapshot ? JSON.parse(account.statsLastSnapshot) : null;
+    for (const [key, entry] of Object.entries(snap?.bosses ?? {})) {
+      const kc = (entry as { score?: number })?.score;
+      if (typeof kc === 'number' && kc > 0) bossKills[key] = kc;
+    }
+  } catch {
+    // A corrupt blob costs the killcount lines, not the page.
+  }
+  const countersByPage = new Map<string, { label: string; count: number }[]>();
+  for (const row of counters) {
+    countersByPage.set(row.pageName, [...(countersByPage.get(row.pageName) ?? []), row]);
+  }
 
   const view = buildClogProfile({
     header: header
@@ -113,6 +141,13 @@ export async function getCollectionLog(accountId: number, rsn: string, clanId: n
   const groups: Record<string, PageGroup> = {};
   for (const page of pages) groups[page.name] = groupOf(page.name, bossLabels);
 
+  // What each page counts — the game prints these under its title, one line per mode.
+  const killcounts: Record<string, { label: string; count: number; exact: boolean }[]> = {};
+  for (const page of pages) {
+    const lines = killcountsForPage(page.name, countersByPage.get(page.name) ?? [], bossKills);
+    if (lines.length > 0) killcounts[page.name] = lines;
+  }
+
   // The nearest finish line, which is the one thing that reliably sends someone back to the game.
   const closest = pages
     .filter((p) => p.total > 0 && p.obtained > 0 && p.obtained < p.total)
@@ -142,6 +177,7 @@ export async function getCollectionLog(accountId: number, rsn: string, clanId: n
     totalValue: value.total,
     rarityById,
     groups,
+    killcounts,
     closest,
     recent: view.recent,
     // Only the fields the panel renders: the assessment objects behind them are server-side detail

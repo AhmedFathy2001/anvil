@@ -47,6 +47,12 @@ export interface CollectionLogProps {
   totalValue: number;
   /** Item id → 1-in-N, for the grid's rarity weighting. Only items with a meaningful rate. */
   rarityById: Record<number, number>;
+  /**
+   * Page name → the counter lines the game prints under its title, one per mode. Absent for the
+   * pages that count nothing — clues, minigames, Slayer — where a zero would read as "never done
+   * it" rather than "there is nothing here to count".
+   */
+  killcounts?: Record<string, { label: string; count: number; exact: boolean }[]>;
   /** Page name → which shelf it belongs on, so 125 pages navigate as six groups. */
   groups: Record<string, PageGroup>;
   /** The page nearest to finished — the one thing that sends someone back to the game. */
@@ -74,6 +80,7 @@ export default function CollectionLog({
   totalValue,
   rarityById,
   groups,
+  killcounts,
   closest,
 }: CollectionLogProps) {
   // Open on the fullest page — someone's log is most interesting where they've actually played.
@@ -137,6 +144,7 @@ export default function CollectionLog({
   }, [items, owned, show]);
 
   const pagesComplete = pages.filter((p) => p.complete).length;
+  const pageKillcounts = (page && killcounts?.[page.name]) || [];
   const pageBests = bestsByPage[page?.name ?? ''] ?? [];
 
   if (!synced) {
@@ -386,6 +394,23 @@ export default function CollectionLog({
               </span>
             </div>
           </div>
+          {/* What this page counts, the way the game prints it under the title: a line per mode,
+              never a total. Chambers and its challenge mode share a log page because they share a
+              drop table, but they are separate content with separate counts, and adding them would
+              answer a question nobody asked. Pages that count nothing show nothing. */}
+          {pageKillcounts.length > 0 && (
+            <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+              {pageKillcounts.map((k) => (
+                <span key={k.label} className="text-xs text-text-muted">
+                  {k.label}:{' '}
+                  <span className="font-mono text-foreground/90">{k.count.toLocaleString()}</span>
+                  {/* The hiscores round to the nearest ranked total and miss modes they don't
+                      publish, so a number we read off the game itself is worth marking as such. */}
+                  {!k.exact && <span className="text-text-dim" title="From the hiscores"> ~</span>}
+                </span>
+              ))}
+            </div>
+          )}
           {/* This page's times, every scale of it. A raid has one log page and many personal bests,
               so they belong here rather than only in a table somewhere else. */}
           {pageBests.length > 0 && (
