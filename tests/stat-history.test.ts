@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeDeltas, mergeDeltas } from '../src/lib/statHistory.ts';
+import { computeDeltas, mergeDeltas } from '../src/lib/statDeltas.ts';
 
 // The daily row's per-metric JSON is built one 15-minute tick at a time, and each tick only knows
 // what moved since the last fetch. These tests pin the accumulation, because the failure they guard

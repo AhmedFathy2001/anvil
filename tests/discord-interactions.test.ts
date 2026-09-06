@@ -3,13 +3,21 @@
 // that keeps one clan's board out of another clan's Discord, and the command tree Discord will
 // refuse to register if it's malformed.
 //
-// Run: DATABASE_URL=file:./.test-discord.db npx tsx --test tests/discord-interactions.test.ts
-// (tsx for the `@/` alias; a DATABASE_URL because lib/discordContext imports `@/db`, which refuses
-// to load without one. Nothing here queries it — the functions under test are pure.)
+// Run: npx tsx --test tests/discord-interactions.test.ts   (tsx for the `@/` alias)
+//
+// No DATABASE_URL needed. Everything under test is pure, but two of the modules holding it are not:
+// the guild guard used to live in lib/discordContext (which reads clans) and the subcommand list
+// lives beside the dispatcher (which answers them). The first moved to lib/discordScope; the second
+// stays where it is, because its whole value is being `Object.keys` of the real handler table — so
+// it comes in through a dynamic import, under the placeholder URL set below.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
+
+// A connection string that is never dialled. `lib/discordCommands` reads one at module load, and
+// the three tests that reach it only want names and string formats — nothing opens a connection.
+process.env.DATABASE_URL ??= 'postgres://unused:unused@127.0.0.1:5432/unused';
 
 import {
   OPTION_TYPE,
@@ -26,7 +34,7 @@ import {
   type Interaction,
 } from '../src/lib/discordInteractions.ts';
 import { COMMAND_DEFINITIONS, COMMAND_NAME } from '../src/lib/discordCommandDefs.ts';
-import { checkGuild, contextLine, type ClanContext, type EventContext, type CrossClanContext } from '../src/lib/discordContext.ts';
+import { checkGuild, contextLine, type ClanContext, type EventContext, type CrossClanContext } from '../src/lib/discordScope.ts';
 
 // ── Signature verification ──────────────────────────────────────────────────────────────────────
 
