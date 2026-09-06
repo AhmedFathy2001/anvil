@@ -6,7 +6,7 @@ import LiveRefresher from '@/components/LiveRefresher';
 import { requireClan } from '@/lib/clanContext';
 import { verifyUser } from '@/lib/auth';
 import { buildCompetitionView, viewerMemberIds } from '@/lib/competitionView';
-import { competitionIconUrl } from '@/lib/tileIcons';
+import { competitionImageUrl } from '@/lib/tileIcons';
 import CompetitionHero from '@/components/weekly/CompetitionHero';
 import { DailyUnavailable, RaceChart, DayStrip, TrainingHeatmap } from '@/components/weekly/CompetitionWeek';
 import { Board, Podium, SidePanels, YouStrip } from '@/components/weekly/CompetitionBoard';
@@ -77,7 +77,7 @@ export default async function WeeklyLeaderboardPage({
         status={competition.status}
         startDate={competition.startDate}
         endDate={competition.endDate}
-        iconUrl={competitionIconUrl(competition.type, competition.metric)}
+        iconUrl={competitionImageUrl(competition.type, competition.metric)}
         clanTotal={view.clanTotal}
         todayTotal={showDaily ? view.todayTotal : null}
         scoring={view.scoring}

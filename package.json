@@ -11,6 +11,7 @@
     "db:push": "drizzle-kit push",
     "db:migrate": "node scripts/migrate.mjs",
     "data:clog": "node scripts/build-clog-dataset.mjs",
+    "data:bossimages": "node scripts/build-boss-images.mjs",
     "data:ca": "node scripts/build-ca-dataset.mjs",
     "data:drops": "node scripts/build-drops-dataset.mjs",
     "data:slayer": "node scripts/build-slayer-dataset.mjs",
