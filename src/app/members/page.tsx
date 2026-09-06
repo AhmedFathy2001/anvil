@@ -7,6 +7,7 @@ import {
   listMembers,
 } from '@/lib/memberProfile';
 import { requireClan } from '@/lib/clanContext';
+import { getSetting } from '@/lib/settings';
 import MembersTabs from './MembersTabs';
 import { getLuckBoards } from '@/lib/clogLuckBoard';
 import { momentsForClan } from '@/lib/momentsStore';
@@ -23,11 +24,13 @@ export const dynamic = 'force-dynamic';
 export default async function MembersPage() {
   const clan = await requireClan();
   const members = await listMembers(clan.id);
+  // Guests are listed but not counted, unless this clan says otherwise — see getClanAnalytics.
+  const countGuests = (await getSetting(clan.id, 'members_count_guests')) === '1';
   // Analytics reuses the list rather than re-querying it, so the whole page is a handful of
   // statements. The activity read is its own query, but a narrow one — two columns off the roster,
   // where the alternative was every member's full hiscores snapshot.
   const [analytics, rosterLog, activities, movement, luck, moments] = await Promise.all([
-    getClanAnalytics(members),
+    getClanAnalytics(members, { countGuests }),
     getRosterLog(clan.id, 20),
     getClanActivityAnalytics(clan.id),
     getRosterMovement(members),

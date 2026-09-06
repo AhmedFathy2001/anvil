@@ -633,7 +633,26 @@ export interface ClanAnalytics {
  * The clan at a glance. Two grouped queries over the daily rows rather than per-member work, so this
  * costs the same for a 40-member clan and a 400-member one.
  */
-export async function getClanAnalytics(members: MemberListRow[]): Promise<ClanAnalytics> {
+/**
+ * The clan's own activity, which by default means its MEMBERS.
+ *
+ * A guest is somebody we have seen who is not on this clan's roster — a visiting clan's player, an
+ * alt, someone who turned up this morning. Counting their hours as the clan's made a page that
+ * described the wrong people: LFL's week was headlined by two guests, its podium was both of them,
+ * and its "clan EHP" was largely theirs. Neither number was about LFL.
+ *
+ * The dashboard already drew this line ("Active members" excludes guests so it matches the real
+ * in-game count); this brings the members page into agreement with it.
+ *
+ * Opt-in per clan, because a clan built around regulars who never formally join is a real thing and
+ * for them the guests ARE the activity. `members_count_guests` = '1' turns it back on.
+ */
+export async function getClanAnalytics(
+  allSeats: MemberListRow[],
+  opts: { countGuests?: boolean } = {},
+): Promise<ClanAnalytics> {
+  // The directory still lists everyone — this narrows what COUNTS, not what is shown.
+  const members = opts.countGuests ? allSeats : allSeats.filter((m) => !m.isGuest);
   const sinceYear = new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10);
   const since7 = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
 
@@ -691,8 +710,10 @@ export async function getClanAnalytics(members: MemberListRow[]): Promise<ClanAn
   }
 
   return {
-    memberCount: members.filter((m) => !m.isGuest).length,
-    guestCount: members.filter((m) => m.isGuest).length,
+    // Head counts describe the ROSTER, so they read `allSeats` — a clan that stops counting guests
+    // in its activity still has them, and hiding that would be a different lie.
+    memberCount: allSeats.filter((m) => !m.isGuest).length,
+    guestCount: allSeats.filter((m) => m.isGuest).length,
     totalEhp: members.reduce((sum, m) => sum + (m.ehp ?? 0), 0),
     totalEhb: members.reduce((sum, m) => sum + (m.ehb ?? 0), 0),
     activity,

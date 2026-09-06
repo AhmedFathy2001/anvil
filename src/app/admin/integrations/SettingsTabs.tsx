@@ -261,6 +261,13 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
               label="Only announce your own members"
               helpText="With this on, the channels above receive drops, deaths and combat achievements from your MEMBERS only — a visitor guesting for one event won't fill your feed with their unrelated activity. Bingo submissions from guests still post as normal; this is only about the social notifications. A guest can still be allowed individually from their own profile."
             />
+            {/* The other half of the same question, kept beside it: the first decides whose activity
+                you HEAR about, this one decides whose activity COUNTS as yours. */}
+            <ToggleSetting
+              settingKey="members_count_guests"
+              label="Count guests in your clan's activity"
+              helpText="Off by default. The Members page headline, the week's podium and your clan EHP/EHB are your members' — a guest is somebody we have seen who is not on your roster, and their hours are not your clan's. Turn this on if your regulars never formally join and you want them counted. Guests appear in the member list either way."
+            />
           </Card>
         </div>
       )}

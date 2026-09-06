@@ -39,6 +39,11 @@ const EXPOSED_KEYS = [
   // A clan refusing SOCIAL notifications from accounts that only guest here (clogs, PKs, deaths,
   // CAs). Members are unaffected; bingo evidence is unaffected. See lib/emissionRouting.
   'block_guest_emissions',
+  // Whether GUESTS count toward this clan's own activity on /members — the week headline, the
+  // podium, clan EHP/EHB and the active counts. Off by default: a guest is someone we have seen who
+  // is not on the roster, and their hours are not the clan's. '1' turns it on for a clan whose
+  // regulars never formally join. The directory lists guests either way.
+  'members_count_guests',
   'leagues_icon_url',
   'always_notify_items',
   // The moments feed's floors (lib/moments). The board one is per-event context; the three clan
