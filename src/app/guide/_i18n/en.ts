@@ -15,6 +15,8 @@ export const en = {
     step: 'Step',
     optional: 'optional',
     minRead: '{n} min read',
+    copyLink: 'Copy a link to this section',
+    linkCopied: 'Link copied',
     language: 'Language',
     partialNotice:
       'This guide is only partly translated into {language}. Anything not yet translated is shown in English.',

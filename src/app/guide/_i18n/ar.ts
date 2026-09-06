@@ -13,6 +13,8 @@ const ar: PartialGuideDict = {
     step: 'الخطوة',
     optional: 'اختياري',
     minRead: 'قراءة {n} دقيقة',
+    copyLink: 'انسخ رابطاً إلى هذا القسم',
+    linkCopied: 'نُسخ الرابط',
     language: 'اللغة',
     partialNotice:
       'هذا الدليل مترجم جزئيًا فقط إلى {language}. ما لم يُترجَم بعد يظهر بالإنجليزية.',

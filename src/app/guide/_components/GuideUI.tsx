@@ -1,11 +1,20 @@
-// Shared presentation pieces for the public /guide pages. Server components (no interactivity) so
-// the guides stay static-ish and cheap; every guide uses these so the pages can't drift into
-// several different visual languages.
+// Shared presentation pieces for the public /guide pages. Server components (bar the one anchor
+// control) so the guides stay static-ish and cheap; every guide uses these so the pages can't drift
+// into several different visual languages.
+//
+// The type here follows the PRODUCT, deliberately. The guides were written when the app's own pages
+// were larger and looser, and they kept a display scale — 4xl mastheads, 2xl section heads, a body
+// a step above everything else on the site — that had since become the only place on Anvil that
+// looked like that. Somebody arriving from the coffer page shouldn't feel they left the app. So:
+// a gold h1 at the app's own size, section heads at the app's own 17px with the same gold bar,
+// and rows that look like the lists everywhere else.
 //
 // These hold no copy of their own beyond what a caller passes in — the words live in _i18n, and the
 // few bits of chrome these render themselves ("Contents", "Step 3 · optional") arrive as the
 // `common` block of the active dictionary — passed explicitly, because RSC has no context and a
 // factory that closes over them trips react-hooks/static-components.
+
+import HeadingAnchor from './HeadingAnchor';
 
 export interface LegendItem {
   n: number;
@@ -16,6 +25,9 @@ export interface LegendItem {
 export interface SectionLabels {
   step: string;
   optional: string;
+  /** Title/aria for the `#` beside a heading, and what it says once the link is on the clipboard. */
+  copyLink: string;
+  linkCopied: string;
 }
 
 /** A numbered step in a guide. The number is the reading order, not decoration. */
@@ -35,14 +47,17 @@ export function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section id={id}>
-      <div className="text-[11px] uppercase tracking-widest text-text-muted mb-2">
+    // `scroll-mt` so a heading landed on by its own anchor clears the sticky site nav instead of
+    // hiding under it — the whole point of a copyable link is that it arrives somewhere readable.
+    <section id={id} className="group scroll-mt-24">
+      <div className="mb-2 text-[11px] uppercase tracking-widest text-text-muted">
         {labels.step} {n}
         {optional && ` · ${labels.optional}`}
       </div>
-      <div className="flex items-center gap-2 mb-3">
-        <span className="w-1 h-6 bg-gold rounded-full" />
-        <h2 className="text-2xl font-semibold">{title}</h2>
+      <div className="mb-3 flex items-center gap-2">
+        <span aria-hidden className="h-5 w-1 shrink-0 rounded-full bg-gold" />
+        <h2 className="text-[17px] font-bold sm:text-lg">{title}</h2>
+        <HeadingAnchor id={id} label={labels.copyLink} copiedLabel={labels.linkCopied} />
       </div>
       <div className="space-y-4">{children}</div>
     </section>
@@ -66,7 +81,7 @@ export function Figure({
   legend: LegendItem[];
 }) {
   return (
-    <figure className="border border-card-border rounded-xl bg-card-bg p-4 my-6">
+    <figure className="my-6 rounded-xl border border-card-border bg-card-bg p-4">
       <figcaption className="text-[11px] uppercase tracking-widest text-text-muted mb-3">
         {caption}
       </figcaption>
@@ -105,11 +120,11 @@ export function Note({
   tone?: 'gold' | 'green';
   children: React.ReactNode;
 }) {
-  const accent = tone === 'green' ? 'border-l-accent-green' : 'border-l-gold';
+  const accent = tone === 'green' ? 'border-s-accent-green' : 'border-s-gold';
   return (
-    <div className={`border border-card-border border-l-2 ${accent} rounded-r-lg bg-card-bg px-4 py-3`}>
-      <div className="text-[11px] uppercase tracking-widest text-text-muted mb-1">{tag}</div>
-      <div className="text-sm text-text-muted space-y-2">{children}</div>
+    <div className={`rounded-xl border border-card-border border-s-2 ${accent} bg-card-bg px-4 py-3`}>
+      <div className="mb-1 text-[11px] uppercase tracking-widest text-text-muted">{tag}</div>
+      <div className="space-y-2 text-sm text-text-muted">{children}</div>
     </div>
   );
 }
@@ -142,15 +157,13 @@ export function Chat({
 /** Two-column reference rows (message → what to do, setting → what it means). */
 export function Rows({ rows }: { rows: { term: React.ReactNode; body: React.ReactNode }[] }) {
   return (
-    <div className="border border-card-border rounded-xl overflow-hidden">
+    <div className="divide-y divide-card-border overflow-hidden rounded-xl border border-card-border bg-card-bg">
       {rows.map((r, i) => (
         <div
           key={i}
-          className={`grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] gap-1 sm:gap-4 px-4 py-3 text-sm ${
-            i % 2 ? 'bg-card-bg' : 'bg-tile-bg'
-          }`}
+          className="grid gap-1 px-4 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] sm:gap-4"
         >
-          <span className="text-gold/90 break-words">{r.term}</span>
+          <span className="break-words font-semibold text-gold">{r.term}</span>
           <span className="text-text-muted">{r.body}</span>
         </div>
       ))}
@@ -204,14 +217,14 @@ export function GuideShell({
           <div className="text-[11px] uppercase tracking-widest text-text-muted mb-3">
             {labels.contents}
           </div>
-          <ol className="space-y-1">
+          <ol className="space-y-0.5">
             {sections.map((s) => (
               <li key={s.id}>
                 <a
                   href={`#${s.id}`}
-                  className="flex gap-2 px-2 py-1 rounded-md text-text-muted hover:text-foreground hover:bg-brown-light transition-colors"
+                  className="flex gap-2 rounded-lg px-2 py-1.5 text-[13px] text-text-muted transition-colors hover:bg-brown-light/40 hover:text-foreground"
                 >
-                  <span className="text-text-muted/70 tabular-nums">{s.n}</span>
+                  <span className="tabular-nums text-text-muted/60">{s.n}</span>
                   {s.title}
                 </a>
               </li>
@@ -222,9 +235,9 @@ export function GuideShell({
 
       <article className="max-w-3xl">
         {languages}
-        <header className="mb-10">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
-            <span className="text-[11px] uppercase tracking-widest text-gold">{eyebrow}</span>
+        <header className="mb-8">
+          <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="text-[11px] uppercase tracking-widest text-gold/80">{eyebrow}</span>
             {minutes !== undefined && (
               <>
                 <span className="text-[11px] text-text-muted/50" aria-hidden>·</span>
@@ -234,13 +247,16 @@ export function GuideShell({
               </>
             )}
           </div>
-          <h1 className="text-3xl sm:text-4xl font-bold mb-3">{title}</h1>
-          <p className="text-text-muted">{dek}</p>
+          <h1 className="mb-3 text-2xl font-bold text-gold sm:text-3xl">{title}</h1>
+          <p className="text-sm text-text-muted">{dek}</p>
           {facts && facts.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-5 text-xs">
+            <div className="mt-5 flex flex-wrap gap-2 text-[11.5px]">
               {facts.map((f) => (
-                <span key={f.strong} className="border border-card-border rounded-full px-3 py-1 text-text-muted">
-                  <span className="text-gold font-semibold">{f.strong}</span> {f.rest}
+                <span
+                  key={f.strong}
+                  className="rounded-lg border border-card-border bg-card-bg px-2.5 py-1 text-text-muted"
+                >
+                  <span className="font-semibold text-gold">{f.strong}</span> {f.rest}
                 </span>
               ))}
             </div>
@@ -249,10 +265,10 @@ export function GuideShell({
 
         {notice}
 
-        <div className="space-y-14">{children}</div>
+        <div className="space-y-12">{children}</div>
 
         {footnote && (
-          <p className="text-xs text-text-muted mt-14 border-t border-card-border pt-5">{footnote}</p>
+          <p className="mt-12 border-t border-card-border pt-5 text-xs text-text-muted">{footnote}</p>
         )}
       </article>
     </div>

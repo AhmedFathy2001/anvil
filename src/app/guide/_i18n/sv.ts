@@ -13,6 +13,8 @@ const sv: PartialGuideDict = {
     step: 'Steg',
     optional: 'valfritt',
     minRead: '{n} min läsning',
+    copyLink: 'Kopiera en länk till det här avsnittet',
+    linkCopied: 'Länk kopierad',
     language: 'Språk',
     partialNotice:
       'Den här guiden är bara delvis översatt till {language}. Det som ännu inte är översatt visas på engelska.',

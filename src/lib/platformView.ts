@@ -351,8 +351,16 @@ export interface PlatformAction {
   at: string;
   /** 'platform_banned', 'platform_role_changed', … */
   eventType: string;
-  /** Who did it. Null only if their login has since been deleted. */
+  /** Who did it, by display name. Null when nobody did, and also when their login is gone. */
   actor: string | null;
+  /**
+   * Whether an actor was recorded at all.
+   *
+   * The distinction the page could not draw: an audit row written by the roster sync has no actor
+   * because no person acted, and one whose account was later deleted has an actor we can no longer
+   * name. Both arrive as a null name, and calling both of them "a deleted login" invents a person.
+   */
+  hadActor: boolean;
   /** The clan it was done to, when it was done to one. */
   clan: { id: number; slug: string; name: string } | null;
   before: string | null;
@@ -402,6 +410,12 @@ export const MODERATION_TYPES = [
   'platform_act_as_revoked',
 ] as const;
 
+/**
+ * Events that legitimately belong to no clan: an account being created, and a login claiming a seat
+ * before any clan is in the picture. Everything else with a null clan is a writer that forgot.
+ */
+const CLANLESS_TYPES = ['user_signed_up', 'claimed'] as const;
+
 export async function platformActions(
   limit = 100,
   filters: ActionFilters = {},
@@ -414,6 +428,9 @@ export async function platformActions(
       at: clanAuditLog.occurredAt,
       eventType: clanAuditLog.eventType,
       actor: users.displayName,
+      // The ID as well as the name, because a null NAME has two meanings and only one of them is a
+      // deleted account. No actor at all means a person did not do this — a roster sync did.
+      actorUserId: clanAuditLog.actorUserId,
       clanId: clans.id,
       clanSlug: clans.slug,
       clanName: clans.name,
@@ -426,7 +443,18 @@ export async function platformActions(
     .leftJoin(clans, eq(clans.id, clanAuditLog.clanId))
     .where(
       and(
-        or(like(clanAuditLog.eventType, 'platform\\_%'), isNull(clanAuditLog.clanId)),
+        // WHAT COUNTS AS AN OPERATOR ACTION. Anything prefixed `platform_`, plus the handful of
+        // events that genuinely belong to no clan — signing up, claiming an account.
+        //
+        // It used to be `platform_%` OR "has no clan", which sounds like the same rule and is not:
+        // a writer that forgot to stamp its clan had its rows silently promoted to platform actions.
+        // The roster sync forgot, so every join, departure and rank change on the platform landed in
+        // this log, where an operator cannot act on them and the clan they belong to could not see
+        // them. A missing clan is now a bug rather than a category.
+        or(
+          like(clanAuditLog.eventType, 'platform\\_%'),
+          inArray(clanAuditLog.eventType, [...CLANLESS_TYPES]),
+        ),
         filters.clanId ? eq(clanAuditLog.clanId, filters.clanId) : sql`true`,
         filters.actorUserId ? eq(clanAuditLog.actorUserId, filters.actorUserId) : sql`true`,
         filters.type ? eq(clanAuditLog.eventType, filters.type) : sql`true`,
@@ -443,6 +471,7 @@ export async function platformActions(
     at: r.at,
     eventType: r.eventType,
     actor: r.actor,
+    hadActor: r.actorUserId != null,
     clan: r.clanId != null ? { id: r.clanId, slug: r.clanSlug!, name: r.clanName! } : null,
     before: r.before,
     after: r.after,

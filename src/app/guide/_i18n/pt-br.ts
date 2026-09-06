@@ -14,6 +14,8 @@ const ptBr: PartialGuideDict = {
     step: 'Passo',
     optional: 'opcional',
     minRead: 'leitura de {n} min',
+    copyLink: 'Copiar um link para esta seção',
+    linkCopied: 'Link copiado',
     language: 'Idioma',
     partialNotice:
       'Este guia está traduzido para {language} apenas em parte. O que ainda não foi traduzido aparece em inglês.',

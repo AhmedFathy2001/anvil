@@ -18,6 +18,8 @@ const da: PartialGuideDict = {
     step: 'Trin',
     optional: 'valgfrit',
     minRead: '{n} min læsning',
+    copyLink: 'Kopiér et link til dette afsnit',
+    linkCopied: 'Link kopieret',
     language: 'Sprog',
     partialNotice:
       'Denne vejledning er kun delvist oversat til {language}. Det, der endnu ikke er oversat, vises på engelsk.',

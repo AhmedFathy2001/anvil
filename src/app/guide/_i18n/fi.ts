@@ -14,6 +14,8 @@ const fi: PartialGuideDict = {
     step: 'Vaihe',
     optional: 'valinnainen',
     minRead: '{n} min lukuaika',
+    copyLink: 'Kopioi linkki tähän kohtaan',
+    linkCopied: 'Linkki kopioitu',
     language: 'Kieli',
     partialNotice:
       'Tämä opas on käännetty {language} vain osittain. Kääntämättä jäänyt osuus näkyy englanniksi.',

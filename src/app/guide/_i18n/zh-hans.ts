@@ -12,6 +12,8 @@ const zhHans: PartialGuideDict = {
     step: '步骤',
     optional: '可选',
     minRead: '阅读约 {n} 分钟',
+    copyLink: '复制本节的链接',
+    linkCopied: '链接已复制',
     language: '语言',
     partialNotice:
       '本指南只有部分内容译成了{language}。尚未翻译的部分以英文显示。',
