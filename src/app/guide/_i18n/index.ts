@@ -80,7 +80,24 @@ export function findLocale(code: string | undefined): LocaleMeta | undefined {
  * and the route wrappers — and a guide missing from one of them is a page nobody can reach in their
  * own language.
  */
-export type GuidePage = '' | 'plugin' | 'admin' | 'clan' | 'discord' | 'clan-vs-clan' | 'board' | 'captain' | 'formats' | 'fees' | 'coffer' | 'moderator';
+export const GUIDE_PAGES = [
+  '',
+  'plugin',
+  'admin',
+  'clan',
+  'discord',
+  'clan-vs-clan',
+  'board',
+  'captain',
+  'formats',
+  'fees',
+  'coffer',
+  'moderator',
+] as const;
+
+// A VALUE, not just a type, because the sitemap has to walk it — 12 pages times 16 locales is 192
+// URLs, and a hand-kept second copy of this list is how a language quietly stops being indexed.
+export type GuidePage = (typeof GUIDE_PAGES)[number];
 
 /** `/guide/plugin` for English, `/guide/da/plugin` for the rest — English keeps the shareable URL. */
 export function guideHref(locale: string, page: GuidePage): string {

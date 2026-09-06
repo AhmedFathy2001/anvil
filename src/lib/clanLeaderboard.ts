@@ -21,7 +21,7 @@ import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanMemberships, clans, memberDailyStats, settings } from '@/db/schema';
-import { PUBLIC_SHOWCASE_KEY } from '@/lib/pluginConfig';
+import { isClanListed, listedClanWhere, showcaseJoinOn } from '@/lib/clanListing';
 import { apexDomain } from '@/lib/clanContext';
 
 export type LeaderboardWindow = '7d' | '30d' | 'all';
@@ -88,19 +88,17 @@ export async function clanStandings(window: LeaderboardWindow = '7d', limit = 50
         ? and(eq(memberDailyStats.accountId, accounts.id), gte(memberDailyStats.day, since))
         : eq(memberDailyStats.accountId, accounts.id),
     )
-    // Opted out of being listed? Then not here either — the same switch, rather than a second one
-    // that would have to agree with it. Absent row means listed, so `is distinct from 'off'`.
-    .leftJoin(
-      settings,
-      and(eq(settings.clanId, clans.id), eq(settings.key, PUBLIC_SHOWCASE_KEY)),
-    )
+    // Opted out of being listed, or not readable by strangers at all? Then not here either — the
+    // shared predicate, rather than a second copy that would have to agree with it. It grew a
+    // `visibility` gate this query never had: a private clan that happened to be verified was
+    // ranked here by name. See lib/clanListing.
+    .leftJoin(settings, showcaseJoinOn())
     .where(
       and(
-        eq(clans.status, 'active'),
-        // Verified only. An unverified clan can claim any name it likes, and a leaderboard is
-        // exactly where a claimed name would do damage.
+        listedClanWhere(),
+        // Verified only, which is this table's own extra demand. An unverified clan can claim any
+        // name it likes, and a leaderboard is exactly where a claimed name would do damage.
         sql`${clans.ingameNameVerifiedAt} is not null`,
-        sql`${settings.value} is distinct from 'off'`,
       ),
     )
     .groupBy(clans.id, clans.slug, clans.name, clans.customDomain)
@@ -164,6 +162,12 @@ export async function topPlayers(
       rsn: accounts.rsn,
       clanName: clans.name,
       clanSlug: clans.slug,
+      // Read alongside the name so the row can be stripped below. THE PLAYER OPTED IN, THE CLAN DID
+      // NOT: `accounts.shared` is what puts somebody on this table, and it says nothing about
+      // whether their clan agreed to be named next to them.
+      clanStatus: clans.status,
+      clanVisibility: clans.visibility,
+      clanShowcase: settings.value,
       xpGained: sql<number>`coalesce(sum(${memberDailyStats.xpGained}), 0)`,
     })
     .from(memberDailyStats)
@@ -177,6 +181,7 @@ export async function topPlayers(
       ),
     )
     .leftJoin(clans, eq(clans.id, clanMemberships.clanId))
+    .leftJoin(settings, showcaseJoinOn())
     .where(
       and(
         eq(accounts.shared, true),
@@ -184,16 +189,24 @@ export async function topPlayers(
         clanSlug ? eq(clans.slug, clanSlug) : sql`true`,
       ),
     )
-    .groupBy(accounts.id, accounts.rsn, clans.name, clans.slug)
+    .groupBy(accounts.id, accounts.rsn, clans.name, clans.slug, clans.status, clans.visibility, settings.value)
     .orderBy(desc(sql`coalesce(sum(${memberDailyStats.xpGained}), 0)`))
     .limit(limit);
 
-  return rows.map((r) => ({
-    rsn: r.rsn,
-    clanName: r.clanName,
-    clanSlug: r.clanSlug,
-    xpGained: Number(r.xpGained ?? 0),
-  }));
+  return rows.map((r) => {
+    // A player in an unlisted clan still ranks — they published their character. They just appear
+    // unaffiliated, because naming the clan here would publish something the clan withheld.
+    const listed = r.clanSlug != null && isClanListed(
+      { status: r.clanStatus ?? '', visibility: r.clanVisibility },
+      r.clanShowcase,
+    );
+    return {
+      rsn: r.rsn,
+      clanName: listed ? r.clanName : null,
+      clanSlug: listed ? r.clanSlug : null,
+      xpGained: Number(r.xpGained ?? 0),
+    };
+  });
 }
 
 // ── Where one person stands ──────────────────────────────────────────────────────────────────────

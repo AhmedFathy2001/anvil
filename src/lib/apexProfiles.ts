@@ -19,9 +19,11 @@
 import { and, count, desc, eq, gt, gte, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, clans, events, memberDailyStats, players, users, eventParticipants } from '@/db/schema';
+import { accounts, clanMemberships, clans, eventParticipants, events, memberDailyStats, players, settings, users } from '@/db/schema';
 import { apexDomain } from '@/lib/clanContext';
 import { getPublicShowcase } from '@/lib/pluginConfig';
+import { clanVisibilityOf } from '@/lib/clanVisibility';
+import { listedClanWhere, showcaseJoinOn } from '@/lib/clanListing';
 
 // ── Clans ─────────────────────────────────────────────────────────────────────────────────────
 
@@ -50,6 +52,10 @@ export async function apexClan(slug: string): Promise<ApexClan | null> {
   // scope it to.
   const clan = await db.query.clans.findFirst({ where: eq(clans.slug, slug.toLowerCase()) });
   if (!clan || clan.status === 'suspended') return null;
+  // NOT READABLE BY STRANGERS ⇒ NOT NAMED TO THEM. This asked only about the showcase opt-out, so a
+  // clan set to `members` was still described here — name, member count, what it was running — on a
+  // page whose whole audience is people with no seat in it. See lib/clanListing.
+  if (clanVisibilityOf(clan.visibility) !== 'public') return null;
   if (!(await getPublicShowcase(clan.id))) return null;
 
   const nowIso = new Date().toISOString();
@@ -143,18 +149,24 @@ export async function apexCharacter(rsn: string, viewerPlayerId?: number | null)
   const ownedByViewer = viewerPlayerId != null && acct.playerId === viewerPlayerId;
   if (!acct.shared && !ownedByViewer) return null;
 
-  // Their clan, if they are a member of one and that clan is listed. A member seat is unique per
+  // Their clan, if they are a member of one AND that clan is listed. A member seat is unique per
   // account (one clan at a time), so this is at most one row.
+  //
+  // The "and that clan is listed" half was a comment rather than a filter: this asked only about
+  // `status`, so a public page about a character named the private clan they play for — on the one
+  // page whose entire audience is people with no seat in it. The shared predicate is the same one
+  // the directory and the leaderboard use; see lib/clanListing.
   const seat = await db
     .select({ slug: clans.slug, name: clans.name, clanId: clans.id })
     .from(clanMemberships)
     .innerJoin(clans, eq(clans.id, clanMemberships.clanId))
+    .leftJoin(settings, showcaseJoinOn())
     .where(
       and(
         eq(clanMemberships.accountId, acct.id),
         eq(clanMemberships.kind, 'member'),
         isNull(clanMemberships.leftAt),
-        eq(clans.status, 'active'),
+        listedClanWhere(),
       ),
     )
     .limit(1)

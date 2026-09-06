@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import ClanLink from '@/components/ClanLink';
 import { LanguageBar } from '../_components/LanguageBar';
 import { getDict, findLocale, guideHref, LOCALES, type GuidePage } from '../_i18n';
+import { guideMetadata } from '../_i18n/meta';
 import { SEARCH_TERMS } from '../_i18n/searchTerms';
 import GuideSearch, { type GuideCard } from '../_components/GuideSearch';
 import { rt } from '../_i18n/rich';
@@ -34,7 +35,7 @@ const CARD_KEY = {
 
 export async function guideIndexMetadata(lang: string): Promise<Metadata> {
   const t = await getDict(lang);
-  return { title: t.index.metaTitle, description: t.index.metaDescription };
+  return guideMetadata(lang, '', t.index.metaTitle, t.index.metaDescription);
 }
 
 export default async function GuideIndex({ lang }: { lang: string }) {

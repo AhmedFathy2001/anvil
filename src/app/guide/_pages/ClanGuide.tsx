@@ -3,11 +3,12 @@ import { apexDomain } from '@/lib/clanContext';
 import { GuideShell, Note, Rows, Section } from '../_components/GuideUI';
 import { localeChrome } from '../_components/LanguageBar';
 import { getDict, guideHref } from '../_i18n';
+import { guideMetadata } from '../_i18n/meta';
 import { paragraphs, rows, rt } from '../_i18n/rich';
 
 export async function clanGuideMetadata(lang: string): Promise<Metadata> {
   const t = await getDict(lang);
-  return { title: t.clan.metaTitle, description: t.clan.metaDescription };
+  return guideMetadata(lang, 'clan', t.clan.metaTitle, t.clan.metaDescription);
 }
 
 /**

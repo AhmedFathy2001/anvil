@@ -1,5 +1,15 @@
 import type { Metadata } from "next";
+import { headers } from 'next/headers';
 import { clanPrefix, currentClan } from '@/lib/clanContext';
+import { clanVisibilityOf } from '@/lib/clanVisibility';
+import {
+  DEFAULT_DESCRIPTION,
+  SITE_NAME,
+  apexOrigin,
+  canonicalPathFor,
+  isNoIndexPath,
+  socialMetadata,
+} from '@/lib/seo';
 import { Fraunces, Geist, Geist_Mono } from "next/font/google";
 import { verifyUser } from "@/lib/auth";
 import { db } from "@/db";
@@ -61,21 +71,35 @@ const ICONS = {
  */
 export async function generateMetadata(): Promise<Metadata> {
   const clan = await currentClan();
-  if (!clan) {
-    return {
-      title: "Anvil — OSRS Clan Events",
-      description:
-        "Where your clan's bingos, SotW/BotW, and roster all come together. Built for Old School RuneScape clans.",
-      icons: ICONS,
-    };
-  }
-  // The clan's own name, then the platform's — the order a tab is read in when it is truncated to
-  // twenty characters, which is the only width that matters here.
-  const name = await getClanDisplayName(clan.id, clan.name || 'Anvil');
+  const [prefix, h] = await Promise.all([clanPrefix(), headers()]);
+
+  // The INNER path — middleware forwards it on every request, and on a clan-prefixed one it is
+  // already the rewritten path, so `/c/x/events/5` and `x.anvilosrs.com/events/5` both arrive here
+  // as `/events/5`. That is what lets one canonical rule serve both addressing schemes.
+  const pathname = h.get('x-anvil-pathname') || '/';
+  const canonical = canonicalPathFor({ prefix, pathname, clanSlug: clan?.slug });
+
+  // WHAT MAY BE INDEXED. Two separate refusals, and they fail in the same safe direction:
+  // a gated or personal path is never indexed anywhere, and a clan that is not `public` is not
+  // indexed at all — its name, its roster and the fact that it exists are its own.
+  const indexable = !isNoIndexPath(pathname) && (!clan || clanVisibilityOf(clan.visibility) === 'public');
+
+  const name = clan ? await getClanDisplayName(clan.id, clan.name || SITE_NAME) : null;
+
   return {
-    title: `${name} — Anvil`,
-    description: `Bingos, competitions and the roster for ${name}.`,
+    // Every relative URL below — canonical, OG image, alternates — resolves against the APEX, not
+    // against whichever of a clan's three addresses answered this request. See lib/seo.
+    metadataBase: new URL(apexOrigin()),
     icons: ICONS,
+    ...socialMetadata({
+      title: name ? `${name} — ${SITE_NAME}` : `${SITE_NAME} — OSRS Clan Events`,
+      description: name ? `Bingos, competitions and the roster for ${name}.` : DEFAULT_DESCRIPTION,
+      canonical,
+      // The card a link becomes when it is pasted into Discord, which is where nearly every link to
+      // this site is pasted. Until this existed, a clan's board arrived as a bare grey URL.
+      image: clan ? `/api/og/clan/${clan.slug}` : '/api/og/site',
+      noIndex: !indexable,
+    }),
   };
 }
 

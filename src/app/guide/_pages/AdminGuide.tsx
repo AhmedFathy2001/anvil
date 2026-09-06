@@ -6,12 +6,13 @@ import { getOAuthMode } from '@/lib/discord-oauth';
 import { GuideShell, Note, Rows, Section } from '../_components/GuideUI';
 import { localeChrome } from '../_components/LanguageBar';
 import { getDict, guideHref } from '../_i18n';
+import { guideMetadata } from '../_i18n/meta';
 import { paragraphs, rows, rt } from '../_i18n/rich';
 import { BotConsentDiagram, ProvisioningStatesDiagram, SetupStepsDiagram } from '../_components/Diagrams';
 
 export async function adminGuideMetadata(lang: string): Promise<Metadata> {
   const t = await getDict(lang);
-  return { title: t.admin.metaTitle, description: t.admin.metaDescription };
+  return guideMetadata(lang, 'admin', t.admin.metaTitle, t.admin.metaDescription);
 }
 
 export default async function AdminGuide({ lang }: { lang: string }) {

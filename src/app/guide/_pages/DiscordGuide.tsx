@@ -2,11 +2,12 @@ import type { Metadata } from 'next';
 import { GuideShell, Note, Rows, Section } from '../_components/GuideUI';
 import { localeChrome } from '../_components/LanguageBar';
 import { getDict, guideHref } from '../_i18n';
+import { guideMetadata } from '../_i18n/meta';
 import { paragraphs, rows, rt } from '../_i18n/rich';
 
 export async function discordGuideMetadata(lang: string): Promise<Metadata> {
   const t = await getDict(lang);
-  return { title: t.discord.metaTitle, description: t.discord.metaDescription };
+  return guideMetadata(lang, 'discord', t.discord.metaTitle, t.discord.metaDescription);
 }
 
 /**

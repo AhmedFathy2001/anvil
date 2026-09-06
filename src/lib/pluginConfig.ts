@@ -567,7 +567,11 @@ export async function getDropFacts(clanId: number): Promise<DropFacts> {
 // Default ON (absent row ⇒ listed), because the page only ever reaches instances the operator hosts.
 // Stored as the explicit strings 'on'/'off': the settings PUT folds '' to NULL, which would read back
 // as the default.
-export const PUBLIC_SHOWCASE_KEY = 'public_showcase';
+// Defined in lib/clanListing, beside the predicate that reads it; re-exported here because this
+// is where callers already look for it. Imported as well as re-exported — `export ... from` does
+// not bind the name locally, and getPublicShowcase below uses it.
+import { PUBLIC_SHOWCASE_KEY } from '@/lib/clanListing';
+export { PUBLIC_SHOWCASE_KEY };
 
 export async function getPublicShowcase(clanId: number): Promise<boolean> {
   // default (no row) = listed; explicit 'off' opts out
