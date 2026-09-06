@@ -32,6 +32,7 @@ import { canSeeClan } from "@/lib/clanAccess";
 import { hasPlatformRole, isStaffRole } from "@/lib/clanRoles";
 import "./globals.css";
 import ClanLink, { ClanPrefixProvider } from '@/components/ClanLink';
+import { NavProgressProvider } from '@/components/NavProgress';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -227,6 +228,10 @@ export default async function RootLayout({
             It cannot be recovered further down: middleware rewrites /c/<slug>/x to /x before Next
             routes it, so by render time the framework's path no longer has it. */}
         <ClanPrefixProvider prefix={prefix}>
+        {/* Every page is server-rendered on demand, so a click is a round trip with nothing visible
+            happening until it lands. This says something is coming — but only once the wait passes
+            a threshold, so a fast navigation stays as quiet as it was. See NavProgress. */}
+        <NavProgressProvider>
         {/* Catches a shell left over from the clan you were in a moment ago — see ShellGuard. */}
         <ShellGuard prefix={prefix} />
         {/* ONE NAV PER PLACE. The apex gets a rail of what the PLATFORM has; a clan keeps the top
@@ -296,6 +301,7 @@ export default async function RootLayout({
         )}
         {clan && <SiteFooter />}
         <Analytics />
+        </NavProgressProvider>
         </ClanPrefixProvider>
       </body>
     </html>
