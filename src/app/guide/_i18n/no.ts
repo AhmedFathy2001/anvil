@@ -32,6 +32,12 @@ const no: PartialGuideDict = {
       running: 'Å kjøre et event',
       clan: 'Å drive klanen',
     },
+    search: {
+      placeholder: 'Søk i veiledningene — prøv "webhook", "ruter" eller "drops vises ikke"',
+      results: '{n} veiledninger',
+      empty: 'Ingenting traff. Prøv et enklere ord — "ruter", "utbetaling", "bot" — eller bla i listen under.',
+      clear: 'Tøm søket',
+    },
     cards: {
       discord: {
         eyebrow: 'For den som styrer serveren',
@@ -78,6 +84,13 @@ const no: PartialGuideDict = {
         title: 'Avgifter og utbetalinger',
         blurb:
           'Å ta en påmeldingsavgift, samle den inn, den andre signaturen som avslutter den, og å gjøre en pott om til betalte plasseringer.',
+        minutes: '~5 min',
+      },
+      coffer: {
+        eyebrow: 'For kasserere',
+        title: 'Klankassa',
+        blurb:
+          'Én kasse for klanens gp: hva som kommer inn, de tre måtene den betaler ut premier på, og hvem som får røre den.',
         minutes: '~5 min',
       },
       moderator: {
@@ -1727,6 +1740,135 @@ const no: PartialGuideDict = {
     },
   },
 
+  coffer: {
+    metaTitle: 'Klankassa — Anvil-veiledning for kasserere',
+    metaDescription:
+      'Klanens gp-kasse i Anvil: å registrere donasjoner og gi æren til dem som ga dem, de tre måtene en premie blir betalt på, hvem som får flytte pengene, og hva som skjer når kassa er for liten.',
+    eyebrow: 'Anvil · for kasserere',
+    title: 'Klankassa',
+    dek: 'De fleste klaner har gp-en sin i én persons bank og regnskapet i én persons hukommelse. Kassa er én pott med en linje for hver bevegelse — hvem som ga den, hva den er lovet bort til, og hvem som faktisk sendte den.',
+    facts: [
+      { strong: '3 tall', rest: 'i kassa, lovet bort, fritt å love bort' },
+      { strong: '3 veier ut', rest: 'ukekonkurranser, oppdragsruter, en tavles pott' },
+      { strong: 'Kasserer', rest: 'eller admin — aldri rang alene' },
+    ],
+    footnote:
+      'Alt her ligger under Admin → **Coffer**, bortsett fra premiestigene, som ligger på det som betales for. Den offentlige halvdelen er `/coffer`: saldoen, de største giverne og de siste bevegelsene, for medlemmene.',
+
+    what: {
+      title: 'Hva den er',
+      body: [
+        'Et regnskap, ikke en lommebok. Anvil sitter aldri på gp-en deres — den blir der klanen allerede har den — så kassa er notatet over hva som kom inn, hva som er lovet bort og hva som faktisk er levert. Nytten er at løftet og betalingen er to forskjellige linjer.',
+        'Siden starter med tre tall, og de er tre fordi de svarer på tre forskjellige spørsmål:',
+      ],
+      rows: [
+        {
+          term: 'I kassa',
+          body: 'godkjente donasjoner og justeringer. Hva klanen har fått, minus hva den har skrevet av.',
+        },
+        {
+          term: 'Lovet bort',
+          body: 'gp en premie har gjort krav på — vunnet, men ikke sendt ennå, pluss en pott satt av til en tavle. Disponert, selv om det fortsatt står i noens bank.',
+        },
+        {
+          term: 'Fritt å love bort',
+          body: 'i kassa minus lovet bort. Det eneste tallet en ny premie blir målt mot, for alternativet er å love de samme 50m til to vinnere mens kassereren sover.',
+        },
+      ],
+      note: {
+        tag: 'En ventende donasjon teller ingen steder',
+        body: 'At noen skriver "jeg ga 100m" er en påstand om fortiden, ikke gp i en bank. Den står utenfor alle tre tallene til staben anerkjenner den, så den kan aldri finansiere en premie som etterpå ikke kan betales.',
+      },
+    },
+
+    inbound: {
+      title: 'Å få gp inn',
+      body: [
+        'To veier, og de skiller seg bare på hvem som starter dem. Et medlem melder inn sin egen donasjon fra `/coffer`, og den venter på at staben skal tro på den; en kasserer registrerer en som allerede er kommet, og at hen taster den **er** godkjenningen.',
+        'Uansett blir den kreditert en **person**. Det betyr mer enn det høres ut som: listen over de største giverne på den offentlige siden er den eneste takken de fleste givere får, og gp som kommer inn som "klanen" takker ingen.',
+      ],
+      rows: [
+        {
+          term: 'Et medlem melder inn en',
+          body: 'fra den offentlige kassesiden, med et skjermbilde hvis de har et. Den lander som ventende og dukker opp i køen din. Å godkjenne den er det som gjør den til ekte penger.',
+        },
+        {
+          term: 'Du registrerer en',
+          body: 'Admin → Coffer → **Record a donation**. Søk i medlemslisten etter hvem som ga den, sett et beløp ved siden av navnet, ferdig. Gjester kan også krediteres — en som ikke er fullt medlem kan godt ha betalt inn.',
+        },
+        {
+          term: 'Flere sammen',
+          body: 'velg alle, skriv totalen og trykk **Split**, og juster så en enkelt andel for hånd. Det skriver én linje hver i stedet for én linje med en liste, så hver av dem står i giverlisten under sitt eget navn.',
+        },
+      ],
+      note: {
+        tag: 'En justering er noe annet',
+        body: '**Correct the pot** er for gp som har flyttet seg utenom alt dette — å fylle opp kassa, å bruke den på noe Anvil aldri så, å rette en feil. Den tilhører med vilje ingen, og den er bevisst ikke måten å registrere en gave på.',
+      },
+    },
+
+    out: {
+      title: 'De tre måtene den betaler ut',
+      intro: 'Hver eneste premie i Anvil kommer fra denne ene potten, og hver vei avgjør vinnerne på sin egen måte. Sett stigen der det som vinnes hører hjemme — kassa spør aldri hvem som vant noe.',
+      rows: [
+        {
+          term: 'En ukekonkurranse, på sin egen side',
+          body: 'en Skill eller Boss of the Week har en plasseringsstige: første får dette, andre får hint. Den gjøres opp **én gang** når konkurransen slutter, ut fra sluttstillingen — ingenting skifter hender underveis. Sett den mens du oppretter konkurransen, eller senere fra konkurransens egen side.',
+        },
+        {
+          term: 'En oppdragsrute, på tavla',
+          body: 'oppdrag betaler i den rekkefølgen folk blir ferdige, så stigen deres blir gjort krav på snarere enn gjort opp: det første laget som klarer den, tar førsteplassens gp. Settes i rutens rewards-del, på enhver tavle som tillater oppdrag.',
+        },
+        {
+          term: 'En tavles premiepott',
+          body: 'en bingo fordeler selv potten sin på plasseringer, så kassa rekker den bare ett tall. Event → **Payouts** → *From the clan coffer*. Det legges til påmeldingsavgiftene og det du selv har lagt oppå,  Du velger også om kassa **holder** de gp-ene med en gang eller bare noterer løftet — de har jo ikke forlatt kassa ennå, og en tavle om seks uker trenger ikke halve potten låst til da.og fordelingen på plasser settes på samme side.',
+        },
+      ],
+      note: {
+        tag: 'Når folk ender likt',
+        body: 'En ukestige kan **dele ved likhet**: alle som er like, slår sammen plassene de opptar og tar en lik del, så tre på 40 kc hver tar en tredjedel av første, andre og tredje i stedet for at den første av dem tar alt. La den stå av, og tavlas egen rekkefølge avgjør. Begge deler kan forsvares — å bestemme det etter at resultatene er inne, kan ikke.',
+      },
+    },
+
+    who: {
+      title: 'Hvem som får flytte den',
+      intro: 'Penger er sin egen tillatelse, ikke en rang. En moderator kan godkjenne en innsending og aldri røre kassa, og det er med vilje snarere enn en forglemmelse.',
+      rows: [
+        {
+          term: 'Kasserer eller admin',
+          body: 'hele regnskapet: registrere og godkjenne donasjoner, justere kassa, sette premiestiger, markere en premie som sendt. Eieren teller som admin her.',
+        },
+        {
+          term: 'En moderator',
+          body: 'ingenting av det. De ser ikke kassesiden i det hele tatt — å samle inn penger er kassererens jobb, og rang alene har aldri gitt rett til det.',
+        },
+        {
+          term: 'En tavlekasserer',
+          body: 'ett events penger: avgiftene, utbetalingene, premiepotten. Gis per tavle, som er måten en gjesteklan kjører sin egen halvdel av en klan-mot-klan uten å få regnskapet deres i hendene. De kan ikke røre klankassa.',
+        },
+        {
+          term: 'Ethvert medlem',
+          body: 'kan melde inn en donasjon og lese den offentlige siden. Det er hele listen.',
+        },
+      ],
+      note: {
+        tag: 'Fortell klanen det, i en kanal',
+        body: 'Pek **Coffer channel** mot en Discord-kanal under Admin → Settings → Webhooks, så blir hver bevegelse lagt ut med saldoen den etterlater. Det er den ene strømmen uten reserveløsning: la den stå tom, og ingenting om pengene blir lagt ut noe sted. Se [Anvil i Discord]({discordGuide}).',
+      },
+    },
+
+    short: {
+      title: 'Når potten er for liten',
+      body: [
+        'En premie som er større enn kassa, blir ikke avvist. Den blir ført som **skyldig og udekket** — en ekte linje med en vinners navn på — for alternativet er en vinner uten noe og uten spor av at noe noen gang ble lovet.',
+        'Så løsningen er den vanlige: skaff gp inn, og betal så. Det du ikke skal, er å endre stigen i stillhet etterpå; regnskapet sier allerede hva som ble annonsert, og at de to er uenige er verre enn å mangle penger.',
+      ],
+      note: {
+        tag: 'Anvil sender ingenting',
+        body: 'Hver premie ender med at et menneske rekker over gp i spillet og krysser av en linje. Regnskapets jobb er å sørge for at linjen finnes, at den sier hvem og hvor mye, og at ingen en uke senere må grave det fram fra Discord-historikken.',
+      },
+    },
+  },
   moderator: {
     metaTitle: 'På vakt — Anvils moderatorveiledning',
     metaDescription:

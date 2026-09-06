@@ -32,6 +32,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
   return NextResponse.json({
     funded: pool ? Math.abs(pool.amount) : 0,
     status: pool?.status ?? null,
+    held: pool?.status === 'reserved',
     balance,
     prizePool,
   });
@@ -46,7 +47,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ even
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const clan = await requireClan();
-  const body = (await request.json().catch(() => null)) as { amount?: unknown; note?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as {
+    amount?: unknown;
+    note?: unknown;
+    hold?: unknown;
+  } | null;
   const amount = Math.floor(Number(body?.amount));
   if (!Number.isFinite(amount) || amount < 0) {
     return NextResponse.json({ error: 'Enter an amount, or 0 to take it back.' }, { status: 400 });
@@ -59,6 +64,9 @@ export async function PUT(request: Request, { params }: { params: Promise<{ even
     clanId: clan.id,
     eventId: id,
     amount,
+    // Holding is the default: the gp is promised, and a promise the coffer can spend twice is the
+    // failure this whole ledger exists to prevent. An older client that sends nothing gets a hold.
+    hold: body?.hold !== false,
     userId: session.userId,
     note: typeof body?.note === 'string' && body.note.trim() ? body.note.trim().slice(0, 500) : null,
   });
@@ -68,6 +76,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ even
   return NextResponse.json({
     funded: result.entry ? Math.abs(result.entry.amount) : 0,
     status: result.entry?.status ?? null,
+    held: result.entry?.status === 'reserved',
     balance,
     prizePool,
   });

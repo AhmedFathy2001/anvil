@@ -7,6 +7,7 @@ import WebhookField from '@/components/WebhookField';
 import PlainSetting from '@/components/PlainSetting';
 import ToggleSetting from '@/components/ToggleSetting';
 import Input from '@/components/Input';
+import GuideLink from '@/components/GuideLink';
 import {
   WEBHOOK_GROUPS,
   WEBHOOK_SECTIONS,
@@ -112,7 +113,10 @@ export default function WebhooksPanel({ channels, botEnabled }: Props) {
             </button>
           ))}
         </div>
-        <div className="sm:ml-auto sm:w-64">
+        <div className="sm:ml-auto flex items-center gap-3">
+          <GuideLink href="/guide/discord">Setting up Discord</GuideLink>
+        </div>
+        <div className="sm:w-64">
           <Input
             type="search"
             value={query}

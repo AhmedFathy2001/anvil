@@ -353,9 +353,18 @@ export async function findAwardForCompletion(completionId: number): Promise<Coff
 //
 // So this is deliberately the dumbest movement in the file. One row per event, no places, no
 // winners, no idempotency key beyond "one pool per event": the coffer commits an amount to a board
-// and stops there, because the board already knows how to divide it. The gp shows as committed the
-// moment it is set aside, so a second event cannot promise the same 500m, and a treasurer marks it
-// paid on the coffer page like any other prize.
+// and stops there, because the board already knows how to divide it.
+//
+// HELD OR NOT. A pool is a promise, and the gp has not moved yet — so the host says which kind of
+// promise it is. `reserved` HOLDS it: the amount leaves the available balance immediately, so no
+// other board and no mission can promise the same gp. `planned` does not: the pool is advertised on
+// the event and recorded here, but the coffer stays spendable until somebody actually pays it. The
+// first is right for a board running now; the second is right for one in six weeks, where freezing
+// half the pot until then is its own kind of wrong. Both are advertised the same to players — the
+// difference is only whether the clan's own money is committed yet.
+
+/** Every status a pool row can hold and still be this event's pool. */
+const LIVE_POOL_STATUSES = ['planned', 'reserved', 'paid'] as const;
 
 /** The pool row for an event, if it has one. Cancelled rows read as no pool. */
 export async function getEventPool(eventId: number): Promise<CofferEntry | null> {
@@ -364,7 +373,7 @@ export async function getEventPool(eventId: number): Promise<CofferEntry | null>
     where: and(
       eq(cofferEntries.eventId, eventId),
       eq(cofferEntries.kind, 'pool'),
-      inArray(cofferEntries.status, ['reserved', 'paid']),
+      inArray(cofferEntries.status, [...LIVE_POOL_STATUSES]),
     ),
   });
   return row ?? null;
@@ -395,6 +404,8 @@ export async function setEventPool(args: {
   clanId: number;
   eventId: number;
   amount: number;
+  /** Hold the gp now (reserved) or merely record the promise (planned). See the note above. */
+  hold: boolean;
   userId: number | null;
   note?: string | null;
 }): Promise<SetPoolResult> {
@@ -403,37 +414,43 @@ export async function setEventPool(args: {
   if (existing?.status === 'paid') {
     return { ok: false, error: 'That prize money has already been paid out. Record a change as an adjustment instead.' };
   }
+  const status = args.hold ? 'reserved' : 'planned';
+  // What this pool is holding TODAY, which is nothing at all when it was only planned.
+  const held = existing?.status === 'reserved' ? Math.abs(existing.amount) : 0;
   const current = existing ? Math.abs(existing.amount) : 0;
-  if (amount === current) return { ok: true, entry: existing };
+  if (amount === current && existing?.status === status) return { ok: true, entry: existing };
 
-  // Only the INCREASE has to be affordable: gp already committed to this pool is not competing with
-  // itself, and a host trimming an over-promise should never be blocked for having made it.
-  if (amount > current) {
+  // Only what the coffer is being asked to hold ON TOP of what this pool already holds has to be
+  // affordable. Its own gp is not competing with itself, a host trimming an over-promise is never
+  // blocked for having made it, and turning a hold OFF asks the coffer for nothing.
+  if (args.hold && amount > held) {
     const balance = await getCofferBalance(args.clanId);
-    if (balance.available < amount - current) {
+    if (balance.available < amount - held) {
       return {
         ok: false,
-        error: `The coffer only has ${balance.available.toLocaleString()} gp available.`,
+        error: `The coffer only has ${balance.available.toLocaleString()} gp available. Record it without holding if you mean to fund it later.`,
       };
     }
   }
 
-  if (amount === 0 && existing) {
+  const editable = and(eq(cofferEntries.id, existing?.id ?? -1), inArray(cofferEntries.status, ['planned', 'reserved']));
+
+  if (amount === 0) {
+    if (!existing) return { ok: true, entry: null };
     const [row] = await db
       .update(cofferEntries)
       .set({ status: 'cancelled', settledByUserId: args.userId, settledAt: new Date().toISOString() })
-      .where(and(eq(cofferEntries.id, existing.id), eq(cofferEntries.status, 'reserved')))
+      .where(editable)
       .returning();
     announce(args.clanId, row);
     return { ok: true, entry: null };
   }
-  if (amount === 0) return { ok: true, entry: null };
 
   if (existing) {
     const [row] = await db
       .update(cofferEntries)
-      .set({ amount: -amount, note: args.note ?? existing.note })
-      .where(and(eq(cofferEntries.id, existing.id), eq(cofferEntries.status, 'reserved')))
+      .set({ amount: -amount, status, note: args.note ?? existing.note })
+      .where(editable)
       .returning();
     announce(args.clanId, row);
     return { ok: true, entry: row ?? existing };
@@ -445,7 +462,7 @@ export async function setEventPool(args: {
       clanId: args.clanId,
       kind: 'pool',
       amount: -amount,
-      status: 'reserved',
+      status,
       eventId: args.eventId,
       createdByUserId: args.userId,
       note: args.note ?? null,
@@ -476,7 +493,9 @@ export async function settleAward(args: {
         // Pools settle the same way an award does — a treasurer sends the gp and says so. The only
         // difference is who receives it, and that is the board's business rather than the ledger's.
         inArray(cofferEntries.kind, ['award', 'pool']),
-        inArray(cofferEntries.status, args.paid ? ['reserved'] : ['reserved', 'paid']),
+        // A PLANNED pool can be paid straight out: it was never held, and paying it is exactly the
+        // moment the gp leaves. Only a paid row can be walked back, and only to cancelled.
+        inArray(cofferEntries.status, args.paid ? ['reserved', 'planned'] : ['reserved', 'planned', 'paid']),
       ),
     )
     .returning();

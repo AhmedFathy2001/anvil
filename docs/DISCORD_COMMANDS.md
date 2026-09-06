@@ -207,17 +207,18 @@ Commands are registered per **application**, not per guild, and registration is 
 whatever gets sent becomes exactly what exists. That makes it an idempotent reconcile rather than a
 setup step, so it runs automatically and heals itself:
 
-| Who | When | Scope |
+| When | What runs | Scope |
 | --- | --- | --- |
-| The shared platform (shared Anvil app) | every boot, and a daily cron — `syncGlobalCommands`, `/api/cron/discord-commands` | **global**, so one write covers every server the bot is in, including clans onboarding later |
-| A clan with its own bot | when its token is saved, and every boot — `syncClanCommands` | **guild** when a server is configured (instant), else global |
+| Every boot (`src/instrumentation.ts`) and when a BYO token is saved | `syncClanCommands` | **global** on the multi-clan platform (no single guild); **guild** only if a self-host pins `discord_guild_id` |
+| Daily cron (`/api/cron/discord-commands`) | `syncClanCommands` again | same — a self-heal |
 
-The site owns registration now — Anvil.Admin is retired, and there is one multi-clan deployment. On
-boot, `src/instrumentation.ts` picks the path by deployment: `ANVIL_SHARED_BOT_TOKEN` present →
-`syncGlobalCommands` (the shared app, global); otherwise `syncClanCommands` (a self-host's own app,
-guild-scoped). They are never both run, or Discord lists every command twice. The daily cron
-(`deploy/cron/anvil-cron` → `site-cron.sh discord-commands`) re-runs the global reconcile as a
-self-heal — a boot that couldn't reach Discord, or a set that drifted, converges on the next tick.
+The site owns registration now — Anvil.Admin is retired, and there is one multi-clan deployment.
+There is a single function, `syncClanCommands`: it registers whatever `sharedBotToken()` resolves
+(the shared bot on the platform, `DISCORD_BOT_TOKEN`; a self-host's own token otherwise), globally
+unless a single guild is configured. Boot runs it; the daily cron (`deploy/cron/anvil-cron` →
+`site-cron.sh discord-commands`) re-runs the same reconcile, so a boot that couldn't reach Discord or
+a set that drifted converges on the next tick. A deployment with no bot token registers nothing and
+the cron 200s quietly.
 
 Nothing to do when a clan signs up — global registration already covers them.
 

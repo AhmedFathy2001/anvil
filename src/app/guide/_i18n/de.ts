@@ -33,6 +33,12 @@ const de: PartialGuideDict = {
       running: 'Ein Event durchführen',
       clan: 'Den Clan führen',
     },
+    search: {
+      placeholder: 'Anleitungen durchsuchen — probier "Webhook", "Felder" oder "Drops werden nicht angezeigt"',
+      results: '{n} Anleitungen',
+      empty: 'Nichts gefunden. Probier ein schlichteres Wort — "Felder", "Auszahlung", "Bot" — oder sieh die Liste unten durch.',
+      clear: 'Suche zurücksetzen',
+    },
     cards: {
       discord: {
         eyebrow: 'Für alle, die den Server betreuen',
@@ -79,6 +85,13 @@ const de: PartialGuideDict = {
         title: 'Gebühren und Auszahlungen',
         blurb:
           'Eine Teilnahmegebühr erheben, sie einsammeln, die zweite Unterschrift, die sie abschließt, und aus einem Topf bezahlte Platzierungen machen.',
+        minutes: '~5 Min.',
+      },
+      coffer: {
+        eyebrow: 'Für Kassenwarte',
+        title: 'Die Clankasse',
+        blurb:
+          'Ein Topf für das Gold des Clans: was hineinkommt, die drei Wege, auf denen er Preise auszahlt, und wer ihn bewegen darf.',
         minutes: '~5 Min.',
       },
       moderator: {
@@ -1728,6 +1741,135 @@ const de: PartialGuideDict = {
     },
   },
 
+  coffer: {
+    metaTitle: 'Die Clankasse — Anvil-Anleitung für Kassenwarte',
+    metaDescription:
+      'Der Goldtopf des Clans in Anvil: Spenden erfassen und denen gutschreiben, die sie gegeben haben, die drei Wege einer Preisauszahlung, wer das Geld bewegen darf, und was passiert, wenn der Topf nicht reicht.',
+    eyebrow: 'Anvil · für Kassenwarte',
+    title: 'Die Clankasse',
+    dek: 'Die meisten Clans haben ihr Gold auf einer Bank und ihre Buchführung in einem Gedächtnis. Die Kasse ist ein Topf mit einer Zeile für jede Bewegung — wer sie gegeben hat, wofür sie versprochen ist, und wer sie tatsächlich geschickt hat.',
+    facts: [
+      { strong: '3 Zahlen', rest: 'vorhanden, gebunden, frei verfügbar' },
+      { strong: '3 Wege hinaus', rest: 'Wochenwettbewerbe, Missionsfelder, der Topf eines Boards' },
+      { strong: 'Kassenwart', rest: 'oder Admin — nie der Rang allein' },
+    ],
+    footnote:
+      'Alles hier liegt unter Admin → **Coffer**, außer den Preisleitern, die dort sitzen, wofür bezahlt wird. Die öffentliche Hälfte ist `/coffer`: der Kontostand, die größten Spender und die letzten Bewegungen, für die Mitglieder.',
+
+    what: {
+      title: 'Was sie ist',
+      body: [
+        'Ein Kassenbuch, keine Geldbörse. Anvil hält euer Gold nie — es bleibt dort, wo der Clan es ohnehin verwahrt — die Kasse ist also die Aufzeichnung dessen, was hereinkam, was versprochen ist und was tatsächlich übergeben wurde. Ihr Nutzen liegt darin, dass Versprechen und Zahlung zwei verschiedene Zeilen sind.',
+        'Die Seite beginnt mit drei Zahlen, und es sind drei, weil sie drei verschiedene Fragen beantworten:',
+      ],
+      rows: [
+        {
+          term: 'Vorhanden',
+          body: 'genehmigte Spenden und Korrekturen. Was der Clan bekommen hat, minus dem, was er abgeschrieben hat.',
+        },
+        {
+          term: 'Gebunden',
+          body: 'Gold, das ein Preis beansprucht hat — gewonnen, aber noch nicht verschickt, plus ein für ein Board zurückgelegter Topf. Verplant, auch wenn es noch auf jemandes Bank liegt.',
+        },
+        {
+          term: 'Frei verfügbar',
+          body: 'vorhanden minus gebunden. Die einzige Zahl, gegen die ein neuer Preis geprüft wird, denn die Alternative ist, dieselben 50M zwei Gewinnern zu versprechen, während der Kassenwart schläft.',
+        },
+      ],
+      note: {
+        tag: 'Eine offene Spende zählt nirgends',
+        body: 'Dass jemand „ich habe 100M gegeben" tippt, ist eine Behauptung über die Vergangenheit, kein Gold auf einer Bank. Sie steht außerhalb aller drei Zahlen, bis das Team sie anerkennt — so kann sie nie einen Preis finanzieren, der danach nicht bezahlt werden kann.',
+      },
+    },
+
+    inbound: {
+      title: 'Gold hineinbekommen',
+      body: [
+        'Zwei Wege, und sie unterscheiden sich nur darin, wer sie beginnt. Ein Mitglied meldet seine eigene Spende über `/coffer` und sie wartet darauf, dass das Team sie glaubt; ein Kassenwart erfasst eine bereits eingetroffene, und dass er sie eintippt **ist** die Genehmigung.',
+        'So oder so wird sie einer **Person** gutgeschrieben. Das wiegt schwerer, als es klingt: die Spenderliste auf der öffentlichen Seite ist der einzige Dank, den die meisten Spender je bekommen, und Gold, das als „der Clan" ankommt, dankt niemandem.',
+      ],
+      rows: [
+        {
+          term: 'Ein Mitglied meldet eine',
+          body: 'über die öffentliche Kassenseite, mit Screenshot, falls vorhanden. Sie landet als offen und taucht in deiner Warteschlange auf. Das Genehmigen macht sie zu echtem Geld.',
+        },
+        {
+          term: 'Du erfasst eine',
+          body: 'Admin → Coffer → **Record a donation**. Such im Kader, wer sie gegeben hat, setz einen Betrag neben den Namen, fertig. Gäste lassen sich ebenfalls gutschreiben — wer kein Vollmitglied ist, kann trotzdem eingezahlt haben.',
+        },
+        {
+          term: 'Mehrere zusammen',
+          body: 'wähl sie alle aus, tipp die Summe und drück **Split**, und pass einzelne Anteile danach von Hand an. Es schreibt je eine Zeile statt einer Zeile mit einer Liste, damit jeder unter seinem eigenen Namen in der Spenderliste steht.',
+        },
+      ],
+      note: {
+        tag: 'Eine Korrektur ist etwas anderes',
+        body: '**Correct the pot** ist für Gold, das sich außerhalb all dessen bewegt hat — den Topf befüllen, ihn für etwas ausgeben, das Anvil nie gesehen hat, einen Fehler richtigstellen. Sie gehört bewusst niemandem und ist ausdrücklich nicht der Weg, ein Geschenk zu erfassen.',
+      },
+    },
+
+    out: {
+      title: 'Die drei Wege der Auszahlung',
+      intro: 'Jeder Preis in Anvil kommt aus diesem einen Topf, und jeder Weg bestimmt die Gewinner anders. Setz die Leiter dort, wo das Gewonnene lebt — die Kasse fragt nie, wer etwas gewonnen hat.',
+      rows: [
+        {
+          term: 'Ein Wochenwettbewerb, auf seiner eigenen Seite',
+          body: 'ein Skill oder Boss of the Week trägt eine Platzleiter: Erster bekommt dies, Zweiter das. Sie wird **einmal** abgerechnet, wenn der Wettbewerb endet, anhand des Endstands — während er läuft, wechselt nichts den Besitzer. Setz sie beim Anlegen des Wettbewerbs oder später auf dessen eigener Seite.',
+        },
+        {
+          term: 'Ein Missionsfeld, auf dem Board',
+          body: 'Missionen zahlen in der Reihenfolge, in der Leute fertig werden, ihre Leiter wird also beansprucht statt abgerechnet: das erste Team, das sie schafft, nimmt das Gold des ersten Platzes. Wird im Rewards-Abschnitt des Feldes gesetzt, auf jedem Board, das Missionen erlaubt.',
+        },
+        {
+          term: 'Der Preistopf eines Boards',
+          body: 'ein Bingo verteilt seinen Topf selbst auf Platzierungen, die Kasse reicht ihm also nur eine Zahl. Event → **Payouts** → *From the clan coffer*. Sie kommt zu den Startgeldern und zu dem, was du selbst zugelegt hast,  Du entscheidest außerdem, ob die Kasse dieses Gold sofort **bindet** oder nur das Versprechen festhält — es ist ja noch nicht weg, und ein Board in sechs Wochen braucht nicht den halben Topf bis dahin eingefroren.und die Aufteilung auf Plätze wird auf derselben Seite gesetzt.',
+        },
+      ],
+      note: {
+        tag: 'Wenn Leute gleichauf enden',
+        body: 'Eine Wochenleiter kann **Gleichstände teilen**: alle Gleichauf-Platzierten legen die von ihnen belegten Plätze zusammen und nehmen einen gleichen Anteil — drei mit je 40 KC nehmen also ein Drittel von Platz eins, zwei und drei, statt dass der erste von ihnen alles bekommt. Lässt du es aus, entscheidet die Reihenfolge des Boards. Beides ist vertretbar — nach Bekanntgabe der Ergebnisse zu entscheiden nicht.',
+      },
+    },
+
+    who: {
+      title: 'Wer sie bewegen darf',
+      intro: 'Geld ist eine eigene Berechtigung, kein Rang. Ein Moderator kann Einreichungen prüfen und die Kasse nie berühren, und das ist Absicht, kein Versehen.',
+      rows: [
+        {
+          term: 'Kassenwart oder Admin',
+          body: 'das ganze Kassenbuch: Spenden erfassen und genehmigen, den Topf korrigieren, Preisleitern setzen, einen Preis als verschickt markieren. Der Eigentümer zählt hier als Admin.',
+        },
+        {
+          term: 'Ein Moderator',
+          body: 'nichts davon. Er sieht die Kassenseite gar nicht — Geld einzusammeln ist die Aufgabe des Kassenwarts, und der Rang allein hat dieses Recht noch nie verliehen.',
+        },
+        {
+          term: 'Ein Board-Kassenwart',
+          body: 'das Geld eines Events: dessen Gebühren, Auszahlungen, Preistopf. Wird pro Board vergeben — so führt ein Gastclan seine eigene Hälfte eines Clan-gegen-Clan, ohne euer Kassenbuch in die Hand zu bekommen. An die Clankasse kommt er nicht.',
+        },
+        {
+          term: 'Jedes Mitglied',
+          body: 'kann eine Spende melden und die öffentliche Seite lesen. Das ist alles.',
+        },
+      ],
+      note: {
+        tag: 'Sag es dem Clan, in einem Kanal',
+        body: 'Richte **Coffer channel** unter Admin → Settings → Webhooks auf einen Discord-Kanal, dann wird jede Bewegung mit dem Stand gepostet, den sie hinterlässt. Es ist der einzige Feed ohne Rückfallkanal: bleibt er leer, wird über das Geld nirgends etwas gepostet. Siehe [Anvil in Discord]({discordGuide}).',
+      },
+    },
+
+    short: {
+      title: 'Wenn der Topf nicht reicht',
+      body: [
+        'Ein Preis, der größer ist als die Kasse, wird nicht abgelehnt. Er wird als **geschuldet und ungedeckt** verbucht — eine echte Zeile mit dem Namen eines Gewinners darauf — denn die Alternative ist ein Gewinner ohne alles und ohne Spur davon, dass je etwas versprochen wurde.',
+        'Die Lösung ist also die gewöhnliche: Gold hereinholen, dann zahlen. Was du nicht tun solltest, ist die Leiter hinterher still zu ändern; das Kassenbuch sagt bereits, was angekündigt war, und dass beide sich widersprechen, ist schlimmer, als knapp zu sein.',
+      ],
+      note: {
+        tag: 'Anvil verschickt nichts',
+        body: 'Jeder Preis endet damit, dass ein Mensch im Spiel Gold übergibt und eine Zeile abhakt. Die Aufgabe des Kassenbuchs ist es, dafür zu sorgen, dass diese Zeile existiert, dass sie wer und wie viel sagt, und dass niemand sie eine Woche später aus dem Discord-Verlauf rekonstruieren muss.',
+      },
+    },
+  },
   moderator: {
     metaTitle: 'Im Dienst — Anvils Moderatorenanleitung',
     metaDescription:

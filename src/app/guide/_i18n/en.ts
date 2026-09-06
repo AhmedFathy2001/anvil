@@ -97,6 +97,13 @@ export const en = {
           'Charging an entry fee, collecting it, the second signature that settles it, and turning a pool into paid placements.',
         minutes: '~5 min',
       },
+      coffer: {
+        eyebrow: 'For treasurers',
+        title: 'The clan coffer',
+        blurb:
+          'One pot for the clan’s gp: what goes in, the three ways it pays prizes out, and who is allowed to move it.',
+        minutes: '~5 min',
+      },
       moderator: {
         eyebrow: 'For moderators',
         title: 'On the rota',
@@ -1718,6 +1725,138 @@ export const en = {
           body: 'it tracks approved entries, so approving or excluding a sign-up moves it. Quote the pool at the moment sign-ups close, not the moment they open.',
         },
       ],
+    },
+  },
+
+  coffer: {
+    metaTitle: 'The clan coffer — Anvil treasurer guide',
+    metaDescription:
+      'The clan’s pot of gp on Anvil: recording donations and crediting the people who gave them, the three ways a prize gets paid, who may move the money, and what happens when the pot is short.',
+    eyebrow: 'Anvil · for treasurers',
+    title: 'The clan coffer',
+    dek: 'Most clans keep their gp in somebody’s bank and their record of it in somebody’s memory. The coffer is one pot with a line for every movement — who gave it, what it was promised to, and who actually sent it.',
+    facts: [
+      { strong: '3 numbers', rest: 'held, committed, free to promise' },
+      { strong: '3 ways out', rest: 'weeklies, mission tiles, a board’s pool' },
+      { strong: 'Treasurer', rest: 'or admin — never rank alone' },
+    ],
+    footnote:
+      'Everything here is Admin → **Coffer**, except the prize ladders, which live on the thing being paid for. The public half is `/coffer`: the balance, the top donors and the recent movements, for members.',
+
+    what: {
+      title: 'What it is',
+      body: [
+        'A ledger, not a wallet. Anvil never holds your gp — it stays wherever your clan already keeps it — so the coffer is the record of what came in, what has been promised and what has actually been handed over. Its usefulness is that the promise and the payment are two different lines.',
+        'The page leads with three numbers, and they are three because they answer three different questions:',
+      ],
+      rows: [
+        {
+          term: 'Held',
+          body: 'approved donations and adjustments. What the clan has been given, minus what it has written off.',
+        },
+        {
+          term: 'Committed',
+          body: 'gp a prize has claimed — won but not yet sent, plus any pool set aside for a board. Spoken for, even if it is still in somebody’s bank.',
+        },
+        {
+          term: 'Free to promise',
+          body: 'held minus committed. The only number a new prize is checked against, because the alternative is promising the same 50m to two winners while a treasurer is asleep.',
+        },
+      ],
+      note: {
+        tag: 'A pending donation counts toward nothing',
+        body: 'Somebody typing “I gave 100m” is a claim about the past, not gp in a bank. It sits outside all three numbers until staff recognise it, so it can never fund a prize that then cannot be paid.',
+      },
+    },
+
+    inbound: {
+      title: 'Getting gp in',
+      body: [
+        'Two routes, and they differ only in who starts them. A member reports their own donation from `/coffer` and it waits for staff to believe it; a treasurer records one that already arrived, and their typing it **is** the approval.',
+        'Either way it is credited to a **person**. That matters more than it looks: the top-donor list on the public page is the only thanks most donors ever get, and gp that arrives as “the clan” thanks nobody.',
+      ],
+      rows: [
+        {
+          term: 'A member reports one',
+          body: 'from the public coffer page, with a screenshot if they have one. It lands pending and shows up in your queue. Approving it is what makes it real money.',
+        },
+        {
+          term: 'You record one',
+          body: 'Admin → Coffer → **Record a donation**. Search the roster for who gave it, put an amount against their name, done. Guests can be credited too — somebody who is not a full member can still have paid into the pot.',
+        },
+        {
+          term: 'Several people together',
+          body: 'pick all of them, type the total and press **Split**, then adjust any share by hand. It writes one line each rather than one line with a list, so each of them shows up in the top donors under their own name.',
+        },
+      ],
+      note: {
+        tag: 'An adjustment is the other thing',
+        body: '**Correct the pot** is for gp that moved outside all of this — seeding the pot, spending it on something Anvil never saw, fixing a mistake. It belongs to nobody by design, and it is deliberately not how you record a gift.',
+      },
+    },
+
+    out: {
+      title: 'The three ways it pays out',
+      intro:
+        'Every prize on Anvil comes out of this one pot, and each route decides winners differently. Set the ladder where the thing being won lives — the coffer never asks who won anything.',
+      rows: [
+        {
+          term: 'A weekly, on its own page',
+          body: 'a Skill or Boss of the Week carries a place ladder: first gets this, second gets that. It settles **once** when the competition ends, off the final standings — nothing changes hands while it is running. Set it while creating the competition, or later from the competition’s own page.',
+        },
+        {
+          term: 'A mission tile, on the board',
+          body: 'missions pay in the order people finish, so their ladder is claimed rather than settled: the first team to clear it takes first place’s gp. Set it in the tile’s reward section, on any board that allows missions.',
+        },
+        {
+          term: 'A board’s prize pool',
+          body: 'a bingo divides its own pot across placements, so the coffer just hands it one number. Event → **Payouts** → *From the clan coffer*. It joins the entry fees and anything you added by hand, and the split across places is set on that same page. You also choose whether the coffer **holds** that gp now or only records the promise — it has not left yet, and a board six weeks out does not need half the pot frozen until then.',
+        },
+      ],
+      note: {
+        tag: 'People finishing level',
+        body: 'A weekly ladder can **split ties**: everyone tied pools the places they occupy and takes an equal share, so three people on 40 kc each take a third of first, second and third rather than the first of them taking the lot. Leave it off and the board’s own order decides. Either is defensible — deciding after the results are in is not.',
+      },
+    },
+
+    who: {
+      title: 'Who can move it',
+      intro:
+        'Money is its own permission, not a rank. A moderator can approve a submission and never touch the pot, and that is deliberate rather than an oversight.',
+      rows: [
+        {
+          term: 'Treasurer or admin',
+          body: 'the whole ledger: record and approve donations, adjust the pot, set prize ladders, mark a prize sent. The owner counts as an admin here.',
+        },
+        {
+          term: 'A moderator',
+          body: 'none of it. They will not see the coffer page at all — collecting money is the treasurer’s job, and rank alone has never conferred it.',
+        },
+        {
+          term: 'A board treasurer',
+          body: 'one event’s money: its fees, its payouts, its prize pool. Granted per board, which is how a visiting clan runs its own half of a clan-v-clan without being handed your ledger. They cannot touch the clan-wide coffer.',
+        },
+        {
+          term: 'Any member',
+          body: 'can report a donation and read the public page. That is the whole of it.',
+        },
+      ],
+      note: {
+        tag: 'Tell the clan, in a channel',
+        body: 'Point the **Coffer channel** at a Discord channel under Admin → Settings → Webhooks and every movement posts with the balance it leaves behind. It is the one feed with no fallback: leave it blank and nothing about the money is posted anywhere. See [Anvil in Discord]({discordGuide}).',
+      },
+    },
+
+    short: {
+      title: 'When the pot is short',
+      body: [
+        'A prize bigger than the coffer is not refused. It is recorded as **owed and not funded** — a real line on the ledger with a winner’s name on it — because the alternative is a winner with nothing and no record that anything was ever promised.',
+        'So the fix is the ordinary one: get gp in, then pay it. What you should not do is quietly edit the ladder afterwards; the ledger already says what was advertised, and the two disagreeing is worse than being short.',
+      ],
+      note: {
+        tag: 'Nothing is sent by Anvil',
+        body: 'Every prize ends as a person handing over gp in game and ticking a row. The ledger’s job is to make sure that row exists, that it says who and how much, and that a week later nobody has to reconstruct it from Discord scrollback.',
+      },
     },
   },
 

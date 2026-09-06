@@ -33,6 +33,12 @@ const it: PartialGuideDict = {
       running: 'Organizzare un evento',
       clan: 'Gestire il clan',
     },
+    search: {
+      placeholder: 'Cerca nelle guide — prova "webhook", "caselle" o "i drop non compaiono"',
+      results: '{n} guide',
+      empty: 'Nessun risultato. Prova una parola più semplice — "caselle", "pagamento", "bot" — o sfoglia l\'elenco qui sotto.',
+      clear: 'Cancella la ricerca',
+    },
     cards: {
       discord: {
         eyebrow: 'Per chi gestisce il server',
@@ -86,6 +92,13 @@ const it: PartialGuideDict = {
         title: 'Quote e premi',
         blurb:
           'Fissare una quota d’iscrizione, incassarla, la seconda firma che la chiude, e trasformare un montepremi in pagamenti effettivi.',
+        minutes: '~5 min',
+      },
+      coffer: {
+        eyebrow: 'Per i tesorieri',
+        title: 'La cassa del clan',
+        blurb:
+          'Una sola cassa per i gp del clan: cosa ci entra, i tre modi in cui paga i premi, e chi può toccarla.',
         minutes: '~5 min',
       },
       moderator: {
@@ -1706,6 +1719,135 @@ const it: PartialGuideDict = {
     },
   },
 
+  coffer: {
+    metaTitle: 'La cassa del clan — guida Anvil per i tesorieri',
+    metaDescription:
+      'La cassa in gp del clan su Anvil: registrare le donazioni e accreditarle a chi le ha fatte, i tre modi in cui viene pagato un premio, chi può muovere il denaro, e cosa succede quando la cassa non basta.',
+    eyebrow: 'Anvil · per i tesorieri',
+    title: 'La cassa del clan',
+    dek: 'Quasi tutti i clan tengono i gp nella banca di qualcuno e la contabilità nella memoria di qualcuno. La cassa è un unico fondo con una riga per ogni movimento — chi l\'ha dato, a cosa è promesso, e chi l\'ha davvero mandato.',
+    facts: [
+      { strong: '3 numeri', rest: 'in cassa, impegnato, libero da promettere' },
+      { strong: '3 uscite', rest: 'gare settimanali, caselle missione, il fondo di una board' },
+      { strong: 'Tesoriere', rest: 'o admin — mai il grado da solo' },
+    ],
+    footnote:
+      'Tutto questo sta in Admin → **Coffer**, tranne le scale dei premi, che vivono su ciò per cui si paga. La metà pubblica è `/coffer`: il saldo, i maggiori donatori e i movimenti recenti, per i membri.',
+
+    what: {
+      title: 'Cos\'è',
+      body: [
+        'Un registro, non un portafoglio. Anvil non tiene mai i vostri gp — restano dove il clan già li custodisce — quindi la cassa è l\'annotazione di ciò che è entrato, di ciò che è stato promesso e di ciò che è stato davvero consegnato. La sua utilità è che la promessa e il pagamento sono due righe distinte.',
+        'La pagina si apre con tre numeri, e sono tre perché rispondono a tre domande diverse:',
+      ],
+      rows: [
+        {
+          term: 'In cassa',
+          body: 'donazioni approvate e rettifiche. Ciò che il clan ha ricevuto, meno ciò che ha svalutato.',
+        },
+        {
+          term: 'Impegnato',
+          body: 'gp che un premio ha rivendicato — vinti ma non ancora inviati, più l\'eventuale fondo messo da parte per una board. Vincolati, anche se sono ancora nella banca di qualcuno.',
+        },
+        {
+          term: 'Libero da promettere',
+          body: 'in cassa meno impegnato. L\'unico numero contro cui viene verificato un nuovo premio, perché l\'alternativa è promettere gli stessi 50M a due vincitori mentre il tesoriere dorme.',
+        },
+      ],
+      note: {
+        tag: 'Una donazione in attesa non conta da nessuna parte',
+        body: 'Che qualcuno scriva «ho dato 100M» è un\'affermazione sul passato, non gp in banca. Resta fuori da tutti e tre i numeri finché lo staff non la riconosce, così non può mai finanziare un premio che poi non si riesce a pagare.',
+      },
+    },
+
+    inbound: {
+      title: 'Far entrare i gp',
+      body: [
+        'Due strade, che differiscono solo per chi le avvia. Un membro segnala la propria donazione da `/coffer` e questa attende che lo staff le creda; un tesoriere registra una donazione già arrivata, e il fatto stesso che la digiti **è** l\'approvazione.',
+        'In entrambi i casi viene accreditata a una **persona**. Conta più di quanto sembri: l\'elenco dei maggiori donatori sulla pagina pubblica è l\'unico ringraziamento che la maggior parte riceverà, e gp arrivati come «il clan» non ringraziano nessuno.',
+      ],
+      rows: [
+        {
+          term: 'La segnala un membro',
+          body: 'dalla pagina pubblica della cassa, con uno screenshot se ce l\'ha. Arriva in attesa e compare nella tua coda. È l\'approvazione a renderla denaro vero.',
+        },
+        {
+          term: 'La registri tu',
+          body: 'Admin → Coffer → **Record a donation**. Cerca nell\'elenco chi l\'ha data, metti un importo accanto al nome, fatto. Anche gli ospiti si possono accreditare — chi non è membro a pieno titolo può benissimo aver contribuito.',
+        },
+        {
+          term: 'In più persone insieme',
+          body: 'selezionali tutti, scrivi il totale e premi **Split**, poi correggi a mano una singola quota se serve. Scrive una riga ciascuno invece di una riga con un elenco, così ognuno compare nell\'elenco donatori col proprio nome.',
+        },
+      ],
+      note: {
+        tag: 'Una rettifica è un\'altra cosa',
+        body: '**Correct the pot** serve per i gp che si sono mossi al di fuori di tutto questo — avviare la cassa, spenderla per qualcosa che Anvil non ha mai visto, correggere un errore. Volutamente non appartiene a nessuno, e non è il modo di registrare un dono.',
+      },
+    },
+
+    out: {
+      title: 'I tre modi in cui paga',
+      intro: 'Ogni premio su Anvil esce da questo unico fondo, e ogni strada decide i vincitori a modo suo. Imposta la scala dove vive ciò che si vince — la cassa non chiede mai chi ha vinto cosa.',
+      rows: [
+        {
+          term: 'Una settimanale, sulla sua pagina',
+          body: 'una Skill o Boss of the Week porta una scala di posizioni: il primo prende questo, il secondo quello. Si liquida **una volta sola**, alla fine della gara, sulla classifica finale — mentre è in corso non cambia nulla di mano. Impostala mentre crei la gara, o dopo dalla pagina della gara stessa.',
+        },
+        {
+          term: 'Una casella missione, sulla board',
+          body: 'le missioni pagano nell\'ordine in cui la gente finisce, quindi la loro scala si rivendica invece di liquidarsi: la prima squadra che la completa prende i gp del primo posto. Si imposta nella sezione rewards della casella, su qualsiasi board che consenta le missioni.',
+        },
+        {
+          term: 'Il montepremi di una board',
+          body: 'un bingo divide da sé il proprio montepremi tra le posizioni, quindi la cassa gli passa solo un numero. Event → **Payouts** → *From the clan coffer*. Si somma alle quote d\'iscrizione e a quanto hai aggiunto tu,  Scegli anche se la cassa **vincola** subito quei gp o si limita a registrare la promessa: non sono ancora usciti, e una board fra sei settimane non ha bisogno di metà del fondo bloccata fino ad allora.e la divisione tra le posizioni si imposta nella stessa pagina.',
+        },
+      ],
+      note: {
+        tag: 'Quando si finisce alla pari',
+        body: 'Una scala settimanale può **dividere i pari merito**: tutti quelli a pari punteggio mettono insieme le posizioni che occupano e prendono una quota uguale, così tre giocatori con 40 kc ciascuno prendono un terzo di primo, secondo e terzo invece che il primo di loro si prenda tutto. Lasciala spenta e decide l\'ordine della classifica. Entrambe le scelte si difendono — decidere a risultati usciti no.',
+      },
+    },
+
+    who: {
+      title: 'Chi può muoverla',
+      intro: 'Il denaro è un permesso a sé, non un grado. Un moderatore può approvare una prova senza mai toccare la cassa, ed è una scelta, non una dimenticanza.',
+      rows: [
+        {
+          term: 'Tesoriere o admin',
+          body: 'tutto il registro: registrare e approvare donazioni, rettificare la cassa, impostare le scale dei premi, segnare un premio come inviato. Il proprietario qui conta come admin.',
+        },
+        {
+          term: 'Un moderatore',
+          body: 'niente di tutto ciò. Non vedrà nemmeno la pagina della cassa — raccogliere denaro è il lavoro del tesoriere, e il grado da solo non ha mai conferito quel diritto.',
+        },
+        {
+          term: 'Un tesoriere di board',
+          body: 'il denaro di un solo evento: le sue quote, i suoi pagamenti, il suo montepremi. Si concede per board, ed è così che un clan ospite gestisce la propria metà di un clan contro clan senza ricevere in mano la vostra contabilità. Alla cassa del clan non arriva.',
+        },
+        {
+          term: 'Qualunque membro',
+          body: 'può segnalare una donazione e leggere la pagina pubblica. Tutto qui.',
+        },
+      ],
+      note: {
+        tag: 'Dillo al clan, in un canale',
+        body: 'Punta **Coffer channel** su un canale Discord in Admin → Settings → Webhooks e ogni movimento viene pubblicato col saldo che lascia dietro di sé. È l\'unico feed senza ripiego: lascialo vuoto e sul denaro non viene pubblicato nulla da nessuna parte. Vedi [Anvil su Discord]({discordGuide}).',
+      },
+    },
+
+    short: {
+      title: 'Quando la cassa non basta',
+      body: [
+        'Un premio più grande della cassa non viene rifiutato. Viene registrato come **dovuto e non coperto** — una riga vera, col nome di un vincitore sopra — perché l\'alternativa è un vincitore senza niente e senza traccia che gli sia mai stato promesso qualcosa.',
+        'La soluzione quindi è la solita: far entrare gp, poi pagare. Quello che non va fatto è modificare la scala di nascosto a posteriori; il registro dice già cosa era stato annunciato, e vederli in contraddizione è peggio che essere a corto.',
+      ],
+      note: {
+        tag: 'Anvil non manda nulla',
+        body: 'Ogni premio finisce con una persona che consegna gp in gioco e spunta una riga. Il compito del registro è garantire che quella riga esista, che dica chi e quanto, e che una settimana dopo nessuno debba ricostruirla dalla cronologia di Discord.',
+      },
+    },
+  },
   moderator: {
     metaTitle: 'Di turno — guida di Anvil per i moderatori',
     metaDescription:

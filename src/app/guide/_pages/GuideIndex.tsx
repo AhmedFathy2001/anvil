@@ -14,7 +14,7 @@ const GROUPS: { key: 'playing' | 'running' | 'clan'; pages: Exclude<GuidePage, '
   { key: 'running', pages: ['admin', 'formats', 'board', 'clan-vs-clan'] },
   // Starting a clan comes first here on purpose: it is the only guide whose reader does not have one
   // yet, and the rest of this group is written for someone already running it.
-  { key: 'clan', pages: ['clan', 'discord', 'moderator', 'fees'] },
+  { key: 'clan', pages: ['clan', 'discord', 'moderator', 'fees', 'coffer'] },
 ];
 
 /** Route slug → dictionary card key (they differ only where the slug is hyphenated). */
@@ -29,6 +29,7 @@ const CARD_KEY = {
   'clan-vs-clan': 'clanVsClan',
   moderator: 'moderator',
   fees: 'fees',
+  coffer: 'coffer',
 } as const;
 
 export async function guideIndexMetadata(lang: string): Promise<Metadata> {

@@ -34,6 +34,12 @@ const fr: PartialGuideDict = {
       running: 'Organiser un événement',
       clan: 'Gérer le clan',
     },
+    search: {
+      placeholder: 'Rechercher dans les guides — essayez « webhook », « cases » ou « les drops n\'apparaissent pas »',
+      results: '{n} guides',
+      empty: 'Aucun résultat. Essayez un mot plus simple — « cases », « paiement », « bot » — ou parcourez la liste ci-dessous.',
+      clear: 'Effacer la recherche',
+    },
     cards: {
       discord: {
         eyebrow: 'Pour qui gère le serveur',
@@ -80,6 +86,13 @@ const fr: PartialGuideDict = {
         title: 'Frais et récompenses',
         blurb:
           'Fixer des frais d’inscription, les encaisser, la deuxième signature qui les clôt, et transformer une cagnotte en places payées.',
+        minutes: '~5 min',
+      },
+      coffer: {
+        eyebrow: 'Pour les trésoriers',
+        title: 'La caisse du clan',
+        blurb:
+          'Une seule caisse pour les po du clan : ce qui y entre, les trois façons dont elle paie les prix, et qui a le droit d\'y toucher.',
         minutes: '~5 min',
       },
       moderator: {
@@ -1729,6 +1742,135 @@ const fr: PartialGuideDict = {
     },
   },
 
+  coffer: {
+    metaTitle: 'La caisse du clan — guide Anvil du trésorier',
+    metaDescription:
+      'La caisse en po du clan sur Anvil : enregistrer les dons et les créditer à ceux qui les ont faits, les trois façons de payer un prix, qui peut déplacer l\'argent, et ce qui se passe quand la caisse est à sec.',
+    eyebrow: 'Anvil · pour les trésoriers',
+    title: 'La caisse du clan',
+    dek: 'La plupart des clans gardent leurs po sur la banque de quelqu\'un et leur comptabilité dans la mémoire de quelqu\'un. La caisse, c\'est une seule cagnotte avec une ligne par mouvement — qui a donné, à quoi c\'est promis, et qui l\'a réellement envoyé.',
+    facts: [
+      { strong: '3 chiffres', rest: 'en caisse, engagé, libre de promesse' },
+      { strong: '3 sorties', rest: 'compétitions hebdo, cases mission, cagnotte d\'un plateau' },
+      { strong: 'Trésorier', rest: 'ou admin — jamais le rang seul' },
+    ],
+    footnote:
+      'Tout ceci se trouve sous Admin → **Coffer**, sauf les grilles de prix, qui vivent sur ce qui est payé. La moitié publique, c\'est `/coffer` : le solde, les plus gros donateurs et les mouvements récents, pour les membres.',
+
+    what: {
+      title: 'Ce que c\'est',
+      body: [
+        'Un livre de comptes, pas un porte-monnaie. Anvil ne détient jamais vos po — ils restent là où le clan les garde déjà — la caisse est donc la trace de ce qui est entré, de ce qui est promis et de ce qui a réellement été remis. Son intérêt : la promesse et le paiement sont deux lignes distinctes.',
+        'La page s\'ouvre sur trois chiffres, et ils sont trois parce qu\'ils répondent à trois questions différentes :',
+      ],
+      rows: [
+        {
+          term: 'En caisse',
+          body: 'dons approuvés et ajustements. Ce que le clan a reçu, moins ce qu\'il a passé en perte.',
+        },
+        {
+          term: 'Engagé',
+          body: 'les po qu\'un prix a réclamés — gagnés mais pas encore envoyés, plus toute cagnotte mise de côté pour un plateau. Réservé, même si c\'est encore sur la banque de quelqu\'un.',
+        },
+        {
+          term: 'Libre de promesse',
+          body: 'en caisse moins engagé. Le seul chiffre auquel un nouveau prix est confronté, parce que l\'alternative est de promettre les mêmes 50M à deux gagnants pendant que le trésorier dort.',
+        },
+      ],
+      note: {
+        tag: 'Un don en attente ne compte nulle part',
+        body: 'Quelqu\'un qui écrit « j\'ai donné 100M » énonce une affirmation sur le passé, pas des po sur une banque. Il reste hors des trois chiffres tant que le staff ne l\'a pas reconnu, si bien qu\'il ne peut jamais financer un prix qu\'on ne pourra ensuite pas payer.',
+      },
+    },
+
+    inbound: {
+      title: 'Faire entrer des po',
+      body: [
+        'Deux chemins, qui ne diffèrent que par celui qui les commence. Un membre déclare son propre don depuis `/coffer` et il attend que le staff le croie ; un trésorier enregistre un don déjà arrivé, et le fait de le saisir **vaut** approbation.',
+        'Dans les deux cas, il est crédité à une **personne**. Cela compte plus qu\'il n\'y paraît : la liste des plus gros donateurs sur la page publique est le seul merci que la plupart recevront, et des po arrivés au nom du « clan » ne remercient personne.',
+      ],
+      rows: [
+        {
+          term: 'Un membre le déclare',
+          body: 'depuis la page publique de la caisse, avec une capture d\'écran s\'il en a une. Il arrive en attente et apparaît dans votre file. C\'est l\'approbation qui en fait de l\'argent réel.',
+        },
+        {
+          term: 'Vous l\'enregistrez',
+          body: 'Admin → Coffer → **Record a donation**. Cherchez dans l\'effectif qui l\'a donné, mettez un montant en face du nom, terminé. Les invités peuvent aussi être crédités — quelqu\'un qui n\'est pas membre à part entière a très bien pu contribuer.',
+        },
+        {
+          term: 'Plusieurs ensemble',
+          body: 'choisissez-les tous, tapez le total et appuyez sur **Split**, puis ajustez une part à la main si besoin. Cela écrit une ligne chacun plutôt qu\'une ligne avec une liste, pour que chacun figure dans la liste des donateurs sous son propre nom.',
+        },
+      ],
+      note: {
+        tag: 'Un ajustement, c\'est autre chose',
+        body: '**Correct the pot** sert aux po qui ont bougé en dehors de tout cela — amorcer la caisse, la dépenser pour quelque chose qu\'Anvil n\'a jamais vu, corriger une erreur. Il n\'appartient à personne, volontairement, et ce n\'est délibérément pas la façon d\'enregistrer un don.',
+      },
+    },
+
+    out: {
+      title: 'Les trois façons de payer',
+      intro: 'Chaque prix sur Anvil sort de cette même cagnotte, et chaque chemin désigne les gagnants à sa manière. Réglez la grille là où vit ce qui est gagné — la caisse ne demande jamais qui a gagné quoi.',
+      rows: [
+        {
+          term: 'Une hebdo, sur sa propre page',
+          body: 'un Skill ou Boss of the Week porte une grille de places : le premier reçoit ceci, le deuxième cela. Elle est réglée **une fois**, à la fin de la compétition, sur le classement final — rien ne change de mains pendant qu\'elle tourne. Réglez-la en créant la compétition, ou plus tard depuis sa propre page.',
+        },
+        {
+          term: 'Une case mission, sur le plateau',
+          body: 'les missions paient dans l\'ordre où les gens terminent : leur grille se réclame plutôt qu\'elle ne se règle — la première équipe à la boucler prend les po de la première place. Se règle dans la section rewards de la case, sur tout plateau qui autorise les missions.',
+        },
+        {
+          term: 'La cagnotte d\'un plateau',
+          body: 'un bingo répartit lui-même sa cagnotte entre les places, la caisse lui tend donc juste un chiffre. Event → **Payouts** → *From the clan coffer*. Cela s\'ajoute aux frais d\'inscription et à ce que vous avez ajouté vous-même,  Vous choisissez aussi si la caisse **bloque** ces po tout de suite ou se contente d\'enregistrer la promesse — ils ne sont pas encore partis, et un plateau dans six semaines n\'a pas besoin que la moitié de la cagnotte soit gelée jusque-là.et la répartition entre les places se règle sur cette même page.',
+        },
+      ],
+      note: {
+        tag: 'Quand des joueurs finissent à égalité',
+        body: 'Une grille hebdo peut **partager les égalités** : tous ceux à égalité mettent en commun les places qu\'ils occupent et prennent une part égale — trois joueurs à 40 kc prennent chacun un tiers des première, deuxième et troisième places au lieu que le premier d\'entre eux rafle tout. Laissez l\'option désactivée et l\'ordre du classement tranche. Les deux se défendent — décider une fois les résultats connus, non.',
+      },
+    },
+
+    who: {
+      title: 'Qui peut y toucher',
+      intro: 'L\'argent est une permission à part, pas un rang. Un modérateur peut valider une soumission sans jamais toucher à la caisse, et c\'est délibéré, pas un oubli.',
+      rows: [
+        {
+          term: 'Trésorier ou admin',
+          body: 'tout le livre de comptes : enregistrer et approuver les dons, ajuster la caisse, régler les grilles de prix, marquer un prix comme envoyé. Le propriétaire compte ici comme admin.',
+        },
+        {
+          term: 'Un modérateur',
+          body: 'rien de tout cela. Il ne verra même pas la page de la caisse — collecter l\'argent est le travail du trésorier, et le rang seul n\'a jamais conféré ce droit.',
+        },
+        {
+          term: 'Un trésorier de plateau',
+          body: 'l\'argent d\'un seul événement : ses frais, ses paiements, sa cagnotte. Accordé par plateau, c\'est ainsi qu\'un clan invité gère sa moitié d\'un clan contre clan sans qu\'on lui remette votre comptabilité. Il ne touche pas à la caisse du clan.',
+        },
+        {
+          term: 'N\'importe quel membre',
+          body: 'peut déclarer un don et lire la page publique. C\'est tout.',
+        },
+      ],
+      note: {
+        tag: 'Dites-le au clan, dans un salon',
+        body: 'Pointez **Coffer channel** vers un salon Discord sous Admin → Settings → Webhooks et chaque mouvement est publié avec le solde qu\'il laisse derrière lui. C\'est le seul flux sans repli : laissez-le vide et rien sur l\'argent n\'est publié nulle part. Voir [Anvil sur Discord]({discordGuide}).',
+      },
+    },
+
+    short: {
+      title: 'Quand la caisse est trop courte',
+      body: [
+        'Un prix plus gros que la caisse n\'est pas refusé. Il est inscrit comme **dû et non couvert** — une vraie ligne, au nom d\'un gagnant — parce que l\'alternative, c\'est un gagnant sans rien et sans trace qu\'on lui ait jamais promis quoi que ce soit.',
+        'La solution est donc l\'ordinaire : faire rentrer des po, puis payer. Ce qu\'il ne faut pas faire, c\'est modifier la grille en douce après coup ; le livre de comptes dit déjà ce qui avait été annoncé, et les voir se contredire est pire que d\'être à court.',
+      ],
+      note: {
+        tag: 'Anvil n\'envoie rien',
+        body: 'Chaque prix se termine par un humain qui remet des po en jeu et coche une ligne. Le rôle du livre de comptes est de garantir que cette ligne existe, qu\'elle dit qui et combien, et que personne n\'ait à la reconstituer une semaine plus tard depuis l\'historique Discord.',
+      },
+    },
+  },
   moderator: {
     metaTitle: 'De permanence — guide du modérateur Anvil',
     metaDescription:

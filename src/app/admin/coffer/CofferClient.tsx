@@ -7,6 +7,7 @@ import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
 import { formatGp, parseGpInput } from '@/lib/adminEventsFormat';
 import { splitEvenly } from '@/lib/splitGp';
+import GuideLink from '@/components/GuideLink';
 import type { CofferBalance } from '@/lib/cofferMath';
 import type { CofferLedgerRow } from '@/lib/coffer';
 
@@ -114,10 +115,29 @@ export default function CofferClient({
 
   const pendingDonations = entries.filter((e) => e.kind === 'donation' && e.status === 'pending');
   // Pools belong in this queue too: gp set aside for a board is money a treasurer still has to send,
-  // and leaving it out would mean the one movement nobody is ever prompted to complete.
+  // and leaving it out would mean the one movement nobody is ever prompted to complete. A planned
+  // pool is here as well — it is unpaid money owed to a board, whether or not it is held.
   const owedPrizes = entries.filter(
-    (e) => (e.kind === 'award' || e.kind === 'pool') && e.status === 'reserved',
+    (e) => (e.kind === 'award' || e.kind === 'pool') && (e.status === 'reserved' || e.status === 'planned'),
   );
+
+  /**
+   * Where the gp went, and what is still promised.
+   *
+   * The full ledger below answers "what happened" and is mostly donations; this answers the question
+   * a treasurer is actually asked in Discord — what has this clan promised, and what has it paid.
+   * Prizes and pools are the site's own movements; a negative adjustment is the same thing done by
+   * hand, so both belong here or the log quietly under-reports what left.
+   */
+  const moneyOut = entries.filter(
+    (e) => e.kind === 'award' || e.kind === 'pool' || (e.kind === 'adjustment' && e.amount < 0),
+  );
+  const stillOwed = moneyOut
+    .filter((e) => e.status === 'reserved' || e.status === 'planned' || e.status === 'unfunded')
+    .reduce((sum, e) => sum + Math.abs(e.amount), 0);
+  const paidOut = moneyOut
+    .filter((e) => e.status === 'paid' || e.kind === 'adjustment')
+    .reduce((sum, e) => sum + Math.abs(e.amount), 0);
 
   async function act(entryId: number, action: 'approve' | 'reject' | 'pay' | 'cancel') {
     setBusy(entryId);
@@ -168,6 +188,7 @@ export default function CofferClient({
       <h1 className="text-2xl font-bold mb-1 flex items-center gap-2">
         <span className="w-1 h-6 bg-gold rounded-full" />
         Coffer
+        <GuideLink href="/guide/coffer">How the coffer works</GuideLink>
       </h1>
       <p className="text-sm text-text-muted mb-5">
         The pot mission prizes are paid from. Members report what they hand in; nothing counts until
@@ -424,6 +445,37 @@ export default function CofferClient({
         </div>
       </Section>
 
+      <Section title="Holds and payouts" count={moneyOut.length}>
+        <div className="px-3 py-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] text-text-muted border-b border-card-border/60">
+          <span>
+            <span className="text-gold font-semibold">{formatGp(stillOwed)}</span> still owed
+          </span>
+          <span>
+            <span className="text-accent-green-light font-semibold">{formatGp(paidOut)}</span> paid out
+          </span>
+          <span className="text-text-muted/70">Prizes, board pools and gp taken out by hand.</span>
+        </div>
+        {moneyOut.length === 0 ? (
+          <Empty>Nothing has gone out yet.</Empty>
+        ) : (
+          <div className="divide-y divide-card-border/60">
+            {moneyOut.map((e) => (
+              <div key={e.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-xs truncate">
+                    <span className="text-gold">{formatGp(Math.abs(e.amount))}</span>
+                    <span className="text-text-muted"> · {kindLabel(e)}</span>
+                    {(e.memberName ?? e.rsn) && <span className="text-text-muted"> · {e.memberName ?? e.rsn}</span>}
+                  </p>
+                  {e.note && <p className="text-[10px] text-text-muted truncate">{e.note}</p>}
+                </div>
+                <span className={`text-[10px] flex-shrink-0 ${statusTone(e.status)}`}>{statusLabel(e.status)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Section>
+
       <Section title="Everything that has moved" count={entries.length}>
         {entries.length === 0 ? (
           <Empty>The ledger is empty.</Empty>
@@ -463,11 +515,16 @@ function kindLabel(e: CofferLedgerRow): string {
 function statusLabel(status: string): string {
   if (status === 'unfunded') return 'not funded';
   if (status === 'reserved') return 'to send';
+  // A pool the host chose not to hold: promised to a board, but the coffer can still spend it.
+  if (status === 'planned') return 'promised, not held';
   return status;
 }
 
 function statusTone(status: string): string {
   if (status === 'pending' || status === 'reserved') return 'text-gold';
+  // Deliberately not gold: a promise the coffer is still free to spend is a weaker claim than a
+  // hold, and colouring them alike is how the two get read as the same thing.
+  if (status === 'planned') return 'text-blue-300/80';
   if (status === 'rejected' || status === 'cancelled') return 'text-text-muted/60 line-through';
   if (status === 'unfunded') return 'text-amber-300';
   return 'text-text-muted';

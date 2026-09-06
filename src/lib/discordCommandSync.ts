@@ -10,13 +10,14 @@
 // exactly what exists), which makes it idempotent and safe to re-run on every boot and every time a
 // clan connects a bot — no diffing, no drift, and a failed attempt heals itself next time.
 //
-// WHO RUNS IT. The one multi-clan deployment IS the registrar now — Anvil.Admin is retired. It holds
-// the shared bot token (ANVIL_SHARED_BOT_TOKEN) and registers that application's commands GLOBALLY:
-// one set that every server the bot is in receives, including clans that onboard next month. That is
-// syncGlobalCommands, run on boot and by the daily cron (both idempotent full-set PUTs, so a deploy
-// that changed the tree lands on the next of either). A BYO or self-hosted clan has its OWN
-// application and registers against it (syncClanCommands, below) — guild-scoped so a connect shows
-// up immediately, and NEVER globally, or Discord lists every command twice.
+// WHO RUNS IT. The one multi-clan deployment IS the registrar now — Anvil.Admin is retired. There is
+// a single function, syncClanCommands: it registers whatever `sharedBotToken()` resolves (the shared
+// bot on the platform, `DISCORD_BOT_TOKEN`; a self-host's own token otherwise). It goes GLOBAL when no
+// single guild is configured — which is always the case for the multi-clan platform, one set every
+// server the bot is in receives — and guild-scoped only if a self-host pins one (instant, no ~1h
+// wait). It runs on BOOT (instrumentation.ts) and again from a DAILY cron (/api/cron/discord-commands)
+// as a self-heal — both idempotent full-set PUTs, so a deploy that changed the tree, or a boot that
+// couldn't reach Discord, converges on the next of either.
 
 import { buildLocalizedCommands } from '@/lib/discordCommandDefs';
 import { sharedBotToken } from '@/lib/discord-roles';
@@ -123,43 +124,7 @@ export async function syncClanCommands(): Promise<CommandSyncResult> {
   return { ok: true, scope, count: registered.length };
 }
 
-/**
- * Register the SHARED bot's commands GLOBALLY — the whole platform's registration in one PUT.
- *
- * This is the multi-clan platform's path and the multi-clan platform's ONLY: it keys on
- * ANVIL_SHARED_BOT_TOKEN specifically, not sharedBotToken(), so a self-host (which carries
- * DISCORD_BOT_TOKEN and registers guild-scoped) can never trip this and end up with a global copy of
- * every command sitting alongside its guild copy — Discord would then show each one twice.
- *
- * Idempotent: a full-set PUT, safe to run on boot and again from the daily cron. Global registration
- * takes up to an hour to propagate, which is why it is a self-heal backstop and not the only path.
- * `not-shared` is a normal answer, not a failure — a deployment that isn't the shared platform simply
- * has nothing to do here.
- */
-export async function syncGlobalCommands(): Promise<CommandSyncResult> {
-  const token = process.env.ANVIL_SHARED_BOT_TOKEN?.trim();
-  if (!token) return { ok: false, reason: 'not-shared' };
-
-  const appRes = await fetch(`${API}/applications/@me`, {
-    headers: { Authorization: `Bot ${token}` },
-    signal: AbortSignal.timeout(10_000),
-  }).catch(() => null);
-  if (!appRes?.ok) return { ok: false, scope: 'global', reason: `app-lookup-${appRes?.status ?? 'unreachable'}` };
-  const app = (await appRes.json().catch(() => null)) as { id?: string } | null;
-  if (!app?.id) return { ok: false, scope: 'global', reason: 'app-lookup-malformed' };
-
-  const res = await put(token, `/applications/${app.id}/commands`, await buildLocalizedCommands());
-  if (!res?.ok) {
-    const detail = res ? `${res.status}: ${await res.text().catch(() => '')}`.slice(0, 300) : 'unreachable';
-    log.warn('discord-commands.global-sync-failed', { detail });
-    return { ok: false, scope: 'global', reason: detail };
-  }
-  const registered = (await res.json().catch(() => [])) as unknown[];
-  log.info('discord-commands.global-synced', { count: registered.length });
-  return { ok: true, scope: 'global', count: registered.length };
-}
-
-/** Fire-and-forget wrapper for the side paths (settings save, boot). Never throws, never blocks. */
+/** Fire-and-forget wrapper for the side paths (settings save, boot, cron). Never throws, never blocks. */
 export function syncClanCommandsInBackground(trigger: string): void {
   void syncClanCommands()
     .then((r) => {
@@ -168,15 +133,4 @@ export function syncClanCommandsInBackground(trigger: string): void {
       }
     })
     .catch((e) => log.warn('discord-commands.sync-threw', { trigger, error: (e as Error).message }));
-}
-
-/** Fire-and-forget global sync for the shared platform's boot hook. Never throws, never blocks. */
-export function syncGlobalCommandsInBackground(trigger: string): void {
-  void syncGlobalCommands()
-    .then((r) => {
-      if (!r.ok && r.reason !== 'not-shared') {
-        log.warn('discord-commands.global-sync-skipped', { trigger, reason: r.reason });
-      }
-    })
-    .catch((e) => log.warn('discord-commands.global-sync-threw', { trigger, error: (e as Error).message }));
 }

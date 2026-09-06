@@ -49,6 +49,11 @@ export const SEARCH_TERMS: Record<Exclude<GuidePage, ''>, string[]> = {
     'fee', 'fees', 'pay', 'payment', 'payout', 'payouts', 'prize', 'prizes', 'gp', 'money', 'buy-in',
     'buyin', 'entry', 'treasurer', 'coffer', 'pot', 'split',
   ],
+  coffer: [
+    'coffer', 'pot', 'bank', 'donation', 'donations', 'donate', 'donor', 'donors', 'gp', 'money',
+    'prize', 'prizes', 'prize pool', 'reward', 'rewards', 'ladder', 'split', 'tie', 'top donors',
+    'balance', 'owed', 'unfunded', 'treasurer', 'adjustment', 'sotw prize', 'botw prize',
+  ],
   moderator: [
     'moderator', 'mod', 'mods', 'staff', 'proof', 'proofs', 'approve', 'approval', 'reject',
     'screenshot', 'review', 'queue', 'rota', 'evidence', 'dispute',

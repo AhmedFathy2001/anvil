@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 import { formatGp } from '@/lib/adminEventsFormat';
 import WeeklyPrizeLadder from '@/components/WeeklyPrizeLadder';
+import GuideLink from '@/components/GuideLink';
 import type { WeeklyPrizes } from '@/lib/weeklyPrizes';
 
 /**
@@ -68,7 +69,10 @@ export default function WeeklyPrizeEditor({
           <span className="w-1 h-5 bg-gold rounded-full" />
           Prizes
         </h2>
-        <span className="text-xs text-text-muted">{formatGp(cofferAvailable)} gp available in the coffer</span>
+        <div className="flex items-center gap-3">
+          <GuideLink href="/guide/coffer#out">How prizes work</GuideLink>
+          <span className="text-xs text-text-muted">{formatGp(cofferAvailable)} gp available in the coffer</span>
+        </div>
       </div>
       <p className="text-xs text-text-muted mb-4">
         Paid out of the clan coffer when the competition ends. Reserved automatically off the final

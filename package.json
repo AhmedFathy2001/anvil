@@ -61,6 +61,7 @@
     "test:admin": "node --experimental-strip-types --test tests/admin-attention.test.ts tests/library-shape.test.ts tests/db-time.test.ts",
     "test:tenantenv": "npx tsx --test tests/tenant-env-isolation.test.ts",
     "test:guidesearch": "npx tsx --test tests/guide-search.test.ts",
+    "test:guidei18n": "npx tsx --test tests/guide-i18n.test.ts",
     "test:clogkc": "npx tsx --test tests/clog-killcounts.test.ts",
     "test:sweepdedupe": "npx tsx --test tests/sweep-dedupe.test.ts",
     "test:weeklyprizes": "npx tsx --test tests/weekly-prizes.test.ts",
@@ -123,6 +124,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
+    "tsx": "^4.23.13",
     "typescript": "^5"
   }
 }
