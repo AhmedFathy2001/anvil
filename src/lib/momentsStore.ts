@@ -73,13 +73,28 @@ export async function activeScopesFor(clanMemberId: number, clanId: number, now:
     .select({
       eventId: eventParticipants.eventId,
       teamId: eventParticipants.teamId,
+      startDate: events.startDate,
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
     })
     .from(eventParticipants)
     .innerJoin(events, eq(eventParticipants.eventId, events.id))
     .where(eq(eventParticipants.clanMemberId, clanMemberId));
-  const active = playerRows.find((p) => p.teamId && !p.forceEndedAt && (!p.endDate || p.endDate > nowIso));
+  // STARTED, not merely un-ended. This asked only whether the end date had passed, so a board six
+  // weeks out — drafted, teams picked, nothing begun — matched every time and quietly took every
+  // moment its players made: deaths, drops and clog slots all filed under an event that had not
+  // happened yet, and taken away from the competition running that week.
+  //
+  // A null start is treated as started. That is the same reading the rest of the app takes of it —
+  // an event with no date set is a board somebody is running right now, not one scheduled for
+  // never.
+  const active = playerRows.find(
+    (p) =>
+      p.teamId &&
+      !p.forceEndedAt &&
+      (!p.startDate || p.startDate <= nowIso) &&
+      (!p.endDate || p.endDate > nowIso),
+  );
 
   // The team comes from the same row that decided the event is theirs, so the stamp and the scope
   // can never disagree about which side they were on.

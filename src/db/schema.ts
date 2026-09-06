@@ -1063,6 +1063,20 @@ export const weeklyCompetitions = pgTable('weekly_competitions', {
   // old clan-wide `weekly_track_guests` setting, which now only seeds the create form's default;
   // competitions that predate this column were backfilled from it (migration 0043).
   includeGuests: integer('include_guests').notNull().default(1),
+  /**
+   * Coffer prizes for the top finishers, as JSON — see lib/weeklyPrizes.
+   *
+   * The same ladder shape a mission uses, because it is the same question asked of a different
+   * scoreboard: what does first get, what does second get, and what happens when the pot cannot
+   * pay. Null on the competitions that are played for the bragging rights, which is most of them.
+   */
+  prizes: text('prizes'),
+  /**
+   * Set once, when the prizes for this competition have been reserved against the coffer. The
+   * settle pass runs on every tick over every finished competition, and a second pass must not mint
+   * a second set of awards — this is the flag that makes it idempotent.
+   */
+  prizesSettledAt: text('prizes_settled_at'),
 });
 
 export const weeklyParticipants = pgTable('weekly_participants', {
@@ -2360,6 +2374,12 @@ export const cofferEntries = pgTable('coffer_entries', {
   eventId: integer('event_id').references(() => events.id, { onDelete: 'set null' }),
   tileId: integer('tile_id').references(() => tiles.id, { onDelete: 'set null' }),
   completionId: integer('completion_id').references(() => completions.id, { onDelete: 'cascade' }),
+  /**
+   * The OTHER thing an award can be for: finishing top of a Skill or Boss of the Week. A mission
+   * award is keyed by the completion that claimed it; a weekly has no completion, so the pair
+   * (competition, place) is what must be unique instead — see the index below.
+   */
+  weeklyCompetitionId: integer('weekly_competition_id').references(() => weeklyCompetitions.id, { onDelete: 'set null' }),
   place: integer('place'),
   // Storage URL of a proof screenshot (donation evidence, or the treasurer's payment shot).
   proofBlobUrl: text('proof_blob_url'),
@@ -2372,5 +2392,10 @@ export const cofferEntries = pgTable('coffer_entries', {
   // One award per completion. Partial so the many null completionIds (donations, adjustments) don't
   // collide — NULLs are distinct in a unique index anyway, but the predicate says why.
   uniqueIndex('coffer_entries_completion_unique').on(t.completionId).where(sql`${t.completionId} IS NOT NULL`),
+  // One award per (competition, place). A weekly prize has no completion to key on, and the settle
+  // pass is allowed to run twice — this is what makes the second run a no-op rather than a payout.
+  uniqueIndex('coffer_entries_weekly_place_unique')
+    .on(t.weeklyCompetitionId, t.place)
+    .where(sql`${t.weeklyCompetitionId} IS NOT NULL`),
 ]);
 export type CofferEntry = typeof cofferEntries.$inferSelect;

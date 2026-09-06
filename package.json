@@ -62,6 +62,7 @@
     "test:guidesearch": "npx tsx --test tests/guide-search.test.ts",
     "test:clogkc": "npx tsx --test tests/clog-killcounts.test.ts",
     "test:sweepdedupe": "npx tsx --test tests/sweep-dedupe.test.ts",
+    "test:weeklyprizes": "npx tsx --test tests/weekly-prizes.test.ts",
     "test:invites": "node --experimental-strip-types --test tests/team-invites.test.ts",
     "test:fees": "node --experimental-strip-types --test tests/fee-rules.test.ts",
     "test:cap": "node --experimental-strip-types --test tests/member-cap.test.ts",

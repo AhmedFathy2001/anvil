@@ -41,7 +41,9 @@ const FEED: MomentRow[] = [
 
 test('counts every kind, and the people in it', () => {
   const s = summariseMoments(FEED);
-  assert.deepEqual(s.counts, { pet: 1, unique: 2, death: 4, loot: 1, ca: 2, total: 10 });
+  // `level` is here at 0 because summariseMoments reports every kind it knows, present or not — a
+  // feed with no 99s in it still says so. The expectation predates that kind existing.
+  assert.deepEqual(s.counts, { pet: 1, unique: 2, death: 4, loot: 1, ca: 2, level: 0, total: 10 });
   assert.equal(s.members.length, 3);
   // Sorted by how much of the feed each person is.
   assert.equal(s.members[0].rsn, 'Bob');

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { settleWeeklyPrizes } from '@/lib/weeklyPrizeSettle';
 import { updateAccountOfSeat } from '@/lib/roster';
 import { db } from '@/db';
 import { clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
@@ -95,6 +96,7 @@ export async function GET(request: Request) {
         await announceWeeklyStart(comp);
       } else {
         await announceWeeklyResults(comp);
+        await settleWeeklyPrizes(comp.id);
       }
     } else if (comp.status === 'active' && comp.endDate <= now) {
       await db.update(weeklyCompetitions)
@@ -102,6 +104,18 @@ export async function GET(request: Request) {
         .where(eq(weeklyCompetitions.id, comp.id));
       comp.status = 'completed';
       await announceWeeklyResults(comp);
+      // After the results post, so the reserved prize is a consequence of a standing everybody has
+      // already been shown rather than a number that appears first and is explained later.
+      await settleWeeklyPrizes(comp.id);
+    }
+  }
+
+  // Anything that finished while nobody was settling — a competition completed before prizes
+  // existed, or a tick that died between the status flip and the payout. Cheap: the stamp means
+  // each one is looked at once, ever.
+  for (const comp of allComps) {
+    if (comp.status === 'completed' && !comp.prizesSettledAt) {
+      await settleWeeklyPrizes(comp.id);
     }
   }
 

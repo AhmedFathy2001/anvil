@@ -37,6 +37,13 @@ const WEEKLY_WEBHOOK_KEY = 'discord_webhook_weekly';
 // Dedicated sign-up channel — posts when an admin approves a sign-up, nudging the member to pay
 // their entry fee. No fallback: stays silent until a dedicated webhook is set.
 const SIGNUP_WEBHOOK_KEY = 'discord_webhook_signups';
+/**
+ * The coffer ledger's own channel. DELIBERATELY WITHOUT A FALLBACK, unlike every key above it: the
+ * others are clan news and a general channel is a fine home for them, while this is a running
+ * commentary on the clan's money. A clan that has not asked for that gets silence, not its
+ * announcements channel filling with who donated what.
+ */
+const COFFER_WEBHOOK_KEY = 'discord_webhook_coffer';
 
 // Wraps the shared reader because a notify must never throw on a database hiccup — the post is
 // best-effort, and losing it is better than failing whatever triggered it.
@@ -212,6 +219,16 @@ export async function sendBingoWebhook(clanId: number, payload: DiscordWebhookPa
 // Weekly-competition channel; falls back to the master webhook when no dedicated one is set.
 export async function sendWeeklyWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
   const webhookUrl = await resolveWebhookUrl(clanId, WEEKLY_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
+  if (!webhookUrl) return false;
+  return sendToWebhook(webhookUrl, payload);
+}
+
+/**
+ * The coffer channel, and only it — see COFFER_WEBHOOK_KEY for why there is no fallback. Returns
+ * false when unconfigured, which every caller treats as "fine, nobody asked for this".
+ */
+export async function sendCofferWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
+  const webhookUrl = await resolveWebhookUrl(clanId, COFFER_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload);
 }

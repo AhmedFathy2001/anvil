@@ -14,6 +14,9 @@ const EXPOSED_KEYS = [
   'discord_webhook_bingo',
   'discord_webhook_weekly',
   'discord_webhook_signups',
+  // The coffer ledger's own channel. Opt-in with no fallback: a clan that has not asked for a
+  // running commentary on its money should not get one in its announcements channel.
+  'discord_webhook_coffer',
   // Display name (site, plugin, Discord posts) vs the exact in-game clan
   // name the roster sync must report. Independent on purpose — see lib/pluginConfig.ts.
   'clan_name',

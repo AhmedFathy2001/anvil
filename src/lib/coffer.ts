@@ -2,6 +2,21 @@ import { db } from '@/db';
 import { cofferEntries, clanRoster, type CofferEntry } from '@/db/schema';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { foldBalance, type CofferBalance } from '@/lib/cofferMath';
+import { announceCofferMovement } from '@/lib/cofferFeed';
+
+/**
+ * Tell the coffer channel, without making the ledger wait for Discord.
+ *
+ * Deliberately not awaited by its callers: the row is already written and committed, and a slow or
+ * dead webhook must not hold up the request that filed a donation. `announceCofferMovement` never
+ * throws, so there is nothing here for an unhandled rejection to catch.
+ */
+function announce(clanId: number, row: CofferEntry | null | undefined): void {
+  if (!row) return;
+  void getCofferBalance(clanId)
+    .then((b) => announceCofferMovement(clanId, row, b.available))
+    .catch(() => {});
+}
 
 // The clan coffer's database side. The arithmetic — what counts as money and what a balance MEANS —
 // lives in lib/cofferMath so a page can render a balance without importing the database.
@@ -56,6 +71,7 @@ export async function fileDonation(args: {
       note: args.note ?? null,
     })
     .returning();
+  announce(args.clanId, row);
   return row;
 }
 
@@ -85,6 +101,7 @@ export async function settleDonation(args: {
       ),
     )
     .returning();
+  announce(args.clanId, row);
   return row ?? null;
 }
 
@@ -108,6 +125,7 @@ export async function recordAdjustment(args: {
       note: args.note ?? null,
     })
     .returning();
+  announce(args.clanId, row);
   return row;
 }
 
@@ -159,6 +177,7 @@ export async function reserveAward(args: {
         note: args.note ?? null,
       })
       .returning();
+    announce(args.clanId, row);
     return row;
   } catch {
     // Lost the unique-index race: somebody else's insert for this completion won. Theirs stands.
@@ -172,6 +191,69 @@ export async function reserveAward(args: {
  * the funding decision belongs to the moment the mission was claimed, and a donation that arrives an
  * hour later does not retroactively change what somebody won. Same idempotency key as a real award.
  */
+/**
+ * Reserve a Skill/Boss of the Week prize against the coffer.
+ *
+ * Same movement as a mission award — gp leaves as `reserved` and a treasurer sends it — but keyed
+ * on (competition, place) because a weekly has no completion row to be idempotent against. The
+ * unique index is what actually enforces that; the pre-check just avoids the noisy insert.
+ *
+ * A place the pot cannot cover is still written, as `unfunded` — see below. Null means only that
+ * the amount was nothing, or that another pass already owns this place.
+ */
+export async function reserveWeeklyAward(args: {
+  clanId: number;
+  amount: number;
+  weeklyCompetitionId: number;
+  place: number;
+  clanMemberId: number | null;
+  rsn: string | null;
+  note?: string | null;
+}): Promise<CofferEntry | null> {
+  const amount = Math.max(0, Math.floor(args.amount));
+  if (amount <= 0) return null;
+  const existing = await db.query.cofferEntries.findFirst({
+    where: and(
+      eq(cofferEntries.weeklyCompetitionId, args.weeklyCompetitionId),
+      eq(cofferEntries.place, args.place),
+    ),
+  });
+  if (existing) return existing.status === 'cancelled' ? null : existing;
+  // Short pot: the row is still written, as `unfunded`. A clan that promised gp and could not pay
+  // should carry that on its ledger — dropping the row instead would leave the winner with nothing
+  // and no record that anything was ever owed.
+  const balance = await getCofferBalance(args.clanId);
+  const funded = balance.available >= amount;
+  try {
+    const [row] = await db
+      .insert(cofferEntries)
+      .values({
+        clanId: args.clanId,
+        kind: 'award',
+        amount: -amount,
+        status: funded ? 'reserved' : 'unfunded',
+        weeklyCompetitionId: args.weeklyCompetitionId,
+        place: args.place,
+        clanMemberId: args.clanMemberId,
+        rsn: args.rsn,
+        note: args.note ?? null,
+      })
+      .returning();
+    announce(args.clanId, row);
+    return row;
+  } catch {
+    // Lost the unique-index race with a concurrent settle pass. Theirs stands.
+    return (
+      (await db.query.cofferEntries.findFirst({
+        where: and(
+          eq(cofferEntries.weeklyCompetitionId, args.weeklyCompetitionId),
+          eq(cofferEntries.place, args.place),
+        ),
+      })) ?? null
+    );
+  }
+}
+
 export async function recordUnfundedAward(args: {
   clanId: number;
   amount: number;
@@ -201,6 +283,7 @@ export async function recordUnfundedAward(args: {
         note: 'Coffer was empty when this was claimed',
       })
       .returning();
+    announce(args.clanId, row);
     return row;
   } catch {
     return findAwardForCompletion(args.completionId);
@@ -238,6 +321,7 @@ export async function settleAward(args: {
       ),
     )
     .returning();
+  announce(args.clanId, row);
   return row ?? null;
 }
 
