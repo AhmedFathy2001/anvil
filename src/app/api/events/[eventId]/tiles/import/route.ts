@@ -8,6 +8,7 @@ import { logTileAudit } from '@/lib/tile-audit';
 import { getItemMapping, type MappingItem } from '@/lib/osrsItems';
 import { parseTileWorkbook } from '@/lib/tileSpreadsheet';
 import { assertEventEditable } from '@/lib/eventLock';
+import { serializeTileMissionRules, type MissionRules } from '@/lib/eventRules';
 import { collectionDisplayTotal } from '@/lib/collectionSets';
 
 // Bulk tile import — maps CSV/JSON rows onto an event's tiles by position (row order).
@@ -57,6 +58,9 @@ interface ImportRow {
   /** Kill tiles: 'per-kill' collapses a kill several members were in; min gates on how many. */
   coopCredit?: string | null;
   coopMinMembers?: number | null;
+  /** Hidden until announced mid-event, with its own placement ladder (lib/eventRules MissionRules). */
+  mission?: boolean;
+  missionRules?: MissionRules | null;
 }
 
 // Drop fields derived from a row's resolved `items` list — built before the transaction so the
@@ -333,6 +337,13 @@ function tileFieldsFromRow(row: ImportRow, allowPreStart: boolean, derived: Deri
   if (row.revealAt !== undefined) {
     s.revealAt = row.revealAt ? new Date(row.revealAt).toISOString() : null;
   }
+  // Mission flag and its ladder — always editable, for the same reason the reveal time is: a month
+  // of daily missions is re-uploaded, not clicked through, and a prize that cannot be corrected
+  // mid-month by the sheet that set it is a prize the host has to fix twenty times by hand.
+  // Unflagging drops the rules with it, exactly as the single-tile route does.
+  if (row.mission !== undefined) s.mission = row.mission ? 1 : 0;
+  if (row.mission === false) s.rules = null;
+  else if (row.missionRules !== undefined) s.rules = serializeTileMissionRules(row.missionRules);
   if (allowPreStart) {
     if (row.label !== undefined && row.label) s.label = String(row.label).slice(0, 200);
     if (row.tileType !== undefined) s.tileType = row.tileType || 'standard';

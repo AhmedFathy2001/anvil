@@ -16,6 +16,8 @@ import { lapUnitNoun } from '@/lib/constants';
 import { isIndividualMode } from '@/lib/statTracking';
 import { evaluateCollection, groupModeHint } from '@/lib/collectionSets';
 import { submissionHasProof } from '@/lib/submissionProof';
+import { parseTileMissionRules, missionPrizeSummary, placeLabel } from '@/lib/eventRules';
+import { formatGp } from '@/lib/adminEventsFormat';
 import ProofGallery, { type ProofShot } from './ProofGallery';
 import { isManualOnlyDropTile } from '@/lib/clogManual';
 import { useModalA11y } from '@/hooks/useModalA11y';
@@ -183,6 +185,13 @@ export default function TileDetailModal({
   const isLap = tile.tileType === 'lap';
   const isPvp = tile.tileType === 'pvp';
   const isTimed = tile.tileType === 'timed';
+  // A mission's gp prizes, read off the tile's own rules. Empty for every normal tile, and for a
+  // mission that pays in points alone.
+  const missionRules = parseTileMissionRules(tile.rules);
+  const missionPrizes = missionPrizeSummary(missionRules);
+  // A mission that dropped on a boosted day carries the multiplier with it, so the badge is the
+  // truth about this tile rather than a statement about what day it is now.
+  const missionBoost = missionRules.multiplier !== 1 ? missionRules.multiplier : null;
   const isDiary = tile.tileType === 'diary';
   const isCa = tile.tileType === 'ca';
   const isGain = tile.tileType === 'gain';
@@ -547,6 +556,22 @@ export default function TileDetailModal({
                     {tile.points ?? 1} pt{(tile.points ?? 1) !== 1 ? 's' : ''}
                   </span>
                 )}
+                {missionBoost && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-gold/20 text-gold font-medium">
+                    {missionBoost}x points
+                  </span>
+                )}
+                {/* What a mission actually pays. Sits next to the points badge because it is the
+                    same question — what is this worth — answered in the other currency. */}
+                {missionPrizes.map((p) => (
+                  <span
+                    key={p.place}
+                    className="text-xs px-2 py-0.5 rounded-full bg-gold/20 text-gold font-medium"
+                    title={`${placeLabel(p.place)} to finish wins ${formatGp(p.gp)} gp from the clan coffer`}
+                  >
+                    {placeLabel(p.place)}: {formatGp(p.gp)}
+                  </span>
+                ))}
                 {isCompleted && (
                   <span className="text-xs px-2 py-0.5 rounded-full bg-accent-green/20 text-accent-green-light font-medium">
                     Completed

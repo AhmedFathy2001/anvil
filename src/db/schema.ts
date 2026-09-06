@@ -2297,3 +2297,80 @@ export const forgePlayerEvents = pgTable(
   (t) => [index('forge_player_events_unconsumed_idx').on(t.id).where(sql`${t.consumedAt} IS NULL`)],
 );
 export type ForgePlayerEvent = typeof forgePlayerEvents.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// The clan coffer — one gp ledger per clan
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+//
+// Clans fund their own events out of a pot: members donate gp in game, staff confirm it, and the
+// balance pays out mission prizes (lib/missionAwards) as they are claimed. Every movement is a row
+// here — there is no `clans.balance` column, because a cached total is a number that can disagree
+// with its own history, and the history is the thing people argue about.
+//
+// ONE table for four movements, told apart by `kind`:
+//   'donation'   — a member says they handed gp in. POSITIVE, and it counts for NOTHING until staff
+//                  approve it: an unapproved donation is a claim, not money.
+//   'adjustment' — staff correcting reality (seed the pot, write off gp spent outside Anvil, fix a
+//                  typo). Signed either way, counts the moment it is written.
+//   'award'      — a mission prize owed to a player. NEGATIVE, written the moment the prize is
+//                  claimed ('reserved'), so the same gp cannot be promised to two winners while a
+//                  treasurer is still sending the first one. Becomes 'paid' when they send it, or
+//                  'cancelled' if the claim is undone — and only then stops holding the money.
+//   'refund'     — gp coming back (a cancelled payout that was already sent). POSITIVE.
+//
+// `amount` is SIGNED and in gp, so the balance is one SUM over the rows that count (lib/coffer
+// `settledAmount`). It is a bigint because a clan coffer outgrows int4 — 2.1b gp is a normal number
+// in this game, and the overall-xp overflow already taught us that lesson once.
+export type CofferKind = 'donation' | 'adjustment' | 'award' | 'refund';
+// 'unfunded' is an award that was never reserved because the pot was dry when the prize was claimed.
+// It holds no money and never will — it is kept so the ledger can say WHY somebody won a mission and
+// took points instead of gp, which is the first question they ask.
+export type CofferStatus =
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'reserved'
+  | 'paid'
+  | 'cancelled'
+  | 'unfunded';
+export const cofferEntries = pgTable('coffer_entries', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  // See CofferKind. Text, not an enum, so a new movement kind is a code change not a migration.
+  kind: text('kind').notNull(),
+  // Signed gp. Donations/refunds positive, awards negative, adjustments either way.
+  amount: bigint('amount', { mode: 'number' }).notNull(),
+  // See CofferStatus. Which values are legal depends on the kind (donations sit pending → approved
+  // or rejected; awards reserved → paid / cancelled / unfunded; adjustments and refunds land approved).
+  status: text('status').notNull().default('pending'),
+  // WHO. The member the movement is about — the donor, or the winner owed a prize. Null for a
+  // clan-level adjustment that is nobody's in particular. `rsn` is captured at write time so a
+  // deleted membership still reads as a name rather than a gap.
+  clanMemberId: integer('clan_member_id').references(() => clanMemberships.id, { onDelete: 'set null' }),
+  rsn: text('rsn'),
+  // The signed-in person who filed it (a donor reporting their own gift, or the staffer adjusting).
+  createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  // Who moved it out of 'pending'/'reserved' — the approver of a donation, or the treasurer who
+  // actually sent a prize. Both live here because both answer the same question: who signed this off.
+  settledByUserId: integer('settled_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  settledAt: text('settled_at'),
+  // Award rows only: which mission was claimed, by which completion, in which place. `completionId`
+  // is the idempotency key — the settle pass runs every minute over the same open missions, and one
+  // completion may only ever mint one award (unique index below).
+  eventId: integer('event_id').references(() => events.id, { onDelete: 'set null' }),
+  tileId: integer('tile_id').references(() => tiles.id, { onDelete: 'set null' }),
+  completionId: integer('completion_id').references(() => completions.id, { onDelete: 'cascade' }),
+  place: integer('place'),
+  // Storage URL of a proof screenshot (donation evidence, or the treasurer's payment shot).
+  proofBlobUrl: text('proof_blob_url'),
+  note: text('note'),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (t) => [
+  index('coffer_entries_clan_idx').on(t.clanId),
+  index('coffer_entries_clan_status_idx').on(t.clanId, t.status),
+  index('coffer_entries_member_idx').on(t.clanMemberId),
+  // One award per completion. Partial so the many null completionIds (donations, adjustments) don't
+  // collide — NULLs are distinct in a unique index anyway, but the predicate says why.
+  uniqueIndex('coffer_entries_completion_unique').on(t.completionId).where(sql`${t.completionId} IS NOT NULL`),
+]);
+export type CofferEntry = typeof cofferEntries.$inferSelect;

@@ -100,6 +100,8 @@ interface Props {
   teamPlay?: boolean;
   /** Missions are enabled for this event and meaningful on this format (see the tiles page). */
   missionsAllowed?: boolean;
+  /** Coffer gp available for mission prizes, or null where the board pays none. */
+  cofferAvailable?: number | null;
   // Finished event, not unlocked (lib/eventLock): the API refuses tile mutations, so the whole
   // authoring surface renders disabled.
   editLocked?: boolean;
@@ -121,7 +123,7 @@ function useHasRoomForInspector(): boolean {
   return wide;
 }
 
-export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BANDS, isAdmin = false, editLocked = false, teamPlay = true, missionsAllowed = true }: Props) {
+export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BANDS, isAdmin = false, editLocked = false, teamPlay = true, missionsAllowed = true, cofferAvailable = null }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   // The board itself, so the header's Quick build shortcut can jump straight to it.
@@ -900,6 +902,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     categorySuggestions={categories}
     teamPlay={teamPlay}
     missionsAllowed={missionsAllowed}
+    cofferAvailable={cofferAvailable}
     canDelete={canEditTileSet}
     revealEditor={
       revealMode ? (
@@ -1327,6 +1330,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                     categorySuggestions={categories}
                     teamPlay={teamPlay}
                     missionsAllowed={missionsAllowed}
+                    cofferAvailable={cofferAvailable}
                   />
                 </div>
               ) : editingLoading ? (
@@ -2050,13 +2054,15 @@ interface DrawerProps {
   teamPlay?: boolean;
   /** Missions are enabled for this event and meaningful on this format. */
   missionsAllowed?: boolean;
+  /** Coffer gp available for mission prizes, or null where the board pays none. */
+  cofferAvailable?: number | null;
   /** Reveal-policy events: the reveal status/schedule panel rendered above the tracking config. */
   revealEditor?: React.ReactNode;
   /** What one entry on this board is called — a ladder's are tasks (lib/tileAuthoring). */
   noun?: string;
 }
 
-function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions, teamPlay, missionsAllowed, revealEditor }: DrawerProps) {
+function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions, teamPlay, missionsAllowed, cofferAvailable, revealEditor }: DrawerProps) {
   // Docked, this is a column in the page, not a dialog over it — so it must not take the page's
   // scroll or swallow Tab. Undocked it really is a drawer, and stays one.
   const ref = useModalA11y<HTMLDivElement>({ onClose, modal: !docked });
@@ -2126,6 +2132,7 @@ function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventS
             categorySuggestions={categorySuggestions}
             teamPlay={teamPlay}
             missionsAllowed={missionsAllowed}
+            cofferAvailable={cofferAvailable}
           />
 
           {canDelete && onDelete && (

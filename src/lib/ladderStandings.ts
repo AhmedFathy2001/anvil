@@ -9,14 +9,11 @@ import {
 import { loadPlayerOwners } from '@/lib/draftProfiles';
 import { getStatStandings } from '@/lib/statStandings';
 import { parseContributionSnapshot } from '@/lib/statTracking';
+import { monthWindowUtc } from '@/lib/monthWindow';
 
-// The current UTC calendar month as an [start, end) ISO window. Completions store completedAt as
-// ISO UTC text, so a plain string comparison buckets them by month.
-export function monthWindowUtc(now: Date = new Date()): { start: string; end: string } {
-  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
-  return { start: start.toISOString(), end: end.toISOString() };
-}
+// The month window moved to lib/monthWindow (no database, so a test and a client can read it);
+// re-exported here because every caller already knows this address.
+export { monthWindowUtc } from '@/lib/monthWindow';
 
 export interface LadderBoards {
   allTime: IndividualStanding[];
@@ -35,11 +32,19 @@ export interface LadderBoards {
  * Mirrors the inputs the web event page assembles for computeIndividualStandings
  * (src/app/events/[eventId]/page.tsx).
  */
-export async function getLadderBoards(event: {
-  id: number;
-  scoringMode: string | null;
-  accountSlotMode: string | null;
-}): Promise<LadderBoards> {
+export async function getLadderBoards(
+  event: {
+    id: number;
+    scoringMode: string | null;
+    accountSlotMode: string | null;
+  },
+  /**
+   * Which month the `monthly` board covers. Defaults to the one in progress; the month-end pass
+   * (lib/monthlyChampion) asks for the one that just closed, which is the same computation over a
+   * different window rather than a second way of scoring.
+   */
+  window?: { start: string; end: string },
+): Promise<LadderBoards> {
   const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, event.id));
   const eventTeams = await db.select().from(teams).where(eq(teams.eventId, event.id));
   const eventPlayers = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, event.id));
@@ -89,7 +94,7 @@ export async function getLadderBoards(event: {
     accountSlotMode: event.accountSlotMode,
   };
 
-  const { start, end } = monthWindowUtc();
+  const { start, end } = window ?? monthWindowUtc();
   return {
     ownerByPlayerId,
     perPerson,

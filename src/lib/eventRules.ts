@@ -1,3 +1,7 @@
+// The daily-schedule maths lives in lib/missionSchedule; the import is one-way (that file takes
+// only the TYPE from here), so there is no runtime cycle.
+import { nextSlotAfter } from '@/lib/missionSchedule';
+
 // Per-event game rules — the third axis on top of (format, scoringMode). Stored as JSON in
 // `events.rules` (NULL = classic behaviour). Rules decide HOW tiles become playable (the reveal
 // policy) and how points are awarded per completion (first-team bonus, reveal decay, lockout).
@@ -36,7 +40,44 @@ export type RevealOrder = 'random' | 'sequential';
 // `rules.mission` announce policy below; each mission's SCORING (lockout/firstBonus/decay/expiry)
 // lives per-tile in `tiles.rules` (see MissionRules). Announcing a mission stamps its `revealedAt`
 // (the decay anchor); the board's normal tiles stay visible throughout.
-export type MissionAnnounceMode = 'manual' | 'interval' | 'scheduled';
+export type MissionAnnounceMode = 'manual' | 'interval' | 'scheduled' | 'daily';
+
+/**
+ * A recurring daily drop schedule — the shape of "one a day around when we play, two on weekends".
+ *
+ * Written in LOCAL wall time plus a zone, because that is what the clan means: 20:00 stays 20:00
+ * across a DST switch, and a weekend is Saturday where they live. lib/missionSchedule turns it into
+ * instants; lib/zonedTime does the conversion.
+ */
+export interface MissionDaily {
+  /** IANA zone the times are written in ('Europe/London'). Everything else here is local to it. */
+  timezone: string;
+  /** Fixed local times, 'HH:MM'. Used when `window` is null — the drop lands on the hour, sharp. */
+  times: string[];
+  /**
+   * Roll each drop somewhere inside this local range instead, so nobody can camp the exact minute.
+   * May wrap midnight (22:00 -> 02:00), which reads as running into the small hours.
+   */
+  window: { from: string; to: string } | null;
+  /** Drops per weekday, index 0 = Sunday. 0 means the schedule skips that day entirely. */
+  perDay: number[];
+  /**
+   * Value multiplier per weekday, index 0 = Sunday. 1 = normal; 2 is a double-points weekend.
+   *
+   * Stamped onto each mission as it drops (MissionRules.multiplier), so a Saturday mission is worth
+   * double whenever it is finished — the weekend is when the mission LANDED, not when you got round
+   * to it.
+   */
+  multiplier: number[];
+  /**
+   * Does the multiplier apply to the gp prize too?
+   *
+   * Off by default, and that default is the whole reason this is a separate flag: doubling points
+   * costs a clan nothing, and doubling prizes empties the coffer twice as fast. A host who wants a
+   * double-prize weekend should have to say so.
+   */
+  multiplyPrizes: boolean;
+}
 
 /**
  * One phase of a mission difficulty curve: which tiers may be drawn until `throughPct` of the event
@@ -50,6 +91,20 @@ export interface RampPhase {
   tiers: string[];
 }
 
+/**
+ * Closing out a month on a ladder that keeps running.
+ *
+ * A monthly board is a window over completedAt, not a table that gets wiped, so "the month ended"
+ * has never been an event the site noticed. This is the clan asking it to: name the winner, and hand
+ * them a role kept for exactly that.
+ */
+export interface MonthlyAwardConfig {
+  /** Post the month's winner to the clan's event channel. */
+  announce: boolean;
+  /** Discord role to move onto the winner, taking it off whoever held it. Null = no role. */
+  roleId: string | null;
+}
+
 export interface MissionConfig {
   /** manual = admin drops each; interval = every intervalMinutes; scheduled = per-tile revealAt. */
   announceMode: MissionAnnounceMode;
@@ -57,6 +112,8 @@ export interface MissionConfig {
   order: RevealOrder;
   /** 'interval' mode: minutes between mission drops. */
   intervalMinutes: number;
+  /** 'daily' mode: the recurring local-time schedule. Null in every other mode. */
+  daily: MissionDaily | null;
   /**
    * Difficulty curve over the run: each phase names the tiers eligible up to a share of the event
    * ("first third easy, middle medium and hard, last third ultra"). Empty = one pool, no phases.
@@ -156,6 +213,8 @@ export interface EventRules {
   mission: MissionConfig | null;
   /** Starting-shot policy. Null = not required (classic). Non-null = every player must upload one. */
   startProof: StartProofConfig | null;
+  /** Ladder boards: what happens when a month ends. Null = nothing, which is the historical behaviour. */
+  monthlyAward: MonthlyAwardConfig | null;
   /**
    * May a team's own captain (and its staff seats) mint invite links for it? Off by default: on a
    * normal clan event the host builds the teams, and a captain handing out seats would be filling a
@@ -174,6 +233,7 @@ export interface EventRules {
 }
 
 export const DEFAULT_EVENT_RULES: EventRules = {
+  monthlyAward: null,
   revealPolicy: 'all',
   revealIntervalMinutes: 60,
   revealBatchSize: 1,
@@ -217,7 +277,7 @@ export const MIN_START_RADIUS = 3;
 export const MAX_START_RADIUS = 200;
 
 const REVEAL_POLICIES: RevealPolicy[] = ['all', 'scheduled', 'interval', 'bounty', 'rotating'];
-const MISSION_ANNOUNCE_MODES: MissionAnnounceMode[] = ['manual', 'interval', 'scheduled'];
+const MISSION_ANNOUNCE_MODES: MissionAnnounceMode[] = ['manual', 'interval', 'scheduled', 'daily'];
 const BALANCE_MODES: BalanceMode[] = ['off', 'advisory', 'tiered-snake', 'dynamic-order', 'spread-cap', 'auto'];
 const START_PROOF_MISSING: StartProofMissing[] = ['flag', 'reject'];
 
@@ -317,7 +377,7 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
   }
   let mission: EventRules['mission'] = null;
   const m = obj.mission as
-    | { announceMode?: unknown; order?: unknown; intervalMinutes?: unknown; tierRamp?: unknown }
+    | { announceMode?: unknown; order?: unknown; intervalMinutes?: unknown; tierRamp?: unknown; daily?: unknown }
     | null
     | undefined;
   if (m && typeof m === 'object') {
@@ -327,7 +387,18 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
         : 'manual',
       order: m.order === 'sequential' ? 'sequential' : 'random',
       intervalMinutes: clampInt(m.intervalMinutes, 5, 10080, 60),
+      daily: parseMissionDaily(m.daily),
       tierRamp: parseTierRamp(m.tierRamp),
+    };
+  }
+  // Month-end on a ladder. Absent (the normal case) means the month simply rolls over, which is
+  // what every board did before this existed.
+  let monthlyAward: EventRules['monthlyAward'] = null;
+  const ma = obj.monthlyAward as { announce?: unknown; roleId?: unknown } | null | undefined;
+  if (ma && typeof ma === 'object') {
+    monthlyAward = {
+      announce: ma.announce !== false,
+      roleId: typeof ma.roleId === 'string' && ma.roleId.trim() ? ma.roleId.trim() : null,
     };
   }
   let startProof: EventRules['startProof'] = null;
@@ -349,6 +420,7 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
     };
   }
   return {
+    monthlyAward,
     revealPolicy: policy,
     revealIntervalMinutes: clampInt(obj.revealIntervalMinutes, 5, 10080, 60),
     revealBatchSize: clampInt(obj.revealBatchSize, 1, 50, 1),
@@ -436,7 +508,19 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
       return { error: 'rules.mission must be an object or null' };
     }
     if (m.announceMode !== undefined && !MISSION_ANNOUNCE_MODES.includes(m.announceMode as MissionAnnounceMode)) {
-      return { error: "rules.mission.announceMode must be 'manual', 'interval', or 'scheduled'" };
+      return { error: "rules.mission.announceMode must be 'manual', 'interval', 'scheduled', or 'daily'" };
+    }
+    if (m.announceMode === 'daily') {
+      // A daily schedule that names no time and no window would fire nothing forever, which is a
+      // config bug wearing the costume of a quiet week. Refuse it at the door.
+      const d = parseMissionDaily((m as { daily?: unknown }).daily);
+      if (!d) return { error: 'rules.mission.daily is required when announceMode is "daily"' };
+      if (d.times.length === 0 && !d.window) {
+        return { error: 'rules.mission.daily needs either times or a window' };
+      }
+      if (!d.perDay.some((n) => n > 0)) {
+        return { error: 'rules.mission.daily.perDay must let at least one weekday drop a mission' };
+      }
     }
     if (m.order !== undefined && m.order !== 'random' && m.order !== 'sequential') {
       return { error: "rules.mission.order must be 'random' or 'sequential'" };
@@ -521,6 +605,7 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     canonical.pickSeconds === 0 &&
     canonical.mission === null &&
     canonical.startProof === null &&
+    canonical.monthlyAward === null &&
     !canonical.captainInvites &&
     !canonical.teamChoice;
   return { rules: isDefault ? null : JSON.stringify(canonical) };
@@ -673,13 +758,14 @@ export function rotationExpiries(
  * interval → one interval after the last announced mission (or event start); manual/none → null.
  */
 export function nextMissionAt(
-  event: { startDate?: string | null },
+  event: { startDate?: string | null; id?: number },
   rules: EventRules,
   tiles: RevealStateTile[],
   nowMs: number = Date.now(),
 ): string | null {
   const cfg = rules.mission;
   if (!cfg) return null;
+  const eventId = event.id;
   const missionTiles = tiles.filter(isMissionTile);
   const hidden = missionTiles.filter((t) => t.revealedAt == null);
   if (hidden.length === 0) return null;
@@ -688,6 +774,13 @@ export function nextMissionAt(
     if (!earliest) return null;
     const at = Date.parse(earliest);
     return Number.isFinite(at) ? new Date(Math.max(at, nowMs)).toISOString() : null;
+  }
+  if (cfg.announceMode === 'daily') {
+    // The schedule answers this directly — no need to look at what has already dropped, because a
+    // day's slots are a property of the day, not of the pool.
+    if (!cfg.daily) return null;
+    const next = nextSlotAfter({ cfg: cfg.daily, nowMs, seed: eventId ?? 0 });
+    return next == null ? null : new Date(next).toISOString();
   }
   if (cfg.announceMode === 'interval') {
     const lastAnnounced = missionTiles
@@ -715,14 +808,36 @@ export function completionAward(args: {
   tilePoints: number | null | undefined;
   tileRevealedAt: string | null | undefined;
   isFirst: boolean;
+  /**
+   * A mission's placement ladder, when this completion is landing on one. With it, `place` says
+   * where in the order this claim came (1 = first) and `funded` whether that place's gp prize was
+   * actually covered by the coffer — the two facts that decide which of the ladder's numbers apply.
+   */
+  reward?: MissionReward | null;
+  place?: number;
+  funded?: boolean;
+  /**
+   * The mission's stamped value multiplier (a double-points weekend). 1, or absent, is normal.
+   * Applied LAST, over whatever the ladder or the tile decided — doubling a weekend should double
+   * what the board already said the task was worth, not replace the reasoning behind it.
+   */
+  multiplier?: number;
   nowMs?: number;
 }): number | null {
   if (args.scoringMode !== 'points') return null;
-  const { rules } = args;
-  if (rules.firstBonus <= 0 && rules.decay == null) return null;
-  let pts = decayedPoints(args.tilePoints, args.tileRevealedAt, rules.decay, args.nowMs);
+  const { rules, reward } = args;
+  const mult = args.multiplier && args.multiplier > 0 ? args.multiplier : 1;
+  const base = decayedPoints(args.tilePoints, args.tileRevealedAt, rules.decay, args.nowMs);
+  // A ladder is the whole answer for this completion: it names what every place is worth, so a
+  // first-clear bonus on top would pay the same "you were first" twice.
+  if (reward) {
+    const pts = missionPlacePoints({ reward, place: args.place ?? 1, funded: args.funded !== false, baseValue: base });
+    return Math.round(pts * mult);
+  }
+  if (rules.firstBonus <= 0 && rules.decay == null && mult === 1) return null;
+  let pts = base;
   if (args.isFirst && rules.firstBonus > 0) pts += rules.firstBonus;
-  return pts;
+  return Math.round(pts * mult);
 }
 
 /**
@@ -773,9 +888,74 @@ export interface MissionRules {
   decay: { targetPct: number; hours: number } | null;
   /** Hours after announce a mission auto-closes if unclaimed. Null = never (open till claimed/end). */
   expiryHours: number | null;
+  /** The placement ladder — what 1st, 2nd, 3rd… actually win. Null = flat: everyone gets tile value. */
+  reward: MissionReward | null;
+  /**
+   * Points multiplier, STAMPED ONTO THE TILE WHEN IT DROPS. 1 = normal.
+   *
+   * A double-points weekend is a property of the moment a mission was announced, not of the moment
+   * somebody finishes it: a Saturday mission claimed on Monday is still a Saturday mission. So the
+   * schedule writes the day's multiplier here at announce and nothing recomputes it afterwards —
+   * the same trick `revealedAt` plays for the decay ramp.
+   */
+  multiplier: number;
+  /** The same, for the gp prize. Separate because doubling points is free and doubling gp is not. */
+  prizeMultiplier: number;
 }
 
-export const DEFAULT_MISSION_RULES: MissionRules = { lockout: false, firstBonus: 0, decay: null, expiryHours: null };
+// ---- The placement ladder ----------------------------------------------------------------------
+//
+// What finishing a mission is WORTH, by the order you finished it in. The shape exists because
+// "first to clear it wins the gp" is only one of the arrangements clans actually run, and the ones
+// next to it are just as ordinary: a podium that pays three places, a race where first takes the
+// money and everybody else still banks points, a drop where the points shrink down the order. All of
+// those are the same object with different numbers in it.
+//
+// Two currencies, side by side, because they are not the same thing and clans mix them freely:
+//   points — the leaderboard. Frozen into completions.awardedPoints at claim time like every other
+//            scoring modifier, so a later edit never rewrites somebody's finished month.
+//   gp     — real money out of the clan coffer (lib/coffer). Reserved at claim, sent by a treasurer.
+//
+// The case that forced the third field: a prize the coffer cannot pay. Anvil will not quietly hand
+// someone 0 for winning, so a place that offers gp also says what it is worth when the pot is dry —
+// `unfundedPoints`, which is where "no reward except the points" lives. That decision is made ONCE,
+// when the claim settles, against the balance then; nothing about it is recomputed later.
+export interface MissionPlace {
+  /** Points for this place. Null = the tile's own value (decay-adjusted), which is the usual default. */
+  points: number | null;
+  /** Coffer prize in gp. 0 = this place is points-only. */
+  gp: number;
+  /**
+   * Points awarded INSTEAD when `gp` could not be funded. Null = the tile's own value.
+   * Ignored when `gp` is 0 — there is nothing to fail to fund.
+   */
+  unfundedPoints: number | null;
+}
+
+export interface MissionReward {
+  /** Ranked places, index 0 = the first claim. Empty = no ladder at all. */
+  places: MissionPlace[];
+  /**
+   * What a claim past the last listed place earns. Null = the tile's own value (so a two-place
+   * podium still lets everyone else score normally); 0 = the places are the only thing worth points.
+   */
+  restPoints: number | null;
+  /**
+   * Close the mission after this many claims. Null = it stays open until it expires or the event
+   * ends. The generalisation of `lockout`, which is exactly maxClaims = 1.
+   */
+  maxClaims: number | null;
+}
+
+export const DEFAULT_MISSION_RULES: MissionRules = {
+  lockout: false,
+  firstBonus: 0,
+  decay: null,
+  expiryHours: null,
+  reward: null,
+  multiplier: 1,
+  prizeMultiplier: 1,
+};
 
 /** Tolerant parse of a tile's `rules` JSON. Anything missing/malformed → the no-modifier default. */
 export function parseTileMissionRules(raw: string | null | undefined): MissionRules {
@@ -798,7 +978,158 @@ export function parseTileMissionRules(raw: string | null | undefined): MissionRu
     firstBonus: clampInt(o.firstBonus, 0, 100000, 0),
     decay,
     expiryHours: o.expiryHours == null ? null : clampInt(o.expiryHours, 1, 8760, 24),
+    reward: parseMissionReward(o.reward),
+    multiplier: clampMultiplier(o.multiplier),
+    prizeMultiplier: clampMultiplier(o.prizeMultiplier),
   };
+}
+
+/**
+ * Tolerant parse of a daily drop schedule. A malformed one returns null, which reads downstream as
+ * "no schedule" rather than as a schedule that fires at unpredictable times.
+ */
+export function parseMissionDaily(raw: unknown): MissionDaily | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const o = raw as { timezone?: unknown; times?: unknown; window?: unknown; perDay?: unknown };
+  const timezone = typeof o.timezone === 'string' && o.timezone.trim() ? o.timezone.trim() : 'UTC';
+  const times = Array.isArray(o.times)
+    ? o.times.filter((t): t is string => typeof t === 'string' && HHMM.test(t.trim())).map((t) => t.trim()).slice(0, 12)
+    : [];
+  let window: MissionDaily['window'] = null;
+  const w = o.window as { from?: unknown; to?: unknown } | null | undefined;
+  if (w && typeof w === 'object' && typeof w.from === 'string' && typeof w.to === 'string') {
+    if (HHMM.test(w.from.trim()) && HHMM.test(w.to.trim())) {
+      window = { from: w.from.trim(), to: w.to.trim() };
+    }
+  }
+  // Seven numbers, Sunday first. A short or junk array reads as "one a day", which is the schedule
+  // somebody who half-filled the form was plainly reaching for.
+  const raw7 = Array.isArray(o.perDay) ? o.perDay : [];
+  const perDay = Array.from({ length: 7 }, (_, i) => clampInt(raw7[i], 0, 12, 1));
+  const rawMult = Array.isArray((o as { multiplier?: unknown }).multiplier)
+    ? ((o as { multiplier: unknown[] }).multiplier)
+    : [];
+  const multiplier = Array.from({ length: 7 }, (_, i) => clampMultiplier(rawMult[i]));
+  const multiplyPrizes = (o as { multiplyPrizes?: unknown }).multiplyPrizes === true;
+  if (times.length === 0 && !window) return null;
+  return { timezone, times, window, perDay, multiplier, multiplyPrizes };
+}
+
+const HHMM = /^\d{1,2}:\d{2}$/;
+
+/** Tolerant parse of the placement ladder. Anything unusable → null, i.e. flat tile-value scoring. */
+export function parseMissionReward(raw: unknown): MissionReward | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const o = raw as { places?: unknown; restPoints?: unknown; maxClaims?: unknown };
+  const places: MissionPlace[] = Array.isArray(o.places)
+    ? o.places.slice(0, MAX_MISSION_PLACES).map((p) => {
+        const v = (p ?? {}) as { points?: unknown; gp?: unknown; unfundedPoints?: unknown };
+        return {
+          points: v.points == null ? null : clampInt(v.points, 0, 1_000_000, 0),
+          gp: clampInt(v.gp, 0, MAX_MISSION_GP, 0),
+          unfundedPoints: v.unfundedPoints == null ? null : clampInt(v.unfundedPoints, 0, 1_000_000, 0),
+        };
+      })
+    : [];
+  const restPoints = o.restPoints == null ? null : clampInt(o.restPoints, 0, 1_000_000, 0);
+  const maxClaims = o.maxClaims == null ? null : clampInt(o.maxClaims, 1, 1000, 1);
+  // A ladder with no places, no tail rule and no cap says nothing — store null rather than an object
+  // that reads as configured but changes no outcome.
+  if (places.length === 0 && restPoints == null && maxClaims == null) return null;
+  return { places, restPoints, maxClaims };
+}
+
+/**
+ * The prizes a mission is advertising, for the surfaces that show one before anybody has claimed it
+ * (the Discord drop post, the in-game board, the tile a player opens). Places with no gp are left
+ * out — the point is to say "there is money on this", not to print a table of zeroes.
+ */
+export function missionPrizeSummary(rules: Pick<MissionRules, 'reward'>): { place: number; gp: number }[] {
+  return (rules.reward?.places ?? [])
+    .map((p, i) => ({ place: i + 1, gp: p.gp }))
+    .filter((p) => p.gp > 0);
+}
+
+/** "1st", "2nd", "11th" — one spelling of a finishing position, shared by every surface. */
+export function placeLabel(place: number): string {
+  const mod100 = place % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${place}th`;
+  const suffix = ['th', 'st', 'nd', 'rd'][place % 10] ?? 'th';
+  return `${place}${suffix}`;
+}
+
+/**
+ * A value multiplier: 1–10, in halves, defaulting to 1 (normal).
+ *
+ * Halves rather than integers because "1.5x on Sundays" is a real thing clans run, and capped at 10
+ * because a typo in a multiplier field is how a board pays somebody 400,000 points for a chicken.
+ */
+function clampMultiplier(v: unknown): number {
+  const n = typeof v === 'number' ? v : Number(v);
+  if (!Number.isFinite(n) || n <= 0) return 1;
+  return Math.min(10, Math.max(0.5, Math.round(n * 2) / 2));
+}
+
+/** Ten places is already a stretch for one mission; the cap is here so a paste can't author 10,000. */
+export const MAX_MISSION_PLACES = 10;
+/** 2^53-safe and far past any real prize: a place can't be worth more than 100b gp. */
+export const MAX_MISSION_GP = 100_000_000_000;
+
+/** Does this mission promise gp to anybody? Cheap check before touching the coffer at all. */
+export function missionOffersGp(rules: Pick<MissionRules, 'reward'>): boolean {
+  return (rules.reward?.places ?? []).some((p) => p.gp > 0);
+}
+
+/**
+ * The gp a given finishing place is owed, 0 when that place wins no money.
+ *
+ * Takes the whole rules object rather than the ladder alone so the mission's stamped prize
+ * multiplier lands here, in the ONE place that answers "how much is owed" — the gate and the settle
+ * pass both call it, and a doubled prize that only one of them knew about would be a promise the
+ * coffer never reserved.
+ */
+export function missionPlaceGp(
+  rules: Pick<MissionRules, 'reward' | 'prizeMultiplier'> | MissionReward | null | undefined,
+  place: number,
+): number {
+  if (!rules || place < 1) return 0;
+  // Accept a bare ladder too: plenty of callers only have that, and they mean multiplier 1.
+  const isRules = 'reward' in rules;
+  const reward = isRules ? rules.reward : rules;
+  const mult = isRules && rules.prizeMultiplier > 0 ? rules.prizeMultiplier : 1;
+  const gp = reward?.places[place - 1]?.gp ?? 0;
+  return Math.round(gp * mult);
+}
+
+/**
+ * How many claims a mission accepts before it closes. `maxClaims` is the explicit answer; `lockout`
+ * is the old boolean that meant exactly one. Null = unlimited.
+ */
+export function missionClaimCap(rules: Pick<MissionRules, 'reward' | 'lockout'>): number | null {
+  if (rules.reward?.maxClaims != null) return rules.reward.maxClaims;
+  return rules.lockout ? 1 : null;
+}
+
+/**
+ * Points for finishing in `place`, given whether that place's gp was actually funded.
+ *
+ * `baseValue` is what the tile is worth right now (decayed/grown), which is what every "null" in the
+ * ladder falls back to — so a place that only sets a gp prize keeps the tile's own points behaviour
+ * instead of quietly zeroing it.
+ */
+export function missionPlacePoints(args: {
+  reward: MissionReward | null | undefined;
+  place: number;
+  funded: boolean;
+  baseValue: number;
+}): number {
+  const { reward, place, funded, baseValue } = args;
+  if (!reward) return baseValue;
+  const p = reward.places[place - 1];
+  if (!p) return reward.restPoints ?? baseValue;
+  // Unfunded only means something where money was promised. A points-only place is never "unfunded".
+  const chosen = p.gp > 0 && !funded ? p.unfundedPoints : p.points;
+  return chosen ?? baseValue;
 }
 
 /**
@@ -808,6 +1139,13 @@ export function parseTileMissionRules(raw: string | null | undefined): MissionRu
 export function serializeTileMissionRules(input: Partial<MissionRules> | null | undefined): string | null {
   if (!input) return null;
   const m = parseTileMissionRules(JSON.stringify(input));
-  const isDefault = !m.lockout && m.firstBonus === 0 && m.decay === null && m.expiryHours === null;
+  const isDefault =
+    !m.lockout &&
+    m.firstBonus === 0 &&
+    m.decay === null &&
+    m.expiryHours === null &&
+    m.reward === null &&
+    m.multiplier === 1 &&
+    m.prizeMultiplier === 1;
   return isDefault ? null : JSON.stringify(m);
 }

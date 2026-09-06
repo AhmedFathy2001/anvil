@@ -4,7 +4,7 @@ import { atLeast, isStaffRole } from '@/lib/clanRoles';
 import { requireClan } from '@/lib/clanContext';
 import { redirect } from 'next/navigation';
 import { db } from '@/db';
-import { clanRoster, users } from '@/db/schema';
+import { clanRoster, cofferEntries, users } from '@/db/schema';
 import { and, count, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { avatarUrl } from '@/lib/discord-oauth';
@@ -50,6 +50,23 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     .from(clanRoster)
     .where(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.provisional, 1), isNull(clanRoster.leftAt)))
     .then((r) => r[0]?.c ?? 0);
+
+  // Donations waiting to be believed, badged on the Money group so a treasurer sees them without
+  // opening the page. Only counted for the people who can act on them.
+  const canHandleMoney = atLeast(session.role, 'admin') || session.role === 'treasurer';
+  const cofferPending = canHandleMoney
+    ? await db
+        .select({ c: count() })
+        .from(cofferEntries)
+        .where(
+          and(
+            eq(cofferEntries.clanId, clan.id),
+            eq(cofferEntries.kind, 'donation'),
+            eq(cofferEntries.status, 'pending'),
+          ),
+        )
+        .then((r) => r[0]?.c ?? 0)
+    : 0;
 
   const isAdmin = atLeast(session.role, 'admin');
   // An authoring grant without a tier: their whole world is the boards they hold. Give them ONLY
@@ -127,8 +144,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     ],
   });
 
-  // Fees now live on each event's Sign-ups tab (no standalone queue), so there's no Money
-  // group. Treasurers/mods reach them via Events → an event → Sign-ups.
+  // Fees live on each event's Sign-ups tab rather than in a queue of their own — but the COFFER is
+  // not an event's money, it is the clan's, and mission prizes are paid out of it continuously. So
+  // Money is a group again, holding the one surface that has no event to hang off.
+  if (canHandleMoney) {
+    groups.push({
+      label: 'Money',
+      items: [{ href: '/admin/coffer', label: 'Coffer', icon: '💰', badge: cofferPending }],
+    });
+  }
 
   // The clan as a thing. "System" used to sit below this holding Advanced settings — which was clan
   // configuration all along, and said so itself in a line pointing readers at a different menu for

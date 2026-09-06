@@ -3,6 +3,8 @@ import { getSettingText } from '@/lib/settings';
 import { startBlockerLabel, type StartBlockerCode } from '@/lib/eventReadiness';
 import { eventAxes, taskNoun } from '@/lib/eventAxes';
 import { formatEfficiencyHours, weeklyKindLabel } from '@/lib/constants';
+import { formatGp } from '@/lib/adminEventsFormat';
+import { placeLabel } from '@/lib/eventRules';
 import { deriveTileIcon, skillIconUrl, bossItemForStatKey, itemIconUrl, type IconableTile } from '@/lib/tileIcons';
 import {
   EMBED_COLOR,
@@ -601,8 +603,11 @@ interface TilesRevealedNotifyParams {
   /** The clan this posts for — decides which webhook it lands in. */
   clanId: number;
   eventName: string;
-  /** `icon` (when the tile has one) becomes the thumbnail on a single-tile reveal. */
-  tiles: { label: string; points: number | null; icon?: string | null }[];
+  /**
+   * `icon` (when the tile has one) becomes the thumbnail on a single-tile reveal. `prizeGp` is the
+   * gp riding on the tile's first place — the number that decides whether anyone gets out of bed.
+   */
+  tiles: { label: string; points: number | null; icon?: string | null; prizeGp?: number }[];
   /** Show per-tile point values (points-scoring events only). */
   pointsMode: boolean;
   /** Hidden tiles left after this reveal — the "more to come" teaser. */
@@ -615,6 +620,8 @@ interface TilesRevealedNotifyParams {
   eventId?: number | null;
   /** When the next batch is due, for a live countdown. Null on bounty (draws on a claim instead). */
   nextRevealAt?: string | null;
+  /** A double-value day, from the daily schedule. 1 (or absent) is an ordinary drop. */
+  multiplier?: number;
 }
 
 // Reveal-engine post: fired once per reveal batch (scheduled due-times, interval draws, bounty
@@ -623,6 +630,7 @@ interface TilesRevealedNotifyParams {
 export async function notifyTilesRevealed(params: TilesRevealedNotifyParams): Promise<boolean> {
   const { eventName, tiles, pointsMode, hiddenRemaining, bounty, mission, eventId, nextRevealAt } = params;
   if (tiles.length === 0) return false;
+  const boost = params.multiplier && params.multiplier !== 1 ? params.multiplier : null;
 
   const noun = mission ? 'mission' : 'tile';
   const single = tiles.length === 1;
@@ -630,10 +638,11 @@ export async function notifyTilesRevealed(params: TilesRevealedNotifyParams): Pr
   // A single reveal is the common case (batch size 1, bounty, most mission drops) and deserves to
   // read as one thing rather than a bullet list of one: the tile's name IS the headline, its art is
   // the thumbnail, and its value is a boxed field like every other number Anvil posts.
+  const boostTag = boost ? `${boost % 1 === 0 ? boost : boost.toFixed(1)}x ` : '';
   const title = mission
     ? single
-      ? `⚡ New mission: ${tiles[0].label}`
-      : `⚡ ${tiles.length} new missions are live!`
+      ? `⚡ New ${boostTag}mission: ${tiles[0].label}`
+      : `⚡ ${tiles.length} new ${boostTag}missions are live!`
     : bounty
       ? `🎯 New bounty: ${tiles[0].label}`
       : single
@@ -644,20 +653,32 @@ export async function notifyTilesRevealed(params: TilesRevealedNotifyParams): Pr
     ? []
     : tiles
         .slice(0, 15)
-        .map((t) => `• **${t.label}**${pointsMode && t.points != null ? ` — ${t.points} pts` : ''}`);
+        .map(
+          (t) =>
+            `• **${t.label}**${pointsMode && t.points != null ? ` — ${t.points} pts` : ''}` +
+            // Several missions dropping at once are rarely worth the same, and which of them carries
+            // money is the whole reason anyone reads the list.
+            (t.prizeGp ? ` · 💰 ${formatGp(t.prizeGp)}` : ''),
+        );
   if (tiles.length > 15) lines.push(`…and ${tiles.length - 15} more`);
 
+  const boostLine = boost ? `\n**${boost % 1 === 0 ? boost : boost.toFixed(1)}x points** — today only.` : '';
   const description = single
-    ? bounty
-      ? 'First to finish it claims it — nobody else can score it.'
-      : mission
-        ? 'Live now. Go get it.'
-        : 'Live now — it counts from this moment.'
-    : clamp(lines.join('\n'), LIMIT.description);
+    ? (bounty
+        ? 'First to finish it claims it — nobody else can score it.'
+        : mission
+          ? 'Live now. Go get it.'
+          : 'Live now — it counts from this moment.') + boostLine
+    : clamp(lines.join('\n') + boostLine, LIMIT.description);
 
   const fields: DiscordEmbedField[] = [];
   if (single && pointsMode && tiles[0].points != null) {
     fields.push(statField('Worth', `${tiles[0].points} pts`));
+  }
+  // The prize on a single drop gets a box of its own, next to the points, because "first takes 50m"
+  // is the announcement — the points are the consolation.
+  if (single && tiles[0].prizeGp) {
+    fields.push(statField('First takes', `${formatGp(tiles[0].prizeGp)} gp`));
   }
   // Missions drop from their own pool; a "still hidden" count would spoil the surprise.
   if (!mission && hiddenRemaining > 0) {
@@ -707,6 +728,106 @@ export async function notifyBountyClaim(params: BountyClaimNotifyParams): Promis
     description: `**${rsn}** got there first.\n🔒 Locked — nobody else can claim it.`,
     color: EMBED_COLOR.gold,
     ...(points != null ? { fields: [statField('Points', points)] } : {}),
+  };
+  return sendBingoWebhook(params.clanId, { embeds: [embed] });
+}
+
+interface MissionPrizeNotifyParams {
+  /** The clan this posts for — decides which webhook it lands in. */
+  clanId: number;
+  eventName: string;
+  tileLabel: string;
+  /** The winner, and where they finished (1 = first). */
+  rsn: string;
+  place: number;
+  /** What the place was worth in gp — announced whether or not the coffer could cover it. */
+  offeredGp: number;
+  /** False when the pot was dry: they take the points instead, and the post says so plainly. */
+  funded: boolean;
+  /** Points the claim ended up holding. Null on a non-points event. */
+  points: number | null;
+  eventId?: number | null;
+}
+
+/**
+ * A mission prize, the moment it is settled against the coffer.
+ *
+ * Posted for the money, not for the finish — the mission-claimed post already covers "somebody got
+ * there first". What this one adds is what they actually won, INCLUDING when the answer is nothing:
+ * a clan that runs prizes out of a pot will empty that pot, and saying so in the same channel that
+ * promised the gp is the difference between a dry week and a broken promise.
+ */
+export async function notifyMissionPrize(params: MissionPrizeNotifyParams): Promise<boolean> {
+  const { eventName, tileLabel, rsn, place, offeredGp, funded, points, eventId } = params;
+  const fields: DiscordEmbedField[] = [];
+  if (funded) fields.push(statField('Prize', `${formatGp(offeredGp)} gp`));
+  if (points != null) fields.push(statField('Points', points));
+  const embed: DiscordEmbed = {
+    ...eventAuthor(eventId, eventName),
+    title: clamp(funded ? `💰 ${rsn} won ${formatGp(offeredGp)}` : `🏅 ${rsn} took ${placeLabel(place)}`, LIMIT.title),
+    description: funded
+      ? `**${placeLabel(place)}** on **${tileLabel}**. A treasurer will send it over.`
+      : `**${placeLabel(place)}** on **${tileLabel}** — the coffer is empty, so this one pays points only.`,
+    color: EMBED_COLOR.gold,
+    ...(fields.length ? { fields } : {}),
+  };
+  return sendBingoWebhook(params.clanId, { embeds: [embed] });
+}
+
+interface MonthlyChampionNotifyParams {
+  /** The clan this posts for — decides which webhook it lands in. */
+  clanId: number;
+  eventName: string;
+  /** 'YYYY-MM' of the month that just closed. */
+  month: string;
+  rsn: string;
+  points: number;
+  tasks: number;
+  runnersUp: { rsn: string; points: number }[];
+  /** Whether the champion role actually moved, so the post doesn't promise a role nobody got. */
+  roleGranted: boolean;
+  eventId?: number | null;
+}
+
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+/** 'YYYY-MM' → "August 2026", falling back to the raw key rather than to nonsense. */
+function monthName(key: string): string {
+  const [y, m] = key.split('-').map((n) => parseInt(n, 10));
+  const name = MONTH_NAMES[m - 1];
+  return name && Number.isFinite(y) ? `${name} ${y}` : key;
+}
+
+/**
+ * The month closing on a ladder.
+ *
+ * Posted by the engine rather than by a person, because the moment it marks — midnight on the last
+ * day — is the one nobody is awake for. Says what the winner scored, who was close, and whether the
+ * clan's champion role actually moved; a post claiming a role that failed to apply is worse than one
+ * that says nothing about roles at all.
+ */
+export async function notifyMonthlyChampion(params: MonthlyChampionNotifyParams): Promise<boolean> {
+  const { eventName, month, rsn, points, tasks, runnersUp, roleGranted, eventId } = params;
+  const fields: DiscordEmbedField[] = [statField('Points', points), statField('Tasks', tasks)];
+  if (runnersUp.length > 0) {
+    fields.push(
+      field(
+        'Close behind',
+        runnersUp.map((r, i) => `${i === 0 ? '🥈' : '🥉'} **${r.rsn}** — ${r.points}`).join('\n'),
+      ),
+    );
+  }
+  const embed: DiscordEmbed = {
+    ...eventAuthor(eventId, eventName),
+    title: clamp(`👑 ${monthName(month)} goes to ${rsn}`, LIMIT.title),
+    description: roleGranted
+      ? 'The champion role is theirs until somebody takes it off them.'
+      : 'The board resets today — everyone starts the new month level.',
+    color: EMBED_COLOR.gold,
+    fields,
   };
   return sendBingoWebhook(params.clanId, { embeds: [embed] });
 }

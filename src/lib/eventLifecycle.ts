@@ -8,6 +8,7 @@ import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
 import { getEventRecap } from '@/lib/eventRecap';
 import { writePlayerEventFacts } from '@/lib/playerEventFacts';
 import { processTileReveals } from '@/lib/revealEngine';
+import { settleLadderMonths } from '@/lib/monthlyChampion';
 import { parseEventRules, isTileRevealed } from '@/lib/eventRules';
 import { scoreTeams } from '@/lib/boardScoring';
 import { drawStartLocation } from '@/lib/startProof';
@@ -299,4 +300,10 @@ export async function processEventLifecycleNotifications(): Promise<void> {
   // rotation. After the start loop above, so on the tick an event begins the "event started" post
   // lands before its first tile reveal. Never throws past its own catch.
   await processTileReveals().catch(() => {});
+
+  // A ladder's month ending — crown last month's winner, move the champion role. Rides the ordinary
+  // tick rather than its own schedule because it is idempotent on a settled-month key: asking every
+  // minute costs one settings read per ladder, and a box that was down at midnight still crowns the
+  // month when it comes back.
+  await settleLadderMonths().catch((err) => log.warn('event-lifecycle.month-failed', { err: String(err) }));
 }

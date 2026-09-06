@@ -74,9 +74,20 @@ export const TILE_CSV_COLUMNS = [
   'perKillCap',
   'coopCredit',
   'coopMinMembers',
+  // MISSIONS. A month of daily drops is authored in a spreadsheet or not at all, so the mission
+  // flag and what each one pays are columns like everything else. `missionPrizes` and
+  // `missionPoints` are pipe-separated BY PLACE — "50m|10m" is 50m to first and 10m to second —
+  // because a place is a position in a list, and a list is what a pipe already means here.
+  'mission',
+  'missionPrizes',
+  'missionPoints',
+  'missionMaxClaims',
+  'missionExpiryHours',
 ] as const;
 
 import type { Tile } from '@/lib/types';
+import { missionClaimCap, parseTileMissionRules, type MissionRules } from '@/lib/eventRules';
+import { parseGpInput } from '@/lib/adminEventsFormat';
 import { SKILLS, SKILL_LABELS, BOSSES, canonicalAgilityCourse } from '@/lib/constants';
 import { HISCORES_ACTIVITIES } from '@/lib/hiscoresActivities';
 
@@ -114,6 +125,10 @@ export interface TileCsvRow {
   perKillCap?: number | null;
   coopCredit?: string | null;
   coopMinMembers?: number | null;
+  /** Hidden until announced mid-event (tiles.mission). */
+  mission?: boolean;
+  /** The placement ladder assembled from the mission* columns; null on a normal tile. */
+  missionRules?: MissionRules | null;
 }
 
 // Parse an `items` cell — "Name:count; Name2:count2". Count is optional (defaults to 1) and is
@@ -339,6 +354,11 @@ export function parseTileGrid(grid: string[][]): ParsedTileCsv {
     perKillCap: idx('perkillcap'),
     coopCredit: idx('coopcredit'),
     coopMinMembers: idx('coopminmembers'),
+    mission: idx('mission'),
+    missionPrizes: idx('missionprizes'),
+    missionPoints: idx('missionpoints'),
+    missionMaxClaims: idx('missionmaxclaims'),
+    missionExpiryHours: idx('missionexpiryhours'),
   };
   if (col.label === -1 && col.description === -1 && col.points === -1) {
     return {
@@ -407,10 +427,91 @@ export function parseTileGrid(grid: string[][]): ParsedTileCsv {
       const min = toNumberLoose(get(cells, col.coopMinMembers));
       row.coopMinMembers = min != null && min >= 2 ? min : null;
     }
+    if (col.mission >= 0) row.mission = toBool(get(cells, col.mission));
+    // The ladder is assembled from three cells that are all lists by place, so a row saying
+    // "50m|10m" with no points column still means what it looks like: money for the top two,
+    // ordinary tile points for everybody.
+    const prizeCell = col.missionPrizes >= 0 ? get(cells, col.missionPrizes) : '';
+    const pointsCell = col.missionPoints >= 0 ? get(cells, col.missionPoints) : '';
+    const maxClaims = col.missionMaxClaims >= 0 ? toNumberLoose(get(cells, col.missionMaxClaims)) : null;
+    const expiry = col.missionExpiryHours >= 0 ? toNumberLoose(get(cells, col.missionExpiryHours)) : null;
+    if (prizeCell.trim() || pointsCell.trim() || maxClaims != null || expiry != null) {
+      // A prize column on a row nobody flagged is a mission the author forgot to tick, not a normal
+      // tile that pays gp — there is no such thing.
+      if (prizeCell.trim() || pointsCell.trim()) row.mission = true;
+      row.missionRules = missionRulesFromCells({ prizeCell, pointsCell, maxClaims, expiry });
+    }
     rows.push(row);
     labels.push(row.label && row.label.length > 0 ? row.label : `Tile ${i + 1}`);
   });
   return { rows, labels };
+}
+
+
+// ---------------------------------------------------------------------------
+// Missions in a spreadsheet
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a mission's rules from the by-place cells.
+ *
+ * "50m|10m" + "0|200" reads as: first takes 50m and no points, second takes 10m and 200 points,
+ * everyone after them scores the tile normally. A blank entry in either list means "the default" —
+ * no money, or the tile's own value — so a sparse row stays legible instead of needing zeroes.
+ *
+ * `unfundedPoints` is deliberately not a column. It is left null, which means the tile's own value:
+ * a place whose prize the coffer cannot cover falls back to scoring normally, which is what a clan
+ * running out of gp mid-month actually wants and what they would have typed anyway.
+ */
+function missionRulesFromCells(args: {
+  prizeCell: string;
+  pointsCell: string;
+  maxClaims: number | null;
+  expiry: number | null;
+}): MissionRules | null {
+  const gp = splitByPlace(args.prizeCell).map((v) => (v ? (parseGpInput(v) ?? 0) : 0));
+  const pts = splitByPlace(args.pointsCell).map((v) => (v === '' ? null : toIntOrNull(v)));
+  const count = Math.max(gp.length, pts.length);
+  const places = Array.from({ length: count }, (_, i) => ({
+    points: pts[i] ?? null,
+    gp: gp[i] ?? 0,
+    unfundedPoints: null,
+  }));
+  const maxClaims = args.maxClaims != null && args.maxClaims >= 1 ? Math.floor(args.maxClaims) : null;
+  const reward = places.length > 0 || maxClaims != null ? { places, restPoints: null, maxClaims } : null;
+  const expiryHours = args.expiry != null && args.expiry >= 1 ? Math.floor(args.expiry) : null;
+  if (!reward && expiryHours == null) return null;
+  // Multipliers are stamped by the schedule when a mission drops, never authored in a sheet.
+  return { lockout: false, firstBonus: 0, decay: null, expiryHours, reward, multiplier: 1, prizeMultiplier: 1 };
+}
+
+/** Split a by-place cell on pipes, keeping empty slots so position still means the place. */
+function splitByPlace(cell: string): string[] {
+  const trimmed = cell.trim();
+  if (!trimmed) return [];
+  return trimmed.split('|').map((s) => s.trim());
+}
+
+function missionPrizesCell(t: Tile): string {
+  const places = parseTileMissionRules(t.rules).reward?.places ?? [];
+  if (!places.some((p) => p.gp > 0)) return '';
+  return places.map((p) => (p.gp > 0 ? String(p.gp) : '')).join('|');
+}
+
+function missionPointsCell(t: Tile): string {
+  const places = parseTileMissionRules(t.rules).reward?.places ?? [];
+  if (!places.some((p) => p.points != null)) return '';
+  return places.map((p) => (p.points == null ? '' : String(p.points))).join('|');
+}
+
+function missionMaxClaimsCell(t: Tile): string {
+  const cap = missionClaimCap(parseTileMissionRules(t.rules));
+  return cap == null ? '' : String(cap);
+}
+
+function missionExpiryCell(t: Tile): string {
+  const hours = parseTileMissionRules(t.rules).expiryHours;
+  return hours == null ? '' : String(hours);
 }
 
 // ---------------------------------------------------------------------------
@@ -518,5 +619,10 @@ export function tileToCsvCells(t: Tile): string[] {
     t.perKillCap != null ? String(t.perKillCap) : '',
     t.coopCredit === 'per-kill' ? 'per-kill' : '',
     t.coopMinMembers != null ? String(t.coopMinMembers) : '',
+    t.mission ? 'true' : '',
+    missionPrizesCell(t),
+    missionPointsCell(t),
+    missionMaxClaimsCell(t),
+    missionExpiryCell(t),
   ];
 }

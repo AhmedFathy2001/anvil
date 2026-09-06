@@ -288,6 +288,13 @@
       "when": 1788529153338,
       "tag": "0082_clan_ingame_name_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1788529200000,
+      "tag": "0083_clan_coffer",
+      "breakpoints": true
     }
   ]
 }

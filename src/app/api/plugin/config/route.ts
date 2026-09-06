@@ -38,11 +38,12 @@ import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { serverInfo } from '@/lib/serverInfo';
 import { pluginClansFor } from '@/lib/pluginClans';
-import { parseEventRules, hasRevealPolicy, nextRevealAt, nextMissionAt, isMissionTile, parseTileMissionRules } from '@/lib/eventRules';
+import { parseEventRules, hasRevealPolicy, nextRevealAt, nextMissionAt, isMissionTile, parseTileMissionRules, missionPrizeSummary } from '@/lib/eventRules';
 import { startProofState } from '@/lib/startProof';
 import { combatTaskVarps } from '@/lib/combatTasks';
 import { isLadderFormat } from '@/lib/utils';
 import { getLadderBoards, toPluginStandings, type PluginStandings } from '@/lib/ladderStandings';
+import { getCofferBalance } from '@/lib/coffer';
 import crypto from 'crypto';
 
 const CODEWORD_SECRET = requireSecret('CODEWORD_SECRET', 'dev-codeword-secret');
@@ -754,6 +755,10 @@ export async function GET(request: Request) {
     missionSource.length > 0
       ? missionSource.map((t) => {
           const m = isMissionTile(t) ? parseTileMissionRules(t.rules) : null;
+          // The prize ladder, flattened to what a client needs to RENDER it: the gp on each place
+          // and how many places there are. What the points work out to is already the tile's own
+          // value plus the decay ramp the plugin mirrors, so it isn't duplicated here.
+          const prizes = m ? missionPrizeSummary(m) : [];
           return {
             tileId: t.id,
             label: t.label,
@@ -762,9 +767,20 @@ export async function GET(request: Request) {
             category: t.category ?? null,
             decay: m ? m.decay : rules.decay,
             lockout: m ? m.lockout : rules.lockout,
+            // A double-value day, stamped when this one dropped. Absent = ordinary; the client
+            // multiplies the value it already computes from `points` and the decay ramp.
+            ...(m && m.multiplier !== 1 ? { multiplier: m.multiplier } : {}),
+            ...(prizes.length ? { prizes } : {}),
+            ...(m?.reward?.maxClaims != null ? { maxClaims: m.reward.maxClaims } : {}),
           };
         })
       : undefined;
+
+  // What the coffer can actually cover. Sent only when something on this board promises gp, so a
+  // board with no prizes pays nothing for the query — and sent at all because "50m to first" reads
+  // very differently next to an empty pot, and the plugin should be able to say which it is.
+  const anyPrizes = missions?.some((m) => 'prizes' in m && (m.prizes?.length ?? 0) > 0) ?? false;
+  const cofferAvailable = anyPrizes ? (await getCofferBalance(clan.id)).available : null;
   // Countdown target: the board's next reveal, else the next mission drop (classic-with-missions).
   const effectiveNextRevealAt = revealMode
     ? nextRevealAt(event, rules, fullEventTiles)
@@ -801,6 +817,7 @@ export async function GET(request: Request) {
         ? { nextRevealAt: effectiveNextRevealAt, decay: rules.decay }
         : {}),
       ...(missions ? { missions } : {}),
+      ...(cofferAvailable != null ? { cofferAvailable } : {}),
       // Ladder standings: all-time + this-month individual leaderboards with the caller's rank.
       ...(ladderStandings ? { standings: ladderStandings, monthlyStandings: ladderMonthly } : {}),
       // Lock-out claims (event-wide) so the plugin can announce another player's claim.
