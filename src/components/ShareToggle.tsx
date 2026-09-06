@@ -14,7 +14,11 @@ import { useState } from 'react';
  * slice of the product was dark because its only switch was behind a door most people never open.
  *
  * PATCHes the same person-scoped endpoint, which takes no clan and refuses to touch anyone else's
- * account. Off by default and instantly reversible, so there is no confirm step.
+ * account. Instantly reversible, so there is no confirm step.
+ *
+ * A new account is shared by default (accounts.shared). Accounts created BEFORE that default moved
+ * are still false and stay that way until somebody turns them on or a backfill is run — which is why
+ * this control is worth reaching from the person page rather than from inside a clan.
  */
 export default function ShareToggle({
   accountId,

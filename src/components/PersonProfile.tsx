@@ -2,6 +2,7 @@ import ClanLink from '@/components/ClanLink';
 import ShareToggle from '@/components/ShareToggle';
 import LinkAccountsToggle from '@/components/LinkAccountsToggle';
 import AddCharacterClient from '@/app/profile/AddCharacterClient';
+import PublishCharactersPrompt from '@/components/PublishCharactersPrompt';
 import AnnouncementsDrawer from '@/app/profile/AnnouncementsDrawer';
 import type { MyClan } from '@/lib/myClans';
 import type { EmissionSettingsView } from '@/lib/emissionSettings';
@@ -132,6 +133,7 @@ export default function PersonProfile({
           </div>
         ) : (
           <>
+            <PublishCharactersPrompt accountIds={characters.filter((c) => !c.shared).map((c) => c.id)} />
             <ul className="divide-y divide-card-border overflow-hidden rounded-xl border border-card-border bg-card-bg">
               {characters.map((a) => (
                 <li key={a.id} className="flex items-center gap-3 px-4 py-2.5">

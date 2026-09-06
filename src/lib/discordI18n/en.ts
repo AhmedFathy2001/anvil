@@ -233,6 +233,7 @@ export const en = {
     clog: "Collection log — a member's count and the clan's top collectors",
     luck: "Drop luck — the clan's driest and luckiest, or a member's",
     guide: 'Read a setup guide — the overview or one step, with a link',
+    stats: "A player's stats — levels, efficiency, collection log, PBs, luck",
   },
 
   // /bingo board + leaderboard when several boards are live at once.
@@ -329,6 +330,29 @@ export const en = {
     readFull: '📖 Read the full guide: {url}',
     openStep: '🔗 Open this step on the site: {url}',
     jumpHint: '-# Jump to a step: `/guide topic:{topic} step:1`',
+  },
+
+  // /stats — the player hub (lib/discordClanCommands statsResult). /stats clog and /stats luck reuse
+  // the clog/luck strings above; these are the profile, levels, efficiency, PBs and board views.
+  stats: {
+    profileTitle: '📊 {who} — stats',
+    levelsTitle: '📈 {who} — levels',
+    efficiencyTitle: '⚡ {who} — efficiency',
+    pbsTitle: '⏱️ {who} — personal bests',
+    collectorsTitle: '📖 {clan} — top collectors',
+    combat: 'Combat',
+    total: 'Total level',
+    clogField: 'Collection log',
+    pbsField: 'Personal bests',
+    ehpLine: '**EHP** {hours}h — mostly from',
+    ehbLine: '**EHB** {hours}h — mostly from',
+    pbsHeading: '**Personal bests**',
+    viewFull: '🔗 Full profile on the site: {url}',
+    noAccount: "{who} isn't on the roster with a tracked account.",
+    noStats: "{who} hasn't been swept yet — no stats to show.",
+    noPbs: '{who} has no personal bests recorded yet.',
+    noPbActivity: 'No personal best matches "{q}".',
+    noCollectors: 'No synced collection logs yet.',
   },
 };
 

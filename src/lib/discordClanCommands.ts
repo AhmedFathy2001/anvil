@@ -14,7 +14,7 @@
 import { and, desc, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanRoster, memberClog, memberClogItems, memberClogKc, weeklyCompetitions } from '@/db/schema';
+import { clanRoster, memberClog, memberClogItems, memberClogKc, memberPersonalBests, weeklyCompetitions } from '@/db/schema';
 
 import {
   EMBED_COLOR,
@@ -33,7 +33,8 @@ import { clogPageItems, clogPageIndex, clogPageNames } from '@/lib/clogDataset';
 import { getEffectiveParticipants } from '@/lib/weekly';
 import { weeklyMetricLabel } from '@/lib/weeklyLabels';
 import { weeklyUnit } from '@/lib/weeklyStage';
-import { listMembers } from '@/lib/memberProfile';
+import { listMembers, getAccountProfile } from '@/lib/memberProfile';
+import { formatPersonalBest } from '@/lib/clogRead';
 import {
   clanHasCoffer,
   getCofferBalance,
@@ -407,13 +408,222 @@ async function topCollectors(clanId: number) {
     .orderBy(desc(memberClog.obtained));
 }
 
-async function clogResult(ctx: ClanCommandCtx): Promise<ClanResult> {
+// ── /stats — the player hub ─────────────────────────────────────────────────────────────────────
+//
+// One command for everything about a player, plus the two clan leaderboards. Structured like /coffer
+// (subcommands); each personal view resolves the member + account the same way and deep-links to the
+// matching /p/<rsn> tab on the site.
+
+/** The site's character page for an RSN — /p/<slug>, where the slug is the lowercased hyphenated RSN. */
+function profileUrl(clan: ClanContext, rsn: string | null, tab?: string): string | null {
+  if (!clan.origin || !rsn) return null;
+  const slug = encodeURIComponent(rsn.trim().toLowerCase().replace(/\s+/g, '-'));
+  return `${clan.origin}/p/${slug}${tab ? `?tab=${tab}` : ''}`;
+}
+
+const titleCase = (s: string): string => s.replace(/\b\w/g, (c) => c.toUpperCase());
+
+async function statsResult(ctx: ClanCommandCtx): Promise<ClanResult> {
+  const sub = ctx.sub;
+  // Clan leaderboards — no person involved.
+  if (sub === 'collectors') return clanCollectorsResult(ctx);
+  if (sub === 'luckboard') return clanLuckResult(ctx);
+  if (sub === 'luck') return memberLuckResult(ctx); // resolves its own target + account
+
   const target = await resolveTarget(ctx);
   const picked = chooseAccount(target, ctx.options.account);
-  // A specific boss/page named → that page's items for the chosen account (RuneProfile-style).
-  const page = typeof ctx.options.page === 'string' ? ctx.options.page.trim() : '';
-  if (page) return clogPageResult(ctx, target, picked, page);
-  return clogOverviewResult(ctx, target, picked);
+  switch (sub) {
+    case 'levels':
+      return statLevelsResult(ctx, picked);
+    case 'efficiency':
+      return statEfficiencyResult(ctx, picked);
+    case 'clog': {
+      const page = typeof ctx.options.page === 'string' ? ctx.options.page.trim() : '';
+      return page ? clogPageResult(ctx, target, picked, page) : clogOverviewResult(ctx, target, picked);
+    }
+    case 'pbs':
+      return pbsResult(ctx, picked);
+    case 'profile':
+    default:
+      return statProfileResult(ctx, picked);
+  }
+}
+
+/** The one account's headline card: combat/total level, EHP/EHB, collection-log count, PB count. */
+async function statProfileResult(ctx: ClanCommandCtx, picked: { accountId: number | null; rsn: string }): Promise<ClanResult> {
+  const { t, clan } = ctx;
+  if (picked.accountId == null) return { text: fmt(t.stats.noAccount, { who: picked.rsn }) };
+  const profile = await getAccountProfile(picked.accountId);
+  if (!profile || profile.statsAt == null) return { text: fmt(t.stats.noStats, { who: picked.rsn }) };
+
+  const [clogHeader, pbRows] = await Promise.all([
+    db.query.memberClog.findFirst({ where: eq(memberClog.accountId, picked.accountId) }),
+    db.select({ id: memberPersonalBests.id }).from(memberPersonalBests).where(eq(memberPersonalBests.accountId, picked.accountId)),
+  ]);
+  const totalXp = profile.skills.find((s) => s.key === 'overall')?.xp ?? profile.skills.reduce((n, s) => n + s.xp, 0);
+
+  const url = profileUrl(clan, profile.rsn);
+  const body: string[] = [];
+  if (url) body.push(fmt(t.stats.viewFull, { url }));
+  body.push('', clanLine(clan));
+
+  return {
+    embeds: [
+      {
+        title: clamp(fmt(t.stats.profileTitle, { who: profile.rsn }), LIMIT.title),
+        url: url ?? undefined,
+        description: clamp(body.join('\n'), LIMIT.description),
+        color: EMBED_COLOR.gold,
+        author: authorOf(clan),
+        ...thumb(STATS_ICON),
+        fields: [
+          statField(t.stats.combat, profile.combatLevel ?? '—'),
+          statField(t.stats.total, profile.totalLevel),
+          statField('XP', totalXp.toLocaleString()),
+          ...(profile.efficiency ? [statField('EHP', profile.efficiency.ehp.toFixed(1)), statField('EHB', profile.efficiency.ehb.toFixed(1))] : []),
+          ...(clogHeader ? [statField(t.stats.clogField, `${clogHeader.obtained}/${clogHeader.total}`)] : []),
+          ...(pbRows.length ? [statField(t.stats.pbsField, pbRows.length)] : []),
+        ],
+      },
+    ],
+    shareable: true,
+  };
+}
+
+/** Every skill's level, plus combat and total level. */
+async function statLevelsResult(ctx: ClanCommandCtx, picked: { accountId: number | null; rsn: string }): Promise<ClanResult> {
+  const { t, clan } = ctx;
+  if (picked.accountId == null) return { text: fmt(t.stats.noAccount, { who: picked.rsn }) };
+  const profile = await getAccountProfile(picked.accountId);
+  if (!profile || profile.statsAt == null) return { text: fmt(t.stats.noStats, { who: picked.rsn }) };
+
+  const skills = profile.skills.filter((s) => s.key !== 'overall');
+  const url = profileUrl(clan, profile.rsn, 'skills');
+  const body = [
+    skills.map((s) => `**${titleCase(s.key)}** ${s.level}`).join(' · '),
+    '',
+    ...(url ? [fmt(t.stats.viewFull, { url })] : []),
+    clanLine(clan),
+  ];
+  return {
+    embeds: [
+      {
+        title: clamp(fmt(t.stats.levelsTitle, { who: profile.rsn }), LIMIT.title),
+        url: url ?? undefined,
+        description: clamp(body.join('\n'), LIMIT.description),
+        color: EMBED_COLOR.blue,
+        author: authorOf(clan),
+        ...thumb(STATS_ICON),
+        fields: [statField(t.stats.combat, profile.combatLevel ?? '—'), statField(t.stats.total, profile.totalLevel)],
+      },
+    ],
+    shareable: true,
+  };
+}
+
+/** EHP and EHB, with the skills and bosses they mostly come from. */
+async function statEfficiencyResult(ctx: ClanCommandCtx, picked: { accountId: number | null; rsn: string }): Promise<ClanResult> {
+  const { t, clan } = ctx;
+  if (picked.accountId == null) return { text: fmt(t.stats.noAccount, { who: picked.rsn }) };
+  const profile = await getAccountProfile(picked.accountId);
+  if (!profile?.efficiency) return { text: fmt(t.stats.noStats, { who: picked.rsn }) };
+
+  const top = (rec: Record<string, number>) =>
+    Object.entries(rec)
+      .filter(([, h]) => h > 0)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([k, h]) => `${titleCase(k)} ${h.toFixed(1)}h`)
+      .join(' · ');
+
+  const url = profileUrl(clan, profile.rsn);
+  const body = [
+    fmt(t.stats.ehpLine, { hours: profile.efficiency.ehp.toFixed(1) }),
+    top(profile.efficiency.ehpBySkill) || '—',
+    '',
+    fmt(t.stats.ehbLine, { hours: profile.efficiency.ehb.toFixed(1) }),
+    top(profile.efficiency.ehbByBoss) || '—',
+    '',
+    ...(url ? [fmt(t.stats.viewFull, { url })] : []),
+    clanLine(clan),
+  ];
+  return {
+    embeds: [
+      {
+        title: clamp(fmt(t.stats.efficiencyTitle, { who: profile.rsn }), LIMIT.title),
+        url: url ?? undefined,
+        description: clamp(body.join('\n'), LIMIT.description),
+        color: EMBED_COLOR.blue,
+        author: authorOf(clan),
+        ...thumb(STATS_ICON),
+      },
+    ],
+    shareable: true,
+  };
+}
+
+/** Personal bests — all of them, or one activity when a page is named. */
+async function pbsResult(ctx: ClanCommandCtx, picked: { accountId: number | null; rsn: string }): Promise<ClanResult> {
+  const { t, clan } = ctx;
+  if (picked.accountId == null) return { text: fmt(t.stats.noAccount, { who: picked.rsn }) };
+  const rows = await db
+    .select({ activity: memberPersonalBests.activity, teamSize: memberPersonalBests.teamSize, centis: memberPersonalBests.centis })
+    .from(memberPersonalBests)
+    .where(eq(memberPersonalBests.accountId, picked.accountId));
+  if (rows.length === 0) return { text: fmt(t.stats.noPbs, { who: picked.rsn }) };
+
+  const pageQuery = typeof ctx.options.page === 'string' ? ctx.options.page.trim().toLowerCase() : '';
+  const shown = pageQuery ? rows.filter((r) => r.activity.includes(pageQuery)) : rows;
+  if (pageQuery && shown.length === 0) return { text: fmt(t.stats.noPbActivity, { q: clamp(pageQuery, 60) }) };
+  shown.sort((a, b) => a.activity.localeCompare(b.activity) || a.teamSize - b.teamSize);
+
+  const line = (r: (typeof shown)[number]) =>
+    `• **${titleCase(r.activity)}**${r.teamSize > 0 ? ` (${r.teamSize})` : ''} — ${code(formatPersonalBest(r.centis))}`;
+  const url = profileUrl(clan, picked.rsn, 'pbs');
+  const body = [t.stats.pbsHeading, ...shown.slice(0, 20).map(line)];
+  if (shown.length > 20) body.push(`-# ${fmt(t.common.more, { n: shown.length - 20 })}`);
+  if (url) body.push('', fmt(t.stats.viewFull, { url }));
+  body.push('', clanLine(clan));
+
+  return {
+    embeds: [
+      {
+        title: clamp(fmt(t.stats.pbsTitle, { who: picked.rsn }), LIMIT.title),
+        url: url ?? undefined,
+        description: clamp(body.join('\n'), LIMIT.description),
+        color: EMBED_COLOR.gold,
+        author: authorOf(clan),
+        ...thumb(pageQuery ? (bossImageUrl(shown[0].activity) ?? itemIconUrl(CLOG_ITEM_ID)) : STATS_ICON),
+      },
+    ],
+    shareable: true,
+  };
+}
+
+/** The clan's top collection logs — the board that was /clog's default. */
+async function clanCollectorsResult(ctx: ClanCommandCtx): Promise<ClanResult> {
+  const { t, clan } = ctx;
+  const board = await topCollectors(clan.clanId);
+  if (board.length === 0) return { text: t.stats.noCollectors };
+  const body = [
+    ...board.slice(0, 15).map((b, i) => `${placeMark(i)} **${clamp(b.rsn, 40)}** — ${code(`${b.obtained}/${b.total}`)}`),
+    '',
+    clanLine(clan),
+  ];
+  return {
+    embeds: [
+      {
+        title: clamp(fmt(t.stats.collectorsTitle, { clan: clan.name }), LIMIT.title),
+        url: pathUrl(clan, '/members'),
+        description: clamp(body.join('\n'), LIMIT.description),
+        color: EMBED_COLOR.gold,
+        author: authorOf(clan),
+        ...thumb(itemIconUrl(CLOG_ITEM_ID)),
+        fields: [statField(t.clog.collectors, board.length)],
+      },
+    ],
+    shareable: true,
+  };
 }
 
 /** The whole-log summary: the chosen account's count + rank, and the clan's top collectors. */
@@ -621,13 +831,6 @@ async function clanLuckResult(ctx: ClanCommandCtx): Promise<ClanResult> {
   };
 }
 
-async function luckResult(ctx: ClanCommandCtx): Promise<ClanResult> {
-  // Naming a member OR a specific account asks about a person; the bare command shows clan boards.
-  const named = typeof ctx.options.member === 'string' && ctx.options.member.trim().length > 0;
-  const account = typeof ctx.options.account === 'string' && ctx.options.account.trim().length > 0;
-  return named || account ? memberLuckResult(ctx) : clanLuckResult(ctx);
-}
-
 // ── Registry ────────────────────────────────────────────────────────────────────────────────────
 
 export const CLAN_COMMANDS: Record<string, ClanCommand> = {
@@ -635,8 +838,7 @@ export const CLAN_COMMANDS: Record<string, ClanCommand> = {
   botw: (ctx) => weeklyResult(ctx, 'boss'),
   eff: effResult,
   coffer: cofferResult,
-  clog: clogResult,
-  luck: luckResult,
+  stats: statsResult,
   guide: guideCommand,
 };
 

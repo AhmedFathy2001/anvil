@@ -14,8 +14,9 @@ import { verifyUser } from '@/lib/auth';
 // what makes a guest application, a cross-clan event entry or a public profile show a name instead
 // of a blank.
 //
-// Off by default, and per account rather than per person, because "my main is public, my ironman is
-// nobody's business" is the actual want.
+// Per account rather than per person, because "my main is public, my ironman is nobody's business"
+// is the actual want. New accounts are shared by default; ones that predate that default are not,
+// which is what the prompt on the person page exists to ask about rather than assume.
 //
 // Keyed on the ACCOUNT and scoped to the caller's own person — there is no path here to publish
 // somebody else's account, and no clan-side route may set this at all. It is the person's to give.
