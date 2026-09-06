@@ -291,6 +291,7 @@ export const en = {
     title: '📖 {who} — collection log',
     notSynced: "{who} hasn't synced a collection log yet — sync it from the Anvil plugin.",
     rankLine: '#{rank} of {total} collectors in {clan}.',
+    alsoSynced: '-# Also synced: {names}',
     topHeading: '**Top collectors**',
     slots: 'Slots',
     collectors: 'Collectors',
