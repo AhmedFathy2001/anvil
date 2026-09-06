@@ -17,6 +17,8 @@
 // unverified clan claiming a famous name and topping a table under it — the badge is load-bearing
 // here rather than decorative.
 
+import { cache } from 'react';
+
 import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -39,6 +41,12 @@ export interface ClanStanding {
   ehpGained: number;
   ehbGained: number;
 }
+
+/**
+ * How deep a ranking goes. High enough that every clan on the platform is placed for the
+ * foreseeable future, and bounded so a page render cannot ask for an unbounded aggregate.
+ */
+const RANK_FIELD_CAP = 1000;
 
 function sinceFor(window: LeaderboardWindow): string | null {
   if (window === 'all') return null;
@@ -300,3 +308,47 @@ export async function standingFor(
     gapAhead: nextUp == null ? null : Math.max(0, nextUp - gained),
   };
 }
+
+// ── Where one CLAN stands ────────────────────────────────────────────────────────────────────────
+
+export interface ClanRank {
+  /** 1-based, among every clan that qualifies for the table. */
+  rank: number;
+  /** How many clans are ranked at all — "3rd" means nothing without it. */
+  field: number;
+  xpGained: number;
+  /** XP to the clan above, or null at the top. The number that makes a rank a target. */
+  gapAhead: number | null;
+}
+
+/**
+ * This clan's placing on the platform table.
+ *
+ * A CLAN'S OWN PAGE NEVER SAID HOW IT WAS DOING AGAINST ANYONE. The leaderboard existed, the clan
+ * page existed, and nothing joined them — so the one number a clan actually argues about, are we
+ * ahead of them this week, lived on a page you had to go and find. It is also what makes a clan's
+ * page worth linking to from outside: "3rd of 47 this week" is a claim, where "bingos and the
+ * roster" is a description of software.
+ *
+ * Reads the same `clanStandings` the table does rather than a second ranking query, because two
+ * rankings that disagree is worse than no ranking. Wrapped in React's `cache` so the page, its
+ * metadata and its social card share one computation per request — three callers, one aggregate.
+ *
+ * Null for a clan that is not ON the table: unverified, unlisted, or private. Those are the same
+ * clans lib/clanListing keeps off every other public surface, so this needs no rule of its own.
+ */
+export const clanRankFor = cache(
+  async (clanId: number, window: LeaderboardWindow = '7d'): Promise<ClanRank | null> => {
+    // The whole field, not the top 50: "12th" is only true if everyone above it was counted.
+    const all = await clanStandings(window, RANK_FIELD_CAP);
+    const idx = all.findIndex((c) => c.clanId === clanId);
+    if (idx < 0) return null;
+    const me = all[idx];
+    return {
+      rank: idx + 1,
+      field: all.length,
+      xpGained: me.xpGained,
+      gapAhead: idx === 0 ? null : Math.max(0, all[idx - 1].xpGained - me.xpGained),
+    };
+  },
+);

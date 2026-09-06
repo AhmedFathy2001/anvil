@@ -1,6 +1,11 @@
+import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { currentClan, isApexHost } from '@/lib/clanContext';
+import { clanRankFor } from '@/lib/clanLeaderboard';
+import { JsonLd, clanLd, websiteLd } from '@/lib/jsonLd';
+import { clanSectionMetadata } from '@/lib/seoPages';
+import { ordinal } from '@/lib/utils';
 import ApexLanding from '@/components/landing/ApexLanding';
 import ApexHome from '@/components/landing/ApexHome';
 import { platformStats } from '@/lib/platformStats';
@@ -20,6 +25,63 @@ import { ClanWeek, Competitions, Hero, LiveNow, YouStrip } from '@/components/ho
 import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * The clan's own front door, described with facts rather than with the product's tagline.
+ *
+ * Every clan page carried the layout's "Bingos, competitions and the roster for X." — true of all of
+ * them, useful about none of them, and the same sentence a hundred times over is not a description.
+ * A snippet that says how many people are in a clan, what it is running right now and where it sits
+ * on the table is the difference between a result somebody clicks and one they scroll past.
+ *
+ * The apex is deliberately left alone: there the layout's platform metadata is already correct.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const clan = await currentClan();
+  if (!clan) return {};
+
+  const view = await publicClanHomeView(clan.id);
+  if (!view) return {};
+
+  // Only for a clan that is on the table at all — lib/clanListing keeps private and unlisted clans
+  // off it, so this cannot describe a clan by a standing it never agreed to publish.
+  const rank = await clanRankFor(clan.id);
+
+  const bits: string[] = [];
+  if (view.memberCount > 0) {
+    bits.push(`${view.memberCount.toLocaleString()} member${view.memberCount === 1 ? '' : 's'}`);
+  }
+  if (rank) bits.push(`${ordinal(rank.rank)} of ${rank.field} clans this week`);
+  const live = view.recentEvents.find((e) => isLive(e));
+  if (live) bits.push(`${live.name} running now`);
+  else if (view.eventsRun > 0) bits.push(`${view.eventsRun.toLocaleString()} events run`);
+
+  // The clan's own words first when it has written any — nobody describes a clan better than it
+  // does — with the facts appended rather than replacing them.
+  const own = (view.tagline || view.description || '').trim().replace(/\s+/g, ' ');
+  const facts = bits.join(' · ');
+  const description = own
+    ? `${own.length > 110 ? `${own.slice(0, 107)}…` : own}${facts ? ` — ${facts}.` : ''}`
+    : facts
+      ? `${facts}. Old School RuneScape clan events on Anvil.`
+      : `Old School RuneScape clan events, competitions and roster for ${view.name}.`;
+
+  return clanSectionMetadata({ description });
+}
+
+/**
+ * Running right now, by the event's own dates.
+ *
+ * The two timestamp formats these columns hold (see lib/dbTime) compare correctly against an ISO
+ * `now` once the space form is normalised, which is all this needs — it is choosing a word for a
+ * meta description, not settling a scoring dispute.
+ */
+function isLive(e: { startDate: string | null; endDate: string | null }): boolean {
+  const now = new Date().toISOString();
+  const start = e.startDate?.replace(' ', 'T');
+  const end = e.endDate?.replace(' ', 'T');
+  return !!start && start <= now && (!end || end >= now);
+}
 
 /**
  * The clan home page.
@@ -45,7 +107,16 @@ export const dynamic = 'force-dynamic';
  */
 async function ApexRoot() {
   const session = await verifyUser();
-  if (!session) return <ApexLanding stats={await platformStats()} />;
+  if (!session) {
+    return (
+      <>
+        {/* The signed-out apex is the only page a crawler indexes as "the platform", so it is the
+            one place the platform describes itself as a thing rather than as a set of clan pages. */}
+        <JsonLd data={websiteLd()} />
+        <ApexLanding stats={await platformStats()} />
+      </>
+    );
+  }
 
   const [view, userRow, signals] = await Promise.all([
     apexHomeView(session.playerId, session.userId),
@@ -85,7 +156,27 @@ export default async function HomePage() {
 
   if (!insider) {
     const publicView = await publicClanHomeView(clan.id, await getDiscordInviteUrl(clan.id));
-    if (publicView) return <PublicClanHome view={publicView} signedIn={!!session?.userId} />;
+    if (publicView) {
+      return (
+        <>
+          {/* Structured data on the PUBLIC branch only, which is the branch a crawler ever reaches —
+              they arrive signed out, and a `members` clan never renders children at all (the layout
+              swaps in ClanPrivate). So this cannot describe a clan that withheld itself. */}
+          <JsonLd
+            data={clanLd({
+              name: publicView.name,
+              slug: publicView.slug,
+              description:
+                (publicView.tagline || publicView.description || '').trim() ||
+                `Old School RuneScape clan events and roster for ${publicView.name}.`,
+              memberCount: publicView.memberCount,
+              discordInvite: publicView.discordInvite,
+            })}
+          />
+          <PublicClanHome view={publicView} signedIn={!!session?.userId} />
+        </>
+      );
+    }
   }
 
   const view = await buildHomeView(clan.id, myMemberIds);

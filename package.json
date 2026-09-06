@@ -96,6 +96,7 @@
     "test:pluginclans": "npx tsx --test tests/plugin-clans.test.ts",
     "test:pluginstaff": "npx tsx --test tests/plugin-staff-authority.test.ts",
     "test:sweepowner": "npx tsx --test tests/sweep-owner.test.ts",
+    "test:jsonld": "npx tsx --test tests/json-ld.test.ts",
     "test:seo": "npx tsx --test tests/seo.test.ts",
     "test:apexhome": "npx tsx --test tests/apex-home-signals.test.ts"
   },

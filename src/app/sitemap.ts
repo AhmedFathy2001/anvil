@@ -2,7 +2,7 @@ import type { MetadataRoute } from 'next';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clans, events as eventsTable, settings } from '@/db/schema';
+import { clans, events as eventsTable, settings, weeklyCompetitions } from '@/db/schema';
 import { DEFAULT_LOCALE } from '@/app/guide/_i18n';
 import { allGuideHrefs } from '@/app/guide/_i18n/meta';
 import { listedClanWhere, showcaseJoinOn } from '@/lib/clanListing';
@@ -18,6 +18,9 @@ const CLAN_SUBPAGES = ['/events', '/members'];
 
 /** Most-recent events per clan. A four-year-old clan has hundreds and the old ones earn nothing. */
 const EVENTS_PER_CLAN = 40;
+
+/** Same rule for weeks, and a higher cap because a clan runs far more of them than boards. */
+const WEEKLIES_PER_CLAN = 60;
 
 /**
  * The map of everything a stranger may read.
@@ -109,6 +112,33 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         ...(Number.isNaN(stamp.getTime()) ? {} : { lastModified: stamp }),
         changeFrequency: 'daily',
         priority: 0.7,
+      });
+    }
+
+    // Skill and Boss of the Week. A clan that runs one a week accumulates these faster than boards,
+    // and they were listed nowhere — each one is a page with a title, a leaderboard and a winner.
+    // clan-scope: global -- scoped to the listed clans resolved above, by id.
+    const weeks = await db
+      .select({
+        id: weeklyCompetitions.id,
+        clanId: weeklyCompetitions.clanId,
+        endDate: weeklyCompetitions.endDate,
+        rank: sql<number>`row_number() over (partition by ${weeklyCompetitions.clanId} order by ${weeklyCompetitions.startDate} desc)`,
+      })
+      .from(weeklyCompetitions)
+      .where(inArray(weeklyCompetitions.clanId, [...slugById.keys()]))
+      .orderBy(desc(weeklyCompetitions.startDate));
+
+    for (const row of weeks) {
+      if (Number(row.rank) > WEEKLIES_PER_CLAN) continue;
+      const slug = slugById.get(row.clanId);
+      if (!slug) continue;
+      const stamp = new Date((row.endDate ?? '').replace(' ', 'T'));
+      eventUrls.push({
+        url: absoluteUrl(clanCanonicalPath(slug, `/weekly/${row.id}`)),
+        ...(Number.isNaN(stamp.getTime()) ? {} : { lastModified: stamp }),
+        changeFrequency: 'weekly',
+        priority: 0.5,
       });
     }
   }

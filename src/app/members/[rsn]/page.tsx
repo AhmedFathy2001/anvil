@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { requireClan } from '@/lib/clanContext';
+import { getClanDisplayName } from '@/lib/pluginConfig';
+import { clanSectionMetadata } from '@/lib/seoPages';
 import { notFound } from 'next/navigation';
 import Persona from './Persona';
 import {
@@ -28,10 +30,22 @@ import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * A member's page inside a clan, named for both.
+ *
+ * "Zezima — Anvil" said the product's name and not the clan's, which is the wrong half: this page is
+ * one character AS SEEN BY ONE CLAN, and the same RSN has a different page in every clan it plays
+ * for. The clan is what tells those apart.
+ */
 export async function generateMetadata({ params }: { params: Promise<{ rsn: string }> }): Promise<Metadata> {
   const { rsn } = await params;
   const name = decodeURIComponent(rsn);
-  return { title: `${name} — Anvil`, description: `Skills, bosses and efficient hours for ${name}.` };
+  const clan = await requireClan();
+  const clanName = (await getClanDisplayName(clan.id, clan.name)) || clan.name;
+  return clanSectionMetadata({
+    title: `${name} — ${clanName}`,
+    description: `Skills, bosses, efficient hours and competition history for ${name} of ${clanName}.`,
+  });
 }
 
 /** Max total level, derived from the skill list — 24 skills today, whatever Jagex adds tomorrow. */

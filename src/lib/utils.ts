@@ -5,6 +5,24 @@ export function cn(...classes: (string | false | null | undefined)[]): string {
 }
 
 /**
+ * A placing, written the way a person says it: 1st, 2nd, 3rd, 4th … 11th, 12th, 13th, 21st.
+ *
+ * The teens are the whole reason this is not a lookup on the last digit — "11st" is the bug every
+ * hand-rolled version of this has. Lived privately in lib/weeklyPrizeSettle, which is a strange
+ * place for it and one nobody else could find; a third copy was about to be written for the clan
+ * standing before this moved here.
+ *
+ * Note lib/../ApexSignals has a same-named helper with a DIFFERENT contract — it returns the suffix
+ * alone, for a design that renders the number at a different size. That one is deliberately not
+ * this, and merging them would silently change what it prints.
+ */
+export function ordinal(n: number): string {
+  const rest = n % 100;
+  if (rest >= 11 && rest <= 13) return `${n}th`;
+  return `${n}${['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`;
+}
+
+/**
  * Format large numbers with K/M/B suffixes
  * e.g., 4000000 -> "4M", 200000 -> "200K", 1500 -> "1.5K"
  */

@@ -5,6 +5,8 @@ import { clanPrefix, currentClan, requireClan } from '@/lib/clanContext';
 import { canSeeEvent } from '@/lib/eventAccess';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { canonicalPathFor, socialMetadata } from '@/lib/seo';
+import { JsonLd, breadcrumbLd, eventLd } from '@/lib/jsonLd';
+import { clanTrail } from '@/lib/seoPages';
 import { clanHref } from '@/lib/clanPath';
 import { eventInClan, requireEventForPage } from '@/lib/eventScope';
 import { events, tiles, teams, completions, eventSignups, clanRoster, players, submissions, surveyQuestions, surveyResponses, eventStartProofs, eventParticipants } from '@/db/schema';
@@ -463,6 +465,29 @@ export default async function EventScoreboardPage({
 
   return (
     <>
+      {/* A board is an EVENT — it has a name, a start, an end and an organiser — and saying so is
+          what lets it appear in search as an event rather than as a blue link. Emitted only for a
+          clan a stranger may read: a `members` clan never renders children at all (the layout swaps
+          in ClanPrivate), and an invite-only board is not reachable here without a seat. */}
+      <JsonLd
+        data={eventLd({
+          name: event.name,
+          url: `/c/${clan.slug}/events/${event.id}`,
+          startDate: event.startDate,
+          // A force-ended board really ended then, whatever its planned end said.
+          endDate: event.forceEndedAt ?? event.endDate,
+          clanName: clan.name,
+          clanSlug: clan.slug,
+        })}
+      />
+      <JsonLd
+        data={breadcrumbLd(
+          clanTrail(clan, [
+            { name: 'Competitions', path: `/c/${clan.slug}/events` },
+            { name: event.name, path: `/c/${clan.slug}/events/${event.id}` },
+          ]),
+        )}
+      />
       <EventHero
         name={event.name}
         shapeBadge={eventShapeBadge(event.format, event.scoringMode, event.boardSize, event.rules)}

@@ -5,6 +5,7 @@ import { clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema'
 import { reserveWeeklyAward } from '@/lib/coffer';
 import { computeLeaderboard } from '@/lib/weekly';
 import { parseWeeklyPrizes, winnersFor } from '@/lib/weeklyPrizes';
+import { ordinal } from '@/lib/utils';
 
 // Paying out a Skill or Boss of the Week.
 //
@@ -105,8 +106,3 @@ export async function settleWeeklyPrizes(competitionId: number): Promise<SettleR
   return { settled: true, reserved, unfunded };
 }
 
-function ordinal(n: number): string {
-  const rest = n % 100;
-  if (rest >= 11 && rest <= 13) return `${n}th`;
-  return `${n}${['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`;
-}

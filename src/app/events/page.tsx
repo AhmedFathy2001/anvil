@@ -1,4 +1,8 @@
+import type { Metadata } from 'next';
+
 import ClanLink from '@/components/ClanLink';
+import { getClanDisplayName } from '@/lib/pluginConfig';
+import { clanSectionMetadata } from '@/lib/seoPages';
 import { loadHubView } from '@/lib/eventsHub';
 import { loadCalendar } from '@/lib/eventsCalendar';
 import { requireClan } from '@/lib/clanContext';
@@ -10,6 +14,15 @@ import SeasonCalendar from './SeasonCalendar';
 import EventTimer from '@/components/EventTimer';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata(): Promise<Metadata> {
+  const clan = await requireClan();
+  const name = (await getClanDisplayName(clan.id, clan.name)) || clan.name;
+  return clanSectionMetadata({
+    section: 'Competitions',
+    description: `Every bingo board, Skill of the Week and Boss of the Week ${name} has run — what is live now, what is coming, and how the last ones finished.`,
+  });
+}
 
 /**
  * The Events hub — every competition the clan runs, in one place.
