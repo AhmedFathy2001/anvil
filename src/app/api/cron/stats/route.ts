@@ -372,7 +372,21 @@ export async function GET(request: Request) {
   // the tick — never the other way round, and never interleaved. Both are oldest-fetched-first
   // within themselves, so whatever does not fit rolls into the next tick rather than starving.
   const queue = due.filter((e) => !e.rosterOnly).sort((a, b) => a.staleKey.localeCompare(b.staleKey));
-  const fillerDue = due.filter((e) => e.rosterOnly).sort((a, b) => a.staleKey.localeCompare(b.staleKey));
+  // NEVER-SWEPT FIRST, then least-recently-due. Not `staleKey`: that is only ever written by a
+  // competition, so every roster entry carries the same default and sorting on it is a no-op —
+  // the cap then took the same 120 rows every tick, in insertion order, while anyone who had gained
+  // XP reset to "due now" and kept their slot. The observed effect was a tick fetching 119 members
+  // for 7 history writes and a backlog of 152 moving by 8.
+  //
+  // A member with no snapshot has never been seen at all, so they go ahead of anyone we already
+  // have a reading for, however stale. That drains the backlog in a few ticks and only then settles
+  // into the backoff rhythm.
+  const fillerDue = due
+    .filter((e) => e.rosterOnly)
+    .sort((a, b) => {
+      const seen = (e: MemberWork) => (e.lastSnapshot ? 1 : 0);
+      return seen(a) - seen(b) || (a.nextDueAt ?? '').localeCompare(b.nextDueAt ?? '');
+    });
   const filler = fillerDue.slice(0, ROSTER_FILLER_PER_TICK);
   const deferred = allWork.length - due.length;
   const fetchedBingo: FetchedBingo[] = [];
