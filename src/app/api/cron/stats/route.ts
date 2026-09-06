@@ -326,6 +326,7 @@ export async function GET(request: Request) {
     const members = await db
       .select({
         id: clanRoster.id,
+        accountId: clanRoster.accountId,
         rsn: clanRoster.rsn,
         liveStats: clanRoster.liveStats,
         liveStatKeyTimes: clanRoster.liveStatKeyTimes,
@@ -341,6 +342,7 @@ export async function GET(request: Request) {
       if (entry.clanMemberId == null) continue;
       const m = memberById.get(entry.clanMemberId);
       if (m) {
+        entry.accountId = entry.accountId ?? m.accountId;
         entry.fetchRsn = m.rsn;
         entry.liveMap = parsePluginStats(m.liveStats);
         entry.liveKeyTimes = parseStatKeyTimes(m.liveStatKeyTimes);
@@ -362,7 +364,42 @@ export async function GET(request: Request) {
   // polling a 200-member clan ~19k times a day and ~4k, and it compounds with every clan on the box,
   // since all of them share one IP as far as Jagex is concerned.
   const nowDate = new Date();
-  const allWork = Array.from(work.values());
+
+  // ONE FETCH PER ACCOUNT, not per seat.
+  //
+  // The work list is keyed by seat, because that is what a competition row points at. But a person
+  // in ten clans holds ten seats for one character, and Jagex has one page for it — so the same RSN
+  // was requested ten times a tick, and the same account row written ten times. The header above
+  // promises a member is fetched "exactly ONCE"; that only ever deduped across COMPETITIONS, and
+  // adding the roster as a source made the gap matter.
+  //
+  // Merged here rather than at `ensureEntry` because the key is only knowable afterwards: a bingo
+  // row carries a per-event display name that a rename can leave stale, and the canonical RSN and
+  // account arrive with the enrichment above.
+  //
+  // Safe to collapse because every write downstream is account-level: `updateAccountOfSeat` and the
+  // unranked quarantine both resolve a seat id to its account before writing, so any one of the
+  // merged seats stands for all of them. The per-seat work rides along in `bingo` and `weekly`,
+  // which carry their own ids and still fan out.
+  const merged = new Map<string, MemberWork>();
+  for (const entry of work.values()) {
+    const key =
+      entry.accountId != null ? `acc:${entry.accountId}` : `rsn:${normalizeRsn(entry.fetchRsn)}`;
+    const seen = merged.get(key);
+    if (!seen) {
+      merged.set(key, entry);
+      continue;
+    }
+    seen.bingo.push(...entry.bingo);
+    seen.weekly.push(...entry.weekly);
+    seen.staleKey = olderOf(seen.staleKey, entry.staleKey);
+    // A null due time means "due now", so it wins over any scheduled one.
+    seen.nextDueAt = seen.nextDueAt === null || entry.nextDueAt === null ? null : (seen.nextDueAt < entry.nextDueAt ? seen.nextDueAt : entry.nextDueAt);
+    // Claimed by a competition anywhere = priority everywhere. Filler only if nobody wants them.
+    seen.rosterOnly = seen.rosterOnly && entry.rosterOnly;
+    seen.clanMemberId = seen.clanMemberId ?? entry.clanMemberId;
+  }
+  const allWork = Array.from(merged.values());
   const due = allWork.filter((entry) => {
     const needsBaseline =
       entry.bingo.some((b) => b.needsSnapshot) || entry.weekly.some((w) => w.participant.baselineValue === null);
@@ -739,6 +776,9 @@ export async function GET(request: Request) {
     activeEvents: activeEvents.length,
     activeComps: activeComps.length,
     membersQueued: queue.length,
+    // Seats collapsed into one fetch because they are the same character in different clans. This
+    // is requests NOT sent to Jagex, so it should grow as cross-clan guesting does.
+    seatsCollapsed: work.size - allWork.length,
     // Roster filler: how many were eligible this tick, and how many the budget actually reached.
     // `rosterQueued` high with `rosterFetched` at zero every tick means competitions are using the
     // whole budget and a quiet clan's directory will stay empty — that is the number to watch.
