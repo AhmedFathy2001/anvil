@@ -26,8 +26,14 @@ The rest answer about the CLAN, and resolve no board:
 /coffer balance       the coffer — balance, top donors, recent movements
 /coffer add <amt>     add gp to the coffer   ← treasurer / admin / owner only
 /coffer remove <amt>  remove gp from the coffer   ← treasurer / admin / owner only
-/clog [member]        a member's collection-log count + the clan's top collectors
-/luck [member]        the clan's driest and luckiest drops, or one member's
+/stats profile        a player: combat/total level, EHP/EHB, clog count, PBs
+/stats levels         skill levels and XP        (member: / account: to pick)
+/stats efficiency     EHP/EHB and where they come from
+/stats clog [page:]   collection log — overall, or one boss's page (autocomplete)
+/stats pbs [page:]    personal bests — all, or one activity
+/stats luck           drop luck across tracked drops
+/stats collectors     clan leaderboard — the top collection logs
+/stats luckboard      clan leaderboard — driest and luckiest
 /guide <topic> [step] a setup guide — the overview or one step, with a link to it
 ```
 

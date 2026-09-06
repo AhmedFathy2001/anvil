@@ -168,16 +168,22 @@ const CLAN_DEFINITIONS = [
     ],
   },
   {
-    name: 'clog',
-    description: "Collection log — a member's count, one boss's page, or the clan's top collectors",
+    // The player-stats hub: everything about ONE account, plus the two clan leaderboards that were
+    // once their own /clog and /luck commands. A command WITH subcommands (like /coffer), dispatched
+    // in lib/discordClanCommands statsResult.
+    name: 'stats',
+    description: "A player's stats — levels, efficiency, collection log, PBs, luck",
     contexts: [0],
-    options: [PAGE_OPTION, ACCOUNT_OPTION, MEMBER_OPTION, LANGUAGE_OPTION],
-  },
-  {
-    name: 'luck',
-    description: "Drop luck — the clan's driest and luckiest, or a member's",
-    contexts: [0],
-    options: [MEMBER_OPTION, ACCOUNT_OPTION, LANGUAGE_OPTION],
+    options: [
+      { name: 'profile', description: 'Overview — levels, EHP/EHB, collection log, PBs', type: OPTION_TYPE.SUB_COMMAND, options: [MEMBER_OPTION, ACCOUNT_OPTION, LANGUAGE_OPTION] },
+      { name: 'levels', description: 'Skill levels and XP', type: OPTION_TYPE.SUB_COMMAND, options: [MEMBER_OPTION, ACCOUNT_OPTION, LANGUAGE_OPTION] },
+      { name: 'efficiency', description: 'EHP and EHB, and where each comes from', type: OPTION_TYPE.SUB_COMMAND, options: [MEMBER_OPTION, ACCOUNT_OPTION, LANGUAGE_OPTION] },
+      { name: 'clog', description: "Collection log — overall, or one boss's page", type: OPTION_TYPE.SUB_COMMAND, options: [PAGE_OPTION, ACCOUNT_OPTION, MEMBER_OPTION, LANGUAGE_OPTION] },
+      { name: 'pbs', description: 'Personal bests — all, or one activity', type: OPTION_TYPE.SUB_COMMAND, options: [PAGE_OPTION, ACCOUNT_OPTION, MEMBER_OPTION, LANGUAGE_OPTION] },
+      { name: 'luck', description: 'Drop luck across tracked drops', type: OPTION_TYPE.SUB_COMMAND, options: [MEMBER_OPTION, ACCOUNT_OPTION, LANGUAGE_OPTION] },
+      { name: 'collectors', description: 'Clan leaderboard — the top collection logs', type: OPTION_TYPE.SUB_COMMAND, options: [LANGUAGE_OPTION] },
+      { name: 'luckboard', description: 'Clan leaderboard — the driest and the luckiest', type: OPTION_TYPE.SUB_COMMAND, options: [LANGUAGE_OPTION] },
+    ],
   },
   {
     name: 'guide',
