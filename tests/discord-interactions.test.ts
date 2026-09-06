@@ -29,6 +29,8 @@ import {
   invokerName,
   pong,
   readSubcommand,
+  readFocusedOption,
+  autocompleteReply,
   textReply,
   verifyDiscordSignature,
   type Interaction,
@@ -224,6 +226,38 @@ test('COMMAND_DEFINITIONS: /guide topic choices are exactly the guide outlines',
   const choiceValues = (topic?.choices ?? []).map((c) => c.value).sort();
   const { GUIDE_TOPICS } = await import('../src/lib/discordGuides.ts');
   assert.deepEqual(choiceValues, [...GUIDE_TOPICS].sort());
+});
+
+// ── Autocomplete ──────────────────────────────────────────────────────────────────────────────────
+
+test('readFocusedOption: finds the focused option and the siblings already filled in', () => {
+  const ix: Interaction = {
+    id: '1', type: 4, application_id: 'a', token: 't', guild_id: 'g',
+    data: {
+      id: 'c', name: 'clog',
+      options: [
+        { name: 'page', type: OPTION_TYPE.STRING, value: 'zulr', focused: true },
+        { name: 'member', type: OPTION_TYPE.USER, value: '123' },
+      ],
+    },
+  };
+  const f = readFocusedOption(ix);
+  assert.equal(f?.command, 'clog');
+  assert.equal(f?.name, 'page');
+  assert.equal(f?.value, 'zulr');
+  // The un-focused sibling is readable (so an `account` suggester can see `member`).
+  assert.equal(f?.siblings.member, '123');
+  // Nothing focused → null.
+  assert.equal(readFocusedOption({ ...ix, data: { id: 'c', name: 'clog', options: [] } }), null);
+});
+
+test('autocompleteReply: caps at 25 choices and 100-char names/values', () => {
+  const many = Array.from({ length: 40 }, (_, i) => ({ name: 'x'.repeat(120) + i, value: 'y'.repeat(120) + i }));
+  const res = autocompleteReply(many);
+  assert.equal(res.type, CALLBACK_TYPE.AUTOCOMPLETE_RESULT);
+  assert.equal(res.data?.choices?.length, 25);
+  assert.ok((res.data?.choices?.[0].name.length ?? 0) <= 100);
+  assert.ok((res.data?.choices?.[0].value.length ?? 0) <= 100);
 });
 
 // ── Guild guard + provenance ────────────────────────────────────────────────────────────────────

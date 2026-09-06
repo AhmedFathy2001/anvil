@@ -7,6 +7,7 @@ import ClanLink from '@/components/ClanLink';
 import { isApexHost } from '@/lib/clanContext';
 import { clanStandings, topPlayers, type LeaderboardWindow } from '@/lib/clanLeaderboard';
 import ClanShapes from '@/components/leaderboard/ClanShapes';
+import PlayerSearch from '@/components/PlayerSearch';
 
 export const dynamic = 'force-dynamic';
 
@@ -95,9 +96,12 @@ export default async function LeaderboardPage({
       <ClanShapes rows={clans} />
 
       <section className="mt-10">
-        <div className="mb-1.5 flex items-center gap-2.5">
+        <div className="mb-1.5 flex flex-wrap items-center gap-2.5">
           <span className="h-[18px] w-[3px] rounded-sm bg-gold" />
           <h2 className="text-[16.5px] font-semibold">Players</h2>
+          {/* A table of twenty-five is a ranking, not a directory. The box is how you reach the other
+              ones — by name, which is the only handle anybody actually has on a character. */}
+          <div className="ml-auto"><PlayerSearch /></div>
         </div>
         <p className="mb-4 ml-4 max-w-[62ch] text-[13px] text-text-muted">
           Only accounts their owner has shared. Everyone else still counts towards their clan&rsquo;s
