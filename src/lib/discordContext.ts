@@ -78,62 +78,15 @@ export async function getClanContext(guildId: string | null): Promise<ClanContex
   };
 }
 
-/**
- * The event a command should answer about: running first, then the soonest upcoming, then the most
- * recently ended. Drafts (no dates at all) are deliberately last — an unscheduled board is a work
- * in progress, not something to report standings for.
- */
-export async function pickEvent(now: Date = new Date()): Promise<EventContext | null> {
-  // clan-scope: global -- a Discord guild maps to exactly one clan, and this lookup IS that mapping.
-  const rows = await db.select().from(events);
-  if (rows.length === 0) return null;
-
-  const at = now.getTime();
-  const phaseOf = (e: (typeof rows)[number]): EventPhase => {
-    const stage = eventStage(e, at);
-    if (stage === 'run') return 'running';
-    if (stage === 'wrap') return 'ended';
-    return e.startDate ? 'upcoming' : 'draft';
-  };
-
-  const rank: Record<EventPhase, number> = { running: 0, upcoming: 1, ended: 2, draft: 3 };
-  const sorted = [...rows].sort((a, b) => {
-    const pa = phaseOf(a);
-    const pb = phaseOf(b);
-    if (rank[pa] !== rank[pb]) return rank[pa] - rank[pb];
-    // Within a phase: soonest-starting for upcoming, most-recent for everything else.
-    if (pa === 'upcoming') return Date.parse(a.startDate ?? '') - Date.parse(b.startDate ?? '');
-    return Date.parse(b.endDate ?? b.startDate ?? b.createdAt) - Date.parse(a.endDate ?? a.startDate ?? a.createdAt);
-  });
-
-  const chosen = sorted[0];
-  const [teamRows, playerRows] = await Promise.all([
-    db.select({ id: teams.id }).from(teams).where(eq(teams.eventId, chosen.id)),
-    db.select({ id: players.id }).from(eventParticipants).where(eq(eventParticipants.eventId, chosen.id)),
-  ]);
-
-  return {
-    id: chosen.id,
-    name: chosen.name,
-    phase: phaseOf(chosen),
-    format: chosen.format,
-    scoringMode: chosen.scoringMode,
-    boardSize: chosen.boardSize,
-    rules: chosen.rules,
-    startDate: chosen.startDate,
-    endDate: chosen.endDate,
-    tilesRevealed: chosen.tilesRevealed === 1,
-    teamCount: teamRows.length,
-    playerCount: playerRows.length,
-  };
+function phaseOf(e: typeof events.$inferSelect, at: number): EventPhase {
+  const stage = eventStage(e, at);
+  if (stage === 'run') return 'running';
+  if (stage === 'wrap') return 'ended';
+  return e.startDate ? 'upcoming' : 'draft';
 }
 
-/** Load one event by id, in the same shape pickEvent returns. */
-export async function loadEvent(eventId: number, now: Date = new Date()): Promise<EventContext | null> {
-  // clan-scope: global -- a Discord guild maps to exactly one clan, and this lookup IS that mapping.
-  const row = await db.query.events.findFirst({ where: eq(events.id, eventId) });
-  if (!row) return null;
-  const stage = eventStage(row, now.getTime());
+/** Build the public EventContext (with team/player counts) from a raw events row. */
+async function toEventContext(row: typeof events.$inferSelect, now: Date): Promise<EventContext> {
   const [teamRows, playerRows] = await Promise.all([
     db.select({ id: teams.id }).from(teams).where(eq(teams.eventId, row.id)),
     db.select({ id: players.id }).from(eventParticipants).where(eq(eventParticipants.eventId, row.id)),
@@ -141,7 +94,7 @@ export async function loadEvent(eventId: number, now: Date = new Date()): Promis
   return {
     id: row.id,
     name: row.name,
-    phase: stage === 'run' ? 'running' : stage === 'wrap' ? 'ended' : row.startDate ? 'upcoming' : 'draft',
+    phase: phaseOf(row, now.getTime()),
     format: row.format,
     scoringMode: row.scoringMode,
     boardSize: row.boardSize,
@@ -152,6 +105,57 @@ export async function loadEvent(eventId: number, now: Date = new Date()): Promis
     teamCount: teamRows.length,
     playerCount: playerRows.length,
   };
+}
+
+/**
+ * The event a command should answer about: running first, then the soonest upcoming, then the most
+ * recently ended. Drafts (no dates at all) are deliberately last — an unscheduled board is a work
+ * in progress, not something to report standings for.
+ *
+ * SCOPED BY CLAN. One Anvil app serves every clan now (events carries clan_id), so an unscoped scan
+ * would let clan A's `/bingo board` resolve clan B's event as "the board". The clanId is the whole
+ * point of resolving the guild first.
+ */
+export async function pickEvent(clanId: number, now: Date = new Date()): Promise<EventContext | null> {
+  const rows = await db.select().from(events).where(eq(events.clanId, clanId));
+  if (rows.length === 0) return null;
+
+  const at = now.getTime();
+  const rank: Record<EventPhase, number> = { running: 0, upcoming: 1, ended: 2, draft: 3 };
+  const sorted = [...rows].sort((a, b) => {
+    const pa = phaseOf(a, at);
+    const pb = phaseOf(b, at);
+    if (rank[pa] !== rank[pb]) return rank[pa] - rank[pb];
+    // Within a phase: soonest-starting for upcoming, most-recent for everything else.
+    if (pa === 'upcoming') return Date.parse(a.startDate ?? '') - Date.parse(b.startDate ?? '');
+    return Date.parse(b.endDate ?? b.startDate ?? b.createdAt) - Date.parse(a.endDate ?? a.startDate ?? a.createdAt);
+  });
+
+  return toEventContext(sorted[0], now);
+}
+
+/**
+ * Every board this clan has RUNNING right now, most-recently-started first — the multi-board answer.
+ * A clan can run several bingos at once, and picking one silently is how a member reads the wrong
+ * board's standings. Empty when nothing is live; the caller falls back to {@link pickEvent} then.
+ */
+export async function listLiveEvents(clanId: number, now: Date = new Date()): Promise<EventContext[]> {
+  const rows = await db.select().from(events).where(eq(events.clanId, clanId));
+  const at = now.getTime();
+  const live = rows
+    .filter((e) => eventStage(e, at) === 'run')
+    .sort((a, b) => Date.parse(b.startDate ?? b.createdAt) - Date.parse(a.startDate ?? a.createdAt));
+  return Promise.all(live.map((r) => toEventContext(r, now)));
+}
+
+/**
+ * Load one event by id — but only if it belongs to THIS clan. The clanId check is what stops a
+ * shared button or a stale id from reaching across into another clan's board.
+ */
+export async function loadEvent(eventId: number, clanId: number, now: Date = new Date()): Promise<EventContext | null> {
+  const row = await db.query.events.findFirst({ where: and(eq(events.id, eventId), eq(events.clanId, clanId)) });
+  if (!row) return null;
+  return toEventContext(row, now);
 }
 
 export async function getCrossClanContext(eventId: number): Promise<CrossClanContext> {
@@ -221,42 +225,56 @@ export async function getCrossClanContext(eventId: number): Promise<CrossClanCon
   };
 }
 
-/** Resolve the Discord user who typed the command to their roster rows on this instance. */
+/** Resolve the Discord user who typed the command to their roster rows IN THIS CLAN. */
 export interface InvokerIdentity {
+  /** Their site-user id, when they've signed in on the web. Null for a roster-only member. The key
+   *  a write command (e.g. /coffer add) checks authority against. */
   userId: number | null;
   displayName: string | null;
-  /** Their linked accounts (clan_members ids), newest link last. Empty = not on the roster. */
+  /** Their seats on THIS clan's roster (clan_roster ids). Empty = not on this roster. */
   memberIds: number[];
+  /** The ACCOUNTS behind those seats — the key clog/luck/stat history is stored under. */
+  accountIds: number[];
+  /** The account behind their primary seat, for the single-account commands. */
+  primaryAccountId: number | null;
   /** Primary RSN for prose, when they have one. */
   rsn: string | null;
 }
 
-export async function resolveInvoker(discordId: string): Promise<InvokerIdentity> {
+/**
+ * Resolve the invoker WITHIN a clan. Every roster read is filtered by clanId: the same person can
+ * hold a seat in several clans, and a command answering in clan A must never surface their clan B
+ * accounts. `clanId` comes from the guild the command was typed in (see {@link getClanContext}).
+ */
+export async function resolveInvoker(discordId: string, clanId: number): Promise<InvokerIdentity> {
   const user = await db.query.users.findFirst({ where: eq(users.discordId, discordId) });
   if (!user) {
     // Not a site user — they may still be a roster row linked only by the legacy discord_id column.
-    // clan-scope: global -- a Discord guild maps to exactly one clan, and this lookup IS that mapping.
     const legacy = await db
-      .select({ id: clanRoster.id, rsn: clanRoster.rsn })
+      .select({ id: clanRoster.id, accountId: clanRoster.accountId, rsn: clanRoster.rsn, isPrimary: clanRoster.isPrimary })
       .from(clanRoster)
-      .where(and(eq(clanRoster.discordId, discordId), isNull(clanRoster.leftAt)));
+      .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.discordId, discordId), isNull(clanRoster.leftAt)));
+    const primaryLegacy = legacy.find((m) => m.isPrimary === 1) ?? legacy[0];
     return {
       userId: null,
       displayName: null,
       memberIds: legacy.map((m) => m.id),
-      rsn: legacy[0]?.rsn ?? null,
+      accountIds: [...new Set(legacy.map((m) => m.accountId))],
+      primaryAccountId: primaryLegacy?.accountId ?? null,
+      rsn: primaryLegacy?.rsn ?? null,
     };
   }
-  // clan-scope: global -- a Discord guild maps to exactly one clan, and this lookup IS that mapping.
   const members = await db
-    .select({ id: clanRoster.id, rsn: clanRoster.rsn, isPrimary: clanRoster.isPrimary })
+    .select({ id: clanRoster.id, accountId: clanRoster.accountId, rsn: clanRoster.rsn, isPrimary: clanRoster.isPrimary })
     .from(clanRoster)
-    .where(and(eq(clanRoster.playerId, user.id), isNull(clanRoster.leftAt)));
+    .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.playerId, user.id), isNull(clanRoster.leftAt)));
   const primary = members.find((m) => m.isPrimary === 1) ?? members[0];
   return {
     userId: user.id,
     displayName: user.displayName,
     memberIds: members.map((m) => m.id),
+    accountIds: [...new Set(members.map((m) => m.accountId))],
+    primaryAccountId: primary?.accountId ?? null,
     rsn: primary?.rsn ?? null,
   };
 }

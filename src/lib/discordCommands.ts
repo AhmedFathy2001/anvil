@@ -49,6 +49,7 @@ import {
 import {
   getClanContext,
   pickEvent,
+  listLiveEvents,
   getCrossClanContext,
   contextLine,
   resolveInvoker,
@@ -57,6 +58,7 @@ import {
   type EventContext,
   type CrossClanContext,
 } from '@/lib/discordContext';
+import { CLAN_COMMANDS, CLAN_WRITE_SUBS, type ClanCommand, type ClanCommandCtx } from '@/lib/discordClanCommands';
 import { COMMAND_NAME, SUBCOMMAND_ORDER } from '@/lib/discordCommandDefs';
 import {
   embedReply,
@@ -251,6 +253,59 @@ async function leaderboardEmbed(
   };
 }
 
+// ── Multiple live boards ──────────────────────────────────────────────────────────────────────────
+//
+// A clan can run several bingos at once. Rather than silently pick one — which is how a member ends
+// up reading the wrong board's standings — /bingo board and /bingo leaderboard list every RUNNING
+// board when there is more than one, one compact block each. The single-board case keeps its full
+// embed; this only takes over when it has to.
+
+/** One compact block per live board: shape, when it ends, teams, and who's leading it. */
+async function liveBoardsEmbed(t: DiscordDict, clan: ClanContext, events_: EventContext[]): Promise<DiscordEmbed> {
+  const blocks = await Promise.all(
+    events_.map(async (e) => {
+      const standings = await getTeamStandings(e.id, e.scoringMode);
+      const leader = standings[0];
+      const meta: string[] = [];
+      const ends = relativeTs(e.endDate);
+      if (ends) meta.push(fmt(t.board.ends, { when: ends }));
+      meta.push(plural(e.teamCount, t.multi.teamsOne, t.multi.teamsMany));
+      if (leader) meta.push(fmt(t.multi.leader, { team: clamp(leader.name, 30), score: `${leader.score} ${leader.unit}` }));
+      const head = `**${clamp(e.name, 60)}** — ${shapeLabel(e)}`;
+      return `${head}\n-# ${meta.join(' · ')}`;
+    }),
+  );
+  const body = [fmt(t.multi.liveIntro, { n: events_.length }), '', blocks.join('\n\n'), '', `-# ${clamp(clan.name, 80)}`];
+  return {
+    title: t.multi.liveTitle,
+    url: clan.origin ? `${clan.origin}/events` : undefined,
+    description: clamp(body.join('\n'), LIMIT.description),
+    color: EMBED_COLOR.green,
+    author: authorOf(clan),
+  };
+}
+
+/** Each live board's top three, stacked — the multi-board answer to /bingo leaderboard. */
+async function liveStandingsEmbed(t: DiscordDict, clan: ClanContext, events_: EventContext[]): Promise<DiscordEmbed> {
+  const blocks = await Promise.all(
+    events_.map(async (e) => {
+      const standings = await getTeamStandings(e.id, e.scoringMode);
+      const top = standings
+        .slice(0, 3)
+        .map((s, i) => `${placeMark(i)} ${clamp(s.name, 40)} — ${code(`${s.score} ${s.unit}`)}`);
+      return [`**${clamp(e.name, 60)}**`, ...(top.length ? top : [t.common.noTeams])].join('\n');
+    }),
+  );
+  const body = [fmt(t.multi.standingsIntro, { n: events_.length }), '', blocks.join('\n\n'), '', `-# ${clamp(clan.name, 80)}`];
+  return {
+    title: t.multi.standingsTitle,
+    url: clan.origin ? `${clan.origin}/events` : undefined,
+    description: clamp(body.join('\n'), LIMIT.description),
+    color: EMBED_COLOR.gold,
+    author: authorOf(clan),
+  };
+}
+
 // ── /bingo rules ────────────────────────────────────────────────────────────────────────────────
 //
 // Two kinds of rule get confused with each other, so this command answers both and keeps them
@@ -265,13 +320,13 @@ async function leaderboardEmbed(
 //   across boards, written by staff, and stored as a plain settings row (`board_rules`) so editing
 //   them is a text box and not a deploy. `board_rules_url` links the long version.
 
-/** The clan's authored rules, if any. */
-async function readHouseRules(): Promise<{ text: string | null; url: string | null }> {
-  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
+/** The clan's authored rules, if any. Scoped to the clan — `settings` is keyed on (clanId, key), so
+ *  an unfiltered read would show an arbitrary other clan's house rules here. */
+async function readHouseRules(clanId: number): Promise<{ text: string | null; url: string | null }> {
   const rows = await db
     .select({ key: settings.key, value: settings.value })
     .from(settings)
-    .where(inArray(settings.key, ['board_rules', 'board_rules_url']));
+    .where(and(eq(settings.clanId, clanId), inArray(settings.key, ['board_rules', 'board_rules_url'])));
   const map = new Map(rows.map((r) => [r.key, r.value?.trim() || null]));
   return { text: map.get('board_rules') ?? null, url: map.get('board_rules_url') ?? null };
 }
@@ -408,7 +463,7 @@ async function rulesEmbeds(
   const [row, house, allTiles] = await Promise.all([
     // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
     db.query.events.findFirst({ where: eq(events.id, event.id) }),
-    readHouseRules(),
+    readHouseRules(clan.clanId),
     db
       .select({ id: tiles.id, mission: tiles.mission, revealedAt: tiles.revealedAt, trackedStat: tiles.trackedStat })
       .from(tiles)
@@ -875,8 +930,13 @@ async function myTeamId(eventId: number, memberIds: number[]): Promise<number | 
 interface CommandContext {
   t: DiscordDict;
   clan: ClanContext;
+  /** The primary board — running first, then upcoming, then most-recently ended. What the detail
+   *  subcommands (rules, next, apply, team, me) answer about. */
   event: EventContext;
   cross: CrossClanContext;
+  /** Every board RUNNING right now. Two or more and board/leaderboard list them all instead of
+   *  answering about `event` alone. */
+  liveEvents: EventContext[];
   /** The invoker's linked roster rows on this instance. Empty = they're not on the roster. */
   memberIds: number[];
   /** Their display name, for prose. */
@@ -900,7 +960,8 @@ type SubResult = { embeds: DiscordEmbed[] } | { text: string };
  * never existed.
  */
 const SUBCOMMANDS: Record<string, (ctx: CommandContext) => Promise<SubResult>> = {
-  async board({ t, clan, event, cross }) {
+  async board({ t, clan, event, cross, liveEvents }) {
+    if (liveEvents.length >= 2) return { embeds: [await liveBoardsEmbed(t, clan, liveEvents)] };
     return { embeds: [await boardEmbed(t, clan, event, cross)] };
   },
 
@@ -908,7 +969,8 @@ const SUBCOMMANDS: Record<string, (ctx: CommandContext) => Promise<SubResult>> =
     return { embeds: await rulesEmbeds(t, clan, event, cross) };
   },
 
-  async leaderboard({ t, clan, event, cross, memberIds }) {
+  async leaderboard({ t, clan, event, cross, liveEvents, memberIds }) {
+    if (liveEvents.length >= 2) return { embeds: [await liveStandingsEmbed(t, clan, liveEvents)] };
     const teamId = await myTeamId(event.id, memberIds);
     return { embeds: [await leaderboardEmbed(t, clan, event, cross, teamId)] };
   },
@@ -988,17 +1050,16 @@ function reply(result: SubResult, opts: { t: DiscordDict; ephemeral: boolean; sh
 
 // ── Entry points ────────────────────────────────────────────────────────────────────────────────
 
-/** Clan, board and identity — everything both entry points resolve the same way. */
-async function resolveContext(
+/**
+ * WHICH CLAN, and in whose language — the part every command resolves the same way, before it ever
+ * looks at a board. One app serves every clan now, so a server no clan has claimed is refused rather
+ * than answered by whichever clan came back first.
+ */
+async function resolveClan(
   interaction: Interaction,
   locale: string,
-): Promise<
-  | { ok: true; ctx: Omit<CommandContext, 'options'> }
-  | { ok: false; response: InteractionResponse }
-> {
+): Promise<{ ok: true; clan: ClanContext; t: DiscordDict } | { ok: false; response: InteractionResponse }> {
   const t = await getDiscordDict(locale);
-  // WHICH CLAN — resolved from the guild, because one app now serves every clan. A server no clan
-  // has claimed gets refused rather than served by whichever clan answered first.
   const clan = await getClanContext(interaction.guild_id ?? null);
   if (!clan) {
     return {
@@ -1006,39 +1067,95 @@ async function resolveContext(
       response: textReply(interaction.guild_id ? t.errors.wrongGuild.replace('{clan}', 'this server') : t.errors.dm),
     };
   }
-
   // The clan's chosen language, when it has one, overrides whatever Discord detected.
   const t2 = clan.language ? await getDiscordDict(resolveLocale(null, clan.language)) : t;
-
   const guildCheck = checkGuild(clan, interaction.guild_id);
   if (guildCheck === 'dm') return { ok: false, response: textReply(t2.errors.dm) };
   if (guildCheck === 'wrong-guild') {
     return { ok: false, response: textReply(fmt(t2.errors.wrongGuild, { clan: clan.name })) };
   }
+  return { ok: true, clan, t: t2 };
+}
 
-  // 2. WHICH BOARD.
-  const event = await pickEvent();
+/**
+ * The board context /bingo needs on top of the clan: the primary board, every live board, who else
+ * is in it, and who is asking. The clan-wide commands (/sotw, /coffer, …) don't need any of this.
+ */
+async function resolveBingo(
+  interaction: Interaction,
+  clan: ClanContext,
+  t: DiscordDict,
+): Promise<{ ok: true; ctx: Omit<CommandContext, 'options'> } | { ok: false; response: InteractionResponse }> {
+  const [event, liveEvents] = await Promise.all([pickEvent(clan.clanId), listLiveEvents(clan.clanId)]);
   if (!event) {
-    const where = clan.origin ? ` ${fmt(t2.errors.noBoardsStaff, { url: clan.origin })}` : '';
-    return { ok: false, response: textReply(`${fmt(t2.errors.noBoards, { clan: clan.name })}${where}`) };
+    const where = clan.origin ? ` ${fmt(t.errors.noBoardsStaff, { url: clan.origin })}` : '';
+    return { ok: false, response: textReply(`${fmt(t.errors.noBoards, { clan: clan.name })}${where}`) };
   }
-
-  // 3. WHO ELSE IS IN IT, and who is asking.
   const cross = await getCrossClanContext(event.id);
   const discordId = invokerId(interaction);
-  const identity = discordId ? await resolveInvoker(discordId) : null;
-
+  const identity = discordId ? await resolveInvoker(discordId, clan.clanId) : null;
   return {
     ok: true,
-    ctx: {
-      t: t2,
-      clan,
-      event,
-      cross,
-      memberIds: identity?.memberIds ?? [],
-      who: invokerName(interaction),
-    },
+    ctx: { t, clan, event, cross, liveEvents, memberIds: identity?.memberIds ?? [], who: invokerName(interaction) },
   };
+}
+
+// ── Clan-command sharing ──────────────────────────────────────────────────────────────────────────
+//
+// The /bingo share ids are hand-packed strings; the clan commands carry a subcommand and arbitrary
+// options, so they ride a compact JSON blob instead. Same contract as /bingo: the button rebuilds
+// the answer from its own custom_id, so a share survives a redeploy and shows the numbers as NOW.
+
+const CLAN_SHARE_PREFIX = 'cx:';
+
+export function encodeClanShare(
+  name: string,
+  sub: string | null,
+  options: Record<string, string | number | boolean>,
+): string {
+  const json = JSON.stringify({ n: name, s: sub, o: options });
+  return (CLAN_SHARE_PREFIX + Buffer.from(json, 'utf8').toString('base64url')).slice(0, 100);
+}
+
+export function decodeClanShare(
+  customId: string,
+): { n: string; s: string | null; o: Record<string, string | number | boolean> } | null {
+  if (!customId.startsWith(CLAN_SHARE_PREFIX)) return null;
+  try {
+    const json = Buffer.from(customId.slice(CLAN_SHARE_PREFIX.length), 'base64url').toString('utf8');
+    const parsed = JSON.parse(json) as { n?: unknown; s?: unknown; o?: unknown };
+    if (typeof parsed.n !== 'string') return null;
+    return {
+      n: parsed.n,
+      s: typeof parsed.s === 'string' ? parsed.s : null,
+      o: parsed.o && typeof parsed.o === 'object' ? (parsed.o as Record<string, string | number | boolean>) : {},
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Answer a clan command (sotw/botw/eff/coffer/clog/luck): private, with a Share button when the
+ * result allows it. A write (coffer add/remove) never gets a button — re-running one from a click
+ * would move gp twice — and a bare-sentence result is never worth a channel post.
+ */
+async function replyClanCommand(
+  handler: ClanCommand,
+  ctx: ClanCommandCtx,
+  opts: { name: string; ephemeral: boolean; sharedBy?: string },
+): Promise<InteractionResponse> {
+  const result = await handler(ctx);
+  if ('text' in result) return textReply(result.text, { ephemeral: true });
+  const isWrite = CLAN_WRITE_SUBS[opts.name]?.has(ctx.sub ?? '') ?? false;
+  const shareCustomId =
+    opts.ephemeral && result.shareable && !isWrite ? encodeClanShare(opts.name, ctx.sub, ctx.options) : undefined;
+  const response = embedReply(result.embeds, {
+    ephemeral: opts.ephemeral,
+    components: shareCustomId ? [shareRow(ctx.t.common.shareButton, shareCustomId)] : undefined,
+  });
+  if (opts.sharedBy && response.data) response.data.content = fmt(ctx.t.common.sharedBy, { who: opts.sharedBy });
+  return response;
 }
 
 /**
@@ -1050,34 +1167,44 @@ async function resolveContext(
 export async function handleCommand(interaction: Interaction): Promise<InteractionResponse> {
   // A private answer speaks the member's own language — nobody else is reading it.
   const locale = resolveLocale(interaction.locale);
-  const t = await getDiscordDict(locale);
+  const name = interaction.data?.name ?? '';
 
-  // Anvil registers exactly one command tree; anything else reaching this endpoint is a stale
-  // registration from an older deploy that the dispatcher can no longer answer.
-  if (interaction.data?.name !== COMMAND_NAME) {
-    return textReply(
-      fmt(t.errors.unknownCommand, {
-        command: code(`/${interaction.data?.name ?? '?'}`),
-        suggestion: code(`/${COMMAND_NAME} board`),
-      }),
+  const base = await resolveClan(interaction, locale);
+  if (!base.ok) return base.response;
+  const { clan, t } = base;
+
+  // /bingo — the board commands, which resolve an event (and every live board) first.
+  if (name === COMMAND_NAME) {
+    const { sub, options } = readSubcommand(interaction);
+    const handler = sub ? SUBCOMMANDS[sub] : undefined;
+    if (!handler) {
+      return textReply(
+        fmt(t.errors.unknownSub, { list: SUBCOMMAND_NAMES.map((n) => code(`/${COMMAND_NAME} ${n}`)).join(', ') }),
+      );
+    }
+    const resolved = await resolveBingo(interaction, clan, t);
+    if (!resolved.ok) return resolved.response;
+    const result = await handler({ ...resolved.ctx, options });
+    return reply(result, { t, ephemeral: true, shareId: shareId(sub!, options) });
+  }
+
+  // The clan-wide commands — no event needed, just the clan and who is asking.
+  const clanHandler = CLAN_COMMANDS[name];
+  if (clanHandler) {
+    const { sub, options } = readSubcommand(interaction);
+    const discordId = invokerId(interaction);
+    const identity = discordId ? await resolveInvoker(discordId, clan.clanId) : null;
+    return replyClanCommand(
+      clanHandler,
+      { t, clan, identity, sub, options, who: invokerName(interaction) },
+      { name, ephemeral: true },
     );
   }
 
-  const { sub, options } = readSubcommand(interaction);
-  const handler = sub ? SUBCOMMANDS[sub] : undefined;
-  if (!handler) {
-    return textReply(
-      fmt(t.errors.unknownSub, {
-        list: SUBCOMMAND_NAMES.map((n) => code(`/${COMMAND_NAME} ${n}`)).join(', '),
-      }),
-    );
-  }
-
-  const resolved = await resolveContext(interaction, locale);
-  if (!resolved.ok) return resolved.response;
-
-  const result = await handler({ ...resolved.ctx, options });
-  return reply(result, { t: resolved.ctx.t, ephemeral: true, shareId: shareId(sub!, options) });
+  // A name we don't answer — a stale registration from an older deploy.
+  return textReply(
+    fmt(t.errors.unknownCommand, { command: code(`/${name || '?'}`), suggestion: code(`/${COMMAND_NAME} board`) }),
+  );
 }
 
 /**
@@ -1089,19 +1216,36 @@ export async function handleCommand(interaction: Interaction): Promise<Interacti
  */
 export async function handleComponent(interaction: Interaction): Promise<InteractionResponse> {
   const locale = resolveLocale(interaction.guild_locale ?? interaction.locale);
-  const t = await getDiscordDict(locale);
 
-  const parsed = parseShareId(interaction.data?.custom_id ?? '');
+  const base = await resolveClan(interaction, locale);
+  if (!base.ok) return base.response;
+  const { clan, t } = base;
+
+  const customId = interaction.data?.custom_id ?? '';
+
+  // A clan-command share (cx:…). Reads only — a write sub is dropped to its read view so a button
+  // can never move the coffer, however the custom_id was formed.
+  const clanShare = decodeClanShare(customId);
+  if (clanShare) {
+    const clanHandler = CLAN_COMMANDS[clanShare.n];
+    if (!clanHandler) return textReply(t.errors.shareExpired);
+    const sub = CLAN_WRITE_SUBS[clanShare.n]?.has(clanShare.s ?? '') ? null : clanShare.s;
+    const discordId = invokerId(interaction);
+    const identity = discordId ? await resolveInvoker(discordId, clan.clanId) : null;
+    return replyClanCommand(
+      clanHandler,
+      { t, clan, identity, sub, options: clanShare.o, who: invokerName(interaction) },
+      { name: clanShare.n, ephemeral: false, sharedBy: invokerName(interaction) },
+    );
+  }
+
+  // A /bingo share — hand-packed id, rebuilt against the board.
+  const parsed = parseShareId(customId);
   const handler = parsed ? SUBCOMMANDS[parsed.sub] : undefined;
   if (!parsed || !handler) return textReply(t.errors.shareExpired);
 
-  const resolved = await resolveContext(interaction, locale);
+  const resolved = await resolveBingo(interaction, clan, t);
   if (!resolved.ok) return resolved.response;
-
   const result = await handler({ ...resolved.ctx, options: parsed.options });
-  return reply(result, {
-    t: resolved.ctx.t,
-    ephemeral: false,
-    sharedBy: invokerName(interaction),
-  });
+  return reply(result, { t, ephemeral: false, sharedBy: invokerName(interaction) });
 }

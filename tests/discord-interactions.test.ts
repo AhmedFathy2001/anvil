@@ -208,6 +208,14 @@ test('COMMAND_DEFINITIONS: every subcommand the tree advertises is one the dispa
   assert.deepEqual([...advertised].sort(), [...SUBCOMMAND_NAMES].sort());
 });
 
+test('COMMAND_DEFINITIONS: every clan-wide command the tree advertises has a handler', async () => {
+  // Same guard as /bingo's subcommands, one level up: a top-level command that isn't /bingo must
+  // have an entry in CLAN_COMMANDS, or it autocompletes and then answers "unknown command".
+  const advertised = COMMAND_DEFINITIONS.map((c) => c.name).filter((n) => n !== COMMAND_NAME);
+  const { CLAN_COMMAND_NAMES } = await import('../src/lib/discordClanCommands.ts');
+  assert.deepEqual([...advertised].sort(), [...CLAN_COMMAND_NAMES].sort());
+});
+
 // ── Guild guard + provenance ────────────────────────────────────────────────────────────────────
 
 const clan: ClanContext = { clanId: 1, name: 'The Afk Spot', origin: 'https://afk.example', guildId: '111', language: null };
@@ -288,10 +296,17 @@ test('the control plane\'s copy of the command tree matches this one', async (t)
   // Compare the shape that matters to a member: the command name, and its subcommand names in order.
   assert.ok(source.includes(`name: '${ours.name}'`), 'control plane registers a different command name');
   // Tolerant of formatting: a subcommand may be written on one line or spread over several.
-  const theirSubs = [...source.matchAll(/name: '([a-z]+)',\s*description:/g)].map((m) => m[1]);
+  const theirNames = [...source.matchAll(/name: '([a-z]+)',\s*description:/g)].map((m) => m[1]);
   const ourSubs = (ours.options ?? []).map((o) => o.name);
   for (const sub of ourSubs) {
-    assert.ok(theirSubs.includes(sub), `Anvil.Admin is missing /${COMMAND_NAME} ${sub} — update its SHARED_COMMANDS`);
+    assert.ok(theirNames.includes(sub), `Anvil.Admin is missing /${COMMAND_NAME} ${sub} — update its SHARED_COMMANDS`);
+  }
+
+  // Every top-level command — /bingo and the clan-wide set — must be registered by the shared app,
+  // or managed clans type /sotw and get "unknown command" while self-hosts (which register from
+  // this repo) have it.
+  for (const cmd of COMMAND_DEFINITIONS) {
+    assert.ok(theirNames.includes(cmd.name), `Anvil.Admin is missing /${cmd.name} — update its SHARED_COMMANDS`);
   }
 });
 
