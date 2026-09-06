@@ -94,7 +94,36 @@ export function luckCandidates(raidOverrides?: unknown): LuckCandidate[] {
   // So they leave the board. That is the same bargain the rest of this file already makes: three
   // datasets have to agree, and an item we cannot account for is one we cannot call anybody lucky
   // over.
+  //
+  // WHAT COUNTS AS "cannot account for" is a ratio, not a yes/no. The first cut of this excluded an
+  // item the moment ANY untracked page listed it, and that took the Bandos and Armadyl sets off the
+  // board: General Graardor drops the chestplate at 1-in-381 and his sergeants at 1-in-16,256, and
+  // an Armadylean guard drops the helmet at 1-in-2,000,000. Those are real routes and they are
+  // noise, and you kill the minions on the way to the boss anyway.
+  //
+  // So an untracked route disqualifies an item only when it is within RATIO of the best tracked one
+  // — near enough that somebody's unknown killcount there could plausibly rewrite the expectation.
+  // Dragon knives (1-in-2,001 tracked against 1-in-2,001 untracked) fail it; Bandos (42x apart)
+  // passes.
+  const UNACCOUNTED_RATIO = 10;
+  const bestTracked = new Map<number, number>();
+  const bestUntracked = new Map<number, number>();
+  for (const [source, table] of Object.entries(drops)) {
+    const key = trackedKey(source);
+    for (const drop of table) {
+      if (!Number.isFinite(drop.d) || drop.d <= 1) continue;
+      const into = key ? bestTracked : bestUntracked;
+      const cur = into.get(drop.i);
+      if (cur === undefined || drop.d < cur) into.set(drop.i, drop.d);
+    }
+  }
   const unaccounted = new Set<number>();
+  for (const [itemId, untracked] of bestUntracked) {
+    const tracked = bestTracked.get(itemId);
+    // No tracked source at all is handled by the `sources.length > 0` test below, not here.
+    if (tracked !== undefined && untracked < tracked * UNACCOUNTED_RATIO) unaccounted.add(itemId);
+  }
+
   for (const [source, table] of Object.entries(drops)) {
     const bossKey = trackedKey(source);
     for (const drop of table) {
@@ -104,10 +133,7 @@ export function luckCandidates(raidOverrides?: unknown): LuckCandidate[] {
       // then the rarest-source test read 1-in-1 and threw the item off the board for being common.
       // Nobody is lucky for a drop everybody gets, so it is not a rate and does not belong here.
       if (drop.d <= 1) continue;
-      if (!bossKey) {
-        unaccounted.add(drop.i);
-        continue; // nothing to count kills with
-      }
+      if (!bossKey) continue; // nothing to count kills with; see UNACCOUNTED_RATIO above
       const list = byItem.get(drop.i) ?? [];
       list.push({
         source,

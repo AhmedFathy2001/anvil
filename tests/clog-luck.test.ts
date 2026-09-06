@@ -474,6 +474,16 @@ test('raid tiers share their base table, so higher-tier killcount is worth somet
   );
 });
 
+test('a negligible untracked route does not disqualify a boss unique', () => {
+  // The first cut of the rule excluded an item the moment ANY untracked page listed it, and took
+  // the Bandos and Armadyl sets off the board with it: Graardor drops the chestplate at 1-in-381
+  // and his sergeants at 1-in-16,256, and an Armadylean guard drops the helmet at 1-in-2,000,000.
+  // Real routes, and noise — you kill the minions on the way to the boss anyway.
+  for (const item of ['bandos chestplate', 'armadyl helmet', 'saradomin sword', 'zamorakian spear']) {
+    assert.ok(board().has(item), `${item} belongs on the board — its untracked routes are noise`);
+  }
+});
+
 test('a drop shared with monsters the hiscores cannot count leaves the board', () => {
   // Dragon knives and thrownaxes hang on the Alchemical Hydra page but also fall off Drakes, Wyrms
   // and Hydras — no killcount exists for any of them, so the expectation would be computed from
