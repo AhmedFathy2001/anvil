@@ -66,7 +66,8 @@ export async function canSeeEvent(opts: {
 }
 
 /** Does this clan let strangers read it? `public` unless an admin has said otherwise. */
-async function clanIsPublic(clanId: number): Promise<boolean> {
+/** Exported so the plugin schedule asks the same question rather than keeping a second answer. */
+export async function clanIsPublic(clanId: number): Promise<boolean> {
   const row = await db.query.clans.findFirst({
     where: eq(clans.id, clanId),
     columns: { visibility: true },

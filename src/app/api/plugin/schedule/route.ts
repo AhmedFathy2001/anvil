@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { resolvePluginClan } from '@/lib/auth';
+import { resolvePluginClan, resolvePluginMember } from '@/lib/auth';
 import { buildSchedule } from '@/lib/pluginConfig';
 
 // GET /api/plugin/schedule — unauthenticated list of THIS clan's active + upcoming events.
@@ -17,5 +17,9 @@ import { buildSchedule } from '@/lib/pluginConfig';
 export async function GET(request: Request) {
   const clan = await resolvePluginClan(request);
   if (!clan) return NextResponse.json({ bingos: [], weeklies: [] });
-  return NextResponse.json(await buildSchedule(clan.id));
+  // Anonymous here is ordinary — the plugin asks before anyone has signed in, and a public board is
+  // meant to be findable. What it must not do is hand back the clan's own boards, which is what it
+  // did: the Host names the clan and nothing asked whether the caller was in it.
+  const member = await resolvePluginMember(request);
+  return NextResponse.json(await buildSchedule(clan.id, { member: member != null }));
 }

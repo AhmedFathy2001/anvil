@@ -64,7 +64,27 @@ const SCHEDULE_CAP = 10;
  * rather than close a hole. The authenticated caller in /api/plugin/config gets the same list; what
  * a member sees beyond it comes from the event surfaces, which do consult lib/eventAccess.
  */
-export async function buildSchedule(clanId: number): Promise<PluginSchedule> {
+/**
+ * What this caller may know is running.
+ *
+ * BEING READABLE BY LINK IS NOT BEING ENUMERABLE, and this is the one place that difference bites.
+ * canSeeEvent guards ACCESS — somebody pastes a board link into Discord and it opens, which is why
+ * `clan` there means "this clan's event" rather than "logged-in only", and why reading it the strict
+ * way once 404'd every board for every signed-out visitor.
+ *
+ * This is DISCOVERY. It answers "what is this clan running", unauthenticated, to anyone who knows
+ * the hostname — and it filtered on `invited` alone, so it listed every clan board on the platform
+ * to anybody who asked. A stranger holding a link to one board was never an argument for handing
+ * them the index.
+ *
+ * So: `public` is advertised because that is what the word is for, `invited` never is, and `clan`
+ * is listed to the clan. Access is unchanged — every one of these boards still opens for anyone
+ * holding its link, exactly as before.
+ */
+export async function buildSchedule(
+  clanId: number,
+  opts: { member?: boolean } = {},
+): Promise<PluginSchedule> {
   const nowIso = new Date().toISOString();
 
   const [allEvents, allWeeklies] = await Promise.all([
@@ -72,13 +92,18 @@ export async function buildSchedule(clanId: number): Promise<PluginSchedule> {
     db.select().from(weeklyCompetitions).where(eq(weeklyCompetitions.clanId, clanId)),
   ]);
 
+  const member = opts.member === true;
   const bingoCandidates = allEvents.filter(
     (e) =>
       e.startDate &&
       e.endDate &&
       e.endDate > nowIso &&
       !e.forceEndedAt &&
-      e.visibility !== 'invited',
+      // 'invited' is never advertised — the invite is the only way in, for anyone.
+      e.visibility !== 'invited' &&
+      // `clan` is the DEFAULT, so this is most boards. A member gets the index; a stranger gets
+      // whatever the clan deliberately marked public.
+      (member || e.visibility === 'public'),
   );
 
   // Tile counts per event in one query — avoids N+1 against the tiles table.
