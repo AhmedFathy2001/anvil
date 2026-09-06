@@ -40,6 +40,21 @@ export async function findRosterSeats(where: SQL | undefined): Promise<RosterSea
  * If you already have the seat row in hand, skip this and update `accounts` by `seat.accountId`
  * directly; naming the table you mean is clearer than a helper that hides it.
  */
+/**
+ * Patch an account by its own id.
+ *
+ * The sibling below reaches the same row through a seat, which is how the sweep addressed accounts
+ * back when every tracked account had one. A claimed account with no clan has no seat to hop
+ * through, and is exactly the account the sweep now also polls.
+ */
+export async function updateAccount(
+  accountId: number,
+  patch: Partial<typeof accounts.$inferInsert>,
+): Promise<void> {
+  // clan-scope: global -- an OSRS account is one account however many clans roster it.
+  await db.update(accounts).set(patch).where(eq(accounts.id, accountId));
+}
+
 export async function updateAccountOfSeat(
   seatId: number,
   patch: Partial<typeof accounts.$inferInsert>,

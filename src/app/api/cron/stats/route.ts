@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { updateAccountOfSeat } from '@/lib/roster';
+import { updateAccount } from '@/lib/roster';
 import { db } from '@/db';
 import { accounts, clanMemberships, clanRoster, completions, eventParticipants, events, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { eq, and, or, inArray, isNull, asc } from 'drizzle-orm';
+import { eq, and, or, inArray, isNull, isNotNull, notExists, sql, asc } from 'drizzle-orm';
 import { fetchSnapshotWithRetry, type HiscoresSnapshot } from '@/lib/hiscores';
 import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
 import { processEventLifecycleNotifications } from '@/lib/eventLifecycle';
@@ -319,6 +319,35 @@ export async function GET(request: Request) {
     .where(and(isNull(clanRoster.leftAt), eq(clanRoster.kind, 'member'), eq(clanRoster.status, 'active')));
   for (const seat of rosterSeats) ensureEntry(seat.id, seat.rsn, seat.accountId);
 
+  // CLAIMED ACCOUNTS IN NO CLAN. The fourth source, and the smallest.
+  //
+  // Every source above reaches an account through a clan, so somebody who signed in, linked their
+  // character and joined nothing was polled by nothing — and their profile, which is the same page a
+  // clan member gets, had no numbers in it. That is the wrong answer for a platform whose front door
+  // is now a person rather than a clan.
+  //
+  // Bounded by CLAIMED: a login proved it owns this account. That is a few per person rather than a
+  // roster per clan, and it cannot be grown by anyone but a real signed-in human. They arrive as
+  // filler like any other unclaimed work and settle onto the same backoff ladder, so an account
+  // nobody plays costs one poll every couple of hours and then less.
+  const clanlessAccounts = await db
+    .select({ id: accounts.id, rsn: accounts.rsn })
+    .from(accounts)
+    .where(
+      and(
+        isNotNull(accounts.claimedAt),
+        eq(accounts.status, 'active'),
+        // clan-scope: global -- identity is global, and having no clan is the point of this query.
+        notExists(
+          db
+            .select({ n: sql`1` })
+            .from(clanMemberships)
+            .where(and(eq(clanMemberships.accountId, accounts.id), isNull(clanMemberships.leftAt))),
+        ),
+      ),
+    );
+  for (const acc of clanlessAccounts) ensureEntry(null, acc.rsn, acc.id);
+
   // Resolve the canonical fetch RSN + live overlay per linked member. Fetching by clan_members.rsn
   // (rename-synced) instead of eventParticipants.name (a per-event display override) is what stops a mid-event
   // rename from 404-parking tracking.
@@ -378,7 +407,7 @@ export async function GET(request: Request) {
   // row carries a per-event display name that a rename can leave stale, and the canonical RSN and
   // account arrive with the enrichment above.
   //
-  // Safe to collapse because every write downstream is account-level: `updateAccountOfSeat` and the
+  // Safe to collapse because every write downstream is account-level: `updateAccount` and the
   // unranked quarantine both resolve a seat id to its account before writing, so any one of the
   // merged seats stands for all of them. The per-seat work rides along in `bingo` and `weekly`,
   // which carry their own ids and still fan out.
@@ -455,20 +484,24 @@ export async function GET(request: Request) {
       // Reconcile the live overlay against fresh hiscores: drop keys hiscores caught up to. The kept
       // (still-ahead) map is BOTH what we persist and the live overlay for this tick's gains.
       let liveMap = entry.liveMap;
-      if (entry.clanMemberId != null) {
+      if (entry.accountId != null) {
         // 1) Drop keys hiscores has caught up to (h >= v). 2) Drop keys not refreshed within ~6h —
         // the OSRS-logout backstop that heals a bogus push stuck ABOVE hiscores (which step 1 can't).
         const rec = reconcileLive(entry.liveMap, snapshot);
         const stale = pruneStaleOverlay(rec.pruned, entry.liveKeyTimes, Date.parse(ts), STALE_OVERLAY_MS);
         liveMap = stale.pruned;
         if (rec.changed || stale.changed) {
-          await updateAccountOfSeat(entry.clanMemberId, { liveStats: Object.keys(liveMap).length ? JSON.stringify(liveMap) : null });
+          await updateAccount(entry.accountId, { liveStats: Object.keys(liveMap).length ? JSON.stringify(liveMap) : null });
         }
       }
 
       // ── History + adaptive polling ────────────────────────────────────────────────────────────
       // Everything below is derived from the snapshot we already have — no extra hiscores traffic.
-      if (entry.clanMemberId != null) {
+      //
+      // Keyed on the ACCOUNT, not the seat. It used to require a seat, which was the same thing back
+      // when only rostered members were polled; a claimed account with no clan has stats to keep and
+      // no seat to keep them under.
+      if (entry.accountId != null) {
         let previous: HiscoresSnapshot | null = null;
         if (entry.lastSnapshot) {
           try {
@@ -487,7 +520,7 @@ export async function GET(request: Request) {
         // it happened to gain XP, which for some members is never.
         const writeActivities = changed || !entry.hasActivities;
 
-        await updateAccountOfSeat(entry.clanMemberId, {
+        await updateAccount(entry.accountId, {
                 statsOverallXp: overallXp,
                 statsMissStreak: missStreak,
                 statsNextDueAt: nextDueAt(missStreak, new Date()),
@@ -497,9 +530,7 @@ export async function GET(request: Request) {
               });
         if (writeActivities) entry.hasActivities = true;
 
-        // No account means nothing to file this against: a fetch keyed by RSN alone, for someone
-        // who is on no roster. The scoring above still counted; only the history is skipped.
-        if (changed && entry.accountId != null) {
+        if (changed) {
           const accountId = entry.accountId;
           historyWrites++;
           try {

@@ -32,11 +32,14 @@ export default function PersonProfile({
   characters,
   linked,
   emission,
+  suggestedRsn = '',
 }: {
   displayName: string;
   clans: MyClan[];
   characters: PersonCharacter[];
   linked: boolean;
+  /** A name arrived at from `?connect=` — see AddCharacterClient. */
+  suggestedRsn?: string;
   /** Personal webhooks + cross-clan announcement routing — person-level, so their home is here on
       the account, not inside any one clan's locker. Null when there's no character to route yet. */
   emission?: EmissionSettingsView | null;
@@ -125,7 +128,7 @@ export default function PersonProfile({
             <p className="mb-4 text-sm text-text-muted">
               No characters linked yet — here&rsquo;s the quickest way to add your first.
             </p>
-            <AddCharacterClient first />
+            <AddCharacterClient first suggestedRsn={suggestedRsn} />
           </div>
         ) : (
           <>
@@ -150,7 +153,7 @@ export default function PersonProfile({
 
             {/* Adding a character is a platform act — it stays yours in every clan — so the way to do
                 it lives here too, not only in the empty state or inside a clan's locker. */}
-            <details className="group mt-3 rounded-xl border border-card-border bg-card-bg">
+            <details open={Boolean(suggestedRsn)} className="group mt-3 rounded-xl border border-card-border bg-card-bg">
               <summary className="flex cursor-pointer list-none select-none items-center gap-2 px-4 py-3 text-sm font-semibold">
                 <span className="text-text-muted transition-transform group-open:rotate-90" aria-hidden>
                   ▸
@@ -158,7 +161,7 @@ export default function PersonProfile({
                 Add another character
               </summary>
               <div className="px-4 pb-4">
-                <AddCharacterClient />
+                <AddCharacterClient suggestedRsn={suggestedRsn} />
               </div>
             </details>
           </>
