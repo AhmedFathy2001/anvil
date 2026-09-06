@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
 import { formatGp, parseGpInput } from '@/lib/adminEventsFormat';
+import { splitEvenly } from '@/lib/splitGp';
 import type { CofferBalance } from '@/lib/cofferMath';
 import type { CofferLedgerRow } from '@/lib/coffer';
 
@@ -17,12 +18,21 @@ import type { CofferLedgerRow } from '@/lib/coffer';
  * different questions, and collapsing them into one "balance" is how a clan promises gp it has
  * already spent.
  */
+export interface DonorSeat {
+  id: number;
+  rsn: string;
+  kind: string;
+}
+
 export default function CofferClient({
   balance,
   entries,
+  roster,
 }: {
   balance: CofferBalance;
   entries: CofferLedgerRow[];
+  /** Who a donation can be credited to — every current seat, guests included. */
+  roster: DonorSeat[];
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<number | null>(null);
@@ -30,6 +40,77 @@ export default function CofferClient({
   const [adjustAmount, setAdjustAmount] = useState('');
   const [adjustNote, setAdjustNote] = useState('');
   const [adjusting, setAdjusting] = useState(false);
+
+  // Recording a donation on somebody's behalf. `shares` is keyed by seat id so a name can be added
+  // or dropped without disturbing what the others were typed as.
+  const [donorSearch, setDonorSearch] = useState('');
+  const [shares, setShares] = useState<Record<number, string>>({});
+  const [donationTotal, setDonationTotal] = useState('');
+  const [donationNote, setDonationNote] = useState('');
+  const [recording, setRecording] = useState(false);
+
+  const chosen = roster.filter((r) => r.id in shares);
+  const matches = donorSearch.trim()
+    ? roster
+        .filter((r) => !(r.id in shares) && r.rsn.toLowerCase().includes(donorSearch.trim().toLowerCase()))
+        .slice(0, 8)
+    : [];
+  const donationSum = chosen.reduce((sum, r) => sum + (parseGpInput(shares[r.id] ?? '') ?? 0), 0);
+
+  function addDonor(seat: DonorSeat) {
+    setShares((prev) => ({ ...prev, [seat.id]: '' }));
+    setDonorSearch('');
+  }
+
+  function dropDonor(id: number) {
+    setShares((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }
+
+  /** Divide the typed total between everyone chosen, to the gp. */
+  function splitTotal() {
+    const total = parseGpInput(donationTotal);
+    if (!total || chosen.length === 0) {
+      setMsg('Pick who it came from, then enter the total.');
+      return;
+    }
+    const amounts = splitEvenly(total, chosen.length);
+    setShares(Object.fromEntries(chosen.map((r, i) => [r.id, String(amounts[i])])));
+    setMsg('');
+  }
+
+  async function recordDonation() {
+    const donors = chosen
+      .map((r) => ({ clanMemberId: r.id, rsn: r.rsn, amount: parseGpInput(shares[r.id] ?? '') ?? 0 }))
+      .filter((d) => d.amount > 0);
+    if (donors.length === 0) {
+      setMsg('Give at least one donor an amount.');
+      return;
+    }
+    setRecording(true);
+    setMsg('');
+    try {
+      const res = await clanFetch('/api/admin/coffer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ donors, note: donationNote || null }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setShares({});
+        setDonationTotal('');
+        setDonationNote('');
+        router.refresh();
+      } else {
+        setMsg(data.error || 'That did not go through.');
+      }
+    } finally {
+      setRecording(false);
+    }
+  }
 
   const pendingDonations = entries.filter((e) => e.kind === 'donation' && e.status === 'pending');
   // Pools belong in this queue too: gp set aside for a board is money a treasurer still has to send,
@@ -187,6 +268,117 @@ export default function CofferClient({
             </Row>
           ))
         )}
+      </Section>
+
+      <Section title="Record a donation">
+        <div className="p-3 space-y-3">
+          <p className="text-[11px] text-text-muted">
+            For gp handed over in game rather than reported through the site. Credited to whoever gave
+            it, so the top-donor list can thank them — split it between several people if they chipped
+            in together. It lands approved: you entering it is the approval.
+          </p>
+
+          <div className="flex flex-wrap gap-1.5">
+            {chosen.map((seat) => (
+              <span
+                key={seat.id}
+                className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg bg-gold/10 border border-gold/30"
+              >
+                <span className="text-gold">{seat.rsn}</span>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  value={shares[seat.id] ?? ''}
+                  onChange={(e) => setShares((prev) => ({ ...prev, [seat.id]: e.target.value }))}
+                  placeholder="amount"
+                  className="w-20 !py-0.5 !px-1.5 text-[11px]"
+                  aria-label={`Amount from ${seat.rsn}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => dropDonor(seat.id)}
+                  className="text-text-muted hover:text-red-400 transition-colors"
+                  aria-label={`Remove ${seat.rsn}`}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+
+          <div className="relative">
+            <Input
+              type="text"
+              value={donorSearch}
+              onChange={(e) => setDonorSearch(e.target.value)}
+              placeholder="Who gave it? Search the roster…"
+              className="w-64"
+              aria-label="Search the roster for a donor"
+            />
+            {matches.length > 0 && (
+              <div className="absolute z-10 mt-1 w-64 rounded-lg border border-card-border bg-card-bg shadow-lg overflow-hidden">
+                {matches.map((seat) => (
+                  <button
+                    key={seat.id}
+                    type="button"
+                    onClick={() => addDonor(seat)}
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-gold/10 transition-colors flex items-center justify-between gap-2"
+                  >
+                    <span className="truncate">{seat.rsn}</span>
+                    {seat.kind === 'guest' && <span className="text-[10px] text-text-muted">guest</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {chosen.length > 1 && (
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-text-muted">
+              <span>Chipped in together?</span>
+              <Input
+                type="text"
+                inputMode="numeric"
+                value={donationTotal}
+                onChange={(e) => setDonationTotal(e.target.value)}
+                placeholder="total, e.g. 100m"
+                className="w-32"
+                aria-label="Total donation to split"
+              />
+              <button
+                type="button"
+                onClick={splitTotal}
+                className="text-[11px] font-semibold px-2 py-1 rounded-md bg-card-border/40 hover:text-foreground transition-colors"
+              >
+                Split {chosen.length} ways
+              </button>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              type="text"
+              value={donationNote}
+              onChange={(e) => setDonationNote(e.target.value)}
+              placeholder="What was it for?"
+              className="w-64"
+              aria-label="Donation note"
+            />
+            <button
+              type="button"
+              disabled={recording || donationSum <= 0}
+              onClick={recordDonation}
+              className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-gold/20 border border-gold text-gold hover:bg-gold/30 disabled:opacity-50 transition-colors"
+            >
+              {recording ? 'Recording…' : 'Record donation'}
+            </button>
+            {donationSum > 0 && (
+              <span className="text-[11px] text-text-muted">
+                {formatGp(donationSum)} gp from {chosen.filter((r) => (parseGpInput(shares[r.id] ?? '') ?? 0) > 0).length}{' '}
+                {chosen.length === 1 ? 'person' : 'people'}
+              </span>
+            )}
+          </div>
+        </div>
       </Section>
 
       <Section title="Correct the pot">

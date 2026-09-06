@@ -1,4 +1,5 @@
 import { MissionPlace } from '@/lib/eventRules';
+import { splitEvenly } from '@/lib/splitGp';
 
 // Coffer prizes for a Skill or Boss of the Week.
 //
@@ -169,11 +170,9 @@ export function winnersFor(prizes: WeeklyPrizes, standings: Standing[]): PrizeWi
     for (let i = 0; i < group.length; i++) pool += gpAt(prizes, rank + i);
     if (pool <= 0) continue;
 
-    const share = Math.floor(pool / group.length);
-    let remainder = pool - share * group.length;
-    for (const who of group) {
-      const gp = share + (remainder > 0 ? 1 : 0);
-      if (remainder > 0) remainder--;
+    const shares = splitEvenly(pool, group.length);
+    for (const [i, who] of group.entries()) {
+      const gp = shares[i];
       // A zero-gain finisher still OCCUPIES the position (nobody is promoted past them), they are
       // simply not paid for it — so their share is dropped rather than redistributed.
       if (gp > 0 && paying(who)) {
