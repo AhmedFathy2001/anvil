@@ -68,8 +68,15 @@ export async function PUT(
   }
 
   // Echo the resolved state for the client.
+  // BY PERSON. `member.playerId` is a players.id and `users.id` is a login id — the same two-sequence
+  // mix-up corrected in the roster picker and the role sync, echoing a stranger's login back to the
+  // client as the one this seat resolved to. `users.playerId` is the bridge, which is exactly what
+  // `loginOf` two lines above already asks.
   const finalUser = member.playerId
-    ? await db.query.users.findFirst({ where: eq(users.id, member.playerId), columns: { id: true, role: true } })
+    ? await db.query.users.findFirst({
+        where: eq(users.playerId, member.playerId),
+        columns: { id: true, role: true },
+      })
     : null;
 
   return NextResponse.json({
