@@ -6,7 +6,7 @@ import { currentClan } from '@/lib/clanContext';
 import crypto from 'crypto';
 import { db } from '@/db';
 import { resolveClanById, resolveClanFromRequest, type ClanContext } from '@/lib/clanContext';
-import { accounts, clanAuditLog, clanMemberships, clanRoster, clanStaff, clans, detectedAccounts, eventCohosts, eventEditors, eventParticipants, events, players, pluginLinks, teams, users } from '@/db/schema';
+import { accounts, clanAuditLog, clanMemberships, clanRoster, clanStaff, clans, detectedAccounts, eventCohosts, eventEditors, eventParticipants, events, players, pluginLinks, teams, users, weeklyCompetitions } from '@/db/schema';
 import { findOrCreateAccount, findOrCreateSeat, findRosterSeat, findRosterSeats, personOf, personOfOrCreate, seatsOwnedBy, seatsOwnedByAnywhere, UNCLAIMED_ACCOUNT, updateAccountOfSeat } from '@/lib/roster';
 import { and, desc, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { requireSecret } from '@/lib/env';
@@ -513,6 +513,57 @@ async function clanOfPerson(
   }
 
   const nowIso = new Date().toISOString();
+
+  // YOUR OWN CLAN FIRST, WHEN ANYTHING IS HAPPENING IN IT.
+  //
+  // The live-board query below wins on recency alone, and it only looks at BOARDS — so a member of
+  // one clan who guests in another had the plugin point at the guest clan the moment it started a
+  // bingo, while their own clan's Skill of the Week was invisible to this decision entirely. The
+  // panel then led with the guest clan's board, put their real clan under "Also live", and hid Sync
+  // roster because admin is per clan and they are not an admin of the guest one.
+  //
+  // An account holds at most one member seat (the exclusivity index), so "their clan" is a single
+  // unambiguous answer. It wins whenever that clan has something running — a board or a competition
+  // — and NOT otherwise: a member whose own clan is quiet, guesting on somebody's live bingo, still
+  // gets the board they are actually playing. Picking a clan explicitly overrides all of this.
+  const memberSeat = await db
+    .select({ clanId: clanRoster.clanId })
+    .from(clanRoster)
+    .where(and(await seatsOwnedByAnywhere(userId), isNull(clanRoster.leftAt), eq(clanRoster.kind, 'member')))
+    .limit(1);
+  if (memberSeat.length > 0) {
+    const homeId = memberSeat[0].clanId;
+    const [homeBoards, homeWeeklies] = await Promise.all([
+      // HOSTED OR CO-HOSTED. A board their clan co-hosts is their clan's — it is on their events
+      // page, it tracks from their side (verifyPluginToken), and it is very often the thing they are
+      // actually playing. Counting only owned boards would send the panel to the host clan for an
+      // event both clans are running together.
+      db
+        .select({ id: events.id })
+        .from(events)
+        .leftJoin(
+          eventCohosts,
+          and(eq(eventCohosts.eventId, events.id), eq(eventCohosts.status, 'accepted')),
+        )
+        .where(
+          and(
+            or(eq(events.clanId, homeId), eq(eventCohosts.clanId, homeId)),
+            isNull(events.forceEndedAt),
+            or(isNull(events.startDate), lte(events.startDate, nowIso)),
+            or(isNull(events.endDate), gte(events.endDate, nowIso)),
+          ),
+        )
+        .limit(1),
+      db
+        .select({ id: weeklyCompetitions.id })
+        .from(weeklyCompetitions)
+        .where(and(eq(weeklyCompetitions.clanId, homeId), eq(weeklyCompetitions.status, 'active')))
+        .limit(1),
+    ]);
+    if (homeBoards.length > 0 || homeWeeklies.length > 0) {
+      return resolveClanById(homeId);
+    }
+  }
 
   const live = await db
     .select({ clanId: clanRoster.clanId, startDate: events.startDate })
