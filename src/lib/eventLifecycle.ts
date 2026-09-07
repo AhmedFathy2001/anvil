@@ -106,6 +106,22 @@ export async function eventBoardSummary(event: {
   };
 }
 
+/**
+ * How many of an event's teams have nobody on them.
+ *
+ * Its own call rather than part of `getEventStartReadiness`, because it belongs to the soft lane:
+ * the readiness result is what HOLDS a scheduled start, and an empty team must never do that.
+ */
+export async function emptyTeamCount(eventId: number): Promise<number> {
+  const rows = await db
+    .select({ teamId: teams.id, players: count(eventParticipants.id) })
+    .from(teams)
+    .leftJoin(eventParticipants, eq(eventParticipants.teamId, teams.id))
+    .where(eq(teams.eventId, eventId))
+    .groupBy(teams.id);
+  return rows.filter((r) => Number(r.players) === 0).length;
+}
+
 export async function getEventStartReadiness(eventId: number, draftStatus: string): Promise<StartReadiness> {
   const [[teamCount], [assignedCount], [totalCount]] = await Promise.all([
     db.select({ n: count() }).from(teams).where(eq(teams.eventId, eventId)),
@@ -182,9 +198,13 @@ export async function processEventLifecycleNotifications(): Promise<void> {
     // Ready, but the start moment itself hasn't arrived yet (we looked ahead) — announce when it does.
     if (event.startDate > now) continue;
 
+    // REVEAL THE BOARD, which start-now has always done and this door never did. A new event is
+    // created hidden on purpose, so an event that reached its own start time went live with its
+    // tiles still invisible to everyone but staff — the players saw an empty board and the host had
+    // to notice and flip it by hand. Both start doors now do the same thing.
     const flipped = await db
       .update(events)
-      .set({ startNotified: 1 })
+      .set({ startNotified: 1, tilesRevealed: 1 })
       .where(and(eq(events.id, event.id), eq(events.startNotified, 0)))
       .returning({ id: events.id });
     if (flipped.length > 0) {

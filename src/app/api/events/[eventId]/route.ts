@@ -7,7 +7,7 @@ import { eq, inArray, and } from 'drizzle-orm';
 import { del } from '@/lib/storage';
 import { verifyAdmin, verifyAdminOrModerator } from '@/lib/auth';
 import { notifyEventForceEnd, notifyEventStart } from '@/lib/discord';
-import { getEventStartReadiness, eventBoardSummary, drawStartProof } from '@/lib/eventLifecycle';
+import { emptyTeamCount, getEventStartReadiness, eventBoardSummary, drawStartProof } from '@/lib/eventLifecycle';
 import { describeStartBlockers } from '@/lib/eventReadiness';
 import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
 import { writePlayerEventFacts } from '@/lib/playerEventFacts';
@@ -254,8 +254,18 @@ export async function PATCH(
     // deliberately in this soft lane rather than the hard 400 it used to be — a ladder that cycles
     // monthly is meant to run until it's ended.
     if (body.force !== true) {
-      const readiness = await getEventStartReadiness(event.id, event.draftStatus);
-      const blockers = [...readiness.blockers, ...(event.endDate ? [] : ['no-end-date' as const])];
+      const [readiness, emptyTeams] = await Promise.all([
+        getEventStartReadiness(event.id, event.draftStatus),
+        emptyTeamCount(event.id),
+      ]);
+      const blockers = [
+        ...readiness.blockers,
+        ...(event.endDate ? [] : ['no-end-date' as const]),
+        // A team nobody is on cannot score, and on a clan-v-clan it is usually the visiting clan's
+        // side left unfilled. Soft, like the missing end date: prompted once, overridable, and never
+        // allowed to hold a start that the clock reached on its own.
+        ...(emptyTeams > 0 ? ['empty-teams' as const] : []),
+      ];
       if (blockers.length > 0) {
         return NextResponse.json(
           {
