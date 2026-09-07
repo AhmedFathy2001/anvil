@@ -170,13 +170,22 @@ function uniqueStrings(arr: unknown[]): string[] {
 }
 
 // Window check: returns the reason the form is locked, or null if signups are open.
+//
+// A BOARD WITH NO START DATE IS A DRAFT, and a draft takes no entries. This used to read a null
+// start as "nothing has closed it yet, so it is open", which the rest of the platform disagrees
+// with: lib/eventCards keeps a dateless board off every listing precisely because "the host is
+// still building it, so it is not public". The two beliefs met on the apex home, which advertised
+// unscheduled boards under "Taking entries" and linked to a form that happily accepted them — so a
+// board nobody had finished writing collected sign-ups from members who had no way to know it was
+// not real. Scheduling it is what opens it.
 export function signupWindowState(event: {
   signupOpensAt: string | null;
   signupDeadline: string | null;
   startDate: string | null;
 }): { open: boolean; reason: 'not_open_yet' | 'closed' | 'event_started' | null } {
   const now = Date.now();
-  if (event.startDate && new Date(event.startDate).getTime() <= now) {
+  if (!event.startDate) return { open: false, reason: 'not_open_yet' };
+  if (new Date(event.startDate).getTime() <= now) {
     return { open: false, reason: 'event_started' };
   }
   if (event.signupDeadline && new Date(event.signupDeadline).getTime() <= now) {
