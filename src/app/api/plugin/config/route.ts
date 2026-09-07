@@ -168,12 +168,18 @@ async function homeBoardForUser(clanId: number, userId: number): Promise<{
  * account isn't linked to it (unverified RSN, or the player row belongs to another user). Returns
  * that event's name so the plugin can warn them; null when the RSN isn't in any live event.
  */
-async function activeEventForUnlinkedRsn(request: Request): Promise<string | null> {
+async function activeEventForUnlinkedRsn(request: Request, clanId: number): Promise<string | null> {
   const rsnHeader = request.headers.get('X-RSN')?.trim();
   if (!rsnHeader) return null;
   const norm = normalizeRsn(rsnHeader);
   if (!norm) return null;
-  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
+  // THIS CLAN'S BOARDS. Unscoped, it searched every clan on the platform for a live event with this
+  // RSN on it — and a token is scoped to ONE clan, so somebody in two of them got told their drops
+  // would not count in the clan they were connected to, naming a board belonging to the other one.
+  // The warning was true of nowhere: they were properly linked where the event actually lives.
+  //
+  // It also said another clan's event name to a clan with no part in it, which is the leak half of
+  // the same line.
   const rows = await db
     .select({
       name: eventParticipants.name,
@@ -184,7 +190,7 @@ async function activeEventForUnlinkedRsn(request: Request): Promise<string | nul
     })
     .from(eventParticipants)
     .innerJoin(events, eq(eventParticipants.eventId, events.id))
-    .where(sql`lower(${eventParticipants.name}) = ${norm}`);
+    .where(and(eq(events.clanId, clanId), sql`lower(${eventParticipants.name}) = ${norm}`));
   const now = Date.now();
   for (const r of rows) {
     if (normalizeRsn(r.name) !== norm) continue; // exact (nbsp-normalised) match
@@ -232,7 +238,7 @@ export async function GET(request: Request) {
           getShowKillCount(clan.id),
           getDropRarityFloor(clan.id),
           getDropFacts(clan.id),
-          activeEventForUnlinkedRsn(request),
+          activeEventForUnlinkedRsn(request, clan.id),
           homeBoardForUser(clan.id, userOnly.userId),
           pluginClansFor(userOnly.userId),
         ]);
