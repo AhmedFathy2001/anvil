@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
+import { isDraftInProgress } from '@/lib/eventReadiness';
 import crypto from 'crypto';
 import { db } from '@/db';
 import { teams, events, users } from '@/db/schema';
@@ -55,9 +56,15 @@ export async function POST(
   if (!eventRow) {
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
-  if (eventRow.draftStatus !== 'none') {
+  // IN PROGRESS, not "has ever run". The reason for the freeze is that changing the team set
+  // mid-draft bricks the snake order — the next pick would reference a team that no longer exists —
+  // and that is true of 'active' and 'paused' only. `!== 'none'` also caught 'completed', so a board
+  // that had finished its draft could never have its teams touched again: the lock was permanent and
+  // the message told you to reset a draft that was already over. lib/eventReadiness has drawn this
+  // exact distinction since the start safeguard was written.
+  if (isDraftInProgress(eventRow.draftStatus)) {
     return NextResponse.json(
-      { error: 'Teams are locked once the draft starts. Reset the draft to change teams.' },
+      { error: 'Teams are locked while the draft is running. Complete or reset it to change teams.' },
       { status: 409 },
     );
   }
@@ -156,12 +163,11 @@ export async function DELETE(
 
   const tId = parseInt(teamId, 10);
 
-  // Same freeze as team creation: deleting a team mid-draft bricks the snake order
-  // (the next pick references a team that no longer exists). Reset the draft first.
+  // Same freeze as team creation, and the same correction — see the note there.
   const eventRow = await db.query.events.findFirst({ where: eq(events.id, eId) });
-  if (eventRow && eventRow.draftStatus !== 'none') {
+  if (eventRow && isDraftInProgress(eventRow.draftStatus)) {
     return NextResponse.json(
-      { error: 'Teams are locked once the draft starts. Reset the draft to remove a team.' },
+      { error: 'Teams are locked while the draft is running. Complete or reset it to remove a team.' },
       { status: 409 },
     );
   }
