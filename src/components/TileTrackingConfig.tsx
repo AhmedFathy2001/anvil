@@ -57,6 +57,8 @@ interface Props {
    * policy to drop it with.
    */
   missionsAllowed?: boolean;
+  /** Whether missions are switched ON for this event, as opposed to merely possible on this shape. */
+  missionsEnabled?: boolean;
   /**
    * Gp the clan coffer can actually cover right now. Passed only so the prize editor can say when a
    * mission is promising more than the pot holds — the board still drops either way.
@@ -528,6 +530,7 @@ export default function TileTrackingConfig({
   categorySuggestions,
   teamPlay = true,
   missionsAllowed = true,
+  missionsEnabled = true,
   cofferAvailable = null,
 }: Props) {
   // Difficulty bands, ascending — the tier picker sets points to a band's floor, and the
@@ -2979,12 +2982,23 @@ export default function TileTrackingConfig({
       {(missionsAllowed || mission) && (
       <>
       <div className="rounded-lg border border-gold/25 bg-gold/5 p-3 space-y-3">
+        {/* Switched off for the event, not unavailable to it. The control used to VANISH in this
+            case, which is indistinguishable from the board not supporting missions at all — and a
+            host who has not saved the Missions panel yet has no way to tell those apart, or to guess
+            that the answer is on another tab. */}
+        {!missionsEnabled && !mission && (
+          <p className="text-[11px] text-text-muted">
+            Missions are off for this event. Turn them on under <strong>Overview → Missions</strong>,
+            then a tile can be one.
+          </p>
+        )}
         <div className="flex items-start gap-2">
           <button
             type="button"
+            disabled={!missionsEnabled && !mission}
             onClick={() => setMission(!mission)}
             aria-pressed={mission}
-            className={`relative mt-px w-10 h-5 rounded-full transition-colors flex-shrink-0 ${mission ? 'bg-gold' : 'bg-card-border'}`}
+            className={`relative mt-px w-10 h-5 rounded-full transition-colors flex-shrink-0 disabled:opacity-40 ${mission ? 'bg-gold' : 'bg-card-border'}`}
           >
             <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${mission ? 'translate-x-5' : ''}`} />
           </button>

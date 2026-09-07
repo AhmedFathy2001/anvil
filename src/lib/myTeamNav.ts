@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { personOf, seatsOwnedBy } from '@/lib/roster';
+import { personOf, seatsOwnedByAnywhere } from '@/lib/roster';
 import { clanRoster, eventSignups, events, eventParticipants, teams, teamStaff } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull, or, gt } from 'drizzle-orm';
 
@@ -15,9 +15,14 @@ import { and, eq, inArray, isNull, isNotNull, or, gt } from 'drizzle-orm';
  * It counts INVOLVEMENTS, not distinct teams: a captain who also plays on that team is one. Past
  * teams are excluded on purpose — they stay reachable from the locker, which is where a finished
  * event belongs.
+ *
+ * ACROSS EVERY CLAN, and it takes no clan for that reason. It used to take one and apply it to a
+ * single query out of four, so a captain seat on an unrelated clan's board counted toward the badge
+ * on THIS clan's header — the nav said 3 while the page listed 2. Filtering all four would have been
+ * the other repair, and it is the wrong one: a team is the PERSON's, like their characters and their
+ * profile, so the honest page is every team they are on with the clan named on each. See app/team.
  */
 export async function countLiveTeamInvolvements(
-  clanId: number,
   userId: number,
   now: Date = new Date(),
 ): Promise<number> {
@@ -46,7 +51,7 @@ export async function countLiveTeamInvolvements(
       .innerJoin(clanRoster, eq(eventParticipants.clanMemberId, clanRoster.id))
       .where(
         and(
-          await seatsOwnedBy(clanId, userId),
+          await seatsOwnedByAnywhere(userId),
           isNull(clanRoster.leftAt),
           isNotNull(eventParticipants.teamId),
           notForceEnded,

@@ -49,14 +49,21 @@ export default async function EventTilesPage({
   // some team really holds more than one player.
   const teamPlay = axes.competitors === 'teams' || [...playersPerTeam.values()].some((n) => n > 1);
 
-  // Missions are a board-level opt-in, and a contradiction where the board is already a pool of
-  // announced objectives (see supportsMissions). Elsewhere the flag only appears once the host has
-  // turned missions on for the event.
-  const missionsAllowed = supportsMissions(axes) && hasMissions(parseEventRules(event.rules));
+  // TWO QUESTIONS, and collapsing them into one is what made this page go quiet. `supportsMissions`
+  // asks whether the board could ever carry a mission — a shape question, permanent. `hasMissions`
+  // asks whether the host has turned them on, which is a setting they can change in a second.
+  //
+  // Both were ANDed into one flag, and a false flag hid the mission control entirely. So a host who
+  // had not saved the Missions panel — or had, and was looking at a board that could carry them —
+  // got no toggle and no reason: "I can't add missions" with nothing on screen to argue with. The
+  // shape question decides whether the control exists; the setting decides whether it is usable,
+  // and says what to do about it.
+  const missionsAllowed = supportsMissions(axes);
+  const missionsEnabled = missionsAllowed && hasMissions(parseEventRules(event.rules));
 
   // What the coffer can cover, so a mission prize can be authored against a real number instead of
   // a hope. Only read where missions are actually on offer — every other board pays no gp.
-  const coffer = missionsAllowed ? await getCofferBalance(clan.id) : null;
+  const coffer = missionsEnabled ? await getCofferBalance(clan.id) : null;
 
   return (
     <TilesClient
@@ -67,6 +74,7 @@ export default async function EventTilesPage({
       editLocked={eventEditLocked(event)}
       teamPlay={teamPlay}
       missionsAllowed={missionsAllowed}
+      missionsEnabled={missionsEnabled}
       cofferAvailable={coffer?.available ?? null}
     />
   );
