@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   activeStreak,
   buildSeries,
+  clipToGain,
   dailyCoverage,
   dailyTrust,
   cumulative,
@@ -154,4 +155,50 @@ test('guests do not count against the day-by-day', () => {
   // tracked it reads as complete, which is what it is.
   assert.equal(dailyTrust(900_000, 3_900_000, true), 'thin');
   assert.equal(dailyTrust(900_000, 900_000, true), 'ok');
+});
+
+// ── The chart has to agree with the standings in BOTH directions ─────────────────────────────────
+//
+// Reproduces a live SotW: Sailing on day one, opened the morning the skill launched. The competition
+// started mid-morning; `member_daily_stats` is calendar-day granular. So the first column held XP
+// earned hours before the competition existed, and the page showed "CLAN TOTAL 0" directly above
+// "13.8K today", with the clan's biggest trainer ranked 81st on nothing, beside a "+13.1K" the
+// board refused to count.
+
+test('day one does not count XP earned before the competition started', () => {
+  // muhmmaddd, as the page had him: 13,100 on the day's row, 0 credited by the standings because
+  // all of it predates the start time.
+  const clipped = clipToGain([13_100, 0, 0, 0, 0, 0, 0], 1, 0);
+  assert.deepEqual(clipped, [0, 0, 0, 0, 0, 0, 0]);
+  assert.equal(
+    clipped.reduce((a, b) => a + b, 0),
+    0,
+    'the visible days must sum to what the standings credit',
+  );
+});
+
+test('only the excess is trimmed, and it comes off the earliest days', () => {
+  // 3,000 of the first morning predates the start; the 5,000 trained on day two is untouched.
+  assert.deepEqual(clipToGain([8_000, 5_000], 2, 10_000), [5_000, 5_000]);
+  // When the first day cannot absorb the whole excess it is emptied and the rest spills FORWARD,
+  // so what survives is the most recent training rather than the oldest.
+  assert.deepEqual(clipToGain([1_000, 4_000], 2, 500), [0, 500]);
+});
+
+test('a series the standings already agree with is returned untouched', () => {
+  const days = [1_000, 2_000, 3_000];
+  assert.equal(clipToGain(days, 3, 6_000), days, 'same reference — nothing to do');
+  // Running BEHIND is the other half of the reconciliation (the `pending` top-up in
+  // lib/competitionView) and must not be touched here: never pull a line backwards.
+  assert.deepEqual(clipToGain([1_000, 2_000], 2, 9_999), [1_000, 2_000]);
+});
+
+test('days beyond the elapsed window are left alone', () => {
+  // On day two of seven, the untrained future must not absorb a first-morning correction.
+  assert.deepEqual(clipToGain([9_000, 1_000, 0, 0], 2, 1_000), [0, 1_000, 0, 0]);
+});
+
+test('a negative gain never turns into negative days', () => {
+  // `gained` can go negative on a corrected baseline; the floor is zero, not a hole in the chart.
+  assert.deepEqual(clipToGain([500, 500], 2, -5_000), [0, 0]);
 });

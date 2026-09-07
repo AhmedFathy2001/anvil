@@ -107,6 +107,47 @@ export function buildSeries(
   return rsns.map((rsn) => ({ rsn, days: byRsn.get(rsn) ?? days.map(() => 0) }));
 }
 
+/**
+ * Trim a day series down to what the competition actually counts, taking it off the EARLIEST days.
+ *
+ * THE DAY ROWS AND THE SCORE MEASURE DIFFERENT WINDOWS. `member_daily_stats` is calendar-day
+ * granular — midnight to midnight — while a competition is scored from the moment it STARTS. A
+ * competition beginning at 03:00 therefore has a first column holding three hours of XP earned
+ * before it existed, and `dayRange` includes that whole day by design (the competition really does
+ * run during part of it).
+ *
+ * Left alone, that puts two numbers on one page that cannot both be true. A Sailing SotW opened the
+ * morning the skill launched and read "CLAN TOTAL 0" above "13.8K today", with the biggest trainer
+ * ranked 81st on 0 points beside a "+13.1K" that the board refused to count — every one of those
+ * numbers correct for its own window, and the page as a whole nonsense.
+ *
+ * EARLIEST-FIRST, and that is the whole design. The excess is pre-start XP, which is exactly what
+ * sits at the front of the range; trimming proportionally would smear a first-morning correction
+ * across days the member really did train. It is also the right reading of the other way this
+ * happens — an admin raising a stale baseline is saying "the early part does not count", which is
+ * the same sentence.
+ *
+ * The companion of the `pending` top-up in lib/competitionView: together they hold the invariant
+ * that a member's visible days sum to the gain the standings credit them with. That top-up existed
+ * alone, and its comment is right that a line must never be pulled BACKWARDS by hiscores running
+ * ahead — this does not do that. It removes XP the competition was never counting.
+ */
+export function clipToGain(days: number[], upto: number, gained: number): number[] {
+  const target = Math.max(0, gained);
+  let recorded = 0;
+  for (let i = 0; i < upto; i++) recorded += days[i] ?? 0;
+  let excess = recorded - target;
+  if (excess <= 0) return days;
+
+  const out = [...days];
+  for (let i = 0; i < upto && excess > 0; i++) {
+    const take = Math.min(out[i] ?? 0, excess);
+    out[i] = (out[i] ?? 0) - take;
+    excess -= take;
+  }
+  return out;
+}
+
 /** Clan-wide total per day. */
 export function dailyTotals(series: DaySeries[], dayCount: number): number[] {
   const out = new Array(dayCount).fill(0);

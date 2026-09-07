@@ -12,6 +12,7 @@ import {
   dailyTrust,
   type DailyTrust,
   buildSeries,
+  clipToGain,
   dailyLeaders,
   dailyTotals,
   dayRange,
@@ -256,7 +257,14 @@ export async function buildCompetitionView(
   const dayIndex = Math.max(0, elapsed - 1);
   let pendingTotal = 0;
   const entries: CompetitionEntry[] = board.map((b) => {
-    const base = seriesByRsn.get(b.rsn) ?? { rsn: b.rsn, days: days.map(() => 0) };
+    const raw = seriesByRsn.get(b.rsn) ?? { rsn: b.rsn, days: days.map(() => 0) };
+    // …AND IT HAS TO AGREE IN BOTH DIRECTIONS. The top-up below covers the chart running BEHIND the
+    // standings. This covers it running AHEAD, which happens on day one of any competition that
+    // starts mid-day: the day rows are calendar days, the score starts at the start time, and the
+    // first column holds however much was earned before the competition existed. See clipToGain.
+    const base = trackableRsns.has(b.rsn)
+      ? { ...raw, days: clipToGain(raw.days, elapsed, b.gained) }
+      : raw;
     const recorded = base.days.slice(0, elapsed).reduce((sum, d) => sum + d, 0);
     // Only ever adds. A member whose hiscores have run AHEAD of the competition's own total (a
     // corrected baseline, a re-probe) must not have their line pulled backwards.
