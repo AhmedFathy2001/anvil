@@ -240,7 +240,7 @@ export async function GET(request: Request) {
           getDropFacts(clan.id),
           activeEventForUnlinkedRsn(request, clan.id),
           homeBoardForUser(clan.id, userOnly.userId),
-          pluginClansFor(userOnly.userId),
+          pluginClansFor(userOnly.userId, request.headers.get('X-RSN')),
         ]);
         // Needs the active weekly, so it resolves after it: a boss week makes that boss's collection-log
         // items always-reportable regardless of price. See getAlwaysNotifyItemIds.
@@ -799,7 +799,7 @@ export async function GET(request: Request) {
     // person's clans for the switcher. Present on BOTH shapes so the dropdown does not empty out
     // the moment somebody's event ends (lib/pluginClans).
     activeClan: { slug: clan.slug, name: clan.name },
-    clans: await pluginClansFor(auth.userId),
+    clans: await pluginClansFor(auth.userId, auth.rsn),
     event: {
       id: event.id,
       name: event.name,
