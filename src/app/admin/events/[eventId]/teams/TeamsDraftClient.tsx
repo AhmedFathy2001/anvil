@@ -681,9 +681,12 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   }
 
   const draftTeams = draft.teams.length > 0 ? draft.teams : teams;
-  // Once the draft leaves 'none', the team set + order are frozen server-side. Mirror
-  // that in the UI so the controls match what the API will accept.
-  const draftLocked = draft.status !== 'none';
+  // WHILE THE DRAFT IS RUNNING, not ever after — and `isDraftInProgress` above is that exact
+  // question, already computed and already used by five other controls on this page. This one asked
+  // `!== 'none'` instead, so a board whose draft had COMPLETED lost its Delete button for good. The
+  // API accepts the request now (see api/events/[eventId]/teams); this was the half still refusing
+  // to send it, which is why "no way to delete a team" outlived the server fix.
+  const draftLocked = isDraftInProgress;
 
   // "Start Bingo Now" is offered once the draft is done but the event hasn't gone live yet.
   const eventStarted = event.startDate ? new Date(event.startDate) <= new Date() : false;
@@ -984,7 +987,8 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
 
         {draftLocked ? (
           <div className="text-sm text-text-muted border border-dashed border-card-border rounded-xl p-4">
-            🔒 Teams are locked while the draft is {draft.status}. Reset the draft to change the team set.
+            🔒 Teams are locked while the draft is {draft.status}. Complete or reset it to change the
+            team set.
           </div>
         ) : signupsOpen ? (
           <button
