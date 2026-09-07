@@ -11,6 +11,7 @@ const ptBr: PartialDiscordDict = {
     noTeams: '_Ainda sem times._',
     moreOnSite: '+{n} no site',
     more: '+{n}',
+    synced: 'Sincronizado {when}',
     bonusLegend:
       '⚡ bônus de missão — ganho por cima do total do tabuleiro, então conta na pontuação mas não na porcentagem.',
     visitingClansOne: '🤝 {names} é um clã visitante — este tabuleiro é compartilhado.',
@@ -37,6 +38,10 @@ const ptBr: PartialDiscordDict = {
     fieldRank: 'Colocação',
     fieldRoster: 'Elenco',
     fieldScore: 'Pontos',
+  },
+
+  stats: {
+    rank: '#{rank} de {total} em {clan}',
   },
 
   board: {

@@ -83,9 +83,15 @@ import { fmt, plural, getDiscordDict, resolveLocale, findDiscordLocale, type Dis
 
 // ── Shared embed furniture ──────────────────────────────────────────────────────────────────────
 
-/** The author line: whose Anvil answered. Links to the clan's site when it has a public URL. */
+/** The author line: whose Anvil answered. Links to the clan's site when it has a public URL, and
+ *  wears the clan's crest (the deterministic monogram /api/og/crest draws) — the clan's mark on top,
+ *  the Anvil mark in the footer. */
 function authorOf(clan: ClanContext): DiscordEmbed['author'] {
-  return { name: clamp(clan.name, LIMIT.author), url: clan.origin ?? undefined };
+  return {
+    name: clamp(clan.name, LIMIT.author),
+    url: clan.origin ?? undefined,
+    icon_url: clan.origin ? `${clan.origin}/api/og/crest` : undefined,
+  };
 }
 
 function eventUrl(clan: ClanContext, eventId: number): string | undefined {
@@ -1271,7 +1277,7 @@ export async function handleComponent(interaction: Interaction): Promise<Interac
     const lang = await applyLanguage(clanShare.o, { t, locale: dictLocale });
     return replyClanCommand(
       clanHandler,
-      { t: lang.t, clan, identity, sub, options: clanShare.o, who: invokerName(interaction), locale: lang.locale },
+      { t: lang.t, clan, identity, sub, options: clanShare.o, who: invokerName(interaction), locale: lang.locale, shared: true },
       { name: clanShare.n, ephemeral: false, sharedBy: invokerName(interaction) },
     );
   }

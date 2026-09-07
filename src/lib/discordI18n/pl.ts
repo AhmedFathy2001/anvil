@@ -14,6 +14,7 @@ const pl: PartialDiscordDict = {
     noTeams: '_Jeszcze nie ma drużyn._',
     moreOnSite: 'więcej na stronie: +{n}',
     more: 'więcej: +{n}',
+    synced: 'Zsynchronizowano {when}',
     bonusLegend:
       '⚡ bonus za misję — zdobyty ponad sumę planszy, więc liczy się do wyniku, ale nie do procentów.',
     visitingClansOne: '🤝 {names} to klan z zewnątrz — ta plansza jest wspólna.',
@@ -40,6 +41,10 @@ const pl: PartialDiscordDict = {
     fieldRank: 'Miejsce',
     fieldRoster: 'Skład',
     fieldScore: 'Wynik',
+  },
+
+  stats: {
+    rank: '#{rank} z {total} w {clan}',
   },
 
   board: {

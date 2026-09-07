@@ -11,6 +11,7 @@ const sv: PartialDiscordDict = {
     noTeams: '_Inga lag än._',
     moreOnSite: '+{n} till på sajten',
     more: '+{n} till',
+    synced: 'Synkroniserad {when}',
     bonusLegend:
       '⚡ uppdragsbonus — tjänas ovanpå brädans total, så den räknas in i poängen men inte i procenten.',
     visitingClansOne: '🤝 {names} är en gästklan — den här brädan är delad.',
@@ -37,6 +38,10 @@ const sv: PartialDiscordDict = {
     fieldRank: 'Placering',
     fieldRoster: 'Trupp',
     fieldScore: 'Poäng',
+  },
+
+  stats: {
+    rank: '#{rank} av {total} i {clan}',
   },
 
   board: {

@@ -11,6 +11,7 @@ const no: PartialDiscordDict = {
     noTeams: '_Ingen lag ennå._',
     moreOnSite: '+{n} til på nettsiden',
     more: '+{n} til',
+    synced: 'Synkronisert {when}',
     bonusLegend:
       '⚡ oppdragsbonus — tjent på toppen av brettets total, så den teller i poengsummen, men ikke i prosenten.',
     visitingClansOne: '🤝 {names} er en gjesteklan — dette brettet er delt.',
@@ -37,6 +38,10 @@ const no: PartialDiscordDict = {
     fieldRank: 'Plassering',
     fieldRoster: 'Tropp',
     fieldScore: 'Poeng',
+  },
+
+  stats: {
+    rank: '#{rank} av {total} i {clan}',
   },
 
   board: {

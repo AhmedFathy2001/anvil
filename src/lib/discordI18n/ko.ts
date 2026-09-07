@@ -11,6 +11,7 @@ const ko: PartialDiscordDict = {
     noTeams: '_아직 팀이 없습니다._',
     moreOnSite: '사이트에 {n}개 더',
     more: '{n}개 더',
+    synced: '동기화: {when}',
     bonusLegend: '⚡ 미션 보너스 —— 보드 총점 위에 얹혀 얻는 점수라, 점수에는 들어가지만 진행률에는 들어가지 않습니다.',
     visitingClansOne: '🤝 {names}은(는) 방문 클랜입니다 —— 이 보드는 공유되고 있습니다.',
     visitingClansMany: '🤝 {names}은(는) 방문 클랜입니다 —— 이 보드는 공유되고 있습니다.',
@@ -36,6 +37,10 @@ const ko: PartialDiscordDict = {
     fieldRank: '순위',
     fieldRoster: '명단',
     fieldScore: '점수',
+  },
+
+  stats: {
+    rank: '{clan}에서 {total}명 중 {rank}위',
   },
 
   board: {

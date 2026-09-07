@@ -11,6 +11,7 @@ const es: PartialDiscordDict = {
     noTeams: '_Aún no hay equipos._',
     moreOnSite: '+{n} más en la web',
     more: '+{n} más',
+    synced: 'Sincronizado {when}',
     bonusLegend:
       '⚡ bonus de misión — se gana por encima del total del tablero, así que cuenta para la puntuación pero no para el porcentaje.',
     visitingClansOne: '🤝 {names} es un clan invitado — este tablero es compartido.',
@@ -37,6 +38,10 @@ const es: PartialDiscordDict = {
     fieldRank: 'Puesto',
     fieldRoster: 'Plantilla',
     fieldScore: 'Puntos',
+  },
+
+  stats: {
+    rank: '#{rank} de {total} en {clan}',
   },
 
   board: {

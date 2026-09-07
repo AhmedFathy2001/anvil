@@ -11,6 +11,7 @@ const it: PartialDiscordDict = {
     noTeams: '_Ancora nessuna squadra._',
     moreOnSite: '+{n} altre sul sito',
     more: '+{n} altre',
+    synced: 'Sincronizzato {when}',
     bonusLegend:
       '⚡ bonus missione — guadagnato sopra al totale del tabellone, quindi conta nel punteggio ma non nella percentuale.',
     visitingClansOne: '🤝 {names} è un clan in visita — questo tabellone è condiviso.',
@@ -37,6 +38,10 @@ const it: PartialDiscordDict = {
     fieldRank: 'Posizione',
     fieldRoster: 'Rosa',
     fieldScore: 'Punteggio',
+  },
+
+  stats: {
+    rank: '#{rank} di {total} in {clan}',
   },
 
   board: {

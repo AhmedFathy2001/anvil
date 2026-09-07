@@ -11,6 +11,7 @@ const nl: PartialDiscordDict = {
     noTeams: '_Nog geen teams._',
     moreOnSite: '+{n} meer op de site',
     more: '+{n} meer',
+    synced: 'Gesynct {when}',
     bonusLegend:
       '⚡ missiebonus — bovenop het bordtotaal verdiend, dus telt mee voor de score maar niet voor het percentage.',
     visitingClansOne: '🤝 {names} is een gastclan — dit bord wordt gedeeld.',
@@ -37,6 +38,10 @@ const nl: PartialDiscordDict = {
     fieldRank: 'Plaats',
     fieldRoster: 'Selectie',
     fieldScore: 'Score',
+  },
+
+  stats: {
+    rank: '#{rank} van {total} in {clan}',
   },
 
   board: {

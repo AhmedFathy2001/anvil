@@ -11,6 +11,7 @@ const da: PartialDiscordDict = {
     noTeams: '_Ingen hold endnu._',
     moreOnSite: '+{n} mere på siden',
     more: '+{n} mere',
+    synced: 'Synket {when}',
     bonusLegend:
       '⚡ missionsbonus — optjent oven på brættets total, så den tæller med i scoren, men ikke i procenten.',
     visitingClansOne: '🤝 {names} er en gæsteklan — dette bræt er delt.',
@@ -37,6 +38,10 @@ const da: PartialDiscordDict = {
     fieldRank: 'Placering',
     fieldRoster: 'Trup',
     fieldScore: 'Score',
+  },
+
+  stats: {
+    rank: '#{rank} af {total} i {clan}',
   },
 
   board: {

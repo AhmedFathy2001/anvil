@@ -11,6 +11,7 @@ const ja: PartialDiscordDict = {
     noTeams: '_チームはまだありません。_',
     moreOnSite: 'サイトにあと {n} 件',
     more: 'あと {n} 件',
+    synced: '同期: {when}',
     bonusLegend: '⚡ ミッションボーナス —— ボード合計の上に加算されるため、スコアには入るが達成率には入らない。',
     visitingClansOne: '🤝 {names} は来訪クラン —— このボードは共有されています。',
     visitingClansMany: '🤝 {names} は来訪クラン —— このボードは共有されています。',
@@ -36,6 +37,10 @@ const ja: PartialDiscordDict = {
     fieldRank: '順位',
     fieldRoster: '名簿',
     fieldScore: 'スコア',
+  },
+
+  stats: {
+    rank: '{clan} で {total} 人中 {rank} 位',
   },
 
   board: {

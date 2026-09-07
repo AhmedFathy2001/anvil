@@ -11,6 +11,7 @@ const de: PartialDiscordDict = {
     noTeams: '_Noch keine Teams._',
     moreOnSite: '+{n} weitere auf der Website',
     more: '+{n} weitere',
+    synced: 'Synchronisiert {when}',
     bonusLegend:
       '⚡ Missionsbonus — zusätzlich zur Brett-Gesamtwertung verdient, zählt also für die Punkte, aber nicht für die Prozentzahl.',
     visitingClansOne: '🤝 {names} ist ein Gastclan — dieses Brett wird geteilt.',
@@ -37,6 +38,10 @@ const de: PartialDiscordDict = {
     fieldRank: 'Platz',
     fieldRoster: 'Kader',
     fieldScore: 'Punkte',
+  },
+
+  stats: {
+    rank: '#{rank} von {total} in {clan}',
   },
 
   board: {

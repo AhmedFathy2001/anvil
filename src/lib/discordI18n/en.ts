@@ -21,6 +21,9 @@ export const en = {
     noTeams: '_No teams yet._',
     moreOnSite: '+{n} more on the site',
     more: '+{n} more',
+    /** Freshness stamp for numbers that come off a sweep/sync. {when} is a Discord relative
+     *  timestamp, which Discord itself localises ("2 hours ago") — only the word here is translated. */
+    synced: 'Synced {when}',
     bonusLegend:
       '⚡ mission bonus — earned on top of the board total, so it counts toward the score but not the percentage.',
     visitingClansOne: '🤝 {names} is a visiting clan — this board is shared.',
@@ -336,6 +339,9 @@ export const en = {
   // the clog/luck strings above; these are the profile, levels, efficiency, PBs and board views.
   stats: {
     profileTitle: '📊 {who} — stats',
+    /** The clan standing on the profile card — replaces the old duplicate "full profile" link, since
+     *  the title is already that link. Ranked by collection log, the one board everyone is on. */
+    rank: '#{rank} of {total} in {clan}',
     levelsTitle: '📈 {who} — levels',
     efficiencyTitle: '⚡ {who} — efficiency',
     pbsTitle: '⏱️ {who} — personal bests',

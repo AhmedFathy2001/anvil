@@ -17,6 +17,7 @@ const ar: PartialDiscordDict = {
     noTeams: '_لا فرق بعد._',
     moreOnSite: 'والمزيد على الموقع: {n}',
     more: 'والمزيد: {n}',
+    synced: 'آخر مزامنة {when}',
     bonusLegend: '⚡ مكافأة مهمة — تُكتسب فوق مجموع اللوحة، فتُحتسب في النقاط لا في النسبة المئوية.',
     visitingClansOne: '🤝 {names} عشيرة زائرة — هذه اللوحة مشتركة.',
     visitingClansMany: '🤝 {names} عشائر زائرة — هذه اللوحة مشتركة.',
@@ -42,6 +43,10 @@ const ar: PartialDiscordDict = {
     fieldRank: 'الترتيب',
     fieldRoster: 'التشكيلة',
     fieldScore: 'النقاط',
+  },
+
+  stats: {
+    rank: 'المركز {rank} من {total} في {clan}',
   },
 
   board: {

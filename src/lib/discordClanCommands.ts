@@ -70,6 +70,12 @@ export interface ClanCommandCtx {
   /** The resolved locale code the answer is in — for commands that read another dictionary in the
    *  same language (e.g. /guide reads the guide i18n). Matches `t`. */
   locale: string;
+  /**
+   * True when the answer is being posted to the CHANNEL (the Share re-run), false/absent when it is
+   * the private ephemeral reply. A private answer is a mirror and may say "you"; a shared one is read
+   * by an audience for whom "you" is the wrong person, so the builders switch to naming instead.
+   */
+  shared?: boolean;
 }
 
 /**
@@ -81,8 +87,16 @@ export type ClanResult = { embeds: DiscordEmbed[]; shareable?: boolean } | { tex
 
 export type ClanCommand = (ctx: ClanCommandCtx) => Promise<ClanResult>;
 
+/** The clan's crest image, for the author line's icon. The SAME deterministic monogram the site
+ *  draws in <ClanCrest> (initials + a name-derived hue), rendered to a raster by /api/og/crest —
+ *  Discord will not display an SVG or a data: URI here, so it needs a real image URL. Absent when the
+ *  clan has no public origin to serve it from. */
+function crestUrl(clan: ClanContext): string | undefined {
+  return clan.origin ? `${clan.origin}/api/og/crest` : undefined;
+}
+
 function authorOf(clan: ClanContext): DiscordEmbed['author'] {
-  return { name: clamp(clan.name, LIMIT.author), url: clan.origin ?? undefined };
+  return { name: clamp(clan.name, LIMIT.author), url: clan.origin ?? undefined, icon_url: crestUrl(clan) };
 }
 
 /** The provenance subtext: which clan answered. The clan analogue of contextLine (no event here). */
@@ -96,6 +110,23 @@ function relativeTs(iso: string | null): string | null {
   const ms = Date.parse(iso);
   if (Number.isNaN(ms)) return null;
   return `<t:${Math.floor(ms / 1000)}:R>`;
+}
+
+/** "Synced 2h ago", as a clanLine fragment — the sweep/sync time behind the numbers, so nobody
+ *  argues with a stale figure. Discord localises the relative part into every reader's language. */
+function syncedFrag(t: DiscordDict, iso: string | null | undefined): string | undefined {
+  const rel = relativeTs(iso ?? null);
+  return rel ? fmt(t.common.synced, { when: rel }) : undefined;
+}
+
+/** Compact a large count — 248.4m, 1.2b — for a boxed field where the exact digit doesn't matter.
+ *  (gp already compacts via formatGp; this is for XP and the like, which arrive as raw integers.) */
+function compactNum(n: number): string {
+  const trim = (x: number) => x.toFixed(1).replace(/\.0$/, '');
+  if (n >= 1e9) return `${trim(n / 1e9)}b`;
+  if (n >= 1e6) return `${trim(n / 1e6)}m`;
+  if (n >= 1e3) return `${trim(n / 1e3)}k`;
+  return n.toLocaleString();
 }
 
 function placeMark(index: number): string {
@@ -229,14 +260,23 @@ async function weeklyResult(ctx: ClanCommandCtx, kind: 'skill' | 'boss'): Promis
     if (board.length === 0) {
       body.push('', t.weekly.noEntries);
     } else {
-      body.push(
-        '',
-        ...board
-          .slice(0, 10)
-          .map((e, i) => `${placeMark(i)} **${clamp(e.rsn, 40)}** — ${code(`${e.gained.toLocaleString()} ${unit}`)}`),
-      );
       const idx = board.findIndex((e) => e.accountId != null && mine.has(e.accountId));
-      body.push('', idx >= 0 ? fmt(t.weekly.you, { place: placeMark(idx), total: board.length }) : t.weekly.youNone);
+      const N = 10;
+      const row = (e: (typeof board)[number], i: number, own: boolean) =>
+        `${placeMark(i)} **${clamp(e.rsn, 40)}** — ${code(`${e.gained.toLocaleString()} ${unit}`)}${own ? ' 🔸' : ''}`;
+      body.push('', ...board.slice(0, N).map((e, i) => row(e, i, i === idx)));
+      // The asker's own standing. Private (a mirror) says "you"; a shared post never does — the 🔸
+      // row carries it, and a rank below the cut is appended so the sharer still appears.
+      if (!ctx.shared) {
+        body.push('', idx >= 0 ? fmt(t.weekly.you, { place: placeMark(idx), total: board.length }) : t.weekly.youNone);
+      } else if (idx >= N) {
+        body.push('', row(board[idx], idx, true));
+      }
+      if (board.length > N) {
+        const url = pathUrl(clan, '/weekly');
+        const more = fmt(t.common.moreOnSite, { n: board.length - N });
+        body.push('', `-# ${url ? `[${more}](${url})` : more}`);
+      }
     }
     body.push('', clanLine(clan));
 
@@ -271,11 +311,21 @@ async function effResult(ctx: ClanCommandCtx): Promise<ClanResult> {
 
   const label = metric.toUpperCase();
   const mine = new Set(identity?.accountIds ?? []);
-  const body: string[] = ranked
-    .slice(0, 10)
-    .map((m, i) => `${placeMark(i)} **${clamp(m.rsn, 40)}** — ${code(`${m.value.toFixed(1)} ${label}`)}`);
   const idx = ranked.findIndex((m) => mine.has(m.accountId));
-  if (idx >= 0) body.push('', fmt(t.eff.you, { rank: idx + 1, total: ranked.length }));
+  const N = 10;
+  const row = (m: (typeof ranked)[number], i: number, own: boolean) =>
+    `${placeMark(i)} **${clamp(m.rsn, 40)}** — ${code(`${m.value.toFixed(1)} ${label}`)}${own ? ' 🔸' : ''}`;
+  const body: string[] = ranked.slice(0, N).map((m, i) => row(m, i, i === idx));
+  if (!ctx.shared) {
+    if (idx >= 0) body.push('', fmt(t.eff.you, { rank: idx + 1, total: ranked.length }));
+  } else if (idx >= N) {
+    body.push('', row(ranked[idx], idx, true));
+  }
+  if (ranked.length > N) {
+    const url = pathUrl(clan, '/members');
+    const more = fmt(t.common.moreOnSite, { n: ranked.length - N });
+    body.push('', `-# ${url ? `[${more}](${url})` : more}`);
+  }
   body.push('', clanLine(clan));
 
   return {
@@ -343,7 +393,9 @@ async function cofferBalanceResult(ctx: ClanCommandCtx): Promise<ClanResult> {
     embeds: [
       {
         title: clamp(fmt(t.coffer.title, { clan: clan.name }), LIMIT.title),
-        url: pathUrl(clan, '/admin/coffer'),
+        // The PUBLIC coffer page (balance + movements + donors), not /admin/coffer — that 403s for
+        // every member below treasurer, and this answer is member-visible.
+        url: pathUrl(clan, '/coffer'),
         description: clamp(body.join('\n'), LIMIT.description),
         color: EMBED_COLOR.gold,
         author: authorOf(clan),
@@ -401,6 +453,7 @@ async function topCollectors(clanId: number) {
       rsn: clanRoster.rsn,
       obtained: memberClog.obtained,
       total: memberClog.total,
+      syncedAt: memberClog.syncedAt,
     })
     .from(memberClog)
     .innerJoin(clanRoster, eq(memberClog.accountId, clanRoster.accountId))
@@ -414,10 +467,13 @@ async function topCollectors(clanId: number) {
 // (subcommands); each personal view resolves the member + account the same way and deep-links to the
 // matching /p/<rsn> tab on the site.
 
-/** The site's character page for an RSN — /p/<slug>, where the slug is the lowercased hyphenated RSN. */
+/** The site's character page for an RSN — /p/<rsn>, encoded exactly the way every other link on the
+ *  site builds it: encodeURIComponent of the raw RSN. The resolver (apexCharacter) lowercases and
+ *  collapses spaces/underscores itself, but it leaves hyphens intact — so the old "spaces → hyphens"
+ *  slug produced a page it could never match ("drenvox mdps" ≠ "drenvox-mdps"). */
 function profileUrl(clan: ClanContext, rsn: string | null, tab?: string): string | null {
   if (!clan.origin || !rsn) return null;
-  const slug = encodeURIComponent(rsn.trim().toLowerCase().replace(/\s+/g, '-'));
+  const slug = encodeURIComponent(rsn.trim());
   return `${clan.origin}/p/${slug}${tab ? `?tab=${tab}` : ''}`;
 }
 
@@ -456,16 +512,21 @@ async function statProfileResult(ctx: ClanCommandCtx, picked: { accountId: numbe
   const profile = await getAccountProfile(picked.accountId);
   if (!profile || profile.statsAt == null) return { text: fmt(t.stats.noStats, { who: picked.rsn }) };
 
-  const [clogHeader, pbRows] = await Promise.all([
+  const [clogHeader, pbRows, board] = await Promise.all([
     db.query.memberClog.findFirst({ where: eq(memberClog.accountId, picked.accountId) }),
     db.select({ id: memberPersonalBests.id }).from(memberPersonalBests).where(eq(memberPersonalBests.accountId, picked.accountId)),
+    topCollectors(clan.clanId),
   ]);
   const totalXp = profile.skills.find((s) => s.key === 'overall')?.xp ?? profile.skills.reduce((n, s) => n + s.xp, 0);
 
   const url = profileUrl(clan, profile.rsn);
+  // Their standing in the clan (by collection log — the one board everyone's on). The one thing the
+  // field grid can't say, and the reason to replace the old "🔗 Full profile" line: the title is
+  // already that link, so the line was pure duplication.
+  const rank = board.findIndex((b) => b.accountId === picked.accountId) + 1;
   const body: string[] = [];
-  if (url) body.push(fmt(t.stats.viewFull, { url }));
-  body.push('', clanLine(clan));
+  if (rank > 0) body.push(fmt(t.stats.rank, { rank, total: board.length, clan: clan.name }), '');
+  body.push(clanLine(clan, syncedFrag(t, profile.statsAt)));
 
   return {
     embeds: [
@@ -479,7 +540,7 @@ async function statProfileResult(ctx: ClanCommandCtx, picked: { accountId: numbe
         fields: [
           statField(t.stats.combat, profile.combatLevel ?? '—'),
           statField(t.stats.total, profile.totalLevel),
-          statField('XP', totalXp.toLocaleString()),
+          statField('XP', compactNum(totalXp)),
           ...(profile.efficiency ? [statField('EHP', profile.efficiency.ehp.toFixed(1)), statField('EHB', profile.efficiency.ehb.toFixed(1))] : []),
           ...(clogHeader ? [statField(t.stats.clogField, `${clogHeader.obtained}/${clogHeader.total}`)] : []),
           ...(pbRows.length ? [statField(t.stats.pbsField, pbRows.length)] : []),
@@ -499,12 +560,14 @@ async function statLevelsResult(ctx: ClanCommandCtx, picked: { accountId: number
 
   const skills = profile.skills.filter((s) => s.key !== 'overall');
   const url = profileUrl(clan, profile.rsn, 'skills');
-  const body = [
-    skills.map((s) => `**${titleCase(s.key)}** ${s.level}`).join(' · '),
-    '',
-    ...(url ? [fmt(t.stats.viewFull, { url })] : []),
-    clanLine(clan),
-  ];
+  // An aligned grid in a code block instead of a 23-skill run-on line: Discord renders monospace, so
+  // the columns line up and the skill you want is where your eye expects it. (Title still links to
+  // the skills tab, so no separate "full profile" line.)
+  const nameW = Math.max(...skills.map((s) => titleCase(s.key).length));
+  const cells = skills.map((s) => `${titleCase(s.key).padEnd(nameW)} ${String(s.level).padStart(2)}`);
+  const grid: string[] = [];
+  for (let i = 0; i < cells.length; i += 3) grid.push(cells.slice(i, i + 3).join('   '));
+  const body = ['```', ...grid, '```', '', clanLine(clan, syncedFrag(t, profile.statsAt))];
   return {
     embeds: [
       {
@@ -544,8 +607,7 @@ async function statEfficiencyResult(ctx: ClanCommandCtx, picked: { accountId: nu
     fmt(t.stats.ehbLine, { hours: profile.efficiency.ehb.toFixed(1) }),
     top(profile.efficiency.ehbByBoss) || '—',
     '',
-    ...(url ? [fmt(t.stats.viewFull, { url })] : []),
-    clanLine(clan),
+    clanLine(clan, syncedFrag(t, profile.statsAt)),
   ];
   return {
     embeds: [
@@ -582,8 +644,7 @@ async function pbsResult(ctx: ClanCommandCtx, picked: { accountId: number | null
   const url = profileUrl(clan, picked.rsn, 'pbs');
   const body = [t.stats.pbsHeading, ...shown.slice(0, 20).map(line)];
   if (shown.length > 20) body.push(`-# ${fmt(t.common.more, { n: shown.length - 20 })}`);
-  if (url) body.push('', fmt(t.stats.viewFull, { url }));
-  body.push('', clanLine(clan));
+  body.push('', clanLine(clan)); // title already links to the PBs tab
 
   return {
     embeds: [
@@ -605,11 +666,19 @@ async function clanCollectorsResult(ctx: ClanCommandCtx): Promise<ClanResult> {
   const { t, clan } = ctx;
   const board = await topCollectors(clan.clanId);
   if (board.length === 0) return { text: t.stats.noCollectors };
-  const body = [
-    ...board.slice(0, 15).map((b, i) => `${placeMark(i)} **${clamp(b.rsn, 40)}** — ${code(`${b.obtained}/${b.total}`)}`),
-    '',
-    clanLine(clan),
-  ];
+  const mine = new Set(ctx.identity?.accountIds ?? []);
+  const idx = board.findIndex((b) => b.accountId != null && mine.has(b.accountId));
+  const N = 15;
+  const row = (b: (typeof board)[number], i: number, own: boolean) =>
+    `${placeMark(i)} **${clamp(b.rsn, 40)}** — ${code(`${b.obtained}/${b.total}`)}${own ? ' 🔸' : ''}`;
+  const body = board.slice(0, N).map((b, i) => row(b, i, i === idx));
+  if (idx >= N) body.push('', row(board[idx], idx, true)); // you're below the cut — appended so you still show
+  if (board.length > N) {
+    const url = pathUrl(clan, '/members');
+    const more = fmt(t.common.moreOnSite, { n: board.length - N });
+    body.push('', `-# ${url ? `[${more}](${url})` : more}`);
+  }
+  body.push('', clanLine(clan));
   return {
     embeds: [
       {
@@ -657,7 +726,7 @@ async function clogOverviewResult(
       ...board.slice(0, 5).map((b, i) => `${placeMark(i)} **${clamp(b.rsn, 40)}** — ${code(`${b.obtained}/${b.total}`)}`),
     );
   }
-  body.push('', clanLine(clan));
+  body.push('', clanLine(clan, syncedFrag(t, header?.syncedAt)));
 
   return {
     embeds: [
@@ -719,8 +788,7 @@ async function clogPageResult(
   } else {
     body.push('', t.clog.pageNone);
   }
-  if (clan.origin) body.push('', fmt(t.clog.pageFull, { url: `${clan.origin}/members` }));
-  body.push('', clanLine(clan));
+  body.push('', clanLine(clan, syncedFrag(t, synced.syncedAt))); // title already links to the log on the site
 
   return {
     embeds: [
@@ -754,6 +822,8 @@ async function memberLuckResult(ctx: ClanCommandCtx): Promise<ClanResult> {
 
   const luck = await getMemberLuck(picked.accountId, clan.clanId, 5);
   if (!luck) return { text: fmt(t.luck.notSynced, { who: picked.rsn }) };
+  // Luck is read off the same collection-log sync, so its freshness is that sync's timestamp.
+  const clogRow = await db.query.memberClog.findFirst({ where: eq(memberClog.accountId, picked.accountId) });
 
   const body: string[] = [
     fmt(t.luck.totalLine, { net: formatNet(luck.total.net), items: luck.total.items }),
@@ -772,7 +842,7 @@ async function memberLuckResult(ctx: ClanCommandCtx): Promise<ClanResult> {
       ...luck.spooned.map((d) => luckItemLine(d.itemName, d.obtained, d.expected, d.assessment.tail)),
     );
   }
-  body.push('', clanLine(clan));
+  body.push('', clanLine(clan, syncedFrag(t, clogRow?.syncedAt)));
 
   const face = luck.dry[0]?.itemId ?? luck.spooned[0]?.itemId ?? null;
   return {

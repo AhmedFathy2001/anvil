@@ -10,6 +10,7 @@ const zhHans: PartialDiscordDict = {
     noTeams: '_还没有队伍。_',
     moreOnSite: '网站上还有 {n} 条',
     more: '还有 {n} 条',
+    synced: '已同步 {when}',
     bonusLegend: '⚡ 任务加分 —— 在版面总分之外另外获得，因此计入得分，但不计入百分比。',
     visitingClansOne: '🤝 {names} 是来访家族 —— 这块版面是共享的。',
     visitingClansMany: '🤝 {names} 是来访家族 —— 这块版面是共享的。',
@@ -35,6 +36,10 @@ const zhHans: PartialDiscordDict = {
     fieldRank: '名次',
     fieldRoster: '阵容',
     fieldScore: '得分',
+  },
+
+  stats: {
+    rank: '{clan} 中第 {rank}/{total} 名',
   },
 
   board: {

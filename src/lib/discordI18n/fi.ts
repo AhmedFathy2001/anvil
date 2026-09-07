@@ -11,6 +11,7 @@ const fi: PartialDiscordDict = {
     noTeams: '_Ei vielä joukkueita._',
     moreOnSite: '+{n} lisää sivustolla',
     more: '+{n} lisää',
+    synced: 'Synkronoitu {when}',
     bonusLegend:
       '⚡ tehtäväbonus — ansaitaan taulun kokonaispisteiden päälle, joten se lasketaan pisteisiin mutta ei prosenttiin.',
     visitingClansOne: '🤝 {names} on vieraileva klaani — tämä taulu on jaettu.',
@@ -37,6 +38,10 @@ const fi: PartialDiscordDict = {
     fieldRank: 'Sijoitus',
     fieldRoster: 'Kokoonpano',
     fieldScore: 'Pisteet',
+  },
+
+  stats: {
+    rank: 'Sija {rank}/{total} klaanissa {clan}',
   },
 
   board: {
