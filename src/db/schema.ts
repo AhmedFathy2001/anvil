@@ -1017,9 +1017,13 @@ export const users = pgTable('users', {
   // It defaulted to off while `accounts.shared` was itself off by default — the two together meant
   // silence, and turning sharing on was a deliberate act that fairly read as "announce me". Sharing
   // is the default now (drizzle/0080), and it says only that the leaderboards may see the character.
-  // Left as it was, flipping sharing would have started posting everybody's drops into every clan
-  // they had ever visited, which nobody asked for. The per-clan whitelist still opts one back in.
-  blockGuestEmissions: boolean('block_guest_emissions').notNull().default(true),
+  // It DEFAULTS TO ANNOUNCE (drizzle/0086, "opt in by default"): a clan announces the guests it
+  // admitted (a seat there) unless the clan refuses via its own veto ("Only announce your own
+  // members"), the person turns THIS on to go quiet in every clan they guest in, or the person
+  // silences one clan explicitly. The per-clan whitelist still opts one back in past a global mute.
+  // The old default was quiet, but the guest-social feature never actually emitted under it, so the
+  // migration reset every existing row to false as well — nobody was relying on it as a real mute.
+  blockGuestEmissions: boolean('block_guest_emissions').notNull().default(false),
 }, (table) => [
   uniqueIndex('users_plugin_token_unique').on(table.pluginToken),
   index('users_player_idx').on(table.playerId),

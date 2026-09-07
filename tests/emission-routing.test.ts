@@ -110,12 +110,13 @@ test('a shared account announces to its member clan and every clan it guests in'
   assert.equal(targets.find((t) => t.clanId === clanMember)!.kind, 'member');
 });
 
-test('a brand-new person is QUIET in guest clans, and loud in their own', async () => {
-  // THE DEFAULT ITSELF, which the cases either side of it deliberately override. Sharing became the
-  // default in drizzle/0080, and `shared` gates two different disclosures: who may SEE a character,
-  // and which clans ANNOUNCE its drops. Left alone, flipping the first would have started posting
-  // everybody's drops into every clan they had ever guested in — so users.block_guest_emissions
-  // flipped with it. Nothing here is configured; this is what somebody gets for doing nothing.
+test('a brand-new person ANNOUNCES in clans it guests in, and its own (opt in by default)', async () => {
+  // THE DEFAULT ITSELF (drizzle/0086, "opt in by default"). A clan announces the guests it admitted
+  // — a seat there — by default; the person goes quiet only by turning ON their own guest-mute
+  // (users.block_guest_emissions, now default false) or silencing one clan explicitly, and a clan
+  // refuses guests only via its own veto. Nothing here is configured; this is what somebody gets for
+  // doing nothing. (Before 0086 the guest clan was silent here — but that path never actually
+  // emitted, which is the bug 0086 fixes.)
   const { db, schema: s } = await loadDb();
   const [person] = await db.insert(s.players).values({ displayName: 'Fresh' }).returning();
   await db.insert(s.users).values({ playerId: person.id, displayName: 'Fresh', discordId: 'fresh-1' });
@@ -131,8 +132,13 @@ test('a brand-new person is QUIET in guest clans, and loud in their own', async 
   ]);
 
   const targets = await R.socialEmissionClans(acct.id);
-  assert.deepEqual(clanIds(targets), [clanMember], 'their own clan announces; the guest clan does not');
-  assert.equal(targets[0].kind, 'member');
+  assert.deepEqual(
+    clanIds(targets),
+    [clanMember, clanGuestA].sort((a, b) => a - b),
+    'its own clan and the clan it guests in both announce',
+  );
+  assert.equal(targets.find((t) => t.clanId === clanMember)!.kind, 'member');
+  assert.equal(targets.find((t) => t.clanId === clanGuestA)!.kind, 'guest');
 });
 
 test('a clanless account routes to NO clan — not to whichever one addressed it', async () => {
