@@ -142,7 +142,7 @@ export default async function RootLayout({
   // "My Team" only appears when there's something of theirs to reach — a live team, a captain seat,
   // or an open sign-up. Between events that's nobody, and a nav item whose page says "you're not on
   // a team" isn't navigation.
-  const myTeams = session?.userId && clan ? await countLiveTeamInvolvements(clan.id, session.userId) : 0;
+  const myTeams = session?.userId && clan ? await countLiveTeamInvolvements(session.userId) : 0;
   // The Coffer link appears once a clan actually keeps one. Same rule as "My Team": a nav item whose
   // page reads "nothing here yet" is not navigation, and most clans will never run prize missions.
   const hasCoffer = clan ? await clanHasCoffer(clan.id) : false;

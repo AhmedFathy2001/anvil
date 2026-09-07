@@ -1,10 +1,14 @@
 import { db } from '@/db';
-import { events, teams, eventParticipants, clanRoster, eventSignups, signupFees, eventStartProofs, teamStaff } from '@/db/schema';
+import { clans, events, teams, eventParticipants, clanRoster, eventSignups, signupFees, eventStartProofs, teamStaff } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
+
+// The clan a board belongs to, named on every card so a team from another clan is legible as one —
+// and so its link can cross to the right address rather than resolving against the page's prefix.
+const hostClan = alias(clans, 'host_clan');
 import { redirect } from 'next/navigation';
 import LocalTime from '@/components/LocalTime';
 import { verifyUser } from '@/lib/auth';
-import { currentClan } from '@/lib/clanContext';
 import { isTileRaceFormat } from '@/lib/utils';
 import { parseEventRules } from '@/lib/eventRules';
 import { startProofState } from '@/lib/startProof';
@@ -19,6 +23,9 @@ interface Involvement {
   teamColor: string;
   eventId: number;
   eventName: string;
+  /** The clan whose board this is — named on the card, and the address its link crosses to. */
+  clanSlug: string;
+  clanName: string;
   format: string;
   startDate: string | null;
   endDate: string | null;
@@ -47,29 +54,15 @@ export default async function MyTeamsHubPage() {
   //
   // The person is the subject — their seats span clans by design — but the page renders under ONE
   // clan's host and wears that clan's nav, so "my teams" has to mean "my teams here". Without this
-  // filter it meant "my teams anywhere": /c/lfl/team listed The AFK Spot's July Bingo, an event LFL
-  // has nothing to do with, directly under LFL's header.
+  // EVERY CLAN, because a team is the PERSON's — like their characters and their profile, and
+  // unlike anything on a clan's own pages.
   //
-  // Belonging is ownership OR co-hosting, because a co-hosted board genuinely is this clan's too —
-  // that is how "The AFK Spot VS LFL" correctly stays on LFL's page while the July board does not.
-  // A team carries its clan in `teams.clanId`, which is the co-host tag rather than a scope.
-  // `currentClan`, not `requireClan`: on the APEX no clan is named, and there "my teams" honestly
-  // does mean everywhere — the same span /profile covers. Filtering only when a clan IS named keeps
-  // that page working instead of 404ing a URL that used to load.
-  const clan = await currentClan();
-  let inThisClan = undefined as ReturnType<typeof inArray> | undefined;
-  if (clan) {
-    const [ownedRows, coHostRows] = await Promise.all([
-      db.select({ id: events.id }).from(events).where(eq(events.clanId, clan.id)),
-      db.select({ id: teams.eventId }).from(teams).where(eq(teams.clanId, clan.id)),
-    ]);
-    const clanEventIds = [...new Set([...ownedRows, ...coHostRows].map((r) => r.id))];
-    // A clan with no events is the normal state of a new one, and `inArray` with an empty list is
-    // not a portable "match nothing". An impossible id is, and it keeps the page on its ordinary
-    // path so the existing empty state renders rather than a second one written for this branch.
-    inThisClan = clanEventIds.length > 0 ? inArray(events.id, clanEventIds) : eq(events.id, -1);
-  }
-
+  // It used to filter to the clan in the URL, which produced three complaints at once: the header
+  // badge counted teams the page then refused to list (the count was never filtered), a team in
+  // another clan rendered through ClanLink and so got a link under the WRONG clan's prefix, and the
+  // filtering itself was arguing with the model. The honest page is every live involvement with its
+  // clan named on the card and a link that crosses to it. Nothing is disclosed by that: these are
+  // the reader's own teams, on a page only they can open.
   // My roster identities → my drafted player rows → teams I play on.
   // clan-scope: this clan -- identities are the person's (they span clans), events are filtered to here.
   const myMembers = await db
@@ -113,7 +106,7 @@ export default async function MyTeamsHubPage() {
   };
 
   if (memberIds.length > 0) {
-    // clan-scope: this clan -- see clanEventIds above.
+    // clan-scope: global -- a person's own teams span clans; each row carries the clan it belongs to.
     const playerRows = await db
       .select({
         playerId: eventParticipants.id,
@@ -130,6 +123,8 @@ export default async function MyTeamsHubPage() {
         eventId: events.id,
         eventName: events.name,
         format: events.format,
+        clanSlug: hostClan.slug,
+        clanName: hostClan.name,
         startDate: events.startDate,
         endDate: events.endDate,
         forceEndedAt: events.forceEndedAt,
@@ -137,14 +132,13 @@ export default async function MyTeamsHubPage() {
       .from(eventParticipants)
       .innerJoin(teams, eq(eventParticipants.teamId, teams.id))
       .innerJoin(events, eq(eventParticipants.eventId, events.id))
-      .where(
-        and(inArray(eventParticipants.clanMemberId, memberIds), isNotNull(eventParticipants.teamId), inThisClan),
-      );
+      .innerJoin(hostClan, eq(hostClan.id, events.clanId))
+      .where(and(inArray(eventParticipants.clanMemberId, memberIds), isNotNull(eventParticipants.teamId)));
     for (const r of playerRows) add(r, 'player');
     myPlayerRows = playerRows;
   }
 
-  // clan-scope: this clan -- see clanEventIds above.
+  // clan-scope: global -- a person's own teams span clans; each row carries the clan it belongs to.
   const captainRows = await db
     .select({
       teamId: teams.id,
@@ -153,18 +147,21 @@ export default async function MyTeamsHubPage() {
       eventId: events.id,
       eventName: events.name,
       format: events.format,
+      clanSlug: hostClan.slug,
+      clanName: hostClan.name,
       startDate: events.startDate,
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
     })
     .from(teams)
     .innerJoin(events, eq(teams.eventId, events.id))
-    .where(and(eq(teams.captainUserId, user.userId), inThisClan));
+    .innerJoin(hostClan, eq(hostClan.id, events.clanId))
+    .where(eq(teams.captainUserId, user.userId));
   for (const r of captainRows) add(r, 'captain');
 
   // Teams this user was given a staff seat on — typically a moderator from the other clan in a
   // clan-v-clan, who neither captains nor plays but has to run their own half.
-  // clan-scope: this clan -- see clanEventIds above.
+  // clan-scope: global -- a person's own teams span clans; each row carries the clan it belongs to.
   const staffRows = await db
     .select({
       teamId: teams.id,
@@ -173,6 +170,8 @@ export default async function MyTeamsHubPage() {
       eventId: events.id,
       eventName: events.name,
       format: events.format,
+      clanSlug: hostClan.slug,
+      clanName: hostClan.name,
       startDate: events.startDate,
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
@@ -180,17 +179,21 @@ export default async function MyTeamsHubPage() {
     .from(teamStaff)
     .innerJoin(teams, eq(teamStaff.teamId, teams.id))
     .innerJoin(events, eq(teams.eventId, events.id))
-    .where(and(eq(teamStaff.userId, user.userId), inThisClan));
+    .innerJoin(hostClan, eq(hostClan.id, events.clanId))
+    .where(eq(teamStaff.userId, user.userId));
   for (const r of staffRows) add(r, 'staff');
 
   const now = new Date().toISOString();
   const all = [...involvements.values()];
+  // Only worth naming when there is more than one to tell apart; on a single-clan reader every card
+  // would otherwise carry the same word.
+  const manyClans = new Set(all.map((i) => i.clanSlug)).size > 1;
   const isPast = (i: Involvement) => !!i.forceEndedAt || (!!i.endDate && i.endDate < now);
   const activeTeams = all.filter((i) => !isPast(i));
   const pastTeams = all.filter(isPast);
 
   // My sign-ups + fee status (the pre-draft stage of the same journey).
-  // clan-scope: this clan -- see clanEventIds above.
+  // clan-scope: global -- a person's own teams span clans; each row carries the clan it belongs to.
   const signupRows = await db
     .select({
       signupId: eventSignups.id,
@@ -202,11 +205,14 @@ export default async function MyTeamsHubPage() {
       forceEndedAt: events.forceEndedAt,
       feeStatus: signupFees.status,
       feeAmount: signupFees.amount,
+      clanSlug: hostClan.slug,
+      clanName: hostClan.name,
     })
     .from(eventSignups)
     .innerJoin(events, eq(eventSignups.eventId, events.id))
+    .innerJoin(hostClan, eq(hostClan.id, events.clanId))
     .leftJoin(signupFees, eq(signupFees.signupId, eventSignups.id))
-    .where(and(eq(eventSignups.userId, user.userId), inThisClan));
+    .where(eq(eventSignups.userId, user.userId));
   // Only surface sign-ups still worth acting on. Drop ended events, and — once an event has
   // started — drop fully-resolved sign-ups (approved, with the fee collected/confirmed or no fee),
   // since the "Sign-ups & fees" card is just clutter at that point.
@@ -326,7 +332,7 @@ export default async function MyTeamsHubPage() {
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {activeTeams.map((i) => (
-              <TeamLink key={i.teamId} i={i} />
+              <TeamLink key={i.teamId} i={i} showClan={manyClans} />
             ))}
           </div>
         )}
@@ -371,7 +377,7 @@ export default async function MyTeamsHubPage() {
           </h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {pastTeams.map((i) => (
-              <TeamLink key={i.teamId} i={i} past />
+              <TeamLink key={i.teamId} i={i} past showClan={manyClans} />
             ))}
           </div>
         </section>
@@ -380,10 +386,14 @@ export default async function MyTeamsHubPage() {
   );
 }
 
-function TeamLink({ i, past }: { i: Involvement; past?: boolean }) {
+function TeamLink({ i, past, showClan }: { i: Involvement; past?: boolean; showClan?: boolean }) {
   return (
     <ClanLink
-      href={`/team/${i.teamId}`}
+      // `/c/<slug>/…`, not `/team/<id>`. A bare team path resolves against whichever clan's page
+      // this happens to be read from, so a team belonging to another clan got a link into the wrong
+      // one — the routing half of what made this page confusing. `/c/` is a platform root, so
+      // ClanLink passes it through untouched and the address is the team's own.
+      href={`/c/${i.clanSlug}/team/${i.teamId}`}
       className={`block p-4 border rounded-xl transition-all ${
         past ? 'border-card-border/60 bg-card-bg/50 hover:border-gold/30' : 'border-card-border bg-card-bg hover:border-gold/40 hover:bg-card-bg-hover'
       }`}
@@ -401,7 +411,10 @@ function TeamLink({ i, past }: { i: Involvement; past?: boolean }) {
           {i.isPlayer && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400">Player</span>}
         </div>
       </div>
-      <div className="text-xs text-text-muted truncate">{i.eventName}</div>
+      <div className="text-xs text-text-muted truncate">
+        {i.eventName}
+        {showClan && <span className="text-text-muted/60"> · {i.clanName}</span>}
+      </div>
       <div className="text-[10px] text-text-muted/70 mt-1 flex items-center gap-2">
         {isTileRaceFormat(i.format) && <span className="text-blue-400">Tile race</span>}
         {i.startDate && i.endDate && (
