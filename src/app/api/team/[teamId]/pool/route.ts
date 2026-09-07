@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { resolveTeamManagement } from '@/lib/teamStaff';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { draftShortlists, teams } from '@/db/schema';
@@ -10,16 +11,18 @@ import { buildWarRoom } from '@/lib/warRoom';
  * The captain's war room, as one payload: the pool, what's known about everyone in it, and the
  * captain's own shortlist.
  *
- * Captain-gated on the team in the URL. The applicants endpoint next door is deliberately narrower
+ * Gated on MANAGING the team in the URL — its captain, or a team-staff seat on it. The applicants endpoint next door is deliberately narrower
  * (sign-ups only, no ratings); this one is the scouting surface, and it stays clear of anything
  * fee-related, which is admin/treasurer business.
  */
 
-async function captainOf(teamId: number, userId: number) {
+/** Whoever manages this team — its captain, or somebody holding a team-staff seat on it. */
+async function managerOf(teamId: number) {
   const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId) });
   if (!team) return { error: NextResponse.json({ error: 'Team not found' }, { status: 404 }) };
-  if (team.captainUserId !== userId) {
-    return { error: NextResponse.json({ error: 'Captains only' }, { status: 403 }) };
+  const management = await resolveTeamManagement(teamId);
+  if (!management?.canManage) {
+    return { error: NextResponse.json({ error: 'You do not manage this team' }, { status: 403 }) };
   }
   return { team };
 }
@@ -36,7 +39,7 @@ export async function GET(
   const tId = parseInt(teamId, 10);
   if (!Number.isFinite(tId)) return NextResponse.json({ error: 'Invalid team id' }, { status: 400 });
 
-  const found = await captainOf(tId, session.userId);
+  const found = await managerOf(tId);
   if ('error' in found) return found.error;
 
   const warRoom = await buildWarRoom({
@@ -68,7 +71,7 @@ export async function PUT(
   const tId = parseInt(teamId, 10);
   if (!Number.isFinite(tId)) return NextResponse.json({ error: 'Invalid team id' }, { status: 400 });
 
-  const found = await captainOf(tId, session.userId);
+  const found = await managerOf(tId);
   if ('error' in found) return found.error;
 
   let body: { personKeys?: unknown; notes?: unknown };

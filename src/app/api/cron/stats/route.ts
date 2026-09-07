@@ -319,7 +319,7 @@ export async function GET(request: Request) {
     .where(and(isNull(clanRoster.leftAt), eq(clanRoster.kind, 'member'), eq(clanRoster.status, 'active')));
   for (const seat of rosterSeats) ensureEntry(seat.id, seat.rsn, seat.accountId);
 
-  // CLAIMED ACCOUNTS IN NO CLAN. The fourth source, and the smallest.
+  // CLAIMED ACCOUNTS NO ROSTER PASS COVERS. The fourth source, and the smallest.
   //
   // Every source above reaches an account through a clan, so somebody who signed in, linked their
   // character and joined nothing was polled by nothing — and their profile, which is the same page a
@@ -337,12 +337,28 @@ export async function GET(request: Request) {
       and(
         isNotNull(accounts.claimedAt),
         eq(accounts.status, 'active'),
-        // clan-scope: global -- identity is global, and having no clan is the point of this query.
+        // NOT COVERED ABOVE, which means no live MEMBER seat — a guest seat does not count.
+        //
+        // This asked for no seat of any kind, and a guest holds one, so the two passes left a hole
+        // exactly where somebody new lands: verifying by XP links the account and then `admit` seats
+        // them as a guest under the default policy, since a roster is the clan's to write. That
+        // person came out claimed, verified, owned — and polled by nothing, because the roster pass
+        // takes members only and this one took their guest seat as proof they were somebody else's
+        // problem. Being a guest somewhere should not cost you the tracking you would have had in no
+        // clan at all.
+        //
+        // clan-scope: global -- identity is global; which rosters name this account is the question.
         notExists(
           db
             .select({ n: sql`1` })
             .from(clanMemberships)
-            .where(and(eq(clanMemberships.accountId, accounts.id), isNull(clanMemberships.leftAt))),
+            .where(
+              and(
+                eq(clanMemberships.accountId, accounts.id),
+                eq(clanMemberships.kind, 'member'),
+                isNull(clanMemberships.leftAt),
+              ),
+            ),
         ),
       ),
     );

@@ -1711,6 +1711,9 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                           <ClanMemberPicker
                             mode="multi"
                             eventId={event.id}
+                            // The team decides whose roster this is: a co-host's team is filled from
+                            // the visiting clan, not from whoever hosts the board.
+                            teamId={team.id}
                             value={selectedClanMemberIds}
                             onChange={(ids) => setSelectedClanMemberIds(ids)}
                             preferLinked

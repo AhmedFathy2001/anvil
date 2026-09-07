@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { resolveTeamManagement } from '@/lib/teamStaff';
 import { db } from '@/db';
 import { clanRoster, eventSignups, teams, users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -28,8 +29,11 @@ export async function GET(
   if (!team) {
     return NextResponse.json({ error: 'Team not found' }, { status: 404 });
   }
-  if (team.captainUserId !== session.userId) {
-    return NextResponse.json({ error: 'Captains only' }, { status: 403 });
+  // Captain or team staff. A visiting clan's moderator runs their own team's side of a co-hosted
+  // board, and the applicants to it are the first thing they need to see.
+  const management = await resolveTeamManagement(tId);
+  if (!management?.canManage) {
+    return NextResponse.json({ error: 'You do not manage this team' }, { status: 403 });
   }
 
   // Captains are already seated on their own teams and can't be drafted, so exclude them from the
