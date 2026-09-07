@@ -9,6 +9,7 @@ import { currentClan } from '@/lib/clanContext';
 import { Chat, Figure, GuideShell, Note, Rows, Section } from '../_components/GuideUI';
 import { localeChrome } from '../_components/LanguageBar';
 import { getDict } from '../_i18n';
+import { guideMetadata } from '../_i18n/meta';
 import { chat, items, legend, paragraphs, rows, rt } from '../_i18n/rich';
 
 /**
@@ -35,7 +36,7 @@ async function siteOrigin(): Promise<string> {
 
 export async function pluginGuideMetadata(lang: string): Promise<Metadata> {
   const t = await getDict(lang);
-  return { title: t.plugin.metaTitle, description: t.plugin.metaDescription };
+  return guideMetadata(lang, 'plugin', t.plugin.metaTitle, t.plugin.metaDescription);
 }
 
 export default async function PluginGuide({ lang }: { lang: string }) {

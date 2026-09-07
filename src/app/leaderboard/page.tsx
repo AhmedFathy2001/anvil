@@ -8,12 +8,38 @@ import { isApexHost } from '@/lib/clanContext';
 import { clanStandings, topPlayers, type LeaderboardWindow } from '@/lib/clanLeaderboard';
 import ClanShapes from '@/components/leaderboard/ClanShapes';
 import PlayerSearch from '@/components/PlayerSearch';
+import { JsonLd, leaderboardLd } from '@/lib/jsonLd';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * The apex's competitive front door, and the page it should be found by.
+ *
+ * "Hall of Records — Anvil / Clans on Anvil, measured against each other" names the furniture and
+ * assumes the reader already knows what Anvil is — which is exactly backwards for the one page here
+ * that a stranger might search for on its own terms. Nobody searches for a hall of records; people
+ * search for OSRS clan rankings, and this is that.
+ */
 export const metadata: Metadata = {
-  title: 'Hall of Records — Anvil',
-  description: 'Clans on Anvil, measured against each other.',
+  title: 'OSRS Clan Leaderboard — Hall of Records',
+  description:
+    'Old School RuneScape clans ranked against each other by experience, efficient hours and bossing — updated every week. See which clans are most active and how yours compares.',
+  alternates: { canonical: '/leaderboard' },
+  openGraph: {
+    type: 'website',
+    siteName: 'Anvil',
+    title: 'OSRS Clan Leaderboard — Hall of Records',
+    description:
+      'Old School RuneScape clans ranked by experience, efficient hours and bossing, updated every week.',
+    url: '/leaderboard',
+    images: [{ url: '/api/og/leaderboard', width: 1200, height: 630, alt: 'OSRS Clan Leaderboard' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'OSRS Clan Leaderboard — Hall of Records',
+    description: 'Old School RuneScape clans ranked by experience, efficient hours and bossing.',
+    images: ['/api/og/leaderboard'],
+  },
 };
 
 const WINDOWS: { key: LeaderboardWindow; label: string }[] = [
@@ -67,6 +93,9 @@ export default async function LeaderboardPage({
 
   return (
     <div className="mx-auto w-full max-w-5xl">
+      {/* The page's whole content is an ordering, so it says so: an ItemList is what lets a search
+          engine read this as a ranking rather than as a table of links to clans. */}
+      <JsonLd data={leaderboardLd(clans.map((c) => ({ name: c.name, slug: c.slug })))} />
       <header className="relative mb-7 overflow-hidden">
         <AnvilMark
           size={190}

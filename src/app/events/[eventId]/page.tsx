@@ -1,7 +1,14 @@
+import type { Metadata } from 'next';
+
 import { db } from '@/db';
-import { requireClan } from '@/lib/clanContext';
+import { clanPrefix, currentClan, requireClan } from '@/lib/clanContext';
+import { canSeeEvent } from '@/lib/eventAccess';
+import { getClanDisplayName } from '@/lib/pluginConfig';
+import { canonicalPathFor, socialMetadata } from '@/lib/seo';
+import { JsonLd, breadcrumbLd, eventLd } from '@/lib/jsonLd';
+import { clanTrail } from '@/lib/seoPages';
 import { clanHref } from '@/lib/clanPath';
-import { requireEventForPage } from '@/lib/eventScope';
+import { eventInClan, requireEventForPage } from '@/lib/eventScope';
 import { events, tiles, teams, completions, eventSignups, clanRoster, players, submissions, surveyQuestions, surveyResponses, eventStartProofs, eventParticipants } from '@/db/schema';
 import { and, eq, isNull, inArray, count } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
@@ -44,6 +51,40 @@ import { canEnterEvent } from '@/lib/eventAccess';
 import EnterEvent from './EnterEvent';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * The board's own card and title.
+ *
+ * The most-pasted link on the platform had no metadata of its own, so every board in every clan
+ * unfurled with the clan's name and the clan's card — three boards shared into the same Discord
+ * channel were three identical previews. The event card is drawn by /api/og/event/[eventId], which
+ * re-checks visibility itself and falls back to the plain Anvil card, so nothing here can leak a
+ * private event by pointing at it.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ eventId: string }>;
+}): Promise<Metadata> {
+  const clan = await currentClan();
+  const id = Number((await params).eventId);
+  if (!clan || !Number.isInteger(id)) return {};
+
+  const event = await eventInClan(clan.id, id);
+  // No event, or one this visitor may not read: say nothing and let the layout's clan-level
+  // metadata stand. Naming it here would describe a page that is about to 404.
+  const session = await verifyUser();
+  if (!event || !(await canSeeEvent({ eventId: id, playerId: session?.playerId ?? null }))) return {};
+
+  const clanName = await getClanDisplayName(clan.id, clan.name);
+  const prefix = await clanPrefix();
+  return socialMetadata({
+    title: `${event.name} — ${clanName || clan.name}`,
+    description: `${event.name}: the board, the teams and the standings.`,
+    canonical: canonicalPathFor({ prefix, pathname: `/events/${id}`, clanSlug: clan.slug }),
+    image: `/api/og/event/${id}`,
+  });
+}
 
 export default async function EventScoreboardPage({
   params,
@@ -424,6 +465,29 @@ export default async function EventScoreboardPage({
 
   return (
     <>
+      {/* A board is an EVENT — it has a name, a start, an end and an organiser — and saying so is
+          what lets it appear in search as an event rather than as a blue link. Emitted only for a
+          clan a stranger may read: a `members` clan never renders children at all (the layout swaps
+          in ClanPrivate), and an invite-only board is not reachable here without a seat. */}
+      <JsonLd
+        data={eventLd({
+          name: event.name,
+          url: `/c/${clan.slug}/events/${event.id}`,
+          startDate: event.startDate,
+          // A force-ended board really ended then, whatever its planned end said.
+          endDate: event.forceEndedAt ?? event.endDate,
+          clanName: clan.name,
+          clanSlug: clan.slug,
+        })}
+      />
+      <JsonLd
+        data={breadcrumbLd(
+          clanTrail(clan, [
+            { name: 'Competitions', path: `/c/${clan.slug}/events` },
+            { name: event.name, path: `/c/${clan.slug}/events/${event.id}` },
+          ]),
+        )}
+      />
       <EventHero
         name={event.name}
         shapeBadge={eventShapeBadge(event.format, event.scoringMode, event.boardSize, event.rules)}

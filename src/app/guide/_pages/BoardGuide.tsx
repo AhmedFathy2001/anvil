@@ -3,6 +3,7 @@ import { TILE_KIND_BADGES, TILE_KIND_FILTERS, type TileKindKey } from '@/lib/til
 import { GuideShell, Note, Rows, Section } from '../_components/GuideUI';
 import { localeChrome } from '../_components/LanguageBar';
 import { getDict, guideHref } from '../_i18n';
+import { guideMetadata } from '../_i18n/meta';
 import { items, paragraphs, rows, rt } from '../_i18n/rich';
 
 // Tile authoring, for whoever builds the board — which is often an `editor` with no other admin
@@ -11,7 +12,7 @@ import { items, paragraphs, rows, rt } from '../_i18n/rich';
 
 export async function boardGuideMetadata(lang: string): Promise<Metadata> {
   const t = await getDict(lang);
-  return { title: t.board.metaTitle, description: t.board.metaDescription };
+  return guideMetadata(lang, 'board', t.board.metaTitle, t.board.metaDescription);
 }
 
 export default async function BoardGuide({ lang }: { lang: string }) {
