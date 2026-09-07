@@ -132,6 +132,14 @@ const fr: PartialDiscordDict = {
     finishedHiddenMany: 'Tu as fini {n} cases — les noms s’afficheront une fois le plateau dévoilé.',
     finishedHeading: '**Cases que tu as finies**',
     nothingYet: 'Aucune case ne t’est encore créditée.',
+    notEnteredOther: '{who} n’est pas inscrit à **{event}**.',
+    onTeamOther: '{who} est dans **{team}**.',
+    onTeamRankedOther: '{who} est dans **{team}** — {place} sur {total}.',
+    noTeamYetOther: '{who} est inscrit mais pas encore dans une équipe.',
+    finishedHiddenOneOther: '{who} a fini 1 case — les noms s’afficheront une fois le plateau dévoilé.',
+    finishedHiddenManyOther: '{who} a fini {n} cases — les noms s’afficheront une fois le plateau dévoilé.',
+    finishedHeadingOther: '**Cases que {who} a finies**',
+    nothingYetOther: 'Aucune case n’est encore créditée à {who}.',
   },
 
   team: {

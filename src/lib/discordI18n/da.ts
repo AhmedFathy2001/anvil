@@ -132,6 +132,14 @@ const da: PartialDiscordDict = {
     finishedHiddenMany: 'Du har klaret {n} felter — navnene vises, når brættet afsløres.',
     finishedHeading: '**Felter du har klaret**',
     nothingYet: 'Ingen felter er krediteret dig endnu.',
+    notEnteredOther: '{who} er ikke tilmeldt **{event}**.',
+    onTeamOther: '{who} er på **{team}**.',
+    onTeamRankedOther: '{who} er på **{team}** — {place} af {total}.',
+    noTeamYetOther: '{who} er tilmeldt, men er ikke på et hold endnu.',
+    finishedHiddenOneOther: '{who} har klaret 1 felt — navnene vises, når brættet afsløres.',
+    finishedHiddenManyOther: '{who} har klaret {n} felter — navnene vises, når brættet afsløres.',
+    finishedHeadingOther: '**Felter {who} har klaret**',
+    nothingYetOther: 'Ingen felter er krediteret {who} endnu.',
   },
 
   team: {

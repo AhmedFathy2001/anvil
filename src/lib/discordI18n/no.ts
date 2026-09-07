@@ -132,6 +132,14 @@ const no: PartialDiscordDict = {
     finishedHiddenMany: 'Du har fullført {n} ruter — navnene vises når brettet avsløres.',
     finishedHeading: '**Ruter du har fullført**',
     nothingYet: 'Ingen ruter er kreditert deg ennå.',
+    notEnteredOther: '{who} er ikke påmeldt **{event}**.',
+    onTeamOther: '{who} er på **{team}**.',
+    onTeamRankedOther: '{who} er på **{team}** — {place} av {total}.',
+    noTeamYetOther: '{who} er påmeldt, men ikke satt på et lag ennå.',
+    finishedHiddenOneOther: '{who} har fullført 1 rute — navnene vises når brettet avsløres.',
+    finishedHiddenManyOther: '{who} har fullført {n} ruter — navnene vises når brettet avsløres.',
+    finishedHeadingOther: '**Ruter {who} har fullført**',
+    nothingYetOther: 'Ingen ruter er kreditert {who} ennå.',
   },
 
   team: {

@@ -559,6 +559,7 @@ async function meEmbed(
   cross: CrossClanContext,
   memberIds: number[],
   who: string,
+  shared = false,
 ): Promise<DiscordEmbed> {
   const myPlayers = memberIds.length
     ? await db
@@ -568,8 +569,12 @@ async function meEmbed(
     : [];
 
   if (myPlayers.length === 0) {
-    const lines = [fmt(t.me.notEntered, { event: clamp(event.name, 100) })];
-    if (clan.origin) lines.push(fmt(t.me.notEnteredWhere, { url: clan.origin }));
+    const lines = [
+      shared
+        ? fmt(t.me.notEnteredOther, { who, event: clamp(event.name, 100) })
+        : fmt(t.me.notEntered, { event: clamp(event.name, 100) }),
+    ];
+    if (!shared && clan.origin) lines.push(fmt(t.me.notEnteredWhere, { url: clan.origin }));
     lines.push('', contextLine(clan, event, cross, t));
     return {
       title: t.me.notEnteredTitle,
@@ -601,21 +606,26 @@ async function meEmbed(
     const name = clamp(team.name, 60);
     body.push(
       rank
-        ? fmt(t.me.onTeamRanked, { team: name, place: placeMark(rank - 1), total: standings.length })
-        : fmt(t.me.onTeam, { team: name }),
+        ? fmt(shared ? t.me.onTeamRankedOther : t.me.onTeamRanked, { who, team: name, place: placeMark(rank - 1), total: standings.length })
+        : fmt(shared ? t.me.onTeamOther : t.me.onTeam, { who, team: name }),
     );
   } else {
-    body.push(t.me.noTeamYet);
+    body.push(shared ? fmt(t.me.noTeamYetOther, { who }) : t.me.noTeamYet);
   }
   if (credited.length && !event.tilesRevealed) {
     // Same gate as the team card: an unrevealed board doesn't name its tiles anywhere, so the count
     // stands in for the list. The field below still shows how many they've finished.
-    body.push('', plural(credited.length, t.me.finishedHiddenOne, t.me.finishedHiddenMany));
+    body.push(
+      '',
+      shared
+        ? fmt(credited.length === 1 ? t.me.finishedHiddenOneOther : t.me.finishedHiddenManyOther, { who, n: credited.length })
+        : plural(credited.length, t.me.finishedHiddenOne, t.me.finishedHiddenMany),
+    );
   } else if (credited.length) {
-    body.push('', t.me.finishedHeading, ...credited.slice(0, 8).map((c) => `• ${clamp(c.label, 70)}`));
+    body.push('', shared ? fmt(t.me.finishedHeadingOther, { who }) : t.me.finishedHeading, ...credited.slice(0, 8).map((c) => `• ${clamp(c.label, 70)}`));
     if (credited.length > 8) body.push(`-# ${fmt(t.common.more, { n: credited.length - 8 })}`);
   } else if (event.phase === 'running') {
-    body.push('', t.me.nothingYet);
+    body.push('', shared ? fmt(t.me.nothingYetOther, { who }) : t.me.nothingYet);
   }
   body.push('', contextLine(clan, event, cross, t));
 
@@ -632,7 +642,7 @@ async function meEmbed(
     author: authorOf(clan),
     fields: [
       ...(mine ? [statField(t.common.fieldTeamScore, `${mine.score} ${mine.unit}`)] : []),
-      statField(t.common.fieldYourTiles, credited.length),
+      statField(shared ? t.common.fieldTilesDone : t.common.fieldYourTiles, credited.length),
       ...accountNote,
     ],
   };
@@ -761,6 +771,7 @@ async function applyEmbed(
   event: EventContext,
   cross: CrossClanContext,
   memberIds: number[],
+  shared = false,
 ): Promise<DiscordEmbed> {
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const row = await db.query.events.findFirst({ where: eq(events.id, event.id) });
@@ -770,15 +781,18 @@ async function applyEmbed(
     startDate: row?.startDate ?? null,
   });
 
-  // Where THEY stand comes first: someone already approved doesn't need the sign-up pitch.
-  const mine = memberIds.length
+  // Where THEY stand comes first: someone already approved doesn't need the sign-up pitch. But a
+  // SHARED post isn't the asker — it's a "how to get into this event" note for the channel — so it
+  // drops the personal status entirely and shows only the event's own sign-up state.
+  const personal = !shared;
+  const mine = personal && memberIds.length
     ? await db
         .select({ status: eventSignups.status })
         .from(eventSignups)
         .where(and(eq(eventSignups.eventId, event.id), inArray(eventSignups.clanMemberId, memberIds)))
     : [];
   const already = mine[0]?.status ?? null;
-  const onTeam = memberIds.length ? await myTeamId(event.id, memberIds) : null;
+  const onTeam = personal && memberIds.length ? await myTeamId(event.id, memberIds) : null;
 
   const body: string[] = [];
   if (onTeam) {
@@ -817,7 +831,8 @@ async function applyEmbed(
   }
 
   // The roster gate is the thing that surprises people: signing up needs an account Anvil knows.
-  if (memberIds.length === 0) {
+  // Personal only — a channel post isn't about the reader's own account.
+  if (personal && memberIds.length === 0) {
     body.push(
       '',
       clan.origin ? fmt(t.apply.noAccountUrl, { url: clan.origin }) : t.apply.noAccountNoUrl,
@@ -961,6 +976,10 @@ interface CommandContext {
   /** Their display name, for prose. */
   who: string;
   options: Record<string, string | number | boolean>;
+  /** True when the answer is being posted to the CHANNEL (the Share re-run), false/absent when it is
+   *  the private ephemeral reply. The personal subcommands (me/apply) speak second-person privately
+   *  and switch to naming the sharer when shared, since the channel isn't the asker. */
+  shared?: boolean;
 }
 
 /**
@@ -994,8 +1013,8 @@ const SUBCOMMANDS: Record<string, (ctx: CommandContext) => Promise<SubResult>> =
     return { embeds: [await leaderboardEmbed(t, clan, event, cross, teamId)] };
   },
 
-  async apply({ t, clan, event, cross, memberIds }) {
-    return { embeds: [await applyEmbed(t, clan, event, cross, memberIds)] };
+  async apply({ t, clan, event, cross, memberIds, shared }) {
+    return { embeds: [await applyEmbed(t, clan, event, cross, memberIds, shared)] };
   },
 
   async next({ t, clan, event, cross }) {
@@ -1006,8 +1025,8 @@ const SUBCOMMANDS: Record<string, (ctx: CommandContext) => Promise<SubResult>> =
     return { embeds: [helpEmbed(t, clan, event, cross)] };
   },
 
-  async me({ t, clan, event, cross, memberIds, who }) {
-    return { embeds: [await meEmbed(t, clan, event, cross, memberIds, who)] };
+  async me({ t, clan, event, cross, memberIds, who, shared }) {
+    return { embeds: [await meEmbed(t, clan, event, cross, memberIds, who, shared)] };
   },
 
   async team({ t, clan, event, cross, memberIds, options }) {
@@ -1289,7 +1308,7 @@ export async function handleComponent(interaction: Interaction): Promise<Interac
 
   const resolved = await resolveBingo(interaction, clan, t);
   if (!resolved.ok) return resolved.response;
-  const result = await handler({ ...resolved.ctx, options: parsed.options });
+  const result = await handler({ ...resolved.ctx, options: parsed.options, shared: true });
   return reply(result, { t, ephemeral: false, sharedBy: invokerName(interaction) });
 }
 

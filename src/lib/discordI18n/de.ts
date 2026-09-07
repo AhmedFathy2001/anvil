@@ -132,6 +132,14 @@ const de: PartialDiscordDict = {
     finishedHiddenMany: 'Du hast {n} Felder geschafft — die Namen erscheinen, sobald das Brett freigegeben ist.',
     finishedHeading: '**Von dir geschaffte Felder**',
     nothingYet: 'Dir ist noch kein Feld gutgeschrieben.',
+    notEnteredOther: '{who} ist bei **{event}** nicht angemeldet.',
+    onTeamOther: '{who} ist bei **{team}**.',
+    onTeamRankedOther: '{who} ist bei **{team}** — {place} von {total}.',
+    noTeamYetOther: '{who} ist angemeldet, aber noch keinem Team zugeteilt.',
+    finishedHiddenOneOther: '{who} hat 1 Feld geschafft — die Namen erscheinen, sobald das Brett freigegeben ist.',
+    finishedHiddenManyOther: '{who} hat {n} Felder geschafft — die Namen erscheinen, sobald das Brett freigegeben ist.',
+    finishedHeadingOther: '**Von {who} geschaffte Felder**',
+    nothingYetOther: '{who} ist noch kein Feld gutgeschrieben.',
   },
 
   team: {

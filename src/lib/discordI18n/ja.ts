@@ -121,6 +121,14 @@ const ja: PartialDiscordDict = {
     finishedHiddenMany: '{n} 枚達成済み —— 名前はボード公開後に表示されます。',
     finishedHeading: '**あなたが達成したタイル**',
     nothingYet: 'まだあなたに記録されたタイルはありません。',
+    notEnteredOther: '{who} は **{event}** に登録されていません。',
+    onTeamOther: '{who} は **{team}** です。',
+    onTeamRankedOther: '{who} は **{team}** —— {total} 中 {place}。',
+    noTeamYetOther: '{who} は登録済みですが、まだチームに入っていません。',
+    finishedHiddenOneOther: '{who} は 1 枚達成済み —— 名前はボード公開後に表示されます。',
+    finishedHiddenManyOther: '{who} は {n} 枚達成済み —— 名前はボード公開後に表示されます。',
+    finishedHeadingOther: '**{who} が達成したタイル**',
+    nothingYetOther: 'まだ {who} に記録されたタイルはありません。',
   },
 
   team: {

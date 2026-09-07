@@ -132,6 +132,14 @@ const sv: PartialDiscordDict = {
     finishedHiddenMany: 'Du har klarat {n} rutor — namnen visas när brädan avslöjas.',
     finishedHeading: '**Rutor du klarat**',
     nothingYet: 'Inga rutor är krediterade dig än.',
+    notEnteredOther: '{who} är inte anmäld till **{event}**.',
+    onTeamOther: '{who} är i **{team}**.',
+    onTeamRankedOther: '{who} är i **{team}** — {place} av {total}.',
+    noTeamYetOther: '{who} är anmäld men inte placerad i ett lag än.',
+    finishedHiddenOneOther: '{who} har klarat 1 ruta — namnen visas när brädan avslöjas.',
+    finishedHiddenManyOther: '{who} har klarat {n} rutor — namnen visas när brädan avslöjas.',
+    finishedHeadingOther: '**Rutor {who} klarat**',
+    nothingYetOther: 'Inga rutor är krediterade {who} än.',
   },
 
   team: {

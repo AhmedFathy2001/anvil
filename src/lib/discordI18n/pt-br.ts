@@ -132,6 +132,14 @@ const ptBr: PartialDiscordDict = {
     finishedHiddenMany: 'Você fechou {n} casas — os nomes aparecem quando o tabuleiro for revelado.',
     finishedHeading: '**Casas que você fechou**',
     nothingYet: 'Nenhuma casa foi creditada a você ainda.',
+    notEnteredOther: '{who} não está inscrito em **{event}**.',
+    onTeamOther: '{who} está no **{team}**.',
+    onTeamRankedOther: '{who} está no **{team}** — {place} de {total}.',
+    noTeamYetOther: '{who} está inscrito mas ainda não tem time.',
+    finishedHiddenOneOther: '{who} fechou 1 casa — os nomes aparecem quando o tabuleiro for revelado.',
+    finishedHiddenManyOther: '{who} fechou {n} casas — os nomes aparecem quando o tabuleiro for revelado.',
+    finishedHeadingOther: '**Casas que {who} fechou**',
+    nothingYetOther: 'Nenhuma casa foi creditada a {who} ainda.',
   },
 
   team: {

@@ -121,6 +121,14 @@ const ko: PartialDiscordDict = {
     finishedHiddenMany: '{n}칸을 끝냈습니다 —— 이름은 보드가 공개되면 표시됩니다.',
     finishedHeading: '**내가 끝낸 칸**',
     nothingYet: '아직 인정된 칸이 없습니다.',
+    notEnteredOther: '{who} 님은 **{event}**에 신청되어 있지 않습니다.',
+    onTeamOther: '{who} 님은 **{team}** 소속입니다.',
+    onTeamRankedOther: '{who} 님은 **{team}** 소속 —— {total}팀 중 {place}.',
+    noTeamYetOther: '{who} 님은 신청은 되어 있지만 아직 팀이 없습니다.',
+    finishedHiddenOneOther: '{who} 님은 1칸을 끝냈습니다 —— 이름은 보드가 공개되면 표시됩니다.',
+    finishedHiddenManyOther: '{who} 님은 {n}칸을 끝냈습니다 —— 이름은 보드가 공개되면 표시됩니다.',
+    finishedHeadingOther: '**{who} 님이 끝낸 칸**',
+    nothingYetOther: '{who} 님에게 아직 인정된 칸이 없습니다.',
   },
 
   team: {

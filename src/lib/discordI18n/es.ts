@@ -132,6 +132,14 @@ const es: PartialDiscordDict = {
     finishedHiddenMany: 'Has completado {n} casillas — los nombres aparecen cuando se revele el tablero.',
     finishedHeading: '**Casillas que has completado**',
     nothingYet: 'Todavía no se te ha acreditado ninguna casilla.',
+    notEnteredOther: '{who} no está inscrito en **{event}**.',
+    onTeamOther: '{who} está en **{team}**.',
+    onTeamRankedOther: '{who} está en **{team}** — {place} de {total}.',
+    noTeamYetOther: '{who} está inscrito pero todavía no tiene equipo.',
+    finishedHiddenOneOther: '{who} ha completado 1 casilla — los nombres aparecen cuando se revele el tablero.',
+    finishedHiddenManyOther: '{who} ha completado {n} casillas — los nombres aparecen cuando se revele el tablero.',
+    finishedHeadingOther: '**Casillas que ha completado {who}**',
+    nothingYetOther: 'Todavía no se ha acreditado ninguna casilla a {who}.',
   },
 
   team: {

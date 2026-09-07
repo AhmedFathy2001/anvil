@@ -132,6 +132,14 @@ const it: PartialDiscordDict = {
     finishedHiddenMany: 'Hai completato {n} caselle — i nomi compaiono quando il tabellone viene svelato.',
     finishedHeading: '**Caselle che hai completato**',
     nothingYet: 'Non ti è ancora stata accreditata nessuna casella.',
+    notEnteredOther: '{who} non è iscritto a **{event}**.',
+    onTeamOther: '{who} è in **{team}**.',
+    onTeamRankedOther: '{who} è in **{team}** — {place} su {total}.',
+    noTeamYetOther: '{who} è iscritto ma non è ancora in una squadra.',
+    finishedHiddenOneOther: '{who} ha completato 1 casella — i nomi compaiono quando il tabellone viene svelato.',
+    finishedHiddenManyOther: '{who} ha completato {n} caselle — i nomi compaiono quando il tabellone viene svelato.',
+    finishedHeadingOther: '**Caselle che {who} ha completato**',
+    nothingYetOther: 'A {who} non è ancora stata accreditata nessuna casella.',
   },
 
   team: {

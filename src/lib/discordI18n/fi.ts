@@ -132,6 +132,14 @@ const fi: PartialDiscordDict = {
     finishedHiddenMany: 'Olet suorittanut {n} ruutua — nimet näkyvät, kun taulu paljastetaan.',
     finishedHeading: '**Suorittamasi ruudut**',
     nothingYet: 'Sinulle ei ole vielä kirjattu yhtään ruutua.',
+    notEnteredOther: '{who} ei ole ilmoittautunut tapahtumaan **{event}**.',
+    onTeamOther: '{who} on joukkueessa **{team}**.',
+    onTeamRankedOther: '{who} on joukkueessa **{team}** — {place}/{total}.',
+    noTeamYetOther: '{who} on ilmoittautunut, mutta ei ole vielä joukkueessa.',
+    finishedHiddenOneOther: '{who} on suorittanut 1 ruudun — nimet näkyvät, kun taulu paljastetaan.',
+    finishedHiddenManyOther: '{who} on suorittanut {n} ruutua — nimet näkyvät, kun taulu paljastetaan.',
+    finishedHeadingOther: '**Ruudut jotka {who} suoritti**',
+    nothingYetOther: '{who} ei ole vielä saanut kirjatuksi yhtään ruutua.',
   },
 
   team: {

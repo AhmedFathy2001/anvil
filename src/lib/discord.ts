@@ -6,6 +6,10 @@ import { formatEfficiencyHours, weeklyKindLabel } from '@/lib/constants';
 import { formatGp } from '@/lib/adminEventsFormat';
 import { placeLabel } from '@/lib/eventRules';
 import { deriveTileIcon, skillIconUrl, bossItemForStatKey, itemIconUrl, type IconableTile } from '@/lib/tileIcons';
+import { eq } from 'drizzle-orm';
+
+import { db } from '@/db';
+import { clans } from '@/db/schema';
 import {
   EMBED_COLOR,
   clamp,
@@ -949,6 +953,25 @@ function siteBaseUrl(): string | null {
   }
 }
 
+// The clan's crest image, as an author-line icon for the lifecycle announcements — the clan's mark on
+// its own big posts, alongside the Anvil mark in the footer. Keyed by SLUG because these posts are
+// built off the single apex base (siteBaseUrl), not a per-clan origin, so the by-host crest route
+// would resolve the apex and draw a generic mark; the slug route draws the right clan's. Null when
+// the base or the slug is unknown, so the author line simply goes out without an icon.
+async function clanCrestIcon(clanId: number): Promise<string | null> {
+  const base = siteBaseUrl();
+  if (!base) return null;
+  const clan = await db.query.clans.findFirst({ columns: { slug: true }, where: eq(clans.id, clanId) });
+  return clan?.slug ? `${base}/api/og/crest/${encodeURIComponent(clan.slug)}` : null;
+}
+
+/** Stamp the clan crest onto an embed's existing author line, if we could resolve one. */
+async function withClanCrest(clanId: number, embed: DiscordEmbed): Promise<DiscordEmbed> {
+  const icon = await clanCrestIcon(clanId);
+  if (icon && embed.author) embed.author = { ...embed.author, icon_url: icon };
+  return embed;
+}
+
 // Live standings page for an event — the public board doubles as the leaderboard.
 function eventLeaderboardUrl(eventId: number): string | null {
   const base = siteBaseUrl();
@@ -1084,7 +1107,7 @@ export async function notifyEventStart(params: EventStartNotifyParams): Promise<
     ...(eventLeaderboardUrl(eventId) ? { url: eventLeaderboardUrl(eventId)! } : {}),
   };
 
-  return sendBingoWebhook(params.clanId, { ...(await memberPing(params.clanId)), embeds: [embed] });
+  return sendBingoWebhook(params.clanId, { ...(await memberPing(params.clanId)), embeds: [await withClanCrest(params.clanId, embed)] });
 }
 
 interface EventEndNotifyParams {
@@ -1122,7 +1145,7 @@ export async function notifyEventForceEnd(params: EventEndNotifyParams): Promise
   };
 
   // No member ping on an admin force-end (abnormal termination, not a celebratory finish).
-  return sendBingoWebhook(params.clanId, { embeds: [embed] });
+  return sendBingoWebhook(params.clanId, { embeds: [await withClanCrest(params.clanId, embed)] });
 }
 
 export async function notifyEventEnd(params: EventEndNotifyParams): Promise<boolean> {
@@ -1152,7 +1175,7 @@ export async function notifyEventEnd(params: EventEndNotifyParams): Promise<bool
     fields,
   };
 
-  return sendBingoWebhook(params.clanId, { ...(await memberPing(params.clanId)), embeds: [embed] });
+  return sendBingoWebhook(params.clanId, { ...(await memberPing(params.clanId)), embeds: [await withClanCrest(params.clanId, embed)] });
 }
 
 interface PayoutNotifyParams {
@@ -1196,7 +1219,7 @@ export async function notifyPayout(params: PayoutNotifyParams): Promise<boolean>
     fields,
   };
 
-  return sendBingoWebhook(params.clanId, { ...(await memberPing(params.clanId)), embeds: [embed] });
+  return sendBingoWebhook(params.clanId, { ...(await memberPing(params.clanId)), embeds: [await withClanCrest(params.clanId, embed)] });
 }
 
 // ---- Weekly competitions (SOTW / BOTW) — post to the dedicated weekly webhook ----
@@ -1248,7 +1271,7 @@ export async function notifyWeeklyStart(params: WeeklyStartParams): Promise<bool
     ],
   };
 
-  return sendWeeklyWebhook(params.clanId, { embeds: [embed] });
+  return sendWeeklyWebhook(params.clanId, { embeds: [await withClanCrest(params.clanId, embed)] });
 }
 
 interface WeeklyResultsParams {
@@ -1292,5 +1315,5 @@ export async function notifyWeeklyResults(params: WeeklyResultsParams): Promise<
     fields: [field('Final standings', standingsText || 'No participants', false)],
   };
 
-  return sendWeeklyWebhook(params.clanId, { embeds: [embed] });
+  return sendWeeklyWebhook(params.clanId, { embeds: [await withClanCrest(params.clanId, embed)] });
 }

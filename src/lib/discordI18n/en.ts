@@ -143,6 +143,16 @@ export const en = {
     finishedHiddenMany: 'You’ve finished {n} tiles — names show once the board is revealed.',
     finishedHeading: '**Tiles you finished**',
     nothingYet: 'No tiles credited to you yet.',
+    // Third-person forms, used when the card is SHARED to the channel (the reader isn't the asker,
+    // so "you" is the wrong person — {who} names them instead).
+    notEnteredOther: '{who} isn’t entered in **{event}**.',
+    onTeamOther: '{who} is on **{team}**.',
+    onTeamRankedOther: '{who} is on **{team}** — {place} of {total}.',
+    noTeamYetOther: '{who} is entered but not on a team yet.',
+    finishedHiddenOneOther: '{who} has finished 1 tile — names show once the board is revealed.',
+    finishedHiddenManyOther: '{who} has finished {n} tiles — names show once the board is revealed.',
+    finishedHeadingOther: '**Tiles {who} finished**',
+    nothingYetOther: 'No tiles credited to {who} yet.',
   },
 
   team: {

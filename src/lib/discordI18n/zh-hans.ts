@@ -120,6 +120,14 @@ const zhHans: PartialDiscordDict = {
     finishedHiddenMany: '你已完成 {n} 个格子 —— 版面公开后才会显示名称。',
     finishedHeading: '**你完成的格子**',
     nothingYet: '目前还没有格子记在你名下。',
+    notEnteredOther: '{who} 没有报名 **{event}**。',
+    onTeamOther: '{who} 在 **{team}**。',
+    onTeamRankedOther: '{who} 在 **{team}** —— {total} 支队伍中的{place}。',
+    noTeamYetOther: '{who} 已报名，但还没有分到队伍。',
+    finishedHiddenOneOther: '{who} 已完成 1 个格子 —— 版面公开后才会显示名称。',
+    finishedHiddenManyOther: '{who} 已完成 {n} 个格子 —— 版面公开后才会显示名称。',
+    finishedHeadingOther: '**{who} 完成的格子**',
+    nothingYetOther: '目前还没有格子记在 {who} 名下。',
   },
 
   team: {

@@ -135,6 +135,14 @@ const pl: PartialDiscordDict = {
     finishedHiddenMany: 'Ukończonych pól: {n} — nazwy pokażą się, gdy plansza zostanie odsłonięta.',
     finishedHeading: '**Pola, które ukończyłeś**',
     nothingYet: 'Nie zaliczono ci jeszcze żadnego pola.',
+    notEnteredOther: '{who} nie jest zapisany(a) na **{event}**.',
+    onTeamOther: '{who} jest w **{team}**.',
+    onTeamRankedOther: '{who} jest w **{team}** — {place} z {total}.',
+    noTeamYetOther: '{who} jest zapisany(a), ale nie ma jeszcze drużyny.',
+    finishedHiddenOneOther: '{who} ukończył(a) 1 pole — nazwy pokażą się, gdy plansza zostanie odsłonięta.',
+    finishedHiddenManyOther: '{who} ukończył(a) pól w liczbie {n} — nazwy pokażą się, gdy plansza zostanie odsłonięta.',
+    finishedHeadingOther: '**Pola, które ukończył(a) {who}**',
+    nothingYetOther: 'Nie zaliczono jeszcze żadnego pola dla {who}.',
   },
 
   team: {

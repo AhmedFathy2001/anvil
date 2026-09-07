@@ -127,6 +127,14 @@ const ar: PartialDiscordDict = {
     finishedHiddenMany: 'عدد المربعات التي أنجزتها: {n} — تظهر الأسماء عند كشف اللوحة.',
     finishedHeading: '**المربعات التي أنجزتها**',
     nothingYet: 'لم يُحتسب لك أي مربع بعد.',
+    notEnteredOther: '{who} غير مسجَّل في **{event}**.',
+    onTeamOther: '{who} في **{team}**.',
+    onTeamRankedOther: '{who} في **{team}** — {place} من {total}.',
+    noTeamYetOther: '{who} مسجَّل لكن لم يُوضع في فريق بعد.',
+    finishedHiddenOneOther: 'أنجز {who} مربعًا واحدًا — تظهر الأسماء عند كشف اللوحة.',
+    finishedHiddenManyOther: 'عدد المربعات التي أنجزها {who}: {n} — تظهر الأسماء عند كشف اللوحة.',
+    finishedHeadingOther: '**المربعات التي أنجزها {who}**',
+    nothingYetOther: 'لم يُحتسب لـ {who} أي مربع بعد.',
   },
 
   team: {

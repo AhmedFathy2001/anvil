@@ -132,6 +132,14 @@ const nl: PartialDiscordDict = {
     finishedHiddenMany: 'Je hebt {n} vakjes afgemaakt — de namen verschijnen zodra het bord is vrijgegeven.',
     finishedHeading: '**Vakjes die je afmaakte**',
     nothingYet: 'Er is nog geen vakje aan jou toegeschreven.',
+    notEnteredOther: '{who} is niet aangemeld voor **{event}**.',
+    onTeamOther: '{who} zit bij **{team}**.',
+    onTeamRankedOther: '{who} zit bij **{team}** — {place} van {total}.',
+    noTeamYetOther: '{who} is aangemeld maar zit nog niet in een team.',
+    finishedHiddenOneOther: '{who} heeft 1 vakje afgemaakt — de namen verschijnen zodra het bord is vrijgegeven.',
+    finishedHiddenManyOther: '{who} heeft {n} vakjes afgemaakt — de namen verschijnen zodra het bord is vrijgegeven.',
+    finishedHeadingOther: '**Vakjes die {who} afmaakte**',
+    nothingYetOther: 'Er is nog geen vakje aan {who} toegeschreven.',
   },
 
   team: {
