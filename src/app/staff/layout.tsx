@@ -42,6 +42,9 @@ export default async function StaffLayout({ children }: { children: React.ReactN
         // Reports about the product, from every clan. Was a triage queue in each clan's own admin
         // area, which asked every clan admin to look after a queue that was never theirs.
         { href: '/staff/feedback', label: 'Feedback', icon: '💬', matchPrefix: true },
+        // What broke, across every clan. The platform had no way to learn it was failing except a
+        // member posting in Discord; this is the surface the hourly digest links back to.
+        { href: '/staff/errors', label: 'Errors', icon: '⚠', matchPrefix: true },
         { href: '/staff/audit', label: 'Operator log', icon: '⧉', matchPrefix: true },
       ],
     },

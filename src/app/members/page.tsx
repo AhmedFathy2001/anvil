@@ -7,16 +7,28 @@ import {
   listMembers,
 } from '@/lib/memberProfile';
 import { requireClan } from '@/lib/clanContext';
+import { getClanDisplayName } from '@/lib/pluginConfig';
+import { clanSectionMetadata } from '@/lib/seoPages';
 import { getSetting } from '@/lib/settings';
 import MembersTabs from './MembersTabs';
 import { getLuckBoards } from '@/lib/clogLuckBoard';
 import { momentsForClan } from '@/lib/momentsStore';
 import MomentsFeed from '@/components/MomentsFeed';
 
-export const metadata: Metadata = {
-  title: 'Members — Anvil',
-  description: 'Everyone tracked on this clan site, with their efficient hours and total experience.',
-};
+/**
+ * A static export named the product instead of the clan — "Members — Anvil" on every clan's roster,
+ * so a person with three clans open had three identical tabs and search had three identical results.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const clan = await requireClan();
+  const name = (await getClanDisplayName(clan.id, clan.name)) || clan.name;
+  return clanSectionMetadata({
+    section: 'Members',
+    // No article in front of the name: a great many clans are called "The <something>", and
+    // "the The AFK Spot roster" is what a template that assumes otherwise produces.
+    description: `Every member of ${name}, with their efficient hours, total experience and what they gained this week.`,
+  });
+}
 
 // Roster and stats both move on the sweep, so there's nothing worth caching between requests.
 export const dynamic = 'force-dynamic';

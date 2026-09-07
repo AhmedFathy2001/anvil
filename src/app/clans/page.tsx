@@ -14,8 +14,27 @@ import ClanLookup, { type LookupClan } from '@/components/ClanLookup';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'Clan Hall — Anvil',
-  description: 'Every clan on Anvil — who is recruiting, who is running something, and who to challenge.',
+  // Named for what somebody would search for, not for the furniture. "Clan Hall" is a good name on
+  // the page and a bad one in a result list, where nothing says which game it belongs to.
+  title: 'Find an OSRS Clan — Clan Hall',
+  description:
+    'Old School RuneScape clans running bingos and weekly competitions — who is recruiting, who is active this week, and who is open to a clan-vs-clan challenge.',
+  alternates: { canonical: '/clans' },
+  openGraph: {
+    type: 'website',
+    siteName: 'Anvil',
+    title: 'Find an OSRS Clan — Clan Hall',
+    description:
+      'Old School RuneScape clans running bingos and weekly competitions — who is recruiting, and who is open to a challenge.',
+    url: '/clans',
+    images: [{ url: '/api/og/site', width: 1200, height: 630, alt: 'Find an OSRS Clan' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Find an OSRS Clan — Clan Hall',
+    description: 'Old School RuneScape clans running bingos and weekly competitions.',
+    images: ['/api/og/site'],
+  },
 };
 
 /**

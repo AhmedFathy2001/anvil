@@ -3,6 +3,7 @@ import { EVENT_MODES } from '@/lib/eventModes';
 import { GuideShell, Note, Rows, Section } from '../_components/GuideUI';
 import { localeChrome } from '../_components/LanguageBar';
 import { getDict, guideHref } from '../_i18n';
+import { guideMetadata } from '../_i18n/meta';
 import { paragraphs, rows, rt } from '../_i18n/rich';
 
 // The two decisions that shape an event more than any tile in it. Format names come from
@@ -11,7 +12,7 @@ import { paragraphs, rows, rt } from '../_i18n/rich';
 
 export async function formatsGuideMetadata(lang: string): Promise<Metadata> {
   const t = await getDict(lang);
-  return { title: t.formats.metaTitle, description: t.formats.metaDescription };
+  return guideMetadata(lang, 'formats', t.formats.metaTitle, t.formats.metaDescription);
 }
 
 export default async function FormatsGuide({ lang }: { lang: string }) {

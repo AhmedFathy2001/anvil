@@ -21,3 +21,47 @@ export async function register() {
     /* a clan that can't reach Discord at boot still boots */
   }
 }
+
+/**
+ * Every server-side failure, in one place.
+ *
+ * Next calls this for anything that throws while serving: a React Server Component render, a route
+ * handler, a server action, the proxy. Before this the app's response to all of that was a line on
+ * stdout inside a container nobody reads — which is how a board that 500s at two in the morning gets
+ * discovered by a member posting in Discord.
+ *
+ * ONLY THE NODE RUNTIME. The edge runtime has no database, and the proxy's own failures are better
+ * read from the platform log than written from a context that cannot reach Postgres.
+ *
+ * Nothing here is awaited by the request and nothing here may throw: see lib/errorEvents for why
+ * that is the whole design rather than caution.
+ */
+export async function onRequestError(
+  error: unknown,
+  request: { path: string; method: string; headers: NodeJS.Dict<string | string[]> },
+  context: { routerKind: string; routePath: string; routeType: string; renderSource?: string },
+) {
+  if (process.env.NEXT_RUNTIME !== 'nodejs') return;
+
+  try {
+    const { captureError } = await import('@/lib/errorEvents');
+    const { clanIdForError } = await import('@/lib/errorClan');
+
+    const err = error instanceof Error ? error : new Error(String(error));
+    captureError({
+      name: err.name,
+      message: err.message,
+      stack: err.stack,
+      path: request.path,
+      method: request.method,
+      // "render/app" reads better in a digest than the object Next hands over, and the render source
+      // distinguishes an RSC failure from an SSR one, which fail for different reasons.
+      source: [context.routeType, context.renderSource].filter(Boolean).join('/') || null,
+      // Resolved from the request's own headers rather than from ambient state: by the time this
+      // runs the request context is gone, and a wrong clan is worse than none.
+      clanId: await clanIdForError(request.headers, request.path),
+    });
+  } catch {
+    /* the error reporter failing must never be a second error */
+  }
+}

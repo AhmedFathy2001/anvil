@@ -3,6 +3,7 @@ import { headers } from 'next/headers';
 import { GuideShell, Figure, Note, Rows, Section } from '../_components/GuideUI';
 import { localeChrome } from '../_components/LanguageBar';
 import { getDict } from '../_i18n';
+import { guideMetadata } from '../_i18n/meta';
 import { items, legend, paragraphs, rows, rt } from '../_i18n/rich';
 
 // The host-side guide for a clan-v-clan: one invite link per visiting team, and a staff seat so
@@ -28,7 +29,7 @@ async function siteOrigin(): Promise<string> {
 
 export async function clanVsClanGuideMetadata(lang: string): Promise<Metadata> {
   const t = await getDict(lang);
-  return { title: t.clanVsClan.metaTitle, description: t.clanVsClan.metaDescription };
+  return guideMetadata(lang, 'clan-vs-clan', t.clanVsClan.metaTitle, t.clanVsClan.metaDescription);
 }
 
 export default async function ClanVsClanGuide({ lang }: { lang: string }) {

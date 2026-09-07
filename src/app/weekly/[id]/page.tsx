@@ -1,5 +1,9 @@
+import type { Metadata } from 'next';
+
 import { db } from '@/db';
 import { weeklyCompetitions } from '@/db/schema';
+import { getClanDisplayName } from '@/lib/pluginConfig';
+import { clanSectionMetadata } from '@/lib/seoPages';
 import { and, eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import LiveRefresher from '@/components/LiveRefresher';
@@ -23,6 +27,35 @@ export const dynamic = 'force-dynamic';
  * moved on which day, who is on a streak, whether the clan is beating its last run at this metric —
  * comes from `member_daily_stats`, which the sweep already writes, so all of it is a read.
  */
+/**
+ * A Skill or Boss of the Week, named for itself.
+ *
+ * These had no metadata at all, so every SotW a clan has ever run shared one title and one
+ * description with the clan's home page — and a clan that runs one a week accumulates them faster
+ * than anything else on the site. Scoped to the clan the same way the page is: a global id with no
+ * clan check would title one clan's page with another clan's competition.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const compId = parseInt((await params).id, 10);
+  if (!Number.isInteger(compId)) return {};
+  const clan = await requireClan();
+  const [competition] = await db
+    .select({ title: weeklyCompetitions.title, metric: weeklyCompetitions.metric })
+    .from(weeklyCompetitions)
+    .where(and(eq(weeklyCompetitions.clanId, clan.id), eq(weeklyCompetitions.id, compId)));
+  if (!competition) return {};
+
+  const clanName = (await getClanDisplayName(clan.id, clan.name)) || clan.name;
+  return clanSectionMetadata({
+    title: `${competition.title} — ${clanName}`,
+    description: `${competition.title}: the week's leaderboard, who gained the most and how it finished, for ${clanName}.`,
+  });
+}
+
 export default async function WeeklyLeaderboardPage({
   params,
 }: {

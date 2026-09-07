@@ -7,7 +7,8 @@
 import { and, count, eq, gte, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, clans, events as eventsTable, memberDailyStats } from '@/db/schema';
+import { accounts, clanMemberships, clans, events as eventsTable, memberDailyStats, settings } from '@/db/schema';
+import { listedClanWhere, showcaseJoinOn } from '@/lib/clanListing';
 import { apexDomain } from '@/lib/clanContext';
 import type { DirectoryClan } from '@/components/ApexDirectory';
 
@@ -38,7 +39,13 @@ export async function directoryClans(): Promise<DirectoryClan[]> {
         eq(clanMemberships.kind, 'member'),
       ),
     )
-    .where(eq(clans.status, 'active'))
+    // A CLAN THAT KEEPS TO ITSELF IS NOT IN THE DIRECTORY. This filtered on `status` alone, so a
+    // clan set to `members` — which is a clan saying a stranger may not read it at all — was still
+    // listed here by name, member count, weekly activity and whether it was recruiting, on the most
+    // public page the platform has. See lib/clanListing for why this is two gates and not two
+    // switches.
+    .leftJoin(settings, showcaseJoinOn())
+    .where(listedClanWhere())
     .groupBy(clans.id, clans.slug, clans.name, clans.customDomain, clans.ingameNameVerifiedAt, clans.guestPolicy)
     .orderBy(clans.name);
 

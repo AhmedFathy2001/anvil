@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { eq, or } from 'drizzle-orm';
 import { db } from '@/db';
 import { clans } from '@/db/schema';
+import { apexDomain, normalizeHost, slugFromHost } from '@/lib/apexHost';
 
 // Which clan is this request for?
 //
@@ -42,61 +43,18 @@ export interface ClanContext {
   host: string;
 }
 
-/**
- * The apex domain everything hangs off. A clan lives at `<slug>.<APEX>`; the apex itself is clanless.
- *
- * Env rather than hardcoded so local development and staging resolve too — but note it is only used
- * to STRIP a suffix and recognise the apex, never to decide what a host is allowed to be. That is
- * always the database's answer.
- */
-export function apexDomain(): string {
-  return (process.env.ANVIL_APEX_DOMAIN || 'anvilosrs.com').toLowerCase();
-}
-
-/**
- * Hosts that ARE the apex — the clanless surface serving the directory and platform pages.
- *
- * A list rather than a single value so a preview or staging apex can exist alongside the real one.
- * It is deliberately explicit: an unrecognised host is still nothing, so a spoofed Host gets a 404
- * rather than quietly landing on a real page.
- */
-export function apexHosts(): string[] {
-  const apex = apexDomain();
-  const extra = (process.env.ANVIL_APEX_ALIASES || '')
-    .split(',')
-    .map((h) => h.trim().toLowerCase())
-    .filter(Boolean);
-  return [apex, `www.${apex}`, ...extra];
-}
-
-export function isApexHost(rawHost: string | null | undefined): boolean {
-  const host = normalizeHost(rawHost);
-  return host != null && apexHosts().includes(host);
-}
-
-/** Strip the port and lowercase; hosts are compared case-insensitively and port-blind. */
-function normalizeHost(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  const host = raw.trim().toLowerCase().split(':')[0];
-  return host || null;
-}
-
-/**
- * The subdomain label for a host under the apex, or null when the host IS the apex (or unrelated).
- *
- * `www` is treated as the apex, not a clan, so nobody can register a clan that shadows it.
- */
-export function slugFromHost(rawHost: string | null | undefined): string | null {
-  const host = normalizeHost(rawHost);
-  if (!host) return null;
-  const apex = apexDomain();
-  if (host === apex || host === `www.${apex}`) return null;
-  if (!host.endsWith(`.${apex}`)) return null;
-  const label = host.slice(0, -(apex.length + 1));
-  // Only a single label is a clan address; `a.b.apex` is not clan `a.b`.
-  if (!label || label.includes('.') || label === 'www') return null;
-  return label;
-}
+// The host predicates live in `lib/apexHost` — pure, so `lib/seo` can build canonical URLs without
+// dragging `@/db` in behind them. Re-exported here because this is where every caller looks for
+// them, and a module boundary is not worth 88 import edits.
+export {
+  apexDomain,
+  apexHosts,
+  isApexHost,
+  normalizeHost,
+  slugFromHost,
+  sessionCookieDomain,
+  originForHost,
+} from '@/lib/apexHost';
 
 /** One place that turns a clans row into the context, so the two lookups cannot drift. */
 function toContext(row: typeof clans.$inferSelect): ClanContext {
@@ -231,24 +189,6 @@ export async function requireClanFromRequest(request: Request): Promise<ClanCont
 // is readable by every clan beneath it, and by nothing else. If clans sat on sibling hosts, the
 // nearest shared parent would be the whole registrable domain, and a preview login would set a
 // cookie the live clans could read.
-
-/**
- * Domain for the session cookie: the apex, so every clan beneath it can read it.
- *
- * Null for a host with no dot (localhost), where browsers reject a domain attribute and a host-only
- * cookie is what you want anyway.
- */
-export function sessionCookieDomain(): string | null {
-  const apex = apexDomain();
-  if (!apex.includes('.')) return null;
-  return `.${apex}`;
-}
-
-/** Absolute origin for a host WE resolved. Never built from a raw header. */
-export function originForHost(host: string): string {
-  const scheme = host.startsWith('localhost') || host.startsWith('127.') ? 'http' : 'https';
-  return `${scheme}://${host}`;
-}
 
 /**
  * Validate a "send me back here after login" host.

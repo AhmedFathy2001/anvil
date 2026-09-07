@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { GuideShell, Note, Rows, Section } from '../_components/GuideUI';
 import { localeChrome } from '../_components/LanguageBar';
 import { getDict } from '../_i18n';
+import { guideMetadata } from '../_i18n/meta';
 import { items, paragraphs, rows, rt } from '../_i18n/rich';
 
 // The work that arrives whether or not an event is running. Written for someone on the rota tonight
@@ -9,7 +10,7 @@ import { items, paragraphs, rows, rt } from '../_i18n/rich';
 
 export async function moderatorGuideMetadata(lang: string): Promise<Metadata> {
   const t = await getDict(lang);
-  return { title: t.moderator.metaTitle, description: t.moderator.metaDescription };
+  return guideMetadata(lang, 'moderator', t.moderator.metaTitle, t.moderator.metaDescription);
 }
 
 export default async function ModeratorGuide({ lang }: { lang: string }) {

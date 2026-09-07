@@ -1,10 +1,11 @@
 'use client';
 
-import Link from 'next/link';
+import Link, { useLinkStatus } from 'next/link';
 import { usePathname } from 'next/navigation';
-import { createContext, useContext, type ComponentProps } from 'react';
+import { createContext, useContext, useEffect, type ComponentProps } from 'react';
 
 import { withClanPrefix } from '@/lib/clanScopedPaths';
+import { useSetNavPending } from '@/components/NavProgress';
 
 /**
  * The clan prefix for the current page, handed down from the server.
@@ -37,7 +38,7 @@ export function useClanPrefixValue(): string {
  * finished and be wrong. It only rewrites paths a clan actually owns — `/profile` and `/clans` pass
  * through, because they are the same URL from inside a clan or outside it.
  */
-export default function ClanLink({ href, ...rest }: ComponentProps<typeof Link>) {
+export default function ClanLink({ href, children, ...rest }: ComponentProps<typeof Link>) {
   const prefix = useClanPrefixValue();
   const resolved = typeof href === 'string' ? withClanPrefix(prefix, href) : href;
 
@@ -58,10 +59,46 @@ export default function ClanLink({ href, ...rest }: ComponentProps<typeof Link>)
   // navigation, which is nearly all of the clicking anyone does.
   if (typeof resolved === 'string' && clanOf(resolved) !== clanOf(prefix)) {
     const { href: _drop, ...anchor } = rest as Record<string, unknown>;
-    return <a href={resolved} {...(anchor as ComponentProps<'a'>)} />;
+    // A hard navigation gets the browser's own loading indicator, so it needs none of ours.
+    return (
+      <a href={resolved} {...(anchor as ComponentProps<'a'>)}>
+        {children}
+      </a>
+    );
   }
 
-  return <Link href={resolved} {...rest} />;
+  return (
+    <Link href={resolved} {...rest}>
+      {/* Draws nothing. Reports to the top progress bar whether THIS link is the one currently
+          navigating — `useLinkStatus` only answers inside a Link's own subtree, so it has to live
+          here, in the one component every link in the app already goes through. */}
+      <LinkPendingReporter />
+      {children}
+    </Link>
+  );
+}
+
+/**
+ * Draws nothing; tells the top progress bar that THIS link is the one navigating.
+ *
+ * Lives here rather than in NavProgress because `useLinkStatus` only answers inside a `next/link`
+ * subtree, and this file is the one place allowed to import that. Rendered inside every ClanLink,
+ * which is every link in the app — 103 files import this component and nothing else imports Link.
+ */
+function LinkPendingReporter() {
+  const { pending } = useLinkStatus();
+  const setPending = useSetNavPending();
+
+  useEffect(() => {
+    if (!pending) return;
+    setPending(true);
+    // Cleanup covers both endings: the status flipping back to idle, and the link unmounting
+    // because the new page replaced it mid-flight. Without the second the bar would stick on
+    // forever, which is a worse lie than showing nothing.
+    return () => setPending(false);
+  }, [pending, setPending]);
+
+  return null;
 }
 
 /** The slug a path or prefix belongs to, or null for the apex. */
