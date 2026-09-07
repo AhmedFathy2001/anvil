@@ -6,8 +6,6 @@ import { and, asc, eq, isNull, ne, or, sql } from 'drizzle-orm';
 import { fetchHiscoresOnce, fetchSnapshotWithRetry, type HiscoresSnapshot } from '@/lib/hiscores';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { checkRateSpike, describeRateSpike } from '@/lib/gainsValidation';
-import { computeEhpEhb } from '@/lib/efficiency';
-import { EFFICIENCY_SCALE } from '@/lib/constants';
 import { log } from '@/lib/logger';
 
 // Re-exported for callers that still reference the type via '@/lib/weekly'.
@@ -114,54 +112,16 @@ export async function probeRsnReachable(rsn: string): Promise<'reachable' | 'unr
  *
  * `snapshot` is the full hiscores response — included on success so callers can
  * persist a player_snapshots row in the same trip (no second hiscores call needed).
+ *
+ * These three moved to `lib/weeklyMetric`, which is pure, so the hiscores' -1 "unranked" convention
+ * could be pinned by a test instead of by every caller remembering to floor it. Re-exported here
+ * because this is where all thirteen call sites already look for them.
  */
-/** What a weekly competition ranks by. 'efficiency' pairs with metric 'ehp' | 'ehb'. */
-export type CompetitionType = 'skill' | 'boss' | 'efficiency';
+import { readMetricFromSnapshot } from '@/lib/weeklyMetric';
+import type { CompetitionType, FetchResult } from '@/lib/weeklyMetric';
 
-export type FetchResult =
-  | { kind: 'value'; value: number; snapshot: HiscoresSnapshot }
-  | { kind: 'unranked' }            // 404 from hiscores OR validator rejected the RSN string outright
-  | { kind: 'transient' };          // network / timeout / parse error — try again later
-
-/**
- * Extract a single competition metric out of an already-fetched hiscores snapshot. Split from the
- * fetch so the unified stat sweep — which fetches each member's snapshot ONCE for both bingo tiles
- * and every weekly metric — can reuse it without a second network call.
- */
-export function readMetricFromSnapshot(
-  snapshot: HiscoresSnapshot,
-  type: CompetitionType,
-  metric: string,
-): FetchResult {
-  // Efficiency comps read a DERIVED value: the whole snapshot condensed to hours by our own engine
-  // (lib/efficiency.ts), not a single field. Stored in milli-hours so the integer columns and the
-  // atomic-MAX update keep working — see EFFICIENCY_SCALE.
-  if (type === 'efficiency') {
-    if (!snapshot.skills || !snapshot.bosses) return { kind: 'transient' };
-    const { ehp, ehb } = computeEhpEhb(snapshot);
-    const hours = metric === 'ehb' ? ehb : ehp;
-    if (!Number.isFinite(hours)) return { kind: 'transient' };
-    return { kind: 'value', value: Math.round(hours * EFFICIENCY_SCALE), snapshot };
-  }
-  if (type === 'skill') {
-    const xp = snapshot.skills?.[metric]?.xp;
-    if (typeof xp !== 'number') return { kind: 'transient' };
-    return { kind: 'value', value: xp, snapshot };
-  }
-  const boss = snapshot.bosses?.[metric];
-  // A missing key means our parser doesn't know this boss AT ALL (hiscores lists every
-  // activity for a ranked player, unranked ones with score -1) — writing 0 here is what
-  // froze whole competitions at baseline 0 when Maggot King predated the parser's boss
-  // list. Treat it as a failed read so no value (and no baseline) is ever written.
-  if (!boss) {
-    log.warn('weekly.metric-unknown', { metric });
-    return { kind: 'transient' };
-  }
-  // boss.score < 0 means the player is on hiscores but unranked for this boss — that's
-  // a real "0 KC" value, not a fetch failure.
-  if (boss.score < 0) return { kind: 'value', value: 0, snapshot };
-  return { kind: 'value', value: boss.score, snapshot };
-}
+export { readMetricFromSnapshot };
+export type { CompetitionType, FetchResult };
 
 /**
  * Fetch a participant's stat value from OSRS Hiscores. Bounded with a timeout and one
