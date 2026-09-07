@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import { requireClanFromRequest } from '@/lib/clanContext';
 import { db } from '@/db';
-import { clanRoster, eventParticipants, users } from '@/db/schema';
+import { clanRoster, eventCohosts, eventParticipants, teams, users } from '@/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
+import { clanGrant } from '@/lib/clanGrants';
+import { atLeast } from '@/lib/clanRoles';
 
-// GET /api/admin/clan/active-members?eventId=N
+// GET /api/admin/clan/active-members?eventId=N&teamId=M
 //
 // Powers the roster picker on the event detail page. Returns the active clan roster
 // joined with the user (Discord identity) and a flag indicating whether the member is
@@ -14,6 +16,16 @@ import { verifyAdminOrModerator } from '@/lib/auth';
 //
 // eventId is optional: omit it to get the raw active roster without participation flags
 // (useful from any context that just needs to render members).
+//
+// WHOSE ROSTER, on a co-hosted board. `teamId` names a team, and a co-host's team carries the
+// visiting clan on `teams.clanId`. Without it this always answered with the clan in the URL — the
+// HOST — so filling a visiting clan's team offered the host's roster and, on a board hosted by a
+// small clan, an empty list reading "run a clan-sync to populate the roster". The roster was
+// populated; it was somebody else's, and nothing here would ever have asked for it.
+//
+// It is not a way to read another clan's members: the caller must hold staff in the clan being
+// asked about. A host with no seat there gets an empty list, same as before, because a visiting
+// clan's roster is theirs and co-hosting a board does not publish it.
 export async function GET(request: Request) {
   const session = await verifyAdminOrModerator();
   if (!session) {
@@ -27,6 +39,38 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const eventIdRaw = url.searchParams.get('eventId');
   const eventId = eventIdRaw ? Number(eventIdRaw) : null;
+  const teamIdRaw = url.searchParams.get('teamId');
+  const teamId = teamIdRaw ? Number(teamIdRaw) : null;
+
+  // Which clan's roster this answers with. The URL's clan unless a team names another one AND the
+  // caller has standing there.
+  let rosterClanId = clan.id;
+  if (teamId != null && Number.isFinite(teamId)) {
+    const [team] = await db
+      .select({ clanId: teams.clanId, eventId: teams.eventId })
+      .from(teams)
+      .where(eq(teams.id, teamId))
+      .limit(1);
+    if (team?.clanId != null && team.clanId !== clan.id) {
+      // The team has to belong to a co-host OF THIS EVENT — a team id alone must not reach across
+      // to an unrelated board.
+      const [cohost] = await db
+        .select({ id: eventCohosts.id })
+        .from(eventCohosts)
+        .where(
+          and(
+            eq(eventCohosts.eventId, team.eventId),
+            eq(eventCohosts.clanId, team.clanId),
+            eq(eventCohosts.status, 'accepted'),
+          ),
+        )
+        .limit(1);
+      // Staff THERE, not here. `atLeast`, because owner outranks admin and equality would miss the
+      // one person who cannot be removed from the clan.
+      const grant = cohost ? await clanGrant(team.clanId, session.userId) : null;
+      if (grant && atLeast(grant.role, 'moderator')) rosterClanId = team.clanId;
+    }
+  }
 
   // Single query: clan members + linked user (left join — ghosts have no user yet) +
   // optional left join to players for the eventId so we can flag already-enrolled rows.
@@ -59,7 +103,7 @@ export async function GET(request: Request) {
           // shape consistent (enrolledPlayerId will always be null in that branch).
           eq(eventParticipants.id, -1),
     )
-    .where(and(eq(clanRoster.clanId, clan.id), isNull(clanRoster.leftAt)))
+    .where(and(eq(clanRoster.clanId, rosterClanId), isNull(clanRoster.leftAt)))
     .orderBy(clanRoster.rsn);
 
   return NextResponse.json(

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { avatarUrl } from '@/lib/discord-oauth';
 import Input from '@/components/Input';
+import { clanFetch } from '@/lib/clanFetch';
 
 export interface PickableMember {
   id: number;
@@ -29,6 +30,14 @@ export interface PickableMember {
 
 interface CommonProps {
   eventId?: number;
+  /**
+   * The team being filled, when there is one.
+   *
+   * On a co-hosted board a visiting clan's team carries its own clan, and its roster is the one to
+   * pick from — not the host's. Without this the picker always asked the clan in the URL, so filling
+   * a co-host's team offered the wrong clan's members and usually none at all.
+   */
+  teamId?: number;
   // When true, Discord-linked members get prioritized at the top and grey-out hint for unlinked.
   preferLinked?: boolean;
   emptyState?: string;
@@ -68,10 +77,14 @@ export default function ClanMemberPicker(props: Props) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const url = props.eventId
-      ? `/api/admin/clan/active-members?eventId=${props.eventId}`
-      : '/api/admin/clan/active-members';
-    fetch(url)
+    const params = new URLSearchParams();
+    if (props.eventId) params.set('eventId', String(props.eventId));
+    if (props.teamId) params.set('teamId', String(props.teamId));
+    const qs = params.toString();
+    // clanFetch, not fetch. A bare path reaches the route with NO clan, which does not error — it
+    // answers about a different clan, or none. This picker had been asking that way since it was
+    // written, which on the apex is exactly the "roster is empty" the co-host case complained of.
+    clanFetch(`/api/admin/clan/active-members${qs ? `?${qs}` : ''}`)
       .then(async (r) => {
         if (!r.ok) throw new Error('Failed to load roster');
         return r.json();
@@ -81,7 +94,7 @@ export default function ClanMemberPicker(props: Props) {
         setError(e instanceof Error ? e.message : 'Network error');
         setMembers([]);
       });
-  }, [props.eventId]);
+  }, [props.eventId, props.teamId]);
 
   const filtered = useMemo(() => {
     if (!members) return [];
@@ -112,7 +125,12 @@ export default function ClanMemberPicker(props: Props) {
     return (
       <div className="text-sm text-text-muted text-center py-6 border border-dashed border-card-border rounded-lg">
         {props.emptyState ??
-          'No active clan members. Run a clan-sync from the plugin to populate the roster.'}
+          (props.teamId
+            ? // A co-host's team asks THAT clan's roster, and the reader may well have no standing
+              // there — telling them to run a sync they cannot run is worse than saying nothing.
+              'No members to pick from. A visiting clan fills its own team, and its roster is only ' +
+              'offered here to its own staff.'
+            : 'No active clan members. Run a clan-sync from the plugin to populate the roster.')}
       </div>
     );
   }
