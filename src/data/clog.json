@@ -1,8 +1,8 @@
 {
   "source": "https://oldschool.runescape.wiki/w/Module:Collection_log/data.json",
-  "generatedAt": "2026-07-31T11:14:52.828Z",
-  "activityCount": 125,
-  "itemCount": 1712,
+  "generatedAt": "2026-09-07T06:52:27.168Z",
+  "activityCount": 124,
+  "itemCount": 1717,
   "manualOnlyIds": [
     2978,
     2979,
@@ -312,7 +312,6 @@
     31797,
     31800,
     32087,
-    32090,
     32102,
     32104,
     32106,
@@ -329,8 +328,7 @@
     32409,
     32410,
     33143,
-    33423,
-    34024
+    33423
   ],
   "activities": {
     "Abyssal Sire": [
@@ -364,7 +362,7 @@
       },
       {
         "id": 13277,
-        "name": "Jar of miasma"
+        "name": "Jar of Miasma"
       },
       {
         "id": 25624,
@@ -416,7 +414,7 @@
       },
       {
         "id": 22746,
-        "name": "Ikkle hydra"
+        "name": "Ikkle Hydra"
       },
       {
         "id": 22804,
@@ -448,7 +446,7 @@
       },
       {
         "id": 23064,
-        "name": "Jar of chemicals"
+        "name": "Jar of Chemicals"
       },
       {
         "id": 23077,
@@ -458,59 +456,59 @@
     "All Pets": [
       {
         "id": 11995,
-        "name": "Pet chaos elemental"
+        "name": "Pet Chaos Elemental"
       },
       {
         "id": 12643,
-        "name": "Pet dagannoth supreme"
+        "name": "Pet Dagannoth Supreme"
       },
       {
         "id": 12644,
-        "name": "Pet dagannoth prime"
+        "name": "Pet Dagannoth Prime"
       },
       {
         "id": 12645,
-        "name": "Pet dagannoth rex"
+        "name": "Pet Dagannoth Rex"
       },
       {
         "id": 12646,
-        "name": "Baby mole"
+        "name": "Baby Mole"
       },
       {
         "id": 12647,
-        "name": "Kalphite princess"
+        "name": "Kalphite Princess"
       },
       {
         "id": 12648,
-        "name": "Pet smoke devil"
+        "name": "Pet Smoke Devil"
       },
       {
         "id": 12649,
-        "name": "Pet kree'arra"
+        "name": "Pet Kree'arra"
       },
       {
         "id": 12650,
-        "name": "Pet general graardor"
+        "name": "Pet General Graardor"
       },
       {
         "id": 12651,
-        "name": "Pet zilyana"
+        "name": "Pet Zilyana"
       },
       {
         "id": 12652,
-        "name": "Pet k'ril tsutsaroth"
+        "name": "Pet K'ril Tsutsaroth"
       },
       {
         "id": 12653,
-        "name": "Prince black dragon"
+        "name": "Prince Black Dragon"
       },
       {
         "id": 12655,
-        "name": "Pet kraken"
+        "name": "Pet Kraken"
       },
       {
         "id": 12703,
-        "name": "Pet penance queen"
+        "name": "Pet Penance Queen"
       },
       {
         "id": 12816,
@@ -518,7 +516,7 @@
       },
       {
         "id": 12921,
-        "name": "Pet snakeling"
+        "name": "Pet Snakeling"
       },
       {
         "id": 13071,
@@ -534,7 +532,7 @@
       },
       {
         "id": 13179,
-        "name": "Vet'ion jr."
+        "name": "Vet'ion Jr."
       },
       {
         "id": 13181,
@@ -542,7 +540,7 @@
       },
       {
         "id": 13225,
-        "name": "Tzrek-jad"
+        "name": "TzRek-Jad"
       },
       {
         "id": 13247,
@@ -574,7 +572,7 @@
       },
       {
         "id": 20659,
-        "name": "Giant squirrel"
+        "name": "Giant Squirrel"
       },
       {
         "id": 20661,
@@ -602,7 +600,7 @@
       },
       {
         "id": 21291,
-        "name": "Jal-nib-rek"
+        "name": "Jal-Nib-Rek"
       },
       {
         "id": 21509,
@@ -618,11 +616,11 @@
       },
       {
         "id": 22473,
-        "name": "Lil' zik"
+        "name": "Lil' Zik"
       },
       {
         "id": 22746,
-        "name": "Ikkle hydra"
+        "name": "Ikkle Hydra"
       },
       {
         "id": 23495,
@@ -638,11 +636,11 @@
       },
       {
         "id": 24491,
-        "name": "Little nightmare"
+        "name": "Little Nightmare"
       },
       {
         "id": 25348,
-        "name": "Lil' creator"
+        "name": "Lil' Creator"
       },
       {
         "id": 25602,
@@ -686,7 +684,7 @@
       },
       {
         "id": 28960,
-        "name": "Smol heredit"
+        "name": "Smol Heredit"
       },
       {
         "id": 28962,
@@ -734,7 +732,7 @@
       },
       {
         "id": 34040,
-        "name": "Mr mcgroot"
+        "name": "Mr McGroot"
       },
       {
         "id": 34042,
@@ -748,7 +746,7 @@
       },
       {
         "id": 29892,
-        "name": "Pendant of ates (inert)"
+        "name": "Pendant of Ates (inert)"
       },
       {
         "id": 29895,
@@ -774,7 +772,7 @@
       },
       {
         "id": 29786,
-        "name": "Jar of venom"
+        "name": "Jar of Venom"
       },
       {
         "id": 29788,
@@ -844,7 +842,7 @@
       },
       {
         "id": 12703,
-        "name": "Pet penance queen"
+        "name": "Pet Penance Queen"
       }
     ],
     "Barracuda Trials": [
@@ -878,7 +876,7 @@
       },
       {
         "id": 31757,
-        "name": "Heart of ithell"
+        "name": "Heart of Ithell"
       },
       {
         "id": 31758,
@@ -1042,15 +1040,15 @@
       },
       {
         "id": 23321,
-        "name": "Rune scimitar ornament kit (guthix)"
+        "name": "Rune scimitar ornament kit (Guthix)"
       },
       {
         "id": 23324,
-        "name": "Rune scimitar ornament kit (saradomin)"
+        "name": "Rune scimitar ornament kit (Saradomin)"
       },
       {
         "id": 23327,
-        "name": "Rune scimitar ornament kit (zamorak)"
+        "name": "Rune scimitar ornament kit (Zamorak)"
       }
     ],
     "Boat Paints": [
@@ -1180,7 +1178,7 @@
       },
       {
         "id": 27667,
-        "name": "Claws of callisto"
+        "name": "Claws of Callisto"
       },
       {
         "id": 27681,
@@ -1406,7 +1404,7 @@
       },
       {
         "id": 13245,
-        "name": "Jar of souls"
+        "name": "Jar of Souls"
       },
       {
         "id": 13247,
@@ -1568,7 +1566,7 @@
       },
       {
         "id": 11995,
-        "name": "Pet chaos elemental"
+        "name": "Pet Chaos Elemental"
       }
     ],
     "Chaos Fanatic": [
@@ -1582,7 +1580,7 @@
       },
       {
         "id": 11995,
-        "name": "Pet chaos elemental"
+        "name": "Pet Chaos Elemental"
       }
     ],
     "Chompy Bird Hunting": [
@@ -1724,7 +1722,7 @@
       },
       {
         "id": 12651,
-        "name": "Pet zilyana"
+        "name": "Pet Zilyana"
       },
       {
         "id": 13256,
@@ -1758,7 +1756,7 @@
       },
       {
         "id": 25521,
-        "name": "Jar of spirits"
+        "name": "Jar of Spirits"
       }
     ],
     "Crazy Archaeologist": [
@@ -1870,15 +1868,15 @@
       },
       {
         "id": 12643,
-        "name": "Pet dagannoth supreme"
+        "name": "Pet Dagannoth Supreme"
       },
       {
         "id": 12644,
-        "name": "Pet dagannoth prime"
+        "name": "Pet Dagannoth Prime"
       },
       {
         "id": 12645,
-        "name": "Pet dagannoth rex"
+        "name": "Pet Dagannoth Rex"
       }
     ],
     "Deranged archaeologist": [
@@ -1906,7 +1904,7 @@
       },
       {
         "id": 31115,
-        "name": "Eye of ayak"
+        "name": "Eye of Ayak"
       },
       {
         "id": 31130,
@@ -1944,7 +1942,7 @@
       },
       {
         "id": 28321,
-        "name": "Eye of the duke"
+        "name": "Eye of the Duke"
       },
       {
         "id": 28333,
@@ -2450,7 +2448,7 @@
       },
       {
         "id": 23363,
-        "name": "Staff of bob the cat"
+        "name": "Staff of Bob the Cat"
       },
       {
         "id": 23366,
@@ -2706,7 +2704,7 @@
       },
       {
         "id": 23185,
-        "name": "Ring of 3rd age"
+        "name": "Ring of 3rd Age"
       },
       {
         "id": 23246,
@@ -2756,51 +2754,51 @@
       },
       {
         "id": 10330,
-        "name": "3rd age range top"
+        "name": "3rd Age range top"
       },
       {
         "id": 10332,
-        "name": "3rd age range legs"
+        "name": "3rd Age range legs"
       },
       {
         "id": 10334,
-        "name": "3rd age range coif"
+        "name": "3rd Age range coif"
       },
       {
         "id": 10336,
-        "name": "3rd age vambraces"
+        "name": "3rd Age vambraces"
       },
       {
         "id": 10338,
-        "name": "3rd age robe top"
+        "name": "3rd Age robe top"
       },
       {
         "id": 10340,
-        "name": "3rd age robe"
+        "name": "3rd Age robe"
       },
       {
         "id": 10342,
-        "name": "3rd age mage hat"
+        "name": "3rd Age mage hat"
       },
       {
         "id": 10344,
-        "name": "3rd age amulet"
+        "name": "3rd Age amulet"
       },
       {
         "id": 10346,
-        "name": "3rd age platelegs"
+        "name": "3rd Age platelegs"
       },
       {
         "id": 10348,
-        "name": "3rd age platebody"
+        "name": "3rd Age platebody"
       },
       {
         "id": 10350,
-        "name": "3rd age full helmet"
+        "name": "3rd Age full helmet"
       },
       {
         "id": 10352,
-        "name": "3rd age kiteshield"
+        "name": "3rd Age kiteshield"
       },
       {
         "id": 12371,
@@ -2816,19 +2814,19 @@
       },
       {
         "id": 12422,
-        "name": "3rd age wand"
+        "name": "3rd Age wand"
       },
       {
         "id": 12424,
-        "name": "3rd age bow"
+        "name": "3rd Age bow"
       },
       {
         "id": 12426,
-        "name": "3rd age longsword"
+        "name": "3rd Age longsword"
       },
       {
         "id": 12437,
-        "name": "3rd age cloak"
+        "name": "3rd Age cloak"
       },
       {
         "id": 20005,
@@ -2860,7 +2858,7 @@
       },
       {
         "id": 23242,
-        "name": "3rd age plateskirt"
+        "name": "3rd Age plateskirt"
       },
       {
         "id": 23258,
@@ -3010,7 +3008,7 @@
       },
       {
         "id": 28919,
-        "name": "Tonalztics of ralos (uncharged)"
+        "name": "Tonalztics of Ralos (uncharged)"
       },
       {
         "id": 28924,
@@ -3038,7 +3036,7 @@
       },
       {
         "id": 28960,
-        "name": "Smol heredit"
+        "name": "Smol Heredit"
       }
     ],
     "Fossil Island Notes": [
@@ -3114,7 +3112,7 @@
       },
       {
         "id": 12650,
-        "name": "Pet general graardor"
+        "name": "Pet General Graardor"
       }
     ],
     "Giant Mole": [
@@ -3128,7 +3126,7 @@
       },
       {
         "id": 12646,
-        "name": "Baby mole"
+        "name": "Baby Mole"
       },
       {
         "id": 33382,
@@ -3240,7 +3238,7 @@
       },
       {
         "id": 21745,
-        "name": "Jar of stone"
+        "name": "Jar of Stone"
       },
       {
         "id": 21748,
@@ -3286,19 +3284,19 @@
       },
       {
         "id": 26850,
-        "name": "Hat of the eye"
+        "name": "Hat of the Eye"
       },
       {
         "id": 26852,
-        "name": "Robe top of the eye"
+        "name": "Robe top of the Eye"
       },
       {
         "id": 26854,
-        "name": "Robe bottoms of the eye"
+        "name": "Robe bottoms of the Eye"
       },
       {
         "id": 26856,
-        "name": "Boots of the eye"
+        "name": "Boots of the Eye"
       },
       {
         "id": 26901,
@@ -3944,51 +3942,51 @@
       },
       {
         "id": 10330,
-        "name": "3rd age range top"
+        "name": "3rd Age range top"
       },
       {
         "id": 10332,
-        "name": "3rd age range legs"
+        "name": "3rd Age range legs"
       },
       {
         "id": 10334,
-        "name": "3rd age range coif"
+        "name": "3rd Age range coif"
       },
       {
         "id": 10336,
-        "name": "3rd age vambraces"
+        "name": "3rd Age vambraces"
       },
       {
         "id": 10338,
-        "name": "3rd age robe top"
+        "name": "3rd Age robe top"
       },
       {
         "id": 10340,
-        "name": "3rd age robe"
+        "name": "3rd Age robe"
       },
       {
         "id": 10342,
-        "name": "3rd age mage hat"
+        "name": "3rd Age mage hat"
       },
       {
         "id": 10344,
-        "name": "3rd age amulet"
+        "name": "3rd Age amulet"
       },
       {
         "id": 10346,
-        "name": "3rd age platelegs"
+        "name": "3rd Age platelegs"
       },
       {
         "id": 10348,
-        "name": "3rd age platebody"
+        "name": "3rd Age platebody"
       },
       {
         "id": 10350,
-        "name": "3rd age full helmet"
+        "name": "3rd Age full helmet"
       },
       {
         "id": 10352,
-        "name": "3rd age kiteshield"
+        "name": "3rd Age kiteshield"
       },
       {
         "id": 20146,
@@ -4016,7 +4014,7 @@
       },
       {
         "id": 23242,
-        "name": "3rd age plateskirt"
+        "name": "3rd Age plateskirt"
       }
     ],
     "Hespori": [
@@ -4070,7 +4068,7 @@
       },
       {
         "id": 11791,
-        "name": "Staff of the dead"
+        "name": "Staff of the Dead"
       },
       {
         "id": 11816,
@@ -4094,7 +4092,7 @@
       },
       {
         "id": 12652,
-        "name": "Pet k'ril tsutsaroth"
+        "name": "Pet K'ril Tsutsaroth"
       }
     ],
     "Kalphite Queen": [
@@ -4116,11 +4114,11 @@
       },
       {
         "id": 12647,
-        "name": "Kalphite princess"
+        "name": "Kalphite Princess"
       },
       {
         "id": 12885,
-        "name": "Jar of sand"
+        "name": "Jar of Sand"
       }
     ],
     "King Black Dragon": [
@@ -4138,13 +4136,13 @@
       },
       {
         "id": 12653,
-        "name": "Prince black dragon"
+        "name": "Prince Black Dragon"
       }
     ],
     "Kraken": [
       {
         "id": 11905,
-        "name": "Trident of the seas (full)"
+        "name": "Trident of the Seas (full)"
       },
       {
         "id": 12004,
@@ -4152,11 +4150,11 @@
       },
       {
         "id": 12007,
-        "name": "Jar of dirt"
+        "name": "Jar of Dirt"
       },
       {
         "id": 12655,
-        "name": "Pet kraken"
+        "name": "Pet Kraken"
       }
     ],
     "Kree'arra": [
@@ -4190,7 +4188,7 @@
       },
       {
         "id": 12649,
-        "name": "Pet kree'arra"
+        "name": "Pet Kree'arra"
       }
     ],
     "Last Man Standing": [
@@ -4308,19 +4306,19 @@
       },
       {
         "id": 24868,
-        "name": "Golden armadyl special attack"
+        "name": "Golden Armadyl special attack"
       },
       {
         "id": 24869,
-        "name": "Golden bandos special attack"
+        "name": "Golden Bandos special attack"
       },
       {
         "id": 24870,
-        "name": "Golden saradomin special attack"
+        "name": "Golden Saradomin special attack"
       },
       {
         "id": 24871,
-        "name": "Golden zamorak special attack"
+        "name": "Golden Zamorak special attack"
       }
     ],
     "Lost Schematics": [
@@ -4658,7 +4656,7 @@
       },
       {
         "id": 23185,
-        "name": "Ring of 3rd age"
+        "name": "Ring of 3rd Age"
       },
       {
         "id": 23348,
@@ -4688,51 +4686,51 @@
       },
       {
         "id": 10330,
-        "name": "3rd age range top"
+        "name": "3rd Age range top"
       },
       {
         "id": 10332,
-        "name": "3rd age range legs"
+        "name": "3rd Age range legs"
       },
       {
         "id": 10334,
-        "name": "3rd age range coif"
+        "name": "3rd Age range coif"
       },
       {
         "id": 10336,
-        "name": "3rd age vambraces"
+        "name": "3rd Age vambraces"
       },
       {
         "id": 10338,
-        "name": "3rd age robe top"
+        "name": "3rd Age robe top"
       },
       {
         "id": 10340,
-        "name": "3rd age robe"
+        "name": "3rd Age robe"
       },
       {
         "id": 10342,
-        "name": "3rd age mage hat"
+        "name": "3rd Age mage hat"
       },
       {
         "id": 10344,
-        "name": "3rd age amulet"
+        "name": "3rd Age amulet"
       },
       {
         "id": 10346,
-        "name": "3rd age platelegs"
+        "name": "3rd Age platelegs"
       },
       {
         "id": 10348,
-        "name": "3rd age platebody"
+        "name": "3rd Age platebody"
       },
       {
         "id": 10350,
-        "name": "3rd age full helmet"
+        "name": "3rd Age full helmet"
       },
       {
         "id": 10352,
-        "name": "3rd age kiteshield"
+        "name": "3rd Age kiteshield"
       },
       {
         "id": 12389,
@@ -4744,27 +4742,27 @@
       },
       {
         "id": 12422,
-        "name": "3rd age wand"
+        "name": "3rd Age wand"
       },
       {
         "id": 12424,
-        "name": "3rd age bow"
+        "name": "3rd Age bow"
       },
       {
         "id": 12426,
-        "name": "3rd age longsword"
+        "name": "3rd Age longsword"
       },
       {
         "id": 12437,
-        "name": "3rd age cloak"
+        "name": "3rd Age cloak"
       },
       {
         "id": 20011,
-        "name": "3rd age axe"
+        "name": "3rd Age axe"
       },
       {
         "id": 20014,
-        "name": "3rd age pickaxe"
+        "name": "3rd Age pickaxe"
       },
       {
         "id": 20017,
@@ -4800,7 +4798,7 @@
       },
       {
         "id": 23242,
-        "name": "3rd age plateskirt"
+        "name": "3rd Age plateskirt"
       },
       {
         "id": 23258,
@@ -4832,19 +4830,19 @@
       },
       {
         "id": 23336,
-        "name": "3rd age druidic robe top"
+        "name": "3rd Age druidic robe top"
       },
       {
         "id": 23339,
-        "name": "3rd age druidic robe bottoms"
+        "name": "3rd Age druidic robe bottoms"
       },
       {
         "id": 23342,
-        "name": "3rd age druidic staff"
+        "name": "3rd Age druidic staff"
       },
       {
         "id": 23345,
-        "name": "3rd age druidic cloak"
+        "name": "3rd Age druidic cloak"
       }
     ],
     "Mastering Mixology": [
@@ -5502,7 +5500,7 @@
       },
       {
         "id": 23522,
-        "name": "Mask of ranul"
+        "name": "Mask of Ranul"
       },
       {
         "id": 23943,
@@ -6136,7 +6134,7 @@
     "Rooftop Agility": [
       {
         "id": 11849,
-        "name": "Mark of grace"
+        "name": "Mark of Grace"
       },
       {
         "id": 11850,
@@ -6254,7 +6252,7 @@
       },
       {
         "id": 23525,
-        "name": "Jar of eyes"
+        "name": "Jar of Eyes"
       },
       {
         "id": 23528,
@@ -6424,7 +6422,7 @@
       },
       {
         "id": 12851,
-        "name": "Amulet of the damned (full)"
+        "name": "Amulet of the Damned (full)"
       },
       {
         "id": 25434,
@@ -6790,7 +6788,7 @@
       },
       {
         "id": 32921,
-        "name": "Jar of feathers"
+        "name": "Jar of Feathers"
       }
     ],
     "Shooting Stars": [
@@ -6822,7 +6820,7 @@
       },
       {
         "id": 20659,
-        "name": "Giant squirrel"
+        "name": "Giant Squirrel"
       },
       {
         "id": 20661,
@@ -6839,10 +6837,6 @@
       {
         "id": 31283,
         "name": "Soup"
-      },
-      {
-        "id": 34040,
-        "name": "Mr mcgroot"
       }
     ],
     "Skotizo": [
@@ -6860,7 +6854,7 @@
       },
       {
         "id": 19701,
-        "name": "Jar of darkness"
+        "name": "Jar of Darkness"
       },
       {
         "id": 21273,
@@ -7186,7 +7180,7 @@
       },
       {
         "id": 29892,
-        "name": "Pendant of ates (inert)"
+        "name": "Pendant of Ates (inert)"
       },
       {
         "id": 29895,
@@ -7214,7 +7208,7 @@
       },
       {
         "id": 31243,
-        "name": "Horn of plenty (empty)"
+        "name": "Horn of Plenty (empty)"
       },
       {
         "id": 31996,
@@ -7223,6 +7217,34 @@
       {
         "id": 32876,
         "name": "Aquanite tendon"
+      },
+      {
+        "id": 33661,
+        "name": "Venator fang"
+      },
+      {
+        "id": 33663,
+        "name": "Venator tooth"
+      },
+      {
+        "id": 34401,
+        "name": "Necklace of fangs"
+      },
+      {
+        "id": 34404,
+        "name": "Air diamond"
+      },
+      {
+        "id": 34410,
+        "name": "Water sapphire"
+      },
+      {
+        "id": 34416,
+        "name": "Earth emerald"
+      },
+      {
+        "id": 34422,
+        "name": "Fire ruby"
       }
     ],
     "Soul Wars": [
@@ -7236,7 +7258,7 @@
       },
       {
         "id": 25348,
-        "name": "Lil' creator"
+        "name": "Lil' Creator"
       }
     ],
     "Temple Trekking": [
@@ -7268,7 +7290,7 @@
       },
       {
         "id": 25576,
-        "name": "Tome of water (empty)"
+        "name": "Tome of Water (empty)"
       },
       {
         "id": 25578,
@@ -7314,7 +7336,7 @@
       },
       {
         "id": 13225,
-        "name": "Tzrek-jad"
+        "name": "TzRek-Jad"
       }
     ],
     "The Gauntlet": [
@@ -7342,7 +7364,7 @@
     "The Hueycoatl": [
       {
         "id": 30066,
-        "name": "Tome of earth (empty)"
+        "name": "Tome of Earth (empty)"
       },
       {
         "id": 30068,
@@ -7368,7 +7390,7 @@
     "The Inferno": [
       {
         "id": 21291,
-        "name": "Jal-nib-rek"
+        "name": "Jal-Nib-Rek"
       },
       {
         "id": 21295,
@@ -7428,7 +7450,7 @@
       },
       {
         "id": 34030,
-        "name": "Jar of light"
+        "name": "Jar of Light"
       },
       {
         "id": 34033,
@@ -7462,11 +7484,11 @@
       },
       {
         "id": 24491,
-        "name": "Little nightmare"
+        "name": "Little Nightmare"
       },
       {
         "id": 24495,
-        "name": "Jar of dreams"
+        "name": "Jar of Dreams"
       },
       {
         "id": 24511,
@@ -7554,7 +7576,7 @@
       },
       {
         "id": 22473,
-        "name": "Lil' zik"
+        "name": "Lil' Zik"
       },
       {
         "id": 22477,
@@ -7566,7 +7588,7 @@
       },
       {
         "id": 22486,
-        "name": "Scythe of vitur (uncharged)"
+        "name": "Scythe of Vitur (uncharged)"
       },
       {
         "id": 22494,
@@ -7616,11 +7638,11 @@
       },
       {
         "id": 12648,
-        "name": "Pet smoke devil"
+        "name": "Pet Smoke Devil"
       },
       {
         "id": 25524,
-        "name": "Jar of smoke"
+        "name": "Jar of Smoke"
       }
     ],
     "Tithe Farm": [
@@ -7712,19 +7734,19 @@
       },
       {
         "id": 27279,
-        "name": "Thread of elidinis"
+        "name": "Thread of Elidinis"
       },
       {
         "id": 27283,
-        "name": "Breach of the scarab"
+        "name": "Breach of the Scarab"
       },
       {
         "id": 27285,
-        "name": "Eye of the corruptor"
+        "name": "Eye of the Corruptor"
       },
       {
         "id": 27289,
-        "name": "Jewel of the sun"
+        "name": "Jewel of the Sun"
       },
       {
         "id": 27293,
@@ -7740,19 +7762,19 @@
       },
       {
         "id": 27377,
-        "name": "Remnant of akkha"
+        "name": "Remnant of Akkha"
       },
       {
         "id": 27378,
-        "name": "Remnant of ba-ba"
+        "name": "Remnant of Ba-Ba"
       },
       {
         "id": 27379,
-        "name": "Remnant of kephri"
+        "name": "Remnant of Kephri"
       },
       {
         "id": 27380,
-        "name": "Remnant of zebak"
+        "name": "Remnant of Zebak"
       },
       {
         "id": 27381,
@@ -7760,7 +7782,7 @@
       },
       {
         "id": 30893,
-        "name": "Jewel of amascut"
+        "name": "Jewel of Amascut"
       }
     ],
     "Tormented Demons": [
@@ -8001,16 +8023,6 @@
         "name": "Awakener's orb"
       }
     ],
-    "Venators": [
-      {
-        "id": 33661,
-        "name": "Venator fang"
-      },
-      {
-        "id": 33663,
-        "name": "Venator tooth"
-      }
-    ],
     "Venenatis and Spindel": [
       {
         "id": 7158,
@@ -8030,7 +8042,7 @@
       },
       {
         "id": 27670,
-        "name": "Fangs of venenatis"
+        "name": "Fangs of Venenatis"
       },
       {
         "id": 27687,
@@ -8052,11 +8064,11 @@
       },
       {
         "id": 13179,
-        "name": "Vet'ion jr."
+        "name": "Vet'ion Jr."
       },
       {
         "id": 27673,
-        "name": "Skull of vet'ion"
+        "name": "Skull of Vet'ion"
       },
       {
         "id": 27684,
@@ -8116,7 +8128,7 @@
       },
       {
         "id": 22106,
-        "name": "Jar of decay"
+        "name": "Jar of Decay"
       },
       {
         "id": 22111,
@@ -8154,7 +8166,7 @@
       },
       {
         "id": 20716,
-        "name": "Tome of fire (empty)"
+        "name": "Tome of Fire (empty)"
       },
       {
         "id": 20718,
@@ -8236,7 +8248,7 @@
       },
       {
         "id": 12921,
-        "name": "Pet snakeling"
+        "name": "Pet Snakeling"
       },
       {
         "id": 12922,
@@ -8256,7 +8268,7 @@
       },
       {
         "id": 12936,
-        "name": "Jar of swamp"
+        "name": "Jar of Swamp"
       },
       {
         "id": 12938,

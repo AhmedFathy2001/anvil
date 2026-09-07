@@ -1,7 +1,7 @@
 {
   "source": "https://oldschool.runescape.wiki/w/Combat_Achievements/All_tasks (Bucket: combat_achievement)",
-  "generatedAt": "2026-08-19T07:49:27.489Z",
-  "taskCount": 646,
+  "generatedAt": "2026-09-07T06:52:15.645Z",
+  "taskCount": 655,
   "tiers": [
     "Easy",
     "Medium",
@@ -586,6 +586,38 @@
       "tier": "Medium",
       "type": "Kill Count",
       "description": "Kill a Kurask."
+    },
+    {
+      "id": 651,
+      "name": "Dancing Queen",
+      "monster": "Mad Angel",
+      "tier": "Medium",
+      "type": "Mechanical",
+      "description": "Kill the Mad Angel after getting 6 consecutive enhanced attacks by dodging the sweep attack successfully during her enrage phase."
+    },
+    {
+      "id": 653,
+      "name": "Juggling Act",
+      "monster": "Mad Angel",
+      "tier": "Medium",
+      "type": "Mechanical",
+      "description": "Kill the Mad Angel after attacking her between each bounce of the blast attack during her enrage phase. This does not need to be done immediately prior to the Mad Angel dying; it just needs to be done at any point in the fight after she becomes enraged."
+    },
+    {
+      "id": 646,
+      "name": "Mad Angel Adept",
+      "monster": "Mad Angel",
+      "tier": "Medium",
+      "type": "Kill Count",
+      "description": "Kill the Mad Angel 25 times."
+    },
+    {
+      "id": 652,
+      "name": "Smite Fight",
+      "monster": "Mad Angel",
+      "tier": "Medium",
+      "type": "Mechanical",
+      "description": "Kill the Mad Angel after getting 3 consecutive enhanced attacks by successfully praying against the smite attacks during her enrage phase."
     },
     {
       "id": 534,
@@ -1218,6 +1250,30 @@
       "tier": "Hard",
       "type": "Kill Count",
       "description": "Kill Kree'arra 50 times."
+    },
+    {
+      "id": 650,
+      "name": "Mad Angel Speed-Runner",
+      "monster": "Mad Angel",
+      "tier": "Hard",
+      "type": "Speed",
+      "description": "Kill the Mad Angel 5 times within 10 minutes of entering her arena."
+    },
+    {
+      "id": 647,
+      "name": "Mad Angel Veteran",
+      "monster": "Mad Angel",
+      "tier": "Hard",
+      "type": "Kill Count",
+      "description": "Kill the Mad Angel 50 times."
+    },
+    {
+      "id": 648,
+      "name": "Perfect Mad Angel",
+      "monster": "Mad Angel",
+      "tier": "Hard",
+      "type": "Perfection",
+      "description": "Kill the Mad Angel without taking any avoidable damage."
     },
     {
       "id": 637,
@@ -2162,6 +2218,22 @@
       "tier": "Elite",
       "type": "Speed",
       "description": "Kill the Leviathan in less than 1:50 without a slayer task."
+    },
+    {
+      "id": 654,
+      "name": "The Pen Is Mightier",
+      "monster": "Mad Angel",
+      "tier": "Elite",
+      "type": "Restriction",
+      "description": "Kill the Mad Angel without equipping any weapon."
+    },
+    {
+      "id": 649,
+      "name": "This Is Madness",
+      "monster": "Mad Angel",
+      "tier": "Elite",
+      "type": "Stamina",
+      "description": "Kill the Mad Angel 15 times without leaving her arena."
     },
     {
       "id": 638,

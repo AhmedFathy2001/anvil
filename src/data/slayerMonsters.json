@@ -1,6 +1,6 @@
 {
   "source": "https://oldschool.runescape.wiki/w/Special:Bucket/infobox_monster",
-  "generatedAt": "2026-08-18",
+  "generatedAt": "2026-09-07",
   "note": "Slayer task groups and their monsters. Names are in-game names (wiki disambiguation stripped), which is what a kill tile matches against. Rebuild with `npm run data:slayer`.",
   "categoryCount": 121,
   "monsterCount": 644,
@@ -3576,7 +3576,7 @@
       ]
     },
     {
-      "label": "Vampyres'\"`UNIQ--ref-00000095-QINU`\"'",
+      "label": "Vampyres'\"`UNIQ--ref-000000FF-QINU`\"'",
       "monsters": [
         {
           "name": "Vanstrom Klause",
