@@ -5,6 +5,7 @@ import { notFound, redirect } from 'next/navigation';
 import { verifyUser } from '@/lib/auth';
 import WarRoomClient from './WarRoomClient';
 import { clanHref } from '@/lib/clanPath';
+import { resolveTeamManagement } from '@/lib/teamStaff';
 import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
@@ -27,8 +28,14 @@ export default async function WarRoomPage({
 
   const team = await db.query.teams.findFirst({ where: eq(teams.id, tId) });
   if (!team) notFound();
-  // Captain-only — players who aren't the captain bounce back to the team board.
-  if (team.captainUserId !== user.userId) redirect(await clanHref(`/team/${tId}`));
+  // WHOEVER MANAGES THE TEAM, which is the captain OR a team-staff seat. It read `captainUserId`
+  // alone, and the seat exists for exactly the person that shut out: a visiting clan's moderator,
+  // handed their own half of a co-hosted board. They could see the board listed on their clan's
+  // events page, could not open the host's admin (the event is not their clan's), and were bounced
+  // off the one surface built for them. Every other team-scoped action — invites, fees — already
+  // asks this way; the war room was the one that did not.
+  const management = await resolveTeamManagement(tId);
+  if (!management?.canManage) redirect(await clanHref(`/team/${tId}`));
 
   // clan-scope: global -- a team is reached through membership or an invite token, not through a clan — that is what lets a visiting clan's people use it.
   const event = await db.query.events.findFirst({ where: eq(events.id, team.eventId) });
