@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { clanRoster, clans, completions, eventParticipants, events, tiles, weeklyCompetitions } from '@/db/schema';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { seatsOwnedByAnywhere } from '@/lib/roster';
+import { normalizeRsn } from '@/lib/auth';
 
 // THE CLAN SWITCHER, server side.
 //
@@ -76,8 +77,20 @@ export interface PluginClanRow {
  * per-clan loop would have been three queries times however many clans somebody has collected, on
  * an endpoint every client polls on a timer.
  */
-export async function pluginClansFor(userId: number | null | undefined): Promise<PluginClanRow[]> {
+export async function pluginClansFor(
+  userId: number | null | undefined,
+  /**
+   * The RSN currently logged in, when the caller knows it.
+   *
+   * Ranking without it sorted by newest seat, which answers a question nobody asked: the clan you
+   * joined most recently is rarely the clan the character you are playing belongs to. Somebody whose
+   * main is a member of one clan and who guested somewhere last week opened the panel on the guest
+   * clan and had to switch every session before they could sync anything.
+   */
+  currentRsn?: string | null,
+): Promise<PluginClanRow[]> {
   if (userId == null) return [];
+  const currentNormalized = currentRsn ? normalizeRsn(currentRsn) : null;
 
   const ownedAnywhere = await seatsOwnedByAnywhere(userId);
 
@@ -86,6 +99,7 @@ export async function pluginClansFor(userId: number | null | undefined): Promise
       seatId: clanRoster.id,
       clanId: clanRoster.clanId,
       kind: clanRoster.kind,
+      rsnNormalized: clanRoster.rsnNormalized,
       joinedAt: clanRoster.joinedAt,
       slug: clans.slug,
       name: clans.name,
@@ -103,20 +117,28 @@ export async function pluginClansFor(userId: number | null | undefined): Promise
   // One row per clan. Somebody can hold several seats in one clan (a main and an alt); the clan is
   // the switchable thing, not the seat, so collapse to the earliest-joined and keep every seat id
   // for the enrollment lookup below.
-  const byClan = new Map<number, { row: (typeof usable)[number]; seatIds: number[] }>();
+  const byClan = new Map<number, { row: (typeof usable)[number]; seatIds: number[]; rsns: Set<string> }>();
   for (const s of usable) {
     const found = byClan.get(s.clanId);
     if (found) {
       found.seatIds.push(s.seatId);
+      found.rsns.add(s.rsnNormalized);
       // 'member' outranks 'guest' — if either seat is a real membership, this is a home clan.
       if (s.kind === 'member') found.row = { ...found.row, kind: 'member' };
     } else {
-      byClan.set(s.clanId, { row: s, seatIds: [s.seatId] });
+      byClan.set(s.clanId, { row: s, seatIds: [s.seatId], rsns: new Set([s.rsnNormalized]) });
     }
   }
 
+  // WHERE THE CHARACTER IN FRONT OF THEM PLAYS, first. Three tiers, because they answer the
+  // question in descending order of confidence: this RSN is a MEMBER here, this RSN is seated here
+  // at all, and then everything else by recency — which is all the old ordering had.
+  const rank = (c: { row: (typeof usable)[number]; seatIds: number[]; rsns: Set<string> }) => {
+    if (currentNormalized == null || !c.rsns.has(currentNormalized)) return 2;
+    return c.row.kind === 'member' ? 0 : 1;
+  };
   const ordered = [...byClan.values()]
-    .sort((a, b) => (b.row.joinedAt ?? '').localeCompare(a.row.joinedAt ?? ''))
+    .sort((a, b) => rank(a) - rank(b) || (b.row.joinedAt ?? '').localeCompare(a.row.joinedAt ?? ''))
     .slice(0, MAX_SWITCHABLE_CLANS);
 
   const allSeatIds = ordered.flatMap((c) => c.seatIds);

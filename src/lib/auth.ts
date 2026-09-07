@@ -6,7 +6,7 @@ import { currentClan } from '@/lib/clanContext';
 import crypto from 'crypto';
 import { db } from '@/db';
 import { resolveClanById, resolveClanFromRequest, type ClanContext } from '@/lib/clanContext';
-import { accounts, clanAuditLog, clanMemberships, clanRoster, clanStaff, clans, detectedAccounts, eventEditors, eventParticipants, events, players, pluginLinks, teams, users } from '@/db/schema';
+import { accounts, clanAuditLog, clanMemberships, clanRoster, clanStaff, clans, detectedAccounts, eventCohosts, eventEditors, eventParticipants, events, players, pluginLinks, teams, users } from '@/db/schema';
 import { findOrCreateAccount, findOrCreateSeat, findRosterSeat, findRosterSeats, personOf, personOfOrCreate, seatsOwnedBy, seatsOwnedByAnywhere, UNCLAIMED_ACCOUNT, updateAccountOfSeat } from '@/lib/roster';
 import { and, desc, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { requireSecret } from '@/lib/env';
@@ -1118,7 +1118,7 @@ export async function claimAccountForUser(
 // isn't on this user's roster.
 export async function resolvePluginMember(
   request: Request
-): Promise<{ userId: number; clanMemberId: number; accountId: number; rsn: string } | null> {
+): Promise<{ userId: number; clanMemberId: number; accountId: number; rsn: string; clanId: number } | null> {
   const authHeader = request.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) return null;
 
@@ -1247,6 +1247,7 @@ export async function resolvePluginMember(
     clanMemberId: matchedMember.id,
     accountId: matchedMember.accountId,
     rsn: currentRsn.trim(),
+    clanId: clan.id,
   };
 }
 
@@ -1262,7 +1263,34 @@ export async function verifyPluginToken(
   if (!member) return null;
 
   const nowIso = new Date().toISOString();
-  // clan-scope: global -- identity is global — one OSRS account is one account however many clans roster it.
+
+  // WHICH SEAT, on a co-hosted board.
+  //
+  // This asked for the seat in the CONNECTED clan and nothing else, which is right for an ordinary
+  // board and wrong for one two clans share. A co-host fills its side of a board from its own
+  // roster, so the participant row hangs off a seat in whichever clan enrolled them — and a member
+  // connected to the other one resolved no active event at all. They were playing on their own
+  // clan's team, on a board their clan co-hosts, and the plugin said there was nothing on.
+  //
+  // So: any seat this PERSON holds, on a board the connected clan hosts OR co-hosts. Both halves
+  // matter. Widening to the person alone would track a board in a clan they merely happen to be in;
+  // keeping the event side narrow is what makes the reach exactly as far as the site's own idea of
+  // whose board it is (lib/eventCards unions the same two sets for the clan's events page).
+  const [cohosted, ownSeats] = await Promise.all([
+    db
+      .select({ eventId: eventCohosts.eventId })
+      .from(eventCohosts)
+      .where(and(eq(eventCohosts.clanId, member.clanId), eq(eventCohosts.status, 'accepted'))),
+    db
+      .select({ id: clanRoster.id })
+      .from(clanRoster)
+      .where(and(await seatsOwnedByAnywhere(member.userId), isNull(clanRoster.leftAt))),
+  ]);
+  const seatIds = [...new Set([member.clanMemberId, ...ownSeats.map((s) => s.id)])];
+  const cohostedIds = cohosted.map((c) => c.eventId);
+
+  // clan-scope: this clan -- events this clan hosts, plus the ones it co-hosts; seats are the
+  // person's own.
   const playerRows = await db
     .select({
       id: eventParticipants.id,
@@ -1275,7 +1303,14 @@ export async function verifyPluginToken(
     })
     .from(eventParticipants)
     .innerJoin(events, eq(eventParticipants.eventId, events.id))
-    .where(eq(eventParticipants.clanMemberId, member.clanMemberId));
+    .where(
+      and(
+        inArray(eventParticipants.clanMemberId, seatIds),
+        cohostedIds.length > 0
+          ? or(eq(events.clanId, member.clanId), inArray(events.id, cohostedIds))
+          : eq(events.clanId, member.clanId),
+      ),
+    );
 
   // A member in two concurrent events resolves to ONE — the plugin scopes to a single active event
   // (until the multi-enrollment rework lands). The pick is DETERMINISTIC, not row order: events
