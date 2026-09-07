@@ -94,7 +94,12 @@ export async function GET(request: Request) {
       enrolledTeamId: eventParticipants.teamId,
     })
     .from(clanRoster)
-    .leftJoin(users, eq(clanRoster.playerId, users.id))
+    // THE PERSON, NOT THE LOGIN. `clanRoster.playerId` is a players.id; `users.id` is a login id.
+    // Two sequences, seeded 1:1 and long since diverged — so this compared a person to whichever
+    // login happened to share its number and hung a stranger's Discord name and avatar on a
+    // character. The bridge is `users.playerId`, which is the column that says which person a login
+    // belongs to. It does not error either way, which is why it survived: it answers, wrongly.
+    .leftJoin(users, eq(users.playerId, clanRoster.playerId))
     .leftJoin(
       eventParticipants,
       eventId != null
@@ -106,8 +111,14 @@ export async function GET(request: Request) {
     .where(and(eq(clanRoster.clanId, rosterClanId), isNull(clanRoster.leftAt)))
     .orderBy(clanRoster.rsn);
 
+  // ONE ROW PER SEAT. Joining through the person is correct and, unlike the id comparison it
+  // replaces, can match more than once: the schema allows a person several logins. A picker that
+  // listed the same member twice would be a new confusion in place of the old one.
+  const seen = new Set<number>();
+  const unique = rows.filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)));
+
   return NextResponse.json(
-    rows.map((r) => ({
+    unique.map((r) => ({
       id: r.id,
       rsn: r.rsn,
       rank: r.rank,

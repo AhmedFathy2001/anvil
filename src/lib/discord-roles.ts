@@ -895,7 +895,10 @@ export async function syncRolesForClanMember(
   const viaOauth = await db
     .select({ rank: clanRoster.rank, kind: clanRoster.kind })
     .from(clanRoster)
-    .innerJoin(users, eq(clanRoster.playerId, users.id))
+    // users.playerId, not users.id — see the note in api/admin/clan/active-members. A person id
+    // matched against a login id picked somebody else's seats, and this query decides which ROLES a
+    // Discord account is handed.
+    .innerJoin(users, eq(users.playerId, clanRoster.playerId))
     .where(
       and(
         eq(clanRoster.clanId, member.clanId),
@@ -1086,7 +1089,8 @@ export async function syncRolesForClanMember(
     const accounts = await db
       .select({ rsn: clanRoster.rsn, isPrimary: clanRoster.isPrimary })
       .from(clanRoster)
-      .innerJoin(users, eq(clanRoster.playerId, users.id))
+      // Same correction as above; here it decides what somebody's server NICKNAME is set to.
+      .innerJoin(users, eq(users.playerId, clanRoster.playerId))
       .where(
         and(
           eq(users.discordId, discordUserId),
