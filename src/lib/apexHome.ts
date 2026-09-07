@@ -183,8 +183,10 @@ export async function openSignups(
         // way that mattered: it closed on `endDate`, so an event that had already STARTED but not
         // finished was offered with a "Sign up" button that lands on a locked form.
         //
-        // Closes on START, not end. A null startDate is still open, which is the helper's rule too.
-        or(isNull(events.startDate), gt(events.startDate, nowIso)),
+        // Closes on START, not end — and a board with NO start is a draft, which is not open at all.
+        // This clause used to admit a null start, so the one surface that lists sign-ups across
+        // every clan was also the only place an unfinished board could be found and entered.
+        gt(events.startDate, nowIso),
         or(isNull(events.signupDeadline), gt(events.signupDeadline, nowIso)),
         or(isNull(events.signupOpensAt), lte(events.signupOpensAt, nowIso)),
         entered ? notInArray(events.id, entered) : sql`true`,

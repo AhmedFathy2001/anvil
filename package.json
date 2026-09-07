@@ -70,6 +70,7 @@
     "test:webhooks": "npx tsx --test tests/webhook-fields.test.ts",
     "test:cofferpool": "npx tsx --test tests/coffer-pool.test.ts",
     "test:splitgp": "npx tsx --test tests/split-gp.test.ts",
+    "test:signupwindow": "npx tsx --test tests/signup-window.test.ts",
     "test:invites": "node --experimental-strip-types --test tests/team-invites.test.ts",
     "test:fees": "node --experimental-strip-types --test tests/fee-rules.test.ts",
     "test:cap": "node --experimental-strip-types --test tests/member-cap.test.ts",
