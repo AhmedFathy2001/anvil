@@ -90,6 +90,7 @@ before(async () => {
 beforeEach(async () => {
   await db.delete(s.completions);
   await db.delete(s.tiles);
+  await db.delete(s.eventCohosts);
   await db.delete(s.eventParticipants);
   await db.delete(s.teams);
   await db.delete(s.events);
@@ -429,4 +430,60 @@ test('only what is live counts — a finished board is not "and one more"', asyn
 
   const [row] = await pluginClansFor(userId);
   assert.equal(row.liveCount, 1);
+});
+
+// ── Co-hosted boards ────────────────────────────────────────────────────────────────────────────
+//
+// A cross-clan event seats its visitors on the HOST clan's roster, so a co-host's own member holds
+// their enrollment on a guest seat over there. Attributed by seat alone, the co-host read as idle
+// and the plugin listed the board twice — once as the addressed clan's card, once under "Also live"
+// as the host's, with the two tallies disagreeing. The board belongs to both clans; say so.
+
+test('a co-hosted board is live in the co-host too, not just the clan holding the seat', async () => {
+  await seat(alpha, 'member');
+  const guestSeat = await seat(bravo, 'guest');
+  const eventId = await board(bravo, guestSeat, 'Bravo x Alpha', { startDays: -1, endDays: 7, scored: 25, done: 5 });
+  await db.insert(s.eventCohosts).values({ eventId, clanId: alpha, status: 'accepted' });
+
+  const rows = await pluginClansFor(userId);
+  const byslug = Object.fromEntries(rows.map((r) => [r.slug, r]));
+  assert.equal(byslug.alpha.live?.eventId, eventId, "the co-host's own row names the board they are playing");
+  assert.equal(byslug.bravo.live?.eventId, eventId);
+  // Same board, same numbers, whichever clan you ask through — the disagreement was the bug.
+  assert.equal(byslug.alpha.live?.tilesTotal, 25);
+  assert.equal(byslug.alpha.live?.tilesTotal, byslug.bravo.live?.tilesTotal);
+  assert.equal(byslug.alpha.live?.tilesComplete, byslug.bravo.live?.tilesComplete);
+  assert.equal(byslug.alpha.liveCount, 1, 'one board, counted once');
+});
+
+test('a clan that was invited to co-host and has not accepted is not running it', async () => {
+  await seat(alpha, 'member');
+  const guestSeat = await seat(bravo, 'guest');
+  const eventId = await board(bravo, guestSeat, 'Bravo x Alpha', { startDays: -1, endDays: 7, scored: 9, done: 1 });
+  await db.insert(s.eventCohosts).values({ eventId, clanId: alpha, status: 'pending' });
+
+  const rows = await pluginClansFor(userId);
+  const byslug = Object.fromEntries(rows.map((r) => [r.slug, r]));
+  assert.equal(byslug.alpha.live, null, 'an unanswered invitation is not a board');
+  assert.equal(byslug.bravo.live?.eventId, eventId);
+});
+
+test('a mission is a bonus, not a bigger board', async () => {
+  // Missions drop mid-event from their own pool (lib/eventRules), so counting one in the total would
+  // move the denominator under every team the moment it is announced. The switcher row quotes the
+  // same fraction the website does, which means it scores through lib/boardScoring like everything
+  // else rather than counting rows.
+  const a = await seat(alpha, 'member');
+  const eventId = await board(alpha, a, 'Summer Bingo', { startDays: -1, endDays: 7, scored: 4, done: 1 });
+  const { eq } = await import('drizzle-orm');
+  const [team] = await db.select().from(s.teams).where(eq(s.teams.eventId, eventId));
+  const [extra] = await db
+    .insert(s.tiles)
+    .values({ eventId, label: 'Announced mission', position: 50, points: 1, mission: 1, revealedAt: iso(0) })
+    .returning();
+  await db.insert(s.completions).values({ teamId: team.id, tileId: extra.id });
+
+  const [row] = await pluginClansFor(userId);
+  assert.equal(row.live?.tilesTotal, 4, 'the board is still four tiles');
+  assert.equal(row.live?.tilesComplete, 1, 'and the bonus is not board progress');
 });

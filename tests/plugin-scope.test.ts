@@ -92,12 +92,12 @@ test('the schedule lists our events and not the clan next door’s', async () =>
   await event(ours, 'Our Bingo', 'clan');
   await event(theirs, 'Their Bingo', 'clan');
 
-  const titles = (await P.buildSchedule(ours)).bingos.map((b) => b.title);
+  const titles = (await P.buildSchedule(ours, { member: true })).bingos.map((b) => b.title);
   assert.deepEqual(titles, ['Our Bingo']);
 });
 
 test('and the neighbour sees the mirror image, not a merge', async () => {
-  const titles = (await P.buildSchedule(theirs)).bingos.map((b) => b.title);
+  const titles = (await P.buildSchedule(theirs, { member: true })).bingos.map((b) => b.title);
   assert.deepEqual(titles, ['Their Bingo']);
 });
 
@@ -120,18 +120,20 @@ test('an invited-only event is never advertised on the schedule', async () => {
   // an advertisement, and it takes no token, so it cannot be the surface that names them.
   await event(ours, 'Secret Invitational', 'invited');
 
-  const titles = (await P.buildSchedule(ours)).bingos.map((b) => b.title);
+  const titles = (await P.buildSchedule(ours, { member: true })).bingos.map((b) => b.title);
   assert.equal(titles.includes('Secret Invitational'), false);
   assert.ok(titles.includes('Our Bingo'), 'the ordinary event still listed');
 });
 
-test('a `clan` event IS advertised — the jars in the field cannot be updated', async () => {
-  // Deliberate, and worth stating: every event in the wild carries the default `clan`, and the
-  // legacy endpoint is unauthenticated. Filtering these out would blank the panel on every installed
-  // plugin rather than close a hole; naming the clan's address is the standing this endpoint has
-  // always asked for. The hole that mattered was cross-CLAN, and that is what the filter closes.
-  const titles = (await P.buildSchedule(ours)).bingos.map((b) => b.title);
-  assert.ok(titles.includes('Our Bingo'));
+test('a `clan` event is advertised to a MEMBER, and to nobody else', async () => {
+  // `clan` is the default every event in the wild carries, so this is the common case rather than a
+  // corner: the clan's own members see it, and a stranger holding the clan's address does not.
+  // Membership is the caller's to assert — /config resolves a seat before it builds this.
+  const toMember = (await P.buildSchedule(ours, { member: true })).bingos.map((b) => b.title);
+  assert.ok(toMember.includes('Our Bingo'));
+
+  const toStranger = (await P.buildSchedule(ours)).bingos.map((b) => b.title);
+  assert.equal(toStranger.includes('Our Bingo'), false, 'someone else\u2019s clan events are not a listing');
 });
 
 test('weeklies are scoped the same way', async () => {

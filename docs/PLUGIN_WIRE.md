@@ -431,9 +431,12 @@ Steps 1 and 2 exist only for addresses already in the wild; both keep working in
 
 When the token has to decide between several clans:
 
-- a **live event** wins, and between two live events the **latest start** does — the same tie-break
+- **their own clan first**, whenever anything is running in it — a board it hosts *or co-hosts*, or
+  its SOTW/BOTW. An account holds at most one member seat, so "their clan" is a single unambiguous
+  answer; a guest pass is not a home, and a guest clan starting a bingo should not move the panel
+- otherwise a **live event**, and between two live events the **latest start** — the same tie-break
   already applied when one clan runs two boards
-- with nothing live, the **most recently joined seat**
+- with nothing live anywhere, the **most recently joined seat**
 - a **roster sync** (`/api/plugin/clan-sync`) instead matches the in-game clan name it carries
   against the person's seats, because that is exact where the others are guesses, and it writes
 
@@ -464,6 +467,42 @@ part of `/config` rather than an endpoint of its own because clients already pol
 `live.eventId` is what lets a client tell two clans showing the **same** board from two boards. A
 co-hosted event belongs to every host, so somebody seated in two co-hosting clans receives it under
 each of them; dedup on the id, never on the name.
+
+That is true even when the seat carrying the enrollment is somewhere else. A cross-clan event seats
+its visitors on the **host** clan's roster, so a co-host's own member holds the board on a guest seat
+over there — and their own clan still reports it, because the clan is running it. Attributed by seat
+alone the co-host looked idle, and a client that dedups "everything else live" against the addressed
+clan's row alone then listed the board a second time.
+
+A client should dedup against **the board it is rendering**, which need not be the one the addressed
+clan's row names: that row reports whatever is most relevant in that clan, and `/config` resolves the
+event the player is actually enrolled in.
+
+### The board's own fraction
+
+Both `/config` shapes carry the tally for the board as a whole, computed server-side by
+`lib/boardTally` — the same arithmetic the website header and the `clans[].live` rows use:
+
+```jsonc
+{
+  // enrolled shape: the board this response resolved an event for
+  "board": { "tilesComplete": 5, "tilesTotal": 25, "pointsScored": false },
+  // not-enrolled shape: resolved from the token alone, so the panel has a board before login
+  "homeBoard": { "eventId": 16, "eventName": "Summer Bingo", "tilesComplete": 5, "tilesTotal": 25,
+                 "pointsScored": false }
+}
+```
+
+Scored by `lib/boardScoring` — the same function the website's scoreboard runs — so optional tiles
+are out, a mission stays a bonus outside the denominator, a drip-feed board measures against its
+whole pool, and a `points` board counts earned/total **points** and says so.
+
+It exists because a client cannot compute it: the tracked lists carry only tiles the plugin can
+DETECT — a drop, a KC, an XP goal — so counting the rows in hand denominated a 25-tile board at 10
+and reported 50% where every other surface said 20%. Absent on older sites, and absent while a board
+is still unrevealed; then the local count is all there is.
+
+`homeBoard.eventId` is the same identity as `clans[].live.eventId`, for the same dedup.
 
 **A client is expected to echo `activeClan.slug` back as a `/c/<slug>` prefix.** Resolution order 1
 then wins, and the clan stops being re-guessed per request. That matters beyond tidiness: the routes

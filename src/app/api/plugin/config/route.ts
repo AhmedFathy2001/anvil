@@ -1,6 +1,6 @@
 import { requirePluginClan } from '@/lib/auth';
 import { NextResponse } from 'next/server';
-import { personOf, seatsOwnedBy } from '@/lib/roster';
+import { personOf, seatsOwnedByAnywhere } from '@/lib/roster';
 import { db } from '@/db';
 import { events, tiles, teams, submissions, eventParticipants, completions, clanRoster, eventStartProofs } from '@/db/schema';
 import { eq, and, sql, inArray, isNull } from 'drizzle-orm';
@@ -37,7 +37,9 @@ import { isActivityKey } from '@/lib/hiscoresActivities';
 import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { serverInfo } from '@/lib/serverInfo';
+import { clansRunningEvents } from '@/lib/coHost';
 import { pluginClansFor } from '@/lib/pluginClans';
+import { boardPointsPool, scoreTeam } from '@/lib/boardScoring';
 import { parseEventRules, hasRevealPolicy, nextRevealAt, nextMissionAt, isMissionTile, parseTileMissionRules, missionPrizeSummary } from '@/lib/eventRules';
 import { startProofState } from '@/lib/startProof';
 import { combatTaskVarps } from '@/lib/combatTasks';
@@ -90,15 +92,22 @@ function generateCodeword(playerId: number, eventId: number): string {
  * anywhere live.
  */
 async function homeBoardForUser(clanId: number, userId: number): Promise<{
+  /** WHICH board — a co-hosted one is reported by both hosts, and the id is what says they are one. */
+  eventId: number;
   eventName: string;
   tilesComplete: number;
   tilesTotal: number;
   pointsScored: boolean;
 } | null> {
+  // EVERY seat this person holds, not only the ones on this clan's roster. A cross-clan event seats
+  // its visitors on the HOST clan, so a board this clan CO-HOSTS is held on a guest seat over there
+  // — scoped to this clan's seats, its own member's own board read as "no active event". The
+  // enrollments are filtered back to what THIS clan is running, two steps down.
+  // clan-scope: global -- the subject is a PERSON and their seats span clans by design; the answer is narrowed to this clan by `running` below.
   const myMembers = await db
     .select({ id: clanRoster.id, isPrimary: clanRoster.isPrimary })
     .from(clanRoster)
-    .where(and(await seatsOwnedBy(clanId, userId), isNull(clanRoster.leftAt)));
+    .where(and(await seatsOwnedByAnywhere(userId), isNull(clanRoster.leftAt)));
   if (myMembers.length === 0) return null;
   const primaryIds = new Set(myMembers.filter((m) => m.isPrimary === 1).map((m) => m.id));
 
@@ -108,6 +117,7 @@ async function homeBoardForUser(clanId: number, userId: number): Promise<{
       eventId: events.id,
       eventName: events.name,
       scoringMode: events.scoringMode,
+      rules: events.rules,
       startDate: events.startDate,
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
@@ -117,6 +127,11 @@ async function homeBoardForUser(clanId: number, userId: number): Promise<{
     .from(eventParticipants)
     .innerJoin(events, eq(eventParticipants.eventId, events.id))
     .where(inArray(eventParticipants.clanMemberId, myMembers.map((m) => m.id)));
+
+  // Back to this clan: the boards it hosts or co-hosts. A person's enrollment somewhere else
+  // entirely is not this clan's board and must not be reported as one.
+  const running = await clansRunningEvents([...new Set(enrollments.map((e) => e.eventId))]);
+  const here = enrollments.filter((e) => running.get(e.eventId)?.has(clanId) === true);
 
   const now = Date.now();
   const isLive = (e: (typeof enrollments)[number]) =>
@@ -131,35 +146,34 @@ async function homeBoardForUser(clanId: number, userId: number): Promise<{
   // account's live enrollment first, else any live one; latest start wins within each tier —
   // mirroring verifyPluginToken's pick so pre- and post-login agree. The real account-scoped board
   // takes over the moment an account resolves in-game.
-  enrollments.sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? ''));
+  here.sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? ''));
   const live =
-    enrollments.find((e) => isLive(e) && e.clanMemberId != null && primaryIds.has(e.clanMemberId)) ??
-    enrollments.find(isLive);
+    here.find((e) => isLive(e) && e.clanMemberId != null && primaryIds.has(e.clanMemberId)) ??
+    here.find(isLive);
   if (!live) return null;
 
-  // Optional tiles are bonus: excluded from both tallies, matching the website's scoredTiles filter
-  // and the plugin's own logged-in summary.
-  const tileRows = await db
-    .select({ id: tiles.id, points: tiles.points, optional: tiles.optional })
-    .from(tiles)
-    .where(eq(tiles.eventId, live.eventId));
-  const scored = tileRows.filter((t) => !t.optional);
-  const doneIds = new Set(
-    (
-      await db
-        .select({ tileId: completions.tileId })
-        .from(completions)
-        .where(eq(completions.teamId, live.teamId as number))
-    ).map((c) => c.tileId),
-  );
-  const totalPoints = scored.reduce((sum, t) => sum + (t.points ?? 1), 0);
-  const pointsScored = live.scoringMode === 'points' && totalPoints > 0;
-  const tilesTotal = pointsScored ? totalPoints : scored.length;
-  const tilesComplete = pointsScored
-    ? scored.filter((t) => doneIds.has(t.id)).reduce((sum, t) => sum + (t.points ?? 1), 0)
-    : scored.filter((t) => doneIds.has(t.id)).length;
-
-  return { eventName: live.eventName, tilesComplete, tilesTotal, pointsScored };
+  // Scored through lib/boardScoring, so this pre-login summary is the same fraction the board itself
+  // shows once they log in — optional tiles out, missions a bonus, a drip board against its pool.
+  const tileRows = await db.query.tiles.findMany({ where: eq(tiles.eventId, live.eventId) });
+  const doneRows = await db
+    .select({ teamId: completions.teamId, tileId: completions.tileId, awardedPoints: completions.awardedPoints })
+    .from(completions)
+    .where(eq(completions.teamId, live.teamId as number));
+  const score = scoreTeam({
+    scoringMode: live.scoringMode,
+    rules: parseEventRules(live.rules),
+    tiles: tileRows,
+    completions: doneRows,
+    teamId: live.teamId as number,
+    boardPointsTotal: boardPointsPool(live.scoringMode, tileRows),
+  });
+  return {
+    eventId: live.eventId,
+    eventName: live.eventName,
+    tilesComplete: score.boardScore,
+    tilesTotal: score.total,
+    pointsScored: score.unit === 'pts',
+  };
 }
 
 /**
@@ -625,7 +639,9 @@ export async function GET(request: Request) {
   // fire a banner for the whole team when any tile is completed, regardless of who finished it.
   const teamCompletions = tilesRevealed
     ? await db
-        .select({ tileId: completions.tileId })
+        // teamId + awardedPoints because lib/boardScoring reads them: a frozen award is what the
+        // rules decided when the tile was finished, and re-deriving it would re-price history.
+        .select({ teamId: completions.teamId, tileId: completions.tileId, awardedPoints: completions.awardedPoints })
         .from(completions)
         .where(eq(completions.teamId, auth.teamId))
     : [];
@@ -651,6 +667,28 @@ export async function GET(request: Request) {
       if (r.name) completedByMap.set(r.tileId, r.name);
     }
   }
+
+  // THE WHOLE BOARD'S FRACTION, from the server rather than from what the plugin can see.
+  //
+  // The plugin only ever learns about tiles it can TRACK — a drop, a KC, an XP goal. A manual tile
+  // never reaches it, so counting the rows it holds denominated a 25-tile board at 10 and reported
+  // "5 / 10 tiles - 50%" beside a website, a Discord post and a clan-switcher row all saying 5 / 25.
+  // A board is not a subset of what a client can detect.
+  //
+  // Scored through lib/boardScoring like every other surface, so it is the same number the website
+  // shows rather than a twelfth hand-rolled reduce: missions stay a bonus outside the denominator,
+  // a drip-feed board measures against the whole pool, and frozen awardedPoints are honoured.
+  // Absent while the board is unrevealed — there is no board to be a fraction of yet.
+  const boardTally = tilesRevealed
+    ? scoreTeam({
+        scoringMode: event.scoringMode,
+        rules,
+        tiles: fullEventTiles,
+        completions: teamCompletions,
+        teamId: auth.teamId,
+        boardPointsTotal: boardPointsPool(event.scoringMode, fullEventTiles),
+      })
+    : null;
 
   const completedTiles = teamCompletions.map((c) => {
     const tile = tileById.get(c.tileId);
@@ -834,6 +872,17 @@ export async function GET(request: Request) {
       name: team.name,
       color: team.color,
     },
+    // The board's own fraction — see boardTally above. Old plugins ignore it and keep counting the
+    // tiles they hold; a newer one shows the board the rest of Anvil is showing.
+    ...(boardTally
+      ? {
+          board: {
+            tilesComplete: boardTally.boardScore,
+            tilesTotal: boardTally.total,
+            pointsScored: boardTally.unit === 'pts',
+          },
+        }
+      : {}),
     player: {
       id: auth.playerId,
     },

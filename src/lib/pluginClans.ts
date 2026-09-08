@@ -1,6 +1,9 @@
 import { db } from '@/db';
 import { clanRoster, clans, completions, eventParticipants, events, tiles, weeklyCompetitions } from '@/db/schema';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { boardPointsPool, scoreTeam } from '@/lib/boardScoring';
+import { parseEventRules } from '@/lib/eventRules';
+import { clansRunningEvents } from '@/lib/coHost';
 import { seatsOwnedByAnywhere } from '@/lib/roster';
 import { normalizeRsn } from '@/lib/auth';
 
@@ -147,12 +150,32 @@ export async function pluginClansFor(
     activeWeeklyByClan(ordered.map((c) => c.row.clanId)),
   ]);
 
-  return ordered.map(({ row, seatIds }) => {
+  // WHICH CLANS A BOARD IS RUNNING IN — not just the one whose roster the seat sits on.
+  //
+  // A cross-clan event seats its visitors in the HOST clan, so a co-host's own member holds their
+  // enrollment on a guest seat over there. Attributed by seat alone, the board then belonged to the
+  // host and the co-host looked idle: the panel addressed the co-host (their clan is theirs, and
+  // clanOfPerson prefers it), rendered the co-hosted board as its card, and then listed the SAME
+  // board again under "Also live" as the host clan's — one event, twice, contradicting itself on
+  // the tally. A co-hosted board belongs to every host; saying so is what lets a client dedupe it.
+  const clansOfBoard = await clansRunningEvents([
+    ...new Set([...live.values()].flat().map((e) => e.eventId)),
+  ]);
+  const clanOfSeat = new Map<number, number>(usable.map((s) => [s.seatId, s.clanId]));
+
+  return ordered.map(({ row }) => {
     // Every live board in this clan, deduped: a person with a main and an alt both drafted onto the
     // same board holds it twice, and that is one board, not two.
     const seen = new Set<number>();
-    const here = seatIds
-      .flatMap((id) => live.get(id) ?? [])
+    const here = [...live.entries()]
+      .flatMap(([seatId, boards]) => boards.map((e) => ({ seatId, e })))
+      // Seated here, or hosted here — either makes it this clan's board. Both, because the seat is
+      // the only claim on a board whose host clan this person has no seat in at all.
+      .filter(
+        ({ seatId, e }) =>
+          clanOfSeat.get(seatId) === row.clanId || clansOfBoard.get(e.eventId)?.has(row.clanId) === true,
+      )
+      .map(({ e }) => e)
       .filter((e) => (seen.has(e.eventId) ? false : (seen.add(e.eventId), true)))
       // Same "latest start wins" tie-break the clan resolver uses, so the one named here is the one a
       // request to that clan would actually resolve to.
@@ -196,6 +219,7 @@ interface LiveEnrollment extends PluginClanLive {
   startDate: string | null;
 }
 
+
 /**
  * The running SOTW/BOTW in each of these clans, keyed by clan.
  *
@@ -236,6 +260,7 @@ async function liveBoardsBySeat(seatIds: number[]): Promise<Map<number, LiveEnro
       eventId: events.id,
       eventName: events.name,
       scoringMode: events.scoringMode,
+      rules: events.rules,
       startDate: events.startDate,
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
@@ -261,48 +286,48 @@ async function liveBoardsBySeat(seatIds: number[]): Promise<Map<number, LiveEnro
   const teamIds = [...new Set(playing.map((r) => r.teamId as number))];
 
   const [tileRows, doneRows] = await Promise.all([
+    // Whole rows: lib/boardScoring reads the mission and reveal fields, not only the weight.
+    db.query.tiles.findMany({ where: inArray(tiles.eventId, eventIds) }),
     db
-      .select({ id: tiles.id, eventId: tiles.eventId, points: tiles.points, optional: tiles.optional })
-      .from(tiles)
-      .where(inArray(tiles.eventId, eventIds)),
-    db
-      .select({ teamId: completions.teamId, tileId: completions.tileId })
+      .select({ teamId: completions.teamId, tileId: completions.tileId, awardedPoints: completions.awardedPoints })
       .from(completions)
       .where(inArray(completions.teamId, teamIds)),
   ]);
 
-  // Optional tiles are bonus — out of both tallies, matching the website's scoredTiles filter and
-  // the plugin's own logged-in summary. A board where the two disagreed would read as a bug.
-  const scoredByEvent = new Map<number, { id: number; points: number | null }[]>();
+  const tilesByEvent = new Map<number, (typeof tileRows)[number][]>();
   for (const t of tileRows) {
-    if (t.optional) continue;
-    const list = scoredByEvent.get(t.eventId) ?? [];
-    list.push({ id: t.id, points: t.points });
-    scoredByEvent.set(t.eventId, list);
+    const list = tilesByEvent.get(t.eventId) ?? [];
+    list.push(t);
+    tilesByEvent.set(t.eventId, list);
   }
-  const doneByTeam = new Map<number, Set<number>>();
+  const doneByTeam = new Map<number, (typeof doneRows)[number][]>();
   for (const c of doneRows) {
-    const set = doneByTeam.get(c.teamId) ?? new Set<number>();
-    set.add(c.tileId);
-    doneByTeam.set(c.teamId, set);
+    const list = doneByTeam.get(c.teamId) ?? [];
+    list.push(c);
+    doneByTeam.set(c.teamId, list);
   }
 
   const out = new Map<number, LiveEnrollment[]>();
   for (const r of playing) {
-    const scored = scoredByEvent.get(r.eventId) ?? [];
-    const done = doneByTeam.get(r.teamId as number) ?? new Set<number>();
-    const totalPoints = scored.reduce((sum, t) => sum + (t.points ?? 1), 0);
-    const pointsScored = r.scoringMode === 'points' && totalPoints > 0;
+    // Scored through lib/boardScoring, so a dropdown row, the board's own card and the website all
+    // quote one fraction: optional tiles out, missions a bonus, a drip board against its whole pool.
+    const boardOwn = tilesByEvent.get(r.eventId) ?? [];
+    const score = scoreTeam({
+      scoringMode: r.scoringMode,
+      rules: parseEventRules(r.rules),
+      tiles: boardOwn,
+      completions: doneByTeam.get(r.teamId as number) ?? [],
+      teamId: r.teamId as number,
+      boardPointsTotal: boardPointsPool(r.scoringMode, boardOwn),
+    });
     const entry: LiveEnrollment = {
       kind: 'bingo',
       eventId: r.eventId,
       eventName: r.eventName,
       startDate: r.startDate,
-      pointsScored,
-      tilesTotal: pointsScored ? totalPoints : scored.length,
-      tilesComplete: pointsScored
-        ? scored.filter((t) => done.has(t.id)).reduce((sum, t) => sum + (t.points ?? 1), 0)
-        : scored.filter((t) => done.has(t.id)).length,
+      tilesComplete: score.boardScore,
+      tilesTotal: score.total,
+      pointsScored: score.unit === 'pts',
     };
     // EVERY live board this seat is on, not just the freshest. Which one to NAME is a choice the
     // caller makes; how many there are is a fact it cannot recover once we have thrown the rest away.

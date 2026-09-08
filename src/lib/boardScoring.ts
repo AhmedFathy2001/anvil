@@ -147,6 +147,21 @@ export function scoreTeams(args: {
 }
 
 /**
+ * The WHOLE pool's points total — what to pass as `boardPointsTotal` above.
+ *
+ * On a drip-feed board the denominator is the pool, not the slice currently drawn, or the percentage
+ * leaps around as tiles are revealed. Null off a points board, where the denominator is a tile count
+ * and there is nothing to sum. Missions and optional tiles are out, for the same reasons they are
+ * out of `scoreTeams`: announcing a mission mid-event must not move the total under every team.
+ */
+export function boardPointsPool(scoringMode: string | null | undefined, tiles: ScoringTile[]): number | null {
+  if (scoringMode !== 'points') return null;
+  return boardTiles(tiles)
+    .filter((t) => !isOptional(t))
+    .reduce((sum, t) => sum + (t.points ?? 0), 0);
+}
+
+/**
  * One team's score, for the surfaces that only ever show their own ("My Team", the captain board,
  * the player dashboard). Same maths, no array ceremony.
  */

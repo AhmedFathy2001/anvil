@@ -150,6 +150,38 @@ export async function acceptedCohostClanIds(eventId: number): Promise<number[]> 
 }
 
 /**
+ * Every clan each of these events is RUNNING IN: its host, plus every clan that accepted a co-host
+ * seat on it. Bulk, for the paths that hold a handful of events and ask the question about all of them.
+ *
+ * The question matters because a cross-clan event seats its visitors on the HOST clan's roster: a
+ * co-host's own member holds their enrollment over there, so anything attributing a board by the
+ * seat alone decides the co-host is idle and the board belongs only to the host.
+ *
+ * Pending and declined invitations are not co-hosting anything — a clan that was asked and said no
+ * is not running it.
+ */
+export async function clansRunningEvents(eventIds: number[]): Promise<Map<number, Set<number>>> {
+  const out = new Map<number, Set<number>>();
+  if (eventIds.length === 0) return out;
+  const add = (eventId: number, clanId: number) => {
+    const set = out.get(eventId) ?? new Set<number>();
+    set.add(clanId);
+    out.set(eventId, set);
+  };
+  // clan-scope: global -- answers WHICH clans own these events, so a clan filter would beg the question; the ids come from rows the caller already scoped.
+  const [owners, cohosts] = await Promise.all([
+    db.select({ id: events.id, clanId: events.clanId }).from(events).where(inArray(events.id, eventIds)),
+    db
+      .select({ eventId: eventCohosts.eventId, clanId: eventCohosts.clanId })
+      .from(eventCohosts)
+      .where(and(inArray(eventCohosts.eventId, eventIds), eq(eventCohosts.status, 'accepted'))),
+  ]);
+  for (const r of owners) add(r.id, r.clanId);
+  for (const r of cohosts) add(r.eventId, r.clanId);
+  return out;
+}
+
+/**
  * Hand a clan's staff (moderator and up — the people who run its side) the team_staff seats to run a
  * team. Idempotent: a seat only where one isn't already held, so a retry never duplicates. Shared by
  * provisionCoHostTeam (new team) and adoptTeamAsCoHost (existing team).

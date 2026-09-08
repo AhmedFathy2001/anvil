@@ -131,13 +131,15 @@ test('on the apex, a live event decides', async () => {
   assert.equal(clan?.id, bravo, 'the clan they are actually playing for');
 });
 
-test('between two live events, the freshest board wins', async () => {
+test('between two live events, YOUR OWN clan wins — a guest board is not your home', async () => {
   await clearEvents();
-  await liveEventFor(alpha, seatAlpha, 'Alpha Bingo', 10); // started 10 days ago
-  await liveEventFor(bravo, seatBravo, 'Bravo Bingo', 1); //  started yesterday
+  await liveEventFor(alpha, seatAlpha, 'Alpha Bingo', 10); // their own clan, started 10 days ago
+  await liveEventFor(bravo, seatBravo, 'Bravo Bingo', 1); //  guesting, started yesterday
 
   const clan = await A.resolvePluginClan(apexRequest());
-  assert.equal(clan?.id, bravo, 'latest start — the same tie-break one clan with two boards gets');
+  // Recency alone used to decide this, which put the panel on the guest clan the moment it started
+  // anything: their own clan's board underneath, and Sync roster gone, because admin is per clan.
+  assert.equal(clan?.id, alpha, 'the clan they are a MEMBER of, while it has something running');
 });
 
 test('with nothing live, they still resolve to a clan rather than nowhere', async () => {
