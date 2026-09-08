@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { isClanScopedPath, isPlatformPath, withClanPrefix } from '../src/lib/clanScopedPaths.ts';
+import { clanHrefFor, isClanScopedPath, isPlatformPath, withClanPrefix } from '../src/lib/clanScopedPaths.ts';
 
 const P = '/c/theafkspot';
 
@@ -205,4 +205,33 @@ test('middleware never hands the raw request headers downstream', () => {
   const src = readFileSync(join(process.cwd(), 'src/middleware.ts'), 'utf-8');
   const copies = src.match(/new Headers\(request\.headers\)/g) ?? [];
   assert.equal(copies.length, 1, 'one copy only — a second one re-admits the spoofed header');
+});
+
+// ── A link that is opened from OUTSIDE the clan ──────────────────────────────────────────────
+//
+// Every other link takes its prefix from the request, which works because whoever is clicking is
+// already inside the clan. A team invite is the one shape where they are not: the host mints it, a
+// visiting clan pastes it into their own Discord, and nobody clicking it has been anywhere near
+// `/c/<host-slug>`. The prefix therefore has to come from what the link NAMES.
+
+test('an invite sends the visitor into the clan that owns the event, not the one they came from', () => {
+  assert.equal(
+    clanHrefFor('theafkspot', '/events/11/signup?invite=66ix7ssv5ahv8gkt'),
+    '/c/theafkspot/events/11/signup?invite=66ix7ssv5ahv8gkt',
+  );
+});
+
+test('a bare invite destination is the bug, not the fallback', () => {
+  // This is what shipped: the join page read the prefix off a request that had none, redirected to
+  // `/events/11/signup?invite=…` on the apex, and answered "Not found" to the one person the link
+  // was minted for. The empty-slug case must therefore stay unprefixed HERE — it is the honest
+  // answer when no clan is known — while every caller that can name a clan passes one.
+  assert.equal(clanHrefFor(null, '/events/11/signup'), '/events/11/signup');
+  assert.equal(clanHrefFor(undefined, '/events/11/signup'), '/events/11/signup');
+  assert.equal(clanHrefFor('', '/events/11/signup'), '/events/11/signup');
+});
+
+test('naming a clan does not drag platform paths in with it', () => {
+  // The login bounce on the join page runs through the same helper, and `/login` is the platform's.
+  assert.equal(clanHrefFor('theafkspot', '/login?return=%2Fevents%2F11'), '/login?return=%2Fevents%2F11');
 });

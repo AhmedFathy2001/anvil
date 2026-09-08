@@ -137,3 +137,20 @@ export function withClanPrefix(prefix: string, path: string): string {
   if (!prefix || !isClanScopedPath(path)) return path;
   return `${prefix}${path}`;
 }
+
+/**
+ * A path inside a clan named by SLUG rather than by the request.
+ *
+ * The exception to the rule above, and it needs one: a handful of pages are reached with no clan in
+ * the address on purpose, because whoever opens them cannot be expected to know the slug. A team
+ * invite is the case — the host mints it, a visiting clan pastes it around, and none of those people
+ * are inside the host's prefix when they click. Such a page resolves the clan from what the link
+ * NAMES (the invite's event) and then has to send the visitor on somewhere real, which the request's
+ * own prefix — empty, on the apex — cannot tell it.
+ *
+ * Only for that shape. Everything else takes the prefix from the request via `clanHref`, or it
+ * quietly links one clan's pages out of another's.
+ */
+export function clanHrefFor(slug: string | null | undefined, path: string): string {
+  return withClanPrefix(slug ? `/c/${slug}` : '', path);
+}

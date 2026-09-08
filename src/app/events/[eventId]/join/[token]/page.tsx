@@ -1,11 +1,11 @@
 import { redirect } from 'next/navigation';
 import { db } from '@/db';
-import { events, teamInvites, teams } from '@/db/schema';
+import { clans, events, teamInvites, teams } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { signupWindowState } from '@/lib/signup';
 import { checkInvite, isWellFormedToken, invitePath } from '@/lib/teamInvites';
-import { clanHref } from '@/lib/clanPath';
+import { clanHrefFor } from '@/lib/clanScopedPaths';
 import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
@@ -35,6 +35,18 @@ export default async function JoinPage({
     ? await db.query.events.findFirst({ where: eq(events.id, id) })
     : null;
 
+  // WHERE TO SEND THEM comes from the EVENT, not from the request. This page is reached with no
+  // clan in the address on purpose — a visiting clan pastes the link around and nobody clicking it
+  // knows the host's slug — so `clanHref` here reads an empty prefix and every onward link lands on
+  // the apex, where /events/<id>/signup is not a page. The invite then did the one thing it must
+  // never do: worked right up to the moment somebody used it, and answered "Not found" to the
+  // person it was minted for.
+  const host = event
+    // clan-scope: global -- the event was already resolved by the token above; this only names the clan that owns it.
+    ? await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { slug: true } })
+    : null;
+  const href = (path: string) => clanHrefFor(host?.slug, path);
+
   const window = event
     ? signupWindowState({
         signupOpensAt: event.signupOpensAt,
@@ -52,7 +64,7 @@ export default async function JoinPage({
           <p className="text-lg font-semibold mb-2">This invite can&apos;t be used</p>
           <p className="text-sm text-text-muted mb-6">{verdict.message}</p>
           <ClanLink
-            href={event ? `/events/${event.id}` : '/events'}
+            href={event ? href(`/events/${event.id}`) : '/events'}
             className="text-sm font-medium bg-gold/10 text-gold border border-gold/20 px-3 py-1.5 rounded-lg hover:bg-gold/20 transition-colors"
           >
             {event ? 'See the event' : 'See what’s running'}
@@ -65,14 +77,13 @@ export default async function JoinPage({
   // Signing in has to happen before the form, and the link is where they came from — so send them
   // back HERE afterwards rather than to the generic sign-up page, or the team gets lost on the way.
   const user = await verifyUser();
-  // The return must carry the clan prefix. `/login` lives on the apex, so after signing in the
-  // browser lands on whatever this path says — and a bare `/events/11/join/…` is not a page: events
-  // live under `/c/<slug>`. The invite therefore worked right up until the moment someone actually
-  // used it, and then answered "Not found" to the one person it was minted for.
-  if (!user) redirect(`/login?return=${encodeURIComponent(await clanHref(invitePath(id, token)))}`);
+  // Through `href` for the same reason as everything else here: `/login` is the platform's, so
+  // after signing in the browser lands on whatever this return path says, and it has to be the
+  // address inside the host's clan rather than the one they happened to arrive at.
+  if (!user) redirect(`/login?return=${encodeURIComponent(href(invitePath(id, token)))}`);
 
   const team = await db.query.teams.findFirst({ where: eq(teams.id, invite.teamId) });
-  if (!team) redirect(await clanHref(`/events/${id}`));
+  if (!team) redirect(href(`/events/${id}`));
 
-  redirect(await clanHref(`/events/${id}/signup?invite=${token}`));
+  redirect(href(`/events/${id}/signup?invite=${token}`));
 }

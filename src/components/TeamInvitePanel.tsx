@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import NumberInput from '@/components/NumberInput';
 import { MAX_INVITE_HOURS, MAX_INVITE_USES } from '@/lib/teamInvites';
 import { clanFetch } from '@/lib/clanFetch';
+import { useClanHref } from '@/lib/useClanPath';
 import Checkbox from '@/components/Checkbox';
 
 /**
@@ -42,6 +43,7 @@ export default function TeamInvitePanel({ teamId, captainToggle, bare = false }:
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const clanHref = useClanHref();
 
   const load = useCallback(async () => {
     const res = await clanFetch(`/api/team/${teamId}/invites`);
@@ -94,7 +96,12 @@ export default function TeamInvitePanel({ teamId, captainToggle, bare = false }:
   }
 
   async function copy(path: string) {
-    const full = `${window.location.origin}${path}`;
+    // The API hands back a bare `/events/<id>/join/<token>` — it has no idea which address the
+    // panel is being viewed at. Pasting origin straight onto that mints an apex link, which is a
+    // second address for a clan's page and one nobody is choosing on purpose. The join page accepts
+    // it (links are already out in the wild), but what we hand somebody to share should be the
+    // canonical one.
+    const full = `${window.location.origin}${clanHref(path)}`;
     try {
       await navigator.clipboard.writeText(full);
       setCopied(path);
@@ -205,7 +212,7 @@ export default function TeamInvitePanel({ teamId, captainToggle, bare = false }:
         <ul className="divide-y divide-card-border">
           {live.map((i) => (
             <li key={i.token} className="py-2 flex items-center gap-2 text-sm">
-              <code className="font-mono text-xs text-gold truncate">{i.url}</code>
+              <code className="font-mono text-xs text-gold truncate">{clanHref(i.url)}</code>
               <span className="text-[11px] text-text-muted whitespace-nowrap ml-auto">{i.summary}</span>
               <button
                 type="button"
