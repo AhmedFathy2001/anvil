@@ -6,6 +6,7 @@ import { notFound, redirect } from 'next/navigation';
 import { verifyUser } from '@/lib/auth';
 import { parseProfile, signupWindowState, signupEditState } from '@/lib/signup';
 import { checkInvite, isWellFormedToken } from '@/lib/teamInvites';
+import { clanHref } from '@/lib/clanPath';
 import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
 import { eventPoolGp } from '@/lib/coffer';
 import { parseEventRules } from '@/lib/eventRules';
@@ -30,7 +31,13 @@ export default async function EventSignupPage({
 
   const session = await verifyUser();
   if (!session) {
-    redirect(`/login?return=/events/${eventId}/signup`);
+    // Back to THIS page afterwards, prefix AND invite intact. The prefix because `/login` is the
+    // platform's and a bare `/events/<id>/signup` is not a page — the return bounced to the apex and
+    // 404'd whoever followed it. The token because dropping it does something quieter and worse: the
+    // page still renders, so an invited player lands in the draft pool needing a host's approval,
+    // and neither they nor the host can see that a link decided it.
+    const back = `/events/${id}/signup${isWellFormedToken(inviteToken) ? `?invite=${inviteToken}` : ''}`;
+    redirect(`/login?return=${encodeURIComponent(await clanHref(back))}`);
   }
 
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
