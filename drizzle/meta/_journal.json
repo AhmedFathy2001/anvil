@@ -316,6 +316,20 @@
       "when": 1788700000000,
       "tag": "0086_guest_emissions_optin",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1789200000000,
+      "tag": "0087_accounts_hot_updates",
+      "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1789200060000,
+      "tag": "0088_snapshot_sidecar",
+      "breakpoints": true
     }
   ]
 }

@@ -395,18 +395,27 @@ async function importRoster(client, clanId) {
            player_id, rsn, rsn_normalized, account_hash, discord_id, status, status_last_checked,
            previous_rsns, is_primary, verified_at, verification_method, provisional, claimed_at,
            live_stats, live_stats_at, live_stat_key_times, stats_overall_xp, stats_miss_streak,
-           stats_next_due_at, stats_last_snapshot, stats_activities
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+           stats_next_due_at, stats_activities
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
          RETURNING id`,
         [
           playerId, cm.rsn, cm.rsn_normalized, cm.account_hash, cm.discord_id,
           cm.status ?? 'active', cm.status_last_checked, cm.previous_rsns, cm.is_primary ?? 0,
           cm.verified_at, cm.verification_method, cm.provisional ?? 0, cm.claimed_at,
           cm.live_stats, cm.live_stats_at, cm.live_stat_key_times, cm.stats_overall_xp,
-          cm.stats_miss_streak ?? 0, cm.stats_next_due_at, cm.stats_last_snapshot, cm.stats_activities,
+          cm.stats_miss_streak ?? 0, cm.stats_next_due_at, cm.stats_activities,
         ],
       );
       account = { id: a[0].id };
+      // The hiscores blob has its own table since drizzle/0088 — the sweep rewrites the account row
+      // on every poll and used to copy this 1.6 KB of unchanged JSON with it.
+      if (cm.stats_last_snapshot) {
+        await client.query(
+          `INSERT INTO account_stat_snapshots (account_id, snapshot) VALUES ($1,$2)
+             ON CONFLICT (account_id) DO UPDATE SET snapshot = EXCLUDED.snapshot`,
+          [account?.id ?? a[0].id, cm.stats_last_snapshot],
+        );
+      }
       newAccounts++;
     }
 

@@ -304,7 +304,8 @@ export const accounts = pgTable('accounts', {
   statsOverallXp: bigint('stats_overall_xp', { mode: 'number' }), // last observed total XP — the change detector
   statsMissStreak: integer('stats_miss_streak').notNull().default(0),
   statsNextDueAt: text('stats_next_due_at'),   // null = due now
-  statsLastSnapshot: text('stats_last_snapshot'),
+  // The compact activity map derived from the last snapshot — a few hundred bytes, read by the member
+  // directory. The snapshot ITSELF is not here: see accountStatSnapshots.
   statsActivities: text('stats_activities'),
 
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
@@ -312,9 +313,34 @@ export const accounts = pgTable('accounts', {
   uniqueIndex('accounts_rsn_normalized_unique').on(table.rsnNormalized),
   uniqueIndex('accounts_account_hash_unique').on(table.accountHash),
   index('accounts_player_idx').on(table.playerId),
-  // The sweep's work queue: which accounts are due a poll.
-  index('accounts_due_idx').on(table.status, table.statsNextDueAt),
+  // NOT `stats_next_due_at`, deliberately (drizzle/0087). The sweep writes that column on every poll,
+  // and an update to an INDEXED column can never be HOT — so indexing it made each poll insert an
+  // entry into all six of this table's indexes, on the widest row in the database. Nothing needed it
+  // indexed: the sweep loads its candidates by seat and decides due-ness in JS (api/cron/stats), and
+  // the only query the old index served filters on `status` alone.
+  index('accounts_status_idx').on(table.status),
 ]);
+
+/**
+ * The last hiscores snapshot we fetched for an account — the whole page, as JSON.
+ *
+ * ITS OWN TABLE BECAUSE OF ITS SIZE AND WHO REWRITES IT. At ~1.6 KB it was three quarters of the
+ * `accounts` row, and the sweep updates that row every time it polls somebody — the miss streak and
+ * the next-due stamp move whether or not the member gained anything. Postgres rewrites the whole
+ * tuple for any update, so a blob almost nothing reads was being copied on every poll of every
+ * account. Split out, the sweep's bookkeeping rewrites ~500 bytes and this is touched only when the
+ * snapshot actually changed (drizzle/0088).
+ *
+ * One row per account, created on first sighting. The `clan_roster` view LEFT JOINs it and still
+ * exposes `stats_last_snapshot`, so every reader that goes through the roster is unaffected.
+ */
+export const accountStatSnapshots = pgTable('account_stat_snapshots', {
+  accountId: integer('account_id')
+    .primaryKey()
+    .references(() => accounts.id, { onDelete: 'cascade' }),
+  /** JSON: `{ skills: {...}, bosses: {...} }` — the shape lib/hiscores returns. */
+  snapshot: text('snapshot'),
+});
 
 /**
  * An account's place on a clan's roster. The JOIN that makes someone a member of somewhere.
@@ -1161,6 +1187,8 @@ export const clanRoster = pgView('clan_roster', {
   statsOverallXp: bigint('stats_overall_xp', { mode: 'number' }),
   statsMissStreak: integer('stats_miss_streak').notNull(),
   statsNextDueAt: text('stats_next_due_at'),
+  // LEFT JOINed from account_stat_snapshots (drizzle/0088), so roster readers see it where it has
+  // always been while the sweep stops rewriting it on every poll.
   statsLastSnapshot: text('stats_last_snapshot'),
   statsActivities: text('stats_activities'),
 

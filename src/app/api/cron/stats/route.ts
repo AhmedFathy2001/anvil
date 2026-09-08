@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { updateAccount } from '@/lib/roster';
+import { saveStatSnapshot, updateAccount } from '@/lib/roster';
 import { db } from '@/db';
 import { accounts, clanMemberships, clanRoster, completions, eventParticipants, events, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq, and, or, inArray, isNull, isNotNull, notExists, sql, asc } from 'drizzle-orm';
@@ -536,14 +536,16 @@ export async function GET(request: Request) {
         // it happened to gain XP, which for some members is never.
         const writeActivities = changed || !entry.hasActivities;
 
+        // The bookkeeping, every poll — a narrow row now that the snapshot lives elsewhere.
         await updateAccount(entry.accountId, {
                 statsOverallXp: overallXp,
                 statsMissStreak: missStreak,
                 statsNextDueAt: nextDueAt(missStreak, new Date()),
-                // Only rewrite the blob when it would differ — an idle member's row stays untouched.
-                ...(changed ? { statsLastSnapshot: snapshotJson } : {}),
                 ...(writeActivities ? { statsActivities: JSON.stringify(readAllActivities(snapshot)) } : {}),
               });
+        // The snapshot, only when it would differ. Its own table (schema accountStatSnapshots) so an
+        // idle member's poll no longer copies 1.6 KB of unchanged JSON to say "still nothing".
+        if (changed) await saveStatSnapshot(entry.accountId, snapshotJson);
         if (writeActivities) entry.hasActivities = true;
 
         if (changed) {

@@ -288,7 +288,12 @@ test('the stat blobs come from one moment, not spliced from several', async () =
   // describe a state the account was never in. The freshest observation wins as a whole.
   assert.equal(woox.liveStatsAt, '2026-08-10 00:00:00');
   assert.equal(woox.liveStats, '{"overall":900}');
-  assert.equal(woox.statsLastSnapshot, '{"snap":900}');
+  // The snapshot followed the data to its own table (drizzle/0088) — same value, same moment.
+  const [snap] = await db
+    .select()
+    .from(s.accountStatSnapshots)
+    .where(eq(s.accountStatSnapshots.accountId, woox.id));
+  assert.equal(snap?.snapshot, '{"snap":900}');
   assert.equal(woox.statusLastChecked, '2026-08-10 00:00:00');
 });
 

@@ -6,7 +6,7 @@
 
 import { db } from '@/db';
 import { clanAuditLog, clanRoster, events, eventParticipants, users, memberDailyStats, memberMilestones, playerEventFacts, playerSnapshots, weeklyCompetitions, weeklyParticipants, accounts } from '@/db/schema';
-import { findRosterSeat } from '@/lib/roster';
+import { findRosterSeat, statSnapshotOf } from '@/lib/roster';
 import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { computeEfficiency, type EfficiencyResult } from '@/lib/efficiency';
@@ -238,7 +238,7 @@ export async function getAccountProfile(accountId: number): Promise<AccountProfi
     rsn: account.rsn,
     status: account.status,
     liveStatsAt: account.liveStatsAt,
-    statsLastSnapshot: account.statsLastSnapshot,
+    statsLastSnapshot: await statSnapshotOf(account.id),
   });
 }
 

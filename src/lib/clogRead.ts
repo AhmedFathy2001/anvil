@@ -1,10 +1,11 @@
 import { db } from '@/db';
-import { accounts, memberClog, memberClogItems, memberClogKc, memberPersonalBests } from '@/db/schema';
+import { memberClog, memberClogItems, memberClogKc, memberPersonalBests } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { clogPageItems, clogPageNames } from '@/lib/clogDataset';
 import { buildClogProfile, matchBestsToPages, titleCaseActivity, type BestTime } from '@/lib/clogProfile';
 import { buildShowcase, buildValueShowcase, clogItemRarity, groupOf, type PageGroup } from '@/lib/clogRarity';
 import { getMemberLuck } from '@/lib/clogLuckBoard';
+import { statSnapshotOf } from '@/lib/roster';
 import { getItemPrices } from '@/lib/itemPrices';
 import { BOSSES } from '@/lib/constants';
 import { killcountsForPage } from '@/lib/clogKillcounts';
@@ -39,7 +40,7 @@ export function formatPersonalBest(centis: number): string {
  * the true one.
  */
 export async function getCollectionLog(accountId: number, rsn: string, clanId: number | null = null): Promise<CollectionLogProps> {
-  const [header, items, bests, luck, counters, account] = await Promise.all([
+  const [header, items, bests, luck, counters, lastSnapshot] = await Promise.all([
     db.query.memberClog.findFirst({ where: eq(memberClog.accountId, accountId) }),
     db
       .select({
@@ -70,16 +71,13 @@ export async function getCollectionLog(accountId: number, rsn: string, clanId: n
       .select({ pageName: memberClogKc.pageName, label: memberClogKc.label, count: memberClogKc.count })
       .from(memberClogKc)
       .where(eq(memberClogKc.accountId, accountId)),
-    db.query.accounts.findFirst({
-      where: eq(accounts.id, accountId),
-      columns: { statsLastSnapshot: true },
-    }),
+    statSnapshotOf(accountId),
   ]);
 
   // Boss killcounts off the last sweep, as the fallback. Parsed once here rather than per page.
   const bossKills: Record<string, number> = {};
   try {
-    const snap = account?.statsLastSnapshot ? JSON.parse(account.statsLastSnapshot) : null;
+    const snap = lastSnapshot ? JSON.parse(lastSnapshot) : null;
     for (const [key, entry] of Object.entries(snap?.bosses ?? {})) {
       const kc = (entry as { score?: number })?.score;
       if (typeof kc === 'number' && kc > 0) bossKills[key] = kc;

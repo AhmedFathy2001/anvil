@@ -13,7 +13,7 @@ import { and, eq, isNull, sql, type SQL } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { resolveClanFromRequest } from '@/lib/clanContext';
-import { accounts, clanMemberships, clanRoster, players, users } from '@/db/schema';
+import { accountStatSnapshots, accounts, clanMemberships, clanRoster, players, users } from '@/db/schema';
 
 export type RosterSeat = typeof clanRoster.$inferSelect;
 
@@ -53,6 +53,31 @@ export async function updateAccount(
 ): Promise<void> {
   // clan-scope: global -- an OSRS account is one account however many clans roster it.
   await db.update(accounts).set(patch).where(eq(accounts.id, accountId));
+}
+
+/**
+ * The last hiscores snapshot fetched for this account, or null if it has never been swept.
+ *
+ * Its own table (see schema accountStatSnapshots): at ~1.6 KB it was most of the `accounts` row, and
+ * the sweep rewrites that row every poll whether or not anything moved. Readers that go through the
+ * `clan_roster` view still see it as `stats_last_snapshot` — the view joins it — so this is only for
+ * the two callers that read an account directly.
+ */
+export async function statSnapshotOf(accountId: number): Promise<string | null> {
+  // clan-scope: global -- an OSRS account is one account however many clans roster it.
+  const row = await db.query.accountStatSnapshots.findFirst({
+    where: eq(accountStatSnapshots.accountId, accountId),
+  });
+  return row?.snapshot ?? null;
+}
+
+/** Store this account's newest snapshot. Written only when it actually changed — see api/cron/stats. */
+export async function saveStatSnapshot(accountId: number, snapshot: string): Promise<void> {
+  // clan-scope: global -- an OSRS account is one account however many clans roster it.
+  await db
+    .insert(accountStatSnapshots)
+    .values({ accountId, snapshot })
+    .onConflictDoUpdate({ target: accountStatSnapshots.accountId, set: { snapshot } });
 }
 
 export async function updateAccountOfSeat(

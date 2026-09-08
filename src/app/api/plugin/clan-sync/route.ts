@@ -17,6 +17,7 @@ import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 import { capMessage, newMemberAllowance, syncCapGrace } from '@/lib/member-cap';
 import { getInGameClanName } from '@/lib/pluginConfig';
 import { log } from '@/lib/logger';
+import { accountChanged, seatChanged, lastSeenIsFresh } from '@/lib/rosterSync';
 
 interface IncomingMember {
   rsn: string;
@@ -34,6 +35,16 @@ interface ChangeRecord {
   newRank?: string | null;
   memberId: number;
 }
+
+/**
+ * How stale a member's `last_seen_in_clan` may get before a sync refreshes it.
+ *
+ * The plugin pushes a roster automatically whenever an admin's clan channel loads, so on a busy
+ * clan this runs many times a day and almost never carries a change. An hour's resolution on a
+ * "last seen" date is invisible to every reader of it, and it is the difference between one write
+ * per member per sync and one per member per hour.
+ */
+const LAST_SEEN_REFRESH_MS = 60 * 60 * 1000;
 
 // POST — admin plugin pushes the current in-game clan roster.
 //
@@ -181,7 +192,26 @@ export async function POST(request: Request) {
   // ── 1) Pre-fetch this clan's existing rows ────────────────────────────────
   // Scoped to the clan: unscoped, the diff below would treat every OTHER clan's members as missing
   // from this roster and soft-delete them.
-  const existingRows = await db.select().from(clanRoster).where(eq(clanRoster.clanId, clan.id));
+  //
+  // NAMED COLUMNS, not `select()`. The roster view carries every account's stat blobs — a live
+  // snapshot, an activity map, the sweep's bookkeeping — none of which a name-and-rank diff reads.
+  // Hauling them made a 500-member sync move about a megabyte to compare two strings per row.
+  const existingRows = await db
+    .select({
+      id: clanRoster.id,
+      accountId: clanRoster.accountId,
+      rsn: clanRoster.rsn,
+      rsnNormalized: clanRoster.rsnNormalized,
+      accountHash: clanRoster.accountHash,
+      previousRsns: clanRoster.previousRsns,
+      kind: clanRoster.kind,
+      rank: clanRoster.rank,
+      source: clanRoster.source,
+      leftAt: clanRoster.leftAt,
+      lastSeenInClan: clanRoster.lastSeenInClan,
+    })
+    .from(clanRoster)
+    .where(eq(clanRoster.clanId, clan.id));
   // By RSN only. A by-hash index existed to match members across renames, but clan-sync no longer
   // reads any incoming hash (a roster cannot honestly assert other people's account hashes), so
   // there is nothing to look up by hash here.
@@ -214,6 +244,10 @@ export async function POST(request: Request) {
     // actually joined the clan. Forces a Discord role re-sync even when no rank was
     // reported, so they stop being treated as a guest on the Discord side.
     becameMember: boolean;
+    /** Nothing about the ACCOUNT differs — skip its update. */
+    accountUnchanged: boolean;
+    /** Nothing about the SEAT differs and its last-seen stamp is still fresh — skip its update too. */
+    seatUnchanged: boolean;
   };
   const toInsert: { rsn: string; rsnNormalized: string; rank: string | null; accountHash: string | null }[] = [];
   const toUpdate: ToUpdate[] = [];
@@ -275,18 +309,40 @@ export async function POST(request: Request) {
     }
     if (renamed && existing.rsn) previousRsns.push(existing.rsn);
 
+    const setRsnNormalized = renamed ? rsnNormalized : existing.rsnNormalized;
+    const setRank = rank ?? existing.rank;
+    const setAccountHash = incomingHash ?? existing.accountHash;
+    // An admin's decision outranks the roster; anything else the roster now confirms.
+    const setSource = existing.source === 'admin' ? ('admin' as const) : ('roster' as const);
+    const setLeftAt = preserveLeftAt ? existing.leftAt : null;
+    const setKind = preserveLeftAt ? (existing.kind as 'member' | 'guest') : ('member' as const);
+    const setPreviousRsns = renamed ? JSON.stringify(previousRsns) : existing.previousRsns;
+
+    // A ROSTER THAT SAYS WHAT THE ROSTER ALREADY SAID IS NOT A WRITE — see lib/rosterSync for the
+    // rule and why it exists. Ranks change on promotion, names on a rename, presence when somebody
+    // joins or leaves; on an ordinary sync none of those happened and both rows are already right.
+    const next = {
+      rsn,
+      rsnNormalized: setRsnNormalized,
+      accountHash: setAccountHash,
+      previousRsns: setPreviousRsns,
+      rank: setRank,
+      kind: setKind,
+      source: setSource,
+      leftAt: setLeftAt,
+    };
+
     toUpdate.push({
       id: existing.id,
       accountId: existing.accountId,
       setRsn: rsn,
-      setRsnNormalized: renamed ? rsnNormalized : existing.rsnNormalized,
-      setRank: rank ?? existing.rank,
-      setAccountHash: incomingHash ?? existing.accountHash,
-      // An admin's decision outranks the roster; anything else the roster now confirms.
-      setSource: existing.source === 'admin' ? ('admin' as const) : ('roster' as const),
-      setLeftAt: preserveLeftAt ? existing.leftAt : null,
-      setKind: preserveLeftAt ? (existing.kind as 'member' | 'guest') : ('member' as const),
-      setPreviousRsns: renamed ? JSON.stringify(previousRsns) : existing.previousRsns,
+      setRsnNormalized,
+      setRank,
+      setAccountHash,
+      setSource,
+      setLeftAt,
+      setKind,
+      setPreviousRsns,
       renamed,
       oldRsn: renamed ? existing.rsn : undefined,
       returning: returning && !preserveLeftAt,
@@ -294,6 +350,9 @@ export async function POST(request: Request) {
       oldRank: rankChanged ? existing.rank : null,
       newRank: rankChanged ? rank : null,
       becameMember,
+      accountUnchanged: !accountChanged(existing, next),
+      seatUnchanged:
+        !seatChanged(existing, next) && lastSeenIsFresh(existing.lastSeenInClan, now, LAST_SEEN_REFRESH_MS),
     });
   }
 
@@ -388,33 +447,48 @@ export async function POST(request: Request) {
 
   // ── 4) Apply per-member updates ──────────────────────────────────────────
   // Sequential because each row has different values; drizzle doesn't have a portable
-  // batch UPDATE form. Each statement is a single round-trip keyed on PK.
+  // batch UPDATE form. Each statement is a single round-trip keyed on PK — which is exactly why
+  // the unchanged rows below are skipped rather than written: on a steady roster there are none.
+  let accountsWritten = 0;
+  let seatsWritten = 0;
+  let touched = 0;
   for (const u of toUpdate) {
+    if (!u.accountUnchanged || !u.seatUnchanged) touched++;
     // The name and the hash describe the account, so a rename spotted by one clan's sync is a
     // rename everywhere. Rank, presence and membership describe this seat and stop here.
-    await updateAccountOfSeat(u.id, {
-      rsn: u.setRsn,
-      rsnNormalized: u.setRsnNormalized,
-      previousRsns: u.setPreviousRsns,
-      accountHash: u.setAccountHash,
-    });
+    if (!u.accountUnchanged) {
+      accountsWritten++;
+      await updateAccountOfSeat(u.id, {
+        rsn: u.setRsn,
+        rsnNormalized: u.setRsnNormalized,
+        previousRsns: u.setPreviousRsns,
+        accountHash: u.setAccountHash,
+      });
+    }
     // The other half of the exclusivity rule. This path promotes an EXISTING seat — usually a guest
     // who has now joined in game — and the insert path above is not the only way to become a member.
     // Missing it here would let the index reject the update instead.
-    if (u.setKind === 'member' && !u.setLeftAt) {
+    //
+    // Only on the promotion itself. A seat that was already this clan's member has nothing to claim:
+    // the exclusivity index has held since the last time it was claimed, and asking again cost a
+    // query per member per sync to learn that.
+    if (u.setKind === 'member' && !u.setLeftAt && (u.becameMember || u.returning)) {
       await claimMemberSeat(clan.id, u.accountId);
     }
 
-    await db
-      .update(clanMemberships)
-      .set({
-        rank: u.setRank,
-        lastSeenInClan: now,
-        leftAt: u.setLeftAt,
-        kind: u.setKind,
-        source: u.setSource,
-      })
-      .where(eq(clanMemberships.id, u.id));
+    if (!u.seatUnchanged) {
+      seatsWritten++;
+      await db
+        .update(clanMemberships)
+        .set({
+          rank: u.setRank,
+          lastSeenInClan: now,
+          leftAt: u.setLeftAt,
+          kind: u.setKind,
+          source: u.setSource,
+        })
+        .where(eq(clanMemberships.id, u.id));
+    }
 
     if (u.renamed) {
       changes.push({ type: 'renamed', rsn: u.setRsn, oldRsn: u.oldRsn, memberId: u.id });
@@ -466,6 +540,16 @@ export async function POST(request: Request) {
       syncRolesForClanMemberFireAndForget(u.id);
     }
   }
+
+  // What the sync actually cost, so "the roster push is slow" is answerable without a profiler:
+  // `members` is what the plugin sent, the two written counts are what reached the database.
+  log.info('clan-sync.applied', {
+    clan: clan.slug,
+    members: toUpdate.length + toInsert.length,
+    accountsWritten,
+    seatsWritten,
+    unchanged: toUpdate.length - touched,
+  });
 
   // ── 5) Soft-delete missing ───────────────────────────────────────────────
   const incomingList = Array.from(incomingNormalized);
@@ -582,7 +666,9 @@ export async function POST(request: Request) {
   // event), in addition to the count summary it has always returned.
   return NextResponse.json({
     added: toInsert.length,
-    updated: toUpdate.length,
+    // Rows this sync actually WROTE, not rows it looked at. A steady roster reports 0, which is the
+    // honest answer and the point of the diff above.
+    updated: touched,
     markedLeft: leftResult.length,
     renamed: changes.filter((c) => c.type === 'renamed').length,
     returned: changes.filter((c) => c.type === 'returned').length,
