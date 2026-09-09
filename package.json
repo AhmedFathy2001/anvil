@@ -60,6 +60,7 @@
     "test:schedule": "node --experimental-strip-types --test tests/schedule-lanes.test.ts",
     "test:admin": "node --experimental-strip-types --test tests/admin-attention.test.ts tests/library-shape.test.ts tests/db-time.test.ts",
     "test:billingstate": "node --experimental-strip-types --test tests/clan-billing.test.ts",
+    "test:entrants": "node --experimental-strip-types --test tests/weekly-entrants.test.ts",
     "test:tenantenv": "npx tsx --test tests/tenant-env-isolation.test.ts",
     "test:guidesearch": "npx tsx --test tests/guide-search.test.ts",
     "test:guidei18n": "npx tsx --test tests/guide-i18n.test.ts",

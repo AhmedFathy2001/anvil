@@ -6,6 +6,7 @@ import type { WeeklyStanding } from '@/lib/weeklyWorkspace';
 import { weeklyGain, weeklyStatValue } from '@/lib/weeklyLabels';
 import Input from '@/components/Input';
 import { useDialog } from '@/components/Confirm';
+import { doubleEntries, surplusSeats, type EntrantSeat } from '@/lib/weeklyEntrants';
 
 /**
  * The two roster surfaces of a weekly, which are the same table read two ways.
@@ -36,6 +37,76 @@ export default function WeeklyRosterClient({
   const visible = search.trim()
     ? standings.filter((s) => s.rsn.toLowerCase().includes(search.trim().toLowerCase()))
     : standings;
+
+  // ONE HUMAN, TWO CHARACTERS. The fanout walks seats — (account × clan) — so somebody whose main
+  // is a member and whose alt was pinged in as a guest enters twice and races themselves. Nothing
+  // said so anywhere, and with prizes coming out of the coffer it is the difference between one
+  // person taking first and the same person taking first and third.
+  const seats: EntrantSeat[] = standings.map((r) => ({
+    participantId: r.participantId,
+    rsn: r.rsn,
+    playerId: r.playerId,
+    kind: r.kind,
+    left: r.left,
+  }));
+  const doubles = doubleEntries(seats);
+  const surplus = surplusSeats(seats);
+  // Which rows are the SECOND (or third) seat of somebody already in — the ones a "one entry each"
+  // pass would drop. Kept as a set so the table can mark them without re-deriving per row.
+  const surplusIds = new Set(surplus);
+  const enteredGuests = standings.filter((r) => r.kind === 'guest' && !r.left);
+
+  async function removeParticipants(ids: number[], said: string) {
+    if (ids.length === 0) return;
+    await call(
+      `/api/admin/weekly/${competitionId}/participants`,
+      {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ participantIds: ids }),
+      },
+      said,
+    );
+  }
+
+  async function removeOne(row: WeeklyStanding) {
+    const ok = await confirm({
+      title: `Take ${row.rsn} out of this competition?`,
+      body:
+        row.gained > 0
+          ? `They have ${weeklyGain(type, row.gained)} on the board and it goes with them. Adding them back later starts a fresh starting line, which is not the same as never having left.`
+          : 'They come off the entry list. Adding them back later starts a fresh starting line.',
+      confirmLabel: 'Take them out',
+    });
+    if (!ok) return;
+    await removeParticipants([row.participantId], `${row.rsn} removed.`);
+  }
+
+  async function dropEveryGuest() {
+    const ids = enteredGuests.map((g) => g.participantId);
+    const scoring = enteredGuests.filter((g) => g.gained > 0).length;
+    const ok = await confirm({
+      title: `Take all ${ids.length} guest${ids.length === 1 ? '' : 's'} out?`,
+      body:
+        scoring > 0
+          ? `${scoring} of them ${scoring === 1 ? 'has' : 'have'} already scored, and those standings go with them. Members are untouched.`
+          : 'Members are untouched. Guests who join later are not re-entered automatically.',
+      confirmLabel: 'Take them out',
+    });
+    if (!ok) return;
+    await removeParticipants(ids, `${ids.length} guest${ids.length === 1 ? '' : 's'} removed.`);
+  }
+
+  async function keepOnePerPerson() {
+    const ok = await confirm({
+      title: `Leave one entry each for ${doubles.length} ${doubles.length === 1 ? 'person' : 'people'}?`,
+      body:
+        'Their member character is kept where they have one, otherwise the first by name — never whichever is winning. Dropping the losing character would quietly rewrite the standings.',
+      confirmLabel: 'Leave one each',
+    });
+    if (!ok) return;
+    await removeParticipants(surplus, `${surplus.length} extra ${surplus.length === 1 ? 'entry' : 'entries'} removed.`);
+  }
 
   async function call(url: string, init: RequestInit, okMessage: string) {
     setBusy(true);
@@ -180,12 +251,74 @@ export default function WeeklyRosterClient({
         </section>
       )}
 
+      {/* THE THING THE FANOUT CANNOT SEE. Enrollment walks seats, so one person with two characters
+          is two entrants. Stated here rather than fixed silently: whether an alt should race is a
+          decision about what this competition MEANS, and it belongs to whoever runs the clan. */}
+      {mode === 'participants' && doubles.length > 0 && (
+        <section className="rounded-xl border border-amber-400/40 bg-amber-400/[0.08] p-5">
+          <h2 className="mb-1 flex items-center gap-2 text-lg font-bold">
+            <span className="h-5 w-1 rounded-full bg-amber-400" />
+            {doubles.length} {doubles.length === 1 ? 'person is' : 'people are'} entered more than once
+          </h2>
+          <p className="mb-3 text-sm text-amber-100/90">
+            Entry is per character, so somebody whose main is on the roster and whose alt turned up as
+            a guest is racing themselves. They can take two places — and two prizes.
+          </p>
+          <ul className="mb-3 space-y-1.5">
+            {doubles.slice(0, 6).map((d) => (
+              <li key={d.playerId} className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                {d.seats.map((seat, i) => (
+                  <span key={seat.participantId} className="flex items-baseline gap-1.5">
+                    {i > 0 && <span className="text-amber-200/50">+</span>}
+                    <span className={i === 0 ? 'font-medium' : 'text-amber-100/80'}>{seat.rsn}</span>
+                    <span className="text-[10px] uppercase tracking-wide text-amber-200/60">
+                      {seat.kind ?? 'seat'}
+                    </span>
+                  </span>
+                ))}
+              </li>
+            ))}
+            {doubles.length > 6 && (
+              <li className="text-xs text-amber-200/70">and {doubles.length - 6} more</li>
+            )}
+          </ul>
+          <button
+            type="button"
+            onClick={keepOnePerPerson}
+            disabled={busy}
+            className="rounded-lg border border-amber-400/50 px-3 py-1.5 text-xs font-semibold text-amber-100 transition-colors hover:bg-amber-400/15 disabled:opacity-50"
+          >
+            Leave one entry each
+          </button>
+        </section>
+      )}
+
       <section className="border border-card-border rounded-xl bg-card-bg overflow-hidden">
         <div className="flex items-center justify-between gap-3 p-4 border-b border-card-border flex-wrap">
-          <h2 className="text-sm font-bold">
-            {standings.length} {standings.length === 1 ? 'person' : 'people'}
+          <h2 className="flex flex-wrap items-baseline gap-2 text-sm font-bold">
+            <span>
+              {standings.length} {standings.length === 1 ? 'entry' : 'entries'}
+            </span>
+            {enteredGuests.length > 0 && (
+              <span className="text-[11px] font-normal text-text-muted">
+                {enteredGuests.length} guest{enteredGuests.length === 1 ? '' : 's'}
+              </span>
+            )}
           </h2>
           <div className="flex items-center gap-2">
+            {/* The blanket includeGuests switch is decided once, at creation, and never revisited.
+                This is the other half: drop the guests after the fact without re-typing the name of
+                every member you did want. */}
+            {mode === 'participants' && enteredGuests.length > 0 && (
+              <button
+                type="button"
+                onClick={dropEveryGuest}
+                disabled={busy}
+                className="whitespace-nowrap rounded-lg border border-card-border px-2.5 py-1.5 text-xs text-text-muted transition-colors hover:border-red-500/40 hover:text-red-400 disabled:opacity-50"
+              >
+                Drop all guests
+              </button>
+            )}
             {message && <span className="text-xs text-text-muted">{message}</span>}
             <Input
               value={search}
@@ -213,6 +346,19 @@ export default function WeeklyRosterClient({
                   <td className="px-4 py-2">
                     <span className="flex items-center gap-2 min-w-0">
                       <span className="truncate">{row.rsn}</span>
+                      {row.kind === 'guest' && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-300 whitespace-nowrap">
+                          guest
+                        </span>
+                      )}
+                      {surplusIds.has(row.participantId) && (
+                        <span
+                          title="Another character of the same person is already entered"
+                          className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-400/20 text-amber-200 whitespace-nowrap"
+                        >
+                          2nd entry
+                        </span>
+                      )}
                       {row.flagged && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-400/15 text-amber-300 whitespace-nowrap">
                           flagged
@@ -292,17 +438,36 @@ export default function WeeklyRosterClient({
                           Edit
                         </button>
                       )
-                    ) : row.left ? (
-                      <button
-                        type="button"
-                        onClick={() => toggleKeep(row)}
-                        disabled={busy}
-                        className="px-2 py-1 text-xs rounded-md border border-card-border hover:border-gold/50 hover:text-gold transition-colors disabled:opacity-50"
-                      >
-                        {row.keepIfLeft ? 'Drop' : 'Keep in'}
-                      </button>
                     ) : (
-                      <span className="text-xs text-text-muted/60">{row.gained > 0 ? 'scoring' : 'no gain yet'}</span>
+                      <span className="inline-flex items-center gap-1.5">
+                        {row.left ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleKeep(row)}
+                            disabled={busy}
+                            title="They left the clan mid-competition — does their score still count?"
+                            className="px-2 py-1 text-xs rounded-md border border-card-border hover:border-gold/50 hover:text-gold transition-colors disabled:opacity-50"
+                          >
+                            {row.keepIfLeft ? 'Drop' : 'Keep in'}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-text-muted/60">
+                            {row.gained > 0 ? 'scoring' : 'no gain yet'}
+                          </span>
+                        )}
+                        {/* Removal, which had no control at all: the fanout could add everybody and
+                            the add box could add anybody, and nothing could take one entrant out. */}
+                        <button
+                          type="button"
+                          onClick={() => removeOne(row)}
+                          disabled={busy}
+                          aria-label={`Remove ${row.rsn} from this competition`}
+                          title="Take them out of this competition"
+                          className="px-2 py-1 text-xs rounded-md border border-card-border text-text-muted/70 transition-colors hover:border-red-500/40 hover:text-red-400 disabled:opacity-50"
+                        >
+                          Remove
+                        </button>
+                      </span>
                     )}
                   </td>
                 </tr>

@@ -33,6 +33,19 @@ export interface WeeklyStanding {
   left: boolean;
   keepIfLeft: boolean;
   lastUpdated: string | null;
+  /**
+   * 'member' | 'guest' — this SEAT's standing in the clan, not the person's.
+   *
+   * The fanout is per seat, gated by one includeGuests boolean, and nothing downstream could tell
+   * which entrants arrived through that switch. Selecting it is what lets the participants surface
+   * show a guest as a guest and offer to drop them.
+   */
+  kind: string | null;
+  /**
+   * The human behind the character. Null for a seat created by name that has never been played
+   * with the plugin, and two nulls are two unknowns rather than one person.
+   */
+  playerId: number | null;
 }
 
 export const getWeeklyStandings = cache(async (competitionId: number): Promise<WeeklyStanding[]> => {
@@ -48,6 +61,8 @@ export const getWeeklyStandings = cache(async (competitionId: number): Promise<W
       keepIfLeft: weeklyParticipants.keepIfLeft,
       lastUpdated: weeklyParticipants.lastUpdated,
       leftAt: clanRoster.leftAt,
+      kind: clanRoster.kind,
+      playerId: clanRoster.playerId,
     })
     .from(weeklyParticipants)
     .leftJoin(clanRoster, eq(weeklyParticipants.clanMemberId, clanRoster.id))
@@ -67,6 +82,8 @@ export const getWeeklyStandings = cache(async (competitionId: number): Promise<W
       left: !!r.leftAt,
       keepIfLeft: r.keepIfLeft === 1,
       lastUpdated: r.lastUpdated,
+      kind: r.kind,
+      playerId: r.playerId,
     }))
     .sort((a, b) => b.gained - a.gained || a.rsn.localeCompare(b.rsn));
 });
