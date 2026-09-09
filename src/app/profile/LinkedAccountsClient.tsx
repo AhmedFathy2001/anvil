@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Checkbox from '@/components/Checkbox';
+import { useDialog } from '@/components/Confirm';
 
 export type LinkedAccount = {
   id: number;
@@ -45,6 +46,7 @@ const METHOD_LABEL: Record<string, string> = {
 export default function LinkedAccountsClient({ accounts }: { accounts: LinkedAccount[] }) {
   const router = useRouter();
   const [busyId, setBusyId] = useState<number | null>(null);
+  const { confirm } = useDialog();
   const [promotingId, setPromotingId] = useState<number | null>(null);
   const [sharingId, setSharingId] = useState<number | null>(null);
   const [error, setError] = useState('');
@@ -101,7 +103,12 @@ export default function LinkedAccountsClient({ accounts }: { accounts: LinkedAcc
   }
 
   async function remove(id: number, rsn: string) {
-    if (!confirm(`Remove ${rsn} from your account? You can add it back later by playing it with the plugin.`)) return;
+    const ok = await confirm({
+      title: `Remove ${rsn} from your account?`,
+      body: 'Results already recorded under it stay where they are. You can add it back later by playing it with the plugin.',
+      confirmLabel: 'Remove',
+    });
+    if (!ok) return;
     setBusyId(id);
     setError('');
     try {

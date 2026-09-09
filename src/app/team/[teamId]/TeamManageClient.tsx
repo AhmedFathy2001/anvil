@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import TeamInvitePanel from '@/components/TeamInvitePanel';
 import { clanFetch } from '@/lib/clanFetch';
+import { useDialog } from '@/components/Confirm';
 
 // The manager's half of a team page: who's on it, what their proof looks like, whose fee is still
 // owed, and the links that put people on it. Shown to the captain and to anyone holding a staff seat
@@ -75,6 +76,7 @@ const FEE_BUCKET: Record<string, { label: string; cls: string }> = {
 
 export default function TeamManageClient({ teamId }: { teamId: number }) {
   const [roster, setRoster] = useState<RosterRow[]>([]);
+  const { confirm } = useDialog();
   const [proof, setProof] = useState<ProofRow[]>([]);
   const [fees, setFees] = useState<FeeRow[]>([]);
   // Why the fee list looks the way it does — the server decides, because the client cannot tell an
@@ -128,7 +130,12 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
   }, [load]);
 
   const removePlayer = async (playerId: number, name: string) => {
-    if (!confirm(`Take ${name} off this team? They go back to the event pool, not out of the event.`)) return;
+    const ok = await confirm({
+      title: `Take ${name} off this team?`,
+      body: 'They go back into the event pool — still in the event, just not on your team.',
+      confirmLabel: 'Take them off',
+    });
+    if (!ok) return;
     setBusy(playerId);
     setError(null);
     try {
@@ -145,8 +152,13 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
   };
 
   const answerRequest = async (signupId: number, action: 'approve' | 'decline', name: string) => {
-    if (action === 'decline' && !confirm(`Turn down ${name}'s request? They stay in the event — they just aren't on this team.`)) {
-      return;
+    if (action === 'decline') {
+      const ok = await confirm({
+        title: `Turn down ${name}'s request?`,
+        body: 'They stay in the event — they just are not on this team.',
+        confirmLabel: 'Turn it down',
+      });
+      if (!ok) return;
     }
     setBusy(signupId);
     setError(null);

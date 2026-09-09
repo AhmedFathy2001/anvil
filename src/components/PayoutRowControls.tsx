@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
+import { useDialog } from '@/components/Confirm';
 
 export interface PayoutRow {
   id: number;
@@ -22,6 +23,7 @@ interface Props {
 export default function PayoutRowControls({ payout, eventId, viewerRole, onChanged }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const { confirm } = useDialog();
   const [err, setErr] = useState<string | null>(null);
   const [attaching, setAttaching] = useState(false);
 
@@ -125,8 +127,13 @@ export default function PayoutRowControls({ payout, eventId, viewerRole, onChang
 
         {canPay && (
           <button
-            onClick={() => {
-              if (confirm('Remove this payout row?')) act(base, 'delete', 'DELETE');
+            onClick={async () => {
+              const ok = await confirm({
+                title: 'Remove this payout row?',
+                body: 'It leaves the payout sheet. Anything already marked paid stays recorded as paid.',
+                confirmLabel: 'Remove',
+              });
+              if (ok) act(base, 'delete', 'DELETE');
             }}
             disabled={busy !== null}
             className="text-xs font-medium px-2 py-1 rounded border border-red-400/30 text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-50"

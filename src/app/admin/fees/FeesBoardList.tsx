@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import { useRouter } from 'next/navigation';
+import { useDialog } from '@/components/Confirm';
 
 export interface FeeBoard {
   eventId: number;
@@ -33,6 +34,7 @@ const gp = (n: number) =>
 export default function FeesBoardList({ boards, viewerRole }: { boards: FeeBoard[]; viewerRole: string }) {
   const router = useRouter();
   const [busyId, setBusyId] = useState<number | null>(null);
+  const { confirm } = useDialog();
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,9 +44,12 @@ export default function FeesBoardList({ boards, viewerRole }: { boards: FeeBoard
       board.toSign > 0 ? `settle ${board.toSign} already collected` : '',
       board.disputed > 0 ? `write off ${board.disputed} disputed` : '',
     ].filter(Boolean);
-    if (!confirm(`Close out ${board.name}? This will ${parts.join(' and ')}. It can't be undone in bulk.`)) {
-      return;
-    }
+    const ok = await confirm({
+      title: `Close out ${board.name}?`,
+      body: `This will ${parts.join(' and ')}. It cannot be undone in bulk.`,
+      confirmLabel: 'Close out',
+    });
+    if (!ok) return;
     setBusyId(board.eventId);
     setError(null);
     setNotice(null);

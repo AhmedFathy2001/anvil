@@ -11,6 +11,7 @@ import { EVENT_MODES, modeKeyFor, type EventMode } from '@/lib/eventModes';
 import { eventModeLabel, isTileRaceFormat, isPointsMode } from '@/lib/utils';
 import { eventAxes } from '@/lib/eventAxes';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
+import { useDialog } from '@/components/Confirm';
 
 interface Props {
   event: Event;
@@ -38,6 +39,7 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
   const [typeMode, setTypeMode] = useState<EventMode>(() => modeKeyFor(event.format, event.scoringMode, event.rules));
   const [typeSize, setTypeSize] = useState(event.boardSize);
   const [savingType, setSavingType] = useState(false);
+  const { confirm, notify } = useDialog();
   const [typeError, setTypeError] = useState('');
 
   const [savingReveal, setSavingReveal] = useState(false);
@@ -138,10 +140,11 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
 
     const tileCount = typeMeta.square ? typeSize * typeSize : typeSize;
     if (
-      !confirm(
-        `Change this event to "${typeMeta.label}" (${tileCount} tiles)? This rebuilds the board — ` +
-          `tile labels and icons are kept where positions overlap, but per-tile settings (points, type, goals) reset.`,
-      )
+      !(await confirm({
+        title: `Change this board to ${typeMeta.label}?`,
+        body: `It is rebuilt at ${tileCount} tiles. Labels and icons survive where positions overlap; every per-tile setting — points, kind, goals — resets.`,
+        confirmLabel: 'Rebuild board',
+      }))
     )
       return;
     setSavingType(true);
@@ -211,9 +214,13 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
 
   async function cloneEvent() {
     if (
-      !confirm(
-        `Clone "${currentEvent.name}"? A new event is created with the same settings, tiles and survey questions — no teams, players or dates. You'll be taken to the copy.`,
-      )
+      !(await confirm({
+        title: `Run "${currentEvent.name}" again?`,
+        body:
+          'A new event is created carrying the same settings, tiles and survey questions — and no teams, players or dates. You are taken straight to the copy.',
+        confirmLabel: 'Create the copy',
+        tone: 'gold',
+      }))
     )
       return;
     setCloning(true);
@@ -223,7 +230,7 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
         const { id } = await res.json();
         router.push(clanUrl(`/admin/events/${id}`));
       } else {
-        alert('Could not clone this event.');
+        notify('Could not clone this event.', 'error');
       }
     } finally {
       setCloning(false);
@@ -232,9 +239,11 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
 
   async function deleteEvent() {
     if (
-      !confirm(
-        `Permanently delete "${currentEvent.name}"? This wipes its tiles, teams, completions and sign-ups. There is no undo.`,
-      )
+      !(await confirm({
+        title: `Permanently delete "${currentEvent.name}"?`,
+        body: 'Its tiles, teams, completions and sign-ups go with it. There is no undo.',
+        confirmLabel: 'Delete for good',
+      }))
     )
       return;
     setDeleting(true);
@@ -244,7 +253,7 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
         router.push(clanUrl('/admin/events'));
       } else {
         const data = await res.json().catch(() => ({}));
-        alert(data.error || 'Could not delete this event.');
+        notify(data.error || 'Could not delete this event.', 'error');
         setDeleting(false);
       }
     } catch {

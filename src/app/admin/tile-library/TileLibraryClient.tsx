@@ -11,6 +11,7 @@ import { libraryShape, type Finding } from '@/lib/libraryShape';
 import { blankTileConfig, payloadToCsvRow, toTileConfig } from './taskConfig';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
+import { useDialog } from '@/components/Confirm';
 
 // The clan's task catalogue, as an editable list. Boards draw from this, so it's worth curating:
 // the tasks here decide what a generated board feels like.
@@ -84,6 +85,7 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
   const [editing, setEditing] = useState<LibraryTask | 'new' | null>(null);
   const [draft, setDraft] = useState<TileConfig | null>(null);
   const [busy, setBusy] = useState(false);
+  const { confirm } = useDialog();
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const load = useCallback(async () => {
@@ -282,7 +284,12 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
   }
 
   async function deleteOne(task: LibraryTask) {
-    if (!confirm(`Delete “${task.label}” from the library?`)) return;
+    const ok = await confirm({
+      title: `Delete “${task.label}”?`,
+      body: 'It leaves the clan\u2019s task library. Boards already drawn from it keep their tiles.',
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
     await post({ action: 'delete', ids: [task.id] }, 'Deleted.');
     setSelected((prev) => {
       const next = new Set(prev);
@@ -480,7 +487,7 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
                           <span className="shrink-0 text-xs text-text-muted tabular-nums w-14 text-right">
                             {t.points}p
                           </span>
-                          <span className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                          <span className="shrink-0 flex items-center gap-1 opacity-100 [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                             <RowAction label={`Edit ${t.label}`} onClick={() => openTask(t)} mark="✎" />
                             <RowAction
                               label={`Duplicate ${t.label}`}
@@ -529,11 +536,15 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
           </button>
           <button
             type="button"
-            onClick={() => {
-              if (!confirm(`Delete ${selected.size} task${selected.size === 1 ? '' : 's'} from the library?`)) return;
-              post({ action: 'delete', ids: [...selected] }, `Deleted ${selected.size}.`).then(() =>
-                setSelected(new Set()),
-              );
+            onClick={async () => {
+              const ok = await confirm({
+                title: `Delete ${selected.size} task${selected.size === 1 ? '' : 's'}?`,
+                body: 'They leave the clan\u2019s task library. Boards already drawn from them keep their tiles.',
+                confirmLabel: `Delete ${selected.size}`,
+              });
+              if (!ok) return;
+              await post({ action: 'delete', ids: [...selected] }, `Deleted ${selected.size}.`);
+              setSelected(new Set());
             }}
             disabled={busy}
             className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"

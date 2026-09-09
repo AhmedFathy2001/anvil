@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
+import { useDialog } from '@/components/Confirm';
 
 interface TeamState {
   id: number;
@@ -38,6 +39,7 @@ export default function DiscordTeamProvisioning({
   const [status, setStatus] = useState<StatusData | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const { confirm } = useDialog();
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   // Teardown gets a real confirmation dialog (listing exactly what will be deleted +
   // type-to-confirm) instead of a bare confirm() — it's an irreversible Discord-wide delete.
@@ -58,11 +60,14 @@ export default function DiscordTeamProvisioning({
   }, [loadStatus]);
 
   async function runAction(action: 'sync-all' | 'provision' | 'assign-rosters' | 'assign-bingo-role' | 'unassign-shared-roles' | 'teardown') {
-    if (
-      action === 'unassign-shared-roles' &&
-      !confirm('Take the shared bingo role off everyone in this event, and the captain role off its captains? The roles themselves are kept (they’re reused across events). Heads up: these roles are shared, so anyone also in another active event loses them there too.')
-    ) {
-      return;
+    if (action === 'unassign-shared-roles') {
+      const ok = await confirm({
+        title: 'Take the shared roles back off everyone?',
+        body:
+          'The bingo role comes off every player in this event and the captain role off its captains. The roles themselves are kept — they are reused across events, which is also the catch: anyone who is in another active event loses them there too.',
+        confirmLabel: 'Take them off',
+      });
+      if (!ok) return;
     }
     setBusy(action);
     setMessage(null);

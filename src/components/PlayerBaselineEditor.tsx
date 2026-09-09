@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import LocalTime from '@/components/LocalTime';
 import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
+import { useDialog } from '@/components/Confirm';
 
 interface StatData {
   stat: string;
@@ -30,6 +31,7 @@ export default function PlayerBaselineEditor({ eventId, playerId, playerName, on
   const [editValue, setEditValue] = useState('');
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const { confirm } = useDialog();
 
   useEffect(() => {
     fetchData();
@@ -68,7 +70,12 @@ export default function PlayerBaselineEditor({ eventId, playerId, playerName, on
   }
 
   async function resetSnapshot() {
-    if (!confirm(`Reset ${playerName}'s baseline to current stats? This will set their gains to 0.`)) return;
+    const ok = await confirm({
+      title: `Reset ${playerName}'s baseline?`,
+      body: 'They are re-anchored to their stats as they stand right now, so their gains on this board go back to zero.',
+      confirmLabel: 'Reset baseline',
+    });
+    if (!ok) return;
     setResetting(true);
     try {
       const res = await clanFetch(`/api/events/${eventId}/players/${playerId}/snapshot`, {

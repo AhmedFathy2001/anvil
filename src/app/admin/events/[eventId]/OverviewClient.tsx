@@ -20,6 +20,7 @@ import type { RecordedTeamResult } from '@/lib/adminEventsOverview';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import { scoreTeams } from '@/lib/boardScoring';
+import { useDialog } from '@/components/Confirm';
 
 /** One superlative, flattened for display — see lib/eventRecap. */
 export interface RecapAwardSummary {
@@ -277,6 +278,7 @@ function BuildHome({
   onEventChange: (e: Event) => void;
 }) {
   const [starting, setStarting] = useState(false);
+  const { confirm } = useDialog();
   const [error, setError] = useState('');
 
   const base = `/admin/events/${event.id}`;
@@ -359,7 +361,9 @@ function BuildHome({
       // 409 = the readiness gate (lib/eventReadiness) refused. It's overridable for the warnings
       // that aren't really blockers (an event with no end date), so offer the override in words.
       if (res.status === 409 && data.overridable) {
-        if (confirm(`${data.error}\n\nStart it anyway?`)) {
+        // The readiness gate's own words are the body — it knows what is missing; this only asks
+        // whether to go anyway.
+        if (await confirm({ title: 'Start it anyway?', body: data.error, confirmLabel: 'Start now', tone: 'gold' })) {
           await startNow(true);
           return;
         }
@@ -504,6 +508,7 @@ function RunHome({
   onEventChange: (e: Event) => void;
 }) {
   const [ending, setEnding] = useState(false);
+  const { confirm } = useDialog();
   const base = `/admin/events/${event.id}`;
 
   const tileById = useMemo(() => new Map(tiles.map((t) => [t.id, t])), [tiles]);
@@ -520,7 +525,12 @@ function RunHome({
   const cleared = new Set(completions.map((c) => c.tileId)).size;
 
   async function forceEnd() {
-    if (!confirm('Force-end this event? It ends immediately and notifies Discord.')) return;
+    const ok = await confirm({
+      title: 'Force-end this event?',
+      body: 'It stops accepting submissions immediately, standings are frozen as they are, and Discord is told.',
+      confirmLabel: 'Force-end',
+    });
+    if (!ok) return;
     setEnding(true);
     try {
       const res = await clanFetch(`/api/events/${event.id}`, {
@@ -647,6 +657,7 @@ function WrapHome({
   onEventChange: (e: Event) => void;
 }) {
   const [resuming, setResuming] = useState(false);
+  const { confirm } = useDialog();
   const base = `/admin/events/${event.id}`;
   const unit = pointsMode ? 'pts' : 'tiles';
   // Prefer what was banked when the event ended; fall back to the live computation for events that
@@ -657,7 +668,13 @@ function WrapHome({
   const fromRecord = recorded.length > 0;
 
   async function resume() {
-    if (!confirm('Resume this event? It goes back to running and members can submit again.')) return;
+    const ok = await confirm({
+      title: 'Resume this event?',
+      body: 'It goes back to running and members can submit against it again.',
+      confirmLabel: 'Resume',
+      tone: 'gold',
+    });
+    if (!ok) return;
     setResuming(true);
     try {
       const res = await clanFetch(`/api/events/${event.id}`, {

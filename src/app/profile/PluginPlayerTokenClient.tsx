@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useDialog } from '@/components/Confirm';
 
 export default function PluginPlayerTokenClient() {
   const [token, setToken] = useState<string | null>(null);
+  const { confirm } = useDialog();
   const [loading, setLoading] = useState(true);
   const [rotating, setRotating] = useState(false);
   const [revealed, setRevealed] = useState(false);
@@ -25,7 +27,12 @@ export default function PluginPlayerTokenClient() {
   }, []);
 
   async function rotate() {
-    if (!confirm('Rotate your plugin token? Your RuneLite plugin will stop working until you paste the new token into its config.')) return;
+    const ok = await confirm({
+      title: 'Rotate your plugin token?',
+      body: 'The old one stops working immediately, so your RuneLite plugin goes quiet until you paste the new token into its config.',
+      confirmLabel: 'Rotate it',
+    });
+    if (!ok) return;
     setRotating(true);
     setError('');
     setCopied(false);

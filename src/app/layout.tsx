@@ -33,6 +33,7 @@ import { hasPlatformRole, isStaffRole } from "@/lib/clanRoles";
 import "./globals.css";
 import ClanLink, { ClanPrefixProvider } from '@/components/ClanLink';
 import { NavProgressProvider } from '@/components/NavProgress';
+import { DialogProvider } from '@/components/Confirm';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -232,6 +233,10 @@ export default async function RootLayout({
             happening until it lands. This says something is coming — but only once the wait passes
             a threshold, so a fast navigation stays as quiet as it was. See NavProgress. */}
         <NavProgressProvider>
+        {/* Asking before a destructive thing, and saying what happened after — in the app's own
+            chrome rather than the browser's. Mounted at the root because the admin area is not the
+            only place that asks; see components/Confirm. */}
+        <DialogProvider>
         {/* Catches a shell left over from the clan you were in a moment ago — see ShellGuard. */}
         <ShellGuard prefix={prefix} />
         {/* ONE NAV PER PLACE. The apex gets a rail of what the PLATFORM has; a clan keeps the top
@@ -301,6 +306,7 @@ export default async function RootLayout({
         )}
         {clan && <SiteFooter />}
         <Analytics />
+        </DialogProvider>
         </NavProgressProvider>
         </ClanPrefixProvider>
       </body>

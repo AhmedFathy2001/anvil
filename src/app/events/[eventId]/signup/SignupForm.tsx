@@ -11,6 +11,7 @@ import Textarea from '@/components/Textarea';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import Checkbox from '@/components/Checkbox';
+import { useDialog } from '@/components/Confirm';
 
 interface FeeCollectorOption {
   id: number;
@@ -214,6 +215,7 @@ export default function SignupForm({
 }: Props) {
   const router = useRouter();
   const [requestedTeamId, setRequestedTeamId] = useState<number | null>(teamChoice?.requestedTeamId ?? null);
+  const { confirm } = useDialog();
   const verifiedAccounts = useMemo(
     () => myAccounts.filter((a) => a.verifiedAt),
     [myAccounts],
@@ -362,7 +364,12 @@ export default function SignupForm({
   }
 
   async function withdraw() {
-    if (!confirm('Withdraw your sign-up? You can re-sign up before the deadline.')) return;
+    const ok = await confirm({
+      title: 'Withdraw your sign-up?',
+      body: 'Your place goes back to the clan. You can sign up again any time before the deadline closes.',
+      confirmLabel: 'Withdraw',
+    });
+    if (!ok) return;
     setWithdrawing(true);
     try {
       const res = await clanFetch(`/api/events/${eventId}/signup`, { method: 'DELETE' });

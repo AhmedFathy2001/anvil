@@ -6,6 +6,7 @@ import type { EventRules } from '@/lib/eventRules';
 import { tileKindBadge } from '@/lib/tileKinds';
 import type { AuthoringModel } from '@/lib/tileAuthoring';
 import { clanFetch } from '@/lib/clanFetch';
+import { useDialog } from '@/components/Confirm';
 
 /**
  * The draw pool, in the order the engine will pull from it.
@@ -51,6 +52,7 @@ export default function RotationView({
 }: Props) {
   const [busyTileId, setBusyTileId] = useState<number | null>(null);
   const [error, setError] = useState('');
+  const { confirm } = useDialog();
   const [dragId, setDragId] = useState<number | null>(null);
   const [dragOverId, setDragOverId] = useState<number | null>(null);
 
@@ -67,7 +69,11 @@ export default function RotationView({
   async function setRevealState(tile: Tile, next: 'live' | 'hidden') {
     if (
       next === 'hidden' &&
-      !confirm(`Pull this ${model.noun} back out of the board? The rotation can draw it again later.`)
+      !(await confirm({
+        title: `Pull this ${model.noun} back out of the board?`,
+        body: 'Progress on it stays. The rotation can draw it again later.',
+        confirmLabel: 'Pull it out',
+      }))
     ) {
       return;
     }
@@ -106,8 +112,13 @@ export default function RotationView({
     onReorder(ids, 'Draw order updated.');
   }
 
-  function shufflePool() {
-    if (!confirm('Shuffle the pool into a new random order?')) return;
+  async function shufflePool() {
+    if (!(await confirm({
+      title: 'Shuffle the pool?',
+      body: 'The draw order is randomised. Anything already drawn keeps its place.',
+      confirmLabel: 'Shuffle',
+      tone: 'gold',
+    }))) return;
     const ids = [...tiles].sort((a, b) => a.position - b.position).map((t) => t.id);
     for (let i = ids.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));

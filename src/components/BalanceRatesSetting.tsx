@@ -5,6 +5,7 @@ import Input from '@/components/Input';
 import NumberInput from '@/components/NumberInput';
 import Select from '@/components/Select';
 import { clanFetch } from '@/lib/clanFetch';
+import { useDialog } from '@/components/Confirm';
 
 // Admin editor for the board-balance effort rates (backed by /api/admin/balance-rates).
 // Renders the MERGED view (curated defaults + this clan's overrides); saving diffs the
@@ -73,6 +74,7 @@ export default function BalanceRatesSetting() {
   const [tab, setTab] = useState<'activities' | 'skills'>('activities');
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
+  const { confirm } = useDialog();
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [newName, setNewName] = useState('');
 
@@ -141,7 +143,12 @@ export default function BalanceRatesSetting() {
   }
 
   async function resetAll() {
-    if (!confirm('Discard every override and restore the curated default rates?')) return;
+    const ok = await confirm({
+      title: 'Restore the curated default rates?',
+      body: 'Every override this clan has set is discarded. Boards already scored keep their numbers.',
+      confirmLabel: 'Restore defaults',
+    });
+    if (!ok) return;
     const res = await clanFetch('/api/admin/balance-rates', { method: 'DELETE' });
     if (res.ok && defaults) {
       setMerged(JSON.parse(JSON.stringify(defaults)));

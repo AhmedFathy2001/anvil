@@ -10,6 +10,7 @@ import { eventModeLabel } from '@/lib/utils';
 import type { Event, Tile } from '@/lib/types';
 import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
+import { useDialog } from '@/components/Confirm';
 
 /**
  * How tiles OPEN on a reveal-policy event, editable after the event exists.
@@ -50,6 +51,7 @@ export default function RevealRulesPanel({ event, tiles }: { event: Event; tiles
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [opening, setOpening] = useState(false);
+  const { confirm } = useDialog();
 
   // Who gets this panel. Anything already ON a reveal policy, plus any points-scored board that
   // COULD take one — a ladder whose rules are still NULL (cloned, templated, or made before the
@@ -83,7 +85,12 @@ export default function RevealRulesPanel({ event, tiles }: { event: Event; tiles
         : [...pool].sort((a, b) => a.position - b.position).slice(0, count);
     if (
       picked.length > 1 &&
-      !confirm(`Open ${picked.length} ${isLadder ? 'tasks' : 'tiles'} now? Members can start scoring them immediately.`)
+      !(await confirm({
+        title: `Open ${picked.length} ${isLadder ? 'tasks' : 'tiles'} now?`,
+        body: 'They appear on the members\u2019 board straight away and can be scored immediately.',
+        confirmLabel: 'Open them',
+        tone: 'gold',
+      }))
     ) {
       return;
     }
@@ -115,11 +122,12 @@ export default function RevealRulesPanel({ event, tiles }: { event: Event; tiles
     // Before start that's just setup; after start it's a visible change, so say so first.
     if (eventStarted && stored.revealPolicy === 'all' && policy !== 'all') {
       const stillHidden = tiles.filter((t) => !t.revealedAt).length;
-      if (!confirm(
-        `Switch this running board to a rotation? ${stillHidden} tile${stillHidden === 1 ? '' : 's'} that ` +
-        'members can see now will drop out of view until the engine draws them. Completions already ' +
-        'earned are untouched.',
-      )) return;
+      const ok = await confirm({
+        title: 'Switch this running board to a rotation?',
+        body: `${stillHidden} tile${stillHidden === 1 ? '' : 's'} members can see right now will drop out of view until the engine draws ${stillHidden === 1 ? 'it' : 'them'}. Completions already earned are untouched.`,
+        confirmLabel: 'Switch to rotation',
+      });
+      if (!ok) return;
     }
     setSaving(true);
     setMsg(null);

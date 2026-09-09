@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { WeeklyStanding } from '@/lib/weeklyWorkspace';
 import { weeklyGain, weeklyStatValue } from '@/lib/weeklyLabels';
 import Input from '@/components/Input';
+import { useDialog } from '@/components/Confirm';
 
 /**
  * The two roster surfaces of a weekly, which are the same table read two ways.
@@ -26,6 +27,7 @@ export default function WeeklyRosterClient({
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const { confirm } = useDialog();
   const [message, setMessage] = useState('');
   const [names, setNames] = useState('');
   const [editing, setEditing] = useState<{ id: number; rsn: string; value: string } | null>(null);
@@ -100,7 +102,15 @@ export default function WeeklyRosterClient({
   }
 
   async function refresh(rebaseline: boolean) {
-    if (rebaseline && !confirm('Reset every baseline to the current hiscores value? Gains so far are wiped.')) return;
+    if (rebaseline) {
+    const ok = await confirm({
+      title: 'Reset every baseline?',
+      body:
+        'Each participant is re-anchored to their hiscores value right now, so every gain recorded so far is wiped and the competition effectively restarts.',
+      confirmLabel: 'Reset baselines',
+    });
+    if (!ok) return;
+    }
     await call(
       `/api/admin/weekly/${competitionId}/refresh`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rebaseline }) },

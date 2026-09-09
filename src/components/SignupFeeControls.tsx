@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
+import { useDialog } from '@/components/Confirm';
 
 export interface SignupFee {
   id: number;
@@ -48,6 +49,7 @@ function bucket(status: string): { label: string; cls: string } {
 export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmationsRequired, onChanged }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const { confirm } = useDialog();
   const [err, setErr] = useState<string | null>(null);
   const [attaching, setAttaching] = useState(false);
 
@@ -190,14 +192,15 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
             and the audit line records that it was settled without a second signature. */}
         {canConfirm && isPaid && !isClosed && needsSecondSignature && (collectedByViewer || confirmsLeft > 0) && (
           <button
-            onClick={() => {
-              if (
-                confirm(
-                  collectedByViewer
-                    ? 'Settle this fee yourself? You collected it, so nobody else is signing it off.'
-                    : `Settle this fee now, without the remaining ${confirmsLeft} confirmation${confirmsLeft === 1 ? '' : 's'}?`,
-                )
-              ) {
+            onClick={async () => {
+              const ok = await confirm({
+                title: 'Settle this fee now?',
+                body: collectedByViewer
+                  ? 'You collected it yourself, so nobody else is signing it off — the second pair of eyes is skipped.'
+                  : `The remaining ${confirmsLeft} confirmation${confirmsLeft === 1 ? '' : 's'} ${confirmsLeft === 1 ? 'is' : 'are'} skipped.`,
+                confirmLabel: 'Settle it',
+              });
+              if (ok) {
                 act(`/api/admin/fees/${fee.id}/confirm`, 'force', { force: true });
               }
             }}
@@ -223,10 +226,13 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
         {/* Reset — admin escape hatch */}
         {canReset && (isPaid || isConfirmed || isDisputed || isClosed) && (
           <button
-            onClick={() => {
-              if (confirm('Reset this fee back to unpaid? Any proof and confirmations are cleared.')) {
-                act(`/api/admin/fees/${fee.id}/reset`, 'reset');
-              }
+            onClick={async () => {
+              const ok = await confirm({
+                title: 'Reset this fee back to unpaid?',
+                body: 'The uploaded proof and any confirmations are cleared, and the player owes it again.',
+                confirmLabel: 'Reset',
+              });
+              if (ok) act(`/api/admin/fees/${fee.id}/reset`, 'reset');
             }}
             disabled={busy !== null}
             className="text-xs font-medium px-3 py-1 rounded border border-card-border text-text-muted hover:text-foreground transition-colors disabled:opacity-50"

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { clanFetch } from '@/lib/clanFetch';
+import { useDialog } from '@/components/Confirm';
 
 interface Props {
   eventId: number;
@@ -18,13 +19,17 @@ interface Props {
 export default function EventLockBanner({ eventId, locked, canToggle }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const { confirm } = useDialog();
 
   async function setLock(unlock: boolean) {
     if (
       unlock &&
-      !confirm(
-        'Unlock editing on this finished event? Teams, players, tiles, completions and submissions become editable again — results can change. Lock it again when you\'re done.',
-      )
+      !(await confirm({
+        title: 'Unlock editing on this finished event?',
+        body:
+          'Teams, players, tiles, completions and submissions become editable again, so the published results can change. Lock it again when you are done.',
+        confirmLabel: 'Unlock',
+      }))
     )
       return;
     setBusy(true);

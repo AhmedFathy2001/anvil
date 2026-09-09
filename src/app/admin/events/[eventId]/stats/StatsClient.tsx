@@ -12,6 +12,7 @@ import PlayerBaselineEditor from '@/components/PlayerBaselineEditor';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
+import { useDialog } from '@/components/Confirm';
 
 // Every hiscores action (snapshot / refresh / reset) fans out a request per enrolled player, so
 // after a manual pull we lock the pull buttons for a cooldown to stop spam-clicking from hammering
@@ -52,6 +53,7 @@ export default function StatsClient({ event, teams, tiles, players, statStanding
   const [baselinePlayer, setBaselinePlayer] = useState<{ id: number; name: string } | null>(null);
   const [snapshotting, setSnapshotting] = useState(false);
   const [forceResetting, setForceResetting] = useState(false);
+  const { confirm } = useDialog();
   const [refreshingStats, setRefreshingStats] = useState(false);
   const [lastStatsRefresh, setLastStatsRefresh] = useState<Date | null>(null);
   const [cooldown, setCooldown] = useState(0); // seconds left before hiscores actions re-enable
@@ -127,7 +129,13 @@ export default function StatsClient({ event, teams, tiles, players, statStanding
   }
 
   async function forceResetBaselines() {
-    if (!confirm('This will overwrite ALL player baselines with current stats. Are you sure?')) return;
+    const ok = await confirm({
+      title: 'Overwrite every player baseline?',
+      body:
+        'Each player is re-anchored to their stats as they stand right now, so gains recorded against the old baselines are lost. This is a correction, not a routine refresh.',
+      confirmLabel: 'Overwrite baselines',
+    });
+    if (!ok) return;
     setForceResetting(true);
     setSnapshotResult(null);
     try {

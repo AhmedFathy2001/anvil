@@ -6,6 +6,7 @@ import Checkbox from '@/components/Checkbox';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
+import { useDialog } from '@/components/Confirm';
 
 interface Channel {
   id: string;
@@ -36,6 +37,7 @@ export default function AnnounceClient() {
   const [mentionRoleId, setMentionRoleId] = useState('');
 
   const [busy, setBusy] = useState(false);
+  const { confirm } = useDialog();
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
@@ -83,8 +85,15 @@ export default function AnnounceClient() {
 
     const channelName = targets?.channels.find((c) => c.id === channelId)?.name ?? 'that channel';
     const roleName = mentionRoleId ? targets?.roles.find((r) => r.id === mentionRoleId)?.name : null;
-    const confirmText = `Send this message to #${channelName}${roleName ? `, pinging @${roleName}` : ''}?`;
-    if (!confirm(confirmText)) return;
+    const ok = await confirm({
+      title: `Send to #${channelName}?`,
+      body: roleName
+        ? `Everyone with @${roleName} is pinged. A broadcast cannot be unsent.`
+        : 'A broadcast cannot be unsent.',
+      confirmLabel: 'Send',
+      tone: 'gold',
+    });
+    if (!ok) return;
 
     setBusy(true);
     setMessage(null);

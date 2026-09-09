@@ -17,6 +17,7 @@ import type { SignupProfile } from '@/lib/signup';
 import { formatHoursRange } from '@/lib/signup';
 import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
+import { useDialog } from '@/components/Confirm';
 
 // Default 8-color palette matching the app's existing team color presets.
 const DEFAULT_TEAM_COLORS = [
@@ -100,6 +101,7 @@ export default function SignupAdminPanel({
   const [signups, setSignups] = useState<SignupRow[]>([]);
   const [boardTeams, setBoardTeams] = useState<{ id: number; name: string; color: string }[]>([]);
   const [settlingFees, setSettlingFees] = useState(false);
+  const { confirm } = useDialog();
   const [feeNotice, setFeeNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -187,15 +189,16 @@ export default function SignupAdminPanel({
    */
   async function settleFees() {
     const n = settleableFees;
-    if (
-      !confirm(
+    const ok = await confirm({
+      title: `Settle ${n} collected fee${n === 1 ? '' : 's'}?`,
+      body:
         confirmationsRequired <= 0
-          ? `Settle ${n} collected fee${n === 1 ? '' : 's'} on this board?`
-          : `Sign off ${n} collected fee${n === 1 ? '' : 's'} on this board? Fees you collected yourself are left for another admin.`,
-      )
-    ) {
-      return;
-    }
+          ? 'Each one is marked as banked and leaves the queue.'
+          : 'Each one is signed off and leaves the queue. Fees you collected yourself are left for another admin to sign.',
+      confirmLabel: 'Settle them',
+      tone: 'gold',
+    });
+    if (!ok) return;
     setSettlingFees(true);
     setActionError(null);
     try {
@@ -238,9 +241,12 @@ export default function SignupAdminPanel({
       owed > 0 ? `write off ${owed} unpaid fee${owed === 1 ? '' : 's'}` : '',
       collected > 0 ? `settle ${collected} already collected` : '',
     ].filter(Boolean);
-    if (!confirm(`Close out this board's fees? This will ${parts.join(' and ')}. It can't be undone in bulk.`)) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Close out this board\u2019s fees?',
+      body: `This will ${parts.join(' and ')}. It cannot be undone in bulk.`,
+      confirmLabel: 'Close out',
+    });
+    if (!ok) return;
     setClosingFees(true);
     setActionError(null);
     try {
@@ -265,13 +271,13 @@ export default function SignupAdminPanel({
   }
 
   async function promoteToPool() {
-    if (
-      !confirm(
-        'Promote every eligible sign-up into the draft pool? Captains and already-enrolled players are skipped automatically.',
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Promote every eligible sign-up into the draft pool?',
+      body: 'Captains and already-enrolled players are skipped automatically.',
+      confirmLabel: 'Promote them',
+      tone: 'gold',
+    });
+    if (!ok) return;
     setPromotingPool(true);
     setPoolMessage(null);
     setActionError(null);
@@ -945,14 +951,13 @@ export default function SignupAdminPanel({
                             )}
                             {s.captainTeam ? (
                               <button
-                                onClick={() => {
-                                  if (
-                                    confirm(
-                                      `Demote ${s.user?.displayName ?? s.account.rsn} as captain? "${s.captainTeam!.name}" will be deleted (only allowed if no other players are on it).`,
-                                    )
-                                  ) {
-                                    performAction(s.id, { action: 'demote-captain' });
-                                  }
+                                onClick={async () => {
+                                  const ok = await confirm({
+                                    title: `Demote ${s.user?.displayName ?? s.account.rsn} as captain?`,
+                                    body: `Their team "${s.captainTeam!.name}" is deleted with them — which is only allowed while nobody else is on it.`,
+                                    confirmLabel: 'Demote',
+                                  });
+                                  if (ok) performAction(s.id, { action: 'demote-captain' });
                                 }}
                                 disabled={actingId === s.id}
                                 className="text-xs font-medium px-3 py-1 rounded border border-red-400/30 text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-50"
@@ -982,10 +987,13 @@ export default function SignupAdminPanel({
                             )}
                             {s.status !== 'rejected' && s.status !== 'withdrawn' && !s.captainTeam && (
                               <button
-                                onClick={() => {
-                                  if (confirm(`Reject ${s.user?.displayName ?? s.account.rsn}'s sign-up?`)) {
-                                    performAction(s.id, { action: 'reject' });
-                                  }
+                                onClick={async () => {
+                                  const ok = await confirm({
+                                    title: `Reject ${s.user?.displayName ?? s.account.rsn}\u2019s sign-up?`,
+                                    body: 'They are told they did not get a place. You can approve them again later.',
+                                    confirmLabel: 'Reject',
+                                  });
+                                  if (ok) performAction(s.id, { action: 'reject' });
                                 }}
                                 disabled={actingId === s.id}
                                 className="text-xs font-medium px-3 py-1 rounded border border-red-400/30 text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-50"
@@ -995,14 +1003,14 @@ export default function SignupAdminPanel({
                             )}
                             {s.status !== 'withdrawn' && !s.captainTeam && (
                               <button
-                                onClick={() => {
-                                  if (
-                                    confirm(
-                                      `Withdraw ${s.user?.displayName ?? s.account.rsn} from this event? They'll be marked withdrawn and pulled from the draft pool. A paid fee is kept for the refund trail; an unpaid one is cleared.`,
-                                    )
-                                  ) {
-                                    performAction(s.id, { action: 'withdraw' });
-                                  }
+                                onClick={async () => {
+                                  const ok = await confirm({
+                                    title: `Withdraw ${s.user?.displayName ?? s.account.rsn} from this event?`,
+                                    body:
+                                      'They are marked withdrawn and pulled from the draft pool. A fee they already paid is kept for the refund trail; an unpaid one is cleared.',
+                                    confirmLabel: 'Withdraw',
+                                  });
+                                  if (ok) performAction(s.id, { action: 'withdraw' });
                                 }}
                                 disabled={actingId === s.id}
                                 className="text-xs font-medium px-3 py-1 rounded border border-yellow-500/30 text-yellow-300 hover:bg-yellow-500/10 transition-colors disabled:opacity-50"
