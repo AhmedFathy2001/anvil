@@ -486,7 +486,7 @@ function MonthGrid({
                       <ClanLink
                         href={`/admin/events/new?start=${isoDay(day)}`}
                         aria-label={`Schedule something on ${shortDate(day)}`}
-                        className="absolute top-1 right-1.5 w-[18px] h-[18px] rounded border border-card-border text-text-muted/70 text-[11px] leading-none grid place-items-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:border-gold/40 hover:text-gold hover:bg-gold/10 transition-opacity"
+                        className="absolute top-1 right-1.5 w-[18px] h-[18px] rounded border border-card-border text-text-muted/70 text-[11px] leading-none grid place-items-center opacity-100 [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:border-gold/40 hover:text-gold hover:bg-gold/10 transition-opacity"
                       >
                         +
                       </ClanLink>

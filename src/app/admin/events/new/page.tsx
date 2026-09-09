@@ -8,6 +8,7 @@ import { modeKeyFor } from '@/lib/eventModes';
 import { parseTileCsv } from '@/lib/csvTiles';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import ClanLink from '@/components/ClanLink';
+import GuideLink from '@/components/GuideLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,6 +67,9 @@ export default async function NewEventPage() {
         <p className="text-text-muted text-sm">
           A board to author, or a whole-clan competition that scores itself. Pick one below — the
           panel on the right says what it will need from you.
+        </p>
+        <p className="mt-1.5">
+          <GuideLink href="/guide/formats#choose">Which format to pick</GuideLink>
         </p>
       </header>
 

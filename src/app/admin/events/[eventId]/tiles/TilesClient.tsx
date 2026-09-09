@@ -34,6 +34,8 @@ import { TILE_CSV_COLUMNS, parseTileCsv, tileToCsvCells, tileToCsvRow } from '@/
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
+import { useDialog } from '@/components/Confirm';
+import GuideLink from '@/components/GuideLink';
 
 // Map a stored Tile to TileTrackingConfig's `initial` shape. Shared by the drawer (Cards view)
 // and the Quick Build two-pane editor so both drive the exact same complete config form.
@@ -139,6 +141,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   const [importMsg, setImportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [adding, setAdding] = useState(false);
+  const { confirm, ask } = useDialog();
   const [reordering, setReordering] = useState(false);
   // What authoring THIS board involves — which views it offers, what its entries are called, and
   // what its format still needs from you (lib/tileAuthoring). Everything below asks the model
@@ -548,7 +551,11 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         tile.itemRequirements || tile.trackedItemIds ? 'tracked items' : null,
         tile.category ? `tagged ${tile.category}` : null,
       ].filter(Boolean).join(', ');
-      if (!confirm(`"${tile.label}" has configuration${summary ? ` (${summary})` : ''} — delete it anyway?`)) {
+      if (!(await confirm({
+        title: `Delete "${tile.label}"?`,
+        body: `It carries configuration${summary ? ` — ${summary}` : ''} that goes with it.`,
+        confirmLabel: 'Delete',
+      }))) {
         return;
       }
     }
@@ -708,8 +715,13 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     void applyOrder(ids, 'Tile order updated.');
   }
 
-  function handleShuffle() {
-    if (!confirm('Shuffle the board into a random order?')) return;
+  async function handleShuffle() {
+    if (!(await confirm({
+      title: 'Shuffle the board?',
+      body: 'Every tile keeps its configuration; only the positions move.',
+      confirmLabel: 'Shuffle',
+      tone: 'gold',
+    }))) return;
     const ids = localTiles.map((t) => t.id);
     // Fisher–Yates
     for (let i = ids.length - 1; i > 0; i--) {
@@ -719,8 +731,13 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     void applyOrder(ids, 'Board shuffled into a random order.');
   }
 
-  function handleSortByDifficulty() {
-    if (!confirm('Reorder the board by difficulty — lowest point value (easiest tier) first?')) return;
+  async function handleSortByDifficulty() {
+    if (!(await confirm({
+      title: 'Sort the board by difficulty?',
+      body: 'Tiles are grouped by tier, lowest point value first. Configuration is untouched.',
+      confirmLabel: 'Sort',
+      tone: 'gold',
+    }))) return;
     const ids = [...localTiles]
       .sort((a, b) => (a.points ?? 1) - (b.points ?? 1) || a.position - b.position)
       .map((t) => t.id);
@@ -851,7 +868,12 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       setImportMsg({ type: 'error', text: 'Nothing to add yet — this board only has placeholder tiles.' });
       return;
     }
-    if (!confirm(`Add ${usable.length} tile${usable.length === 1 ? '' : 's'} from this board to the task library?`)) return;
+    if (!(await confirm({
+      title: `Add ${usable.length} task${usable.length === 1 ? '' : 's'} to the library?`,
+      body: 'Later boards can draw from them. Placeholder tiles are skipped, and nothing here is deduplicated against what the library already holds.',
+      confirmLabel: 'Add them',
+      tone: 'gold',
+    }))) return;
     setSavingToLibrary(true);
     try {
       const res = await clanFetch('/api/admin/tile-library', {
@@ -943,6 +965,9 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             </h2>
             {/* What this format wants from you, said once, at the top. */}
             <p className="text-xs text-text-muted mt-1 max-w-2xl">{model.brief}</p>
+            <p className="mt-1.5">
+              <GuideLink href="/guide/board#kinds">What each tile kind tracks</GuideLink>
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {!eventStarted && localTiles.length > 1 && (
@@ -1467,11 +1492,19 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               <button
                 type="button"
                 disabled={bulkBusy}
-                onClick={() => {
-                  const raw = prompt(`Points for ${selectedIds.size} tiles?`);
+                onClick={async () => {
+                  const raw = await ask({
+                    title: `Points for ${selectedIds.size} ${model.nounPlural}`,
+                    label: 'Point value',
+                    placeholder: '10',
+                    required: true,
+                  });
                   if (raw === null) return;
                   const points = parseInt(raw, 10);
-                  if (!Number.isInteger(points) || points < 0) return;
+                  if (!Number.isInteger(points) || points < 0) {
+                    setBulkMsg('That did not read as a point value — whole numbers only.');
+                    return;
+                  }
                   void bulkSet({ points }, `Set ${points} pt${points === 1 ? '' : 's'}`);
                 }}
                 className="text-xs px-2.5 py-1 rounded-lg border border-card-border bg-card-bg hover:border-gold/50 hover:text-gold transition-colors disabled:opacity-50"
@@ -1482,8 +1515,13 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             <button
               type="button"
               disabled={bulkBusy}
-              onClick={() => {
-                const category = prompt(`Category for ${selectedIds.size} tiles? (blank clears it)`);
+              onClick={async () => {
+                const category = await ask({
+                  title: `Category for ${selectedIds.size} ${model.nounPlural}`,
+                  body: 'Leave it blank to clear the category instead.',
+                  label: 'Category',
+                  placeholder: 'Skilling',
+                });
                 if (category === null) return;
                 void bulkSet({ category: category.trim() || null }, category.trim() ? `Set “${category.trim()}”` : 'Cleared the category');
               }}
@@ -1525,10 +1563,13 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               <button
                 type="button"
                 disabled={bulkBusy}
-                onClick={() => {
-                  const raw = prompt(
-                    `Reveal all ${selectedIds.size} at the same moment. Date and time (YYYY-MM-DD HH:MM), or blank to clear:`,
-                  );
+                onClick={async () => {
+                  const raw = await ask({
+                    title: `Open all ${selectedIds.size} at the same moment`,
+                    body: 'Leave it blank to clear the reveal time and let the schedule decide.',
+                    label: 'Date and time',
+                    placeholder: '2026-08-16 20:00',
+                  });
                   if (raw === null) return;
                   const trimmed = raw.trim();
                   if (!trimmed) {
@@ -1561,8 +1602,13 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                 <button
                   type="button"
                   disabled={bulkBusy}
-                  onClick={() => {
-                    if (!confirm(`Hide ${selectedIds.size} from members again? Progress stays, but they stop being playable.`)) return;
+                  onClick={async () => {
+                    const ok = await confirm({
+                      title: `Hide ${selectedIds.size} from members again?`,
+                      body: 'Progress already made on them stays, but they stop being playable until they open again.',
+                      confirmLabel: 'Hide them',
+                    });
+                    if (!ok) return;
                     void bulkSet({ revealState: 'hidden' }, 'Hidden again');
                   }}
                   className="text-xs px-2.5 py-1 rounded-lg border border-card-border bg-card-bg hover:border-gold/50 hover:text-gold transition-colors disabled:opacity-50"
@@ -1895,11 +1941,20 @@ function RevealAtEditor({
   onStateChanged?: (tile: Tile) => void;
 }) {
   const [value, setValue] = useState(() => toLocalInputValue(tile.revealAt));
+  const { confirm } = useDialog();
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   async function setRevealState(next: 'live' | 'hidden') {
-    if (next === 'hidden' && !confirm('Hide this tile from members again? Any progress on it stays, but it stops being playable until it opens again.')) return;
+    if (
+      next === 'hidden' &&
+      !(await confirm({
+        title: 'Hide this tile from members again?',
+        body: 'Any progress on it stays, but it stops being playable until it opens again.',
+        confirmLabel: 'Hide it',
+      }))
+    )
+      return;
     setSaving(true);
     setMsg(null);
     try {

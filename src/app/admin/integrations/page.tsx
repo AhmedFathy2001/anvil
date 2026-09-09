@@ -2,6 +2,7 @@ import { requireClan } from '@/lib/clanContext';
 import SettingsTabs from './SettingsTabs';
 import { listBotChannels } from '@/lib/discord-broadcast';
 import ClanLink from '@/components/ClanLink';
+import GuideLink from '@/components/GuideLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,9 +24,16 @@ export default async function AdminIntegrationsPage() {
         </p>
       </header>
 
-      <p className="text-xs text-text-muted mb-5">
-        Clan name and roster sync live under <span className="text-foreground/80">Clan → Members &amp; staff</span>.
-      </p>
+      <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-1">
+        <p className="text-xs text-text-muted">
+          The clan&rsquo;s name and its roster sync live under{' '}
+          <ClanLink href="/admin/clan" className="text-foreground/80 hover:text-gold">
+            Clan → Profile
+          </ClanLink>
+          .
+        </p>
+        <GuideLink href="/guide/plugin#connect">Connecting the plugin</GuideLink>
+      </div>
 
       <SettingsTabs channels={channels} botEnabled={botEnabled} />
     </div>

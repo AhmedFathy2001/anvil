@@ -29,6 +29,8 @@ import NumberInput from '@/components/NumberInput';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
+import { useDialog } from '@/components/Confirm';
+import GuideLink from '@/components/GuideLink';
 
 interface DraftState {
   status: string;
@@ -65,6 +67,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   const noun = eventNoun(event.format);
   const revealPolicyMode = hasRevealPolicy(parseEventRules(event.rules));
   const [deleting, setDeleting] = useState<number | null>(null);
+  const { confirm, notify } = useDialog();
   const [selectedClanMemberIds, setSelectedClanMemberIds] = useState<number[]>([]);
   const [addingPlayer, setAddingPlayer] = useState(false);
   // Post-draft roster tweaks.
@@ -281,7 +284,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
       const res = await clanFetch(`/api/events/${event.id}/teams?teamId=${teamId}`, { method: 'DELETE' });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        alert(data.error || 'Could not delete team');
+        notify(data.error || 'Could not delete team', 'error');
         return;
       }
       // Pull the fresh draft state too — the delete may have scrubbed the saved order.
@@ -439,9 +442,14 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
         : subOut
           ? 'Sub out & clear points for'
           : 'Reset';
-    if (!window.confirm(
-      `${verb} ${playerName}? Their solo tiles reopen, their submissions are voided, and their share is stripped from team tiles (the team keeps its completed tiles)${subOut ? ', and they stay benched as subbed out' : ''}${drop ? ', and they are deleted from the event roster entirely' : ''}. This cannot be undone.`,
-    )) return;
+    const ok = await confirm({
+      title: `${verb} ${playerName}?`,
+      body:
+        'Their solo tiles reopen, their submissions are voided, and their share is stripped from team tiles — the team keeps the tiles it completed' +
+        `${subOut ? '. They stay benched as subbed out' : ''}${drop ? '. They are deleted from the event roster entirely' : ''}. This cannot be undone.`,
+      confirmLabel: verb,
+    });
+    if (!ok) return;
     setBusyPlayerId(playerId);
     setSubChoiceId(null);
     setRemoveChoiceId(null);
@@ -547,12 +555,19 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
 
   async function startBingoNow(force = false) {
     if (mutationsBlocked()) return;
-    if (!force && !confirm(
-      `Start the ${noun} now? This marks the event live, announces the start in Discord, and ` +
-      (revealPolicyMode
-        ? 'arms the board — tiles then open on the rotation you configured.'
-        : 'reveals all tiles to members.'),
-    )) return;
+    if (!force) {
+      const ok = await confirm({
+        title: `Start the ${noun} now?`,
+        body:
+          'The event goes live, the start is announced in Discord, and ' +
+          (revealPolicyMode
+            ? 'the board is armed — tiles then open on the rotation you configured.'
+            : 'every tile is revealed to members.'),
+        confirmLabel: 'Start now',
+        tone: 'gold',
+      });
+      if (!ok) return;
+    }
     setStartingBingo(true);
     setStartBingoError(null);
     try {
@@ -567,7 +582,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
         const data = await res.json().catch(() => ({}));
         // Start safeguard (409 + blockers): offer the explicit override once, re-confirmed.
         if (res.status === 409 && Array.isArray(data.blockers) && !force) {
-          if (confirm(`${data.error}\n\nStart anyway?`)) {
+          if (await confirm({ title: 'Start anyway?', body: data.error, confirmLabel: 'Start now', tone: 'gold' })) {
             await startBingoNow(true);
             return;
           }
@@ -761,9 +776,13 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
             <span className="w-1 h-5 bg-gold rounded-full" />
             How should teams work?
           </h2>
-          <p className="text-xs text-text-muted mb-4">
+          <p className="text-xs text-text-muted mb-2">
             Pick a format first — it decides the rest of the setup. You can change your mind any time
             before a draft starts.
+          </p>
+          <p className="mb-4 flex flex-wrap gap-x-4">
+            <GuideLink href="/guide/captain#draft">How a draft runs</GuideLink>
+            <GuideLink href="/guide/clan-vs-clan#team">Playing another clan</GuideLink>
           </p>
           <div className="grid gap-3 sm:grid-cols-3">
             <button

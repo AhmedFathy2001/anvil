@@ -8,6 +8,7 @@ import Combobox from '@/components/Combobox';
 import ActionMenu, { type ActionItem } from '@/components/ActionMenu';
 import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
+import { useDialog } from '@/components/Confirm';
 
 interface Character {
   id: number;
@@ -55,6 +56,7 @@ const ROLE_OPTIONS: { value: Role; label: string }[] = [
 export default function UsersClient({ currentUserId }: { currentUserId: number | null }) {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const { confirm, ask, notify } = useDialog();
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [filter, setFilter] = useState<MainFilter>('all');
   const [search, setSearch] = useState('');
@@ -150,10 +152,24 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
     const banning = !user.banned;
     let reason: string | undefined;
     if (banning) {
-      const input = prompt(`Ban ${user.displayName}? They lose all site access immediately.\nOptional reason:`);
+      const input = await ask({
+        title: `Ban ${user.displayName}?`,
+        body: 'They lose all site access immediately and are refused on their next Discord login.',
+        label: 'Reason (optional)',
+        multiline: true,
+        confirmLabel: 'Ban them',
+        tone: 'danger',
+      });
       if (input === null) return;
       reason = input.trim() || undefined;
-    } else if (!confirm(`Unban ${user.displayName}?`)) {
+    } else if (
+      !(await confirm({
+        title: `Unban ${user.displayName}?`,
+        body: 'They can sign in again. Nothing about their roster seats changes.',
+        confirmLabel: 'Unban',
+        tone: 'gold',
+      }))
+    ) {
       return;
     }
     const res = await clanFetch(`/api/admin/users/${user.id}/ban`, {
@@ -162,7 +178,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
       body: JSON.stringify({ banned: banning, reason }),
     });
     if (res.ok) fetchUsers();
-    else alert((await res.json().catch(() => ({}))).error || 'Could not update ban');
+    else notify((await res.json().catch(() => ({}))).error || 'Could not update ban', 'error');
   }
 
   async function addCharacter(user: User) {
@@ -186,10 +202,15 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
   }
 
   async function removeCharacter(user: User, char: Character) {
-    if (!confirm(`Remove ${char.rsn} from ${user.displayName}?`)) return;
+    const ok = await confirm({
+      title: `Remove ${char.rsn} from ${user.displayName}?`,
+      body: 'The account stops being theirs. Results already recorded under it stay where they are.',
+      confirmLabel: 'Remove',
+    });
+    if (!ok) return;
     const res = await clanFetch(`/api/admin/users/${user.id}/characters/${char.id}`, { method: 'DELETE' });
     if (res.ok) fetchUsers();
-    else alert((await res.json().catch(() => ({}))).error || 'Could not remove character');
+    else notify((await res.json().catch(() => ({}))).error || 'Could not remove character', 'error');
   }
 
   useEffect(() => {
@@ -227,7 +248,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      alert(data.error || 'Failed to update role');
+      notify(data.error || 'Failed to update role', 'error');
     }
     await fetchUsers();
     setSavingRoleId(null);
@@ -245,24 +266,24 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      alert(data.error || 'Failed to update tile access');
+      notify(data.error || 'Failed to update tile access', 'error');
     }
     await fetchUsers();
     setSavingRoleId(null);
   }
 
   async function handleTransferOwnership(user: User) {
-    if (
-      !confirm(
-        `Transfer ownership to "${user.displayName}"?\n\nThey become the protected owner and you become a regular admin. Only they can transfer it back.`,
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: `Transfer ownership to "${user.displayName}"?`,
+      body:
+        'They become the protected owner and you become an ordinary admin. From then on only they can transfer it back — you cannot undo this yourself.',
+      confirmLabel: 'Transfer ownership',
+    });
+    if (!ok) return;
     const res = await clanFetch(`/api/admin/users/${user.id}/transfer-ownership`, { method: 'POST' });
     if (!res.ok) {
       const data = await res.json();
-      alert(data.error || 'Failed to transfer ownership');
+      notify(data.error || 'Failed to transfer ownership', 'error');
       return;
     }
     fetchUsers();
@@ -296,11 +317,16 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
   }
 
   async function handleDelete(user: User) {
-    if (!confirm(`Delete "${user.displayName}"? This removes their site account.`)) return;
+    const ok = await confirm({
+      title: `Delete "${user.displayName}"?`,
+      body: 'Their site account goes. Roster seats and results recorded against their characters stay.',
+      confirmLabel: 'Delete account',
+    });
+    if (!ok) return;
     const res = await clanFetch(`/api/admin/users/${user.id}`, { method: 'DELETE' });
     if (!res.ok) {
       const data = await res.json();
-      alert(data.error || 'Failed to delete user');
+      notify(data.error || 'Failed to delete user', 'error');
       return;
     }
     fetchUsers();

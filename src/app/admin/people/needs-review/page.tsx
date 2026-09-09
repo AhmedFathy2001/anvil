@@ -4,8 +4,9 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { avatarUrl } from '@/lib/discord-oauth';
 import { requireClan } from '@/lib/clanContext';
 import { pendingClaimRequests } from '@/lib/claimRequests';
-import VerificationsClient, { type PendingMember } from '../../verifications/VerificationsClient';
+import VerificationsClient, { type PendingMember } from './VerificationsClient';
 import ClaimRequestsClient from './ClaimRequestsClient';
+import GuideLink from '@/components/GuideLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,9 +67,12 @@ export default async function ClanNeedsReviewPage() {
         <span className="molten h-5 w-1 shrink-0 rounded-sm" />
         <h2 className="text-[16.5px] font-semibold">Awaiting confirmation</h2>
       </div>
-      <p className="mb-3.5 ml-4 max-w-[64ch] text-[13.5px] text-text-muted">
+      <p className="mb-1.5 ml-4 max-w-[64ch] text-[13.5px] text-text-muted">
         Members who proved control by training the account (stat-delta) and are waiting for a confirmation
         stamp. Review the Discord identity and approve, or reject to revoke and let them re-attempt.
+      </p>
+      <p className="mb-3.5 ml-4">
+        <GuideLink href="/guide/moderator#verify">What to check before you approve</GuideLink>
       </p>
       <VerificationsClient items={items} />
     </div>

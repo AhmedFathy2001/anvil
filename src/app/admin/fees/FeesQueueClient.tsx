@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Textarea from '@/components/Textarea';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
+import { useDialog } from '@/components/Confirm';
+import GuideLink from '@/components/GuideLink';
 
 interface FeeRow {
   fee: {
@@ -154,6 +156,9 @@ export default function FeesQueueClient({ viewerRole, viewerId }: Props) {
               ? 'Collect fees, upload proof, and have an admin confirm.'
               : 'Read-only view. Treasurers and admins handle collection.'}
           </p>
+          <p className="mt-1.5">
+            <GuideLink href="/guide/fees#collect">How collecting and signing off works</GuideLink>
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {isAdmin && confirmableByViewer > 0 && (
@@ -262,6 +267,7 @@ function FeeCard({
   onReset: () => void;
 }) {
   const [collectMode, setCollectMode] = useState(false);
+  const { confirm } = useDialog();
   const [proofUrl, setProofUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -437,16 +443,14 @@ function FeeCard({
 
         {isAdmin && (fee.collectedByUserId !== null || fee.status === 'confirmed') && (
           <button
-            onClick={() => {
-              if (
-                confirm(
-                  fee.status === 'confirmed'
-                    ? 'Reset this confirmed fee back to open? (Keeps player report.)'
-                    : 'Reset collection state? Player report stays.',
-                )
-              ) {
-                onReset();
-              }
+            onClick={async () => {
+              const ok = await confirm({
+                title: fee.status === 'confirmed' ? 'Reset this confirmed fee?' : 'Reset the collection state?',
+                body:
+                  'It goes back to open and whoever was recorded as holding the money no longer is. The player\u2019s own report of having paid is kept.',
+                confirmLabel: 'Reset',
+              });
+              if (ok) onReset();
             }}
             disabled={acting}
             className="text-xs font-medium px-3 py-1.5 rounded-lg border border-red-400/30 text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-50"

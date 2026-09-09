@@ -5,8 +5,9 @@ import { useState } from 'react';
 import LocalTime from '@/components/LocalTime';
 import { eventTileCount, eventShapeBadge } from '@/lib/utils';
 import { formatGp, formatWeeklyGain, SPARK_DAYS } from '@/lib/adminEventsFormat';
-import { clanFetch } from '@/lib/clanFetch';
+import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
+import { useDialog } from '@/components/Confirm';
 import type {
   AttentionItem,
   PastEventResult,
@@ -71,17 +72,50 @@ export default function EventsClient({
 }: Props) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [cloningId, setCloningId] = useState<number | null>(null);
+  const { confirm, notify } = useDialog();
+
+  // RUNNING IT AGAIN IS THE MOST COMMON THING A CLAN DOES, and until now the only way to do it was
+  // to open the finished event, find Settings, scroll to a section headed "Maintenance", and press
+  // a button sitting between "Recompute completions" and "Delete event". Five hops, filed under
+  // repairs. Meanwhile the row itself offered exactly two actions: Payouts, and Delete.
+  async function cloneEvent(event: EventRow) {
+    const ok = await confirm({
+      title: `Run "${event.name}" again?`,
+      body:
+        'A new event is created carrying the same settings, tiles and survey questions — and no teams, players or dates. You are taken straight to the copy.',
+      confirmLabel: 'Create the copy',
+      tone: 'gold',
+    });
+    if (!ok) return;
+    setCloningId(event.id);
+    try {
+      const res = await clanFetch(`/api/events/${event.id}/clone`, { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        notify(data.error || 'Could not copy that event.', 'error');
+        return;
+      }
+      const { id } = await res.json();
+      router.push(clanUrl(`/admin/events/${id}`));
+    } finally {
+      setCloningId(null);
+    }
+  }
 
   async function deleteEvent(event: EventRow) {
-    if (!confirm(`Permanently delete "${event.name}"? This wipes its tiles, teams, completions, and signups.`)) {
-      return;
-    }
+    const ok = await confirm({
+      title: `Permanently delete "${event.name}"?`,
+      body: 'Its tiles, teams, completions and sign-ups go with it. There is no undo.',
+      confirmLabel: 'Delete for good',
+    });
+    if (!ok) return;
     setDeletingId(event.id);
     try {
       const res = await clanFetch(`/api/events/${event.id}`, { method: 'DELETE' });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        alert(data.error || 'Could not delete event');
+        notify(data.error || 'Could not delete event', 'error');
         return;
       }
       router.refresh();
@@ -222,7 +256,9 @@ export default function EventsClient({
             weekly={pastWeekly}
             canManage={canManage}
             deletingId={deletingId}
+            cloningId={cloningId}
             onDelete={deleteEvent}
+            onClone={cloneEvent}
           />
           {canManage && <BackfillFacts />}
         </section>
@@ -741,14 +777,18 @@ function PastTable({
   weekly,
   canManage,
   deletingId,
+  cloningId,
   onDelete,
+  onClone,
 }: {
   past: ListItem[];
   results: Record<number, PastEventResult>;
   weekly: Record<number, { winner: string | null; gained: number | null; players: number }>;
   canManage: boolean;
   deletingId: number | null;
+  cloningId: number | null;
   onDelete: (event: EventRow) => void;
+  onClone: (event: EventRow) => void;
 }) {
   return (
     <div className="border border-card-border rounded-xl bg-card-bg overflow-x-auto">
@@ -773,7 +813,9 @@ function PastTable({
                 result={results[item.id]}
                 canManage={canManage}
                 deleting={deletingId === item.id}
+                cloning={cloningId === item.id}
                 onDelete={() => onDelete(item)}
+                onClone={() => onClone(item)}
               />
             ) : (
               <PastWeeklyRow key={`w${item.id}`} comp={item} result={weekly[item.id]} />
@@ -790,13 +832,17 @@ function PastEventRow({
   result,
   canManage,
   deleting,
+  cloning,
   onDelete,
+  onClone,
 }: {
   event: EventRow;
   result?: PastEventResult;
   canManage: boolean;
   deleting: boolean;
+  cloning: boolean;
   onDelete: () => void;
+  onClone: () => void;
 }) {
   const href = canManage ? `/admin/events/${event.id}` : `/admin/events/${event.id}/tiles`;
   return (
@@ -848,7 +894,21 @@ function PastEventRow({
       </td>
       <td className="px-3 py-2.5 text-right whitespace-nowrap">
         {canManage && (
-          <span className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity inline-flex gap-1">
+          // NOT hover-only. These were `opacity-0 group-hover:opacity-100`, which on a phone or a
+          // tablet means invisible — there is no hover, and OSRS staff run events from Discord on
+          // their phone constantly. They fade in on a pointer device and are simply present
+          // everywhere else, so the row is never a dead end.
+          <span className="inline-flex gap-1 opacity-100 transition-opacity [@media(hover:hover)]:opacity-60 group-hover:opacity-100 focus-within:opacity-100">
+            <button
+              type="button"
+              onClick={onClone}
+              disabled={cloning}
+              aria-label={`Run ${event.name} again`}
+              title="Create a new event with the same settings and tiles"
+              className="px-2 py-1 text-xs rounded-md border border-gold/30 text-gold hover:bg-gold/10 transition-colors disabled:opacity-50"
+            >
+              {cloning ? '…' : 'Run it again'}
+            </button>
             <ClanLink
               href={`/admin/events/${event.id}/payouts`}
               className="px-2 py-1 text-xs rounded-md border border-card-border hover:border-gold/50 transition-colors"

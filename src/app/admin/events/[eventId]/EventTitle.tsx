@@ -129,7 +129,7 @@ export default function EventTitle({
       <h1 className="text-2xl sm:text-3xl font-bold text-gold">{name}</h1>
       <span
         aria-hidden
-        className="text-text-muted text-base opacity-0 group-hover:opacity-100 transition-opacity"
+        className="text-text-muted text-base opacity-100 [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
       >
         ✎
       </span>

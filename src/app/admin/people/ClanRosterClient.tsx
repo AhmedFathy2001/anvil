@@ -7,6 +7,8 @@ import ActionMenu, { type ActionItem } from '@/components/ActionMenu';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import Checkbox from '@/components/Checkbox';
+import { useDialog } from '@/components/Confirm';
+import GuideLink from '@/components/GuideLink';
 
 interface ClanMember {
   id: number;
@@ -311,6 +313,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   const [bulkAction, setBulkAction] = useState<string>('');
   const [bulkRole, setBulkRole] = useState<PendingRoleValue>('moderator');
   const [bulkBusy, setBulkBusy] = useState(false);
+  const { confirm, ask, notify } = useDialog();
   const [bulkNotice, setBulkNotice] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   const [showAdd, setShowAdd] = useState(false);
@@ -460,16 +463,36 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
     const n = ids.length;
     const role = bulkRole === 'none' ? null : bulkRole;
 
-    const confirmText: Record<string, string> = {
-      remove: `Mark ${n} member${n === 1 ? '' : 's'} as left the clan?`,
-      ban: `Ban ${n} member${n === 1 ? '' : 's'} from this clan? They are removed and cannot rejoin until you lift it. They keep their account and any other clan they're in.`,
-      demote: `Demote ${n} member${n === 1 ? '' : 's'} to guest?`,
+    const asked: Record<string, { title: string; body: string; confirmLabel: string }> = {
+      remove: {
+        title: `Mark ${n} member${n === 1 ? '' : 's'} as left the clan?`,
+        body: 'They come off the active roster. Their history and results stay, and a roster sync can add them back.',
+        confirmLabel: 'Mark as left',
+      },
+      ban: {
+        title: `Ban ${n} member${n === 1 ? '' : 's'} from this clan?`,
+        body: 'They are removed and cannot rejoin until you lift it. They keep their account and any other clan they are in.',
+        confirmLabel: 'Ban them',
+      },
+      demote: {
+        title: `Demote ${n} member${n === 1 ? '' : 's'} to guest?`,
+        body: 'They stay reachable and can still be entered into events, but they stop counting towards the roster.',
+        confirmLabel: 'Demote',
+      },
     };
-    if (confirmText[bulkAction] && !confirm(confirmText[bulkAction])) return;
+    if (asked[bulkAction] && !(await confirm(asked[bulkAction]))) return;
 
     let reason: string | undefined;
     if (bulkAction === 'ban') {
-      const input = prompt(`Optional reason for banning ${n} member${n === 1 ? '' : 's'} from this clan:`);
+      const input = await ask({
+        title: `Why are these ${n} being banned?`,
+        body: 'Optional, and written into the clan\u2019s history where your own staff will read it.',
+        label: 'Reason',
+        placeholder: 'Repeated no-shows after being drafted.',
+        multiline: true,
+        confirmLabel: 'Ban them',
+        tone: 'danger',
+      });
       if (input === null) return; // cancelled
       reason = input.trim() || undefined;
     }
@@ -565,7 +588,12 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   }
 
   async function removeMember(member: ClanMember) {
-    if (!confirm(`Mark ${member.rsn} as left the clan?`)) return;
+    const ok = await confirm({
+      title: `Mark ${member.rsn} as left the clan?`,
+      body: 'They come off the active roster. Their history and results stay, and the next roster sync can add them back.',
+      confirmLabel: 'Mark as left',
+    });
+    if (!ok) return;
     const res = await clanFetch(`/api/admin/clan/${member.id}`, { method: 'DELETE' });
     if (res.ok) fetchAll();
   }
@@ -577,13 +605,26 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
     const banning = !member.userBanned;
     let reason: string | undefined;
     if (banning) {
-      const input = prompt(
-        `Ban ${member.rsn} from this clan? They are removed and cannot rejoin until you lift it.\n` +
-          `They keep their account and any other clan they're in.\nOptional reason:`,
-      );
+      const input = await ask({
+        title: `Ban ${member.rsn} from this clan?`,
+        body:
+          'They are removed and cannot rejoin until you lift it. They keep their account and any other clan they are in. The reason is written into this clan\u2019s history.',
+        label: 'Reason (optional)',
+        placeholder: 'Repeated no-shows after being drafted.',
+        multiline: true,
+        confirmLabel: 'Ban them',
+        tone: 'danger',
+      });
       if (input === null) return; // cancelled
       reason = input.trim() || undefined;
-    } else if (!confirm(`Let ${member.rsn} rejoin this clan? They are not added back automatically.`)) {
+    } else if (
+      !(await confirm({
+        title: `Let ${member.rsn} rejoin this clan?`,
+        body: 'The ban is lifted. They are not added back to the roster automatically — they rejoin in game, or you add them.',
+        confirmLabel: 'Lift the ban',
+        tone: 'gold',
+      }))
+    ) {
       return;
     }
     const res = await clanFetch(`/api/admin/users/${member.userId}/ban`, {
@@ -592,7 +633,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
       body: JSON.stringify({ banned: banning, reason }),
     });
     if (res.ok) fetchAll();
-    else alert((await res.json().catch(() => ({}))).error || 'Could not update ban');
+    else notify((await res.json().catch(() => ({}))).error || 'Could not update ban', 'error');
   }
 
   function openRename(member: ClanMember) {
@@ -739,7 +780,9 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
         {/* The clan's NAME used to sit here, with an "Edit clan settings" toggle above the member
             table — clan-entity configuration filed under the people in it, and two values that
             change once a year on top of the list read every day. Both moved to Clan → Profile. */}
-        <div className="min-w-0" />
+        <div className="min-w-0">
+          <GuideLink href="/guide/moderator#roster">How the roster stays in sync</GuideLink>
+        </div>
         <div className="flex gap-2">
           <ClanLink
             href="/admin/dashboard"

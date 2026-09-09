@@ -1,5 +1,5 @@
 import { verifyUser } from '@/lib/auth';
-import UsersClient from '../../users/UsersClient';
+import UsersClient from './UsersClient';
 
 export const dynamic = 'force-dynamic';
 
