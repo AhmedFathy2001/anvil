@@ -344,7 +344,9 @@ export async function getAttentionItems(opts: {
       severity: 'warn',
       title: `${row.n} flagged baseline${row.n === 1 ? '' : 's'}`,
       detail: `${row.title} · a gain looks implausible`,
-      href: '/admin/weekly',
+      // The competition's OWN baselines page, which is where a flag is actually resolved. This
+      // pointed at the retired /admin/weekly list — and the query has had the id all along.
+      href: `/admin/events/weekly/${row.competitionId}/baselines`,
     });
   }
   for (const row of pendingSignups) {

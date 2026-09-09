@@ -235,3 +235,33 @@ test('naming a clan does not drag platform paths in with it', () => {
   // The login bounce on the join page runs through the same helper, and `/login` is the platform's.
   assert.equal(clanHrefFor('theafkspot', '/login?return=%2Fevents%2F11'), '/login?return=%2Fevents%2F11');
 });
+
+/* ---------------------------------------------------------------------------
+   Fragments — the fifth way to lose the prefix.
+
+   A `#anchor` terminates a path exactly the way a `?query` does, and only the query was allowed
+   for. So a link to a clan root's own anchor matched no root, fell through to "unrecognised, leave
+   it alone", and navigated the reader out of their clan onto the apex.
+
+   It stayed hidden because a DEEPER path is unaffected — `/events/12#live` still starts with
+   `/events/`, so only links to a root itself could ever hit it. The competition workspace now links
+   to `#prizes` on its own page, which is the shape that goes looking for this.
+   --------------------------------------------------------------------------- */
+
+test('an anchor on a clan root keeps the clan', () => {
+  assert.equal(withClanPrefix('/c/theafkspot', '/events#live'), '/c/theafkspot/events#live');
+  assert.equal(withClanPrefix('/c/theafkspot', '/members#staff'), '/c/theafkspot/members#staff');
+});
+
+test('an anchor deeper in was always fine, and still is', () => {
+  assert.equal(
+    withClanPrefix('/c/theafkspot', '/admin/events/weekly/12#prizes'),
+    '/c/theafkspot/admin/events/weekly/12#prizes',
+  );
+});
+
+test('an anchor does not drag a platform path into a clan', () => {
+  // `/staff#x` is the platform's, fragment or no fragment — the same claim `?` already made.
+  assert.equal(withClanPrefix('/c/theafkspot', '/staff#clans'), '/staff#clans');
+  assert.equal(withClanPrefix('/c/theafkspot', '/login#top'), '/login#top');
+});

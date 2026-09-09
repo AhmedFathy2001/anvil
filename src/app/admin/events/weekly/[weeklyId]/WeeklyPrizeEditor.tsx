@@ -63,7 +63,9 @@ export default function WeeklyPrizeEditor({
   }
 
   return (
-    <section className="border border-card-border rounded-xl bg-card-bg p-5">
+    // Anchored, because the pre-start checklist above sends people here — prizes are the one thing
+    // on a fresh competition that needs a human, and they are the furthest down the page.
+    <section id="prizes" className="scroll-mt-24 border border-card-border rounded-xl bg-card-bg p-5">
       <div className="flex items-center justify-between gap-3 mb-1 flex-wrap">
         <h2 className="text-lg font-bold flex items-center gap-2">
           <span className="w-1 h-5 bg-gold rounded-full" />

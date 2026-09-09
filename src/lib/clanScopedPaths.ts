@@ -110,7 +110,16 @@ export function isPlatformPath(path: string): boolean {
     // The namespaces are written with a trailing slash to read as namespaces; compare bare so that
     // `/c` itself matches too, and so `/clans` is not swallowed by `/c`.
     const bare = root.endsWith('/') ? root.slice(0, -1) : root;
-    if (path === bare || path.startsWith(`${bare}/`) || path.startsWith(`${bare}?`)) return true;
+    if (
+      path === bare ||
+      path.startsWith(`${bare}/`) ||
+      path.startsWith(`${bare}?`) ||
+      // A fragment ends a path exactly the way a query does. Only `?` was handled, so a link to a
+      // root's own anchor — `/staff#x` — read as an unrecognised path and was left alone.
+      path.startsWith(`${bare}#`)
+    ) {
+      return true;
+    }
   }
   return false;
 }
@@ -125,7 +134,18 @@ export function isClanScopedPath(path: string): boolean {
   if (!path.startsWith('/')) return false;
   if (isPlatformPath(path)) return false;
   for (const root of [...CLAN_SCOPED_API_ROOTS, ...CLAN_SCOPED_ROOTS]) {
-    if (path === root || path.startsWith(`${root}/`) || path.startsWith(`${root}?`)) return true;
+    if (
+      path === root ||
+      path.startsWith(`${root}/`) ||
+      path.startsWith(`${root}?`) ||
+      // FIFTH WAY TO LOSE THE PREFIX. A fragment terminates a path just as a query does, and only
+      // `?` was allowed for — so `/events#live` matched no root, fell through to "unrecognised,
+      // leave it alone", and navigated the reader out of their clan. Deeper paths were unaffected
+      // (`/events/12#live` still starts with `/events/`), which is exactly why it stayed hidden.
+      path.startsWith(`${root}#`)
+    ) {
+      return true;
+    }
   }
   // The clan's own home. Anything else unrecognised is left alone rather than guessed at: a wrong
   // prefix is a 404, and an unprefixed platform path still works.

@@ -16,10 +16,25 @@ import TileLibraryDraw from '@/components/TileLibraryDraw';
 import type { LibraryTask } from '@/lib/tileLibrary';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
+import { useDialog } from '@/components/Confirm';
 
 interface EventFormProps {
   presets?: EventPreset[];
   suggestedName?: string;
+  /**
+   * Only the whole-clan competitions — no board formats, no templates, no task pool.
+   *
+   * WHY THIS EXISTS RATHER THAN A SECOND FORM. /admin/weekly carried its own create form, its own
+   * competition list and its own inline participant panel, and all three had been superseded: the
+   * list is /admin/events (weeklies were merged into it), the participants are the competition's
+   * own workspace, and this form already posts to /api/admin/weekly the moment a weekly kind is
+   * picked — the new-event page says so in as many words.
+   *
+   * What kept the old page alive is that a MODERATOR may schedule a competition and may not create
+   * a board, and lib/adminAccess draws that line by path. So the path stays and the duplicate form
+   * goes: one component, showing a moderator only the half of it that is theirs.
+   */
+  weeklyOnly?: boolean;
 }
 
 /**
@@ -116,7 +131,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export default function EventForm({ presets = [], suggestedName = '' }: EventFormProps) {
+export default function EventForm({ presets = [], suggestedName = '', weeklyOnly = false }: EventFormProps) {
   const router = useRouter();
   const [name, setName] = useState(suggestedName);
   // Until the admin types their own, the name follows the choice. Otherwise picking Skill of the
@@ -163,6 +178,7 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
   const [presetCsv, setPresetCsv] = useState<{ rows: TileCsvRow[]; labels: string[]; source: string } | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const { confirm } = useDialog();
   // Schedule, set here rather than after the fact. An event created without dates lands in the
   // events list as "no dates yet" — legitimate for a draft, a nuisance when you knew the dates all
   // along and had to open Settings to say so.
@@ -171,7 +187,11 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
   const [customDates, setCustomDates] = useState(false);
   // A weekly competition is an event too — same page, same name field, same schedule. It just
   // stores itself in the competition tables, so picking one of these switches where we POST.
-  const [weeklyType, setWeeklyType] = useState<'skill' | 'boss' | 'efficiency' | null>(null);
+  const [weeklyType, setWeeklyType] = useState<'skill' | 'boss' | 'efficiency' | null>(
+    // In weekly-only mode the board half of the form is not rendered at all, so starting with no
+    // kind chosen would leave a form with no format picker and no format.
+    weeklyOnly ? WEEKLY_KINDS[0].type : null,
+  );
   const [weeklyMetric, setWeeklyMetric] = useState('attack');
   const [includeGuests, setIncludeGuests] = useState(true);
   // Where the board's tiles come from: nothing (fill them in later), a saved/built-in template, or
@@ -313,7 +333,12 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
 
   async function deletePreset(preset: EventPreset) {
     if (preset.id == null) return;
-    if (!confirm(`Delete the saved template "${preset.label}"? This can't be undone.`)) return;
+    const ok = await confirm({
+      title: `Delete the template "${preset.label}"?`,
+      body: 'It leaves the gallery for everyone in this clan. Boards already made from it are untouched.',
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
     await clanFetch(`/api/admin/event-presets/${preset.id}`, { method: 'DELETE' }).catch(() => {});
     if (activePreset === preset.key) changeMode(mode);
     router.refresh();
@@ -350,7 +375,11 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
           setLoading(false);
           return;
         }
-        router.push(clanUrl(`/admin/events/weekly/${data.id ?? data.competition?.id ?? ''}`));
+        // The competition exists by now, so there is no failing back to the form. If the response
+        // ever stops carrying an id, land on the hub — `/admin/events/weekly/` is not a route, so
+        // the old `?? ''` would have answered a successful creation with a 404.
+        const newId = data.id ?? data.competition?.id;
+        router.push(clanUrl(newId ? `/admin/events/weekly/${newId}` : '/admin/events'));
         return;
       } catch {
         setError('Could not create the competition.');
@@ -584,7 +613,11 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
           {/* Format — one choice drives format + scoring + reveal policy. Each card carries a
               diagram of the board it produces, because the names alone never said enough. */}
           <div>
-            <label className="block text-sm font-medium text-foreground/70 mb-1.5">Format</label>
+            <label className="block text-sm font-medium text-foreground/70 mb-1.5">
+              {weeklyOnly ? 'What is measured' : 'Format'}
+            </label>
+            {!weeklyOnly && (
+            <>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {MODES.filter((m) => !POOL_MODES.includes(m.key)).map((m) => {
                 // A whole-clan competition and a board format are mutually exclusive, so while a
@@ -700,10 +733,14 @@ export default function EventForm({ presets = [], suggestedName = '' }: EventFor
                 </p>
               </div>
             )}
+            </>
+            )}
 
-            <p className="text-[11px] uppercase tracking-widest text-text-muted mt-4 mb-1.5">
-              Whole clan · no sign-up
-            </p>
+            {!weeklyOnly && (
+              <p className="text-[11px] uppercase tracking-widest text-text-muted mt-4 mb-1.5">
+                Whole clan · no sign-up
+              </p>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {WEEKLY_KINDS.map((w) => {
                 const active = weeklyType === w.type;

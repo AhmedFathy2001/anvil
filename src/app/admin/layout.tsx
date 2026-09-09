@@ -113,8 +113,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     items: [{ href: '/admin/dashboard', label: 'Dashboard', icon: '⌂' }],
   });
 
-  // Bingo events + schedule. Schedule is open to every staff role; the event list is admin/editor
-  // only (see canManageEvents), so mods/treasurers see just Schedule here.
+  // ONE EVENTS GROUP, because there is one kind of thing here.
+  //
+  // There used to be two: "Events" and, under it, a "Weekly" group of its own holding
+  // "Competitions". That made the admin area look like it held two products — and it half did,
+  // because /admin/weekly was a second list of competitions that /admin/events already shows,
+  // wrapped around a second create form and a second participants panel. The public side merged
+  // them long ago (/events is the hub). The nav was the last place still saying otherwise.
+  //
+  // Schedule is open to every staff role; the event LIST is admin/editor only (see
+  // canManageEvents), so mods and treasurers see the two items that are theirs.
   groups.push({
     label: 'Events',
     items: [
@@ -122,16 +130,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         ? [{ href: '/admin/events', label: 'All events', icon: '🎯', matchPrefix: true }]
         : []),
       { href: '/admin/schedule', label: 'Schedule', icon: '📅' },
+      // A moderator may schedule a competition and may not create a board, and lib/adminAccess
+      // draws that line by path — so this is the one "new" affordance they get, and for an admin
+      // it sits beside the list rather than in a category of its own.
+      { href: '/admin/weekly', label: 'New competition', icon: '🏆' },
       // The task catalogue boards are generated from — same authority as tile authoring, so every
       // editor (scoped ones included) gets it.
       ...(canManageEvents ? [{ href: '/admin/tile-library', label: 'Task library', icon: '📚' }] : []),
     ],
-  });
-
-  // Weekly is shared
-  groups.push({
-    label: 'Weekly',
-    items: [{ href: '/admin/weekly', label: 'Competitions', icon: '🏆', matchPrefix: true }],
   });
 
   // TWO NOUNS, TWO ENTRIES. This was one item called "Members & staff" holding six tabs that spanned

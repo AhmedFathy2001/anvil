@@ -10,7 +10,9 @@ import { weeklyGain, weeklyMetricLabel } from '@/lib/weeklyLabels';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import WeeklyPrizeEditor from './WeeklyPrizeEditor';
-import type { WeeklyPrizes } from '@/lib/weeklyPrizes';
+import { totalPrizeGp, type WeeklyPrizes } from '@/lib/weeklyPrizes';
+import { formatGp } from '@/lib/adminEventsFormat';
+import { useDialog } from '@/components/Confirm';
 
 /** Everything the prize card needs. */
 interface PrizeContext {
@@ -53,15 +55,26 @@ export default function WeeklyHomeClient({
 }) {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
+  const { confirm } = useDialog();
   const [message, setMessage] = useState('');
 
   const base = `/admin/events/weekly/${comp.id}`;
   const ranked = standings.filter((s) => !s.left || s.keepIfLeft);
   const podium = ranked.slice(0, 3);
   const missingBaselines = Math.max(0, counts.participants - counts.withBaseline);
+  // What this competition currently promises to pay. Zero is a legitimate answer, not an omission.
+  const prizeTotal = totalPrizeGp(prizes.initial);
 
   async function refresh(rebaseline = false) {
-    if (rebaseline && !confirm('Reset every baseline to the current hiscores value? Gains so far are wiped.')) return;
+    if (rebaseline) {
+    const ok = await confirm({
+      title: 'Reset every baseline?',
+      body:
+        'Each participant is re-anchored to their hiscores value right now, so every gain recorded so far is wiped and the competition effectively restarts.',
+      confirmLabel: 'Reset baselines',
+    });
+    if (!ok) return;
+    }
     setRefreshing(true);
     setMessage('');
     try {
@@ -109,10 +122,39 @@ export default function WeeklyHomeClient({
               href={`${base}/baselines`}
               action="Baselines"
             />
+            {/* THE ONLY ROW THAT IS A DECISION. The two above happen on their own — the roster is
+                swept in at creation and the hiscores are read when it opens — so a checklist made
+                of just those two is a checklist with nothing on it. Prizes are set here rather than
+                on the create form, which means a competition can be made and run without anybody
+                being told this page is where the money is decided. Optional, and said so: most
+                clans pay nothing and should not see a red mark for it. */}
+            <ReadyRow
+              done={prizeTotal > 0}
+              optional
+              title={
+                prizeTotal > 0
+                  ? `Paying ${formatGp(prizeTotal)} gp`
+                  : prizes.canEdit
+                    ? 'No prizes set'
+                    : 'No prizes set — a treasurer decides'
+              }
+              detail={
+                prizes.canEdit
+                  ? 'Set what each place pays out of the coffer. Leave it empty if this one is for bragging rights.'
+                  : 'Only a treasurer or an admin can price a competition.'
+              }
+              href={`${base}#prizes`}
+              action={prizes.canEdit ? 'Set prizes' : 'View'}
+            />
           </div>
           <p className="text-xs text-text-muted mt-4">
             Starts <span suppressHydrationWarning>{new Date(comp.startDate).toLocaleString()}</span>. The lifecycle cron
-            opens it on time — there&apos;s nothing to press.
+            opens it on time — there&apos;s nothing to press.{' '}
+            {/* The card states the start time, so it has to say where to change it — otherwise the
+                answer is a rail item you have to already know about. */}
+            <ClanLink href={`${base}/settings`} className="text-gold hover:underline">
+              Wrong name or dates?
+            </ClanLink>
           </p>
         </section>
       )}
@@ -268,21 +310,28 @@ function ReadyRow({
   detail,
   href,
   action,
+  optional = false,
 }: {
   done: boolean;
   title: string;
   detail: string;
   href: string;
   action: string;
+  /** Nothing is wrong if this one is never ticked — most clans pay nothing. */
+  optional?: boolean;
 }) {
   return (
     <div className="flex items-center gap-3 p-3 rounded-lg border border-card-border bg-black/15">
       <span
         className={`w-6 h-6 rounded-full grid place-items-center text-xs flex-shrink-0 border ${
-          done ? 'border-accent-green/50 text-accent-green bg-accent-green/10' : 'border-card-border text-text-muted'
+          done
+            ? 'border-accent-green/50 text-accent-green bg-accent-green/10'
+            : optional
+              ? 'border-card-border/60 text-text-muted/50'
+              : 'border-card-border text-text-muted'
         }`}
       >
-        {done ? '✓' : '·'}
+        {done ? '✓' : optional ? '–' : '·'}
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-medium">{title}</span>

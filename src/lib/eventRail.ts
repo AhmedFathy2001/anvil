@@ -181,13 +181,16 @@ export function weeklyRailGroups(opts: {
           attn: counts.flagged > 0 || missingBaselines > 0,
           matchPrefix: true,
         },
+        // Name, dates, status and delete — a board has these on its Settings tab, and a competition
+        // had them in a modal on a list page that no longer exists.
+        { href: `${base}/settings`, label: 'Settings', icon: '⚙', matchPrefix: true },
       ],
     },
     {
       label: 'Elsewhere',
       items: [
         { href: '/admin/events', label: 'All events', icon: '↩' },
-        { href: '/admin/weekly', label: 'New competition', icon: '＋' },
+        { href: '/admin/weekly', label: 'Schedule another', icon: '＋' },
         { href: `/weekly/${weeklyId}`, label: 'Player view', icon: '↗' },
       ],
     },
