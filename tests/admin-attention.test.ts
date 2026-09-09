@@ -265,3 +265,192 @@ test('an event opening in hours reads in hours, not "in 0 days"', () => {
   );
   assert.match(q.find((i) => i.key === 'teams-1')!.title, /in 5 hours/);
 });
+
+/* ---------------------------------------------------------------------------
+   Whose queue is it.
+
+   The dashboard is the landing tile for EVERY staff tier, and this queue was built for an admin
+   and handed to all of them unchanged. lib/adminAccess bounces a moderator without the authoring
+   capability off /admin/events entirely — so "Bingo #7 starts in 3 days with no teams · Build
+   teams" was a button that returned them to the page they pressed it on, every morning, for work
+   that was never theirs to do.
+
+   `canReach` is the real routing table, passed in by the page. These assert the filter, not the
+   table: tests/admin-access.test.ts owns what the table itself says.
+   --------------------------------------------------------------------------- */
+
+/** Stands in for redirectFor(href, moderatorGrant) === null. */
+const moderatorReach = (href: string) => !href.startsWith('/admin/events');
+
+test('a moderator is not asked to do an admin’s job', () => {
+  const asAdmin = attentionQueue(
+    facts({ events: [board({ teamCount: 0, startDate: inDays(3) })], pendingVerifications: 4 }),
+  );
+  assert.deepEqual(asAdmin.map((i) => i.key), ['teams-1', 'verifications']);
+
+  const asModerator = attentionQueue(
+    facts({
+      events: [board({ teamCount: 0, startDate: inDays(3) })],
+      pendingVerifications: 4,
+      canReach: moderatorReach,
+    }),
+  );
+  assert.deepEqual(
+    asModerator.map((i) => i.key),
+    ['verifications'],
+    'the teams card links into /admin/events, which they cannot open',
+  );
+});
+
+test('what a moderator CAN act on still reaches them', () => {
+  // Verifications, join requests and co-host invites all land on /admin/people; fees on /admin/fees.
+  // Every one of those is moderator-tier, so none of them may be filtered out.
+  const q = attentionQueue(
+    facts({
+      pendingVerifications: 2,
+      joinRequests: 1,
+      coHostInvites: 1,
+      feesOwed: 3,
+      canReach: moderatorReach,
+    }),
+  );
+  assert.deepEqual(
+    new Set(q.map((i) => i.key)),
+    new Set(['verifications', 'join-requests', 'cohost-invites', 'fees-owed']),
+  );
+});
+
+test('a filtered-empty queue is an honest all-clear, not a silent page', () => {
+  // Nothing here is the moderator's, so their dashboard says so rather than showing four cards
+  // that bounce. An empty list would have rendered a heading over nothing at all.
+  const q = attentionQueue(
+    facts({ events: [board({ teamCount: 0, tileCount: 0, startDate: inDays(2) })], canReach: moderatorReach }),
+  );
+  assert.equal(q.length, 1);
+  assert.equal(q[0].key, 'clear');
+  assert.equal(openCount(q), 0);
+});
+
+test('the all-clear card never offers a page the reader cannot open', () => {
+  // It is the one card that is always rendered, so its own link has to survive the filter too.
+  const noSchedule = (href: string) => href === '/admin/people';
+  const q = attentionQueue(facts({ canReach: noSchedule }));
+  assert.equal(q[0].key, 'clear');
+  assert.equal(noSchedule(q[0].href), true, 'the fallback link must itself be reachable');
+  assert.equal(q[0].action, 'Open roster');
+});
+
+test('no predicate means no filtering — the admin case, and every existing caller', () => {
+  const q = attentionQueue(facts({ events: [board({ teamCount: 0, startDate: inDays(3) })] }));
+  assert.equal(q.find((i) => i.key === 'teams-1') != null, true);
+});
+
+test('the gap card is filtered on the board it would send you to, not on the gap', () => {
+  // "Nothing runs for 12 days · Bingo #8 is written but has no dates — Give it dates" points INTO
+  // an event. A moderator gets the schedule-shaped version of the same news or nothing at all.
+  const withBoard = attentionQueue(
+    facts({
+      gap: { days: 12, startsInDays: 1, openEnded: false, startsOn: '1 September' },
+      unscheduled: [{ id: 9, name: 'Bingo #8', href: '/admin/events/9' }],
+      canReach: moderatorReach,
+    }),
+  );
+  assert.equal(withBoard.find((i) => i.key === 'gap'), undefined);
+
+  const noBoard = attentionQueue(
+    facts({
+      gap: { days: 12, startsInDays: 1, openEnded: false, startsOn: '1 September' },
+      canReach: moderatorReach,
+    }),
+  );
+  assert.equal(noBoard.find((i) => i.key === 'gap')?.href, '/admin/schedule');
+});
+
+/* ---------------------------------------------------------------------------
+   Snoozing.
+
+   The `key` field has carried a comment promising this since the queue was written — "used as a
+   React key and to snooze one item without touching the rest" — and nothing implemented it. So the
+   card about fees held against a board that finished in July stood on the dashboard every morning,
+   correct and unactionable, beside the cards that were urgent.
+
+   The rule that makes it safe is that the QUEUE decides what may be put down, not the caller: a
+   stored key for an item marked `snoozable: false` is ignored.
+   --------------------------------------------------------------------------- */
+
+const laterToday = NOW + 3 * DAY;
+const yesterday = NOW - DAY;
+
+test('a snoozed item goes quiet until its moment comes back', () => {
+  const stale = { feesToSign: 4, oldestFeeDays: 40, feeEvents: [{ name: 'July bingo', ended: true, count: 4, href: '/admin/events/3/signups' }] };
+
+  const before = attentionQueue(facts(stale));
+  assert.ok(before.some((i) => i.key === 'fees-sign'));
+
+  const after = attentionQueue(facts({ ...stale, snoozed: { 'fees-sign': laterToday } }));
+  assert.equal(after.some((i) => i.key === 'fees-sign'), false);
+
+  // And it comes back on its own once the snooze runs out. Nothing has to clean the map up.
+  const expired = attentionQueue(facts({ ...stale, snoozed: { 'fees-sign': yesterday } }));
+  assert.ok(expired.some((i) => i.key === 'fees-sign'));
+});
+
+test('an unprepared board CANNOT be snoozed, however the map is written', () => {
+  // This is the whole safety of the feature. A board that opens with no teams opens broken, and
+  // nothing about a stored key should be able to take that off the page.
+  const q = attentionQueue(
+    facts({
+      events: [board({ teamCount: 0, startDate: inDays(2) })],
+      snoozed: { 'teams-1': laterToday },
+    }),
+  );
+  const teams = q.find((i) => i.key === 'teams-1');
+  assert.ok(teams, 'still there');
+  assert.equal(teams.snoozable, false, 'and it says so, so no button is offered either');
+});
+
+test('somebody waiting on an answer is never snoozable', () => {
+  // A person applied, or self-reported and cannot be scored until a mod looks. Silencing that
+  // silences them, not the task.
+  const q = attentionQueue(facts({ pendingVerifications: 2, joinRequests: 1, coHostInvites: 1 }));
+  for (const key of ['verifications', 'join-requests', 'cohost-invites']) {
+    assert.equal(q.find((i) => i.key === key)!.snoozable, false, key);
+  }
+});
+
+test('snoozing every open item leaves the honest all-clear, not a blank section', () => {
+  const q = attentionQueue(
+    facts({
+      feesOwed: 2,
+      gap: { days: 12, startsInDays: 1, openEnded: false, startsOn: '1 September' },
+      snoozed: { 'fees-owed': laterToday, gap: laterToday },
+    }),
+  );
+  assert.equal(q.length, 1);
+  assert.equal(q[0].key, 'clear');
+});
+
+test('a snooze for a key that is not in the queue is simply ignored', () => {
+  const q = attentionQueue(facts({ feesOwed: 1, snoozed: { 'teams-4321': laterToday, nonsense: laterToday } }));
+  assert.ok(q.some((i) => i.key === 'fees-owed'));
+});
+
+test('every item states whether it can be put down', () => {
+  // A missing flag would render a snooze button on something that must never carry one.
+  const q = attentionQueue(
+    facts({
+      events: [board({ teamCount: 0, tileCount: 0, startDate: inDays(2) })],
+      feesOwed: 1,
+      feesToSign: 1,
+      oldestFeeDays: 3,
+      feeEvents: [{ name: 'Live one', ended: false, count: 1, href: '/admin/events/1/signups' }],
+      pendingVerifications: 1,
+      joinRequests: 1,
+      coHostInvites: 1,
+      gap: { days: 9, startsInDays: 2, openEnded: false, startsOn: '1 September' },
+    }),
+  );
+  for (const item of q) {
+    assert.equal(typeof item.snoozable, 'boolean', item.key);
+  }
+});

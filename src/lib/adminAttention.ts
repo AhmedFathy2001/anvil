@@ -18,6 +18,15 @@ export type Severity = 'critical' | 'warn' | 'info' | 'clear';
 export interface AttentionItem {
   /** Stable id — used as a React key and to snooze one item without touching the rest. */
   key: string;
+  /**
+   * May this one be put down for a while?
+   *
+   * Not everything may. An unprepared board that opens on Friday is not a matter of opinion, and a
+   * queue you can silence entirely is a queue that tells you nothing. What CAN be snoozed is the
+   * work that is real, known, and not moving — a July board whose fees nobody has signed off, a
+   * fortnight with nothing scheduled during a break the clan already agreed on.
+   */
+  snoozable: boolean;
   severity: Severity;
   /** The decision, in plain language, as a sentence someone would say out loud. */
   title: string;
@@ -82,6 +91,33 @@ export interface AttentionFacts {
   gap: { days: number; startsInDays: number; openEnded: boolean; startsOn: string } | null;
   /** Boards that exist but have no dates. */
   unscheduled: { id: number; name: string; href: string }[];
+  /**
+   * Items put down until a moment that has not arrived yet: `{ key: epoch-ms }`.
+   *
+   * The comment on `key` above has promised this since the queue was written — "used as a React key
+   * and to snooze one item without touching the rest" — and nothing implemented it, so the stale-fee
+   * card sat on somebody's dashboard every morning with no way to say "yes, I know". A queue with no
+   * way to acknowledge an item is one people stop reading, which costs more than the item did.
+   *
+   * Per CLAN rather than per person: staff share this work, and one of them deciding the July fees
+   * can wait a fortnight is a decision for the clan, not a preference in their browser.
+   */
+  snoozed?: Record<string, number>;
+  /**
+   * Can the person reading this dashboard actually OPEN the page an item sends them to?
+   *
+   * The queue was built for an admin and shown to everybody. A moderator without the authoring
+   * capability cannot reach /admin/events at all — lib/adminAccess bounces them back to the
+   * dashboard — so "Bingo #7 starts in 3 days with no teams · Build teams" was a button that
+   * returned them to the page they pressed it on. Every morning, for work that was never theirs.
+   *
+   * A predicate rather than a role, for two reasons: this module stays free of `@/` imports so the
+   * tests can type-strip it, and the caller passes the REAL routing table (redirectFor) instead of
+   * a second copy of the rules that would drift from it.
+   *
+   * Omitted means "everything" — the admin case, and what every existing caller got.
+   */
+  canReach?: (href: string) => boolean;
 }
 
 const DAY = 86_400_000;
@@ -127,6 +163,9 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
     if (e.needsTeams && e.teamCount === 0 && e.status !== 'running') {
       items.push({
         key: `teams-${e.id}`,
+        // A board with no teams is a board that opens broken. There is no version of this that is
+        // fine to be reminded about later.
+        snoozable: false,
         severity: imminent ? 'critical' : 'info',
         title: imminent
           ? `${e.name} starts ${inDays(startsIn)} with no teams`
@@ -143,6 +182,7 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
     if (e.expectedTiles > 0 && e.tileCount < e.expectedTiles && imminent) {
       items.push({
         key: `tiles-${e.id}`,
+        snoozable: false,
         severity: e.tileCount === 0 ? 'critical' : 'warn',
         title: `${e.name} is short ${plural(e.expectedTiles - e.tileCount, 'tile')}`,
         detail: `${e.tileCount} of ${e.expectedTiles} drawn · opens ${inDays(startsIn)}`,
@@ -166,6 +206,9 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
 
     items.push({
       key: 'fees-sign',
+      // The one this was built for: money held against a board that finished in July is real and
+      // should be closed out, and it is not news on the fourteenth consecutive morning.
+      snoozable: true,
       severity: onlyOldEvents ? 'info' : facts.oldestFeeDays != null && facts.oldestFeeDays >= 14 ? 'warn' : 'info',
       title: onlyOldEvents
         ? `${plural(facts.feesToSign, 'fee')} left unsigned from ${
@@ -193,6 +236,7 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
   if (facts.feesOwed > 0) {
     items.push({
       key: 'fees-owed',
+      snoozable: true,
       severity: 'info',
       title: `${plural(facts.feesOwed, 'fee')} still to collect`,
       detail: 'Nobody has the money yet — these are on the players.',
@@ -205,6 +249,8 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
   if (facts.pendingVerifications > 0) {
     items.push({
       key: 'verifications',
+      // Somebody is waiting on an answer at the other end of this one.
+      snoozable: false,
       severity: 'warn',
       title: `${plural(facts.pendingVerifications, 'person', 'people')} waiting on mod review`,
       detail: 'They self-reported through the plugin and can’t be scored until verified.',
@@ -218,6 +264,7 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
   if (facts.joinRequests > 0) {
     items.push({
       key: 'join-requests',
+      snoozable: false,
       severity: 'warn',
       title: `${plural(facts.joinRequests, 'person', 'people')} asking to join`,
       detail: 'They applied, or entered one of your events as a guest, and are waiting on an answer.',
@@ -230,6 +277,7 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
   if (facts.coHostInvites > 0) {
     items.push({
       key: 'cohost-invites',
+      snoozable: false,
       severity: 'warn',
       title: `${plural(facts.coHostInvites, 'clan')} invited you to co-host`,
       detail: 'Accepting gives you your own team on their board, run by your staff.',
@@ -243,6 +291,8 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
     const waiting = facts.unscheduled[0];
     items.push({
       key: 'gap',
+      // A clan on a deliberate break should be able to say so once rather than every day.
+      snoozable: true,
       severity: 'info',
       // An open-ended gap gets a date, not a duration: "33 days" was only ever the distance to the
       // edge of a six-week window, and would have read 47 over eight.
@@ -260,7 +310,21 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
     });
   }
 
-  const open: AttentionItem[] = items
+  // Drop what this reader cannot act on. Not a security boundary — every one of these pages guards
+  // itself — but "needs you" has to mean YOU, or the queue is someone else's inbox and gets ignored.
+  const reachable = facts.canReach
+    ? items.filter((i) => facts.canReach!(i.href))
+    : items;
+
+  // Then drop what somebody has already said they know about. A snooze on an item that stopped
+  // being snoozable — or one whose moment has passed — is simply ignored, so nothing needs to clean
+  // the stored map up and a re-raised problem is never silently swallowed.
+  const snoozed = facts.snoozed ?? {};
+  const awake = reachable.filter(
+    (i) => !(i.snoozable && typeof snoozed[i.key] === 'number' && snoozed[i.key] > facts.now),
+  );
+
+  const open: AttentionItem[] = awake
     .sort((a, b) => RANK[a.severity] - RANK[b.severity] || a.at - b.at)
     .map((entry) => {
       const { at, ...item } = entry;
@@ -273,11 +337,14 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
     return [
       {
         key: 'clear',
+        snoozable: false,
         severity: 'clear',
         title: 'Nothing needs you',
         detail: 'No unprepared events, no fees to sign, nobody waiting on review.',
-        href: '/admin/schedule',
-        action: 'Plan ahead',
+        // The one card that is always shown must always be openable, so it falls back to the page
+        // every staff tier can reach rather than offering a dead "Plan ahead".
+        href: facts.canReach && !facts.canReach('/admin/schedule') ? '/admin/people' : '/admin/schedule',
+        action: facts.canReach && !facts.canReach('/admin/schedule') ? 'Open roster' : 'Plan ahead',
       },
     ];
   }

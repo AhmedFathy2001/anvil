@@ -1,5 +1,10 @@
 import { requireClan } from '@/lib/clanContext';
 import { redirect } from 'next/navigation';
+import { verifyUser } from '@/lib/auth';
+import { redirectFor } from '@/lib/adminAccess';
+import { getSetting } from '@/lib/settings';
+import { SNOOZE_SETTING_KEY, parseSnoozes } from '@/lib/adminSnooze';
+import SnoozeButton from './SnoozeButton';
 import { db } from '@/db';
 import { clanAuditLog, clanRoster, completions, events, eventSignups, signupFees, teams, tiles, users } from '@/db/schema';
 import { alias } from 'drizzle-orm/pg-core';
@@ -35,6 +40,16 @@ function betweenDays(column: unknown, now: number, fromDaysAgo: number, toDaysAg
 
 export default async function AdminDashboardPage() {
   const clan = await requireClan();
+  // WHAT THIS READER CAN ACTUALLY OPEN. This page is the landing tile for every staff tier, and it
+  // was written for an admin: a moderator without the authoring capability cannot reach /admin/events
+  // at all, yet was shown "Build teams" and "Manage events" — buttons that redirect straight back
+  // here. Asking the real routing table means the dashboard and the gate can never disagree.
+  const session = await verifyUser();
+  const access = session
+    ? { role: session.role, canEditTiles: session.canEditTiles, editorScope: session.editorScope }
+    : null;
+  const canReach = (href: string) => redirectFor(href, access) === null;
+  const canManageEvents = canReach('/admin/events');
   // First-run: a brand-new clan (no name, no webhook, never dismissed) is sent straight
   // to the guided wizard once. It's always escapable, and skipping sets the advisory flag
   // so this never becomes a trap.
@@ -242,6 +257,9 @@ export default async function AdminDashboardPage() {
     pendingCoHostInvites(clan.id).then((r) => r.length),
   ]);
 
+  // What somebody already said they know about. Per clan, so the whole staff sees one answer.
+  const snoozed = parseSnoozes(await getSetting(clan.id, SNOOZE_SETTING_KEY));
+
   const tilesById = new Map(tileCountRows.map((r) => [r.eventId, r.n]));
   const teamsById = new Map(teamCountRows.map((r) => [r.eventId, r.n]));
   const boardById = new Map(boardRows.map((b) => [b.id, b]));
@@ -299,6 +317,8 @@ export default async function AdminDashboardPage() {
         }
       : null,
     unscheduled,
+    canReach,
+    snoozed,
   });
 
   // A single logical action (e.g. verifying a member) writes several audit rows —
@@ -344,7 +364,7 @@ export default async function AdminDashboardPage() {
         />
       )}
 
-      <NowBar running={running} nextUp={nextUp} now={now} />
+      <NowBar running={running} nextUp={nextUp} now={now} canReach={canReach} />
 
       {/* What needs a human — the reason this page exists. */}
       <section className="mt-8">
@@ -356,9 +376,11 @@ export default async function AdminDashboardPage() {
               {openCount(queue) === 0 ? 'all clear' : `${openCount(queue)} open`}
             </span>
           </h2>
-          <ClanLink href="/admin/events" className="text-xs text-gold hover:text-gold-light">
-            Manage events →
-          </ClanLink>
+          {canManageEvents && (
+            <ClanLink href="/admin/events" className="text-xs text-gold hover:text-gold-light">
+              Manage events →
+            </ClanLink>
+          )}
         </div>
         <div className="space-y-2">
           {queue.map((item) => (
@@ -389,6 +411,7 @@ export default async function AdminDashboardPage() {
             sub={`of ${activeMembers} · only members running the plugin report in`}
             href="/admin/people"
           />
+          {/* A measurement is worth reading whoever you are; only the link is an admin's. */}
           <PulseTile
             label="Tiles completed"
             value={completions7d}
@@ -398,7 +421,7 @@ export default async function AdminDashboardPage() {
                 ? `across ${running.length} live ${running.length === 1 ? 'event' : 'events'}`
                 : 'nothing running'
             }
-            href="/admin/events"
+            href={canManageEvents ? '/admin/events' : null}
           />
           <PulseTile
             label="Waiting on staff"
@@ -438,11 +461,16 @@ function NowBar({
   running,
   nextUp,
   now,
+  canReach,
 }: {
   running: EventIndexItem[];
   nextUp: EventIndexItem | undefined;
   now: number;
+  /** A moderator reads the same strip but cannot open an event, so titles stop being links. */
+  canReach: (href: string) => boolean;
 }) {
+  // One question asked once, rather than per event: every item here lives under /admin/events.
+  const canOpenEvents = canReach('/admin/events');
   return (
     <div className="grid gap-px sm:grid-cols-2 rounded-xl overflow-hidden border border-card-border bg-card-border">
       <div className="bg-card-bg p-4">
@@ -470,9 +498,13 @@ function NowBar({
                   </span>
                   <span className="ml-auto text-[10px] text-text-muted">{remaining(end, now)}</span>
                 </div>
-                <ClanLink href={it.href} className="block mt-1.5 font-semibold hover:text-gold transition-colors">
-                  {it.title}
-                </ClanLink>
+                {canOpenEvents ? (
+                  <ClanLink href={it.href} className="block mt-1.5 font-semibold hover:text-gold transition-colors">
+                    {it.title}
+                  </ClanLink>
+                ) : (
+                  <div className="mt-1.5 font-semibold">{it.title}</div>
+                )}
                 <div className="text-xs text-text-muted mt-0.5">
                   {it.badge} · {it.headline}
                 </div>
@@ -496,9 +528,13 @@ function NowBar({
         </div>
         {nextUp ? (
           <>
-            <ClanLink href={nextUp.href} className="block mt-1.5 font-semibold hover:text-gold transition-colors">
-              {nextUp.title}
-            </ClanLink>
+            {canOpenEvents ? (
+              <ClanLink href={nextUp.href} className="block mt-1.5 font-semibold hover:text-gold transition-colors">
+                {nextUp.title}
+              </ClanLink>
+            ) : (
+              <div className="mt-1.5 font-semibold">{nextUp.title}</div>
+            )}
             <div className="text-xs text-text-muted mt-0.5">
               {nextUp.badge} · {nextUp.headline}
             </div>
@@ -510,9 +546,13 @@ function NowBar({
         ) : (
           <div className="mt-2 text-sm text-text-muted">
             Nothing queued.{' '}
-            <ClanLink href="/admin/events/new" className="text-gold hover:underline">
-              Schedule one →
-            </ClanLink>
+            {canReach('/admin/events/new') ? (
+              <ClanLink href="/admin/events/new" className="text-gold hover:underline">
+                Schedule one →
+              </ClanLink>
+            ) : (
+              <span className="text-text-muted/70">An admin schedules the next one.</span>
+            )}
           </div>
         )}
       </div>
@@ -562,6 +602,8 @@ function AttentionCard({ item }: { item: AttentionItem }) {
         <div className="text-sm font-semibold">{item.title}</div>
         <div className="text-xs text-text-muted mt-0.5">{item.detail}</div>
       </div>
+      {/* "I know" sits BEFORE the action, quieter than it, and only where the queue allows it. */}
+      {item.snoozable && <SnoozeButton itemKey={item.key} title={item.title} />}
       <ClanLink
         href={item.href}
         className={`shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
@@ -595,13 +637,11 @@ function PulseTile({
   share?: number;
   sub: string;
   warn?: boolean;
-  href: string;
+  /** null when this reader cannot open the page — the tile still renders, as plain text. */
+  href: string | null;
 }) {
-  return (
-    <ClanLink
-      href={href}
-      className="block border border-card-border rounded-xl bg-card-bg p-4 hover:border-gold/40 transition-colors"
-    >
+  const body = (
+    <>
       <div className="text-[10px] uppercase tracking-[0.15em] text-text-muted/70">{label}</div>
       <div className="flex items-baseline gap-2 mt-1">
         <span className={`text-2xl font-semibold tabular-nums ${warn ? 'text-yellow-400' : ''}`}>{value}</span>
@@ -625,7 +665,15 @@ function PulseTile({
         </div>
       )}
       <div className="text-[10px] text-text-muted/70 mt-2">{sub}</div>
+    </>
+  );
+  const box = 'block border border-card-border rounded-xl bg-card-bg p-4';
+  return href ? (
+    <ClanLink href={href} className={`${box} hover:border-gold/40 transition-colors`}>
+      {body}
     </ClanLink>
+  ) : (
+    <div className={box}>{body}</div>
   );
 }
 
@@ -971,7 +1019,9 @@ function Snapshot({
         <SnapshotRow
           label="This week's competition"
           value={weekly?.title ?? 'none running'}
-          href="/admin/weekly"
+          // The competition itself when there is one — /admin/weekly is where you SCHEDULE one now,
+          // which is the wrong answer to "what is running".
+          href={weekly ? weekly.href : '/admin/weekly'}
         />
         <SnapshotRow
           label="Pending mod review"
