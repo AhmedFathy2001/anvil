@@ -16,7 +16,7 @@
 import { and, count, countDistinct, desc, eq, inArray, isNull, like, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanAuditLog, clanMemberships, clanStaff, clans, events as eventsTable, players, users, weeklyCompetitions } from '@/db/schema';
+import { accounts, clanAuditLog, clanMemberships, clanStaff, clans, errorEvents, events as eventsTable, players, users, weeklyCompetitions } from '@/db/schema';
 import { apexDomain } from '@/lib/clanContext';
 
 export interface PlatformTotals {
@@ -98,6 +98,39 @@ export interface ClanRow {
   guests: number;
   events: number;
   owner: string | null;
+
+  // ── Billing, which this surface could not see at all ────────────────────────────────────────
+  //
+  // Every one of these was already on the row — the Gumroad webhook writes them — and the only
+  // place that read them was /portal, which is the CUSTOMER's view of their own subscription. So
+  // the operator surface for a hosting business could show `plan` and nothing else: not who is on
+  // trial, not whose trial ends on Thursday, not who cancelled but is still inside the term they
+  // paid for, not whose period end went by while their plan still said Gold.
+  //
+  // ISO strings, straight off the row, because two timestamp formats live in these columns and only
+  // the date prefix means the same thing in both (see lib/dbTime). The callers compare days.
+  contactEmail: string | null;
+  trialEndsAt: string | null;
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+  /** They have a Gumroad subscription at all — a paying clan, as opposed to one put on a plan by hand. */
+  subscribed: boolean;
+
+  // ── Liveness ────────────────────────────────────────────────────────────────────────────────
+  //
+  // The directory carried `createdAt` and nothing else about time, so a clan that stopped running
+  // events in March looked exactly like one that ran a board yesterday. For churn, and for knowing
+  // who is worth checking on, "when did anything last happen here" is the whole question.
+  /** The most recent event or competition START, whichever is later. Null for a clan that never ran one. */
+  lastEventAt: string | null;
+  /**
+   * When this clan last synced a roster.
+   *
+   * `last_seen_in_clan` is bumped for EVERY member on every sync, so the max across the clan is
+   * exactly "when did a push last arrive" — which is the liveness question here. It is deliberately
+   * not "when did anyone last play"; that is liveStatsAt, and it is a clan's own business.
+   */
+  lastRosterSyncAt: string | null;
 }
 
 /**
@@ -138,6 +171,21 @@ export async function allClans(): Promise<ClanRow[]> {
         join ${users} u on u.id = cs.user_id
         where cs.clan_id = clans.id and cs.role = 'owner' limit 1
       )`,
+      contactEmail: clans.contactEmail,
+      trialEndsAt: clans.trialEndsAt,
+      currentPeriodEnd: clans.currentPeriodEnd,
+      cancelAtPeriodEnd: clans.cancelAtPeriodEnd,
+      gumroadSubscriptionId: clans.gumroadSubscriptionId,
+      // The later of the two things a clan "runs". Written out rather than interpolated for the
+      // same reason as the counts above — an interpolated column renders unqualified inside a raw
+      // fragment and collides with the subquery's own columns.
+      lastEventAt: sql<string | null>`greatest(
+        (select max(e.start_date) from ${eventsTable} e where e.clan_id = clans.id),
+        (select max(w.start_date) from ${weeklyCompetitions} w where w.clan_id = clans.id)
+      )`,
+      lastRosterSyncAt: sql<string | null>`(
+        select max(m.last_seen_in_clan) from ${clanMemberships} m where m.clan_id = clans.id
+      )`,
     })
     .from(clans)
     .orderBy(clans.name);
@@ -157,6 +205,13 @@ export async function allClans(): Promise<ClanRow[]> {
     guests: Number(r.guests ?? 0),
     events: Number(r.events ?? 0),
     owner: r.owner,
+    contactEmail: r.contactEmail,
+    trialEndsAt: r.trialEndsAt,
+    currentPeriodEnd: r.currentPeriodEnd,
+    cancelAtPeriodEnd: r.cancelAtPeriodEnd,
+    subscribed: !!r.gumroadSubscriptionId,
+    lastEventAt: r.lastEventAt,
+    lastRosterSyncAt: r.lastRosterSyncAt,
   }));
 }
 
@@ -736,5 +791,125 @@ export async function browsePeople(
     total: Number(total),
     page: safePage,
     pages,
+  };
+}
+
+/* ---------------------------------------------------------------------------
+   One clan, whole.
+
+   THE DIRECTORY IS A COMPARISON AND THIS IS AN ANSWER. /staff/clans exists to put clans beside each
+   other — four editable fields in a row, sorted by name — and that is the right shape for deciding a
+   plan or spotting an outlier. It is the wrong shape for the question an operator actually arrives
+   with, which is always about ONE of them: somebody opened a ticket, a trial is ending, a name is
+   disputed. Answering that meant a directory row, the errors tab, the operator log, and a guess at
+   what their staff looks like — four surfaces, none of which agreed to be about the same clan.
+   --------------------------------------------------------------------------- */
+
+export interface ClanDetail {
+  clan: ClanRow;
+  /** Everyone holding authority here, strongest first. */
+  staff: { userId: number; name: string | null; role: string; canEditTiles: boolean }[];
+  /** Their last few boards and competitions, newest first — what this clan actually does. */
+  recentEvents: { id: number; name: string; kind: 'board' | 'weekly'; startDate: string | null; endDate: string | null }[];
+  /** Failures recorded against this clan that nobody has resolved. */
+  openErrors: { id: number; name: string; message: string; path: string | null; count: number; lastSeenAt: string }[];
+}
+
+export async function clanDetail(clanId: number): Promise<ClanDetail | null> {
+  // clan-scope: global -- an operator page about a named clan, reached only from /staff.
+  const [row] = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  if (!row) return null;
+
+  const [counts, staff, boards, comps, errs] = await Promise.all([
+    db
+      .select({
+        members: sql<number>`count(*) filter (where m.kind = 'member' and m.left_at is null)`,
+        guests: sql<number>`count(*) filter (where m.kind = 'guest' and m.left_at is null)`,
+        lastSync: sql<string | null>`max(m.last_seen_in_clan)`,
+      })
+      .from(sql`${clanMemberships} m`)
+      .where(sql`m.clan_id = ${clanId}`)
+      .then((r) => r[0]),
+    db
+      .select({
+        userId: clanStaff.userId,
+        name: users.displayName,
+        role: clanStaff.role,
+        canEditTiles: clanStaff.canEditTiles,
+      })
+      .from(clanStaff)
+      .innerJoin(users, eq(users.id, clanStaff.userId))
+      // Anything below moderator is an ordinary seat rather than authority, and listing three
+      // hundred of those would bury the four people this section exists to name.
+      .where(and(eq(clanStaff.clanId, clanId), inArray(clanStaff.role, ['owner', 'admin', 'treasurer', 'moderator', 'editor'])))
+      .orderBy(clanStaff.role),
+    db
+      .select({ id: eventsTable.id, name: eventsTable.name, startDate: eventsTable.startDate, endDate: eventsTable.endDate })
+      .from(eventsTable)
+      .where(eq(eventsTable.clanId, clanId))
+      .orderBy(desc(eventsTable.startDate))
+      .limit(5),
+    db
+      .select({
+        id: weeklyCompetitions.id,
+        name: weeklyCompetitions.title,
+        startDate: weeklyCompetitions.startDate,
+        endDate: weeklyCompetitions.endDate,
+      })
+      .from(weeklyCompetitions)
+      .where(eq(weeklyCompetitions.clanId, clanId))
+      .orderBy(desc(weeklyCompetitions.startDate))
+      .limit(5),
+    db
+      .select({
+        id: errorEvents.id,
+        name: errorEvents.name,
+        message: errorEvents.message,
+        path: errorEvents.path,
+        count: errorEvents.count,
+        lastSeenAt: errorEvents.lastSeenAt,
+      })
+      .from(errorEvents)
+      .where(and(eq(errorEvents.clanId, clanId), isNull(errorEvents.resolvedAt)))
+      .orderBy(desc(errorEvents.lastSeenAt))
+      .limit(5),
+  ]);
+
+  const recentEvents = [
+    ...boards.map((b) => ({ ...b, kind: 'board' as const })),
+    ...comps.map((c) => ({ ...c, kind: 'weekly' as const })),
+  ]
+    .sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? ''))
+    .slice(0, 6);
+
+  const lastEventAt = recentEvents[0]?.startDate ?? null;
+
+  return {
+    clan: {
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      host: row.customDomain || `${row.slug}.${apexDomain()}`,
+      status: row.status,
+      plan: row.plan,
+      memberCap: row.memberCap,
+      createdAt: row.createdAt,
+      inGameName: row.inGameName,
+      verified: row.ingameNameVerifiedAt != null,
+      members: Number(counts?.members ?? 0),
+      guests: Number(counts?.guests ?? 0),
+      events: boards.length,
+      owner: staff.find((s) => s.role === 'owner')?.name ?? null,
+      contactEmail: row.contactEmail,
+      trialEndsAt: row.trialEndsAt,
+      currentPeriodEnd: row.currentPeriodEnd,
+      cancelAtPeriodEnd: row.cancelAtPeriodEnd,
+      subscribed: !!row.gumroadSubscriptionId,
+      lastEventAt,
+      lastRosterSyncAt: counts?.lastSync ?? null,
+    },
+    staff,
+    recentEvents,
+    openErrors: errs,
   };
 }

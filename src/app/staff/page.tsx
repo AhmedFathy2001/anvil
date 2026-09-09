@@ -1,5 +1,6 @@
 
 import { platformTotals, multiClanPeople, nameCollisions, allClans } from '@/lib/platformView';
+import { billingStatus, liveness, QUIET_SYNC_DAYS, TRIAL_WARN_DAYS } from '@/lib/clanBilling';
 import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
@@ -50,6 +51,23 @@ export default async function StaffOverview() {
   const unverified = clans.filter((c) => c.status === 'active' && !c.verified);
   const overCap = clans.filter((c) => c.memberCap != null && c.members > c.memberCap);
 
+  // MONEY, WHICH THIS PAGE COULD NOT SEE. Every one of these facts was already on the clan row and
+  // read by nothing but the customer's own /portal. Ownerless and unverified are states a clan sits
+  // in until somebody notices; a trial running out on Thursday is the same kind of state, and it is
+  // the one this business is actually made of.
+  const now = Date.now();
+  const active = clans.filter((c) => c.status === 'active');
+  const billed = active.map((c) => ({ clan: c, billing: billingStatus(c, now) }));
+  const trialEnding = billed
+    .filter((b) => b.billing.state === 'trialing' && b.billing.attention)
+    .sort((a, b) => (a.billing.daysLeft ?? 0) - (b.billing.daysLeft ?? 0));
+  const cancelling = billed.filter((b) => b.billing.state === 'cancelling');
+  const lapsed = billed.filter((b) => b.billing.state === 'lapsed');
+  const trialOver = billed.filter((b) => b.billing.state === 'trial-expired');
+  // A clan nothing has arrived from in a month. Never-synced clans are excluded by `liveness` —
+  // they are new or unverified, and both already have a line of their own above.
+  const quiet = active.filter((c) => liveness(c, now).quiet);
+
   return (
     <div>
       <h1 className="text-2xl font-bold">Platform</h1>
@@ -57,9 +75,53 @@ export default async function StaffOverview() {
         Every clan on this deployment. Nothing here is scoped to one.
       </p>
 
-      {(ownerless.length > 0 || unverified.length > 0 || overCap.length > 0) && (
+      {(ownerless.length > 0 ||
+        unverified.length > 0 ||
+        overCap.length > 0 ||
+        trialEnding.length > 0 ||
+        cancelling.length > 0 ||
+        lapsed.length > 0 ||
+        trialOver.length > 0 ||
+        quiet.length > 0) && (
         <Section title="Needs a look">
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {/* Money first — it is the half of this page that has a deadline on it. */}
+            <Attention
+              title={`Trial ends within ${TRIAL_WARN_DAYS} days`}
+              blurb="The window to have a conversation, and it closes on its own."
+              clans={trialEnding.map((b) => b.clan)}
+              note={(c) => billingStatus(c, now).label}
+              tone="warn"
+            />
+            <Attention
+              title="Cancelling"
+              blurb="Still paid up and still served — which is why it is worth a message now."
+              clans={cancelling.map((b) => b.clan)}
+              note={(c) => billingStatus(c, now).label}
+              tone="warn"
+            />
+            <Attention
+              title="Renewal overdue"
+              blurb="A subscription whose period end went by. Usually a failed payment."
+              clans={lapsed.map((b) => b.clan)}
+              note={(c) => billingStatus(c, now).label}
+              tone="bad"
+            />
+            <Attention
+              title="Trial ended, never paid"
+              blurb="They fell back to free. Nothing is broken; nothing asked them either."
+              clans={trialOver.map((b) => b.clan)}
+              note={(c) => billingStatus(c, now).label}
+            />
+            <Attention
+              title={`No roster sync in ${QUIET_SYNC_DAYS} days`}
+              blurb="Nobody here is running the plugin, so everything downstream of the roster is stale."
+              clans={quiet}
+              note={(c) => {
+                const d = liveness(c, now).syncDays;
+                return d == null ? '' : `${d} days quiet`;
+              }}
+            />
             <Attention
               title="No owner"
               blurb="Its own transfer flow needs a current owner, so it cannot fix this itself."
@@ -169,35 +231,53 @@ export default async function StaffOverview() {
   );
 }
 
-/** One column of the "needs a look" grid. Renders nothing when its list is empty. */
-function Attention({
+const ATTENTION_TONE = {
+  plain: 'border-card-border',
+  warn: 'border-yellow-500/40',
+  bad: 'border-accent-red/40',
+} as const;
+
+/**
+ * One column of the "needs a look" grid. Renders nothing when its list is empty.
+ *
+ * Each clan links to its OWN operator page rather than to the clan's public home. The public home
+ * is where a member goes; from here the next thing wanted is always the same — what is going on
+ * with this one — and that is what /staff/clans/<id> answers.
+ */
+function Attention<T extends { id: number; slug: string; name: string }>({
   title,
   blurb,
   clans,
+  note,
+  tone = 'plain',
 }: {
   title: string;
   blurb: string;
-  clans: { id: number; slug: string; name: string }[];
+  clans: T[];
+  /** A few words after the name — how long is left, how long it has been quiet. */
+  note?: (clan: T) => string;
+  tone?: keyof typeof ATTENTION_TONE;
 }) {
   if (clans.length === 0) return null;
   return (
-    <div className="rounded-xl border border-card-border bg-card-bg p-4">
+    <div className={`rounded-xl border bg-card-bg p-4 ${ATTENTION_TONE[tone]}`}>
       <div className="flex items-baseline justify-between gap-2">
         <h3 className="text-sm font-semibold">{title}</h3>
         <span className="text-xs tabular-nums text-gold">{clans.length}</span>
       </div>
       <p className="mt-1 text-xs text-text-muted">{blurb}</p>
-      <ul className="mt-2.5 flex flex-wrap gap-1.5">
-        {clans.map((c) => (
-          <li key={c.id}>
-            <ClanLink
-              href={`/c/${c.slug}`}
-              className="rounded-full border border-card-border px-2 py-0.5 text-xs text-text-muted transition-colors hover:border-gold/30 hover:text-foreground"
-            >
-              {c.name}
-            </ClanLink>
-          </li>
-        ))}
+      <ul className="mt-2.5 flex flex-col gap-1">
+        {clans.map((c) => {
+          const said = note?.(c);
+          return (
+            <li key={c.id} className="flex items-baseline justify-between gap-2">
+              <ClanLink href={`/staff/clans/${c.id}`} className="text-xs text-gold hover:underline truncate">
+                {c.name}
+              </ClanLink>
+              {said && <span className="shrink-0 text-[11px] tabular-nums text-text-muted">{said}</span>}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

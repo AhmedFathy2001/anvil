@@ -84,6 +84,42 @@ test('allClans runs', async () => {
   assert.equal(rows.length, 2);
 });
 
+test('allClans carries the billing and liveness columns it grew', async () => {
+  // These were on the row all along and read by nothing but the customer's own /portal, so the
+  // operator surface could show `plan` and nothing else. The assertion is that the SHAPE arrives —
+  // `greatest(...)` over two correlated subqueries and a third for the roster max is exactly the
+  // kind of fragment that type-checks and then fails at run time.
+  const rows = await V.allClans();
+  for (const r of rows) {
+    assert.ok('contactEmail' in r && 'trialEndsAt' in r && 'currentPeriodEnd' in r);
+    assert.equal(typeof r.cancelAtPeriodEnd, 'boolean');
+    assert.equal(typeof r.subscribed, 'boolean');
+    assert.ok(r.lastEventAt === null || typeof r.lastEventAt === 'string');
+    assert.ok(r.lastRosterSyncAt === null || typeof r.lastRosterSyncAt === 'string');
+  }
+});
+
+test('clanDetail runs, and answers about ONE clan', async () => {
+  const rows = await V.allClans();
+  const one = rows.find((r) => r.slug === 'one')!;
+
+  const detail = await V.clanDetail(one.id);
+  assert.ok(detail, 'a clan that exists has a detail page');
+  assert.equal(detail.clan.slug, 'one');
+  // Seat counts are computed here rather than reused from the directory, so they are worth checking
+  // separately: Clan One holds the member, Clan Two holds the guest.
+  assert.equal(detail.clan.members, 1);
+  assert.equal(detail.clan.guests, 0);
+  assert.equal(detail.staff.length, 1, 'the admin seeded above');
+  assert.equal(detail.staff[0].role, 'admin');
+  assert.deepEqual(detail.recentEvents, []);
+  assert.deepEqual(detail.openErrors, []);
+});
+
+test('clanDetail on a clan that is not there is null, not a crash', async () => {
+  assert.equal(await V.clanDetail(9_999_999), null);
+});
+
 test('findPeople runs', async () => {
   const hits = await V.findPeople('Main');
   assert.ok(hits.length >= 1, 'searching by an RSN they own finds the person');

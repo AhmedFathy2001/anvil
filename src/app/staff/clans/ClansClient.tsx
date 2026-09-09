@@ -8,6 +8,9 @@ import type { ActAsGrant } from '@/lib/actAs';
 import Select from '@/components/Select';
 import { PLAN_IDS } from '@/lib/plans';
 import Input from '@/components/Input';
+import { useDialog } from '@/components/Confirm';
+import { billingStatus, liveness } from '@/lib/clanBilling';
+import ClanLink from '@/components/ClanLink';
 
 const STATUSES = ['active', 'suspended', 'archived'] as const;
 
@@ -33,6 +36,7 @@ export default function ClansClient({
   grants: ActAsGrant[];
 }) {
   const router = useRouter();
+  const { ask } = useDialog();
   const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
@@ -52,7 +56,18 @@ export default function ClansClient({
   // Verifying by hand: for a clan whose owner rank is renamed, whose owner has stopped playing, or
   // a dispute somebody has to decide. The ordinary path is an owner-tier roster push.
   async function verifyClan(clanId: number, current: string) {
-    const name = prompt('Exact in-game clan name to verify:', current);
+    // The EXACT in-game name, which two partial unique indexes are enforced on and which roster
+    // sync gates against. A browser prompt collected it with no room to say any of that.
+    const name = await ask({
+      title: 'Verify this clan by hand',
+      body:
+        'Verifying says somebody has proved this site belongs to that in-game clan. It must match the clan name in game exactly — trailing spaces and capitalisation included — because roster sync compares against it and only one verified clan may hold a name.',
+      label: 'In-game clan name',
+      initial: current,
+      placeholder: 'The AFK Spot',
+      required: true,
+      confirmLabel: 'Verify',
+    });
     if (name === null) return;
     setBusy(clanId);
     setError(null);
@@ -74,7 +89,19 @@ export default function ClansClient({
   }
 
   async function unverifyClan(clanId: number) {
-    const reason = prompt('Why is this badge being withdrawn? (recorded in the clan’s history)');
+    // This string lands in the clan's OWN history, where their staff read it. It was being typed
+    // into a one-line browser prompt that accepted the empty string.
+    const reason = await ask({
+      title: 'Withdraw the verified badge',
+      body:
+        'The clan stops being able to sync a roster or enter a cross-clan leaderboard, and this reason is written into their history where their own staff will read it.',
+      label: 'Why',
+      placeholder: 'Disputed name — the other claimant holds the owner rank in game.',
+      multiline: true,
+      required: true,
+      confirmLabel: 'Withdraw badge',
+      tone: 'danger',
+    });
     if (reason === null) return;
     setBusy(clanId);
     setError(null);
@@ -187,8 +214,15 @@ export default function ClansClient({
 
   const needle = q.trim().toLowerCase();
   const shown = needle
-    ? clans.filter((c) => [c.name, c.slug, c.host, c.owner ?? ''].some((s) => s.toLowerCase().includes(needle)))
+    ? clans.filter((c) =>
+        // The contact email is in here because it is the one string an operator reliably HAS when a
+        // customer writes in — the mail says nothing about a slug.
+        [c.name, c.slug, c.host, c.owner ?? '', c.contactEmail ?? ''].some((s) =>
+          s.toLowerCase().includes(needle),
+        ),
+      )
     : clans;
+  const now = Date.now();
 
   return (
     <div>
@@ -206,11 +240,13 @@ export default function ClansClient({
       />
 
       <div className="overflow-x-auto rounded-xl border border-card-border bg-card-bg">
-        <table className="w-full min-w-[52rem] text-sm">
+        <table className="w-full min-w-[68rem] text-sm">
           <thead className="border-b border-card-border text-left text-xs uppercase tracking-wide text-gray-400">
             <tr>
               <th className="px-4 py-3">Clan</th>
               <th className="px-4 py-3">Owner</th>
+              <th className="px-4 py-3">Subscription</th>
+              <th className="px-4 py-3">Last sync</th>
               <th className="px-4 py-3 text-right">Members</th>
               <th className="px-4 py-3 text-right">Guests</th>
               <th className="px-4 py-3 text-right">Events</th>
@@ -224,10 +260,17 @@ export default function ClansClient({
             {shown.map((c) => (
               <tr key={c.id} className={busy === c.id ? 'opacity-50' : undefined}>
                 <td className="px-4 py-3">
-                  <a href={`https://${c.host}`} target="_blank" rel="noreferrer" className="font-medium hover:text-gold">
+                  {/* The NAME opens this clan's operator page — the question you arrive with is
+                      almost always about one of them. The host below still goes to the clan's own
+                      site, which is the other thing you sometimes want. */}
+                  <ClanLink href={`/staff/clans/${c.id}`} className="font-medium hover:text-gold">
                     {c.name}
-                  </a>
-                  <div className="text-xs text-gray-500">{c.host}</div>
+                  </ClanLink>
+                  <div className="text-xs text-gray-500">
+                    <a href={`https://${c.host}`} target="_blank" rel="noreferrer" className="hover:text-gold">
+                      {c.host}
+                    </a>
+                  </div>
                   <div className="mt-1 flex items-center gap-1.5 text-xs">
                     {c.verified ? (
                       <span className="text-emerald-400" title={`Verified as "${c.inGameName}" in game`}>
@@ -290,6 +333,32 @@ export default function ClansClient({
                     </span>
                   )}
                 </td>
+                {(() => {
+                  const b = billingStatus(c, now);
+                  const l = liveness(c, now);
+                  return (
+                    <>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`text-xs ${
+                            b.state === 'lapsed'
+                              ? 'text-accent-red'
+                              : b.attention
+                                ? 'text-yellow-400'
+                                : 'text-gray-400'
+                          }`}
+                        >
+                          {b.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs tabular-nums ${l.quiet ? 'text-yellow-400' : 'text-gray-400'}`}>
+                          {l.syncDays == null ? 'never' : l.syncDays === 0 ? 'today' : `${l.syncDays}d`}
+                        </span>
+                      </td>
+                    </>
+                  );
+                })()}
                 <td className="px-4 py-3 text-right tabular-nums">{c.members}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-gray-400">{c.guests}</td>
                 <td className="px-4 py-3 text-right tabular-nums">{c.events}</td>
