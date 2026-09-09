@@ -236,6 +236,7 @@ export async function PATCH(
     pickedAt?: string | null;
     pickNumber?: number | null;
     clanMemberId?: number;
+    accountId?: number | null;
     statsSnapshot?: string | null;
     snapshotAt?: string | null;
     cachedStats?: string | null;
@@ -278,7 +279,42 @@ export async function PATCH(
       if (!member) {
         return NextResponse.json({ error: 'Account not found' }, { status: 404 });
       }
+      // ANOTHER ROW MAY ALREADY BE THAT ACCOUNT. `event_participants` carries a partial unique
+      // index on (event_id, account_id), so writing the new account onto this row when somebody
+      // else on the board already holds it is a 23505 — a raw 500 in the admin's face. Ask first
+      // and say who, since "Bob Alt is already playing as Bob Alt" is the whole answer.
+      if (member.accountId != null) {
+        const clash = await db.query.eventParticipants.findFirst({
+          where: and(
+            eq(eventParticipants.eventId, eId),
+            eq(eventParticipants.accountId, member.accountId),
+          ),
+          columns: { id: true, name: true },
+        });
+        if (clash && clash.id !== player.id) {
+          return NextResponse.json(
+            { error: `${member.rsn} is already on this board as ${clash.name}. Remove that entry first.` },
+            { status: 409 },
+          );
+        }
+      }
+
       updateData.clanMemberId = cmId;
+      // THE ACCOUNT MOVES WITH THE SEAT. This line is the bug this block had: the swap re-pointed
+      // `clanMemberId` and left `accountId` on the account being swapped AWAY from — which was
+      // harmless while a seat and an account were the same fact, and stopped being so when
+      // cross-clan play separated them and `account_id` became the de-duplication key.
+      //
+      // Left stale, the row claims to be the old account while tracking the new one, and
+      // lib/participants' enrolParticipant keys PURELY on account with no seat fallback. So the
+      // next time the swapped-in account came through any of the ordinary doors — a captain adding
+      // them to a roster, a team request being approved, their own sign-up being approved — the
+      // index saw no conflict and inserted a SECOND row for the same human. Doubled stat gains, two
+      // rows on the roster, two fees owed: exactly what the index exists to prevent.
+      //
+      // The other half is quieter: the account swapped away from went on counting as present, so it
+      // could not be enrolled on this board by anybody.
+      updateData.accountId = member.accountId ?? null;
       updateData.name = member.rsn; // the tracked RSN follows the swapped account
       // Wipe the stat baseline so the next hiscores tick re-baselines from the NEW account —
       // otherwise gains = (new account's current XP/KC) − (old account's baseline) = garbage.

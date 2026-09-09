@@ -215,3 +215,71 @@ test('bulk enrolment naming one person by both their seats enrols them once', as
     .where(and(eq(s.eventParticipants.eventId, ev2.id), eq(s.eventParticipants.accountId, travellerAccount)));
   assert.equal(rows.length, 1);
 });
+
+// ── Swapping the tracked account ──────────────────────────────────────────────────────────────
+//
+// An admin can change which of somebody's characters a board follows — an RSN gets banned, or they
+// carry on the event on their alt. The route re-points `clan_member_id` and wipes the stat baseline
+// so gains re-anchor to the new account.
+//
+// It did not re-point `account_id`, and that column IS the de-duplication key. The row went on
+// claiming to be the account swapped AWAY from, so:
+//
+//   - the swapped-IN account looked absent, and enrolParticipant — which keys purely on account,
+//     with no seat fallback — inserted a SECOND row for the same human the next time they came
+//     through any ordinary door: a captain adding them to a roster, a team request approved, their
+//     own sign-up approved. Doubled stat gains, two rows, two fees. Precisely what this file exists
+//     to prevent, reached from the other end.
+//   - the account swapped AWAY from went on counting as present, so nobody could enrol it here.
+//
+// Harmless while a seat and an account were the same fact. Cross-clan play separated them.
+
+test('swapping the tracked account moves the account with it', async () => {
+  const { db, schema: s } = await loadDb();
+
+  // A second character for the same human — the alt they would be swapped onto.
+  const [altAccount] = await db
+    .insert(s.accounts)
+    .values({ playerId: (await db.select().from(s.accounts).where(eq(s.accounts.id, travellerAccount)))[0].playerId, rsn: 'Traveller Alt', rsnNormalized: 'traveller alt' })
+    .returning();
+  const [altSeat] = await db
+    .insert(s.clanMemberships)
+    .values({ clanId: hostClan, accountId: altAccount.id, kind: 'guest', source: 'application' })
+    .returning();
+
+  const existing = await P.participantForSeat(eventId, guestSeat);
+  assert.ok(existing, 'the traveller is already on the board from the tests above');
+
+  // What the swap route writes. The account moving with the seat is the fix; without the
+  // `accountId` line this row keeps pointing at the main.
+  await db
+    .update(s.eventParticipants)
+    .set({
+      clanMemberId: altSeat.id,
+      accountId: altAccount.id,
+      name: 'Traveller Alt',
+      statsSnapshot: null,
+      snapshotAt: null,
+      cachedStats: null,
+    })
+    .where(eq(s.eventParticipants.id, existing.id));
+
+  // THE BUG. Coming through an ordinary door on the swapped-in account must find the row that is
+  // already tracking it, not mint a second one.
+  const again = await P.enrolParticipant({ eventId, clanMemberId: altSeat.id, name: 'Traveller Alt' });
+  assert.equal(again.created, false, 'the alt is already on this board — it is the same person');
+  assert.equal(again.row.id, existing.id);
+
+  const rows = await db
+    .select()
+    .from(s.eventParticipants)
+    .where(eq(s.eventParticipants.eventId, eventId));
+  const forThisHuman = rows.filter((r) => r.accountId === altAccount.id || r.accountId === travellerAccount);
+  assert.equal(forThisHuman.length, 1, 'one human, one row, before and after a swap');
+
+  // And the account swapped away from is free again: nobody is playing it here, so it must be
+  // enrollable rather than permanently shadowed by a row that has moved on.
+  const backOnMain = await P.enrolParticipant({ eventId, clanMemberId: guestSeat, name: 'Traveller' });
+  assert.equal(backOnMain.created, true, 'the main is nobody on this board now');
+  assert.notEqual(backOnMain.row.id, existing.id);
+});
