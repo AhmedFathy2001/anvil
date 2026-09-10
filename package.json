@@ -62,6 +62,7 @@
     "test:billingstate": "node --experimental-strip-types --test tests/clan-billing.test.ts",
     "test:entrants": "node --experimental-strip-types --test tests/weekly-entrants.test.ts",
     "test:accountchoices": "node --experimental-strip-types --test tests/account-choices.test.ts",
+    "test:signupplayer": "node --experimental-strip-types --test tests/signup-player.test.ts",
     "test:tenantenv": "npx tsx --test tests/tenant-env-isolation.test.ts",
     "test:guidesearch": "npx tsx --test tests/guide-search.test.ts",
     "test:guidei18n": "npx tsx --test tests/guide-i18n.test.ts",

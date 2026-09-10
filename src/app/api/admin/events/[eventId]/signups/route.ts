@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
+import { resolvePlayers } from '@/lib/signupPlayer';
 import { db } from '@/db';
 import { clanAuditLog, clanRoster, events, eventSignups, eventParticipants, signupFees, teams, users } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
@@ -47,6 +48,9 @@ export async function GET(
         id: clanRoster.id,
         rsn: clanRoster.rsn,
       },
+      // The human behind the seat that signed up. Needed because a board can end up tracking a
+      // DIFFERENT character of theirs — see the participant lookup below.
+      personId: clanRoster.playerId,
     })
     .from(eventSignups)
     // LEFT join so guest sign-ups (no linked user) still list — they show by RSN from `account`.
@@ -73,16 +77,38 @@ export async function GET(
   // Where each sign-up ended up. The draft writes teams onto `players`, not onto the sign-up, so
   // "show me everyone on the Red team" was a question the Sign-ups tab couldn't answer at all —
   // you had to hold the roster in your head while reading a flat list of 40 names.
+  //
+  // BY SEAT, THEN BY PERSON. An admin can change which character a board follows (Teams → a player
+  // → Edit → Tracked account), and that re-points the PARTICIPANT's seat while the sign-up keeps
+  // the seat it was made on — they are different records of different things. Keyed on the seat
+  // alone, the sign-up then matched nothing: a drafted player's row lost its team chip and fell
+  // back to the dashed "wants …", as though they were still in the pool. Nothing was actually
+  // wrong with the draft; the two halves had simply stopped being able to find each other.
+  //
+  // The person is what survives a swap, because swapping a character does not change who is
+  // playing. The seat is still tried first, so an ordinary board — where the two agree — resolves
+  // exactly as it did, and two people sharing nothing cannot be confused for one.
   const eventPlayers = await db
-    .select({ clanMemberId: eventParticipants.clanMemberId, teamId: eventParticipants.teamId })
+    .select({
+      clanMemberId: eventParticipants.clanMemberId,
+      teamId: eventParticipants.teamId,
+      name: eventParticipants.name,
+      personId: clanRoster.playerId,
+    })
     .from(eventParticipants)
+    // clan-scope: this clan -- the driving query is already narrowed to this event's participants.
+    .leftJoin(clanRoster, eq(eventParticipants.clanMemberId, clanRoster.id))
     .where(eq(eventParticipants.eventId, id));
-  const teamByMember = new Map<number, { id: number; name: string; color: string }>();
-  for (const p of eventPlayers) {
-    if (p.clanMemberId == null || p.teamId == null) continue;
-    const team = teamById.get(p.teamId);
-    if (team) teamByMember.set(p.clanMemberId, team);
-  }
+
+  // The rule lives in lib/signupPlayer so it can be tested without a database — this is the fourth
+  // place a seat has been mistaken for a person, and the first three were all found in production.
+  const resolver = resolvePlayers(
+    eventPlayers.map((p) => ({
+      seatId: p.clanMemberId,
+      personId: p.personId,
+      value: { team: p.teamId != null ? teamById.get(p.teamId) ?? null : null, tracked: p.name },
+    })),
+  );
 
   const signups = rows.map((r) => ({
     id: r.signup.id,
@@ -97,7 +123,14 @@ export async function GET(
     captainTeam: r.user && r.user.id != null ? captainTeamByUser.get(r.user.id) ?? null : null,
     // The team they actually play on — a captain's own team for a captain, the drafted team for
     // everyone else, null while they're still in the pool.
-    team: teamByMember.get(r.signup.clanMemberId) ?? null,
+    team: resolver.forSignup({ seatId: r.signup.clanMemberId, personId: r.personId })?.team ?? null,
+    // Set only when the board is following a DIFFERENT character than the one that signed up. The
+    // sign-up records what they entered on and stays as it is; this says what is actually being
+    // scored, which is otherwise invisible from this tab.
+    trackedAs: (() => {
+      const tracked = resolver.forSignup({ seatId: r.signup.clanMemberId, personId: r.personId })?.tracked;
+      return tracked && tracked !== r.account.rsn ? tracked : null;
+    })(),
     // The team they ASKED for on a team-choice event, until someone answers the request.
     requestedTeam: r.signup.requestedTeamId != null ? teamById.get(r.signup.requestedTeamId) ?? null : null,
     fee: r.fee

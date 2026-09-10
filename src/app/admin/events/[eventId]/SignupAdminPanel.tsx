@@ -46,6 +46,11 @@ interface SignupRow {
     role: string;
   } | null;
   account: { id: number; rsn: string };
+  /**
+   * The character the board is actually following, when an admin has swapped it to a different one
+   * of theirs. Null on the ordinary board where it is simply the account they signed up with.
+   */
+  trackedAs?: string | null;
   captainTeam: { id: number; name: string; color: string } | null;
   /** Where they play. Null while they're still in the draft pool. */
   team: { id: number; name: string; color: string } | null;
@@ -791,6 +796,12 @@ export default function SignupAdminPanel({
                           {s.user ? (
                             <span className="text-text-muted text-xs ml-2">
                               playing {s.account.rsn}
+                              {/* The sign-up records what they entered ON and does not move. When
+                                  the board has been pointed at another of their characters, saying
+                                  so here is the only place that fact is visible from this tab. */}
+                              {s.trackedAs && (
+                                <span className="text-gold/80"> · now tracked as {s.trackedAs}</span>
+                              )}
                             </span>
                           ) : (
                             <span className="text-[10px] uppercase tracking-wide text-text-muted ml-2 px-1 py-0.5 rounded border border-card-border">
