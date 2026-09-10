@@ -61,30 +61,65 @@ const DRIFTED = `
 `;
 
 /**
- * Rows that CANNOT simply be corrected: the account they should carry is already held by a
- * different participant on the same board, so writing it would violate the partial unique index
- * (event_id, account_id). That is the duplicate this bug was capable of producing, and it needs a
- * person — one of the two rows holds the scores somebody actually played for.
+ * Rows that CANNOT simply be corrected, in the two shapes that occur.
+ *
+ * Either way they are the duplicate this bug was capable of producing, and they need a person: one
+ * of the pair holds the scores somebody actually played for.
+ *
+ *   HELD — the account this row should carry is already on the board under a different row.
+ *
+ *   TWIN — two DRIFTED rows on one board both resolve to the same account. Neither holds it yet, so
+ *     nothing detects them by looking at what is held; they are only visible by comparing the
+ *     candidates to each other. This is the common shape in practice, because a row with a NULL
+ *     account is EXEMPT from the partial unique index — `where account_id is not null` — which is
+ *     exactly how a board came to carry the same seat twice in the first place. Correcting both in
+ *     one statement would raise 23505 and roll back every other repair with it.
  */
 const COLLIDING = `
-  select p.id,
-         p.event_id,
-         p.name       as swapped_row,
+  with drifted as (
+    select p.id, p.event_id, p.name, p.account_id, r.account_id as target
+      from event_participants p
+      join clan_roster r on r.id = p.clan_member_id
+     where p.account_id is distinct from r.account_id
+  )
+  select d.id,
+         d.event_id,
+         d.name       as swapped_row,
          other.id     as other_id,
-         other.name   as other_row
-    from event_participants p
-    join clan_roster r      on r.id = p.clan_member_id
+         other.name   as other_row,
+         'held'       as shape
+    from drifted d
     join event_participants other
-      on other.event_id = p.event_id
-     and other.account_id = r.account_id
-     and other.id <> p.id
-   where p.account_id is distinct from r.account_id
+      on other.event_id = d.event_id
+     and other.account_id = d.target
+     and other.id <> d.id
+  union all
+  select d.id,
+         d.event_id,
+         d.name       as swapped_row,
+         twin.id      as other_id,
+         twin.name    as other_row,
+         'twin'       as shape
+    from drifted d
+    join drifted twin
+      on twin.event_id = d.event_id
+     and twin.target = d.target
+     and twin.id <> d.id
 `;
 
 async function main() {
   const drifted = (await pool.query(DRIFTED)).rows;
-  const colliding = (await pool.query(COLLIDING)).rows;
-  const blocked = new Set(colliding.map((r) => r.id));
+  const collidingRaw = (await pool.query(COLLIDING)).rows;
+  const blocked = new Set(collidingRaw.map((r) => r.id));
+
+  // A twin pair is symmetric — the union finds it from both ends — so report each pair once.
+  const seenPair = new Set();
+  const colliding = collidingRaw.filter((r) => {
+    const key = `${r.event_id}:${[r.id, r.other_id].sort((a, b) => a - b).join('-')}`;
+    if (seenPair.has(key)) return false;
+    seenPair.add(key);
+    return true;
+  });
   const fixable = drifted.filter((r) => !blocked.has(r.id));
 
   if (drifted.length === 0) {
@@ -103,12 +138,15 @@ async function main() {
 
   if (colliding.length > 0) {
     console.log(
-      `\n${colliding.length} row(s) CANNOT be corrected automatically — the account they should ` +
-        `carry is already on that board under another row. These are the duplicates the bug could\n` +
-        `produce; decide which one keeps the scores, remove the other, then re-run.\n`,
+      `\n${colliding.length} pair(s) CANNOT be corrected automatically: two rows on one board want\n` +
+        `the same account. That pair IS the duplicate — one of them holds the scores somebody\n` +
+        `actually played for. Decide which stays, remove the other, then re-run.\n`,
     );
     for (const r of colliding) {
-      console.log(`  event ${r.event_id}: #${r.id} "${r.swapped_row}" collides with #${r.other_id} "${r.other_row}"`);
+      console.log(
+        `  event ${r.event_id}: #${r.id} "${r.swapped_row}" ${r.shape === 'twin' ? 'and' : 'collides with'} ` +
+          `#${r.other_id} "${r.other_row}"${r.shape === 'twin' ? ' both want the same account' : ''}`,
+      );
     }
   }
 
@@ -131,18 +169,32 @@ async function main() {
         from clan_roster r
        where r.id = p.clan_member_id
          and p.account_id is distinct from r.account_id
+         -- Nobody on this board already holds the account we are about to write.
          and not exists (
                select 1 from event_participants other
                 where other.event_id = p.event_id
                   and other.account_id = r.account_id
                   and other.id <> p.id
              )
+         -- And no OTHER drifted row on this board is heading for the same account. Postgres
+         -- evaluates this against the pre-statement snapshot, so without it a twin pair both pass
+         -- the check above, both write, and the second one raises 23505 — taking every other
+         -- correction down with it.
+         and not exists (
+               select 1
+                 from event_participants o2
+                 join clan_roster r2 on r2.id = o2.clan_member_id
+                where o2.event_id = p.event_id
+                  and o2.id <> p.id
+                  and o2.account_id is distinct from r2.account_id
+                  and r2.account_id = r.account_id
+             )
       returning p.id
     `);
     await client.query('commit');
     console.log(`\nCorrected ${res.rowCount} row(s).`);
     if (colliding.length > 0) {
-      console.log(`${colliding.length} left for a human, listed above.`);
+      console.log(`${colliding.length} pair(s) left for a human, listed above.`);
     }
   } catch (err) {
     await client.query('rollback');
