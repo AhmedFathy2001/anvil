@@ -794,13 +794,17 @@ export default function SignupAdminPanel({
                         <div className="font-medium truncate">
                           {s.user?.displayName ?? s.account.rsn}
                           {s.user ? (
+                            /* "PLAYING" NAMES THE CHARACTER IN PLAY. When an admin has pointed the
+                               board at another of somebody's characters, the sign-up still records
+                               the one they entered on — but reading "playing kAnal 5 · now tracked
+                               as 5464" put the live word on the account that is NOT being played,
+                               and "tracked" is the Edit Player field's own label leaking out of the
+                               admin form. So the character being scored takes "playing", and where
+                               they came from becomes the footnote. */
                             <span className="text-text-muted text-xs ml-2">
-                              playing {s.account.rsn}
-                              {/* The sign-up records what they entered ON and does not move. When
-                                  the board has been pointed at another of their characters, saying
-                                  so here is the only place that fact is visible from this tab. */}
+                              playing {s.trackedAs ?? s.account.rsn}
                               {s.trackedAs && (
-                                <span className="text-gold/80"> · now tracked as {s.trackedAs}</span>
+                                <span className="text-text-muted/70"> · signed up as {s.account.rsn}</span>
                               )}
                             </span>
                           ) : (

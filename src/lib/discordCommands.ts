@@ -20,7 +20,7 @@
 
 import { db } from '@/db';
 import { events, players, teams, tiles, completions, clanRoster, settings, eventSignups, eventParticipants } from '@/db/schema';
-import { eq, and, inArray, desc } from 'drizzle-orm';
+import { and, desc, eq, inArray, or } from 'drizzle-orm';
 import { getTeamStandings, type TeamStanding } from '@/lib/statStandings';
 import {
   parseEventRules,
@@ -558,14 +558,15 @@ async function meEmbed(
   event: EventContext,
   cross: CrossClanContext,
   memberIds: number[],
+  accountIds: number[],
   who: string,
   shared = false,
 ): Promise<DiscordEmbed> {
-  const myPlayers = memberIds.length
+  const myPlayers = memberIds.length || accountIds.length
     ? await db
         .select({ id: players.id, name: eventParticipants.name, teamId: eventParticipants.teamId })
         .from(eventParticipants)
-        .where(and(eq(eventParticipants.eventId, event.id), inArray(eventParticipants.clanMemberId, memberIds)))
+        .where(and(eq(eventParticipants.eventId, event.id), mineOnBoard(memberIds, accountIds)))
     : [];
 
   if (myPlayers.length === 0) {
@@ -771,6 +772,7 @@ async function applyEmbed(
   event: EventContext,
   cross: CrossClanContext,
   memberIds: number[],
+  accountIds: number[],
   shared = false,
 ): Promise<DiscordEmbed> {
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
@@ -792,7 +794,7 @@ async function applyEmbed(
         .where(and(eq(eventSignups.eventId, event.id), inArray(eventSignups.clanMemberId, memberIds)))
     : [];
   const already = mine[0]?.status ?? null;
-  const onTeam = personal && memberIds.length ? await myTeamId(event.id, memberIds) : null;
+  const onTeam = personal && memberIds.length ? await myTeamId(event.id, memberIds, accountIds) : null;
 
   const body: string[] = [];
   if (onTeam) {
@@ -951,13 +953,28 @@ function helpEmbed(
 // ── Dispatcher ──────────────────────────────────────────────────────────────────────────────────
 
 /** The team the invoker plays for on this event, if any — the default subject of `/bingo team`. */
-async function myTeamId(eventId: number, memberIds: number[]): Promise<number | null> {
-  if (memberIds.length === 0) return null;
+async function myTeamId(eventId: number, memberIds: number[], accountIds: number[] = []): Promise<number | null> {
+  if (memberIds.length === 0 && accountIds.length === 0) return null;
   const rows = await db
     .select({ teamId: eventParticipants.teamId })
     .from(eventParticipants)
-    .where(and(eq(eventParticipants.eventId, eventId), inArray(eventParticipants.clanMemberId, memberIds)));
+    .where(and(eq(eventParticipants.eventId, eventId), mineOnBoard(memberIds, accountIds)));
   return rows.find((r) => r.teamId != null)?.teamId ?? null;
+}
+
+/**
+ * "One of my rows on this board" — by seat OR by account.
+ *
+ * The seat is where they signed up; the account is the character. A swapped player's row carries a
+ * seat this clan may not know, and matching on the seat alone answered "you have not entered" to
+ * somebody who was drafted. Returns undefined when both lists are empty, which Drizzle treats as no
+ * predicate — so every caller checks for that first.
+ */
+function mineOnBoard(memberIds: number[], accountIds: number[]) {
+  const clauses = [];
+  if (memberIds.length) clauses.push(inArray(eventParticipants.clanMemberId, memberIds));
+  if (accountIds.length) clauses.push(inArray(eventParticipants.accountId, accountIds));
+  return clauses.length > 1 ? or(...clauses) : clauses[0];
 }
 
 /** Everything a subcommand needs, resolved once by the dispatcher rather than per handler. */
@@ -973,6 +990,15 @@ interface CommandContext {
   liveEvents: EventContext[];
   /** The invoker's linked roster rows on this instance. Empty = they're not on the roster. */
   memberIds: number[];
+  /**
+   * Their ACCOUNTS, which is what a board is actually keyed by.
+   *
+   * `memberIds` is seats in THIS clan. On a co-hosted board an admin can point somebody's player row
+   * at a seat in their own clan, and that seat is not in this list — so a drafted player asking
+   * /bingo in the host's Discord was told they had not entered. The account survives that, because
+   * it is the same character either way.
+   */
+  accountIds: number[];
   /** Their display name, for prose. */
   who: string;
   options: Record<string, string | number | boolean>;
@@ -1007,14 +1033,14 @@ const SUBCOMMANDS: Record<string, (ctx: CommandContext) => Promise<SubResult>> =
     return { embeds: await rulesEmbeds(t, clan, event, cross) };
   },
 
-  async leaderboard({ t, clan, event, cross, liveEvents, memberIds }) {
+  async leaderboard({ t, clan, event, cross, liveEvents, memberIds, accountIds }) {
     if (liveEvents.length >= 2) return { embeds: [await liveStandingsEmbed(t, clan, liveEvents)] };
-    const teamId = await myTeamId(event.id, memberIds);
+    const teamId = await myTeamId(event.id, memberIds, accountIds);
     return { embeds: [await leaderboardEmbed(t, clan, event, cross, teamId)] };
   },
 
-  async apply({ t, clan, event, cross, memberIds, shared }) {
-    return { embeds: [await applyEmbed(t, clan, event, cross, memberIds, shared)] };
+  async apply({ t, clan, event, cross, memberIds, accountIds, shared }) {
+    return { embeds: [await applyEmbed(t, clan, event, cross, memberIds, accountIds, shared)] };
   },
 
   async next({ t, clan, event, cross }) {
@@ -1025,16 +1051,16 @@ const SUBCOMMANDS: Record<string, (ctx: CommandContext) => Promise<SubResult>> =
     return { embeds: [helpEmbed(t, clan, event, cross)] };
   },
 
-  async me({ t, clan, event, cross, memberIds, who, shared }) {
-    return { embeds: [await meEmbed(t, clan, event, cross, memberIds, who, shared)] };
+  async me({ t, clan, event, cross, memberIds, accountIds, who, shared }) {
+    return { embeds: [await meEmbed(t, clan, event, cross, memberIds, accountIds, who, shared)] };
   },
 
-  async team({ t, clan, event, cross, memberIds, options }) {
+  async team({ t, clan, event, cross, memberIds, accountIds, options }) {
     // Hidden boards stay hidden. Staff see them on the web; Discord is a member-facing surface with
     // no way to prove a staff role, so it shows what a member would see.
     if (!event.tilesRevealed) return { text: fmt(t.team.hiddenBoard, { event: event.name }) };
     const wanted = typeof options.name === 'string' ? options.name : null;
-    const fallback = await myTeamId(event.id, memberIds);
+    const fallback = await myTeamId(event.id, memberIds, accountIds);
     return { embeds: [await teamEmbed(t, clan, event, cross, wanted, fallback)] };
   },
 };
@@ -1139,7 +1165,16 @@ async function resolveBingo(
   const identity = discordId ? await resolveInvoker(discordId, clan.clanId) : null;
   return {
     ok: true,
-    ctx: { t, clan, event, cross, liveEvents, memberIds: identity?.memberIds ?? [], who: invokerName(interaction) },
+    ctx: {
+      t,
+      clan,
+      event,
+      cross,
+      liveEvents,
+      memberIds: identity?.memberIds ?? [],
+      accountIds: identity?.accountIds ?? [],
+      who: invokerName(interaction),
+    },
   };
 }
 

@@ -18,20 +18,42 @@ import { requireTeamManager } from '@/lib/teamStaff';
  * the point.
  */
 
-/** The signups behind this team's roster — the only fees this endpoint will ever touch. */
+/**
+ * The signups behind this team's roster — the only fees this endpoint will ever touch.
+ *
+ * MATCHED BY SEAT AND BY PERSON. A sign-up is made on a seat and never moves; the roster row is what
+ * the board follows, and an admin can re-point it at another of that person's characters. Keyed on
+ * the seat alone, a swapped player's sign-up was not found — so their fee silently vanished from
+ * the captain's collection list, which on a paid board is money nobody is asked for.
+ *
+ * THIS IS A SCOPE FUNCTION, so the widening is deliberately narrow: still this event only, and
+ * still only people on THIS team. It finds the right sign-up for a member of the team; it never
+ * reaches a sign-up belonging to anybody else.
+ */
 async function teamSignupIds(eventId: number, teamId: number): Promise<number[]> {
   const roster = await db
-    .select({ clanMemberId: eventParticipants.clanMemberId })
+    .select({ clanMemberId: eventParticipants.clanMemberId, personId: clanRoster.playerId })
     .from(eventParticipants)
+    // clan-scope: this clan -- the driving query is already narrowed to one team of one event.
+    .leftJoin(clanRoster, eq(eventParticipants.clanMemberId, clanRoster.id))
     .where(and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.teamId, teamId)));
-  const memberIds = roster.map((r) => r.clanMemberId).filter((id): id is number => id != null);
-  if (memberIds.length === 0) return [];
 
+  const memberIds = new Set(roster.map((r) => r.clanMemberId).filter((id): id is number => id != null));
+  const personIds = new Set(roster.map((r) => r.personId).filter((id): id is number => id != null));
+  if (memberIds.size === 0 && personIds.size === 0) return [];
+
+  // Every sign-up on THIS event, with the person behind the seat it was made on. Narrowed to the
+  // team below; an event's sign-up list is small enough that this stays one round trip.
   const signups = await db
-    .select({ id: eventSignups.id })
+    .select({ id: eventSignups.id, clanMemberId: eventSignups.clanMemberId, personId: clanRoster.playerId })
     .from(eventSignups)
-    .where(and(eq(eventSignups.eventId, eventId), inArray(eventSignups.clanMemberId, memberIds)));
-  return signups.map((s) => s.id);
+    // clan-scope: this clan -- the driving query is already narrowed to this event's sign-ups.
+    .leftJoin(clanRoster, eq(eventSignups.clanMemberId, clanRoster.id))
+    .where(eq(eventSignups.eventId, eventId));
+
+  return signups
+    .filter((s) => memberIds.has(s.clanMemberId) || (s.personId != null && personIds.has(s.personId)))
+    .map((s) => s.id);
 }
 
 /**

@@ -107,8 +107,24 @@ export async function buildWarRoom(params: {
     })
     .from(eventSignups)
     .where(eq(eventSignups.eventId, eventId));
+  //
+  // BY SEAT AND BY PERSON. A sign-up is made on a seat and never moves; the pool row is what the
+  // board follows, and an admin can re-point it at another of that person's characters. Keyed on
+  // the seat alone, a swapped player's answers vanished from the war room entirely — hours, bosses,
+  // skills, all blank — and a captain picked them blind in the middle of a live draft, with nothing
+  // to say the answers existed.
+  //
+  // `personKey` is this codebase's own person identity (lib/playerEventFacts): `u<userId>` where a
+  // seat has a linked login, `m<seatId>` where it has none. The first survives a swap, which is the
+  // whole point; the second is seat-shaped, so an unlinked sign-up matches only itself and cannot
+  // be confused with anyone.
   const answersByMember = new Map<number, SignupProfile>();
-  for (const s of signups) answersByMember.set(s.clanMemberId, parseProfile(s.profileData));
+  const answersByPerson = new Map<string, SignupProfile>();
+  for (const s of signups) {
+    const answers = parseProfile(s.profileData);
+    answersByMember.set(s.clanMemberId, answers);
+    answersByPerson.set(s.userId != null ? `u${s.userId}` : `m${s.clanMemberId}`, answers);
+  }
 
   // The captain's own list. Keyed on personKey so an alt row can't split it.
   const shortlist = await db
@@ -149,7 +165,12 @@ export async function buildWarRoom(params: {
         subbedOutBefore: profile.subbedOutBefore,
         activityKc: profile.activityKc,
         activityXp: profile.activityXp,
-        answers: memberId != null ? answersByMember.get(memberId) ?? null : null,
+        // Seat first, so an ordinary board resolves exactly as it did; then the person, which is
+        // what a swapped character is still recognisable by.
+        answers:
+          (memberId != null ? answersByMember.get(memberId) : undefined) ??
+          answersByPerson.get(profile.personKey) ??
+          null,
         shortlistAt: mine?.at ?? null,
         shortlistNote: mine?.note ?? null,
       };

@@ -57,18 +57,31 @@ export async function POST(
     return NextResponse.json({ created: 0, skipped: 0, captains: 0 });
   }
 
-  // Existing player rows in this event keyed by clanMemberId so we know who to skip.
+  // WHO IS ALREADY ON THIS BOARD — by seat, by account AND by person.
+  //
+  // Keyed on the seat alone this skipped nobody whose character had been swapped: an admin can
+  // re-point a player row at another of somebody's characters, and the sign-up keeps the seat it
+  // was made on. The two then disagree, this set does not contain the sign-up's seat, and the
+  // promotion inserts a SECOND row for a player who is already drafted — the account index cannot
+  // refuse it either, because the row being inserted carries the account they SIGNED UP with while
+  // the row already there carries the one they were swapped to. Two rows, two stat gains, two fees.
   const existingPlayers = await db
     .select({ clanMemberId: eventParticipants.clanMemberId })
     .from(eventParticipants)
     .where(and(eq(eventParticipants.eventId, evtId), isNull(eventParticipants.teamId)));
-  const captainPlayers = await db
-    .select({ clanMemberId: eventParticipants.clanMemberId })
+  const enrolledRows = await db
+    .select({
+      clanMemberId: eventParticipants.clanMemberId,
+      accountId: eventParticipants.accountId,
+      personId: clanRoster.playerId,
+    })
     .from(eventParticipants)
+    // clan-scope: this clan -- the driving query is already narrowed to this event's participants.
+    .leftJoin(clanRoster, eq(eventParticipants.clanMemberId, clanRoster.id))
     .where(eq(eventParticipants.eventId, evtId));
-  const allEnrolledClanIds = new Set(
-    captainPlayers.map((p) => p.clanMemberId).filter((id): id is number => id !== null),
-  );
+  const enrolledSeats = new Set(enrolledRows.map((p) => p.clanMemberId).filter((id): id is number => id !== null));
+  const enrolledAccounts = new Set(enrolledRows.map((p) => p.accountId).filter((id): id is number => id !== null));
+  const enrolledPeople = new Set(enrolledRows.map((p) => p.personId).filter((id): id is number => id !== null));
 
   // Captains have teams in this event — those signups are already represented on the roster.
   const eventTeams = await db.select().from(teams).where(eq(teams.eventId, evtId));
@@ -76,9 +89,23 @@ export async function POST(
     eventTeams.map((t) => t.captainUserId).filter((id): id is number => id !== null),
   );
 
+  // The seats the eligible sign-ups sit on, so a sign-up can be asked about its account and the
+  // human behind it rather than only about the seat id it happens to carry.
+  const eligibleSeats = await db
+    .select({ id: clanRoster.id, accountId: clanRoster.accountId, personId: clanRoster.playerId })
+    .from(clanRoster)
+    // clan-scope: global -- the ids come from sign-ups on an event this request has already scoped.
+    .where(inArray(clanRoster.id, eligible.map((s) => s.clanMemberId)));
+  const seatFacts = new Map(eligibleSeats.map((m) => [m.id, m]));
+
   const toInsertSignups = eligible.filter((s) => {
     if (s.userId != null && captainUserIds.has(s.userId)) return false;
-    if (allEnrolledClanIds.has(s.clanMemberId)) return false;
+    if (enrolledSeats.has(s.clanMemberId)) return false;
+    const facts = seatFacts.get(s.clanMemberId);
+    if (facts?.accountId != null && enrolledAccounts.has(facts.accountId)) return false;
+    // Last: the person. This is what a swapped character is still recognisable by, since swapping
+    // a character does not change who is playing.
+    if (facts?.personId != null && enrolledPeople.has(facts.personId)) return false;
     return true;
   });
 
