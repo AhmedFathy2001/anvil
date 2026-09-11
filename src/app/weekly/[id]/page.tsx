@@ -16,6 +16,7 @@ import { DailyUnavailable, RaceChart, DayStrip, TrainingHeatmap } from '@/compon
 import { Board, Podium, SidePanels, YouStrip } from '@/components/weekly/CompetitionBoard';
 import CompetitionAwards from '@/components/weekly/CompetitionAwards';
 import ClanLink from '@/components/ClanLink';
+import { idOrNull, idParam } from '@/lib/routeIds';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,8 +41,8 @@ export async function generateMetadata({
 }: {
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
-  const compId = parseInt((await params).id, 10);
-  if (!Number.isInteger(compId)) return {};
+  const compId = idOrNull((await params).id);
+  if (compId == null) return {};
   const clan = await requireClan();
   const [competition] = await db
     .select({ title: weeklyCompetitions.title, metric: weeklyCompetitions.metric })
@@ -62,7 +63,9 @@ export default async function WeeklyLeaderboardPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const compId = parseInt(id, 10);
+  // `/weekly/null` reached the query as NaN and took the render down with a 500 — a bad link is a
+  // 404, not a server error. generateMetadata has always guarded this; the page never did.
+  const compId = idParam(id);
 
   // Scoped to the clan whose host this is: ids are global, so without the clan check one clan's
   // page would happily render another clan's competition under its own banner.

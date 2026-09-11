@@ -7,6 +7,7 @@ import { parseEventRules, visibleTiles } from '@/lib/eventRules';
 import CaptainBoardClient from './CaptainBoardClient';
 import DraftBoardClient from './DraftBoardClient';
 import { clanHref } from '@/lib/clanPath';
+import { idParam } from '@/lib/routeIds';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +17,7 @@ export default async function CaptainBoardPage({
   params: Promise<{ teamId: string }>;
 }) {
   const { teamId } = await params;
-  const tId = parseInt(teamId, 10);
+  const tId = idParam(teamId);
 
   // Verify this captain owns this team
   const captain = await verifyCaptain();

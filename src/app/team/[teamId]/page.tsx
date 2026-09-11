@@ -21,6 +21,7 @@ import { clanHref } from '@/lib/clanPath';
 import ClanLink from '@/components/ClanLink';
 import EventBriefing from '@/components/team/EventBriefing';
 import { acceptedCohostClanIds } from '@/lib/coHost';
+import { idParam } from '@/lib/routeIds';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,7 +35,7 @@ export default async function MyTeamPage({
   const clan = await requireClan();
   const { teamId } = await params;
   const { from } = await searchParams;
-  const tId = parseInt(teamId, 10);
+  const tId = idParam(teamId);
 
   const user = await verifyUser();
   // Both sides, reconciled: beta added return-to-where-you-were; this branch made login

@@ -45,7 +45,10 @@ export async function POST(request: Request) {
   }
 
   const bests = normalizeBests(body.bests as IncomingBest[]);
-  const updated = await savePersonalBests(member.clanMemberId, bests, new Date().toISOString());
+  // The ACCOUNT, not the seat. This read `member.clanMemberId` — see savePersonalBests for what that
+  // cost — and the GET below has always looked them up by `member.accountId`, so the two halves of
+  // this one file disagreed about what a personal best belongs to.
+  const updated = await savePersonalBests({ accountId: member.accountId }, bests, new Date().toISOString());
   return NextResponse.json({ ok: true, updated });
 }
 

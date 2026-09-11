@@ -5,7 +5,8 @@ import { claimMemberSeat } from '@/lib/guestAdmission';
 import { claimFromRoster, verificationOf } from '@/lib/clanVerification';
 import { db } from '@/db';
 import { getSetting, setSetting } from '@/lib/settings';
-import { requirePluginClan } from '@/lib/auth';
+import { resolvePluginClan } from '@/lib/auth';
+import { noClanForPlugin } from '@/lib/pluginNoClan';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, users } from '@/db/schema';
 import { and, desc, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm';
 import { isPlausibleRsn, normalizeRsn, pluginClanAuthority, pluginTokenPerson, sanitizeRsn } from '@/lib/auth';
@@ -84,7 +85,12 @@ export async function POST(request: Request) {
   // one of this person's seats whose IN-GAME name matches the roster they just sent. Resolved after
   // the body precisely so that name is available: it is an exact answer where the fallbacks are
   // guesses, and this is a write.
-  const clan = await requirePluginClan(request, { inGameClanName: clanName });
+  //
+  // NOT KNOWING THE CLAN IS AN ANSWER HERE TOO, and a more meaningful one than elsewhere: a roster
+  // push that names an in-game clan we hold no seat in is a client pointed at the wrong site, or a
+  // clan nobody has created yet. See lib/pluginNoClan.
+  const clan = await resolvePluginClan(request, null, { inGameClanName: clanName });
+  if (!clan) return noClanForPlugin();
 
   // ── May THIS person write THIS clan's roster? ──────────────────────────────────────────────
   //
@@ -771,7 +777,8 @@ export async function POST(request: Request) {
 // post. Reads from settings (always stamped) rather than clan_audit_log (only stamped
 // when there were actual diffs), so a clean sync still surfaces.
 export async function GET(request: Request) {
-  const clan = await requirePluginClan(request);
+  const clan = await resolvePluginClan(request);
+  if (!clan) return noClanForPlugin();
   const auth = await pluginTokenPerson(request);
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   // The address named the clan here, so both questions land together. Same 401 either way: this is

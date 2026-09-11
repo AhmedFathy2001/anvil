@@ -72,7 +72,24 @@ export function normalizeBests(raw: IncomingBest[]): CleanBest[] {
  * scalars — a test that reimplemented this expression rather than calling it would keep passing
  * while the real path broke.
  */
-export async function savePersonalBests(accountId: number, bests: CleanBest[], nowIso: string): Promise<number> {
+/**
+ * Save a push of bests, fastest-wins.
+ *
+ * THE ID IS PASSED BY NAME, and that is not styling. This took a bare `accountId: number` and the
+ * one caller handed it `member.clanMemberId` — a different id, off a different table, from the same
+ * object that also carries `accountId`. Both are numbers, so nothing could complain: the write
+ * either violated the foreign key (every push from that member lost, for weeks) or landed on
+ * whichever account happened to share the number, which is somebody else's personal bests.
+ *
+ * `member_personal_bests.clan_member_id` became `account_id` in 0012_history_follows_the_account —
+ * history follows the account, not the seat — and this call site was left behind. A named field is
+ * the cheapest thing that makes the next one impossible to write by accident.
+ */
+export async function savePersonalBests(
+  { accountId }: { accountId: number },
+  bests: CleanBest[],
+  nowIso: string,
+): Promise<number> {
   if (bests.length === 0) return 0;
 
   const values = bests.map((b) => ({

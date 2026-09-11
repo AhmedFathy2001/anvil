@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { requirePluginClan } from '@/lib/auth';
+import { resolvePluginClan } from '@/lib/auth';
+import { noClanForPlugin } from '@/lib/pluginNoClan';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, pluginLinkCodes, pluginLinks, users } from '@/db/schema';
 import { findOrCreateAccount, findOrCreateSeat, findRosterSeat, findRosterSeats, personOf, personOfOrCreate } from '@/lib/roster';
 import { and, eq, isNull, sql } from 'drizzle-orm';
@@ -22,7 +23,9 @@ import { autoClaimAllowed } from '@/lib/auth';
 // uses for clan-sync and other admin actions.
 export async function POST(request: Request) {
   // Unauthenticated, so the Host is the only thing that names the clan being written to.
-  const clan = await requirePluginClan(request);
+  // See lib/pluginNoClan.
+  const clan = await resolvePluginClan(request);
+  if (!clan) return noClanForPlugin();
   const rl = await rateLimit(request, 'plugin-link', { limit: 20, windowMs: 5 * 60 * 1000 });
   if (!rl.ok) {
     return NextResponse.json(

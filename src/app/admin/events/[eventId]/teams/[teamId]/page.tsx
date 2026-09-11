@@ -9,6 +9,7 @@ import AdminTeamBoardClient from './AdminTeamBoardClient';
 import CaptainAssignment from './CaptainAssignment';
 import TeamStaffPanel from './TeamStaffPanel';
 import TeamInvitePanel from '@/components/TeamInvitePanel';
+import { idParam } from '@/lib/routeIds';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +23,7 @@ export default async function AdminTeamBoardPage({
   const eId = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.
   await requireEventForPage(eId);
-  const tId = parseInt(teamId, 10);
+  const tId = idParam(teamId);
 
   const event = await db.query.events.findFirst({
     where: eq(events.id, eId),

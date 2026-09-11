@@ -14,6 +14,7 @@ import { loadPlayerOwners, attachOwners } from '@/lib/draftProfiles';
 import type { Completion } from '@/lib/types';
 import { atLeast } from '@/lib/clanRoles';
 import { clanHref } from '@/lib/clanPath';
+import { idParam } from '@/lib/routeIds';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +28,7 @@ export default async function TeamBoardPage({
   const eId = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.
   await requireEventForPage(eId);
-  const tId = parseInt(teamId, 10);
+  const tId = idParam(teamId);
 
   const event = await db.query.events.findFirst({
     where: eq(events.id, eId),

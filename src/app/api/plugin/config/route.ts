@@ -1,4 +1,5 @@
 import { resolvePluginClan } from '@/lib/auth';
+import { noClanForPlugin } from '@/lib/pluginNoClan';
 import { NextResponse } from 'next/server';
 import { seatsOwnedByAnywhere } from '@/lib/roster';
 import { db } from '@/db';
@@ -228,24 +229,9 @@ async function weeklyTrackedNames(clanId: number): Promise<{ kc: string[]; skill
 }
 
 export async function GET(request: Request) {
-  // ANSWERED, NOT THROWN, when nothing names a clan — the same call /api/plugin/hello already makes.
-  //
-  // Somebody signed into the plugin who is in no clan is now an ORDINARY person: an account is a
-  // person's, the site tracks their log, records and personal bests without one, and the plugin
-  // tells a fresh install exactly that. This route still went through `requirePluginClan`, which
-  // throws — so that person's client asked a question with no answer every thirty seconds, forever,
-  // and every one of those was a 500 with a stack trace in `error_events`. Nothing was broken and
-  // nothing was reported; the operator error feed just filled up with people using the product as
-  // intended.
-  //
-  // 404 rather than an empty 200: an older jar handed a config object full of nulls renders a clan
-  // card with no name in it, which is worse than the panel's own empty state. A non-2xx leaves the
-  // plugin holding no config, which is what it already does with this and what the sidebar's
-  // signed-in-with-no-clan state is written for.
+  // See lib/pluginNoClan for why this is answered rather than thrown.
   const clan = await resolvePluginClan(request);
-  if (!clan) {
-    return NextResponse.json({ error: 'No clan for this account yet' }, { status: 404 });
-  }
+  if (!clan) return noClanForPlugin();
   const auth = await verifyPluginToken(request);
   if (!auth) {
     // Distinguish "bad token" from "valid token but no active event" so the plugin

@@ -36,6 +36,37 @@ export async function register() {
  * Nothing here is awaited by the request and nothing here may throw: see lib/errorEvents for why
  * that is the whole design rather than caution.
  */
+/**
+ * The message, plus the reason underneath it.
+ *
+ * THE CAUSE WAS BEING THROWN AWAY, and for the failures that matter most it was the whole message.
+ * A drizzle error reads "Failed query: insert into … values ($1, $2, $3), ($4, $5, $6), …" for a
+ * thousand characters and says nothing whatsoever about what went wrong; the Postgres error — the
+ * foreign key, the constraint, the type — hangs off `err.cause` and never reached the row. The first
+ * ops digest this platform sent had a wall of `$1, $2, $3` at the top of it and no way to tell what
+ * had failed a hundred and fifty times an hour without opening a psql prompt.
+ *
+ * The query still leads, because it is what identifies the failure, but it is cut short: a cause
+ * appended after a thousand characters of SQL is a cause nobody will ever see, since the message
+ * column is truncated before that.
+ *
+ * Safe for fingerprinting — `normalizeMessage` already scrubs numbers, quoted values, uuids and
+ * hashes, so "Key (account_id)=(123) is not present" collapses the same way for every occurrence
+ * rather than minting a new error per row.
+ */
+function messageWithCause(err: Error): string {
+  const head = err.message.length > 300 ? `${err.message.slice(0, 300)}…` : err.message;
+  const causes: string[] = [];
+  let cause: unknown = (err as { cause?: unknown }).cause;
+  // Bounded: a cause chain is normally one deep, and an accidental cycle must not hang the reporter
+  // that is already running inside a failure.
+  for (let depth = 0; depth < 3 && cause instanceof Error; depth++) {
+    causes.push(`${cause.name}: ${cause.message}`);
+    cause = (cause as { cause?: unknown }).cause;
+  }
+  return causes.length === 0 ? err.message : `${head} — caused by ${causes.join(' — caused by ')}`;
+}
+
 export async function onRequestError(
   error: unknown,
   request: { path: string; method: string; headers: NodeJS.Dict<string | string[]> },
@@ -50,7 +81,7 @@ export async function onRequestError(
     const err = error instanceof Error ? error : new Error(String(error));
     captureError({
       name: err.name,
-      message: err.message,
+      message: messageWithCause(err),
       stack: err.stack,
       path: request.path,
       method: request.method,

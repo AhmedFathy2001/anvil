@@ -110,26 +110,26 @@ test('onConflictDoNothing returns nothing when it did nothing', async () => {
 // becomes LEAST(). If the port got it wrong the endpoint would still 200 and simply record whichever
 // time arrived last, quietly overwriting real records with slower ones.
 test('a slower personal best never overwrites a faster one', async () => {
-  const memberId = await makeAccount('PB Runner');
+  const accountId = await makeAccount('PB Runner');
   const best = (activity: string, centis: number) => [{ activity, teamSize: 0, centis }];
 
-  await savePersonalBests(memberId, best('zulrah', 12_000), NOW);
-  await savePersonalBests(memberId, best('zulrah', 9_500), NOW); // improvement
-  await savePersonalBests(memberId, best('zulrah', 20_000), NOW); // slower — must be ignored
+  await savePersonalBests({ accountId }, best('zulrah', 12_000), NOW);
+  await savePersonalBests({ accountId }, best('zulrah', 9_500), NOW); // improvement
+  await savePersonalBests({ accountId }, best('zulrah', 20_000), NOW); // slower — must be ignored
 
   const rows = await db
     .select()
     .from(s.memberPersonalBests)
-    .where(and(eq(s.memberPersonalBests.accountId, memberId), eq(s.memberPersonalBests.activity, 'zulrah')));
+    .where(and(eq(s.memberPersonalBests.accountId, accountId), eq(s.memberPersonalBests.activity, 'zulrah')));
 
   assert.equal(rows.length, 1, 'the unique index must collapse these to one row');
   assert.equal(rows[0]!.centis, 9_500, 'the fastest time must survive regardless of push order');
 });
 
 test('personal bests are per (account, activity, team size)', async () => {
-  const memberId = await makeAccount('PB Sizes');
+  const accountId = await makeAccount('PB Sizes');
   await savePersonalBests(
-    memberId,
+    { accountId },
     [
       { activity: 'tob', teamSize: 0, centis: 30_000 },
       { activity: 'tob', teamSize: 3, centis: 25_000 },
@@ -141,7 +141,7 @@ test('personal bests are per (account, activity, team size)', async () => {
   const rows = await db
     .select()
     .from(s.memberPersonalBests)
-    .where(and(eq(s.memberPersonalBests.accountId, memberId), eq(s.memberPersonalBests.activity, 'tob')));
+    .where(and(eq(s.memberPersonalBests.accountId, accountId), eq(s.memberPersonalBests.activity, 'tob')));
 
   assert.equal(rows.length, 3, 'team sizes are distinct records, not competing ones');
   assert.deepEqual(rows.map((r) => r.centis).sort((a, b) => a - b), [22_000, 25_000, 30_000]);

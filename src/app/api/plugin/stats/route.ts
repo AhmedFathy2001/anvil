@@ -1,4 +1,5 @@
-import { requirePluginClan } from '@/lib/auth';
+import { resolvePluginClan } from '@/lib/auth';
+import { noClanForPlugin } from '@/lib/pluginNoClan';
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { eventParticipants, tiles, teams, events, completions, clanRoster, weeklyParticipants } from '@/db/schema';
@@ -41,7 +42,9 @@ const MAX_ACTIVITY = MAX_KC;
 const KEY_TIME_TTL_MS = 7 * 60 * 60_000;
 
 export async function POST(request: Request) {
-  const clan = await requirePluginClan(request);
+  // See lib/pluginNoClan: a person in no clan has nothing to credit, which is an answer.
+  const clan = await resolvePluginClan(request);
+  if (!clan) return noClanForPlugin();
   // Member-level auth: unlike verifyPluginToken this does NOT require a live bingo event, so a member
   // who's only in a weekly comp can still push live stats.
   const member = await resolvePluginMember(request);

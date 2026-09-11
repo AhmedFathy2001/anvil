@@ -7,6 +7,7 @@ import WarRoomClient from './WarRoomClient';
 import { clanHref } from '@/lib/clanPath';
 import { resolveTeamManagement } from '@/lib/teamStaff';
 import ClanLink from '@/components/ClanLink';
+import { idParam } from '@/lib/routeIds';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +22,7 @@ export default async function WarRoomPage({
   params: Promise<{ teamId: string }>;
 }) {
   const { teamId } = await params;
-  const tId = parseInt(teamId, 10);
+  const tId = idParam(teamId);
 
   const user = await verifyUser();
   if (!user) redirect(`/login?return=${encodeURIComponent(await clanHref(`/team/${tId}/applicants`))}`);
