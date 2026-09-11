@@ -92,21 +92,16 @@ export function notifyClanCreated(input: {
 }
 
 /**
- * Somebody signed in for the first time.
+ * WHY THERE IS NO notifyPersonSignedUp.
  *
- * Quieter than a clan on purpose — one line, no footer — because this fires far more often and its
- * value is the count as much as any single row. It is still worth having: a signup that never
- * becomes a clan or a seat is the shape of somebody who got stuck, and the only place that was
- * visible before was a `created_at` nobody queries.
+ * There was one, briefly, and it was wrong. A first sign-in has nothing to act on — no character,
+ * no clan, nothing to say — so an instant post asked somebody to look at a thing they could do
+ * nothing about, and DMing a stranger who has just pressed a button reads as surveillance rather
+ * than welcome. The volume is the other half: one post per sign-in buries the clan notifications
+ * under any kind of launch, and the clan ones are the posts worth interrupting for.
+ *
+ * The number is still worth seeing, so it moved to where somebody already reads: the daily digest
+ * leads with yesterday's sign-ups, clans and linked characters, and names the people who signed up
+ * over a day ago and still hold no seat and no character — the ones who actually got stuck. See
+ * lib/leadsDigest.
  */
-export function notifyPersonSignedUp(person: OpsPerson): void {
-  fire(
-    {
-      title: 'New sign-up',
-      description: describePerson(person),
-      color: EMBED_COLOR.blue,
-      fields: [],
-    },
-    'person-signed-up',
-  );
-}

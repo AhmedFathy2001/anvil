@@ -18,6 +18,7 @@ import assert from 'node:assert/strict';
 import {
   GRACE_HOURS,
   LEADS_LIMIT,
+  PEOPLE_SHOWN,
   STALE_DAYS,
   ageDays,
   buildLeadsDigest,
@@ -66,7 +67,7 @@ test('a clan that got going is not a lead', () => {
   const running = lead({ verified: true, members: 12, events: 2 });
   assert.equal(reasonFor(running), null);
   assert.equal(isChaseable(running, NOW), false);
-  assert.equal(buildLeadsDigest([running], NOW), null, 'and nothing is posted');
+  assert.equal(buildLeadsDigest({ clans: [running] }, NOW), null, 'and nothing is posted');
 });
 
 test('one reason per clan — the one that blocks the others', () => {
@@ -77,18 +78,62 @@ test('one reason per clan — the one that blocks the others', () => {
   assert.equal(reasonFor(lead({ verified: true, members: 30 })), 'no-events');
 });
 
-test('silence when nothing is stalled', () => {
-  assert.equal(buildLeadsDigest([], NOW), null);
-  assert.equal(buildLeadsDigest([lead({ createdAt: hoursAgo(2) })], NOW), null, 'too new to chase');
+test('silence only when nothing happened AND nothing is stuck', () => {
+  assert.equal(buildLeadsDigest({ clans: [] }, NOW), null);
+  assert.equal(buildLeadsDigest({ clans: [lead({ createdAt: hoursAgo(2) })] }, NOW), null, 'too new to chase');
+
+  // A quiet day with sign-ups in it is still worth one line — that number is the thing this digest
+  // exists to keep in front of somebody, whether or not anything is stuck.
+  const quietButBusy = buildLeadsDigest(
+    { clans: [], counts: { signUps: 3, clansCreated: 0, charactersLinked: 1 } },
+    NOW,
+  );
+  assert.ok(quietButBusy);
+  assert.match(quietButBusy.title, /3 sign-ups/);
+  assert.match(quietButBusy.description, /Nothing stalled/);
+
+  // …but a day with neither is not a message.
+  assert.equal(
+    buildLeadsDigest({ clans: [], counts: { signUps: 0, clansCreated: 0, charactersLinked: 0 } }, NOW),
+    null,
+  );
+});
+
+test('the headline is the day, not the backlog', () => {
+  const embed = buildLeadsDigest(
+    { clans: [lead()], counts: { signUps: 11, clansCreated: 2, charactersLinked: 7 } },
+    NOW,
+  );
+  assert.ok(embed);
+  assert.match(embed.title, /Yesterday — 11 sign-ups · 2 clans · 7 characters linked/);
+  assert.match(embed.description, /1 clan stalled/);
+});
+
+test('people who signed up and stopped are a count with a few examples', () => {
+  // Never a list: a name with no clan and no character tells you nothing the number does not, and
+  // at announcement volume the list would be the whole message.
+  const people = Array.from({ length: PEOPLE_SHOWN + 6 }, (_, i) => ({
+    displayName: `Person ${i}`,
+    discordId: `10000000000000000${i}`,
+    email: `p${i}@example.com`,
+  }));
+  const embed = buildLeadsDigest({ clans: [], counts: { signUps: 0, clansCreated: 0, charactersLinked: 0 }, people }, NOW);
+  assert.ok(embed);
+  const field = embed.fields.at(-1)!;
+  assert.match(field.name, new RegExp(`${PEOPLE_SHOWN + 6} signed up and stopped`));
+  assert.match(field.value, /6 more/);
+  assert.equal((field.value.match(/discord\.com\/users/g) ?? []).length, PEOPLE_SHOWN);
 });
 
 test('oldest first — those are the ones running out of time', () => {
   const embed = buildLeadsDigest(
-    [
-      lead({ id: 1, name: 'Yesterday', createdAt: daysAgo(2) }),
-      lead({ id: 2, name: 'Three weeks', createdAt: daysAgo(21) }),
-      lead({ id: 3, name: 'A week', createdAt: daysAgo(7) }),
-    ],
+    {
+      clans: [
+        lead({ id: 1, name: 'Yesterday', createdAt: daysAgo(2) }),
+        lead({ id: 2, name: 'Three weeks', createdAt: daysAgo(21) }),
+        lead({ id: 3, name: 'A week', createdAt: daysAgo(7) }),
+      ],
+    },
     NOW,
   );
   assert.ok(embed);
@@ -101,7 +146,7 @@ test('oldest first — those are the ones running out of time', () => {
 test('every row names the person and how to reach them', () => {
   // The action is a message, not a database change, so a digest that makes you go and look the owner
   // up has moved the work rather than done it.
-  const embed = buildLeadsDigest([lead()], NOW);
+  const embed = buildLeadsDigest({ clans: [lead()] }, NOW);
   assert.ok(embed);
   const row = embed.fields[0].value;
   assert.match(row, /discord\.com\/users\/123456789012345678/);
@@ -113,11 +158,12 @@ test('a long list is capped, and says how much it left out', () => {
   const many = Array.from({ length: LEADS_LIMIT + 4 }, (_, i) =>
     lead({ id: i + 1, name: `Clan ${i}`, createdAt: daysAgo(2 + i) }),
   );
-  const embed = buildLeadsDigest(many, NOW);
+  const embed = buildLeadsDigest({ clans: many }, NOW);
   assert.ok(embed);
-  assert.equal(embed.fields.length, LEADS_LIMIT);
-  assert.match(embed.description, /4 more/);
-  assert.match(embed.title, new RegExp(`${LEADS_LIMIT + 4} clans`));
+  // The capped list, plus the one row that says what it left out.
+  assert.equal(embed.fields.length, LEADS_LIMIT + 1);
+  assert.match(embed.fields.at(-1)!.name, /4 more/);
+  assert.match(embed.description, new RegExp(`${LEADS_LIMIT + 4} clans stalled`));
 });
 
 test('an unreadable timestamp is left alone rather than reported forever', () => {

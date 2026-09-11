@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, gte, isNull, lt, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanMemberships, clanStaff, clans, events as eventsTable, users } from '@/db/schema';
+import { accounts, clanMemberships, clanStaff, clans, events as eventsTable, users } from '@/db/schema';
 import { timingSafeStrEqual } from '@/lib/auth';
-import { buildLeadsDigest, type LeadRow } from '@/lib/leadsDigest';
+import { buildLeadsDigest, type DayCounts, type LeadRow, type StalledPerson } from '@/lib/leadsDigest';
 import { sendOpsWebhook } from '@/lib/opsWebhook';
 import { log } from '@/lib/logger';
 
@@ -91,13 +91,48 @@ export async function GET(request: Request) {
     ownerEmail: r.ownerEmail,
   }));
 
-  const embed = buildLeadsDigest(leads, Date.now());
+  // YESTERDAY IN NUMBERS, which is what replaced a Discord post per sign-in. A first sign-in has
+  // nothing to act on — no character, no clan, nothing to say — so interrupting for one was noise
+  // that would have buried the clan posts under any kind of launch. The count is the part worth
+  // seeing, and it belongs on the message somebody already reads.
+  const dayAgo = new Date(Date.now() - 86_400_000).toISOString();
+  const [signUps, clansCreated, charactersLinked] = await Promise.all([
+    db.select({ n: sql<number>`count(*)` }).from(users).where(gte(users.createdAt, dayAgo)).then((r) => Number(r[0]?.n ?? 0)),
+    db.select({ n: sql<number>`count(*)` }).from(clans).where(gte(clans.createdAt, dayAgo)).then((r) => Number(r[0]?.n ?? 0)),
+    db.select({ n: sql<number>`count(*)` }).from(accounts).where(gte(accounts.createdAt, dayAgo)).then((r) => Number(r[0]?.n ?? 0)),
+  ]);
+  const counts: DayCounts = { signUps, clansCreated, charactersLinked };
+
+  // The person equivalent of a stalled clan: signed up over a day ago, and still holds no seat
+  // anywhere and has linked no character. Bounded hard — this is a count with examples, not a list.
+  const stalledPeople = await db
+    .select({
+      displayName: users.displayName,
+      discordId: users.discordId,
+      email: users.email,
+      seats: sql<number>`(
+        select count(*) from ${clanMemberships} m
+        join ${accounts} a on a.id = m.account_id
+        where a.player_id = users.player_id and m.left_at is null
+      )`,
+      characters: sql<number>`(select count(*) from ${accounts} a where a.player_id = users.player_id)`,
+    })
+    .from(users)
+    .where(and(lt(users.createdAt, dayAgo), isNull(users.bannedAt)))
+    .orderBy(sql`${users.createdAt} desc`)
+    .limit(200);
+
+  const people: StalledPerson[] = stalledPeople
+    .filter((p) => Number(p.seats ?? 0) === 0 && Number(p.characters ?? 0) === 0)
+    .map((p) => ({ displayName: p.displayName, discordId: p.discordId, email: p.email }));
+
+  const embed = buildLeadsDigest({ clans: leads, counts, people }, Date.now());
   if (!embed) {
     log.info('leads-digest.quiet', { clans: leads.length });
     return NextResponse.json({ posted: false, clans: leads.length });
   }
 
   const posted = await sendOpsWebhook(embed);
-  log.info('leads-digest.sent', { posted, stalled: embed.fields.length });
-  return NextResponse.json({ posted, stalled: embed.fields.length });
+  log.info('leads-digest.sent', { posted, ...counts, people: people.length });
+  return NextResponse.json({ posted, ...counts, people: people.length });
 }

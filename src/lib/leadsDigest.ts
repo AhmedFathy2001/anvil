@@ -33,6 +33,30 @@ export const GRACE_HOURS = 24;
 /** Past this, a nudge is archaeology rather than a follow-up — it belongs in /staff/clans, not here. */
 export const STALE_DAYS = 30;
 
+/** Yesterday in numbers. The part that replaced a post per sign-in. */
+export interface DayCounts {
+  signUps: number;
+  clansCreated: number;
+  charactersLinked: number;
+}
+
+/**
+ * Somebody who signed up and never became anything.
+ *
+ * The person equivalent of a stalled clan, and the weaker lead of the two — they may simply have
+ * been looking. Reported as a COUNT with a handful of examples rather than a list: a name with no
+ * clan and no character tells you nothing a number does not, and at announcement volume the list
+ * would be the whole message.
+ */
+export interface StalledPerson {
+  displayName: string | null;
+  discordId: string | null;
+  email: string | null;
+}
+
+/** How many stalled people are named before the rest become a number. */
+export const PEOPLE_SHOWN = 5;
+
 export interface LeadRow {
   id: number;
   slug: string;
@@ -100,13 +124,23 @@ export function isChaseable(row: LeadRow, now: number): boolean {
  * Oldest first: a clan that has been stuck for three weeks is closer to lost than one stuck since
  * yesterday, and a list that leads with the newest buries exactly the ones running out of time.
  */
-export function buildLeadsDigest(rows: LeadRow[], now: number): OpsEmbed | null {
-  const chaseable = rows
+export function buildLeadsDigest(
+  input: { clans: LeadRow[]; counts?: DayCounts; people?: StalledPerson[] },
+  now: number,
+): OpsEmbed | null {
+  const chaseable = input.clans
     .filter((r) => isChaseable(r, now))
     .sort((a, b) => (ageDays(a.createdAt, now) ?? 0) - (ageDays(b.createdAt, now) ?? 0))
     .reverse();
 
-  if (chaseable.length === 0) return null;
+  const counts = input.counts;
+  const people = input.people ?? [];
+  const busy = (counts?.signUps ?? 0) + (counts?.clansCreated ?? 0) + (counts?.charactersLinked ?? 0);
+
+  // SILENT ONLY WHEN NOTHING HAPPENED AND NOTHING IS STUCK. A quiet day with three sign-ups is
+  // still worth one line — that is the number this digest exists to keep in front of somebody —
+  // but a day with neither is not worth a message, for the same reason an hourly "0 errors" is not.
+  if (chaseable.length === 0 && busy === 0 && people.length === 0) return null;
 
   const shown = chaseable.slice(0, LEADS_LIMIT);
   const fields = shown.map((r) => {
@@ -123,14 +157,55 @@ export function buildLeadsDigest(rows: LeadRow[], now: number): OpsEmbed | null 
   });
 
   const more = chaseable.length - shown.length;
+  if (more > 0) {
+    fields.push({
+      name: `…and ${more} more`,
+      value: 'The rest are on /staff/clans, oldest first.',
+      inline: false,
+    });
+  }
+
+  // The people who signed up and never became anything. A count with a few examples: a name with no
+  // clan and no character tells you nothing the number does not, and at announcement volume the
+  // list would BE the message.
+  if (people.length > 0) {
+    const named = people.slice(0, PEOPLE_SHOWN).map((p) => {
+      const who = p.discordId ? `[${p.displayName ?? 'someone'}](https://discord.com/users/${p.discordId})` : (p.displayName ?? 'someone');
+      return p.email ? `${who} · \`${p.email}\`` : who;
+    });
+    const rest = people.length - named.length;
+    fields.push({
+      name: `${people.length} signed up and stopped there`,
+      value:
+        `No clan, no character, nothing since.\n${named.join('\n')}` +
+        (rest > 0 ? `\n_…and ${rest} more._` : ''),
+      inline: false,
+    });
+  }
+
+  // THE HEADLINE IS THE DAY, not the backlog. A digest that leads with "4 stalled" reads as a
+  // problem report; the same message leading with "11 sign-ups, 2 clans" reads as a business with
+  // some follow-ups in it, which is what it is — and the number is the thing worth watching daily
+  // whether or not anything is stuck.
+  const headline = counts
+    ? [
+        `${counts.signUps} sign-up${counts.signUps === 1 ? '' : 's'}`,
+        `${counts.clansCreated} clan${counts.clansCreated === 1 ? '' : 's'}`,
+        `${counts.charactersLinked} character${counts.charactersLinked === 1 ? '' : 's'} linked`,
+      ].join(' · ')
+    : null;
+
+  const stalledLine =
+    chaseable.length > 0
+      ? `**${chaseable.length} clan${chaseable.length === 1 ? '' : 's'} stalled** — created over a day ago ` +
+        'and still not off the ground. Each one is somebody who tried and stopped; a message usually fixes it.'
+      : 'Nothing stalled.';
+
   return {
-    title: `${chaseable.length} clan${chaseable.length === 1 ? '' : 's'} stalled after signing up`,
-    description:
-      'Created more than a day ago and still not off the ground. Each one is somebody who tried ' +
-      'and stopped — a message usually fixes it.' +
-      (more > 0 ? `\n\n_…and ${more} more on /staff/clans._` : ''),
-    color: EMBED_COLOR.amber,
+    title: headline ? `Yesterday — ${headline}` : `${chaseable.length} stalled`,
+    description: stalledLine,
+    color: chaseable.length > 0 ? EMBED_COLOR.amber : EMBED_COLOR.blue,
     fields,
-    footer: { text: 'Daily · silent when nothing is stalled' },
+    footer: { text: 'Daily · quiet on a day with nothing in it' },
   };
 }

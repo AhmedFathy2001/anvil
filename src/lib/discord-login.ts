@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { notifyPersonSignedUp } from '@/lib/opsEvents';
 import { personOfOrCreate } from '@/lib/roster';
 import { db } from '@/db';
 import { accounts, clanAuditLog, clanRoster, clanStaff, players, users, eventParticipants } from '@/db/schema';
@@ -162,17 +161,6 @@ export async function completeDiscordLogin(
         notes: 'Discord OAuth first login',
       })
       .catch(() => {});
-
-    // The same fact, to the one place somebody is watching. The audit row above has been written
-    // since the beginning and is read by nobody in the ordinary course of a week; a sign-up that
-    // never turns into a clan or a seat is exactly the person who got stuck, and it was invisible.
-    // Fire-and-forget, and silent on any instance with no ops webhook configured.
-    notifyPersonSignedUp({
-      displayName: user.displayName,
-      discordId: user.discordId,
-      discordUsername: user.discordUsername,
-      email: user.email,
-    });
   } else {
     // Refresh Discord-side fields on every login. Keep their role unless the seed-admin condition
     // applied above. `email` may be null on a brokered login (broker doesn't request the email scope)
