@@ -10,6 +10,7 @@
 #   flush-notifications  every minute   — the debounce backstop, plus scheduled start/end posts
 #   forge-consume        every 5 min    — drain the Forge data-plane queue
 #   errors-digest        hourly         — what broke since the last one, to the ops channel
+#   leads-digest         daily          — clans that signed up and never got going, to the ops channel
 #   backup               daily          — pg_dump to object storage
 #   discord-commands     daily          — reconcile the shared bot's slash commands with the code
 */15 * * * * root /opt/anvil/cron-anvil.sh stats
@@ -19,5 +20,9 @@
 # Nine past the hour, so it does not land in the same minute as the 15-minute jobs. Silent when
 # nothing new broke, and a no-op when ANVIL_OPS_WEBHOOK_URL is unset — safe to schedule everywhere.
 9    * * * * root /opt/anvil/cron-anvil.sh errors-digest
+# Late morning UTC rather than overnight: this one is a to-do list of PEOPLE to message, so it is
+# only useful when it lands at an hour somebody might act on it. Silent when nothing is stalled, and
+# a no-op when ANVIL_OPS_WEBHOOK_URL is unset — safe to schedule everywhere.
+25 10 * * *  root /opt/anvil/cron-anvil.sh leads-digest
 17 4 * * *   root /opt/anvil/cron-anvil.sh backup
 40 4 * * *   root /opt/anvil/cron-anvil.sh discord-commands

@@ -217,7 +217,17 @@ export default function ClansClient({
     ? clans.filter((c) =>
         // The contact email is in here because it is the one string an operator reliably HAS when a
         // customer writes in — the mail says nothing about a slug.
-        [c.name, c.slug, c.host, c.owner ?? '', c.contactEmail ?? ''].some((s) =>
+        // The owner's own handles are in here for the same reason: an operator following up on a
+        // Discord DM or a support mail has THAT string and nothing else.
+        [
+          c.name,
+          c.slug,
+          c.host,
+          c.owner ?? '',
+          c.contactEmail ?? '',
+          c.ownerEmail ?? '',
+          c.ownerDiscordUsername ?? '',
+        ].some((s) =>
           s.toLowerCase().includes(needle),
         ),
       )
@@ -235,7 +245,7 @@ export default function ClansClient({
       <Input
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="Filter by name, slug, host or owner…"
+        placeholder="Filter by name, slug, address, owner or email…"
         className="mb-4 rounded-xl bg-card-bg px-4 py-2.5 outline-none"
       />
 
@@ -245,6 +255,7 @@ export default function ClansClient({
             <tr>
               <th className="px-4 py-3">Clan</th>
               <th className="px-4 py-3">Owner</th>
+              <th className="px-4 py-3">Created</th>
               <th className="px-4 py-3">Subscription</th>
               <th className="px-4 py-3">Last sync</th>
               <th className="px-4 py-3 text-right">Members</th>
@@ -294,7 +305,33 @@ export default function ClansClient({
                 </td>
                 <td className="px-4 py-3 text-gray-300">
                   {c.owner ? (
-                    c.owner
+                    /* THE NAME WAS ALL THIS SAID, which is the one thing you cannot contact somebody
+                       with. The profile link opens a DM-able Discord profile; the email is the
+                       fallback for an owner whose DMs are closed to strangers. Both were already on
+                       `users` — the OAuth scope has always been `identify email`. */
+                    <div className="flex flex-col gap-0.5">
+                      {c.ownerDiscordId ? (
+                        <a
+                          href={`https://discord.com/users/${c.ownerDiscordId}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="hover:text-gold"
+                          title={c.ownerDiscordUsername ? `@${c.ownerDiscordUsername} — open in Discord` : 'Open in Discord'}
+                        >
+                          {c.owner}
+                        </a>
+                      ) : (
+                        c.owner
+                      )}
+                      {c.ownerDiscordUsername && (
+                        <span className="text-xs text-gray-500">@{c.ownerDiscordUsername}</span>
+                      )}
+                      {c.ownerEmail && (
+                        <a href={`mailto:${c.ownerEmail}`} className="text-xs text-gray-500 hover:text-gold">
+                          {c.ownerEmail}
+                        </a>
+                      )}
+                    </div>
                   ) : ownerFor === c.id ? (
                     <div className="flex flex-col gap-1">
                       {candidates.length === 0 ? (
@@ -332,6 +369,11 @@ export default function ClansClient({
                       )}
                     </span>
                   )}
+                </td>
+                <td className="px-4 py-3 text-xs text-gray-400" title={c.createdAt}>
+                  {/* Two timestamp formats live in these columns and only the date prefix means the
+                      same thing in both (lib/dbTime) — so the date prefix is what is shown. */}
+                  {c.createdAt ? c.createdAt.slice(0, 10) : '—'}
                 </td>
                 {(() => {
                   const b = billingStatus(c, now);

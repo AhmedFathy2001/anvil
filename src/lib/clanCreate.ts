@@ -32,7 +32,7 @@ import {
 export { availabilityMessage } from '@/lib/clanNames';
 export type { AvailabilityResult } from '@/lib/clanNames';
 
-/** Is this subdomain free? Format and reserved list first, then not already a clan. */
+/** Is this address free? Format and reserved list first, then not already a clan. */
 export async function checkSlug(slug: string, exceptClanId?: number): Promise<AvailabilityResult> {
   const s = normalizeSlug(slug);
   const ruleFailure = slugRuleFailure(s);
@@ -206,7 +206,7 @@ export async function createClan(input: CreateClanInput): Promise<CreateClanResu
     // and only one insert can win. Reported as "taken" rather than a server error, because from the
     // loser's point of view that is exactly what happened.
     if ((e as { cause?: { code?: string } }).cause?.code === '23505') {
-      return { ok: false, error: 'That subdomain was just taken — pick another.' };
+      return { ok: false, error: 'That address was just taken — pick another.' };
     }
     throw e;
   }

@@ -98,6 +98,11 @@ export interface ClanRow {
   guests: number;
   events: number;
   owner: string | null;
+  /** The owner's Discord snowflake — `discord.com/users/<id>` is a profile you can message. */
+  ownerDiscordId: string | null;
+  ownerDiscordUsername: string | null;
+  /** From their Discord account, captured at every login by the `email` OAuth scope. */
+  ownerEmail: string | null;
 
   // ── Billing, which this surface could not see at all ────────────────────────────────────────
   //
@@ -171,6 +176,28 @@ export async function allClans(): Promise<ClanRow[]> {
         join ${users} u on u.id = cs.user_id
         where cs.clan_id = clans.id and cs.role = 'owner' limit 1
       )`,
+      // HOW TO REACH THEM, which this surface could not say. The operator's first move on a new clan
+      // — a hello, a nudge to verify, an answer to whatever stopped them — needed a Discord handle or
+      // an email, and the table offered a display name. Both are on `users` already: the OAuth scope
+      // is `identify email`, so an email arrives with every login and nothing ever read it.
+      //
+      // The ID rather than only the username, because `discord.com/users/<id>` opens a profile you
+      // can message, and an id is stable where a username is not.
+      ownerDiscordId: sql<string | null>`(
+        select u.discord_id from ${clanStaff} cs
+        join ${users} u on u.id = cs.user_id
+        where cs.clan_id = clans.id and cs.role = 'owner' limit 1
+      )`,
+      ownerDiscordUsername: sql<string | null>`(
+        select u.discord_username from ${clanStaff} cs
+        join ${users} u on u.id = cs.user_id
+        where cs.clan_id = clans.id and cs.role = 'owner' limit 1
+      )`,
+      ownerEmail: sql<string | null>`(
+        select u.email from ${clanStaff} cs
+        join ${users} u on u.id = cs.user_id
+        where cs.clan_id = clans.id and cs.role = 'owner' limit 1
+      )`,
       contactEmail: clans.contactEmail,
       trialEndsAt: clans.trialEndsAt,
       currentPeriodEnd: clans.currentPeriodEnd,
@@ -194,7 +221,11 @@ export async function allClans(): Promise<ClanRow[]> {
     id: r.id,
     slug: r.slug,
     name: r.name,
-    host: r.customDomain || `${r.slug}.${apexDomain()}`,
+    // THE ADDRESS A CLAN ACTUALLY HAS. This built `<slug>.<apex>`, which is the retired shape:
+    // clans live at `<apex>/c/<slug>` and the subdomain only survives as a 301 for old plugins. So
+    // the operator table described every clan by a URL that redirects, and the "subdomain" reading
+    // of a clan leaked back out of here into how the product looked from the inside.
+    host: r.customDomain || `${apexDomain()}/c/${r.slug}`,
     status: r.status,
     plan: r.plan,
     memberCap: r.memberCap,
@@ -205,6 +236,9 @@ export async function allClans(): Promise<ClanRow[]> {
     guests: Number(r.guests ?? 0),
     events: Number(r.events ?? 0),
     owner: r.owner,
+    ownerDiscordId: r.ownerDiscordId,
+    ownerDiscordUsername: r.ownerDiscordUsername,
+    ownerEmail: r.ownerEmail,
     contactEmail: r.contactEmail,
     trialEndsAt: r.trialEndsAt,
     currentPeriodEnd: r.currentPeriodEnd,
@@ -836,6 +870,9 @@ export async function clanDetail(clanId: number): Promise<ClanDetail | null> {
         name: users.displayName,
         role: clanStaff.role,
         canEditTiles: clanStaff.canEditTiles,
+        discordId: users.discordId,
+        discordUsername: users.discordUsername,
+        email: users.email,
       })
       .from(clanStaff)
       .innerJoin(users, eq(users.id, clanStaff.userId))
@@ -889,7 +926,7 @@ export async function clanDetail(clanId: number): Promise<ClanDetail | null> {
       id: row.id,
       slug: row.slug,
       name: row.name,
-      host: row.customDomain || `${row.slug}.${apexDomain()}`,
+      host: row.customDomain || `${apexDomain()}/c/${row.slug}`,
       status: row.status,
       plan: row.plan,
       memberCap: row.memberCap,
@@ -900,6 +937,9 @@ export async function clanDetail(clanId: number): Promise<ClanDetail | null> {
       guests: Number(counts?.guests ?? 0),
       events: boards.length,
       owner: staff.find((s) => s.role === 'owner')?.name ?? null,
+      ownerDiscordId: staff.find((s) => s.role === 'owner')?.discordId ?? null,
+      ownerDiscordUsername: staff.find((s) => s.role === 'owner')?.discordUsername ?? null,
+      ownerEmail: staff.find((s) => s.role === 'owner')?.email ?? null,
       contactEmail: row.contactEmail,
       trialEndsAt: row.trialEndsAt,
       currentPeriodEnd: row.currentPeriodEnd,

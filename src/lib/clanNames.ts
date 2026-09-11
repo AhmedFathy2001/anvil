@@ -59,7 +59,10 @@ export function availabilityMessage(field: string, r: AvailabilityResult): strin
     case 'invalid':
       return field === 'Domain'
         ? 'That domain looks invalid (e.g. bingo.yourclan.com).'
-        : 'Subdomain must be 2–32 characters: lowercase letters, numbers and hyphens.';
+        // "Subdomain" named a shape the product no longer has. A clan lives at <apex>/c/<slug>, the
+        // form says "Address" over a `<apex>/c/` prefix — and then the only error it could produce
+        // told them about a subdomain, which is neither what they typed into nor what they will get.
+        : 'Address must be 2–32 characters: lowercase letters, numbers and hyphens.';
     default:
       return '';
   }

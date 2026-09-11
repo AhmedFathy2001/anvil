@@ -3,10 +3,11 @@ import { headers } from 'next/headers';
 import { and, count, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanStaff, clans } from '@/db/schema';
+import { clanStaff, clans, users } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
 import { isApexHost } from '@/lib/clanContext';
 import { checkDomain, checkInGameName, checkSlug, availabilityMessage, createClan } from '@/lib/clanCreate';
+import { notifyClanCreated } from '@/lib/opsEvents';
 import { rateLimitByKey } from '@/lib/rate-limit';
 
 /**
@@ -109,5 +110,26 @@ export async function POST(request: Request) {
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
 
   const row = await db.query.clans.findFirst({ where: eq(clans.id, result.clanId) });
+
+  // TELL THE OPERATOR, because nothing did. A clan created at midnight was recorded in
+  // `clan_audit_log` and announced to nobody — so it sat unverified until its owner either worked
+  // the flow out alone or gave up, and the first anyone knew was a clan that never started an event.
+  //
+  // After the response is decided and never awaited: this is a notification, and a Discord outage
+  // must not be able to fail the creation it is reporting. See lib/opsEvents.
+  const owner = await db.query.users.findFirst({ where: eq(users.id, session.userId) });
+  notifyClanCreated({
+    clanId: result.clanId,
+    slug: result.slug,
+    name: row?.name ?? result.slug,
+    inGameName: row?.inGameName ?? null,
+    owner: {
+      displayName: owner?.displayName ?? null,
+      discordId: owner?.discordId ?? null,
+      discordUsername: owner?.discordUsername ?? null,
+      email: owner?.email ?? null,
+    },
+  });
+
   return NextResponse.json({ ok: true, clan: row });
 }

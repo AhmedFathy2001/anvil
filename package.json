@@ -24,6 +24,7 @@
     "harness:plugin": "node scripts/plugin-harness.mjs",
     "test:missions": "npx tsx --test tests/mission-rewards.test.ts tests/mission-schedule.test.ts tests/mission-csv.test.ts tests/ladder-month.test.ts tests/event-rules-roundtrip.test.ts tests/mission-multiplier.test.ts",
     "test:roster": "npx tsx --test tests/roster-read-verdict.test.ts tests/roster-sync-diff.test.ts tests/roster-shape.test.ts",
+    "test:leads": "npx tsx --test tests/leads-digest.test.ts",
     "test:roles": "npx tsx --test tests/clan-roles.test.ts",
     "test:clan": "npx tsx --test tests/clan-host.test.ts",
     "test:db": "npx tsx --test tests/db-semantics.test.ts",
