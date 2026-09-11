@@ -15,6 +15,8 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
+import { eq } from 'drizzle-orm';
+
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 
 const DB = useTestDatabase('plugin-apex');
@@ -185,4 +187,88 @@ test('an in-game name matching none of their seats falls back rather than guessi
   // the pusher does not belong.
   const clan = await A.resolvePluginClan(apexRequest(), null, { inGameClanName: 'Someone Else CC' });
   assert.equal(clan?.id, bravo, 'falls through to the live-event answer, not to the named stranger');
+});
+
+// ── The lockout, which is what happens when every branch needs a seat ──────────────────────────
+//
+// Each branch above resolves through seats, which quietly made an active seat a prerequisite for
+// admin capability through the plugin — and the roster sync is itself the thing that can remove one.
+// That closed a loop on 2026-09-11: a client posted an empty member list, all 144 members were
+// departed, and the owner's own seat went with them. The only tool that could repair the roster was
+// the tool the damage had disabled, and an admin can never escape it by luck — an admin is a member,
+// so an admin is in the list that went missing.
+//
+// A roster push NAMES its clan, so it does not have to be guessed from a seat. These pin that the
+// grant answers when the seat cannot, and that it answers nothing else.
+
+/** Depart every seat this person holds — the state the empty-roster sync left the owner in. */
+async function departAllSeats() {
+  const { db, schema: s } = await loadDb();
+  await db.update(s.clanMemberships).set({ leftAt: iso(0) });
+}
+
+async function restoreSeats() {
+  const { db, schema: s } = await loadDb();
+  await db.update(s.clanMemberships).set({ leftAt: null });
+}
+
+async function grantStaff(clanId: number, role: string) {
+  const { db, schema: s } = await loadDb();
+  const user = await db.query.users.findFirst({ where: eq(s.users.pluginToken, TOKEN) });
+  await db.insert(s.clanStaff).values({ clanId, userId: user!.id, role });
+}
+
+async function clearStaff() {
+  const { db, schema: s } = await loadDb();
+  await db.delete(s.clanStaff);
+}
+
+test('a named clan resolves from a STAFF GRANT when the seat is gone', async () => {
+  await clearEvents();
+  await departAllSeats();
+  await grantStaff(alpha, 'owner');
+
+  const clan = await A.resolvePluginClan(apexRequest(), null, { inGameClanName: 'Alpha CC' });
+  assert.equal(clan?.id, alpha, 'the owner can still name their own clan, and so can still fix it');
+
+  await clearStaff();
+  await restoreSeats();
+});
+
+test('a seat still wins over a grant, so nothing about the ordinary path moved', async () => {
+  await clearEvents();
+  // Staff of Bravo, seated in Alpha, and the push names Alpha: the seat is the better answer and
+  // must remain the one taken.
+  await grantStaff(bravo, 'admin');
+
+  const clan = await A.resolvePluginClan(apexRequest(), null, { inGameClanName: 'Alpha CC' });
+  assert.equal(clan?.id, alpha);
+
+  await clearStaff();
+});
+
+test('a grant never answers a request that named no clan', async () => {
+  await clearEvents();
+  await liveEventFor(bravo, seatBravo, 'Bravo Bingo', 1);
+  await grantStaff(alpha, 'owner');
+
+  // Branch 1 only. The heuristics choose which BOARD to show a player, and "a clan I staff" is a
+  // worse answer there than "a clan I am in" — someone who runs one clan and plays in another
+  // should still get their own board.
+  const clan = await A.resolvePluginClan(apexRequest());
+  assert.equal(clan?.id, bravo, 'the live board they are actually playing, not the clan they run');
+
+  await clearStaff();
+});
+
+test('no seat and no grant still resolves nothing — belonging is still required', async () => {
+  await clearEvents();
+  await departAllSeats();
+
+  // The rule the grant relaxes is "which clan", never "may I write to it". Someone who holds
+  // neither a seat nor a grant must still name nobody, or a roster push could write to a stranger.
+  const clan = await A.resolvePluginClan(apexRequest(), null, { inGameClanName: 'Alpha CC' });
+  assert.equal(clan, null);
+
+  await restoreSeats();
 });

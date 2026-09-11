@@ -510,6 +510,34 @@ async function clanOfPerson(
       )
       .limit(1);
     if (named.length > 0) return resolveClanById(named[0].clanId);
+
+    // NO SEAT, BUT A GRANT. Every branch here resolves through seats, which makes an active seat a
+    // prerequisite for admin capability through the plugin — and the roster sync is itself the thing
+    // that can remove one. That is a loop: the only tool that repairs a roster is disabled by the
+    // roster being broken, and the more complete the damage the more certainly the admin is inside
+    // it, since an admin is a member and a member is in the list that went missing. It closed on a
+    // real clan on 2026-09-11, when a push that departed all 144 members took the owner's own seat
+    // with them and left no way to sync the fix.
+    //
+    // The push NAMED its clan, which is exact rather than a guess, so it can be answered from the
+    // grant instead. Authority is still decided downstream against whatever this returns — a grant
+    // resolves WHICH clan, never what may be done to it.
+    //
+    // Branch 1 only. The heuristics below choose which BOARD to show a player, where "a clan I staff"
+    // is a worse answer than "a clan I am in" — somebody who runs one clan and plays in another
+    // should still get their own board.
+    const staffed = await db
+      .select({ clanId: clanStaff.clanId })
+      .from(clanStaff)
+      .innerJoin(clans, eq(clans.id, clanStaff.clanId))
+      .where(
+        and(
+          eq(clanStaff.userId, userId),
+          sql`lower(${clans.inGameName}) = lower(${inGameClanName.trim()})`,
+        ),
+      )
+      .limit(1);
+    if (staffed.length > 0) return resolveClanById(staffed[0].clanId);
   }
 
   const nowIso = new Date().toISOString();
