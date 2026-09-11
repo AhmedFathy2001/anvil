@@ -310,3 +310,56 @@ test('a person can leave a clan themselves, and only their own seat', async () =
   const after = await db.query.clanMemberships.findFirst({ where: eq(s.clanMemberships.id, mine.id) });
   assert.ok(after!.leftAt);
 });
+
+// ── The clan's own staff ──────────────────────────────────────────────────────────────────────
+
+test('a clan does not make its own founder apply to visit it', async () => {
+  // THE FIRST IMPRESSION THIS RUINED. `createClan` grants a clan_staff seat and no roster seat — it
+  // cannot grant one, because a roster seat needs an ACCOUNT and a founder may not have linked a
+  // character yet. So the first time the founder's plugin reported in they met the default
+  // `approval` policy as a stranger, and the clan they had made thirty seconds earlier sat
+  // "pending" until they went into the admin panel and approved themselves.
+  const { db, schema: s } = await loadDb();
+
+  const [clan] = await db.insert(s.clans).values({ slug: 'founded', name: 'Just Founded' }).returning();
+  const [founderPerson] = await db.insert(s.players).values({ displayName: 'Founder' }).returning();
+  const [founderUser] = await db
+    .insert(s.users)
+    .values({ displayName: 'Founder', discordId: '9910000000000002', playerId: founderPerson.id })
+    .returning();
+  await db.insert(s.clanStaff).values({ clanId: clan.id, userId: founderUser.id, role: 'owner' });
+  const [founderAccount] = await db
+    .insert(s.accounts)
+    .values({ playerId: founderPerson.id, rsn: 'Founder', rsnNormalized: 'founder' })
+    .returning();
+
+  assert.equal(await G.guestPolicyOf(clan.id), 'approval', 'the default that made this bite');
+
+  const r = await G.admit({ clanId: clan.id, accountId: founderAccount.id, source: 'plugin' });
+  assert.equal(r.outcome, 'seated', 'seated outright — there is nobody else to ask');
+
+  const queued = await db.query.clanJoinRequests.findFirst({
+    where: and(eq(s.clanJoinRequests.clanId, clan.id), eq(s.clanJoinRequests.status, 'pending')),
+  });
+  assert.equal(queued, undefined, 'and nothing was queued for them to approve');
+
+  const seat = await db.query.clanMemberships.findFirst({
+    where: and(eq(s.clanMemberships.clanId, clan.id), eq(s.clanMemberships.accountId, founderAccount.id)),
+  });
+  assert.equal(seat?.kind, 'member', 'staff are members of their clan, not guests in it');
+});
+
+test('being staff HERE says nothing about turning up anywhere else', async () => {
+  // The exemption is per clan. Running one clan must not walk you past another's front door.
+  const { db, schema: s } = await loadDb();
+  const [elsewhere] = await db.insert(s.clans).values({ slug: 'elsewhere', name: 'Somewhere Else' }).returning();
+
+  const [outsider] = await db.query.players.findMany({ where: eq(s.players.displayName, 'Founder') });
+  const [account] = await db
+    .select()
+    .from(s.accounts)
+    .where(eq(s.accounts.playerId, outsider.id));
+
+  const r = await G.admit({ clanId: elsewhere.id, accountId: account.id });
+  assert.equal(r.outcome, 'requested', 'an ordinary applicant, like anybody else');
+});

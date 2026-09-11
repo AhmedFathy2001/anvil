@@ -11,7 +11,7 @@
 import { and, count, desc, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanAuditLog, clanJoinRequests, clanMemberships, clanRoster, clans } from '@/db/schema';
+import { accounts, clanAuditLog, clanJoinRequests, clanMemberships, clanRoster, clanStaff, clans, users } from '@/db/schema';
 import { isBannedFromClan } from '@/lib/clanBans';
 import { findOrCreateSeat } from '@/lib/roster';
 
@@ -24,6 +24,23 @@ export function isGuestPolicy(v: string | null | undefined): v is GuestPolicy {
 export async function guestPolicyOf(clanId: number): Promise<GuestPolicy> {
   const row = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { guestPolicy: true } });
   return isGuestPolicy(row?.guestPolicy) ? row.guestPolicy : 'approval';
+}
+
+/**
+ * Does the person behind this account hold a staff seat in this clan?
+ *
+ * Asked through `users`, because staff is granted to a LOGIN and admission is about an ACCOUNT —
+ * the two meet at the person. One indexed read, and only on the path that is about to file a
+ * request, so it costs nothing for the members who are already seated.
+ */
+async function staffsThisClan(clanId: number, playerId: number): Promise<boolean> {
+  const rows = await db
+    .select({ id: clanStaff.id })
+    .from(clanStaff)
+    .innerJoin(users, eq(users.id, clanStaff.userId))
+    .where(and(eq(clanStaff.clanId, clanId), eq(users.playerId, playerId)))
+    .limit(1);
+  return rows.length > 0;
 }
 
 export type AdmitResult =
@@ -68,6 +85,26 @@ export async function admit(opts: {
     where: and(eq(clanMemberships.clanId, clanId), eq(clanMemberships.accountId, accountId)),
   });
   if (existing && !existing.leftAt) return { outcome: 'seated', seatId: existing.id };
+
+  // THE CLAN'S OWN STAFF ARE NOT GUESTS OF IT, and this is where that was being forgotten.
+  //
+  // `createClan` grants a clan_staff seat and no roster seat — it cannot grant one, since a roster
+  // seat needs an ACCOUNT and a founder may not have linked a character yet. So the first time the
+  // founder's plugin reported in, or they pressed apply on their own clan, they arrived here as
+  // somebody nobody had heard of, met the default `approval` policy, and filed a join request
+  // against the clan they had made thirty seconds earlier. The clan then sat there "pending" until
+  // its owner went into /admin/people and approved themselves.
+  //
+  // Which is not a decision. Approval means "a human who runs this clan decides", and on a one-person
+  // clan that human is the applicant; asking them is theatre with a queue in front of it. It is also
+  // the exact first impression a new clan gets, so it reads as the product being broken.
+  //
+  // Staff, not owner: an admin or moderator the owner appointed is equally not applying to visit.
+  if (playerId != null && (await staffsThisClan(clanId, playerId))) {
+    const seatId = await findOrCreateSeat(clanId, accountId, { kind: 'member', source: 'admin' });
+    await db.update(clanMemberships).set({ leftAt: null }).where(eq(clanMemberships.id, seatId));
+    return { outcome: 'seated', seatId };
+  }
 
   const policy = await guestPolicyOf(clanId);
   if (policy === 'closed') return { outcome: 'refused', reason: 'closed' };
