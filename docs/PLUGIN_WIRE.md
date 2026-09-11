@@ -532,6 +532,25 @@ The two questions are asked separately, and in this order:
 so the body has to be parsed before the clan is known, and the caller authenticated before the body
 is read. A caller who is not staff of the resolved clan gets `403 { error: 'notClanAdmin' }`.
 
+**A roster push can also be refused as unbelievable, with `422`.** `clan-sync` departs everyone the
+payload does not name, so a client that failed to READ the clan and a clan that really lost sixty
+people arrive as the same request. Three shapes are refused before anything is written:
+
+| status | `error` | meaning |
+| --- | --- | --- |
+| 422 | `rosterReadIncomplete` | nothing legible arrived, or more names were unreadable than were resolved |
+| 422 | `rosterShrinkRefused` | would depart >50% of an established roster (>= 20 members); re-send with `force: true` to confirm |
+
+Both carry `sent`, `resolved`, `skippedNames`, `activeMembers`, `wouldDepart`, and a `message`
+written to be shown verbatim. `retryWithForce: true` marks the one that `force` can answer — an
+unreadable roster cannot be confirmed by the caller who could not read it.
+
+> **422 rather than 409, deliberately.** Shipped clients map *every* 409 on this route to a
+> clan-name mismatch and read only `serverClanName` from it, so a 409 here reports a wrong cause
+> ("clan name doesn't match site config") for a setting that is fine. Jars in the wild cannot be
+> corrected, so the status routes around that handler into the generic one, which prints the body.
+> Do not reuse 409 on this route.
+
 `GET /api/plugin/me` answers "should I show the sync button?". If the address names a clan, it is
 scoped to that clan. If not, it answers whether the caller is staff of **any** clan — the roster push
 that follows carries its own clan name and is authorised against that, so the probe only has to say

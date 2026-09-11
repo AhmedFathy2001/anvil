@@ -416,7 +416,14 @@ export async function POST(request: Request) {
         // that did not read the clan, which confirming cannot make truer.
         ...(refusal.kind === 'shrink' ? { retryWithForce: true } : {}),
       },
-      { status: 409 },
+      // 422, NOT 409. The plugin maps every 409 on this route to ClanMismatchException and reads
+      // only `serverClanName` off it, so a 409 here surfaced in game as "clan name doesn't match
+      // site config ((not set))" — a wrong diagnosis pointing at a setting that was fine. Jars
+      // already in the wild cannot be told otherwise, and one of them is the ported client this
+      // guard exists to stop, so the status has to route around the handler rather than argue with
+      // it: anything the client does not special-case falls to its generic branch, which prints the
+      // body, which is where `message` already says exactly what happened.
+      { status: 422 },
     );
   }
 
