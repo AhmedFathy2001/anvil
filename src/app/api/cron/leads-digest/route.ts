@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
-import { and, eq, gte, isNull, lt, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
+import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 
 import { db } from '@/db';
 import { accounts, clanMemberships, clanStaff, clans, events as eventsTable, users } from '@/db/schema';
 import { timingSafeStrEqual } from '@/lib/auth';
+import { dayKey } from '@/lib/dbTime';
 import { buildLeadsDigest, type DayCounts, type LeadRow, type StalledPerson } from '@/lib/leadsDigest';
 import { sendOpsWebhook } from '@/lib/opsWebhook';
 import { log } from '@/lib/logger';
@@ -95,11 +97,22 @@ export async function GET(request: Request) {
   // nothing to act on — no character, no clan, nothing to say — so interrupting for one was noise
   // that would have buried the clan posts under any kind of launch. The count is the part worth
   // seeing, and it belongs on the message somebody already reads.
-  const dayAgo = new Date(Date.now() - 86_400_000).toISOString();
+  //
+  // COMPARED ON THE DATE PREFIX, not on the whole stamp. These columns hold two formats — a column
+  // default writes "2026-09-10 18:00:00" and JS writes "2026-09-10T18:00:00.000Z" — and space
+  // (0x20) sorts below T (0x54), so `created_at >= <an ISO cutoff>` excludes every row the database
+  // wrote itself. Which is all of them: every one of these three tables gets its stamp from the
+  // column default, so the whole headline would have read 0 forever. lib/dbTime says exactly this
+  // and says to use dayKey, which only ever compares the ten characters both formats share.
+  //
+  // A calendar day rather than a rolling 24 hours, because the message says "Yesterday": the digest
+  // runs once a day, so a whole finished day neither double-counts nor leaves a gap.
+  const yesterday = dayKey(Date.now(), 1);
+  const onDay = (col: AnyPgColumn) => sql`substr(${col}, 1, 10) = ${yesterday}`;
   const [signUps, clansCreated, charactersLinked] = await Promise.all([
-    db.select({ n: sql<number>`count(*)` }).from(users).where(gte(users.createdAt, dayAgo)).then((r) => Number(r[0]?.n ?? 0)),
-    db.select({ n: sql<number>`count(*)` }).from(clans).where(gte(clans.createdAt, dayAgo)).then((r) => Number(r[0]?.n ?? 0)),
-    db.select({ n: sql<number>`count(*)` }).from(accounts).where(gte(accounts.createdAt, dayAgo)).then((r) => Number(r[0]?.n ?? 0)),
+    db.select({ n: sql<number>`count(*)` }).from(users).where(onDay(users.createdAt)).then((r) => Number(r[0]?.n ?? 0)),
+    db.select({ n: sql<number>`count(*)` }).from(clans).where(onDay(clans.createdAt)).then((r) => Number(r[0]?.n ?? 0)),
+    db.select({ n: sql<number>`count(*)` }).from(accounts).where(onDay(accounts.createdAt)).then((r) => Number(r[0]?.n ?? 0)),
   ]);
   const counts: DayCounts = { signUps, clansCreated, charactersLinked };
 
@@ -118,7 +131,8 @@ export async function GET(request: Request) {
       characters: sql<number>`(select count(*) from ${accounts} a where a.player_id = users.player_id)`,
     })
     .from(users)
-    .where(and(lt(users.createdAt, dayAgo), isNull(users.bannedAt)))
+    // Same prefix comparison, same reason: "signed up before yesterday" is at least a day old.
+    .where(and(sql`substr(${users.createdAt}, 1, 10) < ${yesterday}`, isNull(users.bannedAt)))
     .orderBy(sql`${users.createdAt} desc`)
     .limit(200);
 
