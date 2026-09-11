@@ -94,6 +94,10 @@ export async function GET(
     eventStarted: started,
     isCaptain: management.isCaptain,
     isStaff: management.isStaff,
+    // Does this board hand management to the team? True on a clan-vs-clan board, where the team IS
+    // a clan and the people running it are that clan's own staff. Decided server-side, because the
+    // actions it unlocks are gated there and a control the API would refuse is worse than none.
+    delegated: management.delegated,
     cashPolicy: event?.cashPolicy ?? 'host-holds',
     payouts: teamPayouts,
     roster,

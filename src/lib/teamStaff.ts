@@ -19,6 +19,17 @@ import { verifyUser } from '@/lib/auth';
  *   can't— touch another team, edit the board, run the draft's picks (the captain's seat),
  *          or sub a player out once the event is live. Subbing changes scoring history, so it
  *          stays with the host, by explicit decision.
+ *
+ * DELEGATED TEAMS ARE A STRONGER CASE, and it is a different question from "is this person a
+ * captain". On a clan-vs-clan board (`teamFormation: 'per_clan'`) a team IS a clan — `teams.clanId`
+ * names it — and the people running it are that clan's own staff, managing their own members. A
+ * captain of a drafted team is something else entirely: a player who was picked to pick, running a
+ * side assembled out of several clans, on a board whose host is someone else.
+ *
+ * So the handful of actions that are really clan administration — undoing a collection, repointing
+ * which character one of your own people plays — are offered on a delegated team and nowhere else.
+ * On a drafted board they stay with the host, who is the only party with authority over everybody
+ * on it.
  */
 
 export interface TeamManagement {
@@ -29,6 +40,16 @@ export interface TeamManagement {
   isStaff: boolean;
   /** The gate every team-scoped management action should check. */
   canManage: boolean;
+  /**
+   * This team IS a clan, on a clan-vs-clan board — so whoever manages it is that clan's own staff
+   * running their own members, not a drafted captain running a side drawn from several clans.
+   *
+   * The gate for the actions that amount to administering your own people. Never true on a drafted
+   * team, where `teams.clanId` is deliberately null however the side happened to be drawn.
+   */
+  delegated: boolean;
+  /** The clan this team plays for, when it is one. */
+  teamClanId: number | null;
   /** Their own player row on this team, when they also play. */
   playerId: number | null;
 }
@@ -79,6 +100,8 @@ export async function resolveTeamManagement(teamId: number): Promise<TeamManagem
     isCaptain,
     isStaff,
     canManage: isCaptain || isStaff,
+    delegated: (isCaptain || isStaff) && team.clanId != null,
+    teamClanId: team.clanId ?? null,
     playerId,
   };
 }

@@ -51,6 +51,8 @@ interface FeeRow {
   collectedAt: string | null;
   collectedByName: string | null;
   collectedByViewer: boolean;
+  /** The server's answer to "may I take this back" — see the DELETE in api/team/[id]/fees. */
+  canUndo?: boolean;
 }
 
 interface PayoutRow {
@@ -76,7 +78,7 @@ const FEE_BUCKET: Record<string, { label: string; cls: string }> = {
 
 export default function TeamManageClient({ teamId }: { teamId: number }) {
   const [roster, setRoster] = useState<RosterRow[]>([]);
-  const { confirm } = useDialog();
+  const { confirm, ask, notify } = useDialog();
   const [proof, setProof] = useState<ProofRow[]>([]);
   const [fees, setFees] = useState<FeeRow[]>([]);
   // Why the fee list looks the way it does — the server decides, because the client cannot tell an
@@ -91,6 +93,11 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
   const [cashPolicy, setCashPolicy] = useState<string>('host-holds');
   const [requests, setRequests] = useState<RequestRow[]>([]);
   const [eventStarted, setStarted] = useState(false);
+  /**
+   * Does this board hand management to the team? Server's answer — see the roster GET. True on a
+   * clan-vs-clan board, where the team IS a clan and its managers are that clan's own staff.
+   */
+  const [canManageAccounts, setCanManageAccounts] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -110,6 +117,7 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
         setRoster(data.roster ?? []);
         setProof(data.proof ?? []);
         setStarted(!!data.eventStarted);
+        setCanManageAccounts(!!data.delegated);
         setPayouts(data.payouts ?? []);
         setCashPolicy(data.cashPolicy ?? 'host-holds');
       }
@@ -171,6 +179,83 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error ?? 'Could not answer that request');
+        return;
+      }
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /**
+   * Move one of your own players onto another of their characters.
+   *
+   * Offered only where the server will allow it (a clan running its own team), and only between
+   * that person's own accounts in your own clan — the route refuses anything else. Unlike removing
+   * somebody, this IS allowed once the event is live: that is when it is needed, and the baseline
+   * re-anchors to the new character rather than the gains going haywire.
+   */
+  const changeAccount = async (playerId: number, name: string) => {
+    const res = await clanFetch(`/api/team/${teamId}/roster/account?playerId=${playerId}`);
+    const data = await res.json().catch(() => ({}));
+    const options: { clanMemberId: number; rsn: string; isCurrent: boolean }[] = data.accounts ?? [];
+    const choices = options.filter((a) => !a.isCurrent);
+    if (choices.length === 0) {
+      notify(`${name} has no other account on your clan's roster to switch to.`, 'error');
+      return;
+    }
+    const picked = await ask({
+      title: `Which account is ${name} playing?`,
+      body:
+        `Their progress re-anchors to the character you choose, so gains carry on from now rather than jumping. ` +
+        `Type one of: ${choices.map((a) => a.rsn).join(', ')}.`,
+      label: 'Account',
+      placeholder: choices[0].rsn,
+      required: true,
+      confirmLabel: 'Switch',
+    });
+    if (picked === null) return;
+    const match = choices.find((a) => a.rsn.toLowerCase() === picked.trim().toLowerCase());
+    if (!match) {
+      notify(`"${picked.trim()}" is not one of their accounts on your roster.`, 'error');
+      return;
+    }
+    setBusy(playerId);
+    try {
+      const save = await clanFetch(`/api/team/${teamId}/roster/account`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId, clanMemberId: match.clanMemberId }),
+      });
+      if (!save.ok) {
+        const err = await save.json().catch(() => ({}));
+        notify(err.error || 'Could not switch that account.', 'error');
+        return;
+      }
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const undoPaid = async (feeId: number) => {
+    const ok = await confirm({
+      title: 'Take back this collection?',
+      body:
+        'The fee goes back to unpaid and your proof screenshot is deleted. Do this when you ticked the wrong row or the gp never arrived — not to hand it to somebody else.',
+      confirmLabel: 'Take it back',
+    });
+    if (!ok) return;
+    setBusy(feeId);
+    try {
+      const res = await clanFetch(`/api/team/${teamId}/fees`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feeId }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        notify(data.error || 'Could not undo that.', 'error');
         return;
       }
       await load();
@@ -318,6 +403,19 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
                         <div className="text-[11px] text-text-muted font-mono">pick {r.pickNumber + 1}</div>
                       )}
                     </div>
+                    {/* Only where the board delegates management to the team — a clan running its
+                        own side. On a drafted board this is the host's to do. */}
+                    {canManageAccounts && (
+                      <button
+                        type="button"
+                        disabled={busy === r.playerId}
+                        title="They're playing a different account — follow that one instead"
+                        onClick={() => changeAccount(r.playerId, r.name)}
+                        className="ml-auto shrink-0 text-xs px-2.5 py-1.5 border border-card-border text-text-muted rounded-lg transition-colors hover:border-gold/40 hover:text-gold disabled:opacity-40"
+                      >
+                        Switch account
+                      </button>
+                    )}
                     <button
                       type="button"
                       disabled={busy === r.playerId || eventStarted}
@@ -327,7 +425,7 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
                           : 'Take them off this team, back to the event pool'
                       }
                       onClick={() => removePlayer(r.playerId, r.name)}
-                      className="ml-auto shrink-0 text-xs px-2.5 py-1.5 border border-red-500/30 text-red-400 rounded-lg hover:bg-red-500/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed"
+                      className={`${canManageAccounts ? '' : 'ml-auto '}shrink-0 text-xs px-2.5 py-1.5 border border-red-500/30 text-red-400 rounded-lg hover:bg-red-500/10 transition-colors disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed`}
                     >
                       Remove
                     </button>
@@ -477,6 +575,20 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
                           : f.status === 'pending' || f.status === 'reported'
                             ? 'Mark paid'
                             : 'Re-mark'}
+                      </button>
+                    )}
+                    {/* Only where the server says it would be allowed: a clan running its own team,
+                        undoing a collection it recorded itself, before the host has signed it off.
+                        Quiet, because taking money back off the record is not the ordinary action. */}
+                    {f.canUndo && (
+                      <button
+                        type="button"
+                        disabled={busy === f.id}
+                        onClick={() => undoPaid(f.id)}
+                        title="You recorded this collection — take it back"
+                        className="shrink-0 text-xs px-2 py-1.5 rounded-lg border border-card-border text-text-muted/70 transition-colors hover:border-red-500/40 hover:text-red-400 disabled:opacity-50"
+                      >
+                        Undo
                       </button>
                     )}
                   </div>

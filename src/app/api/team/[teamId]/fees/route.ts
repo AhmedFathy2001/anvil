@@ -4,6 +4,7 @@ import { clanRoster, events, eventSignups, eventParticipants, signupFees, teams,
 import { and, eq, inArray } from 'drizzle-orm';
 import { markFeeCollected } from '@/lib/feeConfirmations';
 import { requireTeamManager } from '@/lib/teamStaff';
+import { del } from '@/lib/storage';
 
 /**
  * Sign-up fees for one team's own players, and marking them paid.
@@ -140,6 +141,14 @@ export async function GET(
       collectedByName: r.collectedByUserId != null ? collectorName.get(r.collectedByUserId) ?? null : null,
       // "was it me?" is the question the row has to answer, and the client doesn't know its own id.
       collectedByViewer: r.collectedByUserId != null && r.collectedByUserId === management.userId,
+      // Whether the undo below would actually be allowed, decided HERE rather than re-derived in the
+      // client — the rule has four parts and a button that appears and then 403s is worse than no
+      // button. Mirrors the DELETE exactly.
+      canUndo:
+        management.delegated &&
+        r.status !== 'confirmed' &&
+        r.collectedByUserId != null &&
+        r.collectedByUserId === management.userId,
     })),
   });
 }
@@ -176,4 +185,96 @@ export async function POST(
   const { fee: updated, settled } = await markFeeCollected(fee, management.userId, { notes });
 
   return NextResponse.json({ fee: updated, settled });
+}
+
+/**
+ * Undo a collection this team recorded.
+ *
+ * WHY IT EXISTS. Marking paid was a one-way door for a manager: the wrong row gets ticked, or a
+ * player turns out not to have sent it, and the only way back was to find a host admin. On a
+ * clan-vs-clan board that is somebody in the other clan — which makes a clan's own staff ask their
+ * opponent to fix their bookkeeping.
+ *
+ * DELEGATED TEAMS ONLY. A team on a clan-vs-clan board IS a clan (teams.clanId), and the people
+ * running it are that clan's own staff undoing their own record. A drafted team's captain is a
+ * player who was picked to pick, running a side drawn from several clans on somebody else's board;
+ * money there stays with the host. See lib/teamStaff.
+ *
+ * NARROWER THAN THE ADMIN RESET, on purpose:
+ *   - only a fee on their own team, like every other action here
+ *   - only one they are recorded as having collected. Undoing somebody else's claim to hold gp is
+ *     a dispute, and disputes go to the host.
+ *   - never a settled one. Once an admin has signed it off the money is counted, and un-counting it
+ *     is the host's call — the POST above already refuses to touch a confirmed fee for that reason.
+ *
+ * It returns to `reported` when the player has a standing report of having paid, else `pending` —
+ * the same recomputation the admin route does, so the two cannot leave a fee in different shapes.
+ */
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ teamId: string }> },
+) {
+  const { teamId } = await params;
+  const tId = parseInt(teamId, 10);
+  if (!Number.isFinite(tId)) return NextResponse.json({ error: 'Invalid team id' }, { status: 400 });
+
+  const guard = await requireTeamManager(tId);
+  if ('response' in guard) return guard.response;
+  const { management } = guard;
+
+  if (!management.delegated) {
+    return NextResponse.json(
+      { error: 'Only a clan running its own team can undo a collection. Ask the host to reset it.' },
+      { status: 403 },
+    );
+  }
+
+  const body = (await request.json().catch(() => null)) as { feeId?: unknown } | null;
+  const feeId = Number(body?.feeId);
+  if (!Number.isFinite(feeId)) return NextResponse.json({ error: 'feeId is required' }, { status: 400 });
+
+  const fee = await db.query.signupFees.findFirst({ where: eq(signupFees.id, feeId) });
+  if (!fee) return NextResponse.json({ error: 'Fee not found' }, { status: 404 });
+
+  // The same gate the POST uses: this fee must belong to someone on the team they manage.
+  const signupIds = await teamSignupIds(management.eventId, tId);
+  if (!signupIds.includes(fee.signupId)) {
+    return NextResponse.json({ error: 'That fee is not on your team' }, { status: 403 });
+  }
+  if (fee.status === 'confirmed') {
+    return NextResponse.json(
+      { error: 'That fee is already settled — the host has to reset it.' },
+      { status: 409 },
+    );
+  }
+  if (fee.collectedByUserId == null) {
+    return NextResponse.json({ error: 'Nothing to undo — that fee is not marked paid.' }, { status: 409 });
+  }
+  if (fee.collectedByUserId !== management.userId) {
+    return NextResponse.json(
+      { error: 'Somebody else recorded that collection. The host settles who is holding it.' },
+      { status: 403 },
+    );
+  }
+
+  // Their own proof, of a collection they are withdrawing. Best-effort — a failed delete must not
+  // block the record being corrected.
+  if (fee.proofBlobUrl) del(fee.proofBlobUrl).catch(() => {});
+
+  const nextStatus = fee.reportedCollectorUserId !== null ? 'reported' : 'pending';
+  const [updated] = await db
+    .update(signupFees)
+    .set({
+      status: nextStatus,
+      collectedByUserId: null,
+      collectedAt: null,
+      proofBlobUrl: null,
+      confirmedByUserId: null,
+      confirmedAt: null,
+      confirmations: null,
+    })
+    .where(eq(signupFees.id, fee.id))
+    .returning();
+
+  return NextResponse.json({ fee: updated });
 }
