@@ -20,9 +20,21 @@ export interface OpsEmbed {
   footer?: { text: string };
 }
 
-/** Configured, and a real Discord webhook. A misconfigured value is treated as unset, loudly once. */
+/**
+ * Configured, and a real Discord webhook. A misconfigured value is treated as unset, loudly once.
+ *
+ * FALLS BACK TO THE DEPLOY CHANNEL, because a box that announces its own deploys to Discord has
+ * already answered "where does the person who runs this want to be woken up?" — and asking the same
+ * question twice is how one of the two answers ends up blank. It was blank: this box has announced
+ * every deploy for months from DEPLOY_DISCORD_WEBHOOK while ANVIL_OPS_WEBHOOK_URL was never set, so
+ * the hourly error digest had nowhere to post and had therefore never posted. Nothing was broken and
+ * nothing said so, which is the failure mode a fallback exists to remove.
+ *
+ * Order matters and is the obvious way round: a deployment explicitly configuring an ops channel
+ * means to separate the two, and must not have that overridden by the deploy one merely existing.
+ */
 export function opsWebhookUrl(): string | null {
-  const raw = process.env.ANVIL_OPS_WEBHOOK_URL?.trim();
+  const raw = (process.env.ANVIL_OPS_WEBHOOK_URL || process.env.DEPLOY_DISCORD_WEBHOOK)?.trim();
   if (!raw) return null;
   // The same SSRF guard the user-supplied webhooks get. This one is set by the operator rather than
   // by a stranger, so it is a typo check more than a defence — but a URL the server POSTs to should
