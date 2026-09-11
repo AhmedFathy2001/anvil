@@ -17,7 +17,7 @@ import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 import { capMessage, newMemberAllowance, syncCapGrace } from '@/lib/member-cap';
 import { getInGameClanName } from '@/lib/pluginConfig';
 import { log } from '@/lib/logger';
-import { accountChanged, seatChanged, lastSeenIsFresh } from '@/lib/rosterSync';
+import { accountChanged, seatChanged, lastSeenIsFresh, rosterReadVerdict } from '@/lib/rosterSync';
 
 interface IncomingMember {
   rsn: string;
@@ -46,6 +46,7 @@ interface ChangeRecord {
  */
 const LAST_SEEN_REFRESH_MS = 60 * 60 * 1000;
 
+
 // POST — admin plugin pushes the current in-game clan roster.
 //
 // Reconciliation strategy:
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
   const auth = await pluginTokenPerson(request);
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  let body: { clanName?: string; members?: IncomingMember[] };
+  let body: { clanName?: string; members?: IncomingMember[]; force?: boolean };
   try {
     body = await request.json();
   } catch {
@@ -354,6 +355,69 @@ export async function POST(request: Request) {
       seatUnchanged:
         !seatChanged(existing, next) && lastSeenIsFresh(existing.lastSeenInClan, now, LAST_SEEN_REFRESH_MS),
     });
+  }
+
+  // ── 2.5) Refuse a roster read that clearly failed ────────────────────────
+  //
+  // AHEAD OF THE FIRST WRITE, not at step 5 where the removal happens: by then the inserts and
+  // updates would already have been applied, and a refusal that half-syncs is its own bug. The rule
+  // itself is in lib/rosterSync, pure and unit-tested, because "should this push be believed" is a
+  // decision worth stating once rather than inlining in a route nothing can call.
+  const activeMemberRows = existingRows.filter(
+    (r) => r.leftAt == null && r.source !== 'admin' && r.kind === 'member',
+  );
+  const wouldDepart = activeMemberRows.filter((r) => !incomingNormalized.has(r.rsnNormalized)).length;
+  const refusal = rosterReadVerdict({
+    sent: members.length,
+    resolved: incomingNormalized.size,
+    skippedNames,
+    activeMembers: activeMemberRows.length,
+    wouldDepart,
+    force: body.force === true,
+  });
+
+  if (refusal) {
+    log.warn('clan-sync.refused', {
+      clan: clan.slug,
+      reason: refusal.kind,
+      sent: members.length,
+      resolved: incomingNormalized.size,
+      skippedNames,
+      active: activeMemberRows.length,
+      wouldDepart,
+    });
+    // Every message ends by saying the roster is untouched. The person reading it is mid-panic about
+    // a clan that just appeared to empty itself, and "nothing was changed" is the fact they need
+    // first — before any instruction about which tab to open.
+    const message =
+      refusal.kind === 'empty'
+        ? `Not syncing: the member list came through with no usable names (${members.length} sent, ` +
+          `${skippedNames} unreadable). Open the clan tab in game and let it finish loading, then sync again. ` +
+          `${clan.name} still has its ${activeMemberRows.length} members — nothing was changed.`
+        : refusal.kind === 'mostly-unreadable'
+          ? `Not syncing: only ${incomingNormalized.size} of ${members.length} names were readable ` +
+            `(${skippedNames} unreadable), which is a half-loaded member list rather than ` +
+            `${wouldDepart} people leaving. Nothing was changed.`
+          : `Not syncing: this would remove ${wouldDepart} of ${activeMemberRows.length} members, and the ` +
+            `member list only carried ${incomingNormalized.size} names. If that many really did leave, ` +
+            `confirm to sync anyway; otherwise open the clan tab in game and let the full list load. ` +
+            `Nothing was changed.`;
+
+    return NextResponse.json(
+      {
+        error: refusal.kind === 'shrink' ? 'rosterShrinkRefused' : 'rosterReadIncomplete',
+        message,
+        sent: members.length,
+        resolved: incomingNormalized.size,
+        skippedNames,
+        activeMembers: activeMemberRows.length,
+        wouldDepart,
+        // Only the shrink ceiling can be answered by re-sending. The other two describe a client
+        // that did not read the clan, which confirming cannot make truer.
+        ...(refusal.kind === 'shrink' ? { retryWithForce: true } : {}),
+      },
+      { status: 409 },
+    );
   }
 
   // ── 3) Bulk insert new members ───────────────────────────────────────────
