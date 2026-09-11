@@ -1,0 +1,14 @@
+-- WHY SOMEBODY CAME, which the first-run flow had no way to know.
+--
+-- The four steps are the same facts for everyone — a Discord login, a linked character, a clan, a
+-- plugin ping — so the flow showed the same four, in the same order, to a person standing up a clan,
+-- a person joining the clan their friends are in, and a person who wants neither and only came to
+-- track themselves. All three were told "Join a clan, or start one" as though it were one act.
+--
+-- Nothing about a first login can be introspected to tell them apart: no seat, no roster, no
+-- history. So it is asked, and the answer is stored here. Nullable because "not asked yet" is a real
+-- state and the honest default for every row that already exists — an established person is not
+-- guessed at, they are simply never shown a chooser they have no use for.
+--
+-- Not a role and not a permission. Nothing reads this but lib/onboarding.
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "onboarding_intent" text;

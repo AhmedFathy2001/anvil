@@ -34,11 +34,14 @@ export default function PersonProfile({
   linked,
   emission,
   suggestedRsn = '',
+  unfinishedSetup = false,
 }: {
   displayName: string;
   clans: MyClan[];
   characters: PersonCharacter[];
   linked: boolean;
+  /** Their first run is still outstanding — see lib/onboarding's `offer`. */
+  unfinishedSetup?: boolean;
   /** A name arrived at from `?connect=` — see AddCharacterClient. */
   suggestedRsn?: string;
   /** Personal webhooks + cross-clan announcement routing — person-level, so their home is here on
@@ -47,6 +50,22 @@ export default function PersonProfile({
 }) {
   return (
     <div className="max-w-3xl mx-auto">
+      {/* THE WAY BACK INTO THE FLOW, which there wasn't one of. /welcome computed "should this be
+          offered?" and nobody asked: somebody who closed the tab half way through had to know the
+          address to finish. This is the page they land on instead, so it is the page that has to
+          say so — once, as a line rather than a wall, and never for somebody already set up. */}
+      {unfinishedSetup && (
+        <ClanLink
+          href="/welcome"
+          className="mb-6 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-gold/35 bg-gold/[0.06] px-4 py-3 text-sm transition-colors hover:border-gold/60"
+        >
+          <span className="font-medium text-gold">Finish setting up</span>
+          <span className="text-text-muted">
+            — a couple of minutes, and the plugin fills in the rest by itself.
+          </span>
+        </ClanLink>
+      )}
+
       <div className="mb-8 flex items-center gap-3">
         <span className="w-1 h-8 bg-gold rounded-full" />
         <div>

@@ -7,7 +7,7 @@ import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
 import ConnectCard from '@/app/profile/ConnectCard';
 import LinkAccountClient from '@/app/profile/LinkAccountClient';
-import type { OnboardingState, StepKey } from '@/lib/onboarding';
+import type { OnboardingIntent, OnboardingState, StepKey } from '@/lib/onboarding';
 
 interface Props {
   state: OnboardingState;
@@ -26,6 +26,13 @@ interface Props {
  * else entirely: an admin approves you into a clan, or the plugin reports for the first time from a
  * game client on another screen. Asking somebody to reload until it works is how a setup flow gets
  * abandoned, so the page watches instead and moves on by itself.
+ *
+ * ONE QUESTION FIRST, and it is the only thing here that is asked rather than observed. The same
+ * four steps served three arrivals that want different things — somebody putting their clan on
+ * Anvil, somebody joining the clan their friends already run, and somebody who wants neither and
+ * came to track themselves — and all three were handed "Join a clan, or start one" as if founding
+ * and applying were one act. The chooser splits them; everything after it is the same machinery
+ * pointed somewhere else, including where finishing lands.
  */
 export default function WelcomeClient({
   state: initial,
@@ -37,6 +44,9 @@ export default function WelcomeClient({
   const router = useRouter();
   const [state, setState] = useState(initial);
   const [busy, setBusy] = useState(false);
+  // Re-opening the chooser is a local act, not a write: nulling the intent in state would be undone
+  // by the next poll, and clearing it on the server would lose an answer somebody may keep.
+  const [choosing, setChoosing] = useState(false);
   // Which step's panel is open. Follows the flow, but a person can look at any of them — the rail is
   // clickable, because "what do I still have to do" is a fair question at any point.
   const [open, setOpen] = useState<StepKey>(initial.current ?? 'plugin');
@@ -108,13 +118,44 @@ export default function WelcomeClient({
 
   async function finish() {
     await post({ action: 'complete' });
-    // clan-prefix: platform -- same as the page's redirect: this flow is apex-only, and bare
-    // /profile there is the person page that spans their clans rather than any one clan's locker.
-    router.push('/profile');
+    // WHERE FINISHING LANDS IS PART OF THE ANSWER. A clan owner's next hour is the setup wizard, not
+    // their own locker; a member wants the clan they just got into; somebody here for themselves
+    // wants the page that is themselves. Falling back to the locker whenever there is no clan to
+    // point at keeps the old destination for everyone the branches don't cover.
+    // Bare /profile is the apex's person page, which spans their clans rather than being any one
+    // clan's locker — the right end for somebody who has no clan, or did not come for one.
+    const clan = clans[0];
+    if (state.intent === 'owner' && clan) router.push(`/c/${clan.slug}/admin/setup`);
+    else if (state.intent === 'member' && clan) router.push(`/c/${clan.slug}`);
+    else router.push('/profile'); // clan-prefix: platform -- apex-only flow, apex person page
+  }
+
+  /** Answering the chooser. Also opens the step that answer makes the point of the flow. */
+  async function chooseIntent(intent: OnboardingIntent) {
+    await post({ action: 'intent', intent });
+    setOpen(intent === 'solo' ? 'character' : 'clan');
   }
 
   const current = state.steps.find((s) => s.key === open) ?? state.steps[0];
   const index = state.steps.findIndex((s) => s.key === open);
+  const clanStep = state.steps.find((s) => s.key === 'clan');
+
+  // NOT ASKED YET, and nothing done that answers it for them. Somebody who already has a clan has
+  // answered it by having one, and being asked "are you starting a clan?" over the top of a clan
+  // they are already in would read as the page not knowing who they are.
+  if (choosing || (state.intent == null && !clanStep?.done)) {
+    return (
+      <IntentChooser
+        displayName={displayName}
+        busy={busy}
+        chosen={state.intent}
+        onChoose={async (i) => {
+          await chooseIntent(i);
+          setChoosing(false);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
@@ -130,9 +171,19 @@ export default function WelcomeClient({
           Welcome to Anvil, {displayName}
         </h1>
         <p className="relative mt-2.5 max-w-[58ch] text-[15px] leading-relaxed text-text-muted">
-          Four things, once. After that the plugin does the work and this page never needs opening
-          again — in this clan or any other you join.
+          {INTRO[state.intent ?? 'member']}
         </p>
+        {state.intent && (
+          // The answer is never a trap: the person who came to look and then founded a clan is the
+          // ordinary story. Changing it re-opens the chooser rather than editing anything.
+          <button
+            type="button"
+            onClick={() => setChoosing(true)}
+            className="relative mt-2 text-[12.5px] text-text-dim underline-offset-4 hover:text-gold hover:underline"
+          >
+            {HERE_FOR[state.intent]} — change
+          </button>
+        )}
       </header>
 
       <Rail steps={state.steps} open={open} onOpen={setOpen} />
@@ -158,22 +209,49 @@ export default function WelcomeClient({
               </Done>
             ) : (
               <>
+                {/* THE SAME TWO DOORS, ORDERED BY WHAT THEY CAME FOR. Both stay reachable — somebody
+                    who came to join and finds their clan is not here yet should be able to start it
+                    — but which one is the button and which is the aside is the whole difference
+                    between the three arrivals. */}
                 <div className="flex flex-wrap gap-3">
-                  <ClanLink
-                    href="/clans"
-                    className="rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
-                  >
-                    Clan Hall
-                  </ClanLink>
-                  <ClanLink
-                    href="/clans/new"
-                    className="rounded-lg border border-card-border px-4 py-2.5 text-sm transition-colors hover:border-gold/45"
-                  >
-                    Start one
-                  </ClanLink>
+                  {state.intent === 'owner' ? (
+                    <>
+                      <ClanLink
+                        href="/clans/new"
+                        className="rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+                      >
+                        Start your clan
+                      </ClanLink>
+                      <ClanLink
+                        href="/clans"
+                        className="rounded-lg border border-card-border px-4 py-2.5 text-sm transition-colors hover:border-gold/45"
+                      >
+                        Check it isn&rsquo;t already here
+                      </ClanLink>
+                    </>
+                  ) : (
+                    <>
+                      <ClanLink
+                        href="/clans"
+                        className="rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+                      >
+                        Find your clan
+                      </ClanLink>
+                      <ClanLink
+                        href="/clans/new"
+                        className="rounded-lg border border-card-border px-4 py-2.5 text-sm transition-colors hover:border-gold/45"
+                      >
+                        Start one instead
+                      </ClanLink>
+                    </>
+                  )}
                 </div>
                 <p className="mt-3.5 text-[13px] text-text-dim">
-                  Waiting — this ticks itself the moment you join one or a clan accepts you.
+                  {state.intent === 'owner'
+                    ? 'Free, and live the moment you press the button — nothing to approve, nothing to pay. This ticks the moment it exists.'
+                    : state.intent === 'solo'
+                      ? 'Nothing here is waiting on this. Come back to it whenever a clan is a thing you want.'
+                      : 'Waiting — this ticks itself the moment a clan accepts you. Nothing else in the flow is blocked on it.'}
                 </p>
               </>
             ))}
@@ -258,6 +336,111 @@ export default function WelcomeClient({
           /welcome
         </ClanLink>{' '}
         whenever.
+      </p>
+    </div>
+  );
+}
+
+/** The one line under the title, said in the terms of whatever they came to do. */
+const INTRO: Record<OnboardingIntent, string> = {
+  owner:
+    'Three things and your clan is running: make it, link your character, install the plugin. After that the plugin does the work and this page never needs opening again.',
+  member:
+    'Three things, once: get into your clan, link your character, install the plugin. After that the plugin fills in every board you play, in every clan you are in.',
+  solo: 'Two things, once: link your character and install the plugin. Your log, your records and your profile fill themselves in from there.',
+};
+
+/** How the header names the answer, so "change" is obviously about that and not about the account. */
+const HERE_FOR: Record<OnboardingIntent, string> = {
+  owner: 'Here to run a clan',
+  member: 'Here to join a clan',
+  solo: 'Here for yourself',
+};
+
+/**
+ * The one question, asked once.
+ *
+ * <p>Three cards rather than a dropdown because the choice IS the page at this moment, and because
+ * each one has to say what it means — "clan owner" is jargon to somebody who has simply always been
+ * the person who organises things. Nothing here is a commitment: the answer only shapes what the
+ * flow leads with, and the header carries a way back to it.</p>
+ */
+function IntentChooser({
+  displayName,
+  busy,
+  chosen,
+  onChoose,
+}: {
+  displayName: string;
+  busy: boolean;
+  chosen: OnboardingIntent | null;
+  onChoose: (intent: OnboardingIntent) => void;
+}) {
+  const options: { key: OnboardingIntent; title: string; blurb: string; aside: string }[] = [
+    {
+      key: 'owner',
+      title: 'I run a clan',
+      blurb: 'Put it on Anvil — boards, competitions, roster, Discord posts.',
+      aside: 'Free. Live the moment you make it.',
+    },
+    {
+      key: 'member',
+      title: 'I\u2019m in a clan',
+      blurb: 'Find it here and get on its roster, so its boards count what you do.',
+      aside: 'Most clans take members on approval.',
+    },
+    {
+      key: 'solo',
+      title: 'Just me for now',
+      blurb: 'Track my own collection log, personal bests and records.',
+      aside: 'No clan needed. Join one whenever.',
+    },
+  ];
+
+  return (
+    <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
+      <header className="relative mb-8 overflow-hidden">
+        <AnvilMark
+          size={170}
+          className="pointer-events-none absolute -top-8 right-0 hidden text-gold/[0.05] sm:block"
+        />
+        <p className="relative font-mono text-[10.5px] uppercase tracking-[0.2em] text-gold/85">
+          Setting up
+        </p>
+        <h1 className="display display-lg relative mt-2 text-[clamp(1.6rem,4vw,2.05rem)] font-semibold">
+          Welcome to Anvil, {displayName}
+        </h1>
+        <p className="relative mt-2.5 max-w-[58ch] text-[15px] leading-relaxed text-text-muted">
+          One question first, so the rest of this is about you. You can change the answer at any
+          time — it only decides what Anvil leads with.
+        </p>
+      </header>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        {options.map((o) => (
+          <button
+            key={o.key}
+            type="button"
+            disabled={busy}
+            onClick={() => onChoose(o.key)}
+            aria-pressed={chosen === o.key}
+            className={`group flex h-full flex-col rounded-2xl border bg-card-bg p-5 text-left transition-colors disabled:opacity-60 ${
+              chosen === o.key ? 'border-gold' : 'border-card-border hover:border-gold/45'
+            }`}
+          >
+            <span className="display text-[17px] font-semibold text-foreground group-hover:text-gold">
+              {o.title}
+            </span>
+            <span className="mt-2 text-[13.5px] leading-relaxed text-text-muted">{o.blurb}</span>
+            <span className="mt-auto pt-3.5 font-mono text-[10.5px] uppercase tracking-[0.14em] text-text-dim">
+              {o.aside}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <p className="mt-5 text-center text-[13px] text-text-dim">
+        Not sure? Pick the middle one — nothing here is locked in.
       </p>
     </div>
   );

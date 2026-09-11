@@ -1034,6 +1034,15 @@ export const users = pgTable('users', {
   onboardingCompletedAt: text('onboarding_completed_at'),
   /** JSON array of step keys they skipped. Text, so adding a step is not a type change. */
   onboardingSkipped: text('onboarding_skipped').notNull().default('[]'),
+  // WHY THEY CAME: 'owner' | 'member' | 'solo' (or null, not asked yet). The third thing that is
+  // genuinely not derivable, and the one the flow most needed — on a first login there is nothing to
+  // infer it from, which is exactly why the same four steps were shown to a person starting a clan,
+  // a person joining one, and a person who wants neither. The steps are the same facts either way;
+  // what changes is which is the point, what the clan step OFFERS, and where finishing lands.
+  //
+  // Not a role and not a permission: it is what somebody said they were here to do, changeable at
+  // any time, and nothing reads it but the flow.
+  onboardingIntent: text('onboarding_intent'),
   // Guest-emission control, the user side: when true, this person's accounts do NOT broadcast their
   // non-bingo social notifications to clans they only guest in — except a whitelisted (account, clan)
   // in account_clan_emission. Their member clan and bingo evidence are never affected. See

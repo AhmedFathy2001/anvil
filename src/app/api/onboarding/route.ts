@@ -1,7 +1,14 @@
 import { NextResponse } from 'next/server';
 
 import { verifyUser } from '@/lib/auth';
-import { completeOnboarding, onboardingState, setSkipped, type StepKey } from '@/lib/onboarding';
+import {
+  completeOnboarding,
+  isOnboardingIntent,
+  onboardingState,
+  setIntent,
+  setSkipped,
+  type StepKey,
+} from '@/lib/onboarding';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,7 +30,7 @@ export async function GET() {
   return NextResponse.json(await onboardingState(session.userId, session.playerId));
 }
 
-/** POST { action: 'skip' | 'unskip' | 'complete', step? } — always about the CALLER's own flow. */
+/** POST { action: 'intent' | 'skip' | 'unskip' | 'complete', intent?, step? } — the CALLER's own flow. */
 export async function POST(request: Request) {
   const session = await verifyUser();
   if (!session?.userId) return NextResponse.json({ error: 'Sign in first.' }, { status: 401 });
@@ -34,6 +41,17 @@ export async function POST(request: Request) {
   }
 
   const action = String(body.action);
+
+  // Why they came. Re-answerable on purpose: somebody who picked "just me" and then started a clan
+  // has not made a mistake, they have changed what they are doing, and the flow follows.
+  if (action === 'intent') {
+    const intent = String(body.intent);
+    if (!isOnboardingIntent(intent)) {
+      return NextResponse.json({ error: 'Unknown intent' }, { status: 400 });
+    }
+    await setIntent(session.userId, intent);
+    return NextResponse.json(await onboardingState(session.userId, session.playerId));
+  }
 
   if (action === 'complete') {
     await completeOnboarding(session.userId);

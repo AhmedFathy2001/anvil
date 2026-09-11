@@ -288,6 +288,81 @@ test('a corrupt skipped column is read as "nothing skipped", not as a crash', as
   assert.deepEqual(O.parseSkipped(null), []);
 });
 
+// ── Why they came ─────────────────────────────────────────────────────────────────────────────
+
+test('the clan step reads as three different acts, because it is', async () => {
+  const { db, schema: s } = await loadDb();
+  const [person] = await db.insert(s.players).values({ displayName: 'Asked' }).returning();
+  const [u] = await db
+    .insert(s.users)
+    .values({ playerId: person.id, displayName: 'Asked', discordId: 'asked-1' })
+    .returning();
+
+  // Unasked: the old wording, which reads as one act and is really three.
+  const unasked = await O.onboardingState(u.id, person.id);
+  assert.equal(unasked.intent, null);
+  assert.equal(unasked.steps.find((x) => x.key === 'clan')!.title, 'Join a clan, or start one');
+
+  await O.setIntent(u.id, 'owner');
+  assert.equal((await O.onboardingState(u.id, person.id)).steps.find((x) => x.key === 'clan')!.title, 'Start your clan');
+
+  await O.setIntent(u.id, 'member');
+  assert.equal((await O.onboardingState(u.id, person.id)).steps.find((x) => x.key === 'clan')!.title, 'Find your clan');
+
+  await O.setIntent(u.id, 'solo');
+  const solo = await O.onboardingState(u.id, person.id);
+  assert.equal(solo.steps.find((x) => x.key === 'clan')!.title, 'A clan, if you ever want one');
+
+  // Only the clan step moves: a linked character and a working plugin mean the same thing to all
+  // three, and re-wording them would be difference for its own sake.
+  assert.equal(solo.steps.find((x) => x.key === 'character')!.title, 'Link your RuneScape account');
+  assert.equal(solo.steps.find((x) => x.key === 'plugin')!.title, 'Let the plugin do the rest');
+});
+
+test('"just me" IS the skip, derived rather than written', async () => {
+  const { db, schema: s } = await loadDb();
+  const [person] = await db.insert(s.players).values({ displayName: 'Solo' }).returning();
+  const [u] = await db
+    .insert(s.users)
+    .values({ playerId: person.id, displayName: 'Solo', discordId: 'solo-1' })
+    .returning();
+
+  await O.setIntent(u.id, 'solo');
+  const state = await O.onboardingState(u.id, person.id);
+  const clan = state.steps.find((x) => x.key === 'clan')!;
+  assert.equal(clan.skipped, true, 'the flow stops leading with it');
+  assert.equal(state.current, 'character', 'and moves on to what they actually came for');
+
+  // Nothing was written to the skip list, so changing their mind finds the step waiting rather
+  // than silently passed over — the bug a stored skip would have left behind.
+  await O.setIntent(u.id, 'member');
+  const rethought = await O.onboardingState(u.id, person.id);
+  assert.equal(rethought.steps.find((x) => x.key === 'clan')!.skipped, false);
+  assert.equal(rethought.current, 'character', 'still the first thing outstanding, in order');
+});
+
+test('choosing "just me" is an answer the flow has to accept', async () => {
+  // THE TRAP THIS CLOSES. `offer` asks "no clan, or no character?" — so somebody who said they want
+  // neither qualified for the flow that asks it, forever, every login. The one answer the flow
+  // refused to take was the one it had just offered.
+  const solo = { discord: true, clan: false, character: true, plugin: false };
+  assert.equal(O.shouldOfferOnboarding(null, solo, 'solo'), false);
+  assert.equal(O.shouldOfferOnboarding(null, solo, 'member'), true, 'somebody still looking is not done');
+  assert.equal(O.shouldOfferOnboarding(null, solo, null), true, 'and nor is somebody never asked');
+
+  // A character is still the one thing they came for, so it is still worth asking about.
+  const nothing = { discord: true, clan: false, character: false, plugin: false };
+  assert.equal(O.shouldOfferOnboarding(null, nothing, 'solo'), true);
+});
+
+test('an intent is one of three, and anything else is not an intent', async () => {
+  assert.equal(O.isOnboardingIntent('owner'), true);
+  assert.equal(O.isOnboardingIntent('member'), true);
+  assert.equal(O.isOnboardingIntent('solo'), true);
+  assert.equal(O.isOnboardingIntent('admin'), false, 'it is not a role');
+  assert.equal(O.isOnboardingIntent(null), false);
+});
+
 // ── Whether to offer it at all ────────────────────────────────────────────────────────────────
 
 test('the flow is offered on what is MISSING, not on whether the login is new', async () => {

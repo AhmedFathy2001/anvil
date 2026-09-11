@@ -1,5 +1,6 @@
 import { currentClan } from '@/lib/clanContext';
 import { accounts, players, clanRoster, users, detectedAccounts } from '@/db/schema';
+import { onboardingState } from '@/lib/onboarding';
 import { clansOfPerson } from '@/lib/myClans';
 import PersonProfile from '@/components/PersonProfile';
 import { redirect } from 'next/navigation';
@@ -74,7 +75,7 @@ export default async function ProfilePage({
     // merge several clans into a picture true of nobody, show what IS true of the PERSON: the
     // characters they play, who they share, their clans — and the platform-level settings that route
     // between clans (webhooks + emission), which never belonged on any single clan's locker.
-    const [myClans, characters, person, emission] = await Promise.all([
+    const [myClans, characters, person, emission, onboarding] = await Promise.all([
       clansOfPerson(session.playerId, session.userId),
       session.playerId == null
         ? Promise.resolve([])
@@ -88,6 +89,9 @@ export default async function ProfilePage({
       // Emission routing + personal webhooks are PERSON-level and cross-clan by nature, so this is
       // their home. Needs a player — a signed-in account with no character yet has nothing to route.
       session.playerId == null ? Promise.resolve(null) : emissionSettingsView(session.userId, session.playerId),
+      // Whether their first run is still outstanding. The flow ends here, so this is also where
+      // somebody who abandoned it half way through gets offered it back.
+      onboardingState(session.userId, session.playerId),
     ]);
     return (
       <PersonProfile
@@ -99,6 +103,7 @@ export default async function ProfilePage({
         linked={person?.linkAccountsPublicly ?? false}
         emission={emission}
         suggestedRsn={suggestedRsn}
+        unfinishedSetup={onboarding.offer}
       />
     );
   }

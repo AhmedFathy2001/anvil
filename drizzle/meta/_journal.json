@@ -330,6 +330,13 @@
       "when": 1789200060000,
       "tag": "0088_snapshot_sidecar",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1789300000000,
+      "tag": "0089_onboarding_intent",
+      "breakpoints": true
     }
   ]
 }
