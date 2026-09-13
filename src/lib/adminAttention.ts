@@ -83,6 +83,16 @@ export interface AttentionFacts {
   joinRequests: number;
   coHostInvites: number;
   /**
+   * Sign-ups waiting on a yes or no, and which boards they are for.
+   *
+   * The same omission the join queue had: a sign-up lands in `event_signups` with status 'pending'
+   * and nothing anywhere says so, so the person who entered your bingo is waiting on an answer
+   * nobody has been told to give. A count alone is not actionable either — "four people are waiting"
+   * with no board named means opening every event to find them — so the boards ride along, exactly
+   * as they do for held fees.
+   */
+  pendingSignups: { count: number; events: { name: string; count: number; href: string }[] };
+  /**
    * The next stretch with nothing running at all.
    *
    * `openEnded` means it runs past the end of the window we looked at, so `days` measures how far
@@ -261,6 +271,27 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
   }
 
   // A hole in the schedule. Only worth raising if it's ahead of us and long enough to notice.
+  // Ahead of the join queue on purpose: somebody who signed up for a board has picked a date and
+  // may have paid for it, so they are waiting on a clock in a way an applicant is not.
+  if (facts.pendingSignups.count > 0) {
+    const boards = facts.pendingSignups.events;
+    const only = boards.length === 1 ? boards[0] : null;
+    items.push({
+      key: 'pending-signups',
+      snoozable: false,
+      severity: 'warn',
+      title: `${plural(facts.pendingSignups.count, 'sign-up', 'sign-ups')} waiting on you`,
+      detail: only
+        ? `On ${only.name}. They have entered and are waiting to be let in.`
+        : `Across ${plural(boards.length, 'board', 'boards')}. They have entered and are waiting to be let in.`,
+      // Straight to the one board's sign-ups when there is only one; the events list otherwise,
+      // since no single tab can show four boards at once.
+      href: only ? only.href : '/admin/events',
+      action: 'Review',
+      at: 0,
+    });
+  }
+
   if (facts.joinRequests > 0) {
     items.push({
       key: 'join-requests',

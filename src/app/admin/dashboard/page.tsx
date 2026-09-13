@@ -8,7 +8,7 @@ import SnoozeButton from './SnoozeButton';
 import { db } from '@/db';
 import { clanAuditLog, clanRoster, completions, events, eventSignups, signupFees, teams, tiles, users } from '@/db/schema';
 import { alias } from 'drizzle-orm/pg-core';
-import { and, count, desc, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gt, inArray, isNull, notInArray, or, sql } from 'drizzle-orm';
 import { eventTileCount, isLadderFormat } from '@/lib/utils';
 import { getSetupStatus } from '@/lib/setupStatus';
 import SetupChecklist from '@/components/SetupChecklist';
@@ -83,6 +83,7 @@ export default async function AdminDashboardPage() {
     feeEvents,
     joinRequests,
     coHostInvites,
+    pendingSignupEvents,
   ] = await Promise.all([
     listEventIndex(clan.id),
     db.select().from(events).where(eq(events.clanId, clan.id)).orderBy(desc(events.createdAt)),
@@ -255,6 +256,31 @@ export default async function AdminDashboardPage() {
       ),
     pendingRequestCount(clan.id),
     pendingCoHostInvites(clan.id).then((r) => r.length),
+    // Sign-ups nobody has answered yet, and the boards they are for. Same shape as the fee query
+    // above and for the same reason: a bare count cannot be acted on without opening every event.
+    // Ended boards are excluded — an unanswered sign-up for a board that is over is not a decision
+    // anybody still has to make.
+    db
+      .select({ eventId: events.id, name: events.name, c: count() })
+      .from(eventSignups)
+      .innerJoin(events, eq(eventSignups.eventId, events.id))
+      .where(
+        and(
+          eq(events.clanId, clan.id),
+          eq(eventSignups.status, 'pending'),
+          isNull(events.forceEndedAt),
+          // The page's own clock, not a second reading of it — one render, one "now".
+          or(isNull(events.endDate), gt(events.endDate, new Date(now).toISOString())),
+        ),
+      )
+      .groupBy(events.id)
+      .then((rows) =>
+        rows.map((r) => ({
+          name: r.name,
+          count: Number(r.c),
+          href: `/admin/events/${r.eventId}/signups`,
+        })),
+      ),
   ]);
 
   // What somebody already said they know about. Per clan, so the whole staff sees one answer.
@@ -304,6 +330,10 @@ export default async function AdminDashboardPage() {
     pendingVerifications: provisionalCount,
     joinRequests,
     coHostInvites,
+    pendingSignups: {
+      count: pendingSignupEvents.reduce((n, e) => n + e.count, 0),
+      events: pendingSignupEvents,
+    },
     gap: gap
       ? {
           days: gap.days,

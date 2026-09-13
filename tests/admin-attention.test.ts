@@ -42,6 +42,7 @@ const QUIET: AttentionFacts = {
   pendingVerifications: 0,
   joinRequests: 0,
   coHostInvites: 0,
+  pendingSignups: { count: 0, events: [] },
   gap: null,
   unscheduled: [],
 };
@@ -453,4 +454,56 @@ test('every item states whether it can be put down', () => {
   for (const item of q) {
     assert.equal(typeof item.snoozable, 'boolean', item.key);
   }
+});
+
+// ── Sign-ups waiting on a decision ────────────────────────────────────────────────────────────
+
+test('a sign-up nobody has answered is on the queue, and names its board', () => {
+  // The omission the join queue had: a sign-up lands with status 'pending' and nothing says so, so
+  // the person who entered your bingo waits on an answer nobody has been asked to give.
+  const items = attentionQueue(
+    facts({
+      pendingSignups: {
+        count: 3,
+        events: [{ name: 'September Bingo', count: 3, href: '/admin/events/7/signups' }],
+      },
+    }),
+  );
+  const item = items.find((i) => i.key === 'pending-signups');
+  assert.ok(item, 'the queue mentions it');
+  assert.match(item.title, /3 sign-ups waiting/);
+  assert.match(item.detail, /September Bingo/);
+  assert.equal(item.href, '/admin/events/7/signups', 'one board goes straight there');
+});
+
+test('several boards send you to the list rather than guessing one', () => {
+  const items = attentionQueue(
+    facts({
+      pendingSignups: {
+        count: 5,
+        events: [
+          { name: 'September Bingo', count: 3, href: '/admin/events/7/signups' },
+          { name: 'AFK vs LFL', count: 2, href: '/admin/events/11/signups' },
+        ],
+      },
+    }),
+  );
+  const item = items.find((i) => i.key === 'pending-signups')!;
+  assert.equal(item.href, '/admin/events');
+  assert.match(item.detail, /2 boards/);
+});
+
+test('no waiting sign-ups, nothing said', () => {
+  assert.equal(
+    attentionQueue(facts()).find((i) => i.key === 'pending-signups'),
+    undefined,
+  );
+});
+
+test('a waiting sign-up cannot be snoozed', () => {
+  // Somebody is on the other end of it, the same reason a join request cannot be put down.
+  const item = attentionQueue(
+    facts({ pendingSignups: { count: 1, events: [{ name: 'B', count: 1, href: '/x' }] } }),
+  ).find((i) => i.key === 'pending-signups')!;
+  assert.equal(item.snoozable, false);
 });
