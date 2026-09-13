@@ -131,3 +131,36 @@ export function decideConfirmation(
     dropProof: settled && !noSecondSignature,
   };
 }
+
+/**
+ * May a delegated team's management withdraw this collection?
+ *
+ * THE RULE THIS REPLACED REFUSED ITS OWN MAIN CASE. It asked "is the fee confirmed?", and a clan
+ * whose policy needs one confirmation settles a fee at the moment it is collected — so the co-host
+ * marked a fee paid and was told in the same breath that it was already settled and only the host
+ * could reset it, about a collection they had recorded a second earlier with nobody else involved.
+ *
+ * What actually makes money counted is a SECOND person counting it. So the question is who signed
+ * it off, not whether the row says confirmed:
+ *
+ *   - nothing recorded              → nothing to undo
+ *   - an outsider collected it      → a dispute about who is holding gp, which is the host's
+ *   - somebody else signed it off   → independently counted, and the host's to un-count
+ *   - otherwise                     → this team's own record of its own collection; theirs to correct
+ *
+ * Managers rather than the one who pressed the button: a clan with two moderators should not have to
+ * fetch the first one back to correct the second's typo.
+ */
+export type UndoRefusal = 'not-collected' | 'foreign-collector' | 'independently-settled';
+
+export function canTeamUndoCollection(
+  fee: { status: string; collectedByUserId: number | null; confirmedByUserId: number | null },
+  managerIds: ReadonlySet<number>,
+): UndoRefusal | null {
+  if (fee.collectedByUserId == null) return 'not-collected';
+  if (fee.status === 'confirmed' && fee.confirmedByUserId != null && fee.confirmedByUserId !== fee.collectedByUserId) {
+    return 'independently-settled';
+  }
+  if (!managerIds.has(fee.collectedByUserId)) return 'foreign-collector';
+  return null;
+}

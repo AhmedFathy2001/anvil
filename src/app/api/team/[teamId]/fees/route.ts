@@ -3,7 +3,8 @@ import { db } from '@/db';
 import { clanRoster, events, eventSignups, eventParticipants, signupFees, teams, users } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { markFeeCollected } from '@/lib/feeConfirmations';
-import { requireTeamManager } from '@/lib/teamStaff';
+import { canTeamUndoCollection } from '@/lib/feeRules';
+import { requireTeamManager, teamManagerIds } from '@/lib/teamStaff';
 import { del } from '@/lib/storage';
 
 /**
@@ -202,10 +203,21 @@ export async function POST(
  *
  * NARROWER THAN THE ADMIN RESET, on purpose:
  *   - only a fee on their own team, like every other action here
- *   - only one they are recorded as having collected. Undoing somebody else's claim to hold gp is
- *     a dispute, and disputes go to the host.
- *   - never a settled one. Once an admin has signed it off the money is counted, and un-counting it
- *     is the host's call — the POST above already refuses to touch a confirmed fee for that reason.
+ *   - only one THIS TEAM's management recorded. Undoing an outsider's claim to hold gp is a dispute,
+ *     and disputes go to the host.
+ *   - never one an independent signature settled. A second person counting the money is the thing
+ *     that makes it counted, and un-counting it is the host's call.
+ *
+ * "SETTLED" WAS DOING TOO MUCH WORK, and it made this route refuse its own main case. A clan whose
+ * policy needs one confirmation settles a fee AT THE MOMENT IT IS COLLECTED (see
+ * lib/feeConfirmations `settlesOnCollect`), so the co-host marked a fee paid and was told in the
+ * same breath that it was already settled and the host would have to reset it — about a collection
+ * they had recorded one second earlier, with nobody else involved. Which is not a signature from
+ * anyone; it is the same act wearing a different status.
+ *
+ * So the test is WHO confirmed it, not whether it is confirmed: a fee that settled on its own
+ * collection is still just that collection and its collector can withdraw it, while one an admin or
+ * a treasurer signed off independently stays theirs to reset.
  *
  * It returns to `reported` when the player has a standing report of having paid, else `pending` —
  * the same recomputation the admin route does, so the two cannot leave a fee in different shapes.
@@ -241,18 +253,21 @@ export async function DELETE(
   if (!signupIds.includes(fee.signupId)) {
     return NextResponse.json({ error: 'That fee is not on your team' }, { status: 403 });
   }
-  if (fee.status === 'confirmed') {
+  // The rule is in lib/feeRules so it can be tested without a database, and so this route and the
+  // admin reset cannot drift into disagreeing about what "settled" means.
+  const refusal = canTeamUndoCollection(fee, await teamManagerIds(tId));
+  if (refusal === 'not-collected') {
+    return NextResponse.json({ error: 'Nothing to undo — that fee is not marked paid.' }, { status: 409 });
+  }
+  if (refusal === 'independently-settled') {
     return NextResponse.json(
-      { error: 'That fee is already settled — the host has to reset it.' },
+      { error: 'Somebody else signed that fee off — the host has to reset it.' },
       { status: 409 },
     );
   }
-  if (fee.collectedByUserId == null) {
-    return NextResponse.json({ error: 'Nothing to undo — that fee is not marked paid.' }, { status: 409 });
-  }
-  if (fee.collectedByUserId !== management.userId) {
+  if (refusal === 'foreign-collector') {
     return NextResponse.json(
-      { error: 'Somebody else recorded that collection. The host settles who is holding it.' },
+      { error: 'Somebody outside your team recorded that collection. The host settles who is holding it.' },
       { status: 403 },
     );
   }

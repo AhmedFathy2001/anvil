@@ -135,6 +135,25 @@ export async function listTeamStaff(teamId: number): Promise<TeamStaffRow[]> {
   return rows;
 }
 
+/**
+ * Everyone who manages this team: its captain, and anyone holding a staff seat.
+ *
+ * The set a delegated team's bookkeeping is answerable to. "Did I record this?" is the wrong
+ * question for a clan with two moderators — one marks the fee, the other spots the mistake, and
+ * asking the first to come back and undo it is the kind of friction that ends with a message to the
+ * host instead.
+ */
+export async function teamManagerIds(teamId: number): Promise<Set<number>> {
+  const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId), columns: { captainUserId: true } });
+  const staff = await db
+    .select({ userId: teamStaff.userId })
+    .from(teamStaff)
+    .where(eq(teamStaff.teamId, teamId));
+  const ids = new Set(staff.map((r) => r.userId));
+  if (team?.captainUserId != null) ids.add(team.captainUserId);
+  return ids;
+}
+
 /** Teams this user staffs — the nav and the hub need it to show their seat. */
 export async function staffedTeamIds(userId: number): Promise<number[]> {
   const rows = await db

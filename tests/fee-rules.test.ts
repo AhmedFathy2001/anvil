@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  canTeamUndoCollection,
   clampRequiredConfirmations,
   decideConfirmation,
   settlesOnCollect,
@@ -157,4 +158,56 @@ test('proof is kept when nobody ever reviewed it', () => {
 
 test('proof survives a vote that did not settle the fee', () => {
   assert.equal(decideConfirmation(collected(), OTHER_ADMIN, 2, NOW).dropProof, false);
+});
+
+// ── A delegated team undoing its own collection ───────────────────────────────────────────────
+
+test('a co-host can undo the collection it just recorded, settled or not', () => {
+  // THE CASE THE OLD RULE REFUSED. A clan whose policy needs one confirmation settles a fee at the
+  // moment it is collected, so the co-host marked it paid and was told in the same breath that it
+  // was already settled and only the host could reset it — about their own collection, one second
+  // old, with nobody else involved.
+  const managers = new Set([7, 9]);
+  assert.equal(
+    canTeamUndoCollection({ status: 'confirmed', collectedByUserId: 7, confirmedByUserId: 7 }, managers),
+    null,
+  );
+  assert.equal(
+    canTeamUndoCollection({ status: 'collected', collectedByUserId: 7, confirmedByUserId: null }, managers),
+    null,
+  );
+});
+
+test('either of a clan’s managers can correct the other’s record', () => {
+  // Fetching the first moderator back to undo the second's typo is the friction that ends in a
+  // message to the host.
+  const managers = new Set([7, 9]);
+  assert.equal(
+    canTeamUndoCollection({ status: 'collected', collectedByUserId: 9, confirmedByUserId: null }, managers),
+    null,
+  );
+});
+
+test('an independent signature stays the host’s to un-count', () => {
+  // A second person counting the money is what makes it counted.
+  const managers = new Set([7, 9]);
+  assert.equal(
+    canTeamUndoCollection({ status: 'confirmed', collectedByUserId: 7, confirmedByUserId: 42 }, managers),
+    'independently-settled',
+  );
+});
+
+test('an outsider’s collection is a dispute, not a correction', () => {
+  const managers = new Set([7, 9]);
+  assert.equal(
+    canTeamUndoCollection({ status: 'collected', collectedByUserId: 42, confirmedByUserId: null }, managers),
+    'foreign-collector',
+  );
+});
+
+test('nothing recorded is nothing to undo', () => {
+  assert.equal(
+    canTeamUndoCollection({ status: 'pending', collectedByUserId: null, confirmedByUserId: null }, new Set([7])),
+    'not-collected',
+  );
 });
