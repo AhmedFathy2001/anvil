@@ -93,6 +93,13 @@ export interface AttentionFacts {
    */
   pendingSignups: { count: number; events: { name: string; count: number; href: string }[] };
   /**
+   * Players asking to be tracked on a different character (lib/accountChangeRequests).
+   *
+   * Waiting on THIS clan: the boards it hosts, plus the teams it fields on somebody else's board
+   * when it collects its own fees. The rule is in lib/accountChangeRules and follows the money.
+   */
+  accountChangeRequests: number;
+  /**
    * The next stretch with nothing running at all.
    *
    * `openEnded` means it runs past the end of the window we looked at, so `days` measures how far
@@ -288,6 +295,21 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
       // since no single tab can show four boards at once.
       href: only ? only.href : '/admin/events',
       action: 'Review',
+      at: 0,
+    });
+  }
+
+  if (facts.accountChangeRequests > 0) {
+    items.push({
+      key: 'account-change-requests',
+      snoozable: false,
+      severity: 'warn',
+      title: `${plural(facts.accountChangeRequests, 'player wants', 'players want')} to switch character`,
+      detail:
+        'They have asked to be scored on another of their own accounts. Approving does the repoint ' +
+        'for you and re-anchors the baseline.',
+      href: '/admin/events',
+      action: 'Decide',
       at: 0,
     });
   }

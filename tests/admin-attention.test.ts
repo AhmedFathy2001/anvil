@@ -43,6 +43,7 @@ const QUIET: AttentionFacts = {
   joinRequests: 0,
   coHostInvites: 0,
   pendingSignups: { count: 0, events: [] },
+  accountChangeRequests: 0,
   gap: null,
   unscheduled: [],
 };
@@ -506,4 +507,22 @@ test('a waiting sign-up cannot be snoozed', () => {
     facts({ pendingSignups: { count: 1, events: [{ name: 'B', count: 1, href: '/x' }] } }),
   ).find((i) => i.key === 'pending-signups')!;
   assert.equal(item.snoozable, false);
+});
+
+test('a player asking to switch character is on the queue', () => {
+  // The asking used to happen in Discord, where it competed with everything else in the channel and
+  // the answer was somebody remembering to go and do it.
+  const item = attentionQueue(facts({ accountChangeRequests: 2 })).find(
+    (i) => i.key === 'account-change-requests',
+  );
+  assert.ok(item);
+  assert.match(item.title, /2 players want to switch character/);
+  assert.equal(item.snoozable, false, 'somebody is on the other end of it');
+});
+
+test('nobody asking, nothing said', () => {
+  assert.equal(
+    attentionQueue(facts()).find((i) => i.key === 'account-change-requests'),
+    undefined,
+  );
 });

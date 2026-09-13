@@ -2021,6 +2021,58 @@ export const teamInvites = pgTable('team_invites', {
  * safe to hand to someone from another clan. What it grants is deliberately short of admin — see
  * lib/teamStaff for the list, and note that subbing a player out mid-event stays with the host.
  */
+/**
+ * "Can I play this event on my other account?"
+ *
+ * The repoint itself already exists on both sides — a host admin does it from the sign-ups tab, a
+ * delegated team's staff from their team page. What did not exist was a way for the PLAYER to ask.
+ * So the request went to Discord, where it competed with everything else in the channel, and the
+ * answer was somebody remembering to go and do it. On a paid board with a scoring baseline attached
+ * to the character, forgetting is expensive.
+ *
+ * A REQUEST, NOT A CHANGE. Nothing here moves a roster row. Approving calls the same repoint the
+ * approver could already have performed by hand, so this grants no authority that did not exist —
+ * it only gives it a queue, a record of who asked and who answered, and somewhere for the asking to
+ * be seen (lib/adminAttention).
+ *
+ * WHO ANSWERS follows the money, and lib/accountChangeRules is the whole of that rule: a clan that
+ * collects its members' fees answers its own people, a clan whose members paid into the host's pot
+ * does not, and a board may override either way.
+ */
+export const accountChangeRequests = pgTable('account_change_requests', {
+  id: serial('id').primaryKey(),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  // The roster row being repointed — an event_participants row, which is what the board follows.
+  participantId: integer('participant_id').notNull().references(() => eventParticipants.id, { onDelete: 'cascade' }),
+  // Who asked. A person, not a seat: they are asking about which of THEIR characters plays.
+  requestedByUserId: integer('requested_by_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // The seat they want the board to follow instead. Verified as theirs when the request is made AND
+  // again when it is approved — an account can be unlinked in between, and approving a repoint onto
+  // somebody else's character is the one thing this must never do.
+  // clan_memberships, not clan_roster: the roster is a VIEW (see 0008_roster_is_a_view) and a view
+  // cannot be a foreign key target. Every other seat reference in this file already says so.
+  toClanMemberId: integer('to_clan_member_id').notNull().references(() => clanMemberships.id, { onDelete: 'cascade' }),
+  // What it was pointing at when they asked, so the record still reads after the fact.
+  fromClanMemberId: integer('from_clan_member_id').references(() => clanMemberships.id, { onDelete: 'set null' }),
+  /** pending | approved | rejected | withdrawn */
+  status: text('status').notNull().default('pending'),
+  /** The player's own words. Shown to whoever decides. */
+  note: text('note'),
+  decidedByUserId: integer('decided_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  decidedAt: text('decided_at'),
+  /** Why it was refused, shown back to the player — a silent no is the thing Discord already did. */
+  decisionNote: text('decision_note'),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  // One open ask per roster row. Asking twice is the same ask, and a queue that can hold two
+  // contradictory pending requests for one player is one somebody has to reconcile by hand.
+  uniqueIndex('account_change_one_open')
+    .on(table.participantId)
+    .where(sql`status = 'pending'`),
+  index('account_change_event_status_idx').on(table.eventId, table.status),
+  index('account_change_requester_idx').on(table.requestedByUserId),
+]);
+
 export const teamStaff = pgTable('team_staff', {
   id: serial('id').primaryKey(),
   teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),

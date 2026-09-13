@@ -22,6 +22,7 @@ import { addDays, dayOf, daysBetween, findGaps, packLanes } from '@/lib/schedule
 import { dayKey, daysSince, parseStamp } from '@/lib/dbTime';
 import ClanLink from '@/components/ClanLink';
 import { clanHref } from '@/lib/clanPath';
+import { openRequestCountForClan } from '@/lib/accountChangeRequests';
 
 export const dynamic = 'force-dynamic';
 
@@ -83,6 +84,7 @@ export default async function AdminDashboardPage() {
     feeEvents,
     joinRequests,
     coHostInvites,
+    accountChangeCount,
     pendingSignupEvents,
   ] = await Promise.all([
     listEventIndex(clan.id),
@@ -256,6 +258,7 @@ export default async function AdminDashboardPage() {
       ),
     pendingRequestCount(clan.id),
     pendingCoHostInvites(clan.id).then((r) => r.length),
+    openRequestCountForClan(clan.id),
     // Sign-ups nobody has answered yet, and the boards they are for. Same shape as the fee query
     // above and for the same reason: a bare count cannot be acted on without opening every event.
     // Ended boards are excluded — an unanswered sign-up for a board that is over is not a decision
@@ -334,6 +337,7 @@ export default async function AdminDashboardPage() {
       count: pendingSignupEvents.reduce((n, e) => n + e.count, 0),
       events: pendingSignupEvents,
     },
+    accountChangeRequests: accountChangeCount,
     gap: gap
       ? {
           days: gap.days,
