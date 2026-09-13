@@ -22,6 +22,7 @@ import ClanLink from '@/components/ClanLink';
 import EventBriefing from '@/components/team/EventBriefing';
 import { acceptedCohostClanIds } from '@/lib/coHost';
 import { idParam } from '@/lib/routeIds';
+import AccountChangeCard from '@/components/AccountChangeCard';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,7 +69,14 @@ export default async function MyTeamPage({
   if (event.draftStatus === 'active' || event.draftStatus === 'paused') {
     return (
       <div className={membership.isCaptain ? 'max-w-6xl mx-auto' : undefined}>
-        <div className="flex items-center justify-between gap-3 mb-4">
+        {/* Asking is a player's action and answering is a manager's, and this team page is the one
+          screen both of them already open — so the card carries both halves and renders neither
+          when there is nothing to ask and nothing waiting. */}
+      <div className="mb-4">
+        <AccountChangeCard eventId={event.id} />
+      </div>
+
+      <div className="flex items-center justify-between gap-3 mb-4">
           <ClanLink href={backHref} className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors">
             &larr; {backLabel}
           </ClanLink>

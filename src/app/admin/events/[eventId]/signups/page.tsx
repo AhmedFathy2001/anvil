@@ -8,6 +8,7 @@ import { verifyAdminOrModerator, verifyEventTreasurer } from '@/lib/auth';
 import { getRequiredConfirmations } from '@/lib/feeConfirmations';
 import SignupsClient from './SignupsClient';
 import { clanHref } from '@/lib/clanPath';
+import AccountChangeCard from '@/components/AccountChangeCard';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,11 +34,19 @@ export default async function EventSignupsPage({
   ]);
 
   return (
-    <SignupsClient
-      event={event}
-      viewerRole={session.role}
-      viewerId={session.userId}
-      confirmationsRequired={confirmationsRequired}
-    />
+    <>
+      {/* Waiting on the HOST: requests from players whose clan does not collect its own fees, and
+          every request on a drafted board. The card renders nothing when none are — see
+          lib/accountChangeRules for which of the two queues a request lands in. */}
+      <div className="mb-4">
+        <AccountChangeCard eventId={id} />
+      </div>
+      <SignupsClient
+        event={event}
+        viewerRole={session.role}
+        viewerId={session.userId}
+        confirmationsRequired={confirmationsRequired}
+      />
+    </>
   );
 }
