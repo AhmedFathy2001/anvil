@@ -19,8 +19,17 @@ export const SITE = {
   legalEntity: 'Anvil',
 
   // How customers reach you for support, billing questions, and data requests.
-  contactEmail: 'help@anvilosrs.com', // inbound to be wired up
-  supportDiscord: 'https://discord.gg/nqTxCQAbv4',
+  //
+  // DISCORD, BECAUSE THE MAILBOX DOES NOT EXIST. `contactEmail` was help@anvilosrs.com with a note
+  // saying inbound was still to be wired up — so the terms, the privacy policy and the refund page
+  // each told people to write to an address that silently swallowed everything, which is worse than
+  // naming no address at all: a data-subject request or a refund ask that vanishes still counts as
+  // having been made.
+  //
+  // Set `contactEmail` again the day a mailbox answers, and the legal pages will offer both. A
+  // reachable email is still the conventional channel for data requests, and worth having.
+  contactEmail: null as string | null,
+  supportDiscord: 'https://discord.gg/p9NkrTQmxN',
 
   // Payments are taken by Gumroad as Merchant of Record (our authorized reseller). Card data never
   // touches our servers — Gumroad handles it and remits tax/VAT on our behalf.

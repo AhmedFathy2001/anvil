@@ -1,5 +1,6 @@
 import ClanLink from '@/components/ClanLink';
 import { SITE } from '@/lib/site';
+import SupportContact from '@/app/legal/SupportContact';
 
 // Shared chrome + prose styling for the legal pages (terms / privacy / refunds). The child selectors
 // style the plain semantic HTML in each page, so the pages themselves stay readable prose.
@@ -25,8 +26,7 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
       >
         {children}
         <p className="mt-12 border-t border-card-border pt-6 text-sm text-text-muted/70">
-          Last updated: {SITE.lastUpdated}. Questions? Email{' '}
-          <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.
+          Last updated: {SITE.lastUpdated}. Questions? <SupportContact capitalise />.
         </p>
       </article>
     </main>

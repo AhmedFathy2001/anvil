@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { SITE } from '@/lib/site';
+import SupportContact from '@/app/legal/SupportContact';
 
 export const metadata: Metadata = {
   title: `Privacy Policy — ${SITE.name}`,
@@ -114,8 +115,7 @@ export default function PrivacyPage() {
       <p>
         Depending on where you live, you may have rights to access, correct, export, delete, or
         restrict processing of your personal data, and to object to certain processing. To exercise
-        these rights, email{' '}
-        <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>. If a request concerns data a
+        these rights, <SupportContact />. If a request concerns data a
         clan holds about its members, we may direct it to the clan operator who controls that data.
         You may also lodge a complaint with your local data-protection authority.
       </p>
@@ -142,8 +142,7 @@ export default function PrivacyPage() {
 
       <h2>11. Contact</h2>
       <p>
-        For any privacy question or request, email{' '}
-        <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a>.
+        For any privacy question or request, <SupportContact />.
       </p>
     </>
   );

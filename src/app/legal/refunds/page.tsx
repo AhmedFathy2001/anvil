@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { SITE } from '@/lib/site';
+import SupportContact from '@/app/legal/SupportContact';
 
 export const metadata: Metadata = {
   title: `Refund & Cancellation Policy — ${SITE.name}`,
@@ -57,8 +58,8 @@ export default function RefundsPage() {
 
       <h2>5. How to request a refund</h2>
       <p>
-        Email <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> with the email address
-        used at checkout and your order or receipt details. Approved refunds are returned to your
+        <SupportContact capitalise /> with the email address used at checkout and your order or
+        receipt details. Approved refunds are returned to your
         original payment method by {SITE.paymentProcessor}; the time to appear depends on your bank or
         card issuer.
       </p>

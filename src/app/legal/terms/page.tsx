@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { SITE } from '@/lib/site';
+import SupportContact from '@/app/legal/SupportContact';
 
 export const metadata: Metadata = {
   title: `Terms of Service — ${SITE.name}`,
@@ -156,12 +157,7 @@ export default function TermsPage() {
 
       <h2>13. Contact</h2>
       <p>
-        Questions about these Terms? Email{' '}
-        <a href={`mailto:${SITE.contactEmail}`}>{SITE.contactEmail}</a> or reach us on{' '}
-        <a href={SITE.supportDiscord} target="_blank" rel="noopener noreferrer">
-          Discord
-        </a>
-        .
+        Questions about these Terms? <SupportContact capitalise />.
       </p>
     </>
   );
