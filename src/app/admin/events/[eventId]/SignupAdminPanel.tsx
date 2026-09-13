@@ -951,7 +951,15 @@ export default function SignupAdminPanel({
                         ) : (
                           <>
                             <button
-                              onClick={() => setStatsRsn(s.account.rsn)}
+                              /* THE CHARACTER BEING SCORED, which is what the row above already
+                                 says it is playing. This opened the sign-up's own account, so on a
+                                 board pointed at another of somebody's characters the row read
+                                 "playing 5464" and the stats panel showed kAnal 5 — two different
+                                 Jagex accounts, one of them not in the event, with nothing on
+                                 screen to say which you were looking at. `trackedAs` is null unless
+                                 the two differ, so this is the sign-up account in every ordinary
+                                 case. */
+                              onClick={() => setStatsRsn(s.trackedAs ?? s.account.rsn)}
                               className="text-xs font-medium px-3 py-1 rounded border border-card-border text-text-muted hover:text-gold hover:border-gold/40 transition-colors"
                             >
                               View stats
