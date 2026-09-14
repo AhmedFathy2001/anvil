@@ -204,6 +204,21 @@ export interface EventRules {
   /** 'spread-cap' mode: how far above the average roster a team may go, in pct. */
   balanceSpreadCapPct: number;
   /**
+   * Which of the sign-up form's optional sections this board asks for.
+   *
+   * THE FORM WAS THE SAME FORM FOR EVERY BOARD, and most of it is only useful to a draft. A clan
+   * running a straight 5x5 asked its members for active hours per day, AFK hours per week, a
+   * timezone, every boss they do and every skill they train — a page of questions to enter a bingo
+   * nobody was being picked for. The optional sections are a choice now, and a host who does not
+   * draft can ask for almost nothing.
+   *
+   * PLAY HOURS DEFAULT OFF. It is the longest part of the form and the least often read: four
+   * ranges, asked of everybody, for a signal only the draft war room and the applicant drawer ever
+   * show. Nothing that reads the answers requires them — every consumer already renders absent
+   * hours as nothing, which is what made this safe to flip rather than a migration.
+   */
+  signupFields: SignupFields;
+  /**
    * Seconds a captain gets per pick before the host may take it for them. 0 = no clock, which is
    * the default: a draft where nobody has agreed a time limit shouldn't grow one silently.
    * Expiring never auto-picks — it unlocks the admin's action and says so on both screens.
@@ -232,7 +247,49 @@ export interface EventRules {
   teamChoice: boolean;
 }
 
+/** The optional halves of the sign-up form. The account picker and the fee are never optional. */
+export interface SignupFields {
+  /** Active/AFK hours per day and per week — four ranges. Off unless a board asks for it. */
+  availability: boolean;
+  timezone: boolean;
+  bosses: boolean;
+  skills: boolean;
+  /** The free-text "anything else for captains?" box. */
+  notes: boolean;
+}
+
+export const DEFAULT_SIGNUP_FIELDS: SignupFields = {
+  availability: false,
+  timezone: true,
+  bosses: true,
+  skills: true,
+  notes: true,
+};
+
+/** Is this exactly the shipped set? Used to decide whether the rules JSON can be dropped entirely. */
+export function isDefaultSignupFields(f: SignupFields): boolean {
+  return (Object.keys(DEFAULT_SIGNUP_FIELDS) as (keyof SignupFields)[]).every(
+    (k) => f[k] === DEFAULT_SIGNUP_FIELDS[k],
+  );
+}
+
+/** Tolerant of anything that is not the object it should be — an absent key keeps the default. */
+export function parseSignupFields(raw: unknown): SignupFields {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return DEFAULT_SIGNUP_FIELDS;
+  const o = raw as Record<string, unknown>;
+  const pick = (k: keyof SignupFields) =>
+    typeof o[k] === 'boolean' ? (o[k] as boolean) : DEFAULT_SIGNUP_FIELDS[k];
+  return {
+    availability: pick('availability'),
+    timezone: pick('timezone'),
+    bosses: pick('bosses'),
+    skills: pick('skills'),
+    notes: pick('notes'),
+  };
+}
+
 export const DEFAULT_EVENT_RULES: EventRules = {
+  signupFields: DEFAULT_SIGNUP_FIELDS,
   monthlyAward: null,
   revealPolicy: 'all',
   revealIntervalMinutes: 60,
@@ -363,6 +420,7 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
   } catch {
     return DEFAULT_EVENT_RULES;
   }
+  const signupFields = parseSignupFields(obj.signupFields);
   const policy = REVEAL_POLICIES.includes(obj.revealPolicy as RevealPolicy)
     ? (obj.revealPolicy as RevealPolicy)
     : 'all';
@@ -421,6 +479,7 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
   }
   return {
     monthlyAward,
+    signupFields,
     revealPolicy: policy,
     revealIntervalMinutes: clampInt(obj.revealIntervalMinutes, 5, 10080, 60),
     revealBatchSize: clampInt(obj.revealBatchSize, 1, 50, 1),
@@ -607,7 +666,11 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     canonical.startProof === null &&
     canonical.monthlyAward === null &&
     !canonical.captainInvites &&
-    !canonical.teamChoice;
+    !canonical.teamChoice &&
+    // WITHOUT THIS the toggles are wiped by any other rules edit. "Default" here means "storing
+    // nothing loses nothing", and a board that has switched a sign-up section on or off has said
+    // something that null cannot hold — so it has to be asked about like every other key.
+    isDefaultSignupFields(canonical.signupFields);
   return { rules: isDefault ? null : JSON.stringify(canonical) };
 }
 

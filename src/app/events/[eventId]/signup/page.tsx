@@ -202,6 +202,7 @@ export default async function EventSignupPage({
 
       <SignupForm
         eventId={event.id}
+        fields={eventRules.signupFields}
         teamChoice={
           // Team-choice events (rules.teamChoice): the host built the teams, applicants name the one
           // they're joining, and approving the sign-up is what seats them. An invite link already

@@ -8,16 +8,18 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  parseEventRules,
-  validateEventRules,
   DEFAULT_EVENT_RULES,
-  hasRevealPolicy,
-  isTileRevealed,
-  visibleTiles,
-  isTileOpen,
-  nextRevealAt,
+  DEFAULT_SIGNUP_FIELDS,
   completionAward,
+  hasRevealPolicy,
+  isTileOpen,
+  isTileRevealed,
+  nextRevealAt,
+  parseEventRules,
+  parseSignupFields,
   rotationExpiries,
+  validateEventRules,
+  visibleTiles,
 } from '../src/lib/eventRules.ts';
 
 test('parseEventRules: null/malformed/garbage → defaults', () => {
@@ -291,4 +293,49 @@ test('parseEventRules: captain invites are off unless the event says otherwise',
   // Turning it on is enough to stop the rules column being NULL.
   const stored = validateEventRules({ captainInvites: true });
   assert.ok('rules' in stored && stored.rules !== null);
+});
+
+// ── What the sign-up form asks ────────────────────────────────────────────────────────────────
+
+test('play hours are off unless a board asks for them', () => {
+  // The longest part of the form and the least often read: four ranges, asked of everybody, for a
+  // signal only the draft war room and the applicant drawer ever show.
+  assert.equal(DEFAULT_SIGNUP_FIELDS.availability, false);
+  assert.equal(parseEventRules(null).signupFields.availability, false);
+  assert.equal(parseEventRules('{}').signupFields.availability, false);
+});
+
+test('the rest of the form is on unless switched off', () => {
+  const f = parseEventRules(null).signupFields;
+  assert.equal(f.timezone, true);
+  assert.equal(f.bosses, true);
+  assert.equal(f.skills, true);
+  assert.equal(f.notes, true);
+});
+
+test('a stored choice survives a read', () => {
+  const f = parseEventRules(JSON.stringify({ signupFields: { availability: true, bosses: false } })).signupFields;
+  assert.equal(f.availability, true);
+  assert.equal(f.bosses, false);
+  assert.equal(f.skills, true, 'a key nobody sent keeps its default');
+});
+
+test('junk in that key is ignored rather than believed', () => {
+  assert.deepEqual(parseSignupFields(null), DEFAULT_SIGNUP_FIELDS);
+  assert.deepEqual(parseSignupFields('nonsense'), DEFAULT_SIGNUP_FIELDS);
+  assert.deepEqual(parseSignupFields([]), DEFAULT_SIGNUP_FIELDS);
+  assert.equal(parseSignupFields({ notes: 'yes' }).notes, true, 'a non-boolean is not an answer');
+});
+
+test('a board that changed the form does not have its rules dropped', () => {
+  // THE BUG THIS CLOSES. `validateEventRules` throws the whole JSON away when everything in it is
+  // default — so without asking about signupFields, any other rules edit silently switched the
+  // sign-up form back to the shipped set.
+  const changed = validateEventRules({ signupFields: { notes: false } });
+  assert.ok('rules' in changed && changed.rules !== null, 'it is stored');
+  assert.equal(parseEventRules((changed as { rules: string }).rules).signupFields.notes, false);
+
+  // And the genuinely default case still stores nothing.
+  const plain = validateEventRules({ signupFields: { ...DEFAULT_SIGNUP_FIELDS } });
+  assert.equal('rules' in plain && plain.rules, null);
 });

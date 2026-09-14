@@ -12,6 +12,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import Checkbox from '@/components/Checkbox';
 import { useDialog } from '@/components/Confirm';
+import { DEFAULT_SIGNUP_FIELDS, type SignupFields } from '@/lib/eventRules';
 
 interface FeeCollectorOption {
   id: number;
@@ -50,6 +51,8 @@ interface FeeRow {
 }
 
 interface Props {
+  /** Which optional sections this board asks for — see lib/eventRules `signupFields`. */
+  fields?: SignupFields;
   eventId: number;
   event: {
     signupFee: number | null;
@@ -212,6 +215,7 @@ export default function SignupForm({
   windowReason,
   invite = null,
   teamChoice = null,
+  fields = DEFAULT_SIGNUP_FIELDS,
 }: Props) {
   const router = useRouter();
   const [requestedTeamId, setRequestedTeamId] = useState<number | null>(teamChoice?.requestedTeamId ?? null);
@@ -591,9 +595,14 @@ export default function SignupForm({
         )}
       </fieldset>
 
-      {/* Activity */}
+      {/* Activity. Two different answers shared one box — hours and a timezone — so each is asked
+          for on its own now and the box disappears when the board wants neither. */}
+      {(fields.availability || fields.timezone) && (
       <fieldset className="border border-card-border rounded-xl p-4 bg-card-bg space-y-3">
-        <legend className="px-2 text-sm font-bold text-gold">Activity</legend>
+        <legend className="px-2 text-sm font-bold text-gold">
+          {fields.availability ? 'Activity' : 'Where you are'}
+        </legend>
+        {fields.availability && (<>
         <p className="text-xs text-text-muted">
           Give a rough range — estimates are fine, and either end can be left blank.
           <span className="text-foreground"> Active</span> = hands-on content;
@@ -617,6 +626,9 @@ export default function SignupForm({
           </div>
         </div>
 
+        </>)}
+
+        {fields.timezone && (
         <label className="block">
           <span className="text-xs text-text-muted">Timezone (optional)</span>
           <div className="mt-1">
@@ -629,9 +641,12 @@ export default function SignupForm({
             />
           </div>
         </label>
+        )}
       </fieldset>
+      )}
 
       {/* Bosses */}
+      {fields.bosses && (
       <fieldset className="border border-card-border rounded-xl p-4 bg-card-bg space-y-3">
         <legend className="px-2 text-sm font-bold text-gold">Bosses you regularly do</legend>
         <Input
@@ -684,8 +699,10 @@ export default function SignupForm({
           })}
         </div>
       </fieldset>
+      )}
 
       {/* Skills */}
+      {fields.skills && (
       <fieldset className="border border-card-border rounded-xl p-4 bg-card-bg space-y-3">
         <legend className="px-2 text-sm font-bold text-gold">Skills you regularly train</legend>
         <Input
@@ -738,8 +755,10 @@ export default function SignupForm({
           })}
         </div>
       </fieldset>
+      )}
 
       {/* Notes */}
+      {fields.notes && (
       <fieldset className="border border-card-border rounded-xl p-4 bg-card-bg space-y-3">
         <legend className="px-2 text-sm font-bold text-gold">Anything else for captains?</legend>
         <Textarea
@@ -753,6 +772,7 @@ export default function SignupForm({
         />
         <p className="text-xs text-text-muted text-right">{notes.length}/1000</p>
       </fieldset>
+      )}
 
       {error && (
         <div className="text-sm text-red-400 border border-red-500/30 bg-red-500/10 rounded-lg p-3">
