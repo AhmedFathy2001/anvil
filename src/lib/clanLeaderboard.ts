@@ -63,7 +63,11 @@ function sinceFor(window: LeaderboardWindow): string | null {
  * handful of clans elsewhere in this codebase, and a leaderboard is precisely the page that grows
  * with the platform.
  */
-export async function clanStandings(window: LeaderboardWindow = '7d', limit = 50): Promise<ClanStanding[]> {
+export async function clanStandings(
+  window: LeaderboardWindow = '7d',
+  limit = 50,
+  offset = 0,
+): Promise<ClanStanding[]> {
   const since = sinceFor(window);
 
   // clan-scope: global -- comparing clans to each other is the entire purpose; there is no single
@@ -110,8 +114,11 @@ export async function clanStandings(window: LeaderboardWindow = '7d', limit = 50
       ),
     )
     .groupBy(clans.id, clans.slug, clans.name, clans.customDomain)
-    .orderBy(desc(sql`coalesce(sum(${memberDailyStats.xpGained}), 0)`))
-    .limit(limit);
+    // Tie-broken on the clan id for the same reason the player table is: a page boundary that falls
+    // inside a run of equal totals must land in the same place on both queries.
+    .orderBy(desc(sql`coalesce(sum(${memberDailyStats.xpGained}), 0)`), clans.id)
+    .limit(limit)
+    .offset(offset);
 
   // Roster size separately: folding it into the aggregate above would multiply it by the number of
   // daily rows joined per member, which is the classic way to get a plausible wrong number.
@@ -153,14 +160,18 @@ export interface LeaderboardPlayer {
 /**
  * The cross-clan player table, optionally narrowed to one clan.
  *
- * `clanSlug` narrows rather than re-scopes: this is still the platform's table, read through one
- * clan. A table of everyone is the right default and the wrong answer to "how are MY people doing",
- * which is the question anyone with a clan actually arrives with.
+ * `clanSlug` narrows rather than re-scopes — kept for callers that want one clan's slice, though the
+ * Hall of Records no longer offers it: a chip per clan does not survive a platform with a thousand
+ * of them, and "how are my people doing" is already answered by the clan's own page, which lists its
+ * members individually to anybody allowed to read it.
+ *
+ * `offset` pages it. Bounded by the caller; see the ordering note below for why it is safe to page.
  */
 export async function topPlayers(
   window: LeaderboardWindow = '7d',
   limit = 25,
   clanSlug?: string | null,
+  offset = 0,
 ): Promise<LeaderboardPlayer[]> {
   const since = sinceFor(window);
 
@@ -198,8 +209,13 @@ export async function topPlayers(
       ),
     )
     .groupBy(accounts.id, accounts.rsn, clans.name, clans.slug, clans.status, clans.visibility, settings.value)
-    .orderBy(desc(sql`coalesce(sum(${memberDailyStats.xpGained}), 0)`))
-    .limit(limit);
+    // A STABLE SECOND KEY, because paging without one is how a row appears on two pages and another
+    // on neither. Equal totals are common at the quiet end of a long table — every account with no
+    // gains in the window sums to the same zero — and Postgres is free to order those differently
+    // between the two queries that render page 3 and page 4.
+    .orderBy(desc(sql`coalesce(sum(${memberDailyStats.xpGained}), 0)`), accounts.id)
+    .limit(limit)
+    .offset(offset);
 
   return rows.map((r) => {
     // A player in an unlisted clan still ranks — they published their character. They just appear
