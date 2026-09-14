@@ -40,7 +40,21 @@ interface Waiting {
   eventName: string;
 }
 
-export default function AccountChangeCard({ eventId }: { eventId: number }) {
+export default function AccountChangeCard({
+  eventId,
+  mode = 'both',
+}: {
+  eventId: number;
+  /**
+   * 'both' — the team page, where a player asks and a manager answers on the one screen they open.
+   * 'decide' — an admin surface, which is not where somebody goes to ask about their own character.
+   *
+   * Without this the admin's Sign-ups tab rendered a whole card to tell an admin who happens to be
+   * playing that they could ask to switch — half a page wide, one line in it, and a column of empty
+   * space beside the card next to it.
+   */
+  mode?: 'both' | 'decide';
+}) {
   const router = useRouter();
   const [mine, setMine] = useState<Mine | null>(null);
   const [waiting, setWaiting] = useState<Waiting[]>([]);
@@ -81,8 +95,12 @@ export default function AccountChangeCard({ eventId }: { eventId: number }) {
     }
   }
 
-  const canAsk = mine && !mine.open && mine.options.length > 0;
-  if (!mine?.open && !canAsk && waiting.length === 0) return null;
+  const showMine = mode === 'both';
+  const canAsk = showMine && mine && !mine.open && mine.options.length > 0;
+  const showOpen = showMine && mine?.open;
+  // Nothing to ask and nothing waiting is not a card. On an admin surface that means the card is
+  // simply absent until somebody has actually asked for something.
+  if (!showOpen && !canAsk && waiting.length === 0) return null;
 
   return (
     <div className="rounded-xl border border-card-border bg-card-bg p-4">
@@ -143,7 +161,7 @@ export default function AccountChangeCard({ eventId }: { eventId: number }) {
 
       {/* Their own ask. A standing request is shown rather than the form — asking twice is the
           same ask, and the server refuses it, so offering the form again would be a dead end. */}
-      {mine?.open ? (
+      {showOpen ? (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-text-muted">
             Waiting on an answer. You are still being scored as{' '}

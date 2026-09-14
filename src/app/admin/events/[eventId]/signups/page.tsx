@@ -47,29 +47,47 @@ export default async function EventSignupsPage({
 
   return (
     <>
-      {/* Waiting on the HOST: requests from players whose clan does not collect its own fees, and
-          every request on a drafted board. The card renders nothing when none are — see
-          lib/accountChangeRules for which of the two queues a request lands in. */}
-      <div className="mb-4 grid gap-4 lg:grid-cols-2">
-        <AccountChangeCard eventId={id} />
-        {/* What this board asks for is a sign-ups question, so it lives on the sign-ups tab. */}
-        <SignupFieldsCard eventId={id} />
+      {/* WAITING ON YOU COMES FIRST, and nothing else does. A request to switch character is a
+          person blocked until somebody answers; the card is absent entirely when none are waiting.
+          `decide` because an admin's Sign-ups tab is not where somebody asks about their own
+          character — that is the team page, where they are a player. */}
+      <div className="mb-4">
+        <AccountChangeCard eventId={id} mode="decide" />
       </div>
 
-      {/* The host's own questions — the same builder as the post-event survey, pointed at the other
-          end of the event. Admin only, like the survey's. */}
+      {/* CONFIGURATION IS SHUT BY DEFAULT. This tab exists to read sign-ups, and three config cards
+          stacked above the list pushed 27 of them below the fold — you had to scroll past the form
+          builder to reach the thing the page is named after. It is set once and then rarely touched,
+          so it folds away and the list leads. */}
       {session.role !== 'moderator' && (
-        <div className="mb-4 rounded-xl border border-card-border bg-card-bg p-4">
-          <SurveyClient
-            eventId={id}
-            stage="signup"
-            ended={false}
-            initialQuestions={signupQuestions}
-            responseCount={0}
-            templates={[]}
-          />
-        </div>
+        <details className="group mb-4 rounded-xl border border-card-border bg-card-bg">
+          <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-semibold">
+            <span className="h-5 w-1 rounded-full bg-gold" />
+            The sign-up form
+            <span className="ml-auto font-normal text-[13px] text-text-muted">
+              {signupQuestions.length > 0
+                ? `${signupQuestions.length} of your own question${signupQuestions.length === 1 ? '' : 's'}`
+                : 'What it asks, and your own questions'}
+            </span>
+            <span className="text-text-dim transition-transform group-open:rotate-180" aria-hidden>
+              ▾
+            </span>
+          </summary>
+
+          <div className="space-y-6 border-t border-card-border px-4 py-4">
+            <SignupFieldsCard eventId={id} />
+            <SurveyClient
+              eventId={id}
+              stage="signup"
+              ended={false}
+              initialQuestions={signupQuestions}
+              responseCount={0}
+              templates={[]}
+            />
+          </div>
+        </details>
       )}
+
       <SignupsClient
         event={event}
         viewerRole={session.role}

@@ -70,26 +70,28 @@ export default function SignupFieldsCard({ eventId }: { eventId: number }) {
   if (!fields) return null;
 
   return (
-    <div className="rounded-xl border border-card-border bg-card-bg p-4">
-      <div className="mb-1 flex items-center gap-2">
-        <span className="h-5 w-1 rounded-full bg-gold" />
-        <h3 className="font-semibold">What the sign-up form asks</h3>
-      </div>
+    <div>
+      <h3 className="mb-1 text-[13px] font-semibold uppercase tracking-wide text-text-muted">
+        What it asks everyone
+      </h3>
       <p className="mb-3 text-[13px] text-text-muted">
         Everyone is always asked which character they are playing, and for the fee when there is one.
         The rest is up to you.
       </p>
 
-      <ul className="space-y-2.5">
+      {/* A checkbox and its explanation on one line wrapped into a ragged two-column mess at every
+          width — "Play hours" over two lines, its hint beside it over three. The label leads, the
+          hint sits under it, and the whole thing reads as a list of settings. */}
+      <ul className="grid gap-3 sm:grid-cols-2">
         {ROWS.map((r) => (
-          <li key={r.key} className="flex items-start gap-2.5">
+          <li key={r.key}>
             <Checkbox
               checked={fields[r.key]}
               onChange={(on) => toggle(r.key, on)}
               disabled={busy}
               label={r.label}
+              description={r.hint}
             />
-            <span className="mt-[3px] text-[12.5px] text-text-dim">{r.hint}</span>
           </li>
         ))}
       </ul>

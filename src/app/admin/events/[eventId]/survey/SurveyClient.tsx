@@ -146,10 +146,12 @@ export default function SurveyClient({
 
   return (
     <div>
+      {/* Nested inside the Sign-up form disclosure at this stage, so it takes a plain subheading —
+          a second gold bar under the summary's reads as a second page rather than a section of one. */}
       <div className="flex items-center gap-2 mb-1">
-        <span className="w-1 h-5 bg-gold rounded-full" />
-        <h2 className="text-lg font-semibold">
-          {stage === 'signup' ? 'Your own sign-up questions' : 'Post-event survey'}
+        {stage !== 'signup' && <span className="w-1 h-5 bg-gold rounded-full" />}
+        <h2 className={stage === 'signup' ? 'text-[13px] font-semibold uppercase tracking-wide text-text-muted' : 'text-lg font-semibold'}>
+          {stage === 'signup' ? 'Your own questions' : 'Post-event survey'}
         </h2>
       </div>
       <p className="text-sm text-text-muted mb-4">
@@ -185,7 +187,11 @@ export default function SurveyClient({
         <div className="space-y-4">
           {questions.length === 0 && (
             <div className="rounded-xl border border-dashed border-card-border p-6 text-center">
-              <p className="text-sm text-text-muted mb-3">No questions yet. Start from a template or add your own.</p>
+              <p className="text-sm text-text-muted mb-3">
+                {stage === 'signup'
+                  ? 'No questions yet — the form still asks the built-in sections above.'
+                  : 'No questions yet. Start from a template or add your own.'}
+              </p>
             </div>
           )}
 
@@ -275,7 +281,7 @@ export default function SurveyClient({
               disabled={saving}
               className="text-sm font-semibold bg-gold/20 text-gold border border-gold/30 px-4 py-2 rounded-lg hover:bg-gold/30 transition-colors disabled:opacity-50"
             >
-              {saving ? 'Saving…' : 'Save survey'}
+              {saving ? 'Saving…' : stage === 'signup' ? 'Save questions' : 'Save survey'}
             </button>
             {notice && <span className="text-xs text-accent-green-light">{notice}</span>}
             {error && <span className="text-xs text-red-400">{error}</span>}
