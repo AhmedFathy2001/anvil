@@ -28,6 +28,8 @@ export interface PublicClanHome {
   focus: ClanFocus[];
   requirements: ClanRequirements;
   verified: boolean;
+  /** The clan's own image, or null for the generated crest. */
+  logoUrl: string | null;
   recruiting: boolean;
   openToChallenges: boolean;
   guestPolicy: string;
@@ -89,6 +91,7 @@ export async function publicClanHomeView(clanId: number, discordInvite: string |
     focus: asFocus(clan.focus),
     requirements: asRequirements(clan.requirements),
     verified: clan.ingameNameVerifiedAt != null,
+    logoUrl: clan.logoUrl ?? null,
     recruiting: clan.recruiting,
     openToChallenges: clan.openToChallenges,
     guestPolicy: clan.guestPolicy,

@@ -8,6 +8,8 @@ import ClanCrest from '@/components/ClanCrest';
 export interface RailClan {
   slug: string;
   name: string;
+  /** The clan's own image, or null for the generated crest. */
+  logoUrl?: string | null;
   /** Something is running there right now — the one thing worth a dot in a nav. */
   live?: boolean;
 }
@@ -119,7 +121,7 @@ export default function PlatformRail({
                 href={`/c/${c.slug}`}
                 className="flex shrink-0 items-center gap-2.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13.5px] text-text-muted transition-colors hover:bg-brown-light hover:text-foreground"
               >
-                <ClanCrest name={c.name} size={18} />
+                <ClanCrest name={c.name} logoUrl={c.logoUrl} size={18} />
                 <span className="truncate">{c.name}</span>
                 {c.live && (
                   <span

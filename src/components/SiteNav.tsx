@@ -1,6 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import ClanCrest from '@/components/ClanCrest';
 import { useEffect, useRef, useState } from 'react';
 import ClanLink from '@/components/ClanLink';
 
@@ -13,6 +14,7 @@ interface NavUser {
 export interface NavClan {
   slug: string;
   name: string;
+  logoUrl?: string | null;
   seat: 'member' | 'guest' | null;
   staff: boolean;
   /** The clan grant they hold here, if any — 'owner', 'admin', 'moderator', 'treasurer', 'editor'. */
@@ -29,28 +31,14 @@ interface Props {
   discordInvite: string | null;
   user: NavUser | null;
   /** The clan whose pages these are, or null on the apex. */
-  clan: { slug: string; name: string } | null;
+  clan: { slug: string; name: string; logoUrl?: string | null } | null;
   /** Every clan the signed-in person is in (includes the current one), for the switcher. */
   myClans: NavClan[];
 }
 
-/** A deterministic crest gradient per clan, so each reads as its own space at a glance. */
-function crestStyle(slug: string): React.CSSProperties {
-  let h = 0;
-  for (let i = 0; i < slug.length; i++) h = (h * 31 + slug.charCodeAt(i)) % 360;
-  return { background: `linear-gradient(135deg, hsl(${h} 42% 40%), hsl(${(h + 34) % 360} 52% 54%))` };
-}
-
-function Crest({ slug, name, size = 18 }: { slug: string; name: string; size?: number }) {
-  return (
-    <span
-      aria-hidden
-      className="shrink-0 grid place-items-center rounded-[5px] font-bold text-white"
-      style={{ ...crestStyle(slug), width: size, height: size, fontSize: size * 0.5 }}
-    >
-      {name.charAt(0).toUpperCase()}
-    </span>
-  );
+/** The switcher's crest — the shared one, which shows the clan's image when it has uploaded one. */
+function Crest({ slug, name, logoUrl, size = 18 }: { slug: string; name: string; logoUrl?: string | null; size?: number }) {
+  return <ClanCrest variant="letter" slug={slug} name={name} logoUrl={logoUrl ?? null} size={size} />;
 }
 
 /**
@@ -172,7 +160,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
               className="flex items-center gap-2 px-2 py-1.5 rounded-md text-sm font-medium text-foreground/90 hover:bg-brown-light transition-all"
               title="Switch clan"
             >
-              <Crest slug={clan.slug} name={clan.name} />
+              <Crest slug={clan.slug} name={clan.name} logoUrl={clan.logoUrl} />
               <span className="max-w-[10rem] truncate">{clan.name}</span>
               <svg className={`w-3 h-3 text-text-muted transition-transform ${switcherOpen ? 'rotate-180' : ''}`} viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M3 4.5L6 7.5L9 4.5" /></svg>
             </button>

@@ -6,6 +6,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
 import Input from '@/components/Input';
 import type { ClanFocus } from '@/lib/clanHome';
+import ClanCrest from '@/components/ClanCrest';
 
 const FOCUS: { value: ClanFocus; label: string }[] = [
   { value: 'pvm', label: 'PvM' },
@@ -16,6 +17,7 @@ const FOCUS: { value: ClanFocus; label: string }[] = [
 ];
 
 interface Form {
+  logoUrl: string | null;
   tagline: string;
   description: string;
   focus: ClanFocus[];
@@ -29,7 +31,7 @@ interface Form {
  * button rather than per keystroke; toggles and focus chips are part of the same saved form so one
  * "Save" covers everything.
  */
-export default function ProfileClient() {
+export default function ProfileClient({ clanName = 'Clan' }: { clanName?: string }) {
   const [form, setForm] = useState<Form | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -40,6 +42,7 @@ export default function ProfileClient() {
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error('Could not load'))))
       .then((d) =>
         setForm({
+          logoUrl: d.logoUrl ?? null,
           tagline: d.tagline ?? '',
           description: d.description ?? '',
           focus: Array.isArray(d.focus) ? d.focus : [],
@@ -96,6 +99,17 @@ export default function ProfileClient() {
 
   return (
     <div className="flex max-w-[62ch] flex-col gap-8">
+      <Group
+        title="Your clan's image"
+        lede="Shown wherever your clan appears — your page, the directory, the switcher. Square works best; every clan has a generated crest until it has one of these."
+      >
+        <LogoField
+          value={form.logoUrl}
+          name={clanName}
+          onChange={(url) => set('logoUrl', url)}
+        />
+      </Group>
+
       <Group title="The hook" lede="One line under your name, and a longer introduction. This is the first thing a stranger reads.">
         <label className="text-[13px] font-medium text-text-muted">Tagline</label>
         <Input
@@ -202,5 +216,83 @@ function Group({ title, lede, children }: { title: string; lede: string; childre
       <p className="mb-3.5 ml-4 max-w-[62ch] text-[13.5px] text-text-muted">{lede}</p>
       {children}
     </section>
+  );
+}
+
+/**
+ * Pick an image, see it immediately, or take it off again.
+ *
+ * The upload happens on choose rather than on Save, because a file input that appears to do nothing
+ * until a separate button is pressed is the shape people press twice. What Save writes is the URL
+ * the upload returned — so a half-finished edit leaves an orphan in the bucket and nothing worse.
+ *
+ * The preview is the real crest component, so what is shown here is exactly what the rest of the
+ * site will render, fallback included.
+ */
+function LogoField({
+  value,
+  name,
+  onChange,
+}: {
+  value: string | null;
+  name: string;
+  onChange: (url: string | null) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function upload(file: File) {
+    setBusy(true);
+    setError(null);
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const res = await clanFetch('/api/upload', { method: 'POST', body });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.url) {
+        setError(data.error ?? 'That upload did not work.');
+        return;
+      }
+      onChange(data.url);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-4">
+        <ClanCrest name={name} logoUrl={value} size={64} rounded="rounded-2xl" className="text-xl" />
+        <div className="flex flex-col gap-2">
+          <label className="inline-flex cursor-pointer items-center rounded-lg border border-card-border px-3 py-1.5 text-sm transition-colors hover:border-gold/45">
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              disabled={busy}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                // Cleared so choosing the same file twice still fires a change — the ordinary way
+                // somebody retries after a failed upload.
+                e.target.value = '';
+                if (file) void upload(file);
+              }}
+            />
+            {busy ? 'Uploading…' : value ? 'Replace image' : 'Choose an image'}
+          </label>
+          {value && (
+            <button
+              type="button"
+              onClick={() => onChange(null)}
+              className="text-left text-[13px] text-text-dim underline-offset-4 hover:text-gold hover:underline"
+            >
+              Remove — go back to the generated crest
+            </button>
+          )}
+        </div>
+      </div>
+      {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+      <p className="mt-2 text-[12.5px] text-text-dim">Saved with the rest of this page.</p>
+    </div>
   );
 }

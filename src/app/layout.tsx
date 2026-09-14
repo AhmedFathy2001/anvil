@@ -113,14 +113,14 @@ export async function generateMetadata(): Promise<Metadata> {
  * usable: your own clan, then staff seats, then everything else alphabetically.
  */
 function railOrder(
-  clans: { id: number; slug: string; name: string; seat: string | null; staff: boolean }[],
+  clans: { id: number; slug: string; name: string; logoUrl: string | null; seat: string | null; staff: boolean }[],
   live: Set<number>,
 ): RailClan[] {
   const rank = (c: { seat: string | null; staff: boolean }) =>
     c.seat === 'member' ? 0 : c.staff ? 1 : 2;
   return [...clans]
     .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))
-    .map((c) => ({ slug: c.slug, name: c.name, live: live.has(c.id) }));
+    .map((c) => ({ slug: c.slug, name: c.name, logoUrl: c.logoUrl, live: live.has(c.id) }));
 }
 
 export default async function RootLayout({
@@ -211,7 +211,9 @@ export default async function RootLayout({
       : [0, new Set<number>()];
   // The switcher wants the whole set (including the current clan) with each one's relationship, so it
   // can show a role chip and mark where you are.
-  const navClans = myClans.map((c) => ({ slug: c.slug, name: c.name, seat: c.seat, staff: c.staff, role: c.role }));
+  const navClans = myClans.map((c) => ({
+    slug: c.slug, name: c.name, logoUrl: c.logoUrl, seat: c.seat, staff: c.staff, role: c.role,
+  }));
 
   return (
     <html lang="en">
@@ -278,7 +280,7 @@ export default async function RootLayout({
               </span>
             </ClanLink>
             <SiteNav
-              clan={clan ? { slug: clan.slug, name: clan.name } : null}
+              clan={clan ? { slug: clan.slug, name: clan.name, logoUrl: clan.logoUrl } : null}
               myClans={navClans}
               signedIn={!!session}
               myTeams={myTeams}

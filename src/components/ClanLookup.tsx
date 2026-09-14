@@ -10,6 +10,8 @@ export interface LookupClan {
   slug: string;
   name: string;
   members: number;
+  /** The clan's own image, or null for the generated crest. */
+  logoUrl?: string | null;
   /** What is running there now, if anything — the one thing worth reading first. */
   doing: string | null;
   /** The viewer's own standing here, so their clans do not offer them a way to apply. */
@@ -157,7 +159,7 @@ export default function ClanLookup({ clans }: { clans: LookupClan[] }) {
                 href={`/c/${c.slug}`}
                 className="flex items-center gap-2 rounded-lg border border-card-border bg-card-bg px-3 py-2 text-[13.5px] transition-colors hover:border-gold/40 hover:bg-card-bg-hover"
               >
-                <ClanCrest name={c.name} size={20} />
+                <ClanCrest name={c.name} logoUrl={c.logoUrl} size={20} />
                 <span className="font-medium">{c.name}</span>
                 <span className="font-mono text-[0.58rem] uppercase tracking-[0.1em] text-text-dim">
                   {c.seat}
@@ -213,7 +215,7 @@ function Card({ clan }: { clan: LookupClan }) {
       className="flex flex-col rounded-xl border border-card-border bg-card-bg p-4 transition-colors hover:border-gold/40 hover:bg-card-bg-hover"
     >
       <div className="flex items-start gap-3">
-        <ClanCrest name={clan.name} size={34} />
+        <ClanCrest name={clan.name} logoUrl={clan.logoUrl} size={34} />
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="truncate text-[15.5px] font-medium">{clan.name}</span>

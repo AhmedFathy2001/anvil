@@ -17,6 +17,21 @@ import type { ClanFocus, ClanRequirements } from '@/lib/clanHome';
 
 const FOCUS: readonly ClanFocus[] = ['pvm', 'skilling', 'pvp', 'social', 'ironman'];
 
+/**
+ * Did this URL come out of our own upload endpoint?
+ *
+ * The value is rendered as an `<img src>` on a page strangers read, so "any string the admin sent"
+ * is a way to point every visitor's browser at a server of somebody else's choosing — a tracking
+ * pixel at best. `/api/upload` is the only writer of the media bucket, so anything it returns starts
+ * with the configured public base; anything else did not come from here.
+ */
+function isOurMediaUrl(url: string): boolean {
+  const base = (process.env.S3_PUBLIC_BASE_URL || '').trim().replace(/\/+$/, '');
+  // A relative path is served by this origin, which is equally ours.
+  if (url.startsWith('/')) return true;
+  return base !== '' && url.startsWith(`${base}/`);
+}
+
 function cleanRequirements(raw: unknown): ClanRequirements {
   if (!raw || typeof raw !== 'object') return {};
   const r = raw as Record<string, unknown>;
@@ -37,7 +52,10 @@ export async function GET() {
 
   const row = await db.query.clans.findFirst({
     where: eq(clans.id, clan.id),
-    columns: { tagline: true, description: true, focus: true, recruiting: true, openToChallenges: true, requirements: true },
+    columns: {
+      tagline: true, description: true, focus: true, recruiting: true, openToChallenges: true,
+      requirements: true, logoUrl: true,
+    },
   });
 
   return NextResponse.json({
@@ -47,6 +65,7 @@ export async function GET() {
     recruiting: row?.recruiting ?? false,
     openToChallenges: row?.openToChallenges ?? false,
     requirements: cleanRequirements(row?.requirements),
+    logoUrl: row?.logoUrl ?? null,
   });
 }
 
@@ -71,6 +90,21 @@ export async function PATCH(request: Request) {
       ? [...new Set(body.focus.filter((f: unknown): f is ClanFocus => typeof f === 'string' && (FOCUS as readonly string[]).includes(f)))]
       : [];
     patch.focus = focus;
+  }
+  if ('logoUrl' in body) {
+    // The URL comes back from /api/upload, which is the only thing that writes to the media bucket —
+    // so it is ours by construction. Checked anyway: this column is rendered as an <img> src on the
+    // clan's public front door, and a field that accepts any string there is a way to point every
+    // visitor's browser at somebody else's server. Empty clears it, which is how a clan goes back to
+    // the generated crest.
+    const raw = typeof body.logoUrl === 'string' ? body.logoUrl.trim() : '';
+    if (!raw) {
+      patch.logoUrl = null;
+    } else if (isOurMediaUrl(raw)) {
+      patch.logoUrl = raw;
+    } else {
+      return NextResponse.json({ error: 'That image did not come from an upload here.' }, { status: 400 });
+    }
   }
   if ('recruiting' in body) patch.recruiting = !!body.recruiting;
   if ('openToChallenges' in body) patch.openToChallenges = !!body.openToChallenges;

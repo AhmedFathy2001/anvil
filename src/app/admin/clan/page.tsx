@@ -31,7 +31,9 @@ export default async function ClanProfilePage() {
   return (
     <>
       <ClanNameSettings />
-      <ProfileClient />
+      {/* The name is passed so the image field's fallback crest is this clan's real one, rather than
+          a generic letter that changes the moment the page saves. */}
+      <ProfileClient clanName={clan.name} />
       <DeleteClan slug={clan.slug} isOwner={!!grant?.isOwner} />
     </>
   );

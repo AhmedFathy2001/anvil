@@ -1,4 +1,5 @@
 import ClanLink from '@/components/ClanLink';
+import ClanCrest from '@/components/ClanCrest';
 import type { PublicClanHome as View, ClanFocus } from '@/lib/clanHome';
 import ApplyToClan from '@/components/ApplyToClan';
 
@@ -11,11 +12,6 @@ const FOCUS_LABEL: Record<ClanFocus, string> = {
 };
 
 /** A per-clan crest, matched to the nav switcher so the same clan reads the same everywhere. */
-function crestStyle(slug: string): React.CSSProperties {
-  let h = 0;
-  for (let i = 0; i < slug.length; i++) h = (h * 31 + slug.charCodeAt(i)) % 360;
-  return { background: `linear-gradient(135deg, hsl(${h} 42% 40%), hsl(${(h + 34) % 360} 52% 54%))` };
-}
 
 function eventWhen(e: { startDate: string | null; endDate: string | null }): string {
   const now = new Date().toISOString();
@@ -36,13 +32,16 @@ export default function PublicClanHome({ view, signedIn }: { view: View; signedI
     <div className="mx-auto max-w-4xl">
       {/* Banner */}
       <div className="flex flex-col gap-5 rounded-2xl border border-card-border bg-gradient-to-br from-card-bg to-background p-6 sm:flex-row sm:items-center">
-        <span
-          aria-hidden
-          className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl text-2xl font-bold text-white"
-          style={crestStyle(view.slug)}
-        >
-          {view.name.charAt(0).toUpperCase()}
-        </span>
+        {/* The clan's front door, and the place its own image matters most. */}
+        <ClanCrest
+          variant="letter"
+          slug={view.slug}
+          name={view.name}
+          logoUrl={view.logoUrl ?? null}
+          size={64}
+          rounded="rounded-2xl"
+          className="text-2xl"
+        />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2.5">
             <h1 className="display text-2xl font-semibold text-foreground sm:text-3xl">{view.name}</h1>

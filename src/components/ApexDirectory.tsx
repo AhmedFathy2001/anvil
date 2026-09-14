@@ -2,6 +2,8 @@
 import ClanLink from '@/components/ClanLink';
 export interface DirectoryClan {
   slug: string;
+  /** The clan's own image, or null for the generated crest. */
+  logoUrl?: string | null;
   name: string;
   host: string;
   members: number;

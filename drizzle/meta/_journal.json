@@ -344,6 +344,13 @@
       "when": 1789450000000,
       "tag": "0090_account_change_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1789520000000,
+      "tag": "0091_clan_logo",
+      "breakpoints": true
     }
   ]
 }

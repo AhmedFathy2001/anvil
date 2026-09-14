@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import ClanCrest from '@/components/ClanCrest';
 
 import { clanFetch } from '@/lib/clanFetch';
 import type { CohostRow } from '@/lib/coHost';
@@ -21,11 +22,6 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   declined: { label: 'declined', cls: 'text-accent-red border-accent-red/40' },
 };
 
-function crestStyle(slug: string): React.CSSProperties {
-  let h = 0;
-  for (let i = 0; i < slug.length; i++) h = (h * 31 + slug.charCodeAt(i)) % 360;
-  return { background: `linear-gradient(135deg, hsl(${h} 42% 40%), hsl(${(h + 34) % 360} 52% 54%))` };
-}
 
 const CASH: { value: string; label: string; hint: string }[] = [
   { value: 'host-holds', label: 'Host holds the pot', hint: 'You collect every fee and pay every winner.' },
@@ -132,9 +128,15 @@ export default function CoHostPanel({
             const st = STATUS[c.status] ?? STATUS.pending;
             return (
               <li key={c.id} className="flex items-center gap-3 px-5 py-3">
-                <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[13px] font-bold text-white" style={crestStyle(c.clanSlug)}>
-                  {c.clanName.charAt(0).toUpperCase()}
-                </span>
+                <ClanCrest
+                  variant="letter"
+                  slug={c.clanSlug}
+                  name={c.clanName}
+                  logoUrl={c.clanLogoUrl ?? null}
+                  size={32}
+                  rounded="rounded-lg"
+                  className="text-[13px]"
+                />
                 <div className="min-w-0">
                   <div className="truncate text-[14px] font-medium">{c.clanName}</div>
                   <div className="font-mono text-[11px] text-text-muted">c / {c.clanSlug}</div>

@@ -25,6 +25,7 @@ export async function directoryClans(): Promise<DirectoryClan[]> {
       id: clans.id,
       slug: clans.slug,
       name: clans.name,
+      logoUrl: clans.logoUrl,
       customDomain: clans.customDomain,
       verified: clans.ingameNameVerifiedAt,
       guestPolicy: clans.guestPolicy,
@@ -46,7 +47,7 @@ export async function directoryClans(): Promise<DirectoryClan[]> {
     // switches.
     .leftJoin(settings, showcaseJoinOn())
     .where(listedClanWhere())
-    .groupBy(clans.id, clans.slug, clans.name, clans.customDomain, clans.ingameNameVerifiedAt, clans.guestPolicy)
+    .groupBy(clans.id, clans.slug, clans.name, clans.logoUrl, clans.customDomain, clans.ingameNameVerifiedAt, clans.guestPolicy)
     .orderBy(clans.name);
 
   const eventCounts = await db
@@ -83,7 +84,9 @@ export async function directoryClans(): Promise<DirectoryClan[]> {
   return rows.map((r) => ({
     slug: r.slug,
     name: r.name,
-    host: r.customDomain || `${r.slug}.${apexDomain()}`,
+    logoUrl: r.logoUrl ?? null,
+    // The path form, not the retired subdomain — `<slug>.<apex>` only 301s now.
+    host: r.customDomain || `${apexDomain()}/c/${r.slug}`,
     members: Number(r.members ?? 0),
     events: eventsByClan.get(r.id) ?? 0,
     verified: r.verified != null,

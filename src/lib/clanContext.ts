@@ -35,6 +35,8 @@ export interface ClanContext {
   plan: string;
   memberCap: number | null;
   customDomain: string | null;
+  /** The clan's own image, or null for the generated crest (components/ClanCrest). */
+  logoUrl: string | null;
   /** 'public' | 'members' — whether somebody with no seat here may read the clan. See lib/clanVisibility. */
   visibility: string;
   /** 'approval' | 'open' | 'closed' — how it admits somebody it does not already have. */
@@ -63,6 +65,7 @@ function toContext(row: typeof clans.$inferSelect): ClanContext {
     slug: row.slug,
     name: row.name,
     inGameName: row.inGameName,
+    logoUrl: row.logoUrl ?? null,
     status: row.status,
     plan: row.plan,
     memberCap: row.memberCap,

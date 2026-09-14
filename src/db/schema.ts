@@ -49,6 +49,13 @@ export const clans = pgTable('clans', {
   // clan runs boards, guests and events perfectly well. What it cannot do is sync a roster or enter
   // a cross-clan leaderboard, because both are claims about a real clan that nobody has checked.
   ingameNameVerifiedAt: text('ingame_name_verified_at'),
+  // The clan's own image, shown wherever a crest is (components/ClanCrest). Null means the generated
+  // crest, which every clan has from the moment it exists — so this is an upgrade, never a hole.
+  //
+  // A COLUMN RATHER THAN A SETTING, because the directory renders every clan at once and reads
+  // `clans` directly: as a setting it would be a second left join on every listing, for a value that
+  // belongs to the clan as plainly as its name does.
+  logoUrl: text('logo_url'),
   // The account that proved it, so a dispute has something to point at besides a timestamp.
   ingameNameClaimedByAccountId: integer('ingame_name_claimed_by_account_id').references(() => accounts.id, {
     onDelete: 'set null',

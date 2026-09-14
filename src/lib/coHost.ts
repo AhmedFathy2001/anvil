@@ -39,6 +39,8 @@ export interface CohostRow {
   teamId: number | null;
   clanName: string;
   clanSlug: string;
+  /** The co-host's own image, or null for the generated crest. */
+  clanLogoUrl: string | null;
   eventName: string;
   hostClanId: number;
   /**
@@ -67,6 +69,7 @@ const COHOST_COLUMNS = {
   teamId: eventCohosts.teamId,
   clanName: clans.name,
   clanSlug: clans.slug,
+  clanLogoUrl: clans.logoUrl,
   eventName: events.name,
   hostClanId: events.clanId,
   hostClanName: hostClan.name,
