@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import Input from '@/components/Input';
 import Select from '@/components/Select';
-import { SURVEY_QUESTION_TYPES, RATING_MAX, isChoiceType, type SurveyQuestionType, type SurveyQuestionView, type QuestionResult, type SurveyAnswerMap, type SurveyRespondentView } from '@/lib/survey';
+import { RATING_MAX, SURVEY_QUESTION_TYPES, isChoiceType, type QuestionResult, type SurveyAnswerMap, type SurveyQuestionType, type SurveyQuestionView, type SurveyRespondentView, type SurveyStage } from '@/lib/survey';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import Checkbox from '@/components/Checkbox';
@@ -20,6 +20,14 @@ interface Props {
   initialQuestions: SurveyQuestionView[];
   responseCount: number;
   templates: TemplateMeta[];
+  /**
+   * WHICH FORM this builder edits: the post-event survey, or the sign-up form.
+   *
+   * The same editor either way — a question is a question — but it must travel with every save. The
+   * save replaces the whole set for a stage and deletes what is missing from it, so a payload with
+   * no stage would wipe the other form's questions.
+   */
+  stage?: SurveyStage;
 }
 
 // A question in the editor. `key` is a stable client-side identity (existing rows reuse their db id,
@@ -44,7 +52,14 @@ function toEdit(q: SurveyQuestionView): EditQuestion {
   return { key: `q-${q.id}`, id: q.id, type: q.type, prompt: q.prompt, options: q.options, required: q.required };
 }
 
-export default function SurveyClient({ eventId, ended, initialQuestions, responseCount, templates }: Props) {
+export default function SurveyClient({
+  eventId,
+  ended,
+  initialQuestions,
+  responseCount,
+  templates,
+  stage = 'post',
+}: Props) {
   const [tab, setTab] = useState<'build' | 'results'>('build');
   const [questions, setQuestions] = useState<EditQuestion[]>(initialQuestions.map(toEdit));
   const [saving, setSaving] = useState(false);
@@ -86,6 +101,7 @@ export default function SurveyClient({ eventId, ended, initialQuestions, respons
     setNotice(null);
     try {
       const payload = {
+        stage,
         questions: questions.map((q) => ({
           id: q.id,
           type: q.type,
@@ -105,7 +121,7 @@ export default function SurveyClient({ eventId, ended, initialQuestions, respons
         return;
       }
       setQuestions((data.questions as SurveyQuestionView[]).map(toEdit));
-      setNotice('Survey saved.');
+      setNotice(stage === 'signup' ? 'Sign-up questions saved.' : 'Survey saved.');
     } finally {
       setSaving(false);
     }
@@ -132,18 +148,28 @@ export default function SurveyClient({ eventId, ended, initialQuestions, respons
     <div>
       <div className="flex items-center gap-2 mb-1">
         <span className="w-1 h-5 bg-gold rounded-full" />
-        <h2 className="text-lg font-semibold">Post-event survey</h2>
+        <h2 className="text-lg font-semibold">
+          {stage === 'signup' ? 'Your own sign-up questions' : 'Post-event survey'}
+        </h2>
       </div>
       <p className="text-sm text-text-muted mb-4">
-        {ended
-          ? 'The event has ended — approved participants can fill this out now.'
-          : 'Build the survey now; approved participants will be able to fill it out once the event ends.'}{' '}
-        <ClanLink href={`/events/${eventId}/survey`} className="text-gold hover:underline" target="_blank">
-          Preview the participant view ↗
-        </ClanLink>
+        {stage === 'signup' ? (
+          <>Asked on the sign-up form, after the sections everyone gets. Answers show on the sign-up.</>
+        ) : (
+          <>
+            {ended
+              ? 'The event has ended — approved participants can fill this out now.'
+              : 'Build the survey now; approved participants will be able to fill it out once the event ends.'}{' '}
+            <ClanLink href={`/events/${eventId}/survey`} className="text-gold hover:underline" target="_blank">
+              Preview the participant view ↗
+            </ClanLink>
+          </>
+        )}
       </p>
 
-      <div className="flex gap-1 mb-5 border-b border-card-border">
+      {/* RESULTS ARE THE SURVEY'S. Sign-up answers are read one person at a time on the sign-up
+          itself, not aggregated — "3.4 average" is the wrong shape for "which boss do you run". */}
+      <div className={`flex gap-1 mb-5 border-b border-card-border ${stage === 'signup' ? 'hidden' : ''}`}>
         {(['build', 'results'] as const).map((t) => (
           <button
             key={t}

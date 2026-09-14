@@ -351,6 +351,13 @@
       "when": 1789520000000,
       "tag": "0091_clan_logo",
       "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1789530000000,
+      "tag": "0092_signup_questions",
+      "breakpoints": true
     }
   ]
 }

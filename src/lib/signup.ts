@@ -26,6 +26,18 @@ export interface SignupProfile {
   bosses?: string[];          // BOSSES[].key list — bosses the player regularly does
   skills?: string[];          // SKILLS list — skills the player regularly trains
   notes?: string;             // free-text, capped at 1000 chars
+  /**
+   * Answers to the board's OWN questions, keyed by survey_questions.id.
+   *
+   * Stored beside the fixed fields rather than in a table of their own, because a sign-up's answers
+   * are already a frozen JSON snapshot — lib/draftProfiles reads them back exactly as they were
+   * given, and a question edited or deleted afterwards must not change what somebody said. Keyed by
+   * id so a re-worded prompt keeps its answers, and so a deleted question's answer simply stops
+   * being rendered rather than becoming a mystery string.
+   *
+   * Values mirror SurveyAnswerMap: number for rating, string for text/single, string[] for multi.
+   */
+  answers?: Record<string, number | string | string[]>;
 }
 
 const VALID_BOSS_KEYS = new Set(BOSSES.map((b) => b.key));
@@ -116,8 +128,51 @@ export function sanitizeProfile(input: Record<string, unknown>): SignupProfile {
     const trimmed = input.notes.trim();
     if (trimmed) out.notes = trimmed.slice(0, MAX_NOTES_LENGTH);
   }
+  const answers = sanitizeAnswers(input.answers);
+  if (answers) out.answers = answers;
 
   return out;
+}
+
+/**
+ * Answers to the board's own questions, kept only in the shapes a question can produce.
+ *
+ * Bounded on every axis — how many answers, how long a text one is, how many choices a multi has —
+ * because this is a JSON blob written from a form and read back forever. An answer to a question
+ * that no longer exists is kept rather than dropped: the renderer skips it, and throwing it away
+ * would quietly rewrite what somebody said if a question were ever restored.
+ */
+const MAX_ANSWERS = 50;
+const MAX_ANSWER_TEXT = 1000;
+const MAX_ANSWER_CHOICES = 20;
+
+function sanitizeAnswers(raw: unknown): Record<string, number | string | string[]> | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const out: Record<string, number | string | string[]> = {};
+  let kept = 0;
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (kept >= MAX_ANSWERS) break;
+    // Keys are question ids; anything else is not an answer to anything.
+    if (!/^\d+$/.test(key)) continue;
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      out[key] = Math.trunc(value);
+    } else if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) continue;
+      out[key] = trimmed.slice(0, MAX_ANSWER_TEXT);
+    } else if (Array.isArray(value)) {
+      const choices = uniqueStrings(value.filter((v): v is string => typeof v === 'string'))
+        .map((v) => v.trim())
+        .filter(Boolean)
+        .slice(0, MAX_ANSWER_CHOICES);
+      if (choices.length === 0) continue;
+      out[key] = choices;
+    } else {
+      continue;
+    }
+    kept += 1;
+  }
+  return kept > 0 ? out : undefined;
 }
 
 // Coerce arbitrary input into an HoursRange, clamped to [lo, hi]. Accepts a legacy bare

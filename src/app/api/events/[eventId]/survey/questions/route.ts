@@ -4,17 +4,24 @@ import { db } from '@/db';
 import { surveyQuestions, events } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
-import { SURVEY_QUESTION_TYPES, isChoiceType, toQuestionView, type SurveyQuestionType } from '@/lib/survey';
+import {
+  SURVEY_QUESTION_TYPES,
+  isChoiceType,
+  toQuestionView,
+  toSurveyStage,
+  type SurveyQuestionType,
+  type SurveyStage,
+} from '@/lib/survey';
 
 // Admin survey builder. GET returns the ordered question set; PUT saves the whole set at once,
 // upserting by id (so questions that persist keep their id — and therefore stay linked to any answers
 // already submitted against them) and deleting any that were removed in the editor.
 
-async function loadOrdered(eventId: number) {
+async function loadOrdered(eventId: number, stage: SurveyStage) {
   const rows = await db
     .select()
     .from(surveyQuestions)
-    .where(eq(surveyQuestions.eventId, eventId));
+    .where(and(eq(surveyQuestions.eventId, eventId), eq(surveyQuestions.stage, stage)));
   return rows.sort((a, b) => a.position - b.position).map(toQuestionView);
 }
 
@@ -29,7 +36,8 @@ export async function GET(
   if (!(await eventForRequest(request, eId))) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
-  return NextResponse.json({ questions: await loadOrdered(eId) });
+  const stage = toSurveyStage(new URL(request.url).searchParams.get('stage'));
+  return NextResponse.json({ stage, questions: await loadOrdered(eId, stage) });
 }
 
 interface IncomingQuestion {
@@ -57,6 +65,9 @@ export async function PUT(
 
   const body = await request.json();
   const incoming: IncomingQuestion[] = Array.isArray(body?.questions) ? body.questions : [];
+  // THE SAVE DELETES WHAT IS MISSING, so an unstaged save would take the other form's questions with
+  // it. Every read, write and delete below is scoped to this one.
+  const stage = toSurveyStage(body?.stage);
 
   let saved;
   try {
@@ -89,14 +100,18 @@ export async function PUT(
     const existing = await db
       .select({ id: surveyQuestions.id })
       .from(surveyQuestions)
-      .where(eq(surveyQuestions.eventId, eId));
+      .where(and(eq(surveyQuestions.eventId, eId), eq(surveyQuestions.stage, stage)));
     const existingIds = new Set(existing.map((r) => r.id));
     const keptIds = new Set(normalized.filter((q) => q.id && existingIds.has(q.id)).map((q) => q.id!));
 
     const toDelete = [...existingIds].filter((id) => !keptIds.has(id));
     if (toDelete.length > 0) {
       await db.delete(surveyQuestions).where(
-        and(eq(surveyQuestions.eventId, eId), inArray(surveyQuestions.id, toDelete)),
+        and(
+          eq(surveyQuestions.eventId, eId),
+          eq(surveyQuestions.stage, stage),
+          inArray(surveyQuestions.id, toDelete),
+        ),
       );
     }
 
@@ -105,10 +120,15 @@ export async function PUT(
         await db
           .update(surveyQuestions)
           .set({ position: q.position, type: q.type, prompt: q.prompt, options: q.options, required: q.required })
-          .where(and(eq(surveyQuestions.id, q.id), eq(surveyQuestions.eventId, eId)));
+          .where(and(
+            eq(surveyQuestions.id, q.id),
+            eq(surveyQuestions.eventId, eId),
+            eq(surveyQuestions.stage, stage),
+          ));
       } else {
         await db.insert(surveyQuestions).values({
           eventId: eId,
+          stage,
           position: q.position,
           type: q.type,
           prompt: q.prompt,
@@ -117,7 +137,7 @@ export async function PUT(
         });
       }
     }
-    saved = await loadOrdered(eId);
+    saved = await loadOrdered(eId, stage);
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Save failed' }, { status: 400 });
   }

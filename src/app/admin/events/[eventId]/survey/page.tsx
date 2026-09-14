@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { requireEventForPage } from '@/lib/eventScope';
 import { events, surveyQuestions, surveyResponses } from '@/db/schema';
-import { eq, count } from 'drizzle-orm';
+import { and, count, eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import SurveyClient from './SurveyClient';
 import { isEventEnded, toQuestionView } from '@/lib/survey';
@@ -23,7 +23,8 @@ export default async function EventSurveyPage({
   if (!event) notFound();
 
   const [qRows, [{ c: responseCount }]] = await Promise.all([
-    db.select().from(surveyQuestions).where(eq(surveyQuestions.eventId, id)),
+    // This builder is the post-event survey's; the sign-up set has its own on the Sign-ups tab.
+    db.select().from(surveyQuestions).where(and(eq(surveyQuestions.eventId, id), eq(surveyQuestions.stage, 'post'))),
     db.select({ c: count() }).from(surveyResponses).where(eq(surveyResponses.eventId, id)),
   ]);
 

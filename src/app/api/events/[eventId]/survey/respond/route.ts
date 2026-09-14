@@ -36,7 +36,11 @@ export async function POST(
     return NextResponse.json({ error: 'Only approved participants can fill out this survey.' }, { status: 403 });
   }
 
-  const qRows = await db.select().from(surveyQuestions).where(eq(surveyQuestions.eventId, eId));
+  // The post-event survey only — a sign-up question is answered on the sign-up form.
+  const qRows = await db
+    .select()
+    .from(surveyQuestions)
+    .where(and(eq(surveyQuestions.eventId, eId), eq(surveyQuestions.stage, 'post')));
   if (qRows.length === 0) {
     return NextResponse.json({ error: 'This event has no survey.' }, { status: 400 });
   }

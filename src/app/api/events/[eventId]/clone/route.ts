@@ -117,8 +117,12 @@ export async function POST(
     .orderBy(asc(surveyQuestions.position));
   if (sourceQuestions.length > 0) {
     await db.insert(surveyQuestions).values(
+      // Unscoped on purpose: cloning a board copies BOTH its forms. Carrying the stage is what
+      // keeps them apart on the copy — without it every sign-up question would become a post-event
+      // one, silently, on the clone.
       sourceQuestions.map((q) => ({
         eventId: created.id,
+        stage: q.stage,
         position: q.position,
         type: q.type,
         prompt: q.prompt,

@@ -13,6 +13,8 @@ import ClanLink from '@/components/ClanLink';
 import Checkbox from '@/components/Checkbox';
 import { useDialog } from '@/components/Confirm';
 import { DEFAULT_SIGNUP_FIELDS, type SignupFields } from '@/lib/eventRules';
+import SignupQuestions, { type AnswerValue } from '@/components/SignupQuestions';
+import type { SurveyQuestionView } from '@/lib/survey';
 
 interface FeeCollectorOption {
   id: number;
@@ -53,6 +55,8 @@ interface FeeRow {
 interface Props {
   /** Which optional sections this board asks for — see lib/eventRules `signupFields`. */
   fields?: SignupFields;
+  /** The board's own questions, asked after the built-in sections. */
+  questions?: SurveyQuestionView[];
   eventId: number;
   event: {
     signupFee: number | null;
@@ -216,6 +220,7 @@ export default function SignupForm({
   invite = null,
   teamChoice = null,
   fields = DEFAULT_SIGNUP_FIELDS,
+  questions = [],
 }: Props) {
   const router = useRouter();
   const [requestedTeamId, setRequestedTeamId] = useState<number | null>(teamChoice?.requestedTeamId ?? null);
@@ -272,6 +277,9 @@ export default function SignupForm({
   );
   const [skills, setSkills] = useState<Set<string>>(
     new Set((existingSignup?.profile ?? prefillProfile).skills ?? []),
+  );
+  const [answers, setAnswers] = useState<Record<string, AnswerValue>>(
+    () => (existingSignup?.profile ?? prefillProfile).answers ?? {},
   );
   const [notes, setNotes] = useState<string>(
     (existingSignup?.profile ?? prefillProfile).notes ?? '',
@@ -342,6 +350,7 @@ export default function SignupForm({
         bosses: Array.from(bosses),
         skills: Array.from(skills),
         notes: notes.trim() || undefined,
+        answers: Object.keys(answers).length > 0 ? answers : undefined,
       };
 
       const res = await clanFetch(`/api/events/${eventId}/signup`, {
@@ -773,6 +782,23 @@ export default function SignupForm({
         <p className="text-xs text-text-muted text-right">{notes.length}/1000</p>
       </fieldset>
       )}
+
+      {/* The board's own questions, after the sections everyone gets. */}
+      <SignupQuestions
+        questions={questions}
+        answers={answers}
+        disabled={isLocked}
+        onChange={(id, value) =>
+          setAnswers((prev) => {
+            const next = { ...prev };
+            // An emptied answer is removed rather than stored as "" — an absent key and a blank
+            // string would otherwise be two ways to say the same nothing.
+            if (value === undefined) delete next[String(id)];
+            else next[String(id)] = value;
+            return next;
+          })
+        }
+      />
 
       {error && (
         <div className="text-sm text-red-400 border border-red-500/30 bg-red-500/10 rounded-lg p-3">

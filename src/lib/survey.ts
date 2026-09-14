@@ -1,6 +1,25 @@
 // Shared survey types + pure helpers used by both the admin builder/results and the participant form.
 // Question types: 'rating' (1–5), 'text' (free response), 'single' (one choice), 'multi' (many choices).
 
+/**
+ * WHICH FORM a question belongs to — the survey after the event, or the sign-up form before it.
+ *
+ * One model, two moments. Everything that reads or writes questions filters on this, and the reason
+ * is the builder: it saves a whole set and deletes whatever is missing from it, so a save that
+ * forgot the stage would wipe the other form's questions.
+ */
+export const SURVEY_STAGES = ['post', 'signup'] as const;
+export type SurveyStage = (typeof SURVEY_STAGES)[number];
+
+export function isSurveyStage(v: unknown): v is SurveyStage {
+  return typeof v === 'string' && (SURVEY_STAGES as readonly string[]).includes(v);
+}
+
+/** Anything unrecognised is the post-event survey, which is what every row was before stages. */
+export function toSurveyStage(v: unknown): SurveyStage {
+  return isSurveyStage(v) ? v : 'post';
+}
+
 export const SURVEY_QUESTION_TYPES = ['rating', 'text', 'single', 'multi'] as const;
 export type SurveyQuestionType = (typeof SURVEY_QUESTION_TYPES)[number];
 

@@ -1813,6 +1813,19 @@ export const surveyQuestions = pgTable('survey_questions', {
   id: serial('id').primaryKey(),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
   position: integer('position').notNull().default(0),
+  /**
+   * WHEN this question is asked: 'post' (the survey after the event) or 'signup' (the entry form).
+   *
+   * The same thing at two moments, not two things. A question on an event has a prompt, a type, an
+   * order and whether it is required, and that is as true of "how many hours a week can you play?"
+   * as of "how was the board?" — so the builder, the storage and the renderer are shared, and this
+   * says which form it belongs to.
+   *
+   * DEFAULT 'post' so every existing row keeps meaning what it meant. Everything that reads or
+   * writes questions MUST filter on it: the builder saves a whole set and deletes what is missing,
+   * so an unscoped save would wipe the other form's questions.
+   */
+  stage: text('stage').notNull().default('post'),
   // 'rating' (1–5 scale), 'text' (free response), 'single' (choose one), 'multi' (choose many).
   type: text('type').notNull().default('text'),
   prompt: text('prompt').notNull(),
@@ -1821,6 +1834,7 @@ export const surveyQuestions = pgTable('survey_questions', {
   required: boolean('required').notNull().default(false),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
+  index('survey_questions_event_stage_idx').on(table.eventId, table.stage),
   index('survey_questions_event_id_idx').on(table.eventId),
 ]);
 

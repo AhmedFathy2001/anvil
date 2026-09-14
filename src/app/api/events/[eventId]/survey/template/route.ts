@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { surveyQuestions, events } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { isChoiceType, toQuestionView } from '@/lib/survey';
 import { surveyTemplateById } from '@/lib/surveyTemplates';
@@ -31,7 +31,7 @@ export async function POST(
   const existing = await db
     .select({ position: surveyQuestions.position })
     .from(surveyQuestions)
-    .where(eq(surveyQuestions.eventId, eId));
+    .where(and(eq(surveyQuestions.eventId, eId), eq(surveyQuestions.stage, 'post')));
   const base = existing.reduce((max, r) => Math.max(max, r.position + 1), 0);
 
   await db.insert(surveyQuestions).values(
@@ -45,7 +45,10 @@ export async function POST(
     })),
   );
 
-  const rows = await db.select().from(surveyQuestions).where(eq(surveyQuestions.eventId, eId));
+  const rows = await db
+    .select()
+    .from(surveyQuestions)
+    .where(and(eq(surveyQuestions.eventId, eId), eq(surveyQuestions.stage, 'post')));
   return NextResponse.json({
     questions: rows.sort((a, b) => a.position - b.position).map(toQuestionView),
   });

@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { requireEventForPage } from '@/lib/eventScope';
-import { clanRoster, eventSignups, events, signupFees, teamInvites, teams, eventParticipants } from '@/db/schema';
+import { clanRoster, eventParticipants, eventSignups, events, signupFees, surveyQuestions, teamInvites, teams } from '@/db/schema';
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import { verifyUser } from '@/lib/auth';
@@ -12,6 +12,7 @@ import { eventPoolGp } from '@/lib/coffer';
 import { parseEventRules } from '@/lib/eventRules';
 import PrizePoolHero from '@/components/PrizePoolHero';
 import SignupForm from './SignupForm';
+import { toQuestionView } from '@/lib/survey';
 
 export const dynamic = 'force-dynamic';
 
@@ -157,6 +158,17 @@ export default async function EventSignupPage({
   });
 
   const eventRules = parseEventRules(event.rules);
+
+  // The board's own questions. Same model as the post-event survey, asked at the other end of the
+  // event — scoped to this stage, or the wrap-up survey would appear on the entry form.
+  const signupQuestions = (
+    await db
+      .select()
+      .from(surveyQuestions)
+      .where(and(eq(surveyQuestions.eventId, event.id), eq(surveyQuestions.stage, 'signup')))
+  )
+    .sort((a, b) => a.position - b.position)
+    .map(toQuestionView);
   const choosableTeams = eventRules.teamChoice
     ? await db
         .select({ id: teams.id, name: teams.name, color: teams.color })
@@ -203,6 +215,7 @@ export default async function EventSignupPage({
       <SignupForm
         eventId={event.id}
         fields={eventRules.signupFields}
+        questions={signupQuestions}
         teamChoice={
           // Team-choice events (rules.teamChoice): the host built the teams, applicants name the one
           // they're joining, and approving the sign-up is what seats them. An invite link already

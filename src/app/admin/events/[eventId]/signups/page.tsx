@@ -10,6 +10,10 @@ import SignupsClient from './SignupsClient';
 import { clanHref } from '@/lib/clanPath';
 import AccountChangeCard from '@/components/AccountChangeCard';
 import SignupFieldsCard from '../SignupFieldsCard';
+import SurveyClient from '../survey/SurveyClient';
+import { surveyQuestions } from '@/db/schema';
+import { and } from 'drizzle-orm';
+import { toQuestionView } from '@/lib/survey';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,10 +32,17 @@ export default async function EventSignupsPage({
   // Settings are per clan, so the clan has to be resolved before anything reads one.
   const clan = await requireClan();
 
-  const [event, confirmationsRequired] = await Promise.all([
+  const [event, confirmationsRequired, signupQuestions] = await Promise.all([
     // Scoped, not fetched by bare id — see the layout for what that let through.
     requireEventForPage(id),
     getRequiredConfirmations(clan.id),
+    // This board's own sign-up questions. Scoped to the stage, or the post-event survey would show
+    // up in the sign-up builder and a save here would delete it.
+    db
+      .select()
+      .from(surveyQuestions)
+      .where(and(eq(surveyQuestions.eventId, id), eq(surveyQuestions.stage, 'signup')))
+      .then((rows) => rows.sort((a, b) => a.position - b.position).map(toQuestionView)),
   ]);
 
   return (
@@ -44,11 +55,27 @@ export default async function EventSignupsPage({
         {/* What this board asks for is a sign-ups question, so it lives on the sign-ups tab. */}
         <SignupFieldsCard eventId={id} />
       </div>
+
+      {/* The host's own questions — the same builder as the post-event survey, pointed at the other
+          end of the event. Admin only, like the survey's. */}
+      {session.role !== 'moderator' && (
+        <div className="mb-4 rounded-xl border border-card-border bg-card-bg p-4">
+          <SurveyClient
+            eventId={id}
+            stage="signup"
+            ended={false}
+            initialQuestions={signupQuestions}
+            responseCount={0}
+            templates={[]}
+          />
+        </div>
+      )}
       <SignupsClient
         event={event}
         viewerRole={session.role}
         viewerId={session.userId}
         confirmationsRequired={confirmationsRequired}
+        signupQuestions={signupQuestions}
       />
     </>
   );

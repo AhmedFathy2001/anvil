@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { surveyQuestions, surveyResponses, users } from '@/db/schema';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { aggregateSurvey, toQuestionView, type SurveyAnswerMap } from '@/lib/survey';
 
@@ -21,7 +21,8 @@ export async function GET(
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   const [qRows, rRows] = await Promise.all([
-    db.select().from(surveyQuestions).where(eq(surveyQuestions.eventId, eId)),
+    // Results are the POST-event survey's. Sign-up answers live on the sign-up, not here.
+    db.select().from(surveyQuestions).where(and(eq(surveyQuestions.eventId, eId), eq(surveyQuestions.stage, 'post'))),
     db.select().from(surveyResponses).where(eq(surveyResponses.eventId, eId)),
   ]);
 

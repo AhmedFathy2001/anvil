@@ -18,6 +18,7 @@ import { formatHoursRange } from '@/lib/signup';
 import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
 import { useDialog } from '@/components/Confirm';
+import type { SurveyQuestionView } from '@/lib/survey';
 
 // Default 8-color palette matching the app's existing team color presets.
 const DEFAULT_TEAM_COLORS = [
@@ -70,6 +71,8 @@ interface SignupRow {
 }
 
 interface Props {
+  /** This board's own sign-up questions, so answers can be shown under the prompt that asked. */
+  signupQuestions?: SurveyQuestionView[];
   event: Event;
   onEventUpdated: (event: Event) => void;
   viewerRole: string;
@@ -87,6 +90,7 @@ export default function SignupAdminPanel({
   viewerRole,
   viewerId,
   confirmationsRequired,
+  signupQuestions = [],
 }: Props) {
   const router = useRouter();
   const [feeInput, setFeeInput] = useState<string>(
@@ -895,6 +899,27 @@ export default function SignupAdminPanel({
                           </p>
                         </div>
                       )}
+
+                      {/* What this board asked on top of the built-in sections. Rendered against the
+                          CURRENT questions, so an answer to a question since deleted is simply not
+                          shown — the answer stays stored, because a deleted question can come back
+                          and throwing it away would rewrite what somebody said. */}
+                      {signupQuestions.map((q) => {
+                        const a = s.profile.answers?.[String(q.id)];
+                        if (a == null || (Array.isArray(a) && a.length === 0)) return null;
+                        return (
+                          <div key={q.id}>
+                            <div className="text-xs text-text-muted mb-1">{q.prompt}</div>
+                            {Array.isArray(a) ? (
+                              <ChipList label="" items={a} />
+                            ) : (
+                              <p className="text-sm whitespace-pre-wrap text-foreground/90">
+                                {q.type === 'rating' ? `${a} / 5` : String(a)}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
 
                       {s.fee && (
                         <SignupFeeControls

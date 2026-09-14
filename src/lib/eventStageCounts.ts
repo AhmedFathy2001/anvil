@@ -58,7 +58,8 @@ export const getStageCounts = cache(async (eventId: number): Promise<StageCounts
       .select({ n: count() })
       .from(payouts)
       .where(and(eq(payouts.eventId, eventId), eq(payouts.status, 'pending'))),
-    db.select({ n: count() }).from(surveyQuestions).where(eq(surveyQuestions.eventId, eventId)),
+    // The wrap-up stage counts the POST survey's questions; sign-up questions belong to entry.
+    db.select({ n: count() }).from(surveyQuestions).where(and(eq(surveyQuestions.eventId, eventId), eq(surveyQuestions.stage, 'post'))),
     db.select({ n: count() }).from(surveyResponses).where(eq(surveyResponses.eventId, eventId)),
   ]);
 
