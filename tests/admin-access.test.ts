@@ -16,7 +16,10 @@ const owner = { role: 'owner', canEditTiles: true, editorScope: 'all' };
 const moderator = { role: 'moderator', canEditTiles: false, editorScope: 'all' };
 const treasurer = { role: 'treasurer', canEditTiles: false, editorScope: 'all' };
 const modWhoAuthors = { role: 'moderator', canEditTiles: true, editorScope: 'all' };
-const boardEditor = { role: 'member', canEditTiles: true, editorScope: 'assigned' };
+// The shape a board grant actually produces (lib/eventEditors writes role 'editor'). This fixture
+// once said 'member', a shape no grant writes — so it passed while every real board editor was
+// turned away, because their row never carried canEditTiles. tests/cohost.test.ts drives the grant.
+const boardEditor = { role: 'editor', canEditTiles: true, editorScope: 'assigned' };
 const plainMember = { role: 'member', canEditTiles: false, editorScope: 'all' };
 
 /** Allowed reads better than `null` at a glance. */

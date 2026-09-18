@@ -192,3 +192,35 @@ test('adoption refuses a team on a different event, and a clan collision', async
   const collision = await C.adoptTeamAsCoHost(adoptEvent, adoptOtherTeam, guestClan, gAdmin);
   assert.equal(collision.ok, false);
 });
+
+// ── Board editing across the clan line ────────────────────────────────────────
+// The host hands one of the visiting clan's people its board to author. Granting writes them a
+// host-side staff row (role 'editor', scope 'assigned') — and that row, not the fallback in
+// verifyUser that only runs when there is NO row, is what every gate reads from then on. It must
+// therefore carry the authoring capability itself, or the /admin shell sends them home.
+
+test('a co-host granted the host board reaches its Tiles tab, and nothing more', async () => {
+  const { grantEventEditor } = await import('../src/lib/eventEditors.ts');
+  const { clanGrant } = await import('../src/lib/clanGrants.ts');
+  const { redirectFor } = await import('../src/lib/adminAccess.ts');
+
+  await grantEventEditor(eventId, gMod, gAdmin);
+
+  const grant = await clanGrant(hostClan, gMod);
+  assert.ok(grant, 'granting a board is a grant in the board’s clan');
+  assert.equal(grant.role, 'editor');
+  assert.equal(grant.editorScope, 'assigned');
+  assert.equal(grant.canEditTiles, true, 'a board editor holds the authoring capability');
+
+  const access = { role: grant.role, canEditTiles: grant.canEditTiles, editorScope: grant.editorScope };
+  assert.equal(redirectFor(`/admin/events/${eventId}/tiles`, access), null, 'the granted board opens');
+  assert.equal(redirectFor('/admin/events', access), null, 'and so does their boards list');
+  // Scoped: the host's moderator surfaces and the rest of the board stay shut.
+  assert.equal(redirectFor('/admin/dashboard', access), '/admin/events');
+  assert.equal(redirectFor(`/admin/events/${eventId}/teams`, access), `/admin/events/${eventId}/tiles`);
+
+  // And nothing leaks home: they are still exactly the moderator they were in their own clan.
+  const home = await clanGrant(guestClan, gMod);
+  assert.equal(home?.role, 'moderator');
+  assert.equal(home?.canEditTiles, false);
+});

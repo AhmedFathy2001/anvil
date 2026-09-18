@@ -35,7 +35,13 @@ export async function clanGrant(clanId: number, userId: number): Promise<ClanGra
     userId,
     role,
     // An admin authors tiles implicitly; the flag is for granting it to lower tiers.
-    canEditTiles: row.canEditTiles || atLeast(role, 'admin'),
+    //
+    // So does an 'editor'. That role is only ever written by a board grant (lib/eventEditors), and
+    // authoring is the whole of it — but the grant leaves the flag false, and read from the flag alone
+    // a board editor held nothing: the /admin shell sent them home before they reached the board.
+    // Their SCOPE still comes from editorScope, so this widens nothing past the boards they hold.
+    // Read off the row, not `role`: ClanRole ranks tiers, and 'editor' is not one.
+    canEditTiles: row.canEditTiles || atLeast(role, 'admin') || row.role === 'editor',
     editorScope: (row.editorScope as 'all' | 'assigned') ?? 'all',
     treasurerScope: (row.treasurerScope as 'all' | 'assigned') ?? 'all',
     isOwner: role === 'owner',
