@@ -5,6 +5,7 @@ import ClanLink from '@/components/ClanLink';
 import { eventStage } from '@/lib/eventStage';
 import { parseEventRules } from '@/lib/eventRules';
 import { useRouter } from 'next/navigation';
+import { atLeast } from '@/lib/clanRoles';
 import DateTimePicker from '@/components/DateTimePicker';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
@@ -93,6 +94,9 @@ export default function SignupAdminPanel({
   signupQuestions = [],
 }: Props) {
   const router = useRouter();
+  // `atLeast`, not `=== 'admin'`: the clan's owner outranks admin, and equality hid every admin
+  // action on this tab — "Add member" included — from the one person certain to hold the role.
+  const isAdmin = atLeast(viewerRole, 'admin');
   const [feeInput, setFeeInput] = useState<string>(
     event.signupFee != null ? String(event.signupFee) : '',
   );
@@ -634,7 +638,7 @@ export default function SignupAdminPanel({
                   ? `${visibleSignups.length} shown · ${signups.length} total`
                   : `${activeSignups.length} active${withdrawnCount > 0 ? ` · ${withdrawnCount} withdrawn` : ''}`}
             </span>
-            {!loading && viewerRole === 'admin' && (
+            {!loading && isAdmin && (
               <button
                 onClick={() => setAnswersModal({ signup: null })}
                 className="text-xs font-medium px-3 py-1.5 rounded-lg border border-gold/30 text-gold bg-gold/10 hover:bg-gold/20 transition-colors"
@@ -642,7 +646,7 @@ export default function SignupAdminPanel({
                 Add member
               </button>
             )}
-            {!loading && viewerRole === 'admin' && settleableFees > 0 && (
+            {!loading && isAdmin && settleableFees > 0 && (
               <button
                 onClick={settleFees}
                 disabled={settlingFees}
@@ -653,7 +657,7 @@ export default function SignupAdminPanel({
                   : `${confirmationsRequired <= 0 ? 'Settle' : 'Sign off'} ${settleableFees} fee${settleableFees === 1 ? '' : 's'}`}
               </button>
             )}
-            {!loading && viewerRole === 'admin' && eventOver && unfinishedFees > 0 && (
+            {!loading && isAdmin && eventOver && unfinishedFees > 0 && (
               <button
                 onClick={closeOutFees}
                 disabled={closingFees}
@@ -989,7 +993,7 @@ export default function SignupAdminPanel({
                             >
                               View stats
                             </button>
-                            {viewerRole === 'admin' && s.status !== 'withdrawn' && (
+                            {isAdmin && s.status !== 'withdrawn' && (
                               <button
                                 onClick={() => setAnswersModal({ signup: s })}
                                 className="text-xs font-medium px-3 py-1 rounded border border-card-border text-text-muted hover:text-gold hover:border-gold/40 transition-colors"

@@ -324,7 +324,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
         teamId != null
           ? `/api/events/${event.id}/players?teamId=${teamId}`
           : `/api/events/${event.id}/players`;
-      const res = await fetch(url, {
+      const res = await clanFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify([{ name }]),

@@ -269,7 +269,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     (async () => {
       const [tileRes, lockRes] = await Promise.all([
         clanFetch(`/api/events/${event.id}/tiles/${editingTileId}`),
-        fetch(lockUrl, { method: 'POST' }),
+        clanFetch(lockUrl, { method: 'POST' }),
       ]);
       if (cancelled) return;
       if (tileRes.ok) {
@@ -281,7 +281,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       }
       applyLock(await lockRes.json().catch(() => null));
       heartbeat = setInterval(() => {
-        fetch(lockUrl, { method: 'POST' })
+        clanFetch(lockUrl, { method: 'POST' })
           .then((r) => r.json())
           .then(applyLock)
           .catch(() => {});
@@ -290,7 +290,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     return () => {
       cancelled = true;
       if (heartbeat) clearInterval(heartbeat);
-      fetch(lockUrl, { method: 'DELETE', keepalive: true }).catch(() => {});
+      clanFetch(lockUrl, { method: 'DELETE', keepalive: true }).catch(() => {});
     };
   }, [editingTileId, event.id]);
 

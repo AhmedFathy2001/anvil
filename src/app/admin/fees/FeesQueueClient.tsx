@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Textarea from '@/components/Textarea';
 import { clanFetch } from '@/lib/clanFetch';
+import { atLeast } from '@/lib/clanRoles';
 import ClanLink from '@/components/ClanLink';
 import { useDialog } from '@/components/Confirm';
 import GuideLink from '@/components/GuideLink';
@@ -52,8 +53,9 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
 ];
 
 export default function FeesQueueClient({ viewerRole, viewerId }: Props) {
-  const isAdmin = viewerRole === 'admin';
-  const canCollect = viewerRole === 'admin' || viewerRole === 'treasurer';
+  // atLeast, not equality: an owner outranks admin.
+  const isAdmin = atLeast(viewerRole, 'admin');
+  const canCollect = isAdmin || viewerRole === 'treasurer';
 
   const [filter, setFilter] = useState<StatusFilter>('open');
   const [rows, setRows] = useState<FeeRow[]>([]);

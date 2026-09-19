@@ -54,7 +54,7 @@ export async function GET(
     role: target.role,
     editorScope: target.editorScope,
     // True when board grants are moot because the user already edits everything.
-    editsAllBoards: target.role === 'admin' || (target.role === 'editor' && target.editorScope === 'all'),
+    editsAllBoards: atLeast(target.role, 'admin') || (target.role === 'editor' && target.editorScope === 'all'),
     assignedEventIds,
     events: allEvents,
   });

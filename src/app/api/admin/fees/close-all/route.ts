@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { clanAuditLog, events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
+import { atLeast } from '@/lib/clanRoles';
 import { closeOutEventFees } from '@/lib/feeConfirmations';
 import { eventStage } from '@/lib/eventStage';
 import { eventForRequest } from '@/lib/eventScope';
@@ -16,7 +17,8 @@ import { eventForRequest } from '@/lib/eventScope';
  */
 export async function POST(request: Request) {
   const session = await verifyUser();
-  if (!session || session.role !== 'admin') {
+  // atLeast, not equality: the owner outranks admin and was refused here.
+  if (!session || !atLeast(session.role, 'admin')) {
     return NextResponse.json({ error: 'Admin only' }, { status: 401 });
   }
 

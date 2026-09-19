@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { clanFetch } from '@/lib/clanFetch';
 
 /**
  * Semi-realtime page updates without hammering the server. Polls a tiny "pulse" endpoint that answers
@@ -53,7 +54,7 @@ export function useLiveRefresh(opts: {
       lastAtRef.current = now;
       inFlightRef.current = true;
       try {
-        const res = await fetch(url, {
+        const res = await clanFetch(url, {
           headers: etagRef.current ? { 'If-None-Match': etagRef.current } : {},
           cache: 'no-store',
         });

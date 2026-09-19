@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
+import { atLeast } from '@/lib/clanRoles';
 
 // Admin-only panel (Overview tab) for granting board-scoped jobs on THIS event: authoring its
 // tiles, or running its money (sign-up fees + payouts). Adding a plain member auto-provisions the
@@ -30,7 +31,7 @@ interface Candidate {
 }
 
 function editsAllBoards(role: string, editorScope: string): boolean {
-  return role === 'admin' || (role === 'editor' && editorScope === 'all');
+  return atLeast(role, 'admin') || (role === 'editor' && editorScope === 'all');
 }
 
 const JOB = {

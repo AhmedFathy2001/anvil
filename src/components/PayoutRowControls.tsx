@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
+import { atLeast } from '@/lib/clanRoles';
 import { useDialog } from '@/components/Confirm';
 
 export interface PayoutRow {
@@ -27,7 +28,8 @@ export default function PayoutRowControls({ payout, eventId, viewerRole, onChang
   const [err, setErr] = useState<string | null>(null);
   const [attaching, setAttaching] = useState(false);
 
-  const canPay = viewerRole === 'admin' || viewerRole === 'treasurer';
+  // atLeast, not equality: an owner outranks admin.
+  const canPay = atLeast(viewerRole, 'admin') || viewerRole === 'treasurer';
   const isPaid = payout.status === 'paid';
   const base = `/api/admin/events/${eventId}/payouts/${payout.id}`;
 
@@ -35,7 +37,7 @@ export default function PayoutRowControls({ payout, eventId, viewerRole, onChang
     setBusy(key);
     setErr(null);
     try {
-      const res = await fetch(url, {
+      const res = await clanFetch(url, {
         method,
         headers: body ? { 'Content-Type': 'application/json' } : undefined,
         body: body ? JSON.stringify(body) : undefined,

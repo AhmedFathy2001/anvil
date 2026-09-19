@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
+import { atLeast } from '@/lib/clanRoles';
 import ClanLink from '@/components/ClanLink';
 import { useRouter } from 'next/navigation';
 import { useDialog } from '@/components/Confirm';
@@ -130,7 +131,7 @@ export default function FeesBoardList({ boards, viewerRole }: { boards: FeeBoard
                 Open Sign-ups
               </ClanLink>
               {/* Only for a finished board, and only for an admin: this writes money off. */}
-              {b.ended && viewerRole === 'admin' && (
+              {b.ended && atLeast(viewerRole, 'admin') && (
                 <button
                   onClick={() => closeOut(b)}
                   disabled={busyId === b.eventId}

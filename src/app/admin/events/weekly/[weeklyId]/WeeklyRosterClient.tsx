@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { clanFetch } from '@/lib/clanFetch';
 import { useRouter } from 'next/navigation';
 import type { WeeklyStanding } from '@/lib/weeklyWorkspace';
 import { weeklyGain, weeklyStatValue } from '@/lib/weeklyLabels';
@@ -112,7 +113,7 @@ export default function WeeklyRosterClient({
     setBusy(true);
     setMessage('');
     try {
-      const res = await fetch(url, init);
+      const res = await clanFetch(url, init);
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setMessage(okMessage);

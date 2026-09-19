@@ -58,10 +58,22 @@ export default {
         '"{{path}}" belongs to a clan, so it needs the clan prefix. Use useClanHref() in a client ' +
         'component or clanHref()/clanHrefs() on the server. Without it the request reaches the ' +
         'route with NO clan — which does not error, it answers a different question.',
+      opaqueFetch:
+        'This URL arrives in a variable, so this rule cannot tell whether it belongs to a clan. Use ' +
+        'clanFetch from @/lib/clanFetch, which prefixes clan paths and passes every other URL ' +
+        'through untouched. Four admin components called fetch(url) this way — the fee Mark paid ' +
+        'button among them — and lint reported zero.',
     },
   },
   create(context) {
     const source = context.sourceCode ?? context.getSourceCode();
+
+    // A client component resolves its prefix from the address bar, which is what clanFetch reads.
+    // Server code fetching by variable is almost always leaving the site (Discord, the wiki, R2),
+    // so the opaque-URL check below is limited to the files where the answer is always clanFetch.
+    const isClientFile = (source.ast.body ?? []).some(
+      (s) => s.type === 'ExpressionStatement' && s.directive === 'use client',
+    );
 
     /** Is this line (or the one above) excused? */
     function excused(node) {
@@ -163,6 +175,14 @@ export default {
         else if (arg.type === 'TemplateLiteral' && arg.quasis.length > 0) {
           const head = arg.quasis[0].value.cooked ?? '';
           if (head.startsWith('/')) check(arg, head, 'bareFetch');
+          else if (isClientFile && head === '' && !excused(node)) {
+            // `${base}/collect` — the path is whatever `base` holds.
+            context.report({ node, messageId: 'opaqueFetch' });
+          }
+        }
+        // fetch(url) — the same hole the opaque-href check closes for links.
+        else if (isClientFile && !context.filename?.endsWith('lib/clanFetch.ts') && !excused(node)) {
+          context.report({ node, messageId: 'opaqueFetch' });
         }
       },
 

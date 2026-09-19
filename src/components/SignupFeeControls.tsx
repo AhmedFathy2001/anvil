@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
+import { atLeast } from '@/lib/clanRoles';
 import { useDialog } from '@/components/Confirm';
 
 export interface SignupFee {
@@ -53,10 +54,12 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
   const [err, setErr] = useState<string | null>(null);
   const [attaching, setAttaching] = useState(false);
 
-  const canCollect = viewerRole === 'admin' || viewerRole === 'treasurer';
-  const canConfirm = viewerRole === 'admin';
-  const canDispute = ['admin', 'treasurer', 'moderator', 'editor'].includes(viewerRole);
-  const canReset = viewerRole === 'admin';
+  // atLeast, not equality: an owner outranks admin, and `=== 'admin'` left them unable to settle.
+  const isAdmin = atLeast(viewerRole, 'admin');
+  const canCollect = isAdmin || viewerRole === 'treasurer';
+  const canConfirm = isAdmin;
+  const canDispute = isAdmin || ['treasurer', 'moderator', 'editor'].includes(viewerRole);
+  const canReset = isAdmin;
 
   const b = bucket(fee.status);
   const isPaid = fee.status === 'collected';
@@ -75,7 +78,7 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
     setBusy(key);
     setErr(null);
     try {
-      const res = await fetch(url, {
+      const res = await clanFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: body ? JSON.stringify(body) : undefined,

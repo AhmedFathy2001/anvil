@@ -106,7 +106,9 @@ const ROLE_FILTERS = [
 ] as const;
 type RoleFilter = (typeof ROLE_FILTERS)[number]['value'] | 'any';
 
-const STAFF_ROLES = new Set(['admin', 'treasurer', 'moderator', 'editor']);
+// Owner included: the set once stopped at admin, so the clan's owner fell out of the Staff filter and
+// the staff count, and landed under Members instead.
+const STAFF_ROLES = new Set(['owner', 'admin', 'treasurer', 'moderator', 'editor']);
 
 // A member matches a role filter on either their LIVE role or a queued (pending) one — a pre-assigned
 // admin is who you're looking for when you filter by admin, even before they've claimed their RSN.
