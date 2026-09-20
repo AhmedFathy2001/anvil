@@ -36,6 +36,8 @@ interface Props {
   signedUpMemberIds: number[];
   /** How many characters one person may enter on this board. */
   maxAccountsPerPerson: number;
+  /** This board's teams, so a new sign-up can be seated instead of left in the pool. */
+  teams: { id: number; name: string; color: string }[];
   onClose: () => void;
   onSaved: () => void;
 }
@@ -115,11 +117,14 @@ export default function SignupAnswersModal({
   signedUpUserIds,
   signedUpMemberIds,
   maxAccountsPerPerson,
+  teams,
   onClose,
   onSaved,
 }: Props) {
   const initial = editTarget?.profile ?? {};
   const [memberId, setMemberId] = useState<number | null>(null);
+  // '' = the draft pool, which is where a sign-up has always landed and stays the default.
+  const [teamId, setTeamId] = useState<string>('');
   const [member, setMember] = useState<PickableMember | null>(null);
   const [activeDailyMin, setActiveDailyMin] = useState(hoursBound(initial.activeDailyHours, 'min'));
   const [activeDailyMax, setActiveDailyMax] = useState(hoursBound(initial.activeDailyHours, 'max'));
@@ -202,7 +207,11 @@ export default function SignupAnswersModal({
         : await clanFetch(`/api/admin/events/${eventId}/signups`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ clanMemberId: memberId, profile }),
+            body: JSON.stringify({
+              clanMemberId: memberId,
+              profile,
+              teamId: teamId === '' ? null : Number(teamId),
+            }),
           });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -258,6 +267,25 @@ export default function SignupAnswersModal({
                 }}
                 preferLinked
               />
+              {teams.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-text-muted">Team</p>
+                  <Select
+                    value={teamId}
+                    onChange={setTeamId}
+                    ariaLabel="Team to add them to"
+                    options={[
+                      { value: '', label: 'Draft pool — no team yet' },
+                      ...teams.map((t) => ({ value: String(t.id), label: t.name, dot: t.color })),
+                    ]}
+                  />
+                  <p className="text-[11px] text-text-dim">
+                    Leave in the pool to draft them later. Someone already on a team keeps it — move
+                    them from the Teams tab.
+                  </p>
+                </div>
+              )}
+
               {duplicateUser && (
                 <p className="text-xs text-yellow-300 border border-yellow-500/30 bg-yellow-500/10 rounded p-2">
                   {seatTaken

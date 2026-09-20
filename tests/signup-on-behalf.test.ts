@@ -173,3 +173,109 @@ test('reviving a withdrawn sign-up repairs a login written by the old bug', asyn
   const rows = await db.select().from(s.eventSignups).where(eq(s.eventSignups.eventId, ev.id));
   assert.equal(rows.length, 1, 'revived in place, not duplicated');
 });
+
+// ── Seating them straight onto a team ─────────────────────────────────────────
+// The pool is still the default; a team is something the admin asks for explicitly.
+
+test('a team can be named, and the player lands on it instead of the pool', async () => {
+  const [ev] = await db.insert(s.events).values({ clanId, name: 'Teamed', boardSize: 25 }).returning();
+  const [red] = await db.insert(s.teams).values({ eventId: ev.id, name: 'Red', color: '#dc2626' }).returning();
+  const board2: Board = { id: ev.id, clanId, signupFee: null, maxAccountsPerPerson: 1 };
+
+  const r = await signUpOnBehalf({
+    event: board2,
+    clanMemberId: mainSeat,
+    profile: {},
+    status: 'approved',
+    teamId: red.id,
+    playerToken: `t${++token}`,
+  });
+  assert.ok(r.ok, JSON.stringify(r));
+
+  const [p] = await db
+    .select()
+    .from(s.eventParticipants)
+    .where(and(eq(s.eventParticipants.eventId, ev.id), eq(s.eventParticipants.clanMemberId, mainSeat)));
+  assert.equal(p.teamId, red.id);
+});
+
+test('naming no team leaves them in the pool, as it always did', async () => {
+  const [ev] = await db.insert(s.events).values({ clanId, name: 'Pooled', boardSize: 25 }).returning();
+  await db.insert(s.teams).values({ eventId: ev.id, name: 'Blue', color: '#2563eb' });
+  const r = await add({ id: ev.id, clanId, signupFee: null, maxAccountsPerPerson: 1 }, mainSeat);
+  assert.ok(r.ok);
+  const [p] = await db
+    .select()
+    .from(s.eventParticipants)
+    .where(and(eq(s.eventParticipants.eventId, ev.id), eq(s.eventParticipants.clanMemberId, mainSeat)));
+  assert.equal(p.teamId, null);
+});
+
+test('a team from another board is refused', async () => {
+  const [mine] = await db.insert(s.events).values({ clanId, name: 'Mine', boardSize: 25 }).returning();
+  const [theirs] = await db.insert(s.events).values({ clanId, name: 'Theirs', boardSize: 25 }).returning();
+  const [strayTeam] = await db.insert(s.teams).values({ eventId: theirs.id, name: 'Stray', color: '#16a34a' }).returning();
+
+  const r = await signUpOnBehalf({
+    event: { id: mine.id, clanId, signupFee: null, maxAccountsPerPerson: 1 },
+    clanMemberId: mainSeat,
+    profile: {},
+    status: 'approved',
+    teamId: strayTeam.id,
+    playerToken: `t${++token}`,
+  });
+  assert.equal(r.ok, false);
+  assert.equal(!r.ok && r.status, 404);
+  // Refused before anything was written — no sign-up, no player.
+  assert.equal((await db.select().from(s.eventSignups).where(eq(s.eventSignups.eventId, mine.id))).length, 0);
+  assert.equal((await db.select().from(s.eventParticipants).where(eq(s.eventParticipants.eventId, mine.id))).length, 0);
+});
+
+test('someone already on a team is not moved by re-running their sign-up', async () => {
+  const [ev] = await db.insert(s.events).values({ clanId, name: 'Settled', boardSize: 25 }).returning();
+  const [red] = await db.insert(s.teams).values({ eventId: ev.id, name: 'Red', color: '#dc2626' }).returning();
+  const [blue] = await db.insert(s.teams).values({ eventId: ev.id, name: 'Blue', color: '#2563eb' }).returning();
+  const board2: Board = { id: ev.id, clanId, signupFee: null, maxAccountsPerPerson: 1 };
+
+  const first = await signUpOnBehalf({
+    event: board2, clanMemberId: mainSeat, profile: {}, status: 'approved', teamId: red.id, playerToken: `t${++token}`,
+  });
+  assert.ok(first.ok);
+  // Withdraw, so the sign-up itself would be revived rather than refused as a duplicate.
+  await db.update(s.eventSignups).set({ status: 'withdrawn' }).where(eq(s.eventSignups.id, first.signup.id));
+
+  const second = await signUpOnBehalf({
+    event: board2, clanMemberId: mainSeat, profile: {}, status: 'approved', teamId: blue.id, playerToken: `t${++token}`,
+  });
+  assert.equal(second.ok, false);
+  assert.match(!second.ok ? second.error : '', /already on another team/);
+
+  // The refusal stands for the whole call: they are still on Red, and still withdrawn.
+  const [p] = await db
+    .select()
+    .from(s.eventParticipants)
+    .where(and(eq(s.eventParticipants.eventId, ev.id), eq(s.eventParticipants.clanMemberId, mainSeat)));
+  assert.equal(p.teamId, red.id);
+  const row = await db.query.eventSignups.findFirst({ where: eq(s.eventSignups.id, first.signup.id) });
+  assert.equal(row?.status, 'withdrawn');
+});
+
+test('a player sitting in the pool is seated when a team is named', async () => {
+  const [ev] = await db.insert(s.events).values({ clanId, name: 'Late pick', boardSize: 25 }).returning();
+  const [green] = await db.insert(s.teams).values({ eventId: ev.id, name: 'Green', color: '#16a34a' }).returning();
+  const board2: Board = { id: ev.id, clanId, signupFee: null, maxAccountsPerPerson: 1 };
+
+  const first = await add(board2, mainSeat);
+  assert.ok(first.ok);
+  await db.update(s.eventSignups).set({ status: 'withdrawn' }).where(eq(s.eventSignups.id, first.signup.id));
+
+  const second = await signUpOnBehalf({
+    event: board2, clanMemberId: mainSeat, profile: {}, status: 'approved', teamId: green.id, playerToken: `t${++token}`,
+  });
+  assert.ok(second.ok, JSON.stringify(second));
+  const [p] = await db
+    .select()
+    .from(s.eventParticipants)
+    .where(and(eq(s.eventParticipants.eventId, ev.id), eq(s.eventParticipants.clanMemberId, mainSeat)));
+  assert.equal(p.teamId, green.id);
+});

@@ -12,7 +12,7 @@
 import { and, eq, isNull, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanRoster, eventSignups, signupFees } from '@/db/schema';
+import { clanRoster, eventParticipants, eventSignups, signupFees, teams } from '@/db/schema';
 import { enrolParticipant, participantForSeat } from '@/lib/participants';
 import { findRosterSeat, loginOf } from '@/lib/roster';
 import { sanitizeProfile, serializeProfile } from '@/lib/signup';
@@ -28,10 +28,24 @@ export async function signUpOnBehalf(input: {
   clanMemberId: number;
   profile: Record<string, unknown>;
   status: 'pending' | 'approved';
+  /**
+   * Put them straight on a team instead of in the draft pool. Null (the default) leaves them in the
+   * pool, which is where a sign-up has always landed.
+   */
+  teamId?: number | null;
   /** Minted by the caller (lib/auth), used only if this character is new to the draft pool. */
   playerToken: string;
 }): Promise<OnBehalfResult> {
   const { event, clanMemberId } = input;
+  const teamId = input.teamId ?? null;
+
+  // The team has to be one of THIS board's, since the id came in with the request. Same check the
+  // Teams tab's add-player makes; refusing here keeps a stray id from seating someone on another
+  // board's team.
+  if (teamId != null) {
+    const team = await db.query.teams.findFirst({ where: and(eq(teams.id, teamId), eq(teams.eventId, event.id)) });
+    if (!team) return { ok: false, status: 404, error: 'Team not found in this event' };
+  }
 
   // The seat has to be on the BOARD's clan roster. The member id came from the request body and
   // would otherwise seat another clan's member into it.
@@ -39,6 +53,18 @@ export async function signUpOnBehalf(input: {
     and(eq(clanRoster.clanId, event.clanId), eq(clanRoster.id, clanMemberId), isNull(clanRoster.leftAt)),
   );
   if (!account) return { ok: false, status: 404, error: 'Clan member not found' };
+
+  // Are they already playing, and where? By ACCOUNT, not by seat — see lib/participants for why one
+  // player can hold two of the latter. Asked BEFORE anything is written: refusing halfway would
+  // leave the sign-up saved and the team not, and the caller could not tell which.
+  //
+  // Someone already on a team keeps it — moving them is the Teams tab's job, and re-running a
+  // sign-up should not quietly re-draft anybody. A player still in the POOL is seated below, which
+  // is what was just asked for.
+  const player = await participantForSeat(event.id, clanMemberId);
+  if (teamId != null && player && player.teamId != null && player.teamId !== teamId) {
+    return { ok: false, status: 409, error: `${account.rsn} is already on another team in this event.` };
+  }
 
   // A linked member's sign-up hangs off their LOGIN; an unclaimed seat, or a person who has never
   // signed in, gets a GUEST sign-up (userId null) so they still show up in the draft pool.
@@ -120,8 +146,8 @@ export async function signUpOnBehalf(input: {
     }
   }
 
-  // By ACCOUNT, not by seat — see lib/participants for why one player can hold two of the latter.
-  if (!(await participantForSeat(event.id, clanMemberId))) {
+  // The draft-pool row, idempotently.
+  if (!player) {
     await enrolParticipant({
       eventId: event.id,
       clanMemberId,
@@ -129,7 +155,10 @@ export async function signUpOnBehalf(input: {
       name: account.rsn,
       timezone: profile.timezone ?? null,
       playerToken: input.playerToken,
+      teamId,
     });
+  } else if (teamId != null && player.teamId == null) {
+    await db.update(eventParticipants).set({ teamId }).where(eq(eventParticipants.id, player.id));
   }
 
   return { ok: true, signup };

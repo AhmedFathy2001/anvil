@@ -187,9 +187,14 @@ export async function POST(
     clanMemberId?: number;
     profile?: Record<string, unknown>;
     status?: 'pending' | 'approved';
+    // Optional: seat them on a team straight away instead of leaving them in the draft pool.
+    teamId?: number | null;
   } | null;
   if (!body || typeof body.clanMemberId !== 'number') {
     return NextResponse.json({ error: 'clanMemberId is required' }, { status: 400 });
+  }
+  if (body.teamId != null && !Number.isInteger(body.teamId)) {
+    return NextResponse.json({ error: 'teamId must be a number' }, { status: 400 });
   }
 
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
@@ -202,6 +207,7 @@ export async function POST(
     clanMemberId: body.clanMemberId,
     profile: (body.profile ?? {}) as Record<string, unknown>,
     status: body.status === 'pending' ? 'pending' : 'approved',
+    teamId: body.teamId ?? null,
     playerToken: generatePlayerToken(),
   });
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
