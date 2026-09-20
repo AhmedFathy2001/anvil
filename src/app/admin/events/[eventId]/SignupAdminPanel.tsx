@@ -1151,6 +1151,8 @@ export default function SignupAdminPanel({
           signedUpUserIds={signups
             .filter((s) => s.status !== 'withdrawn' && s.user != null)
             .map((s) => s.user!.id)}
+          signedUpMemberIds={signups.filter((s) => s.status !== 'withdrawn').map((s) => s.account.id)}
+          maxAccountsPerPerson={event.maxAccountsPerPerson ?? 1}
           onClose={() => setAnswersModal(null)}
           onSaved={async () => {
             setAnswersModal(null);

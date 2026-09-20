@@ -30,7 +30,12 @@ interface Props {
   // null = add mode; a target = edit that sign-up's answers.
   editTarget: EditTarget | null;
   // User ids with an active (non-withdrawn) sign-up, to flag duplicates before submit.
+  /** One entry per ACTIVE sign-up (so a person with two characters in appears twice). */
   signedUpUserIds: number[];
+  /** Roster seats that already hold an active sign-up. */
+  signedUpMemberIds: number[];
+  /** How many characters one person may enter on this board. */
+  maxAccountsPerPerson: number;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -108,6 +113,8 @@ export default function SignupAnswersModal({
   eventId,
   editTarget,
   signedUpUserIds,
+  signedUpMemberIds,
+  maxAccountsPerPerson,
   onClose,
   onSaved,
 }: Props) {
@@ -132,10 +139,15 @@ export default function SignupAnswersModal({
   const [error, setError] = useState<string | null>(null);
 
   const isEdit = editTarget !== null;
-  // Picked member's user already has an active sign-up — the server would 409; flag it
-  // up-front so the admin reaches for "Edit answers" on the existing row instead.
-  const duplicateUser =
-    !isEdit && member?.user != null && signedUpUserIds.includes(member.user.id);
+  // The two things the server would 409 on, flagged up-front so the admin reaches for "Edit answers"
+  // on the existing row instead: this CHARACTER is already in, or this PERSON has already entered as
+  // many characters as the board allows. Counted per person, not "has any sign-up", because a board
+  // can let one person bring several.
+  const seatTaken = !isEdit && memberId != null && signedUpMemberIds.includes(memberId);
+  const personEntries =
+    !isEdit && member?.user != null ? signedUpUserIds.filter((u) => u === member.user!.id).length : 0;
+  const personFull = !seatTaken && personEntries > 0 && personEntries >= maxAccountsPerPerson;
+  const duplicateUser = seatTaken || personFull;
 
   const filteredBosses = useMemo(() => {
     if (!bossFilter.trim()) return BOSSES;
@@ -248,8 +260,12 @@ export default function SignupAnswersModal({
               />
               {duplicateUser && (
                 <p className="text-xs text-yellow-300 border border-yellow-500/30 bg-yellow-500/10 rounded p-2">
-                  This member&apos;s user already has an active sign-up in this event — close
-                  this and use &quot;Edit answers&quot; on their row instead.
+                  {seatTaken
+                    ? 'This character is already signed up'
+                    : maxAccountsPerPerson === 1
+                      ? 'This person is already signed up with another character'
+                      : `This person already has ${personEntries} characters signed up, and this board allows ${maxAccountsPerPerson}`}{' '}
+                  — close this and use &quot;Edit answers&quot; on their row instead.
                 </p>
               )}
             </div>

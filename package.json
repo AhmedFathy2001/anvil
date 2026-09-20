@@ -40,6 +40,7 @@
     "test:guests": "npx tsx --test tests/guest-admission.test.ts",
     "test:verification": "npx tsx --test tests/clan-verification.test.ts",
     "test:eventaccess": "npx tsx --test tests/event-access.test.ts",
+    "test:onbehalf": "npx tsx --test tests/signup-on-behalf.test.ts",
     "test:leaderboard": "npx tsx --test tests/clan-leaderboard.test.ts",
     "test:seatscope": "npx tsx --test tests/seat-scope.test.ts",
     "test:participants": "npx tsx --test tests/participant-identity.test.ts",

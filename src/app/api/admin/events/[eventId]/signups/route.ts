@@ -3,13 +3,12 @@ import { eventForRequest } from '@/lib/eventScope';
 import { resolvePlayers } from '@/lib/signupPlayer';
 import { db } from '@/db';
 import { clanAuditLog, clanRoster, events, eventSignups, eventParticipants, signupFees, teams, users } from '@/db/schema';
-import { findRosterSeat } from '@/lib/roster';
-import { and, eq, isNull } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { generatePlayerToken, verifyAdminOrModerator, verifyEventTreasurer, verifyUser } from '@/lib/auth';
-import { parseProfile, sanitizeProfile, serializeProfile } from '@/lib/signup';
+import { parseProfile } from '@/lib/signup';
 import { parseConfirmations } from '@/lib/feeConfirmations';
 import { atLeast } from '@/lib/clanRoles';
-import { enrolParticipant, participantForSeat } from '@/lib/participants';
+import { signUpOnBehalf } from '@/lib/signupOnBehalf';
 import { assertEventEditable } from '@/lib/eventLock';
 
 export async function GET(
@@ -155,12 +154,9 @@ export async function GET(
   return NextResponse.json({ signups, teams: eventTeams.map((t) => ({ id: t.id, name: t.name, color: t.color })) });
 }
 
-// Admin-only: sign a member up on their behalf and fill in their answers. Exists for the
-// "they told me their availability on Discord but won't touch the site" case — so it
-// deliberately skips the sign-up window checks and the account-verification requirement
-// that gate the self-serve flow. Defaults straight to 'approved' (the admin adding them IS
-// the approval), and mirrors the self-serve side effects: fee row when the event has a
-// fee, draft-pool player row, audit-log entry.
+// Admin-only: sign a member up on their behalf and fill in their answers. This route decides who
+// may and on which board; what the sign-up says is lib/signupOnBehalf. Defaults straight to
+// 'approved' — the admin adding them IS the approval.
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
@@ -201,88 +197,16 @@ export async function POST(
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
 
-  // The seat has to be on THIS clan's roster. The event already is (guarded above), but the member
-  // id came from the request body and would otherwise seat another clan's member into it.
-  const account = await findRosterSeat(
-    and(eq(clanRoster.clanId, event.clanId), eq(clanRoster.id, body.clanMemberId), isNull(clanRoster.leftAt)),
-  );
-  if (!account) {
-    return NextResponse.json({ error: 'Clan member not found' }, { status: 404 });
-  }
-  // A linked member's sign-up hangs off their users row; an unlinked in-game member gets a
-  // GUEST sign-up (userId null) so they still show up + stay consistent with the draft pool.
-  const userId = account.playerId; // may be null → guest sign-up
-
-  // Dedup: linked → one per (event, user); guest → one per (event, clan member).
-  const existing = await db.query.eventSignups.findFirst({
-    where:
-      userId != null
-        ? and(eq(eventSignups.eventId, id), eq(eventSignups.userId, userId))
-        : and(eq(eventSignups.eventId, id), eq(eventSignups.clanMemberId, body.clanMemberId)),
+  const result = await signUpOnBehalf({
+    event,
+    clanMemberId: body.clanMemberId,
+    profile: (body.profile ?? {}) as Record<string, unknown>,
+    status: body.status === 'pending' ? 'pending' : 'approved',
+    playerToken: generatePlayerToken(),
   });
-  if (existing && existing.status !== 'withdrawn') {
-    return NextResponse.json(
-      { error: `This member already has a ${existing.status} sign-up — edit their answers instead.` },
-      { status: 409 },
-    );
-  }
-
-  const status = body.status === 'pending' ? 'pending' : 'approved';
-  const profile = sanitizeProfile((body.profile ?? {}) as Record<string, unknown>);
-  const profileJson = serializeProfile(profile);
-  const now = new Date().toISOString();
-
-  // A withdrawn sign-up is revived in place (the unique (event, user) index means we
-  // can't insert a second row) — same as the self-serve re-join path.
-  let signupRow;
-  if (existing) {
-    [signupRow] = await db
-      .update(eventSignups)
-      .set({ clanMemberId: body.clanMemberId, profileData: profileJson, status, updatedAt: now })
-      .where(eq(eventSignups.id, existing.id))
-      .returning();
-  } else {
-    [signupRow] = await db
-      .insert(eventSignups)
-      .values({
-        eventId: id,
-        userId,
-        clanMemberId: body.clanMemberId,
-        profileData: profileJson,
-        status,
-        signedUpAt: now,
-        updatedAt: now,
-      })
-      .returning();
-  }
-
-  // Mirror the self-serve flow's side effects (see /api/events/[eventId]/signup POST):
-  // fee row only when the event charges one, draft-pool row idempotently.
-  if (event.signupFee && event.signupFee > 0) {
-    const existingFee = await db.query.signupFees.findFirst({
-      where: eq(signupFees.signupId, signupRow.id),
-    });
-    if (!existingFee) {
-      await db.insert(signupFees).values({
-        signupId: signupRow.id,
-        amount: event.signupFee,
-        status: 'pending',
-      });
-    }
-  }
-
-  // By ACCOUNT, not by seat — see lib/participants for why one player can hold two of the latter.
-  const existingPlayer = await participantForSeat(id, body.clanMemberId);
-  if (!existingPlayer) {
-    await enrolParticipant({
-      eventId: id,
-      clanMemberId: body.clanMemberId,
-      accountId: account.accountId,
-      name: account.rsn,
-      timezone: profile.timezone ?? null,
-      playerToken: generatePlayerToken(),
-    });
-  }
+  if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
+  const signupRow = result.signup;
+  const status = signupRow.status;
 
   db.insert(clanAuditLog)
     .values({
