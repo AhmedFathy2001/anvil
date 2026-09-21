@@ -433,17 +433,20 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
           {recomputeMsg && <span className="text-xs text-text-muted">{recomputeMsg}</span>}
         </div>
 
-        {canDelete && (
-          <div className="mt-4 pt-4 border-t border-card-border">
-            <Button onClick={deleteEvent} disabled={deleting} tone="danger">
-              {deleting ? 'Deleting…' : 'Delete event'}
-            </Button>
-            <p className="text-xs text-text-muted mt-2">
-              Wipes the board, teams, completions and sign-ups. A finished event you want to keep the numbers
-              from is better left alone.
-            </p>
-          </div>
-        )}
+        {/* SHOWN WHILE IT IS RUNNING TOO, refused rather than absent. Hiding it read as "this site
+            cannot delete events" — an admin looking for the control found nothing at all, on the one
+            page it lives on, and nothing anywhere said the event being live was the reason. A
+            disabled button that names its condition answers the question the missing one raised. */}
+        <div className="mt-4 pt-4 border-t border-card-border">
+          <Button onClick={deleteEvent} disabled={deleting || !canDelete} tone="danger">
+            {deleting ? 'Deleting…' : 'Delete event'}
+          </Button>
+          <p className="text-xs text-text-muted mt-2">
+            {canDelete
+              ? 'Wipes the board, teams, completions and sign-ups. A finished event you want to keep the numbers from is better left alone.'
+              : 'Not while it is running — people are playing it, and deleting it would take their submissions and standings with it mid-event. End it on the Overview tab (or wait for its end date) and this unlocks.'}
+          </p>
+        </div>
       </section>
     </div>
   );
