@@ -731,6 +731,10 @@ export const en = {
             label: 'Post OBS-triggered clips too',
             body: 'also handle saves triggered by OBS itself or by the “Save Replay Buffer for OBS” plugin. Leave it off if you run two RuneLite clients against one OBS, or every clip posts twice.',
           },
+          {
+            label: "Let Anvil manage OBS's recording folder",
+            body: 'points OBS\'s recording folder at Anvil\'s own clips folder while RuneLite runs, which is what lets a clip post itself — the plugin may only read its own folder. Your ordinary OBS recordings save there too while it\'s on, and your own setting is put back when you switch it off or close RuneLite.',
+          },
         ],
       },
       useHeading: 'C. Use it',

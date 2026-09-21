@@ -735,6 +735,10 @@ const zhHans: PartialGuideDict = {
             label: 'Post OBS-triggered clips too',
             body: '同时处理由 OBS 自身或 “Save Replay Buffer for OBS” 插件触发的保存。如果你用两个 RuneLite 客户端连同一个 OBS，请保持关闭，否则每个片段都会被发两次。',
           },
+          {
+            label: "Let Anvil manage OBS's recording folder",
+            body: '在 RuneLite 运行期间把 OBS 的录制文件夹指向 Anvil 自己的剪辑文件夹——插件只能读取自己的文件夹，这是剪辑能自动发布的唯一办法。开启期间你平常的 OBS 录制也会存到那里，关闭它或退出 RuneLite 时会把你的设置放回去。',
+          },
         ],
       },
       useHeading: 'C. 使用',

@@ -737,6 +737,10 @@ const fi: PartialGuideDict = {
             label: 'Post OBS-triggered clips too',
             body: 'käsittelee myös tallennukset jotka OBS itse tai “Save Replay Buffer for OBS” -plugin käynnistää. Jätä pois päältä jos ajat kahta RuneLite-asiakasta yhtä OBS:ää vasten, tai jokainen leike julkaistaan kahdesti.',
           },
+          {
+            label: "Let Anvil manage OBS's recording folder",
+            body: 'osoittaa OBS:n tallennuskansion Anvilin omaan clips-kansioon RuneLiten ollessa käynnissä — vain siten klippi voi lähettää itsensä, sillä lisäosa saa lukea vain omaa kansiotaan. Myös tavalliset OBS-tallenteesi menevät sinne sen ollessa päällä, ja oma asetuksesi palautetaan kun suljet sen tai RuneLiten.',
+          },
         ],
       },
       useHeading: 'C. Käytä sitä',

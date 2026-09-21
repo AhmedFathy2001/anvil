@@ -736,6 +736,10 @@ const ja: PartialGuideDict = {
             label: 'Post OBS-triggered clips too',
             body: 'OBS 自身や「Save Replay Buffer for OBS」プラグインが起動した保存も扱います。1 つの OBS に対して RuneLite を 2 つ動かしているならオフのままに。さもないとクリップが二重投稿されます。',
           },
+          {
+            label: "Let Anvil manage OBS's recording folder",
+            body: 'RuneLite の起動中だけ OBS の録画フォルダを Anvil のクリップフォルダに向けます。プラグインは自分のフォルダしか読めないため、これがクリップを自動投稿できる唯一の方法です。オンの間は通常の OBS 録画もそこに保存され、オフにするか RuneLite を閉じると元の設定に戻ります。',
+          },
         ],
       },
       useHeading: 'C. 使う',

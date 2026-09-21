@@ -738,6 +738,10 @@ const fr: PartialGuideDict = {
             label: 'Post OBS-triggered clips too',
             body: 'traite aussi les enregistrements déclenchés par OBS lui-même ou par le plugin « Save Replay Buffer for OBS ». Laissez-le désactivé si vous faites tourner deux clients RuneLite contre un seul OBS, sinon chaque clip est publié deux fois.',
           },
+          {
+            label: "Let Anvil manage OBS's recording folder",
+            body: 'pointe le dossier d’enregistrement d’OBS vers le dossier de clips d’Anvil pendant que RuneLite tourne : c’est ce qui permet à un clip de se publier seul, le plugin ne pouvant lire que son propre dossier. Vos enregistrements OBS ordinaires y vont aussi pendant ce temps, et votre réglage est rétabli quand vous le désactivez ou fermez RuneLite.',
+          },
         ],
       },
       useHeading: 'C. L’utiliser',

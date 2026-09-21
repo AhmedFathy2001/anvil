@@ -736,6 +736,10 @@ const ko: PartialGuideDict = {
             label: 'Post OBS-triggered clips too',
             body: 'OBS 자체나 “Save Replay Buffer for OBS” 플러그인이 일으킨 저장도 처리합니다. OBS 하나에 RuneLite 두 개를 물려 돌린다면 꺼 두세요. 그러지 않으면 모든 클립이 두 번 올라갑니다.',
           },
+          {
+            label: "Let Anvil manage OBS's recording folder",
+            body: 'RuneLite 가 실행되는 동안 OBS 의 녹화 폴더를 Anvil 의 클립 폴더로 돌립니다. 플러그인은 자기 폴더만 읽을 수 있으므로, 클립이 스스로 올라가려면 이 방법뿐입니다. 켜져 있는 동안에는 평소 OBS 녹화도 그곳에 저장되며, 끄거나 RuneLite 를 닫으면 원래 설정으로 되돌립니다.',
+          },
         ],
       },
       useHeading: 'C. 사용하기',

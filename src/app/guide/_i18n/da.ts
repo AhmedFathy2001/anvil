@@ -742,6 +742,10 @@ const da: PartialGuideDict = {
             label: 'Post OBS-triggered clips too',
             body: 'håndterer også gemte klip udløst af OBS selv eller af pluginnet “Save Replay Buffer for OBS”. Lad den være slukket, hvis du kører to RuneLite-klienter mod én OBS — ellers bliver hvert klip postet to gange.',
           },
+          {
+            label: "Let Anvil manage OBS's recording folder",
+            body: 'peger OBS\' optagemappe mod Anvils egen clips-mappe, mens RuneLite kører — det er dét, der lader et klip sende sig selv, for pluginet må kun læse sin egen mappe. Dine almindelige OBS-optagelser havner også der imens, og din egen indstilling sættes tilbage, når du slår det fra eller lukker RuneLite.',
+          },
         ],
       },
       useHeading: 'C. Brug det',

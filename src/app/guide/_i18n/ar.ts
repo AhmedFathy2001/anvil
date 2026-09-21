@@ -736,6 +736,10 @@ const ar: PartialGuideDict = {
             label: 'Post OBS-triggered clips too',
             body: 'يتعامل أيضًا مع الحفظ الذي يبدأه OBS نفسه أو إضافة “Save Replay Buffer for OBS”. اتركه مطفأً إن كنت تشغّل عميلَي RuneLite مقابل OBS واحد، وإلا نُشر كل مقطع مرتين.',
           },
+          {
+            label: "Let Anvil manage OBS's recording folder",
+            body: 'يوجّه مجلد تسجيل OBS إلى مجلد المقاطع الخاص بـ Anvil أثناء تشغيل RuneLite، وهذا ما يتيح للمقطع أن يُنشر من تلقاء نفسه، إذ لا يجوز للإضافة أن تقرأ سوى مجلدها. تُحفظ تسجيلات OBS العادية هناك أيضاً أثناء تفعيله، وتُعاد إعداداتك كما كانت عند إيقافه أو إغلاق RuneLite.',
+          },
         ],
       },
       useHeading: 'ج. استخدمها',

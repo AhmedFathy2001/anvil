@@ -726,6 +726,10 @@ const ptBr: PartialGuideDict = {
             label: 'Post OBS-triggered clips too',
             body: 'também trata salvamentos disparados pelo próprio OBS ou pelo plugin “Save Replay Buffer for OBS”. Deixe desligado se você roda dois clientes RuneLite contra um único OBS, senão todo clipe é publicado duas vezes.',
           },
+          {
+            label: "Let Anvil manage OBS's recording folder",
+            body: 'aponta a pasta de gravação do OBS para a pasta de clipes do Anvil enquanto o RuneLite está aberto: é o que permite a um clipe se publicar sozinho, já que o plugin só pode ler a própria pasta. Suas gravações normais do OBS também vão para lá enquanto isso, e sua configuração é restaurada ao desligar isto ou fechar o RuneLite.',
+          },
         ],
       },
       useHeading: 'C. Use',

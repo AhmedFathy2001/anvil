@@ -737,6 +737,10 @@ const nl: PartialGuideDict = {
             label: 'Post OBS-triggered clips too',
             body: 'verwerkt ook opslagacties die OBS zelf of de plugin “Save Replay Buffer for OBS” start. Laat hem uit als je twee RuneLite-clients tegen één OBS draait, anders wordt elke clip twee keer gepost.',
           },
+          {
+            label: "Let Anvil manage OBS's recording folder",
+            body: 'richt de opnamemap van OBS op Anvils eigen clipsmap zolang RuneLite draait — alleen zo kan een clip zichzelf posten, want de plugin mag uitsluitend zijn eigen map lezen. Je gewone OBS-opnames komen er ondertussen ook in terecht, en je eigen instelling wordt teruggezet als je dit uitzet of RuneLite sluit.',
+          },
         ],
       },
       useHeading: 'C. Gebruik het',
