@@ -580,8 +580,8 @@ const es: PartialGuideDict = {
         alt: 'La sección Bingo de los ajustes del plugin, con cada ajuste recuadrado y numerado',
         legend: [
           {
-            label: 'Auto Submit Drops',
-            body: 'hace una captura y envía un drop registrado en el momento en que cae. Déjalo activado; es de lo que va todo esto.',
+            label: 'Send live XP & KC',
+            body: 'envía tu XP y tu KC de jefes al sitio mientras juegas, para que las clasificaciones de SOTW/BOTW y las casillas de estadísticas se muevan mientras entrenas en vez de esperar a los hiscores. Déjalo activado; es lo que mantiene tu progreso en vivo.',
           },
           {
             label: 'Show Overlay',
@@ -598,10 +598,6 @@ const es: PartialGuideDict = {
           {
             label: 'Banner sound + volume',
             body: 'reproduce un sonido con el banner. No suena nada hasta que añadas al menos un .wav tú mismo, con **Add clip** bajo “Banner sounds” en el panel lateral de Anvil.',
-          },
-          {
-            label: 'Two-frame drop proof',
-            body: 'incrusta un segundo fotograma en la captura un par de segundos después, cuando el loot ya se ha posado en el suelo. Déjalo activado; te ahorra discusiones.',
           },
         ],
       },
@@ -636,12 +632,11 @@ const es: PartialGuideDict = {
             label: 'Min drop value / Min drop rarity',
             body: 'dos rutas independientes hacia una publicación: valer al menos tanto (GE o high alch, lo que sea mayor), o ser más raro que 1 entre N (1/10.000 por defecto — ajustes más laxos llenan el canal de tiradas de hierbas). Tu clan puede fijar un umbral de rareza que valga para todos; el tuyo sigue aplicándose cuando es más estricto. Pon cualquiera de los dos a 0 para apagar esa ruta.',
           },
-          { label: 'Screenshot rare drops', body: 'adjuntar la imagen, no solo el texto.' },
           {
             label: 'Loot key value',
             body: 'una loot key se publica una vez, como una sola notificación, cuando todo su contenido supera esta cifra.',
           },
-          { label: 'Notify on pets + Screenshot pets', body: 'las mascotas van al canal de drops raros.' },
+          { label: 'Notify on pets', body: 'las mascotas van al canal de drops raros.' },
         ],
       },
       caFigure: {

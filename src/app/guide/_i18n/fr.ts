@@ -581,8 +581,8 @@ const fr: PartialGuideDict = {
         alt: 'La section Bingo des réglages du plugin, chaque réglage encadré et numéroté',
         legend: [
           {
-            label: 'Auto Submit Drops',
-            body: 'prend une capture et envoie un drop suivi à l’instant où il tombe. Laissez-le activé ; c’est tout l’intérêt.',
+            label: 'Send live XP & KC',
+            body: 'envoie votre XP et vos KC de boss au site pendant que vous jouez, pour que les classements SOTW/BOTW et les cases de stats bougent pendant l’entraînement au lieu d’attendre les hiscores. Laissez-le activé ; c’est ce qui garde votre progression en direct.',
           },
           {
             label: 'Show Overlay',
@@ -599,10 +599,6 @@ const fr: PartialGuideDict = {
           {
             label: 'Banner sound + volume',
             body: 'joue un son avec la bannière. Rien ne se déclenche tant que tu n’ajoutes pas toi-même au moins un .wav, via **Add clip** sous « Banner sounds » dans le panneau latéral Anvil.',
-          },
-          {
-            label: 'Two-frame drop proof',
-            body: 'intègre une seconde image à la capture quelques secondes plus tard, une fois le butin posé au sol. Gardez-le activé ; ça évite les disputes.',
           },
         ],
       },
@@ -637,12 +633,11 @@ const fr: PartialGuideDict = {
             label: 'Min drop value / Min drop rarity',
             body: 'deux voies indépendantes vers une publication : valoir au moins tant (GE ou high alch, le plus élevé), ou être plus rare que 1 sur N (1/10 000 par défaut — des réglages plus larges remplissent le salon de tirages d’herbes). Votre clan peut fixer un seuil de rareté valable pour tous ; le vôtre s’applique quand même s’il est plus strict. Mettez l’un ou l’autre à 0 pour désactiver cette voie.',
           },
-          { label: 'Screenshot rare drops', body: 'joindre l’image, pas seulement le texte.' },
           {
             label: 'Loot key value',
             body: 'une loot key est publiée une seule fois, en une notification, quand tout son contenu dépasse ce chiffre.',
           },
-          { label: 'Notify on pets + Screenshot pets', body: 'les pets vont dans le salon des drops rares.' },
+          { label: 'Notify on pets', body: 'les pets vont dans le salon des drops rares.' },
         ],
       },
       caFigure: {

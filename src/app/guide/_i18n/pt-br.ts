@@ -578,8 +578,8 @@ const ptBr: PartialGuideDict = {
         alt: 'A seção Bingo da configuração do plugin com cada opção destacada e numerada',
         legend: [
           {
-            label: 'Auto Submit Drops',
-            body: 'fotografa e envia um drop rastreado no instante em que ele cai. Deixe ligado; é o sentido de tudo isso.',
+            label: 'Send live XP & KC',
+            body: 'envia seu XP e o KC de chefes para o site enquanto você joga, então as classificações de SOTW/BOTW e as casas de estatística se movem durante o treino em vez de esperar os hiscores. Deixe ligado; é o que mantém seu progresso ao vivo.',
           },
           {
             label: 'Show Overlay',
@@ -596,10 +596,6 @@ const ptBr: PartialGuideDict = {
           {
             label: 'Banner sound + volume',
             body: 'toca um som junto com o banner. Nada toca até você adicionar pelo menos um .wav, em **Add clip** sob “Banner sounds” no painel lateral do Anvil.',
-          },
-          {
-            label: 'Two-frame drop proof',
-            body: 'embute na captura um segundo quadro alguns segundos depois, quando o loot já assentou no chão. Deixe ligado; evita discussão.',
           },
         ],
       },
@@ -628,12 +624,11 @@ const ptBr: PartialGuideDict = {
             label: 'Min drop value / Min drop rarity',
             body: 'dois caminhos independentes até uma publicação: valer pelo menos tanto (GE ou high alch, o que for maior), ou ser mais raro que 1 em N (1/10.000 por padrão —— ajustes mais frouxos enchem o canal de ervas). Seu clã pode fixar um piso de raridade válido para todos; o seu ainda vale quando for mais rígido. Ponha 0 para desligar um dos caminhos.',
           },
-          { label: 'Screenshot rare drops', body: 'anexa a imagem, não só o texto.' },
           {
             label: 'Loot key value',
             body: 'uma loot key publica uma vez só, como uma notificação única, quando todo o seu conteúdo passa desse número.',
           },
-          { label: 'Notify on pets + Screenshot pets', body: 'pets vão para o canal de drops raros.' },
+          { label: 'Notify on pets', body: 'pets vão para o canal de drops raros.' },
         ],
       },
       caFigure: {

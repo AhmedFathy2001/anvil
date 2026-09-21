@@ -580,8 +580,8 @@ const fi: PartialGuideDict = {
         alt: 'Pluginin asetusten Bingo-osio, jossa jokainen asetus on kehystetty ja numeroitu',
         legend: [
           {
-            label: 'Auto Submit Drops',
-            body: 'ottaa kuvakaappauksen ja lähettää seuratun dropin siinä hetkessä kun se putoaa. Jätä päälle; siinä on koko idea.',
+            label: 'Send live XP & KC',
+            body: 'lähettää XP:si ja pomojen tappomäärät sivustolle pelatessasi, joten SOTW/BOTW-sijoitukset ja tilastoruudut liikkuvat jo treenatessa eivätkä odota hiscoresia. Jätä päälle; se pitää edistymisesi reaaliaikaisena.',
           },
           {
             label: 'Show Overlay',
@@ -598,10 +598,6 @@ const fi: PartialGuideDict = {
           {
             label: 'Banner sound + volume',
             body: 'soittaa äänen bannerin kanssa. Mitään ei kuulu, ennen kuin lisäät itse vähintään yhden .wav-tiedoston kohdasta **Add clip** “Banner sounds” -otsikon alla Anvilin sivupaneelissa.',
-          },
-          {
-            label: 'Two-frame drop proof',
-            body: 'leipoo kuvakaappaukseen toisen ruudun pari sekuntia myöhemmin, kun loot on asettunut maahan. Pidä päällä; se säästää kiistoilta.',
           },
         ],
       },
@@ -636,12 +632,11 @@ const fi: PartialGuideDict = {
             label: 'Min drop value / Min drop rarity',
             body: 'kaksi toisistaan riippumatonta reittiä julkaisuun: arvoltaan vähintään näin paljon (GE tai high alch, kumpi on korkeampi), tai harvinaisempi kuin 1/N (oletuksena 1/10 000 — löysemmät asetukset täyttävät kanavan yrttiheitoilla). Klaanisi voi asettaa harvinaisuusrajan joka koskee kaikkia; omasi pätee silti kun se on tiukempi. Aseta jompikumpi nollaan sulkeaksesi sen reitin.',
           },
-          { label: 'Screenshot rare drops', body: 'liitä kuva mukaan, ei pelkkää tekstiä.' },
           {
             label: 'Loot key value',
             body: 'loot key julkaistaan kerran, yhtenä ilmoituksena, kun sen koko sisältö ylittää tämän luvun.',
           },
-          { label: 'Notify on pets + Screenshot pets', body: 'petit julkaistaan harvinaisten droppien kanavaan.' },
+          { label: 'Notify on pets', body: 'petit julkaistaan harvinaisten droppien kanavaan.' },
         ],
       },
       caFigure: {

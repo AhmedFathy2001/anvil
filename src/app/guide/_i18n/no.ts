@@ -579,8 +579,8 @@ const no: PartialGuideDict = {
         alt: 'Bingo-seksjonen i pluginets innstillinger med hver innstilling rammet inn og nummerert',
         legend: [
           {
-            label: 'Auto Submit Drops',
-            body: 'tar et skjermbilde og sender inn et sporet drop i samme øyeblikk det faller. La den stå på; det er hele poenget.',
+            label: 'Send live XP & KC',
+            body: 'sender XP-en og boss-KC-en din til siden mens du spiller, slik at SOTW/BOTW-stillinger og stat-ruter beveger seg mens du trener i stedet for å vente på hiscores. La den stå på; det er den som holder fremgangen din live.',
           },
           {
             label: 'Show Overlay',
@@ -597,10 +597,6 @@ const no: PartialGuideDict = {
           {
             label: 'Banner sound + volume',
             body: 'spiller en lyd sammen med banneret. Ingenting skjer før du selv legger til minst én .wav-fil, via **Add clip** under “Banner sounds” i Anvil-sidepanelet.',
-          },
-          {
-            label: 'Two-frame drop proof',
-            body: 'baker inn et bilde nummer to i skjermbildet et par sekunder senere, når lootet har lagt seg på bakken. La den stå på; den sparer deg for diskusjoner.',
           },
         ],
       },
@@ -635,12 +631,11 @@ const no: PartialGuideDict = {
             label: 'Min drop value / Min drop rarity',
             body: 'to uavhengige veier til et innlegg: verdt minst så mye (GE eller high alch, det som er høyest), eller sjeldnere enn 1 av N (1/10 000 som standard — løsere innstillinger fyller kanalen med urteruller). Klanen din kan sette en sjeldenhetsgrense som gjelder alle; din egen gjelder likevel når den er strengere. Sett en av dem til 0 for å slå av den veien.',
           },
-          { label: 'Screenshot rare drops', body: 'legg ved bildet, ikke bare teksten.' },
           {
             label: 'Loot key value',
             body: 'en loot key postes én gang, som ett enkelt varsel, når hele innholdet passerer dette tallet.',
           },
-          { label: 'Notify on pets + Screenshot pets', body: 'pets postes i kanalen for sjeldne drops.' },
+          { label: 'Notify on pets', body: 'pets postes i kanalen for sjeldne drops.' },
         ],
       },
       caFigure: {

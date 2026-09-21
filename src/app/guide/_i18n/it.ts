@@ -578,8 +578,8 @@ const it: PartialGuideDict = {
         alt: 'La sezione Bingo della configurazione del plugin con ogni impostazione evidenziata e numerata',
         legend: [
           {
-            label: 'Auto Submit Drops',
-            body: 'fotografa e invia un drop tracciato nell’istante in cui cade. Lascialo attivo; è tutto il senso della cosa.',
+            label: 'Send live XP & KC',
+            body: 'invia i tuoi XP e i KC dei boss al sito mentre giochi, così le classifiche SOTW/BOTW e le caselle statistiche si muovono mentre alleni invece di aspettare gli hiscores. Lascialo attivo; è ciò che tiene i tuoi progressi in tempo reale.',
           },
           {
             label: 'Show Overlay',
@@ -596,10 +596,6 @@ const it: PartialGuideDict = {
           {
             label: 'Banner sound + volume',
             body: 'riproduce un suono insieme al banner. Non succede nulla finché non aggiungi almeno un .wav tu, con **Add clip** sotto “Banner sounds” nel pannello laterale di Anvil.',
-          },
-          {
-            label: 'Two-frame drop proof',
-            body: 'inserisce nello screenshot un secondo fotogramma un paio di secondi dopo, quando il loot si è posato a terra. Tienilo attivo; evita discussioni.',
           },
         ],
       },
@@ -628,12 +624,11 @@ const it: PartialGuideDict = {
             label: 'Min drop value / Min drop rarity',
             body: 'due strade indipendenti verso un post: vale almeno tanto (GE o high alch, il maggiore dei due) oppure è più raro di 1 su N (1/10.000 di base —— impostazioni più larghe riempiono il canale di erbe). Il tuo clan può fissare una soglia di rarità valida per tutti; la tua vale comunque quando è più severa. Metti 0 per disattivare una delle due strade.',
           },
-          { label: 'Screenshot rare drops', body: 'allega l’immagine, non solo il testo.' },
           {
             label: 'Loot key value',
             body: 'una loot key pubblica una volta sola, come singola notifica, quando il suo contenuto complessivo supera questa cifra.',
           },
-          { label: 'Notify on pets + Screenshot pets', body: 'i pet vengono pubblicati nel canale dei drop rari.' },
+          { label: 'Notify on pets', body: 'i pet vengono pubblicati nel canale dei drop rari.' },
         ],
       },
       caFigure: {

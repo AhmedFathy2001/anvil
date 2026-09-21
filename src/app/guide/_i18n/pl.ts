@@ -578,8 +578,8 @@ const pl: PartialGuideDict = {
         alt: 'Sekcja Bingo w konfiguracji pluginu z każdym ustawieniem zaznaczonym i ponumerowanym',
         legend: [
           {
-            label: 'Auto Submit Drops',
-            body: 'robi zrzut i wysyła śledzony drop w chwili, w której wypadnie. Zostaw włączone; o to w tym wszystkim chodzi.',
+            label: 'Send live XP & KC',
+            body: 'wysyła twoje XP i KC bossów na stronę w trakcie gry, więc rankingi SOTW/BOTW i pola statystyk ruszają się podczas treningu, zamiast czekać na hiscores. Zostaw włączone; to dzięki temu twój postęp jest na żywo.',
           },
           {
             label: 'Show Overlay',
@@ -596,10 +596,6 @@ const pl: PartialGuideDict = {
           {
             label: 'Banner sound + volume',
             body: 'odtwarza dźwięk razem z banerem. Nic nie zabrzmi, dopóki sam nie dodasz przynajmniej jednego pliku .wav przez **Add clip** pod „Banner sounds” w panelu bocznym Anvil.',
-          },
-          {
-            label: 'Two-frame drop proof',
-            body: 'wtapia w zrzut drugą klatkę kilka sekund później, gdy łup opadnie już na ziemię. Zostaw włączone; oszczędza kłótni.',
           },
         ],
       },
@@ -628,12 +624,11 @@ const pl: PartialGuideDict = {
             label: 'Min drop value / Min drop rarity',
             body: 'dwie niezależne drogi do wpisu: wart co najmniej tyle (GE albo high alch, co większe) albo rzadszy niż 1 na N (domyślnie 1/10 000 —— luźniejsze ustawienia zapychają kanał ziołami). Twój klan może ustawić próg rzadkości obowiązujący wszystkich; twój i tak obowiązuje, gdy jest ostrzejszy. Wpisz 0, żeby wyłączyć jedną z dróg.',
           },
-          { label: 'Screenshot rare drops', body: 'dołącza obraz, nie tylko tekst.' },
           {
             label: 'Loot key value',
             body: 'loot key publikuje się raz, jako jedno powiadomienie, gdy cała jego zawartość przekroczy tę liczbę.',
           },
-          { label: 'Notify on pets + Screenshot pets', body: 'pety trafiają na kanał rzadkich dropów.' },
+          { label: 'Notify on pets', body: 'pety trafiają na kanał rzadkich dropów.' },
         ],
       },
       caFigure: {

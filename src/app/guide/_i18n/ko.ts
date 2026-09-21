@@ -579,8 +579,8 @@ const ko: PartialGuideDict = {
         alt: '플러그인 설정의 Bingo 영역. 각 설정이 네모로 표시되고 번호가 매겨져 있음',
         legend: [
           {
-            label: 'Auto Submit Drops',
-            body: '추적 대상 드롭이 떨어지는 그 순간 스크린샷을 찍어 제출합니다. 켜 두세요. 이게 핵심입니다.',
+            label: 'Send live XP & KC',
+            body: '플레이하는 동안 경험치와 보스 처치 수를 사이트로 보내, 하이스코어 갱신을 기다리지 않고 SOTW/BOTW 순위와 스탯 타일이 바로 움직입니다. 켜 두세요. 진행 상황을 실시간으로 유지해 주는 설정입니다.',
           },
           {
             label: 'Show Overlay',
@@ -597,10 +597,6 @@ const ko: PartialGuideDict = {
           {
             label: 'Banner sound + volume',
             body: '배너와 함께 소리를 재생합니다. Anvil 사이드 패널의 “Banner sounds”에 있는 **Add clip**으로 .wav를 직접 하나 이상 추가하기 전에는 아무 소리도 나지 않습니다.',
-          },
-          {
-            label: 'Two-frame drop proof',
-            body: '몇 초 뒤, 전리품이 바닥에 자리 잡았을 때의 두 번째 장면을 스크린샷에 합쳐 넣습니다. 켜 두세요. 말다툼을 줄여 줍니다.',
           },
         ],
       },
@@ -635,12 +631,11 @@ const ko: PartialGuideDict = {
             label: 'Min drop value / Min drop rarity',
             body: '게시로 가는 두 개의 독립된 경로: 가치가 이 정도 이상이거나(GE와 high alch 중 높은 쪽), 확률이 N분의 1보다 희귀하거나(기본값 1/10,000 —— 느슨하게 잡으면 채널이 약초 굴림으로 도배됩니다). 클랜이 모두에게 적용되는 희귀도 하한을 정할 수 있지만, 당신의 설정이 더 엄격하면 그쪽이 적용됩니다. 둘 중 하나를 0으로 두면 그 경로가 꺼집니다.',
           },
-          { label: 'Screenshot rare drops', body: '글만이 아니라 이미지도 첨부합니다.' },
           {
             label: 'Loot key value',
             body: 'loot key는 내용물 전체가 이 수치를 넘을 때 한 번, 하나의 알림으로 올라갑니다.',
           },
-          { label: 'Notify on pets + Screenshot pets', body: '펫은 희귀 드롭 채널에 올라갑니다.' },
+          { label: 'Notify on pets', body: '펫은 희귀 드롭 채널에 올라갑니다.' },
         ],
       },
       caFigure: {

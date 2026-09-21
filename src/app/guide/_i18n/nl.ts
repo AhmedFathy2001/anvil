@@ -580,8 +580,8 @@ const nl: PartialGuideDict = {
         alt: 'Het Bingo-onderdeel van de plugin-instellingen met elke instelling omkaderd en genummerd',
         legend: [
           {
-            label: 'Auto Submit Drops',
-            body: 'maakt een schermafbeelding en dient een bijgehouden drop in op het moment dat hij valt. Laat dit aan; daar draait het om.',
+            label: 'Send live XP & KC',
+            body: 'stuurt je XP en boss-KC naar de site terwijl je speelt, zodat SOTW/BOTW-standen en stat-tegels meebewegen tijdens het trainen in plaats van op de hiscores te wachten. Laat dit aan staan; dit houdt je voortgang live.',
           },
           {
             label: 'Show Overlay',
@@ -598,10 +598,6 @@ const nl: PartialGuideDict = {
           {
             label: 'Banner sound + volume',
             body: 'speelt een geluid bij de banner. Er gebeurt niets tot je zelf minstens één .wav toevoegt, via **Add clip** onder “Banner sounds” in het Anvil-zijpaneel.',
-          },
-          {
-            label: 'Two-frame drop proof',
-            body: 'bakt een paar seconden later een tweede beeld in de schermafbeelding, als de loot op de grond is beland. Laat het aan; het bespaart discussies.',
           },
         ],
       },
@@ -636,12 +632,11 @@ const nl: PartialGuideDict = {
             label: 'Min drop value / Min drop rarity',
             body: 'twee onafhankelijke routes naar een bericht: minstens zoveel waard (GE of high alch, welke hoger is), of zeldzamer dan 1 op N (standaard 1/10.000 — lossere waarden vullen het kanaal met kruidenrollen). Je clan kan een zeldzaamheidsdrempel zetten die voor iedereen geldt; die van jou telt nog steeds als hij strenger is. Zet er een op 0 om die route uit te schakelen.',
           },
-          { label: 'Screenshot rare drops', body: 'de afbeelding meesturen, niet alleen de tekst.' },
           {
             label: 'Loot key value',
             body: 'een loot key wordt één keer gepost, als één melding, wanneer de hele inhoud boven dit getal uitkomt.',
           },
-          { label: 'Notify on pets + Screenshot pets', body: 'pets komen in het kanaal voor zeldzame drops.' },
+          { label: 'Notify on pets', body: 'pets komen in het kanaal voor zeldzame drops.' },
         ],
       },
       caFigure: {

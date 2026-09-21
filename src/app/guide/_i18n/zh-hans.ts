@@ -578,8 +578,8 @@ const zhHans: PartialGuideDict = {
         alt: '插件设置中的 Bingo 区块，每一项设置都被方框标出并编号',
         legend: [
           {
-            label: 'Auto Submit Drops',
-            body: '在被追踪的掉落落地的那一刻自动截图并提交。保持开启；整件事的重点就在这里。',
+            label: 'Send live XP & KC',
+            body: '在你游戏时把经验和 Boss 击杀数发送到站点，于是 SOTW/BOTW 榜单和属性格子在你练级时就会更新，而不必等待 hiscores。保持开启，它才是让进度实时更新的开关。',
           },
           {
             label: 'Show Overlay',
@@ -596,10 +596,6 @@ const zhHans: PartialGuideDict = {
           {
             label: 'Banner sound + volume',
             body: '在横幅出现时播放声音。在你自己通过 Anvil 侧边栏“Banner sounds”下的 **Add clip** 添加至少一个 .wav 之前，不会有任何声音。',
-          },
-          {
-            label: 'Two-frame drop proof',
-            body: '几秒之后、等掉落物落定在地上时，再把第二帧合进截图。保持开启；能省下不少争论。',
           },
         ],
       },
@@ -634,12 +630,11 @@ const zhHans: PartialGuideDict = {
             label: 'Min drop value / Min drop rarity',
             body: '两条相互独立的触发路径：价值至少达到这个数（GE 价与 high alch 取高者），或者稀有度高于 N 分之一（默认 1/10,000 —— 阈值放得太松，频道会被草药类掉落刷屏）。你的氏族可以设一个对所有人生效的稀有度下限；当你自己的更严格时依然以你的为准。把其中任一项设为 0 即可关闭该路径。',
           },
-          { label: 'Screenshot rare drops', body: '附上图片，而不只是文字。' },
           {
             label: 'Loot key value',
             body: '当一把 loot key 的全部内容超过这个数值时，作为单条通知一次性发出。',
           },
-          { label: 'Notify on pets + Screenshot pets', body: '宠物发到稀有掉落频道。' },
+          { label: 'Notify on pets', body: '宠物发到稀有掉落频道。' },
         ],
       },
       caFigure: {

@@ -580,8 +580,8 @@ const de: PartialGuideDict = {
         alt: 'Der Bingo-Abschnitt der Plugin-Konfiguration mit umrahmten und nummerierten Einstellungen',
         legend: [
           {
-            label: 'Auto Submit Drops',
-            body: 'macht einen Screenshot und reicht einen erfassten Drop in dem Moment ein, in dem er fällt. Lass das an; darum geht es im Kern.',
+            label: 'Send live XP & KC',
+            body: 'schickt deine XP und Boss-KC live an die Seite, damit SOTW/BOTW-Wertungen und Stat-Felder sich schon beim Trainieren bewegen, statt auf die Hiscores zu warten. Lass sie an; sie hält deinen Fortschritt aktuell.',
           },
           {
             label: 'Show Overlay',
@@ -598,10 +598,6 @@ const de: PartialGuideDict = {
           {
             label: 'Banner sound + volume',
             body: 'spielt zum Banner einen Ton ab. Es passiert nichts, bis du selbst mindestens eine .wav-Datei hinzufügst, über **Add clip** unter „Banner sounds“ im Anvil-Seitenpanel.',
-          },
-          {
-            label: 'Two-frame drop proof',
-            body: 'backt ein paar Sekunden später ein zweites Bild in den Screenshot ein, wenn sich der Loot auf dem Boden gelegt hat. Lass es an; es erspart Diskussionen.',
           },
         ],
       },
@@ -636,12 +632,11 @@ const de: PartialGuideDict = {
             label: 'Min drop value / Min drop rarity',
             body: 'zwei unabhängige Wege zu einem Post: mindestens so viel wert (GE oder High Alch, was höher ist), oder seltener als 1 zu N (standardmäßig 1/10.000 — lockerere Werte füllen den Kanal mit Kräuterwürfen). Dein Clan kann eine Seltenheitsgrenze setzen, die für alle gilt; deine eigene greift trotzdem, wenn sie strenger ist. Setze einen der beiden auf 0, um diesen Weg abzuschalten.',
           },
-          { label: 'Screenshot rare drops', body: 'das Bild anhängen, nicht nur den Text.' },
           {
             label: 'Loot key value',
             body: 'ein Loot Key wird einmal gepostet, als eine einzige Benachrichtigung, wenn sein gesamter Inhalt diese Zahl übersteigt.',
           },
-          { label: 'Notify on pets + Screenshot pets', body: 'Pets landen im Kanal für seltene Drops.' },
+          { label: 'Notify on pets', body: 'Pets landen im Kanal für seltene Drops.' },
         ],
       },
       caFigure: {

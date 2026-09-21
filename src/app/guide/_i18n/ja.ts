@@ -579,8 +579,8 @@ const ja: PartialGuideDict = {
         alt: 'プラグイン設定の Bingo セクション。各設定が枠で囲まれ番号が振られている',
         legend: [
           {
-            label: 'Auto Submit Drops',
-            body: '追跡対象のドロップが落ちたその瞬間にスクリーンショットを撮って提出します。オンのままで。これこそが本題です。',
+            label: 'Send live XP & KC',
+            body: 'プレイ中に経験値とボスの討伐数をサイトへ送るので、ハイスコアの更新を待たずに SOTW/BOTW の順位やステータスタイルがその場で動きます。オンのままにしてください。進捗をリアルタイムに保つのはこの設定です。',
           },
           {
             label: 'Show Overlay',
@@ -597,10 +597,6 @@ const ja: PartialGuideDict = {
           {
             label: 'Banner sound + volume',
             body: 'バナーと一緒に音を鳴らします。Anvil サイドパネルの「Banner sounds」にある **Add clip** から .wav を自分で 1 つ以上追加するまでは、何も鳴りません。',
-          },
-          {
-            label: 'Two-frame drop proof',
-            body: '数秒後、戦利品が地面に落ち着いたところをもう 1 枚スクリーンショットに焼き込みます。オンのままで。もめ事の節約になります。',
           },
         ],
       },
@@ -635,12 +631,11 @@ const ja: PartialGuideDict = {
             label: 'Min drop value / Min drop rarity',
             body: '投稿に至る独立した 2 つの経路：価値がこれ以上（GE 価格と high alch の高いほう）か、N 分の 1 より稀か（既定は 1/10,000 —— 緩くするとハーブ系のロールでチャンネルが埋まります）。クラン側が全員に適用される稀少度の下限を設定できますが、あなたの設定のほうが厳しい場合はそちらが効きます。どちらかを 0 にすればその経路を止められます。',
           },
-          { label: 'Screenshot rare drops', body: 'テキストだけでなく画像も添付します。' },
           {
             label: 'Loot key value',
             body: 'loot key は中身の合計がこの数値を超えたとき、1 通の通知としてまとめて投稿されます。',
           },
-          { label: 'Notify on pets + Screenshot pets', body: 'ペットはレアドロップのチャンネルに投稿されます。' },
+          { label: 'Notify on pets', body: 'ペットはレアドロップのチャンネルに投稿されます。' },
         ],
       },
       caFigure: {

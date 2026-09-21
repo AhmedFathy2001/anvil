@@ -583,8 +583,8 @@ export const en = {
         alt: 'The Bingo section of the plugin config with each setting boxed and numbered',
         legend: [
           {
-            label: 'Auto Submit Drops',
-            body: 'screenshots and submits a tracked drop the moment it lands. Leave this on; it’s the whole point.',
+            label: 'Send live XP & KC',
+            body: 'sends your XP and boss KC to the site as you play, so SOTW/BOTW standings and stat tiles move while you train instead of waiting on the hiscores. Leave it on; it is what keeps your progress live.',
           },
           {
             label: 'Show Overlay',
@@ -601,10 +601,6 @@ export const en = {
           {
             label: 'Distinct mission sound',
             body: 'gives a mission dropping — and someone claiming one — its own chime, so you can tell it from an ordinary tile completion without looking.',
-          },
-          {
-            label: 'Two-frame drop proof',
-            body: 'bakes a second frame into the screenshot a couple of seconds later, once loot has settled on the floor. Keep it on; it saves arguments.',
           },
         ],
       },
@@ -633,12 +629,11 @@ export const en = {
             label: 'Min drop value / Min drop rarity',
             body: 'two independent routes to a post: worth at least this much (GE or high alch, whichever is higher), or rarer than 1-in-N (1/10,000 by default — looser settings fill the channel with herb rolls). Your clan can set a rarity floor that applies to everyone; yours still applies when it is stricter. Set either to 0 to switch that route off.',
           },
-          { label: 'Screenshot rare drops', body: 'attach the picture, not just the text.' },
           {
             label: 'Loot key value',
             body: 'a loot key posts once, as a single notification, when its whole contents clear this number.',
           },
-          { label: 'Notify on pets + Screenshot pets', body: 'pets post to the rare-drops channel.' },
+          { label: 'Notify on pets', body: 'pets post to the rare-drops channel.' },
         ],
       },
       caFigure: {

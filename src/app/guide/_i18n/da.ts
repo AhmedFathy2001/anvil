@@ -585,8 +585,8 @@ const da: PartialGuideDict = {
         alt: 'Bingo-afsnittet i pluginnets indstillinger med hver indstilling markeret og nummereret',
         legend: [
           {
-            label: 'Auto Submit Drops',
-            body: 'tager et screenshot og indsender et tracket drop i samme øjeblik, det falder. Lad den være tændt; det er hele pointen.',
+            label: 'Send live XP & KC',
+            body: 'sender din XP og boss-KC til siden mens du spiller, så SOTW/BOTW-stillinger og stat-felter flytter sig mens du træner i stedet for at vente på hiscores. Lad den være slået til; det er den, der holder din fremgang live.',
           },
           {
             label: 'Show Overlay',
@@ -603,10 +603,6 @@ const da: PartialGuideDict = {
           {
             label: 'Banner sound + volume',
             body: 'afspiller en lyd sammen med banneret. Der sker ingenting, før du selv tilføjer mindst én .wav-fil via **Add clip** under “Banner sounds” i Anvil-sidepanelet.',
-          },
-          {
-            label: 'Two-frame drop proof',
-            body: 'bager et billede nummer to ind i screenshottet et par sekunder senere, når loot har lagt sig på jorden. Lad den være tændt; den sparer dig for diskussioner.',
           },
         ],
       },
@@ -641,12 +637,11 @@ const da: PartialGuideDict = {
             label: 'Min drop value / Min drop rarity',
             body: 'to uafhængige veje til et opslag: værd mindst så meget (GE eller high alch, alt efter hvad der er højest), eller sjældnere end 1-ud-af-N (1/10.000 som standard — løsere indstillinger fylder kanalen med urteruller). Din klan kan sætte en sjældenhedsgrænse, der gælder alle; din egen gælder stadig, når den er strengere. Sæt en af dem til 0 for at slukke den vej.',
           },
-          { label: 'Screenshot rare drops', body: 'vedhæft billedet, ikke bare teksten.' },
           {
             label: 'Loot key value',
             body: 'en loot key posteres én gang, som én besked, når hele indholdet kommer over dette tal.',
           },
-          { label: 'Notify on pets + Screenshot pets', body: 'pets lander i kanalen for sjældne drops.' },
+          { label: 'Notify on pets', body: 'pets lander i kanalen for sjældne drops.' },
         ],
       },
       caFigure: {

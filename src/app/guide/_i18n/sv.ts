@@ -579,8 +579,8 @@ const sv: PartialGuideDict = {
         alt: 'Bingo-avsnittet i pluginets inställningar med varje inställning inramad och numrerad',
         legend: [
           {
-            label: 'Auto Submit Drops',
-            body: 'tar en skärmbild och skickar in en spårad drop i samma stund den faller. Låt den vara på; det är hela poängen.',
+            label: 'Send live XP & KC',
+            body: 'skickar din XP och boss-KC till sajten medan du spelar, så att SOTW/BOTW-ställningar och statrutor rör sig medan du tränar i stället för att vänta på hiscores. Låt den vara på; det är den som håller dina framsteg live.',
           },
           {
             label: 'Show Overlay',
@@ -597,10 +597,6 @@ const sv: PartialGuideDict = {
           {
             label: 'Banner sound + volume',
             body: 'spelar ett ljud tillsammans med bannern. Ingenting händer förrän du själv lägger till minst en .wav-fil, via **Add clip** under ”Banner sounds” i Anvils sidopanel.',
-          },
-          {
-            label: 'Two-frame drop proof',
-            body: 'bakar in en andra bild i skärmbilden ett par sekunder senare, när lootet har lagt sig på marken. Låt den vara på; den besparar dig diskussioner.',
           },
         ],
       },
@@ -635,12 +631,11 @@ const sv: PartialGuideDict = {
             label: 'Min drop value / Min drop rarity',
             body: 'två oberoende vägar till ett inlägg: värt minst så här mycket (GE eller high alch, det som är högst), eller ovanligare än 1 på N (1/10 000 som standard — lösare inställningar fyller kanalen med örtrullar). Din klan kan sätta en sällsynthetsgräns som gäller alla; din egen gäller ändå när den är strängare. Sätt någon av dem till 0 för att stänga av den vägen.',
           },
-          { label: 'Screenshot rare drops', body: 'bifoga bilden, inte bara texten.' },
           {
             label: 'Loot key value',
             body: 'en loot key postas en gång, som en enda notis, när hela innehållet passerar det här talet.',
           },
-          { label: 'Notify on pets + Screenshot pets', body: 'pets postas i kanalen för sällsynta drops.' },
+          { label: 'Notify on pets', body: 'pets postas i kanalen för sällsynta drops.' },
         ],
       },
       caFigure: {
