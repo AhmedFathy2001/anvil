@@ -834,6 +834,41 @@ export function autoClaimAllowed(
   return !established;
 }
 
+/**
+ * The owner of this character is playing, pointed at this clan. Make sure the clan can see that.
+ *
+ * A live seat is stamped and left alone — a member stays a member, and a guest stays a guest. A
+ * DEPARTED seat comes back as a guest rather than as whatever it was: the in-game roster dropped
+ * them, so member is exactly what they are not, and reviving the old kind would quietly re-admit
+ * somebody the clan removed. No seat at all becomes a guest, the same state the unclaimed path
+ * already creates for a character it links here.
+ *
+ * `source: 'admin'` seats are left alone entirely, in both directions. An admin placed that seat by
+ * hand, including the decision to end it, and a plugin ping is not an argument against a person.
+ */
+async function seatOwnedCharacterAsGuest(clanId: number, accountId: number, nowIso: string): Promise<void> {
+  const [seat] = await db
+    .select({ id: clanMemberships.id, kind: clanMemberships.kind, leftAt: clanMemberships.leftAt, source: clanMemberships.source })
+    .from(clanMemberships)
+    .where(and(eq(clanMemberships.clanId, clanId), eq(clanMemberships.accountId, accountId)))
+    .limit(1);
+
+  if (!seat) {
+    const seatId = await findOrCreateSeat(clanId, accountId, { kind: 'guest' });
+    await db.update(clanMemberships).set({ lastSeenInClan: nowIso }).where(eq(clanMemberships.id, seatId));
+    return;
+  }
+  if (seat.source === 'admin') return;
+  if (seat.leftAt == null) {
+    await db.update(clanMemberships).set({ lastSeenInClan: nowIso }).where(eq(clanMemberships.id, seat.id));
+    return;
+  }
+  await db
+    .update(clanMemberships)
+    .set({ kind: 'guest', leftAt: null, lastSeenInClan: nowIso })
+    .where(eq(clanMemberships.id, seat.id));
+}
+
 async function autoLinkOrSuggestOnPlay(
   clanId: number,
   userId: number,
@@ -854,10 +889,25 @@ async function autoLinkOrSuggestOnPlay(
     const ownedByRsn =
       ownedAccount ?? (await db.query.accounts.findFirst({ where: eq(accounts.rsnNormalized, normalizedRsn) }));
 
-    // Owned already — theirs (linked) or someone else's (not ours to touch). Nothing to auto-add.
+    // Owned already — theirs (linked) or someone else's (not ours to touch). Nothing to CLAIM here.
     // Claimed, not "has a person": every account has a person, so player_id says nothing about
     // whether anyone has claimed it, and testing it here stopped this path linking anything at all.
-    if (ownedByRsn?.claimedAt != null) return;
+    //
+    // But an owned character is still being PLAYED, at a clan this token names, and that used to
+    // mean nothing at all: the function returned, so somebody the in-game roster had dropped stayed
+    // marked as gone while they played every day with the plugin pointed here. They disappeared from
+    // the clan's surfaces and the clan had no way to tell they were still around.
+    //
+    // Seating them as a guest is the honest record of what just happened. Only for the owner — a
+    // character somebody else claimed is not this login's to seat anywhere — and never as a member,
+    // which stays the in-game roster's word. See seatOwnedCharacterAsGuest.
+    if (ownedByRsn?.claimedAt != null) {
+      const mine = await personOf(userId);
+      if (mine != null && ownedByRsn.playerId === mine) {
+        await seatOwnedCharacterAsGuest(clanId, ownedByRsn.id, nowIso);
+      }
+      return;
+    }
 
     // "Do they already have a seat HERE?" is about this clan, and only this clan. Unscoped, the
     // branch below reached whatever seat it found: someone playing with their plugin pointed at clan

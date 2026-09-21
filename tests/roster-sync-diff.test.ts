@@ -10,7 +10,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { accountChanged, seatChanged, lastSeenIsFresh, type RosterFacts } from '../src/lib/rosterSync.ts';
+import { accountChanged, seatChanged, departureFor, lastSeenIsFresh, type RosterFacts } from '../src/lib/rosterSync.ts';
 
 const HOUR = 60 * 60 * 1000;
 const NOW = '2026-09-08T12:00:00.000Z';
@@ -79,4 +79,14 @@ test('a member never stamped is never fresh, and a bad stamp is not fresh either
 test('a stamp from the future is clock skew, not a reason to write', () => {
   const ahead = new Date(Date.parse(NOW) + HOUR).toISOString();
   assert.equal(lastSeenIsFresh(ahead, NOW, HOUR), true);
+});
+
+// ── Leaving the clan is not leaving the site ─────────────────────────────────
+
+test('a member the roster drops becomes a guest when somebody actually plays them', () => {
+  assert.equal(departureFor({ claimed: true }), 'guest');
+});
+
+test('an unclaimed name departs, because there was never anybody there', () => {
+  assert.equal(departureFor({ claimed: false }), 'left');
 });

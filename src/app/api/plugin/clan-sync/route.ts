@@ -18,7 +18,7 @@ import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 import { capMessage, newMemberAllowance, syncCapGrace } from '@/lib/member-cap';
 import { getInGameClanName } from '@/lib/pluginConfig';
 import { log } from '@/lib/logger';
-import { accountChanged, seatChanged, lastSeenIsFresh, rosterReadVerdict } from '@/lib/rosterSync';
+import { accountChanged, seatChanged, departureFor, lastSeenIsFresh, rosterReadVerdict } from '@/lib/rosterSync';
 
 interface IncomingMember {
   rsn: string;
@@ -637,7 +637,7 @@ export async function POST(request: Request) {
   // in-game roster not listing them is not evidence they left — it is usually evidence they were
   // never in the clan in game, which is what a guest IS.
   const departing = await db
-    .select({ id: clanRoster.id, rsn: clanRoster.rsn })
+    .select({ id: clanRoster.id, rsn: clanRoster.rsn, claimedAt: clanRoster.claimedAt })
     .from(clanRoster)
     .where(
       and(
@@ -650,17 +650,47 @@ export async function POST(request: Request) {
           : eq(clanRoster.source, 'roster'),
       ),
     );
-  const leftResult = departing.length
+  // WHO IS BEHIND THE SEAT DECIDES WHAT LEAVING MEANS — an unclaimed name departs, a claimed one
+  // becomes a guest. The rule, and why, is in lib/rosterSync.departureFor.
+  const becomingGuests = departing.filter((d) => departureFor({ claimed: d.claimedAt != null }) === 'guest');
+  const trulyDeparting = departing.filter((d) => departureFor({ claimed: d.claimedAt != null }) === 'left');
+
+  const guestResult = becomingGuests.length
     ? await db
         .update(clanMemberships)
-        .set({ leftAt: now })
-        .where(inArray(clanMemberships.id, departing.map((d) => d.id)))
+        .set({ kind: 'guest' })
+        .where(inArray(clanMemberships.id, becomingGuests.map((d) => d.id)))
         .returning({ id: clanMemberships.id })
         .then((rows) => {
-          const byId = new Map(departing.map((d) => [d.id, d.rsn]));
+          const byId = new Map(becomingGuests.map((d) => [d.id, d.rsn]));
           return rows.map((r) => ({ id: r.id, rsn: byId.get(r.id)! }));
         })
     : [];
+
+  const leftResult = trulyDeparting.length
+    ? await db
+        .update(clanMemberships)
+        .set({ leftAt: now })
+        .where(inArray(clanMemberships.id, trulyDeparting.map((d) => d.id)))
+        .returning({ id: clanMemberships.id })
+        .then((rows) => {
+          const byId = new Map(trulyDeparting.map((d) => [d.id, d.rsn]));
+          return rows.map((r) => ({ id: r.id, rsn: byId.get(r.id)! }));
+        })
+    : [];
+
+  // Both are announced as having left, because that is the fact: they are off the in-game roster.
+  // The difference is what the site did with the seat, which the clan's own history records.
+  for (const guest of guestResult) {
+    changes.push({ type: 'left', rsn: guest.rsn, memberId: guest.id });
+    auditPayload.push({
+      clanId: clan.id,
+      clanMemberId: guest.id,
+      eventType: 'left',
+      oldValue: JSON.stringify({ rsn: guest.rsn }),
+      notes: 'Missing from the in-game roster — kept as a guest, because somebody on the site plays this character',
+    });
+  }
 
   for (const left of leftResult) {
     changes.push({ type: 'left', rsn: left.rsn, memberId: left.id });

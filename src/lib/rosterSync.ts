@@ -143,3 +143,32 @@ export function rosterReadVerdict(facts: RosterReadFacts): RosterReadRefusal | n
 
   return null;
 }
+
+// ── What leaving the in-game clan does to a seat ─────────────────────────────
+
+export interface DepartingSeat {
+  /** Has a real person claimed the character in this seat? */
+  claimed: boolean;
+}
+
+export type DepartureOutcome = 'guest' | 'left';
+
+/**
+ * The in-game roster no longer lists this member. What becomes of their seat?
+ *
+ * A seat nobody ever claimed is a name this sync invented — the roster is the only thing that ever
+ * said it existed, so when the roster stops saying it, it departs.
+ *
+ * A CLAIMED seat is a person. They hold a login, their plugin may still be pointed here, and the
+ * clan holds their history either way. Marking them gone deleted them from every clan surface while
+ * they carried on playing, which is how somebody still in the clan's Discord, still turning up on
+ * its boards, became invisible to it. They become a GUEST: the state the model already has for
+ * "plays with us, not on the in-game roster", and the one their other characters are usually in.
+ *
+ * MEMBERSHIP IS STILL THE ROSTER'S WORD. A guest is not a member, is not counted as one, and only a
+ * later sync or an admin promotes them back. What changes is that leaving the CC stops meaning
+ * leaving the site.
+ */
+export function departureFor(seat: DepartingSeat): DepartureOutcome {
+  return seat.claimed ? 'guest' : 'left';
+}
