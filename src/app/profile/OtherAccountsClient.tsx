@@ -15,6 +15,13 @@ import Checkbox from '@/components/Checkbox';
  * could only reach from a clan that already knew about the account would be no use.
  *
  * Deliberately thin. It is not a second account list; it is where the switch lives.
+ *
+ * THE HEADING USED TO SAY "this clan cannot see these", which stopped being true when characters
+ * became public by default (schema: accounts.shared defaults true). The rule is seat OR shared, so a
+ * shared character IS visible here — and every box on this list is ticked out of the box, directly
+ * under a sentence promising the opposite. What the list really means is "no seat here", which is
+ * about what COUNTS rather than about what is visible; Share is the visibility half, and it now says
+ * which way its default points.
  */
 export default function OtherAccountsClient({ accounts }: { accounts: LockerOtherAccount[] }) {
   const router = useRouter();
@@ -44,12 +51,13 @@ export default function OtherAccountsClient({ accounts }: { accounts: LockerOthe
   return (
     <div className="mt-4">
       <div className="text-xs uppercase tracking-wider text-text-muted mb-2">
-        Your other accounts &mdash; this clan cannot see these
+        Your other characters &mdash; not on this clan&rsquo;s roster
       </div>
       <p className="text-xs text-text-muted mb-2.5">
-        They&rsquo;re not on this clan&rsquo;s roster, so nobody here can see them. Only you see this
-        list. Turning on Share lets clans you aren&rsquo;t in see that account &mdash; useful when you
-        apply somewhere or play against them, and off until you say otherwise.
+        This clan holds no seat for these, so nothing here counts them. What it can still{' '}
+        <span className="text-foreground/80">see</span> is up to Share: on (the default) any clan can
+        look this character up, which is what lets you apply somewhere or be recognised playing
+        against them. Turn it off and only clans you actually hold a seat in can see it.
       </p>
       {error && <p className="text-xs text-red-300 mb-2">{error}</p>}
       <div className="space-y-1.5">
