@@ -9,6 +9,7 @@ import {
   probeRsnReachable,
   reviewPendingRenames,
   computeLeaderboard,
+  getEffectiveParticipants,
 } from '@/lib/weekly';
 import { notifyWeeklyStart, notifyWeeklyResults } from '@/lib/discord';
 import { log } from '@/lib/logger';
@@ -22,14 +23,12 @@ export const maxDuration = 300;
 
 // Final, deduped standings for a competition (gains floored at 0), for the results announcement.
 async function buildWeeklyStandings(competitionId: number): Promise<{ rsn: string; gained: number }[]> {
-  const participants = await db
-    .select({
-      rsn: weeklyParticipants.rsn,
-      baselineValue: weeklyParticipants.baselineValue,
-      currentValue: weeklyParticipants.currentValue,
-    })
-    .from(weeklyParticipants)
-    .where(eq(weeklyParticipants.competitionId, competitionId));
+  // THE SAME "who still counts" EVERY OTHER SURFACE USES. This built its own query and forgot the
+  // one thing that query is for: somebody who left the clan mid-competition was still in the
+  // results post. The site standings, the plugin leaderboard and /sotw had all dropped them, so the
+  // announcement named a member the clan no longer has — and contradicted every other reading of
+  // the same competition.
+  const participants = await getEffectiveParticipants(competitionId);
   // Dedupe by normalized RSN (rename/re-enroll can leave two rows), keeping the most progress.
   const byRsn = new Map<string, (typeof participants)[number]>();
   for (const p of participants) {

@@ -3,7 +3,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { reserveWeeklyAward } from '@/lib/coffer';
-import { computeLeaderboard } from '@/lib/weekly';
+import { computeLeaderboard, countsTowardLeaderboard } from '@/lib/weekly';
 import { parseWeeklyPrizes, winnersFor } from '@/lib/weeklyPrizes';
 import { ordinal } from '@/lib/utils';
 
@@ -62,7 +62,11 @@ export async function settleWeeklyPrizes(competitionId: number): Promise<SettleR
     })
     .from(weeklyParticipants)
     .leftJoin(clanRoster, eq(weeklyParticipants.clanMemberId, clanRoster.id))
-    .where(eq(weeklyParticipants.competitionId, competitionId));
+    // Leavers are not on this board — the same rule the standings everywhere else already apply.
+    // Without it the coffer could pay a placing to somebody who left the clan before it ended,
+    // while the leaderboard that decided the placings had already dropped them: the prize would go
+    // to a name nobody could see on the board it was awarded from.
+    .where(and(eq(weeklyParticipants.competitionId, competitionId), countsTowardLeaderboard()));
 
   // Guests rank on the board when the clan allows it, but the coffer is the clan's money — paying a
   // visitor out of it is a decision a host makes deliberately, not one a default should make.

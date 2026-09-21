@@ -4,6 +4,7 @@ import { and, count, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { BOSSES, EFFICIENCY_LABELS, SKILL_LABELS } from '@/lib/constants';
 import { competitionImageUrl } from '@/lib/tileIcons';
 import { dayRange, metricGain, type CompetitionType } from '@/lib/competitionInsights';
+import { countsTowardLeaderboard } from '@/lib/weekly';
 
 /**
  * A weekly competition, reduced to what a card needs.
@@ -97,14 +98,19 @@ export async function loadWeeklyCards(
       rn: sql<number>`row_number() over (partition by ${weeklyParticipants.competitionId} order by ${gained} desc, ${weeklyParticipants.rsn} asc)`.as('rn'),
     })
     .from(weeklyParticipants)
-    .where(inArray(weeklyParticipants.competitionId, ids))
+    // Leavers are off the board everywhere else, so a card that ignored them could name somebody
+    // who left the clan as the leader of a week their own standings page no longer showed them in.
+    .leftJoin(clanRoster, eq(weeklyParticipants.clanMemberId, clanRoster.id))
+    .where(and(inArray(weeklyParticipants.competitionId, ids), countsTowardLeaderboard()))
     .as('ranked');
 
   const [entrantRows, leaderRows] = await Promise.all([
     db
       .select({ competitionId: weeklyParticipants.competitionId, c: count() })
       .from(weeklyParticipants)
-      .where(inArray(weeklyParticipants.competitionId, ids))
+      // Same rule for the headcount: "18 entrants" has to mean the 18 the board would list.
+      .leftJoin(clanRoster, eq(weeklyParticipants.clanMemberId, clanRoster.id))
+      .where(and(inArray(weeklyParticipants.competitionId, ids), countsTowardLeaderboard()))
       .groupBy(weeklyParticipants.competitionId),
     // Top TWO, so a tie at the top can be said out loud rather than silently resolved.
     db
