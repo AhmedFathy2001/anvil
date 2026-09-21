@@ -614,10 +614,6 @@ export const en = {
         alt: 'The Bingo section of the plugin config with each setting boxed and numbered',
         legend: [
           {
-            label: 'Send live XP & KC',
-            body: 'sends your XP and boss KC to the site as you play, so SOTW/BOTW standings and stat tiles move while you train instead of waiting on the hiscores. Leave it on; it is what keeps your progress live.',
-          },
-          {
             label: 'Show Overlay',
             body: 'draws a small _Anvil / Team / UTC date_ panel in the top-left. It becomes part of the picture in your proof screenshots, which is what makes a proof hard to fake or back-date. It’s off in this screenshot — turn it on if your clan wants team and time visible on every proof.',
           },

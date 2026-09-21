@@ -611,10 +611,6 @@ const de: PartialGuideDict = {
         alt: 'Der Bingo-Abschnitt der Plugin-Konfiguration mit umrahmten und nummerierten Einstellungen',
         legend: [
           {
-            label: 'Send live XP & KC',
-            body: 'schickt deine XP und Boss-KC live an die Seite, damit SOTW/BOTW-Wertungen und Stat-Felder sich schon beim Trainieren bewegen, statt auf die Hiscores zu warten. Lass sie an; sie hält deinen Fortschritt aktuell.',
-          },
-          {
             label: 'Show Overlay',
             body: 'zeichnet ein kleines Panel mit _Anvil / Team / UTC-Datum_ oben links. Es wird Teil des Bildes in deinen Nachweis-Screenshots, und genau das macht einen Nachweis schwer zu fälschen oder rückzudatieren. Auf diesem Screenshot ist es aus — schalte es ein, wenn dein Clan Team und Zeit auf jedem Nachweis sehen will.',
           },

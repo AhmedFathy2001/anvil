@@ -610,10 +610,6 @@ const sv: PartialGuideDict = {
         alt: 'Bingo-avsnittet i pluginets inställningar med varje inställning inramad och numrerad',
         legend: [
           {
-            label: 'Send live XP & KC',
-            body: 'skickar din XP och boss-KC till sajten medan du spelar, så att SOTW/BOTW-ställningar och statrutor rör sig medan du tränar i stället för att vänta på hiscores. Låt den vara på; det är den som håller dina framsteg live.',
-          },
-          {
             label: 'Show Overlay',
             body: 'ritar en liten panel med _Anvil / lag / UTC-datum_ uppe till vänster. Den blir en del av bilden i dina bevisskärmbilder, och det är just det som gör ett bevis svårt att förfalska eller datera bakåt. Den är av på den här bilden — slå på den om din klan vill se lag och tid på varje bevis.',
           },

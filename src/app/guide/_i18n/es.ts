@@ -611,10 +611,6 @@ const es: PartialGuideDict = {
         alt: 'La sección Bingo de los ajustes del plugin, con cada ajuste recuadrado y numerado',
         legend: [
           {
-            label: 'Send live XP & KC',
-            body: 'envía tu XP y tu KC de jefes al sitio mientras juegas, para que las clasificaciones de SOTW/BOTW y las casillas de estadísticas se muevan mientras entrenas en vez de esperar a los hiscores. Déjalo activado; es lo que mantiene tu progreso en vivo.',
-          },
-          {
             label: 'Show Overlay',
             body: 'dibuja un pequeño panel de _Anvil / equipo / fecha UTC_ arriba a la izquierda. Pasa a formar parte de la imagen en tus capturas de prueba, y es justo eso lo que hace difícil falsificar o antedatar una prueba. En esta captura está apagado — actívalo si tu clan quiere ver el equipo y la hora en cada prueba.',
           },

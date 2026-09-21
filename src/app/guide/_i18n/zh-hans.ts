@@ -609,10 +609,6 @@ const zhHans: PartialGuideDict = {
         alt: '插件设置中的 Bingo 区块，每一项设置都被方框标出并编号',
         legend: [
           {
-            label: 'Send live XP & KC',
-            body: '在你游戏时把经验和 Boss 击杀数发送到站点，于是 SOTW/BOTW 榜单和属性格子在你练级时就会更新，而不必等待 hiscores。保持开启，它才是让进度实时更新的开关。',
-          },
-          {
             label: 'Show Overlay',
             body: '在左上角画一个小小的 _Anvil / 队伍 / UTC 日期_ 面板。它会成为凭证截图画面的一部分，而正是这一点让凭证难以伪造或倒填日期。这张截图里它是关的 —— 如果你的氏族希望每张凭证上都能看到队伍和时间，就打开它。',
           },

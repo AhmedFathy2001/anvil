@@ -609,10 +609,6 @@ const ptBr: PartialGuideDict = {
         alt: 'A seção Bingo da configuração do plugin com cada opção destacada e numerada',
         legend: [
           {
-            label: 'Send live XP & KC',
-            body: 'envia seu XP e o KC de chefes para o site enquanto você joga, então as classificações de SOTW/BOTW e as casas de estatística se movem durante o treino em vez de esperar os hiscores. Deixe ligado; é o que mantém seu progresso ao vivo.',
-          },
-          {
             label: 'Show Overlay',
             body: 'desenha um pequeno painel _Anvil / time / data UTC_ no canto superior esquerdo. Ele vira parte da imagem nas suas capturas de prova, e é isso que torna uma prova difícil de falsificar ou retroagir. Está desligado nesta captura —— ligue se o seu clã quer time e horário visíveis em toda prova.',
           },

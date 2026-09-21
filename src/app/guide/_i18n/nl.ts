@@ -611,10 +611,6 @@ const nl: PartialGuideDict = {
         alt: 'Het Bingo-onderdeel van de plugin-instellingen met elke instelling omkaderd en genummerd',
         legend: [
           {
-            label: 'Send live XP & KC',
-            body: 'stuurt je XP en boss-KC naar de site terwijl je speelt, zodat SOTW/BOTW-standen en stat-tegels meebewegen tijdens het trainen in plaats van op de hiscores te wachten. Laat dit aan staan; dit houdt je voortgang live.',
-          },
-          {
             label: 'Show Overlay',
             body: 'tekent linksboven een klein paneel met _Anvil / team / UTC-datum_. Het wordt onderdeel van het beeld in je bewijsafbeeldingen, en juist dat maakt een bewijs lastig te vervalsen of terug te dateren. Op deze afbeelding staat het uit — zet het aan als je clan team en tijd op elk bewijs wil zien.',
           },

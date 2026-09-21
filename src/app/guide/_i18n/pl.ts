@@ -609,10 +609,6 @@ const pl: PartialGuideDict = {
         alt: 'Sekcja Bingo w konfiguracji pluginu z każdym ustawieniem zaznaczonym i ponumerowanym',
         legend: [
           {
-            label: 'Send live XP & KC',
-            body: 'wysyła twoje XP i KC bossów na stronę w trakcie gry, więc rankingi SOTW/BOTW i pola statystyk ruszają się podczas treningu, zamiast czekać na hiscores. Zostaw włączone; to dzięki temu twój postęp jest na żywo.',
-          },
-          {
             label: 'Show Overlay',
             body: 'rysuje mały panel _Anvil / drużyna / data UTC_ w lewym górnym rogu. Staje się częścią obrazu na twoich zrzutach dowodowych i to właśnie sprawia, że dowód trudno podrobić albo antydatować. Na tym zrzucie jest wyłączony —— włącz go, jeśli twój klan chce widzieć drużynę i czas na każdym dowodzie.',
           },

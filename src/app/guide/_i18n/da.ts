@@ -616,10 +616,6 @@ const da: PartialGuideDict = {
         alt: 'Bingo-afsnittet i pluginnets indstillinger med hver indstilling markeret og nummereret',
         legend: [
           {
-            label: 'Send live XP & KC',
-            body: 'sender din XP og boss-KC til siden mens du spiller, så SOTW/BOTW-stillinger og stat-felter flytter sig mens du træner i stedet for at vente på hiscores. Lad den være slået til; det er den, der holder din fremgang live.',
-          },
-          {
             label: 'Show Overlay',
             body: 'tegner et lille _Anvil / hold / UTC-dato_-panel øverst til venstre. Det bliver en del af billedet på dine bevis-screenshots, og det er netop dét, der gør et bevis svært at forfalske eller datere tilbage. Den er slukket på dette skærmbillede — tænd den, hvis din klan vil have hold og tidspunkt synligt på hvert bevis.',
           },

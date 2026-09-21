@@ -611,10 +611,6 @@ const fi: PartialGuideDict = {
         alt: 'Pluginin asetusten Bingo-osio, jossa jokainen asetus on kehystetty ja numeroitu',
         legend: [
           {
-            label: 'Send live XP & KC',
-            body: 'lähettää XP:si ja pomojen tappomäärät sivustolle pelatessasi, joten SOTW/BOTW-sijoitukset ja tilastoruudut liikkuvat jo treenatessa eivätkä odota hiscoresia. Jätä päälle; se pitää edistymisesi reaaliaikaisena.',
-          },
-          {
             label: 'Show Overlay',
             body: 'piirtää pienen _Anvil / joukkue / UTC-päivämäärä_ -paneelin vasempaan yläkulmaan. Siitä tulee osa todistekuvakaappaustesi kuvaa, ja juuri se tekee todisteen väärentämisestä tai taannehtivasta päiväämisestä vaikeaa. Se on pois päältä tässä kuvassa — laita se päälle jos klaanisi haluaa joukkueen ja ajan näkyviin jokaiseen todisteeseen.',
           },
