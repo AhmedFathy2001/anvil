@@ -537,10 +537,13 @@ export async function GET(request: Request) {
         const writeActivities = changed || !entry.hasActivities;
 
         // The bookkeeping, every poll — a narrow row now that the snapshot lives elsewhere.
+        // Enrolled in something live — a competition row or a stat tile — so the backoff tail is
+        // capped (lib/statHistory). Their board is the one a person refreshes while they train.
+        const racing = entry.weekly.length > 0 || entry.bingo.length > 0;
         await updateAccount(entry.accountId, {
                 statsOverallXp: overallXp,
                 statsMissStreak: missStreak,
-                statsNextDueAt: nextDueAt(missStreak, new Date()),
+                statsNextDueAt: nextDueAt(missStreak, new Date(), racing),
                 ...(writeActivities ? { statsActivities: JSON.stringify(readAllActivities(snapshot)) } : {}),
               });
         // The snapshot, only when it would differ. Its own table (schema accountStatSnapshots) so an

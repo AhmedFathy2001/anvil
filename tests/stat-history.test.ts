@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeDeltas, mergeDeltas } from '../src/lib/statDeltas.ts';
+import { nextDueAfterMiss, nextDueAt } from '../src/lib/pollLadder.ts';
 
 // The daily row's per-metric JSON is built one 15-minute tick at a time, and each tick only knows
 // what moved since the last fetch. These tests pin the accumulation, because the failure they guard
@@ -66,4 +67,44 @@ test('computeDeltas reports movement since the previous snapshot only', () => {
 
 test('a first-ever snapshot records no gains', () => {
   assert.deepEqual(computeDeltas(null, snap({ overall: 50_000_000, agility: 3_000_000 })), {});
+});
+
+// ── The poll ladder ──────────────────────────────────────────────────────────────────────────────
+//
+// The ladder exists because the hiscores budget is shared by every clan on the box, so an idle
+// member must not be polled every tick. It assumes the plugin is the live signal and the sweep only
+// fills gaps — and when a push stops arriving for any reason (the setting off, a failing config
+// poll, a client that simply isn't running), that assumption fails silently. What the person sees
+// is their own competition row frozen while they train the metric, which is indistinguishable from
+// the feature being broken. Hence a shorter tail for anyone actually racing.
+
+test('an idle member backs off to the full two hours', () => {
+  assert.equal(nextDueAfterMiss(1), 30 * 60_000);
+  assert.equal(nextDueAfterMiss(2), 60 * 60_000);
+  assert.equal(nextDueAfterMiss(3), 120 * 60_000);
+  assert.equal(nextDueAfterMiss(9), 120 * 60_000);
+});
+
+test('a member in a live competition is never left longer than half an hour', () => {
+  assert.equal(nextDueAfterMiss(3, true), 30 * 60_000);
+  assert.equal(nextDueAfterMiss(9, true), 30 * 60_000);
+});
+
+test('being enrolled never makes a poll LESS frequent', () => {
+  for (const streak of [0, 1, 2, 3, 12]) {
+    assert.ok(nextDueAfterMiss(streak, true) <= nextDueAfterMiss(streak, false));
+  }
+});
+
+test('a gain still clears the ladder outright, enrolled or not', () => {
+  assert.equal(nextDueAfterMiss(0), 0);
+  assert.equal(nextDueAfterMiss(0, true), 0);
+  assert.equal(nextDueAt(0, new Date()), null);
+  assert.equal(nextDueAt(0, new Date(), true), null);
+});
+
+test('the enrolled cap is applied to the timestamp the sweep actually writes', () => {
+  const from = new Date('2026-09-21T00:00:00.000Z');
+  assert.equal(nextDueAt(3, from), '2026-09-21T02:00:00.000Z');
+  assert.equal(nextDueAt(3, from, true), '2026-09-21T00:30:00.000Z');
 });

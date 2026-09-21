@@ -21,34 +21,11 @@ import { computeEhpEhb } from '@/lib/efficiency';
 import { EFFICIENCY_SCALE } from '@/lib/constants';
 
 // ── Adaptive polling ─────────────────────────────────────────────────────────────────────────────
+//
+// Moved to lib/pollLadder so it can be tested without a database; re-exported here because the
+// sweep and everything else already import it from this module.
 
-const MINUTE = 60_000;
-
-/**
- * How long until this member is worth fetching again, given how many consecutive fetches found
- * nothing new. Capped at two hours on purpose: everyone in the sweep's queue is enrolled in
- * something, so the cost of being late is a leaderboard that lags. A plugin push resets the streak,
- * so members running the plugin never sit on this ladder while they're playing.
- */
-export function nextDueAfterMiss(missStreak: number): number {
-  if (missStreak <= 0) return 0;          // just gained something — keep them hot
-  if (missStreak === 1) return 30 * MINUTE;
-  if (missStreak === 2) return 60 * MINUTE;
-  return 120 * MINUTE;
-}
-
-/** ISO timestamp for the member's next eligible fetch, or null for "due now". */
-export function nextDueAt(missStreak: number, from: Date = new Date()): string | null {
-  const ms = nextDueAfterMiss(missStreak);
-  return ms === 0 ? null : new Date(from.getTime() + ms).toISOString();
-}
-
-/** Whether a member is eligible this tick. Missing/!parseable due date means due. */
-export function isDue(nextDueAtIso: string | null | undefined, now: Date = new Date()): boolean {
-  if (!nextDueAtIso) return true;
-  const due = Date.parse(nextDueAtIso);
-  return Number.isNaN(due) || due <= now.getTime();
-}
+export { nextDueAfterMiss, nextDueAt, isDue } from '@/lib/pollLadder';
 
 // ── Daily history ────────────────────────────────────────────────────────────────────────────────
 

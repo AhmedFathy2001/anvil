@@ -17,6 +17,7 @@ import { notifyTileCompletion } from '@/lib/discord';
 import { evaluateCompletionGate, eventHasStarted } from '@/lib/completionGate';
 import { handleBountyClaim } from '@/lib/revealEngine';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
+import { log } from '@/lib/logger';
 
 // Real-time boss-KC / skill-XP / activity ingest. The plugin posts {stats:[{name,kc}],
 // skills:[{name,xp}], activities:[{key,value}]} with
@@ -49,6 +50,15 @@ export async function POST(request: Request) {
   // who's only in a weekly comp can still push live stats.
   const member = await resolvePluginMember(request);
   if (!member) {
+    // LOGGED, because the symptom of this is silence. A client that is running, authenticated for
+    // everything else, and refused here simply stops moving somebody's competition row — and with
+    // no record of the refusal, the only evidence left is a leaderboard that looks frozen. That is
+    // a day of guessing from the other end.
+    log.warn('plugin-stats.refused', {
+      clan: clan.slug,
+      rsn: request.headers.get('X-RSN')?.trim() || null,
+      reason: 'no-member',
+    });
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' }, { status: 401 });
   }
 
@@ -77,6 +87,8 @@ export async function POST(request: Request) {
   const incomingSkills = Array.isArray(body?.skills) ? body.skills : [];
   const incomingActivities = Array.isArray(body?.activities) ? body.activities : [];
   if (incoming.length === 0 && incomingSkills.length === 0 && incomingActivities.length === 0) {
+    // Same reason: a client sending empty bodies looks exactly like a client sending nothing.
+    log.warn('plugin-stats.refused', { clan: clan.slug, clanMemberId: member.clanMemberId, reason: 'empty' });
     return NextResponse.json({ ok: true, updated: 0 });
   }
 
