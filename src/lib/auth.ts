@@ -843,8 +843,11 @@ export function autoClaimAllowed(
  * somebody the clan removed. No seat at all becomes a guest, the same state the unclaimed path
  * already creates for a character it links here.
  *
- * `source: 'admin'` seats are left alone entirely, in both directions. An admin placed that seat by
- * hand, including the decision to end it, and a plugin ping is not an argument against a person.
+ * `source: 'admin'` and `source: 'manual'` seats are left alone entirely, in both directions. An
+ * admin placed that seat by hand, including the decision to end it, and `manual` is the mark a
+ * person leaves when they take themselves off a roster (lib/leaveClan). A plugin ping is not an
+ * argument against either decision — re-adding a seat somebody deliberately ended, because they
+ * logged in, is exactly the powerlessness that control was added to fix.
  */
 async function seatOwnedCharacterAsGuest(clanId: number, accountId: number, nowIso: string): Promise<void> {
   const [seat] = await db
@@ -858,7 +861,7 @@ async function seatOwnedCharacterAsGuest(clanId: number, accountId: number, nowI
     await db.update(clanMemberships).set({ lastSeenInClan: nowIso }).where(eq(clanMemberships.id, seatId));
     return;
   }
-  if (seat.source === 'admin') return;
+  if (seat.source === 'admin' || seat.source === 'manual') return;
   if (seat.leftAt == null) {
     await db.update(clanMemberships).set({ lastSeenInClan: nowIso }).where(eq(clanMemberships.id, seat.id));
     return;

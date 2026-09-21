@@ -81,6 +81,7 @@
     "test:weeklyhold": "npx tsx --test tests/weekly-prize-hold.test.ts",
     "test:merge": "npx tsx --test tests/merge-people.test.ts",
     "test:leaverguest": "npx tsx --test tests/leaver-stays-guest.test.ts",
+    "test:leaveclan": "npx tsx --test tests/leave-clan.test.ts",
     "test:splitgp": "npx tsx --test tests/split-gp.test.ts",
     "test:signupwindow": "npx tsx --test tests/signup-window.test.ts",
     "test:idmixup": "npx tsx --test tests/person-vs-login-id.test.ts",

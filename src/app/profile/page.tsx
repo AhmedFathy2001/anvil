@@ -1,5 +1,5 @@
 import { currentClan } from '@/lib/clanContext';
-import { accounts, players, clanRoster, users, detectedAccounts } from '@/db/schema';
+import { accounts, accounts as accountsTable, clanMemberships, players, clanRoster, users, detectedAccounts } from '@/db/schema';
 import { onboardingState } from '@/lib/onboarding';
 import { clansOfPerson } from '@/lib/myClans';
 import PersonProfile from '@/components/PersonProfile';
@@ -146,6 +146,29 @@ export default async function ProfilePage({
   const ignored = notOwned
     .filter((d) => d.status === 'dismissed')
     .map((d) => ({ id: d.id, rsn: d.rsn, lastSeenAt: d.lastSeenAt }));
+
+  // CAN THEY TAKE THIS SEAT BACK? Only a seat the in-game roster is not holding open is theirs to
+  // end — see lib/leaveClan — so the answer is computed here and the control says which case it is
+  // rather than finding out by being refused.
+  const liveSeats = clan
+    ? await db
+        .select({ kind: clanMemberships.kind, source: clanMemberships.source })
+        .from(clanMemberships)
+        .innerJoin(accountsTable, eq(accountsTable.id, clanMemberships.accountId))
+        .where(
+          and(
+            eq(clanMemberships.clanId, clan.id),
+            eq(accountsTable.playerId, session.playerId),
+            isNull(clanMemberships.leftAt),
+          ),
+        )
+    : [];
+  const leaveSeat: 'guest' | 'member-in-game' | null =
+    liveSeats.length === 0
+      ? null
+      : liveSeats.some((s) => s.kind === 'member' && s.source === 'roster')
+        ? 'member-in-game'
+        : 'guest';
 
   const avatar = user.discordId ? avatarUrl(user.discordId, user.discordAvatar) : null;
   // session.role, NOT user.role. `users.role` is the LEGACY GLOBAL column, and lib/auth says what
@@ -346,6 +369,8 @@ export default async function ProfilePage({
         accounts={locker.accounts.map((a) => ({ id: a.id, rsn: a.rsn }))}
         ignored={ignored}
         defaultOpen={locker.setupNeeded && locker.accounts.length > 0}
+        clanName={clan?.name ?? 'this clan'}
+        seat={leaveSeat}
       />
     </div>
   );

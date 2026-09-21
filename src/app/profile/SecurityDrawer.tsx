@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import LeaveClanClient from './LeaveClanClient';
 import PluginPlayerTokenClient from './PluginPlayerTokenClient';
 import LinkAccountClient from './LinkAccountClient';
 import IgnoredAccountsClient from './IgnoredAccountsClient';
@@ -18,10 +19,15 @@ export default function SecurityDrawer({
   accounts,
   ignored,
   defaultOpen,
+  clanName,
+  seat,
 }: {
   accounts: { id: number; rsn: string }[];
   ignored: { id: number; rsn: string; lastSeenAt: string }[];
   defaultOpen: boolean;
+  clanName: string;
+  /** Null when they hold no live seat here — nothing to leave, so nothing is offered. */
+  seat: 'guest' | 'member-in-game' | null;
 }) {
   const [open, setOpen] = useState(defaultOpen);
 
@@ -89,6 +95,14 @@ export default function SecurityDrawer({
           </>
         )}
 
+        {/* Last, and inside the drawer: leaving is rare, and a control that ends something should
+            not sit where a mis-click lives. */}
+        {seat && (
+          <>
+            <div className="h-px bg-card-border" />
+            <LeaveClanClient clanName={clanName} seat={seat} />
+          </>
+        )}
       </div>
     </details>
   );
