@@ -47,6 +47,10 @@ function PersonCard({
   // is worse than no control: it reads as a thing you may do that happens to be broken.
   const isSelf = viewerPlayerId != null && viewerPlayerId === person.playerId;
   const [confirming, setConfirming] = useState(false);
+  // Folding this row into another one. The id is typed rather than picked, because the two halves of
+  // one human are almost always both on screen with their ids printed on them.
+  const [mergeInto, setMergeInto] = useState('');
+  const [merging, setMerging] = useState(false);
 
   async function patch(body: Record<string, unknown>) {
     setBusy(true);
@@ -70,6 +74,33 @@ function PersonCard({
     }
   }
 
+
+  async function merge() {
+    const into = Number(mergeInto.trim().replace(/^#/, ''));
+    if (!Number.isInteger(into) || into <= 0) {
+      setError('Give the person id to merge into, like 531.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/staff/people/${person.playerId}/merge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ into }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(j.error ?? `Failed (${res.status})`);
+        return;
+      }
+      setMerging(false);
+      setMergeInto('');
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div className={`rounded-xl border border-card-border bg-card-bg p-4 ${busy ? 'opacity-60' : ''}`}>
@@ -219,6 +250,46 @@ function PersonCard({
                 Platform ban…
               </button>
             ))}
+
+          {/* ONE HUMAN, TWO ROWS. A person is minted for a character when a roster sync first sees
+              it, and again when a human signs in — and until the character is claimed they stay
+              apart. This is the repair for the ones that never were. */}
+          {!isSelf && canWrite && (merging ? (
+            <div className="flex flex-1 flex-wrap items-center gap-2">
+              <span className="text-xs text-gray-400">Merge #{person.playerId} into</span>
+              <Input
+                value={mergeInto}
+                onChange={(e) => setMergeInto(e.target.value)}
+                placeholder="person id, e.g. 531"
+                className="w-40 rounded-lg px-2 py-1 text-xs"
+              />
+              <button
+                onClick={merge}
+                disabled={busy}
+                className="rounded-lg border border-gold/40 px-3 py-1 text-xs text-gold hover:bg-gold/10"
+              >
+                Merge
+              </button>
+              <button
+                onClick={() => { setMerging(false); setError(null); }}
+                className="rounded-lg border border-card-border px-3 py-1 text-xs text-gray-400"
+              >
+                Cancel
+              </button>
+              <span className="w-full text-xs text-gray-500">
+                This row disappears. Its characters, seats, bans and invites move to the one you
+                name — so name the row holding the Discord login, since that is the half that cannot
+                be made again.
+              </span>
+            </div>
+          ) : (
+            <button
+              onClick={() => setMerging(true)}
+              className="rounded-lg border border-card-border px-3 py-1 text-xs text-gray-300 hover:border-gold/40 hover:text-gold"
+            >
+              Merge into…
+            </button>
+          ))}
         </div>
       )}
     </div>

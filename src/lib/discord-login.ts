@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { mergeEmptyPersonInto } from '@/lib/mergePeople';
 import { personOfOrCreate } from '@/lib/roster';
 import { db } from '@/db';
 import { accounts, clanAuditLog, clanRoster, clanStaff, players, users, eventParticipants } from '@/db/schema';
@@ -228,16 +229,24 @@ export async function completeDiscordLogin(
       );
 
       for (const cm of candidates) {
+        const claimant = await personOfOrCreate(user.id);
         await db
           .update(accounts)
           .set({
-            playerId: await personOfOrCreate(user.id),
+            playerId: claimant,
             claimedAt: cm.claimedAt ?? nowIso,
             verifiedAt: cm.verifiedAt ?? nowIso,
             verificationMethod: cm.verificationMethod ?? 'discord_name_match',
             provisional: cm.pendingRole ? 0 : 1,
           })
           .where(eq(accounts.id, cm.accountId));
+
+        // The character now belongs to this login's person, so the one the roster sync minted for it
+        // is empty. Merged rather than left behind — see lib/mergePeople for why it is a move and
+        // not a delete.
+        if (cm.playerId != null) {
+          await mergeEmptyPersonInto(cm.playerId, claimant, user.id);
+        }
 
         db.insert(clanAuditLog)
           .values({

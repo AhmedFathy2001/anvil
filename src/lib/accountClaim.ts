@@ -3,6 +3,7 @@ import { and, eq, ne } from 'drizzle-orm';
 import { db } from '@/db';
 import { accounts, clanAuditLog } from '@/db/schema';
 import { findOrCreateAccount } from '@/lib/roster';
+import { mergeEmptyPersonInto } from '@/lib/mergePeople';
 
 /**
  * Attaching an OSRS account to a person, once proof exists.
@@ -68,6 +69,9 @@ export async function claimAccountForPerson(input: {
 
   const alreadyOurs = account.playerId === input.playerId && account.claimedAt != null;
   const nowIso = new Date().toISOString();
+  // Read before the move: after it, the account names the claimer and the row it came from is
+  // unreachable from here.
+  const previousPlayerId = account.playerId;
 
   await db
     .update(accounts)
@@ -96,11 +100,18 @@ export async function claimAccountForPerson(input: {
     await db.update(accounts).set({ isPrimary: 1 }).where(eq(accounts.id, account.id));
   }
 
-  // The person `findOrCreateAccount` minted for a brand-new account is left behind here, with no
-  // accounts and no login. Deliberately not deleted: a person is referenced by clan_bans and
-  // event_invites with ON DELETE CASCADE, so a tidy-up that got its guard wrong would silently
-  // delete a ban. They are inert — every public read of a person requires a shared account — and the
-  // roster sync has been creating them by the hundred since long before this.
+  // THE PERSON THIS CHARACTER USED TO BE. `findOrCreateAccount` mints one for every account a roster
+  // sync sees, so until this moment the same human was two rows: one holding the characters, one
+  // holding the login. This is the moment they become one.
+  //
+  // It used to be left behind deliberately, because a person is referenced by clan_bans and
+  // event_invites with ON DELETE CASCADE and a tidy-up with a wrong guard would silently delete a
+  // ban. That was right about the danger: the answer is to MOVE what it carries first, which is what
+  // mergePeople does. The guard is that it merges only a row with no characters and no login left —
+  // anything else is a different human.
+  if (previousPlayerId != null && previousPlayerId !== input.playerId) {
+    await mergeEmptyPersonInto(previousPlayerId, input.playerId, input.actorUserId ?? null);
+  }
 
   db.insert(clanAuditLog)
     .values({

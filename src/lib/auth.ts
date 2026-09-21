@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { db } from '@/db';
 import { resolveClanById, resolveClanFromRequest, type ClanContext } from '@/lib/clanContext';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, clanStaff, clans, detectedAccounts, eventCohosts, eventEditors, eventParticipants, events, players, pluginLinks, teams, users, weeklyCompetitions } from '@/db/schema';
+import { mergeEmptyPersonInto } from '@/lib/mergePeople';
 import { findOrCreateAccount, findOrCreateSeat, findRosterSeat, findRosterSeats, personOf, personOfOrCreate, seatsOwnedBy, seatsOwnedByAnywhere, UNCLAIMED_ACCOUNT, updateAccountOfSeat } from '@/lib/roster';
 import { and, desc, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { requireSecret } from '@/lib/env';
@@ -913,10 +914,11 @@ async function autoLinkOrSuggestOnPlay(
     if (existing) {
       // Ownership and proof belong to the account; where they sit and when we last saw them belong
       // to the seat.
-      await db
+      const claimant = await personOfOrCreate(userId);
+      const moved = await db
         .update(accounts)
         .set({
-          playerId: await personOfOrCreate(userId),
+          playerId: claimant,
           accountHash: existing.accountHash ?? accountHash,
           verifiedAt: existing.verifiedAt ?? nowIso,
           verificationMethod: 'plugin',
@@ -924,7 +926,15 @@ async function autoLinkOrSuggestOnPlay(
           claimedAt: existing.claimedAt ?? nowIso,
         })
         // Re-assert unowned so a concurrent claim wins cleanly.
-        .where(and(eq(accounts.id, existing.accountId), UNCLAIMED_ACCOUNT));
+        .where(and(eq(accounts.id, existing.accountId), UNCLAIMED_ACCOUNT))
+        .returning({ id: accounts.id });
+      // The character just changed hands, so the person the roster sync minted for it may now hold
+      // nothing at all. `returning` is what says the guard above actually matched — a concurrent
+      // claim that won the race leaves this update touching no rows, and merging then would fold a
+      // person who still owns something. See lib/mergePeople.
+      if (moved.length > 0 && existing.playerId != null) {
+        await mergeEmptyPersonInto(existing.playerId, claimant, userId);
+      }
       await db
         .update(clanMemberships)
         .set({
@@ -936,10 +946,11 @@ async function autoLinkOrSuggestOnPlay(
       clanMemberId = existing.id;
     } else {
       const account = await findOrCreateAccount({ rsn, rsnNormalized: normalizedRsn, accountHash });
-      await db
+      const claimant = await personOfOrCreate(userId);
+      const moved = await db
         .update(accounts)
         .set({
-          playerId: await personOfOrCreate(userId),
+          playerId: claimant,
           verifiedAt: nowIso,
           verificationMethod: 'plugin',
           provisional: 0,
@@ -949,7 +960,13 @@ async function autoLinkOrSuggestOnPlay(
         // findOrCreateAccount resolves by hash then by RSN and returns the GLOBAL row, so without
         // this a claim landing between the check and here would be overwritten — and the check is
         // the only thing standing between "no seat in this clan" and "take this account".
-        .where(and(eq(accounts.id, account.id), UNCLAIMED_ACCOUNT));
+        .where(and(eq(accounts.id, account.id), UNCLAIMED_ACCOUNT))
+        .returning({ id: accounts.id });
+      // Same tidy-up as the sibling branch: findOrCreateAccount minted a person for a brand-new
+      // account, and that row is empty the moment the character moves to the claimant.
+      if (moved.length > 0 && account.playerId !== claimant) {
+        await mergeEmptyPersonInto(account.playerId, claimant, userId);
+      }
       // Guest: verification proves ownership of the account, not membership of the clan. Only the
       // in-game roster sync promotes a seat to 'member'.
       clanMemberId = await findOrCreateSeat(clanId, account.id, { kind: 'guest' });
@@ -999,10 +1016,11 @@ async function maybeAutoClaimEstablishedOnPlay(
     // Only an ESTABLISHED identity auto-links: a verified account, or a real in-game roster member.
     if (existing.verifiedAt == null && existing.kind !== 'member') return;
 
+    const claimant = await personOfOrCreate(userId);
     const result = await db
       .update(accounts)
       .set({
-        playerId: await personOfOrCreate(userId),
+        playerId: claimant,
         verifiedAt: existing.verifiedAt ?? nowIso,
         verificationMethod: 'plugin',
         provisional: 0,
@@ -1022,6 +1040,11 @@ async function maybeAutoClaimEstablishedOnPlay(
       .returning({ id: accounts.id });
 
     if (result.length === 0) return;
+
+    // The identity this character used to be, now that it has an owner. Empty-only, guarded inside.
+    if (existing.playerId != null) {
+      await mergeEmptyPersonInto(existing.playerId, claimant, userId);
+    }
 
     db.insert(clanAuditLog)
       .values({
