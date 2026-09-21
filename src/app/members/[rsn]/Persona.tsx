@@ -67,28 +67,47 @@ export default function Persona({
             All accounts · combined totals above
           </div>
           <div className="space-y-1.5">
-            {persona.accounts.map((a) => (
-              <ClanLink
-                key={a.id}
-                href={`/members/${encodeURIComponent(a.rsn)}`}
-                className={`grid grid-cols-[minmax(0,1fr)_4.5rem_4.5rem_5rem] gap-2 text-sm py-1 items-center hover:text-gold ${
-                  a.id === currentMemberId ? 'text-gold' : ''
-                }`}
-              >
-                <span className="truncate">
-                  {a.rsn}
-                  {a.isPrimary && (
-                    <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-gold/15 text-gold">main</span>
-                  )}
-                  {a.id === currentMemberId && <span className="ml-2 text-[10px] text-text-muted">viewing</span>}
-                </span>
-                <span className="text-right tabular-nums text-text-muted">{a.ehp?.toFixed(1) ?? '—'}</span>
-                <span className="text-right tabular-nums text-text-muted">{a.ehb?.toFixed(1) ?? '—'}</span>
-                <span className="text-right tabular-nums text-text-muted">
-                  {a.overallXp ? fmtXp(a.overallXp) : '—'}
-                </span>
-              </ClanLink>
-            ))}
+            {persona.accounts.map((a) => {
+              const row = (
+                <>
+                  <span className="truncate">
+                    {a.rsn}
+                    {a.isPrimary && (
+                      <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-gold/15 text-gold">main</span>
+                    )}
+                    {a.id === currentMemberId && <span className="ml-2 text-[10px] text-text-muted">viewing</span>}
+                    {/* PUBLISHED, NOT OURS. This clan holds no seat for it — they chose to share the
+                        character, which is what lets us name it at all. Said on the row, because an
+                        unlabelled name here reads as a member of this clan. */}
+                    {a.viaSharing && (
+                      <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full border border-card-border text-text-muted">
+                        shared · not on our roster
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-right tabular-nums text-text-muted">{a.ehp?.toFixed(1) ?? '—'}</span>
+                  <span className="text-right tabular-nums text-text-muted">{a.ehb?.toFixed(1) ?? '—'}</span>
+                  <span className="text-right tabular-nums text-text-muted">
+                    {a.overallXp ? fmtXp(a.overallXp) : '—'}
+                  </span>
+                </>
+              );
+              const cls = 'grid grid-cols-[minmax(0,1fr)_4.5rem_4.5rem_5rem] gap-2 text-sm py-1 items-center';
+
+              // A shared character has no profile HERE to open — the page it would link to is this
+              // clan's, and this clan has no seat for it.
+              return a.id == null ? (
+                <div key={`shared-${a.rsn}`} className={cls}>{row}</div>
+              ) : (
+                <ClanLink
+                  key={a.id}
+                  href={`/members/${encodeURIComponent(a.rsn)}`}
+                  className={`${cls} hover:text-gold ${a.id === currentMemberId ? 'text-gold' : ''}`}
+                >
+                  {row}
+                </ClanLink>
+              );
+            })}
           </div>
           {others.length === 0 && (
             <p className="text-xs text-text-muted mt-2">No other accounts linked to this Discord yet.</p>

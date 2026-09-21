@@ -6,6 +6,7 @@
 
 import { db } from '@/db';
 import { clanAuditLog, clanRoster, events, eventParticipants, users, memberDailyStats, memberMilestones, playerEventFacts, playerSnapshots, weeklyCompetitions, weeklyParticipants, accounts } from '@/db/schema';
+import { accountsVisibleToClan } from '@/lib/accountVisibility';
 import { findRosterSeat, statSnapshotOf } from '@/lib/roster';
 import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
@@ -1275,12 +1276,15 @@ export async function getCompetitionHistory(clanMemberId: number, rsn: string): 
 // ── Personas (one human, several accounts) ───────────────────────────────────────────────────────
 
 export interface PersonaAccount {
-  id: number;
+  /** The SEAT in this clan, or null for a character this clan can see only because it was published. */
+  id: number | null;
   rsn: string;
   isPrimary: boolean;
   ehp: number | null;
   ehb: number | null;
   overallXp: number | null;
+  /** True when this clan holds no seat for the character and Share is what makes it visible. */
+  viaSharing: boolean;
 }
 
 export interface Persona {
@@ -1327,22 +1331,55 @@ export async function getPersona(clanMemberId: number): Promise<Persona | null> 
         isNull(clanRoster.leftAt),
       ),
     );
-  if (siblings.length <= 1) return null;
+  // AND THE ONES THEY PUBLISHED. lib/accountVisibility is the rule — a clan may see an account if it
+  // holds a seat for it OR the account is shared — and until now nothing called it, so Share was a
+  // switch with nothing on the other end: the site told a person their character was published while
+  // every clan surface showed only seats.
+  //
+  // This is where it belongs rather than on the roster. A roster is a list of who is in the clan,
+  // and publishing a character does not join it. What a published character answers is "who else is
+  // this person", which is precisely what this card is for — and it already resolves only for a
+  // signed-in viewer, so a published alt is visible to the clan rather than to the open internet.
+  const visible = await accountsVisibleToClan(member.clanId, member.playerId);
+  const seatedRsns = new Set(siblings.map((sib) => sib.rsn.toLowerCase()));
+  const published = visible.filter((v) => v.viaSharing && !seatedRsns.has(v.rsn.toLowerCase()));
+
+  // One seat and nothing published is still a persona of one: the profile you are already looking at.
+  if (siblings.length + published.length <= 1) return null;
 
   const statsById = new Map(rows.map((r) => [r.id, r]));
   const accounts: PersonaAccount[] = siblings
     .map((sib) => {
       const stats = statsById.get(sib.id);
       return {
-        id: sib.id,
+        id: sib.id as number | null,
         rsn: sib.rsn,
         isPrimary: sib.isPrimary === 1,
         ehp: stats?.ehp ?? null,
         ehb: stats?.ehb ?? null,
         overallXp: stats?.overallXp ?? null,
+        viaSharing: false,
       };
     })
-    .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary) || (b.ehp ?? 0) - (a.ehp ?? 0));
+    .concat(
+      // No seat here, so no seat id and none of this clan's numbers: its EHP and KC were earned
+      // somewhere else, and printing them under this clan's columns would claim them for it.
+      published.map((acct) => ({
+        id: null,
+        rsn: acct.rsn,
+        isPrimary: false,
+        ehp: null,
+        ehb: null,
+        overallXp: null,
+        viaSharing: true,
+      })),
+    )
+    .sort(
+      (a, b) =>
+        Number(a.viaSharing) - Number(b.viaSharing) ||
+        Number(b.isPrimary) - Number(a.isPrimary) ||
+        (b.ehp ?? 0) - (a.ehp ?? 0),
+    );
 
   return {
     userId: member.playerId,

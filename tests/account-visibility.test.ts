@@ -15,7 +15,7 @@
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 
@@ -305,4 +305,48 @@ test('an unshared account is invisible to a clan even while its owner sees it li
     false,
     'and bravo cannot see it',
   );
+});
+
+// ── The rule reaching a clan surface ─────────────────────────────────────────
+//
+// For a long time it reached none. The module was written, tested, and imported by nothing at all —
+// so a person could tick Share, be told their character was published, and have every clan screen go
+// on showing only its own seats. These two hold the wiring down: the persona card on a member's
+// profile is where a clan learns who else somebody is, and it is the surface Share now feeds.
+
+test('before anything is published, a member with one seat here has no persona', async () => {
+  const { getPersona } = await import('../src/lib/memberProfile.ts');
+  const { db, schema: s } = await loadDb();
+  const seat = await db.query.clanMemberships.findFirst({
+    where: and(eq(s.clanMemberships.clanId, alpha), eq(s.clanMemberships.accountId, mainId)),
+  });
+  assert.equal(await getPersona(seat!.id), null, 'a persona of one is the page you are on');
+});
+
+test('publishing a character shows it to a clan that holds no seat for it', async () => {
+  const { getPersona } = await import('../src/lib/memberProfile.ts');
+  const { db, schema: s } = await loadDb();
+  await db.update(s.accounts).set({ shared: true }).where(eq(s.accounts.id, hermitId));
+
+  const seat = await db.query.clanMemberships.findFirst({
+    where: and(eq(s.clanMemberships.clanId, alpha), eq(s.clanMemberships.accountId, mainId)),
+  });
+  const persona = await getPersona(seat!.id);
+  assert.ok(persona, 'the card appears now there is something to say');
+
+  const hermit = persona!.accounts.find((a) => a.rsn === 'The Hermit');
+  assert.ok(hermit, 'the published character is named');
+  assert.equal(hermit!.viaSharing, true, 'and marked as published rather than seated');
+  assert.equal(hermit!.id, null, 'with no seat here, so nothing links into this clan');
+
+  // The alt seated in the OTHER clan and never published stays where it belongs.
+  assert.equal(
+    persona!.accounts.some((a) => a.rsn === 'The Alt'),
+    false,
+    'bravo’s business is still bravo’s',
+  );
+
+  // Its numbers were earned elsewhere and are not claimed for this clan.
+  assert.equal(hermit!.ehp, null);
+  assert.equal(persona!.totalEhp, persona!.accounts.filter((a) => !a.viaSharing).reduce((n, a) => n + (a.ehp ?? 0), 0));
 });
