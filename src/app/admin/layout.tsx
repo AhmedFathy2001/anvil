@@ -1,7 +1,8 @@
 import { headers } from 'next/headers';
 import { redirectFor } from '@/lib/adminAccess';
 import { atLeast, isStaffRole } from '@/lib/clanRoles';
-import { requireClan } from '@/lib/clanContext';
+import { clanPrefix, requireClan } from '@/lib/clanContext';
+import { clanHrefs } from '@/lib/clanPath';
 import { redirect } from 'next/navigation';
 import { db } from '@/db';
 import { clanRoster, cofferEntries, users } from '@/db/schema';
@@ -10,6 +11,7 @@ import { verifyUser } from '@/lib/auth';
 import { avatarUrl } from '@/lib/discord-oauth';
 import AdminSidebar, { type SidebarGroup } from './_components/AdminSidebar';
 import { getSetupStatus } from '@/lib/setupStatus';
+import { pendingClaimRequests } from '@/lib/claimRequests';
 
 // Admin shell — wraps every page under /admin (including the login page).
 // On the login page there's no session yet, so the sidebar is skipped and the
@@ -26,16 +28,26 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // A REDIRECT, NOT plain children. Falling through to render the page was safe only while
   // middleware blocked the request first — every admin page would otherwise render for anyone with
   // a session, and most of them carry no guard of their own.
+  //
+  // EVERY REDIRECT OUT OF HERE CARRIES THE CLAN. `x-anvil-clan-slug` names the clan, but the
+  // pathname arrives with `/c/<slug>` already stripped, so a bare `/admin/events` sends a
+  // path-addressed clan's staff to the APEX — where they hold nothing, and the gate there turns
+  // them away to the home page. The gate was right about them every time; it just answered at the
+  // wrong address. Admins never saw it, because an admin is the one grant this function lets
+  // through without redirecting at all. See lib/clanPath.
   const pathname = (await headers()).get('x-anvil-pathname') ?? '';
-  if (!session) redirect('/login?return=' + encodeURIComponent(pathname || '/admin'));
+  const href = await clanHrefs();
+  if (!session) redirect('/login?return=' + encodeURIComponent(href(pathname || '/admin')));
 
   const access = { role: session.role, canEditTiles: session.canEditTiles, editorScope: session.editorScope };
   const target = redirectFor(pathname || '/admin/dashboard', access);
-  if (target && target !== pathname) redirect(target);
+  if (target && target !== pathname) redirect(href(target));
 
-  // Moderator-or-better, or the authoring capability: anything less was turned away above.
+  // Moderator-or-better, or the authoring capability: anything less was turned away above. Sent to
+  // THIS clan's home rather than the apex: they were looking at this clan, and being told "not for
+  // you" is not a reason to also lose your place.
   const isStaffHere = isStaffRole(session.role) || session.canEditTiles;
-  if (!isStaffHere) redirect('/');
+  if (!isStaffHere) redirect((await clanPrefix()) || '/');
 
   const userRow = session.userId > 0
     ? await db.query.users.findFirst({
@@ -45,11 +57,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     : null;
 
   const clan = await requireClan();
-  const provisionalCount = await db
-    .select({ c: count() })
-    .from(clanRoster)
-    .where(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.provisional, 1), isNull(clanRoster.leftAt)))
-    .then((r) => r[0]?.c ?? 0);
+  // Provisional members AND claim requests — the two things the Needs review tab holds. Counting
+  // only the first left somebody stuck outside a clan whose roster already listed them, with no
+  // badge anywhere to say a person was waiting. See app/admin/people/layout.
+  const [provisionalRows, claimRequests] = await Promise.all([
+    db
+      .select({ c: count() })
+      .from(clanRoster)
+      .where(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.provisional, 1), isNull(clanRoster.leftAt)))
+      .then((r) => r[0]?.c ?? 0),
+    pendingClaimRequests(clan.id).then((r) => r.length),
+  ]);
+  const provisionalCount = provisionalRows + claimRequests;
 
   // Donations waiting to be believed, badged on the Money group so a treasurer sees them without
   // opening the page. Only counted for the people who can act on them.

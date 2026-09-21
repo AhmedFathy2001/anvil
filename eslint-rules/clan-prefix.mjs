@@ -58,6 +58,12 @@ export default {
         '"{{path}}" belongs to a clan, so it needs the clan prefix. Use useClanHref() in a client ' +
         'component or clanHref()/clanHrefs() on the server. Without it the request reaches the ' +
         'route with NO clan — which does not error, it answers a different question.',
+      opaqueRedirect:
+        'This redirect target arrives in a variable, so this rule cannot tell whether it belongs to ' +
+        'a clan. Put it through clanHref()/clanHrefs() — they pass platform paths through untouched. ' +
+        'The admin shell redirected a board editor to a bare "/admin/events", which on a ' +
+        '/c/<slug> address is the APEX: the gate there saw no grant and bounced them to the home ' +
+        'page, so a permission that was correctly granted looked like it had never been given.',
       opaqueFetch:
         'This URL arrives in a variable, so this rule cannot tell whether it belongs to a clan. Use ' +
         'clanFetch from @/lib/clanFetch, which prefixes clan paths and passes every other URL ' +
@@ -198,6 +204,11 @@ export default {
         else if (arg.type === 'TemplateLiteral' && arg.quasis.length > 0) {
           const head = arg.quasis[0].value.cooked ?? '';
           if (head.startsWith('/')) check(arg, head, 'bareLink');
+        }
+        // A variable, which is the shape a GUARD takes: it decides where to send you and then sends
+        // you there. The rule cannot read the value, and that is exactly why it has to say so.
+        else if (arg.type === 'Identifier' && !excused(node)) {
+          context.report({ node: arg, messageId: 'opaqueRedirect' });
         }
       },
 
