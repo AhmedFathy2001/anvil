@@ -620,12 +620,8 @@ const fr: PartialGuideDict = {
             body: 'une bannière quand quelqu’un de votre équipe termine une case. Plusieurs d’un coup : la plus difficile obtient la bannière, le reste part dans le chat.',
           },
           {
-            label: 'Distinct mission sound',
-            body: 'donne son propre son à une mission qui tombe — et à quelqu’un qui la réclame — pour que tu la distingues d’une case ordinaire sans regarder.',
-          },
-          {
             label: 'Banner sound + volume',
-            body: 'joue un son avec la bannière. Rien ne se déclenche tant que tu n’ajoutes pas toi-même au moins un .wav, via **Add clip** sous « Banner sounds » dans le panneau latéral Anvil.',
+            body: 'joue un son avec la bannière. Rien ne se déclenche tant que tu n’ajoutes pas toi-même au moins un .wav, via **Add clip** sous « Banner sounds » dans le panneau latéral Anvil. Les missions ont leur propre dossier : ajoutez un clip sous **Mission sounds** et elles le joueront à la place du son intégré qui les distingue d’une case terminée.',
           },
         ],
       },

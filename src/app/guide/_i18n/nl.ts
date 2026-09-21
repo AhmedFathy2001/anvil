@@ -619,12 +619,8 @@ const nl: PartialGuideDict = {
             body: 'een banner wanneer iemand uit je team een vakje afrondt. Meerdere tegelijk: het moeilijkste krijgt de banner, de rest gaat naar de chat.',
           },
           {
-            label: 'Distinct mission sound',
-            body: 'geeft een binnenkomende missie — en iemand die er een claimt — een eigen geluid, zodat je het zonder kijken van een gewoon vakje onderscheidt.',
-          },
-          {
             label: 'Banner sound + volume',
-            body: 'speelt een geluid bij de banner. Er gebeurt niets tot je zelf minstens één .wav toevoegt, via **Add clip** onder “Banner sounds” in het Anvil-zijpaneel.',
+            body: 'speelt een geluid bij de banner. Er gebeurt niets tot je zelf minstens één .wav toevoegt, via **Add clip** onder “Banner sounds” in het Anvil-zijpaneel. Missies hebben een eigen map — voeg een clip toe onder **Mission sounds** en die speelt in plaats van het ingebouwde geluid dat ze van een afgeronde tegel onderscheidt.',
           },
         ],
       },

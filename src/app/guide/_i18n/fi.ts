@@ -619,12 +619,8 @@ const fi: PartialGuideDict = {
             body: 'banneri kun kuka tahansa joukkueestasi saa ruudun valmiiksi. Useita kerralla: vaikein saa bannerin, loput menevät chattiin.',
           },
           {
-            label: 'Distinct mission sound',
-            body: 'antaa saapuvalle tehtävälle — ja sen lunastamiselle — oman äänensä, jotta erotat sen tavallisesta ruudusta katsomatta.',
-          },
-          {
             label: 'Banner sound + volume',
-            body: 'soittaa äänen bannerin kanssa. Mitään ei kuulu, ennen kuin lisäät itse vähintään yhden .wav-tiedoston kohdasta **Add clip** “Banner sounds” -otsikon alla Anvilin sivupaneelissa.',
+            body: 'soittaa äänen bannerin kanssa. Mitään ei kuulu, ennen kuin lisäät itse vähintään yhden .wav-tiedoston kohdasta **Add clip** “Banner sounds” -otsikon alla Anvilin sivupaneelissa. Tehtävillä on oma kansionsa — lisää klippi kohtaan **Mission sounds**, niin ne soittavat sen sisäänrakennetun äänen sijaan, joka erottaa ne valmiista ruudusta.',
           },
         ],
       },

@@ -617,12 +617,8 @@ const it: PartialGuideDict = {
             body: 'un banner quando chiunque nella tua squadra completa una casella. Se ne arrivano più insieme: la più difficile prende il banner, le altre vanno in chat.',
           },
           {
-            label: 'Distinct mission sound',
-            body: 'dà un suono tutto suo a una missione che arriva — e a qualcuno che la reclama — così la distingui da una casella normale senza guardare.',
-          },
-          {
             label: 'Banner sound + volume',
-            body: 'riproduce un suono insieme al banner. Non succede nulla finché non aggiungi almeno un .wav tu, con **Add clip** sotto “Banner sounds” nel pannello laterale di Anvil.',
+            body: 'riproduce un suono insieme al banner. Non succede nulla finché non aggiungi almeno un .wav tu, con **Add clip** sotto “Banner sounds” nel pannello laterale di Anvil. Le missioni hanno una cartella propria: aggiungi una clip in **Mission sounds** e la riprodurranno al posto del suono integrato che le distingue da una casella completata.',
           },
         ],
       },

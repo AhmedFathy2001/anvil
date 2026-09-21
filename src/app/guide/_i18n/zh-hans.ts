@@ -617,12 +617,8 @@ const zhHans: PartialGuideDict = {
             body: '队里任何人完成一个格子时弹出横幅。若同时完成多个：最难的那个用横幅，其余进聊天框。',
           },
           {
-            label: 'Distinct mission sound',
-            body: '让任务掉落时、以及有人认领时发出各自的提示音，不用看屏幕也能和普通格子完成区分开。',
-          },
-          {
             label: 'Banner sound + volume',
-            body: '在横幅出现时播放声音。在你自己通过 Anvil 侧边栏“Banner sounds”下的 **Add clip** 添加至少一个 .wav 之前，不会有任何声音。',
+            body: '在横幅出现时播放声音。在你自己通过 Anvil 侧边栏“Banner sounds”下的 **Add clip** 添加至少一个 .wav 之前，不会有任何声音。 任务有自己的文件夹：在 **Mission sounds** 下添加一个音频，任务就会播放它，而不是用来和完成格子区分开的内置提示音。',
           },
         ],
       },

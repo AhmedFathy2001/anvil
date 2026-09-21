@@ -617,12 +617,8 @@ const pl: PartialGuideDict = {
             body: 'baner, gdy ktokolwiek z twojej drużyny kończy pole. Kilka naraz: najtrudniejsze dostaje baner, reszta idzie na czat.',
           },
           {
-            label: 'Distinct mission sound',
-            body: 'nadaje pojawiającej się misji — i komuś, kto ją zgarnia — własny dźwięk, żebyś odróżnił ją od zwykłego pola bez patrzenia.',
-          },
-          {
             label: 'Banner sound + volume',
-            body: 'odtwarza dźwięk razem z banerem. Nic nie zabrzmi, dopóki sam nie dodasz przynajmniej jednego pliku .wav przez **Add clip** pod „Banner sounds” w panelu bocznym Anvil.',
+            body: 'odtwarza dźwięk razem z banerem. Nic nie zabrzmi, dopóki sam nie dodasz przynajmniej jednego pliku .wav przez **Add clip** pod „Banner sounds” w panelu bocznym Anvil. Misje mają własny folder — dodaj klip w **Mission sounds**, a zagra on zamiast wbudowanego dźwięku, który odróżnia je od ukończonego pola.',
           },
         ],
       },

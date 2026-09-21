@@ -618,12 +618,8 @@ const no: PartialGuideDict = {
             body: 'et banner når noen på laget ditt fullfører en rute. Flere samtidig: den vanskeligste får banneret, resten går til chatten.',
           },
           {
-            label: 'Distinct mission sound',
-            body: 'gir et oppdrag som lander — og noen som tar det — sin egen lyd, så du skiller det fra en vanlig rute uten å se etter.',
-          },
-          {
             label: 'Banner sound + volume',
-            body: 'spiller en lyd sammen med banneret. Ingenting skjer før du selv legger til minst én .wav-fil, via **Add clip** under “Banner sounds” i Anvil-sidepanelet.',
+            body: 'spiller en lyd sammen med banneret. Ingenting skjer før du selv legger til minst én .wav-fil, via **Add clip** under “Banner sounds” i Anvil-sidepanelet. Oppdrag har sin egen mappe — legg til et klipp under **Mission sounds**, så spilles det i stedet for den innebygde lyden som skiller dem fra en fullført rute.',
           },
         ],
       },

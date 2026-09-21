@@ -619,12 +619,8 @@ const es: PartialGuideDict = {
             body: 'un cartel cuando alguien de tu equipo completa una casilla. Varias a la vez: la más difícil se lleva el cartel, el resto va al chat.',
           },
           {
-            label: 'Distinct mission sound',
-            body: 'le da su propio sonido a una misión que aparece — y a alguien reclamándola — para que la distingas de una casilla normal sin mirar.',
-          },
-          {
             label: 'Banner sound + volume',
-            body: 'reproduce un sonido con el banner. No suena nada hasta que añadas al menos un .wav tú mismo, con **Add clip** bajo “Banner sounds” en el panel lateral de Anvil.',
+            body: 'reproduce un sonido con el banner. No suena nada hasta que añadas al menos un .wav tú mismo, con **Add clip** bajo “Banner sounds” en el panel lateral de Anvil. Las misiones tienen su propia carpeta: añade un clip en **Mission sounds** y sonará en lugar del tono integrado que evita que se confundan con una casilla completada.',
           },
         ],
       },

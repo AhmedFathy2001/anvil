@@ -618,12 +618,8 @@ const ko: PartialGuideDict = {
             body: '팀원 중 누군가가 칸을 완료하면 배너를 띄웁니다. 여러 개가 동시에 나오면 가장 어려운 것이 배너를 차지하고 나머지는 채팅으로 갑니다.',
           },
           {
-            label: 'Distinct mission sound',
-            body: '미션이 떨어질 때와 누군가 가져갈 때 전용 소리를 냅니다. 화면을 보지 않아도 일반 타일 완료와 구분됩니다.',
-          },
-          {
             label: 'Banner sound + volume',
-            body: '배너와 함께 소리를 재생합니다. Anvil 사이드 패널의 “Banner sounds”에 있는 **Add clip**으로 .wav를 직접 하나 이상 추가하기 전에는 아무 소리도 나지 않습니다.',
+            body: '배너와 함께 소리를 재생합니다. Anvil 사이드 패널의 “Banner sounds”에 있는 **Add clip**으로 .wav를 직접 하나 이상 추가하기 전에는 아무 소리도 나지 않습니다. 미션에는 전용 폴더가 있습니다. **Mission sounds** 에서 클립을 추가하면 완료된 타일과 구분해 주는 기본 효과음 대신 그 클립이 재생됩니다.',
           },
         ],
       },

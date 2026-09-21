@@ -624,12 +624,8 @@ const da: PartialGuideDict = {
             body: 'et banner, når nogen på dit hold gør et felt færdigt. Flere på én gang: det sværeste får banneret, resten går i chatten.',
           },
           {
-            label: 'Distinct mission sound',
-            body: 'giver det sin egen lyd, når en mission lander — og når nogen henter den — så du kan høre forskel på den og et almindeligt felt uden at kigge.',
-          },
-          {
             label: 'Banner sound + volume',
-            body: 'afspiller en lyd sammen med banneret. Der sker ingenting, før du selv tilføjer mindst én .wav-fil via **Add clip** under “Banner sounds” i Anvil-sidepanelet.',
+            body: 'afspiller en lyd sammen med banneret. Der sker ingenting, før du selv tilføjer mindst én .wav-fil via **Add clip** under “Banner sounds” i Anvil-sidepanelet. Missioner har deres egen mappe — tilføj et klip under **Mission sounds**, så spiller de det i stedet for den indbyggede lyd, der holder dem fra at lyde som et fuldført felt.',
           },
         ],
       },

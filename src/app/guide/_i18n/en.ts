@@ -623,11 +623,7 @@ export const en = {
           },
           {
             label: 'Banner sound + volume',
-            body: 'plays a sound with the banner. Nothing plays until you add at least one .wav yourself, via **Add clip** under “Banner sounds” in the Anvil side panel.',
-          },
-          {
-            label: 'Distinct mission sound',
-            body: 'gives a mission dropping — and someone claiming one — its own chime, so you can tell it from an ordinary tile completion without looking.',
+            body: 'plays a sound with the banner. Nothing plays until you add at least one .wav yourself, via **Add clip** under “Banner sounds” in the Anvil side panel. Missions have a folder of their own — add a clip under **Mission sounds** and they play it instead of the built-in chime that keeps them from sounding like a finished tile.',
           },
         ],
       },

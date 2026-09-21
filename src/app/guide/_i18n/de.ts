@@ -619,12 +619,8 @@ const de: PartialGuideDict = {
             body: 'ein Banner, wenn jemand aus deinem Team ein Feld abschließt. Mehrere gleichzeitig: das schwerste bekommt das Banner, der Rest geht in den Chat.',
           },
           {
-            label: 'Distinct mission sound',
-            body: 'gibt einer eintreffenden Mission — und dem Moment, in dem jemand sie holt — einen eigenen Ton, damit du sie ohne Hinsehen von einem normalen Feld unterscheidest.',
-          },
-          {
             label: 'Banner sound + volume',
-            body: 'spielt zum Banner einen Ton ab. Es passiert nichts, bis du selbst mindestens eine .wav-Datei hinzufügst, über **Add clip** unter „Banner sounds“ im Anvil-Seitenpanel.',
+            body: 'spielt zum Banner einen Ton ab. Es passiert nichts, bis du selbst mindestens eine .wav-Datei hinzufügst, über **Add clip** unter „Banner sounds“ im Anvil-Seitenpanel. Missionen haben einen eigenen Ordner — füge unter **Mission sounds** einen Clip hinzu, und sie spielen ihn statt des eingebauten Tons, der sie von einem fertigen Feld unterscheidet.',
           },
         ],
       },

@@ -617,12 +617,8 @@ const ptBr: PartialGuideDict = {
             body: 'um banner quando qualquer pessoa do seu time completa uma casa. Várias de uma vez: a mais difícil leva o banner, o resto vai para o chat.',
           },
           {
-            label: 'Distinct mission sound',
-            body: 'dá um som próprio para uma missão que cai — e para alguém reivindicando uma — para você distinguir de uma casa comum sem olhar.',
-          },
-          {
             label: 'Banner sound + volume',
-            body: 'toca um som junto com o banner. Nada toca até você adicionar pelo menos um .wav, em **Add clip** sob “Banner sounds” no painel lateral do Anvil.',
+            body: 'toca um som junto com o banner. Nada toca até você adicionar pelo menos um .wav, em **Add clip** sob “Banner sounds” no painel lateral do Anvil. As missões têm uma pasta própria: adicione um clipe em **Mission sounds** e ele tocará no lugar do som embutido que as diferencia de uma casa concluída.',
           },
         ],
       },
