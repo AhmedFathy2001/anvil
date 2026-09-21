@@ -466,6 +466,30 @@ const zhHans: PartialGuideDict = {
       easyHeading: '简单办法：直接在插件里登录',
       easyIntro:
         '当 Site URL 已填、令牌仍为空时，**Anvil 侧边栏**会出现一个 **Sign in with Discord** 按钮。点它，插件会一步步带你走完 —— 什么都不用复制。',
+      panelFigure: {
+        caption: 'RuneLite → Anvil 按钮',
+        alt: 'RuneLite 的侧边图标栏，最下方的 Anvil 按钮被圈出',
+        legend: [
+          {
+            label: 'Anvil 按钮',
+            body: '在 RuneLite 窗口侧边、图标栏的最下方。点击它就能打开面板。插件装好并开启后它就会出现——如果你更想让它靠上，把它往上拖即可。',
+          },
+        ],
+      },
+      signInFigure: {
+        caption: 'Anvil 面板',
+        alt: 'Anvil 面板，其中 Sign in with Discord 按钮和它所连接的站点被圈出',
+        legend: [
+          {
+            label: 'Sign in with Discord',
+            body: '只在令牌仍为空时显示。点它，剩下的都在浏览器里完成。',
+          },
+          {
+            label: 'Connects to',
+            body: '你填写的 Site URL，在你确认之前先写明白。请核对它显示的是 `{origin}` —— 这就是你的令牌将要归属的站点。',
+          },
+        ],
+      },
       easySteps: [
         '面板会显示一段代码，并在本站打开你的浏览器。',
         '核对网页上的代码与 RuneLite 中显示的一致，然后点 **Approve**。',
@@ -493,6 +517,13 @@ const zhHans: PartialGuideDict = {
         tag: '这一切发生在哪里',
         body: [
           '整个流程都留在 `{origin}` —— 代码在这里签发、在这里用 {clanName} 自己的 Discord 登录批准、令牌也在这里交回。插件拒绝打开任何不在你所填 Site URL 上的登录页面，因此这一步不会触及另一套 Anvil 部署。',
+        ],
+      },
+      settingsRefreshNote: {
+        tag: 'Account Token 看起来还是空的？',
+        body: [
+          '其实不空——你一点批准，令牌就已经存好了。但 RuneLite 只在你打开插件设置页时才会重画它，所以如果登录时你正停在 **Configuration → Anvil**，那个框里显示的还是一分钟前的样子。',
+          '在设置列表里点任意另一个插件，再点回 **Anvil**，令牌就在那里。登录过程中诚实的是侧边面板：一旦成功，它立刻显示 _Signed in_。',
         ],
       },
       federationAside:

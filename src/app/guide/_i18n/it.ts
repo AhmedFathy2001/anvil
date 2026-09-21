@@ -468,6 +468,30 @@ const it: PartialGuideDict = {
       easyHeading: 'La via facile: accedi dal plugin',
       easyIntro:
         'Con il Site URL impostato e il token ancora vuoto, il **pannello laterale di Anvil** mostra un pulsante **Sign in with Discord**. Cliccalo e il plugin ti guida —— senza copiare nulla.',
+      panelFigure: {
+        caption: 'RuneLite → il pulsante Anvil',
+        alt: 'La barra delle icone di RuneLite, con il pulsante Anvil in fondo evidenziato',
+        legend: [
+          {
+            label: 'Il pulsante Anvil',
+            body: 'sul lato della finestra di RuneLite, in fondo alla barra delle icone. Cliccalo per aprire il pannello. Compare appena il plugin è installato e attivo — e puoi trascinarlo più in alto nella barra se lo preferisci vicino alla cima.',
+          },
+        ],
+      },
+      signInFigure: {
+        caption: 'Il pannello Anvil',
+        alt: 'Il pannello Anvil con il pulsante Sign in with Discord e il sito a cui si collega evidenziati',
+        legend: [
+          {
+            label: 'Sign in with Discord',
+            body: 'appare solo finché il token è ancora vuoto. Cliccalo e il resto avviene nel tuo browser.',
+          },
+          {
+            label: 'Connects to',
+            body: 'la Site URL che hai scritto, per esteso prima che tu ti impegni. Controlla che ci sia `{origin}` — è il sito a cui apparterrà il tuo token.',
+          },
+        ],
+      },
       easySteps: [
         'Il pannello mostra un codice e apre il browser su questo sito.',
         'Controlla che il codice sulla pagina coincida con quello in RuneLite, poi clicca **Approve**.',
@@ -495,6 +519,13 @@ const it: PartialGuideDict = {
         tag: 'Dove avviene tutto questo',
         body: [
           'Tutto questo flusso resta su `{origin}` —— il codice viene emesso qui, approvato qui con il login Discord di {clanName}, e il token viene restituito qui. Il plugin si rifiuta di aprire qualsiasi pagina di accesso che non sia sul Site URL che hai digitato, quindi nulla in questo passaggio raggiunge un’altra istanza di Anvil.',
+        ],
+      },
+      settingsRefreshNote: {
+        tag: 'Account Token sembra ancora vuoto?',
+        body: [
+          'Non lo è — il token viene salvato nel momento stesso in cui approvi. Ma RuneLite disegna la pagina delle impostazioni di un plugin solo quando la apri: se durante l’accesso eri già su **Configuration → Anvil**, quel campo continua a mostrarti quello che mostrava un minuto fa.',
+          'Clicca su un altro plugin qualsiasi nell’elenco, poi di nuovo su **Anvil**. Il token è lì. Durante l’accesso quello sincero è il pannello laterale: dice _Signed in_ appena ha funzionato.',
         ],
       },
       federationAside:

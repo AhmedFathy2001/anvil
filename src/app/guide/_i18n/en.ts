@@ -473,6 +473,30 @@ export const en = {
       easyHeading: 'The easy way: sign in from the plugin',
       easyIntro:
         'With the Site URL set and the token still empty, the **Anvil side panel** shows a **Sign in with Discord** button. Click it and the plugin walks you through it — no copying anything.',
+      panelFigure: {
+        caption: 'RuneLite → the Anvil button',
+        alt: "RuneLite's sidebar icons, with the Anvil button at the foot of the strip ringed",
+        legend: [
+          {
+            label: 'The Anvil button',
+            body: 'down the side of the RuneLite window, at the bottom of the icon strip. Click it to open the panel. It appears as soon as the plugin is installed and switched on — and you can drag it up the strip if you would rather have it near the top.',
+          },
+        ],
+      },
+      signInFigure: {
+        caption: 'The Anvil panel',
+        alt: 'The Anvil panel with the Sign in with Discord button and the site it connects to ringed',
+        legend: [
+          {
+            label: 'Sign in with Discord',
+            body: 'only shows while the token is still empty. Click it and the rest happens in your browser.',
+          },
+          {
+            label: 'Connects to',
+            body: 'the Site URL you typed, spelled out before you commit to it. Check it reads `{origin}` — this is the site your token will belong to.',
+          },
+        ],
+      },
       easySteps: [
         'The panel shows a code and opens your browser on this site.',
         'Check the code on the page matches the one in RuneLite, then click **Approve**.',
@@ -500,6 +524,13 @@ export const en = {
         tag: 'Where this happens',
         body: [
           'Everything in this flow stays on `{origin}` — the code is issued here, approved here with {clanName}’s own Discord login, and the token is handed back here. The plugin refuses to open any sign-in page that isn’t on the Site URL you typed, so nothing in this step reaches another Anvil instance.',
+        ],
+      },
+      settingsRefreshNote: {
+        tag: 'Account Token still looks empty?',
+        body: [
+          'It isn’t — signing in saves the token the moment you approve. But RuneLite only draws a plugin’s settings page when you open it, so if you were already sitting on **Configuration → Anvil** while you signed in, that box carries on showing you what it showed a minute ago.',
+          'Click any other plugin in the settings list, then click **Anvil** again. The token is there. The side panel is the honest one during sign-in: it says _Signed in_ as soon as it worked.',
         ],
       },
       federationAside:

@@ -120,6 +120,27 @@ export default async function PluginGuide({ lang }: { lang: string }) {
           <>
             <h3 className="text-lg font-semibold pt-2">{p.connect.easyHeading}</h3>
             <p className="text-text-muted">{rt(p.connect.easyIntro, v)}</p>
+
+            {/* Where the panel IS, before what is in it. "Open the side panel" assumes you already
+                know which of twenty identical icons opens it, which is the step people get stuck on. */}
+            <Figure
+              src="/guide/plugin-panel-button.png"
+              width={192}
+              height={518}
+              alt={p.connect.panelFigure.alt}
+              caption={p.connect.panelFigure.caption}
+              legend={legend(p.connect.panelFigure.legend, v)}
+            />
+
+            <Figure
+              src="/guide/plugin-signin.png"
+              width={548}
+              height={698}
+              alt={p.connect.signInFigure.alt}
+              caption={p.connect.signInFigure.caption}
+              legend={legend(p.connect.signInFigure.legend, v)}
+            />
+
             <ol className="list-decimal pl-5 text-text-muted space-y-1.5 text-sm">
               {items(p.connect.easySteps, v)}
             </ol>
@@ -139,6 +160,10 @@ export default async function PluginGuide({ lang }: { lang: string }) {
             ) : (
               <Note tag={p.connect.directNote.tag}>{paragraphs(p.connect.directNote.body, v, '')}</Note>
             )}
+
+            <Note tag={p.connect.settingsRefreshNote.tag}>
+              {paragraphs(p.connect.settingsRefreshNote.body, v, '')}
+            </Note>
 
             {federationEnabled && (
               <p className="text-sm text-text-muted">{rt(p.connect.federationAside, v)}</p>

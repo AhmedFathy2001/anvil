@@ -467,6 +467,30 @@ const ko: PartialGuideDict = {
       easyHeading: '쉬운 길: 플러그인에서 바로 로그인',
       easyIntro:
         'Site URL이 채워져 있고 토큰이 아직 비어 있으면 **Anvil 사이드 패널**에 **Sign in with Discord** 버튼이 나타납니다. 누르면 플러그인이 끝까지 안내합니다 —— 아무것도 복사할 필요가 없습니다.',
+      panelFigure: {
+        caption: 'RuneLite → Anvil 버튼',
+        alt: 'RuneLite 사이드바 아이콘 줄에서 맨 아래 Anvil 버튼을 표시한 모습',
+        legend: [
+          {
+            label: 'Anvil 버튼',
+            body: 'RuneLite 창 옆, 아이콘 줄 맨 아래에 있습니다. 누르면 패널이 열립니다. 플러그인을 설치하고 켜면 바로 나타나며, 위쪽에 두고 싶다면 줄에서 위로 끌어 올리면 됩니다.',
+          },
+        ],
+      },
+      signInFigure: {
+        caption: 'Anvil 패널',
+        alt: 'Sign in with Discord 버튼과 연결되는 사이트를 표시한 Anvil 패널',
+        legend: [
+          {
+            label: 'Sign in with Discord',
+            body: '토큰이 비어 있는 동안에만 보입니다. 누르면 나머지는 브라우저에서 진행됩니다.',
+          },
+          {
+            label: 'Connects to',
+            body: '당신이 입력한 Site URL을, 결정하기 전에 그대로 적어 둔 것입니다. `{origin}`이 맞는지 확인하세요 — 당신의 토큰이 속하게 될 사이트입니다.',
+          },
+        ],
+      },
       easySteps: [
         '패널에 코드가 표시되고, 브라우저가 이 사이트로 열립니다.',
         '페이지의 코드가 RuneLite에 표시된 것과 같은지 확인한 뒤 **Approve**를 누릅니다.',
@@ -494,6 +518,13 @@ const ko: PartialGuideDict = {
         tag: '이 일이 어디서 일어나는가',
         body: [
           '이 흐름 전체가 `{origin}` 안에서 끝납니다 —— 코드는 여기서 발급되고, 여기서 {clanName} 자체의 Discord 로그인으로 승인되며, 토큰도 여기서 넘겨받습니다. 플러그인은 입력된 Site URL이 아닌 로그인 페이지를 열기를 거부하므로, 이 단계에서 다른 Anvil 설치로 넘어가는 것은 아무것도 없습니다.',
+        ],
+      },
+      settingsRefreshNote: {
+        tag: 'Account Token이 여전히 비어 보이나요?',
+        body: [
+          '비어 있지 않습니다 — 승인하는 순간 토큰은 저장됩니다. 다만 RuneLite는 플러그인 설정 페이지를 열 때만 다시 그리기 때문에, 로그인하는 동안 **Configuration → Anvil**을 켜 두었다면 그 칸은 1분 전 모습을 그대로 보여 줍니다.',
+          '설정 목록에서 다른 플러그인을 눌렀다가 **Anvil**을 다시 누르세요. 토큰은 들어 있습니다. 로그인 중에 정직한 쪽은 사이드 패널입니다: 성공하면 곧바로 _Signed in_이라고 알려 줍니다.',
         ],
       },
       federationAside:

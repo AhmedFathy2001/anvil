@@ -467,6 +467,30 @@ const ja: PartialGuideDict = {
       easyHeading: '楽な方法：プラグインからログインする',
       easyIntro:
         'Site URL が入っていてトークンがまだ空のとき、**Anvil のサイドパネル**に **Sign in with Discord** ボタンが出ます。押せばプラグインが最後まで案内してくれます —— 何もコピーする必要はありません。',
+      panelFigure: {
+        caption: 'RuneLite → Anvil ボタン',
+        alt: 'RuneLite のサイドバーのアイコン列。いちばん下の Anvil ボタンを囲んで示している',
+        legend: [
+          {
+            label: 'Anvil ボタン',
+            body: 'RuneLite ウィンドウの端、アイコン列のいちばん下にあります。押すとパネルが開きます。プラグインを入れて有効にすればすぐ現れ、上のほうがよければ列の中でドラッグして動かせます。',
+          },
+        ],
+      },
+      signInFigure: {
+        caption: 'Anvil パネル',
+        alt: 'Anvil パネル。Sign in with Discord ボタンと接続先のサイトを囲んで示している',
+        legend: [
+          {
+            label: 'Sign in with Discord',
+            body: 'トークンが空のあいだだけ出ます。押せば、あとはブラウザ側で進みます。',
+          },
+          {
+            label: 'Connects to',
+            body: 'あなたが入力した Site URL を、決める前にそのまま書き出したものです。`{origin}` になっているか確かめてください —— あなたのトークンが属するサイトです。',
+          },
+        ],
+      },
       easySteps: [
         'パネルにコードが表示され、このサイトがブラウザで開きます。',
         'ページ上のコードが RuneLite に出ているものと一致するか確かめてから **Approve** を押します。',
@@ -494,6 +518,13 @@ const ja: PartialGuideDict = {
         tag: 'これがどこで起きるか',
         body: [
           'この流れはすべて `{origin}` の中で完結します —— コードはここで発行され、ここで {clanName} 自身の Discord ログインによって承認され、トークンもここで返されます。プラグインは入力された Site URL 上にないログインページを開くことを拒否するので、この手順で別の Anvil 環境に何かが渡ることはありません。',
+        ],
+      },
+      settingsRefreshNote: {
+        tag: 'Account Token がまだ空に見えますか？',
+        body: [
+          '空ではありません —— 承認した時点でトークンは保存されています。ただし RuneLite はプラグインの設定ページを開いたときにしか描き直さないので、サインイン中に **Configuration → Anvil** を開いたままだった場合、その欄は 1 分前の状態を映したままです。',
+          '設定一覧で別のプラグインをクリックし、もう一度 **Anvil** を開いてください。トークンはちゃんと入っています。サインイン中に正直なのはサイドパネルのほうで、成功すればすぐ _Signed in_ と表示します。',
         ],
       },
       federationAside:

@@ -468,6 +468,30 @@ const fi: PartialGuideDict = {
       easyHeading: 'Helppo tapa: kirjaudu sisään pluginista',
       easyIntro:
         'Kun Site URL on asetettu ja token vielä tyhjä, **Anvilin sivupaneeli** näyttää **Sign in with Discord** -painikkeen. Klikkaa sitä, niin plugin opastaa sinut läpi — mitään ei tarvitse kopioida.',
+      panelFigure: {
+        caption: 'RuneLite → Anvil-painike',
+        alt: 'RuneLiten sivupalkin kuvakkeet, joissa Anvil-painike rivin alalaidassa on ympyröity',
+        legend: [
+          {
+            label: 'Anvil-painike',
+            body: 'RuneLite-ikkunan reunassa, kuvakerivin alimmaisena. Napsauta sitä avataksesi paneelin. Se ilmestyy heti, kun lisäosa on asennettu ja päällä — ja voit raahata sen ylemmäs riviin, jos haluat sen lähemmäs yläreunaa.',
+          },
+        ],
+      },
+      signInFigure: {
+        caption: 'Anvil-paneeli',
+        alt: 'Anvil-paneeli, jossa Sign in with Discord -painike ja sivusto johon se yhdistää on ympyröity',
+        legend: [
+          {
+            label: 'Sign in with Discord',
+            body: 'näkyy vain niin kauan kuin token on vielä tyhjä. Napsauta sitä, ja loput tapahtuu selaimessasi.',
+          },
+          {
+            label: 'Connects to',
+            body: 'kirjoittamasi Site URL kirjoitettuna auki ennen kuin sitoudut siihen. Tarkista, että siinä lukee `{origin}` — tämä on se sivusto, jolle tokenisi kuuluu.',
+          },
+        ],
+      },
       easySteps: [
         'Paneeli näyttää koodin ja avaa selaimesi tähän sivustoon.',
         'Tarkista että sivun koodi vastaa RuneLitessä näkyvää, ja klikkaa sitten **Approve**.',
@@ -495,6 +519,13 @@ const fi: PartialGuideDict = {
         tag: 'Missä tämä tapahtuu',
         body: [
           'Koko kulku pysyy osoitteessa `{origin}` — koodi myönnetään täällä, hyväksytään täällä {clanName}:n omalla Discord-kirjautumisella, ja token luovutetaan täällä. Plugin kieltäytyy avaamasta kirjautumissivua, joka ei ole kirjoittamassasi Site URL -osoitteessa, joten mikään tässä vaiheessa ei päädy toiseen Anvil-asennukseen.',
+        ],
+      },
+      settingsRefreshNote: {
+        tag: 'Näyttääkö Account Token yhä tyhjältä?',
+        body: [
+          'Ei se ole — token tallentuu heti kun hyväksyt. Mutta RuneLite piirtää lisäosan asetussivun vasta kun avaat sen, joten jos olit jo **Configuration → Anvil** -sivulla kirjautuessasi, kenttä näyttää yhä sen mitä se näytti minuutti sitten.',
+          'Napsauta listasta mitä tahansa toista lisäosaa ja sitten **Anvil** uudelleen. Token on siellä. Sivupaneeli on kirjautumisen aikana rehellinen: se sanoo _Signed in_ heti kun se onnistui.',
         ],
       },
       federationAside:

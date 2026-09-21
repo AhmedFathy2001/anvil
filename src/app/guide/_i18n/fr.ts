@@ -469,6 +469,30 @@ const fr: PartialGuideDict = {
       easyHeading: 'La voie facile : se connecter depuis le plugin',
       easyIntro:
         'Une fois la Site URL renseignée et le jeton encore vide, le **panneau latéral Anvil** affiche un bouton **Sign in with Discord**. Cliquez dessus et le plugin vous guide — sans rien copier.',
+      panelFigure: {
+        caption: 'RuneLite → le bouton Anvil',
+        alt: 'La barre d’icônes de RuneLite, avec le bouton Anvil entouré tout en bas',
+        legend: [
+          {
+            label: 'Le bouton Anvil',
+            body: 'sur le côté de la fenêtre RuneLite, tout en bas de la barre d’icônes. Cliquez dessus pour ouvrir le panneau. Il apparaît dès que le plugin est installé et activé — et vous pouvez le faire glisser vers le haut de la barre si vous le préférez près du sommet.',
+          },
+        ],
+      },
+      signInFigure: {
+        caption: 'Le panneau Anvil',
+        alt: 'Le panneau Anvil, avec le bouton Sign in with Discord et le site auquel il se connecte encadrés',
+        legend: [
+          {
+            label: 'Sign in with Discord',
+            body: 'ne s’affiche que tant que le jeton est encore vide. Cliquez dessus : le reste se passe dans votre navigateur.',
+          },
+          {
+            label: 'Connects to',
+            body: 'la Site URL que vous avez saisie, écrite en toutes lettres avant que vous ne vous engagiez. Vérifiez qu’il y est bien `{origin}` — c’est le site auquel votre jeton appartiendra.',
+          },
+        ],
+      },
       easySteps: [
         'Le panneau affiche un code et ouvre votre navigateur sur ce site.',
         'Vérifiez que le code de la page correspond à celui de RuneLite, puis cliquez **Approve**.',
@@ -496,6 +520,13 @@ const fr: PartialGuideDict = {
         tag: 'Où cela se passe',
         body: [
           'Tout ce parcours reste sur `{origin}` — le code est émis ici, approuvé ici avec la connexion Discord propre à {clanName}, et le jeton est remis ici. Le plugin refuse d’ouvrir une page de connexion qui ne se trouve pas sur la Site URL que vous avez saisie, donc rien dans cette étape n’atteint une autre installation d’Anvil.',
+        ],
+      },
+      settingsRefreshNote: {
+        tag: 'Account Token semble toujours vide ?',
+        body: [
+          'Il ne l’est pas — le jeton est enregistré au moment même où vous approuvez. Mais RuneLite ne dessine la page de réglages d’un plugin qu’à son ouverture : si vous étiez déjà sur **Configuration → Anvil** pendant la connexion, ce champ continue d’afficher ce qu’il affichait il y a une minute.',
+          'Cliquez sur n’importe quel autre plugin dans la liste, puis de nouveau sur **Anvil**. Le jeton y est. Pendant la connexion, c’est le panneau latéral qui dit vrai : il affiche _Signed in_ dès que ça a marché.',
         ],
       },
       federationAside:

@@ -468,6 +468,30 @@ const de: PartialGuideDict = {
       easyHeading: 'Der einfache Weg: aus dem Plugin heraus anmelden',
       easyIntro:
         'Mit gesetzter Site URL und noch leerem Token zeigt das **Anvil-Seitenpanel** eine Schaltfläche **Sign in with Discord**. Klick sie an, und das Plugin führt dich hindurch — ohne dass du irgendetwas kopierst.',
+      panelFigure: {
+        caption: 'RuneLite → die Anvil-Schaltfläche',
+        alt: 'Die Symbolleiste von RuneLite, in der die Anvil-Schaltfläche ganz unten eingerahmt ist',
+        legend: [
+          {
+            label: 'Die Anvil-Schaltfläche',
+            body: 'am Rand des RuneLite-Fensters, ganz unten in der Symbolleiste. Ein Klick öffnet das Panel. Sie erscheint, sobald das Plugin installiert und eingeschaltet ist — und du kannst sie in der Leiste nach oben ziehen, wenn du sie lieber weiter oben hast.',
+          },
+        ],
+      },
+      signInFigure: {
+        caption: 'Das Anvil-Panel',
+        alt: 'Das Anvil-Panel mit eingerahmter Schaltfläche Sign in with Discord und der Seite, zu der es verbindet',
+        legend: [
+          {
+            label: 'Sign in with Discord',
+            body: 'erscheint nur, solange der Token noch leer ist. Klick darauf, der Rest passiert in deinem Browser.',
+          },
+          {
+            label: 'Connects to',
+            body: 'die Site URL, die du eingetragen hast — ausgeschrieben, bevor du dich festlegst. Prüfe, dass dort `{origin}` steht: Das ist die Seite, zu der dein Token gehören wird.',
+          },
+        ],
+      },
       easySteps: [
         'Das Panel zeigt einen Code und öffnet deinen Browser auf dieser Seite.',
         'Prüfe, dass der Code auf der Seite mit dem in RuneLite übereinstimmt, und klicke dann **Approve**.',
@@ -495,6 +519,13 @@ const de: PartialGuideDict = {
         tag: 'Wo das passiert',
         body: [
           'Der gesamte Ablauf bleibt auf `{origin}` — der Code wird hier ausgestellt, hier mit {clanName}s eigener Discord-Anmeldung bestätigt, und der Token wird hier zurückgegeben. Das Plugin weigert sich, eine Anmeldeseite zu öffnen, die nicht auf der eingetragenen Site URL liegt, also erreicht in diesem Schritt nichts eine andere Anvil-Installation.',
+        ],
+      },
+      settingsRefreshNote: {
+        tag: 'Account Token sieht immer noch leer aus?',
+        body: [
+          'Ist er nicht — der Token wird in dem Moment gespeichert, in dem du bestätigst. RuneLite zeichnet die Einstellungsseite eines Plugins aber nur beim Öffnen, also zeigt das Feld noch das von vorhin, wenn du beim Anmelden schon auf **Configuration → Anvil** standest.',
+          'Klick in der Liste auf ein beliebiges anderes Plugin und dann wieder auf **Anvil**. Der Token ist da. Ehrlich ist während der Anmeldung das Seitenpanel: Es sagt _Signed in_, sobald es geklappt hat.',
         ],
       },
       federationAside:

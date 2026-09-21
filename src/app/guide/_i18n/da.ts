@@ -472,6 +472,30 @@ const da: PartialGuideDict = {
       easyHeading: 'Den nemme vej: log ind fra pluginnet',
       easyIntro:
         'Når Site URL er sat, og token stadig er tom, viser **Anvil-sidepanelet** en **Sign in with Discord**-knap. Klik på den, så guider pluginnet dig igennem — du skal ikke kopiere noget.',
+      panelFigure: {
+        caption: 'RuneLite → Anvil-knappen',
+        alt: 'RuneLites sidebjælke med Anvil-knappen nederst i ikonstriben markeret',
+        legend: [
+          {
+            label: 'Anvil-knappen',
+            body: 'langs siden af RuneLite-vinduet, nederst i ikonstriben. Klik på den for at åbne panelet. Den dukker op, så snart pluginnet er installeret og slået til — og du kan trække den op ad striben, hvis du hellere vil have den øverst.',
+          },
+        ],
+      },
+      signInFigure: {
+        caption: 'Anvil-panelet',
+        alt: 'Anvil-panelet med knappen Sign in with Discord og den side, det forbinder til, markeret',
+        legend: [
+          {
+            label: 'Sign in with Discord',
+            body: 'vises kun, så længe tokenet stadig er tomt. Klik på den, og resten sker i din browser.',
+          },
+          {
+            label: 'Connects to',
+            body: 'den Site URL, du skrev, stavet ud, før du binder dig. Tjek, at der står `{origin}` — det er den side, dit token kommer til at høre til.',
+          },
+        ],
+      },
       easySteps: [
         'Panelet viser en kode og åbner din browser på denne side.',
         'Tjek at koden på siden er den samme som den i RuneLite, og klik så **Approve**.',
@@ -499,6 +523,13 @@ const da: PartialGuideDict = {
         tag: 'Hvor det foregår',
         body: [
           'Hele forløbet bliver på `{origin}` — koden udstedes her, godkendes her med {clanName}s eget Discord-login, og token udleveres her. Pluginnet nægter at åbne en login-side, der ikke ligger på den Site URL, du har skrevet, så intet i dette trin når frem til en anden Anvil-installation.',
+        ],
+      },
+      settingsRefreshNote: {
+        tag: 'Ser Account Token stadig tomt ud?',
+        body: [
+          'Det er det ikke — tokenet gemmes i samme øjeblik, du godkender. Men RuneLite tegner først en plugins indstillingsside, når du åbner den, så hvis du allerede stod på **Configuration → Anvil**, mens du loggede ind, viser feltet stadig det, det viste for et minut siden.',
+          'Klik på et hvilket som helst andet plugin i listen, og klik så på **Anvil** igen. Tokenet er der. Sidepanelet er det ærlige under login: det siger _Signed in_, så snart det virkede.',
         ],
       },
       federationAside:
