@@ -113,6 +113,43 @@ export default function PublicClanHome({ view, signedIn }: { view: View; signedI
         </div>
       )}
 
+      {/* THE GUEST DOOR, which is not the recruiting one.
+          
+          Asking for a seat on this clan's site is not applying to their clan: it is how you play
+          their events, get your drops counted on their board, and show up on their pages as a
+          visitor. Membership comes from the in-game roster and nothing here can grant it.
+          
+          It used to have no door of its own. The only control on this page sat inside "This clan is
+          recruiting" — so a clan that was not recruiting offered nothing, and a clan with a Discord
+          invite offered "Apply on Discord", which answers a different question. Somebody who just
+          wanted to play an event had nowhere to ask. */}
+      {view.guestPolicy !== 'closed' && (!view.recruiting || !!view.discordInvite) && (
+        <div className="mt-4 flex flex-col gap-3 rounded-xl border border-card-border bg-card-bg p-4 sm:flex-row sm:items-center">
+          <div className="flex-1">
+            <div className="text-sm font-semibold">Just want to play with them?</div>
+            <div className="text-[13px] text-text-muted">
+              {view.guestPolicy === 'open'
+                ? `Ask for a guest seat and you can enter ${view.name}’s events. You stay in your own clan.`
+                : `Ask for a guest seat — a moderator answers. You can then enter ${view.name}’s events, and you stay in your own clan.`}
+            </div>
+          </div>
+          {signedIn ? (
+            <ApplyToClan
+              slug={view.slug}
+              clanName={view.name}
+              labels={{ open: 'Guest here', approval: 'Ask to guest' }}
+            />
+          ) : (
+            <ClanLink
+              href="/login"
+              className="shrink-0 rounded-lg border border-card-border px-4 py-2 text-center text-[13px] font-semibold transition-colors hover:border-gold/40 hover:text-gold"
+            >
+              Sign in to ask
+            </ClanLink>
+          )}
+        </div>
+      )}
+
       <div className="mt-4 grid gap-4 md:grid-cols-3">
         {/* About */}
         <div className="md:col-span-2">

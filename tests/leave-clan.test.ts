@@ -137,3 +137,31 @@ test('a real member is told the truth: the in-game roster decides', async () => 
   assert.match(!r.ok ? r.error : '', /clan chat in game/);
   assert.equal((await liveSeats(member)).length, 1, 'and nothing was written');
 });
+
+// ── The other door ───────────────────────────────────────────────────────────
+// There are two ways to leave: the whole person (above) and one character at a time
+// (guestAdmission.leaveClan, behind /api/me/seats/[id]/leave). They have to agree, or which one you
+// happened to use would decide whether leaving stuck.
+
+test('the per-seat door refuses the in-game member too', async () => {
+  const { leaveClan } = await import('../src/lib/guestAdmission.ts');
+  const [seat] = await liveSeats(member);
+  assert.equal(await leaveClan(seat.id, member), false, 'the roster still decides');
+  assert.equal((await liveSeats(member)).length, 1);
+});
+
+test('and it marks what it does end, so it sticks', async () => {
+  const { leaveClan } = await import('../src/lib/guestAdmission.ts');
+  const [p] = await db.insert(s.players).values({ displayName: 'One Character' }).returning();
+  await seatedCharacter(p.id, 'Just Visiting', { kind: 'guest', source: 'application' });
+
+  const [seat] = await liveSeats(p.id);
+  assert.equal(await leaveClan(seat.id, p.id), true);
+
+  const [after] = await db
+    .select({ source: s.clanMemberships.source, leftAt: s.clanMemberships.leftAt })
+    .from(s.clanMemberships)
+    .where(eq(s.clanMemberships.id, seat.id));
+  assert.equal(after.source, 'manual', 'the same mark the person-level door leaves');
+  assert.ok(after.leftAt);
+});

@@ -22,7 +22,21 @@ interface Info {
  * Addressed by slug against /api/clans/[slug]/apply, which is a platform route — so this works the
  * same from the clan's own pages and from the directory.
  */
-export default function ApplyToClan({ slug, clanName }: { slug: string; clanName: string }) {
+export default function ApplyToClan({
+  slug,
+  clanName,
+  /**
+   * What the button says. The default is recruiting language, because that is the panel it was
+   * written for. The guest door passes its own: `admit()` only ever produces a GUEST seat (or a
+   * request for one), so "Join" there would promise membership this cannot grant — that comes from
+   * the clan's in-game roster.
+   */
+  labels,
+}: {
+  slug: string;
+  clanName: string;
+  labels?: { open: string; approval: string };
+}) {
   const [info, setInfo] = useState<Info | null>(null);
   const [chosen, setChosen] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -103,7 +117,11 @@ export default function ApplyToClan({ slug, clanName }: { slug: string; clanName
         disabled={busy || chosen == null}
         className="shrink-0 rounded-lg bg-gold px-4 py-2 text-center text-[13px] font-semibold text-brown-dark transition-colors hover:bg-gold-light disabled:opacity-50"
       >
-        {busy ? 'Sending…' : info.guestPolicy === 'open' ? 'Join' : 'Apply'}
+        {busy
+          ? 'Sending…'
+          : info.guestPolicy === 'open'
+            ? (labels?.open ?? 'Join')
+            : (labels?.approval ?? 'Apply')}
       </button>
       {error && <span className="text-[12px] text-accent-red">{error}</span>}
     </div>

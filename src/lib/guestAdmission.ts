@@ -325,20 +325,36 @@ export async function claimMemberSeat(clanId: number, accountId: number): Promis
   return { demotedFrom: null };
 }
 
-/** Someone leaving a clan themselves. Their own seats only. */
+/**
+ * Someone leaving a clan themselves, one character at a time. Their own seats only.
+ *
+ * SAME RULE AS lib/leaveClan, which does it for the whole person: a seat the in-game roster is
+ * holding open is not theirs to end — the next sync would put it straight back — and a seat they do
+ * end is marked `source: 'manual'`, which is what stops the plugin's seat-keeping reviving it the
+ * next time they log in. This one had neither, so leaving through it did not stick and nothing said
+ * why. Two doors onto one decision have to agree about what the decision means.
+ */
 export async function leaveClan(seatId: number, playerId: number): Promise<boolean> {
   // Read through the view — it is what carries the person and the RSN alongside the seat — but
   // select, not db.query: clan_roster is a view and drizzle's relational API only knows tables.
   const [seat] = await db
-    .select({ id: clanRoster.id, clanId: clanRoster.clanId, rsn: clanRoster.rsn })
+    .select({
+      id: clanRoster.id,
+      clanId: clanRoster.clanId,
+      rsn: clanRoster.rsn,
+      kind: clanRoster.kind,
+      source: clanRoster.source,
+    })
     .from(clanRoster)
     .where(and(eq(clanRoster.id, seatId), eq(clanRoster.playerId, playerId), isNull(clanRoster.leftAt)))
     .limit(1);
   if (!seat) return false;
+  // The in-game roster put them here, so the in-game roster is what takes them away.
+  if (seat.kind === 'member' && seat.source === 'roster') return false;
 
   await db
     .update(clanMemberships)
-    .set({ leftAt: new Date().toISOString() })
+    .set({ leftAt: new Date().toISOString(), source: 'manual' })
     .where(eq(clanMemberships.id, seatId));
 
   await db
