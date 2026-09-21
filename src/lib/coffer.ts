@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { cofferEntries, clanRoster, type CofferEntry } from '@/db/schema';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { foldBalance, type CofferBalance } from '@/lib/cofferMath';
 import { announceCofferMovement } from '@/lib/cofferFeed';
 
@@ -152,19 +152,53 @@ export async function recordDonations(args: {
   return rows;
 }
 
-/** A staff correction: seed the pot, write off gp spent elsewhere, fix a fat-fingered donation. */
+export type AdjustmentResult =
+  | { ok: true; entry: CofferEntry }
+  | { ok: false; error: string; wouldLeave: number };
+
+/**
+ * A staff correction: seed the pot, write off gp spent elsewhere, fix a fat-fingered donation.
+ *
+ * IT MAY NOT TAKE THE POT BELOW ZERO. A clan cannot spend gp it does not have, and a ledger that
+ * lets it says something untrue about the real pile of coins somebody is holding. The floor is
+ * `available` rather than `confirmed`, because gp already promised to a live board or an unpaid
+ * winner is spoken for: spending past it would fund a prize twice, which is the failure the three
+ * numbers exist to prevent. Writing off more than that is a decision about those promises first —
+ * cancel or pay them, and the gp they hold comes back here.
+ *
+ * `force` is the way past it, and it exists because the ledger's job is to match reality rather than
+ * to argue with it: gp really can leave in game before anyone writes it down. The caller has to ask
+ * for it deliberately — the refusal carries the resulting balance so a treasurer confirms the number
+ * they are about to create rather than a shrug.
+ */
 export async function recordAdjustment(args: {
   clanId: number;
   amount: number;
   userId: number | null;
   note?: string | null;
-}): Promise<CofferEntry> {
+  /** Record it even though it takes the coffer below zero. See the note above. */
+  force?: boolean;
+}): Promise<AdjustmentResult> {
+  const amount = Math.trunc(args.amount);
+  if (amount < 0 && !args.force) {
+    const balance = await getCofferBalance(args.clanId);
+    if (-amount > balance.available) {
+      return {
+        ok: false,
+        wouldLeave: balance.available + amount,
+        error:
+          balance.reserved > 0
+            ? `The coffer has ${balance.available.toLocaleString()} gp free to spend — the rest of the ${balance.confirmed.toLocaleString()} is already promised. Cancel or pay those first.`
+            : `The coffer only has ${balance.available.toLocaleString()} gp. It cannot go below zero.`,
+      };
+    }
+  }
   const [row] = await db
     .insert(cofferEntries)
     .values({
       clanId: args.clanId,
       kind: 'adjustment',
-      amount: Math.trunc(args.amount),
+      amount,
       status: 'approved',
       createdByUserId: args.userId,
       settledByUserId: args.userId,
@@ -173,7 +207,7 @@ export async function recordAdjustment(args: {
     })
     .returning();
   announce(args.clanId, row);
-  return row;
+  return { ok: true, entry: row };
 }
 
 /**
@@ -470,6 +504,128 @@ export async function setEventPool(args: {
     .returning();
   announce(args.clanId, row);
   return { ok: true, entry: row };
+}
+
+/**
+ * The gp a weekly competition's prize ladder is holding, if any.
+ *
+ * A POOL row, not an award: a ladder promises places, and which person wins each one is not known
+ * until the week ends. The hold is the promise; the awards that replace it at settlement are the
+ * payments. Keyed on the competition, with no `place`, which is what tells the two apart.
+ */
+export async function getWeeklyPool(competitionId: number): Promise<CofferEntry | null> {
+  // clan-scope: global -- keyed by a competition id whose clan the caller has already settled.
+  const row = await db.query.cofferEntries.findFirst({
+    where: and(
+      eq(cofferEntries.weeklyCompetitionId, competitionId),
+      eq(cofferEntries.kind, 'pool'),
+      isNull(cofferEntries.place),
+      inArray(cofferEntries.status, [...LIVE_POOL_STATUSES]),
+    ),
+  });
+  return row ?? null;
+}
+
+/**
+ * Set (or clear) what a weekly competition's ladder takes from the coffer.
+ *
+ * WHY A HOLD AT ALL. Before this, a ladder reserved nothing until the week ended, so "available for
+ * prizes" counted gp three live competitions had each already promised. They all read as funded, and
+ * whichever settled last found the pot empty and recorded a winner it could not pay. The promise now
+ * costs the pot the moment it is made, which is the only version of the number a host can plan with.
+ *
+ * `hold` false records the promise without locking the gp — same choice an event's pool offers, for
+ * the clan that means to fund it from somewhere else.
+ *
+ * The same row is edited rather than stacked, so a host who types 5m, thinks better of it and types
+ * 3m has promised 3m. Clearing cancels it and the gp goes straight back: nothing was ever sent.
+ */
+export async function setWeeklyPool(args: {
+  clanId: number;
+  competitionId: number;
+  amount: number;
+  hold: boolean;
+  userId: number | null;
+  note?: string | null;
+}): Promise<SetPoolResult> {
+  const amount = Math.max(0, Math.floor(args.amount));
+  const existing = await getWeeklyPool(args.competitionId);
+  if (existing?.status === 'paid') {
+    return { ok: false, error: 'That prize money has already been paid out. Record a change as an adjustment instead.' };
+  }
+  const status = args.hold ? 'reserved' : 'planned';
+  const held = existing?.status === 'reserved' ? Math.abs(existing.amount) : 0;
+  const current = existing ? Math.abs(existing.amount) : 0;
+  if (amount === current && existing?.status === status) return { ok: true, entry: existing };
+
+  // Only the gp this hold is asking for ON TOP of what it already holds has to be affordable — its
+  // own money is not competing with itself. See setEventPool, which this mirrors deliberately.
+  if (args.hold && amount > held) {
+    const balance = await getCofferBalance(args.clanId);
+    if (balance.available < amount - held) {
+      return {
+        ok: false,
+        error: `The coffer only has ${balance.available.toLocaleString()} gp available. Save it without holding if you mean to fund it later.`,
+      };
+    }
+  }
+
+  const editable = and(eq(cofferEntries.id, existing?.id ?? -1), inArray(cofferEntries.status, ['planned', 'reserved']));
+
+  if (amount === 0) {
+    if (!existing) return { ok: true, entry: null };
+    const [row] = await db
+      .update(cofferEntries)
+      .set({ status: 'cancelled', settledByUserId: args.userId, settledAt: new Date().toISOString() })
+      .where(editable)
+      .returning();
+    announce(args.clanId, row);
+    return { ok: true, entry: null };
+  }
+
+  if (existing) {
+    const [row] = await db
+      .update(cofferEntries)
+      .set({ amount: -amount, status, note: args.note ?? existing.note })
+      .where(editable)
+      .returning();
+    announce(args.clanId, row);
+    return { ok: true, entry: row ?? existing };
+  }
+
+  const [row] = await db
+    .insert(cofferEntries)
+    .values({
+      clanId: args.clanId,
+      kind: 'pool',
+      amount: -amount,
+      status,
+      weeklyCompetitionId: args.competitionId,
+      createdByUserId: args.userId,
+      note: args.note ?? null,
+    })
+    .returning();
+  announce(args.clanId, row);
+  return { ok: true, entry: row };
+}
+
+/**
+ * Let the hold go.
+ *
+ * Called at settlement BEFORE the winners' awards are written, and when a competition is deleted.
+ * Both are the same sentence: this money is no longer promised to a board. At settlement the awards
+ * take it straight back for the places that were actually won — and whatever nobody won, or nobody
+ * entered for, simply stays in the pot, which is the release the clan sees.
+ *
+ * Never touches a PAID row: that gp is gone, and pretending otherwise would hand it back twice.
+ */
+export async function releaseWeeklyPool(competitionId: number, userId: number | null = null): Promise<void> {
+  const row = await getWeeklyPool(competitionId);
+  if (!row || row.status === 'paid') return;
+  await db
+    .update(cofferEntries)
+    .set({ status: 'cancelled', settledByUserId: userId, settledAt: new Date().toISOString() })
+    .where(and(eq(cofferEntries.id, row.id), inArray(cofferEntries.status, ['planned', 'reserved'])));
 }
 
 /** Treasurer sent the gp (or took it back). Conditional on the row still being in the state it left. */

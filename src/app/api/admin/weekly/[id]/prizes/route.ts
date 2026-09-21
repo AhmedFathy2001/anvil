@@ -5,7 +5,7 @@ import { db } from '@/db';
 import { weeklyCompetitions } from '@/db/schema';
 import { verifyFeeCollector } from '@/lib/auth';
 import { competitionForRequest } from '@/lib/eventScope';
-import { getCofferBalance } from '@/lib/coffer';
+import { getCofferBalance, getWeeklyPool, setWeeklyPool } from '@/lib/coffer';
 import { parseWeeklyPrizes, serializeWeeklyPrizes, totalPrizeGp } from '@/lib/weeklyPrizes';
 
 /**
@@ -27,16 +27,19 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const comp = await competitionForRequest(request, compId);
   if (!comp) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  const balance = await getCofferBalance(comp.clanId);
+  const [balance, pool] = await Promise.all([getCofferBalance(comp.clanId), getWeeklyPool(compId)]);
   return NextResponse.json({
     prizes: parseWeeklyPrizes(comp.prizes),
     settledAt: comp.prizesSettledAt,
     balance,
+    // Whether this ladder's gp is being held right now, so the toggle opens where the host left it.
+    held: pool?.status === 'reserved',
   });
 }
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await verifyFeeCollector())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const session = await verifyFeeCollector();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { id } = await params;
   const compId = parseInt(id, 10);
   // Whose competition is this? The id came from the URL, and ids are global.
@@ -56,6 +59,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     places?: unknown;
     payZeroGain?: unknown;
     splitTies?: unknown;
+    hold?: unknown;
   } | null;
   if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
 
@@ -68,11 +72,28 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     JSON.stringify({ places, payZeroGain: body.payZeroGain === true, splitTies: body.splitTies === true }),
   );
 
+  // THE COFFER FIRST, then the ladder. A hold the coffer refuses must not leave a saved ladder
+  // promising gp nothing is keeping for it — the refusal has to mean the whole save did not happen,
+  // or the host is told no and the promise is on the board anyway.
+  //
+  // Holding is the default: a promise the pot can spend twice is the failure the ledger exists to
+  // prevent. `hold: false` records it without locking the gp, for a clan funding it from elsewhere.
+  const total = totalPrizeGp(prizes);
+  const hold = body.hold !== false;
+  const pool = await setWeeklyPool({
+    clanId: comp.clanId,
+    competitionId: compId,
+    amount: total,
+    hold,
+    userId: session.userId,
+  });
+  if (!pool.ok) return NextResponse.json({ error: pool.error }, { status: 400 });
+
   await db
     .update(weeklyCompetitions)
     .set({ prizes: serializeWeeklyPrizes(prizes) })
     .where(eq(weeklyCompetitions.id, compId));
 
   const balance = await getCofferBalance(comp.clanId);
-  return NextResponse.json({ prizes, total: totalPrizeGp(prizes), balance });
+  return NextResponse.json({ prizes, total, balance, held: pool.entry?.status === 'reserved' });
 }

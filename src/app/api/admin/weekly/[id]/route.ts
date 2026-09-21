@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { releaseWeeklyPool } from '@/lib/coffer';
 import { competitionForRequest } from '@/lib/eventScope';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
@@ -93,6 +94,10 @@ export async function DELETE(
   // tables predate the squashed migration baseline and may not carry it, which made
   // this delete fail with a foreign-key error.
   try {
+    // Give the ladder's hold back before the competition goes. The coffer row's competition link is
+    // ON DELETE SET NULL, so a reserved pool would outlive the thing it was holding gp for and sit
+    // on the ledger forever with nothing left to release it.
+    await releaseWeeklyPool(compId, user.userId > 0 ? user.userId : null);
     await db.delete(playerSnapshots).where(eq(playerSnapshots.weeklyCompetitionId, compId));
     await db.delete(weeklyParticipants).where(eq(weeklyParticipants.competitionId, compId));
     await db.delete(weeklyCompetitions).where(eq(weeklyCompetitions.id, compId));

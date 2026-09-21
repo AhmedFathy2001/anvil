@@ -296,6 +296,9 @@ export const en = {
     notStaff: 'Only treasurers, admins and owners can move the coffer.',
     badAmount: 'Give an amount to add or remove, e.g. `5m` or `2500000`.',
     outOfRange: 'That amount is out of range.',
+    tooMuch:
+      'The coffer only has {available} to spend, so removing {amount} would take it below zero. ' +
+      'Do it on the coffer page if you mean to record it anyway.',
     added: '✅ Added {amount} to the coffer — {available} available now.',
     removed: '✅ Removed {amount} from the coffer — {available} available now.',
   },

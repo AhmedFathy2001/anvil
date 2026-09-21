@@ -5,7 +5,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import { formatGp } from '@/lib/adminEventsFormat';
 import WeeklyPrizeLadder from '@/components/WeeklyPrizeLadder';
 import GuideLink from '@/components/GuideLink';
-import type { WeeklyPrizes } from '@/lib/weeklyPrizes';
+import { totalPrizeGp, type WeeklyPrizes } from '@/lib/weeklyPrizes';
 
 /**
  * What a Skill or Boss of the Week pays, place by place, out of the clan coffer.
@@ -18,6 +18,7 @@ export default function WeeklyPrizeEditor({
   competitionId,
   initial,
   cofferAvailable,
+  initialHeld,
   settledAt,
   canEdit,
   hasCoffer,
@@ -25,6 +26,8 @@ export default function WeeklyPrizeEditor({
   competitionId: number;
   initial: WeeklyPrizes;
   cofferAvailable: number;
+  /** Whether this ladder's gp is already set aside. Opens the toggle where the host left it. */
+  initialHeld: boolean;
   /** Set once the prizes have been reserved. The ladder is history from then on. */
   settledAt: string | null;
   /** Treasurer or admin. A moderator sees the ladder and cannot change it. */
@@ -32,6 +35,12 @@ export default function WeeklyPrizeEditor({
   hasCoffer: boolean;
 }) {
   const [prizes, setPrizes] = useState<WeeklyPrizes>(initial);
+  // Holding is the default for a ladder that has none yet: a promise the pot can spend twice is the
+  // whole failure the coffer exists to prevent.
+  const [hold, setHold] = useState(initialHeld || totalPrizeGp(initial) === 0);
+  // The coffer moves when this saves, so the number on screen has to move with it rather than
+  // showing what was true when the page was rendered.
+  const [available, setAvailable] = useState(cofferAvailable);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -44,16 +53,22 @@ export default function WeeklyPrizeEditor({
       const res = await clanFetch(`/api/admin/weekly/${competitionId}/prizes`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(prizes),
+        body: JSON.stringify({ ...prizes, hold }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Could not save the prizes.');
       // The server cleans the ladder — trailing empty places dropped, amounts clamped — so take its
       // answer rather than leaving the screen showing something that will not be paid.
       setPrizes(data.prizes);
+      if (data.balance) setAvailable(data.balance.available + (data.held ? data.total : 0));
       setMessage({
         type: 'success',
-        text: data.total > 0 ? `Saved. ${formatGp(data.total)} gp promised.` : 'Saved. This competition pays nothing.',
+        text:
+          data.total > 0
+            ? data.held
+              ? `Saved. ${formatGp(data.total)} gp held for this week.`
+              : `Saved. ${formatGp(data.total)} gp promised, nothing held.`
+            : 'Saved. This competition pays nothing.',
       });
     } catch (e) {
       setMessage({ type: 'error', text: e instanceof Error ? e.message : 'Could not save the prizes.' });
@@ -73,12 +88,13 @@ export default function WeeklyPrizeEditor({
         </h2>
         <div className="flex items-center gap-3">
           <GuideLink href="/guide/coffer#out">How prizes work</GuideLink>
-          <span className="text-xs text-text-muted">{formatGp(cofferAvailable)} gp available in the coffer</span>
+          <span className="text-xs text-text-muted">{formatGp(available)} gp available in the coffer</span>
         </div>
       </div>
       <p className="text-xs text-text-muted mb-4">
-        Paid out of the clan coffer when the competition ends. Reserved automatically off the final
-        standings — a treasurer sends the gp and marks it paid on the coffer page.
+        Held out of the clan coffer while this runs, so nothing else can promise the same gp. When
+        the week ends the final standings decide who gets what — a treasurer then sends it and marks
+        it paid on the coffer page. Anything nobody wins goes back to the pot.
       </p>
 
       {settledAt && (
@@ -90,8 +106,10 @@ export default function WeeklyPrizeEditor({
       <WeeklyPrizeLadder
         value={prizes}
         onChange={setPrizes}
-        cofferAvailable={cofferAvailable}
+        cofferAvailable={available}
         hasCoffer={hasCoffer}
+        hold={hold}
+        onHoldChange={setHold}
         disabled={locked}
       />
 

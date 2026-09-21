@@ -8,6 +8,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import { formatGp, parseGpInput } from '@/lib/adminEventsFormat';
 import { splitEvenly } from '@/lib/splitGp';
 import GuideLink from '@/components/GuideLink';
+import { useDialog } from '@/components/Confirm';
 import type { CofferBalance } from '@/lib/cofferMath';
 import type { CofferLedgerRow } from '@/lib/coffer';
 
@@ -36,6 +37,7 @@ export default function CofferClient({
   roster: DonorSeat[];
 }) {
   const router = useRouter();
+  const { confirm } = useDialog();
   const [busy, setBusy] = useState<number | null>(null);
   const [msg, setMsg] = useState('');
   const [adjustAmount, setAdjustAmount] = useState('');
@@ -156,7 +158,7 @@ export default function CofferClient({
     }
   }
 
-  async function adjust(direction: 1 | -1) {
+  async function adjust(direction: 1 | -1, force = false) {
     const parsed = parseGpInput(adjustAmount);
     if (!parsed) {
       setMsg('Enter an amount, like 50m.');
@@ -168,16 +170,30 @@ export default function CofferClient({
       const res = await clanFetch('/api/admin/coffer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: parsed * direction, note: adjustNote || null }),
+        body: JSON.stringify({ amount: parsed * direction, note: adjustNote || null, force }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setAdjustAmount('');
         setAdjustNote('');
         router.refresh();
-      } else {
-        setMsg(data.error || 'That did not go through.');
+        return;
       }
+      // TAKING IT BELOW ZERO IS A DECISION, NOT A MISTAKE — usually. The server refuses by default
+      // because the common case is a typo or gp that is already promised elsewhere; but the ledger's
+      // job is to match reality, and gp really can leave in game before anyone writes it down. So
+      // the refusal is offered back as a choice, with the balance it would create named in it.
+      if (data.needsConfirm) {
+        const ok = await confirm({
+          title: 'Take the coffer below zero?',
+          body: `${data.error} Recording it anyway leaves the coffer at ${formatGp(data.wouldLeave)} — a debt the clan owes, shown to everyone who opens this page.`,
+          confirmLabel: 'Record it anyway',
+          tone: 'danger',
+        });
+        if (ok) await adjust(direction, true);
+        return;
+      }
+      setMsg(data.error || 'That did not go through.');
     } finally {
       setAdjusting(false);
     }

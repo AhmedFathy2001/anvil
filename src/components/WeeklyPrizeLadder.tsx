@@ -21,14 +21,22 @@ export default function WeeklyPrizeLadder({
   onChange,
   cofferAvailable,
   hasCoffer,
+  hold,
+  onHoldChange,
   disabled = false,
 }: {
   value: WeeklyPrizes;
   onChange: (next: WeeklyPrizes) => void;
-  /** What the clan can cover right now, so an over-promise is visible while authoring. */
+  /**
+   * What the clan can cover right now, NOT counting what this ladder already holds — so the
+   * over-promise warning is about gp this ladder would still need, not gp it has already set aside.
+   */
   cofferAvailable: number;
   /** False when the clan has never moved gp. Says so rather than pretending the ladder is free. */
   hasCoffer: boolean;
+  /** Whether saving sets the gp aside now, or merely records the promise. */
+  hold: boolean;
+  onHoldChange: (next: boolean) => void;
   disabled?: boolean;
 }) {
   const total = totalPrizeGp(value);
@@ -104,13 +112,24 @@ export default function WeeklyPrizeLadder({
       )}
 
       {total > 0 && (
-        <p className={`mt-4 text-xs ${overPromised ? 'text-amber-300' : 'text-text-muted'}`}>
-          {!hasCoffer
-            ? `The clan coffer is empty — nothing has been paid into it yet. The ladder still saves, and every place is recorded as owed until somebody funds it.`
-            : overPromised
-              ? `This ladder promises ${formatGp(total)} gp and the coffer has ${formatGp(cofferAvailable)} available. The places it can't cover are still recorded — as owed, unpaid — so nobody's prize quietly disappears.`
-              : `Promises ${formatGp(total)} gp of the coffer's ${formatGp(cofferAvailable)}.`}
-        </p>
+        <div className="mt-4 space-y-3 border-t border-card-border pt-4">
+          <Checkbox
+            checked={hold}
+            onChange={onHoldChange}
+            disabled={disabled}
+            label="Hold the gp from the coffer now"
+            description="On, the prize leaves the coffer's available balance the moment you save, so nothing else can promise the same gp while this runs. Off, it is only written down — the pot still reads as though this ladder costs nothing."
+          />
+          <p className={`text-xs ${overPromised && hold ? 'text-amber-300' : 'text-text-muted'}`}>
+            {!hasCoffer
+              ? `The clan coffer is empty — nothing has been paid into it yet. Save without holding, and every place is recorded as owed until somebody funds it.`
+              : overPromised && hold
+                ? `This ladder needs ${formatGp(total)} gp and the coffer has ${formatGp(cofferAvailable)} available to hold. Save it without holding, or put more in the pot first.`
+                : hold
+                  ? `Holds ${formatGp(total)} gp of the coffer's ${formatGp(cofferAvailable)} until the week is settled. Whatever nobody wins goes back.`
+                  : `Promises ${formatGp(total)} gp. The coffer keeps reading ${formatGp(cofferAvailable)} available until this is held or paid.`}
+          </p>
+        </div>
       )}
     </div>
   );

@@ -35,6 +35,7 @@ export async function POST(request: Request) {
     amount?: unknown;
     note?: unknown;
     donors?: unknown;
+    force?: unknown;
   } | null;
 
   // Named donors: a gift the treasurer is recording on somebody's behalf, one row each so the
@@ -87,14 +88,24 @@ export async function POST(request: Request) {
   if (Math.abs(amount) > 100_000_000_000) {
     return NextResponse.json({ error: 'That amount is out of range.' }, { status: 400 });
   }
-  // A negative adjustment can take the pot below what is already promised, and that is allowed on
-  // purpose: the gp really did leave, and a ledger that refuses to record reality is worth less than
-  // one that shows a treasurer they are short.
-  const entry = await recordAdjustment({
+  // THE POT DOES NOT GO BELOW ZERO on its own. It used to: a negative adjustment could spend gp that
+  // was already promised to a live board or an unpaid winner, and the ledger said nothing.
+  //
+  // But reality wins over the ledger — gp really can leave in game before anybody writes it down —
+  // so `force` records it anyway. The refusal carries the balance it would leave, which is what the
+  // page turns into a confirmation: a treasurer approves the number rather than being told no.
+  const result = await recordAdjustment({
     clanId: clan.id,
     amount,
     userId: session.userId,
     note: typeof body?.note === 'string' ? body.note.slice(0, 500) : null,
+    force: body?.force === true,
   });
-  return NextResponse.json({ entry });
+  if (!result.ok) {
+    return NextResponse.json(
+      { error: result.error, wouldLeave: result.wouldLeave, needsConfirm: true },
+      { status: 409 },
+    );
+  }
+  return NextResponse.json({ entry: result.entry });
 }

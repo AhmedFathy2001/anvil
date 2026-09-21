@@ -2,7 +2,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { reserveWeeklyAward } from '@/lib/coffer';
+import { releaseWeeklyPool, reserveWeeklyAward } from '@/lib/coffer';
 import { computeLeaderboard, countsTowardLeaderboard } from '@/lib/weekly';
 import { parseWeeklyPrizes, winnersFor } from '@/lib/weeklyPrizes';
 import { ordinal } from '@/lib/utils';
@@ -35,6 +35,8 @@ export interface SettleResult {
  * Each still takes its own ledger slot, which is what the (competition, place) unique index needs.
  */
 export async function settleWeeklyPrizes(competitionId: number): Promise<SettleResult> {
+  // clan-scope: global -- keyed by a competition id, and a competition belongs to exactly one clan;
+  // the clan is read back off this row and every write below is scoped to it.
   const comp = await db.query.weeklyCompetitions.findFirst({
     where: eq(weeklyCompetitions.id, competitionId),
   });
@@ -43,7 +45,9 @@ export async function settleWeeklyPrizes(competitionId: number): Promise<SettleR
   }
   const prizes = parseWeeklyPrizes(comp.prizes);
   if (prizes.places.length === 0) {
-    // Nothing to pay, but stamp it so the pass stops looking at this one every tick forever.
+    // Nothing to pay. Release anything a ladder held before it was emptied, then stamp it so the
+    // pass stops looking at this one every tick forever.
+    await releaseWeeklyPool(competitionId);
     await db
       .update(weeklyCompetitions)
       .set({ prizesSettledAt: new Date().toISOString() })
@@ -52,6 +56,7 @@ export async function settleWeeklyPrizes(competitionId: number): Promise<SettleR
   }
 
   // The same rows the board is built from, so the payout cannot disagree with what people watched.
+  // clan-scope: this clan -- narrowed to this competition's participants, which are its clan's.
   const rows = await db
     .select({
       rsn: weeklyParticipants.rsn,
@@ -77,6 +82,16 @@ export async function settleWeeklyPrizes(competitionId: number): Promise<SettleR
     gained: e.gained,
     clanMemberId: byRsn.get(e.rsn)?.clanMemberId ?? null,
   }));
+
+  // LET THE HOLD GO FIRST. While it ran, this ladder's gp sat reserved against the coffer so nothing
+  // else could promise it away. The awards below are that same money finding its owners, and they
+  // fund against `available` — so leaving the hold in place would have the competition competing
+  // with itself and calling its own winners unfunded.
+  //
+  // Whatever nobody won is simply never re-reserved: a place with no entrant, or a ladder on a week
+  // where nobody gained anything, releases back into the pot by not being claimed. That is the
+  // release, and it happens without a decision.
+  await releaseWeeklyPool(competitionId);
 
   let reserved = 0;
   let unfunded = 0;

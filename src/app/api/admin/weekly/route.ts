@@ -8,7 +8,8 @@ import { enrollAllPlayers } from '@/lib/weekly';
 import { notifyWeeklyStart } from '@/lib/discord';
 import { EFFICIENCY_METRICS } from '@/lib/constants';
 import { verifyFeeCollector } from '@/lib/auth';
-import { parseWeeklyPrizes, serializeWeeklyPrizes } from '@/lib/weeklyPrizes';
+import { parseWeeklyPrizes, serializeWeeklyPrizes, totalPrizeGp } from '@/lib/weeklyPrizes';
+import { setWeeklyPool } from '@/lib/coffer';
 
 export async function GET() {
   const user = await verifyAdminOrModerator();
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { type, metric, title, startDate, endDate, includeGuests, prizes } = await request.json();
+  const { type, metric, title, startDate, endDate, includeGuests, prizes, prizeHold } = await request.json();
 
   if (!type || !metric || !title || !startDate || !endDate) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -100,6 +101,35 @@ export async function POST(request: Request) {
 
   const comp = result[0];
 
+  // A ladder set at creation holds its gp the same as one added later — the promise costs the pot
+  // when it is made, wherever it was typed. A coffer too short to cover it does NOT fail the
+  // creation: the competition is real and already announced, so the ladder is recorded as a promise
+  // (planned) instead, and the response says so rather than pretending the gp is set aside.
+  let prizesHeld = false;
+  if (prizesJson) {
+    const total = totalPrizeGp(parseWeeklyPrizes(prizesJson));
+    if (total > 0) {
+      const pool = await setWeeklyPool({
+        clanId: clan.id,
+        competitionId: comp.id,
+        amount: total,
+        hold: prizeHold !== false,
+        userId: user.userId > 0 ? user.userId : null,
+      });
+      if (!pool.ok) {
+        await setWeeklyPool({
+          clanId: clan.id,
+          competitionId: comp.id,
+          amount: total,
+          hold: false,
+          userId: user.userId > 0 ? user.userId : null,
+        });
+      } else {
+        prizesHeld = pool.entry?.status === 'reserved';
+      }
+    }
+  }
+
   // Auto-enroll all registered players
   const enrolled = await enrollAllPlayers(comp.id);
 
@@ -111,5 +141,5 @@ export async function POST(request: Request) {
     notifyWeeklyStart({ clanId: clan.id, type: comp.type, title: comp.title, metric: comp.metric, endDate: comp.endDate }).catch(() => {});
   }
 
-  return NextResponse.json({ ...comp, enrolled });
+  return NextResponse.json({ ...comp, enrolled, prizesHeld });
 }

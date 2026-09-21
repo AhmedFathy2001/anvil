@@ -427,7 +427,20 @@ async function cofferWriteResult(ctx: ClanCommandCtx, sign: 1 | -1): Promise<Cla
   const note = typeof ctx.options.note === 'string' ? ctx.options.note.slice(0, 500) : null;
   // recordAdjustment announces the movement to the coffer feed channel itself, so the runner gets a
   // private confirmation and the channel gets the standard post — no double announcement here.
-  await recordAdjustment({ clanId: clan.clanId, amount, userId: identity.userId, note });
+  //
+  // It can also REFUSE: the pot does not go below zero. Overriding that is a deliberate act with a
+  // confirmation attached, which a slash command has nowhere to put, so this one sends them to the
+  // page that does. Ignoring the result here would have reported a movement that never happened.
+  const adjusted = await recordAdjustment({ clanId: clan.clanId, amount, userId: identity.userId, note });
+  if (!adjusted.ok) {
+    const balance = await getCofferBalance(clan.clanId);
+    return {
+      text: fmt(t.coffer.tooMuch, {
+        available: formatGp(balance.available),
+        amount: formatGp(magnitude),
+      }),
+    };
+  }
   const balance = await getCofferBalance(clan.clanId);
   return {
     text: fmt(sign > 0 ? t.coffer.added : t.coffer.removed, {

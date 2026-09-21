@@ -17,7 +17,10 @@ import { useDialog } from '@/components/Confirm';
 /** Everything the prize card needs. */
 interface PrizeContext {
   initial: WeeklyPrizes;
+  /** Available in the coffer, with this ladder's own hold added back in. */
   cofferAvailable: number;
+  /** Whether this ladder's gp is being held right now. */
+  held: boolean;
   settledAt: string | null;
   canEdit: boolean;
   /** False when the clan has never moved gp — the card says so rather than hiding. */
@@ -229,6 +232,7 @@ export default function WeeklyHomeClient({
         competitionId={comp.id}
         initial={prizes.initial}
         cofferAvailable={prizes.cofferAvailable}
+        initialHeld={prizes.held}
         settledAt={prizes.settledAt}
         canEdit={prizes.canEdit}
         hasCoffer={prizes.hasCoffer}
