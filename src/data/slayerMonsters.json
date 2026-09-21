@@ -1,9 +1,9 @@
 {
   "source": "https://oldschool.runescape.wiki/w/Special:Bucket/infobox_monster",
-  "generatedAt": "2026-08-18",
+  "generatedAt": "2026-09-21",
   "note": "Slayer task groups and their monsters. Names are in-game names (wiki disambiguation stripped), which is what a kill tile matches against. Rebuild with `npm run data:slayer`.",
-  "categoryCount": 121,
-  "monsterCount": 644,
+  "categoryCount": 122,
+  "monsterCount": 646,
   "categories": [
     {
       "label": "Aberrant Spectres",
@@ -2810,13 +2810,18 @@
       "monsters": [
         {
           "name": "Sea Snake Hatchling",
-          "slayerLevel": 40,
+          "slayerLevel": null,
           "combatLevel": 62
         },
         {
           "name": "Sea Snake Young",
-          "slayerLevel": 40,
+          "slayerLevel": null,
           "combatLevel": 90
+        },
+        {
+          "name": "Giant Sea Snake",
+          "slayerLevel": 40,
+          "combatLevel": 149
         }
       ]
     },
@@ -3511,6 +3516,16 @@
       ]
     },
     {
+      "label": "Undead Druids",
+      "monsters": [
+        {
+          "name": "Undead Druid",
+          "slayerLevel": null,
+          "combatLevel": 105
+        }
+      ]
+    },
+    {
       "label": "Vampyres",
       "monsters": [
         {
@@ -3576,7 +3591,7 @@
       ]
     },
     {
-      "label": "Vampyres'\"`UNIQ--ref-00000095-QINU`\"'",
+      "label": "Vampyres'\"`UNIQ--ref-00000007-QINU`\"'",
       "monsters": [
         {
           "name": "Vanstrom Klause",
