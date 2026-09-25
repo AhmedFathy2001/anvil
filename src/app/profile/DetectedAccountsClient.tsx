@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import ClanLink from '@/components/ClanLink';
 
 type Detected = { id: number; rsn: string; lastSeenAt: string };
 
-// Opt-in inbox for accounts the plugin saw this user play but that aren't linked yet. Add attaches
-// + verifies the account; Ignore opts out (the server keeps it dismissed so it won't be re-suggested).
+// Opt-in inbox for accounts the plugin saw this user play but that aren't linked yet. Add attaches a
+// safe new account immediately; an established roster account is directed to proof first. Ignore opts
+// out (the server keeps it dismissed so it won't be re-suggested).
 //
 // Renders as bare rows at the top of the "Your accounts" card rather than its own section: it's the
 // same list, one state earlier, and a member shouldn't have to work out why their accounts are in
@@ -16,6 +18,7 @@ export default function DetectedAccountsClient({ initial }: { initial: Detected[
   const [accounts, setAccounts] = useState<Detected[]>(initial);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState('');
+  const [proofRsn, setProofRsn] = useState<string | null>(null);
   // Relative time is client-only — a server-rendered "14 minutes ago" would hydrate against a
   // different minute and warn.
   const [nowMs, setNowMs] = useState<number | null>(null);
@@ -24,6 +27,7 @@ export default function DetectedAccountsClient({ initial }: { initial: Detected[
   async function act(id: number, action: 'link' | 'dismiss') {
     setBusyId(id);
     setError('');
+    setProofRsn(null);
     try {
       const res = await fetch(`/api/profile/detected-accounts/${id}`, {
         method: 'POST',
@@ -33,6 +37,9 @@ export default function DetectedAccountsClient({ initial }: { initial: Detected[
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setError(data.error || (action === 'link' ? 'Could not add account' : 'Could not ignore account'));
+        if (data.code === 'needs_verification') {
+          setProofRsn(accounts.find((account) => account.id === id)?.rsn ?? null);
+        }
         return;
       }
       setAccounts((list) => list.filter((a) => a.id !== id));
@@ -47,7 +54,7 @@ export default function DetectedAccountsClient({ initial }: { initial: Detected[
   if (accounts.length === 0) return null;
 
   return (
-    <div className="space-y-2 mb-2">
+    <div id="detected-accounts" className="mb-2 scroll-mt-24 space-y-2">
       {accounts.map((a) => (
         <div
           key={a.id}
@@ -84,7 +91,19 @@ export default function DetectedAccountsClient({ initial }: { initial: Detected[
           </div>
         </div>
       ))}
-      {error && <p className="text-red-400 text-sm">{error}</p>}
+      {error && (
+        <p className="text-sm text-red-400">
+          {error}{' '}
+          {proofRsn && (
+            <ClanLink
+              href={`/profile?connect=${encodeURIComponent(proofRsn)}#link-account`}
+              className="font-semibold text-gold hover:text-gold-light"
+            >
+              Start the XP check →
+            </ClanLink>
+          )}
+        </p>
+      )}
     </div>
   );
 }

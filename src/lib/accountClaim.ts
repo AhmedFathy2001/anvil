@@ -1,7 +1,7 @@
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanAuditLog } from '@/db/schema';
+import { accounts, clanAuditLog, detectedAccounts, users } from '@/db/schema';
 import { findOrCreateAccount } from '@/lib/roster';
 import { mergeEmptyPersonInto } from '@/lib/mergePeople';
 
@@ -40,6 +40,8 @@ export async function claimAccountForPerson(input: {
   rsnNormalized: string;
   method: ClaimMethod;
   accountHash?: string | null;
+  /** False only for a manual-review request, where ownership is asserted but not proved yet. */
+  verified?: boolean;
   /** Matched by a signal weak enough to be coincidence — a mod still has to confirm. */
   provisional?: boolean;
   /** The staff login that vouched, for a manual claim. A LOGIN id, unlike playerId above. */
@@ -47,43 +49,48 @@ export async function claimAccountForPerson(input: {
   /** Written to the audit trail as the actor. Also a login id. */
   actorUserId?: number | null;
 }): Promise<ClaimOutcome> {
-  const account = await findOrCreateAccount({
-    rsn: input.rsn,
-    rsnNormalized: input.rsnNormalized,
-    accountHash: input.accountHash ?? null,
-  });
+  return db.transaction(async (tx) => {
+    const account = await findOrCreateAccount({
+      rsn: input.rsn,
+      rsnNormalized: input.rsnNormalized,
+      accountHash: input.accountHash ?? null,
+    }, tx);
 
   // SOMEBODY ELSE'S. `claimedAt` is the test and `playerId` is not: every account has a person from
   // the moment it exists — `findOrCreateAccount` mints one so that claiming later merges two people
   // instead of inventing one — so a non-null `playerId` says nothing at all about whether a human
   // has ever claimed it. Testing the wrong one of those two is how this check came to pass for
   // every roster-synced RSN on the platform.
-  if (account.claimedAt != null && account.playerId !== input.playerId) {
-    return {
-      ok: false,
-      code: 'owned_by_other',
-      error:
-        'That character is already linked to someone else. If it is yours, ask a moderator to move it.',
-    };
-  }
+    if (account.claimedAt != null && account.playerId !== input.playerId) {
+      return ownedByOther();
+    }
 
-  const alreadyOurs = account.playerId === input.playerId && account.claimedAt != null;
-  const nowIso = new Date().toISOString();
+    const alreadyOurs = account.playerId === input.playerId && account.claimedAt != null;
+    const nowIso = new Date().toISOString();
   // Read before the move: after it, the account names the claimer and the row it came from is
   // unreachable from here.
-  const previousPlayerId = account.playerId;
+    const previousPlayerId = account.playerId;
 
-  await db
-    .update(accounts)
-    .set({
-      playerId: input.playerId,
-      claimedAt: account.claimedAt ?? nowIso,
-      verifiedAt: nowIso,
-      verificationMethod: input.method,
-      verifiedByUserId: input.verifiedByUserId ?? null,
-      provisional: input.provisional ? 1 : 0,
-    })
-    .where(eq(accounts.id, account.id));
+    const moved = await tx
+      .update(accounts)
+      .set({
+        playerId: input.playerId,
+        claimedAt: account.claimedAt ?? nowIso,
+        verifiedAt: input.verified === false ? account.verifiedAt : nowIso,
+        verificationMethod: input.method,
+        verifiedByUserId: input.verifiedByUserId ?? null,
+        provisional: input.provisional ? 1 : 0,
+      })
+      // A second claimant may have won after the read above. Only an unclaimed row or this same
+      // person's already-owned row may move; RETURNING turns that race into a clean conflict.
+      .where(
+        and(
+          eq(accounts.id, account.id),
+          or(isNull(accounts.claimedAt), eq(accounts.playerId, input.playerId)),
+        ),
+      )
+      .returning({ id: accounts.id });
+    if (moved.length === 0) return ownedByOther();
 
   // Their first character becomes the primary one.
   //
@@ -92,13 +99,13 @@ export async function claimAccountForPerson(input: {
   // ("missing FROM-clause entry"). It ran only when the person had no primary yet, so the one case
   // it broke was somebody's FIRST character: the link committed and then the request 500'd on the
   // line after it. The most-visible path in the flow, on the least-experienced user.
-  const others = await db
-    .select({ id: accounts.id })
-    .from(accounts)
-    .where(and(eq(accounts.playerId, input.playerId), eq(accounts.isPrimary, 1), ne(accounts.id, account.id)));
-  if (others.length === 0) {
-    await db.update(accounts).set({ isPrimary: 1 }).where(eq(accounts.id, account.id));
-  }
+    const others = await tx
+      .select({ id: accounts.id })
+      .from(accounts)
+      .where(and(eq(accounts.playerId, input.playerId), eq(accounts.isPrimary, 1), ne(accounts.id, account.id)));
+    if (others.length === 0) {
+      await tx.update(accounts).set({ isPrimary: 1 }).where(eq(accounts.id, account.id));
+    }
 
   // THE PERSON THIS CHARACTER USED TO BE. `findOrCreateAccount` mints one for every account a roster
   // sync sees, so until this moment the same human was two rows: one holding the characters, one
@@ -109,26 +116,50 @@ export async function claimAccountForPerson(input: {
   // ban. That was right about the danger: the answer is to MOVE what it carries first, which is what
   // mergePeople does. The guard is that it merges only a row with no characters and no login left —
   // anything else is a different human.
-  if (previousPlayerId != null && previousPlayerId !== input.playerId) {
-    await mergeEmptyPersonInto(previousPlayerId, input.playerId, input.actorUserId ?? null);
-  }
+    if (previousPlayerId != null && previousPlayerId !== input.playerId) {
+      await mergeEmptyPersonInto(previousPlayerId, input.playerId, input.actorUserId ?? null, tx);
+    }
 
-  db.insert(clanAuditLog)
-    .values({
-      clanId: null, // claiming a character is not any clan's act
-      eventType: alreadyOurs ? 'account_reverified' : 'account_claimed',
-      actorUserId: input.actorUserId ?? null,
-      newValue: JSON.stringify({
-        accountId: account.id,
-        rsn: input.rsn,
-        playerId: input.playerId,
-        method: input.method,
-        provisional: !!input.provisional,
-      }),
-    })
-    .catch(() => {});
+    // The plugin may have raised a suggestion before the proof arrived (especially on the apex,
+    // where an unclaimed roster seat cannot resolve a clan yet). Once this person owns the account,
+    // that suggestion is settled and must not keep asking them to add it.
+    await tx
+      .delete(detectedAccounts)
+      .where(
+        and(
+          eq(detectedAccounts.rsnNormalized, input.rsnNormalized),
+          inArray(
+            detectedAccounts.userId,
+            tx.select({ id: users.id }).from(users).where(eq(users.playerId, input.playerId)),
+          ),
+        ),
+      );
 
-  return { ok: true, accountId: account.id, alreadyOurs };
+    await tx.insert(clanAuditLog)
+      .values({
+        clanId: null, // claiming a character is not any clan's act
+        eventType: alreadyOurs ? 'account_reverified' : 'account_claimed',
+        actorUserId: input.actorUserId ?? null,
+        newValue: JSON.stringify({
+          accountId: account.id,
+          rsn: input.rsn,
+          playerId: input.playerId,
+          method: input.method,
+          provisional: !!input.provisional,
+        }),
+      })
+      .catch(() => {});
+
+    return { ok: true, accountId: account.id, alreadyOurs };
+  });
+}
+
+function ownedByOther(): ClaimOutcome {
+  return {
+    ok: false,
+    code: 'owned_by_other',
+    error: 'That character is already linked to someone else. If it is yours, ask a moderator to move it.',
+  };
 }
 
 /**

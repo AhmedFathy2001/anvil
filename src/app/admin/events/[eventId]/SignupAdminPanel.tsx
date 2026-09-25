@@ -71,6 +71,25 @@ interface SignupRow {
   } | null;
 }
 
+type SignupSort = 'applied-newest' | 'applied-oldest';
+
+/** Postgres' text timestamp has no T/Z; read it as the UTC value the schema writes. */
+function appliedAtMs(value: string): number {
+  const normalized = value.includes('T') ? value : `${value.replace(' ', 'T')}Z`;
+  const parsed = Date.parse(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function appliedAtLabel(value: string): string {
+  return new Date(appliedAtMs(value)).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 interface Props {
   /** This board's own sign-up questions, so answers can be shown under the prompt that asked. */
   signupQuestions?: SurveyQuestionView[];
@@ -133,6 +152,7 @@ export default function SignupAdminPanel({
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [feeFilter, setFeeFilter] = useState<string>('all');
   const [teamFilter, setTeamFilter] = useState<string>('all');
+  const [signupSort, setSignupSort] = useState<SignupSort>('applied-newest');
   const [closingFees, setClosingFees] = useState(false);
   const [mountedAt] = useState(() => new Date().getTime());
   // How players get onto a team: drafted (default) or by asking for one when they sign up.
@@ -423,43 +443,49 @@ export default function SignupAdminPanel({
 
   // Filtered view for the roster list. Search matches name / RSN / discord; the status
   // filter accepts the four sign-up statuses plus a 'captain' pseudo-status; the fee
-  // filter matches the fee row's status (or 'none' for sign-ups with no fee row).
+  // filter matches the fee row's status (or 'none' for sign-ups with no fee row). The final sort is
+  // explicit rather than trusting database row order, so the application queue stays deterministic.
   const visibleSignups = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return signups.filter((s) => {
-      if (q) {
-        const haystack = [
-          s.user?.displayName ?? '',
-          s.account.rsn,
-          s.user?.discordUsername ?? '',
-        ]
-          .join(' ')
-          .toLowerCase();
-        if (!haystack.includes(q)) return false;
-      }
-      if (statusFilter === 'captain') {
-        if (!s.captainTeam) return false;
-      } else if (statusFilter !== 'all' && s.status !== statusFilter) {
-        return false;
-      }
-      if (teamFilter !== 'all') {
-        // 'none' is "still in the pool" — the list every host reads before a draft.
-        if (teamFilter === 'none') {
-          if (s.team) return false;
-        } else if (String(s.team?.id ?? '') !== teamFilter) {
+    return signups
+      .filter((s) => {
+        if (q) {
+          const haystack = [
+            s.user?.displayName ?? '',
+            s.account.rsn,
+            s.user?.discordUsername ?? '',
+          ]
+            .join(' ')
+            .toLowerCase();
+          if (!haystack.includes(q)) return false;
+        }
+        if (statusFilter === 'captain') {
+          if (!s.captainTeam) return false;
+        } else if (statusFilter !== 'all' && s.status !== statusFilter) {
           return false;
         }
-      }
-      if (feeFilter !== 'all') {
-        if (feeFilter === 'none') {
-          if (s.fee) return false;
-        } else if (s.fee?.status !== feeFilter) {
-          return false;
+        if (teamFilter !== 'all') {
+          // 'none' is "still in the pool" — the list every host reads before a draft.
+          if (teamFilter === 'none') {
+            if (s.team) return false;
+          } else if (String(s.team?.id ?? '') !== teamFilter) {
+            return false;
+          }
         }
-      }
-      return true;
-    });
-  }, [signups, search, statusFilter, feeFilter, teamFilter]);
+        if (feeFilter !== 'all') {
+          if (feeFilter === 'none') {
+            if (s.fee) return false;
+          } else if (s.fee?.status !== feeFilter) {
+            return false;
+          }
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const delta = appliedAtMs(a.signedUpAt) - appliedAtMs(b.signedUpAt);
+        return signupSort === 'applied-oldest' ? delta || a.id - b.id : -delta || b.id - a.id;
+      });
+  }, [signups, search, statusFilter, feeFilter, teamFilter, signupSort]);
 
   const filtersActive =
     search.trim() !== '' || statusFilter !== 'all' || feeFilter !== 'all' || teamFilter !== 'all';
@@ -749,6 +775,16 @@ export default function SignupAdminPanel({
                 ]}
               />
             )}
+            <Select
+              value={signupSort}
+              onChange={(value) => setSignupSort(value as SignupSort)}
+              ariaLabel="Sort sign-ups by date applied"
+              className="shrink-0 sm:w-44"
+              options={[
+                { value: 'applied-newest', label: 'Applied: newest' },
+                { value: 'applied-oldest', label: 'Applied: oldest' },
+              ]}
+            />
           </div>
         )}
 
@@ -826,6 +862,9 @@ export default function SignupAdminPanel({
                             @{s.user.discordUsername}
                           </div>
                         )}
+                        <div className="text-[11px] text-text-dim truncate">
+                          Applied {appliedAtLabel(s.signedUpAt)}
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap justify-end min-w-0">
@@ -877,8 +916,8 @@ export default function SignupAdminPanel({
                         <ProfileStat label="AFK /week" value={formatHoursRange(s.profile.afkWeeklyHours)} />
                         <ProfileStat label="Timezone" value={s.profile.timezone} />
                         <ProfileStat
-                          label="Submitted"
-                          value={new Date(s.signedUpAt).toLocaleDateString()}
+                          label="Applied"
+                          value={appliedAtLabel(s.signedUpAt)}
                           plain
                         />
                       </div>

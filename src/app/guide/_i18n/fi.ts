@@ -217,8 +217,8 @@ const fi: PartialGuideDict = {
           body: 'Avaa pelissä klaani-ikkuna lisäosan ollessa käynnissä ja paina otsikkopalkin **Anvil**-painiketta. Koko jäsenlistasi saapuu arvoineen, ja lista klaanista jonka nimi ei täsmää omaasi hylätään. Toista se kun väkeä tulee tai lähtee — katso [pelaajan asennusopas]({pluginGuide}).',
         },
         {
-          term: 'He vain pelaavat',
-          body: 'Jokainen joka kirjautuu sisään lisäosa käynnissä tunnistetaan automaattisesti. Jos he eivät vielä ole listalla, heitä seurataan **vieraana** — näkyvinä, laskettavina ja yhden synkronoinnin päässä jäsenyydestä.',
+          term: 'He pelaavat kerran',
+          body: 'Plugin tunnistaa uuden tilin automaattisesti ja seuraa sitä **vieraana**. Jo jäsenlistalla oleva tili näkyy pelaajan profiilissa ja vaatii yhden XP-tarkistuksen tai moderaattorin hyväksynnän ennen yhdistämistä.',
         },
         {
           term: 'Käsin',
@@ -534,7 +534,7 @@ const fi: PartialGuideDict = {
         'Jos selain ei aukea itsestään, paneeli tulostaa osoitteen ja koodin, jotta voit avata sen käsin. Koodit vanhenevat kymmenessä minuutissa — paina vain painiketta uudelleen.',
       manualHeading: 'Käsityötapa: kopioi tokenisi',
       manualIntro:
-        'Kirjaudu sisään Discordilla ja avaa [Profile](/profile), ja vieritä sitten kortille **RuneLite plugin**.',
+        'Kirjaudu sisään Discordilla ja avaa [Profile → plugin token](/profile#plugin-token).',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: 'Profiilisivun RuneLite plugin -kortti, jossa token-kenttä sekä Reveal-, Copy- ja Rotate-painikkeet on kehystetty',
@@ -556,10 +556,10 @@ const fi: PartialGuideDict = {
     },
 
     accounts: {
-      title: 'Yhdistä tilisi — pelaa vain',
+      title: 'Yhdistä tilisi',
       body: [
-        'Mitään yhdistämiskoodia ei tarvitse kirjoittaa. Kun token on paikallaan, se tili jolla kirjaudut sisään yhdistetään profiiliisi automaattisesti.',
-        'Plugin lähettää pelinsisäisen nimesi sekä pysyvän tilisormenjäljen jokaisen pyynnön mukana, ja sivusto tunnistaa ensin sormenjäljestä — joten yhteytesi kestävät nimenvaihdon. Kirjaudu alt-tilille kerran, niin se ilmestyy profiiliisi otsikon _Accounts we noticed you playing_ alle yhden klikkauksen **Add**-painikkeen kera.',
+        'Kun token on asetettu, pelaamasi tilit näkyvät profiilissasi automaattisesti. Täysin uusi tili voidaan yhdistää heti; jo klaanin jäsenlistalla oleva tili vaatii ensin omistajuustarkistuksen, koska julkinen RuneScape-nimi ei todista omistajaa.',
+        'Tee ensimmäinen yhdistäminen [nopealla XP-tarkistuksella](/profile#link-account) tai pyydä klaanin moderaattoria hyväksymään tili kohdassa [havaitut tilit](/profile#detected-accounts). Sen jälkeen pysyvä tilisormenjälki seuraa nimenvaihdoksia ja tunnistaa tilin automaattisesti.',
       ],
       figure: {
         caption: 'Profile → RuneScape Accounts',
@@ -567,13 +567,13 @@ const fi: PartialGuideDict = {
         legend: [
           {
             label: 'Yhdistetyt tilisi',
-            body: 'kaikki mikä on merkitty “Verified via plugin” päätyi sinne pelkästään pelaamalla. Lisää niin monta alt-tiliä kuin haluat; yksi niistä on päätilisi.',
+            body: 'kaikki merkinnällä “Verified via plugin” on yhdistetty ja tunnistetaan automaattisesti. Valmiiksi klaanin listalla oleva tili voi ensin vaatia kertaluonteisen XP- tai moderaattoritarkistuksen.',
           },
         ],
       },
       noPluginHeading: 'Etkö voi käyttää pluginia?',
       noPluginIntro:
-        'Mobiililla tai virallisella asiakasohjelmalla yhdistät tilin verkkosivulla sen sijaan — profiilisivu näyttää molemmat vaihtoehdot:',
+        'Mobiililla tai virallisella asiakasohjelmalla käytä [Profile → account linking](/profile#link-account):',
       noPluginOptions: [
         '**Verify by XP** — syötä RSN:si, sivusto valitsee satunnaisen taidon, ja sinun on ansaittava siinä 1 000 XP 30 minuutin sisällä.',
         '**Manual review** — piilotetuille Hiscoresille tai aivan uusille alt-tileille: lähetä RSN:si huomautuksen kera, ja moderaattori hyväksyy sen.',
@@ -794,7 +794,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: 'Sitä tiliä ei ole vielä yhdistetty. Lisää se kohdasta Profile → “Accounts we noticed you playing”.',
+          body: 'Tiliä ei ole vielä yhdistetty. Avaa [Profile → havaitut tilit](/profile#detected-accounts) lisätäksesi sen tai aloittaaksesi omistajuustarkistuksen.',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1966,7 +1966,7 @@ const fi: PartialGuideDict = {
       rows: [
         {
           term: 'Vahvistettu pluginilla',
-          body: 'tavallinen tapaus, eikä se vaadi sinulta mitään. Tilillä pelaaminen pluginin ollessa yhdistettynä liittää sen automaattisesti, ja pysyvä tilisormenjälki saa liitoksen kestämään nimenvaihdon.',
+          body: 'ensimmäisen omistajuustarkistuksen jälkeen plugin tunnistaa tilin automaattisesti ja pysyvä sormenjälki säilyttää yhteyden nimenvaihdoksissa. Jäsenlistan tili ilman tunnettua sormenjälkeä käyttää XP-tarkistusta tai moderaattorin hyväksyntää kerran.',
         },
         {
           term: 'Verify by XP',

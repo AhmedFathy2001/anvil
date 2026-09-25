@@ -28,6 +28,8 @@ interface Props {
   /** The clan keeps a coffer — only then does the page have anything to show. */
   hasCoffer?: boolean;
   isStaff: boolean;
+  /** The first admin surface this person's grant may actually open in the current clan. */
+  adminHref: string;
   discordInvite: string | null;
   user: NavUser | null;
   /** The clan whose pages these are, or null on the apex. */
@@ -64,7 +66,7 @@ const DiscordIcon = (
   </svg>
 );
 
-export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff, discordInvite, user, clan, myClans }: Props) {
+export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff, adminHref, discordInvite, user, clan, myClans }: Props) {
   const [open, setOpen] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const switcherRef = useRef<HTMLDivElement | null>(null);
@@ -225,7 +227,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
         ))}
         {isStaff && (
           <ClanLink
-            href="/admin/dashboard"
+            href={adminHref}
             className="px-3 py-1.5 rounded-md text-sm text-gold/70 hover:text-gold hover:bg-gold/10 transition-all"
           >
             Admin
@@ -343,7 +345,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
             ))}
             {isStaff && (
               <ClanLink
-                href="/admin/dashboard"
+                href={adminHref}
                 onClick={() => setOpen(false)}
                 className="px-3 py-2.5 rounded-md text-sm text-gold/70 hover:text-gold hover:bg-gold/10 transition-all"
               >

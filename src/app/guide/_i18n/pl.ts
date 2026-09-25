@@ -217,8 +217,8 @@ const pl: PartialGuideDict = {
           body: 'Otwórz w grze okno klanu z działającym pluginem i naciśnij przycisk **Anvil** na jego pasku tytułu. Cała lista przychodzi wraz z rangami, a lista z klanu, którego nazwa nie zgadza się z twoją, zostaje odrzucona. Powtarzaj to, gdy ktoś dołącza lub odchodzi — zobacz [poradnik konfiguracji dla graczy]({pluginGuide}).',
         },
         {
-          term: 'Po prostu grają',
-          body: 'Każdy, kto zaloguje się z działającym pluginem, zostaje rozpoznany automatycznie. Jeśli nie ma go jeszcze na liście, jest śledzony jako **gość** — widoczny, policzalny i o jedną synchronizację od członkostwa.',
+          term: 'Grają raz',
+          body: 'Plugin automatycznie rozpoznaje nowe konto i śledzi je jako **gościa**. Konto już obecne na liście członków pojawia się w profilu i przed połączeniem wymaga jednego sprawdzenia XP lub zgody moderatora.',
         },
         {
           term: 'Ręcznie',
@@ -534,7 +534,7 @@ const pl: PartialGuideDict = {
         'Jeśli przeglądarka nie otworzy się sama, panel wypisze adres i kod, żebyś mógł otworzyć go ręcznie. Kody wygasają po dziesięciu minutach —— po prostu naciśnij przycisk jeszcze raz.',
       manualHeading: 'Droga ręczna: skopiuj swój token',
       manualIntro:
-        'Zaloguj się Discordem i otwórz [Profil](/profile), a potem przewiń do karty **RuneLite plugin**.',
+        'Zaloguj się Discordem i otwórz [Profil → plugin token](/profile#plugin-token).',
       tokenFigure: {
         caption: 'Profil → RuneLite plugin',
         alt: 'Karta RuneLite plugin na stronie profilu z zaznaczonym polem tokenu i przyciskami Reveal, Copy i Rotate',
@@ -556,10 +556,10 @@ const pl: PartialGuideDict = {
     },
 
     accounts: {
-      title: 'Podłącz swoje konta —— po prostu graj',
+      title: 'Podłącz swoje konta',
       body: [
-        'Nie ma żadnego kodu do przepisywania. Gdy token jest już wpisany, każde konto, na które się zalogujesz, zostaje automatycznie dopasowane do twojego profilu.',
-        'Plugin wysyła twoją nazwę w grze wraz ze stabilnym odciskiem konta przy każdym żądaniu, a strona dopasowuje najpierw po odcisku —— dzięki temu powiązania przeżywają zmianę nazwy. Zaloguj się raz na alta, a pojawi się na twoim Profilu w sekcji _Accounts we noticed you playing_ z przyciskiem **Add**.',
+        'Po ustawieniu tokenu konta, na których grasz, pojawiają się automatycznie w twoim profilu. Zupełnie nowe konto można połączyć od razu; konto już obecne na liście klanu wymaga najpierw jednego potwierdzenia własności, bo publiczna nazwa RuneScape nie dowodzi, kto jest właścicielem.',
+        'Przy pierwszym połączeniu użyj [szybkiej weryfikacji XP](/profile#link-account) albo poproś moderatora klanu o zatwierdzenie konta w [wykrytych kontach](/profile#detected-accounts). Po weryfikacji stabilny odcisk śledzi zmiany nazwy i automatycznie rozpoznaje konto.',
       ],
       figure: {
         caption: 'Profil → RuneScape Accounts',
@@ -567,13 +567,13 @@ const pl: PartialGuideDict = {
         legend: [
           {
             label: 'Twoje podłączone konta',
-            body: 'wszystko oznaczone „Verified via plugin” trafiło tam wyłącznie dlatego, że na tym koncie grano. Dodawaj tylu altów, ilu chcesz; jedno konto jest głównym.',
+            body: 'wszystko oznaczone „Verified via plugin” jest połączone i będzie automatycznie rozpoznawane. Istniejące konta z listy klanu mogą najpierw wymagać jednorazowej weryfikacji XP lub moderatora.',
           },
         ],
       },
       noPluginHeading: 'Nie możesz używać pluginu?',
       noPluginIntro:
-        'Na telefonie albo na oficjalnym kliencie połącz konto na stronie —— Profil pokazuje obie opcje:',
+        'Na telefonie albo w oficjalnym kliencie użyj [Profile → account linking](/profile#link-account):',
       noPluginOptions: [
         '**Verify by XP** —— wpisz swój RSN, strona losuje umiejętność, zdobądź w niej 1000 XP w ciągu 30 minut.',
         '**Manual review** —— dla ukrytych Hiscores albo świeżych altów: wysyłasz RSN z notatką, a moderator zatwierdza.',
@@ -783,7 +783,7 @@ const pl: PartialGuideDict = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: 'To konto nie jest jeszcze podłączone. Dodaj je z Profilu → „Accounts we noticed you playing”.',
+          body: 'To konto nie jest jeszcze podłączone. Otwórz [Profil → wykryte konta](/profile#detected-accounts), aby je dodać lub rozpocząć potwierdzenie własności.',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1944,7 +1944,7 @@ const pl: PartialGuideDict = {
       rows: [
         {
           term: 'Zweryfikowane przez plugin',
-          body: 'przypadek najczęstszy i nie wymaga od ciebie niczego. Granie na koncie z podłączonym pluginem wiąże je automatycznie, a stabilny odcisk konta sprawia, że powiązanie przeżywa zmianę nazwy.',
+          body: 'po pierwszym potwierdzeniu własności plugin rozpoznaje konto automatycznie, a stabilny odcisk zachowuje powiązanie po zmianie nazwy. Konto z listy bez znanego odcisku używa raz weryfikacji XP lub zgody moderatora.',
         },
         {
           term: 'Verify by XP',

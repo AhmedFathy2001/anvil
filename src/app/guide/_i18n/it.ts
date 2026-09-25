@@ -217,8 +217,8 @@ const it: PartialGuideDict = {
           body: 'Apri la finestra del clan nel gioco con il plugin attivo e premi il pulsante **Anvil** nella barra del titolo. Tutta la lista arriva con i ranghi intatti, e una lista da un clan il cui nome non corrisponde al tuo viene rifiutata. Ripetilo quando qualcuno entra o esce — vedi la [guida di installazione per i giocatori]({pluginGuide}).',
         },
         {
-          term: 'Semplicemente giocano',
-          body: 'Chiunque acceda con il plugin attivo viene riconosciuto automaticamente. Se non è ancora in lista, viene seguito come **ospite** — visibile, conteggiabile e a una sincronizzazione dall’essere membro.',
+          term: 'Giocano una volta',
+          body: 'Il plugin riconosce automaticamente un account nuovo e lo segue come **ospite**. Un account già nel roster compare sul profilo del giocatore e richiede una verifica XP o l’approvazione di un moderatore prima del collegamento.',
         },
         {
           term: 'A mano',
@@ -534,7 +534,7 @@ const it: PartialGuideDict = {
         'Se il browser non si apre da solo, il pannello stampa l’indirizzo e il codice così puoi aprirlo a mano. I codici scadono dopo dieci minuti —— basta premere di nuovo il pulsante.',
       manualHeading: 'La via manuale: copia il tuo token',
       manualIntro:
-        'Accedi con Discord e apri il [Profilo](/profile), poi scorri fino alla scheda **RuneLite plugin**.',
+        'Accedi con Discord e apri [Profilo → plugin token](/profile#plugin-token).',
       tokenFigure: {
         caption: 'Profilo → RuneLite plugin',
         alt: 'La scheda RuneLite plugin sulla pagina del profilo, con il campo del token e i pulsanti Reveal, Copy e Rotate evidenziati',
@@ -556,10 +556,10 @@ const it: PartialGuideDict = {
     },
 
     accounts: {
-      title: 'Collega i tuoi account —— basta giocare',
+      title: 'Collega i tuoi account',
       body: [
-        'Non c’è nessun codice da digitare. Una volta inserito il token, qualunque account con cui accedi viene associato automaticamente al tuo profilo.',
-        'Il plugin invia il tuo nome in gioco insieme a un’impronta stabile dell’account a ogni richiesta, e il sito confronta prima l’impronta —— così i collegamenti sopravvivono a un cambio di nome. Accedi una volta con un alt e comparirà sul tuo Profilo sotto _Accounts we noticed you playing_ con un pulsante **Add**.',
+        'Una volta configurato il token, gli account con cui giochi compaiono automaticamente sul tuo profilo. Un account nuovo può essere collegato subito; uno già presente nel roster di un clan richiede prima una verifica della proprietà, perché un nome RuneScape pubblico non dimostra chi lo possiede.',
+        'Per il primo collegamento usa [la verifica rapida tramite XP](/profile#link-account), oppure chiedi a un moderatore del clan di approvare l’account tra [gli account rilevati](/profile#detected-accounts). Dopo la verifica, l’impronta stabile segue i cambi di nome e riconosce automaticamente l’account.',
       ],
       figure: {
         caption: 'Profilo → RuneScape Accounts',
@@ -567,13 +567,13 @@ const it: PartialGuideDict = {
         legend: [
           {
             label: 'I tuoi account collegati',
-            body: 'tutto ciò che è contrassegnato “Verified via plugin” è finito lì solo per essere stato giocato. Aggiungi quanti alt vuoi; uno è il principale.',
+            body: 'tutto ciò che è contrassegnato “Verified via plugin” è collegato e verrà riconosciuto automaticamente. Gli account già nel roster possono richiedere prima una verifica una tantum tramite XP o moderatore.',
           },
         ],
       },
       noPluginHeading: 'Non puoi usare il plugin?',
       noPluginIntro:
-        'Da mobile o dal client ufficiale, collega l’account dal sito —— il Profilo mostra entrambe le opzioni:',
+        'Da mobile o dal client ufficiale usa [Profile → account linking](/profile#link-account):',
       noPluginOptions: [
         '**Verify by XP** —— inserisci il tuo RSN, il sito estrae una skill a caso, guadagni 1.000 XP in quella skill entro 30 minuti.',
         '**Manual review** —— per Hiscores nascosti o alt appena creati: invii il tuo RSN con una nota e un moderatore approva.',
@@ -783,7 +783,7 @@ const it: PartialGuideDict = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: 'Quell’account non è ancora collegato. Aggiungilo dal Profilo → “Accounts we noticed you playing”.',
+          body: 'Quell’account non è ancora collegato. Apri [Profilo → account rilevati](/profile#detected-accounts) per aggiungerlo o avviare la verifica della proprietà.',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1944,7 +1944,7 @@ const it: PartialGuideDict = {
       rows: [
         {
           term: 'Verificato dal plugin',
-          body: 'il caso più comune, e non richiede nulla da te. Giocare l’account con il plugin collegato lo associa in automatico, e un’impronta stabile dell’account fa sì che il collegamento sopravviva a un cambio di nome.',
+          body: 'dopo il primo controllo di proprietà, il plugin riconosce automaticamente l’account e un’impronta stabile mantiene il collegamento dopo i cambi di nome. Un account del roster senza impronta nota usa una volta la verifica XP o un moderatore.',
         },
         {
           term: 'Verify by XP',

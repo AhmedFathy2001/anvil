@@ -216,8 +216,8 @@ const ko: PartialGuideDict = {
           body: '플러그인을 켠 채 게임에서 클랜 창을 열고 제목 표시줄의 **Anvil** 버튼을 누르세요. 멤버 명단 전체가 등급까지 그대로 들어오고, 이름이 맞지 않는 클랜에서 온 명단은 거부됩니다. 사람이 들고 날 때마다 반복하면 됩니다 — [플레이어 설정 가이드]({pluginGuide}) 참고.',
         },
         {
-          term: '그냥 플레이합니다',
-          body: '플러그인을 켜고 접속한 사람은 자동으로 인식됩니다. 아직 명단에 없으면 **게스트**로 추적됩니다 — 보이고, 세어지고, 동기화 한 번이면 멤버가 됩니다.',
+          term: '한 번 플레이합니다',
+          body: '새 계정은 플러그인이 자동으로 인식해 **게스트**로 추적합니다. 이미 멤버 명단에 있는 계정은 프로필에 표시되며, 연결 전에 한 번의 XP 확인이나 관리자 승인이 필요합니다.',
         },
         {
           term: '수동으로',
@@ -533,7 +533,7 @@ const ko: PartialGuideDict = {
         '브라우저가 저절로 열리지 않으면 패널이 주소와 코드를 표시하니 직접 여시면 됩니다. 코드는 10분 뒤 만료됩니다 —— 버튼을 한 번 더 누르면 됩니다.',
       manualHeading: '수동으로 하는 길: 토큰 복사하기',
       manualIntro:
-        'Discord로 로그인해 [Profile](/profile)을 열고, **RuneLite plugin** 카드까지 내려가세요.',
+        'Discord로 로그인해 [Profile → plugin token](/profile#plugin-token)을 여세요.',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: '프로필 페이지의 RuneLite plugin 카드. 토큰 입력란과 Reveal·Copy·Rotate 버튼이 네모로 표시되어 있음',
@@ -555,10 +555,10 @@ const ko: PartialGuideDict = {
     },
 
     accounts: {
-      title: '계정 연결하기 —— 그냥 플레이하면 됩니다',
+      title: '계정 연결하기',
       body: [
-        '입력해야 할 연결 코드 같은 것은 없습니다. 토큰만 들어가 있으면, 로그인하는 계정이 자동으로 프로필과 연결됩니다.',
-        '플러그인은 요청할 때마다 게임 내 이름과 함께 안정적인 계정 지문을 보내고, 사이트는 지문을 먼저 대조합니다 —— 그래서 개명을 해도 연결이 살아남습니다. 부계정으로 한 번만 접속하면, 프로필의 _Accounts we noticed you playing_ 아래에 한 번 클릭으로 추가할 수 있는 **Add**와 함께 나타납니다.',
+        '토큰을 설정하면 플레이한 계정이 프로필에 자동으로 표시됩니다. 새 계정은 바로 연결할 수 있지만, 이미 클랜 명단에 있는 계정은 먼저 한 번의 소유권 확인이 필요합니다. 공개된 RuneScape 이름만으로는 소유자를 증명할 수 없기 때문입니다.',
+        '첫 연결에는 [빠른 XP 확인](/profile#link-account)을 사용하거나 클랜 관리자에게 [감지된 계정](/profile#detected-accounts)에서 승인해 달라고 요청하세요. 확인 후에는 안정적인 계정 지문이 이름 변경을 따라가며 계정을 자동으로 인식합니다.',
       ],
       figure: {
         caption: 'Profile → RuneScape Accounts',
@@ -566,13 +566,13 @@ const ko: PartialGuideDict = {
         legend: [
           {
             label: '연결된 계정들',
-            body: '“Verified via plugin”이 붙은 것들은 그냥 플레이했다는 이유만으로 거기 올라온 것입니다. 부계정은 원하는 만큼 추가하세요. 그중 하나가 주계정이 됩니다.',
+            body: '“Verified via plugin” 표시가 있는 계정은 연결되어 이후 자동으로 인식됩니다. 기존 클랜 명단 계정은 먼저 일회성 XP 확인이나 관리자 승인이 필요할 수 있습니다.',
           },
         ],
       },
       noPluginHeading: '플러그인을 돌릴 수 없다면?',
       noPluginIntro:
-        '모바일이나 공식 클라이언트에서는 대신 웹사이트에서 계정을 연결합니다 —— 프로필 페이지에 두 가지 방법이 모두 나와 있습니다:',
+        '모바일이나 공식 클라이언트에서는 대신 [Profile → account linking](/profile#link-account)을 사용하세요:',
       noPluginOptions: [
         '**Verify by XP** —— RSN을 입력하면 사이트가 스킬 하나를 무작위로 고릅니다. 30분 안에 그 스킬에서 1,000 경험치를 올리면 됩니다.',
         '**Manual review** —— Hiscores를 숨겼거나 갓 만든 부계정인 경우: RSN과 메모를 제출하면 관리자가 승인합니다.',
@@ -793,7 +793,7 @@ const ko: PartialGuideDict = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: '그 계정은 아직 연결되지 않았습니다. Profile → “Accounts we noticed you playing”에서 추가하세요.',
+          body: '그 계정은 아직 연결되지 않았습니다. [Profile → 감지된 계정](/profile#detected-accounts)을 열어 추가하거나 소유권 확인을 시작하세요.',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1965,7 +1965,7 @@ const ko: PartialGuideDict = {
       rows: [
         {
           term: '플러그인으로 확인됨',
-          body: '가장 흔한 경우이고, 당신 손이 갈 일이 없습니다. 플러그인을 연결한 채로 그 계정을 플레이하면 자동으로 연결되고, 안정적인 계정 지문 덕분에 개명해도 연결이 살아남습니다.',
+          body: '첫 소유권 확인 후에는 플러그인이 계정을 자동으로 인식하고 안정적인 지문이 이름 변경 뒤에도 연결을 유지합니다. 알려진 지문이 없는 명단 계정은 XP 확인이나 관리자 승인을 한 번 거칩니다.',
         },
         {
           term: 'Verify by XP',

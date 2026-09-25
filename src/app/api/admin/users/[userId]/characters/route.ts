@@ -2,11 +2,12 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { requireClan } from '@/lib/clanContext';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, users } from '@/db/schema';
-import { findOrCreateAccount, findOrCreateSeat, findRosterSeat, personOfOrCreate } from '@/lib/roster';
+import { findOrCreateSeat, findRosterSeat, personOfOrCreate } from '@/lib/roster';
 import { and, eq } from 'drizzle-orm';
 import { verifyUser, normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { onCharacterLinked } from '@/lib/identity';
 import { atLeast } from '@/lib/clanRoles';
+import { claimAccountForPerson } from '@/lib/accountClaim';
 
 // POST /api/admin/users/[userId]/characters   Body: { rsn }
 //
@@ -36,8 +37,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
   const target = await db.query.users.findFirst({ where: eq(users.id, targetId), columns: { id: true } });
   if (!target) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-  const nowIso = new Date().toISOString();
-
   // The PERSON behind this login. Needed before the guard below, not just for the writes — see the
   // id-space note there. Creating one for a user who lacks it is right regardless of how this ends:
   // every login needs a person, and the alternative is comparing against null.
@@ -59,9 +58,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
   // which skips this guard entirely.
   const ownedAccount = await db.query.accounts.findFirst({
     where: eq(accounts.rsnNormalized, normalizedRsn),
-    columns: { playerId: true },
+    columns: { playerId: true, claimedAt: true },
   });
-  if (ownedAccount?.playerId != null && ownedAccount.playerId !== targetPersonId) {
+  if (ownedAccount?.claimedAt != null && ownedAccount.playerId !== targetPersonId) {
     return NextResponse.json(
       { error: 'That RSN is already linked to another site user — remove it there first.' },
       { status: 409 },
@@ -75,36 +74,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
     and(eq(clanRoster.clanId, clan.id), eq(clanRoster.rsnNormalized, normalizedRsn)),
   );
 
+  const claim = await claimAccountForPerson({
+    playerId: targetPersonId,
+    rsn,
+    rsnNormalized: normalizedRsn,
+    method: 'manual',
+    verifiedByUserId: actor.userId,
+    actorUserId: actor.userId,
+  });
+  if (!claim.ok) return NextResponse.json({ error: claim.error }, { status: 409 });
+
   let clanMemberId: number;
   if (existing) {
-    await db
-      .update(accounts)
-      .set({
-        playerId: targetPersonId,
-        verifiedAt: existing.verifiedAt ?? nowIso,
-        verificationMethod: 'manual',
-        provisional: 0,
-        claimedAt: existing.claimedAt ?? nowIso,
-      })
-      .where(eq(accounts.id, existing.accountId));
     await db
       .update(clanMemberships)
       .set({ leftAt: existing.source === 'admin' ? existing.leftAt : null })
       .where(eq(clanMemberships.id, existing.id));
     clanMemberId = existing.id;
   } else {
-    const account = await findOrCreateAccount({ rsn, rsnNormalized: normalizedRsn });
-    await db
-      .update(accounts)
-      .set({
-        playerId: targetPersonId,
-        verifiedAt: nowIso,
-        verificationMethod: 'manual',
-        provisional: 0,
-        claimedAt: nowIso,
-      })
-      .where(eq(accounts.id, account.id));
-    clanMemberId = await findOrCreateSeat(clan.id, account.id, { kind: 'guest', source: 'admin' });
+    clanMemberId = await findOrCreateSeat(clan.id, claim.accountId, { kind: 'guest', source: 'admin' });
   }
 
   // Adopt any guest sign-ups this character already had (created before it was attached to a person),

@@ -215,8 +215,8 @@ const zhHans: PartialGuideDict = {
           body: '在游戏里开着插件打开氏族窗口，按标题栏上的 **Anvil** 按钮。你的整份成员名单会连同等级一起送达，而来自名字与你不符的氏族的名单会被拒绝。有人加入或离开时重复一次即可——参见[玩家设置指南]({pluginGuide})。',
         },
         {
-          term: '他们照常玩',
-          body: '任何开着插件登录的人都会被自动识别。如果还不在名单上，就会作为**访客**被追踪——可见、可计数，距离成为成员只差一次同步。',
+          term: '他们玩一次',
+          body: '插件会自动识别新账号，并将其作为**访客**追踪。已在成员名单中的账号会显示在个人资料中，关联前需要完成一次 XP 验证或管理员批准。',
         },
         {
           term: '手动添加',
@@ -532,7 +532,7 @@ const zhHans: PartialGuideDict = {
         '如果浏览器没有自动打开，面板会把网址和代码打印出来，你可以手动打开。代码十分钟后失效 —— 再按一次按钮即可。',
       manualHeading: '手动办法：复制你的令牌',
       manualIntro:
-        '用 Discord 登录并打开 [Profile](/profile)，然后向下找到 **RuneLite plugin** 卡片。',
+        '用 Discord 登录并打开 [Profile → plugin token](/profile#plugin-token)。',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: '个人资料页上的 RuneLite plugin 卡片，令牌字段与 Reveal、Copy、Rotate 按钮被方框标出',
@@ -554,10 +554,10 @@ const zhHans: PartialGuideDict = {
     },
 
     accounts: {
-      title: '关联你的账号 —— 照常玩就行',
+      title: '关联你的账号',
       body: [
-        '没有需要输入的关联码。令牌填好之后，你登录的任何账号都会自动匹配到你的个人资料上。',
-        '插件每次请求都会带上你的游戏内名字以及一枚稳定的账号指纹，而本站优先按指纹匹配 —— 所以改名之后关联依然有效。用小号登录一次，它就会出现在你的个人资料中 _Accounts we noticed you playing_ 一栏，旁边有一键 **Add**。',
+        '令牌设置完成后，你玩过的账号会自动显示在个人资料中。全新账号可以立即关联；已在公会名单中的账号需要先完成一次所有权验证，因为公开的 RuneScape 名称并不能证明账号属于谁。',
+        '首次关联时，请使用[快速 XP 验证](/profile#link-account)，或请公会管理员在[检测到的账号](/profile#detected-accounts)中批准。验证后，稳定的账号指纹会跟随改名，并自动识别该账号。',
       ],
       figure: {
         caption: 'Profile → RuneScape Accounts',
@@ -565,13 +565,13 @@ const zhHans: PartialGuideDict = {
         legend: [
           {
             label: '你已关联的账号',
-            body: '凡是标着 “Verified via plugin” 的，都只是因为被玩过才出现在那里。想加多少小号都行；其中一个是你的主号。',
+            body: '标有 “Verified via plugin” 的账号已经关联，之后会被自动识别。已有公会名单的账号可能需要先进行一次 XP 验证或管理员批准。',
           },
         ],
       },
       noPluginHeading: '没法运行插件？',
       noPluginIntro:
-        '在手机或官方客户端上，改为在网站上关联账号 —— 个人资料页会同时给出两个选项：',
+        '在手机或官方客户端上，请改用 [Profile → account linking](/profile#link-account)：',
       noPluginOptions: [
         '**Verify by XP** —— 输入你的 RSN，网站随机挑一项技能，你需在 30 分钟内在该技能上获得 1,000 经验。',
         '**Manual review** —— 适用于隐藏了 Hiscores 或全新的小号：提交你的 RSN 并附上说明，由管理员批准。',
@@ -792,7 +792,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: '那个账号还没关联。到 Profile → “Accounts we noticed you playing” 里把它加上。',
+          body: '该账号尚未关联。打开 [Profile → 检测到的账号](/profile#detected-accounts)以添加它或开始所有权验证。',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1964,7 +1964,7 @@ const zhHans: PartialGuideDict = {
       rows: [
         {
           term: '通过插件验证',
-          body: '最常见的情况，而且完全不需要你动手。带着已连接的插件玩那个账号，它就会自动关联，而稳定的账号指纹让这份关联在改名之后依然有效。',
+          body: '首次所有权验证后，插件会自动识别该账号，稳定的账号指纹也会在改名后保留关联。名单中没有已知指纹的账号需要进行一次 XP 验证或管理员批准。',
         },
         {
           term: 'Verify by XP',

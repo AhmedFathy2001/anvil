@@ -1429,7 +1429,8 @@ export const verificationAttempts = pgTable('verification_attempts', {
 // the site records a suggestion here (it never auto-claims). The user then Adds (claims +
 // verifies the clan_member) or Ignores (status → 'dismissed', so it isn't re-suggested) the
 // account from /profile. One row per (user, rsn); accountHash captured when the plugin
-// reports it so an Add survives a later in-game rename.
+// reports it so a proven Add survives a later in-game rename. An established roster account still
+// requires the XP check or a moderator; merely reporting its public RSN never claims it.
 export const detectedAccounts = pgTable('detected_accounts', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),

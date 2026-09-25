@@ -217,8 +217,8 @@ const de: PartialGuideDict = {
           body: 'Öffne im Spiel das Clan-Fenster bei laufendem Plugin und drücke den **Anvil**-Button in der Titelleiste. Deine ganze Mitgliederliste kommt mitsamt Rängen an, und eine Liste aus einem Clan, dessen Name nicht passt, wird abgelehnt. Wiederhole das, wenn Leute kommen oder gehen — siehe den [Spieler-Einrichtungsguide]({pluginGuide}).',
         },
         {
-          term: 'Sie spielen einfach',
-          body: 'Wer mit laufendem Plugin einloggt, wird automatisch erkannt. Steht die Person noch nicht auf der Liste, wird sie als **Gast** getrackt — sichtbar, zählbar und eine Synchronisierung von der Mitgliedschaft entfernt.',
+          term: 'Sie spielen einmal',
+          body: 'Ein neuer Account wird vom Plugin automatisch erkannt und als **Gast** getrackt. Ein Account, der bereits auf der Mitgliederliste steht, erscheint im Profil und braucht einmalig einen XP-Test oder die Bestätigung eines Moderators, bevor er verknüpft wird.',
         },
         {
           term: 'Von Hand',
@@ -534,7 +534,7 @@ const de: PartialGuideDict = {
         'Öffnet sich der Browser nicht von selbst, gibt das Panel Adresse und Code aus, damit du sie manuell öffnen kannst. Codes laufen nach zehn Minuten ab — drück einfach noch mal auf die Schaltfläche.',
       manualHeading: 'Der manuelle Weg: Token kopieren',
       manualIntro:
-        'Melde dich mit Discord an und öffne [Profile](/profile), scrolle dann zur Karte **RuneLite plugin**.',
+        'Melde dich mit Discord an und öffne [Profile → plugin token](/profile#plugin-token).',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: 'Die Karte RuneLite plugin auf der Profilseite, mit umrahmtem Tokenfeld und den Schaltflächen Reveal, Copy und Rotate',
@@ -556,10 +556,10 @@ const de: PartialGuideDict = {
     },
 
     accounts: {
-      title: 'Accounts verknüpfen — einfach spielen',
+      title: 'Accounts verknüpfen',
       body: [
-        'Es gibt keinen Verknüpfungscode einzutippen. Sobald der Token drin ist, wird der Account, mit dem du dich einloggst, automatisch deinem Profil zugeordnet.',
-        'Das Plugin schickt deinen Namen im Spiel plus einen stabilen Account-Fingerabdruck bei jeder Anfrage mit, und die Seite gleicht zuerst über den Fingerabdruck ab — deine Verknüpfungen überleben also eine Namensänderung. Logge dich einmal auf einem Zweitaccount ein, und er erscheint in deinem Profil unter _Accounts we noticed you playing_ mit einem **Add** in einem Klick.',
+        'Sobald der Token eingetragen ist, erscheinen gespielte Accounts automatisch in deinem Profil. Ein brandneuer Account kann sofort verknüpft werden; ein Account, der bereits auf einer Clanliste steht, braucht zuerst einen Eigentumsnachweis, weil ein öffentlicher RuneScape-Name nicht beweist, wem er gehört.',
+        'Nutze für die erste Verknüpfung [den schnellen XP-Test](/profile#link-account), oder bitte einen Clan-Moderator, den Account unter [erkannte Accounts](/profile#detected-accounts) zu bestätigen. Danach verfolgt der stabile Account-Fingerabdruck Namensänderungen und erkennt den Account automatisch wieder.',
       ],
       figure: {
         caption: 'Profile → RuneScape Accounts',
@@ -567,13 +567,13 @@ const de: PartialGuideDict = {
         legend: [
           {
             label: 'Deine verknüpften Accounts',
-            body: 'alles mit „Verified via plugin“ ist allein durchs Spielen dorthin gelangt. Füge so viele Zweitaccounts hinzu, wie du willst; einer davon ist dein Hauptaccount.',
+            body: 'alles mit „Verified via plugin“ ist verknüpft und wird automatisch wiedererkannt. Bestehende Clan-Accounts können vorher einmalig einen XP-Test oder die Bestätigung eines Moderators verlangen.',
           },
         ],
       },
       noPluginHeading: 'Kannst du das Plugin nicht nutzen?',
       noPluginIntro:
-        'Auf Mobilgeräten oder im offiziellen Client verknüpfst du den Account stattdessen auf der Website — die Profilseite zeigt beide Wege:',
+        'Auf Mobilgeräten oder im offiziellen Client nutzt du stattdessen [Profile → account linking](/profile#link-account):',
       noPluginOptions: [
         '**Verify by XP** — gib deinen RSN ein, die Seite wählt einen zufälligen Skill, und du musst darin innerhalb von 30 Minuten 1.000 XP sammeln.',
         '**Manual review** — für verborgene Hiscores oder brandneue Zweitaccounts: reiche deinen RSN mit einer Notiz ein, und ein Moderator bestätigt ihn.',
@@ -794,7 +794,7 @@ const de: PartialGuideDict = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: 'Dieser Account ist noch nicht verknüpft. Füge ihn über Profile → „Accounts we noticed you playing“ hinzu.',
+          body: 'Dieser Account ist noch nicht verknüpft. Öffne [Profile → erkannte Accounts](/profile#detected-accounts), um ihn hinzuzufügen oder den Eigentumsnachweis zu starten.',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1966,7 +1966,7 @@ const de: PartialGuideDict = {
       rows: [
         {
           term: 'Per Plugin verifiziert',
-          body: 'der Normalfall, und er verlangt nichts von dir. Den Account mit verbundenem Plugin zu spielen verknüpft ihn automatisch, und ein stabiler Account-Fingerabdruck lässt die Verknüpfung eine Namensänderung überleben.',
+          body: 'nach dem ersten Eigentumsnachweis erkennt das Plugin den Account automatisch, und ein stabiler Fingerabdruck erhält die Verknüpfung bei Namensänderungen. Ein Listen-Account ohne bekannten Fingerabdruck nutzt einmal den XP-Test oder einen Moderator.',
         },
         {
           term: 'Verify by XP',

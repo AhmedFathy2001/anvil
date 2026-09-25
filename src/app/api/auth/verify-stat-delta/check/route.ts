@@ -129,12 +129,6 @@ export async function POST(request: Request) {
     });
   }
 
-  // Success — mark attempt completed and create/update the clan member.
-  await db
-    .update(verificationAttempts)
-    .set({ completedAt: nowIso, succeeded: 1 })
-    .where(eq(verificationAttempts.id, attempt.id));
-
   // ── The claim. Always, and it involves no clan. ─────────────────────────────────────────────
   //
   // `session.playerId`, not `session.userId`. Both branches of what used to be here wrote
@@ -152,8 +146,19 @@ export async function POST(request: Request) {
     actorUserId: session.userId,
   });
   if (!claim.ok) {
+    await db
+      .update(verificationAttempts)
+      .set({ completedAt: nowIso, succeeded: 0, failureReason: 'ownership_conflict' })
+      .where(eq(verificationAttempts.id, attempt.id));
     return NextResponse.json({ status: 'failed', reason: 'ownership_conflict' }, { status: 409 });
   }
+
+  // Mark the attempt complete only AFTER the transactional claim succeeds. A database error can no
+  // longer leave a "succeeded" attempt whose retry skips the ownership move entirely.
+  await db
+    .update(verificationAttempts)
+    .set({ completedAt: nowIso, succeeded: 1, failureReason: null })
+    .where(eq(verificationAttempts.id, attempt.id));
 
   // ── The seat. Only where a clan asked. ──────────────────────────────────────────────────────
   if (!clan) {

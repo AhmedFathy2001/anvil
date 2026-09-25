@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { db } from '@/db';
-import { settings, accounts } from '@/db/schema';
+import { settings } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { getOAuthMode } from '@/lib/discord-oauth';
 import { getClanDisplayName } from '@/lib/pluginConfig';
@@ -11,6 +11,7 @@ import { localeChrome } from '../_components/LanguageBar';
 import { getDict } from '../_i18n';
 import { guideMetadata } from '../_i18n/meta';
 import { chat, items, legend, paragraphs, rows, rt } from '../_i18n/rich';
+import PluginSetupValues from '../_components/PluginSetupValues';
 
 /**
  * Canonical origin for the "paste this into Site URL" instruction. Same resolution order as
@@ -176,6 +177,8 @@ export default async function PluginGuide({ lang }: { lang: string }) {
         )}
 
         <p className="text-text-muted">{rt(p.connect.manualIntro, v)}</p>
+
+        <PluginSetupValues origin={origin} tokenLabel={p.connect.tokenFigure.legend[0].label} />
 
         <Figure
           src="/guide/site-token.png"

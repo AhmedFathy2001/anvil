@@ -36,6 +36,7 @@ import {
   players,
   users,
 } from '@/db/schema';
+import type { DbExecutor } from '@/lib/roster';
 
 export type MergeResult =
   | {
@@ -62,21 +63,34 @@ export async function mergePeople(input: {
   /** How this merge came about, written into the audit entry. */
   reason?: string;
 }): Promise<MergeResult> {
+  return db.transaction((tx) => mergePeopleWith(tx, input));
+}
+
+/** The implementation shared by an operator merge and an account claim's transaction. */
+async function mergePeopleWith(
+  executor: DbExecutor,
+  input: {
+    sourcePlayerId: number;
+    targetPlayerId: number;
+    actorUserId?: number | null;
+    reason?: string;
+  },
+): Promise<MergeResult> {
   const { sourcePlayerId, targetPlayerId } = input;
   if (sourcePlayerId === targetPlayerId) {
     return { ok: false, error: 'That is the same person.' };
   }
 
   const [source, target] = await Promise.all([
-    db.query.players.findFirst({ where: eq(players.id, sourcePlayerId) }),
-    db.query.players.findFirst({ where: eq(players.id, targetPlayerId) }),
+    executor.query.players.findFirst({ where: eq(players.id, sourcePlayerId) }),
+    executor.query.players.findFirst({ where: eq(players.id, targetPlayerId) }),
   ]);
   if (!source) return { ok: false, error: 'That person no longer exists.' };
   if (!target) return { ok: false, error: 'The person to merge into no longer exists.' };
 
   const [sourceLogins, targetLogins] = await Promise.all([
-    db.select({ id: users.id }).from(users).where(eq(users.playerId, sourcePlayerId)),
-    db.select({ id: users.id }).from(users).where(eq(users.playerId, targetPlayerId)),
+    executor.select({ id: users.id }).from(users).where(eq(users.playerId, sourcePlayerId)),
+    executor.select({ id: users.id }).from(users).where(eq(users.playerId, targetPlayerId)),
   ]);
 
   // TWO LOGINS, ONE PERSON is a different operation, and a worse one to get wrong. `loginOf` answers
@@ -93,7 +107,7 @@ export async function mergePeople(input: {
     };
   }
 
-  const result = await db.transaction(async (tx) => {
+  const result = await (async (tx: DbExecutor) => {
     // A PLATFORM BAN MUST NOT WASH OFF. Merging a banned person into a clean one would otherwise be
     // a way to launder the ban, so it carries — and the reason with it, or the survivor would be
     // banned with nothing said about why.
@@ -199,11 +213,11 @@ export async function mergePeople(input: {
       duplicateBansLifted,
       duplicateInvitesDropped,
     };
-  });
+  })(executor);
 
   // `platform_`-prefixed, which is what puts it in the operator log. Merging identities is exactly
   // the kind of thing that should be answerable months later.
-  db.insert(clanAuditLog)
+  await executor.insert(clanAuditLog)
     .values({
       clanId: null,
       eventType: 'platform_people_merged',
@@ -232,16 +246,30 @@ export async function mergeEmptyPersonInto(
   sourcePlayerId: number,
   targetPlayerId: number,
   actorUserId?: number | null,
+  executor?: DbExecutor,
+): Promise<void> {
+  if (executor) {
+    await mergeEmptyPersonIntoWith(executor, sourcePlayerId, targetPlayerId, actorUserId);
+    return;
+  }
+  await db.transaction((tx) => mergeEmptyPersonIntoWith(tx, sourcePlayerId, targetPlayerId, actorUserId));
+}
+
+async function mergeEmptyPersonIntoWith(
+  executor: DbExecutor,
+  sourcePlayerId: number,
+  targetPlayerId: number,
+  actorUserId?: number | null,
 ): Promise<void> {
   if (sourcePlayerId === targetPlayerId) return;
   const [stillHasAccounts, stillHasLogin] = await Promise.all([
-    db.select({ id: accounts.id }).from(accounts).where(eq(accounts.playerId, sourcePlayerId)).limit(1),
-    db.select({ id: users.id }).from(users).where(eq(users.playerId, sourcePlayerId)).limit(1),
+    executor.select({ id: accounts.id }).from(accounts).where(eq(accounts.playerId, sourcePlayerId)).limit(1),
+    executor.select({ id: users.id }).from(users).where(eq(users.playerId, sourcePlayerId)).limit(1),
   ]);
   // Only an EMPTY one. A person who still owns a character is a different human as far as anything
   // here can tell, and folding them together would hand one person's characters to another.
   if (stillHasAccounts.length > 0 || stillHasLogin.length > 0) return;
-  await mergePeople({
+  await mergePeopleWith(executor, {
     sourcePlayerId,
     targetPlayerId,
     actorUserId: actorUserId ?? null,

@@ -7,13 +7,12 @@ import LinkAccountClient from './LinkAccountClient';
 
 // Adding a character, plugin FIRST.
 //
-// The plugin is the primary way and always was — it proves ownership with the account hash Jagex
-// hands the client, which nobody can forge, so a character you log into just LINKS ITSELF and shows
-// up here (lib/auth resolvePluginMember). The old form led with the XP-delta grind instead: type a
-// name, train a random skill 1,000 XP, wait. That is the FALLBACK — for someone on mobile or the
-// official client who can't run RuneLite — not the front door.
+// The plugin is the primary discovery path: a character you play shows up here without typing its
+// name. A safe new account can link immediately; an established roster identity still uses the
+// XP-delta or moderator check because the client-reported name/hash are not authenticated. The old
+// form led with that XP flow for everybody, including accounts with no prior identity to protect.
 //
-// So this leads with the token and "just play", watches for the first login the way ConnectCard
+// So this leads with the token and "play once", watches for the first login the way ConnectCard
 // does, and folds the by-name path away behind a disclosure for the people who actually need it.
 export default function AddCharacterClient({
   first = false,
@@ -107,8 +106,8 @@ export default function AddCharacterClient({
     <div>
       <p className="mb-3 max-w-[62ch] text-sm text-text-muted">
         The easy way{first ? '' : ', and the one to reach for'}: install <b className="text-foreground">Anvil</b>{' '}
-        from the RuneLite plugin hub, paste your token once, and just play. Every account you log into links
-        itself and appears here — no name to type, no XP to grind, and it stays yours in every clan you join.
+        from the RuneLite plugin hub, paste your token once, and play the account. It appears here automatically;
+        new accounts link immediately, while an account already on a roster asks for a one-time XP or moderator check.
       </p>
 
       <div className="flex max-w-[640px] flex-wrap gap-2">

@@ -217,8 +217,8 @@ const nl: PartialGuideDict = {
           body: 'Open het clanvenster in het spel met de plugin actief en druk op de **Anvil**-knop in de titelbalk. Je hele ledenlijst komt binnen met rangen en al, en een lijst van een clan waarvan de naam niet klopt wordt geweigerd. Herhaal het wanneer mensen komen of gaan — zie de [installatiegids voor spelers]({pluginGuide}).',
         },
         {
-          term: 'Ze spelen gewoon',
-          body: 'Iedereen die met de plugin inlogt wordt automatisch herkend. Staat iemand nog niet op de lijst, dan wordt die als **gast** gevolgd — zichtbaar, telbaar, en één synchronisatie verwijderd van lidmaatschap.',
+          term: 'Ze spelen één keer',
+          body: 'De plugin herkent een nieuw account automatisch en volgt het als **gast**. Een account dat al op de ledenlijst staat verschijnt op het profiel en heeft vóór het koppelen één XP-controle of goedkeuring van een moderator nodig.',
         },
         {
           term: 'Met de hand',
@@ -534,7 +534,7 @@ const nl: PartialGuideDict = {
         'Opent de browser niet vanzelf, dan drukt het paneel het adres en de code af zodat je het handmatig kunt openen. Codes verlopen na tien minuten — druk gewoon opnieuw op de knop.',
       manualHeading: 'De handmatige weg: kopieer je token',
       manualIntro:
-        'Log in met Discord en open [Profile](/profile), scrol dan naar de kaart **RuneLite plugin**.',
+        'Log in met Discord en open [Profile → plugin token](/profile#plugin-token).',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: 'De kaart RuneLite plugin op de profielpagina, met het tokenveld en de knoppen Reveal, Copy en Rotate omkaderd',
@@ -556,10 +556,10 @@ const nl: PartialGuideDict = {
     },
 
     accounts: {
-      title: 'Koppel je accounts — gewoon spelen',
+      title: 'Koppel je accounts',
       body: [
-        'Er is geen koppelcode in te tikken. Zodra het token erin staat, wordt het account waarmee je inlogt automatisch aan je profiel gekoppeld.',
-        'De plugin stuurt bij elk verzoek je naam in het spel mee plus een stabiele accountvingerafdruk, en de site matcht eerst op die vingerafdruk — je koppelingen overleven dus een naamswijziging. Log één keer in op een altaccount en het verschijnt op je profiel onder _Accounts we noticed you playing_ met een **Add** in één klik.',
+        'Zodra het token is ingesteld, verschijnen accounts waarmee je speelt automatisch op je profiel. Een nieuw account kan direct worden gekoppeld; een account dat al op een clanrooster staat vereist eerst één eigendomscontrole, omdat een openbare RuneScape-naam niet bewijst wie de eigenaar is.',
+        'Gebruik voor de eerste koppeling [de snelle XP-controle](/profile#link-account), of vraag een clanmoderator het account goed te keuren bij [gedetecteerde accounts](/profile#detected-accounts). Daarna volgt de stabiele accountvingerafdruk naamswijzigingen en wordt het account automatisch herkend.',
       ],
       figure: {
         caption: 'Profile → RuneScape Accounts',
@@ -567,13 +567,13 @@ const nl: PartialGuideDict = {
         legend: [
           {
             label: 'Je gekoppelde accounts',
-            body: 'alles met “Verified via plugin” is daar puur door te spelen terechtgekomen. Voeg zoveel altaccounts toe als je wilt; één daarvan is je hoofdaccount.',
+            body: 'alles met “Verified via plugin” is gekoppeld en wordt automatisch herkend. Bestaande clanroosteraccounts kunnen eerst een eenmalige XP-controle of goedkeuring door een moderator vragen.',
           },
         ],
       },
       noPluginHeading: 'Kun je de plugin niet draaien?',
       noPluginIntro:
-        'Op mobiel of in de officiële client koppel je het account in plaats daarvan op de website — de profielpagina toont beide opties:',
+        'Gebruik op mobiel of in de officiële client [Profile → account linking](/profile#link-account):',
       noPluginOptions: [
         '**Verify by XP** — vul je RSN in, de site kiest een willekeurige skill, en je moet daarin binnen 30 minuten 1.000 XP halen.',
         '**Manual review** — voor verborgen Hiscores of gloednieuwe altaccounts: dien je RSN in met een notitie, en een moderator keurt het goed.',
@@ -794,7 +794,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: 'Dat account is nog niet gekoppeld. Voeg het toe via Profile → “Accounts we noticed you playing”.',
+          body: 'Dat account is nog niet gekoppeld. Open [Profile → gedetecteerde accounts](/profile#detected-accounts) om het toe te voegen of de eigendomscontrole te starten.',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1966,7 +1966,7 @@ const nl: PartialGuideDict = {
       rows: [
         {
           term: 'Geverifieerd via de plugin',
-          body: 'het gewone geval, en het vraagt niets van jou. Het account spelen met de plugin verbonden koppelt het automatisch, en een stabiele accountvingerafdruk laat de koppeling een naamswijziging overleven.',
+          body: 'na de eerste eigendomscontrole herkent de plugin het account automatisch en houdt een stabiele vingerafdruk de koppeling in stand bij naamswijzigingen. Een roosteraccount zonder bekende vingerafdruk gebruikt eenmalig de XP-controle of een moderator.',
         },
         {
           term: 'Verify by XP',

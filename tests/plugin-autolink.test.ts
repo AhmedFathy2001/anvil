@@ -30,7 +30,6 @@ let A: typeof import('../src/lib/auth.ts');
 
 let clanA: number;
 let clanB: number;
-let userId: number;
 const TOKEN = 'test-plugin-token-autolink';
 const RSN = 'Wanderer';
 
@@ -61,11 +60,9 @@ before(async () => {
   [clanA, clanB] = clanRows.map((c) => c.id);
 
   const [person] = await db.insert(s.players).values({ displayName: 'Wanderer' }).returning();
-  const [user] = await db
+  await db
     .insert(s.users)
-    .values({ displayName: 'Wanderer', discordId: 'disc-1', pluginToken: TOKEN, playerId: person.id })
-    .returning();
-  userId = user.id;
+    .values({ displayName: 'Wanderer', discordId: 'disc-1', pluginToken: TOKEN, playerId: person.id });
 
   // An UNCLAIMED account with a DEPARTED seat in clan B. Unclaimed is the precondition for
   // auto-link to consider it at all; departed is what makes a revival visible.
@@ -154,4 +151,94 @@ test('an account already claimed by someone else is left alone', async () => {
     .from(s.accounts)
     .where(eq(s.accounts.id, claimed.id));
   assert.equal(after.playerId, stranger.id, 'still theirs');
+});
+
+test('roster first, Discord later: token discovery plus XP proof becomes one identity', async () => {
+  const { db, schema: s } = await loadDb();
+
+  // The roster arrived first, so it has its own placeholder person and a real member seat.
+  const [placeholder] = await db.insert(s.players).values({ displayName: 'Roster First' }).returning();
+  const [account] = await db
+    .insert(s.accounts)
+    .values({ playerId: placeholder.id, rsn: 'Roster First', rsnNormalized: 'roster first' })
+    .returning();
+  const [seat] = await db
+    .insert(s.clanMemberships)
+    .values({ clanId: clanA, accountId: account.id, kind: 'member', source: 'roster' })
+    .returning();
+
+  // Discord arrived later, so the login correctly starts with a different person.
+  const [discordPerson] = await db.insert(s.players).values({ displayName: 'Discord First' }).returning();
+  const [discordUser] = await db
+    .insert(s.users)
+    .values({
+      playerId: discordPerson.id,
+      displayName: 'Discord First',
+      discordId: 'disc-roster-first',
+      pluginToken: 'token-roster-first',
+    })
+    .returning();
+  assert.notEqual(placeholder.id, discordPerson.id);
+
+  // On the apex the user owns no seat yet, so member resolution cannot succeed. The valid token
+  // must still leave a visible suggestion instead of returning before recording the observation.
+  const resolved = await A.resolvePluginMember(
+    new Request('https://anvilosrs.com/api/plugin/config', {
+      headers: {
+        Authorization: 'Bearer token-roster-first',
+        'X-RSN': 'Roster First',
+        // A freshly supplied client hash is not proof and must not be anchored to the roster row.
+        'X-Account-Hash': 'untrusted-new-hash',
+      },
+    }),
+  );
+  assert.equal(resolved, null, 'there is no owned seat to resolve before proof');
+
+  const suggestions = await db
+    .select()
+    .from(s.detectedAccounts)
+    .where(and(eq(s.detectedAccounts.userId, discordUser.id), eq(s.detectedAccounts.rsnNormalized, 'roster first')));
+  assert.equal(suggestions.length, 1, 'the account is offered on the Discord profile');
+  assert.equal(suggestions[0].accountHash, null, 'an unanchored client value is not stored as proof');
+
+  const [beforeProof] = await db.select().from(s.accounts).where(eq(s.accounts.id, account.id));
+  assert.equal(beforeProof.playerId, placeholder.id, 'discovery alone grants no ownership');
+  assert.equal(beforeProof.accountHash, null, 'and does not poison the stable hash');
+
+  // The XP-delta route delegates to this transaction after it observes the requested gain.
+  const { claimAccountForPerson } = await import('../src/lib/accountClaim.ts');
+  const claim = await claimAccountForPerson({
+    playerId: discordPerson.id,
+    rsn: 'Roster First',
+    rsnNormalized: 'roster first',
+    method: 'stat_delta',
+    provisional: true,
+    actorUserId: discordUser.id,
+  });
+  assert.ok(claim.ok, JSON.stringify(claim));
+  assert.equal(claim.accountId, account.id, 'the roster account is reused rather than duplicated');
+
+  const [afterProof] = await db.select().from(s.accounts).where(eq(s.accounts.id, account.id));
+  assert.equal(afterProof.playerId, discordPerson.id, 'the account now belongs to the Discord person');
+  assert.equal(afterProof.verificationMethod, 'stat_delta');
+  assert.equal(
+    await db.query.players.findFirst({ where: eq(s.players.id, placeholder.id) }),
+    undefined,
+    'the emptied roster placeholder is folded away',
+  );
+  assert.ok(await db.query.players.findFirst({ where: eq(s.players.id, discordPerson.id) }));
+
+  const [seatAfter] = await db.select().from(s.clanMemberships).where(eq(s.clanMemberships.id, seat.id));
+  assert.equal(seatAfter.accountId, account.id, 'the existing member seat and its history survive');
+  assert.equal(seatAfter.kind, 'member');
+  assert.equal(
+    (
+      await db
+        .select()
+        .from(s.detectedAccounts)
+        .where(eq(s.detectedAccounts.userId, discordUser.id))
+    ).length,
+    0,
+    'the settled suggestion no longer asks them to add the account',
+  );
 });

@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { resolvePluginClan } from '@/lib/auth';
 import { noClanForPlugin } from '@/lib/pluginNoClan';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, pluginLinkCodes, pluginLinks, users } from '@/db/schema';
-import { findOrCreateAccount, findOrCreateSeat, findRosterSeat, findRosterSeats, personOf, personOfOrCreate } from '@/lib/roster';
+import { findRosterSeat, personOf, personOfOrCreate } from '@/lib/roster';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { generateAdminPluginToken, normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
@@ -13,6 +13,7 @@ import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 import { atLeast } from '@/lib/clanRoles';
 import { admit } from '@/lib/guestAdmission';
 import { autoClaimAllowed } from '@/lib/auth';
+import { claimAccountForPerson } from '@/lib/accountClaim';
 
 // Plugin exchanges {code, rsn, accountHash} for a confirmed account link.
 // The RSN comes from Client.getLocalPlayer().getName() inside RuneLite — we trust that value
@@ -135,24 +136,29 @@ export async function POST(request: Request) {
       );
     }
 
-    // The name, the rename history and the proof are all facts about the ACCOUNT — so a rename
-    // detected here is visible in every clan this account plays in, not just this one.
+    const claimant = await personOfOrCreate(issuingUser.id);
+    const claim = await claimAccountForPerson({
+      playerId: claimant,
+      rsn,
+      rsnNormalized,
+      accountHash: accountHash || null,
+      method: 'plugin',
+      actorUserId: issuingUser.id,
+    });
+    if (!claim.ok) {
+      return NextResponse.json({ error: claim.error }, { status: 409 });
+    }
+
+    // The name and rename history are account facts too. The claim above handles ownership,
+    // verification, primary selection and folding the old roster placeholder in one transaction.
     await db
       .update(accounts)
       .set({
         rsn: renamed ? rsn : existing.rsn,
         rsnNormalized: renamed ? rsnNormalized : existing.rsnNormalized,
         previousRsns: previousRsns.length ? JSON.stringify(previousRsns) : existing.previousRsns,
-        accountHash: accountHash || existing.accountHash,
-        playerId: await personOfOrCreate(issuingUser.id),
-        verifiedAt: nowIso,
-        verificationMethod: 'plugin',
-        provisional: 0,
-        claimedAt: claimingGhost ? nowIso : existing.claimedAt,
-        // The first account a user links becomes their primary unless one is already set.
-        isPrimary: existing.isPrimary,
       })
-      .where(eq(accounts.id, existing.accountId));
+      .where(eq(accounts.id, claim.accountId));
     await db
       .update(clanMemberships)
       .set({
@@ -199,24 +205,21 @@ export async function POST(request: Request) {
       })
       .catch(() => {});
   } else {
-    const account = await findOrCreateAccount({ rsn, rsnNormalized, accountHash: accountHash || null });
-    await db
-      .update(accounts)
-      .set({
-        playerId: await personOfOrCreate(issuingUser.id),
-        verifiedAt: nowIso,
-        verificationMethod: 'plugin',
-        provisional: 0,
-        claimedAt: nowIso,
-        isPrimary: 0,
-      })
-      .where(eq(accounts.id, account.id));
+    const claim = await claimAccountForPerson({
+      playerId: await personOfOrCreate(issuingUser.id),
+      rsn,
+      rsnNormalized,
+      accountHash: accountHash || null,
+      method: 'plugin',
+      actorUserId: issuingUser.id,
+    });
+    if (!claim.ok) return NextResponse.json({ error: claim.error }, { status: 409 });
     // Linking a plugin proves account ownership, not clan membership. Only the in-game roster sync
     // promotes a seat to 'member'.
     // Linking a character is a claim about WHO YOU ARE, not a claim on this clan's roster. Under
     // the default policy this raises a request instead of seating them; the account is still linked
     // to them either way, which is what they actually asked for.
-    const admission = await admit({ clanId: clan.id, accountId: account.id });
+    const admission = await admit({ clanId: clan.id, accountId: claim.accountId });
     if (admission.outcome !== 'seated') {
       return NextResponse.json(
         {
@@ -243,18 +246,6 @@ export async function POST(request: Request) {
         actorUserId: issuingUser.id,
       })
       .catch(() => {});
-  }
-
-  // First account becomes primary automatically. Done after the upsert so we can count
-  // existing rows owned by this user.
-  const issuingPlayerId = await personOf(issuingUser.id);
-  const userAccounts = issuingPlayerId
-    // clan-scope: global -- identity is global — one row per OSRS account however many clans it turns up in; the write below lands on `accounts`, not on anything clan-scoped.
-    ? await findRosterSeats(and(eq(clanRoster.playerId, issuingPlayerId), isNull(clanRoster.leftAt)))
-    : [];
-  const hasPrimary = userAccounts.some((a) => a.isPrimary === 1);
-  if (!hasPrimary) {
-    await db.update(accounts).set({ isPrimary: 1 }).where(eq(clanMemberships.id, clanMemberId));
   }
 
   // Apply any pre-assigned pending role. Plugin-verified claims are high-trust so we

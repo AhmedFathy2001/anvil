@@ -13,7 +13,7 @@
 //     and a main plus an alt is genuinely two seats.
 //   - `leftAt IS NULL` everywhere: a clan's size is who is there now, not who ever was.
 
-import { and, count, countDistinct, desc, eq, inArray, isNull, like, or, sql } from 'drizzle-orm';
+import { and, asc, count, countDistinct, desc, eq, inArray, isNull, like, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanAuditLog, clanMemberships, clanStaff, clans, errorEvents, events as eventsTable, players, users, weeklyCompetitions } from '@/db/schema';
@@ -292,6 +292,13 @@ export async function findPeople(query: string, limit = 25): Promise<PersonHit[]
   const q = query.trim();
   if (!q) return [];
   const like = `%${q.toLowerCase()}%`;
+  // A printed person id is written as either `531` or `#531`. Do not coerce Discord snowflakes to
+  // numbers: they are larger than JS can represent exactly and already have their own text match.
+  const idText = q.replace(/^#/, '');
+  const possibleId = /^\d{1,10}$/.test(idText) ? Number(idText) : null;
+  const personId = possibleId != null && Number.isSafeInteger(possibleId) && possibleId > 0 && possibleId <= 2_147_483_647
+    ? possibleId
+    : null;
 
   // clan-scope: global -- finding a person across every clan is the whole purpose of this tool.
   const ids = await db
@@ -300,7 +307,8 @@ export async function findPeople(query: string, limit = 25): Promise<PersonHit[]
     .leftJoin(accounts, eq(accounts.playerId, players.id))
     .leftJoin(users, eq(users.playerId, players.id))
     .where(
-      sql`lower(${players.displayName}) like ${like}
+      sql`${personId ? sql`${players.id} = ${personId} or` : sql``}
+        lower(${players.displayName}) like ${like}
         or lower(${accounts.rsn}) like ${like}
         or lower(${accounts.rsnNormalized}) like ${like}
         or lower(${users.displayName}) like ${like}
@@ -308,6 +316,20 @@ export async function findPeople(query: string, limit = 25): Promise<PersonHit[]
         or ${users.discordId} = ${q}`,
     )
     .groupBy(players.id)
+    // Exact person ids first, then exact visible names, before substring matches. This matters in
+    // the merge picker: choosing the wrong Alex is substantially worse than scrolling one row.
+    .orderBy(
+      sql`case
+        when ${personId ? sql`${players.id} = ${personId}` : sql`false`} then 0
+        when lower(coalesce(${players.displayName}, '')) = ${q.toLowerCase()} then 1
+        when exists (select 1 from ${accounts} exact_account
+          where exact_account.player_id = ${players.id}
+            and lower(exact_account.rsn_normalized) = ${q.toLowerCase()}) then 1
+        else 2
+      end`,
+      asc(players.displayName),
+      asc(players.id),
+    )
     .limit(limit);
 
   return Promise.all(ids.map((r) => personDetail(r.id))).then((rows) =>
@@ -734,10 +756,32 @@ export interface PeopleBrowseFilters {
   clanId?: number | null;
   /** Only people who have signed in with Discord, or only those who never have. */
   login?: 'yes' | 'no' | null;
-  banned?: boolean;
+  /** Only people with characters, or only login-only people without one. */
+  accounts?: 'yes' | 'no' | null;
+  banned?: 'yes' | 'no' | null;
   /** Only people who hold seats in more than one clan. */
   multiClan?: boolean;
+  sort?: PeopleSort;
 }
+
+export type PeopleSort =
+  | 'connected'
+  | 'name_asc'
+  | 'name_desc'
+  | 'newest'
+  | 'oldest'
+  | 'accounts_desc'
+  | 'clans_desc';
+
+export const PEOPLE_SORTS: readonly PeopleSort[] = [
+  'connected',
+  'name_asc',
+  'name_desc',
+  'newest',
+  'oldest',
+  'accounts_desc',
+  'clans_desc',
+] as const;
 
 export const PEOPLE_PAGE_SIZE = 25;
 
@@ -756,17 +800,25 @@ export async function browsePeople(
 ): Promise<{ rows: PeopleBrowseRow[]; total: number; page: number; pages: number }> {
   const q = filters.q?.trim().toLowerCase() ?? '';
   const like = `%${q}%`;
+  const idText = q.replace(/^#/, '');
+  const possibleId = /^\d{1,10}$/.test(idText) ? Number(idText) : null;
+  const personId = possibleId != null && Number.isSafeInteger(possibleId) && possibleId > 0 && possibleId <= 2_147_483_647
+    ? possibleId
+    : null;
 
   // Built as one expression so the count and the page agree by construction: two queries with
   // hand-copied predicates drift, and a pager that disagrees with its own total is worse than none.
   const where = sql`
-    ${q ? sql`exists (
+    ${q ? sql`(
+      ${personId ? sql`${players.id} = ${personId} or` : sql``}
+      exists (
       select 1 from ${accounts} a where a.player_id = ${PLAYER_ID}
         and (lower(a.rsn) like ${like} or lower(a.rsn_normalized) like ${like})
     ) or exists (
       select 1 from ${users} u where u.player_id = ${PLAYER_ID}
         and (lower(u.display_name) like ${like} or lower(u.discord_username) like ${like} or u.discord_id = ${filters.q?.trim() ?? ''})
-    ) or lower(${players.displayName}) like ${like}` : sql`true`}
+    ) or lower(${players.displayName}) like ${like}
+    )` : sql`true`}
     and ${filters.clanId ? sql`exists (
       select 1 from ${clanMemberships} m join ${accounts} a2 on a2.id = m.account_id
        where a2.player_id = ${PLAYER_ID} and m.clan_id = ${filters.clanId} and m.left_at is null
@@ -778,7 +830,20 @@ export async function browsePeople(
           ? sql`not exists (select 1 from ${users} u2 where u2.player_id = ${PLAYER_ID})`
           : sql`true`
     }
-    and ${filters.banned ? sql`${players.banned} = true` : sql`true`}
+    and ${
+      filters.accounts === 'yes'
+        ? sql`exists (select 1 from ${accounts} owned where owned.player_id = ${PLAYER_ID})`
+        : filters.accounts === 'no'
+          ? sql`not exists (select 1 from ${accounts} owned where owned.player_id = ${PLAYER_ID})`
+          : sql`true`
+    }
+    and ${
+      filters.banned === 'yes'
+        ? sql`${players.banned} = true`
+        : filters.banned === 'no'
+          ? sql`${players.banned} = false`
+          : sql`true`
+    }
     and ${filters.multiClan ? sql`(
       select count(distinct m3.clan_id) from ${clanMemberships} m3
         join ${accounts} a3 on a3.id = m3.account_id
@@ -795,6 +860,38 @@ export async function browsePeople(
   const pages = Math.max(1, Math.ceil(Number(total) / PEOPLE_PAGE_SIZE));
   const safePage = Math.min(Math.max(1, page), pages);
 
+  const accountCount = sql<number>`(
+    select count(*)::int from ${accounts} sort_accounts where sort_accounts.player_id = ${PLAYER_ID}
+  )`;
+  const clanCount = sql<number>`(
+    select count(distinct sort_membership.clan_id)::int from ${clanMemberships} sort_membership
+      join ${accounts} sort_account on sort_account.id = sort_membership.account_id
+     where sort_account.player_id = ${PLAYER_ID} and sort_membership.left_at is null
+  )`;
+  const nameOrder = sql`lower(coalesce(${players.displayName}, ''))`;
+  const sort = filters.sort ?? 'connected';
+  const requestedOrder = (() => {
+    switch (sort) {
+      case 'name_asc': return [asc(nameOrder), asc(players.id)];
+      case 'name_desc': return [desc(nameOrder), desc(players.id)];
+      case 'newest': return [desc(players.createdAt), desc(players.id)];
+      case 'oldest': return [asc(players.createdAt), asc(players.id)];
+      case 'accounts_desc': return [desc(accountCount), desc(clanCount), asc(nameOrder), asc(players.id)];
+      case 'clans_desc': return [desc(clanCount), desc(accountCount), asc(nameOrder), asc(players.id)];
+      default: return [desc(clanCount), desc(accountCount), asc(nameOrder), asc(players.id)];
+    }
+  })();
+  const exactMatchOrder = q
+    ? [sql`case
+        when ${personId ? sql`${players.id} = ${personId}` : sql`false`} then 0
+        when lower(coalesce(${players.displayName}, '')) = ${q} then 1
+        when exists (select 1 from ${accounts} exact_browse
+          where exact_browse.player_id = ${PLAYER_ID}
+            and lower(exact_browse.rsn_normalized) = ${q}) then 1
+        else 2
+      end`]
+    : [];
+
   const rows = await db
     .select({
       playerId: players.id,
@@ -810,13 +907,7 @@ export async function browsePeople(
     })
     .from(players)
     .where(where)
-    // Most-connected first: the people worth looking at on an operator's list are the ones in
-    // several clans or with several characters, not whoever registered earliest.
-    .orderBy(desc(sql`(
-      select count(distinct m5.clan_id) from ${clanMemberships} m5
-        join ${accounts} a6 on a6.id = m5.account_id
-       where a6.player_id = ${PLAYER_ID} and m5.left_at is null
-    )`), players.displayName)
+    .orderBy(...exactMatchOrder, ...requestedOrder)
     .limit(PEOPLE_PAGE_SIZE)
     .offset((safePage - 1) * PEOPLE_PAGE_SIZE);
 

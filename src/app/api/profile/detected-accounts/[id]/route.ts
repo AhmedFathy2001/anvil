@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { requireClan } from '@/lib/clanContext';
+import { currentClan } from '@/lib/clanContext';
 import { detectedAccounts } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { claimAccountForUser, verifyUser } from '@/lib/auth';
@@ -15,7 +15,7 @@ import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const rl = await rateLimit(request, 'detected-action', { limit: 30, windowMs: 60_000 });
   if (!rl.ok) return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
-  const clan = await requireClan();
+  const clan = await currentClan();
   const session = await verifyUser();
   if (!session?.userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -46,7 +46,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const result = await claimAccountForUser(
-    clan.id,
+    clan?.id ?? null,
     session.userId,
     detection.rsn,
     detection.rsnNormalized,
@@ -56,9 +56,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (result.reason === 'needs-verification') {
       return NextResponse.json(
         {
+          code: 'needs_verification',
           error:
             'For your security we can’t add an account that’s already on the clan roster from a name alone. ' +
-            'Link it with the quick in-game check under “Link a RuneScape account” (an XP gain or the plugin link code) to prove it’s yours.',
+            'Use the quick XP-gain check under “Link a RuneScape account”, or ask a moderator to verify it.',
         },
         { status: 409 },
       );

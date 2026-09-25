@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { currentClan } from '@/lib/clanContext';
-import { claimBlockedBy } from '@/lib/accountClaim';
-import { accounts, clanAuditLog, clanMemberships, clanRoster } from '@/db/schema';
-import { findOrCreateAccount, findRosterSeat } from '@/lib/roster';
+import { claimAccountForPerson, claimBlockedBy } from '@/lib/accountClaim';
+import { clanAuditLog, clanMemberships, clanRoster } from '@/db/schema';
+import { findRosterSeat } from '@/lib/roster';
 import { and, eq } from 'drizzle-orm';
 import { normalizeRsn, verifyUser } from '@/lib/auth';
 import { onCharacterLinked } from '@/lib/identity';
@@ -78,25 +78,23 @@ export async function POST(request: Request) {
     );
   }
 
+  // This is intentionally provisional: the requester has asserted ownership and a moderator still
+  // has to vouch. Use the same claim transaction as XP/plugin anyway, so an older roster placeholder
+  // is folded into the Discord person's row instead of being stranded when player_id changes.
+  const claim = await claimAccountForPerson({
+    playerId: session.playerId,
+    rsn,
+    rsnNormalized,
+    method: 'manual',
+    verified: false,
+    provisional: true,
+    actorUserId: session.userId,
+  });
+  if (!claim.ok) return NextResponse.json({ error: claim.error }, { status: 409 });
+
   let clanMemberId: number;
 
   if (existing) {
-    // `session.playerId`, not `session.userId` — a LOGIN id was being written into a PERSON column,
-    // which does not fail: it attaches the character to a real, unrelated person.
-    //
-    // Not routed through claimAccountForPerson, because asking for review is NOT a claim: nothing
-    // has been proven yet. `verifiedAt` is deliberately left exactly as it was.
-    await db
-      .update(accounts)
-      .set({
-        playerId: session.playerId,
-        verificationMethod: 'manual',
-        provisional: 1,
-        // Don't overwrite a real verifiedAt if this user is just adding context.
-        verifiedAt: existing.verifiedAt,
-        claimedAt: existing.claimedAt ?? nowIso,
-      })
-      .where(eq(accounts.id, existing.accountId));
     await db
       .update(clanMemberships)
       .set({
@@ -108,16 +106,6 @@ export async function POST(request: Request) {
       .where(eq(clanMemberships.id, existing.id));
     clanMemberId = existing.id;
   } else {
-    const account = await findOrCreateAccount({ rsn, rsnNormalized });
-    await db
-      .update(accounts)
-      .set({
-        playerId: session.playerId,
-        verificationMethod: 'manual',
-        provisional: 1,
-        claimedAt: nowIso,
-      })
-      .where(eq(accounts.id, account.id));
     // Asking for review proves nothing yet, and would not grant membership even once granted.
     // Linking a character is a claim about WHO YOU ARE, not a claim on this clan's roster. Under
     // the default policy this raises a request instead of seating them; the account is still linked
@@ -129,7 +117,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, claimed: true, provisional: true });
     }
 
-    const admission = await admit({ clanId: clan.id, accountId: account.id });
+    const admission = await admit({ clanId: clan.id, accountId: claim.accountId });
     if (admission.outcome !== 'seated') {
       return NextResponse.json(
         {

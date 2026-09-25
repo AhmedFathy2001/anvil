@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, eventParticipants, eventSignups, signupFees, weeklyParticipants } from '@/db/schema';
-import { findRosterSeat } from '@/lib/roster';
+import { findRosterSeat, loginOf } from '@/lib/roster';
 import { and, eq } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { requireClanFromRequest } from '@/lib/clanContext';
+import { mergeEmptyPersonInto } from '@/lib/mergePeople';
 
 // POST /api/admin/clan/merge { sourceId, targetId }
 // Merge two clan_members rows that are actually the same player (typically a left+joined
@@ -78,7 +79,15 @@ export async function POST(request: Request) {
 
   // The surviving identity's owner: at most one side is claimed (the conflict guard above), so this
   // is unambiguous. Sign-ups adopted from the source inherit it when they were an unowned guest.
-  const finalOwner = target.playerId ?? source.playerId ?? null;
+  // Every account has a placeholder person, so playerId alone does not say which side has a human
+  // owner. Prefer the CLAIMED side; otherwise keep the target placeholder. Choosing target.playerId
+  // unconditionally here used to detach a claimed source account from its Discord person.
+  const finalOwner = target.claimedAt
+    ? target.playerId
+    : source.claimedAt
+      ? source.playerId
+      : target.playerId ?? source.playerId ?? null;
+  const finalLogin = await loginOf(finalOwner);
 
   // Move references off of source.
   await db.update(eventParticipants).set({ clanMemberId: targetId }).where(eq(eventParticipants.clanMemberId, sourceId));
@@ -118,7 +127,8 @@ export async function POST(request: Request) {
       } else {
         await db
           .update(eventSignups)
-          .set({ clanMemberId: targetId, userId: s.userId ?? finalOwner })
+          // event_signups.user_id names a LOGIN; finalOwner is a PERSON.
+          .set({ clanMemberId: targetId, userId: s.userId ?? finalLogin })
           .where(eq(eventSignups.id, s.id));
         targetEventIds.add(s.eventId);
       }
@@ -132,8 +142,11 @@ export async function POST(request: Request) {
       previousRsns: merged.length ? JSON.stringify(merged) : null,
       accountHash: target.accountHash ?? source.accountHash,
       playerId: finalOwner ?? target.playerId ?? source.playerId ?? undefined,
+      isPrimary: target.isPrimary === 1 || source.isPrimary === 1 ? 1 : 0,
       verifiedAt: target.verifiedAt ?? source.verifiedAt,
       verificationMethod: target.verificationMethod ?? source.verificationMethod,
+      verifiedByUserId: target.verifiedByUserId ?? source.verifiedByUserId,
+      provisional: target.claimedAt ? target.provisional : source.provisional,
       claimedAt: target.claimedAt ?? source.claimedAt,
     })
     .where(eq(accounts.id, target.accountId));
@@ -150,6 +163,17 @@ export async function POST(request: Request) {
       .limit(1);
     if (stillSeated.length === 0) {
       await db.delete(accounts).where(eq(accounts.id, source.accountId));
+    }
+  }
+
+  // The account merge can empty either placeholder: normally the source account is deleted, but a
+  // claimed source also moves the target account onto the source's person. Preserve any person-level
+  // history and remove only rows that now hold neither an account nor a login.
+  if (finalOwner != null) {
+    for (const priorOwner of new Set([source.playerId, target.playerId])) {
+      if (priorOwner != null && priorOwner !== finalOwner) {
+        await mergeEmptyPersonInto(priorOwner, finalOwner, session.userId > 0 ? session.userId : null);
+      }
     }
   }
 

@@ -218,8 +218,8 @@ const fr: PartialGuideDict = {
           body: 'Ouvrez la fenêtre de clan en jeu avec le plugin actif et appuyez sur le bouton **Anvil** dans sa barre de titre. Toute votre liste arrive avec les rangs intacts, et une liste venant d’un clan dont le nom ne correspond pas au vôtre est refusée. Répétez-le quand des gens arrivent ou partent — voir le [guide d’installation joueur]({pluginGuide}).',
         },
         {
-          term: 'Ils jouent, simplement',
-          body: 'Toute personne qui se connecte avec le plugin actif est reconnue automatiquement. Si elle n’est pas encore sur la liste, elle est suivie comme **invité** — visible, comptabilisée, et à une synchronisation de devenir membre.',
+          term: 'Ils jouent une fois',
+          body: 'Le plugin reconnaît automatiquement un compte neuf et le suit comme **invité**. Un compte déjà dans la liste des membres apparaît sur le profil du joueur et demande une vérification par XP ou l’accord d’un modérateur avant d’être relié.',
         },
         {
           term: 'À la main',
@@ -535,7 +535,7 @@ const fr: PartialGuideDict = {
         'Si le navigateur ne s’ouvre pas tout seul, le panneau affiche l’adresse et le code pour que vous puissiez l’ouvrir à la main. Les codes expirent au bout de dix minutes — appuyez simplement de nouveau sur le bouton.',
       manualHeading: 'La voie manuelle : copier votre jeton',
       manualIntro:
-        'Connectez-vous avec Discord et ouvrez [Profile](/profile), puis descendez jusqu’à la carte **RuneLite plugin**.',
+        'Connectez-vous avec Discord et ouvrez [Profile → plugin token](/profile#plugin-token).',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: 'La carte RuneLite plugin sur la page de profil, avec le champ de jeton et les boutons Reveal, Copy et Rotate encadrés',
@@ -557,10 +557,10 @@ const fr: PartialGuideDict = {
     },
 
     accounts: {
-      title: 'Reliez vos comptes — jouez, c’est tout',
+      title: 'Reliez vos comptes',
       body: [
-        'Il n’y a aucun code de liaison à saisir. Une fois le jeton en place, le compte avec lequel vous vous connectez est rattaché automatiquement à votre profil.',
-        'Le plugin envoie votre nom en jeu ainsi qu’une empreinte de compte stable à chaque requête, et le site compare d’abord l’empreinte — vos liaisons survivent donc à un changement de nom. Connectez-vous une fois sur un compte secondaire et il apparaît sur votre profil sous _Accounts we noticed you playing_ avec un **Add** en un clic.',
+        'Une fois le jeton configuré, les comptes avec lesquels vous jouez apparaissent automatiquement sur votre profil. Un compte tout neuf peut être relié immédiatement ; un compte déjà présent dans la liste d’un clan demande d’abord une vérification de propriété, car un nom RuneScape public ne prouve pas son propriétaire.',
+        'Pour cette première liaison, utilisez [la vérification rapide par XP](/profile#link-account) ou demandez à un modérateur du clan de valider le compte dans [les comptes détectés](/profile#detected-accounts). Ensuite, son empreinte stable suit les changements de nom et le reconnaît automatiquement.',
       ],
       figure: {
         caption: 'Profile → RuneScape Accounts',
@@ -568,13 +568,13 @@ const fr: PartialGuideDict = {
         legend: [
           {
             label: 'Vos comptes reliés',
-            body: 'tout ce qui porte « Verified via plugin » y est arrivé simplement en jouant. Ajoutez autant de comptes secondaires que vous voulez ; l’un d’eux est votre compte principal.',
+            body: 'tout ce qui porte « Verified via plugin » est relié et sera reconnu automatiquement. Les comptes déjà inscrits dans un clan peuvent d’abord demander une vérification unique par XP ou par un modérateur.',
           },
         ],
       },
       noPluginHeading: 'Vous ne pouvez pas faire tourner le plugin ?',
       noPluginIntro:
-        'Sur mobile ou sur le client officiel, reliez le compte sur le site à la place — la page de profil montre les deux options :',
+        'Sur mobile ou sur le client officiel, utilisez plutôt [Profile → account linking](/profile#link-account) :',
       noPluginOptions: [
         '**Verify by XP** — saisissez votre RSN, le site choisit une compétence au hasard, et vous devez y gagner 1 000 XP en 30 minutes.',
         '**Manual review** — pour des Hiscores masqués ou un compte secondaire tout neuf : envoyez votre RSN avec une note et un modérateur l’approuve.',
@@ -795,7 +795,7 @@ const fr: PartialGuideDict = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: 'Ce compte n’est pas encore relié. Ajoutez-le depuis Profile → « Accounts we noticed you playing ».',
+          body: 'Ce compte n’est pas encore relié. Ouvrez [Profile → comptes détectés](/profile#detected-accounts) pour l’ajouter ou lancer la vérification de propriété.',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1967,7 +1967,7 @@ const fr: PartialGuideDict = {
       rows: [
         {
           term: 'Vérifié par le plugin',
-          body: 'le cas courant, et il ne vous demande rien. Jouer le compte avec le plugin connecté le relie automatiquement, et une empreinte de compte stable fait survivre la liaison à un changement de nom.',
+          body: 'après la première vérification de propriété, le plugin reconnaît automatiquement le compte et une empreinte stable conserve la liaison après un changement de nom. Un compte de la liste sans empreinte connue utilise une fois la vérification par XP ou un modérateur.',
         },
         {
           term: 'Verify by XP',

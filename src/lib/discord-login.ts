@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
-import { mergeEmptyPersonInto } from '@/lib/mergePeople';
 import { personOfOrCreate } from '@/lib/roster';
 import { db } from '@/db';
-import { accounts, clanAuditLog, clanRoster, clanStaff, players, users, eventParticipants } from '@/db/schema';
+import { clanAuditLog, clanRoster, clanStaff, players, users } from '@/db/schema';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { DiscordUser } from '@/lib/discord-oauth';
 import { autoClaimAllowed, signUserToken } from '@/lib/auth';
@@ -11,6 +10,7 @@ import { originForHost, resolveClanByHost, sessionCookieDomain } from '@/lib/cla
 import { applyPendingRole } from '@/lib/pending-role';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 import { log } from '@/lib/logger';
+import { claimAccountForPerson } from '@/lib/accountClaim';
 
 const SESSION_COOKIE = 'admin_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
@@ -230,23 +230,17 @@ export async function completeDiscordLogin(
 
       for (const cm of candidates) {
         const claimant = await personOfOrCreate(user.id);
-        await db
-          .update(accounts)
-          .set({
-            playerId: claimant,
-            claimedAt: cm.claimedAt ?? nowIso,
-            verifiedAt: cm.verifiedAt ?? nowIso,
-            verificationMethod: cm.verificationMethod ?? 'discord_name_match',
-            provisional: cm.pendingRole ? 0 : 1,
-          })
-          .where(eq(accounts.id, cm.accountId));
-
-        // The character now belongs to this login's person, so the one the roster sync minted for it
-        // is empty. Merged rather than left behind — see lib/mergePeople for why it is a move and
-        // not a delete.
-        if (cm.playerId != null) {
-          await mergeEmptyPersonInto(cm.playerId, claimant, user.id);
-        }
+        const claim = await claimAccountForPerson({
+          playerId: claimant,
+          rsn: cm.rsn,
+          rsnNormalized: cm.rsnNormalized,
+          method: 'discord_name_match',
+          provisional: !cm.pendingRole,
+          actorUserId: user.id,
+        });
+        // Another proof may have won while OAuth was completing. Never overwrite it or apply this
+        // login's pending role to somebody else's account.
+        if (!claim.ok) continue;
 
         db.insert(clanAuditLog)
           .values({

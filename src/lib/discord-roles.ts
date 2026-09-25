@@ -12,8 +12,8 @@
  */
 import { db } from '@/db';
 import { getSetting } from '@/lib/settings';
-import { accounts, clanAuditLog, clanMemberships, clanRoster, detectedAccounts, eventSignups, users, teams, settings } from '@/db/schema';
-import { findRosterSeat, personOfOrCreate, UNCLAIMED_ACCOUNT, updateAccountOfSeat } from '@/lib/roster';
+import { clanAuditLog, clanRoster, detectedAccounts, eventSignups, users } from '@/db/schema';
+import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
 import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { log } from '@/lib/logger';
 import { normalizeRsn } from '@/lib/auth';
@@ -660,29 +660,10 @@ interface MinimalClanMember {
 /** Cache a resolved Discord id onto the clan member so future syncs skip the lookup entirely. */
 async function cacheDiscordId(memberId: number, discordId: string): Promise<void> {
   await updateAccountOfSeat(memberId, { discordId }).catch(() => {});
-  // Persist the Discord↔account link at the USER level: if a site user owns this Discord login and
-  // the member isn't linked to anyone yet, bind it. That's what makes "this Discord = these X
-  // accounts" durable — every alt then resolves via the OAuth path, gets roles in any event, and
-  // contributes to the primary-first nickname. Only fills a NULL userId, so it never hijacks.
-  const user = await db.query.users.findFirst({ where: eq(users.discordId, discordId), columns: { id: true } });
-  if (user) {
-    await db
-      .update(accounts)
-      .set({ playerId: await personOfOrCreate(user.id) })
-      // Only fills an unclaimed account, so it never hijacks — and the guard has to sit on the
-      // ACCOUNT, since ownership is not something a single clan's seat can speak for.
-      .where(
-        and(
-          eq(
-            accounts.id,
-            // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
-            db.select({ id: clanMemberships.accountId }).from(clanMemberships).where(eq(clanMemberships.id, memberId)),
-          ),
-          UNCLAIMED_ACCOUNT,
-        ),
-      )
-      .catch(() => {});
-  }
+  // Deliberately do NOT turn this cache into account ownership. The id may have come from a guild
+  // nickname/RSN match, which is useful for assigning a Discord role but is not proof that the human
+  // owns the RuneScape account. Ownership goes through XP verification, an anchored hash, or a mod
+  // vouch; those paths also merge the roster placeholder instead of stranding it here.
 }
 
 /** users.discordId for a user id, or null. */

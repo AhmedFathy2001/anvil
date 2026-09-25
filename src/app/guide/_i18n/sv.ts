@@ -216,8 +216,8 @@ const sv: PartialGuideDict = {
           body: 'Öppna klanfönstret i spelet med pluginet igång och tryck **Anvil**-knappen i titelraden. Hela din medlemslista kommer in med rangerna kvar, och en lista från en klan vars namn inte stämmer med ditt avvisas. Upprepa det när folk kommer eller går — se [installationsguiden för spelare]({pluginGuide}).',
         },
         {
-          term: 'De bara spelar',
-          body: 'Alla som loggar in med pluginet igång känns igen automatiskt. Är de inte på listan än spåras de som **gäst** — synliga, räknebara och en synkronisering från att vara medlem.',
+          term: 'De spelar en gång',
+          body: 'Pluginet känner automatiskt igen ett nytt konto och spårar det som **gäst**. Ett konto som redan står på medlemslistan visas på profilen och behöver en XP-kontroll eller moderatorgodkännande innan det kopplas.',
         },
         {
           term: 'För hand',
@@ -533,7 +533,7 @@ const sv: PartialGuideDict = {
         'Om webbläsaren inte öppnas av sig själv skriver panelen ut adressen och koden så att du kan öppna den manuellt. Koder går ut efter tio minuter — tryck bara på knappen igen.',
       manualHeading: 'Den manuella vägen: kopiera din token',
       manualIntro:
-        'Logga in med Discord och öppna [Profile](/profile), scrolla sedan till kortet **RuneLite plugin**.',
+        'Logga in med Discord och öppna [Profile → plugin token](/profile#plugin-token).',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: 'RuneLite plugin-kortet på profilsidan, med tokenfältet och knapparna Reveal, Copy och Rotate inramade',
@@ -555,10 +555,10 @@ const sv: PartialGuideDict = {
     },
 
     accounts: {
-      title: 'Koppla dina konton — bara spela',
+      title: 'Koppla dina konton',
       body: [
-        'Det finns ingen kopplingskod att skriva in. När token väl är på plats matchas det konto du loggar in med automatiskt mot din profil.',
-        'Pluginet skickar ditt namn i spelet plus ett stabilt kontofingeravtryck med varje anrop, och sajten matchar på fingeravtrycket först — så dina kopplingar överlever ett namnbyte. Logga in på ett altkonto en gång så dyker det upp på din profil under _Accounts we noticed you playing_ med ett **Add** i ett klick.',
+        'När token är inställd visas konton du spelar på automatiskt i din profil. Ett helt nytt konto kan kopplas direkt; ett konto som redan finns på en klanlista behöver först en ägarskapskontroll, eftersom ett offentligt RuneScape-namn inte bevisar vem som äger det.',
+        'För den första kopplingen använder du [den snabba XP-kontrollen](/profile#link-account), eller ber en klanmoderator godkänna kontot under [upptäckta konton](/profile#detected-accounts). Därefter följer det stabila kontofingeravtrycket namnbyten och känner igen kontot automatiskt.',
       ],
       figure: {
         caption: 'Profile → RuneScape Accounts',
@@ -566,13 +566,13 @@ const sv: PartialGuideDict = {
         legend: [
           {
             label: 'Dina kopplade konton',
-            body: 'allt som är märkt “Verified via plugin” hamnade där bara genom att spelas. Lägg till hur många altkonton du vill; ett av dem är ditt huvudkonto.',
+            body: 'allt märkt “Verified via plugin” är kopplat och känns igen automatiskt. Befintliga klanlistekonton kan först kräva en engångskontroll via XP eller moderator.',
           },
         ],
       },
       noPluginHeading: 'Kan du inte köra pluginet?',
       noPluginIntro:
-        'På mobil eller i den officiella klienten kopplar du kontot på webbplatsen i stället — profilsidan visar båda alternativen:',
+        'På mobil eller i den officiella klienten använder du [Profile → account linking](/profile#link-account) i stället:',
       noPluginOptions: [
         '**Verify by XP** — skriv in ditt RSN, sajten väljer en slumpmässig färdighet, och du ska tjäna 1 000 XP i den inom 30 minuter.',
         '**Manual review** — för dolda Hiscores eller helt nya altkonton: skicka in ditt RSN med en kommentar så godkänner en moderator det.',
@@ -793,7 +793,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: 'Det kontot är inte kopplat än. Lägg till det från Profile → “Accounts we noticed you playing”.',
+          body: 'Kontot är inte kopplat än. Öppna [Profile → upptäckta konton](/profile#detected-accounts) för att lägga till det eller starta ägarskapskontrollen.',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1965,7 +1965,7 @@ const sv: PartialGuideDict = {
       rows: [
         {
           term: 'Verifierat via pluginet',
-          body: 'det vanliga fallet, och det kräver ingenting av dig. Att spela kontot med pluginet anslutet kopplar det automatiskt, och ett stabilt kontofingeravtryck gör att kopplingen överlever ett namnbyte.',
+          body: 'efter den första ägarskapskontrollen känner pluginet igen kontot automatiskt, och ett stabilt fingeravtryck bevarar kopplingen vid namnbyten. Ett listkonto utan känt fingeravtryck använder XP-kontroll eller moderatorgodkännande en gång.',
         },
         {
           term: 'Verify by XP',

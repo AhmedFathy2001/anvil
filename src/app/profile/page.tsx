@@ -75,12 +75,18 @@ export default async function ProfilePage({
     // merge several clans into a picture true of nobody, show what IS true of the PERSON: the
     // characters they play, who they share, their clans — and the platform-level settings that route
     // between clans (webhooks + emission), which never belonged on any single clan's locker.
-    const [myClans, characters, person, emission, onboarding] = await Promise.all([
+    const [myClans, characters, person, emission, onboarding, detectedRows] = await Promise.all([
       clansOfPerson(session.playerId, session.userId),
       session.playerId == null
         ? Promise.resolve([])
         : db
-            .select({ id: accounts.id, rsn: accounts.rsn, shared: accounts.shared })
+            .select({
+              id: accounts.id,
+              rsn: accounts.rsn,
+              rsnNormalized: accounts.rsnNormalized,
+              accountHash: accounts.accountHash,
+              shared: accounts.shared,
+            })
             .from(accounts)
             .where(eq(accounts.playerId, session.playerId)),
       session.playerId == null
@@ -92,7 +98,16 @@ export default async function ProfilePage({
       // Whether their first run is still outstanding. The flow ends here, so this is also where
       // somebody who abandoned it half way through gets offered it back.
       onboardingState(session.userId, session.playerId),
+      db.query.detectedAccounts.findMany({
+        where: and(eq(detectedAccounts.userId, user.id), eq(detectedAccounts.status, 'pending')),
+        orderBy: (d, { desc }) => [desc(d.lastSeenAt)],
+      }),
     ]);
+    const ownedRsns = new Set(characters.map((a) => a.rsnNormalized));
+    const ownedHashes = new Set(characters.map((a) => a.accountHash).filter(Boolean) as string[]);
+    const detected = detectedRows
+      .filter((d) => !ownedRsns.has(d.rsnNormalized) && !(d.accountHash && ownedHashes.has(d.accountHash)))
+      .map((d) => ({ id: d.id, rsn: d.rsn, lastSeenAt: d.lastSeenAt }));
     return (
       <PersonProfile
         // The Discord display name, and this is the one page it belongs on: /profile is private,
@@ -100,6 +115,7 @@ export default async function ProfilePage({
         displayName={user.displayName}
         clans={myClans}
         characters={characters.map((a) => ({ id: a.id, rsn: a.rsn, shared: !!a.shared }))}
+        detected={detected}
         linked={person?.linkAccountsPublicly ?? false}
         emission={emission}
         suggestedRsn={suggestedRsn}
@@ -323,8 +339,8 @@ export default async function ProfilePage({
 
             {locker.accounts.length === 0 ? (
               <div className="border border-dashed border-card-border rounded-lg bg-brown-dark/40 px-4 py-6 text-center text-sm text-text-muted">
-                <div className="font-medium text-foreground mb-1">Accounts add themselves.</div>
-                Paste the token above, log in, and every character you play shows up here to keep or dismiss.
+                <div className="font-medium text-foreground mb-1">Play once and it appears here.</div>
+                New accounts can link immediately. Existing roster accounts ask for the one-time ownership check first.
               </div>
             ) : (
               <LinkedAccountsClient
@@ -368,9 +384,10 @@ export default async function ProfilePage({
       <SecurityDrawer
         accounts={locker.accounts.map((a) => ({ id: a.id, rsn: a.rsn }))}
         ignored={ignored}
-        defaultOpen={locker.setupNeeded && locker.accounts.length > 0}
+        defaultOpen={Boolean(suggestedRsn) || (locker.setupNeeded && locker.accounts.length > 0)}
         clanName={clan?.name ?? 'this clan'}
         seat={leaveSeat}
+        suggestedRsn={suggestedRsn}
       />
     </div>
   );

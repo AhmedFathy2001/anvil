@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import Select from '@/components/Select';
 import { useRouter } from 'next/navigation';
 
-import type { PersonHit, PeopleBrowseRow } from '@/lib/platformView';
+import type { PersonHit, PeopleBrowseRow, PeopleSort } from '@/lib/platformView';
 import Input from '@/components/Input';
+import { useDialog } from '@/components/Confirm';
+import MergePeopleDialog from './MergePeopleDialog';
 
 const PLATFORM_ROLES = ['none', 'support', 'staff', 'root'] as const;
 
@@ -32,6 +34,7 @@ function PersonCard({
   canGrant,
   viewerPlayerId,
   onChanged,
+  onMerge,
 }: {
   person: PersonHit;
   canWrite: boolean;
@@ -39,6 +42,7 @@ function PersonCard({
   /** The viewer's own person id — their row must not offer what the API will refuse. */
   viewerPlayerId: number | null;
   onChanged: () => void;
+  onMerge: (person: PersonHit) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,10 +51,6 @@ function PersonCard({
   // is worse than no control: it reads as a thing you may do that happens to be broken.
   const isSelf = viewerPlayerId != null && viewerPlayerId === person.playerId;
   const [confirming, setConfirming] = useState(false);
-  // Folding this row into another one. The id is typed rather than picked, because the two halves of
-  // one human are almost always both on screen with their ids printed on them.
-  const [mergeInto, setMergeInto] = useState('');
-  const [merging, setMerging] = useState(false);
 
   async function patch(body: Record<string, unknown>) {
     setBusy(true);
@@ -68,34 +68,6 @@ function PersonCard({
       }
       setConfirming(false);
       setReason('');
-      onChanged();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-
-  async function merge() {
-    const into = Number(mergeInto.trim().replace(/^#/, ''));
-    if (!Number.isInteger(into) || into <= 0) {
-      setError('Give the person id to merge into, like 531.');
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/staff/people/${person.playerId}/merge`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ into }),
-      });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(j.error ?? `Failed (${res.status})`);
-        return;
-      }
-      setMerging(false);
-      setMergeInto('');
       onChanged();
     } finally {
       setBusy(false);
@@ -251,45 +223,14 @@ function PersonCard({
               </button>
             ))}
 
-          {/* ONE HUMAN, TWO ROWS. A person is minted for a character when a roster sync first sees
-              it, and again when a human signs in — and until the character is claimed they stay
-              apart. This is the repair for the ones that never were. */}
-          {!isSelf && canWrite && (merging ? (
-            <div className="flex flex-1 flex-wrap items-center gap-2">
-              <span className="text-xs text-gray-400">Merge #{person.playerId} into</span>
-              <Input
-                value={mergeInto}
-                onChange={(e) => setMergeInto(e.target.value)}
-                placeholder="person id, e.g. 531"
-                className="w-40 rounded-lg px-2 py-1 text-xs"
-              />
-              <button
-                onClick={merge}
-                disabled={busy}
-                className="rounded-lg border border-gold/40 px-3 py-1 text-xs text-gold hover:bg-gold/10"
-              >
-                Merge
-              </button>
-              <button
-                onClick={() => { setMerging(false); setError(null); }}
-                className="rounded-lg border border-card-border px-3 py-1 text-xs text-gray-400"
-              >
-                Cancel
-              </button>
-              <span className="w-full text-xs text-gray-500">
-                This row disappears. Its characters, seats, bans and invites move to the one you
-                name — so name the row holding the Discord login, since that is the half that cannot
-                be made again.
-              </span>
-            </div>
-          ) : (
+          {!isSelf && canWrite && (
             <button
-              onClick={() => setMerging(true)}
+              onClick={() => onMerge(person)}
               className="rounded-lg border border-card-border px-3 py-1 text-xs text-gray-300 hover:border-gold/40 hover:text-gold"
             >
-              Merge into…
+              Merge duplicate…
             </button>
-          ))}
+          )}
         </div>
       )}
     </div>
@@ -309,7 +250,14 @@ export default function PeopleClient({
   initialQuery: string;
   results: PersonHit[];
   browse: { rows: PeopleBrowseRow[]; total: number; page: number; pages: number };
-  filters: { clanId: string; login: string; banned: boolean; multiClan: boolean };
+  filters: {
+    clanId: string;
+    login: string;
+    accounts: string;
+    banned: string;
+    multiClan: boolean;
+    sort: PeopleSort;
+  };
   clans: { id: number; name: string }[];
   canWrite: boolean;
   canGrant: boolean;
@@ -317,7 +265,26 @@ export default function PeopleClient({
   viewerPlayerId: number | null;
 }) {
   const router = useRouter();
+  const { notify } = useDialog();
   const [q, setQ] = useState(initialQuery);
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergeSource, setMergeSource] = useState<PersonHit | null>(null);
+
+  const closeMerge = useCallback(() => {
+    setMergeOpen(false);
+    setMergeSource(null);
+  }, []);
+
+  function openMerge(source: PersonHit | null = null) {
+    setMergeSource(source);
+    setMergeOpen(true);
+  }
+
+  const merged = useCallback((message: string) => {
+    closeMerge();
+    notify(message);
+    router.refresh();
+  }, [closeMerge, notify, router]);
 
   // One URL builder for the search box, every filter and the pager, so changing one never silently
   // drops the others — which is the usual way a filtered list becomes untrustworthy.
@@ -327,12 +294,15 @@ export default function PeopleClient({
       q,
       clan: filters.clanId,
       login: filters.login,
+      accounts: filters.accounts,
       banned: filters.banned,
       multi: filters.multiClan,
+      sort: filters.sort,
       ...next,
     };
     for (const [k, v] of Object.entries(merged)) {
       if (v === '' || v === false || v == null) continue;
+      if (k === 'sort' && v === 'connected') continue;
       p.set(k, String(v));
     }
     router.push(`/staff/people?${p.toString()}`);
@@ -343,29 +313,82 @@ export default function PeopleClient({
     go({ page: null });
   }
 
+  function clearFilters() {
+    setQ('');
+    go({
+      q: '',
+      clan: '',
+      login: '',
+      accounts: '',
+      banned: '',
+      multi: false,
+      sort: 'connected',
+      page: null,
+    });
+  }
+
+  const hasActiveFilters = Boolean(
+    initialQuery ||
+    filters.clanId ||
+    filters.login ||
+    filters.accounts ||
+    filters.banned ||
+    filters.multiClan ||
+    filters.sort !== 'connected',
+  );
+
+  const pager = browse.pages > 1 && (
+    <div className="mt-3 flex items-center gap-2 text-xs">
+      <button
+        disabled={browse.page <= 1}
+        onClick={() => go({ page: browse.page - 1 })}
+        className="rounded-lg border border-card-border px-2.5 py-1 disabled:opacity-40"
+      >
+        ← Previous
+      </button>
+      <span className="text-gray-500">Page {browse.page} of {browse.pages}</span>
+      <button
+        disabled={browse.page >= browse.pages}
+        onClick={() => go({ page: browse.page + 1 })}
+        className="rounded-lg border border-card-border px-2.5 py-1 disabled:opacity-40"
+      >
+        Next →
+      </button>
+    </div>
+  );
+
   return (
     <div>
-      <form onSubmit={search} className="flex gap-2">
-        <Input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="RSN, Discord name, or Discord id…"
-          className="flex-1 rounded-xl bg-card-bg px-4 py-2.5 outline-none"
-        />
-        <button type="submit" className="rounded-xl border border-gold/40 px-4 py-2.5 text-sm text-gold">
-          Search
-        </button>
-      </form>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <form onSubmit={search} className="flex min-w-0 flex-1 gap-2">
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="RSN, Discord name, #person-id, or Discord id…"
+            className="min-w-0 flex-1 rounded-xl bg-card-bg px-4 py-2.5 outline-none"
+          />
+          <button type="submit" className="rounded-xl border border-gold/40 px-4 py-2.5 text-sm text-gold">
+            Search
+          </button>
+        </form>
+        {canWrite && (
+          <button
+            type="button"
+            onClick={() => openMerge()}
+            className="rounded-xl bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark hover:bg-gold-light"
+          >
+            Merge people…
+          </button>
+        )}
+      </div>
 
-      {/* FILTERS. Search answers "somebody reported this name"; these answer "who is on this
-          platform", which the page could not answer at all while it was search-only. */}
-      <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
+      <div className="mt-4 grid gap-2 text-xs sm:grid-cols-2 xl:grid-cols-5">
         <Select
           value={filters.clanId}
           onChange={(v) => go({ clan: v, page: null })}
           options={[{ value: '', label: 'Any clan' }, ...clans.map((c) => ({ value: String(c.id), label: c.name }))]}
           ariaLabel="Clan"
-          className="w-44"
+          className="w-full"
         />
         <Select
           value={filters.login}
@@ -376,26 +399,68 @@ export default function PeopleClient({
             { value: 'no', label: 'Never signed in' },
           ]}
           ariaLabel="Login state"
-          className="w-44"
+          className="w-full"
         />
+        <Select
+          value={filters.accounts}
+          onChange={(v) => go({ accounts: v, page: null })}
+          options={[
+            { value: '', label: 'Any character state' },
+            { value: 'yes', label: 'Has characters' },
+            { value: 'no', label: 'No characters' },
+          ]}
+          ariaLabel="Character state"
+          className="w-full"
+        />
+        <Select
+          value={filters.banned}
+          onChange={(v) => go({ banned: v, page: null })}
+          options={[
+            { value: '', label: 'Any ban state' },
+            { value: 'yes', label: 'Platform-banned' },
+            { value: 'no', label: 'Not platform-banned' },
+          ]}
+          ariaLabel="Platform ban state"
+          className="w-full"
+        />
+        <Select
+          value={filters.sort}
+          onChange={(v) => go({ sort: v, page: null })}
+          options={[
+            { value: 'connected', label: 'Most connected' },
+            { value: 'name_asc', label: 'Name A–Z' },
+            { value: 'name_desc', label: 'Name Z–A' },
+            { value: 'newest', label: 'Newest people' },
+            { value: 'oldest', label: 'Oldest people' },
+            { value: 'accounts_desc', label: 'Most characters' },
+            { value: 'clans_desc', label: 'Most clans' },
+          ]}
+          ariaLabel="Sort people"
+          className="w-full"
+        />
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
         <label className="flex items-center gap-1.5 text-text-muted">
           <input type="checkbox" checked={filters.multiClan} onChange={(e) => go({ multi: e.target.checked, page: null })} />
           In more than one clan
         </label>
-        <label className="flex items-center gap-1.5 text-text-muted">
-          <input type="checkbox" checked={filters.banned} onChange={(e) => go({ banned: e.target.checked, page: null })} />
-          Platform-banned
-        </label>
+        {hasActiveFilters && (
+          <button type="button" onClick={clearFilters} className="text-gray-400 underline underline-offset-2 hover:text-gold">
+            Clear search and filters
+          </button>
+        )}
       </div>
 
-      {results.length === 0 && (
-        <div className="mt-5">
-          <div className="mb-2 text-xs text-gray-500">
-            {browse.total.toLocaleString()} {browse.total === 1 ? 'person' : 'people'}
-            {browse.pages > 1 && ` · page ${browse.page} of ${browse.pages}`}
-          </div>
-          <div className="overflow-hidden rounded-xl border border-card-border bg-card-bg">
-            <table className="w-full text-sm">
+      <div className="mt-5">
+        <div className="mb-2 text-xs text-gray-500">
+          {browse.total.toLocaleString()} {browse.total === 1 ? 'person' : 'people'}
+          {browse.pages > 1 && ` · page ${browse.page} of ${browse.pages}`}
+        </div>
+
+        {!initialQuery ? (
+          <div className="overflow-x-auto rounded-xl border border-card-border bg-card-bg">
+            <table className="w-full min-w-[34rem] text-sm">
               <thead className="border-b border-card-border text-left text-xs uppercase tracking-wide text-gray-400">
                 <tr>
                   <th className="px-4 py-2.5">Person</th>
@@ -405,22 +470,21 @@ export default function PeopleClient({
                 </tr>
               </thead>
               <tbody className="divide-y divide-card-border">
-                {browse.rows.map((r) => (
-                  <tr key={r.playerId} className="hover:bg-brown-light/40">
+                {browse.rows.map((row) => (
+                  <tr key={row.playerId} className="hover:bg-brown-light/40">
                     <td className="px-4 py-2.5">
-                      {/* Opening a row runs the same search the box does, so one code path assembles
-                          a person and the list stays cheap. */}
                       <button
-                        onClick={() => go({ q: r.name ?? '', page: null })}
+                        onClick={() => go({ q: `#${row.playerId}`, page: null })}
                         className="text-left font-medium hover:text-gold"
                       >
-                        {r.name ?? `#${r.playerId}`}
+                        {row.name ?? `Person #${row.playerId}`}
                       </button>
-                      {r.banned && <Pill tone="red">banned</Pill>}
+                      <span className="ml-2 text-xs text-gray-600">#{row.playerId}</span>
+                      {row.banned && <span className="ml-2"><Pill tone="red">banned</Pill></span>}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{r.accounts}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums">{r.clans}</td>
-                    <td className="px-4 py-2.5 text-xs text-gray-400">{r.hasLogin ? 'Discord' : '—'}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums">{row.accounts}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums">{row.clans}</td>
+                    <td className="px-4 py-2.5 text-xs text-gray-400">{row.hasLogin ? 'Discord' : '—'}</td>
                   </tr>
                 ))}
                 {browse.rows.length === 0 && (
@@ -433,44 +497,37 @@ export default function PeopleClient({
               </tbody>
             </table>
           </div>
-          {browse.pages > 1 && (
-            <div className="mt-3 flex items-center gap-2 text-xs">
-              <button
-                disabled={browse.page <= 1}
-                onClick={() => go({ page: browse.page - 1 })}
-                className="rounded-lg border border-card-border px-2.5 py-1 disabled:opacity-40"
-              >
-                ← Previous
-              </button>
-              <button
-                disabled={browse.page >= browse.pages}
-                onClick={() => go({ page: browse.page + 1 })}
-                className="rounded-lg border border-card-border px-2.5 py-1 disabled:opacity-40"
-              >
-                Next →
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="mt-6 space-y-4">
-        {results.map((p) => (
-          <PersonCard
-            key={p.playerId}
-            person={p}
-            canWrite={canWrite}
-            canGrant={canGrant}
-            viewerPlayerId={viewerPlayerId}
-            onChanged={() => router.refresh()}
-          />
-        ))}
-        {initialQuery && results.length === 0 && (
-          <p className="text-sm text-gray-500">
-            Nobody matches “{initialQuery}” — the list below is everyone else.
-          </p>
+        ) : (
+          <div className="space-y-4">
+            {results.map((person) => (
+              <PersonCard
+                key={person.playerId}
+                person={person}
+                canWrite={canWrite}
+                canGrant={canGrant}
+                viewerPlayerId={viewerPlayerId}
+                onChanged={() => router.refresh()}
+                onMerge={openMerge}
+              />
+            ))}
+            {results.length === 0 && (
+              <p className="rounded-xl border border-card-border bg-card-bg px-4 py-6 text-center text-sm text-gray-500">
+                Nobody matches “{initialQuery}” with those filters.
+              </p>
+            )}
+          </div>
         )}
+        {pager}
       </div>
+
+      {mergeOpen && (
+        <MergePeopleDialog
+          initialSource={mergeSource}
+          viewerPlayerId={viewerPlayerId}
+          onClose={closeMerge}
+          onMerged={merged}
+        />
+      )}
     </div>
   );
 }

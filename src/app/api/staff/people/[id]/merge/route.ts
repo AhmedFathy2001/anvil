@@ -28,6 +28,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if ('response' in gate) return gate.response;
   const { actor } = gate;
 
+  // The source row is deleted. Letting an operator delete the person behind their own live session
+  // leaves the remainder of this request authorized as a login that no longer has a person, and is
+  // an easy way to lock themselves out of the repair surface.
+  if (sourcePlayerId === actor.user.playerId) {
+    return NextResponse.json({ error: 'You cannot merge away the person attached to your own login.' }, { status: 400 });
+  }
+
   const body = (await request.json().catch(() => null)) as { into?: unknown } | null;
   const targetPlayerId = Number(body?.into);
   if (!Number.isInteger(targetPlayerId) || targetPlayerId <= 0) {

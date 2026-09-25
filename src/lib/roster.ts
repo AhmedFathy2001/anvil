@@ -15,6 +15,9 @@ import { db } from '@/db';
 import { resolveClanFromRequest } from '@/lib/clanContext';
 import { accountStatSnapshots, accounts, clanMemberships, clanRoster, players, users } from '@/db/schema';
 
+/** The query surface shared by the root database and a transaction. */
+export type DbExecutor = Pick<typeof db, 'select' | 'insert' | 'update' | 'delete' | 'query'>;
+
 export type RosterSeat = typeof clanRoster.$inferSelect;
 
 /** The first roster seat matching `where`, or undefined. Add a clan filter unless you mean any clan. */
@@ -110,24 +113,24 @@ export async function findOrCreateAccount(input: {
   rsn: string;
   rsnNormalized: string;
   accountHash?: string | null;
-}): Promise<typeof accounts.$inferSelect> {
+}, executor: DbExecutor = db): Promise<typeof accounts.$inferSelect> {
   // Hash first: it survives renames, so it identifies the account when the name no longer does.
   if (input.accountHash) {
-    const [byHash] = await db.select().from(accounts).where(eq(accounts.accountHash, input.accountHash)).limit(1);
+    const [byHash] = await executor.select().from(accounts).where(eq(accounts.accountHash, input.accountHash)).limit(1);
     if (byHash) return byHash;
   }
-  const [byRsn] = await db.select().from(accounts).where(eq(accounts.rsnNormalized, input.rsnNormalized)).limit(1);
+  const [byRsn] = await executor.select().from(accounts).where(eq(accounts.rsnNormalized, input.rsnNormalized)).limit(1);
   if (byRsn) {
     // Anchor it to the hash now that we have one, so the next rename is still recognisable.
     if (input.accountHash && !byRsn.accountHash) {
-      await db.update(accounts).set({ accountHash: input.accountHash }).where(eq(accounts.id, byRsn.id));
+      await executor.update(accounts).set({ accountHash: input.accountHash }).where(eq(accounts.id, byRsn.id));
       return { ...byRsn, accountHash: input.accountHash };
     }
     return byRsn;
   }
 
-  const [person] = await db.insert(players).values({ displayName: input.rsn }).returning();
-  const [created] = await db
+  const [person] = await executor.insert(players).values({ displayName: input.rsn }).returning();
+  const [created] = await executor
     .insert(accounts)
     .values({
       playerId: person.id,

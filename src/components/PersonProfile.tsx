@@ -6,6 +6,7 @@ import PublishCharactersPrompt from '@/components/PublishCharactersPrompt';
 import AnnouncementsDrawer from '@/app/profile/AnnouncementsDrawer';
 import type { MyClan } from '@/lib/myClans';
 import type { EmissionSettingsView } from '@/lib/emissionSettings';
+import DetectedAccountsClient from '@/app/profile/DetectedAccountsClient';
 
 export interface PersonCharacter {
   id: number;
@@ -31,6 +32,7 @@ export default function PersonProfile({
   displayName,
   clans,
   characters,
+  detected,
   linked,
   emission,
   suggestedRsn = '',
@@ -39,6 +41,7 @@ export default function PersonProfile({
   displayName: string;
   clans: MyClan[];
   characters: PersonCharacter[];
+  detected: { id: number; rsn: string; lastSeenAt: string }[];
   linked: boolean;
   /** Their first run is still outstanding — see lib/onboarding's `offer`. */
   unfinishedSetup?: boolean;
@@ -134,8 +137,9 @@ export default function PersonProfile({
         )}
       </section>
 
-      <section>
+      <section id="link-account" className="scroll-mt-24">
         <h2 className="mb-3 text-lg font-semibold">Your characters</h2>
+        <DetectedAccountsClient initial={detected} />
         {characters.length === 0 ? (
           /* This said "Connect the plugin from inside a clan to link one" — addressed to exactly the
              people who have no clan, which is the one thing they could not act on. Claiming a
@@ -144,7 +148,7 @@ export default function PersonProfile({
 
              Manual review is off: it means "a moderator vouches for me", and on the apex there is no
              moderator to ask. */
-          <div className="rounded-xl border border-card-border bg-card-bg p-4">
+          <div id="plugin-token" className="scroll-mt-24 rounded-xl border border-card-border bg-card-bg p-4">
             <p className="mb-4 text-sm text-text-muted">
               No characters linked yet — here&rsquo;s the quickest way to add your first.
             </p>
@@ -174,7 +178,11 @@ export default function PersonProfile({
 
             {/* Adding a character is a platform act — it stays yours in every clan — so the way to do
                 it lives here too, not only in the empty state or inside a clan's locker. */}
-            <details open={Boolean(suggestedRsn)} className="group mt-3 rounded-xl border border-card-border bg-card-bg">
+            <details
+              id="plugin-token"
+              open={Boolean(suggestedRsn)}
+              className="group mt-3 scroll-mt-24 rounded-xl border border-card-border bg-card-bg"
+            >
               <summary className="flex cursor-pointer list-none select-none items-center gap-2 px-4 py-3 text-sm font-semibold">
                 <span className="text-text-muted transition-transform group-open:rotate-90" aria-hidden>
                   ▸

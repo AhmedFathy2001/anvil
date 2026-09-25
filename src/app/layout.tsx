@@ -34,6 +34,7 @@ import "./globals.css";
 import ClanLink, { ClanPrefixProvider } from '@/components/ClanLink';
 import { NavProgressProvider } from '@/components/NavProgress';
 import { DialogProvider } from '@/components/Confirm';
+import { adminLanding } from '@/lib/adminAccess';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -157,6 +158,16 @@ export default async function RootLayout({
   // (lib/adminAccess), so it is asked separately; that is what lets a plain member with a board
   // grant reach the tiles surface.
   const isStaff = isStaffRole(session?.role) || !!session?.canEditTiles;
+  // Point at somewhere the current grant can open. A board-scoped editor belongs on My boards;
+  // sending them through Dashboard first needlessly relies on the admin shell to redirect them and
+  // was the path that once dropped The AFK Spot's clan prefix entirely.
+  const adminHref = session
+    ? adminLanding({
+        role: session.role,
+        canEditTiles: session.canEditTiles,
+        editorScope: session.editorScope,
+      })
+    : '/admin/dashboard';
 
   // The other axis entirely. Platform capability is not a clan role and no clan can confer it, so
   // an operator had no link to /staff anywhere in the app — the page existed and nothing pointed at
@@ -286,6 +297,7 @@ export default async function RootLayout({
               myTeams={myTeams}
               hasCoffer={hasCoffer}
               isStaff={isStaff}
+              adminHref={adminHref}
               discordInvite={discordInvite}
               user={session && userRow ? { displayName: userRow.displayName, avatarUrl: avatar } : null}
             />

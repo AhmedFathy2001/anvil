@@ -7,12 +7,12 @@ import crypto from 'crypto';
 import { db } from '@/db';
 import { resolveClanById, resolveClanFromRequest, type ClanContext } from '@/lib/clanContext';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, clanStaff, clans, detectedAccounts, eventCohosts, eventEditors, eventParticipants, events, players, pluginLinks, teams, users, weeklyCompetitions } from '@/db/schema';
-import { mergeEmptyPersonInto } from '@/lib/mergePeople';
-import { findOrCreateAccount, findOrCreateSeat, findRosterSeat, findRosterSeats, personOf, personOfOrCreate, seatsOwnedBy, seatsOwnedByAnywhere, UNCLAIMED_ACCOUNT, updateAccountOfSeat } from '@/lib/roster';
+import { findOrCreateSeat, findRosterSeat, findRosterSeats, personOf, personOfOrCreate, seatsOwnedBy, seatsOwnedByAnywhere, updateAccountOfSeat } from '@/lib/roster';
 import { and, desc, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { requireSecret } from '@/lib/env';
 import { applyPendingRole } from '@/lib/pending-role';
 import { onCharacterLinked } from '@/lib/identity';
+import { claimAccountForPerson } from '@/lib/accountClaim';
 
 const ADMIN_SESSION_SECRET = requireSecret('ADMIN_SESSION_SECRET', 'dev-admin-secret');
 const CAPTAIN_SESSION_SECRET = requireSecret('CAPTAIN_SESSION_SECRET', 'dev-captain-secret');
@@ -807,8 +807,8 @@ async function applyRenameOnPlay(
  *   PROOF OF CONTROL is an account hash ALREADY ANCHORED to this row — `matchedByHash`. A modified
  *   RuneLite can put any 64-bit value on the wire (`client.getAccountHash()` is not authenticated),
  *   so a hash that matches nothing proves nothing, and a hash that is merely PRESENT must never lower
- *   the bar. The one thing an attacker cannot do is produce a hash that already sits on a row they do
- *   not control — that, and only that, is proof.
+ *   the bar. A matching pre-existing hash is the practical continuity signal this flow accepts; a
+ *   newly supplied value is not allowed to create that anchor and claim an established row at once.
  *
  *   A PUBLIC RSN is not proof. "The plugin said I'm playing as X" is a claim, and X's name is known
  *   to everyone. Auto-claiming an ESTABLISHED account on a name match is the hostile takeover this
@@ -965,29 +965,16 @@ async function autoLinkOrSuggestOnPlay(
     // Safe to auto-link: a brand-new account, the user's own unverified ghost, or a hash match.
     let clanMemberId: number;
     if (existing) {
-      // Ownership and proof belong to the account; where they sit and when we last saw them belong
-      // to the seat.
       const claimant = await personOfOrCreate(userId);
-      const moved = await db
-        .update(accounts)
-        .set({
-          playerId: claimant,
-          accountHash: existing.accountHash ?? accountHash,
-          verifiedAt: existing.verifiedAt ?? nowIso,
-          verificationMethod: 'plugin',
-          provisional: 0,
-          claimedAt: existing.claimedAt ?? nowIso,
-        })
-        // Re-assert unowned so a concurrent claim wins cleanly.
-        .where(and(eq(accounts.id, existing.accountId), UNCLAIMED_ACCOUNT))
-        .returning({ id: accounts.id });
-      // The character just changed hands, so the person the roster sync minted for it may now hold
-      // nothing at all. `returning` is what says the guard above actually matched — a concurrent
-      // claim that won the race leaves this update touching no rows, and merging then would fold a
-      // person who still owns something. See lib/mergePeople.
-      if (moved.length > 0 && existing.playerId != null) {
-        await mergeEmptyPersonInto(existing.playerId, claimant, userId);
-      }
+      const claim = await claimAccountForPerson({
+        playerId: claimant,
+        rsn,
+        rsnNormalized: normalizedRsn,
+        accountHash,
+        method: 'plugin',
+        actorUserId: userId,
+      });
+      if (!claim.ok) return;
       await db
         .update(clanMemberships)
         .set({
@@ -998,31 +985,19 @@ async function autoLinkOrSuggestOnPlay(
         .where(eq(clanMemberships.id, existing.id));
       clanMemberId = existing.id;
     } else {
-      const account = await findOrCreateAccount({ rsn, rsnNormalized: normalizedRsn, accountHash });
       const claimant = await personOfOrCreate(userId);
-      const moved = await db
-        .update(accounts)
-        .set({
-          playerId: claimant,
-          verifiedAt: nowIso,
-          verificationMethod: 'plugin',
-          provisional: 0,
-          claimedAt: nowIso,
-        })
-        // UNCLAIMED, same as the sibling branch above, which had it and this one did not.
-        // findOrCreateAccount resolves by hash then by RSN and returns the GLOBAL row, so without
-        // this a claim landing between the check and here would be overwritten — and the check is
-        // the only thing standing between "no seat in this clan" and "take this account".
-        .where(and(eq(accounts.id, account.id), UNCLAIMED_ACCOUNT))
-        .returning({ id: accounts.id });
-      // Same tidy-up as the sibling branch: findOrCreateAccount minted a person for a brand-new
-      // account, and that row is empty the moment the character moves to the claimant.
-      if (moved.length > 0 && account.playerId !== claimant) {
-        await mergeEmptyPersonInto(account.playerId, claimant, userId);
-      }
+      const claim = await claimAccountForPerson({
+        playerId: claimant,
+        rsn,
+        rsnNormalized: normalizedRsn,
+        accountHash,
+        method: 'plugin',
+        actorUserId: userId,
+      });
+      if (!claim.ok) return;
       // Guest: verification proves ownership of the account, not membership of the clan. Only the
       // in-game roster sync promotes a seat to 'member'.
-      clanMemberId = await findOrCreateSeat(clanId, account.id, { kind: 'guest' });
+      clanMemberId = await findOrCreateSeat(clanId, claim.accountId, { kind: 'guest' });
       await db
         .update(clanMemberships)
         .set({ lastSeenInClan: nowIso })
@@ -1043,8 +1018,60 @@ async function autoLinkOrSuggestOnPlay(
   }
 }
 
-// Re-attach an established account the caller is CRYPTOGRAPHICALLY proven to control. We match ONLY
-// by the account hash already anchored on the row — never by RSN. A display name is public and the
+/**
+ * Remember an account reported by a valid token even when the token cannot resolve a clan yet.
+ *
+ * This is the roster-first/Discord-later bootstrap: on the canonical apex, clan resolution normally
+ * follows the person's owned seats. Before their first proof the seat still belongs to a placeholder,
+ * so returning early there used to mean the profile never even showed what the plugin had seen.
+ * Recording the suggestion is global and grants nothing; established rows still go through XP or a
+ * moderator, exactly as the takeover gate requires.
+ */
+async function rememberPluginObservation(
+  userId: number,
+  rsn: string,
+  rsnNormalized: string,
+  accountHash: string | null,
+  nowIso: string,
+): Promise<void> {
+  const account = accountHash
+    ? await db.query.accounts.findFirst({ where: eq(accounts.accountHash, accountHash) })
+    : null;
+  const byRsn = account ?? (await db.query.accounts.findFirst({ where: eq(accounts.rsnNormalized, rsnNormalized) }));
+  if (!byRsn || byRsn.claimedAt != null) return;
+  // Brand-new/seatless accounts are handled by the normal clan-aware auto-link below. This early
+  // breadcrumb exists for an established identity that is what prevents clan resolution itself.
+  // clan-scope: global -- this is asking whether the account is established on any roster; the
+  // observation grants no seat and the later proof preserves whichever memberships already exist.
+  const establishedSeat = await findRosterSeat(eq(clanRoster.accountId, byRsn.id));
+  if (!establishedSeat && byRsn.verifiedAt == null) return;
+
+  // A new, unanchored hash is attacker-controlled. Keep it only when it already identifies this row;
+  // the observation remains useful by RSN without poisoning the account's eventual stable anchor.
+  const anchoredHash = accountHash && byRsn.accountHash === accountHash ? accountHash : null;
+  const suggestion = await db.query.detectedAccounts.findFirst({
+    where: and(eq(detectedAccounts.userId, userId), eq(detectedAccounts.rsnNormalized, rsnNormalized)),
+  });
+  if (suggestion) {
+    await db
+      .update(detectedAccounts)
+      .set({ rsn, lastSeenAt: nowIso, status: 'pending', accountHash: anchoredHash ?? suggestion.accountHash })
+      .where(eq(detectedAccounts.id, suggestion.id));
+    return;
+  }
+  await db.insert(detectedAccounts).values({
+    userId,
+    rsn,
+    rsnNormalized,
+    accountHash: anchoredHash,
+    status: 'pending',
+    detectedAt: nowIso,
+    lastSeenAt: nowIso,
+  });
+}
+
+// Re-attach an established account whose play matches its PRE-EXISTING continuity anchor. We match
+// ONLY by the account hash already anchored on the row — never by RSN. A display name is public and the
 // X-Account-Hash header is attacker-controllable from a modified client, so an RSN match is not proof
 // of control; auto-claiming on it would let anyone with a plugin token forge `currentRsn = <victim>`
 // and steal any unowned verified/roster account (incl. one carrying a pendingRole). Matching on an
@@ -1059,7 +1086,6 @@ async function autoLinkOrSuggestOnPlay(
 async function maybeAutoClaimEstablishedOnPlay(
   userId: number,
   accountHash: string,
-  nowIso: string,
 ): Promise<void> {
   try {
     // clan-scope: global -- identity is global — one OSRS account is one account however many clans roster it.
@@ -1070,34 +1096,15 @@ async function maybeAutoClaimEstablishedOnPlay(
     if (existing.verifiedAt == null && existing.kind !== 'member') return;
 
     const claimant = await personOfOrCreate(userId);
-    const result = await db
-      .update(accounts)
-      .set({
-        playerId: claimant,
-        verifiedAt: existing.verifiedAt ?? nowIso,
-        verificationMethod: 'plugin',
-        provisional: 0,
-        claimedAt: existing.claimedAt ?? nowIso,
-      })
-      // Re-assert unowned in the WHERE so a concurrent claim wins cleanly instead of being clobbered.
-      // On the ACCOUNT, which is where ownership lives — guarding the seat would not be a guard at
-      // all, since two clans' seats over one account could each pass it.
-      .where(and(eq(accounts.id, existing.accountId), UNCLAIMED_ACCOUNT))
-      // Row COUNT is the guard, and it has to be read portably: the driver-specific field this used
-      // to read (rowsAffected) is absent on other drivers and came back undefined, which compiled
-      // fine and silently disabled the check.
-      //
-      // RETURNING the ACCOUNT's own column, not the view's. Naming the view here is rejected by
-      // Postgres at parse time — the update never applies — and this function swallows its own
-      // errors, so it fails as a silent no-op rather than anything you could notice.
-      .returning({ id: accounts.id });
-
-    if (result.length === 0) return;
-
-    // The identity this character used to be, now that it has an owner. Empty-only, guarded inside.
-    if (existing.playerId != null) {
-      await mergeEmptyPersonInto(existing.playerId, claimant, userId);
-    }
+    const claim = await claimAccountForPerson({
+      playerId: claimant,
+      rsn: existing.rsn,
+      rsnNormalized: existing.rsnNormalized,
+      accountHash,
+      method: 'plugin',
+      actorUserId: userId,
+    });
+    if (!claim.ok) return;
 
     db.insert(clanAuditLog)
       .values({
@@ -1129,17 +1136,16 @@ async function maybeAutoClaimEstablishedOnPlay(
 // The first account a user attributes becomes their primary. Returns the outcome so the
 // caller can surface a 409 on a cross-user conflict.
 export async function claimAccountForUser(
-  clanId: number,
+  clanId: number | null,
   userId: number,
   rsn: string,
   normalizedRsn: string,
   accountHash: string | null,
-): Promise<{ ok: true; clanMemberId: number } | { ok: false; reason: 'owned-by-other' | 'needs-verification' }> {
+): Promise<{ ok: true; clanMemberId: number | null } | { ok: false; reason: 'owned-by-other' | 'needs-verification' }> {
   const nowIso = new Date().toISOString();
 
-  // Match by account hash first — the strong, rename-proof, UNFORGEABLE signal (an attacker can't
-  // produce another player's Jagex account hash). The RSN lookup only tells us whether a row
-  // already exists; on its own it proves nothing about who controls the account.
+  // Match by account hash first — the strong, rename-proof continuity signal. The RSN lookup only
+  // tells us whether a row already exists; on its own it proves nothing about who controls it.
   const byHash = accountHash
     // clan-scope: global -- identity is global — one OSRS account is one account however many clans roster it.
     ? (await findRosterSeat(eq(clanRoster.accountHash, accountHash))) ?? null
@@ -1148,10 +1154,11 @@ export async function claimAccountForUser(
     // clan-scope: global -- identity is global — one OSRS account is one account however many clans roster it.
     (await findRosterSeat(eq(clanRoster.rsnNormalized, normalizedRsn))) ?? null;
   const existing = byHash ?? byRsn;
+  const claimant = await personOfOrCreate(userId);
+  const alreadyOurs = existing?.claimedAt != null && existing.playerId === claimant;
 
   if (existing?.claimedAt != null) {
-    if (existing.playerId === (await personOf(userId))) return { ok: true, clanMemberId: existing.id };
-    return { ok: false, reason: 'owned-by-other' };
+    if (!alreadyOurs) return { ok: false, reason: 'owned-by-other' };
   }
 
   // THE GATE, one condition for every established row (see autoClaimAllowed).
@@ -1161,52 +1168,56 @@ export async function claimAccountForUser(
   // RANDOM hash alongside a victim's RSN waived the very guard meant to stop them. Proof is an
   // ANCHORED hash (`byHash`), never the mere presence of one. A hash-anchored match still one-clicks;
   // everything established-but-unproven goes to the XP-delta / link-code check.
-  if (existing && !autoClaimAllowed(existing, !!byHash)) {
+  if (existing && !alreadyOurs && !autoClaimAllowed(existing, !!byHash)) {
     return { ok: false, reason: 'needs-verification' };
   }
 
+  // Every proven ownership change goes through the same transaction. Besides setting the account,
+  // it folds the placeholder person a roster import minted before this Discord login existed.
+  // An already-owned row needs no claim at all. In particular, an RSN-only request must not upgrade
+  // a provisional XP/manual link to `plugin` verification merely because the owner clicked Add.
+  let accountId: number;
+  if (alreadyOurs && existing) {
+    accountId = existing.accountId;
+  } else {
+    const claim = await claimAccountForPerson({
+      playerId: claimant,
+      rsn,
+      rsnNormalized: normalizedRsn,
+      accountHash,
+      method: 'plugin',
+      actorUserId: userId,
+    });
+    if (!claim.ok) return { ok: false, reason: 'owned-by-other' };
+    accountId = claim.accountId;
+  }
+
+  // The apex names no clan. Ownership is still complete there; a roster seat is a separate grant
+  // and must not be guessed from whichever clan happened to contain the RSN first.
+  if (clanId == null) return { ok: true, clanMemberId: null };
+
+  // Ownership is global; the seat is local. A global RSN/hash lookup may have found the account on
+  // another clan's roster, so resolve or create the seat in the clan this action actually names.
+  const seatHere = await findRosterSeat(
+    and(eq(clanRoster.clanId, clanId), eq(clanRoster.accountId, accountId)),
+  );
   let clanMemberId: number;
-  if (existing) {
-    // Unowned ghost → claim + verify. Ownership and proof are account facts.
-    await db
-      .update(accounts)
-      .set({
-        playerId: await personOfOrCreate(userId),
-        accountHash: accountHash ?? existing.accountHash,
-        verifiedAt: existing.verifiedAt ?? nowIso,
-        verificationMethod: 'plugin',
-        provisional: 0,
-        claimedAt: existing.claimedAt ?? nowIso,
-      })
-      .where(eq(accounts.id, existing.accountId));
+  if (seatHere) {
     await db
       .update(clanMemberships)
       .set({
-        source: existing.source === 'admin' ? 'admin' : 'application',
+        source: seatHere.source === 'admin' ? 'admin' : 'application',
         // A previously-left ghost that's now linking is treated as returned; admin
         // removals stay marked-left (a decision we don't override).
-        leftAt: existing.source === 'admin' ? existing.leftAt : null,
+        leftAt: seatHere.source === 'admin' ? seatHere.leftAt : null,
         lastSeenInClan: nowIso,
       })
-      .where(eq(clanMemberships.id, existing.id));
-    clanMemberId = existing.id;
+      .where(eq(clanMemberships.id, seatHere.id));
+    clanMemberId = seatHere.id;
   } else {
-    // Nothing anywhere → an account, owned + verified, and a seat to put it in.
-    const account = await findOrCreateAccount({ rsn, rsnNormalized: normalizedRsn, accountHash });
-    await db
-      .update(accounts)
-      .set({
-        playerId: await personOfOrCreate(userId),
-        verifiedAt: nowIso,
-        verificationMethod: 'plugin',
-        provisional: 0,
-        claimedAt: nowIso,
-        isPrimary: 0,
-      })
-      .where(eq(accounts.id, account.id));
     // Verification proves account ownership, not clan membership. Seated as a guest; only the
     // in-game roster sync promotes a seat to 'member'.
-    clanMemberId = await findOrCreateSeat(clanId, account.id, { kind: 'guest' });
+    clanMemberId = await findOrCreateSeat(clanId, accountId, { kind: 'guest' });
     await db
       .update(clanMemberships)
       .set({ lastSeenInClan: nowIso })
@@ -1294,21 +1305,28 @@ export async function resolvePluginMember(
   const user = await userByPluginToken(token);
   if (!user) return null;
 
+  const nowIso = new Date().toISOString();
+
+  // Do this before clan resolution. A new Discord person has no owned seat yet, so an apex token
+  // cannot name a clan until after the first claim — but the profile should still show the account
+  // the valid token reported and offer the proof step that completes that claim.
+  if (currentRsn && normalizedRsn) {
+    await rememberPluginObservation(user.id, currentRsn.trim(), normalizedRsn, accountHash, nowIso).catch(() => {});
+  }
+
   // Which clan is this plugin talking to? The address answers when it names one, and the TOKEN
   // answers when it does not — see resolvePluginClan. A person with no seat anywhere still cannot
   // resolve a member, because there is no roster to resolve against.
   const clan = await resolvePluginClan(request, user.id);
   if (!clan) return null;
 
-  const nowIso = new Date().toISOString();
-
-  // Re-link an established account this caller cryptographically controls: if the (unforgeable)
-  // account hash is already anchored to an unowned verified/roster row, attach it to them now, so
+  // Re-link an established account whose pre-existing hash matches this play: if the hash is already
+  // anchored to an unowned verified/roster row, attach it to them now, so
   // the freshly-claimed row flows through the normal owned-rows path below. Deliberately hash-only
   // — an RSN is public and not proof of control (see helper); RSN-only accounts stay on the opt-in
   // "Add" flow.
   if (accountHash) {
-    await maybeAutoClaimEstablishedOnPlay(user.id, accountHash, nowIso);
+    await maybeAutoClaimEstablishedOnPlay(user.id, accountHash);
   }
 
   // Auto-add the account they're on (opt-out): safe cases link immediately, the forge-risky
@@ -1362,7 +1380,7 @@ export async function resolvePluginMember(
     }),
   );
 
-  // Hash-FIRST identity. The account hash is the stable, unforgeable, rename-proof anchor, so when
+  // Hash-FIRST identity. The account hash is the stable, rename-proof continuity anchor, so when
   // the client sends one we match on it BEFORE the (mutable, public) RSN. This makes an in-game
   // rename a non-event: the member resolves by hash and we record the new name, instead of the play
   // 401-parking tracking (unknown RSN) until a roster sync or rename request happens to fix the

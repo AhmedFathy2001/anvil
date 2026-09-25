@@ -216,8 +216,8 @@ const ja: PartialGuideDict = {
           body: 'プラグインを動かしたままゲーム内でクランウィンドウを開き、そのタイトルバーの **Anvil** ボタンを押します。メンバー名簿がランクごとそのまま届き、名前が一致しないクランからの名簿は拒否されます。人の出入りがあるたびに繰り返してください——[プレイヤー向けセットアップガイド]({pluginGuide})を参照。',
         },
         {
-          term: 'ただ遊ぶだけ',
-          body: 'プラグインを動かしてログインした人は自動的に認識されます。まだ名簿にいなければ**ゲスト**として記録されます——見えていて、数えられ、あと一度の同期でメンバーになります。',
+          term: '一度プレイする',
+          body: '新しいアカウントはプラグインに自動認識され、**ゲスト**として記録されます。すでにメンバー名簿にあるアカウントはプロフィールに表示され、紐づけ前に一度だけ XP 確認またはモデレーター承認が必要です。',
         },
         {
           term: '手作業で',
@@ -533,7 +533,7 @@ const ja: PartialGuideDict = {
         'ブラウザが自動で開かない場合、パネルにアドレスとコードが表示されるので手動で開けます。コードは 10 分で失効します —— もう一度ボタンを押すだけで大丈夫です。',
       manualHeading: '手動の方法：トークンをコピーする',
       manualIntro:
-        'Discord でログインして [Profile](/profile) を開き、**RuneLite plugin** のカードまでスクロールします。',
+        'Discord でログインして [Profile → plugin token](/profile#plugin-token) を開きます。',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: 'プロフィールページの RuneLite plugin カード。トークン欄と Reveal・Copy・Rotate ボタンが枠で囲まれている',
@@ -555,10 +555,10 @@ const ja: PartialGuideDict = {
     },
 
     accounts: {
-      title: 'アカウントを紐づける —— 遊ぶだけでいい',
+      title: 'アカウントを紐づける',
       body: [
-        '入力する紐づけコードのようなものはありません。トークンさえ入っていれば、ログインしたアカウントは自動的にあなたのプロフィールと結びつきます。',
-        'プラグインはリクエストのたびにゲーム内名に加えて安定したアカウント指紋を送り、サイトはまず指紋で照合します —— つまり改名しても紐づけは生き残ります。サブアカウントで一度ログインすれば、プロフィールの _Accounts we noticed you playing_ にワンクリックの **Add** 付きで現れます。',
+        'トークンを設定すると、プレイしたアカウントが自動的にプロフィールへ表示されます。新しいアカウントはすぐに紐づけられますが、すでにクラン名簿にあるアカウントは最初に所有確認が必要です。公開されている RuneScape 名だけでは所有者を証明できないためです。',
+        '最初の紐づけには[簡単な XP 確認](/profile#link-account)を使うか、クランのモデレーターに[検出されたアカウント](/profile#detected-accounts)から承認してもらってください。確認後は安定したアカウント指紋が改名を追跡し、自動的に認識します。',
       ],
       figure: {
         caption: 'Profile → RuneScape Accounts',
@@ -566,13 +566,13 @@ const ja: PartialGuideDict = {
         legend: [
           {
             label: '紐づけ済みのアカウント',
-            body: '「Verified via plugin」と付いているものは、遊んだというだけでそこに載ったものです。サブは好きなだけ追加できます。そのうち 1 つがメインになります。',
+            body: '「Verified via plugin」と付いているアカウントは紐づけ済みで、今後は自動的に認識されます。既存のクラン名簿アカウントでは、最初に一度だけ XP 確認またはモデレーター承認を求められる場合があります。',
           },
         ],
       },
       noPluginHeading: 'プラグインを動かせない場合は？',
       noPluginIntro:
-        'モバイルや公式クライアントでは、代わりにウェブサイト側で紐づけます —— プロフィールページに両方の方法が出ています：',
+        'モバイルや公式クライアントでは、代わりに [Profile → account linking](/profile#link-account) を使ってください：',
       noPluginOptions: [
         '**Verify by XP** —— RSN を入力すると、サイトがスキルを 1 つ無作為に選びます。30 分以内にそのスキルで 1,000 経験値を稼いでください。',
         '**Manual review** —— Hiscores を非公開にしている場合や作りたてのサブの場合：RSN とメモを送ればモデレーターが承認します。',
@@ -793,7 +793,7 @@ const ja: PartialGuideDict = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: 'そのアカウントはまだ紐づいていません。Profile → 「Accounts we noticed you playing」から追加してください。',
+          body: 'そのアカウントはまだ紐づいていません。[Profile → 検出されたアカウント](/profile#detected-accounts)を開いて追加するか、所有確認を開始してください。',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1965,7 +1965,7 @@ const ja: PartialGuideDict = {
       rows: [
         {
           term: 'プラグインによる確認',
-          body: 'よくあるケースで、あなたの手を煩わせません。プラグインをつないだ状態でそのアカウントを遊べば自動で紐づき、安定したアカウント指紋のおかげで改名しても紐づきは生き残ります。',
+          body: '最初の所有確認後はプラグインがアカウントを自動認識し、安定した指紋によって改名後も紐づきが保たれます。既知の指紋がない名簿アカウントでは、XP 確認またはモデレーター承認を一度行います。',
         },
         {
           term: 'Verify by XP',

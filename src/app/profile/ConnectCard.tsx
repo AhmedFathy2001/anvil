@@ -139,8 +139,8 @@ export default function ConnectCard({
         {linkedCount > 0 ? 'Finish connecting your account' : 'Connect your account'}
       </h2>
       <p className="text-sm text-text-muted mt-1.5 mb-5 max-w-[62ch]">
-        One token, once. Paste it into the Anvil plugin and just play — every account you log into links
-        itself, your drops get tracked, and this page fills in on its own.
+        One token, once. Paste it into the Anvil plugin and play — the account appears here automatically.
+        New accounts link immediately; an account already on a roster needs one quick XP or moderator check first.
       </p>
 
       <ol className="grid">

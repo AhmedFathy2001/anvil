@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 
-import { allClans, browsePeople, findPeople } from '@/lib/platformView';
+import { allClans, browsePeople, PEOPLE_SORTS, personDetail, type PeopleSort } from '@/lib/platformView';
 import { requirePlatformPage } from '@/lib/platformAccess';
 import { hasPlatformRole } from '@/lib/clanRoles';
 import PeopleClient from './PeopleClient';
@@ -10,36 +10,57 @@ export const dynamic = 'force-dynamic';
 export default async function StaffPeoplePage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; clan?: string; login?: string; banned?: string; multi?: string; page?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    clan?: string;
+    login?: string;
+    accounts?: string;
+    banned?: string;
+    multi?: string;
+    sort?: string;
+    page?: string;
+  }>;
 }) {
   const actor = await requirePlatformPage('support');
   if (!actor) notFound();
 
   const sp = await searchParams;
   const q = sp.q ?? '';
+  const sort: PeopleSort = PEOPLE_SORTS.includes(sp.sort as PeopleSort)
+    ? (sp.sort as PeopleSort)
+    : 'connected';
   const filters = {
     clanId: sp.clan ?? '',
     login: sp.login === 'yes' || sp.login === 'no' ? sp.login : '',
-    banned: sp.banned === 'true',
+    accounts: sp.accounts === 'yes' || sp.accounts === 'no' ? sp.accounts : '',
+    // Accept the old checkbox URL as well as the new three-state filter.
+    banned: sp.banned === 'yes' || sp.banned === 'no' ? sp.banned : sp.banned === 'true' ? 'yes' : '',
     multiClan: sp.multi === 'true',
+    sort,
   };
 
-  // Both, always. The search answers "who is this", the list answers "who is here", and a page that
-  // could only do the first showed a blank screen to an operator asking the second.
-  const [results, browse, clans] = await Promise.all([
-    q ? findPeople(q) : Promise.resolve([]),
+  const [browse, clans] = await Promise.all([
     browsePeople(
       {
         q,
         clanId: filters.clanId ? Number(filters.clanId) : null,
         login: filters.login === 'yes' || filters.login === 'no' ? filters.login : null,
-        banned: filters.banned,
+        accounts: filters.accounts === 'yes' || filters.accounts === 'no' ? filters.accounts : null,
+        banned: filters.banned === 'yes' || filters.banned === 'no' ? filters.banned : null,
         multiClan: filters.multiClan,
+        sort,
       },
       Number(sp.page) || 1,
     ),
     allClans(),
   ]);
+  // Detail cards follow the SAME filtered, sorted ids as the browse query. Previously search used a
+  // separate unfiltered query, so picking “No login” could still show a person with a login.
+  const results = q
+    ? (await Promise.all(browse.rows.map((row) => personDetail(row.playerId)))).filter(
+        (person): person is NonNullable<typeof person> => person != null,
+      )
+    : [];
 
   return (
     <div>
@@ -50,6 +71,7 @@ export default async function StaffPeoplePage({
       </p>
       <div className="mt-6">
         <PeopleClient
+          key={JSON.stringify({ q, ...filters, page: browse.page })}
           initialQuery={q}
           results={results}
           browse={browse}

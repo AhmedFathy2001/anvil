@@ -13,7 +13,7 @@ import RenameRequestClient from './RenameRequestClient';
 //
 // It opens itself when something links here (the connect card's "link by name instead", the player
 // card's "manage token"), because a collapsed drawer scrolled into view is a dead end.
-const HASH = '#account-security';
+const DRAWER_HASHES = new Set(['#account-security', '#plugin-token', '#link-account']);
 
 export default function SecurityDrawer({
   accounts,
@@ -21,11 +21,14 @@ export default function SecurityDrawer({
   defaultOpen,
   clanName,
   seat,
+  suggestedRsn = '',
 }: {
   accounts: { id: number; rsn: string }[];
   ignored: { id: number; rsn: string; lastSeenAt: string }[];
   defaultOpen: boolean;
   clanName: string;
+  /** Pre-fills the XP path when arriving from a detected roster account. */
+  suggestedRsn?: string;
   /** Null when they hold no live seat here — nothing to leave, so nothing is offered. */
   seat: 'guest' | 'member-in-game' | null;
 }) {
@@ -33,13 +36,15 @@ export default function SecurityDrawer({
 
   useEffect(() => {
     const openIfTargeted = () => {
-      if (window.location.hash === HASH) setOpen(true);
+      if (DRAWER_HASHES.has(window.location.hash)) setOpen(true);
     };
     openIfTargeted();
     window.addEventListener('hashchange', openIfTargeted);
     // A second click on the same anchor changes no hash and fires no event, so catch the click too.
     const onClick = (e: MouseEvent) => {
-      const link = (e.target as HTMLElement | null)?.closest?.('a[href$="#account-security"]');
+      const link = (e.target as HTMLElement | null)?.closest?.(
+        'a[href$="#account-security"], a[href$="#plugin-token"], a[href$="#link-account"]',
+      );
       if (link) setOpen(true);
     };
     document.addEventListener('click', onClick);
@@ -65,20 +70,20 @@ export default function SecurityDrawer({
       </summary>
 
       <div className="px-5 pb-5 grid gap-5">
-        <div>
+        <div id="plugin-token" className="scroll-mt-24">
           <div className="font-semibold text-sm">Plugin token</div>
           <PluginPlayerTokenClient />
         </div>
 
         <div className="h-px bg-card-border" />
 
-        <div>
+        <div id="link-account" className="scroll-mt-24">
           <div className="font-semibold text-sm">Not using RuneLite?</div>
           <p className="text-xs text-text-muted mt-0.5 mb-3 max-w-[70ch]">
             On mobile or the official client, link by name: gain a little XP and we&rsquo;ll confirm it from
             the hiscores, or ask a moderator to check it by hand.
           </p>
-          <LinkAccountClient />
+          <LinkAccountClient initialRsn={suggestedRsn} />
         </div>
 
         {accounts.length > 0 && (

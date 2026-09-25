@@ -220,8 +220,8 @@ export const en = {
           body: 'Open the clan window in game with the plugin running and press the **Anvil** button in its title bar. Your whole member list arrives with ranks intact, and it refuses a roster from a clan whose name does not match yours. Repeat it whenever people join or leave — see the [player setup guide]({pluginGuide}).',
         },
         {
-          term: 'They just play',
-          body: 'Anyone running the plugin who logs in is recognised automatically. If they are not on the roster yet they are tracked as a **guest** — visible, countable, and one sync away from being a member.',
+          term: 'They play once',
+          body: 'A new account played through the plugin is recognised automatically and tracked as a **guest** — visible, countable, and one sync away from being a member. An account already on the roster appears on the player’s profile and asks for a one-time XP check or moderator vouch before it links.',
         },
         {
           term: 'By hand',
@@ -539,7 +539,7 @@ export const en = {
         'If the browser doesn’t open on its own, the panel prints the address and the code so you can open it manually. Codes expire after ten minutes — just press the button again.',
       manualHeading: 'The manual way: copy your token',
       manualIntro:
-        'Log in with Discord and open [Profile](/profile), then scroll to the **RuneLite plugin** card.',
+        'Your live setup values are below. You can also open [Profile → plugin token](/profile#plugin-token) to rotate the token or manage account security.',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: 'The RuneLite plugin card on the profile page, with the token field and the Reveal, Copy and Rotate buttons boxed',
@@ -561,10 +561,10 @@ export const en = {
     },
 
     accounts: {
-      title: 'Link your accounts — just play',
+      title: 'Link your accounts',
       body: [
-        'There’s no link code to type. Once the token is in, whichever account you log into gets matched to your profile automatically.',
-        'The plugin sends your in-game name plus a stable account fingerprint with every request, and the site matches on the fingerprint first — so your links survive a name change. Log into an alt once and it shows up on your Profile under _Accounts we noticed you playing_ with a one-click **Add**.',
+        'Once the token is in, accounts you play appear on your profile automatically. A brand-new account can link immediately; an account already on a clan roster needs one ownership check first, because a public RuneScape name is not proof that the person holding the token owns it.',
+        'For that first link, use [the quick XP check](/profile#link-account) or ask a clan moderator to approve it under [accounts we noticed](/profile#detected-accounts). After it is proven, the plugin stores its stable account fingerprint, follows future name changes, and recognises it automatically on every login.',
       ],
       figure: {
         caption: 'Profile → RuneScape Accounts',
@@ -572,13 +572,13 @@ export const en = {
         legend: [
           {
             label: 'Your linked accounts',
-            body: 'anything marked “Verified via plugin” got there just by being played. Add as many alts as you like; one is your primary.',
+            body: 'anything marked “Verified via plugin” is linked and will be recognised automatically. Established roster accounts may ask for a one-time XP or moderator check first.',
           },
         ],
       },
       noPluginHeading: 'Can’t run the plugin?',
       noPluginIntro:
-        'On mobile or the official client, link on the website instead — Profile shows both options:',
+        'On mobile or the official client, use [Profile → account linking](/profile#link-account) instead:',
       noPluginOptions: [
         '**Verify by XP** — enter your RSN, the site picks a random skill, gain 1,000 XP in it within 30 minutes.',
         '**Manual review** — for hidden Hiscores or fresh alts: submit your RSN with a note and a moderator approves it.',
@@ -788,7 +788,7 @@ export const en = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: 'That account isn’t linked yet. Add it from Profile → “Accounts we noticed you playing”.',
+          body: 'That account isn’t linked yet. Open [Profile → accounts we noticed](/profile#detected-accounts) to add it or start the ownership check.',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1956,7 +1956,7 @@ export const en = {
       rows: [
         {
           term: 'Verified by plugin',
-          body: 'the common case, and it needs nothing from you. Playing the account with the plugin connected links it automatically, and a stable account fingerprint means the link survives a name change.',
+          body: 'after the first ownership check, playing with the plugin recognises the account automatically and a stable account fingerprint keeps the link through name changes. A roster account with no existing fingerprint uses the XP check or a moderator vouch once.',
         },
         {
           term: 'Verify by XP',

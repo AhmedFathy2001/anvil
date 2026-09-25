@@ -13,7 +13,8 @@
 // likes, and saying otherwise in the code would be worse than the limitation itself. What backs it:
 //
 //   - first claim wins, so the name is taken before an impersonator arrives rather than after
-//   - the account hash is unforgeable, so a claim names a specific Jagex account
+//   - a previously anchored account hash gives continuity to a specific Jagex account; a newly
+//     supplied client value is not treated as independent proof
 //   - a second claim is refused and escalates to a human rather than silently losing
 //
 // It raises the cost from "type a name" to "control an account with an owner rank in that clan, or

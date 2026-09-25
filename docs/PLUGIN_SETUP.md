@@ -59,16 +59,20 @@ instance (`DISCORD_CLIENT_ID` + secret + redirect URI set) never leaves your dom
 > scroll to the **RuneLite plugin** card (`recommended` badge). Use **Reveal** →
 > **Copy**. **Rotate** invalidates the old one if it ever leaks.
 
-## 3. How linking works — you just play
+## 3. How linking works
 
-You don't enter a code or click "link." After the token is pasted, **the account
-you log into automatically links to your profile.** The plugin sends your in-game
-name and a stable, unforgeable account hash with each request; the site matches you
-**hash-first** (so it survives name changes) and, when the account is one you own,
-verifies it — no separate link-code dance.
+You don't enter a link code. After the token is pasted, the plugin reports the account
+you are playing. A brand-new account can link immediately. An account that is already
+on a clan roster needs one ownership check first, because the RuneScape name is public
+and the client-reported account hash is not authenticated. Use **Verify by XP** on the
+profile or ask a clan moderator to approve the detected account.
+
+Once that first proof is complete, the stored account hash is a stable anchor: the
+plugin recognises the account automatically and the link survives name changes.
 
 - Newly played accounts show up on your **Profile → "Accounts we noticed you
-  playing"** with a one-click **Add**.
+  playing"**. **Add** links safe new accounts immediately and directs established
+  roster accounts to the one-time proof step.
 - Add alts the same way — play them once, add them.
 
 ### Linking without the plugin (mobile / official client)

@@ -221,8 +221,8 @@ const da: PartialGuideDict = {
           body: 'Åbn klanvinduet i spillet med pluginet kørende og tryk på **Anvil**-knappen i titellinjen. Hele din medlemsliste kommer ind med rangene i behold, og en liste fra en klan hvis navn ikke matcher dit, bliver afvist. Gentag det når folk kommer eller går — se [opsætningsguiden for spillere]({pluginGuide}).',
         },
         {
-          term: 'De spiller bare',
-          body: 'Alle der logger ind med pluginet kørende, bliver genkendt automatisk. Er de ikke på listen endnu, spores de som **gæst** — synlige, tællelige og én synkronisering fra at være medlem.',
+          term: 'De spiller én gang',
+          body: 'En ny konto genkendes automatisk af pluginet og spores som **gæst**. En konto, der allerede står på medlemslisten, vises på spillerens profil og kræver ét XP-tjek eller en moderatorgodkendelse, før den forbindes.',
         },
         {
           term: 'I hånden',
@@ -538,7 +538,7 @@ const da: PartialGuideDict = {
         'Åbner browseren ikke af sig selv, skriver panelet adressen og koden, så du kan åbne den manuelt. Koder udløber efter ti minutter — tryk bare på knappen igen.',
       manualHeading: 'Den manuelle vej: kopiér din token',
       manualIntro:
-        'Log ind med Discord og åbn [Profile](/profile), og rul så ned til kortet **RuneLite plugin**.',
+        'Log ind med Discord og åbn [Profile → plugin token](/profile#plugin-token).',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: 'RuneLite plugin-kortet på profilsiden med tokenfeltet og knapperne Reveal, Copy og Rotate markeret',
@@ -560,10 +560,10 @@ const da: PartialGuideDict = {
     },
 
     accounts: {
-      title: 'Forbind dine konti — bare spil',
+      title: 'Forbind dine konti',
       body: [
-        'Der er ingen linkkode at taste. Når din token er på plads, bliver den konto, du logger ind med, automatisk koblet til din profil.',
-        'Pluginnet sender dit navn i spillet plus et stabilt kontofingeraftryk med hver forespørgsel, og siden matcher på fingeraftrykket først — så dine links overlever et navneskift. Log ind på en alt én gang, og den dukker op på din profil under _Accounts we noticed you playing_ med et **Add** i ét klik.',
+        'Når din token er på plads, vises konti, du spiller på, automatisk på din profil. En helt ny konto kan forbindes med det samme; en konto, der allerede står på en klanliste, kræver først ét ejerskabstjek, fordi et offentligt RuneScape-navn ikke beviser, hvem der ejer det.',
+        'Ved den første forbindelse kan du bruge [det hurtige XP-tjek](/profile#link-account) eller bede en klanmoderator godkende kontoen under [konti vi har registreret](/profile#detected-accounts). Når den er bevist, følger det stabile kontofingeraftryk fremtidige navneskift og genkender kontoen automatisk.',
       ],
       figure: {
         caption: 'Profile → RuneScape Accounts',
@@ -571,13 +571,13 @@ const da: PartialGuideDict = {
         legend: [
           {
             label: 'Dine forbundne konti',
-            body: 'alt med “Verified via plugin” er kommet dertil bare ved at blive spillet. Tilføj lige så mange alts, du vil; én af dem er din primære.',
+            body: 'alt med “Verified via plugin” er forbundet og genkendes automatisk. Etablerede klankonti kan først bede om et enkelt XP-tjek eller en moderatorgodkendelse.',
           },
         ],
       },
       noPluginHeading: 'Kan du ikke køre pluginnet?',
       noPluginIntro:
-        'På mobil eller i den officielle klient forbinder du kontoen på hjemmesiden i stedet — profilsiden viser begge muligheder:',
+        'På mobil eller i den officielle klient kan du bruge [Profile → account linking](/profile#link-account) i stedet:',
       noPluginOptions: [
         '**Verify by XP** — skriv dit RSN, siden vælger en tilfældig skill, og du skal tjene 1.000 XP i den inden for 30 minutter.',
         '**Manual review** — til skjulte Hiscores eller helt nye alts: indsend dit RSN med en note, og en moderator godkender det.',
@@ -799,7 +799,7 @@ const da: PartialGuideDict = {
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',
-          body: 'Den konto er ikke forbundet endnu. Tilføj den fra Profile → “Accounts we noticed you playing”.',
+          body: 'Kontoen er ikke forbundet endnu. Åbn [Profile → registrerede konti](/profile#detected-accounts) for at tilføje den eller starte ejerskabstjekket.',
         },
         {
           term: '`Anvil: reconnected — tracking is back on.`',
@@ -1971,7 +1971,7 @@ const da: PartialGuideDict = {
       rows: [
         {
           term: 'Verificeret via pluginnet',
-          body: 'det almindelige tilfælde, og det kræver ingenting af dig. At spille kontoen med pluginnet forbundet tilknytter den automatisk, og et stabilt kontofingeraftryk gør, at tilknytningen overlever et navneskift.',
+          body: 'efter det første ejerskabstjek genkender pluginet kontoen automatisk, og et stabilt kontofingeraftryk bevarer forbindelsen ved navneskift. En medlemslistekonto uden et kendt fingeraftryk bruger XP-tjek eller moderatorgodkendelse én gang.',
         },
         {
           term: 'Verify by XP',

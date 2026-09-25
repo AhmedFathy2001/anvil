@@ -158,3 +158,18 @@ test('the real owner, once their hash is anchored, one-clicks — and that is th
   assert.equal(acct.playerId, victimPerson.playerId, 'the victim’s own person, not their login id');
   assert.ok(acct.claimedAt);
 });
+
+test('an owner can reuse their account without an RSN-only click upgrading its proof', async () => {
+  const { db, schema: s } = await loadDb();
+  await db
+    .update(s.accounts)
+    .set({ verificationMethod: 'stat_delta', provisional: 1 })
+    .where(eq(s.accounts.id, victimAccountId));
+
+  const result = await A.claimAccountForUser(clanId, victimUser, VICTIM_RSN, 'hells taco', null);
+  assert.equal(result.ok, true, 'their own established account is idempotent, not blocked by the takeover gate');
+
+  const acct = await victimAccount();
+  assert.equal(acct.verificationMethod, 'stat_delta', 'an RSN-only click is not plugin proof');
+  assert.equal(acct.provisional, 1, 'the existing review state is preserved');
+});
