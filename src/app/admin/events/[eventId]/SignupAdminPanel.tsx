@@ -724,67 +724,71 @@ export default function SignupAdminPanel({
 
         {/* Filters */}
         {!loading && signups.length > 0 && (
-          <div className="flex flex-col sm:flex-row gap-2 mb-4">
+          // Search gets its own row: squeezed beside four selects it collapsed to a sliver and the
+          // selects spilled past the card. The selects share a grid that wraps on narrow cards.
+          <div className="flex flex-col gap-2 mb-4">
             <Input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search name, RSN, or discord…"
-              className="flex-1 px-3 py-1.5 rounded-lg bg-brown-dark border border-card-border text-sm focus:outline-none focus:border-gold/60"
+              className="w-full px-3 py-1.5 rounded-lg bg-brown-dark border border-card-border text-sm focus:outline-none focus:border-gold/60"
             />
-            <Select
-              value={statusFilter}
-              onChange={setStatusFilter}
-              ariaLabel="Filter by status"
-              className="shrink-0 sm:w-40"
-              options={[
-                { value: 'all', label: 'All statuses' },
-                { value: 'pending', label: 'Pending' },
-                { value: 'approved', label: 'Approved' },
-                { value: 'captain', label: 'Captains' },
-                { value: 'rejected', label: 'Rejected' },
-                { value: 'withdrawn', label: 'Withdrawn' },
-              ]}
-            />
-            <Select
-              value={feeFilter}
-              onChange={setFeeFilter}
-              ariaLabel="Filter by fee"
-              className="shrink-0 sm:w-40"
-              options={[
-                { value: 'all', label: 'All fees' },
-                { value: 'pending', label: 'Fee: unpaid' },
-                { value: 'reported', label: 'Fee: reported' },
-                { value: 'collected', label: 'Fee: collected' },
-                { value: 'confirmed', label: 'Fee: confirmed' },
-                { value: 'disputed', label: 'Fee: disputed' },
-                { value: 'closed', label: 'Fee: closed' },
-                { value: 'none', label: 'No fee' },
-              ]}
-            />
-            {teamOptions.length > 0 && (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
               <Select
-                value={teamFilter}
-                onChange={setTeamFilter}
-                ariaLabel="Filter by team"
-                className="shrink-0 sm:w-40"
+                value={statusFilter}
+                onChange={setStatusFilter}
+                ariaLabel="Filter by status"
+                className="min-w-0"
                 options={[
-                  { value: 'all', label: 'All teams' },
-                  { value: 'none', label: 'Unassigned' },
-                  ...teamOptions.map((t) => ({ value: String(t.id), label: t.name })),
+                  { value: 'all', label: 'All statuses' },
+                  { value: 'pending', label: 'Pending' },
+                  { value: 'approved', label: 'Approved' },
+                  { value: 'captain', label: 'Captains' },
+                  { value: 'rejected', label: 'Rejected' },
+                  { value: 'withdrawn', label: 'Withdrawn' },
                 ]}
               />
-            )}
-            <Select
-              value={signupSort}
-              onChange={(value) => setSignupSort(value as SignupSort)}
-              ariaLabel="Sort sign-ups by date applied"
-              className="shrink-0 sm:w-44"
-              options={[
-                { value: 'applied-newest', label: 'Applied: newest' },
-                { value: 'applied-oldest', label: 'Applied: oldest' },
-              ]}
-            />
+              <Select
+                value={feeFilter}
+                onChange={setFeeFilter}
+                ariaLabel="Filter by fee"
+                className="min-w-0"
+                options={[
+                  { value: 'all', label: 'All fees' },
+                  { value: 'pending', label: 'Fee: unpaid' },
+                  { value: 'reported', label: 'Fee: reported' },
+                  { value: 'collected', label: 'Fee: collected' },
+                  { value: 'confirmed', label: 'Fee: confirmed' },
+                  { value: 'disputed', label: 'Fee: disputed' },
+                  { value: 'closed', label: 'Fee: closed' },
+                  { value: 'none', label: 'No fee' },
+                ]}
+              />
+              {teamOptions.length > 0 && (
+                <Select
+                  value={teamFilter}
+                  onChange={setTeamFilter}
+                  ariaLabel="Filter by team"
+                  className="min-w-0"
+                  options={[
+                    { value: 'all', label: 'All teams' },
+                    { value: 'none', label: 'Unassigned' },
+                    ...teamOptions.map((t) => ({ value: String(t.id), label: t.name })),
+                  ]}
+                />
+              )}
+              <Select
+                value={signupSort}
+                onChange={(value) => setSignupSort(value as SignupSort)}
+                ariaLabel="Sort sign-ups by date applied"
+                className="min-w-0"
+                options={[
+                  { value: 'applied-newest', label: 'Applied: newest' },
+                  { value: 'applied-oldest', label: 'Applied: oldest' },
+                ]}
+              />
+            </div>
           </div>
         )}
 
