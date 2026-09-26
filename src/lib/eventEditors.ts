@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { clanGrant } from '@/lib/clanGrants';
-import { clanStaff, eventEditors, events } from '@/db/schema';
-import { and, eq } from 'drizzle-orm';
+import { clanStaff, eventCohosts, eventEditors, events } from '@/db/schema';
+import { and, eq, inArray, or, type SQL } from 'drizzle-orm';
 
 // Board-scoped staff grants (event_editors). A grant lets someone do ONE job on ONE event without
 // holding the clan-wide role for it: 'editor' authors that board's tiles, 'treasurer' collects its
@@ -35,7 +35,71 @@ export async function assignedEventIdsForUser(userId: number, role?: BoardRole):
 }
 
 export async function isEventEditor(userId: number, eventId: number): Promise<boolean> {
-  return hasBoardGrant(userId, eventId, 'editor');
+  if (await hasBoardGrant(userId, eventId, 'editor')) return true;
+  return (await cohostBoardEventIds(userId, { eventId })).length > 0;
+}
+
+// ── Co-host staff ─────────────────────────────────────────────────────────────────────────────
+//
+// A CO-HOST'S STAFF WORK ON THE BOARD WITHOUT A GRANT EACH. When the host ticks "their staff can
+// edit the board" on an accepted co-host (event_cohosts.staff_can_edit_board), everyone who runs
+// that clan — moderator and up, or anyone holding authoring there — authors the board the way a
+// board-scoped editor does. Derived live from the co-host clan's own clan_staff rather than copied
+// into event_editors, so a mod that clan promotes tomorrow is in, and one it demotes is out, without
+// the host having to hear about either.
+//
+// Scoped grants in the co-host clan (a board editor or board treasurer THERE) are not staff of it,
+// and buy nothing here.
+
+/** Holds real authority in their own clan — not a grant scoped to one of its boards. */
+const coHostStaffPredicate = (): SQL =>
+  or(
+    inArray(clanStaff.role, ['owner', 'admin', 'moderator']),
+    and(eq(clanStaff.role, 'treasurer'), eq(clanStaff.treasurerScope, 'all')),
+    and(eq(clanStaff.role, 'editor'), eq(clanStaff.editorScope, 'all')),
+    eq(clanStaff.canEditTiles, true),
+  )!;
+
+/**
+ * Events this user may author as staff of a co-host clan the host let onto the board. Narrow it to
+ * one board (`eventId`) or to the boards one host clan owns (`hostClanId`).
+ */
+export async function cohostBoardEventIds(
+  userId: number,
+  opts: { eventId?: number; hostClanId?: number } = {},
+): Promise<number[]> {
+  const rows = await db
+    .select({ eventId: eventCohosts.eventId })
+    .from(eventCohosts)
+    .innerJoin(clanStaff, and(eq(clanStaff.clanId, eventCohosts.clanId), eq(clanStaff.userId, userId)))
+    .innerJoin(events, eq(events.id, eventCohosts.eventId))
+    .where(
+      and(
+        eq(eventCohosts.status, 'accepted'),
+        eq(eventCohosts.staffCanEditBoard, true),
+        coHostStaffPredicate(),
+        opts.eventId != null ? eq(eventCohosts.eventId, opts.eventId) : undefined,
+        opts.hostClanId != null ? eq(events.clanId, opts.hostClanId) : undefined,
+      ),
+    );
+  return [...new Set(rows.map((r) => r.eventId))];
+}
+
+/**
+ * Boards on OTHER clans that `clanId` co-hosts and this user holds an explicit editor grant on.
+ * What lets a member of the co-host clan, handed one board by the host, find it from their own
+ * clan's admin rather than having to know the host's address.
+ */
+export async function grantedCohostedEventIds(userId: number, clanId: number): Promise<number[]> {
+  const rows = await db
+    .select({ eventId: eventEditors.eventId })
+    .from(eventEditors)
+    .innerJoin(
+      eventCohosts,
+      and(eq(eventCohosts.eventId, eventEditors.eventId), eq(eventCohosts.clanId, clanId), eq(eventCohosts.status, 'accepted')),
+    )
+    .where(and(eq(eventEditors.userId, userId), eq(eventEditors.role, 'editor')));
+  return [...new Set(rows.map((r) => r.eventId))];
 }
 
 /** Does this user run the money on this one board? */

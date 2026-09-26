@@ -90,7 +90,7 @@ async function hasSeatIn(clanId: number, playerId: number): Promise<boolean> {
 }
 
 /** Does this person hold a seat in a clan that has accepted a co-host seat on this event? */
-async function inAcceptedCohostClan(eventId: number, playerId: number): Promise<boolean> {
+export async function inAcceptedCohostClan(eventId: number, playerId: number): Promise<boolean> {
   const row = await db
     .select({ id: eventCohosts.id })
     .from(eventCohosts)

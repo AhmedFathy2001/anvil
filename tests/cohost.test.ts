@@ -224,3 +224,53 @@ test('a co-host granted the host board reaches its Tiles tab, and nothing more',
   assert.equal(home?.role, 'moderator');
   assert.equal(home?.canEditTiles, false);
 });
+
+// ── The co-host's side: their staff on the board, and the board in their own admin ────────────
+//
+// A co-hosted board lives at the host's address, so the co-host clan's admin had no trace of it and
+// its moderators — holding nothing in the host clan — bounced off the host's /admin. The host now
+// ticks "their staff can edit the board" per co-host, and the co-host's admin lists the board.
+
+test("a co-host's staff author the board only once the host lets them", async () => {
+  const E = await import('../src/lib/eventEditors.ts');
+
+  await db.update(s.eventCohosts).set({ staffCanEditBoard: false }).where(eq(s.eventCohosts.id, cohostId));
+  assert.deepEqual(await E.cohostBoardEventIds(gAdmin, { hostClanId: hostClan }), [], 'off: nothing');
+
+  assert.equal(await C.setCohostStaffCanEditBoard(eventId, cohostId, true), true);
+  assert.deepEqual(await E.cohostBoardEventIds(gAdmin, { hostClanId: hostClan }), [eventId], 'their admin is in');
+  assert.deepEqual(await E.cohostBoardEventIds(gMod, { eventId }), [eventId], 'and their moderator');
+  assert.deepEqual(await E.cohostBoardEventIds(gOutsiderUser), [], 'a plain member of theirs is not');
+  assert.equal(await E.isEventEditor(gAdmin, eventId), true, 'the event layout lets them onto the board');
+
+  // The flag is keyed on the event too: a co-host row can't be flipped through another board's id.
+  assert.equal(await C.setCohostStaffCanEditBoard(eventId + 999, cohostId, false), false);
+
+  await C.setCohostStaffCanEditBoard(eventId, cohostId, false);
+  assert.equal(await E.isEventEditor(gAdmin, eventId), false, 'switching it off takes it back');
+});
+
+test("the co-hosted board shows in the co-host clan's own admin, linked across to the host", async () => {
+  const E = await import('../src/lib/eventEditors.ts');
+
+  // gMod holds an explicit grant on the host board (the Tiles-tab test above), so it's editable from
+  // their side even with the co-host switch off; gAdmin's link falls back to the public board.
+  assert.deepEqual(await E.grantedCohostedEventIds(gMod, guestClan), [eventId]);
+
+  // (The adoption tests above co-host a second board for this clan; look at this one.)
+  const mine = <T extends { eventId: number }>(rows: T[]) => rows.filter((r) => r.eventId === eventId);
+
+  const forMod = mine(await C.coHostedBoardLinks(guestClan, gMod, false));
+  assert.equal(forMod.length, 1);
+  assert.equal(forMod[0].canAuthor, true);
+  assert.equal(forMod[0].href, `/c/host/admin/events/${eventId}/tiles`);
+
+  const forAdmin = mine(await C.coHostedBoardLinks(guestClan, gAdmin, false));
+  assert.equal(forAdmin[0].canAuthor, false);
+  assert.equal(forAdmin[0].href, `/c/host/events/${eventId}`);
+  // A scoped editor only sees what they can author.
+  assert.deepEqual(mine(await C.coHostedBoardLinks(guestClan, gAdmin, true)), []);
+
+  // The host clan does not list its own board as co-hosted.
+  assert.deepEqual(await C.coHostedBoardsForClan(hostClan), []);
+});

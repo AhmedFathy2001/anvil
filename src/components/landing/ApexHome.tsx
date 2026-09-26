@@ -4,6 +4,7 @@ import ClanLink from '@/components/ClanLink';
 import type { ApexHomeView, ClanCard } from '@/lib/apexHome';
 import type { ApexSignals } from '@/lib/apexHomeSignals';
 import type { FoundSeat } from '@/lib/foundYou';
+import DiscoverToggle from '@/components/home/DiscoverToggle';
 import { ArenaHero, CareerWell, Label, Lately, Roster, Standing, StreakBadge } from '@/components/home/ApexSignals';
 
 /**
@@ -189,6 +190,39 @@ export default function ApexHome({
             </Section>
           )}
 
+          {/* Somewhere new to play. Public boards from clans that list themselves, in clans this
+              person is not in — below everything that is already theirs, and one click to hide. */}
+          {view.discover && view.discover.length > 0 && (
+            <Section
+              title="Open to everyone"
+              note={`${view.discover.length}`}
+              action={<DiscoverToggle show={false} variant="hide" />}
+            >
+              <div className="flex flex-col gap-2.5">
+                {view.discover.map((d) => (
+                  <ClanLink
+                    key={d.eventId}
+                    href={`/c/${d.clanSlug}/events/${d.eventId}`}
+                    className="flex items-center gap-3.5 rounded-xl border border-card-border bg-card-bg px-4 py-3.5 transition-colors hover:border-gold/40 hover:bg-card-bg-hover sm:px-5"
+                  >
+                    <ClanCrest slug={d.clanSlug} name={d.clanName} logoUrl={d.clanLogoUrl} size={26} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[15px] font-medium">{d.name}</span>
+                      <span className="mt-0.5 block truncate text-[12.5px] text-text-muted">
+                        {d.clanName} ·{' '}
+                        {d.live ? 'running now' : closes(null, d.startDate)}
+                      </span>
+                    </span>
+                    <span className="shrink-0 rounded-md border border-card-border px-2.5 py-1 text-[12.5px] text-text-muted">
+                      {d.takingEntries ? 'Take a look' : d.live ? 'Watch' : 'View'}
+                    </span>
+                  </ClanLink>
+                ))}
+              </div>
+            </Section>
+          )}
+          {view.discover === null && <DiscoverToggle show variant="offer" />}
+
           {needsYou.length > 0 && (
             <Section title="Waiting on you" note={`${needsYou.length}`}>
               <div className="flex flex-col gap-2.5">
@@ -270,11 +304,14 @@ function Section({
   title,
   note,
   more,
+  action,
   children,
 }: {
   title: string;
   note?: string;
   more?: { href: string; label: string };
+  /** A control at the right of the title row, instead of `more`. */
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -295,6 +332,7 @@ function Section({
             {more.label} →
           </ClanLink>
         )}
+        {action}
       </div>
       {children}
     </section>

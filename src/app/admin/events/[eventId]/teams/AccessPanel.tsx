@@ -50,6 +50,7 @@ const ENTRY: { value: string; label: string; hint: string }[] = [
 export default function AccessPanel({ eventId }: { eventId: number }) {
   const [visibility, setVisibility] = useState<string | null>(null);
   const [entry, setEntry] = useState<string | null>(null);
+  const [advertised, setAdvertised] = useState(false);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [guestPolicy, setGuestPolicy] = useState<string | null>(null);
   const [slug, setSlug] = useState('');
@@ -69,6 +70,7 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
     const d = await res.json();
     setVisibility(d.visibility);
     setEntry(d.entry);
+    setAdvertised(!!d.advertised);
     setInvites(d.invites ?? []);
     setGuestPolicy(d.guestPolicy ?? null);
   }, [eventId]);
@@ -90,6 +92,16 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
       if (field === 'visibility') setVisibility(prev);
       else setEntry(prev);
     }
+  }
+
+  async function setAdvertise(value: boolean) {
+    setAdvertised(value);
+    const res = await clanFetch(`/api/events/${eventId}/invites`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ advertised: value }),
+    });
+    if (!res.ok) setAdvertised(!value);
   }
 
   async function invite() {
@@ -185,7 +197,27 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
       </div>
 
       <div className="grid gap-5 px-5 py-4 md:grid-cols-2">
-        <Choice title="Who can see it" options={VISIBILITY} value={visibility} onPick={(v) => patch('visibility', v)} />
+        <div>
+          <Choice title="Who can see it" options={VISIBILITY} value={visibility} onPick={(v) => patch('visibility', v)} />
+          {/* Readable by anyone is not the same as advertised to everyone — a separate yes. */}
+          {visibility === 'public' && (
+            <label className="mt-2 flex cursor-pointer items-start gap-2.5 rounded-xl border border-card-border bg-background p-3 text-[12.5px] hover:border-gold/30">
+              <input
+                type="checkbox"
+                checked={advertised}
+                onChange={(e) => setAdvertise(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-gold"
+              />
+              <span>
+                <span className="block text-[13.5px] font-medium">Feature on Anvil&rsquo;s home page</span>
+                <span className="mt-0.5 block text-text-muted">
+                  Shown under &ldquo;Open to everyone&rdquo; to players outside your clan, while it&rsquo;s
+                  upcoming or live. Needs your clan listed in the Clan Hall.
+                </span>
+              </span>
+            </label>
+          )}
+        </div>
         <div>
           <Choice title="Who can enter it" options={ENTRY} value={entry ?? 'open'} onPick={(v) => patch('entry', v)} />
           {/* The clan's own door is the stricter of the two and always wins in lib/guestAdmission —

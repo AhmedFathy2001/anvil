@@ -15,6 +15,7 @@ import { alias } from 'drizzle-orm/pg-core';
 import { db } from '@/db';
 import { clanStaff, clans, eventCohosts, eventParticipants, events, teams, teamStaff } from '@/db/schema';
 import { atLeast } from '@/lib/clanRoles';
+import { cohostBoardEventIds, grantedCohostedEventIds } from '@/lib/eventEditors';
 
 /** A stable team colour per clan, matched to the nav/profile crest hue. */
 export function teamColorForClan(slug: string): string {
@@ -56,6 +57,8 @@ export interface CohostRow {
   eventStartDate: string | null;
   eventEndDate: string | null;
   eventSignupFee: number | null;
+  /** The host lets this clan's staff author the board with them. */
+  staffCanEditBoard: boolean;
 }
 
 const hostClan = alias(clans, 'host_clan');
@@ -77,6 +80,7 @@ const COHOST_COLUMNS = {
   eventStartDate: events.startDate,
   eventEndDate: events.endDate,
   eventSignupFee: events.signupFee,
+  staffCanEditBoard: eventCohosts.staffCanEditBoard,
 };
 
 /** Invite a clan to co-host an event. Returns the (possibly pre-existing) co-host row's id. */
@@ -428,4 +432,95 @@ export async function endCoHosting(
 
   await db.delete(eventCohosts).where(eq(eventCohosts.id, cohostId));
   return { ok: true, removedTeam };
+}
+
+/** A board on another clan that this clan co-hosts — what its own admin lists under "Co-hosted". */
+export interface CoHostedBoard {
+  eventId: number;
+  name: string;
+  hostSlug: string;
+  hostName: string;
+  startDate: string | null;
+  endDate: string | null;
+  /** The host has let this clan's staff author the board. */
+  staffCanEditBoard: boolean;
+}
+
+/**
+ * Boards this clan has ACCEPTED a co-host seat on and that have not finished.
+ *
+ * A co-hosted board lives at the host's address — its admin pages resolve the event against the
+ * host clan — so the co-host's own admin had no trace of it: the clan running half the event could
+ * not find it from its own side. This is the list that links across.
+ */
+export async function coHostedBoardsForClan(clanId: number, now: Date = new Date()): Promise<CoHostedBoard[]> {
+  const nowIso = now.toISOString();
+  const rows = await db
+    .select({
+      eventId: events.id,
+      name: events.name,
+      hostSlug: hostClan.slug,
+      hostName: hostClan.name,
+      startDate: events.startDate,
+      endDate: events.endDate,
+      forceEndedAt: events.forceEndedAt,
+      staffCanEditBoard: eventCohosts.staffCanEditBoard,
+    })
+    .from(eventCohosts)
+    .innerJoin(events, eq(events.id, eventCohosts.eventId))
+    .innerJoin(hostClan, eq(hostClan.id, events.clanId))
+    .where(and(eq(eventCohosts.clanId, clanId), eq(eventCohosts.status, 'accepted')));
+  return rows
+    .filter((r) => !r.forceEndedAt && !(r.endDate && r.endDate < nowIso))
+    .map(({ eventId, name, hostSlug, hostName, startDate, endDate, staffCanEditBoard }) => ({
+      eventId, name, hostSlug, hostName, startDate, endDate, staffCanEditBoard,
+    }))
+    .sort((a, b) => (a.startDate ?? '9999').localeCompare(b.startDate ?? '9999'));
+}
+
+/** Host-admin: let (or stop) a co-host clan's staff authoring the board. */
+export async function setCohostStaffCanEditBoard(eventId: number, cohostId: number, allowed: boolean): Promise<boolean> {
+  const res = await db
+    .update(eventCohosts)
+    .set({ staffCanEditBoard: allowed })
+    .where(and(eq(eventCohosts.id, cohostId), eq(eventCohosts.eventId, eventId)))
+    .returning({ id: eventCohosts.id });
+  return res.length > 0;
+}
+
+/** A co-hosted board, with where this viewer should be sent for it. */
+export interface CoHostedBoardLink extends CoHostedBoard {
+  /** They may author it: the host let this clan's staff in, or granted them the board by name. */
+  canAuthor: boolean;
+  /** Cross-clan, so a hard navigation — the host's admin Tiles tab, or its public board. */
+  href: string;
+}
+
+/**
+ * The co-hosted boards a viewer in this clan's admin should see. A board-scoped editor here sees
+ * only the ones they may author; anyone else with admin here sees them all, linking to the board
+ * itself when they can't author it.
+ */
+export async function coHostedBoardLinks(
+  clanId: number,
+  userId: number,
+  scopedEditor: boolean,
+): Promise<CoHostedBoardLink[]> {
+  const boards = await coHostedBoardsForClan(clanId);
+  if (boards.length === 0) return [];
+  const [asStaff, byName] = await Promise.all([
+    cohostBoardEventIds(userId),
+    grantedCohostedEventIds(userId, clanId),
+  ]);
+  const authorable = new Set([...asStaff, ...byName]);
+  return boards
+    .map((b) => {
+      const canAuthor = authorable.has(b.eventId);
+      return {
+        ...b,
+        canAuthor,
+        href: canAuthor ? `/c/${b.hostSlug}/admin/events/${b.eventId}/tiles` : `/c/${b.hostSlug}/events/${b.eventId}`,
+      };
+    })
+    .filter((b) => !scopedEditor || b.canAuthor);
 }
