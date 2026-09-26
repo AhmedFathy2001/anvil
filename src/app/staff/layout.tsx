@@ -1,6 +1,8 @@
+import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 
 import { requirePlatformPage } from '@/lib/platformAccess';
+import { libraryActor } from '@/lib/guideAccess';
 import { hasPlatformRole } from '@/lib/clanRoles';
 import { avatarUrl } from '@/lib/discord-oauth';
 import { db } from '@/db';
@@ -21,7 +23,31 @@ import AdminSidebar, { type SidebarGroup } from '../admin/_components/AdminSideb
  */
 export default async function StaffLayout({ children }: { children: React.ReactNode }) {
   const actor = await requirePlatformPage('support');
-  if (!actor) notFound();
+  if (!actor) {
+    // A LIBRARY GUIDE EDITOR holds no platform role — the grant is lateral, and on purpose. They get
+    // /staff/guides and nothing else: this shell is the only thing standing between them and every
+    // other /staff page, most of which do not guard themselves, so anything else is still a 404.
+    const guides = await libraryActor();
+    const pathname = (await headers()).get('x-anvil-pathname') ?? '';
+    if (!guides?.canEdit || !(pathname === '/staff/guides' || pathname.startsWith('/staff/guides/'))) notFound();
+    const me = await db.query.users.findFirst({
+      where: eq(users.id, guides.user.userId),
+      columns: { displayName: true, discordId: true, discordAvatar: true },
+    });
+    return (
+      <div className="lg:flex lg:gap-6">
+        <AdminSidebar
+          groups={[{ label: 'Platform', items: [{ href: '/staff/guides', label: 'Guide library', icon: '📖', matchPrefix: true }] }]}
+          user={{
+            displayName: me?.displayName ?? guides.user.username ?? 'Editor',
+            role: 'library guide editor',
+            avatarUrl: me?.discordId ? avatarUrl(me.discordId, me.discordAvatar) : null,
+          }}
+        />
+        <div className="flex-1 min-w-0">{children}</div>
+      </div>
+    );
+  }
 
   const row = await db.query.users.findFirst({
     where: eq(users.id, actor.user.userId),
@@ -46,6 +72,8 @@ export default async function StaffLayout({ children }: { children: React.ReactN
         // member posting in Discord; this is the surface the hourly digest links back to.
         { href: '/staff/errors', label: 'Errors', icon: '⚠', matchPrefix: true },
         { href: '/staff/audit', label: 'Operator log', icon: '⧉', matchPrefix: true },
+        // The Anvil guide library every clan sees and copies from.
+        { href: '/staff/guides', label: 'Guide library', icon: '📖', matchPrefix: true },
       ],
     },
   ];

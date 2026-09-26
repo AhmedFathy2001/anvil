@@ -57,6 +57,8 @@ const MODERATOR_PATHS = [
   // itself re-checks with verifyFeeCollector, which is what actually keeps a plain moderator out.
   '/admin/coffer',
   '/admin/tile-library',
+  // Every staff seat may read the clan's guides; the pages and routes check canEditGuides to write.
+  '/admin/guides',
 ];
 
 /**

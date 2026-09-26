@@ -35,6 +35,12 @@ const nl: PartialGuideDict = {
       running: 'Een event draaien',
       clan: 'De clan runnen',
     },
+    ingame: {
+      title: 'In-game gidsen',
+      dek: 'Raids, bosses, skilling en geld verdienen — uit de Anvil-bibliotheek en van je clan, hier te lezen en door de bot in Discord geplaatst.',
+      browse: 'Alle gidsen bekijken',
+      library: 'Anvil-bibliotheek',
+    },
     search: {
       placeholder: 'Zoek in de handleidingen — probeer "webhook", "vakjes" of "drops komen niet binnen"',
       results: '{n} handleidingen',

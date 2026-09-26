@@ -32,13 +32,37 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   // The role change needs root; the ban needs staff. Ask for whichever this request actually is,
   // rather than one gate covering both — the weaker action shouldn't require the stronger role, and
   // the stronger one must never accept the weaker.
-  const wantsRole = 'platformRole' in body;
+  const wantsGuideEditor = 'platformGuideEditor' in body;
+  const wantsRole = 'platformRole' in body || wantsGuideEditor;
   const gate = await requirePlatformApi(wantsRole ? CAN_GRANT : CAN_WRITE);
   if ('response' in gate) return gate.response;
   const { actor } = gate;
 
   const person = await db.query.players.findFirst({ where: eq(players.id, playerId) });
   if (!person) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+  // The library guide-editor grant: lateral to the role ladder, granted by root like the ladder is.
+  // No session bump — it only ever widens or narrows the one guide surface, which reads it live.
+  if (wantsGuideEditor) {
+    const on = body.platformGuideEditor === true;
+    const login = await db.query.users.findFirst({ where: eq(users.playerId, playerId) });
+    if (!login) {
+      return NextResponse.json({ error: 'That person has no Discord login to grant a role to' }, { status: 400 });
+    }
+    await db.update(users).set({ platformGuideEditor: on }).where(eq(users.id, login.id));
+    await db
+      .insert(clanAuditLog)
+      .values({
+        clanId: null,
+        eventType: 'platform_guide_editor_changed',
+        actorUserId: actor.user.userId,
+        oldValue: JSON.stringify({ platformGuideEditor: login.platformGuideEditor }),
+        newValue: JSON.stringify({ platformGuideEditor: on, playerId }),
+        notes: `by platform ${actor.role}`,
+      })
+      .catch(() => {});
+    return NextResponse.json({ ok: true, platformGuideEditor: on });
+  }
 
   if (wantsRole) {
     const next = String(body.platformRole) as PlatformRole;

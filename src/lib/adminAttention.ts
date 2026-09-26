@@ -135,6 +135,11 @@ export interface AttentionFacts {
    * Omitted means "everything" — the admin case, and what every existing caller got.
    */
   canReach?: (href: string) => boolean;
+  /**
+   * Library guides updated since this clan customised its copy (lib/guides pendingUpdates). Copies
+   * nobody edited follow along on their own; these are the ones waiting for somebody to say yes.
+   */
+  guideUpdates?: number;
 }
 
 const DAY = 86_400_000;
@@ -323,6 +328,20 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
       detail: 'They applied, or entered one of your events as a guest, and are waiting on an answer.',
       href: '/admin/people',
       action: 'Decide',
+      at: 0,
+    });
+  }
+
+  if ((facts.guideUpdates ?? 0) > 0) {
+    const n = facts.guideUpdates!;
+    items.push({
+      key: 'guide-updates',
+      snoozable: true,
+      severity: 'info',
+      title: `${plural(n, 'library guide')} updated since you customised ${n === 1 ? 'it' : 'them'}`,
+      detail: 'Take the new version, or keep yours. Nothing changes until you choose.',
+      href: '/admin/guides',
+      action: 'Review',
       at: 0,
     });
   }

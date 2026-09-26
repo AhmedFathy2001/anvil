@@ -34,6 +34,12 @@ const no: PartialGuideDict = {
       running: 'Å kjøre et event',
       clan: 'Å drive klanen',
     },
+    ingame: {
+      title: 'Guider for spillet',
+      dek: 'Raids, bosser, skilling og pengetjening — fra Anvil-biblioteket og klanen din, til å lese her og postet i Discord av boten.',
+      browse: 'Se alle guider',
+      library: 'Anvil-biblioteket',
+    },
     search: {
       placeholder: 'Søk i veiledningene — prøv "webhook", "ruter" eller "drops vises ikke"',
       results: '{n} veiledninger',

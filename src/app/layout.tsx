@@ -133,11 +133,11 @@ export default async function RootLayout({
   // belong to no clan. The shell renders without clan branding rather than failing.
   const clan = await currentClan();
   const session = await verifyUser();
-  let userRow: { displayName: string; discordId: string | null; discordAvatar: string | null; role: string } | null = null;
+  let userRow: { displayName: string; discordId: string | null; discordAvatar: string | null; role: string; platformGuideEditor: boolean } | null = null;
   if (session?.userId) {
     const found = await db.query.users.findFirst({
       where: eq(usersTable.id, session.userId),
-      columns: { displayName: true, discordId: true, discordAvatar: true, role: true },
+      columns: { displayName: true, discordId: true, discordAvatar: true, role: true, platformGuideEditor: true },
     });
     if (found) userRow = found;
   }
@@ -263,6 +263,9 @@ export default async function RootLayout({
               displayName={userRow?.displayName ?? null}
               characterCount={session ? myCharacters : undefined}
               platformStaff={isPlatformStaff}
+              // A library guide editor holds no platform role, so the Platform link would 404 for
+              // them; they get a link to the one /staff page that is theirs.
+              guideLibrary={!isPlatformStaff && userRow?.platformGuideEditor === true}
             />
             {/* The CONTENT COLUMN: page and footer together, beside the rail. The footer used to
                 be a sibling of this whole row, so it ran underneath the rail from x=0 while

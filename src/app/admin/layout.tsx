@@ -12,6 +12,7 @@ import { avatarUrl } from '@/lib/discord-oauth';
 import AdminSidebar, { type SidebarGroup } from './_components/AdminSidebar';
 import { getSetupStatus } from '@/lib/setupStatus';
 import { pendingClaimRequests } from '@/lib/claimRequests';
+import { pendingUpdateCount } from '@/lib/guides';
 
 // Admin shell — wraps every page under /admin (including the login page).
 // On the login page there's no session yet, so the sidebar is skipped and the
@@ -167,6 +168,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     items: [
       { href: '/admin/people', label: 'Roster', icon: '🛡️', badge: provisionalCount, matchPrefix: true },
     ],
+  });
+
+  // Guides: the clan's in-game guides, on its site and in its Discord. Any staff seat may read them;
+  // writing is the canEditGuides capability. Badged with library updates waiting on an answer.
+  const guideUpdates = await pendingUpdateCount(clan.id);
+  groups.push({
+    label: 'Content',
+    items: [{ href: '/admin/guides', label: 'Guides', icon: '📖', badge: guideUpdates, matchPrefix: true }],
   });
 
   // Fees live on each event's Sign-ups tab rather than in a queue of their own — but the COFFER is

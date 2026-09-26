@@ -35,6 +35,12 @@ const pl: PartialGuideDict = {
       running: 'Prowadzenie wydarzenia',
       clan: 'Prowadzenie klanu',
     },
+    ingame: {
+      title: 'Poradniki do gry',
+      dek: 'Rajdy, bossowie, skillowanie i zarabianie — z biblioteki Anvil i od twojego klanu, do czytania tutaj i publikowane na Discordzie przez bota.',
+      browse: 'Przeglądaj wszystkie poradniki',
+      library: 'Biblioteka Anvil',
+    },
     search: {
       placeholder: 'Szukaj w poradnikach — spróbuj "webhook", "pola" albo "dropy się nie pokazują"',
       results: '{n} poradników',

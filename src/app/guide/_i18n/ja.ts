@@ -34,6 +34,12 @@ const ja: PartialGuideDict = {
       running: 'イベントを運営する',
       clan: 'クランを回す',
     },
+    ingame: {
+      title: 'ゲーム攻略',
+      dek: 'レイド、ボス、スキル上げ、金策 — Anvil ライブラリとクランの攻略を、ここで読めて、ボットが Discord にも投稿します。',
+      browse: 'すべての攻略を見る',
+      library: 'Anvil ライブラリ',
+    },
     search: {
       placeholder: 'ガイドを検索 —「webhook」「マス」「ドロップが出ない」など',
       results: '{n} 件のガイド',

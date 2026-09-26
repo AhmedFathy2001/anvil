@@ -36,6 +36,12 @@ const fr: PartialGuideDict = {
       running: 'Organiser un événement',
       clan: 'Gérer le clan',
     },
+    ingame: {
+      title: 'Guides de jeu',
+      dek: 'Raids, boss, compétences et gains d’or — issus de la bibliothèque Anvil et de ton clan, à lire ici et publiés sur Discord par le bot.',
+      browse: 'Voir tous les guides',
+      library: 'Bibliothèque Anvil',
+    },
     search: {
       placeholder: 'Rechercher dans les guides — essayez « webhook », « cases » ou « les drops n\'apparaissent pas »',
       results: '{n} guides',

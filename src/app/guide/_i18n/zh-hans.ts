@@ -33,6 +33,12 @@ const zhHans: PartialGuideDict = {
       running: '运营一场活动',
       clan: '管理氏族',
     },
+    ingame: {
+      title: '游戏攻略',
+      dek: '团队副本、首领、技能与赚钱方法——来自 Anvil 攻略库和你的部落，可在此阅读，也由机器人发布到 Discord。',
+      browse: '浏览全部攻略',
+      library: 'Anvil 攻略库',
+    },
     search: {
       placeholder: '搜索指南 — 试试 "webhook"、"格子" 或 "掉落没有显示"',
       results: '{n} 篇指南',

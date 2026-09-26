@@ -34,6 +34,12 @@ const ar: PartialGuideDict = {
       running: 'إدارة فعالية',
       clan: 'إدارة العشيرة',
     },
+    ingame: {
+      title: 'أدلة داخل اللعبة',
+      dek: 'الغارات والزعماء والمهارات وطرق كسب المال — من مكتبة Anvil ومن عشيرتك، تُقرأ هنا وينشرها البوت في Discord.',
+      browse: 'تصفح كل الأدلة',
+      library: 'مكتبة Anvil',
+    },
     search: {
       placeholder: 'ابحث في الأدلة — جرّب "webhook" أو "المربعات" أو "الدروبات لا تظهر"',
       results: '{n} دليل',

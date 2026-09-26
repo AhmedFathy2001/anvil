@@ -39,6 +39,12 @@ const da: PartialGuideDict = {
       running: 'At køre et event',
       clan: 'At køre klanen',
     },
+    ingame: {
+      title: 'Guides til spillet',
+      dek: 'Raids, bosser, skilling og pengetjening — fra Anvil-biblioteket og din klan, til at læse her og slået op i Discord af botten.',
+      browse: 'Se alle guides',
+      library: 'Anvil-biblioteket',
+    },
     search: {
       placeholder: 'Søg i vejledningerne — prøv "webhook", "felter" eller "drops vises ikke"',
       results: '{n} vejledninger',

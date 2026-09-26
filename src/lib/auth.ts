@@ -110,6 +110,8 @@ export interface UserPayload {
   treasurerScope: string;
   // Tile authoring, independent of role. A capability, not a tier.
   canEditTiles: boolean;
+  // Guide authoring in this clan (lib/guideAccess) — for the nav; the guide routes re-check live.
+  canEditGuides: boolean;
   // Owner OF THIS CLAN. Undemotable here, and meaningless anywhere else.
   isOwner: boolean;
   // The other axis entirely: capability over the PLATFORM, which no clan role can confer.
@@ -209,6 +211,7 @@ export async function verifyUser(): Promise<UserPayload | null> {
       editorScope: grant?.editorScope ?? (boardGrant ? 'assigned' : 'all'),
       treasurerScope: grant?.treasurerScope ?? 'all',
       canEditTiles: grant?.canEditTiles === true || borrowed != null || boardGrant,
+      canEditGuides: grant?.canEditGuides === true || (borrowed != null && atLeast(borrowed.role, 'admin')),
       // Never. The owner seat is the one thing a borrowed grant must not confer, or an operator can
       // transfer a clan away from the person who owns it.
       isOwner: grant?.isOwner === true,

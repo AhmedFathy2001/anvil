@@ -35,6 +35,12 @@ const ptBr: PartialGuideDict = {
       running: 'Conduzindo um evento',
       clan: 'Tocando o clã',
     },
+    ingame: {
+      title: 'Guias do jogo',
+      dek: 'Raids, chefes, skills e formas de ganhar dinheiro — da biblioteca do Anvil e do seu clã, para ler aqui e publicados no Discord pelo bot.',
+      browse: 'Ver todos os guias',
+      library: 'Biblioteca do Anvil',
+    },
     search: {
       placeholder: 'Busque nos guias — tente "webhook", "casas" ou "os drops não aparecem"',
       results: '{n} guias',

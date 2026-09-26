@@ -278,6 +278,8 @@ export interface PersonHit {
   }[];
   discordId: string | null;
   platformRole: string;
+  /** May write the Anvil guide library (users.platform_guide_editor). */
+  platformGuideEditor: boolean;
   userId: number | null;
 }
 
@@ -394,6 +396,7 @@ export async function personDetail(playerId: number): Promise<PersonHit | null> 
     clans: groupByClan(seats, grants),
     discordId: login?.discordId ?? null,
     platformRole: login?.platformRole ?? 'none',
+    platformGuideEditor: login?.platformGuideEditor === true,
     userId: login?.id ?? null,
   };
 }

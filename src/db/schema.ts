@@ -14,6 +14,7 @@ import {
   unique,
   index,
   primaryKey,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
@@ -185,6 +186,9 @@ export const clanStaff = pgTable('clan_staff', {
   // equivalent on `users`, which would make somebody a scoped treasurer everywhere at once — the
   // exact shape the per-clan grant exists to prevent.
   treasurerScope: text('treasurer_scope').notNull().default('all'),
+  // Guide authoring (lib/guides): write this clan's guides, copy from the Anvil library, post them to
+  // Discord. Another capability on top of the tier, like canEditTiles — admins hold it implicitly.
+  canEditGuides: boolean('can_edit_guides').notNull().default(false),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   // One grant per person per clan; a second would make "what is their role here?" ambiguous.
@@ -995,6 +999,10 @@ export const users = pgTable('users', {
   //   staff   — clan lifecycle: suspend, rename, resolve ownership claims
   //   root    — staff, plus granting platform roles
   platformRole: text('platform_role').notNull().default('none'),
+  // Writes the ANVIL GUIDE LIBRARY and nothing else on the platform. Lateral to platformRole rather
+  // than a rung on it: someone who writes great raid guides should not thereby be able to suspend a
+  // clan. Staff and root hold it implicitly; root alone grants it (/staff/people).
+  platformGuideEditor: boolean('platform_guide_editor').notNull().default(false),
   // Bumped to invalidate every live session for this user — a demotion or a ban has to take effect
   // now, not in up to 30 days when the cookie expires. The session carries the value it was minted
   // with; a mismatch is a dead cookie.
@@ -2576,3 +2584,102 @@ export const errorEvents = pgTable('error_events', {
   index('error_events_clan_idx').on(t.clanId),
 ]);
 export type ErrorEvent = typeof errorEvents.$inferSelect;
+
+
+// ── Guides ───────────────────────────────────────────────────────────────────────────────────
+//
+// In-game guides (raids, bosses, money makers…) written in Discord's own markdown so the same text
+// reads right on the site and in a channel. TWO OWNERS, ONE TABLE:
+//
+//   clan_id NULL  — the ANVIL LIBRARY. Written by platform guide editors, shown on every clan's
+//                   /guides page, always current.
+//   clan_id SET   — a clan's own guide: written from scratch, or COPIED from a library guide.
+//
+// A copy remembers where it came from (source_guide_id) and which library version it matches
+// (source_version). While `follows_source` is true the copy has no edits of its own and is kept in
+// step automatically — including the Discord messages it was posted as. The first local edit flips
+// it off: from then on a library update is an OFFER ("updated — review & sync"), never an overwrite
+// of somebody's work. See lib/guides/store.
+
+export const guides = pgTable('guides', {
+  id: serial('id').primaryKey(),
+  // NULL = the Anvil library. See the note above.
+  clanId: integer('clan_id').references(() => clans.id, { onDelete: 'cascade' }),
+  slug: text('slug').notNull(),
+  title: text('title').notNull(),
+  summary: text('summary').notNull().default(''),
+  // One of GUIDE_CATEGORIES (lib/guides/categories). Free text in the column so adding one is a code
+  // change, not a migration.
+  category: text('category').notNull().default('general'),
+  coverUrl: text('cover_url'),
+  // Discord-flavoured markdown. A line holding only `---` starts a new Discord message.
+  body: text('body').notNull().default(''),
+  // 'draft' | 'published'. Drafts are invisible to members and are never synced to copies.
+  status: text('status').notNull().default('draft'),
+  // Bumped on every content change. Library versions are what copies compare against.
+  version: integer('version').notNull().default(1),
+  sortOrder: integer('sort_order').notNull().default(0),
+  sourceGuideId: integer('source_guide_id').references((): AnyPgColumn => guides.id, { onDelete: 'set null' }),
+  sourceVersion: integer('source_version'),
+  followsSource: boolean('follows_source').notNull().default(false),
+  createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByUserId: integer('updated_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+  publishedAt: text('published_at'),
+}, (t) => [
+  // NULLS NOT DISTINCT so two library guides cannot share a slug either (clan_id is null for both).
+  unique('guides_clan_slug_unique').on(t.clanId, t.slug).nullsNotDistinct(),
+  // A clan copies a library guide once; copying again opens the copy it already has.
+  uniqueIndex('guides_clan_source_unique').on(t.clanId, t.sourceGuideId).where(sql`source_guide_id is not null`),
+  index('guides_source_idx').on(t.sourceGuideId),
+]);
+export type Guide = typeof guides.$inferSelect;
+
+/** Every saved version of a guide — what the "what changed" view diffs against. */
+export const guideRevisions = pgTable('guide_revisions', {
+  id: serial('id').primaryKey(),
+  guideId: integer('guide_id').notNull().references(() => guides.id, { onDelete: 'cascade' }),
+  version: integer('version').notNull(),
+  title: text('title').notNull(),
+  summary: text('summary').notNull().default(''),
+  body: text('body').notNull(),
+  // The editor's one-liner ("Updated for the new tbow spec"), shown to clans offered the update.
+  note: text('note'),
+  editedByUserId: integer('edited_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').notNull(),
+}, (t) => [
+  uniqueIndex('guide_revisions_guide_version_unique').on(t.guideId, t.version),
+]);
+
+/**
+ * One posting of a guide to Discord: the channel (or forum thread) and the message ids it became,
+ * so an edit to the guide can edit those same messages in place instead of posting it again.
+ */
+export const guidePosts = pgTable('guide_posts', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  guideId: integer('guide_id').notNull().references(() => guides.id, { onDelete: 'cascade' }),
+  // The channel picked: a text/announcement channel, or a forum.
+  channelId: text('channel_id').notNull(),
+  channelName: text('channel_name'),
+  // 'text' | 'forum'
+  channelKind: text('channel_kind').notNull().default('text'),
+  // For a forum: the post (thread) created for this guide. Messages live in the thread.
+  threadId: text('thread_id'),
+  messageIds: jsonb('message_ids').$type<string[]>().notNull().default([]),
+  // The guide version these messages currently show, and a hash of exactly what was sent, so a
+  // save that changes nothing Discord renders costs no API calls.
+  postedVersion: integer('posted_version').notNull().default(0),
+  contentHash: text('content_hash'),
+  // Re-sync the messages whenever the guide changes. Off = a frozen snapshot.
+  autoUpdate: boolean('auto_update').notNull().default(true),
+  lastError: text('last_error'),
+  postedByUserId: integer('posted_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (t) => [
+  index('guide_posts_guide_idx').on(t.guideId),
+  index('guide_posts_clan_idx').on(t.clanId),
+]);
+export type GuidePost = typeof guidePosts.$inferSelect;

@@ -80,6 +80,7 @@ function PersonCard({
         <span className="text-lg font-semibold">{person.displayName ?? `Person #${person.playerId}`}</span>
         {person.banned && <Pill tone="red">platform-banned</Pill>}
         {person.platformRole !== 'none' && <Pill tone="gold">platform {person.platformRole}</Pill>}
+        {person.platformGuideEditor && <Pill tone="gold">guide editor</Pill>}
         <span className="text-xs text-gray-600">#{person.playerId}</span>
       </div>
 
@@ -179,6 +180,20 @@ function PersonCard({
                 ariaLabel="Platform role"
                 className="w-32"
               />
+            </label>
+          )}
+
+          {canGrant && person.userId != null && (
+            // Lateral to the role: writes the Anvil guide library and nothing else on the platform.
+            <label className="flex items-center gap-2 text-xs text-gray-400">
+              <input
+                type="checkbox"
+                checked={person.platformGuideEditor}
+                disabled={busy}
+                onChange={(e) => patch({ platformGuideEditor: e.target.checked })}
+                className="accent-[#e0b341]"
+              />
+              Library guide editor
             </label>
           )}
 

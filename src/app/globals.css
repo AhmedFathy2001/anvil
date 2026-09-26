@@ -183,3 +183,25 @@ body {
     animation: none;
   }
 }
+
+/* Guides: Discord's ||spoiler||, revealed on hover or keyboard focus (lib/guideMarkdown). */
+.guide-spoiler {
+  background: #1e1f22;
+  color: transparent;
+  border-radius: 3px;
+  padding: 0 2px;
+  cursor: pointer;
+  transition: color 0.1s, background 0.1s;
+}
+.guide-spoiler:hover,
+.guide-spoiler:focus {
+  color: inherit;
+  background: rgb(255 255 255 / 0.08);
+  outline: none;
+}
+.guide-spoiler img,
+.guide-spoiler a { visibility: hidden; }
+.guide-spoiler:hover img,
+.guide-spoiler:focus img,
+.guide-spoiler:hover a,
+.guide-spoiler:focus a { visibility: visible; }

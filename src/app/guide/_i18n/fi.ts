@@ -35,6 +35,12 @@ const fi: PartialGuideDict = {
       running: 'Tapahtuman pyörittäminen',
       clan: 'Klaanin pyörittäminen',
     },
+    ingame: {
+      title: 'Pelioppaat',
+      dek: 'Raidit, bossit, skillaus ja rahanteko — Anvil-kirjastosta ja klaaniltasi, luettavissa täällä ja botin julkaisemina Discordissa.',
+      browse: 'Selaa kaikkia oppaita',
+      library: 'Anvil-kirjasto',
+    },
     search: {
       placeholder: 'Hae oppaista — kokeile "webhook", "ruudut" tai "dropit eivät näy"',
       results: '{n} opasta',

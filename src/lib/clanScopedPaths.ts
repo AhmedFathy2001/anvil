@@ -31,6 +31,9 @@ export const CLAN_SCOPED_ROOTS = [
   // Both halves already existed in app/profile/page.tsx, which branches on whether a clan is named.
   // Only the address was missing, and without it the branch was unreachable.
   '/profile',
+  // In-game guides. Like /profile it renders on the apex too (the Anvil library), and inside a clan
+  // it is that clan's guides — so a link from inside one keeps the prefix.
+  '/guides',
 ] as const;
 
 /**

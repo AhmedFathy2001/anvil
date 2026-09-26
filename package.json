@@ -72,6 +72,7 @@
     "test:signupprofile": "npx tsx --test tests/signup-profile.test.ts",
     "test:tenantenv": "npx tsx --test tests/tenant-env-isolation.test.ts",
     "test:guidesearch": "npx tsx --test tests/guide-search.test.ts",
+    "test:guidesmodule": "npx tsx --test tests/guides-module.test.ts",
     "test:guidei18n": "npx tsx --test tests/guide-i18n.test.ts",
     "test:clogkc": "npx tsx --test tests/clog-killcounts.test.ts",
     "test:sweepdedupe": "npx tsx --test tests/sweep-dedupe.test.ts",

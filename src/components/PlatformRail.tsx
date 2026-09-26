@@ -42,6 +42,7 @@ export default function PlatformRail({
   displayName,
   characterCount,
   platformStaff,
+  guideLibrary,
 }: {
   clans: RailClan[];
   signedIn: boolean;
@@ -49,6 +50,8 @@ export default function PlatformRail({
   characterCount?: number;
   /** Holds a platform role. A separate axis from any clan grant — see lib/clanRoles. */
   platformStaff?: boolean;
+  /** Writes the Anvil guide library without holding a platform role. */
+  guideLibrary?: boolean;
 }) {
   const pathname = usePathname() ?? '/';
 
@@ -99,6 +102,7 @@ export default function PlatformRail({
         {/* /staff existed and NOTHING linked to it. Platform capability is its own axis — no clan
             role confers it — so an operator had to know the URL to reach the platform's own admin. */}
         {platformStaff && item('/staff', 'Platform', <ShieldIcon />)}
+        {guideLibrary && item('/staff/guides', 'Guide library', <ShieldIcon />)}
       </div>
 
       {clans.length > 0 && (

@@ -36,6 +36,13 @@ export const en = {
       running: 'Running an event',
       clan: 'Running the clan',
     },
+    // The in-game guides module (/guides) — surfaced on this index beside the setup guides.
+    ingame: {
+      title: 'In-game guides',
+      dek: 'Raids, bosses, skilling and money makers — from the Anvil library and your clan, readable here and posted to Discord by the bot.',
+      browse: 'Browse all guides',
+      library: 'Anvil library',
+    },
     search: {
       placeholder: 'Search the guides — try "webhook", "tiles", or "drops not showing"',
       results: '{n} guides',

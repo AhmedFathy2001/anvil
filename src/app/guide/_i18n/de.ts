@@ -35,6 +35,12 @@ const de: PartialGuideDict = {
       running: 'Ein Event durchführen',
       clan: 'Den Clan führen',
     },
+    ingame: {
+      title: 'Spiel-Guides',
+      dek: 'Raids, Bosse, Skilling und Geldverdienen — aus der Anvil-Bibliothek und von deinem Clan, hier zu lesen und vom Bot in Discord gepostet.',
+      browse: 'Alle Guides ansehen',
+      library: 'Anvil-Bibliothek',
+    },
     search: {
       placeholder: 'Anleitungen durchsuchen — probier "Webhook", "Felder" oder "Drops werden nicht angezeigt"',
       results: '{n} Anleitungen',

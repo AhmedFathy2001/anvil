@@ -1,4 +1,5 @@
 import { requireClan } from '@/lib/clanContext';
+import { pendingUpdateCount } from '@/lib/guides';
 import { redirect } from 'next/navigation';
 import { verifyUser } from '@/lib/auth';
 import { redirectFor } from '@/lib/adminAccess';
@@ -338,6 +339,7 @@ export default async function AdminDashboardPage() {
       events: pendingSignupEvents,
     },
     accountChangeRequests: accountChangeCount,
+    guideUpdates: await pendingUpdateCount(clan.id),
     gap: gap
       ? {
           days: gap.days,

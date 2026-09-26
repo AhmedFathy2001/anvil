@@ -34,6 +34,12 @@ const ko: PartialGuideDict = {
       running: '이벤트 운영',
       clan: '클랜 운영',
     },
+    ingame: {
+      title: '게임 공략',
+      dek: '레이드, 보스, 스킬링, 돈벌이 — Anvil 라이브러리와 클랜의 공략을 여기서 읽고, 봇이 Discord에도 올립니다.',
+      browse: '모든 공략 보기',
+      library: 'Anvil 라이브러리',
+    },
     search: {
       placeholder: '가이드 검색 — "webhook", "칸", "드롭이 안 보여요" 같은 말로 찾아보세요',
       results: '가이드 {n}개',

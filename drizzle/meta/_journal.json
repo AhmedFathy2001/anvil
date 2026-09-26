@@ -365,6 +365,20 @@
       "when": 1790118000000,
       "tag": "0093_identity_husks",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1790500000000,
+      "tag": "0096_guides_module",
+      "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1790500100000,
+      "tag": "0097_guide_library_seed",
+      "breakpoints": true
     }
   ]
 }

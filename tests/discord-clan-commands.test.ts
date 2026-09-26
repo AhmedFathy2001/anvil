@@ -52,6 +52,7 @@ function grant(role: ClanGrant['role'], treasurerScope: 'all' | 'assigned' = 'al
     userId: 1,
     role,
     canEditTiles: false,
+    canEditGuides: false,
     editorScope: 'all',
     treasurerScope,
     isOwner: role === 'owner',
