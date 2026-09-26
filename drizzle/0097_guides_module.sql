@@ -1,9 +1,6 @@
 -- The guides module: in-game guides in Discord markdown, an Anvil library every clan sees, clan
 -- copies that follow it or fork from it, and the Discord messages each guide was posted as.
 -- See the note on `guides` in db/schema.ts.
---
--- Numbered 0096 (not 0094) because 0094/0095 are claimed by work in flight on another branch; the
--- journal `when` sits after theirs so the migrator applies all three whatever order they merge in.
 ALTER TABLE "clan_staff" ADD COLUMN IF NOT EXISTS "can_edit_guides" boolean DEFAULT false NOT NULL;
 --> statement-breakpoint
 ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "platform_guide_editor" boolean DEFAULT false NOT NULL;

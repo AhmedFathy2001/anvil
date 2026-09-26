@@ -97,3 +97,33 @@ test('its own member still sees the clan board', async () => {
   const { bingos } = await buildSchedule(shyClan, { member: true });
   assert.deepEqual(names(bingos), ['clan board', 'public board']);
 });
+
+// A GUEST SEAT IS NOT MEMBERSHIP. The plugin config used to pass `member: true` for any seat its
+// token resolved, so somebody who guested in one event was listed every board the clan keeps to
+// itself — each rendering "No board to show yet". pluginScheduleViewer draws the line; a guest sees
+// public boards plus the ones they actually have standing on.
+test('a guest is listed public boards and the clan boards they entered — nothing else', async () => {
+  const { db, schema: s } = await loadDb();
+  const { pluginScheduleViewer } = await import('../src/lib/pluginConfig.ts');
+
+  const [person] = await db.insert(s.players).values({ displayName: 'Visitor' }).returning();
+  const [user] = await db.insert(s.users).values({ displayName: 'Visitor', playerId: person.id }).returning();
+  const [acct] = await db.insert(s.accounts).values({ playerId: person.id, rsn: 'Visitor', rsnNormalized: 'visitor' }).returning();
+  const [seat] = await db.insert(s.clanMemberships).values({ clanId: openClan, accountId: acct.id, kind: 'guest' }).returning();
+
+  const viewer = await pluginScheduleViewer(openClan, user.id);
+  assert.equal(viewer.member, false, 'a guest seat is not membership');
+  assert.deepEqual(names((await buildSchedule(openClan, viewer)).bingos), ['public board']);
+
+  // Entering a clan-only board is standing on THAT board.
+  const [entered] = await db
+    .insert(s.events)
+    .values({ clanId: openClan, name: 'entered clan board', boardSize: 5, startDate: day(-1), endDate: day(6), visibility: 'clan' })
+    .returning();
+  await db.insert(s.eventSignups).values({ eventId: entered.id, clanMemberId: seat.id, status: 'approved' });
+  assert.deepEqual(names((await buildSchedule(openClan, viewer)).bingos), ['entered clan board', 'public board']);
+
+  // A member seat is membership again.
+  await db.update(s.clanMemberships).set({ kind: 'member' });
+  assert.equal((await pluginScheduleViewer(openClan, user.id)).member, true);
+});

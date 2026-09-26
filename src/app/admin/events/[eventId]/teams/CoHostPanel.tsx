@@ -62,6 +62,22 @@ export default function CoHostPanel({
     if (!res.ok) setCashPolicy(prev);
   }
 
+  // Whether this co-host's staff may author the board with you. Optimistic, rolled back on failure.
+  async function setBoardAccess(id: number, allowed: boolean) {
+    setError(null);
+    setCohosts((rows) => rows.map((r) => (r.id === id ? { ...r, staffCanEditBoard: allowed } : r)));
+    const res = await clanFetch(`/api/events/${eventId}/co-hosts`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cohostId: id, staffCanEditBoard: allowed }),
+    });
+    if (!res.ok) {
+      setCohosts((rows) => rows.map((r) => (r.id === id ? { ...r, staffCanEditBoard: !allowed } : r)));
+      const data = await res.json().catch(() => null);
+      setError(data?.error ?? 'Could not change board access');
+    }
+  }
+
   async function refresh() {
     const res = await clanFetch(`/api/events/${eventId}/co-hosts`);
     if (res.ok) {
@@ -127,33 +143,52 @@ export default function CoHostPanel({
           {cohosts.map((c) => {
             const st = STATUS[c.status] ?? STATUS.pending;
             return (
-              <li key={c.id} className="flex items-center gap-3 px-5 py-3">
-                <ClanCrest
-                  variant="letter"
-                  slug={c.clanSlug}
-                  name={c.clanName}
-                  logoUrl={c.clanLogoUrl ?? null}
-                  size={32}
-                  rounded="rounded-lg"
-                  className="text-[13px]"
-                />
-                <div className="min-w-0">
-                  <div className="truncate text-[14px] font-medium">{c.clanName}</div>
-                  <div className="font-mono text-[11px] text-text-muted">c / {c.clanSlug}</div>
+              <li key={c.id} className="px-5 py-3">
+                <div className="flex items-center gap-3">
+                  <ClanCrest
+                    variant="letter"
+                    slug={c.clanSlug}
+                    name={c.clanName}
+                    logoUrl={c.clanLogoUrl ?? null}
+                    size={32}
+                    rounded="rounded-lg"
+                    className="text-[13px]"
+                  />
+                  <div className="min-w-0">
+                    <div className="truncate text-[14px] font-medium">{c.clanName}</div>
+                    <div className="font-mono text-[11px] text-text-muted">c / {c.clanSlug}</div>
+                  </div>
+                  <span className={`ml-auto shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] ${st.cls}`}>{st.label}</span>
+                  {/* There was no way to undo any of this from either side. `declineCoHostInvite` even
+                      told an accepted co-host to "leave the event instead", pointing at a thing that
+                      did not exist. Refused once the event starts — by then their team is on the board
+                      and unwinding it is a scoring decision, not a membership one. */}
+                  <button
+                    type="button"
+                    onClick={() => end(c.id, c.clanName)}
+                    disabled={busy}
+                    className="shrink-0 rounded-lg border border-card-border px-2.5 py-1 text-[11.5px] text-text-muted transition-colors hover:border-accent-red/40 hover:text-accent-red disabled:opacity-50"
+                  >
+                    {c.status === 'accepted' ? 'Remove' : 'Withdraw'}
+                  </button>
                 </div>
-                <span className={`ml-auto shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] ${st.cls}`}>{st.label}</span>
-                {/* There was no way to undo any of this from either side. `declineCoHostInvite` even
-                    told an accepted co-host to "leave the event instead", pointing at a thing that
-                    did not exist. Refused once the event starts — by then their team is on the board
-                    and unwinding it is a scoring decision, not a membership one. */}
-                <button
-                  type="button"
-                  onClick={() => end(c.id, c.clanName)}
-                  disabled={busy}
-                  className="shrink-0 rounded-lg border border-card-border px-2.5 py-1 text-[11.5px] text-text-muted transition-colors hover:border-accent-red/40 hover:text-accent-red disabled:opacity-50"
-                >
-                  {c.status === 'accepted' ? 'Remove' : 'Withdraw'}
-                </button>
+                {c.status !== 'declined' && (
+                  <label className="mt-2 ml-11 flex cursor-pointer items-start gap-2 text-[12.5px]">
+                    <input
+                      type="checkbox"
+                      checked={c.staffCanEditBoard}
+                      onChange={(e) => setBoardAccess(c.id, e.target.checked)}
+                      className="mt-0.5 h-3.5 w-3.5 accent-gold"
+                    />
+                    <span>
+                      <span className="font-medium">Their staff can edit the board</span>
+                      <span className="block text-text-muted">
+                        {c.clanName}&rsquo;s moderators and up author tiles with you, from their own
+                        admin. Off keeps the board yours alone.
+                      </span>
+                    </span>
+                  </label>
+                )}
               </li>
             );
           })}

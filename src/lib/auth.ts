@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { atLeast, type ClanRole } from '@/lib/clanRoles';
 import { clanGrant } from '@/lib/clanGrants';
+import { cohostBoardEventIds, grantedCohostedEventIds } from '@/lib/eventEditors';
 import { liveActAs } from '@/lib/actAs';
 import { currentClan } from '@/lib/clanContext';
 import crypto from 'crypto';
@@ -200,15 +201,20 @@ export async function verifyUser(): Promise<UserPayload | null> {
     // Expressed as the role that already exists for this rather than a new one: a board-scoped
     // editor. lib/adminAccess then confines them to the authoring surfaces, and the event layout to
     // the boards they actually hold — both were already written, and neither had anyone to apply to.
+    //
+    // A plain-member row counts as no authority here. Such rows exist (a grant revoked back down,
+    // a roster-created row), and gating this on "no row at all" is the shape that locked every board
+    // editor out once already — see lib/clanGrants.
+    const holdsNothing = !grant || (grant.role === 'member' && !grant.canEditTiles);
     const boardGrant =
-      !grant && !borrowed && clan ? await hasBoardGrantInClan(clan.id, dbUser.id) : false;
+      holdsNothing && !borrowed && clan ? await hasBoardGrantInClan(clan.id, dbUser.id) : false;
 
     return {
       userId: dbUser.id,
       playerId,
       username: typeof data.username === 'string' ? data.username : 'user',
-      role: grant?.role ?? borrowed?.role ?? (boardGrant ? 'editor' : 'member'),
-      editorScope: grant?.editorScope ?? (boardGrant ? 'assigned' : 'all'),
+      role: boardGrant ? 'editor' : grant?.role ?? borrowed?.role ?? 'member',
+      editorScope: boardGrant ? 'assigned' : grant?.editorScope ?? 'all',
       treasurerScope: grant?.treasurerScope ?? 'all',
       canEditTiles: grant?.canEditTiles === true || borrowed != null || boardGrant,
       canEditGuides: grant?.canEditGuides === true || (borrowed != null && atLeast(borrowed.role, 'admin')),
@@ -231,6 +237,12 @@ export async function verifyUser(): Promise<UserPayload | null> {
  * and buys nothing here.
  */
 async function hasBoardGrantInClan(clanId: number, userId: number): Promise<boolean> {
+  // Staff of a co-host clan the host let onto one of this clan's boards (lib/eventEditors) — the
+  // visiting mods who otherwise had no Admin link here and bounced off /admin.
+  if ((await cohostBoardEventIds(userId, { hostClanId: clanId })).length > 0) return true;
+  // And the other direction: a board on ANOTHER clan that this one co-hosts, granted to this person
+  // by its host. They reach it from here, their own clan's admin, which lists it under Co-hosted.
+  if ((await grantedCohostedEventIds(userId, clanId)).length > 0) return true;
   const [row] = await db
     .select({ id: eventEditors.id })
     .from(eventEditors)
@@ -290,7 +302,9 @@ export async function verifyTileEditorForEvent(eventId: number): Promise<UserPay
     ),
     columns: { id: true },
   });
-  return grant ? user : null;
+  if (grant) return user;
+  // Or staff of a co-host clan the host let onto this board.
+  return (await cohostBoardEventIds(user.userId, { eventId })).length > 0 ? user : null;
 }
 
 // Non-event authoring gate for the shared tile-editor helper APIs (item/NPC/clog/CA search) that

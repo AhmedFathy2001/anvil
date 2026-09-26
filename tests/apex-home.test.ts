@@ -211,3 +211,83 @@ test('one person never sees another person\'s characters', async () => {
   const chars = await H.characterList(other);
   assert.deepEqual(chars.map((c) => c.rsn), ['Someone Else']);
 });
+
+// ── A guest seat is not belonging ─────────────────────────────────────────────────────────────
+// The alt GUESTS in guestClan. That clan's own boards — the ones kept to its clan — are not this
+// person's to be shown, live or open for sign-up; its public boards still are.
+
+test("a clan you only guest in doesn't surface its clan-only boards", async () => {
+  const { db, schema: s } = await loadDb();
+  const evs = await db
+    .insert(s.events)
+    .values([
+      { clanId: guestClan, name: 'Guest clan private upcoming', boardSize: 25, startDate: iso(5 * DAY), visibility: 'clan' },
+      { clanId: guestClan, name: 'Guest clan public upcoming', boardSize: 25, startDate: iso(5 * DAY), visibility: 'public' },
+      { clanId: guestClan, name: 'Guest clan private live', boardSize: 25, startDate: iso(-DAY), endDate: iso(5 * DAY), visibility: 'clan' },
+    ])
+    .returning();
+  const [privUp, pubUp, privLive] = evs.map((e) => e.id);
+
+  const view = await H.apexHomeView(me, null);
+  const offered = view.openSignups.map((o) => o.eventId);
+  assert.ok(!offered.includes(privUp), 'a clan-only board is not offered to a guest');
+  assert.ok(offered.includes(pubUp), 'a public one still is');
+  assert.ok(offered.includes(upcoming), 'and their own clan is untouched');
+
+  const guestCard = view.clans.find((c) => c.id === guestClan);
+  assert.ok(guestCard, 'the clan they guest in is still listed');
+  assert.ok(!guestCard.live.some((l) => l.kind === 'event' && l.id === privLive), 'its clan-only live board is not');
+
+  // Once they are IN that board, it is theirs to see.
+  await db.insert(s.eventSignups).values({ eventId: privLive, clanMemberId: altSeat, status: 'approved' });
+  const after = await H.apexHomeView(me, null);
+  assert.ok(after.clans.find((c) => c.id === guestClan)!.live.some((l) => l.id === privLive));
+  await db.delete(s.events).where(eq(s.events.id, privUp));
+});
+
+// ── Open to everyone ──────────────────────────────────────────────────────────────────────────
+// Public boards from clans the person is NOT in, shown only when the board is public, the host ticked
+// "feature on the home page", and its clan is listed. On by default; the person's own switch turns the feed off (null, not []).
+
+test('"Open to everyone" shows public boards from listed clans you are not in, and obeys your switch', async () => {
+  const { db, schema: s } = await loadDb();
+  const clans = await db
+    .insert(s.clans)
+    .values([
+      { slug: 'listed', name: 'Listed Clan', visibility: 'public' },
+      { slug: 'unlisted', name: 'Unlisted Clan', visibility: 'public' },
+      { slug: 'private', name: 'Private Clan', visibility: 'members' },
+    ])
+    .returning();
+  const [listed, unlisted, priv] = clans.map((c) => c.id);
+  await db.insert(s.settings).values({ clanId: unlisted, key: 'public_showcase', value: 'off' });
+
+  const evs = await db
+    .insert(s.events)
+    .values([
+      { clanId: listed, name: 'Open bingo', boardSize: 25, startDate: iso(4 * DAY), visibility: 'public', advertised: true },
+      // Public, but the host never asked for it to be featured.
+      { clanId: listed, name: 'Public, not featured', boardSize: 25, startDate: iso(4 * DAY), visibility: 'public' },
+      { clanId: listed, name: 'Their own thing', boardSize: 25, startDate: iso(4 * DAY), visibility: 'clan', advertised: true },
+      { clanId: listed, name: 'A draft', boardSize: 25, visibility: 'public', advertised: true },
+      { clanId: listed, name: 'Long over', boardSize: 25, startDate: iso(-9 * DAY), endDate: iso(-2 * DAY), visibility: 'public', advertised: true },
+      { clanId: unlisted, name: 'Unadvertised', boardSize: 25, startDate: iso(4 * DAY), visibility: 'public', advertised: true },
+      { clanId: priv, name: 'Behind the door', boardSize: 25, startDate: iso(4 * DAY), visibility: 'public', advertised: true },
+      { clanId: homeClan, name: 'Home public', boardSize: 25, startDate: iso(4 * DAY), visibility: 'public', advertised: true },
+    ])
+    .returning();
+  const [open] = evs.map((e) => e.id);
+
+  const view = await H.apexHomeView(me, null);
+  assert.deepEqual(view.discover?.map((d) => d.eventId), [open], 'only the featured public board of a listed clan');
+  assert.equal(view.discover?.[0].takingEntries, true);
+
+  // Somebody in NO clan still gets the feed.
+  const lonely = (await db.insert(s.players).values({ displayName: 'Lonely' }).returning())[0].id;
+  assert.ok((await H.apexHomeView(lonely, null)).discover?.some((d) => d.eventId === open));
+
+  // Their own switch.
+  await db.update(s.players).set({ discoverEvents: false }).where(eq(s.players.id, me));
+  assert.equal((await H.apexHomeView(me, null)).discover, null);
+  await db.update(s.players).set({ discoverEvents: true }).where(eq(s.players.id, me));
+});

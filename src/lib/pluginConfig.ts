@@ -1,7 +1,8 @@
 import { db } from '@/db';
 import { getSetting, getSettingText, getSettingMap } from '@/lib/settings';
-import { clans, events, tiles, weeklyCompetitions } from '@/db/schema';
-import { and, count, eq, inArray } from 'drizzle-orm';
+import { accounts, clanMemberships, clanStaff, clans, eventSignups, events, tiles, users, weeklyCompetitions } from '@/db/schema';
+import { and, count, eq, inArray, isNull, ne } from 'drizzle-orm';
+import { inAcceptedCohostClan, invitedToEvent } from '@/lib/eventAccess';
 import { BOSSES, FUN_DEATH_MESSAGES, weeklyMetricLabel, COUNTER_TARGETS } from '@/lib/constants';
 import { DEFAULT_TIER_BANDS, normalizeTierBands, type TierBand } from '@/lib/tileFilter';
 import { bossUniqueIds } from '@/lib/moments';
@@ -84,7 +85,7 @@ const SCHEDULE_CAP = 10;
  */
 export async function buildSchedule(
   clanId: number,
-  opts: { member?: boolean } = {},
+  opts: { member?: boolean; viewerPlayerId?: number | null } = {},
 ): Promise<PluginSchedule> {
   const nowIso = new Date().toISOString();
 
@@ -94,6 +95,15 @@ export async function buildSchedule(
   ]);
 
   const member = opts.member === true;
+  // Somebody who is NOT a member here but holds some standing on specific boards — a guest who
+  // entered one, a co-host clan's player, someone invited — sees those `clan` boards and no others.
+  const viaStanding =
+    !member && opts.viewerPlayerId != null
+      ? await boardsWithStanding(
+          opts.viewerPlayerId,
+          allEvents.filter((e) => e.visibility === 'clan' && e.endDate && e.endDate > nowIso && !e.forceEndedAt).map((e) => e.id),
+        )
+      : new Set<number>();
   const bingoCandidates = allEvents.filter(
     (e) =>
       e.startDate &&
@@ -104,7 +114,7 @@ export async function buildSchedule(
       e.visibility !== 'invited' &&
       // `clan` is the DEFAULT, so this is most boards. A member gets the index; a stranger gets
       // whatever the clan deliberately marked public.
-      (member || e.visibility === 'public'),
+      (member || e.visibility === 'public' || viaStanding.has(e.id)),
   );
 
   // Tile counts per event in one query — avoids N+1 against the tiles table.
@@ -153,6 +163,72 @@ export async function buildSchedule(
     bingos: bingos.slice(0, SCHEDULE_CAP),
     weeklies: weeklies.slice(0, SCHEDULE_CAP),
   };
+}
+
+/**
+ * Is this login a MEMBER of the clan for the schedule's purposes, and which person is it?
+ *
+ * A GUEST SEAT IS NOT MEMBERSHIP. The plugin config handed `member: true` to anyone its token
+ * resolved — and a token resolves a guest seat just as happily — so someone who guested in one
+ * event was listed every board the clan keeps to itself, each showing "No board to show yet"
+ * because the board itself (rightly) had nothing for them. A member-kind seat or a real staff grant
+ * is membership; anything less gets public boards plus the ones they have standing on.
+ */
+export async function pluginScheduleViewer(
+  clanId: number,
+  userId: number | null | undefined,
+): Promise<{ member: boolean; viewerPlayerId: number | null }> {
+  if (userId == null) return { member: false, viewerPlayerId: null };
+  const [u, staff] = await Promise.all([
+    db.query.users.findFirst({ where: eq(users.id, userId), columns: { playerId: true } }),
+    db.query.clanStaff.findFirst({
+      where: and(eq(clanStaff.clanId, clanId), eq(clanStaff.userId, userId), ne(clanStaff.role, 'member')),
+      columns: { id: true },
+    }),
+  ]);
+  const playerId = u?.playerId ?? null;
+  if (staff) return { member: true, viewerPlayerId: playerId };
+  if (playerId == null) return { member: false, viewerPlayerId: null };
+  const [seat] = await db
+    .select({ id: clanMemberships.id })
+    .from(clanMemberships)
+    .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
+    .where(
+      and(
+        eq(clanMemberships.clanId, clanId),
+        eq(accounts.playerId, playerId),
+        eq(clanMemberships.kind, 'member'),
+        isNull(clanMemberships.leftAt),
+      ),
+    )
+    .limit(1);
+  return { member: !!seat, viewerPlayerId: playerId };
+}
+
+/** Of these boards, the ones this person entered, is invited to, or plays through a co-host clan. */
+async function boardsWithStanding(playerId: number, eventIds: number[]): Promise<Set<number>> {
+  if (eventIds.length === 0) return new Set();
+  // clan-scope: global -- the person's own entries, on whichever of their seats they used; the
+  // boards asked about are already this clan's.
+  const entered = await db
+    .select({ eventId: eventSignups.eventId })
+    .from(eventSignups)
+    .innerJoin(clanMemberships, eq(clanMemberships.id, eventSignups.clanMemberId))
+    .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
+    .where(
+      and(
+        eq(accounts.playerId, playerId),
+        inArray(eventSignups.eventId, eventIds),
+        ne(eventSignups.status, 'withdrawn'),
+        ne(eventSignups.status, 'rejected'),
+      ),
+    );
+  const out = new Set(entered.map((r) => r.eventId));
+  for (const id of eventIds) {
+    if (out.has(id)) continue;
+    if ((await inAcceptedCohostClan(id, playerId)) || (await invitedToEvent(id, playerId))) out.add(id);
+  }
+  return out;
 }
 
 export interface ActiveWeekly {

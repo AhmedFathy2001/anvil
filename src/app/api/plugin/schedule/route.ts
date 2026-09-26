@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { resolvePluginClan, resolvePluginMember } from '@/lib/auth';
-import { buildSchedule } from '@/lib/pluginConfig';
+import { buildSchedule, pluginScheduleViewer } from '@/lib/pluginConfig';
 
 // GET /api/plugin/schedule — unauthenticated list of THIS clan's active + upcoming events.
 // Consumed by older plugin builds' "Upcoming" side-panel section. Newer builds read the
@@ -20,6 +20,7 @@ export async function GET(request: Request) {
   // Anonymous here is ordinary — the plugin asks before anyone has signed in, and a public board is
   // meant to be findable. What it must not do is hand back the clan's own boards, which is what it
   // did: the Host names the clan and nothing asked whether the caller was in it.
+  // A resolved seat may be a GUEST seat, which is not membership — see pluginScheduleViewer.
   const member = await resolvePluginMember(request);
-  return NextResponse.json(await buildSchedule(clan.id, { member: member != null }));
+  return NextResponse.json(await buildSchedule(clan.id, await pluginScheduleViewer(clan.id, member?.userId)));
 }

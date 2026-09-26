@@ -367,17 +367,38 @@
       "breakpoints": true
     },
     {
+      "idx": 94,
+      "version": "7",
+      "when": 1790420000000,
+      "tag": "0094_cohost_staff_board",
+      "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1790430000000,
+      "tag": "0095_player_discover_events",
+      "breakpoints": true
+    },
+    {
       "idx": 96,
       "version": "7",
-      "when": 1790500000000,
-      "tag": "0096_guides_module",
+      "when": 1790440000000,
+      "tag": "0096_event_advertised",
       "breakpoints": true
     },
     {
       "idx": 97,
       "version": "7",
+      "when": 1790500000000,
+      "tag": "0097_guides_module",
+      "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
       "when": 1790500100000,
-      "tag": "0097_guide_library_seed",
+      "tag": "0098_guide_library_seed",
       "breakpoints": true
     }
   ]

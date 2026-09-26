@@ -8,8 +8,14 @@ import {
   eventSignups,
   events,
   memberDailyStats,
+  players,
+  settings,
   weeklyCompetitions,
+  weeklyParticipants,
 } from '@/db/schema';
+import { listedClanWhere, showcaseJoinOn } from '@/lib/clanListing';
+import { inAcceptedCohostClan, invitedToEvent } from '@/lib/eventAccess';
+import { visibilityOf } from '@/lib/eventVisibility';
 import { clansOfPerson, type MyClan } from '@/lib/myClans';
 
 export interface ClanCard extends MyClan {
@@ -38,7 +44,27 @@ export interface Character {
   clanName: string | null;
 }
 
+/** A public board in a clan the person is not in — the "Open to everyone" feed. */
+export interface DiscoverEvent {
+  eventId: number;
+  name: string;
+  clanSlug: string;
+  clanName: string;
+  clanLogoUrl: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  /** Running now, rather than starting later. */
+  live: boolean;
+  /** Its sign-up window is open — somebody from outside can ask in. */
+  takingEntries: boolean;
+}
+
 export interface ApexHomeView {
+  /**
+   * Public boards from clans they are not in, or NULL when the person has turned the feed off — the
+   * page then offers to turn it back on rather than showing nothing and explaining nothing.
+   */
+  discover: DiscoverEvent[] | null;
   clans: ClanCard[];
   /** Events across their clans that are taking entries and have not got theirs. */
   openSignups: OpenSignup[];
@@ -62,17 +88,26 @@ export async function apexHomeView(
   userId: number | null | undefined,
 ): Promise<ApexHomeView> {
   const clans = await clansOfPerson(playerId, userId);
+  const discover = await discoverEvents(playerId, clans.map((c) => c.id));
   if (clans.length === 0) {
     // Still worth listing their characters: somebody can play, be tracked, and belong nowhere.
-    return { clans: [], openSignups: [], characters: await characterList(playerId) };
+    return { discover, clans: [], openSignups: [], characters: await characterList(playerId) };
   }
 
   const ids = clans.map((c) => c.id);
   const nowIso = new Date().toISOString();
 
-  const [liveEvents, liveWeeklies, signups, chars] = await Promise.all([
+  // A GUEST SEAT IS NOT BELONGING. Somebody who took a seat in a clan to play one event holds a row
+  // on its roster, so reading "your clans" as "every clan with a row" put that clan's own boards —
+  // members-only ones included — on their home page, and offered them its sign-ups as if they were
+  // one of its members. In a clan where the person only guests, surface what an outsider may be
+  // shown: public boards, boards they were invited to (or their clan co-hosts), and whatever they
+  // actually entered.
+  const guestOnly = new Set(clans.filter((c) => c.seat === 'guest' && !c.staff).map((c) => c.id));
+
+  const [liveEventsRaw, liveWeekliesRaw, signupsRaw, chars] = await Promise.all([
     db
-      .select({ clanId: events.clanId, id: events.id, name: events.name })
+      .select({ clanId: events.clanId, id: events.id, name: events.name, visibility: events.visibility })
       .from(events)
       .where(
         and(
@@ -95,6 +130,19 @@ export async function apexHomeView(
     characterList(playerId),
   ]);
 
+  const [liveEvents, liveWeeklies, signups] = guestOnly.size
+    ? await Promise.all([
+        filterGuestEvents(playerId, liveEventsRaw, guestOnly, true),
+        filterGuestWeeklies(playerId, liveWeekliesRaw, guestOnly),
+        filterGuestEvents(
+          playerId,
+          signupsRaw.map((r) => ({ ...r, id: r.eventId })),
+          guestOnly,
+          false,
+        ),
+      ])
+    : [liveEventsRaw, liveWeekliesRaw, signupsRaw];
+
   const byClan = new Map<number, ClanCard['live']>();
   for (const e of liveEvents) {
     const list = byClan.get(e.clanId) ?? [];
@@ -108,10 +156,80 @@ export async function apexHomeView(
   }
 
   return {
+    discover,
     clans: clans.map((c) => ({ ...c, live: byClan.get(c.id) ?? [] })),
-    openSignups: signups,
+    openSignups: signups.map(({ eventId, name, format, clanSlug, clanName, deadline, startDate }) => ({
+      eventId, name, format, clanSlug, clanName, deadline, startDate,
+    })),
     characters: chars,
   };
+}
+
+/** Event ids this person has entered on any of their seats (withdrawn entries excluded). */
+async function enteredEventIds(playerId: number, eventIds: number[]): Promise<Set<number>> {
+  if (eventIds.length === 0) return new Set();
+  // clan-scope: global -- the entry sits on whichever of the person's seats they used; the events
+  // asked about are already bounded to their clans by the caller.
+  const rows = await db
+    .select({ eventId: eventSignups.eventId })
+    .from(eventSignups)
+    .innerJoin(clanMemberships, eq(clanMemberships.id, eventSignups.clanMemberId))
+    .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
+    .where(
+      and(
+        eq(accounts.playerId, playerId),
+        inArray(eventSignups.eventId, eventIds),
+        ne(eventSignups.status, 'withdrawn'),
+      ),
+    );
+  return new Set(rows.map((r) => r.eventId));
+}
+
+/**
+ * Drops, from clans where the person only guests, the events an outsider would not be shown. Events
+ * in their own clans pass untouched. `allowEntered` keeps a live board they are playing in.
+ */
+async function filterGuestEvents<T extends { id: number; clanId: number; visibility: string | null }>(
+  playerId: number | null | undefined,
+  rows: T[],
+  guestOnly: Set<number>,
+  allowEntered: boolean,
+): Promise<T[]> {
+  const guestRows = rows.filter((r) => guestOnly.has(r.clanId));
+  if (guestRows.length === 0 || playerId == null) return rows;
+
+  const entered = allowEntered ? await enteredEventIds(playerId, guestRows.map((r) => r.id)) : new Set<number>();
+  const keep = new Set<number>();
+  for (const r of guestRows) {
+    if (visibilityOf(r.visibility) === 'public' || entered.has(r.id)) keep.add(r.id);
+    else if ((await invitedToEvent(r.id, playerId)) || (await inAcceptedCohostClan(r.id, playerId))) keep.add(r.id);
+  }
+  return rows.filter((r) => !guestOnly.has(r.clanId) || keep.has(r.id));
+}
+
+/** A clan's weekly is its roster's; a guest sees one only when they are actually in it. */
+async function filterGuestWeeklies<T extends { id: number; clanId: number }>(
+  playerId: number | null | undefined,
+  rows: T[],
+  guestOnly: Set<number>,
+): Promise<T[]> {
+  const guestRows = rows.filter((r) => guestOnly.has(r.clanId));
+  if (guestRows.length === 0 || playerId == null) return rows.filter((r) => !guestOnly.has(r.clanId));
+  // clan-scope: global -- the person's own participation, across their seats; the competitions are
+  // already bounded to their clans by the caller.
+  const mine = await db
+    .select({ competitionId: weeklyParticipants.competitionId })
+    .from(weeklyParticipants)
+    .innerJoin(clanMemberships, eq(clanMemberships.id, weeklyParticipants.clanMemberId))
+    .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
+    .where(
+      and(
+        eq(accounts.playerId, playerId),
+        inArray(weeklyParticipants.competitionId, guestRows.map((r) => r.id)),
+      ),
+    );
+  const inIt = new Set(mine.map((m) => m.competitionId));
+  return rows.filter((r) => !guestOnly.has(r.clanId) || inIt.has(r.id));
 }
 
 /**
@@ -129,16 +247,15 @@ export async function apexHomeView(
  * Withdrawn sign-ups deliberately come back: withdrawing is not the same as declining forever, and
  * while the window is open they can change their mind.
  *
- * NO VISIBILITY FILTER, and that is not an oversight. `clanIds` is the person's own clans — every
- * one of them is somewhere they hold a seat or a grant — and `canSeeEvent` grants the host clan's
- * own people sight of every event it runs, whatever the visibility says. An `invited` event in a
- * clan you belong to is already yours to see. Adding a redundant filter here would suggest the
- * opposite rule applies and invite somebody to "fix" it in the wrong direction.
+ * NO VISIBILITY FILTER HERE, for the person's own clans: `canSeeEvent` grants a clan's own people
+ * sight of every event it runs. A clan where they only hold a GUEST seat is not theirs in that
+ * sense, and apexHomeView filters those rows afterwards (filterGuestEvents) — visibility, invites
+ * and co-hosting decide there, the way they would for any outsider.
  */
 export async function openSignups(
   playerId: number | null | undefined,
   clanIds: number[],
-): Promise<OpenSignup[]> {
+): Promise<(OpenSignup & { clanId: number; visibility: string | null })[]> {
   if (playerId == null || clanIds.length === 0) return [];
   const nowIso = new Date().toISOString();
 
@@ -171,6 +288,8 @@ export async function openSignups(
       clanName: clans.name,
       deadline: events.signupDeadline,
       startDate: events.startDate,
+      clanId: events.clanId,
+      visibility: events.visibility,
     })
     .from(events)
     .innerJoin(clans, eq(clans.id, events.clanId))
@@ -297,4 +416,84 @@ export async function clansWithSomethingLive(clanIds: number[]): Promise<Set<num
   ]);
 
   return new Set([...ev, ...wk].map((r) => r.clanId));
+}
+
+/**
+ * Public boards across the platform, from clans this person is NOT in — "Open to everyone".
+ *
+ * THE HOST'S CONSENTS, ALL REQUIRED. The board is `public` (anyone may look), the host ticked
+ * `advertised` (point strangers at it — readable by link is not the same as asking for traffic), and
+ * its clan is LISTED (public, and not opted out of the showcase — lib/clanListing). And the person's
+ * own switch, `players.discover_events`: on by default, null here when off.
+ *
+ * Their own clans are excluded — including ones they only guest in — because those already have
+ * their own sections above; this is for finding something new. Live and upcoming only, never a
+ * draft, never one they have already entered.
+ */
+export async function discoverEvents(
+  playerId: number | null | undefined,
+  ownClanIds: number[],
+  limit = 6,
+): Promise<DiscoverEvent[] | null> {
+  if (playerId != null) {
+    const me = await db.query.players.findFirst({ where: eq(players.id, playerId), columns: { discoverEvents: true } });
+    if (me && !me.discoverEvents) return null;
+  }
+  const nowIso = new Date().toISOString();
+
+  // clan-scope: global -- the platform-wide feed of advertised boards; both consents are in the WHERE.
+  const rows = await db
+    .select({
+      eventId: events.id,
+      name: events.name,
+      clanSlug: clans.slug,
+      clanName: clans.name,
+      clanLogoUrl: clans.logoUrl,
+      startDate: events.startDate,
+      endDate: events.endDate,
+      signupDeadline: events.signupDeadline,
+      signupOpensAt: events.signupOpensAt,
+    })
+    .from(events)
+    .innerJoin(clans, eq(clans.id, events.clanId))
+    .leftJoin(settings, showcaseJoinOn())
+    .where(
+      and(
+        listedClanWhere(),
+        eq(events.visibility, 'public'),
+        eq(events.advertised, true),
+        isNull(events.forceEndedAt),
+        // A board with no start is a draft; one whose end has passed is over.
+        sql`${events.startDate} is not null`,
+        or(isNull(events.endDate), gt(events.endDate, nowIso)),
+        ownClanIds.length ? notInArray(events.clanId, ownClanIds) : sql`true`,
+      ),
+    )
+    .orderBy(asc(events.startDate))
+    .limit(limit * 3);
+
+  const entered = playerId != null ? await enteredEventIds(playerId, rows.map((r) => r.eventId)) : new Set<number>();
+  return rows
+    .filter((r) => !entered.has(r.eventId))
+    .map((r) => {
+      const live = !!r.startDate && r.startDate <= nowIso;
+      return {
+        eventId: r.eventId,
+        name: r.name,
+        clanSlug: r.clanSlug,
+        clanName: r.clanName,
+        clanLogoUrl: r.clanLogoUrl,
+        startDate: r.startDate,
+        endDate: r.endDate,
+        live,
+        // Same window as openSignups: closes on start, respects deadline and opening time.
+        takingEntries:
+          !live &&
+          (!r.signupDeadline || r.signupDeadline > nowIso) &&
+          (!r.signupOpensAt || r.signupOpensAt <= nowIso),
+      };
+    })
+    // Taking entries first — that is the one a player can act on — then soonest.
+    .sort((a, b) => Number(b.takingEntries) - Number(a.takingEntries))
+    .slice(0, limit);
 }

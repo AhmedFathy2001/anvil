@@ -10,6 +10,7 @@ import { eventTimeState } from '@/lib/eventTime';
 import { requireSecret } from '@/lib/env';
 import {
   buildSchedule,
+  pluginScheduleViewer,
   getActiveWeekly,
   getActiveWeeklyMetrics,
   getNotificationWebhooks,
@@ -244,7 +245,7 @@ export async function GET(request: Request) {
       // panel shows the schedule even when the player isn't enrolled anywhere.
       const [schedule, activeWeekly, weeklyNames, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, dropRarityFloor, facts, unlinkedActiveEvent, homeBoard, switchableClans] =
         await Promise.all([
-          buildSchedule(clan.id, { member: true }),
+          pluginScheduleViewer(clan.id, userOnly.userId).then((v) => buildSchedule(clan.id, v)),
           getActiveWeekly(clan.id),
           weeklyTrackedNames(clan.id),
           getNotificationWebhooks(clan.id),
@@ -619,7 +620,7 @@ export async function GET(request: Request) {
   // webhooks and fun-death pool the plugin posts with directly.
   const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, dropRarityFloor, tiers, facts] =
     await Promise.all([
-      buildSchedule(clan.id, { member: true }),
+      pluginScheduleViewer(clan.id, auth.userId).then((v) => buildSchedule(clan.id, v)),
       getActiveWeekly(clan.id),
       getNotificationWebhooks(clan.id),
       getFunDeathMessages(clan.id),

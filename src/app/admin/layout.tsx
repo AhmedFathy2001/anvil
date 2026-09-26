@@ -13,6 +13,7 @@ import AdminSidebar, { type SidebarGroup } from './_components/AdminSidebar';
 import { getSetupStatus } from '@/lib/setupStatus';
 import { pendingClaimRequests } from '@/lib/claimRequests';
 import { pendingUpdateCount } from '@/lib/guides';
+import { coHostedBoardLinks } from '@/lib/coHost';
 
 // Admin shell — wraps every page under /admin (including the login page).
 // On the login page there's no session yet, so the sidebar is skipped and the
@@ -92,12 +93,25 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // An authoring grant without a tier: their whole world is the boards they hold. Give them ONLY
   // "My boards"; no dashboard, weekly, clan or schedule. The path gate above already enforced it.
   const isScopedEditor = !isStaffRole(session.role) && session.canEditTiles;
+
+  // Boards on other clans this one co-hosts. They live at the host's address, so nothing under this
+  // clan's admin reached them — and a moderator, who cannot open the events list, had no way at all.
+  // Linked straight across: to the host's Tiles tab when they may author it, else to the board.
+  const cohosted = await coHostedBoardLinks(clan.id, session.userId, isScopedEditor);
+  const cohostedGroup: SidebarGroup | null = cohosted.length
+    ? {
+        label: 'Co-hosted',
+        items: cohosted.map((b) => ({ href: b.href, label: b.name, icon: '🤝' })),
+      }
+    : null;
+
   if (isScopedEditor) {
     const scopedGroups: SidebarGroup[] = [
       {
         label: 'Events',
         items: [{ href: '/admin/events', label: 'My boards', icon: '🎯', matchPrefix: true }],
       },
+      ...(cohostedGroup ? [cohostedGroup] : []),
     ];
     const scopedUser = {
       displayName: userRow?.displayName ?? session.username ?? 'Editor',
@@ -159,6 +173,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       ...(canManageEvents ? [{ href: '/admin/tile-library', label: 'Task library', icon: '📚' }] : []),
     ],
   });
+
+  if (cohostedGroup) groups.push(cohostedGroup);
 
   // TWO NOUNS, TWO ENTRIES. This was one item called "Members & staff" holding six tabs that spanned
   // the people (roster, review queue, staff seats) AND the clan itself (public face, access, wiring,

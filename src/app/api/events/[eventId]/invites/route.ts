@@ -52,12 +52,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
   return NextResponse.json({
     visibility: event.visibility,
     entry: event.entry,
+    advertised: event.advertised,
     guestPolicy: hostClan?.guestPolicy ?? null,
     invites: rows,
   });
 }
 
-/** Change visibility/entry, or add an invite. */
+/** Change visibility/entry/advertised, or add an invite. */
 export async function POST(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const session = await verifyUser();
   if (!session || !atLeast(session.role, 'admin')) {
@@ -72,7 +73,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
   if (!body) return NextResponse.json({ error: 'Bad body' }, { status: 400 });
 
   // ── Settings ──────────────────────────────────────────────────────────────────────────────
-  if ('visibility' in body || 'entry' in body) {
+  if ('visibility' in body || 'entry' in body || 'advertised' in body) {
     const patch: Partial<typeof events.$inferInsert> = {};
     if ('visibility' in body) {
       if (!isVisibility(body.visibility)) return NextResponse.json({ error: 'Bad visibility' }, { status: 400 });
@@ -81,6 +82,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
     if ('entry' in body) {
       if (!isEntry(body.entry)) return NextResponse.json({ error: 'Bad entry' }, { status: 400 });
       patch.entry = body.entry;
+    }
+    if ('advertised' in body) {
+      if (typeof body.advertised !== 'boolean') return NextResponse.json({ error: 'Bad advertised' }, { status: 400 });
+      patch.advertised = body.advertised;
     }
     await db.update(events).set(patch).where(eq(events.id, eventId));
     return NextResponse.json({ ok: true, ...patch });

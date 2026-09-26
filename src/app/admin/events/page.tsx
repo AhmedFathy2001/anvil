@@ -2,7 +2,8 @@ import { db } from '@/db';
 import { events, teams, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { count, desc, eq } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
-import { assignedEventIdsForUser } from '@/lib/eventEditors';
+import { assignedEventIdsForUser, cohostBoardEventIds } from '@/lib/eventEditors';
+import { coHostedBoardLinks } from '@/lib/coHost';
 import { eventTileCount } from '@/lib/utils';
 import {
   getAttentionItems,
@@ -27,13 +28,22 @@ export default async function AdminEventsPage() {
   // A board treasurer is scoped the same way, by their treasurer grants rather than editor ones.
   const isBoardTreasurer = session?.role === 'treasurer' && session.treasurerScope === 'assigned';
   const scoped = isScopedEditor || isBoardTreasurer;
-  const assignedIds = scoped
-    ? new Set(await assignedEventIdsForUser(session!.userId, isScopedEditor ? 'editor' : 'treasurer'))
-    : null;
-
   // THIS CLAN'S boards and weeks. Both reads were unscoped, so the events list — the main admin
   // screen — showed every clan on the deployment their neighbours' events, names and dates included.
   const clan = await requireClan();
+
+  // A scoped editor's boards here: their explicit grants, plus any board a co-host clan they staff
+  // was let onto (lib/eventEditors.cohostBoardEventIds) — which holds no grant row to find.
+  const assignedIds = scoped
+    ? new Set([
+        ...(await assignedEventIdsForUser(session!.userId, isScopedEditor ? 'editor' : 'treasurer')),
+        ...(isScopedEditor ? await cohostBoardEventIds(session!.userId, { hostClanId: clan.id }) : []),
+      ])
+    : null;
+
+  // Boards on OTHER clans that this one co-hosts. They live at the host's address, so they are
+  // listed here and linked across rather than being rows of this clan's own.
+  const cohosted = session ? await coHostedBoardLinks(clan.id, session.userId, scoped) : [];
   const [allEventsRaw, allWeeklyRaw] = await Promise.all([
     db.select().from(events).where(eq(events.clanId, clan.id)).orderBy(desc(events.createdAt)),
     scoped
@@ -190,6 +200,7 @@ export default async function AdminEventsPage() {
       pastResults={Object.fromEntries(pastResults)}
       pastWeekly={Object.fromEntries(pastWeekly)}
       attention={attention}
+      cohosted={cohosted}
     />
   );
 }

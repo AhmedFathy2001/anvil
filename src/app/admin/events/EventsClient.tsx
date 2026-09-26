@@ -6,6 +6,7 @@ import LocalTime from '@/components/LocalTime';
 import { eventTileCount, eventShapeBadge } from '@/lib/utils';
 import { formatGp, formatWeeklyGain, SPARK_DAYS } from '@/lib/adminEventsFormat';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
+import type { CoHostedBoardLink } from '@/lib/coHost';
 import ClanLink from '@/components/ClanLink';
 import { useDialog } from '@/components/Confirm';
 import type {
@@ -57,6 +58,8 @@ interface Props {
   pastResults: Record<number, PastEventResult>;
   pastWeekly: Record<number, { winner: string | null; gained: number | null; players: number }>;
   attention: AttentionItem[];
+  /** Boards on other clans this clan co-hosts — linked across to the host. */
+  cohosted?: CoHostedBoardLink[];
 }
 
 export default function EventsClient({
@@ -69,6 +72,7 @@ export default function EventsClient({
   pastResults,
   pastWeekly,
   attention,
+  cohosted = [],
 }: Props) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -156,6 +160,51 @@ export default function EventsClient({
           </ClanLink>
         )}
       </header>
+
+      {cohosted.length > 0 && (
+        <section className="mb-8">
+          <SectionHead color="bg-blue-400" title="Co-hosted with other clans">
+            <span className="text-xs text-text-muted/60 font-normal">run from the host&apos;s admin</span>
+          </SectionHead>
+          <div className="grid gap-2">
+            {cohosted.map((b) => (
+              <ClanLink
+                key={b.eventId}
+                href={b.href}
+                className="flex items-center justify-between gap-3 border border-card-border rounded-xl bg-card-bg px-4 py-3 hover:border-gold/40 transition-colors"
+              >
+                <div className="min-w-0">
+                  <div className="font-medium truncate">{b.name}</div>
+                  <div className="text-xs text-text-muted">
+                    Hosted by {b.hostName}
+                    {b.startDate && (
+                      <>
+                        {' · starts '}
+                        <LocalTime date={b.startDate} format="date" />
+                      </>
+                    )}
+                  </div>
+                </div>
+                <span
+                  className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full border ${
+                    b.canAuthor
+                      ? 'border-gold/40 text-gold bg-gold/10'
+                      : 'border-card-border text-text-muted'
+                  }`}
+                >
+                  {b.canAuthor ? 'Edit board →' : 'View board →'}
+                </span>
+              </ClanLink>
+            ))}
+          </div>
+          {cohosted.some((b) => !b.canAuthor) && (
+            <p className="text-xs text-text-muted mt-2">
+              Editing a co-hosted board is the host&apos;s call — they can let your staff in from the
+              board&apos;s Teams tab.
+            </p>
+          )}
+        </section>
+      )}
 
       {running.length > 0 && (
         <section className="mb-8">

@@ -232,6 +232,11 @@ export const players = pgTable('players', {
    * without their owner wanting them connected. Sharing two accounts used to imply this silently.
    */
   linkAccountsPublicly: boolean('link_accounts_publicly').notNull().default(false),
+  /**
+   * Show public boards from OTHER clans on their apex home ("Open to everyone"). On by default — it
+   * is how a player finds a challenge outside their own clans — and one click to turn off there.
+   */
+  discoverEvents: boolean('discover_events').notNull().default(true),
   // PLATFORM ban — barred everywhere. A clan barring someone is clan_bans, a different thing
   // entirely; a clan admin must be structurally unable to reach this.
   banned: boolean('banned').notNull().default(false),
@@ -416,6 +421,10 @@ export const events = pgTable('events', {
   //   open     — sign up and you are in (default, and what every existing event does)
   //   approval — the host says yes first
   entry: text('entry').notNull().default('open'),
+  // Advertise this board on the apex home's "Open to everyone" feed. SEPARATE from visibility: a
+  // public board is readable by link; this is the host also asking for strangers to be pointed at
+  // it. Only honoured while the board is public and its clan is listed (lib/apexHome). Off by default.
+  advertised: boolean('advertised').notNull().default(false),
   // HOW TEAMS FORM, when more than one clan is on the board.
   //   'draft'    — one pool of everybody from every invited clan, captains pick across them. The
   //                only shape that existed before, and the right one for a social cross-clan event.
@@ -1378,6 +1387,10 @@ export const eventCohosts = pgTable('event_cohosts', {
   teamId: integer('team_id').references(() => teams.id, { onDelete: 'set null' }),
   invitedByUserId: integer('invited_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   acceptedByUserId: integer('accepted_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  // The host lets this clan's staff (moderator and up, or anyone holding authoring there) work on the
+  // board with them — author tiles, from the host's admin. Off by default: on a clan-v-clan board the
+  // other side editing the tiles is a fairness question only the host can answer.
+  staffCanEditBoard: boolean('staff_can_edit_board').notNull().default(false),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
   decidedAt: text('decided_at'),
 }, (table) => [
