@@ -322,16 +322,15 @@ export default async function ProfilePage({
               </span>
             </div>
 
-            {/* WHAT "SHARE" MEANS HERE, because next to these it reads as a contradiction: the
-                switch is off, and yet the clan you are looking at plainly sees the account. It does,
-                and not because of this switch — these hold a seat on its roster, and a clan can
-                always see its own roster. `accounts.shared` is about the clans you are NOT in. The
-                other list below already explains itself; this one never did. */}
+            {/* WHAT THE SWITCH ON THESE ROWS IS FOR, because beside a roster it reads as the wrong
+                question. These hold a seat here, and a clan can always see its own roster — the
+                switch cannot change that and never could. It is the PLATFORM's question: whether the
+                character appears on its own profile and the cross-clan boards. */}
             {locker.accounts.length > 0 && (
               <p className="mb-3 text-[12.5px] text-text-muted">
-                On this clan&rsquo;s roster, so it can see these whatever you choose. Turning on{' '}
-                <span className="text-foreground/80">Share</span> lets clans you are{' '}
-                <span className="text-foreground/80">not</span> in see them too.
+                On this clan&rsquo;s roster, so it sees these whatever you choose.{' '}
+                <span className="text-foreground/80">Public on Anvil</span> is the other question:
+                whether the character shows on its own profile and the cross-clan boards.
               </p>
             )}
 
@@ -364,7 +363,11 @@ export default async function ProfilePage({
                 reachable — the accounts a person most wants to publish or hold back are exactly the
                 ones the clan they're looking at cannot see. */}
             {locker.otherAccounts.length > 0 && (
-              <OtherAccountsClient accounts={locker.otherAccounts} />
+              <OtherAccountsClient
+                accounts={locker.otherAccounts}
+                clanName={clan?.name ?? 'This clan'}
+                clanSlug={clan?.slug ?? null}
+              />
             )}
           </section>
         </div>

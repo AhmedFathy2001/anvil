@@ -162,11 +162,19 @@ test('a clanless account routes to NO clan — not to whichever one addressed it
   assert.deepEqual(await R.socialEmissionClans(acct.id), [], 'no seats anywhere means no destinations');
 });
 
-test('an UNSHARED account announces to its member clan only', async () => {
+test('a character announces where it holds a seat — being private on Anvil is a different question', async () => {
+  // THIS USED TO READ "an UNSHARED account announces to its member clan only", and the guest clan was
+  // excluded because `shared` was false. That flag now means "public on Anvil" — its own profile, the
+  // cross-clan boards — and says nothing about which clans hear your drops. What answers here is the
+  // seat: this character guests in A, and the person has not silenced guest clans, so A hears it.
+  //
+  // The levers that matter are all still in front of the person: block guest emissions (ON by
+  // default), a per-clan off, and the receiving clan's own veto. Each has its own test below.
   await clearOverrides();
   const targets = await R.socialEmissionClans(unsharedAccount);
-  assert.deepEqual(clanIds(targets), [clanMember]);
-  assert.equal(targets[0].kind, 'member');
+  assert.deepEqual(clanIds(targets), [clanMember, clanGuestA].sort((a, b) => a - b));
+  assert.equal(targets.find((t) => t.clanId === clanMember)!.kind, 'member');
+  assert.equal(targets.find((t) => t.clanId === clanGuestA)!.kind, 'guest');
 });
 
 // ── Per-clan silence ──────────────────────────────────────────────────────────────────────────

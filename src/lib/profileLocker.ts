@@ -1,5 +1,20 @@
 import { db } from '@/db';
-import { accounts as accountsTable, clanRoster, completions, events, eventSignups, memberDailyStats, playerEventFacts, eventParticipants, submissions, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import {
+  accounts as accountsTable,
+  clanJoinRequests,
+  clanRoster,
+  completions,
+  eventParticipants,
+  eventSignups,
+  events,
+  memberDailyStats,
+  playerEventFacts,
+  submissions,
+  teams,
+  tiles,
+  weeklyCompetitions,
+  weeklyParticipants,
+} from '@/db/schema';
 import { and, desc, eq, gte, inArray, isNull, or } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
 import { getSetting } from '@/lib/settings';
@@ -44,7 +59,12 @@ const STREAK_WINDOW_DAYS = 140;
 export interface LockerOtherAccount {
   accountId: number;
   rsn: string;
+  /** Public on Anvil: its own profile and the cross-clan boards. Nothing to do with this clan. */
   shared: boolean;
+  /** Verified characters are the only ones a clan's door will consider. */
+  verified: boolean;
+  /** Already waiting on this clan's moderators for a guest seat with this character. */
+  guestRequestPending: boolean;
 }
 
 export interface LockerAccount {
@@ -328,7 +348,14 @@ export async function buildLocker(
   // Sharing state for every account they own, in one read. Keyed by account id because that is what
   // sharing is set on — a seat id is per clan, and the same account has a different one in each.
   const allOwnedAccounts = await db
-    .select({ id: accountsTable.id, rsn: accountsTable.rsn, shared: accountsTable.shared, isPrimary: accountsTable.isPrimary })
+    .select({
+      id: accountsTable.id,
+      rsn: accountsTable.rsn,
+      shared: accountsTable.shared,
+      isPrimary: accountsTable.isPrimary,
+      // Only a verified character can be offered to a clan's door — see the guest offer below.
+      verifiedAt: accountsTable.verifiedAt,
+    })
     .from(accountsTable)
     .where(eq(accountsTable.playerId, playerId));
   const sharedByAccount = new Map(allOwnedAccounts.map((a) => [a.id, a.shared === true]));
@@ -356,10 +383,36 @@ export async function buildLocker(
   //
   // Safe to widen here and nowhere else: this page is the person looking at themselves.
   const seatedAccountIds = new Set(memberRows.map((m) => m.accountId));
-  const otherAccounts: LockerOtherAccount[] = allOwnedAccounts
+  const unseated = allOwnedAccounts
     .filter((a) => !seatedAccountIds.has(a.id))
-    .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary) || a.rsn.localeCompare(b.rsn))
-    .map((a) => ({ accountId: a.id, rsn: a.rsn, shared: a.shared === true }));
+    .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary) || a.rsn.localeCompare(b.rsn));
+
+  // Which of them are already waiting at this clan's door, so the list can say "asked" instead of
+  // offering the same button twice — asking again is a no-op in lib/guestAdmission either way.
+  const pendingGuestAccountIds = new Set(
+    unseated.length === 0
+      ? []
+      : (
+          await db
+            .select({ accountId: clanJoinRequests.accountId })
+            .from(clanJoinRequests)
+            .where(
+              and(
+                eq(clanJoinRequests.clanId, clanId),
+                eq(clanJoinRequests.status, 'pending'),
+                inArray(clanJoinRequests.accountId, unseated.map((a) => a.id)),
+              ),
+            )
+        ).map((r) => r.accountId),
+  );
+
+  const otherAccounts: LockerOtherAccount[] = unseated.map((a) => ({
+    accountId: a.id,
+    rsn: a.rsn,
+    shared: a.shared === true,
+    verified: a.verifiedAt != null,
+    guestRequestPending: pendingGuestAccountIds.has(a.id),
+  }));
 
   // ── Live events: the team's board, and this member's share of it ──────────────────────────────
   // A host still building an event has no start date and it isn't public yet — being drafted into

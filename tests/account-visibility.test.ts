@@ -99,50 +99,63 @@ test('a clan holding neither sees nothing at all', async () => {
   assert.deepEqual(await accountsVisibleToClan(stranger.id, person), []);
 });
 
-test('sharing an account makes it visible to a clan it is not in', async () => {
+test('publishing a character does NOT show it to a clan it is not in', async () => {
+  // THE RULE CHANGED HERE, and this is the test that used to assert the opposite. `shared` meant
+  // "any clan may see this", which no clan surface ever honoured — and it conflated being public on
+  // the platform with being known to a particular clan. A clan sees what it holds a seat for; being
+  // seen by one is now the same act as guesting with it.
   const { db, schema: s } = await loadDb();
   await db.update(s.accounts).set({ shared: true }).where(eq(s.accounts.id, hermitId));
 
   const seen = await accountsVisibleToClan(alpha, person);
-  assert.deepEqual(seen.map((a) => a.rsn).sort(), ['The Hermit', 'The Main']);
+  assert.deepEqual(seen.map((a) => a.rsn), ['The Main'], 'still only the seat');
 });
 
-test('and says WHY it is visible, since those mean different things', async () => {
-  // A clan looking at a guest wants to distinguish "on our roster" from "they published this".
-  const seen = await accountsVisibleToClan(alpha, person);
-  const main = seen.find((a) => a.rsn === 'The Main')!;
-  const hermit = seen.find((a) => a.rsn === 'The Hermit')!;
-  assert.equal(main.viaSharing, false, 'seated here');
-  assert.equal(hermit.viaSharing, true, 'shared, not seated');
-});
-
-test('unsharing takes it back', async () => {
+test('offering it as a guest is what makes it visible', async () => {
   const { db, schema: s } = await loadDb();
-  await db.update(s.accounts).set({ shared: false }).where(eq(s.accounts.id, hermitId));
-  assert.deepEqual((await accountsVisibleToClan(alpha, person)).map((a) => a.rsn), ['The Main']);
+  const { admit } = await import('../src/lib/guestAdmission.ts');
+  // An open door, so the offer is answered on the spot.
+  await db.update(s.clans).set({ guestPolicy: 'open' }).where(eq(s.clans.id, alpha));
+
+  const outcome = await admit({ clanId: alpha, accountId: hermitId, source: 'web' });
+  assert.equal(outcome.outcome, 'seated');
+  assert.deepEqual(
+    (await accountsVisibleToClan(alpha, person)).map((a) => a.rsn).sort(),
+    ['The Hermit', 'The Main'],
+    'a seat is what a clan can see',
+  );
 });
 
-test('sharing is ON by default — this is a cross-clan record', async () => {
-  // Flipped in drizzle/0080. Off, the leaderboards and the clan directory could only describe a
-  // person through whichever clan you happened to be looking at, which is the silo one site was
-  // meant to end. An OSRS name is public anyway. Privacy is still one click, per character.
+test('and taking the seat away takes the visibility with it', async () => {
+  const { db, schema: s } = await loadDb();
+  const { leaveClan } = await import('../src/lib/guestAdmission.ts');
+  const seat = await db.query.clanMemberships.findFirst({
+    where: and(eq(s.clanMemberships.clanId, alpha), eq(s.clanMemberships.accountId, hermitId)),
+  });
+  assert.ok(await leaveClan(seat!.id, person), 'their own seat, theirs to end');
+
+  // A DEPARTED seat still counts — see the next test for why — so the row is removed outright here,
+  // which is what a clan that never admitted them looks like.
+  await db.delete(s.clanMemberships).where(eq(s.clanMemberships.id, seat!.id));
+  assert.deepEqual((await accountsVisibleToClan(alpha, person)).map((a) => a.rsn), ['The Main']);
+  await db.update(s.accounts).set({ shared: false }).where(eq(s.accounts.id, hermitId));
+  await db.update(s.clans).set({ guestPolicy: 'approval' }).where(eq(s.clans.id, alpha));
+});
+
+test('public on Anvil is ON by default, and says nothing about any clan', async () => {
+  // Flipped in drizzle/0080, and it is still the right default: an OSRS name is public anyway, and
+  // the cross-clan boards would otherwise describe a person through whichever clan you were
+  // standing in. What changed is its SCOPE — it is the platform's answer, not a clan's.
   const { db, schema: s } = await loadDb();
   const [fresh] = await db
     .insert(s.accounts)
     .values({ playerId: person, rsn: 'Brand New', rsnNormalized: 'brand new' })
     .returning();
-  assert.equal(fresh.shared, true);
-  assert.equal(
-    (await accountsVisibleToClan(alpha, person)).some((a) => a.rsn === 'Brand New'),
-    true,
-    'a clan with no seat for it can see a shared character',
-  );
-
-  // And turning it off still takes it back — the rule did not change, only its default answer.
-  await db.update(s.accounts).set({ shared: false }).where(eq(s.accounts.id, fresh.id));
+  assert.equal(fresh.shared, true, 'public by default');
   assert.equal(
     (await accountsVisibleToClan(alpha, person)).some((a) => a.rsn === 'Brand New'),
     false,
+    'and still invisible to a clan that holds no seat for it',
   );
   await db.delete(s.accounts).where(eq(s.accounts.id, fresh.id));
 });
@@ -162,21 +175,20 @@ test('a departed seat still counts — a clan does not un-learn an RSN', async (
 });
 
 test('the hidden count is honest about there being more', async () => {
-  // Telling a clan "3 others, not shared" is fair; hiding that the count exists would be a
-  // different and worse lie to someone deciding whether to admit a guest.
+  // Telling a clan "2 others" is fair; hiding that the count exists would be a different and worse
+  // lie to somebody deciding whether to admit a guest.
   assert.equal(await hiddenAccountCount(alpha, person), 2, 'the alt and the hermit');
   assert.equal(await hiddenAccountCount(bravo, person), 2, 'the main and the hermit');
 });
 
-test('sharing is per account, not per person', async () => {
-  // "My main is public, my ironman is nobody's business" is the actual want, and a person-level
-  // flag could not say it.
+test('public is per character, not per person', async () => {
+  // "My main is public, my ironman is nobody's business" is the actual want, and a person-level flag
+  // could not say it. It governs the public pages; neither answer moves a clan's roster.
   const { db, schema: s } = await loadDb();
   await db.update(s.accounts).set({ shared: true }).where(eq(s.accounts.id, mainId));
 
   const fromBravo = await accountsVisibleToClan(bravo, person);
-  assert.deepEqual(fromBravo.map((a) => a.rsn).sort(), ['The Alt', 'The Main']);
-  assert.equal(fromBravo.some((a) => a.rsn === 'The Hermit'), false, 'the ironman stays private');
+  assert.deepEqual(fromBravo.map((a) => a.rsn), ['The Alt'], 'bravo still sees only its own seat');
 
   await db.update(s.accounts).set({ shared: false }).where(eq(s.accounts.id, mainId));
 });
@@ -307,23 +319,22 @@ test('an unshared account is invisible to a clan even while its owner sees it li
   );
 });
 
-// ── The rule reaching a clan surface ─────────────────────────────────────────
+// ── The rule on a clan surface ───────────────────────────────────────────────
 //
-// For a long time it reached none. The module was written, tested, and imported by nothing at all —
-// so a person could tick Share, be told their character was published, and have every clan screen go
-// on showing only its own seats. These two hold the wiring down: the persona card on a member's
-// profile is where a clan learns who else somebody is, and it is the surface Share now feeds.
+// The persona card on a member's profile is where a clan learns who else somebody is, so it is the
+// surface that shows what the rule decided. It briefly listed published characters — that was the
+// "seat OR shared" rule, and it is gone.
 
-test('before anything is published, a member with one seat here has no persona', async () => {
+test('a member with one seat here has no persona — a persona of one is the page you are on', async () => {
   const { getPersona } = await import('../src/lib/memberProfile.ts');
   const { db, schema: s } = await loadDb();
   const seat = await db.query.clanMemberships.findFirst({
     where: and(eq(s.clanMemberships.clanId, alpha), eq(s.clanMemberships.accountId, mainId)),
   });
-  assert.equal(await getPersona(seat!.id), null, 'a persona of one is the page you are on');
+  assert.equal(await getPersona(seat!.id), null);
 });
 
-test('publishing a character shows it to a clan that holds no seat for it', async () => {
+test('publishing a character does not put it on the card', async () => {
   const { getPersona } = await import('../src/lib/memberProfile.ts');
   const { db, schema: s } = await loadDb();
   await db.update(s.accounts).set({ shared: true }).where(eq(s.accounts.id, hermitId));
@@ -331,22 +342,49 @@ test('publishing a character shows it to a clan that holds no seat for it', asyn
   const seat = await db.query.clanMemberships.findFirst({
     where: and(eq(s.clanMemberships.clanId, alpha), eq(s.clanMemberships.accountId, mainId)),
   });
+  assert.equal(await getPersona(seat!.id), null, 'public on Anvil is not a seat here');
+});
+
+test('guesting with it does', async () => {
+  const { getPersona } = await import('../src/lib/memberProfile.ts');
+  const { admit } = await import('../src/lib/guestAdmission.ts');
+  const { db, schema: s } = await loadDb();
+  await db.update(s.clans).set({ guestPolicy: 'open' }).where(eq(s.clans.id, alpha));
+  await admit({ clanId: alpha, accountId: hermitId, source: 'web' });
+
+  const seat = await db.query.clanMemberships.findFirst({
+    where: and(eq(s.clanMemberships.clanId, alpha), eq(s.clanMemberships.accountId, mainId)),
+  });
   const persona = await getPersona(seat!.id);
-  assert.ok(persona, 'the card appears now there is something to say');
+  assert.ok(persona, 'two seats here now, so there is something to say');
+  assert.deepEqual(persona!.accounts.map((a) => a.rsn).sort(), ['The Hermit', 'The Main']);
+  // Every row on the card is a seat in THIS clan, which is what its numbers are keyed by.
+  assert.ok(persona!.accounts.every((a) => typeof a.id === 'number'));
+});
 
-  const hermit = persona!.accounts.find((a) => a.rsn === 'The Hermit');
-  assert.ok(hermit, 'the published character is named');
-  assert.equal(hermit!.viaSharing, true, 'and marked as published rather than seated');
-  assert.equal(hermit!.id, null, 'with no seat here, so nothing links into this clan');
+test('the locker says which characters are already waiting at this clan’s door', async () => {
+  // So the row can say "asked" instead of offering the same button a second time. The door itself
+  // is idempotent either way (lib/guestAdmission), but a button that looks unpressed is a lie about
+  // what you already did.
+  const { buildLocker } = await import('../src/lib/profileLocker.ts');
+  const { admit } = await import('../src/lib/guestAdmission.ts');
+  const { db, schema: s } = await loadDb();
+  await db.update(s.clans).set({ guestPolicy: 'approval' }).where(eq(s.clans.id, bravo));
+  const loginId = (await db.query.users.findFirst({ where: eq(s.users.playerId, person) }))!.id;
 
-  // The alt seated in the OTHER clan and never published stays where it belongs.
+  const before = await buildLocker(bravo, person, loginId);
+  const hermitBefore = before.otherAccounts.find((a) => a.rsn === 'The Hermit');
+  assert.equal(hermitBefore?.guestRequestPending, false, 'nothing asked yet');
+
+  const outcome = await admit({ clanId: bravo, accountId: hermitId, source: 'web' });
+  assert.equal(outcome.outcome, 'requested', 'an approval door files a request');
+
+  const after = await buildLocker(bravo, person, loginId);
+  const hermitAfter = after.otherAccounts.find((a) => a.rsn === 'The Hermit');
+  assert.equal(hermitAfter?.guestRequestPending, true);
+  // Still not visible to bravo: a request is not a seat, and only the seat is the answer.
   assert.equal(
-    persona!.accounts.some((a) => a.rsn === 'The Alt'),
+    (await accountsVisibleToClan(bravo, person)).some((a) => a.rsn === 'The Hermit'),
     false,
-    'bravo’s business is still bravo’s',
   );
-
-  // Its numbers were earned elsewhere and are not claimed for this clan.
-  assert.equal(hermit!.ehp, null);
-  assert.equal(persona!.totalEhp, persona!.accounts.filter((a) => !a.viaSharing).reduce((n, a) => n + (a.ehp ?? 0), 0));
 });

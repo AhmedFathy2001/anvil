@@ -140,16 +140,16 @@ export async function socialEmissionClans(accountId: number): Promise<EmissionCl
       out.push({ clanId, kind: 'guest' }); // explicit whitelist — the person opted this one in
       continue;
     }
-    // No explicit entry: the person's guest preference, then the shared floor.
+    // No explicit entry: the person's guest preference, and then the SEAT.
     //
-    // BEING VISIBLE AND BEING ANNOUNCED ARE DIFFERENT DISCLOSURES, and sharing became the default in
-    // drizzle/0080 — so `shared` alone stopped meaning "and post my drops in a clan I visited once".
-    // The rule below is unchanged; what moved is players.block_guest_emissions, which now defaults to
-    // ON, so a guest clan is quiet until somebody says otherwise. Every lever still works: the
-    // per-clan whitelist above opts one back in, the clan's own veto still refuses, and a member
-    // clan is unaffected either way.
+    // BEING VISIBLE AND BEING ANNOUNCED ARE DIFFERENT DISCLOSURES, and this used to fall back to
+    // `shared` — a flag that meant "public on Anvil" and was on by default, so it read as permission
+    // to post your drops in any clan that had ever heard of you. What answers here now is the same
+    // thing that answers everywhere else: a guest seat in this clan, which the clan's own door
+    // granted. No seat, nothing announced — the whitelist above is how somebody opts in a clan they
+    // are not seated in.
     if (userBlocksGuests) continue;
-    if (account.shared) out.push({ clanId, kind: 'guest' });
+    if (kind === 'guest') out.push({ clanId, kind: 'guest' });
   }
   return out;
 }

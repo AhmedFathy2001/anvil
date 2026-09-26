@@ -7,26 +7,37 @@ import type { LockerOtherAccount } from '@/lib/profileLocker';
 import Checkbox from '@/components/Checkbox';
 
 /**
- * Your accounts that this clan has no seat for.
+ * Your characters that this clan holds no seat for.
  *
- * Everything else on the locker is scoped to the clan whose site you are on, and should be. This
- * list is the exception, for one reason: the accounts a person most wants to publish — or most
- * wants kept back — are precisely the ones the clan they are looking at cannot see, and a switch you
- * could only reach from a clan that already knew about the account would be no use.
+ * TWO DIFFERENT QUESTIONS LIVE ON EACH ROW, and for a long time one switch was asked to answer both.
  *
- * Deliberately thin. It is not a second account list; it is where the switch lives.
+ *   Public on Anvil — whether this character appears on its own profile and the cross-clan boards.
+ *     The platform's question, on by default, and nothing to do with any particular clan. Turning it
+ *     off is how an ironman or a PK alt stays out of the public pages.
  *
- * THE HEADING USED TO SAY "this clan cannot see these", which stopped being true when characters
- * became public by default (schema: accounts.shared defaults true). The rule is seat OR shared, so a
- * shared character IS visible here — and every box on this list is ticked out of the box, directly
- * under a sentence promising the opposite. What the list really means is "no seat here", which is
- * about what COUNTS rather than about what is visible; Share is the visibility half, and it now says
- * which way its default points.
+ *   Guest here — whether THIS clan knows about the character at all. That is a seat on their roster,
+ *     which their own door grants (open seats you at once, approval asks a moderator, closed refuses),
+ *     and it is what lets the character play their events.
+ *
+ * The old "Share" was the first one wearing the second one's name: it promised that clans you were
+ * not in could see the character, while every clan screen went on showing only its own seats. A
+ * person read "shared" and reasonably concluded the clan could see it. Now the row says both things
+ * and each one does what it says.
  */
-export default function OtherAccountsClient({ accounts }: { accounts: LockerOtherAccount[] }) {
+export default function OtherAccountsClient({
+  accounts,
+  clanName,
+  clanSlug,
+}: {
+  accounts: LockerOtherAccount[];
+  clanName: string;
+  /** Null on the apex, which is no clan — there is nobody to guest with there. */
+  clanSlug: string | null;
+}) {
   const router = useRouter();
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState('');
+  const [asked, setAsked] = useState<Record<number, string>>({});
 
   async function setShared(accountId: number, shared: boolean) {
     setBusyId(accountId);
@@ -48,32 +59,81 @@ export default function OtherAccountsClient({ accounts }: { accounts: LockerOthe
     }
   }
 
+  async function guestHere(account: LockerOtherAccount) {
+    if (!clanSlug) return;
+    setBusyId(account.accountId);
+    setError('');
+    try {
+      // The same door as a clan's public page, so open / approval / closed is answered in exactly
+      // one place — see lib/guestAdmission.
+      const res = await fetch(`/api/clans/${clanSlug}/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId: account.accountId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? 'Could not ask.');
+        return;
+      }
+      setAsked((prev) => ({
+        ...prev,
+        [account.accountId]:
+          data.seated ? `${account.rsn} is a guest here now.` : 'Asked — a moderator will answer.',
+      }));
+      router.refresh();
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <div className="mt-4">
       <div className="text-xs uppercase tracking-wider text-text-muted mb-2">
-        Your other characters &mdash; not on this clan&rsquo;s roster
+        Your other characters &mdash; not on {clanName}&rsquo;s roster
       </div>
       <p className="text-xs text-text-muted mb-2.5">
-        This clan holds no seat for these, so nothing here counts them. What it can still{' '}
-        <span className="text-foreground/80">see</span> is up to Share: on (the default) any clan can
-        look this character up, which is what lets you apply somewhere or be recognised playing
-        against them. Turn it off and only clans you actually hold a seat in can see it.
+        {clanName} holds no seat for these, so nothing here counts them and nobody here can see them.
+        Offer one as a guest and they can &mdash; and it can play their events. Public on Anvil is a
+        separate thing: it decides whether the character shows on its own profile and the cross-clan
+        boards, anywhere on the site.
       </p>
       {error && <p className="text-xs text-red-300 mb-2">{error}</p>}
       <div className="space-y-1.5">
         {accounts.map((a) => (
           <div
             key={a.accountId}
-            className="flex items-center gap-3 border border-card-border rounded-lg px-3.5 py-2 bg-brown-dark/25"
+            className="flex flex-wrap items-center gap-3 border border-card-border rounded-lg px-3.5 py-2 bg-brown-dark/25"
           >
             <span className="text-sm">{a.rsn}</span>
-            <Checkbox
-              checked={a.shared}
-              disabled={busyId === a.accountId}
-              onChange={(next) => setShared(a.accountId, next)}
-              className="ml-auto"
-              label="Share"
-            />
+
+            <span className="ml-auto flex flex-wrap items-center gap-3">
+              {asked[a.accountId] ? (
+                <span className="text-xs text-accent-green-light">{asked[a.accountId]}</span>
+              ) : a.guestRequestPending ? (
+                <span className="text-xs text-text-muted">Asked &mdash; waiting on a moderator</span>
+              ) : clanSlug && a.verified ? (
+                <button
+                  type="button"
+                  onClick={() => guestHere(a)}
+                  disabled={busyId === a.accountId}
+                  className="rounded-lg border border-card-border px-2.5 py-1 text-xs text-text-muted transition-colors hover:border-gold/40 hover:text-gold disabled:opacity-50"
+                >
+                  Guest here
+                </button>
+              ) : clanSlug ? (
+                // A clan's door only considers a character whose ownership is proven, which is the
+                // same bar the sign-up form and the event door apply.
+                <span className="text-xs text-text-muted">Verify it to offer it</span>
+              ) : null}
+
+              <Checkbox
+                checked={a.shared}
+                disabled={busyId === a.accountId}
+                onChange={(next) => setShared(a.accountId, next)}
+                label="Public on Anvil"
+              />
+            </span>
           </div>
         ))}
       </div>

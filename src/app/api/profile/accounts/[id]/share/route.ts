@@ -7,12 +7,16 @@ import { verifyUser } from '@/lib/auth';
 
 // PATCH /api/profile/accounts/[id]/share — { shared: boolean }
 //
-// Publish one of your own accounts, or stop.
+// Publish one of your own characters on the platform, or stop.
 //
-// Clans you are IN can always see the accounts you are in them with — a seat is that clan already
-// knowing. Sharing is about the others: it lets a clan you are not in see this account, which is
-// what makes a guest application, a cross-clan event entry or a public profile show a name instead
-// of a blank.
+// WHAT THIS IS NOT, any more: it is not how a clan comes to see a character. That is a SEAT, which
+// the clan's own door grants (lib/guestAdmission) — and a seat is also what lets the character play
+// their events. This flag was doing both jobs and could only ever do one of them, so a person who
+// ticked it was told their character was visible to clans that had never heard of it.
+//
+// What it decides is the PLATFORM's half: whether the character appears on its own profile and the
+// cross-clan boards. On by default, and turning it off is how an ironman or a PK alt stays out of
+// the public pages without giving up the clans it actually plays for.
 //
 // Per account rather than per person, because "my main is public, my ironman is nobody's business"
 // is the actual want. New accounts are shared by default; ones that predate that default are not,

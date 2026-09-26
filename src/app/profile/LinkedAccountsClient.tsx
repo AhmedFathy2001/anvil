@@ -177,15 +177,15 @@ export default function LinkedAccountsClient({ accounts }: { accounts: LinkedAcc
             <span
               title={
                 m.shared
-                  ? 'On: clans you are NOT in can also see this account.'
-                  : 'Off: only clans you are in — which already have it on their roster — can see this account.'
+                  ? 'On: this character shows on its own profile and the cross-clan boards. Clans still see only what they hold a seat for.'
+                  : 'Off: this character stays out of the public pages. Clans that hold a seat for it still see it — that is their roster.'
               }
             >
               <Checkbox
                 checked={m.shared}
                 disabled={sharingId === m.accountId}
                 onChange={(next) => setShared(m.accountId, next)}
-                label="Share"
+                label="Public on Anvil"
               />
             </span>
             {/* Only offered when there's something to switch to — a lone account is already primary. */}
