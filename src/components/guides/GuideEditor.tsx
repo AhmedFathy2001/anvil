@@ -360,6 +360,7 @@ export default function GuideEditor({
             onChange={(patch) => setForm((f) => (f ? { ...f, ...patch } : f))}
             readOnly={readOnly}
             uploadUrl={`${api}/upload`}
+            strictLevels={scope === 'library'}
           />
 
           {!readOnly && (

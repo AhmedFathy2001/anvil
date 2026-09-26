@@ -11,7 +11,7 @@ import { and, count, desc, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { guideProposals, users, type GuideProposal } from '@/db/schema';
-import { GuideInputError, cleanInput, createGuide, getScopedGuide, saveGuide, type GuideInput } from '@/lib/guides';
+import { GuideInputError, assertLibraryCoverage, cleanInput, createGuide, getScopedGuide, saveGuide, type GuideInput } from '@/lib/guides';
 import { GUIDE_LIMITS } from '@/lib/guideCategories';
 
 export const MAX_PENDING = 5;
@@ -54,6 +54,8 @@ export async function createProposal(userId: number, input: ProposalInput & { ta
   }
   const f = fields(input, false);
   if (!f.body?.trim()) throw new GuideInputError('Write the guide before sending it.');
+  // A proposal is for the library, so it has to meet the library's bar before a reviewer sees it.
+  assertLibraryCoverage({ clanId: null, status: 'published', category: f.category ?? 'general', body: f.body });
   const at = nowIso();
   const [row] = await db
     .insert(guideProposals)

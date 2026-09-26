@@ -4,6 +4,8 @@ import { useMemo } from 'react';
 
 import { renderGuide } from '@/lib/guideMarkdown';
 import { renderGuideForDiscord, type GuideForDiscord } from '@/lib/guideDiscord';
+import { discordBody } from '@/lib/dps/summary';
+import { useGearData } from '@/components/gear/useGearData';
 
 /**
  * The guide as the bot will post it — rendered from the SAME function the poster uses
@@ -19,7 +21,12 @@ export default function DiscordPreview({
   origin: string | null;
   botName?: string;
 }) {
-  const messages = useMemo(() => renderGuideForDiscord(guide, { origin }), [guide, origin]);
+  // The same body transform the poster applies: levels as headed messages, gear as a DPS summary.
+  const { idx } = useGearData();
+  const messages = useMemo(
+    () => renderGuideForDiscord({ ...guide, body: discordBody(guide.body, idx, guide.siteUrl ?? null) }, { origin }),
+    [guide, origin, idx],
+  );
 
   return (
     <div className="rounded-lg bg-[#313338] p-3 font-[system-ui] text-[15px] leading-[1.375rem] text-[#dbdee1] sm:p-4">

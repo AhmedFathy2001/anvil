@@ -21,6 +21,7 @@ import { guidePosts, guideRevisions, guides, type Guide } from '@/db/schema';
 import { getSetting } from '@/lib/settings';
 import { log } from '@/lib/logger';
 import { GUIDE_LIMITS, isGuideCategory, slugify } from '@/lib/guideCategories';
+import { coverage, requiresTiers } from '@/lib/guideTiers';
 
 export const SHOW_LIBRARY_SETTING = 'guides_show_library';
 
@@ -267,6 +268,19 @@ export function cleanInput(input: GuideInput, partial: boolean): GuideInput {
 /** Paths under /guides that are pages, not guides — a guide with one of these slugs would be unreachable. */
 const RESERVED_SLUGS = new Set(['propose', 'proposals']);
 
+/**
+ * THE LIBRARY COVERS EVERY LEVEL. A published library guide in a category that has levels must have a
+ * Beginner, Intermediate and Advanced section — and a gear setup for each, if it has a gear block.
+ * Clan guides are nudged in the editor but never blocked: a clan's own notes are its business.
+ */
+export function assertLibraryCoverage(g: { clanId: number | null; status: string; category: string; body: string }): void {
+  if (g.clanId != null || g.status !== 'published' || !requiresTiers(g.category)) return;
+  const c = coverage(g.body);
+  if (!c.complete) {
+    throw new GuideInputError(`Library guides cover every level before they're published. Missing: ${c.missing.join(', ')}.`);
+  }
+}
+
 /** A slug free in this scope, suffixing -2, -3… as needed. */
 async function freeSlug(clanId: number | null, wanted: string, exceptId?: number): Promise<string> {
   const base = RESERVED_SLUGS.has(slugify(wanted)) ? `${slugify(wanted)}-guide` : slugify(wanted);
@@ -313,6 +327,7 @@ export async function createGuide(
   const clean = cleanInput(input, false);
   const at = nowIso();
   const status = clean.status ?? 'draft';
+  assertLibraryCoverage({ clanId, status, category: clean.category ?? 'general', body: clean.body ?? '' });
   const [row] = await db
     .insert(guides)
     .values({
@@ -351,6 +366,12 @@ export async function saveGuide(
   note: string | null,
 ): Promise<Guide> {
   const clean = cleanInput(input, true);
+  assertLibraryCoverage({
+    clanId: g.clanId,
+    status: clean.status ?? g.status,
+    category: clean.category ?? g.category,
+    body: clean.body ?? g.body,
+  });
   const contentChanged = CONTENT_KEYS.some((k) => clean[k] !== undefined && clean[k] !== g[k]);
   const at = nowIso();
   const becamePublished = clean.status === 'published' && g.status !== 'published';

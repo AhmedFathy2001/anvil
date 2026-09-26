@@ -8,7 +8,9 @@ import Select from '@/components/Select';
 import { useDialog } from '@/components/Confirm';
 import { clanFetch } from '@/lib/clanFetch';
 import { GUIDE_CATEGORIES, GUIDE_LIMITS } from '@/lib/guideCategories';
-import { renderGuide } from '@/lib/guideMarkdown';
+import GuideBody from './GuideBody';
+import GearBuilder from '@/components/gear/GearBuilder';
+import { coverage, firstGearBlock, requiresTiers, TIERS, upsertGearBlock } from '@/lib/guideTiers';
 import DiscordPreview from './DiscordPreview';
 
 // The writing half of a guide — fields, the markdown toolbar, image upload, and the two previews —
@@ -48,6 +50,15 @@ const TOOLS: Tool[] = [
   { label: '⎯ msg', title: 'Start a new Discord message here', insert: '\n---\n' },
 ];
 
+// Level sections: everything after a marker belongs to that level, until the next marker. `:::` on
+// its own returns to text every level sees (lib/guideTiers).
+const LEVEL_TOOLS: Tool[] = [
+  { label: '🟢', title: 'Start the Beginner section', insert: '\n::: beginner\n' },
+  { label: '🟡', title: 'Start the Intermediate section', insert: '\n::: intermediate\n' },
+  { label: '🔴', title: 'Start the Advanced section', insert: '\n::: advanced\n' },
+  { label: ':::', title: 'Back to text for every level', insert: '\n:::\n' },
+];
+
 /** Upload one image to `uploadUrl`; resolves to its public URL, or null (having said why). */
 export function useGuideUpload(uploadUrl: string) {
   const { notify } = useDialog();
@@ -76,12 +87,16 @@ export function GuideFieldsEditor({
   onChange,
   readOnly = false,
   uploadUrl,
+  strictLevels = false,
 }: {
   value: GuideFieldValues;
   onChange: (patch: Partial<GuideFieldValues>) => void;
   readOnly?: boolean;
   uploadUrl: string;
+  /** Library guides and proposals can't publish without every level (lib/guides enforces it). */
+  strictLevels?: boolean;
 }) {
+  const [gearOpen, setGearOpen] = useState(false);
   const { upload, uploading } = useGuideUpload(uploadUrl);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -208,7 +223,7 @@ export function GuideFieldsEditor({
       <div>
         {!readOnly && (
           <div className="flex flex-wrap items-center gap-1 rounded-t border border-b-0 border-card-border bg-black/20 p-1.5">
-            {TOOLS.map((t) => (
+            {[...TOOLS, ...LEVEL_TOOLS].map((t) => (
               <button
                 key={t.title}
                 type="button"
@@ -236,9 +251,16 @@ export function GuideFieldsEditor({
             />
             <button
               type="button"
+              onClick={() => setGearOpen(true)}
+              className="ml-auto rounded bg-gold/15 px-2 py-1 text-xs text-gold hover:bg-gold/25"
+            >
+              ⚔️ {firstGearBlock(value.body) ? 'Edit gear' : 'Gear progression'}
+            </button>
+            <button
+              type="button"
               onClick={() => fileRef.current?.click()}
               disabled={uploading}
-              className="ml-auto rounded bg-gold/15 px-2 py-1 text-xs text-gold hover:bg-gold/25 disabled:opacity-50"
+              className="rounded bg-gold/15 px-2 py-1 text-xs text-gold hover:bg-gold/25 disabled:opacity-50"
             >
               {uploading ? 'Uploading…' : '🖼 Image'}
             </button>
@@ -272,8 +294,20 @@ export function GuideFieldsEditor({
           Discord markdown: <code>#</code>/<code>##</code>/<code>###</code> headings, <code>-#</code> subtext, <code>- lists</code>,{' '}
           <code>&gt; quotes</code>, <code>||spoilers||</code>, <code>[links](https://…)</code>. An image on its own line shows under the
           text above it. A line with only <code>---</code> starts a new message. Paste or drop screenshots straight in.
+          🟢🟡🔴 start a level section; <code>:::</code> goes back to text for every level.
         </p>
+        <CoverageChecklist body={value.body} category={value.category} strict={strictLevels} />
       </div>
+      {gearOpen && (
+        <GearBuilder
+          initial={firstGearBlock(value.body)}
+          onClose={() => setGearOpen(false)}
+          onSave={(block) => {
+            onChange({ body: upsertGearBlock(value.body, block) });
+            setGearOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -321,10 +355,36 @@ export function GuidePreviewPane({
             )}
             <h1 className="text-2xl font-bold text-gold">{value.title}</h1>
             {value.summary && <p className="mt-1 text-sm text-text-muted">{value.summary}</p>}
-            <div className="mt-3 text-[15px] text-gray-200">{renderGuide(value.body, { showBreaks: true })}</div>
+            <div className="mt-3 text-[15px] text-gray-200">
+              <GuideBody body={value.body} storageKey="guide-preview" />
+            </div>
           </article>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Which levels the guide covers — required for the library, a nudge everywhere else. */
+function CoverageChecklist({ body, category, strict }: { body: string; category: string; strict: boolean }) {
+  if (!requiresTiers(category)) return null;
+  const c = coverage(body);
+  return (
+    <div className={`mt-2 rounded border px-2 py-1.5 text-[11px] ${c.complete ? 'border-emerald-900/60 text-emerald-300' : strict ? 'border-red-900/60 text-red-200' : 'border-amber-800/60 text-amber-200'}`}>
+      <span className="mr-2 font-semibold">Levels:</span>
+      {TIERS.map((t) => (
+        <span key={t.key} className="mr-3">
+          {c.tiers[t.key] ? '✓' : '✗'} {t.label}
+          {c.gear ? (c.gear[t.key] ? ' + gear' : ' (no gear setup)') : ''}
+        </span>
+      ))}
+      {!c.complete && (
+        <span className="block text-text-muted">
+          {strict
+            ? 'The Anvil library needs every level covered before this can be published.'
+            : 'One guide for every level is the point — a reader at any stage should find their part.'}
+        </span>
+      )}
     </div>
   );
 }

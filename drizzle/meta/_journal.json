@@ -407,6 +407,13 @@
       "when": 1790510000000,
       "tag": "0099_guide_proposals",
       "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1790520000000,
+      "tag": "0100_guide_library_levels",
+      "breakpoints": true
     }
   ]
 }

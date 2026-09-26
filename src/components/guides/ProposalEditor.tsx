@@ -143,7 +143,7 @@ export default function ProposalEditor({
 
       <div className="grid gap-5 xl:grid-cols-2">
         <div className="space-y-3">
-          <GuideFieldsEditor value={form} onChange={(p) => setForm((f) => ({ ...f, ...p }))} readOnly={!editable} uploadUrl="/api/guides/proposals/upload" />
+          <GuideFieldsEditor value={form} onChange={(p) => setForm((f) => ({ ...f, ...p }))} readOnly={!editable} uploadUrl="/api/guides/proposals/upload" strictLevels />
           <label className="block">
             <span className="mb-1 block text-xs text-text-muted">
               {target ? 'What did you change, and why? (the reviewer reads this)' : 'Anything the reviewer should know?'}

@@ -6,7 +6,9 @@ import { currentClan } from '@/lib/clanContext';
 import { clanGuideActor } from '@/lib/guideAccess';
 import { publicGuideBySlug } from '@/lib/guides';
 import { categoryOf, readingMinutes } from '@/lib/guideCategories';
-import { guideHeadings, renderGuide } from '@/lib/guideMarkdown';
+import { guideHeadings } from '@/lib/guideMarkdown';
+import { TIERS, splitSegments } from '@/lib/guideTiers';
+import GuideBody from '@/components/guides/GuideBody';
 import { parseStamp } from '@/lib/dbTime';
 
 type Props = { params: Promise<{ slug: string }> };
@@ -34,7 +36,13 @@ export default async function GuideReadPage({ params }: Props) {
   if (!found) notFound();
   const { guide: g, origin } = found;
   const cat = categoryOf(g.category);
-  const toc = guideHeadings(g.body).filter((h) => h.level === 2);
+  // Shared sections by heading, then one entry per level (a level's own headings live behind the
+  // switcher, so linking into them from here would often point at something hidden).
+  const segs = splitSegments(g.body);
+  const toc = [
+    ...segs.filter((s) => !s.tier && s.kind === 'text').flatMap((s) => guideHeadings(s.text).filter((h) => h.level === 2)),
+    ...TIERS.filter((t) => segs.some((s) => s.tier === t.key)).map((t) => ({ id: `tier-${t.key}`, text: `${t.emoji} ${t.label}`, level: 2 as const })),
+  ];
   const editor = clan ? await clanGuideActor() : null;
   const updatedMs = parseStamp(g.updatedAt);
 
@@ -76,7 +84,9 @@ export default async function GuideReadPage({ params }: Props) {
             )}
           </p>
         </header>
-        <div className="text-[15px] leading-relaxed text-gray-200">{renderGuide(g.body)}</div>
+        <div className="text-[15px] leading-relaxed text-gray-200">
+          <GuideBody body={g.body} storageKey={`guide:${g.id}`} />
+        </div>
       </article>
 
       {toc.length > 1 && (

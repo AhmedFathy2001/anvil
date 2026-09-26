@@ -32,6 +32,8 @@ import { log } from '@/lib/logger';
 import { configuredOrigin } from '@/lib/request-origin';
 import { resolveClanById } from '@/lib/clanContext';
 import { renderGuideForDiscord, type DiscordGuideMessage } from '@/lib/guideDiscord';
+import { discordBody } from '@/lib/dps/summary';
+import { gearIndex } from '@/lib/dps/data';
 
 const CH_TEXT = 0;
 const CH_ANNOUNCEMENT = 5;
@@ -169,13 +171,15 @@ export function guideSiteUrl(clanSlug: string | null, slug: string): string | nu
 export async function guideMessages(guide: Guide): Promise<DiscordGuideMessage[]> {
   const clan = guide.clanId != null ? await resolveClanById(guide.clanId) : null;
   const byline = guide.clanId == null ? 'Anvil guide library' : guide.followsSource ? `${clan?.name ?? 'Clan'} · from the Anvil library` : clan?.name ?? null;
+  const siteUrl = guideSiteUrl(clan?.slug ?? null, guide.slug);
   return renderGuideForDiscord(
     {
       title: guide.title,
       summary: guide.summary,
-      body: guide.body,
+      // Levels become headed messages and gear blocks a DPS summary — Discord can't switch or calculate.
+      body: discordBody(guide.body, gearIndex(), siteUrl),
       coverUrl: guide.coverUrl,
-      siteUrl: guideSiteUrl(clan?.slug ?? null, guide.slug),
+      siteUrl,
       updatedAt: guide.updatedAt,
       byline,
     },

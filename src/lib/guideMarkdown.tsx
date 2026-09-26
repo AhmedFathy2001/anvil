@@ -231,10 +231,11 @@ function renderList(items: ListItem[], ordered: boolean, start: number, key: str
 }
 
 export interface GuideRenderOptions {
-  /** Render `---` as a visible message divider (the editor preview) instead of a quiet gap. */
-  showBreaks?: boolean;
   /** 'discord' draws headings/quotes the way the Discord client does, for the editor's preview. */
   theme?: 'site' | 'discord';
+  /** Prefix for heading anchors — a guide's level sections each render separately, and two
+   *  levels both having "## Gear" must not produce two #gear anchors. */
+  idPrefix?: string;
 }
 
 const THEMES = {
@@ -382,17 +383,9 @@ export function renderGuide(source: string | null | undefined, opts: GuideRender
 
     if (BREAK_RE.test(line)) {
       flushAll();
-      out.push(
-        opts.showBreaks ? (
-          <div key={`b${k++}`} className="my-4 flex items-center gap-2 text-[10px] uppercase tracking-widest text-gold/60">
-            <span className="h-px flex-1 bg-gold/25" />
-            new message
-            <span className="h-px flex-1 bg-gold/25" />
-          </div>
-        ) : (
-          <div key={`b${k++}`} className="my-5" aria-hidden />
-        ),
-      );
+      // A Discord message boundary. On the site it is only a little extra space — the reader is not
+      // reading messages, and a divider saying so was noise.
+      out.push(<div key={`b${k++}`} className="my-5" aria-hidden />);
       continue;
     }
 
@@ -416,7 +409,7 @@ export function renderGuide(source: string | null | undefined, opts: GuideRender
     if (h) {
       flushAll();
       const level = h[1].length;
-      const id = headingIds[headingIdx++]?.id ?? headingId(h[2]);
+      const id = (opts.idPrefix ?? '') + (headingIds[headingIdx++]?.id ?? headingId(h[2]));
       const cls = level === 1 ? theme.h1 : level === 2 ? theme.h2 : theme.h3;
       const Tag = (`h${level + 1}` as 'h2' | 'h3' | 'h4');
       out.push(
