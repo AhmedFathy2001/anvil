@@ -187,7 +187,8 @@ export const clanStaff = pgTable('clan_staff', {
   // exact shape the per-clan grant exists to prevent.
   treasurerScope: text('treasurer_scope').notNull().default('all'),
   // Guide authoring (lib/guides): write this clan's guides, copy from the Anvil library, post them to
-  // Discord. Another capability on top of the tier, like canEditTiles — admins hold it implicitly.
+  // Discord. Another capability on top of the tier, like canEditTiles — admins hold it implicitly, and
+  // a plain member may hold it too (lib/adminAccess then confines them to /admin/guides).
   canEditGuides: boolean('can_edit_guides').notNull().default(false),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
@@ -2696,3 +2697,38 @@ export const guidePosts = pgTable('guide_posts', {
   index('guide_posts_clan_idx').on(t.clanId),
 ]);
 export type GuidePost = typeof guidePosts.$inferSelect;
+
+/**
+ * A guide somebody outside the library team wrote — or an edit they suggest to a library guide —
+ * waiting for a platform guide editor to approve it (lib/guideProposals). Approving a NEW guide
+ * creates it in the library; approving an EDIT saves it as the library guide's next version, which
+ * then reaches clans exactly like any other library update. The proposal row stays as the record of
+ * who wrote what and what the reviewer said.
+ */
+export const guideProposals = pgTable('guide_proposals', {
+  id: serial('id').primaryKey(),
+  proposerUserId: integer('proposer_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // NULL = a new guide; set = a suggested edit to this library guide.
+  targetGuideId: integer('target_guide_id').references(() => guides.id, { onDelete: 'set null' }),
+  // The library version the edit was written against — the review shows when the guide has moved on.
+  baseVersion: integer('base_version'),
+  title: text('title').notNull(),
+  summary: text('summary').notNull().default(''),
+  category: text('category').notNull().default('general'),
+  coverUrl: text('cover_url'),
+  body: text('body').notNull().default(''),
+  // The proposer's pitch: why, and what changed.
+  note: text('note'),
+  // 'pending' | 'approved' | 'rejected' | 'withdrawn'
+  status: text('status').notNull().default('pending'),
+  reviewNote: text('review_note'),
+  reviewedByUserId: integer('reviewed_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  resultGuideId: integer('result_guide_id').references(() => guides.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+  reviewedAt: text('reviewed_at'),
+}, (t) => [
+  index('guide_proposals_status_idx').on(t.status),
+  index('guide_proposals_proposer_idx').on(t.proposerUserId),
+]);
+export type GuideProposal = typeof guideProposals.$inferSelect;

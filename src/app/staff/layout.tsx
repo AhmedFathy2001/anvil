@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 
 import { requirePlatformPage } from '@/lib/platformAccess';
 import { libraryActor } from '@/lib/guideAccess';
+import { pendingCount as pendingProposals } from '@/lib/guideProposals';
 import { hasPlatformRole } from '@/lib/clanRoles';
 import { avatarUrl } from '@/lib/discord-oauth';
 import { db } from '@/db';
@@ -37,7 +38,12 @@ export default async function StaffLayout({ children }: { children: React.ReactN
     return (
       <div className="lg:flex lg:gap-6">
         <AdminSidebar
-          groups={[{ label: 'Platform', items: [{ href: '/staff/guides', label: 'Guide library', icon: '📖', matchPrefix: true }] }]}
+          groups={[
+            {
+              label: 'Platform',
+              items: [{ href: '/staff/guides', label: 'Guide library', icon: '📖', badge: await pendingProposals(), matchPrefix: true }],
+            },
+          ]}
           user={{
             displayName: me?.displayName ?? guides.user.username ?? 'Editor',
             role: 'library guide editor',
@@ -73,7 +79,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
         { href: '/staff/errors', label: 'Errors', icon: '⚠', matchPrefix: true },
         { href: '/staff/audit', label: 'Operator log', icon: '⧉', matchPrefix: true },
         // The Anvil guide library every clan sees and copies from.
-        { href: '/staff/guides', label: 'Guide library', icon: '📖', matchPrefix: true },
+        { href: '/staff/guides', label: 'Guide library', icon: '📖', badge: await pendingProposals(), matchPrefix: true },
       ],
     },
   ];

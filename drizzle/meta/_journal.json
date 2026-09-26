@@ -400,6 +400,13 @@
       "when": 1790500100000,
       "tag": "0098_guide_library_seed",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1790510000000,
+      "tag": "0099_guide_proposals",
+      "breakpoints": true
     }
   ]
 }

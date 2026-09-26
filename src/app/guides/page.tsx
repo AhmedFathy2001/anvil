@@ -41,11 +41,17 @@ export default async function GuidesPage({ searchParams }: { searchParams: Promi
             </ClanLink>
           </p>
         </div>
-        {editor?.canEdit && (
-          <ClanLink href="/admin/guides" className="rounded-lg border border-card-border px-3 py-1.5 text-sm text-text-muted hover:text-gold">
-            Manage guides
+        <div className="flex flex-wrap gap-2">
+          {editor?.canEdit && (
+            <ClanLink href="/admin/guides" className="rounded-lg border border-card-border px-3 py-1.5 text-sm text-text-muted hover:text-gold">
+              Manage guides
+            </ClanLink>
+          )}
+          {/* Anyone signed in may write for the Anvil library; the guide team reviews it. */}
+          <ClanLink href="/guides/propose" className="rounded-lg border border-gold/40 px-3 py-1.5 text-sm text-gold hover:bg-gold/10">
+            Write a guide
           </ClanLink>
-        )}
+        </div>
       </header>
 
       {present.length > 1 && (

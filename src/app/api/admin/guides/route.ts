@@ -36,7 +36,7 @@ export async function GET() {
   });
 }
 
-// POST — { action: 'create', title, … } or { action: 'copy', sourceId }.
+// POST — { action: 'create', title, … }, { action: 'copy', sourceId } or { action: 'copyMany', sourceIds }.
 export async function POST(request: Request) {
   const gate = await requireClanGuideEditorApi();
   if ('response' in gate) return gate.response;
@@ -44,6 +44,13 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: 'Bad request' }, { status: 400 });
   try {
+    // Adopting the library in one go: copy every listed guide (already-copied ones return their copy).
+    if (body.action === 'copyMany') {
+      const ids = Array.isArray(body.sourceIds) ? body.sourceIds.map(Number).filter(Number.isInteger).slice(0, 100) : [];
+      const copies = [];
+      for (const id of ids) copies.push(guideCard(await copyFromLibrary(clan.id, id, user.userId)));
+      return NextResponse.json({ guides: copies });
+    }
     if (body.action === 'copy') {
       const guide = await copyFromLibrary(clan.id, Number(body.sourceId), user.userId);
       return NextResponse.json({ guide: guideCard(guide) });

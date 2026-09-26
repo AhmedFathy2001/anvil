@@ -29,6 +29,7 @@ interface Channel {
   parentName: string | null;
   tags: { id: string; name: string; emoji: string | null }[];
   requiresTag: boolean;
+  missing: string[];
 }
 
 /** Where this guide lives in Discord, and posting it somewhere new. Clan guides only. */
@@ -67,6 +68,7 @@ export default function GuidePostsPanel({
     const j = await res.json().catch(() => ({}));
     if (!res.ok) return setChannelError(j.error ?? 'Could not load channels');
     setChannels(j.channels ?? []);
+    // The bot not being in the server is the one answer that makes the whole list meaningless.
     if (j.error) setChannelError(j.error);
   }
 
@@ -190,8 +192,13 @@ export default function GuidePostsPanel({
                   placeholder="Pick where it goes…"
                   options={channels.map((c) => ({
                     value: c.id,
-                    label: `${c.kind === 'forum' ? '🗂 ' : '# '}${c.name}${c.parentName ? ` · ${c.parentName}` : ''}`,
+                    label: `${c.kind === 'forum' ? '🗂 ' : '# '}${c.name}${c.parentName ? ` · ${c.parentName}` : ''}${
+                      c.missing.length ? ` — bot lacks ${c.missing.join(', ')}` : ''
+                    }`,
                     keywords: [c.name, c.parentName ?? ''],
+                    // Checked before posting, not discovered by it: a channel the bot can't post in
+                    // is shown, with why, but can't be picked.
+                    disabled: c.missing.length > 0,
                   }))}
                   ariaLabel="Channel"
                 />

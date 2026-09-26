@@ -19,6 +19,15 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { guidePosts, guides, type Guide, type GuidePost } from '@/db/schema';
 import { discordRest, getBotCredentials } from '@/lib/discord-roles';
+import {
+  PERM,
+  botAccess,
+  channelPermissions,
+  missingPermissions,
+  type BotAccess,
+  type PermName,
+  type RawOverwrite,
+} from '@/lib/discord-permissions';
 import { log } from '@/lib/logger';
 import { configuredOrigin } from '@/lib/request-origin';
 import { resolveClanById } from '@/lib/clanContext';
@@ -37,10 +46,51 @@ export interface GuideChannel {
   id: string;
   name: string;
   kind: 'text' | 'forum';
+  parentId: string | null;
   parentName: string | null;
   position: number;
   tags: { id: string; name: string; emoji: string | null }[];
   requiresTag: boolean;
+  /** Permissions the bot lacks here — empty means it can post. Checked BEFORE anything is sent. */
+  missing: string[];
+}
+
+/** What posting a guide needs, by where it goes. Editing and deleting its own messages need no more. */
+export const NEEDS: Record<'text' | 'forum', PermName[]> = {
+  text: ['SEND_MESSAGES', 'EMBED_LINKS', 'READ_MESSAGE_HISTORY'],
+  // A forum post is created with Send Messages; the rest of the guide goes into its thread.
+  forum: ['SEND_MESSAGES', 'SEND_MESSAGES_IN_THREADS', 'EMBED_LINKS', 'READ_MESSAGE_HISTORY'],
+};
+
+/** The bot's standing in the server, for the UI's pre-flight. */
+export interface BotStanding {
+  inGuild: boolean | null;
+  reason?: string;
+  /** Guild-wide, for bulk posting: create channels, and set who may write in them. */
+  canCreateChannels: boolean;
+  canSetPermissions: boolean;
+  /** Server-wide permissions the bot lacks for granting itself access in read-only channels. */
+  missingForReadOnly: string[];
+}
+
+/** What the bot keeps for itself in a read-only guide channel (lib/guideBulk). */
+export const BOT_SELF_GRANT: PermName[] = [
+  'VIEW_CHANNEL',
+  'SEND_MESSAGES',
+  'SEND_MESSAGES_IN_THREADS',
+  'EMBED_LINKS',
+  'READ_MESSAGE_HISTORY',
+];
+
+function standing(access: BotAccess): BotStanding {
+  const has = (p: bigint) => access.admin || (access.base & p) !== BigInt(0);
+  return {
+    inGuild: access.inGuild,
+    reason: access.reason,
+    canCreateChannels: access.inGuild === true && has(PERM.MANAGE_CHANNELS),
+    canSetPermissions: access.inGuild === true && has(PERM.MANAGE_ROLES),
+    missingForReadOnly: access.inGuild === true && !access.admin ? missingPermissions(access.base, BOT_SELF_GRANT) : [],
+  };
 }
 
 interface RawChannel {
@@ -50,33 +100,62 @@ interface RawChannel {
   parent_id: string | null;
   position: number;
   flags?: number;
+  permission_overwrites?: RawOverwrite[];
   available_tags?: { id: string; name: string; emoji_name: string | null; moderated?: boolean }[];
 }
 
-/** Text, announcement and forum channels — the places a guide can go. */
-export async function listGuideChannels(clanId: number): Promise<{ enabled: boolean; channels: GuideChannel[]; error?: string }> {
+export interface GuideChannelList {
+  enabled: boolean;
+  bot: BotStanding | null;
+  channels: GuideChannel[];
+  /** Existing categories, for "put the new channels under…". */
+  categories?: { id: string; name: string }[];
+  error?: string;
+}
+
+/**
+ * Text, announcement and forum channels — the places a guide can go — each with what the bot is
+ * missing there, plus the bot's standing in the server. A bot that isn't in the server comes back
+ * with no channels and a reason, rather than a list that fails on the first click.
+ */
+export async function listGuideChannels(
+  clanId: number,
+): Promise<GuideChannelList> {
   const creds = await getBotCredentials(clanId);
-  if (!creds) return { enabled: false, channels: [] };
+  if (!creds) return { enabled: false, bot: null, channels: [] };
+  const access = await botAccess(creds.botToken, creds.guildId);
+  const bot = standing(access);
+  if (access.inGuild !== true) return { enabled: true, bot, channels: [], error: access.reason };
+
   const res = await discordRest(creds.botToken, `/guilds/${creds.guildId}/channels`);
   if (!res.ok) {
     log.warn('guides.list-channels-fail', { status: res.status });
-    return { enabled: true, channels: [], error: `Discord ${res.status} while listing channels.` };
+    return { enabled: true, bot, channels: [], error: `Discord ${res.status} while listing channels.` };
   }
   const raw = (await res.json()) as RawChannel[];
   const cats = new Map(raw.filter((c) => c.type === CH_CATEGORY).map((c) => [c.id, c.name]));
   const channels = raw
     .filter((c) => [CH_TEXT, CH_ANNOUNCEMENT, CH_FORUM, CH_MEDIA].includes(c.type))
-    .map<GuideChannel>((c) => ({
-      id: c.id,
-      name: c.name,
-      kind: c.type === CH_FORUM || c.type === CH_MEDIA ? 'forum' : 'text',
-      parentName: c.parent_id ? (cats.get(c.parent_id) ?? null) : null,
-      position: c.position,
-      tags: (c.available_tags ?? []).map((t) => ({ id: t.id, name: t.name, emoji: t.emoji_name ?? null })),
-      requiresTag: ((c.flags ?? 0) & FORUM_REQUIRE_TAG) !== 0,
-    }))
+    .map<GuideChannel>((c) => {
+      const kind = c.type === CH_FORUM || c.type === CH_MEDIA ? 'forum' : 'text';
+      return {
+        id: c.id,
+        name: c.name,
+        kind,
+        parentId: c.parent_id,
+        parentName: c.parent_id ? (cats.get(c.parent_id) ?? null) : null,
+        position: c.position,
+        tags: (c.available_tags ?? []).map((t) => ({ id: t.id, name: t.name, emoji: t.emoji_name ?? null })),
+        requiresTag: ((c.flags ?? 0) & FORUM_REQUIRE_TAG) !== 0,
+        missing: missingPermissions(channelPermissions(access, c.permission_overwrites), NEEDS[kind]),
+      };
+    })
     .sort((a, b) => (a.parentName ?? '').localeCompare(b.parentName ?? '') || a.position - b.position);
-  return { enabled: true, channels };
+  const categories = raw
+    .filter((c) => c.type === CH_CATEGORY)
+    .sort((a, b) => a.position - b.position)
+    .map((c) => ({ id: c.id, name: c.name }));
+  return { enabled: true, bot, channels, categories };
 }
 
 /** Where a guide reads on the site — the canonical /c/<slug> address for a clan's own guide. */
@@ -113,7 +192,7 @@ function payload(m: DiscordGuideMessage) {
   return { content: m.content || undefined, embeds: m.embeds, allowed_mentions: NO_PINGS };
 }
 
-async function discordError(res: Response): Promise<string> {
+export async function discordError(res: Response): Promise<string> {
   let message = '';
   let code: number | undefined;
   try {
@@ -132,7 +211,7 @@ async function discordError(res: Response): Promise<string> {
   return base;
 }
 
-type Creds = { botToken: string; guildId: string };
+export type Creds = { botToken: string; guildId: string };
 
 async function send(creds: Creds, channelId: string, m: DiscordGuideMessage): Promise<string> {
   const res = await discordRest(creds.botToken, `/channels/${channelId}/messages`, {
@@ -168,19 +247,40 @@ export interface PostRequest {
 }
 
 /** Post a guide to a channel or forum, and remember what it became. */
-export async function postGuide(req: PostRequest): Promise<{ ok: true; post: GuidePost } | { ok: false; error: string }> {
+export async function postGuide(req: PostRequest): Promise<PostResult> {
   const creds = await getBotCredentials(req.clanId);
   if (!creds) return { ok: false, error: 'The Discord bot is not connected for this clan. Set it up under Settings → Discord.' };
   if (req.guide.clanId !== req.clanId) return { ok: false, error: 'Copy the guide into your clan before posting it.' };
 
-  const { channels } = await listGuideChannels(req.clanId);
-  const channel = channels.find((c) => c.id === req.channelId);
+  // THE PRE-FLIGHT. Is the bot in the server, can it see this channel, and does it hold everything a
+  // post needs there — asked before a single message goes out, so a missing permission is a sentence
+  // naming it rather than half a guide stranded in the channel.
+  const list = await listGuideChannels(req.clanId);
+  if (list.bot?.inGuild !== true) return { ok: false, error: list.error ?? "The bot isn't in your Discord server." };
+  const channel = list.channels.find((c) => c.id === req.channelId);
   if (!channel) return { ok: false, error: 'That channel is not one the bot can see. Reload the list and pick again.' };
+  if (channel.missing.length) {
+    return { ok: false, error: `The bot is missing ${channel.missing.join(', ')} in #${channel.name}.` };
+  }
   const tagIds = (req.tagIds ?? []).filter((t) => channel.tags.some((x) => x.id === t)).slice(0, 5);
   if (channel.kind === 'forum' && channel.requiresTag && tagIds.length === 0) {
     return { ok: false, error: `#${channel.name} requires a tag on every post — pick one.` };
   }
+  return postToChannel(creds, req, channel, tagIds);
+}
 
+export type PostResult = { ok: true; post: GuidePost } | { ok: false; error: string };
+
+/**
+ * Send a guide into a channel ALREADY checked by the caller, and remember what it became. Split out
+ * so a bulk post checks the server once and then posts many guides without re-reading it each time.
+ */
+export async function postToChannel(
+  creds: Creds,
+  req: Omit<PostRequest, 'channelId' | 'tagIds'>,
+  channel: Pick<GuideChannel, 'id' | 'name' | 'kind'>,
+  tagIds: string[],
+): Promise<PostResult> {
   const messages = await guideMessages(req.guide);
   const ids: string[] = [];
   let threadId: string | null = null;

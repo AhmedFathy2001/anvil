@@ -33,6 +33,7 @@ function isTilesTab(sub: string): boolean {
 /** What the holder of this grant sees when they open /admin with nowhere particular to go. */
 export function adminLanding(access: AdminAccess): string {
   if (atLeast(access.role, 'moderator')) return '/admin/dashboard';
+  if (!access.canEditTiles && access.canEditGuides) return '/admin/guides';
   return '/admin/events';
 }
 
@@ -40,6 +41,8 @@ export interface AdminAccess {
   role: string;
   canEditTiles: boolean;
   editorScope: string;
+  /** Guide authoring — like canEditTiles, a capability that can sit on a plain member. */
+  canEditGuides?: boolean;
 }
 
 /** Surfaces a moderator-tier grant reaches. Admins reach everything, so this is not consulted. */
@@ -78,8 +81,12 @@ export function redirectFor(pathname: string, access: AdminAccess | null): strin
   // Admin and owner: everything.
   if (atLeast(access.role, 'admin')) return null;
 
+  // A guide writer below the staff tiers reaches the guides, whatever else they hold.
+  const guides = access.canEditGuides === true;
+  if (guides && pathname.startsWith('/admin/guides')) return null;
+
   // Nothing at all: not staff, and no authoring capability either.
-  if (rankOf(access.role) < rankOf('moderator') && !authoring) return '/';
+  if (rankOf(access.role) < rankOf('moderator') && !authoring) return guides ? '/admin/guides' : '/';
 
   // A plain member with authoring, or a board-scoped grant: the authoring surfaces only.
   if (rankOf(access.role) < rankOf('moderator') || scoped) {

@@ -157,7 +157,7 @@ export default async function RootLayout({
   // clan role at all, sat in the list doing nothing. Authoring is a capability rather than a tier
   // (lib/adminAccess), so it is asked separately; that is what lets a plain member with a board
   // grant reach the tiles surface.
-  const isStaff = isStaffRole(session?.role) || !!session?.canEditTiles;
+  const isStaff = isStaffRole(session?.role) || !!session?.canEditTiles || !!session?.canEditGuides;
   // Point at somewhere the current grant can open. A board-scoped editor belongs on My boards;
   // sending them through Dashboard first needlessly relies on the admin shell to redirect them and
   // was the path that once dropped The AFK Spot's clan prefix entirely.
@@ -166,6 +166,7 @@ export default async function RootLayout({
         role: session.role,
         canEditTiles: session.canEditTiles,
         editorScope: session.editorScope,
+        canEditGuides: session.canEditGuides,
       })
     : '/admin/dashboard';
 

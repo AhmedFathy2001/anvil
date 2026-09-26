@@ -264,9 +264,12 @@ export function cleanInput(input: GuideInput, partial: boolean): GuideInput {
   return out;
 }
 
+/** Paths under /guides that are pages, not guides — a guide with one of these slugs would be unreachable. */
+const RESERVED_SLUGS = new Set(['propose', 'proposals']);
+
 /** A slug free in this scope, suffixing -2, -3… as needed. */
 async function freeSlug(clanId: number | null, wanted: string, exceptId?: number): Promise<string> {
-  const base = slugify(wanted);
+  const base = RESERVED_SLUGS.has(slugify(wanted)) ? `${slugify(wanted)}-guide` : slugify(wanted);
   const taken = new Set(
     (
       await db
@@ -301,7 +304,12 @@ async function writeRevision(g: Guide, userId: number | null, note: string | nul
     .onConflictDoNothing();
 }
 
-export async function createGuide(clanId: number | null, input: GuideInput, userId: number | null): Promise<Guide> {
+export async function createGuide(
+  clanId: number | null,
+  input: GuideInput,
+  userId: number | null,
+  note = 'Created',
+): Promise<Guide> {
   const clean = cleanInput(input, false);
   const at = nowIso();
   const status = clean.status ?? 'draft';
@@ -325,7 +333,7 @@ export async function createGuide(clanId: number | null, input: GuideInput, user
       publishedAt: status === 'published' ? at : null,
     })
     .returning();
-  await writeRevision(row, userId, 'Created');
+  await writeRevision(row, userId, note);
   return row;
 }
 

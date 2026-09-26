@@ -20,6 +20,8 @@ export interface PersonWithCharacters {
   role: string;
   /** Tile authoring, independent of role — see users.canEditTiles. */
   canEditTiles: boolean;
+  /** Guide authoring in this clan — clan_staff.can_edit_guides. */
+  canEditGuides: boolean;
   isOwner: boolean;
   banned: boolean;
   createdAt: string;
@@ -64,6 +66,7 @@ export async function getPeopleWithCharacters(clanId: number): Promise<PersonWit
       displayName: users.displayName,
       role: clanStaff.role,
       canEditTiles: clanStaff.canEditTiles,
+      canEditGuides: clanStaff.canEditGuides,
       banned: users.banned,
       createdAt: users.createdAt,
       discordId: users.discordId,
@@ -128,6 +131,7 @@ export async function getPeopleWithCharacters(clanId: number): Promise<PersonWit
     // anywhere else.
     role: u.role ?? 'member',
     canEditTiles: u.canEditTiles === true,
+    canEditGuides: u.canEditGuides === true,
     isOwner: u.role === 'owner',
     banned: !!u.banned,
     characters: u.playerId != null ? byPerson.get(u.playerId) ?? [] : [],

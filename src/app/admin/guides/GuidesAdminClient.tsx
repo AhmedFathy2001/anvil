@@ -9,6 +9,7 @@ import Input from '@/components/Input';
 import { useDialog } from '@/components/Confirm';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import { GUIDE_CATEGORIES, categoryOf } from '@/lib/guideCategories';
+import BulkPostPanel from '@/components/guides/BulkPostPanel';
 
 interface Card {
   id: number;
@@ -50,6 +51,7 @@ export default function GuidesAdminClient({ clanName }: { clanName: string }) {
   const [q, setQ] = useState('');
   const [cat, setCat] = useState<string>('');
   const [busy, setBusy] = useState<number | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   const load = useCallback(async () => {
     const res = await clanFetch('/api/admin/guides');
@@ -91,6 +93,29 @@ export default function GuidesAdminClient({ clanName }: { clanName: string }) {
     }
   }
 
+  // Adopting the library wholesale: copy everything not copied yet, then offer to post it all.
+  async function copyAll() {
+    if (!data) return;
+    const ids = data.library.filter((g) => !g.copyId).map((g) => g.id);
+    if (!ids.length) return;
+    setBusy(-1);
+    try {
+      const res = await clanFetch('/api/admin/guides', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'copyMany', sourceIds: ids }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) return notify(j.error ?? 'Could not copy', 'error');
+      notify(`Copied ${ids.length} guide${ids.length === 1 ? '' : 's'} — they follow the library until you edit them`);
+      await load();
+      setTab('mine');
+      setBulkOpen(true);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function setShowLibrary(v: boolean) {
     const res = await clanFetch('/api/admin/guides', {
       method: 'PATCH',
@@ -118,11 +143,23 @@ export default function GuidesAdminClient({ clanName }: { clanName: string }) {
           </p>
         </div>
         {data.canEdit && (
-          <button onClick={create} className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-brown-dark hover:bg-gold-light">
-            New guide
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {data.guides.some((g) => g.status === 'published') && (
+              <button
+                onClick={() => setBulkOpen((v) => !v)}
+                className="rounded-lg bg-[#5865f2] px-4 py-2 text-sm font-semibold text-white hover:bg-[#4752c4]"
+              >
+                Post to Discord
+              </button>
+            )}
+            <button onClick={create} className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-brown-dark hover:bg-gold-light">
+              New guide
+            </button>
+          </div>
         )}
       </div>
+
+      {bulkOpen && data.canEdit && <BulkPostPanel guides={data.guides} onClose={() => setBulkOpen(false)} onDone={load} />}
 
       {data.offers.length > 0 && (
         <div className="rounded-xl border border-amber-700/70 bg-amber-950/25 p-4">
@@ -178,7 +215,7 @@ export default function GuidesAdminClient({ clanName }: { clanName: string }) {
       </div>
 
       {tab === 'library' && (
-        <div className="rounded-xl border border-card-border bg-card-bg px-4 py-3">
+        <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-card-border bg-card-bg px-4 py-3">
           <Checkbox
             checked={data.showLibrary}
             onChange={setShowLibrary}
@@ -186,6 +223,15 @@ export default function GuidesAdminClient({ clanName }: { clanName: string }) {
             label="Show library guides on our site"
             description="Library guides you haven't copied appear on your Guides page too, always current. Copies replace their original either way."
           />
+          {data.canEdit && data.library.some((g) => !g.copyId) && (
+            <button
+              onClick={copyAll}
+              disabled={busy === -1}
+              className="shrink-0 rounded-lg border border-gold/50 px-3 py-1.5 text-sm text-gold hover:bg-gold/10 disabled:opacity-50"
+            >
+              {busy === -1 ? 'Copying…' : `Copy all ${data.library.filter((g) => !g.copyId).length} to our guides`}
+            </button>
+          )}
         </div>
       )}
 

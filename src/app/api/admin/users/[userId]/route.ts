@@ -36,13 +36,19 @@ export async function PUT(
   const targetId = parseInt(userId, 10);
   if (!Number.isInteger(targetId)) return NextResponse.json({ error: 'Bad id' }, { status: 400 });
 
-  const { displayName, role, canEditTiles } = await request.json();
+  const { displayName, role, canEditTiles, canEditGuides } = await request.json();
 
   if (role !== undefined && !SETTABLE_ROLES.has(role)) {
     return NextResponse.json({ error: 'Role must be admin, treasurer, moderator, or member' }, { status: 400 });
   }
 
   const existing = await clanGrant(clan.id, targetId);
+  // The stored flag, not the derived one: clanGrant reports guide authoring as true for every admin,
+  // and writing that back would leave it set after a demotion.
+  const existingRow = await db.query.clanStaff.findFirst({
+    where: and(eq(clanStaff.clanId, clan.id), eq(clanStaff.userId, targetId)),
+    columns: { canEditGuides: true },
+  });
 
   // The owner's grant is locked — it moves only through the transfer-ownership flow, so the person
   // who set the clan up cannot be demoted by an admin they appointed.
@@ -77,10 +83,12 @@ export async function PUT(
     await db.update(users).set({ displayName }).where(eq(users.id, targetId));
   }
 
-  const wantsGrant = role !== undefined || canEditTiles !== undefined;
+  const wantsGrant = role !== undefined || canEditTiles !== undefined || canEditGuides !== undefined;
   if (wantsGrant) {
     const nextRole: ClanRole = (role ?? existing?.role ?? 'member') as ClanRole;
     const nextCanEdit = canEditTiles !== undefined ? canEditTiles === true : existing?.canEditTiles === true;
+    const nextGuides =
+      canEditGuides !== undefined ? canEditGuides === true : existingRow?.canEditGuides === true;
     await db
       .insert(clanStaff)
       .values({
@@ -88,13 +96,14 @@ export async function PUT(
         userId: targetId,
         role: nextRole,
         canEditTiles: nextCanEdit,
+        canEditGuides: nextGuides,
         // A manual role pick supersedes board scoping: picking a tier here always means clan-wide
         // reach. Board scoping is established only through the Boards control.
         editorScope: 'all',
       })
       .onConflictDoUpdate({
         target: [clanStaff.clanId, clanStaff.userId],
-        set: { role: nextRole, canEditTiles: nextCanEdit, editorScope: 'all' },
+        set: { role: nextRole, canEditTiles: nextCanEdit, canEditGuides: nextGuides, editorScope: 'all' },
       });
   }
 

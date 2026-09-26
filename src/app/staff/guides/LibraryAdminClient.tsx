@@ -57,11 +57,19 @@ export default function LibraryAdminClient({ canEdit }: { canEdit: boolean }) {
             nobody edited follow along automatically; edited copies are offered each update with your note.
           </p>
         </div>
+        <div className="flex flex-wrap gap-2">
+          <ClanLink
+            href="/staff/guides/proposals"
+            className="rounded-lg border border-card-border px-4 py-2 text-sm text-text-muted hover:text-gold"
+          >
+            Proposals
+          </ClanLink>
         {canEdit && (
           <button onClick={create} className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-brown-dark hover:bg-gold-light">
             New guide
           </button>
         )}
+        </div>
       </div>
 
       {!rows ? (

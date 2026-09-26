@@ -177,3 +177,102 @@ export async function botGuildStatus(
   const missing = REQUIRED_GUILD_PERMS.filter((p) => (perms & p.flag) === NONE).map((p) => p.label);
   return { inGuild: true, guildName, missingPermissions: missing };
 }
+
+// ── General per-channel check ──────────────────────────────────────────────────────────────────
+// The same algorithm as botCanManageWebhooks, split so a caller that already holds the guild's
+// channel list (which carries every channel's overwrites) can judge ALL of them for the cost of the
+// three reads here, instead of three reads per channel. Guides use it to grey out channels the bot
+// can't post in and to refuse a bulk post before it creates half a category.
+
+export const PERM = {
+  MANAGE_CHANNELS,
+  MANAGE_ROLES,
+  VIEW_CHANNEL,
+  SEND_MESSAGES: BigInt(1) << BigInt(11),
+  MANAGE_MESSAGES: BigInt(1) << BigInt(13),
+  EMBED_LINKS: BigInt(1) << BigInt(14),
+  READ_MESSAGE_HISTORY: BigInt(1) << BigInt(16),
+  MANAGE_THREADS: BigInt(1) << BigInt(34),
+  SEND_MESSAGES_IN_THREADS: BigInt(1) << BigInt(38),
+} as const;
+
+export const PERM_LABEL: Record<keyof typeof PERM, string> = {
+  MANAGE_CHANNELS: 'Manage Channels',
+  MANAGE_ROLES: 'Manage Roles',
+  VIEW_CHANNEL: 'View Channel',
+  SEND_MESSAGES: 'Send Messages',
+  MANAGE_MESSAGES: 'Manage Messages',
+  EMBED_LINKS: 'Embed Links',
+  READ_MESSAGE_HISTORY: 'Read Message History',
+  MANAGE_THREADS: 'Manage Threads',
+  SEND_MESSAGES_IN_THREADS: 'Send Messages in Threads',
+};
+
+export type PermName = keyof typeof PERM;
+
+export interface BotAccess {
+  /** true = in the server; false = definitively not; null = Discord couldn't be asked. */
+  inGuild: boolean | null;
+  /** Human reason when inGuild is not true. */
+  reason?: string;
+  botId: string | null;
+  guildId: string;
+  /** Guild-level permissions (roles unioned with @everyone). */
+  base: bigint;
+  roleIds: Set<string>;
+  admin: boolean;
+}
+
+/** Is the bot in this server, and what does it hold there before any channel overwrite? */
+export async function botAccess(botToken: string, guildId: string): Promise<BotAccess> {
+  const empty = { base: NONE, roleIds: new Set<string>(), admin: false, guildId };
+  const botId = await getBotUserId(botToken);
+  if (!botId) return { ...empty, inGuild: null, botId: null, reason: 'Could not resolve the bot user — re-check the bot token.' };
+  const memberRes = await discordRest(botToken, `/guilds/${guildId}/members/${botId}`);
+  if (memberRes.status === 404 || memberRes.status === 403) {
+    return { ...empty, inGuild: false, botId, reason: "The bot isn't in your Discord server. Invite it from Settings → Discord first." };
+  }
+  if (!memberRes.ok) return { ...empty, inGuild: null, botId, reason: `Could not reach Discord (${memberRes.status}).` };
+  const member = (await memberRes.json()) as { roles?: string[] };
+  const roleIds = new Set(member.roles ?? []);
+  const rolesRes = await discordRest(botToken, `/guilds/${guildId}/roles`);
+  if (!rolesRes.ok) return { ...empty, inGuild: null, botId, roleIds, reason: `Could not read server roles (Discord ${rolesRes.status}).` };
+  const roles = (await rolesRes.json()) as { id: string; permissions: string }[];
+  const permById = new Map(roles.map((r) => [r.id, BigInt(r.permissions)]));
+  let base = permById.get(guildId) ?? NONE;
+  for (const rid of roleIds) base |= permById.get(rid) ?? NONE;
+  return { inGuild: true, botId, guildId, base, roleIds, admin: (base & ADMINISTRATOR) !== NONE };
+}
+
+/** The bot's effective permissions in one channel, given that channel's overwrites. */
+export function channelPermissions(access: BotAccess, overwrites: RawOverwrite[] | undefined): bigint {
+  if (access.admin) return ~NONE;
+  const ow = overwrites ?? [];
+  let perms = access.base;
+  const everyone = ow.find((o) => o.id === access.guildId);
+  if (everyone) perms = (perms & ~BigInt(everyone.deny)) | BigInt(everyone.allow);
+  let allow = NONE;
+  let deny = NONE;
+  for (const o of ow) {
+    if (o.type === OVERWRITE_ROLE && o.id !== access.guildId && access.roleIds.has(o.id)) {
+      allow |= BigInt(o.allow);
+      deny |= BigInt(o.deny);
+    }
+  }
+  perms = (perms & ~deny) | allow;
+  const mine = ow.find((o) => o.type === OVERWRITE_MEMBER && o.id === access.botId);
+  if (mine) perms = (perms & ~BigInt(mine.deny)) | BigInt(mine.allow);
+  return perms;
+}
+
+/**
+ * Which of `needed` the bot lacks, as labels. Without View Channel nothing else matters, so that
+ * alone is reported. Exact for text, announcement and forum channels: the guild channel list carries
+ * each one's effective overwrites (a category-synced channel holds a copy of its category's).
+ */
+export function missingPermissions(perms: bigint, needed: PermName[]): string[] {
+  if ((perms & PERM.VIEW_CHANNEL) === NONE) return [PERM_LABEL.VIEW_CHANNEL];
+  return needed.filter((n) => (perms & PERM[n]) === NONE).map((n) => PERM_LABEL[n]);
+}
+
+export type { RawOverwrite };

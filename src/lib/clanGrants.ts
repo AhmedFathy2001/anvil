@@ -14,7 +14,7 @@ export interface ClanGrant {
   userId: number;
   role: ClanRole;
   canEditTiles: boolean;
-  /** Guide authoring (lib/guideAccess). Admins hold it implicitly; lower tiers by the flag. */
+  /** Guide authoring (lib/guideAccess). Admins hold it implicitly; any other seat by the flag. */
   canEditGuides: boolean;
   editorScope: 'all' | 'assigned';
   // Per clan, like every other authority field — see the note on clan_staff.treasurer_scope.
@@ -44,7 +44,8 @@ export async function clanGrant(clanId: number, userId: number): Promise<ClanGra
     // Their SCOPE still comes from editorScope, so this widens nothing past the boards they hold.
     // Read off the row, not `role`: ClanRole ranks tiers, and 'editor' is not one.
     canEditTiles: row.canEditTiles || atLeast(role, 'admin') || row.role === 'editor',
-    canEditGuides: atLeast(role, 'admin') || (row.canEditGuides && atLeast(role, 'moderator')),
+    // Any tier, a plain member included — "our Wintertodt writer" needs no moderator powers.
+    canEditGuides: atLeast(role, 'admin') || row.canEditGuides,
     editorScope: (row.editorScope as 'all' | 'assigned') ?? 'all',
     treasurerScope: (row.treasurerScope as 'all' | 'assigned') ?? 'all',
     isOwner: role === 'owner',

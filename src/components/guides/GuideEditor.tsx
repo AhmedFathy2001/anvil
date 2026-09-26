@@ -1,17 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
-import Textarea from '@/components/Textarea';
-import Select from '@/components/Select';
 import { useDialog } from '@/components/Confirm';
 import { clanFetch } from '@/lib/clanFetch';
-import { GUIDE_CATEGORIES, GUIDE_LIMITS, readingMinutes } from '@/lib/guideCategories';
-import { renderGuide } from '@/lib/guideMarkdown';
-import DiscordPreview from './DiscordPreview';
+import { GUIDE_LIMITS, readingMinutes } from '@/lib/guideCategories';
+import { GuideFieldsEditor, GuidePreviewPane } from './GuideFields';
 import GuideDiffView from './GuideDiffView';
 import GuidePostsPanel, { type PostRow } from './GuidePostsPanel';
 
@@ -57,31 +54,6 @@ const pick = (g: GuideRow): Form => ({
   slug: g.slug,
 });
 
-/** Toolbar actions: wrap the selection, or prefix every selected line. */
-type Tool =
-  | { label: string; title: string; wrap: [string, string]; placeholder: string }
-  | { label: string; title: string; prefix: string | ((i: number) => string) }
-  | { label: string; title: string; insert: string };
-
-const TOOLS: Tool[] = [
-  { label: 'B', title: 'Bold', wrap: ['**', '**'], placeholder: 'bold' },
-  { label: 'I', title: 'Italic', wrap: ['*', '*'], placeholder: 'italic' },
-  { label: 'U', title: 'Underline', wrap: ['__', '__'], placeholder: 'underline' },
-  { label: 'S', title: 'Strikethrough', wrap: ['~~', '~~'], placeholder: 'struck' },
-  { label: '▮▮', title: 'Spoiler', wrap: ['||', '||'], placeholder: 'spoiler' },
-  { label: '</>', title: 'Inline code', wrap: ['`', '`'], placeholder: 'code' },
-  { label: 'H1', title: 'Big heading', prefix: '# ' },
-  { label: 'H2', title: 'Heading', prefix: '## ' },
-  { label: 'H3', title: 'Small heading', prefix: '### ' },
-  { label: '-#', title: 'Subtext (small grey line)', prefix: '-# ' },
-  { label: '•', title: 'Bulleted list', prefix: '- ' },
-  { label: '1.', title: 'Numbered list', prefix: (i) => `${i + 1}. ` },
-  { label: '❝', title: 'Quote', prefix: '> ' },
-  { label: '🔗', title: 'Link', wrap: ['[', '](https://)'], placeholder: 'link text' },
-  { label: '```', title: 'Code block', wrap: ['```\n', '\n```'], placeholder: 'code' },
-  { label: '⎯ msg', title: 'Start a new Discord message here', insert: '\n---\n' },
-];
-
 export default function GuideEditor({
   scope,
   guideId,
@@ -111,12 +83,7 @@ export default function GuideEditor({
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [preview, setPreview] = useState<'discord' | 'site'>('discord');
   const [showDiff, setShowDiff] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const bodyRef = useRef<HTMLTextAreaElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const coverRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     const res = await call(`${api}/${guideId}`);
@@ -170,79 +137,6 @@ export default function GuideEditor({
       router.refresh();
     } finally {
       setSaving(false);
-    }
-  }
-
-  // ── Editing helpers ──────────────────────────────────────────────────────────────────────
-
-  function applyTool(tool: Tool) {
-    const ta = bodyRef.current;
-    if (!ta || !form) return;
-    const { selectionStart: a, selectionEnd: b, value } = ta;
-    let next = value;
-    let caretA = a;
-    let caretB = b;
-    if ('wrap' in tool) {
-      const inner = value.slice(a, b) || tool.placeholder;
-      next = value.slice(0, a) + tool.wrap[0] + inner + tool.wrap[1] + value.slice(b);
-      caretA = a + tool.wrap[0].length;
-      caretB = caretA + inner.length;
-    } else if ('prefix' in tool) {
-      const lineStart = value.lastIndexOf('\n', a - 1) + 1;
-      const lineEnd = value.indexOf('\n', b) === -1 ? value.length : value.indexOf('\n', b);
-      const block = value.slice(lineStart, lineEnd).split('\n');
-      const out = block.map((l, i) => (typeof tool.prefix === 'function' ? tool.prefix(i) : tool.prefix) + l).join('\n');
-      next = value.slice(0, lineStart) + out + value.slice(lineEnd);
-      caretA = lineStart;
-      caretB = lineStart + out.length;
-    } else {
-      next = value.slice(0, a) + tool.insert + value.slice(b);
-      caretA = caretB = a + tool.insert.length;
-    }
-    set('body', next);
-    requestAnimationFrame(() => {
-      ta.focus();
-      ta.setSelectionRange(caretA, caretB);
-    });
-  }
-
-  function insertAtCaret(text: string) {
-    const ta = bodyRef.current;
-    if (!ta) return;
-    const { selectionStart: a, selectionEnd: b, value } = ta;
-    // Images must sit on a line of their own to be images.
-    const before = a > 0 && value[a - 1] !== '\n' ? '\n' : '';
-    const after = value[b] !== '\n' ? '\n' : '';
-    const ins = `${before}${text}${after}`;
-    set('body', value.slice(0, a) + ins + value.slice(b));
-    requestAnimationFrame(() => {
-      ta.focus();
-      ta.setSelectionRange(a + ins.length, a + ins.length);
-    });
-  }
-
-  async function upload(file: File): Promise<string | null> {
-    setUploading(true);
-    try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const res = await call(`${api}/upload`, { method: 'POST', body: fd });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        notify(j.error ?? 'Upload failed', 'error');
-        return null;
-      }
-      return j.url as string;
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  async function uploadImages(files: FileList | File[]) {
-    for (const f of Array.from(files)) {
-      if (!f.type.startsWith('image/')) continue;
-      const url = await upload(f);
-      if (url) insertAtCaret(`![${f.name.replace(/\.[a-z0-9]+$/i, '')}](${url})`);
     }
   }
 
@@ -430,11 +324,25 @@ export default function GuideEditor({
       {isCopy && !g.followsSource && !behind && src && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-card-border bg-card-bg px-4 py-2.5 text-xs text-text-muted">
           <span>Your customised copy of a library guide. Up to date with library v{src.version}.</span>
-          {!readOnly && (
-            <button onClick={() => answerUpdate('sync')} className="text-gold hover:underline">
-              Revert to library version
-            </button>
-          )}
+          <span className="flex gap-4">
+            {/* Improvements a clan made are often improvements for everyone. */}
+            <ClanLink href={`/guides/propose?edit=${src.id}&from=${g.id}`} className="text-gold hover:underline">
+              Suggest your changes to the library
+            </ClanLink>
+            {!readOnly && (
+              <button onClick={() => answerUpdate('sync')} className="text-gold hover:underline">
+                Revert to library version
+              </button>
+            )}
+          </span>
+        </div>
+      )}
+      {scope === 'clan' && !isCopy && g.status === 'published' && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-card-border bg-card-bg px-4 py-2.5 text-xs text-text-muted">
+          <span>Written by your clan. Good enough for every clan?</span>
+          <ClanLink href={`/guides/propose?from=${g.id}`} className="text-gold hover:underline">
+            Propose it to the Anvil library
+          </ClanLink>
         </div>
       )}
       {scope === 'library' && data.copies && data.copies.following + data.copies.forked > 0 && (
@@ -447,137 +355,12 @@ export default function GuideEditor({
       <div className="grid gap-5 xl:grid-cols-2">
         {/* Editor */}
         <div className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-[1fr_180px]">
-            <label className="block">
-              <span className="mb-1 block text-xs text-text-muted">Title</span>
-              <Input value={form.title} maxLength={GUIDE_LIMITS.title} disabled={readOnly} onChange={(e) => set('title', e.target.value)} />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs text-text-muted">Category</span>
-              <Select
-                value={form.category}
-                disabled={readOnly}
-                onChange={(v) => set('category', v)}
-                options={GUIDE_CATEGORIES.map((c) => ({ value: c.key, label: `${c.icon} ${c.label}` }))}
-                ariaLabel="Category"
-              />
-            </label>
-          </div>
-          <label className="block">
-            <span className="mb-1 flex justify-between text-xs text-text-muted">
-              <span>Summary — one line under the title</span>
-              <span>
-                {form.summary.length}/{GUIDE_LIMITS.summary}
-              </span>
-            </span>
-            <Input value={form.summary} maxLength={GUIDE_LIMITS.summary} disabled={readOnly} onChange={(e) => set('summary', e.target.value)} />
-          </label>
-          <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-            <label className="block">
-              <span className="mb-1 block text-xs text-text-muted">Cover image (optional — shown at the top, in Discord too)</span>
-              <Input
-                value={form.coverUrl ?? ''}
-                placeholder="https://… or upload"
-                disabled={readOnly}
-                onChange={(e) => set('coverUrl', e.target.value || null)}
-              />
-            </label>
-            {!readOnly && (
-              <div className="flex items-end">
-                <input
-                  ref={coverRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/gif,image/webp"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const f = e.target.files?.[0];
-                    e.target.value = '';
-                    if (f) {
-                      const url = await upload(f);
-                      if (url) set('coverUrl', url);
-                    }
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => coverRef.current?.click()}
-                  className="h-[38px] rounded border border-card-border px-3 text-sm text-text-muted hover:text-foreground"
-                >
-                  Upload
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div>
-            {!readOnly && (
-              <div className="flex flex-wrap items-center gap-1 rounded-t border border-b-0 border-card-border bg-black/20 p-1.5">
-                {TOOLS.map((t) => (
-                  <button
-                    key={t.title}
-                    type="button"
-                    title={t.title}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => applyTool(t)}
-                    className={`min-w-[30px] rounded px-1.5 py-1 text-xs text-text-muted hover:bg-white/10 hover:text-foreground ${
-                      t.label === 'B' ? 'font-bold' : t.label === 'I' ? 'italic' : t.label === 'U' ? 'underline' : t.label === 'S' ? 'line-through' : ''
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-                <input
-                  ref={fileRef}
-                  type="file"
-                  multiple
-                  accept="image/png,image/jpeg,image/gif,image/webp"
-                  className="hidden"
-                  onChange={(e) => {
-                    const files = e.target.files;
-                    if (files) void uploadImages(files);
-                    e.target.value = '';
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => fileRef.current?.click()}
-                  disabled={uploading}
-                  className="ml-auto rounded bg-gold/15 px-2 py-1 text-xs text-gold hover:bg-gold/25 disabled:opacity-50"
-                >
-                  {uploading ? 'Uploading…' : '🖼 Image'}
-                </button>
-              </div>
-            )}
-            <Textarea
-              ref={bodyRef}
-              value={form.body}
-              readOnly={readOnly}
-              onChange={(e) => set('body', e.target.value)}
-              onPaste={(e) => {
-                const files = Array.from(e.clipboardData.files).filter((f) => f.type.startsWith('image/'));
-                if (files.length && !readOnly) {
-                  e.preventDefault();
-                  void uploadImages(files);
-                }
-              }}
-              onDrop={(e) => {
-                const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'));
-                if (files.length && !readOnly) {
-                  e.preventDefault();
-                  void uploadImages(files);
-                }
-              }}
-              rows={26}
-              spellCheck
-              placeholder={'## Gear\n- Item one\n- Item two\n\n![Setup](https://…)\n\n---\n\n## The fight\n…'}
-              className={`min-h-[420px] font-mono text-[13px] leading-relaxed ${readOnly ? '' : 'rounded-t-none'}`}
-            />
-            <p className="mt-1 text-[11px] text-text-muted">
-              Discord markdown: <code>#</code>/<code>##</code>/<code>###</code> headings, <code>-#</code> subtext, <code>- lists</code>,{' '}
-              <code>&gt; quotes</code>, <code>||spoilers||</code>, <code>[links](https://…)</code>. An image on its own line shows under the
-              text above it. A line with only <code>---</code> starts a new message. Paste or drop screenshots straight in.
-            </p>
-          </div>
+          <GuideFieldsEditor
+            value={form}
+            onChange={(patch) => setForm((f) => (f ? { ...f, ...patch } : f))}
+            readOnly={readOnly}
+            uploadUrl={`${api}/upload`}
+          />
 
           {!readOnly && (
             <div className="grid gap-3 sm:grid-cols-[1fr_200px]">
@@ -596,35 +379,13 @@ export default function GuideEditor({
         </div>
 
         {/* Preview */}
-        <div className="min-w-0">
-          <div className="mb-2 flex gap-1">
-            {(['discord', 'site'] as const).map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setPreview(p)}
-                className={`rounded-lg px-3 py-1 text-xs ${preview === p ? 'bg-gold/15 text-gold' : 'text-text-muted hover:text-foreground'}`}
-              >
-                {p === 'discord' ? 'Discord' : 'Site'}
-              </button>
-            ))}
-          </div>
-          <div className="xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto">
-            {preview === 'discord' ? (
-              <DiscordPreview guide={previewGuide} origin={origin} />
-            ) : (
-              <article className="rounded-xl border border-card-border bg-card-bg p-5">
-                {form.coverUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={form.coverUrl} alt="" className="mb-4 max-h-64 w-full rounded-lg object-cover" />
-                )}
-                <h1 className="text-2xl font-bold text-gold">{form.title}</h1>
-                {form.summary && <p className="mt-1 text-sm text-text-muted">{form.summary}</p>}
-                <div className="mt-3 text-[15px] text-gray-200">{renderGuide(form.body, { showBreaks: true })}</div>
-              </article>
-            )}
-          </div>
-        </div>
+        <GuidePreviewPane
+          value={form}
+          origin={origin}
+          siteUrl={previewGuide.siteUrl}
+          updatedAt={previewGuide.updatedAt}
+          byline={previewGuide.byline}
+        />
       </div>
 
       {scope === 'clan' && (

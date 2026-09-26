@@ -41,14 +41,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const href = await clanHrefs();
   if (!session) redirect('/login?return=' + encodeURIComponent(href(pathname || '/admin')));
 
-  const access = { role: session.role, canEditTiles: session.canEditTiles, editorScope: session.editorScope };
+  const access = {
+    role: session.role,
+    canEditTiles: session.canEditTiles,
+    editorScope: session.editorScope,
+    canEditGuides: session.canEditGuides,
+  };
   const target = redirectFor(pathname || '/admin/dashboard', access);
   if (target && target !== pathname) redirect(href(target));
 
   // Moderator-or-better, or the authoring capability: anything less was turned away above. Sent to
   // THIS clan's home rather than the apex: they were looking at this clan, and being told "not for
   // you" is not a reason to also lose your place.
-  const isStaffHere = isStaffRole(session.role) || session.canEditTiles;
+  const isStaffHere = isStaffRole(session.role) || session.canEditTiles || session.canEditGuides;
   if (!isStaffHere) redirect((await clanPrefix()) || '/');
 
   const userRow = session.userId > 0
@@ -93,6 +98,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // An authoring grant without a tier: their whole world is the boards they hold. Give them ONLY
   // "My boards"; no dashboard, weekly, clan or schedule. The path gate above already enforced it.
   const isScopedEditor = !isStaffRole(session.role) && session.canEditTiles;
+  // The same, for guides: a member who writes guides sees the guides and nothing else.
+  const isGuideWriter = !isStaffRole(session.role) && session.canEditGuides;
 
   // Boards on other clans this one co-hosts. They live at the host's address, so nothing under this
   // clan's admin reached them — and a moderator, who cannot open the events list, had no way at all.
@@ -105,17 +112,31 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       }
     : null;
 
-  if (isScopedEditor) {
+  if (isScopedEditor || isGuideWriter) {
     const scopedGroups: SidebarGroup[] = [
-      {
-        label: 'Events',
-        items: [{ href: '/admin/events', label: 'My boards', icon: '🎯', matchPrefix: true }],
-      },
-      ...(cohostedGroup ? [cohostedGroup] : []),
+      ...(isScopedEditor
+        ? [
+            {
+              label: 'Events',
+              items: [{ href: '/admin/events', label: 'My boards', icon: '🎯', matchPrefix: true }],
+            },
+          ]
+        : []),
+      ...(isGuideWriter
+        ? [
+            {
+              label: 'Content',
+              items: [
+                { href: '/admin/guides', label: 'Guides', icon: '📖', badge: await pendingUpdateCount(clan.id), matchPrefix: true },
+              ],
+            },
+          ]
+        : []),
+      ...(cohostedGroup && isScopedEditor ? [cohostedGroup] : []),
     ];
     const scopedUser = {
       displayName: userRow?.displayName ?? session.username ?? 'Editor',
-      role: 'board editor',
+      role: isScopedEditor && isGuideWriter ? 'board & guide editor' : isScopedEditor ? 'board editor' : 'guide editor',
       avatarUrl: userRow?.discordId ? avatarUrl(userRow.discordId, userRow.discordAvatar) : null,
     };
     return (

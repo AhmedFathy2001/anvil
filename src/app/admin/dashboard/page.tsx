@@ -48,7 +48,7 @@ export default async function AdminDashboardPage() {
   // here. Asking the real routing table means the dashboard and the gate can never disagree.
   const session = await verifyUser();
   const access = session
-    ? { role: session.role, canEditTiles: session.canEditTiles, editorScope: session.editorScope }
+    ? { role: session.role, canEditTiles: session.canEditTiles, editorScope: session.editorScope, canEditGuides: session.canEditGuides }
     : null;
   const canReach = (href: string) => redirectFor(href, access) === null;
   const canManageEvents = canReach('/admin/events');

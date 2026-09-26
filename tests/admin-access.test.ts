@@ -99,3 +99,26 @@ test('everyone lands somewhere they are allowed to be', () => {
     assert.equal(redirectFor(adminLanding(who), who), allowed, `${who.role} lands somewhere it may be`);
   }
 });
+
+// ── Guide writers ──────────────────────────────────────────────────────────────────────────
+const guideWriter = { role: 'member', canEditTiles: false, editorScope: 'all', canEditGuides: true };
+const boardAndGuides = { role: 'editor', canEditTiles: true, editorScope: 'assigned', canEditGuides: true };
+
+test('a member who writes guides reaches the guides and nothing else', () => {
+  assert.equal(redirectFor('/admin/guides', guideWriter), allowed);
+  assert.equal(redirectFor('/admin/guides/12', guideWriter), allowed);
+  assert.equal(redirectFor('/admin/dashboard', guideWriter), '/admin/guides');
+  assert.equal(redirectFor('/admin/people', guideWriter), '/admin/guides');
+  assert.equal(redirectFor('/admin/events', guideWriter), '/admin/guides');
+  assert.equal(adminLanding(guideWriter), '/admin/guides');
+  // Without the flag the same member has no admin area at all.
+  assert.equal(redirectFor('/admin/guides', plainMember), '/');
+});
+
+test('guides sit beside board authoring rather than replacing it', () => {
+  assert.equal(redirectFor('/admin/guides', boardAndGuides), allowed);
+  assert.equal(redirectFor('/admin/events/4/tiles', boardAndGuides), allowed);
+  assert.equal(adminLanding(boardAndGuides), '/admin/events');
+  // Every staff tier may read the guides page; writing is checked by the page itself.
+  assert.equal(redirectFor('/admin/guides', moderator), allowed);
+});

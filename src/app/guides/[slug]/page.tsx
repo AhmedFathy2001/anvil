@@ -63,6 +63,12 @@ export default async function GuideReadPage({ params }: Props) {
                 {g.followsSource ? 'From the Anvil library' : `Adapted from the Anvil library by ${clan?.name ?? 'the clan'}`}
               </span>
             )}
+            {/* The library's text — the original, or a copy still following it — takes suggestions. */}
+            {(origin === 'library' || (g.sourceGuideId && g.followsSource)) && (
+              <ClanLink href={`/guides/propose?edit=${origin === 'library' ? g.id : g.sourceGuideId}`} className="text-gold hover:underline">
+                Suggest an edit
+              </ClanLink>
+            )}
             {editor?.canEdit && origin === 'clan' && (
               <ClanLink href={`/admin/guides/${g.id}`} className="text-gold hover:underline">
                 Edit

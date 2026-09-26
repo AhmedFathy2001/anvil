@@ -23,6 +23,7 @@ interface User {
   displayName: string;
   role: Role;
   canEditTiles?: boolean;
+  canEditGuides?: boolean;
   isOwner: boolean;
   banned: boolean;
   createdAt: string;
@@ -258,15 +259,24 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
   // rather than an option inside it — that's what lets a moderator or treasurer build boards
   // without being promoted, and a member author without any moderator surfaces.
   async function toggleTiles(user: User, canEditTiles: boolean) {
+    return toggleCapability(user, { canEditTiles }, 'Failed to update tile access');
+  }
+
+  // Guide writing is the same shape: a capability any seat can hold, a plain member included.
+  async function toggleGuides(user: User, canEditGuides: boolean) {
+    return toggleCapability(user, { canEditGuides }, 'Failed to update guide access');
+  }
+
+  async function toggleCapability(user: User, body: Record<string, boolean>, failure: string) {
     setSavingRoleId(user.id);
     const res = await clanFetch(`/api/admin/users/${user.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ canEditTiles }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      notify(data.error || 'Failed to update tile access', 'error');
+      notify(data.error || failure, 'error');
     }
     await fetchUsers();
     setSavingRoleId(null);
@@ -474,6 +484,14 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
             disabled={savingRoleId === user.id}
             onChange={(next) => toggleTiles(user, next)}
             label="Can build bingo boards"
+          />
+        )}
+        {user.role !== 'admin' && (
+          <Checkbox
+            checked={user.canEditGuides === true}
+            disabled={savingRoleId === user.id}
+            onChange={(next) => toggleGuides(user, next)}
+            label="Can write guides"
           />
         )}
       </div>
