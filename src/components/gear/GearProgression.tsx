@@ -29,7 +29,7 @@ export default function GearProgression({ block, tier, storageKey }: { block: Ge
 
   const results = useMemo(() => {
     if (!idx || !monster) return [];
-    return block.setups.map((s) => ({ setup: s, r: bestStyle(setupLoadout(s), monster, idx.item)?.result ?? null }));
+    return block.setups.map((s) => ({ setup: s, r: bestStyle(setupLoadout(s), monster, idx.item, idx.rules)?.result ?? null }));
   }, [idx, monster, block.setups]);
   const top = Math.max(0.01, ...results.map((x) => x.r?.dps ?? 0));
 
@@ -58,7 +58,7 @@ export default function GearProgression({ block, tier, storageKey }: { block: Ge
     }
   }, [mine, storageKey]);
 
-  const myResult = useMemo(() => (idx && monster && mine ? calculate(mine, monster, idx.item) : null), [idx, monster, mine]);
+  const myResult = useMemo(() => (idx && monster && mine ? calculate(mine, monster, idx.item, idx.rules) : null), [idx, monster, mine]);
 
   // GE prices for everything the guide recommends — the upgrade route ranks by DPS per coin.
   const [prices, setPrices] = useState<Record<number, number> | null>(null);
@@ -76,7 +76,7 @@ export default function GearProgression({ block, tier, storageKey }: { block: Ge
   }, [block.setups]);
 
   const route = useMemo(
-    () => (idx && monster && mine && prices ? upgradeRoute(mine, block.setups, monster, idx.item, prices) : null),
+    () => (idx && monster && mine && prices ? upgradeRoute(mine, block.setups, monster, idx.item, prices, 10, idx.rules) : null),
     [idx, monster, mine, prices, block.setups],
   );
 

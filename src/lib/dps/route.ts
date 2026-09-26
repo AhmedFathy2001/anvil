@@ -8,6 +8,7 @@
 
 import { bestStyle, type GearItem, type ItemLookup, type Loadout, type Monster } from './engine';
 import { stylesFor, type Slot } from './tables';
+import type { EffectRule } from './effects';
 import type { GearSetup } from '../guideTiers';
 
 export interface RouteStep {
@@ -47,8 +48,8 @@ function wear(loadout: Loadout, item: GearItem, kit: GearSetup | undefined, item
   return next;
 }
 
-function dpsOf(l: Loadout, monster: Monster, items: ItemLookup): { dps: number; style: number } {
-  const b = bestStyle(l, monster, items);
+function dpsOf(l: Loadout, monster: Monster, items: ItemLookup, rules: EffectRule[]): { dps: number; style: number } {
+  const b = bestStyle(l, monster, items, rules);
   return b ? { dps: b.result.dps, style: b.index } : { dps: 0, style: l.style };
 }
 
@@ -59,6 +60,7 @@ export function upgradeRoute(
   items: ItemLookup,
   prices: Record<number, number>,
   maxSteps = 10,
+  rules: EffectRule[] = [],
 ): Route {
   const myKind = kindOf(items(current.gear.weapon), current.style);
   const same = setups.filter((s) => kindOf(items(s.gear.weapon), s.style) === myKind);
@@ -71,8 +73,8 @@ export function upgradeRoute(
     }
   }
 
-  let loadout = { ...current, ...dpsOfStyle(current, monster, items) };
-  const start = dpsOf(loadout, monster, items).dps;
+  let loadout = { ...current, style: dpsOf(current, monster, items, rules).style };
+  const start = dpsOf(loadout, monster, items, rules).dps;
   let dps = start;
   let total = 0;
   const steps: RouteStep[] = [];
@@ -85,7 +87,7 @@ export function upgradeRoute(
       const price = prices[c.item.id];
       if (price == null || have.has(c.item.id)) continue;
       const next = wear(loadout, c.item, c.kit, items);
-      const r = dpsOf(next, monster, items);
+      const r = dpsOf(next, monster, items, rules);
       const gain = r.dps - dps;
       if (gain <= 0.001) continue;
       const score = gain / Math.max(price, 1);
@@ -102,13 +104,9 @@ export function upgradeRoute(
   const have = new Set(Object.values(current.gear));
   const untradeable = [...candidates.values()]
     .filter((c) => prices[c.item.id] == null && !have.has(c.item.id))
-    .map((c) => ({ item: c.item, slot: c.item.s as Slot, gain: dpsOf(wear(current, c.item, c.kit, items), monster, items).dps - start }))
+    .map((c) => ({ item: c.item, slot: c.item.s as Slot, gain: dpsOf(wear(current, c.item, c.kit, items), monster, items, rules).dps - start }))
     .filter((u) => u.gain > 0.001)
     .sort((a, b) => b.gain - a.gain);
 
   return { start, steps, untradeable };
-}
-
-function dpsOfStyle(l: Loadout, monster: Monster, items: ItemLookup): { style: number } {
-  return { style: dpsOf(l, monster, items).style };
 }

@@ -7,6 +7,7 @@ import { clanGuideActor, requireClanGuideEditorApi } from '@/lib/guideAccess';
 import { GuideInputError, deleteGuide, getScopedGuide, listRevisions, saveGuide } from '@/lib/guides';
 import { postJumpUrl, unpost } from '@/lib/guidePosting';
 import { getBotCredentials } from '@/lib/discord-roles';
+import { listCategories } from '@/lib/guideCategoryStore';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -17,11 +18,12 @@ export async function GET(_req: Request, { params }: Ctx) {
   const guide = await getScopedGuide(Number((await params).id), actor.clan.id);
   if (!guide) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  const [revisions, source, posts, creds] = await Promise.all([
+  const [revisions, source, posts, creds, categories] = await Promise.all([
     listRevisions(guide.id),
     guide.sourceGuideId ? getScopedGuide(guide.sourceGuideId, null) : Promise.resolve(null),
     db.select().from(guidePosts).where(eq(guidePosts.guideId, guide.id)),
     getBotCredentials(actor.clan.id),
+    listCategories(actor.clan.id),
   ]);
   // The library editor's notes for every version this copy has not taken yet.
   const sourceNotes = source
@@ -33,6 +35,7 @@ export async function GET(_req: Request, { params }: Ctx) {
   return NextResponse.json({
     canEdit: actor.canEdit,
     guide,
+    categories,
     sourceNotes,
     revisions: revisions.map((r) => ({ version: r.version, note: r.note, at: r.createdAt })),
     source: source && {

@@ -50,8 +50,8 @@ export default function LoadoutEditor({
   const style = styles[Math.min(value.style, styles.length - 1)] ?? styles[0];
   const kind = style.type === 'magic' ? 'magic' : style.type === 'ranged' ? 'ranged' : 'melee';
   const isBlowpipe = /blowpipe/i.test(weapon?.n ?? '');
-  const darts = useMemo(() => idx.items.filter((i) => i.c === 'Thrown' && / dart$/i.test(i.n)), [idx.items]);
-  const result = useMemo(() => (monster ? calculate(value, monster, idx.item) : null), [value, monster, idx]);
+  const darts = useMemo(() => idx.items.filter((i) => !i.hid && i.c === 'Thrown' && / dart$/i.test(i.n)), [idx.items]);
+  const result = useMemo(() => (monster ? calculate(value, monster, idx.item, idx.rules) : null), [value, monster, idx]);
 
   const setSlot = (slot: Slot, id: number | null) => {
     const gear = { ...value.gear };

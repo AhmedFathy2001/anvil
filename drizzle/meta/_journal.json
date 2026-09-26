@@ -414,6 +414,13 @@
       "when": 1790520000000,
       "tag": "0100_guide_library_levels",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1790530000000,
+      "tag": "0101_guide_categories_gear_admin",
+      "breakpoints": true
     }
   ]
 }

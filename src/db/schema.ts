@@ -2622,8 +2622,7 @@ export const guides = pgTable('guides', {
   slug: text('slug').notNull(),
   title: text('title').notNull(),
   summary: text('summary').notNull().default(''),
-  // One of GUIDE_CATEGORIES (lib/guides/categories). Free text in the column so adding one is a code
-  // change, not a migration.
+  // A guide_categories key — the platform's, or this clan's own (lib/guideCategoryStore).
   category: text('category').notNull().default('general'),
   coverUrl: text('cover_url'),
   // Discord-flavoured markdown. A line holding only `---` starts a new Discord message.
@@ -2732,3 +2731,62 @@ export const guideProposals = pgTable('guide_proposals', {
   index('guide_proposals_proposer_idx').on(t.proposerUserId),
 ]);
 export type GuideProposal = typeof guideProposals.$inferSelect;
+
+/**
+ * Guide categories. clan_id NULL = the platform's list (every guide can use it; staff manage it at
+ * /staff/guides/categories); clan_id set = a clan's own extras, usable only by that clan's guides.
+ * Archiving hides a category from pickers without breaking the guides already filed under it.
+ */
+export const guideCategories = pgTable('guide_categories', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').references(() => clans.id, { onDelete: 'cascade' }),
+  key: text('key').notNull(),
+  label: text('label').notNull(),
+  icon: text('icon').notNull().default('📖'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  // Library guides in this category must cover Beginner/Intermediate/Advanced (lib/guideTiers).
+  requiresLevels: boolean('requires_levels').notNull().default(true),
+  archived: boolean('archived').notNull().default(false),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (t) => [
+  unique('guide_categories_clan_key_unique').on(t.clanId, t.key).nullsNotDistinct(),
+]);
+export type GuideCategoryRow = typeof guideCategories.$inferSelect;
+
+/**
+ * Platform edits to the gear calculator's data, applied on top of the dataset (lib/dps/store):
+ *   kind 'item'    — key = item id. `data` holds the fields to add or replace; `hidden` drops it from pickers.
+ *   kind 'monster' — key = "Name#Version". Same.
+ *   kind 'effect'  — key = a rule id. `data` is an EffectRule (lib/dps/effects): a bonus the engine
+ *                    applies on top of its built-in effects, for gear the code doesn't know yet.
+ * Deleting a row reverts to the dataset. Platform only — every clan's numbers are the same.
+ */
+export const gearOverrides = pgTable('gear_overrides', {
+  id: serial('id').primaryKey(),
+  kind: text('kind').notNull(),
+  key: text('key').notNull(),
+  data: jsonb('data').$type<Record<string, unknown>>().notNull().default({}),
+  hidden: boolean('hidden').notNull().default(false),
+  note: text('note'),
+  updatedByUserId: integer('updated_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedAt: text('updated_at').notNull(),
+}, (t) => [
+  uniqueIndex('gear_overrides_kind_key_unique').on(t.kind, t.key),
+]);
+export type GearOverride = typeof gearOverrides.$inferSelect;
+
+/**
+ * A refresh of the gear dataset from the wiki, done from /staff instead of a deploy. The newest row
+ * replaces the bundled src/data/gear*.json; older rows are kept (a few) so a bad refresh can be
+ * rolled back by deleting the newest.
+ */
+export const gearDatasets = pgTable('gear_datasets', {
+  id: serial('id').primaryKey(),
+  items: jsonb('items').$type<unknown[]>().notNull(),
+  monsters: jsonb('monsters').$type<unknown[]>().notNull(),
+  itemCount: integer('item_count').notNull(),
+  monsterCount: integer('monster_count').notNull(),
+  createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').notNull(),
+});

@@ -56,7 +56,7 @@ export default function ItemPicker({
     return () => document.removeEventListener('mousedown', close);
   }, [open]);
   const current = items.find((i) => i.id === value) ?? null;
-  const pool = useMemo(() => items.filter((i) => i.s === slot), [items, slot]);
+  const pool = useMemo(() => items.filter((i) => i.s === slot && !i.hid), [items, slot]);
   const matches = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const list = needle ? pool.filter((i) => i.n.toLowerCase().includes(needle)) : pool;

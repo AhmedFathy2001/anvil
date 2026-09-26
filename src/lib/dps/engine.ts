@@ -18,6 +18,7 @@ import {
   type Slot,
   type Spell,
 } from './tables';
+import { ruleApplies, type EffectRule } from './effects';
 
 // ── Data shapes (as emitted by scripts/build-gear-dataset.mjs) ───────────────────────────────
 
@@ -33,6 +34,10 @@ export interface GearItem {
   sp?: number;
   c?: string;
   img?: string;
+  /** Hidden by platform staff: kept for guides that already use it, left out of pickers. */
+  hid?: 1;
+  /** Added or changed by platform staff (lib/dps/store). */
+  ovr?: 1;
 }
 
 export interface Monster {
@@ -50,6 +55,8 @@ export interface Monster {
   fa?: number;
   ew?: string;
   ewp?: number;
+  hid?: 1;
+  ovr?: 1;
 }
 
 export interface Stats {
@@ -148,7 +155,7 @@ export function twistedBow(magic: number): { acc: number; dmg: number } {
 
 // ── The calculation ──────────────────────────────────────────────────────────────────────────
 
-export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup): DpsResult | null {
+export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup, rules: EffectRule[] = []): DpsResult | null {
   const gear = worn(loadout, items);
   const weapon = items(loadout.gear.weapon);
   const styles = stylesFor(weapon?.c);
@@ -190,6 +197,25 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup)
   let defenceRoll = 0;
   let hits = [1]; // damage fractions per attack (scythe: several)
 
+  // Custom effect rules (lib/dps/effects), applied after each style's built-in effects.
+  const applyRules = () => {
+    const ctx = {
+      weapon: weapon?.n ?? '',
+      worn: gear.map((g) => g.n),
+      kind,
+      attackType: style.type,
+      monsterName: monster.n,
+      monsterAttributes: [...attrs],
+      onTask: loadout.onTask === true,
+    };
+    for (const rule of rules) {
+      if (!ruleApplies(rule, ctx)) continue;
+      attackRoll = floor(attackRoll * rule.accuracy);
+      maxHit = floor(maxHit * rule.damage);
+      notes.push(`${rule.name} (added by Anvil staff).`);
+    }
+  };
+
   if (kind === 'melee') {
     const pr = prayerFor(loadout.prayer, 'melee');
     const att = applyBoost(loadout.stats.attack, loadout.boost, 'melee');
@@ -226,6 +252,7 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup)
       if (bonus) mul(1 + bonus, 1 + bonus);
     }
 
+    applyRules();
     const defType = style.type === 'stab' ? 0 : style.type === 'slash' ? 1 : 2;
     defenceRoll = (monster.lv[0] + 9) * (monster.d[defType] + 64);
 
@@ -275,6 +302,7 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup)
       if (acc) mul(1 + acc, 1 + dmg);
     }
 
+    applyRules();
     // Ammo-type defences: thrown/darts hit light, arrows standard, bolts heavy.
     const defIdx = weapon?.c === 'Crossbow' ? 6 : weapon?.c === 'Bow' ? 5 : 4;
     defenceRoll = (monster.lv[0] + 9) * (monster.d[defIdx] + 64);
@@ -337,6 +365,7 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup)
 
     maxHit = floor(base * (1 + dmgPct / 100));
     if (slayerImbued && !salveE && !salveI) maxHit = floor(maxHit * 1.15);
+    applyRules();
     if (spell?.element && monster.ew && spell.element === monster.ew && monster.ewp) {
       maxHit += floor((base * monster.ewp) / 100);
       notes.push(`Weak to ${spell.element}: +${monster.ewp}% of the spell's base damage (accuracy effect not modelled).`);
@@ -372,11 +401,16 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup)
 }
 
 /** Every style the loadout's weapon offers, and the best of them. */
-export function bestStyle(loadout: Loadout, monster: Monster, items: ItemLookup): { index: number; result: DpsResult } | null {
+export function bestStyle(
+  loadout: Loadout,
+  monster: Monster,
+  items: ItemLookup,
+  rules: EffectRule[] = [],
+): { index: number; result: DpsResult } | null {
   const styles = stylesFor(items(loadout.gear.weapon)?.c);
   let best: { index: number; result: DpsResult } | null = null;
   styles.forEach((_, index) => {
-    const r = calculate({ ...loadout, style: index }, monster, items);
+    const r = calculate({ ...loadout, style: index }, monster, items, rules);
     if (r && (!best || r.dps > best.result.dps)) best = { index, result: r };
   });
   return best;

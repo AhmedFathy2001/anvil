@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import ClanLink from '@/components/ClanLink';
 
 import { useDialog } from '@/components/Confirm';
-import { categoryOf } from '@/lib/guideCategories';
+import { categoryOf, type CategoryView } from '@/lib/guideCategories';
 
 interface Row {
   id: number;
@@ -25,10 +25,15 @@ export default function LibraryAdminClient({ canEdit }: { canEdit: boolean }) {
   const router = useRouter();
   const { ask, notify } = useDialog();
   const [rows, setRows] = useState<Row[] | null>(null);
+  const [categories, setCategories] = useState<CategoryView[]>([]);
 
   const load = useCallback(async () => {
     const res = await fetch('/api/staff/guides');
-    if (res.ok) setRows((await res.json()).guides);
+    if (res.ok) {
+      const j = await res.json();
+      setRows(j.guides);
+      setCategories(j.categories ?? []);
+    }
   }, []);
   useEffect(() => {
     void load();
@@ -64,6 +69,12 @@ export default function LibraryAdminClient({ canEdit }: { canEdit: boolean }) {
           >
             Proposals
           </ClanLink>
+          <ClanLink href="/staff/guides/categories" className="rounded-lg border border-card-border px-4 py-2 text-sm text-text-muted hover:text-gold">
+            Categories
+          </ClanLink>
+          <ClanLink href="/staff/guides/gear" className="rounded-lg border border-card-border px-4 py-2 text-sm text-text-muted hover:text-gold">
+            Gear data
+          </ClanLink>
         {canEdit && (
           <button onClick={create} className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-brown-dark hover:bg-gold-light">
             New guide
@@ -90,7 +101,7 @@ export default function LibraryAdminClient({ canEdit }: { canEdit: boolean }) {
             </thead>
             <tbody>
               {rows.map((r) => {
-                const c = categoryOf(r.category);
+                const c = categoryOf(r.category, categories);
                 return (
                   <tr key={r.id} className="border-b border-card-border/60 last:border-0 hover:bg-white/[0.02]">
                     <td className="px-4 py-2.5">

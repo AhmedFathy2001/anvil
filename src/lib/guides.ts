@@ -20,8 +20,9 @@ import { db } from '@/db';
 import { guidePosts, guideRevisions, guides, type Guide } from '@/db/schema';
 import { getSetting } from '@/lib/settings';
 import { log } from '@/lib/logger';
-import { GUIDE_LIMITS, isGuideCategory, slugify } from '@/lib/guideCategories';
-import { coverage, requiresTiers } from '@/lib/guideTiers';
+import { GUIDE_LIMITS, isCategoryKey, slugify } from '@/lib/guideCategories';
+import { coverage } from '@/lib/guideTiers';
+import { categoryRequiresLevels, categoryUsable } from '@/lib/guideCategoryStore';
 
 export const SHOW_LIBRARY_SETTING = 'guides_show_library';
 
@@ -243,7 +244,7 @@ export function cleanInput(input: GuideInput, partial: boolean): GuideInput {
     out.body = body;
   }
   if (input.category !== undefined) {
-    if (!isGuideCategory(input.category)) throw new GuideInputError('Unknown category.');
+    if (!isCategoryKey(input.category)) throw new GuideInputError('Unknown category.');
     out.category = input.category;
   }
   if (input.coverUrl !== undefined) {
@@ -273,8 +274,8 @@ const RESERVED_SLUGS = new Set(['propose', 'proposals']);
  * Beginner, Intermediate and Advanced section — and a gear setup for each, if it has a gear block.
  * Clan guides are nudged in the editor but never blocked: a clan's own notes are its business.
  */
-export function assertLibraryCoverage(g: { clanId: number | null; status: string; category: string; body: string }): void {
-  if (g.clanId != null || g.status !== 'published' || !requiresTiers(g.category)) return;
+export async function assertLibraryCoverage(g: { clanId: number | null; status: string; category: string; body: string }): Promise<void> {
+  if (g.clanId != null || g.status !== 'published' || !(await categoryRequiresLevels(g.category))) return;
   const c = coverage(g.body);
   if (!c.complete) {
     throw new GuideInputError(`Library guides cover every level before they're published. Missing: ${c.missing.join(', ')}.`);
@@ -327,7 +328,8 @@ export async function createGuide(
   const clean = cleanInput(input, false);
   const at = nowIso();
   const status = clean.status ?? 'draft';
-  assertLibraryCoverage({ clanId, status, category: clean.category ?? 'general', body: clean.body ?? '' });
+  if (!(await categoryUsable(clanId, clean.category ?? 'general'))) throw new GuideInputError('That category is not available here.');
+  await assertLibraryCoverage({ clanId, status, category: clean.category ?? 'general', body: clean.body ?? '' });
   const [row] = await db
     .insert(guides)
     .values({
@@ -366,7 +368,10 @@ export async function saveGuide(
   note: string | null,
 ): Promise<Guide> {
   const clean = cleanInput(input, true);
-  assertLibraryCoverage({
+  if (clean.category && !(await categoryUsable(g.clanId, clean.category, g.category))) {
+    throw new GuideInputError('That category is not available here.');
+  }
+  await assertLibraryCoverage({
     clanId: g.clanId,
     status: clean.status ?? g.status,
     category: clean.category ?? g.category,

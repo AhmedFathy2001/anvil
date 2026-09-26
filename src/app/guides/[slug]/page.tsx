@@ -6,6 +6,7 @@ import { currentClan } from '@/lib/clanContext';
 import { clanGuideActor } from '@/lib/guideAccess';
 import { publicGuideBySlug } from '@/lib/guides';
 import { categoryOf, readingMinutes } from '@/lib/guideCategories';
+import { listCategories } from '@/lib/guideCategoryStore';
 import { guideHeadings } from '@/lib/guideMarkdown';
 import { TIERS, splitSegments } from '@/lib/guideTiers';
 import GuideBody from '@/components/guides/GuideBody';
@@ -35,7 +36,7 @@ export default async function GuideReadPage({ params }: Props) {
   const { clan, found } = await load(slug);
   if (!found) notFound();
   const { guide: g, origin } = found;
-  const cat = categoryOf(g.category);
+  const cat = categoryOf(g.category, await listCategories(clan?.id ?? null));
   // Shared sections by heading, then one entry per level (a level's own headings live behind the
   // switcher, so linking into them from here would often point at something hidden).
   const segs = splitSegments(g.body);

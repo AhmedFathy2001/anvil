@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
 
-import { GEAR_DATA } from '@/lib/dps/data';
+import { effectiveGear } from '@/lib/dps/store';
 
-// The gear calculator's datasets (items + monsters, ~600 KB before compression). Public, identical
-// for every reader, and changed only by a deploy — so the browser and any proxy may keep it a day.
-export async function GET() {
-  return NextResponse.json(GEAR_DATA, {
-    headers: { 'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800' },
+// The gear calculator's data as it stands: dataset + platform overrides + custom effect rules. Public
+// and the same for every reader. Revalidated by version, since /staff can change it at any time.
+export async function GET(request: Request) {
+  const { data } = await effectiveGear();
+  const etag = `"gear-${data.version ?? 'b'}"`;
+  if (request.headers.get('if-none-match') === etag) return new NextResponse(null, { status: 304, headers: { ETag: etag } });
+  return NextResponse.json(data, {
+    headers: { ETag: etag, 'Cache-Control': 'public, max-age=60, stale-while-revalidate=600' },
   });
 }

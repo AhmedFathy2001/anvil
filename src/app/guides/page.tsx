@@ -4,7 +4,8 @@ import ClanLink from '@/components/ClanLink';
 import { currentClan } from '@/lib/clanContext';
 import { clanGuideActor } from '@/lib/guideAccess';
 import { publicGuides } from '@/lib/guides';
-import { GUIDE_CATEGORIES, categoryOf, readingMinutes } from '@/lib/guideCategories';
+import { categoryOf, readingMinutes } from '@/lib/guideCategories';
+import { listCategories } from '@/lib/guideCategoryStore';
 
 export async function generateMetadata(): Promise<Metadata> {
   const clan = await currentClan();
@@ -22,11 +23,14 @@ export async function generateMetadata(): Promise<Metadata> {
  */
 export default async function GuidesPage({ searchParams }: { searchParams: Promise<{ cat?: string }> }) {
   const [clan, { cat }] = await Promise.all([currentClan(), searchParams]);
-  const all = await publicGuides(clan?.id ?? null);
+  const [all, cats] = await Promise.all([publicGuides(clan?.id ?? null), listCategories(clan?.id ?? null)]);
+  // Every category a shown guide uses, in list order — archived ones included, or their guides vanish.
+  const known = new Set(cats.map((c) => c.key));
+  const allCats = [...cats, ...[...new Set(all.map((g) => g.guide.category))].filter((k) => !known.has(k)).map((k) => categoryOf(k))];
   const editor = clan ? await clanGuideActor() : null;
-  const present = GUIDE_CATEGORIES.filter((c) => all.some((g) => g.guide.category === c.key));
+  const present = allCats.filter((c) => all.some((g) => g.guide.category === c.key));
   const shown = cat ? all.filter((g) => g.guide.category === cat) : all;
-  const groups = GUIDE_CATEGORIES.map((c) => ({ c, items: shown.filter((g) => g.guide.category === c.key) })).filter((g) => g.items.length);
+  const groups = present.map((c) => ({ c, items: shown.filter((g) => g.guide.category === c.key) })).filter((g) => g.items.length);
 
   return (
     <div className="max-w-5xl">
@@ -96,7 +100,7 @@ export default async function GuidesPage({ searchParams }: { searchParams: Promi
                       <img src={g.coverUrl} alt="" loading="lazy" className="h-32 w-full object-cover opacity-90 transition-opacity group-hover:opacity-100" />
                     ) : (
                       <div className="flex h-20 items-center justify-center bg-gradient-to-br from-brown-light/30 to-transparent text-3xl opacity-60">
-                        {categoryOf(g.category).icon}
+                        {categoryOf(g.category, allCats).icon}
                       </div>
                     )}
                     <div className="flex flex-1 flex-col p-4">

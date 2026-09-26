@@ -7,7 +7,7 @@ import Select from '@/components/Select';
 import Checkbox from '@/components/Checkbox';
 import ClanLink from '@/components/ClanLink';
 import { clanFetch } from '@/lib/clanFetch';
-import { categoryOf } from '@/lib/guideCategories';
+import { categoryOf, type CategoryView } from '@/lib/guideCategories';
 
 interface GuideRow {
   id: number;
@@ -52,7 +52,18 @@ const LAYOUTS: { key: Layout; title: string; blurb: string }[] = [
  * when the panel opens and shown as a checklist, so a missing permission is visible — and blocks the
  * button — before anything is created.
  */
-export default function BulkPostPanel({ guides, onClose, onDone }: { guides: GuideRow[]; onClose: () => void; onDone: () => void }) {
+export default function BulkPostPanel({
+  guides,
+  guideCategories,
+  onClose,
+  onDone,
+}: {
+  guides: GuideRow[];
+  /** Guide categories (for icons) — not Discord categories, which this panel also lists. */
+  guideCategories?: CategoryView[];
+  onClose: () => void;
+  onDone: () => void;
+}) {
   const published = useMemo(() => guides.filter((g) => g.status === 'published'), [guides]);
   const [picked, setPicked] = useState<Set<number>>(() => new Set(published.map((g) => g.id)));
   const [layout, setLayout] = useState<Layout>('channels');
@@ -193,7 +204,7 @@ export default function BulkPostPanel({ guides, onClose, onDone }: { guides: Gui
                       return n;
                     })
                   }
-                  label={`${categoryOf(g.category).icon} ${g.title}`}
+                  label={`${categoryOf(g.category, guideCategories).icon} ${g.title}`}
                   labelClassName="text-sm"
                 />
               ))}

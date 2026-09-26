@@ -9,6 +9,7 @@ import { rt } from '../_i18n/rich';
 import { currentClan } from '@/lib/clanContext';
 import { publicGuides } from '@/lib/guides';
 import { categoryOf } from '@/lib/guideCategories';
+import { listCategories } from '@/lib/guideCategoryStore';
 
 // Eight guides is too many for one flat grid — grouped by who is reading, so a captain looking for
 // their own page doesn't have to read the treasurer's blurb first. The grouping lives here rather
@@ -47,6 +48,7 @@ export default async function GuideIndex({ lang }: { lang: string }) {
   const clan = await currentClan();
   // Never let the guides module take the setup guides down with it: they are how people get unstuck.
   const ingame = await publicGuides(clan?.id ?? null).catch(() => []);
+  const cats = await listCategories(clan?.id ?? null).catch(() => []);
 
   // The same cards the grid renders, flattened for the search box. Built from GROUPS rather than a
   // second list, so a guide can never be searchable but unlisted (or listed but unfindable).
@@ -132,7 +134,7 @@ export default async function GuideIndex({ lang }: { lang: string }) {
               >
                 <div className="mb-2 flex items-center gap-2 text-[11px] uppercase tracking-widest text-gold/80">
                   <span>
-                    {categoryOf(g.category).icon} {categoryOf(g.category).label}
+                    {categoryOf(g.category, cats).icon} {categoryOf(g.category, cats).label}
                   </span>
                   {origin === 'library' && clan && (
                     <span className="rounded-full bg-white/5 px-2 py-0.5 normal-case tracking-normal text-text-muted">

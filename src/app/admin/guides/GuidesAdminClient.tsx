@@ -8,8 +8,9 @@ import Checkbox from '@/components/Checkbox';
 import Input from '@/components/Input';
 import { useDialog } from '@/components/Confirm';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
-import { GUIDE_CATEGORIES, categoryOf } from '@/lib/guideCategories';
+import { categoryOf, type CategoryView } from '@/lib/guideCategories';
 import BulkPostPanel from '@/components/guides/BulkPostPanel';
+import CategoryManager from '@/components/guides/CategoryManager';
 
 interface Card {
   id: number;
@@ -38,6 +39,7 @@ interface Offer {
 interface Data {
   canEdit: boolean;
   showLibrary: boolean;
+  categories: (CategoryView & { id: number })[];
   guides: Card[];
   library: Card[];
   offers: Offer[];
@@ -47,7 +49,7 @@ export default function GuidesAdminClient({ clanName }: { clanName: string }) {
   const router = useRouter();
   const { ask, notify } = useDialog();
   const [data, setData] = useState<Data | null>(null);
-  const [tab, setTab] = useState<'mine' | 'library'>('mine');
+  const [tab, setTab] = useState<'mine' | 'library' | 'categories'>('mine');
   const [q, setQ] = useState('');
   const [cat, setCat] = useState<string>('');
   const [busy, setBusy] = useState<number | null>(null);
@@ -159,7 +161,7 @@ export default function GuidesAdminClient({ clanName }: { clanName: string }) {
         )}
       </div>
 
-      {bulkOpen && data.canEdit && <BulkPostPanel guides={data.guides} onClose={() => setBulkOpen(false)} onDone={load} />}
+      {bulkOpen && data.canEdit && <BulkPostPanel guides={data.guides} guideCategories={data.categories} onClose={() => setBulkOpen(false)} onDone={load} />}
 
       {data.offers.length > 0 && (
         <div className="rounded-xl border border-amber-700/70 bg-amber-950/25 p-4">
@@ -187,13 +189,13 @@ export default function GuidesAdminClient({ clanName }: { clanName: string }) {
       )}
 
       <div className="flex flex-wrap items-center gap-2">
-        {(['mine', 'library'] as const).map((t) => (
+        {(['mine', 'library', 'categories'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`rounded-lg px-3 py-1.5 text-sm ${tab === t ? 'bg-gold/15 text-gold' : 'text-text-muted hover:text-foreground'}`}
           >
-            {t === 'mine' ? `Your guides (${data.guides.length})` : `Anvil library (${data.library.length})`}
+            {t === 'mine' ? `Your guides (${data.guides.length})` : t === 'library' ? `Anvil library (${data.library.length})` : 'Categories'}
           </button>
         ))}
         <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -204,7 +206,7 @@ export default function GuidesAdminClient({ clanName }: { clanName: string }) {
             className="rounded border border-card-border bg-brown-dark px-2 py-1.5 text-sm"
           >
             <option value="">All categories</option>
-            {GUIDE_CATEGORIES.map((c) => (
+            {data.categories.filter((c) => !c.archived).map((c) => (
               <option key={c.key} value={c.key}>
                 {c.icon} {c.label}
               </option>
@@ -235,7 +237,9 @@ export default function GuidesAdminClient({ clanName }: { clanName: string }) {
         </div>
       )}
 
-      {list.length === 0 ? (
+      {tab === 'categories' ? (
+        <CategoryManager scope="clan" />
+      ) : list.length === 0 ? (
         <div className="rounded-xl border border-dashed border-card-border p-8 text-center text-sm text-text-muted">
           {tab === 'mine' ? (
             <>
@@ -252,7 +256,7 @@ export default function GuidesAdminClient({ clanName }: { clanName: string }) {
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
           {list.map((g) => {
-            const c = categoryOf(g.category);
+            const c = categoryOf(g.category, data.categories);
             const offer = offersByCopy.get(g.id);
             const isMine = tab === 'mine';
             const body = (

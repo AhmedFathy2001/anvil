@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
-import { categoryOf } from '@/lib/guideCategories';
+import { categoryOf, type CategoryView } from '@/lib/guideCategories';
 
 interface Row {
   id: number;
@@ -20,10 +20,15 @@ interface Row {
 export default function ProposalQueueClient() {
   const [tab, setTab] = useState<'pending' | 'reviewed'>('pending');
   const [rows, setRows] = useState<Row[] | null>(null);
+  const [categories, setCategories] = useState<CategoryView[]>([]);
 
   const load = useCallback(async (t: 'pending' | 'reviewed') => {
     const res = await fetch(`/api/staff/guides/proposals?status=${t}`);
-    if (res.ok) setRows((await res.json()).proposals);
+    if (res.ok) {
+      const j = await res.json();
+      setRows(j.proposals);
+      setCategories(j.categories ?? []);
+    }
   }, []);
   useEffect(() => {
     void load(tab);
@@ -71,7 +76,7 @@ export default function ProposalQueueClient() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="font-medium">
-                    {categoryOf(p.category).icon} {p.title}
+                    {categoryOf(p.category, categories).icon} {p.title}
                   </div>
                   <div className="text-xs text-text-muted">
                     by {p.proposer}

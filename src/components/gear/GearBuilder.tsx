@@ -32,7 +32,7 @@ export default function GearBuilder({
     if (!idx || !q.trim()) return [];
     const needle = q.trim().toLowerCase();
     return idx.monsters
-      .filter((m) => m.n.toLowerCase().includes(needle))
+      .filter((m) => !m.hid && m.n.toLowerCase().includes(needle))
       .sort((a, b) => Number(!a.n.toLowerCase().startsWith(needle)) - Number(!b.n.toLowerCase().startsWith(needle)) || (b.cb ?? 0) - (a.cb ?? 0))
       .slice(0, 30);
   }, [idx, q]);
@@ -106,7 +106,7 @@ export default function GearBuilder({
             {/* Setups */}
             <div className="space-y-2">
               {setups.map((s, i) => {
-                const r = monster ? (bestStyle(setupLoadout(s), monster, idx.item)?.result ?? null) : null;
+                const r = monster ? (bestStyle(setupLoadout(s), monster, idx.item, idx.rules)?.result ?? null) : null;
                 return (
                   <div key={i} className="rounded-lg border border-card-border bg-black/20">
                     <button onClick={() => setOpen(open === i ? -1 : i)} className="flex w-full flex-wrap items-center justify-between gap-2 px-3 py-2 text-left">

@@ -21,6 +21,14 @@ export function loadGearIndex(): Promise<GearIndex> {
   return pending;
 }
 
+/** Forget the cached data — after a /staff edit, so this page's calculators show the change. */
+export function reloadGearIndex(): Promise<GearIndex> {
+  pending = fetch('/api/gear/data', { cache: 'no-store' })
+    .then((r) => r.json() as Promise<GearData>)
+    .then(indexGear);
+  return pending;
+}
+
 export function useGearData(): { idx: GearIndex | null; error: string | null } {
   const [idx, setIdx] = useState<GearIndex | null>(null);
   const [error, setError] = useState<string | null>(null);

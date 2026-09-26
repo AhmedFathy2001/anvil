@@ -1,32 +1,20 @@
-// Regenerates the gear-calculator datasets from the OSRS Wiki (Bucket API):
+// Fetching the gear calculator's datasets from the OSRS Wiki (Bucket API). Shared by the CLI
+// (scripts/build-gear-dataset.ts → src/data/gear*.json, bundled with the app) and by /staff's
+// "Refresh from the wiki" button (stored in gear_datasets, no deploy needed). No database here.
 //
-//   src/data/gearItems.json    — every equippable item with a combat bonus (offensive, defensive or
-//                                prayer), or one the DPS engine knows a special effect for: slot, attack/strength bonuses,
-//                                speed, weapon category and icon.
-//   src/data/gearMonsters.json — every monster version with hitpoints and a defence level: its
-//                                defence levels and bonuses, attributes (undead, dragon, demon…),
-//                                size, flat armour and elemental weakness.
-//
-// Three buckets: infobox_bonuses (the stats), infobox_item (id + icon, joined on page_name_sub —
-// infobox_bonuses carries no id), infobox_monster. Facts only: the combat FORMULAS live in
-// src/lib/dps and are written from the wiki's published mechanics, not taken from any calculator.
-//
-// Run:  node scripts/build-gear-dataset.mjs        (or: npm run data:gear)
+// Facts only: the formulas live in lib/dps/engine and are written from the wiki's published
+// mechanics, not taken from any calculator.
 
-import { writeFileSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import type { GearItem, Monster } from './engine';
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const ITEMS_PATH = resolve(HERE, '../src/data/gearItems.json');
-const MONSTERS_PATH = resolve(HERE, '../src/data/gearMonsters.json');
+type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any -- raw wiki rows
 
 const WIKI_API = 'https://oldschool.runescape.wiki/api.php';
 const USER_AGENT = 'anvil-gear dataset builder (contact: clan admin)';
 const PAGE_SIZE = 5000;
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function bucketQuery(query) {
+async function bucketQuery(query: string): Promise<Row[]> {
   const body = new URLSearchParams({ action: 'bucket', format: 'json', query });
   const res = await fetch(WIKI_API, {
     method: 'POST',
@@ -39,22 +27,21 @@ async function bucketQuery(query) {
   return json.bucket ?? [];
 }
 
-async function fetchAll(bucket, fields, label) {
+async function fetchAll(bucket: string, fields: string[], label: string, progress?: (msg: string) => void): Promise<Row[]> {
   const selects = fields.map((f) => `"${f}"`).join(',');
-  const rows = [];
+  const rows: Row[] = [];
   for (let offset = 0; ; offset += PAGE_SIZE) {
     const page = await bucketQuery(`bucket("${bucket}").select(${selects}).limit(${PAGE_SIZE}).offset(${offset}).run()`);
     rows.push(...page);
-    process.stdout.write(`  ${label}: ${rows.length} rows\r`);
+    progress?.(`${label}: ${rows.length} rows`);
     if (page.length < PAGE_SIZE) break;
     await sleep(150);
   }
-  process.stdout.write('\n');
   return rows;
 }
 
-const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : Number.isFinite(Number(v)) && v !== '' && v != null ? Number(v) : 0);
-const first = (v) => (Array.isArray(v) ? v[0] : v);
+const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : v !== '' && v != null && Number.isFinite(Number(v)) ? Number(v) : 0);
+const first = (v: unknown) => (Array.isArray(v) ? v[0] : v);
 
 // Variants that are never the one a player fights with.
 const DEAD_VARIANT = /uncharged|inactive|broken|degraded|deadman|last man standing|\blms\b|\(beta\)|partially charged|\bempty\b|#0$|#25$|#50$|#75$|locked|\bplaceholder\b|\bnoted\b/i;
@@ -64,8 +51,8 @@ const PREFERRED_VARIANT = /undamaged|#charged|#active|#normal|#new|#full|#100$|#
 // Items the engine models an effect for — kept even when their raw bonuses are all zero.
 const EFFECT_ITEMS = /salve amulet|slayer helmet|black mask|void|crystal (helm|body|legs)|obsidian|berserker necklace|inquisitor|elite void/i;
 
-async function main() {
-  console.log('Fetching equipment and monsters via the Bucket API…');
+
+export async function fetchGearDataset(progress?: (msg: string) => void): Promise<{ items: GearItem[]; monsters: Monster[] }> {
   const bonusRows = await fetchAll(
     'infobox_bonuses',
     [
@@ -75,8 +62,9 @@ async function main() {
       'stab_defence_bonus', 'slash_defence_bonus', 'crush_defence_bonus', 'magic_defence_bonus', 'range_defence_bonus',
     ],
     'infobox_bonuses',
+    progress,
   );
-  const itemRows = await fetchAll('infobox_item', ['page_name', 'page_name_sub', 'item_id', 'image'], 'infobox_item');
+  const itemRows = await fetchAll('infobox_item', ['page_name', 'page_name_sub', 'item_id', 'image'], 'infobox_item', progress);
   const monsterRows = await fetchAll(
     'infobox_monster',
     [
@@ -86,10 +74,11 @@ async function main() {
       'attribute', 'size', 'flat_armour', 'elemental_weakness', 'elemental_weakness_percent', 'slayer_category',
     ],
     'infobox_monster',
+    progress,
   );
 
   // page_name_sub → { id, image }
-  const itemInfo = new Map();
+  const itemInfo = new Map<string, { id: number | null; img: string | null }>();
   for (const r of itemRows) {
     const key = r.page_name_sub || r.page_name;
     const ids = (Array.isArray(r.item_id) ? r.item_id : [r.item_id]).map((v) => parseInt(v, 10)).filter(Number.isInteger);
@@ -101,7 +90,7 @@ async function main() {
   }
 
   // Group bonus rows per page and pick the variant a player actually uses.
-  const byPage = new Map();
+  const byPage = new Map<string, Row[]>();
   for (const r of bonusRows) {
     if (!r.page_name || !r.equipment_slot) continue;
     const list = byPage.get(r.page_name) ?? [];
@@ -109,8 +98,8 @@ async function main() {
     byPage.set(r.page_name, list);
   }
 
-  const items = [];
-  const seenIds = new Set();
+  const items: GearItem[] = [];
+  const seenIds = new Set<number>();
   for (const [page, rows] of byPage) {
     const live = rows.filter((r) => !DEAD_VARIANT.test(r.page_name_sub || ''));
     if (!live.length) continue;
@@ -151,7 +140,7 @@ async function main() {
   }
   items.sort((a, b) => a.n.localeCompare(b.n));
 
-  const monsters = [];
+  const monsters: Monster[] = [];
   for (const r of monsterRows) {
     const hp = num(r.hitpoints);
     if (!r.page_name || hp <= 0 || r.defence_level == null) continue;
@@ -183,13 +172,5 @@ async function main() {
   }
   monsters.sort((a, b) => a.n.localeCompare(b.n) || (a.v ?? '').localeCompare(b.v ?? ''));
 
-  writeFileSync(ITEMS_PATH, JSON.stringify({ source: 'https://oldschool.runescape.wiki/w/Special:Bucket/infobox_bonuses', generatedAt: new Date().toISOString(), items }) + '\n');
-  writeFileSync(MONSTERS_PATH, JSON.stringify({ source: 'https://oldschool.runescape.wiki/w/Special:Bucket/infobox_monster', generatedAt: new Date().toISOString(), monsters }) + '\n');
-  console.log(`Wrote ${items.length} items → ${ITEMS_PATH}`);
-  console.log(`Wrote ${monsters.length} monsters → ${MONSTERS_PATH}`);
+  return { items, monsters };
 }
-
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});

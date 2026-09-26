@@ -7,10 +7,10 @@ import Textarea from '@/components/Textarea';
 import Select from '@/components/Select';
 import { useDialog } from '@/components/Confirm';
 import { clanFetch } from '@/lib/clanFetch';
-import { GUIDE_CATEGORIES, GUIDE_LIMITS } from '@/lib/guideCategories';
+import { GUIDE_CATEGORIES, GUIDE_LIMITS, type CategoryView } from '@/lib/guideCategories';
 import GuideBody from './GuideBody';
 import GearBuilder from '@/components/gear/GearBuilder';
-import { coverage, firstGearBlock, requiresTiers, TIERS, upsertGearBlock } from '@/lib/guideTiers';
+import { coverage, firstGearBlock, TIERS, upsertGearBlock } from '@/lib/guideTiers';
 import DiscordPreview from './DiscordPreview';
 
 // The writing half of a guide — fields, the markdown toolbar, image upload, and the two previews —
@@ -88,6 +88,7 @@ export function GuideFieldsEditor({
   readOnly = false,
   uploadUrl,
   strictLevels = false,
+  categories = GUIDE_CATEGORIES,
 }: {
   value: GuideFieldValues;
   onChange: (patch: Partial<GuideFieldValues>) => void;
@@ -95,6 +96,8 @@ export function GuideFieldsEditor({
   uploadUrl: string;
   /** Library guides and proposals can't publish without every level (lib/guides enforces it). */
   strictLevels?: boolean;
+  /** The categories this guide may use (lib/guideCategoryStore). */
+  categories?: readonly CategoryView[];
 }) {
   const [gearOpen, setGearOpen] = useState(false);
   const { upload, uploading } = useGuideUpload(uploadUrl);
@@ -169,7 +172,9 @@ export function GuideFieldsEditor({
             value={value.category}
             disabled={readOnly}
             onChange={(v) => onChange({ category: v })}
-            options={GUIDE_CATEGORIES.map((c) => ({ value: c.key, label: `${c.icon} ${c.label}` }))}
+            options={categories
+              .filter((c) => !c.archived || c.key === value.category)
+              .map((c) => ({ value: c.key, label: `${c.icon} ${c.label}${c.clanId ? ' · ours' : ''}${c.archived ? ' (archived)' : ''}` }))}
             ariaLabel="Category"
           />
         </label>
@@ -296,7 +301,11 @@ export function GuideFieldsEditor({
           text above it. A line with only <code>---</code> starts a new message. Paste or drop screenshots straight in.
           🟢🟡🔴 start a level section; <code>:::</code> goes back to text for every level.
         </p>
-        <CoverageChecklist body={value.body} category={value.category} strict={strictLevels} />
+        <CoverageChecklist
+          body={value.body}
+          required={categories.find((c) => c.key === value.category)?.requiresLevels !== false}
+          strict={strictLevels}
+        />
       </div>
       {gearOpen && (
         <GearBuilder
@@ -366,8 +375,8 @@ export function GuidePreviewPane({
 }
 
 /** Which levels the guide covers — required for the library, a nudge everywhere else. */
-function CoverageChecklist({ body, category, strict }: { body: string; category: string; strict: boolean }) {
-  if (!requiresTiers(category)) return null;
+function CoverageChecklist({ body, required, strict }: { body: string; required: boolean; strict: boolean }) {
+  if (!required) return null;
   const c = coverage(body);
   return (
     <div className={`mt-2 rounded border px-2 py-1.5 text-[11px] ${c.complete ? 'border-emerald-900/60 text-emerald-300' : strict ? 'border-red-900/60 text-red-200' : 'border-amber-800/60 text-amber-200'}`}>

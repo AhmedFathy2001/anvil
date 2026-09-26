@@ -17,6 +17,7 @@ import { guidePosts, guides, type Guide } from '@/db/schema';
 import { discordRest, getBotCredentials } from '@/lib/discord-roles';
 import { PERM } from '@/lib/discord-permissions';
 import { categoryOf, slugify } from '@/lib/guideCategories';
+import { listCategories } from '@/lib/guideCategoryStore';
 import { BOT_SELF_GRANT, discordError, listGuideChannels, postToChannel, type Creds } from '@/lib/guidePosting';
 import { log } from '@/lib/logger';
 
@@ -204,17 +205,18 @@ export async function bulkPost(req: BulkRequest): Promise<BulkResult> {
     } else {
       // One forum, tagged by guide category so members can filter "raids" from "skilling".
       const cats = [...new Set(list.map((g) => g.category))].slice(0, 20);
+      const catList = await listCategories(req.clanId);
       const forum = await createChannel(creds, {
         name: slugify(req.forumName || 'guides').slice(0, 100),
         type: CH_FORUM,
         parent_id: parentId,
         topic: 'Guides, kept up to date by Anvil.',
-        available_tags: cats.map((c) => ({ name: categoryOf(c).label.slice(0, 20), emoji_name: categoryOf(c).icon })),
+        available_tags: cats.map((c) => ({ name: categoryOf(c, catList).label.slice(0, 20), emoji_name: categoryOf(c, catList).icon })),
         ...(req.readOnly && botId ? { permission_overwrites: readOnlyOverwrites(creds.guildId, botId, true) } : {}),
       });
       created.forumId = forum.id;
       const tagFor = new Map(
-        cats.map((c) => [c, forum.available_tags?.find((t) => t.name === categoryOf(c).label.slice(0, 20))?.id]),
+        cats.map((c) => [c, forum.available_tags?.find((t) => t.name === categoryOf(c, catList).label.slice(0, 20))?.id]),
       );
       const forumName = slugify(req.forumName || 'guides');
       for (const guide of list) {

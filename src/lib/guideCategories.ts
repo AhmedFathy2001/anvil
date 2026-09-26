@@ -13,14 +13,28 @@ export const GUIDE_CATEGORIES = [
   { key: 'general', label: 'General', icon: '📖' },
 ] as const;
 
-export type GuideCategory = (typeof GUIDE_CATEGORIES)[number]['key'];
+// The list above is what the database was SEEDED with (migration 0101). The live list — platform
+// categories staff manage plus each clan's own — is in `guide_categories`; see lib/guideCategoryStore.
+// Components receive it as a prop and pass it here; without one they fall back to the seed.
 
-export function categoryOf(key: string | null | undefined) {
-  return GUIDE_CATEGORIES.find((c) => c.key === key) ?? GUIDE_CATEGORIES[GUIDE_CATEGORIES.length - 1];
+export interface CategoryView {
+  key: string;
+  label: string;
+  icon: string;
+  /** Library guides here must cover every level. */
+  requiresLevels?: boolean;
+  archived?: boolean;
+  /** Set for a clan's own category. */
+  clanId?: number | null;
 }
 
-export function isGuideCategory(key: unknown): key is GuideCategory {
-  return typeof key === 'string' && GUIDE_CATEGORIES.some((c) => c.key === key);
+export function categoryOf(key: string | null | undefined, list: readonly CategoryView[] = GUIDE_CATEGORIES): CategoryView {
+  return list.find((c) => c.key === key) ?? { key: key ?? 'general', label: key ? key.replace(/-/g, ' ') : 'General', icon: '📖' };
+}
+
+/** A category key: lowercase, url-safe. */
+export function isCategoryKey(key: unknown): key is string {
+  return typeof key === 'string' && /^[a-z0-9][a-z0-9-]{0,31}$/.test(key);
 }
 
 export const GUIDE_STATUSES = ['draft', 'published'] as const;

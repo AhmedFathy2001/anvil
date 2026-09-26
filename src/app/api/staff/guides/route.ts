@@ -5,19 +5,21 @@ import { db } from '@/db';
 import { guides } from '@/db/schema';
 import { libraryActor, requireLibraryEditorApi } from '@/lib/guideAccess';
 import { GuideInputError, createGuide, guideCard, listLibrary } from '@/lib/guides';
+import { listCategories } from '@/lib/guideCategoryStore';
 
 // GET — the whole library, drafts included, with how many clans copied each guide (and how many of
 // those copies still follow it — i.e. who an edit here will rewrite).
 export async function GET() {
   const actor = await libraryActor();
   if (!actor) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  const [library, copies] = await Promise.all([
+  const [library, copies, categories] = await Promise.all([
     listLibrary({ includeDrafts: true }),
     db
       .select({ src: guides.sourceGuideId, follows: guides.followsSource, n: count() })
       .from(guides)
       .where(and(isNotNull(guides.sourceGuideId), isNotNull(guides.clanId)))
       .groupBy(guides.sourceGuideId, guides.followsSource),
+    listCategories(null),
   ]);
   const stats = new Map<number, { copies: number; following: number }>();
   for (const c of copies) {
@@ -28,6 +30,7 @@ export async function GET() {
   }
   return NextResponse.json({
     canEdit: actor.canEdit,
+    categories,
     guides: library.map((g) => ({ ...guideCard(g), ...(stats.get(g.id) ?? { copies: 0, following: 0 }) })),
   });
 }

@@ -5,6 +5,7 @@ import { getScopedGuide } from '@/lib/guides';
 import { getProposal } from '@/lib/guideProposals';
 import { configuredOrigin } from '@/lib/request-origin';
 import ProposalEditor from '@/components/guides/ProposalEditor';
+import { listCategories } from '@/lib/guideCategoryStore';
 
 export const metadata = { title: 'Guide proposal' };
 
@@ -20,6 +21,8 @@ export default async function ProposalPage({ params }: { params: Promise<{ id: s
       proposal={{ id: p.id, status: p.status, reviewNote: p.reviewNote, note: p.note }}
       target={target ? { id: target.id, title: target.title, summary: target.summary, body: target.body } : null}
       origin={configuredOrigin()}
+      // Proposals are for the library: platform categories only.
+      categories={(await listCategories(null)).filter((c) => !c.archived)}
     />
   );
 }

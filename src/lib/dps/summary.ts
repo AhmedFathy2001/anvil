@@ -2,11 +2,16 @@
 
 import { bestStyle, type GearItem, type ItemLookup, type Loadout, type Monster } from './engine';
 import { SLOTS } from './tables';
+import type { EffectRule } from './effects';
 import { TIERS, bodyForDiscord, type GearBlock, type GearSetup } from '../guideTiers';
 
 export interface GearData {
   items: GearItem[];
   monsters: Monster[];
+  /** Custom effect rules from platform staff (lib/dps/effects). */
+  rules?: EffectRule[];
+  /** Changes whenever the data or its overrides do — the client cache key. */
+  version?: string;
 }
 
 export interface GearIndex {
@@ -14,6 +19,7 @@ export interface GearIndex {
   monster: (key: string) => Monster | null;
   items: GearItem[];
   monsters: Monster[];
+  rules: EffectRule[];
 }
 
 /** Lookups over the datasets. "Name#Version" picks a version; a bare name takes the first. */
@@ -22,6 +28,7 @@ export function indexGear(data: GearData): GearIndex {
   return {
     items: data.items,
     monsters: data.monsters,
+    rules: data.rules ?? [],
     item: (id) => (id == null ? null : (byId.get(id) ?? null)),
     monster: (key) => {
       const [name, version] = key.split('#');
@@ -68,7 +75,7 @@ export function gearSummaryMarkdown(block: GearBlock | null, idx: GearIndex, sit
   const lines = [`### ⚔️ Gear progression vs ${monsterLabel(monster)}`];
   for (const t of TIERS) {
     for (const s of block.setups.filter((x) => x.tier === t.key)) {
-      const r = bestStyle(setupLoadout(s), monster, idx.item)?.result ?? null;
+      const r = bestStyle(setupLoadout(s), monster, idx.item, idx.rules)?.result ?? null;
       const stat = r ? ` · \`${r.dps.toFixed(2)} DPS\` · max hit \`${r.maxHit}\` · ~${fmtDuration(r.ttk)} per kill` : '';
       lines.push(`**${t.emoji} ${t.label} — ${s.name}**${stat}`);
       const names = SLOTS.map((slot) => idx.item(s.gear[slot])?.n).filter(Boolean);

@@ -7,7 +7,7 @@ import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
 import { useDialog } from '@/components/Confirm';
 import { clanFetch } from '@/lib/clanFetch';
-import { GUIDE_LIMITS, readingMinutes } from '@/lib/guideCategories';
+import { GUIDE_LIMITS, readingMinutes, type CategoryView } from '@/lib/guideCategories';
 import { GuideFieldsEditor, GuidePreviewPane } from './GuideFields';
 import GuideDiffView from './GuideDiffView';
 import GuidePostsPanel, { type PostRow } from './GuidePostsPanel';
@@ -40,6 +40,7 @@ interface Loaded {
   posts?: PostRow[];
   botConnected?: boolean;
   copies?: { following: number; forked: number };
+  categories?: CategoryView[];
 }
 
 type Form = Pick<GuideRow, 'title' | 'summary' | 'category' | 'coverUrl' | 'body' | 'status' | 'slug'>;
@@ -361,6 +362,7 @@ export default function GuideEditor({
             readOnly={readOnly}
             uploadUrl={`${api}/upload`}
             strictLevels={scope === 'library'}
+            categories={data.categories}
           />
 
           {!readOnly && (

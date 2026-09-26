@@ -9,6 +9,7 @@ import { useDialog } from '@/components/Confirm';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import { GuideFieldsEditor, GuidePreviewPane, type GuideFieldValues } from './GuideFields';
 import GuideDiffView from './GuideDiffView';
+import type { CategoryView } from '@/lib/guideCategories';
 
 export interface ProposalState {
   id?: number;
@@ -26,7 +27,9 @@ export default function ProposalEditor({
   proposal,
   target,
   origin,
+  categories,
 }: {
+  categories?: CategoryView[];
   initial: GuideFieldValues;
   proposal?: ProposalState;
   /** Set when this suggests an edit to a library guide: its current text, for the diff. */
@@ -143,7 +146,7 @@ export default function ProposalEditor({
 
       <div className="grid gap-5 xl:grid-cols-2">
         <div className="space-y-3">
-          <GuideFieldsEditor value={form} onChange={(p) => setForm((f) => ({ ...f, ...p }))} readOnly={!editable} uploadUrl="/api/guides/proposals/upload" strictLevels />
+          <GuideFieldsEditor value={form} onChange={(p) => setForm((f) => ({ ...f, ...p }))} readOnly={!editable} uploadUrl="/api/guides/proposals/upload" strictLevels categories={categories} />
           <label className="block">
             <span className="mb-1 block text-xs text-text-muted">
               {target ? 'What did you change, and why? (the reviewer reads this)' : 'Anything the reviewer should know?'}

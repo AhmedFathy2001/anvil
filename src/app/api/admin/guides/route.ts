@@ -13,6 +13,7 @@ import {
   showsLibrary,
 } from '@/lib/guides';
 import { setSetting } from '@/lib/settings';
+import { listCategories } from '@/lib/guideCategoryStore';
 
 // GET — this clan's guides, the library beside them (with what the clan already copied), and the
 // library updates waiting on an answer.
@@ -20,16 +21,18 @@ export async function GET() {
   const actor = await clanGuideActor();
   if (!actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const clanId = actor.clan.id;
-  const [own, library, offers, showLibrary] = await Promise.all([
+  const [own, library, offers, showLibrary, categories] = await Promise.all([
     listClanGuides(clanId),
     listLibrary(),
     pendingUpdates(clanId),
     showsLibrary(clanId),
+    listCategories(clanId),
   ]);
   const copyOf = new Map(own.filter((g) => g.sourceGuideId).map((g) => [g.sourceGuideId!, g.id]));
   return NextResponse.json({
     canEdit: actor.canEdit,
     showLibrary,
+    categories,
     guides: own.map(guideCard),
     library: library.map((g) => ({ ...guideCard(g), copyId: copyOf.get(g.id) ?? null })),
     offers,

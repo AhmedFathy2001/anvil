@@ -33,7 +33,7 @@ import { configuredOrigin } from '@/lib/request-origin';
 import { resolveClanById } from '@/lib/clanContext';
 import { renderGuideForDiscord, type DiscordGuideMessage } from '@/lib/guideDiscord';
 import { discordBody } from '@/lib/dps/summary';
-import { gearIndex } from '@/lib/dps/data';
+import { effectiveGearIndex } from '@/lib/dps/store';
 
 const CH_TEXT = 0;
 const CH_ANNOUNCEMENT = 5;
@@ -177,7 +177,7 @@ export async function guideMessages(guide: Guide): Promise<DiscordGuideMessage[]
       title: guide.title,
       summary: guide.summary,
       // Levels become headed messages and gear blocks a DPS summary — Discord can't switch or calculate.
-      body: discordBody(guide.body, gearIndex(), siteUrl),
+      body: discordBody(guide.body, await effectiveGearIndex(), siteUrl),
       coverUrl: guide.coverUrl,
       siteUrl,
       updatedAt: guide.updatedAt,

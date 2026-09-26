@@ -5,6 +5,7 @@ import { db } from '@/db';
 import { guides } from '@/db/schema';
 import { libraryActor, requireLibraryEditorApi } from '@/lib/guideAccess';
 import { GuideInputError, deleteGuide, getScopedGuide, listRevisions, saveGuide } from '@/lib/guides';
+import { listCategories } from '@/lib/guideCategoryStore';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -25,10 +26,11 @@ export async function GET(_req: Request, { params }: Ctx) {
   if (!actor) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const guide = await getScopedGuide(Number((await params).id), null);
   if (!guide) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  const [revisions, copies] = await Promise.all([listRevisions(guide.id), reach(guide.id)]);
+  const [revisions, copies, categories] = await Promise.all([listRevisions(guide.id), reach(guide.id), listCategories(null)]);
   return NextResponse.json({
     canEdit: actor.canEdit,
     guide,
+    categories,
     revisions: revisions.map((r) => ({ version: r.version, note: r.note, at: r.createdAt })),
     copies,
   });

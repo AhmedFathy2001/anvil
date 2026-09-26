@@ -9,10 +9,11 @@ import Textarea from '@/components/Textarea';
 import { useDialog } from '@/components/Confirm';
 import { GuidePreviewPane } from '@/components/guides/GuideFields';
 import GuideDiffView from '@/components/guides/GuideDiffView';
-import { categoryOf } from '@/lib/guideCategories';
+import { categoryOf, type CategoryView } from '@/lib/guideCategories';
 
 interface Data {
   canEdit: boolean;
+  categories: CategoryView[];
   proposer: string;
   proposal: {
     id: number;
@@ -94,7 +95,7 @@ export default function ProposalReviewClient({ id, origin }: { id: number; origi
           {target ? `Edit to “${target.title}”` : p.title}
         </h1>
         <p className="mt-1 text-sm text-text-muted">
-          {target ? 'Suggested edit' : 'New guide'} · {categoryOf(p.category).icon} {categoryOf(p.category).label} · by{' '}
+          {target ? 'Suggested edit' : 'New guide'} · {categoryOf(p.category, data.categories).icon} {categoryOf(p.category, data.categories).label} · by{' '}
           <span className="text-foreground">{data.proposer}</span> · {p.createdAt.slice(0, 10)}
         </p>
       </div>

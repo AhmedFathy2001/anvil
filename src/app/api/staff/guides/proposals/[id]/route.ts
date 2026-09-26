@@ -6,6 +6,7 @@ import { users } from '@/db/schema';
 import { libraryActor, requireLibraryEditorApi } from '@/lib/guideAccess';
 import { GuideInputError, getScopedGuide } from '@/lib/guides';
 import { approveProposal, getProposal, rejectProposal } from '@/lib/guideProposals';
+import { listCategories } from '@/lib/guideCategoryStore';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -21,6 +22,7 @@ export async function GET(_req: Request, { params }: Ctx) {
   ]);
   return NextResponse.json({
     canEdit: actor.canEdit,
+    categories: await listCategories(null),
     proposal: p,
     proposer: proposer?.displayName ?? 'Unknown',
     target: target && { id: target.id, title: target.title, summary: target.summary, body: target.body, version: target.version, slug: target.slug },
