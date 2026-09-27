@@ -97,22 +97,54 @@ export interface GearSetup {
   boost?: string | null;
   onTask?: boolean;
   note?: string;
+  /** Which of the block's targets this setup is for. Empty/absent = all of them. */
+  targets?: string[];
+  /** 28 inventory slots (null = empty), as the Inventory Setups plugin lays them out. */
+  inventory?: (InvItem | null)[];
+  /** Rune pouch contents (up to 4 with a divine pouch). */
+  runePouch?: InvItem[];
+  /** 0 standard, 1 ancient, 2 lunar, 3 arceuus — the Inventory Setups plugin's numbering. */
+  spellbook?: number;
+}
+
+export interface InvItem {
+  id: number;
+  /** Quantity; absent = 1. */
+  q?: number;
 }
 
 export interface GearBlock {
-  /** "Name" or "Name#Version" as in the monster dataset. */
+  /** "Name" or "Name#Version" as in the monster dataset — the first (or only) target. */
   monster: string;
+  /**
+   * Every target, for an encounter with several: the six Barrows brothers, a raid's bosses. Absent =
+   * just `monster`. Setups say which of these they are for (GearSetup.targets).
+   */
+  monsters?: string[];
   setups: GearSetup[];
+}
+
+/** A block's targets, in order: `monsters` when it has several, else its one `monster`. */
+export function blockTargets(block: GearBlock): string[] {
+  return block.monsters?.length ? block.monsters : [block.monster];
+}
+
+/** The targets one setup is used against. */
+export function setupTargets(setup: GearSetup, block: GearBlock): string[] {
+  const all = blockTargets(block);
+  const mine = (setup.targets ?? []).filter((t) => all.includes(t));
+  return mine.length ? mine : all;
 }
 
 export function parseGearBlock(text: string): GearBlock | null {
   try {
     const j = JSON.parse(text) as Partial<GearBlock>;
     if (!j || typeof j.monster !== 'string' || !Array.isArray(j.setups)) return null;
+    const monsters = Array.isArray(j.monsters) ? j.monsters.filter((m): m is string => typeof m === 'string') : undefined;
     const setups = j.setups.filter(
       (s): s is GearSetup => !!s && typeof s === 'object' && !!tierOf((s as GearSetup).tier) && typeof (s as GearSetup).gear === 'object',
     );
-    return { monster: j.monster, setups };
+    return { monster: j.monster, ...(monsters?.length ? { monsters } : {}), setups };
   } catch {
     return null;
   }

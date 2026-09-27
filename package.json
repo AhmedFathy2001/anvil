@@ -74,7 +74,7 @@
     "test:tenantenv": "npx tsx --test tests/tenant-env-isolation.test.ts",
     "test:guidesearch": "npx tsx --test tests/guide-search.test.ts",
     "test:guidesmodule": "npx tsx --test tests/guides-module.test.ts tests/guide-tiers.test.ts",
-    "test:dps": "npx tsx --test tests/dps-engine.test.ts tests/gear-admin.test.ts",
+    "test:dps": "npx tsx --test tests/dps-engine.test.ts tests/gear-admin.test.ts tests/runelite-export.test.ts",
     "test:guidei18n": "npx tsx --test tests/guide-i18n.test.ts",
     "test:clogkc": "npx tsx --test tests/clog-killcounts.test.ts",
     "test:sweepdedupe": "npx tsx --test tests/sweep-dedupe.test.ts",

@@ -5,11 +5,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { bestStyle, calculate, type DpsResult, type Loadout } from '@/lib/dps/engine';
 import { upgradeRoute } from '@/lib/dps/route';
 import { monsterLabel, setupLoadout } from '@/lib/dps/summary';
-import { tierOf, type GearBlock, type GearSetup, type TierKey } from '@/lib/guideTiers';
+import { TIERS, blockTargets, setupTargets, tierOf, type GearBlock, type GearSetup, type TierKey } from '@/lib/guideTiers';
+import { encounter } from '@/lib/dps/encounter';
+import { monsterKey as monsterKeyOf, type GearIndex } from '@/lib/dps/summary';
+import type { Monster } from '@/lib/dps/engine';
 import { formatGp } from '@/lib/itemPrices';
 import LoadoutEditor from './LoadoutEditor';
 import EquipmentPanel from './EquipmentPanel';
 import { ItemIcon } from './ItemIcon';
+import InventoryPanel, { useItemNames, type ItemNames } from './InventoryPanel';
+import { bankTagString, inventorySetupJson } from '@/lib/runeliteExport';
 import { useGearData } from './useGearData';
 import Select from '@/components/Select';
 
@@ -32,8 +37,8 @@ interface MyAccount {
   stats: Loadout['stats'] | null;
 }
 
-const killTime = (r: DpsResult | null) =>
-  r && Number.isFinite(r.ttk) ? `${Math.floor(r.ttk / 60)}:${String(Math.round(r.ttk % 60)).padStart(2, '0')}` : '—';
+const fmtTime = (sec: number) => (Number.isFinite(sec) ? `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}` : '—');
+const killTime = (r: DpsResult | null) => fmtTime(r?.ttk ?? Infinity);
 
 /** Your saved setups for this guide's monster — this browser only, a convenience. */
 function readSaved(key: string): Saved | null {
@@ -54,13 +59,56 @@ function readSaved(key: string): Saved | null {
  */
 export default function GearProgression({ block, tier, storageKey }: { block: GearBlock; tier: TierKey | 'all'; storageKey: string }) {
   const { idx, error } = useGearData();
-  const monster = useMemo(() => (idx ? idx.monster(block.monster) : null), [idx, block.monster]);
+  // Every target (the Barrows brothers, a raid's bosses) — one for most fights.
+  const monsters = useMemo(
+    () => (idx ? blockTargets(block).map((k) => idx.monster(k)).filter((m): m is Monster => !!m) : []),
+    [idx, block],
+  );
+  const monster = monsters[0] ?? null;
+  const multi = monsters.length > 1;
+  const [viewTarget, setViewTarget] = useState(0);
+  const shownTarget = monsters[Math.min(viewTarget, monsters.length - 1)] ?? null;
+  const targetIndex = (k: string) => blockTargets(block).indexOf(k);
   const key = `${storageKey}:v2`;
 
   const guideResults = useMemo(() => {
     if (!idx || !monster) return [];
-    return block.setups.map((s) => ({ setup: s, r: bestStyle(setupLoadout(s), monster, idx.item, idx.rules)?.result ?? null }));
-  }, [idx, monster, block.setups]);
+    return block.setups.map((s) => {
+      const mine = monsters.filter((m) => setupTargets(s, block).includes(monsterKeyOf(m)));
+      const perTarget = mine.map((m) => ({ m, r: bestStyle(setupLoadout(s), m, idx.item, idx.rules)?.result ?? null }));
+      return { setup: s, r: perTarget[0]?.r ?? null, perTarget };
+    });
+  }, [idx, monster, monsters, block]);
+
+  // A level's setups together, each target taken with the best one for it — the whole run.
+  const tierRuns = useMemo(() => {
+    if (!idx || !multi) return [];
+    return TIERS.map((t, ti) => {
+      const own = block.setups.filter((x) => x.tier === t.key);
+      if (!own.length) return null;
+      // A target this level has no setup for is done the way an earlier level does it, so the run
+      // still has a time (a Barrows "max" block that only lists the melee-brother upgrade, say).
+      const covered = new Set(own.flatMap((x) => setupTargets(x, block)));
+      const earlier = TIERS.slice(0, ti).map((e) => e.key);
+      const fill = block.setups
+        .filter((x) => earlier.includes(x.tier))
+        .map((x) => ({ setup: x, targets: setupTargets(x, block).filter((n) => !covered.has(n)) }))
+        .filter((x) => x.targets.length);
+      const parts = [...own.map((x) => ({ setup: x, targets: setupTargets(x, block) })), ...fill];
+      return {
+        tier: t.key,
+        run: encounter(
+          parts.map((x) => ({ loadout: setupLoadout(x.setup), targets: x.targets.map(targetIndex) })),
+          monsters,
+          idx.item,
+          idx.rules,
+        ),
+        setups: parts.map((x) => x.setup),
+        own: own.length,
+      };
+    }).filter((x): x is NonNullable<typeof x> => !!x);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- targetIndex derives from block
+  }, [idx, multi, block, monsters]);
 
   // ── Your setups ──────────────────────────────────────────────────────────────────────────
   const [saved, setSaved] = useState<Saved | null>(null);
@@ -98,6 +146,11 @@ export default function GearProgression({ block, tier, storageKey }: { block: Ge
   const myResults = useMemo(
     () => (idx && monster && saved ? saved.setups.map((x) => calculate(x.loadout, monster, idx.item, idx.rules)) : []),
     [idx, monster, saved],
+  );
+  // Over the whole run, for fights with several targets: one setup used against all of them.
+  const myRuns = useMemo(
+    () => (idx && multi && saved ? saved.setups.map((x) => encounter([{ loadout: x.loadout }], monsters, idx.item, idx.rules)) : []),
+    [idx, multi, monsters, saved],
   );
 
   // ── Levels: your own characters first, else any RSN ──────────────────────────────────────
@@ -149,80 +202,112 @@ export default function GearProgression({ block, tier, storageKey }: { block: Ge
     };
   }, [block.setups]);
   const route = useMemo(
-    () => (idx && monster && mine && prices ? upgradeRoute(mine, block.setups, monster, idx.item, prices, 10, idx.rules) : null),
-    [idx, monster, mine, prices, block.setups],
+    () => (idx && monster && mine && prices ? upgradeRoute(mine, block.setups, monsters, idx.item, prices, 10, idx.rules) : null),
+    [idx, monster, monsters, mine, prices, block.setups],
   );
 
   // ── Compare: the guide's budget → max setups and yours, one table ────────────────────────
   const [withGuide, setWithGuide] = useState(true);
+  const [copied, setCopied] = useState<string | null>(null);
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(null), 5000);
+    return () => clearTimeout(t);
+  }, [copied]);
+  const itemNames = useItemNames(block.setups.flatMap((x) => [...(x.inventory ?? []), ...(x.runePouch ?? [])].map((it) => it?.id ?? 0).filter(Boolean)));
+  type Row = { label: string; sub: string; dps: number; maxHit?: number; acc?: number; time: number; tone?: TierKey; mine?: number };
   const compareRows = useMemo(() => {
-    const rows: { label: string; sub: string; r: DpsResult | null; tone?: TierKey; mine?: number }[] = [];
-    if (withGuide) for (const g of guideResults) rows.push({ label: g.setup.name, sub: tierOf(g.setup.tier)!.label, r: g.r, tone: g.setup.tier });
-    saved?.setups.forEach((s, i) => rows.push({ label: s.name, sub: 'Yours', r: myResults[i] ?? null, mine: i }));
-    return rows.sort((a, b) => (b.r?.dps ?? 0) - (a.r?.dps ?? 0));
-  }, [withGuide, guideResults, saved, myResults]);
-  const bestDps = Math.max(0.01, ...compareRows.map((r) => r.r?.dps ?? 0));
+    const rows: Row[] = [];
+    const fromResult = (r: DpsResult | null) => ({ dps: r?.dps ?? 0, maxHit: r?.maxHit, acc: r?.accuracy, time: r?.ttk ?? Infinity });
+    if (withGuide) {
+      if (multi) for (const tr of tierRuns) rows.push({ label: `${tierOf(tr.tier)!.label} setups`, sub: `${tr.own} setup${tr.own === 1 ? '' : 's'}${tr.setups.length > tr.own ? ' + earlier levels' : ''}, best per target`, dps: tr.run.dps, time: tr.run.time, tone: tr.tier });
+      else for (const g of guideResults) rows.push({ label: g.setup.name, sub: tierOf(g.setup.tier)!.label, ...fromResult(g.r), tone: g.setup.tier });
+    }
+    saved?.setups.forEach((s, i) =>
+      rows.push(multi ? { label: s.name, sub: 'Yours, on every target', dps: myRuns[i]?.dps ?? 0, time: myRuns[i]?.time ?? Infinity, mine: i } : { label: s.name, sub: 'Yours', ...fromResult(myResults[i] ?? null), mine: i }),
+    );
+    return rows.sort((a, b) => b.dps - a.dps);
+  }, [withGuide, multi, tierRuns, guideResults, saved, myResults, myRuns]);
+  const bestDps = Math.max(0.01, ...compareRows.map((r) => r.dps));
 
   if (error) return <p className="my-4 text-sm text-red-300">{error}</p>;
   if (!idx) return <div className="my-6 h-64 animate-pulse rounded-xl border border-card-border bg-card-bg" />;
   if (!monster) return <p className="my-4 text-sm text-amber-200">Gear progression: unknown monster “{block.monster}”.</p>;
 
   const shownGuide = guideResults.filter((g) => tier === 'all' || g.setup.tier === tier);
+  async function copyExport(setup: GearSetup, kind: 'banktag' | 'setup') {
+    const name = `${monster?.n ?? 'Anvil'} ${tierOf(setup.tier)?.label ?? ''} ${setup.name}`.trim();
+    const ex = { name, gear: setup.gear, inventory: setup.inventory, runePouch: setup.runePouch, spellbook: setup.spellbook, notes: setup.note };
+    const text = kind === 'banktag' ? bankTagString(ex) : inventorySetupJson(ex);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(kind === 'banktag' ? 'Bank tag copied — in the bank, right-click the + tab → Import tag tab.' : 'Copied — in the Inventory Setups panel, choose Import setup.');
+    } catch {
+      window.prompt('Copy this:', text);
+    }
+  }
   const copyToMine = (s: GearSetup) => addSetup(s.name, { ...setupLoadout(s), stats: mine?.stats ?? s.stats });
 
   return (
-    <section className="my-6 space-y-5 rounded-2xl border border-card-border bg-gradient-to-b from-card-bg to-black/20 p-4 sm:p-5">
+    <section className="@container my-6 space-y-5 rounded-2xl border border-card-border bg-gradient-to-b from-card-bg to-black/20 p-4 sm:p-5">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="flex items-center gap-2 text-lg font-bold">
           <span aria-hidden className="h-5 w-1 rounded-full bg-gold" />
-          Gear progression vs {monsterLabel(monster)}
+          Gear progression vs {multi ? monsters.map(shortName).join(', ') : monsterLabel(monster)}
         </h3>
         <span className="text-xs text-text-muted">
-          {monster.hp} HP · Defence {monster.lv[0]}
-          {monster.ew ? ` · weak to ${monster.ew} (${monster.ewp}%)` : ''}
+          {multi ? `${monsters.length} targets · ${monsters.reduce((a, m) => a + m.hp, 0)} HP in all` : `${monster.hp} HP · Defence ${monster.lv[0]}`}
+          {!multi && monster.ew ? ` · weak to ${monster.ew} (${monster.ewp}%)` : ''}
         </span>
       </header>
 
-      {/* The guide's setups, budget → max */}
-      <div className={`grid gap-3 ${shownGuide.length > 1 ? 'md:grid-cols-2 xl:grid-cols-3' : ''}`}>
-        {shownGuide.map(({ setup, r }, i) => {
-          const t = TIER_TONE[setup.tier];
-          return (
-            <article key={i} className={`flex flex-col gap-3 rounded-xl border ${t.border} bg-black/25 p-3`}>
-              <div>
-                <div className={`text-[11px] font-semibold uppercase tracking-widest ${t.text}`}>
-                  {tierOf(setup.tier)?.emoji} {tierOf(setup.tier)?.label}
+      {/* The guide's setups, budget → max. A multi-target fight groups them by level, with the
+          level's whole run on top (targets a level has no setup for borrow an earlier level's). */}
+      {multi ? (
+        <div className="space-y-4">
+          {tierRuns
+            .filter((tr) => tier === 'all' || tr.tier === tier)
+            .map((tr) => {
+              const tone = TIER_TONE[tr.tier];
+              const borrowed = tr.run.targets
+                .map((t, i) => ({ t, m: monsters[i] }))
+                .filter(({ t }) => t.setup != null && tr.setups[t.setup].tier !== tr.tier);
+              const missing = tr.run.targets.filter((t) => t.setup == null).length;
+              return (
+                <div key={tr.tier} className="space-y-2">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 border-b border-card-border/60 pb-1.5">
+                    <span className={`text-xs font-semibold uppercase tracking-widest ${tone.text}`}>
+                      {tierOf(tr.tier)?.emoji} {tierOf(tr.tier)?.label}
+                    </span>
+                    <span className="text-xs text-text-muted">
+                      Full run <span className="text-sm font-bold text-gold">{fmtTime(tr.run.time)}</span>
+                      {Number.isFinite(tr.run.time) && <> · {tr.run.dps.toFixed(2)} DPS</>}
+                      {missing > 0 && <span className="text-amber-200/80"> · {missing} target{missing === 1 ? '' : 's'} without a setup</span>}
+                    </span>
+                    {borrowed.length > 0 && (
+                      <span className="w-full text-[11px] text-text-muted">
+                        {borrowed.map(({ t, m }) => `${shortName(m)} with ${tr.setups[t.setup!].name} (${tierOf(tr.setups[t.setup!].tier)?.label})`).join(' · ')}
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid gap-3 @xl:grid-cols-2">
+                    {guideResults
+                      .filter((g) => g.setup.tier === tr.tier)
+                      .map((g, i) => (
+                        <SetupCard key={i} {...g} multi everyTarget={g.perTarget.length === monsters.length} idx={idx} names={itemNames} onExport={copyExport} onUse={copyToMine} />
+                      ))}
+                  </div>
                 </div>
-                <div className="font-semibold">{setup.name}</div>
-              </div>
-              <div className="flex justify-center">
-                <EquipmentPanel gear={setup.gear} items={idx.items} lookup={idx.item} readOnly size={34} />
-              </div>
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div>
-                  <div className="text-lg font-bold leading-none text-gold">{r ? r.dps.toFixed(2) : '—'}</div>
-                  <div className="text-[10px] uppercase tracking-wider text-text-muted">DPS</div>
-                </div>
-                <div>
-                  <div className="text-lg font-bold leading-none">{r?.maxHit ?? '—'}</div>
-                  <div className="text-[10px] uppercase tracking-wider text-text-muted">Max hit</div>
-                </div>
-                <div>
-                  <div className="text-lg font-bold leading-none">{killTime(r)}</div>
-                  <div className="text-[10px] uppercase tracking-wider text-text-muted">Kill</div>
-                </div>
-              </div>
-              <p className="text-[11px] text-text-muted">
-                Levels {setup.stats.attack}/{setup.stats.strength}/{setup.stats.ranged}/{setup.stats.magic} (att/str/rng/mag)
-                {setup.note ? ` · ${setup.note}` : ''}
-              </p>
-              <button type="button" onClick={() => copyToMine(setup)} className="mt-auto rounded-lg border border-card-border py-1 text-xs text-text-muted hover:border-gold/50 hover:text-gold">
-                Copy to my setups
-              </button>
-            </article>
-          );
-        })}
-      </div>
+              );
+            })}
+        </div>
+      ) : (
+        <div className={`grid gap-3 ${shownGuide.length > 1 ? '@xl:grid-cols-2 @3xl:grid-cols-3' : ''}`}>
+          {shownGuide.map((g, i) => (
+            <SetupCard key={i} {...g} multi={false} everyTarget idx={idx} names={itemNames} onExport={copyExport} onUse={copyToMine} />
+          ))}
+        </div>
+      )}
 
       {/* Your setups */}
       {saved && mine && (
@@ -278,7 +363,24 @@ export default function GearProgression({ block, tier, storageKey }: { block: Ge
           </div>
 
           <div className="grid gap-5 p-3 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
-            <LoadoutEditor value={mine} onChange={updateMine} idx={idx} monster={monster} />
+            <div className="space-y-2">
+              {multi && (
+                <div className="flex flex-wrap items-center gap-1 text-xs">
+                  <span className="text-text-muted">Numbers vs</span>
+                  {monsters.map((m, i) => (
+                    <button
+                      key={monsterKeyOf(m)}
+                      type="button"
+                      onClick={() => setViewTarget(i)}
+                      className={`rounded-md border px-2 py-0.5 ${shownTarget === m ? 'border-gold bg-gold/15 text-gold' : 'border-card-border text-text-muted hover:text-foreground'}`}
+                    >
+                      {m.n.replace(/ the .*$/, '')}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <LoadoutEditor value={mine} onChange={updateMine} idx={idx} monster={shownTarget} />
+            </div>
 
             <div className="space-y-5">
               {/* Upgrade route for the active setup */}
@@ -349,14 +451,14 @@ export default function GearProgression({ block, tier, storageKey }: { block: Ge
               <tr>
                 <th className="px-2 py-1.5 font-normal">Setup</th>
                 <th className="w-1/2 px-2 py-1.5 font-normal">DPS</th>
-                <th className="px-2 py-1.5 text-right font-normal">Max</th>
-                <th className="px-2 py-1.5 text-right font-normal">Acc</th>
-                <th className="px-2 py-1.5 text-right font-normal">Kill</th>
+                {!multi && <th className="px-2 py-1.5 text-right font-normal">Max</th>}
+                {!multi && <th className="px-2 py-1.5 text-right font-normal">Acc</th>}
+                <th className="px-2 py-1.5 text-right font-normal">{multi ? 'Full run' : 'Kill'}</th>
               </tr>
             </thead>
             <tbody>
               {compareRows.map((row, i) => {
-                const pct = ((row.r?.dps ?? 0) / bestDps) * 100;
+                const pct = (row.dps / bestDps) * 100;
                 return (
                   <tr
                     key={i}
@@ -372,13 +474,13 @@ export default function GearProgression({ block, tier, storageKey }: { block: Ge
                         <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/5">
                           <div className={`h-full rounded-full ${row.tone ? TIER_TONE[row.tone].bar : 'bg-gold'}`} style={{ width: `${pct}%` }} />
                         </div>
-                        <span className="w-10 text-right font-semibold">{row.r ? row.r.dps.toFixed(2) : '—'}</span>
+                        <span className="w-10 text-right font-semibold">{row.dps ? row.dps.toFixed(2) : '—'}</span>
                       </div>
                       {pct < 99.95 && <div className="text-[10px] text-text-muted">−{(100 - pct).toFixed(0)}% vs best</div>}
                     </td>
-                    <td className="px-2 py-1.5 text-right">{row.r?.maxHit ?? '—'}</td>
-                    <td className="px-2 py-1.5 text-right">{row.r ? `${(row.r.accuracy * 100).toFixed(0)}%` : '—'}</td>
-                    <td className="px-2 py-1.5 text-right">{killTime(row.r)}</td>
+                    {!multi && <td className="px-2 py-1.5 text-right">{row.maxHit ?? '—'}</td>}
+                    {!multi && <td className="px-2 py-1.5 text-right">{row.acc != null ? `${(row.acc * 100).toFixed(0)}%` : '—'}</td>}
+                    <td className="px-2 py-1.5 text-right">{fmtTime(row.time)}</td>
                   </tr>
                 );
               })}
@@ -390,9 +492,126 @@ export default function GearProgression({ block, tier, storageKey }: { block: Ge
         </div>
       )}
 
+      {copied && <p className="rounded-lg border border-emerald-900/60 bg-emerald-950/20 px-3 py-2 text-xs text-emerald-200">{copied}</p>}
       <p className="text-[11px] text-text-muted">
         Numbers from Anvil’s calculator on the OSRS Wiki’s combat formulas. Ignores downtime, specs and boss mechanics; approximated effects say so.
       </p>
     </section>
+  );
+}
+
+const shortName = (m: Monster) => m.n.replace(/ the .*$/, '');
+
+/** One of the guide's setups: what to wear (and carry), what it does, and the ways to take it with you. */
+function SetupCard({
+  setup,
+  r,
+  perTarget,
+  multi,
+  everyTarget,
+  idx,
+  names,
+  onExport,
+  onUse,
+}: {
+  setup: GearSetup;
+  r: DpsResult | null;
+  perTarget: { m: Monster; r: DpsResult | null }[];
+  multi: boolean;
+  everyTarget: boolean;
+  idx: GearIndex;
+  names: ItemNames;
+  onExport: (s: GearSetup, kind: 'banktag' | 'setup') => void;
+  onUse: (s: GearSetup) => void;
+}) {
+  const tone = TIER_TONE[setup.tier];
+  const hasInv = !!(setup.inventory?.some(Boolean) || setup.runePouch?.length);
+  const [view, setView] = useState<'gear' | 'inv'>('gear');
+  const btn = 'whitespace-nowrap rounded-md border border-card-border px-2 py-1 text-[11px] text-text-muted transition-colors hover:border-gold/50 hover:text-gold';
+  return (
+    <article className={`flex flex-col gap-3 rounded-xl border ${tone.border} bg-black/25 p-3`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          {!multi && (
+            <div className={`text-[11px] font-semibold uppercase tracking-widest ${tone.text}`}>
+              {tierOf(setup.tier)?.emoji} {tierOf(setup.tier)?.label}
+            </div>
+          )}
+          <div className="truncate font-semibold">{setup.name}</div>
+          <div className="text-[11px] text-text-muted">
+            {setup.stats.attack}/{setup.stats.strength}/{setup.stats.ranged}/{setup.stats.magic} att/str/rng/mag
+          </div>
+        </div>
+        {hasInv && (
+          <div className="flex shrink-0 rounded-md border border-card-border p-0.5 text-[11px]" role="tablist">
+            {(['gear', 'inv'] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                role="tab"
+                aria-selected={view === v}
+                onClick={() => setView(v)}
+                className={`rounded px-2 py-0.5 transition-colors ${view === v ? 'bg-gold/15 text-gold' : 'text-text-muted hover:text-foreground'}`}
+              >
+                {v === 'gear' ? 'Gear' : 'Inventory'}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className={`flex gap-3 ${multi ? 'items-start' : 'flex-col items-center'}`}>
+        <div className="flex min-h-[182px] shrink-0 items-center justify-center">
+          {view === 'inv' && hasInv ? (
+            <InventoryPanel inventory={setup.inventory} runePouch={setup.runePouch} names={names} readOnly size={22} />
+          ) : (
+            <EquipmentPanel gear={setup.gear} items={idx.items} lookup={idx.item} readOnly size={32} />
+          )}
+        </div>
+        {multi ? (
+          <div className="min-w-0 flex-1 space-y-1">
+            <div className="text-[10px] uppercase tracking-wider text-text-muted">{everyTarget ? 'Every target' : 'Used on'}</div>
+            <ul className="space-y-1 text-xs">
+              {perTarget.map(({ m, r: tr }) => (
+                <li key={monsterKeyOf(m)} className="flex items-baseline justify-between gap-2 rounded bg-black/25 px-2 py-1">
+                  <span className="truncate">{shortName(m)}</span>
+                  <span className="whitespace-nowrap tabular-nums">
+                    <span className="font-semibold text-gold">{tr ? tr.dps.toFixed(2) : '—'}</span>
+                    <span className="text-text-muted"> · {killTime(tr)}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <div className="grid w-full grid-cols-3 gap-2 text-center">
+            {[
+              ['DPS', r ? r.dps.toFixed(2) : '—', 'text-gold'],
+              ['Max hit', String(r?.maxHit ?? '—'), ''],
+              ['Kill', killTime(r), ''],
+            ].map(([label, value, cls]) => (
+              <div key={label}>
+                <div className={`text-lg font-bold leading-none ${cls}`}>{value}</div>
+                <div className="text-[10px] uppercase tracking-wider text-text-muted">{label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {setup.note && <p className="text-[11px] text-text-muted">{setup.note}</p>}
+      <div className="mt-auto flex flex-wrap gap-1.5 border-t border-card-border/50 pt-2.5">
+        <button type="button" onClick={() => onUse(setup)} className={`${btn} text-foreground`}>
+          Try it in my setups
+        </button>
+        <span className="flex-1" />
+        <button type="button" onClick={() => onExport(setup, 'banktag')} className={btn} title="RuneLite Bank Tags — in the bank, right-click the + tab → Import tag tab">
+          Bank tag
+        </button>
+        <button type="button" onClick={() => onExport(setup, 'setup')} className={btn} title="RuneLite Inventory Setups plugin — Import setup">
+          Inventory Setup
+        </button>
+      </div>
+    </article>
   );
 }

@@ -9,6 +9,7 @@
 import { bestStyle, type GearItem, type ItemLookup, type Loadout, type Monster } from './engine';
 import { stylesFor, type Slot } from './tables';
 import type { EffectRule } from './effects';
+import { encounterDps } from './encounter';
 import type { GearSetup } from '../guideTiers';
 
 export interface RouteStep {
@@ -48,20 +49,23 @@ function wear(loadout: Loadout, item: GearItem, kit: GearSetup | undefined, item
   return next;
 }
 
-function dpsOf(l: Loadout, monster: Monster, items: ItemLookup, rules: EffectRule[]): { dps: number; style: number } {
-  const b = bestStyle(l, monster, items, rules);
-  return b ? { dps: b.result.dps, style: b.index } : { dps: 0, style: l.style };
+/** A loadout's DPS: against one monster, or over a whole run of several (lib/dps/encounter). */
+function dpsOf(l: Loadout, monsters: Monster[], items: ItemLookup, rules: EffectRule[]): { dps: number; style: number } {
+  const b = bestStyle(l, monsters[0], items, rules);
+  const style = b ? b.index : l.style;
+  return { dps: monsters.length === 1 ? (b?.result.dps ?? 0) : encounterDps(l, monsters, items, rules), style };
 }
 
 export function upgradeRoute(
   current: Loadout,
   setups: GearSetup[],
-  monster: Monster,
+  target: Monster | Monster[],
   items: ItemLookup,
   prices: Record<number, number>,
   maxSteps = 10,
   rules: EffectRule[] = [],
 ): Route {
+  const monster = Array.isArray(target) ? target : [target];
   const myKind = kindOf(items(current.gear.weapon), current.style);
   const same = setups.filter((s) => kindOf(items(s.gear.weapon), s.style) === myKind);
   // Candidate items, each remembering the setup it came from (for a weapon's ammo and spell).
