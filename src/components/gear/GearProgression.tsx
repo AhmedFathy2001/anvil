@@ -11,6 +11,7 @@ import LoadoutEditor from './LoadoutEditor';
 import EquipmentPanel from './EquipmentPanel';
 import { ItemIcon } from './ItemIcon';
 import { useGearData } from './useGearData';
+import Select from '@/components/Select';
 
 const TIER_TONE: Record<TierKey, { border: string; text: string; bar: string }> = {
   beginner: { border: 'border-emerald-800/60', text: 'text-emerald-300', bar: 'bg-emerald-500/70' },
@@ -248,15 +249,14 @@ export default function GearProgression({ block, tier, storageKey }: { block: Ge
 
             <div className="ml-auto flex flex-wrap items-center gap-1.5 text-xs">
               <span className="text-text-muted">Levels from</span>
-              <select className="rounded border border-card-border bg-brown-dark px-2 py-1" value="" onChange={(e) => pickAccount(e.target.value)} aria-label="Load levels from">
-                <option value="">{accounts.length ? 'Your characters…' : 'Pick…'}</option>
-                {accounts.map((a) => (
-                  <option key={a.rsn} value={a.rsn}>
-                    {a.rsn}
-                  </option>
-                ))}
-                <option value="__other">Another RSN…</option>
-              </select>
+              <Select
+                value=""
+                onChange={pickAccount}
+                placeholder={accounts.length ? 'Your characters…' : 'Pick…'}
+                ariaLabel="Load levels from"
+                className="w-44"
+                options={[...accounts.map((a) => ({ value: a.rsn, label: a.rsn })), { value: '__other', label: 'Another RSN…' }]}
+              />
               {otherRsn != null && (
                 <>
                   <input

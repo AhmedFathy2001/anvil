@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import ClanLink from '@/components/ClanLink';
 import Checkbox from '@/components/Checkbox';
 import Input from '@/components/Input';
+import Select from '@/components/Select';
 import { useDialog } from '@/components/Confirm';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import { categoryOf, type CategoryView } from '@/lib/guideCategories';
@@ -212,19 +213,16 @@ export default function GuidesAdminClient({ clanName }: { clanName: string }) {
           </button>
         ))}
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <select
+          <Select
             value={cat}
-            onChange={(e) => setCat(e.target.value)}
-            aria-label="Category"
-            className="rounded border border-card-border bg-brown-dark px-2 py-1.5 text-sm"
-          >
-            <option value="">All categories</option>
-            {data.categories.filter((c) => !c.archived).map((c) => (
-              <option key={c.key} value={c.key}>
-                {c.icon} {c.label}
-              </option>
-            ))}
-          </select>
+            onChange={setCat}
+            ariaLabel="Category"
+            className="w-48"
+            options={[
+              { value: '', label: 'All categories' },
+              ...data.categories.filter((c) => !c.archived).map((c) => ({ value: c.key, label: `${c.icon} ${c.label}${c.clanId ? ' · ours' : ''}` })),
+            ]}
+          />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" className="w-44" />
         </div>
       </div>

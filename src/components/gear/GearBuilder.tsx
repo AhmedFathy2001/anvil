@@ -7,6 +7,7 @@ import { monsterKey, monsterLabel, setupLoadout } from '@/lib/dps/summary';
 import { TIERS, tierOf, type GearBlock, type GearSetup, type TierKey } from '@/lib/guideTiers';
 import LoadoutEditor, { DEFAULT_STATS, ResultLine } from './LoadoutEditor';
 import { useGearData } from './useGearData';
+import Select from '@/components/Select';
 
 /**
  * Build a guide's gear progression: pick the monster, then a setup (or several) for each level,
@@ -121,17 +122,12 @@ export default function GearBuilder({
                     {open === i && (
                       <div className="space-y-3 border-t border-card-border p-3">
                         <div className="grid gap-2 sm:grid-cols-[140px_1fr_auto]">
-                          <select
+                          <Select
                             value={s.tier}
-                            onChange={(e) => update(i, { tier: e.target.value as TierKey })}
-                            className="rounded border border-card-border bg-brown-dark px-2 py-1 text-xs"
-                          >
-                            {TIERS.map((t) => (
-                              <option key={t.key} value={t.key}>
-                                {t.emoji} {t.label}
-                              </option>
-                            ))}
-                          </select>
+                            onChange={(v) => update(i, { tier: v as TierKey })}
+                            ariaLabel="Level"
+                            options={TIERS.map((t) => ({ value: t.key, label: `${t.emoji} ${t.label}` }))}
+                          />
                           <input
                             value={s.name}
                             onChange={(e) => update(i, { name: e.target.value.slice(0, 60) })}

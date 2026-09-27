@@ -5,7 +5,7 @@ import { db } from '@/db';
 import { guidePosts } from '@/db/schema';
 import { clanGuideActor, requireClanGuideEditorApi } from '@/lib/guideAccess';
 import { GuideInputError, deleteGuide, getScopedGuide, listRevisions, saveGuide } from '@/lib/guides';
-import { postJumpUrl, unpost } from '@/lib/guidePosting';
+import { postJumpUrl, pruneDeletedPosts, unpost } from '@/lib/guidePosting';
 import { getBotCredentials } from '@/lib/discord-roles';
 import { listCategories } from '@/lib/guideCategoryStore';
 
@@ -18,6 +18,8 @@ export async function GET(_req: Request, { params }: Ctx) {
   const guide = await getScopedGuide(Number((await params).id), actor.clan.id);
   if (!guide) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
+  // Posts deleted by hand in Discord drop off here, instead of waiting for the next edit to find out.
+  await pruneDeletedPosts(actor.clan.id, await db.select().from(guidePosts).where(eq(guidePosts.guideId, guide.id))).catch(() => 0);
   const [revisions, source, posts, creds, categories] = await Promise.all([
     listRevisions(guide.id),
     guide.sourceGuideId ? getScopedGuide(guide.sourceGuideId, null) : Promise.resolve(null),

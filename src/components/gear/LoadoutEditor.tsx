@@ -6,6 +6,7 @@ import { calculate, type DpsResult, type Loadout, type Monster } from '@/lib/dps
 import { BOOSTS, PRAYERS, SPELLS, prayerKeys, stylesFor, togglePrayer, type Slot } from '@/lib/dps/tables';
 import type { GearIndex } from '@/lib/dps/summary';
 import EquipmentPanel from './EquipmentPanel';
+import Select from '@/components/Select';
 
 const wiki = (file: string) => `https://oldschool.runescape.wiki/images/${encodeURIComponent(file.replace(/ /g, '_'))}`;
 
@@ -115,27 +116,28 @@ export default function LoadoutEditor({
           {style.stance === 'autocast' && (
             <label className="block text-[11px] text-text-muted">
               Spell
-              <select className={sel} disabled={readOnly} value={value.spell ?? ''} onChange={(e) => onChange({ ...value, spell: e.target.value || null })}>
-                <option value="">Pick a spell…</option>
-                {SPELLS.map((sp) => (
-                  <option key={sp.name} value={sp.name}>
-                    {sp.name}
-                  </option>
-                ))}
-              </select>
+              <Select
+                value={value.spell ?? ''}
+                disabled={readOnly}
+                onChange={(v) => onChange({ ...value, spell: v || null })}
+                placeholder="Pick a spell…"
+                searchable
+                ariaLabel="Spell"
+                options={SPELLS.map((sp) => ({ value: sp.name, label: sp.name }))}
+              />
             </label>
           )}
           {isBlowpipe && (
             <label className="block text-[11px] text-text-muted">
               Darts
-              <select className={sel} disabled={readOnly} value={value.dart ?? ''} onChange={(e) => onChange({ ...value, dart: e.target.value ? Number(e.target.value) : null })}>
-                <option value="">Pick darts…</option>
-                {darts.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.n}
-                  </option>
-                ))}
-              </select>
+              <Select
+                value={value.dart != null ? String(value.dart) : ''}
+                disabled={readOnly}
+                onChange={(v) => onChange({ ...value, dart: v ? Number(v) : null })}
+                placeholder="Pick darts…"
+                ariaLabel="Darts"
+                options={darts.map((d) => ({ value: String(d.id), label: d.n }))}
+              />
             </label>
           )}
 
@@ -201,14 +203,13 @@ export default function LoadoutEditor({
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex-1 text-[11px] text-text-muted">
               Boost
-              <select className={sel} disabled={readOnly} value={value.boost ?? ''} onChange={(e) => onChange({ ...value, boost: e.target.value || null })}>
-                <option value="">None</option>
-                {BOOSTS.filter((b) => b.style === kind).map((b) => (
-                  <option key={b.key} value={b.key}>
-                    {b.label}
-                  </option>
-                ))}
-              </select>
+              <Select
+                value={value.boost ?? ''}
+                disabled={readOnly}
+                onChange={(v) => onChange({ ...value, boost: v || null })}
+                ariaLabel="Boost"
+                options={[{ value: '', label: 'None' }, ...BOOSTS.filter((b) => b.style === kind).map((b) => ({ value: b.key, label: b.label }))]}
+              />
             </label>
             <label className="mt-4 flex cursor-pointer items-center gap-2 text-xs text-text-muted">
               <input type="checkbox" disabled={readOnly} checked={value.onTask === true} onChange={(e) => onChange({ ...value, onTask: e.target.checked })} className="accent-[#e0b341]" />

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
 import { useDialog } from '@/components/Confirm';
+import Select from '@/components/Select';
 import { ItemIcon } from '@/components/gear/ItemIcon';
 import { reloadGearIndex } from '@/components/gear/useGearData';
 import type { GearItem, Monster } from '@/lib/dps/engine';
@@ -260,9 +261,9 @@ function ItemForm({ item, override, readOnly, put, revert, onDone }: { item: Gea
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <label className="block">Item id<input className={input} disabled={!!item || readOnly} value={f.id} onChange={(e) => setF({ ...f, id: e.target.value })} placeholder="game id" /></label>
         <label className="col-span-3 block">Name<input className={input} disabled={readOnly} value={f.n} onChange={(e) => setF({ ...f, n: e.target.value })} /></label>
-        <label className="block">Slot<select className={input} disabled={readOnly} value={f.s} onChange={(e) => setF({ ...f, s: e.target.value })}>{SLOTS.map((s) => <option key={s}>{s}</option>)}</select></label>
+        <label className="block">Slot<Select value={f.s} disabled={readOnly} onChange={(v) => setF({ ...f, s: v })} ariaLabel="Slot" options={SLOTS.map((s) => ({ value: s, label: s }))} /></label>
         <label className="block">Speed (ticks)<input className={input} disabled={readOnly} value={f.sp} onChange={(e) => setF({ ...f, sp: e.target.value === '' ? '' : Number(e.target.value) })} /></label>
-        <label className="col-span-2 block">Weapon category<select className={input} disabled={readOnly} value={f.c} onChange={(e) => setF({ ...f, c: e.target.value })}><option value="">—</option>{Object.keys(WEAPON_STYLES).map((c) => <option key={c}>{c}</option>)}</select></label>
+        <label className="col-span-2 block">Weapon category<Select value={f.c} disabled={readOnly} onChange={(v) => setF({ ...f, c: v })} ariaLabel="Weapon category" searchable options={[{ value: '', label: '—' }, ...Object.keys(WEAPON_STYLES).map((c) => ({ value: c, label: c }))]} /></label>
       </div>
       <label className="flex items-center gap-2"><input type="checkbox" disabled={readOnly} checked={f.h2} onChange={(e) => setF({ ...f, h2: e.target.checked })} /> Two-handed</label>
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
@@ -367,7 +368,7 @@ function MonsterForm({ m, override, readOnly, put, revert, onDone }: { m: Monste
         <label className="col-span-2 block">Attributes<input className={input} disabled={readOnly} value={f.a} onChange={(e) => setF({ ...f, a: e.target.value })} placeholder="dragon, undead" /></label>
         <label className="block">Size<input className={input} type="number" disabled={readOnly} value={f.sz} onChange={(e) => setF({ ...f, sz: num(e.target.value) })} /></label>
         <label className="block">Flat armour<input className={input} type="number" disabled={readOnly} value={f.fa} onChange={(e) => setF({ ...f, fa: num(e.target.value) })} /></label>
-        <label className="block">Weak to<select className={input} disabled={readOnly} value={f.ew} onChange={(e) => setF({ ...f, ew: e.target.value })}><option value="">—</option>{['air', 'water', 'earth', 'fire'].map((x) => <option key={x}>{x}</option>)}</select></label>
+        <label className="block">Weak to<Select value={f.ew} disabled={readOnly} onChange={(v) => setF({ ...f, ew: v })} ariaLabel="Weak to" options={[{ value: '', label: '—' }, ...['air', 'water', 'earth', 'fire'].map((x) => ({ value: x, label: x }))]} /></label>
         <label className="block">Weakness %<input className={input} type="number" disabled={readOnly} value={f.ewp} onChange={(e) => setF({ ...f, ewp: num(e.target.value) })} /></label>
       </div>
       <label className="block">Why (for the history)<input className={input} disabled={readOnly} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} /></label>
@@ -469,9 +470,7 @@ function RuleForm({ rule, readOnly, put, revert, onDone }: { rule: EffectRule | 
           </label>
         ))}
         <label className="flex items-center gap-1">On task
-          <select className="rounded border border-card-border bg-brown-dark px-1" disabled={readOnly} value={f.onTask} onChange={(e) => setF({ ...f, onTask: e.target.value })}>
-            <option value="">either</option><option value="yes">yes</option><option value="no">no</option>
-          </select>
+          <Select value={f.onTask} disabled={readOnly} onChange={(v) => setF({ ...f, onTask: v })} ariaLabel="On task" className="w-24" options={[{ value: '', label: 'either' }, { value: 'yes', label: 'yes' }, { value: 'no', label: 'no' }]} />
         </label>
       </div>
       <label className="block">Target has any attribute<input className={input} disabled={readOnly} value={f.monsterAttributes} onChange={(e) => setF({ ...f, monsterAttributes: e.target.value })} placeholder="dragon, demon, undead, kalphite…" /></label>

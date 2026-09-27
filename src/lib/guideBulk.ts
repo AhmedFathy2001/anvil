@@ -18,7 +18,7 @@ import { discordRest, getBotCredentials } from '@/lib/discord-roles';
 import { PERM } from '@/lib/discord-permissions';
 import { categoryOf, slugify } from '@/lib/guideCategories';
 import { listCategories } from '@/lib/guideCategoryStore';
-import { BOT_SELF_GRANT, discordError, listGuideChannels, postToChannel, removeCreated, unpost, type Creds } from '@/lib/guidePosting';
+import { BOT_SELF_GRANT, discordError, goneChannels, listGuideChannels, postToChannel, pruneDeletedPosts, removeCreated, unpost, type Creds } from '@/lib/guidePosting';
 import { log } from '@/lib/logger';
 
 export type BulkLayout = 'channels' | 'forum' | 'existing';
@@ -278,7 +278,24 @@ export interface RunView {
 }
 
 export async function listRuns(clanId: number): Promise<RunView[]> {
-  const runs = await db.select().from(guideBulkRuns).where(eq(guideBulkRuns.clanId, clanId));
+  await pruneDeletedPosts(clanId).catch(() => 0);
+  let runs = await db.select().from(guideBulkRuns).where(eq(guideBulkRuns.clanId, clanId));
+  // What a run created and somebody deleted by hand is no longer the run's to remove.
+  const createdIds = runs.flatMap((r) => [...r.channelIds, ...(r.forumId ? [r.forumId] : []), ...(r.categoryId ? [r.categoryId] : [])]);
+  const gone = createdIds.length ? await goneChannels(clanId, createdIds).catch(() => new Set<string>()) : new Set<string>();
+  if (gone.size) {
+    for (const r of runs) {
+      const next = {
+        channelIds: r.channelIds.filter((id) => !gone.has(id)),
+        forumId: r.forumId && gone.has(r.forumId) ? null : r.forumId,
+        categoryId: r.categoryId && gone.has(r.categoryId) ? null : r.categoryId,
+      };
+      if (next.channelIds.length !== r.channelIds.length || next.forumId !== r.forumId || next.categoryId !== r.categoryId) {
+        await db.update(guideBulkRuns).set(next).where(eq(guideBulkRuns.id, r.id));
+      }
+    }
+    runs = await db.select().from(guideBulkRuns).where(eq(guideBulkRuns.clanId, clanId));
+  }
   const posts = await db.select({ runId: guidePosts.bulkRunId }).from(guidePosts).where(eq(guidePosts.clanId, clanId));
   return runs
     .map((r) => ({

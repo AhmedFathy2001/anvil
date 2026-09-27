@@ -14,7 +14,7 @@
 // `@everyone` in step 3 of a raid guide must not wake the whole clan.
 
 import crypto from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { guidePosts, guides, type Guide, type GuidePost } from '@/db/schema';
@@ -556,4 +556,51 @@ export function postJumpUrl(guildId: string | null, post: Pick<GuidePost, 'chann
   if (post.threadId) return `https://discord.com/channels/${guildId}/${post.threadId}`;
   const first = post.messageIds[0];
   return first ? `https://discord.com/channels/${guildId}/${post.channelId}/${first}` : null;
+}
+
+// ── Noticing what was deleted by hand ────────────────────────────────────────────────────────
+
+// channel/thread id → when we last saw it exist (or found it gone). One Discord read per channel
+// per minute at most, however often the page is opened.
+const seen = new Map<string, { at: number; gone: boolean }>();
+const SEEN_TTL = 60_000;
+
+/**
+ * Forget posts whose channel or forum post no longer exists in Discord — somebody deleted it by
+ * hand. Called when a guide or the guides page is opened, so the list is right without waiting for
+ * the next edit. Anything we can't confirm (bot missing, Discord down) is left alone.
+ */
+/**
+ * Which of these channels/threads no longer exist in Discord. Note that deleting a CATEGORY does not
+ * delete its channels — Discord moves them out, uncategorized — so they still count as existing.
+ */
+export async function goneChannels(clanId: number, ids: string[]): Promise<Set<string>> {
+  const gone = new Set<string>();
+  const creds = await getBotCredentials(clanId);
+  if (!creds) return gone;
+  for (const id of [...new Set(ids)].slice(0, 40)) {
+    const hit = seen.get(id);
+    if (hit && Date.now() - hit.at < SEEN_TTL) {
+      if (hit.gone) gone.add(id);
+      continue;
+    }
+    const res = await discordRest(creds.botToken, `/channels/${id}`);
+    // 404 = deleted. 403 = it exists but the bot can't see it: not ours to forget.
+    const isGone = res.status === 404;
+    seen.set(id, { at: Date.now(), gone: isGone });
+    if (isGone) gone.add(id);
+  }
+  return gone;
+}
+
+export async function pruneDeletedPosts(clanId: number, posts?: GuidePost[]): Promise<number> {
+  const list = posts ?? (await db.select().from(guidePosts).where(eq(guidePosts.clanId, clanId)));
+  if (!list.length) return 0;
+  const where = (p: GuidePost) => p.threadId ?? p.channelId;
+  const gone = await goneChannels(clanId, list.map(where));
+  const dead = list.filter((p) => gone.has(where(p))).map((p) => p.id);
+  if (!dead.length) return 0;
+  await db.delete(guidePosts).where(inArray(guidePosts.id, dead));
+  log.info('guides.pruned-deleted', { clanId, posts: dead.length });
+  return dead.length;
 }
