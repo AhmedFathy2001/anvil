@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { accounts, clanMemberships, clanRoster, clanStaff, eventSignups, users } from '@/db/schema';
+import { accounts, clanMemberships, clanRoster, clanStaff, eventEditors, eventSignups, events, users } from '@/db/schema';
 import { and, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
 
 // A game account a person owns — their "character". Thin projection of a clan_member for identity UIs.
@@ -23,6 +23,14 @@ export interface PersonWithCharacters {
   /** Guide authoring in this clan — clan_staff.can_edit_guides. */
   canEditGuides: boolean;
   isOwner: boolean;
+  /**
+   * Set when their seat here is a BOARD grant rather than a clan role — 'editor' or 'treasurer' with
+   * an 'assigned' scope. Such a person reaches only `boards`, and the People page has to say so
+   * rather than render an empty role picker that reads as a staff seat with no powers.
+   */
+  boardScoped: 'editor' | 'treasurer' | null;
+  /** The boards of THIS clan they hold a grant on, and which job. */
+  boards: { eventId: number; name: string; role: 'editor' | 'treasurer' }[];
   banned: boolean;
   createdAt: string;
   discordId: string | null;
@@ -67,6 +75,8 @@ export async function getPeopleWithCharacters(clanId: number): Promise<PersonWit
       role: clanStaff.role,
       canEditTiles: clanStaff.canEditTiles,
       canEditGuides: clanStaff.canEditGuides,
+      editorScope: clanStaff.editorScope,
+      treasurerScope: clanStaff.treasurerScope,
       banned: users.banned,
       createdAt: users.createdAt,
       discordId: users.discordId,
@@ -125,8 +135,31 @@ export async function getPeopleWithCharacters(clanId: number): Promise<PersonWit
     );
   }
 
-  return allUsers.map((u) => ({
+  // Board grants on this clan's events, by person-login. One query for the page.
+  const userIds = allUsers.map((u) => u.id);
+  const grantRows = userIds.length
+    ? await db
+        .select({ userId: eventEditors.userId, eventId: events.id, name: events.name, role: eventEditors.role })
+        .from(eventEditors)
+        .innerJoin(events, eq(events.id, eventEditors.eventId))
+        .where(and(eq(events.clanId, clanId), inArray(eventEditors.userId, userIds)))
+    : [];
+  const boardsBy = new Map<number, PersonWithCharacters['boards']>();
+  for (const g of grantRows) {
+    const list = boardsBy.get(g.userId) ?? [];
+    list.push({ eventId: g.eventId, name: g.name, role: g.role === 'treasurer' ? 'treasurer' : 'editor' });
+    boardsBy.set(g.userId, list);
+  }
+
+  return allUsers.map(({ editorScope, treasurerScope, ...u }) => ({
     ...u,
+    boardScoped:
+      u.role === 'editor' && editorScope === 'assigned'
+        ? ('editor' as const)
+        : u.role === 'treasurer' && treasurerScope === 'assigned'
+          ? ('treasurer' as const)
+          : null,
+    boards: boardsBy.get(u.id) ?? [],
     // No grant here means no authority here — a plain member of this clan, whatever they hold
     // anywhere else.
     role: u.role ?? 'member',

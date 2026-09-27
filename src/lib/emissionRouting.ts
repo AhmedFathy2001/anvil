@@ -13,6 +13,38 @@ export async function clanBlocksGuestEmissions(clanId: number): Promise<boolean>
   return raw === 'true' || raw === '1';
 }
 
+/** The clan setting key for "mark guests' social posts with [Guest]". Opt-in. */
+export const CLAN_TAG_GUEST_EMISSIONS_KEY = 'tag_guest_emissions';
+
+/** A clan wants guests' social posts marked as such. Stored by ToggleSetting as 'true' | '1'. */
+export async function clanTagsGuestEmissions(clanId: number): Promise<boolean> {
+  const raw = await getSetting(clanId, CLAN_TAG_GUEST_EMISSIONS_KEY);
+  return raw === 'true' || raw === '1';
+}
+
+/**
+ * The same post, marked as a guest's: "[Guest]" after the name in the embed's author line, or in
+ * front of a bare-text message that has no embed. Pure; returns new objects, never mutates the one
+ * other destinations are about to receive.
+ */
+export function markGuestPost(
+  embed: Record<string, unknown> | null | undefined,
+  content: string | null | undefined,
+): { embed: Record<string, unknown> | null | undefined; content: string | null | undefined } {
+  const author = embed?.author as { name?: unknown } | undefined;
+  if (embed && author && typeof author.name === 'string' && author.name.trim()) {
+    // Discord caps the author name at 256; the tag is short and the RSN far shorter, but clamp anyway.
+    const name = `${author.name} [Guest]`.slice(0, 256);
+    return { embed: { ...embed, author: { ...author, name } }, content };
+  }
+  if (embed) {
+    // No author line to hang it on — put it in front of the title, which every embed of ours has.
+    const title = typeof embed.title === 'string' ? `[Guest] ${embed.title}`.slice(0, 256) : '[Guest]';
+    return { embed: { ...embed, title }, content };
+  }
+  return { embed, content: content ? `[Guest] ${content}` : content };
+}
+
 /** The person's own "don't broadcast to clans I guest in" preference (default: don't block). */
 async function personBlocksGuestEmissions(playerId: number): Promise<boolean> {
   const rows = await db

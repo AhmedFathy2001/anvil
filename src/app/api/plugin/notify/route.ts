@@ -14,7 +14,7 @@ import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { db } from '@/db';
 import { accounts, clanRoster } from '@/db/schema';
 import { findRosterSeat, personOf, seatsOwnedBy } from '@/lib/roster';
-import { personalWebhookTargets, socialEmissionClans } from '@/lib/emissionRouting';
+import { clanTagsGuestEmissions, markGuestPost, personalWebhookTargets, socialEmissionClans } from '@/lib/emissionRouting';
 import { and, eq, isNull } from 'drizzle-orm';
 
 // The plugin POSTs clan notifications (death / kill / rare drop / CA) here instead of straight to
@@ -219,10 +219,15 @@ export async function POST(request: Request) {
 
   // Destination → the clan it belongs to (for that clan's bot name and icon); personal webhooks have none.
   const urls = new Map<string, number | undefined>();
+  // Destinations where this account only GUESTS and the clan asked for guests' posts to be marked.
+  const markAsGuest = new Set<string>();
   for (const ec of emissionClans) {
     const webhooks = await getNotificationWebhooks(ec.clanId);
     const url = seasonal ? seasonalWebhookFor(webhooks, channel) : webhookFor(webhooks, channel);
-    if (url && !urls.has(url)) urls.set(url, ec.clanId);
+    if (url && !urls.has(url)) {
+      urls.set(url, ec.clanId);
+      if (ec.kind === 'guest' && (await clanTagsGuestEmissions(ec.clanId))) markAsGuest.add(url);
+    }
   }
 
   // THE ADDRESSED CLAN IS NOT A DESTINATION. There used to be a fallback here: an account we could
@@ -255,7 +260,13 @@ export async function POST(request: Request) {
 
   let anyOk = false;
   for (const [url, clanId] of urls) {
-    const ok = await forwardPluginNotification(url, { content: outContent, embed: outEmbed, attachment: image, clanId });
+    const post = markAsGuest.has(url) ? markGuestPost(outEmbed, outContent) : { embed: outEmbed, content: outContent };
+    const ok = await forwardPluginNotification(url, {
+      content: post.content ?? undefined,
+      embed: post.embed ?? null,
+      attachment: image,
+      clanId,
+    });
     anyOk = anyOk || ok;
   }
   return NextResponse.json({ ok: anyOk });

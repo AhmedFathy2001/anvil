@@ -308,3 +308,28 @@ test('a corrupt kinds column is read as "wants nothing", not a crash', () => {
   assert.deepEqual(R.parseKinds('["rareDrops",5,"deaths"]'), ['rareDrops', 'deaths']);
   assert.deepEqual(R.parseKinds(null), []);
 });
+
+// ── [Guest] marking ───────────────────────────────────────────────────────────────────────────
+// Opt-in per receiving clan (tag_guest_emissions). The route marks only destinations where the
+// account holds a GUEST seat; a member's own clan is never marked.
+
+test('a clan opts in to marking guests, and it is off until it does', async () => {
+  const { db, schema: s } = await loadDb();
+  await clearOverrides();
+  assert.equal(await R.clanTagsGuestEmissions(clanGuestA), false, 'off by default');
+  await db.insert(s.settings).values({ clanId: clanGuestA, key: R.CLAN_TAG_GUEST_EMISSIONS_KEY, value: 'true' });
+  assert.equal(await R.clanTagsGuestEmissions(clanGuestA), true);
+  assert.equal(await R.clanTagsGuestEmissions(clanGuestB), false, 'one clan’s choice is not another’s');
+  await clearOverrides();
+});
+
+test('marking puts [Guest] after the name, and never touches the original post', () => {
+  const embed = { author: { name: 'Main', icon_url: 'x' }, title: '🐾 Pet drop!' };
+  const marked = R.markGuestPost(embed, undefined);
+  assert.deepEqual(marked.embed, { author: { name: 'Main [Guest]', icon_url: 'x' }, title: '🐾 Pet drop!' });
+  assert.equal(embed.author.name, 'Main', 'the other destinations still get the unmarked post');
+
+  // No author line: the title carries it. No embed at all: the text does.
+  assert.equal((R.markGuestPost({ title: '💀 Death' }, null).embed as { title: string }).title, '[Guest] 💀 Death');
+  assert.equal(R.markGuestPost(null, 'Main died').content, '[Guest] Main died');
+});
