@@ -305,11 +305,19 @@ const fr: PartialGuideDict = {
         },
         {
           term: 'Gérer les salons',
-          body: 'Uniquement pour les salons privés par équipe pendant une draft. Passez-la et tout le reste fonctionne quand même.',
+          body: 'Pour les salons privés des équipes pendant une draft, et pour les guides publiés comme nouvelle catégorie ou forum. Sans elle, tout le reste fonctionne quand même.',
+        },
+        {
+          term: 'Gérer les fils, envoyer des messages dans les fils',
+          body: 'Pour les guides publiés dans un forum : écrire dans la publication, puis la supprimer — sans cette permission, Discord ne laisse pas un bot supprimer même sa propre publication.',
+        },
+        {
+          term: 'Changer le pseudo',
+          body: 'Seulement si tu donnes au bot le nom de ton clan dans **Settings → Bot appearance**. Cela ne change son nom que sur ton serveur.',
         },
       ],
       note: {
-        tag: 'Il demande les cinq d’un coup',
+        tag: 'Il demande tout d’un coup',
         body: 'Discord n’a aucun moyen de demander une permission plus tard, donc le lien d’invitation réclame l’ensemble, et les fonctions que vous n’activez jamais n’utilisent jamais les leurs. Rouvrir le lien d’invitation est aussi la façon de réparer une permission que quelqu’un a retirée.',
       },
     },

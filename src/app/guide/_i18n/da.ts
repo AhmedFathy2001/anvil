@@ -308,11 +308,19 @@ const da: PartialGuideDict = {
         },
         {
           term: 'Administrere kanaler',
-          body: 'Kun til private holdkanaler under et draft. Spring den over, og alt andet virker stadig.',
+          body: 'Til private holdkanaler under en draft, og til guides der postes som en ny kategori eller et forum. Spring det over, og alt andet virker stadig.',
+        },
+        {
+          term: 'Administrere tråde, sende beskeder i tråde',
+          body: 'Til guides i et forum: at skrive i opslaget og fjerne det igen — Discord lader ikke en bot slette selv sit eget forumopslag uden.',
+        },
+        {
+          term: 'Skift kaldenavn',
+          body: 'Kun hvis du giver botten jeres klans navn under **Settings → Bot appearance**. Det ændrer kun bottens navn på jeres server.',
         },
       ],
       note: {
-        tag: 'Den beder om alle fem på én gang',
+        tag: 'Den beder om det hele på én gang',
         body: 'Discord kan ikke bede om en rettighed senere, så invitationslinket beder om hele sættet, og de funktioner du aldrig slår til, bruger aldrig deres. At åbne invitationslinket igen er også måden at reparere en rettighed, nogen har fjernet.',
       },
     },

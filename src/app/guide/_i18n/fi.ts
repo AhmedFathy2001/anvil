@@ -304,11 +304,19 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Hallinnoi kanavia',
-          body: 'Vain joukkueiden yksityisiä kanavia varten draftin aikana. Ohita se, niin kaikki muu toimii silti.',
+          body: 'Joukkueiden yksityisiin kanaviin draftin aikana sekä oppaisiin, jotka julkaistaan uutena kategoriana tai foorumina. Ilman sitä kaikki muu toimii silti.',
+        },
+        {
+          term: 'Hallitse ketjuja, lähetä viestejä ketjuihin',
+          body: 'Foorumiin julkaistuja oppaita varten: julkaisuun kirjoittamiseen ja sen poistamiseen — ilman tätä Discord ei anna botin poistaa edes omaa foorumijulkaisuaan.',
+        },
+        {
+          term: 'Vaihda lempinimi',
+          body: 'Vain jos annat botille klaanisi nimen kohdassa **Settings → Bot appearance**. Se muuttaa botin nimen vain teidän palvelimellanne.',
         },
       ],
       note: {
-        tag: 'Se pyytää kaikki viisi kerralla',
+        tag: 'Se pyytää kaikkia kerralla',
         body: 'Discord ei voi pyytää oikeutta jälkikäteen, joten kutsulinkki pyytää koko setin, ja ne ominaisuudet joita et koskaan ota käyttöön eivät koskaan käytä omiaan. Kutsulinkin avaaminen uudelleen on myös tapa korjata oikeus jonka joku poisti.',
       },
     },

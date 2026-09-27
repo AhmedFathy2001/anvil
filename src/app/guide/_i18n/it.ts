@@ -304,11 +304,19 @@ const it: PartialGuideDict = {
         },
         {
           term: 'Gestire i canali',
-          body: 'Solo per i canali privati di squadra durante un draft. Saltala e tutto il resto funziona lo stesso.',
+          body: 'Per i canali privati delle squadre durante un draft, e per le guide pubblicate come nuova categoria o forum. Senza, tutto il resto funziona comunque.',
+        },
+        {
+          term: 'Gestire i thread, inviare messaggi nei thread',
+          body: 'Per le guide pubblicate in un forum: scrivere nel post e rimuoverlo di nuovo — senza questo permesso Discord non lascia a un bot eliminare nemmeno il proprio post.',
+        },
+        {
+          term: 'Cambiare nickname',
+          body: 'Solo se dai al bot il nome del tuo clan in **Settings → Bot appearance**. Cambia il nome del bot solo nel tuo server.',
         },
       ],
       note: {
-        tag: 'Le chiede tutte e cinque insieme',
+        tag: 'Chiede tutto in una volta',
         body: 'Discord non ha modo di chiedere un permesso più tardi, quindi il link d’invito richiede l’intero set, e le funzioni che non attivi mai non usano mai il loro. Riaprire il link d’invito è anche il modo di riparare un permesso che qualcuno ha tolto.',
       },
     },

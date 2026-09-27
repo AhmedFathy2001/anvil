@@ -304,11 +304,19 @@ const es: PartialGuideDict = {
         },
         {
           term: 'Gestionar canales',
-          body: 'Solo para canales privados por equipo durante un draft. Sáltatelo y todo lo demás sigue funcionando.',
+          body: 'Para los canales privados de cada equipo durante un draft, y para las guías publicadas como una nueva categoría o foro. Sin él, todo lo demás funciona igual.',
+        },
+        {
+          term: 'Gestionar hilos, enviar mensajes en hilos',
+          body: 'Para las guías publicadas en un foro: escribir dentro de la publicación y volver a quitarla — sin este permiso Discord no deja que un bot borre ni su propia publicación.',
+        },
+        {
+          term: 'Cambiar apodo',
+          body: 'Solo si le das al bot el nombre de tu clan en **Settings → Bot appearance**. Solo cambia el nombre del bot en tu servidor.',
         },
       ],
       note: {
-        tag: 'Pide los cinco de una vez',
+        tag: 'Pide todo de una vez',
         body: 'Discord no tiene forma de pedir un permiso más tarde, así que el enlace de invitación solicita el conjunto completo, y las funciones que nunca actives nunca usan el suyo. Volver a abrir el enlace de invitación es también cómo se repara un permiso que alguien quitó.',
       },
     },

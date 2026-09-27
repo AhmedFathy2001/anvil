@@ -303,11 +303,19 @@ export const en = {
         },
         {
           term: 'Manage Channels',
-          body: 'Only for per-team private channels during a draft. Skip it and everything else still works.',
+          body: 'For per-team private channels during a draft, and for guides posted as a new category or forum. Skip it and everything else still works.',
+        },
+        {
+          term: 'Manage Threads, Send Messages in Threads',
+          body: 'For guides posted to a forum: writing inside the post, and removing the post again — Discord won’t let a bot delete even its own forum post without it.',
+        },
+        {
+          term: 'Change Nickname',
+          body: 'Only if you give the bot your clan’s name in **Settings → Bot appearance**. It changes the bot’s name in your server only.',
         },
       ],
       note: {
-        tag: 'It asks for all five at once',
+        tag: 'It asks for them all at once',
         body: 'Discord has no way to ask for a permission later, so the invite link requests the full set and the features you never enable simply never use theirs. Re-running the invite link is also how you repair a permission somebody removed.',
       },
     },

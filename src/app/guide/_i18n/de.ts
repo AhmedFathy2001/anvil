@@ -304,11 +304,19 @@ const de: PartialGuideDict = {
         },
         {
           term: 'Kanäle verwalten',
-          body: 'Nur für private Team-Kanäle während eines Drafts. Lass es weg, und alles andere funktioniert weiter.',
+          body: 'Für private Teamkanäle während eines Drafts und für Guides, die als neue Kategorie oder als Forum gepostet werden. Ohne sie funktioniert alles andere trotzdem.',
+        },
+        {
+          term: 'Threads verwalten, Nachrichten in Threads senden',
+          body: 'Für Guides in einem Forum: im Beitrag schreiben und ihn wieder entfernen — ohne diese Berechtigung lässt Discord einen Bot nicht einmal seinen eigenen Forenbeitrag löschen.',
+        },
+        {
+          term: 'Nickname ändern',
+          body: 'Nur wenn du dem Bot unter **Settings → Bot appearance** den Namen eures Clans gibst. Das ändert nur seinen Namen auf eurem Server.',
         },
       ],
       note: {
-        tag: 'Er fragt alle fünf auf einmal ab',
+        tag: 'Er fragt alles auf einmal ab',
         body: 'Discord kann eine Berechtigung nicht nachträglich anfordern, also verlangt der Einladungslink den ganzen Satz, und die Funktionen, die du nie einschaltest, nutzen ihre nie. Den Link erneut zu öffnen ist auch der Weg, eine entfernte Berechtigung zu reparieren.',
       },
     },

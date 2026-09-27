@@ -303,11 +303,19 @@ const no: PartialGuideDict = {
         },
         {
           term: 'Administrere kanaler',
-          body: 'Bare for private lagkanaler under et draft. Hopp over den, så virker alt annet likevel.',
+          body: 'For private lagkanaler under en draft, og for guider som postes som en ny kategori eller et forum. Hopp over den, så fungerer alt annet likevel.',
+        },
+        {
+          term: 'Administrere tråder, sende meldinger i tråder',
+          body: 'For guider i et forum: å skrive i innlegget og fjerne det igjen — Discord lar ikke en bot slette selv sitt eget foruminnlegg uten den.',
+        },
+        {
+          term: 'Endre kallenavn',
+          body: 'Bare hvis du gir boten klanens navn under **Settings → Bot appearance**. Det endrer bare botens navn på serveren deres.',
         },
       ],
       note: {
-        tag: 'Den ber om alle fem samtidig',
+        tag: 'Den ber om alt på én gang',
         body: 'Discord kan ikke be om en rettighet senere, så invitasjonslenka ber om hele settet, og funksjonene du aldri slår på bruker aldri sine. Å åpne invitasjonslenka på nytt er også måten å reparere en rettighet noen har fjernet.',
       },
     },

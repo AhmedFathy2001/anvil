@@ -304,11 +304,19 @@ const ptBr: PartialGuideDict = {
         },
         {
           term: 'Gerenciar canais',
-          body: 'Só para canais privados por time durante um draft. Pule e todo o resto continua funcionando.',
+          body: 'Para canais privados dos times durante um draft e para guias publicados como uma nova categoria ou fórum. Sem ela, todo o resto continua funcionando.',
+        },
+        {
+          term: 'Gerenciar tópicos, enviar mensagens em tópicos',
+          body: 'Para guias publicados em um fórum: escrever dentro da postagem e removê-la depois — sem isso o Discord não deixa um bot apagar nem a própria postagem.',
+        },
+        {
+          term: 'Alterar apelido',
+          body: 'Só se você der ao bot o nome do seu clã em **Settings → Bot appearance**. Isso muda o nome do bot apenas no seu servidor.',
         },
       ],
       note: {
-        tag: 'Ele pede as cinco de uma vez',
+        tag: 'Ele pede tudo de uma vez',
         body: 'O Discord não tem como pedir uma permissão depois, então o link de convite solicita o conjunto inteiro, e os recursos que você nunca ligar nunca usam a deles. Reabrir o link de convite também é como se conserta uma permissão que alguém tirou.',
       },
     },

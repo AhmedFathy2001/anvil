@@ -304,11 +304,19 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'Kanalen beheren',
-          body: 'Alleen voor privékanalen per team tijdens een draft. Sla hem over en al het andere werkt gewoon.',
+          body: 'Voor privé-teamkanalen tijdens een draft, en voor gidsen die als nieuwe categorie of forum worden geplaatst. Sla het over en de rest werkt gewoon.',
+        },
+        {
+          term: 'Threads beheren, berichten sturen in threads',
+          body: 'Voor gidsen in een forum: schrijven in de post en die weer verwijderen — zonder dit laat Discord een bot zelfs zijn eigen forumpost niet verwijderen.',
+        },
+        {
+          term: 'Bijnaam wijzigen',
+          body: 'Alleen als je de bot de naam van je clan geeft onder **Settings → Bot appearance**. Het verandert alleen de naam van de bot in jouw server.',
         },
       ],
       note: {
-        tag: 'Hij vraagt alle vijf tegelijk',
+        tag: 'Hij vraagt ze allemaal tegelijk',
         body: 'Discord kan een permissie niet later alsnog vragen, dus de uitnodigingslink vraagt de hele set en de functies die je nooit aanzet gebruiken de hunne nooit. De link opnieuw openen is ook hoe je een permissie herstelt die iemand heeft weggehaald.',
       },
     },

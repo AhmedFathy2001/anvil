@@ -303,11 +303,19 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'Hantera kanaler',
-          body: 'Bara för privata lagkanaler under en draft. Hoppa över den så fungerar allt annat ändå.',
+          body: 'För privata lagkanaler under en draft, och för guider som postas som en ny kategori eller ett forum. Hoppa över den så fungerar allt annat ändå.',
+        },
+        {
+          term: 'Hantera trådar, skicka meddelanden i trådar',
+          body: 'För guider i ett forum: att skriva i inlägget och ta bort det igen — Discord låter inte en bot radera ens sitt eget foruminlägg utan den.',
+        },
+        {
+          term: 'Ändra smeknamn',
+          body: 'Bara om du ger boten er klans namn under **Settings → Bot appearance**. Det ändrar bara botens namn på er server.',
         },
       ],
       note: {
-        tag: 'Den ber om alla fem på en gång',
+        tag: 'Den ber om allt på en gång',
         body: 'Discord kan inte be om en behörighet i efterhand, så inbjudningslänken begär hela uppsättningen, och funktionerna du aldrig slår på använder aldrig sina. Att öppna inbjudningslänken igen är också hur du reparerar en behörighet någon tagit bort.',
       },
     },

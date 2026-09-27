@@ -304,11 +304,19 @@ const pl: PartialGuideDict = {
         },
         {
           term: 'Zarządzanie kanałami',
-          body: 'Tylko dla prywatnych kanałów drużynowych podczas draftu. Pomiń je, a cała reszta i tak działa.',
+          body: 'Do prywatnych kanałów drużyn podczas draftu oraz do poradników publikowanych jako nowa kategoria lub forum. Bez tego wszystko inne i tak działa.',
+        },
+        {
+          term: 'Zarządzanie wątkami, wysyłanie wiadomości w wątkach',
+          body: 'Do poradników na forum: pisania w poście i ponownego usunięcia go — bez tego Discord nie pozwoli botowi usunąć nawet własnego posta na forum.',
+        },
+        {
+          term: 'Zmiana pseudonimu',
+          body: 'Tylko jeśli nadasz botowi nazwę swojego klanu w **Settings → Bot appearance**. Zmienia to nazwę bota tylko na twoim serwerze.',
         },
       ],
       note: {
-        tag: 'Prosi o wszystkie pięć naraz',
+        tag: 'Prosi o wszystko naraz',
         body: 'Discord nie ma sposobu, by poprosić o uprawnienie później, więc link zapraszający żąda całego zestawu, a funkcje, których nigdy nie włączysz, nigdy nie używają swoich. Ponowne otwarcie linku zapraszającego to także sposób na naprawienie uprawnienia, które ktoś usunął.',
       },
     },

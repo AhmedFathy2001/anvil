@@ -92,7 +92,8 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
             <p className="text-sm text-text-muted mb-3">
               One bot powers webhook creation, role/nickname sync and team channels. Use the shared Anvil bot
               (when available) or bring your own — it needs <em>Manage Webhooks</em>, <em>Manage Roles</em>,{' '}
-              <em>Manage Channels</em> and <em>Manage Nicknames</em>, with its role above the ones it manages.
+              <em>Manage Channels</em>, <em>Manage Nicknames</em>, and for guides <em>Manage Threads</em> and{' '}
+              <em>Change Nickname</em>, with its role above the ones it manages.
               Whichever bot you use, it has to be <strong>invited to your server</strong> — the status below says
               whether it is, and the invite link asks Discord for exactly those permissions.
             </p>
