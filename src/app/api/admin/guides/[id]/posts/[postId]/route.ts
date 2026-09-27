@@ -44,5 +44,5 @@ export async function DELETE(request: Request, ctx: Ctx) {
   if ('response' in loaded) return loaded.response;
   const r = await unpost(loaded.post, new URL(request.url).searchParams.get('discord') === '1');
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 502 });
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, note: r.note ?? null });
 }

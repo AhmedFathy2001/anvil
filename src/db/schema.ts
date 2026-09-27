@@ -2687,6 +2687,11 @@ export const guidePosts = pgTable('guide_posts', {
   contentHash: text('content_hash'),
   // Re-sync the messages whenever the guide changes. Off = a frozen snapshot.
   autoUpdate: boolean('auto_update').notNull().default(true),
+  // Anvil created this channel for this one guide (a bulk "channel per guide"): removing the post
+  // deletes the channel — the bot holds Manage Channels, having made it.
+  ownsChannel: boolean('owns_channel').notNull().default(false),
+  // The bulk post this came from (guide_bulk_runs), so a whole run can be undone at once.
+  bulkRunId: integer('bulk_run_id'),
   lastError: text('last_error'),
   postedByUserId: integer('posted_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: text('created_at').notNull(),
@@ -2790,3 +2795,24 @@ export const gearDatasets = pgTable('gear_datasets', {
   createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: text('created_at').notNull(),
 });
+
+/**
+ * One bulk post of guides (lib/guideBulk): what Anvil CREATED in the clan's Discord for it, so the
+ * whole thing can be removed in one go — the category, the forum, the channels. Only ids Anvil made
+ * are listed; a bulk post into an existing channel creates nothing and is undone post by post.
+ */
+export const guideBulkRuns = pgTable('guide_bulk_runs', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  // 'channels' | 'forum' | 'existing'
+  layout: text('layout').notNull(),
+  label: text('label').notNull(),
+  categoryId: text('category_id'),
+  forumId: text('forum_id'),
+  channelIds: jsonb('channel_ids').$type<string[]>().notNull().default([]),
+  createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').notNull(),
+}, (t) => [
+  index('guide_bulk_runs_clan_idx').on(t.clanId),
+]);
+export type GuideBulkRun = typeof guideBulkRuns.$inferSelect;

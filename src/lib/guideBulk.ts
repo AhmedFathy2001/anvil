@@ -10,15 +10,15 @@
 // channel — it can post there. A bulk post that fails on guide 4 of 9 leaves a half-built category
 // for somebody to clean up by hand, which is the outcome the pre-flight exists to prevent.
 
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, count, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { guidePosts, guides, type Guide } from '@/db/schema';
+import { guideBulkRuns, guidePosts, guides, type Guide } from '@/db/schema';
 import { discordRest, getBotCredentials } from '@/lib/discord-roles';
 import { PERM } from '@/lib/discord-permissions';
 import { categoryOf, slugify } from '@/lib/guideCategories';
 import { listCategories } from '@/lib/guideCategoryStore';
-import { BOT_SELF_GRANT, discordError, listGuideChannels, postToChannel, type Creds } from '@/lib/guidePosting';
+import { BOT_SELF_GRANT, discordError, listGuideChannels, postToChannel, removeCreated, unpost, type Creds } from '@/lib/guidePosting';
 import { log } from '@/lib/logger';
 
 export type BulkLayout = 'channels' | 'forum' | 'existing';
@@ -96,6 +96,22 @@ async function botUserId(creds: Creds): Promise<string | null> {
   return res.ok ? (((await res.json()) as { id?: string }).id ?? null) : null;
 }
 
+/** Start the undo record for a run; everything it creates is added as it is created. */
+async function startRun(req: BulkRequest, label: string): Promise<number> {
+  const [row] = await db
+    .insert(guideBulkRuns)
+    .values({ clanId: req.clanId, layout: req.layout, label, createdByUserId: req.userId, createdAt: new Date().toISOString() })
+    .returning({ id: guideBulkRuns.id });
+  return row.id;
+}
+
+async function recordCreated(runId: number, created: NonNullable<BulkResult['created']>) {
+  await db
+    .update(guideBulkRuns)
+    .set({ categoryId: created.categoryId ?? null, forumId: created.forumId ?? null, channelIds: created.channelIds })
+    .where(eq(guideBulkRuns.id, runId));
+}
+
 export async function bulkPost(req: BulkRequest): Promise<BulkResult> {
   const fail = (error: string): BulkResult => ({ ok: false, error, results: [] });
 
@@ -135,12 +151,13 @@ export async function bulkPost(req: BulkRequest): Promise<BulkResult> {
       ).map((r) => r.guideId),
     );
     const results: BulkResult['results'] = [];
+    const runId = await startRun(req, `${list.length} guides into #${target.name}`);
     for (const guide of list) {
       if (already.has(guide.id)) {
         results.push({ guideId: guide.id, title: guide.title, ok: false, error: `Already posted in #${target.name}.` });
         continue;
       }
-      const r = await postToChannel(creds, { clanId: req.clanId, guide, autoUpdate: req.autoUpdate, userId: req.userId }, target, []);
+      const r = await postToChannel(creds, { clanId: req.clanId, guide, autoUpdate: req.autoUpdate, userId: req.userId, bulkRunId: runId }, target, []);
       results.push({ guideId: guide.id, title: guide.title, ok: r.ok, error: r.ok ? undefined : r.error, postId: r.ok ? r.post.id : undefined });
     }
     return { ok: results.every((r) => r.ok), results, created: { channelIds: [] } };
@@ -160,6 +177,12 @@ export async function bulkPost(req: BulkRequest): Promise<BulkResult> {
   if (req.readOnly && !botId) return fail('Could not resolve the bot user — re-check the bot token.');
 
   const created: NonNullable<BulkResult['created']> = { channelIds: [] };
+  const runId = await startRun(
+    req,
+    req.layout === 'channels'
+      ? `${list.length} guides, a channel each${req.categoryName ? ` in ${req.categoryName}` : ''}`
+      : `${list.length} guides in the #${slugify(req.forumName || 'guides')} forum`,
+  );
   const results: BulkResult['results'] = [];
   try {
     // The category: an existing one, a new one, or (forum only) none at all.
@@ -173,6 +196,7 @@ export async function bulkPost(req: BulkRequest): Promise<BulkResult> {
       });
       parentId = cat.id;
       created.categoryId = cat.id;
+      await recordCreated(runId, created);
     }
 
     if (req.layout === 'channels') {
@@ -190,13 +214,14 @@ export async function bulkPost(req: BulkRequest): Promise<BulkResult> {
           });
           channelId = ch.id;
           created.channelIds.push(ch.id);
+          await recordCreated(runId, created);
         } catch (err) {
           results.push({ guideId: guide.id, title: guide.title, ok: false, error: err instanceof Error ? err.message : String(err) });
           continue;
         }
         const r = await postToChannel(
           creds,
-          { clanId: req.clanId, guide, autoUpdate: req.autoUpdate, userId: req.userId },
+          { clanId: req.clanId, guide, autoUpdate: req.autoUpdate, userId: req.userId, bulkRunId: runId, ownsChannel: true },
           { id: channelId, name: slugify(guide.title), kind: 'text' },
           [],
         );
@@ -215,6 +240,7 @@ export async function bulkPost(req: BulkRequest): Promise<BulkResult> {
         ...(req.readOnly && botId ? { permission_overwrites: readOnlyOverwrites(creds.guildId, botId, true) } : {}),
       });
       created.forumId = forum.id;
+      await recordCreated(runId, created);
       const tagFor = new Map(
         cats.map((c) => [c, forum.available_tags?.find((t) => t.name === categoryOf(c, catList).label.slice(0, 20))?.id]),
       );
@@ -223,7 +249,7 @@ export async function bulkPost(req: BulkRequest): Promise<BulkResult> {
         const tag = tagFor.get(guide.category);
         const r = await postToChannel(
           creds,
-          { clanId: req.clanId, guide, autoUpdate: req.autoUpdate, userId: req.userId },
+          { clanId: req.clanId, guide, autoUpdate: req.autoUpdate, userId: req.userId, bulkRunId: runId },
           { id: forum.id, name: forumName, kind: 'forum' },
           tag ? [tag] : [],
         );
@@ -237,4 +263,74 @@ export async function bulkPost(req: BulkRequest): Promise<BulkResult> {
   }
 
   return { ok: results.every((r) => r.ok), created, results };
+}
+
+// ── Undo ─────────────────────────────────────────────────────────────────────────────────────
+
+export interface RunView {
+  id: number;
+  layout: string;
+  label: string;
+  createdAt: string;
+  posts: number;
+  /** Things Anvil created for this run that still exist as far as we know. */
+  created: number;
+}
+
+export async function listRuns(clanId: number): Promise<RunView[]> {
+  const runs = await db.select().from(guideBulkRuns).where(eq(guideBulkRuns.clanId, clanId));
+  const posts = await db.select({ runId: guidePosts.bulkRunId }).from(guidePosts).where(eq(guidePosts.clanId, clanId));
+  return runs
+    .map((r) => ({
+      id: r.id,
+      layout: r.layout,
+      label: r.label,
+      createdAt: r.createdAt,
+      posts: posts.filter((p) => p.runId === r.id).length,
+      created: r.channelIds.length + (r.forumId ? 1 : 0) + (r.categoryId ? 1 : 0),
+    }))
+    .filter((r) => r.posts > 0 || r.created > 0)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/**
+ * Undo a bulk post: delete every channel, the forum and the category Anvil created for it (channels
+ * first — a category can't go while it holds any), or for a post into an existing channel, each
+ * post. What Discord refused stays listed, so the run can be retried.
+ */
+export async function removeRun(clanId: number, runId: number): Promise<{ ok: boolean; errors: string[] }> {
+  const run = await db.query.guideBulkRuns.findFirst({ where: and(eq(guideBulkRuns.id, runId), eq(guideBulkRuns.clanId, clanId)) });
+  if (!run) return { ok: false, errors: ['That bulk post is gone already.'] };
+  const errors: string[] = [];
+  const posts = await db.select().from(guidePosts).where(and(eq(guidePosts.clanId, clanId), eq(guidePosts.bulkRunId, runId)));
+
+  if (run.layout === 'existing') {
+    for (const p of posts) {
+      const r = await unpost(p, true);
+      if (!r.ok && r.error) errors.push(r.error);
+      else if (r.note) errors.push(r.note);
+    }
+  } else {
+    const order = [...run.channelIds, ...(run.forumId ? [run.forumId] : []), ...(run.categoryId ? [run.categoryId] : [])];
+    const { removed, failed } = await removeCreated(clanId, order);
+    for (const f of failed) errors.push(f.error);
+    // Posts in deleted channels are gone with them.
+    const gone = new Set(removed);
+    const dead = posts.filter((p) => gone.has(p.channelId)).map((p) => p.id);
+    if (dead.length) await db.delete(guidePosts).where(inArray(guidePosts.id, dead));
+    await db
+      .update(guideBulkRuns)
+      .set({
+        channelIds: run.channelIds.filter((id) => !gone.has(id)),
+        forumId: run.forumId && gone.has(run.forumId) ? null : run.forumId,
+        categoryId: run.categoryId && gone.has(run.categoryId) ? null : run.categoryId,
+      })
+      .where(eq(guideBulkRuns.id, runId));
+  }
+  const [left] = await db.select({ n: count() }).from(guidePosts).where(eq(guidePosts.bulkRunId, runId));
+  const still = await db.query.guideBulkRuns.findFirst({ where: eq(guideBulkRuns.id, runId) });
+  if ((left?.n ?? 0) === 0 && still && !still.channelIds.length && !still.forumId && !still.categoryId) {
+    await db.delete(guideBulkRuns).where(eq(guideBulkRuns.id, runId));
+  }
+  return { ok: errors.length === 0, errors: [...new Set(errors)] };
 }

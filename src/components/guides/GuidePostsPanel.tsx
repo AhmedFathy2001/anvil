@@ -20,6 +20,7 @@ export interface PostRow {
   lastError: string | null;
   updatedAt: string;
   jumpUrl: string | null;
+  ownsChannel?: boolean;
 }
 
 interface Channel {
@@ -30,6 +31,7 @@ interface Channel {
   tags: { id: string; name: string; emoji: string | null }[];
   requiresTag: boolean;
   missing: string[];
+  canRemove?: boolean;
 }
 
 /** Where this guide lives in Discord, and posting it somewhere new. Clan guides only. */
@@ -115,8 +117,9 @@ export default function GuidePostsPanel({
   async function unpost(p: PostRow) {
     const del = await confirm({
       title: `Remove from #${p.channelName ?? 'channel'}?`,
-      body:
-        p.channelKind === 'forum'
+      body: p.ownsChannel
+        ? `Deletes #${p.channelName ?? 'the channel'} — Anvil made it for this guide — and everything in it.`
+        : p.channelKind === 'forum'
           ? 'Deletes the forum post (and any replies in it) from Discord.'
           : `Deletes the ${p.messageIds.length} message${p.messageIds.length === 1 ? '' : 's'} the bot posted.`,
       confirmLabel: 'Delete from Discord',
@@ -127,6 +130,7 @@ export default function GuidePostsPanel({
     try {
       const res = await clanFetch(`/api/admin/guides/${guideId}/posts/${p.id}?discord=1`, { method: 'DELETE' });
       const j = await res.json().catch(() => ({}));
+      if (res.ok && j.note) notify(j.note, 'error');
       if (!res.ok) {
         // The messages may already be gone by hand; offer to just forget the post.
         const forget = await confirm({
@@ -193,7 +197,7 @@ export default function GuidePostsPanel({
                   options={channels.map((c) => ({
                     value: c.id,
                     label: `${c.kind === 'forum' ? '🗂 ' : '# '}${c.name}${c.parentName ? ` · ${c.parentName}` : ''}${
-                      c.missing.length ? ` — bot lacks ${c.missing.join(', ')}` : ''
+                      c.missing.length ? ` — bot lacks ${c.missing.join(', ')}` : c.canRemove === false ? " — can post, but can't remove later (needs Manage Threads)" : ''
                     }`,
                     keywords: [c.name, c.parentName ?? ''],
                     // Checked before posting, not discovered by it: a channel the bot can't post in

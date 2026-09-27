@@ -421,6 +421,13 @@
       "when": 1790530000000,
       "tag": "0101_guide_categories_gear_admin",
       "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1790540000000,
+      "tag": "0102_guide_bulk_runs",
+      "breakpoints": true
     }
   ]
 }

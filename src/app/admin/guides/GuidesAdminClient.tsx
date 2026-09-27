@@ -11,6 +11,7 @@ import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import { categoryOf, type CategoryView } from '@/lib/guideCategories';
 import BulkPostPanel from '@/components/guides/BulkPostPanel';
 import CategoryManager from '@/components/guides/CategoryManager';
+import BulkRunsList from '@/components/guides/BulkRunsList';
 
 interface Card {
   id: number;
@@ -54,6 +55,7 @@ export default function GuidesAdminClient({ clanName }: { clanName: string }) {
   const [cat, setCat] = useState<string>('');
   const [busy, setBusy] = useState<number | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [runsKey, setRunsKey] = useState(0);
 
   const load = useCallback(async () => {
     const res = await clanFetch('/api/admin/guides');
@@ -161,7 +163,18 @@ export default function GuidesAdminClient({ clanName }: { clanName: string }) {
         )}
       </div>
 
-      {bulkOpen && data.canEdit && <BulkPostPanel guides={data.guides} guideCategories={data.categories} onClose={() => setBulkOpen(false)} onDone={load} />}
+      {bulkOpen && data.canEdit && (
+        <BulkPostPanel
+          guides={data.guides}
+          guideCategories={data.categories}
+          onClose={() => setBulkOpen(false)}
+          onDone={() => {
+            void load();
+            setRunsKey((k) => k + 1);
+          }}
+        />
+      )}
+      {data.canEdit && <BulkRunsList refreshKey={runsKey} />}
 
       {data.offers.length > 0 && (
         <div className="rounded-xl border border-amber-700/70 bg-amber-950/25 p-4">

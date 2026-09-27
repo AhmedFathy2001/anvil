@@ -55,6 +55,8 @@ export interface GuideChannel {
   requiresTag: boolean;
   /** Permissions the bot lacks here — empty means it can post. Checked BEFORE anything is sent. */
   missing: string[];
+  /** For a forum: whether the bot will be able to delete its posts later (Manage Threads). */
+  canRemove: boolean;
 }
 
 /** What posting a guide needs, by where it goes. Editing and deleting its own messages need no more. */
@@ -150,6 +152,7 @@ export async function listGuideChannels(
         tags: (c.available_tags ?? []).map((t) => ({ id: t.id, name: t.name, emoji: t.emoji_name ?? null })),
         requiresTag: ((c.flags ?? 0) & FORUM_REQUIRE_TAG) !== 0,
         missing: missingPermissions(channelPermissions(access, c.permission_overwrites), NEEDS[kind]),
+        canRemove: kind === 'text' || missingPermissions(channelPermissions(access, c.permission_overwrites), ['MANAGE_THREADS']).length === 0,
       };
     })
     .sort((a, b) => (a.parentName ?? '').localeCompare(b.parentName ?? '') || a.position - b.position);
@@ -217,12 +220,45 @@ export async function discordError(res: Response): Promise<string> {
 
 export type Creds = { botToken: string; guildId: string };
 
+/**
+ * A Discord refusal we can reason about: `gone` (the channel/thread or message was deleted — by hand,
+ * usually) versus `forbidden` (a permission is missing) versus anything else.
+ */
+export class DiscordApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code: number | undefined,
+  ) {
+    super(message);
+  }
+  get channelGone() {
+    return this.status === 404 && (this.code === 10003 || this.code === undefined);
+  }
+  get messageGone() {
+    return this.status === 404 && this.code === 10008;
+  }
+  get forbidden() {
+    return this.status === 403 || this.code === 50013 || this.code === 50001;
+  }
+}
+
+async function apiError(res: Response): Promise<DiscordApiError> {
+  let code: number | undefined;
+  try {
+    code = ((await res.clone().json()) as { code?: number }).code;
+  } catch {
+    /* not json */
+  }
+  return new DiscordApiError(await discordError(res), res.status, code);
+}
+
 async function send(creds: Creds, channelId: string, m: DiscordGuideMessage): Promise<string> {
   const res = await discordRest(creds.botToken, `/channels/${channelId}/messages`, {
     method: 'POST',
     body: JSON.stringify(payload(m)),
   });
-  if (!res.ok) throw new Error(await discordError(res));
+  if (!res.ok) throw await apiError(res);
   return ((await res.json()) as { id: string }).id;
 }
 
@@ -232,13 +268,19 @@ async function edit(creds: Creds, channelId: string, messageId: string, m: Disco
     // content: '' explicitly clears old text when a message became image-only.
     body: JSON.stringify({ content: m.content, embeds: m.embeds, allowed_mentions: NO_PINGS }),
   });
-  if (!res.ok) throw new Error(await discordError(res));
+  if (!res.ok) throw await apiError(res);
 }
 
 async function remove(creds: Creds, channelId: string, messageId: string): Promise<void> {
   const res = await discordRest(creds.botToken, `/channels/${channelId}/messages/${messageId}`, { method: 'DELETE' });
   // Already gone is the outcome we wanted.
-  if (!res.ok && res.status !== 404) throw new Error(await discordError(res));
+  if (!res.ok && res.status !== 404) throw await apiError(res);
+}
+
+/** Delete a whole channel (or thread). Already gone counts as done. */
+async function deleteChannel(creds: Creds, channelId: string): Promise<void> {
+  const res = await discordRest(creds.botToken, `/channels/${channelId}`, { method: 'DELETE' });
+  if (!res.ok && res.status !== 404) throw await apiError(res);
 }
 
 export interface PostRequest {
@@ -248,6 +290,10 @@ export interface PostRequest {
   tagIds?: string[];
   autoUpdate?: boolean;
   userId: number | null;
+  /** Set by a bulk post (lib/guideBulk). */
+  bulkRunId?: number | null;
+  /** Anvil created this channel just for this guide. */
+  ownsChannel?: boolean;
 }
 
 /** Post a guide to a channel or forum, and remember what it became. */
@@ -325,6 +371,8 @@ export async function postToChannel(
       postedVersion: req.guide.version,
       contentHash: ids.length === messages.length ? hashMessages(req.guide.title, messages) : null,
       autoUpdate: req.autoUpdate !== false,
+      ownsChannel: req.ownsChannel === true,
+      bulkRunId: req.bulkRunId ?? null,
       lastError: ids.length === messages.length ? null : `Posted ${ids.length} of ${messages.length} messages, then Discord refused the rest. Use "Update now" to retry.`,
       postedByUserId: req.userId,
       createdAt: at,
@@ -338,7 +386,11 @@ export async function postToChannel(
  * Bring one post in line with its guide. `force` re-sends even when the hash says nothing changed —
  * the "Update now" button, for when somebody edited or deleted a message by hand.
  */
-export async function resyncPost(post: GuidePost, guide: Guide, force = false): Promise<{ ok: boolean; error?: string; changed: boolean }> {
+export async function resyncPost(
+  post: GuidePost,
+  guide: Guide,
+  force = false,
+): Promise<{ ok: boolean; error?: string; changed: boolean; gone?: boolean }> {
   const messages = await guideMessages(guide);
   const hash = hashMessages(guide.title, messages);
   if (!force && hash === post.contentHash && !post.lastError) return { ok: true, changed: false };
@@ -374,6 +426,29 @@ export async function resyncPost(post: GuidePost, guide: Guide, force = false): 
       ids = ids.slice(0, messages.length);
     }
   } catch (err) {
+    // Deleted by hand in Discord. The whole channel or forum post: that IS a removal — forget it.
+    if (err instanceof DiscordApiError && err.channelGone) {
+      await db.delete(guidePosts).where(eq(guidePosts.id, post.id));
+      log.info('guides.post-gone', { postId: post.id });
+      return { ok: true, changed: true, gone: true };
+    }
+    // Some of its messages: post the guide again in the same place, so it is whole.
+    if (err instanceof DiscordApiError && err.messageGone && !force) {
+      const keep = post.threadId ? ids.slice(0, 1) : [];
+      for (const id of ids) if (!keep.includes(id)) await remove(creds, where, id).catch(() => {});
+      await db.update(guidePosts).set({ messageIds: [], contentHash: null }).where(eq(guidePosts.id, post.id));
+      try {
+        const fresh: string[] = [];
+        for (const m of messages) fresh.push(await send(creds, where, m));
+        await db
+          .update(guidePosts)
+          .set({ messageIds: fresh, postedVersion: guide.version, contentHash: hash, lastError: null, updatedAt: new Date().toISOString() })
+          .where(eq(guidePosts.id, post.id));
+        return { ok: true, changed: true };
+      } catch (again) {
+        err = again;
+      }
+    }
     const error = err instanceof Error ? err.message : String(err);
     await db
       .update(guidePosts)
@@ -409,24 +484,70 @@ export async function resyncGuidePosts(guideId: number): Promise<void> {
   }
 }
 
-/** Take a post down: delete its messages (or the whole forum thread), then forget it. */
-export async function unpost(post: GuidePost, deleteMessages: boolean): Promise<{ ok: boolean; error?: string }> {
+/**
+ * Take a post down. `deleteMessages` false just forgets it. Otherwise, in order of preference:
+ *   - a channel Anvil made for this guide → delete the channel (the bot made it; it can)
+ *   - a forum post → delete the thread; without Manage Threads (Discord requires it even for the
+ *     bot's own post) fall back to deleting the bot's messages in it, and say what's left
+ *   - messages in a channel → delete them
+ * Anything already deleted by hand counts as done.
+ */
+export async function unpost(post: GuidePost, deleteMessages: boolean): Promise<{ ok: boolean; error?: string; note?: string }> {
+  let note: string | undefined;
   if (deleteMessages) {
     const creds = await getBotCredentials(post.clanId);
     if (!creds) return { ok: false, error: 'The Discord bot is not connected — nothing could be deleted.' };
     try {
-      if (post.threadId) {
-        const res = await discordRest(creds.botToken, `/channels/${post.threadId}`, { method: 'DELETE' });
-        if (!res.ok && res.status !== 404) throw new Error(await discordError(res));
+      if (post.ownsChannel) {
+        await deleteChannel(creds, post.channelId);
+      } else if (post.threadId) {
+        try {
+          await deleteChannel(creds, post.threadId);
+        } catch (err) {
+          if (!(err instanceof DiscordApiError && err.forbidden)) throw err;
+          // Its own messages the bot can always delete. The starter shares the thread's id.
+          for (const id of [...post.messageIds].reverse()) await remove(creds, post.threadId, id).catch(() => {});
+          await discordRest(creds.botToken, `/channels/${post.threadId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ archived: true }),
+          }).catch(() => {});
+          note = 'The guide was removed from the forum post, but the empty post stays: deleting a forum post needs the bot to have "Manage Threads". Re-invite the bot from Settings → Discord to add it.';
+        }
       } else {
         for (const id of post.messageIds) await remove(creds, post.channelId, id);
       }
     } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      if (!(err instanceof DiscordApiError && (err.channelGone || err.messageGone))) {
+        const e = err instanceof DiscordApiError && err.forbidden ? `${removalHint(post)} (${err.message.split(' — ')[0]})` : err instanceof Error ? err.message : String(err);
+        return { ok: false, error: e };
+      }
     }
   }
   await db.delete(guidePosts).where(eq(guidePosts.id, post.id));
-  return { ok: true };
+  return { ok: true, note };
+}
+
+function removalHint(post: GuidePost): string {
+  if (post.ownsChannel) return 'The bot needs "Manage Channels" to delete the channel it made.';
+  if (post.threadId) return 'The bot needs "Manage Threads" in that forum to delete the post.';
+  return 'The bot couldn\'t delete its messages there.';
+}
+
+/** Delete what a bulk post created, and forget its posts. Returns what could not be removed. */
+export async function removeCreated(clanId: number, ids: string[]): Promise<{ removed: string[]; failed: { id: string; error: string }[] }> {
+  const creds = await getBotCredentials(clanId);
+  if (!creds) return { removed: [], failed: ids.map((id) => ({ id, error: 'The Discord bot is not connected.' })) };
+  const removed: string[] = [];
+  const failed: { id: string; error: string }[] = [];
+  for (const id of ids) {
+    try {
+      await deleteChannel(creds, id);
+      removed.push(id);
+    } catch (err) {
+      failed.push({ id, error: err instanceof DiscordApiError && err.forbidden ? 'The bot needs "Manage Channels".' : String(err) });
+    }
+  }
+  return { removed, failed };
 }
 
 /** A jump link to the post's first message. */
