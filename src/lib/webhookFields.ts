@@ -207,6 +207,12 @@ export const WEBHOOK_SECTIONS = [
       },
       {
         kind: 'toggle',
+        key: 'tag_guest_emissions',
+        label: 'Mark guests\' posts with [Guest]',
+        help: "Off by default. When on, a drop, death or achievement announced here for somebody who only guests in your clan shows their name as \"Name [Guest]\", so your channel can tell visitors from members at a glance. Your own members' posts are never marked. Has no effect while \"Only announce your own members\" is on, since guests are not announced then.",
+      },
+      {
+        kind: 'toggle',
         key: 'members_count_guests',
         label: "Count guests in your clan's activity",
         help: "Off by default. The Members page headline, the week's podium and your clan EHP/EHB are your members' — a guest is somebody we have seen who is not on your roster, and their hours are not your clan's. Turn this on if your regulars never formally join and you want them counted. Guests appear in the member list either way.",
