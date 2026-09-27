@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifyUser } from '@/lib/auth';
 import { db } from '@/db';
-import { clanAuditLog, clanStaff, eventEditors, users } from '@/db/schema';
+import { clanAuditLog, clanStaff, eventEditors, events, users } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { atLeast, canGrantRole, canModify, type ClanRole } from '@/lib/clanRoles';
 import { clanGrant } from '@/lib/clanGrants';
@@ -114,8 +114,18 @@ export async function PUT(
   // Board grants are purged on any role change: they only make sense for a scoped editor, and a
   // leftover grant on a demoted member would still pass verifyTileEditorForEvent (the tile APIs
   // aren't behind middleware). Board editing must be re-granted afterwards.
+  //
+  // THIS CLAN'S boards only. It deleted every grant the person held anywhere, so changing someone's
+  // role here silently took away the board another clan had handed them.
   if (role !== undefined && role !== existing?.role) {
-    await db.delete(eventEditors).where(eq(eventEditors.userId, targetId));
+    await db
+      .delete(eventEditors)
+      .where(
+        and(
+          eq(eventEditors.userId, targetId),
+          inArray(eventEditors.eventId, db.select({ id: events.id }).from(events).where(eq(events.clanId, clan.id))),
+        ),
+      );
 
     db.insert(clanAuditLog)
       .values({

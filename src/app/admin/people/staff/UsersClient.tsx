@@ -8,6 +8,7 @@ import Combobox from '@/components/Combobox';
 import ActionMenu, { type ActionItem } from '@/components/ActionMenu';
 import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
+import ClanLink from '@/components/ClanLink';
 import { useDialog } from '@/components/Confirm';
 
 interface Character {
@@ -25,6 +26,9 @@ interface User {
   canEditTiles?: boolean;
   canEditGuides?: boolean;
   isOwner: boolean;
+  /** Their seat here is a board grant, not a clan role — see lib/identity. */
+  boardScoped: 'editor' | 'treasurer' | null;
+  boards: { eventId: number; name: string; role: 'editor' | 'treasurer' }[];
   banned: boolean;
   createdAt: string;
   discordId: string | null;
@@ -241,6 +245,16 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
 
   async function changeRole(user: User, role: Role) {
     if (user.role === role) return;
+    // A role REPLACES a board grant (the route purges this clan's grants on any role change), so say
+    // so before a promotion quietly costs them the board they were given.
+    if (user.boardScoped && user.boards.length > 0) {
+      const ok = await confirm({
+        title: `Give ${user.displayName} a clan role?`,
+        body: `They currently only work on ${user.boards.map((b) => b.name).join(', ')}. A role replaces that board access — re-grant boards afterwards if they should keep them.`,
+        confirmLabel: 'Change role',
+      });
+      if (!ok) return;
+    }
     setSavingRoleId(user.id);
     const res = await clanFetch(`/api/admin/users/${user.id}`, {
       method: 'PUT',
@@ -469,6 +483,40 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
           {user.role}
         </span>
       </span>
+    ) : user.boardScoped ? (
+      // A BOARD GRANT, NOT A STAFF SEAT. Rendered through the role picker it came out as an empty
+      // "Select…" with every capability unticked — a staff member with no powers, which is not what
+      // they are: they work on exactly the boards listed, and nothing else here.
+      <div className="max-w-[15rem] space-y-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${ROLE_BADGE_CLS[user.boardScoped]}`}>
+            Board {user.boardScoped}
+          </span>
+          {user.boards
+            .filter((b) => b.role === user.boardScoped)
+            .map((b) => (
+              <ClanLink
+                key={b.eventId}
+                href={`/admin/events/${b.eventId}/${b.role === 'editor' ? 'tiles' : 'signups'}`}
+                className="text-[11px] px-1.5 py-0.5 rounded border border-card-border text-foreground/80 hover:border-gold/40 hover:text-gold truncate max-w-[12rem]"
+              >
+                {b.name}
+              </ClanLink>
+            ))}
+        </div>
+        <p className="text-[11px] text-text-muted">
+          Only {user.boardScoped === 'editor' ? 'edits' : 'handles the money on'} the board
+          {user.boards.length === 1 ? '' : 's'} above — no clan access. Change boards from Actions.
+        </p>
+        <Select
+          value=""
+          onChange={(v) => changeRole(user, v as Role)}
+          disabled={savingRoleId === user.id}
+          ariaLabel={`Give ${user.displayName} a clan role`}
+          placeholder="Give a clan role…"
+          options={ROLE_OPTIONS.filter((o) => o.value !== 'member')}
+        />
+      </div>
     ) : (
       <div className="max-w-[15rem] space-y-1.5">
         <Select

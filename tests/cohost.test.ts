@@ -274,3 +274,20 @@ test("the co-hosted board shows in the co-host clan's own admin, linked across t
   // The host clan does not list its own board as co-hosted.
   assert.deepEqual(await C.coHostedBoardsForClan(hostClan), []);
 });
+
+test("the host's People list shows a board grant as the board, not as an empty staff seat", async () => {
+  const { getPeopleWithCharacters } = await import('../src/lib/identity.ts');
+  const people = await getPeopleWithCharacters(hostClan);
+  const mod = people.find((p) => p.id === gMod);
+  assert.ok(mod, 'the grantee is listed on the host clan');
+  assert.equal(mod.boardScoped, 'editor');
+  assert.deepEqual(
+    mod.boards.map((b) => [b.eventId, b.role]),
+    [[eventId, 'editor']],
+    'and the list names the board they hold',
+  );
+  // A real role in their own clan is a role, not a board grant.
+  const home = (await getPeopleWithCharacters(guestClan)).find((p) => p.id === gMod);
+  assert.equal(home?.boardScoped, null);
+  assert.deepEqual(home?.boards, []);
+});
