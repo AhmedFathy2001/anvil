@@ -186,3 +186,37 @@ export function bodyForDiscord(body: string, renderGear: (block: GearBlock | nul
   }
   return parts.join('\n').trim();
 }
+
+// ── The gear block in the editor ─────────────────────────────────────────────────────────────
+//
+// Authors never see the JSON. In the editor's textarea a gear block is shown as ONE readable line —
+// where it sits in the guide — and the JSON is put back when the text is saved. Deleting that line
+// removes the block (and ctrl-z brings it back, like any text).
+
+const GEAR_TOKEN_RE = /^\s*\[\[⚔️ Gear progression[^\n]*\]\]\s*$/;
+
+export function gearToken(block: GearBlock | null): string {
+  const what = block ? `${block.monster.replace('#', ' — ')}, ${block.setups.length} setup${block.setups.length === 1 ? '' : 's'}` : 'unreadable';
+  return `[[⚔️ Gear progression: ${what} · edit with the ⚔️ button]]`;
+}
+
+/** The body as the editor shows it: the (first) gear block collapsed to its token line. */
+export function collapseGear(body: string): { display: string; gear: string | null } {
+  const lines = body.replace(/\r\n?/g, '\n').split('\n');
+  const start = lines.findIndex((l) => GEAR_OPEN_RE.test(l));
+  if (start === -1) return { display: body, gear: null };
+  let end = start + 1;
+  while (end < lines.length && !FENCE_RE.test(lines[end])) end++;
+  const json = lines.slice(start + 1, end).join('\n');
+  const token = gearToken(parseGearBlock(json));
+  return { display: [...lines.slice(0, start), token, ...lines.slice(end + 1)].join('\n'), gear: json };
+}
+
+/** Undo collapseGear on edited text: the token line becomes the gear block again (if still there). */
+export function expandGear(display: string, gear: string | null): string {
+  if (gear == null) return display;
+  const lines = display.split('\n');
+  const at = lines.findIndex((l) => GEAR_TOKEN_RE.test(l));
+  if (at === -1) return display; // the author deleted the line: the block goes with it
+  return [...lines.slice(0, at), '```gear', gear, '```', ...lines.slice(at + 1)].join('\n');
+}

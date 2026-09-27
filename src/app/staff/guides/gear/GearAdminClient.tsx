@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
 import { useDialog } from '@/components/Confirm';
-import { ItemIcon } from '@/components/gear/ItemPicker';
+import { ItemIcon } from '@/components/gear/ItemIcon';
 import { reloadGearIndex } from '@/components/gear/useGearData';
 import type { GearItem, Monster } from '@/lib/dps/engine';
 import type { EffectRule } from '@/lib/dps/effects';

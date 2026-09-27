@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import Input from '@/components/Input';
 import Textarea from '@/components/Textarea';
@@ -10,7 +10,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import { GUIDE_CATEGORIES, GUIDE_LIMITS, type CategoryView } from '@/lib/guideCategories';
 import GuideBody from './GuideBody';
 import GearBuilder from '@/components/gear/GearBuilder';
-import { coverage, firstGearBlock, TIERS, upsertGearBlock } from '@/lib/guideTiers';
+import { collapseGear, coverage, expandGear, firstGearBlock, TIERS, upsertGearBlock } from '@/lib/guideTiers';
 import DiscordPreview from './DiscordPreview';
 
 // The writing half of a guide — fields, the markdown toolbar, image upload, and the two previews —
@@ -100,6 +100,11 @@ export function GuideFieldsEditor({
   categories?: readonly CategoryView[];
 }) {
   const [gearOpen, setGearOpen] = useState(false);
+  // The gear block's JSON never shows in the textarea: it is one readable line there, and goes back
+  // in when the text changes (lib/guideTiers collapseGear/expandGear).
+  const { display, gear } = useMemo(() => collapseGear(value.body), [value.body]);
+  const setBody = (text: string) => onChange({ body: expandGear(text, gear) });
+  const gearBlock = useMemo(() => firstGearBlock(value.body), [value.body]);
   const { upload, uploading } = useGuideUpload(uploadUrl);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -129,7 +134,7 @@ export function GuideFieldsEditor({
       next = text.slice(0, a) + tool.insert + text.slice(b);
       caretA = caretB = a + tool.insert.length;
     }
-    onChange({ body: next });
+    setBody(next);
     requestAnimationFrame(() => {
       ta.focus();
       ta.setSelectionRange(caretA, caretB);
@@ -144,7 +149,7 @@ export function GuideFieldsEditor({
     const before = a > 0 && text[a - 1] !== '\n' ? '\n' : '';
     const after = text[b] !== '\n' ? '\n' : '';
     const ins = `${before}${snippet}${after}`;
-    onChange({ body: text.slice(0, a) + ins + text.slice(b) });
+    setBody(text.slice(0, a) + ins + text.slice(b));
     requestAnimationFrame(() => {
       ta.focus();
       ta.setSelectionRange(a + ins.length, a + ins.length);
@@ -259,7 +264,7 @@ export function GuideFieldsEditor({
               onClick={() => setGearOpen(true)}
               className="ml-auto rounded bg-gold/15 px-2 py-1 text-xs text-gold hover:bg-gold/25"
             >
-              ⚔️ {firstGearBlock(value.body) ? 'Edit gear' : 'Gear progression'}
+              ⚔️ {gearBlock ? 'Edit gear' : 'Gear progression'}
             </button>
             <button
               type="button"
@@ -273,9 +278,9 @@ export function GuideFieldsEditor({
         )}
         <Textarea
           ref={bodyRef}
-          value={value.body}
+          value={display}
           readOnly={readOnly}
-          onChange={(e) => onChange({ body: e.target.value })}
+          onChange={(e) => setBody(e.target.value)}
           onPaste={(e) => {
             const files = Array.from(e.clipboardData.files).filter((f) => f.type.startsWith('image/'));
             if (files.length && !readOnly) {
@@ -301,6 +306,25 @@ export function GuideFieldsEditor({
           text above it. A line with only <code>---</code> starts a new message. Paste or drop screenshots straight in.
           🟢🟡🔴 start a level section; <code>:::</code> goes back to text for every level.
         </p>
+        {gearBlock && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-gold/30 bg-gold/5 px-3 py-2 text-xs">
+            <span className="font-semibold text-gold">⚔️ Gear progression</span>
+            <span className="text-text-muted">
+              vs {gearBlock.monster.replace('#', ' — ')} ·{' '}
+              {TIERS.map((t) => `${gearBlock.setups.filter((x) => x.tier === t.key).length} ${t.label.toLowerCase()}`).join(' · ')}
+            </span>
+            {!readOnly && (
+              <span className="ml-auto flex gap-2">
+                <button type="button" onClick={() => setGearOpen(true)} className="text-gold hover:underline">
+                  Edit
+                </button>
+                <button type="button" onClick={() => onChange({ body: removeGearBlock(value.body) })} className="text-red-300 hover:underline">
+                  Remove
+                </button>
+              </span>
+            )}
+          </div>
+        )}
         <CoverageChecklist
           body={value.body}
           required={categories.find((c) => c.key === value.category)?.requiresLevels !== false}
@@ -309,7 +333,7 @@ export function GuideFieldsEditor({
       </div>
       {gearOpen && (
         <GearBuilder
-          initial={firstGearBlock(value.body)}
+          initial={gearBlock}
           onClose={() => setGearOpen(false)}
           onSave={(block) => {
             onChange({ body: upsertGearBlock(value.body, block) });
@@ -396,4 +420,13 @@ function CoverageChecklist({ body, required, strict }: { body: string; required:
       )}
     </div>
   );
+}
+
+/** The body without its gear block (the card's Remove). */
+function removeGearBlock(body: string): string {
+  const { display } = collapseGear(body);
+  return display
+    .split('\n')
+    .filter((l) => !/^\s*\[\[⚔️ Gear progression/.test(l))
+    .join('\n');
 }

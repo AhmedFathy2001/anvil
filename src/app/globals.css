@@ -205,3 +205,11 @@ body {
 .guide-spoiler:focus img,
 .guide-spoiler:hover a,
 .guide-spoiler:focus a { visibility: visible; }
+
+/* Smooth scrolling for in-page jumps (guide contents, level switcher) — but never for someone who
+   asked their system for less motion. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}

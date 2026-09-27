@@ -66,3 +66,16 @@ test('Discord: each level gets its own heading and message; gear is summarised',
   assert.match(out, /Shared outro\.\n\nGEAR SUMMARY/);
   assert.ok(!out.includes(':::'));
 });
+
+import { collapseGear, expandGear } from '../src/lib/guideTiers.ts';
+
+test('editor: the gear block shows as one line and round-trips exactly', () => {
+  const body = 'Intro\n```gear\n{"monster":"Vorkath#Post-quest","setups":[]}\n```\nOutro';
+  const { display, gear } = collapseGear(body);
+  assert.equal(display, 'Intro\n[[⚔️ Gear progression: Vorkath — Post-quest, 0 setups · edit with the ⚔️ button]]\nOutro');
+  assert.equal(expandGear(display, gear), body);
+  // Text edited around it survives; deleting the line removes the block.
+  assert.equal(expandGear(display.replace('Intro', 'New intro'), gear), body.replace('Intro', 'New intro'));
+  assert.equal(expandGear('Intro\nOutro', gear), 'Intro\nOutro');
+  assert.deepEqual(collapseGear('No gear'), { display: 'No gear', gear: null });
+});
