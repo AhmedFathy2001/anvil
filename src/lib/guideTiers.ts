@@ -92,8 +92,8 @@ export interface GearSetup {
   style: number;
   spell?: string | null;
   dart?: number | null;
-  stats: { attack: number; strength: number; ranged: number; magic: number };
-  prayer?: string | null;
+  stats: { attack: number; strength: number; ranged: number; magic: number; hitpoints?: number; currentHp?: number };
+  prayer?: string | string[] | null;
   boost?: string | null;
   onTask?: boolean;
   note?: string;

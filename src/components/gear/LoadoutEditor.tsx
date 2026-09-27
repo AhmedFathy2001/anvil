@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 
 import { calculate, type DpsResult, type Loadout, type Monster } from '@/lib/dps/engine';
-import { BOOSTS, PRAYERS, SPELLS, stylesFor, type Slot } from '@/lib/dps/tables';
+import { BOOSTS, PRAYERS, SPELLS, prayerKeys, stylesFor, togglePrayer, type Slot } from '@/lib/dps/tables';
 import type { GearIndex } from '@/lib/dps/summary';
 import EquipmentPanel from './EquipmentPanel';
 
@@ -16,15 +16,6 @@ const STATS = [
   { key: 'magic', label: 'Magic', icon: 'Magic icon.png' },
 ] as const;
 
-const PRAYER_ICON: Record<string, string> = {
-  piety: 'Piety.png',
-  chivalry: 'Chivalry.png',
-  melee15: 'Ultimate Strength.png',
-  rigour: 'Rigour.png',
-  eagle_eye: 'Eagle Eye.png',
-  augury: 'Augury.png',
-  mystic_might: 'Mystic Might.png',
-};
 
 const sel = 'w-full rounded border border-card-border bg-brown-dark px-2 py-1 text-xs focus:border-gold focus:outline-none';
 const chip = (on: boolean) =>
@@ -171,20 +162,41 @@ export default function LoadoutEditor({
           </div>
 
           <div>
-            <div className="mb-1 text-[11px] text-text-muted">Prayer</div>
+            <div className="mb-1 text-[11px] text-text-muted">Prayers <span className="opacity-60">— combine like in game</span></div>
             <div className="flex flex-wrap gap-1">
-              <button type="button" disabled={readOnly} onClick={() => onChange({ ...value, prayer: null })} className={chip(!value.prayer)}>
-                None
-              </button>
-              {PRAYERS.filter((p) => p.style === kind).map((p) => (
-                <button key={p.key} type="button" disabled={readOnly} onClick={() => onChange({ ...value, prayer: p.key })} className={`${chip(value.prayer === p.key)} flex items-center gap-1`} title={p.label}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={wiki(PRAYER_ICON[p.key] ?? '')} alt="" className="h-4 w-4 object-contain" />
-                  {p.label.split(' + ')[0]}
-                </button>
-              ))}
+              {PRAYERS.filter((p) => p.style === kind).map((p) => {
+                const on = prayerKeys(value.prayer).includes(p.key);
+                return (
+                  <button
+                    key={p.key}
+                    type="button"
+                    disabled={readOnly}
+                    onClick={() => onChange({ ...value, prayer: togglePrayer(prayerKeys(value.prayer), p.key) })}
+                    className={`flex h-8 w-8 items-center justify-center rounded-md border transition-colors ${on ? 'border-gold bg-gold/20' : 'border-card-border opacity-60 hover:opacity-100'}`}
+                    title={`${p.label}${p.acc !== 1 ? ` · accuracy +${Math.round((p.acc - 1) * 100)}%` : ''}${p.str !== 1 ? ` · strength +${Math.round((p.str - 1) * 100)}%` : ''}`}
+                    aria-pressed={on}
+                    aria-label={p.label}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={wiki(p.icon)} alt="" className="h-5 w-5 object-contain" />
+                  </button>
+                );
+              })}
             </div>
           </div>
+
+          {/dharok's/i.test(idx.item(value.gear.body)?.n ?? '') && /dharok's greataxe/i.test(weapon?.n ?? '') && (
+            <div className="grid grid-cols-2 gap-1.5">
+              <label className="block text-[11px] text-text-muted">
+                Hitpoints level
+                <input type="number" min={10} max={99} disabled={readOnly} value={value.stats.hitpoints ?? 99} onChange={(e) => onChange({ ...value, stats: { ...value.stats, hitpoints: Math.max(10, Math.min(99, Number(e.target.value) || 99)) } })} className={sel} />
+              </label>
+              <label className="block text-[11px] text-text-muted">
+                Current HP (Dharok&apos;s)
+                <input type="number" min={1} max={99} disabled={readOnly} value={value.stats.currentHp ?? value.stats.hitpoints ?? 99} onChange={(e) => onChange({ ...value, stats: { ...value.stats, currentHp: Math.max(1, Math.min(value.stats.hitpoints ?? 99, Number(e.target.value) || 1)) } })} className={sel} />
+              </label>
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex-1 text-[11px] text-text-muted">

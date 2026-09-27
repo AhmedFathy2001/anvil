@@ -144,6 +144,7 @@ export async function POST(request: Request) {
     standing,
   });
   const ok = await forwardPluginNotification(url, {
+    clanId: clan.id,
     embed: embed as unknown as Record<string, unknown>,
     attachment: { bytes: await file.arrayBuffer(), filename: file.name || 'clip.mp4' },
   });

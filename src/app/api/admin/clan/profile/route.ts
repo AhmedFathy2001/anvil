@@ -1,3 +1,4 @@
+import { refreshBotIdentityIfClan } from '@/lib/discordIdentity';
 import { NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
 
@@ -113,6 +114,9 @@ export async function PATCH(request: Request) {
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'Nothing to change' }, { status: 400 });
 
   await db.update(clans).set(patch).where(eq(clans.id, clan.id));
+  // A new logo is the bot's new avatar, when the clan dresses the bot as itself. Fire-and-forget:
+  // Discord being slow must not fail a profile save.
+  if ('logoUrl' in patch) void refreshBotIdentityIfClan(clan.id);
 
   db.insert(clanAuditLog)
     .values({

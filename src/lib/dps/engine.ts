@@ -8,10 +8,10 @@
 // and are NOT modelled are named in `notes`, so a guide never presents a guess as a fact.
 
 import {
-  BOOSTS,
   POWERED_MAX,
-  PRAYERS,
   SLOTS,
+  boostedLevel,
+  prayerMultipliers,
   spellByName,
   stylesFor,
   type AttackStyle,
@@ -64,6 +64,9 @@ export interface Stats {
   strength: number;
   ranged: number;
   magic: number;
+  /** Only Dharok's set cares: base Hitpoints level, and HP right now. */
+  hitpoints?: number;
+  currentHp?: number;
 }
 
 export interface Loadout {
@@ -76,7 +79,8 @@ export interface Loadout {
   /** Darts for a blowpipe. */
   dart?: number | null;
   stats: Stats;
-  prayer?: string | null;
+  /** Active prayers (one key per prayer). A single string is accepted from older saves. */
+  prayer?: string | string[] | null;
   boost?: string | null;
   /** On a slayer task (slayer helm / black mask). */
   onTask?: boolean;
@@ -114,6 +118,10 @@ function has(gear: GearItem[], re: RegExp): boolean {
   return gear.some((g) => re.test(g.n));
 }
 
+function wornSet(gear: GearItem[], pieces: RegExp[]): boolean {
+  return pieces.every((re) => has(gear, re));
+}
+
 function slotName(loadout: Loadout, items: ItemLookup, slot: Slot): string {
   return lc(items(loadout.gear[slot])?.n);
 }
@@ -122,15 +130,6 @@ function slotName(loadout: Loadout, items: ItemLookup, slot: Slot): string {
 export function hitChance(attackRoll: number, defenceRoll: number): number {
   if (attackRoll > defenceRoll) return 1 - (defenceRoll + 2) / (2 * (attackRoll + 1));
   return attackRoll / (2 * (defenceRoll + 1));
-}
-
-function applyBoost(level: number, boostKey: string | null | undefined, kind: 'melee' | 'ranged' | 'magic'): number {
-  const b = BOOSTS.find((x) => x.key === boostKey && x.style === kind);
-  return b ? b.boost(level) : level;
-}
-
-function prayerFor(key: string | null | undefined, kind: 'melee' | 'ranged' | 'magic') {
-  return PRAYERS.find((p) => p.key === key && p.style === kind) ?? { acc: 1, str: 1 };
 }
 
 function voidSet(gear: GearItem[], kind: 'melee' | 'ranged' | 'magic'): 'none' | 'void' | 'elite' {
@@ -217,9 +216,9 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup,
   };
 
   if (kind === 'melee') {
-    const pr = prayerFor(loadout.prayer, 'melee');
-    const att = applyBoost(loadout.stats.attack, loadout.boost, 'melee');
-    const str = applyBoost(loadout.stats.strength, loadout.boost, 'melee');
+    const pr = prayerMultipliers(loadout.prayer, 'melee');
+    const att = boostedLevel(loadout.stats.attack, loadout.boost, 'attack');
+    const str = boostedLevel(loadout.stats.strength, loadout.boost, 'strength');
     const stAtt = style.stance === 'accurate' ? 3 : style.stance === 'controlled' ? 1 : 0;
     const stStr = style.stance === 'aggressive' ? 3 : style.stance === 'controlled' ? 1 : 0;
     let effAtt = floor(att * pr.acc) + stAtt + 8;
@@ -252,6 +251,13 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup,
       if (bonus) mul(1 + bonus, 1 + bonus);
     }
 
+    // Dharok's: the full set hits harder the more Hitpoints you're missing.
+    if (wornSet(gear, [/^dharok's helm/i, /^dharok's platebody/i, /^dharok's platelegs/i, /^dharok's greataxe/i])) {
+      const hp = loadout.stats.hitpoints ?? 99;
+      const cur = Math.min(hp, Math.max(1, loadout.stats.currentHp ?? hp));
+      mul(1, 1 + ((hp - cur) / 100) * (hp / 100));
+      if (cur === hp) notes.push("Dharok's set: at full Hitpoints it adds nothing — set your current HP.");
+    }
     applyRules();
     const defType = style.type === 'stab' ? 0 : style.type === 'slash' ? 1 : 2;
     defenceRoll = (monster.lv[0] + 9) * (monster.d[defType] + 64);
@@ -262,8 +268,8 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup,
     }
     if (/osmumten's fang/i.test(wn) && style.type === 'stab') notes.push("Osmumten's fang: its double accuracy roll is approximated.");
   } else if (kind === 'ranged') {
-    const pr = prayerFor(loadout.prayer, 'ranged');
-    const rng = applyBoost(loadout.stats.ranged, loadout.boost, 'ranged');
+    const pr = prayerMultipliers(loadout.prayer, 'ranged');
+    const rng = boostedLevel(loadout.stats.ranged, loadout.boost, 'ranged');
     const st = style.stance === 'accurate' ? 3 : 0;
     let effAtt = floor(rng * pr.acc) + st + 8;
     let effStr = floor(rng * pr.str) + st + 8;
@@ -327,8 +333,8 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup,
     }
   } else {
     // Magic: a powered staff's own spell, or the autocast spell.
-    const pr = prayerFor(loadout.prayer, 'magic');
-    const mag = applyBoost(loadout.stats.magic, loadout.boost, 'magic');
+    const pr = prayerMultipliers(loadout.prayer, 'magic');
+    const mag = boostedLevel(loadout.stats.magic, loadout.boost, 'magic');
     const wn = weapon?.n ?? '';
     const powered = POWERED_MAX.find((p) => p.match.test(wn));
     let spell: Spell | null = null;
@@ -369,6 +375,10 @@ export function calculate(loadout: Loadout, monster: Monster, items: ItemLookup,
     if (spell?.element && monster.ew && spell.element === monster.ew && monster.ewp) {
       maxHit += floor((base * monster.ewp) / 100);
       notes.push(`Weak to ${spell.element}: +${monster.ewp}% of the spell's base damage (accuracy effect not modelled).`);
+    }
+    if (/demonbane/i.test(spell?.name ?? '') && !demon) {
+      notes.push('Demonbane spells only work on demons.');
+      maxHit = 0;
     }
     if (/crumble undead/i.test(spell?.name ?? '') && !undead) {
       notes.push('Crumble Undead only works on undead.');

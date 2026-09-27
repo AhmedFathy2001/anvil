@@ -217,11 +217,12 @@ export async function POST(request: Request) {
   const account = playerId != null ? await resolveOwnAccount(request, playerId) : null;
   const emissionClans = account ? await socialEmissionClans(account.id) : [];
 
-  const urls = new Set<string>();
+  // Destination → the clan it belongs to (for that clan's bot name and icon); personal webhooks have none.
+  const urls = new Map<string, number | undefined>();
   for (const ec of emissionClans) {
     const webhooks = await getNotificationWebhooks(ec.clanId);
     const url = seasonal ? seasonalWebhookFor(webhooks, channel) : webhookFor(webhooks, channel);
-    if (url) urls.add(url);
+    if (url && !urls.has(url)) urls.set(url, ec.clanId);
   }
 
   // THE ADDRESSED CLAN IS NOT A DESTINATION. There used to be a fallback here: an account we could
@@ -244,7 +245,7 @@ export async function POST(request: Request) {
   // addressed one anyway, straight past the gate.
 
   // The person's own destinations, independent of every clan.
-  for (const t of await personalWebhookTargets(auth.userId, channel)) urls.add(t.url);
+  for (const t of await personalWebhookTargets(auth.userId, channel)) if (!urls.has(t.url)) urls.set(t.url, undefined);
 
   if (urls.size === 0) {
     // No destination anywhere. Not an error; a webhook can be cleared on the site between the
@@ -253,8 +254,8 @@ export async function POST(request: Request) {
   }
 
   let anyOk = false;
-  for (const url of urls) {
-    const ok = await forwardPluginNotification(url, { content: outContent, embed: outEmbed, attachment: image });
+  for (const [url, clanId] of urls) {
+    const ok = await forwardPluginNotification(url, { content: outContent, embed: outEmbed, attachment: image, clanId });
     anyOk = anyOk || ok;
   }
   return NextResponse.json({ ok: anyOk });

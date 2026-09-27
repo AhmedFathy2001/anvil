@@ -1,3 +1,4 @@
+import { webhookIdentity } from '@/lib/discordIdentity';
 import { log } from '@/lib/logger';
 import { getSettingText } from '@/lib/settings';
 import { startBlockerLabel, type StartBlockerCode } from '@/lib/eventReadiness';
@@ -28,6 +29,9 @@ interface DiscordWebhookPayload {
   // Restrict which mentions actually ping. When pinging a role we set `roles` explicitly so the
   // role notifies even if it isn't "mentionable", and nothing else (e.g. @everyone) can slip in.
   allowed_mentions?: { parse?: string[]; roles?: string[]; users?: string[] };
+  // Per-message identity — set from the clan's bot appearance setting (lib/discordIdentity).
+  username?: string;
+  avatar_url?: string;
 }
 
 // General / plugin-updates webhook — clan-roster changes (member joins / leaves / renames / count)
@@ -119,7 +123,9 @@ async function postWebhook(
 }
 
 // Post to a specific webhook URL with Discord's 429 retry handling. Returns true on a 2xx.
-async function sendToWebhook(webhookUrl: string, payload: DiscordWebhookPayload): Promise<boolean> {
+async function sendToWebhook(webhookUrl: string, payload: DiscordWebhookPayload, clanId?: number): Promise<boolean> {
+  // The clan's chosen name and icon (Anvil's by default, which sets nothing).
+  if (clanId != null) payload = { ...(await webhookIdentity(clanId)), ...payload };
   try {
     let response = await postWebhook(webhookUrl, payload);
 
@@ -168,9 +174,11 @@ export async function forwardPluginNotification(
      * player for (an embed can host an image but not a video).
      */
     attachment?: { bytes: ArrayBuffer; filename: string } | null;
+    /** The clan posting — its bot appearance setting names and pictures the post. */
+    clanId?: number;
   },
 ): Promise<boolean> {
-  const { content, embed, attachment } = payload;
+  const { content, embed, attachment, clanId } = payload;
   const embeds = embed ? [embed as unknown as DiscordEmbed] : undefined;
   // content/embed are plugin-supplied and reach here from anyone holding a plugin token, so neutralize
   // mentions: these clan notifications never legitimately ping, and without this a tampered plugin
@@ -178,7 +186,7 @@ export async function forwardPluginNotification(
   const allowed_mentions: DiscordWebhookPayload['allowed_mentions'] = { parse: [] };
 
   if (!attachment) {
-    return sendToWebhook(webhookUrl, { content: content || undefined, embeds, allowed_mentions });
+    return sendToWebhook(webhookUrl, { content: content || undefined, embeds, allowed_mentions }, clanId);
   }
 
   // Multipart upload so the file rides along; Discord renders an image inline via the embed's
@@ -189,7 +197,9 @@ export async function forwardPluginNotification(
     const form = new FormData();
     form.append(
       'payload_json',
-      JSON.stringify(stampEmbeds({ content: content || undefined, embeds, allowed_mentions })),
+      JSON.stringify(
+        stampEmbeds({ ...(clanId != null ? await webhookIdentity(clanId) : {}), content: content || undefined, embeds, allowed_mentions }),
+      ),
     );
     form.append('files[0]', new Blob([attachment.bytes]), attachment.filename);
     const response = await fetch(webhookUrl, { method: 'POST', body: form });
@@ -209,7 +219,7 @@ export async function forwardPluginNotification(
 export async function sendDiscordWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
   const webhookUrl = await resolveWebhookUrl(clanId, GENERAL_WEBHOOK_KEY);
   if (!webhookUrl) return false;
-  return sendToWebhook(webhookUrl, payload);
+  return sendToWebhook(webhookUrl, payload, clanId);
 }
 
 // Bingo-event channel; falls back to the master webhook so single-webhook clans keep getting bingo
@@ -217,14 +227,14 @@ export async function sendDiscordWebhook(clanId: number, payload: DiscordWebhook
 export async function sendBingoWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
   const webhookUrl = await resolveWebhookUrl(clanId, BINGO_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!webhookUrl) return false;
-  return sendToWebhook(webhookUrl, payload);
+  return sendToWebhook(webhookUrl, payload, clanId);
 }
 
 // Weekly-competition channel; falls back to the master webhook when no dedicated one is set.
 export async function sendWeeklyWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
   const webhookUrl = await resolveWebhookUrl(clanId, WEEKLY_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!webhookUrl) return false;
-  return sendToWebhook(webhookUrl, payload);
+  return sendToWebhook(webhookUrl, payload, clanId);
 }
 
 /**
@@ -234,14 +244,14 @@ export async function sendWeeklyWebhook(clanId: number, payload: DiscordWebhookP
 export async function sendCofferWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
   const webhookUrl = await resolveWebhookUrl(clanId, COFFER_WEBHOOK_KEY);
   if (!webhookUrl) return false;
-  return sendToWebhook(webhookUrl, payload);
+  return sendToWebhook(webhookUrl, payload, clanId);
 }
 
 // Sign-up approvals channel; falls back to the master webhook when no dedicated one is set.
 export async function sendSignupWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
   const webhookUrl = await resolveWebhookUrl(clanId, SIGNUP_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!webhookUrl) return false;
-  return sendToWebhook(webhookUrl, payload);
+  return sendToWebhook(webhookUrl, payload, clanId);
 }
 
 interface SignupApprovedNotifyParams {

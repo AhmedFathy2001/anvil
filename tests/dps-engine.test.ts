@@ -147,3 +147,41 @@ test('upgrade route: cheapest DPS first, untradeables listed apart', () => {
   assert.ok(route.untradeable.some((u) => u.item.n === "Ava's assembler"));
   assert.ok(!route.steps.some((s) => s.item.n === "Ava's assembler"));
 });
+
+// ── Prayers, boosts, Dharok's ──────────────────────────────────────────────────────────────
+
+import { togglePrayer, prayerMultipliers, boostedLevel } from '../src/lib/dps/tables.ts';
+
+test('prayers combine like in game: attack + strength together, overlap switches off', () => {
+  let on = togglePrayer([], 'clarity');
+  on = togglePrayer(on, 'burst');
+  assert.deepEqual(on.sort(), ['burst', 'clarity']);
+  assert.deepEqual(prayerMultipliers(on, 'melee'), { acc: 1.05, str: 1.05 });
+  on = togglePrayer(on, 'piety'); // overlaps both
+  assert.deepEqual(on, ['piety']);
+  on = togglePrayer(on, 'superhuman'); // overlaps Piety's strength → Piety goes
+  assert.deepEqual(on, ['superhuman']);
+  // An old single-key save still reads.
+  assert.deepEqual(prayerMultipliers('melee15', 'melee'), { acc: 1.15, str: 1.15 });
+  // A ranged prayer never helps a melee attack.
+  assert.deepEqual(prayerMultipliers(['rigour'], 'melee'), { acc: 1, str: 1 });
+});
+
+test('boosts are per stat: Zamorak brew raises attack more than strength', () => {
+  assert.equal(boostedLevel(99, 'zamorak_brew', 'attack'), 99 + 2 + Math.floor(99 * 0.2));
+  assert.equal(boostedLevel(99, 'zamorak_brew', 'strength'), 99 + 2 + Math.floor(99 * 0.12));
+  assert.equal(boostedLevel(99, 'super_strength', 'attack'), 99, 'strength-only potion leaves attack alone');
+  assert.equal(boostedLevel(99, 'ranging', 'magic'), 99);
+});
+
+test("Dharok's set hits harder at low HP; demonbane needs a demon", () => {
+  const set = { weapon: item("Dharok's greataxe"), head: item("Dharok's helm"), body: item("Dharok's platebody"), legs: item("Dharok's platelegs") };
+  const full = calculate({ gear: set, style: 1, stats: { ...MAXED, hitpoints: 99, currentHp: 99 } }, DUMMY, lookup)!;
+  const low = calculate({ gear: set, style: 1, stats: { ...MAXED, hitpoints: 99, currentHp: 1 } }, DUMMY, lookup)!;
+  assert.equal(low.maxHit, Math.floor(full.maxHit * (1 + (98 / 100) * (99 / 100))));
+  const staff = item("Ahrim's staff");
+  const dem = calculate({ gear: { weapon: staff }, style: 3, spell: 'Dark Demonbane', stats: MAXED }, { ...DUMMY, a: ['demon'] }, lookup)!;
+  const not = calculate({ gear: { weapon: staff }, style: 3, spell: 'Dark Demonbane', stats: MAXED }, DUMMY, lookup)!;
+  assert.ok(dem.maxHit >= 30);
+  assert.equal(not.maxHit, 0);
+});

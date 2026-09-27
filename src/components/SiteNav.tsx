@@ -173,7 +173,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
               >
                 {current && (
                   <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-card-border">
-                    <Crest slug={current.slug} name={current.name} size={26} />
+                    <Crest slug={current.slug} name={current.name} logoUrl={current.logoUrl ?? clan?.logoUrl} size={26} />
                     <div className="min-w-0">
                       <div className="text-sm font-semibold text-foreground truncate">{current.name}</div>
                       <div className="text-[11px] text-text-muted">You’re here{roleLabel(current) && ` · ${roleLabel(current)}`}</div>
@@ -190,7 +190,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
                         role="menuitem"
                         className="flex items-center gap-2.5 px-3 py-2 hover:bg-brown-light transition-all"
                       >
-                        <Crest slug={o.slug} name={o.name} />
+                        <Crest slug={o.slug} name={o.name} logoUrl={o.logoUrl} size={20} />
                         <span className="text-sm text-foreground/90 truncate flex-1">{o.name}</span>
                         {roleLabel(o) && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brown-light text-text-muted shrink-0">{roleLabel(o)}</span>

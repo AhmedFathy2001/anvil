@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import type { BroadcastChannel } from '@/lib/discord-broadcast';
 import WebhooksPanel from './WebhooksPanel';
 import DiscordBotSettings from '@/components/DiscordBotSettings';
+import BotIdentitySettings from '@/components/BotIdentitySettings';
 import DiscordLanguageSetting from '@/components/DiscordLanguageSetting';
 import DiscordRoleSyncSettings from '@/components/DiscordRoleSyncSettings';
 import DiscordAssignedRoles from '@/components/DiscordAssignedRoles';
@@ -96,6 +97,9 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
               whether it is, and the invite link asks Discord for exactly those permissions.
             </p>
             <DiscordBotSettings />
+          </div>
+          <div className="border-t border-card-border pt-5">
+            <BotIdentitySettings />
           </div>
           <div className="border-t border-card-border pt-5">
             <PlainSetting
