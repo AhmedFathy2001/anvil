@@ -33,6 +33,7 @@ export type LinkedAccount = {
 // in a vocabulary the reader has no use for.
 const METHOD_LABEL: Record<string, string> = {
   plugin: 'Verified by the plugin',
+  plugin_first_use: 'Linked by the plugin',
   stat_delta: 'Verified by XP gain',
   manual: 'Verified by a moderator',
   discord_name_match: 'Verified by Discord name',

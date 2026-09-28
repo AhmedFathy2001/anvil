@@ -27,7 +27,9 @@ import { mergeEmptyPersonInto } from '@/lib/mergePeople';
  *   - `verifiedByUserId` genuinely IS a login: it records which staff account vouched.
  */
 
-export type ClaimMethod = 'stat_delta' | 'plugin' | 'manual' | 'discord_name_match';
+// 'plugin_first_use': a roster member auto-claimed the first time a Discord login's plugin played it,
+// with no hash on file to check against. Provisional until staff confirm — see autoLinkOrSuggestOnPlay.
+export type ClaimMethod = 'stat_delta' | 'plugin' | 'plugin_first_use' | 'manual' | 'discord_name_match';
 
 export type ClaimOutcome =
   | { ok: true; accountId: number; alreadyOurs: boolean }

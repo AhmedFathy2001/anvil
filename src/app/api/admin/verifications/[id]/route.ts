@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 import { seatForRequest } from '@/lib/roster';
 import { db } from '@/db';
-import { clanAuditLog } from '@/db/schema';
-import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
-import { eq } from 'drizzle-orm';
+import { clanAuditLog, detectedAccounts } from '@/db/schema';
+import { loginOf, unclaimAccountOfSeat, updateAccountOfSeat } from '@/lib/roster';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { applyPendingRole } from '@/lib/pending-role';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
@@ -79,21 +78,54 @@ export async function POST(
     return NextResponse.json({ success: true, status: 'approved' });
   }
 
+  // reject — revoke verification, free the member up for re-claim. Only a claim still under review:
+  // this now takes the account away, and a settled member is not something this queue can undo.
+  if (!member.provisional) {
+    return NextResponse.json({ error: 'Member is not provisional' }, { status: 400 });
+  }
   // reject — revoke verification, free the member up for re-claim.
+  //
+  // THE ACCOUNT GOES BACK, not just the stamp. Clearing claimedAt alone left the account under the
+  // claimant's person — still listed as theirs, still resolving their plugin to this seat — which is
+  // the opposite of a rejection. It returns to a placeholder person of its own, the state every
+  // unclaimed roster account is in.
+  const claimantLogin = await loginOf(member.playerId);
+  await unclaimAccountOfSeat(memberId);
   await updateAccountOfSeat(memberId, {
     provisional: 0,
     verifiedAt: null,
     verificationMethod: null,
+    verifiedByUserId: null,
     claimedAt: null,
-    // Keep the userId in place if present so we don't forget who attempted; but mark
-    // as not verified. A fresh link/stat-delta attempt can re-verify.
+    // A first-use claim anchored the claimant's client hash. Rejected, that hash is theirs, not the
+    // account's — left in place it would lock the real owner's plugin out.
+    ...(member.verificationMethod === 'plugin_first_use' ? { accountHash: null } : {}),
   });
+  // And their plugin must not simply take it again on the next request: first-use auto-claim honours
+  // a dismissed suggestion, so record one. They can still prove it with the XP check.
+  if (claimantLogin != null) {
+    const nowIso = new Date().toISOString();
+    await db
+      .insert(detectedAccounts)
+      .values({
+        userId: claimantLogin,
+        rsn: member.rsn,
+        rsnNormalized: member.rsnNormalized,
+        status: 'dismissed',
+        detectedAt: nowIso,
+        lastSeenAt: nowIso,
+      })
+      .onConflictDoUpdate({
+        target: [detectedAccounts.userId, detectedAccounts.rsnNormalized],
+        set: { status: 'dismissed', accountHash: null },
+      });
+  }
 
   db.insert(clanAuditLog)
     .values({
       clanMemberId: memberId,
       eventType: 'mod_rejected',
-      oldValue: JSON.stringify({ provisional: 1, method: member.verificationMethod }),
+      oldValue: JSON.stringify({ provisional: 1, method: member.verificationMethod, claimantUserId: claimantLogin }),
       actorUserId: session.userId > 0 ? session.userId : null,
       notes: body.note || null,
     })

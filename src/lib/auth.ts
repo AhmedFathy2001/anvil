@@ -686,11 +686,14 @@ export async function verifyPluginTokenUser(
 // does zero extra writes. Best-effort — failures (e.g. an accountHash uniqueness
 // collision) are swallowed so plugin auth is never blocked by verification.
 async function ensurePluginVerifiedOnPlay(
-  member: { id: number; verifiedAt: string | null; provisional: number | null; accountHash: string | null },
+  member: { id: number; verifiedAt: string | null; provisional: number | null; accountHash: string | null; verificationMethod: string | null },
   userId: number,
   accountHash: string | null,
   nowIso: string,
 ): Promise<void> {
+  // A first-use claim IS a plugin play — playing again proves nothing new. It stays provisional until
+  // staff confirm it on the review queue, or it would clear itself on the very next request.
+  if (member.verificationMethod === 'plugin_first_use') return;
   const needsVerify = member.verifiedAt == null || member.provisional === 1;
   const needsHash = !!accountHash && !member.accountHash;
   if (!needsVerify && !needsHash) return;
@@ -948,7 +951,23 @@ async function autoLinkOrSuggestOnPlay(
     // the takeover. When refused, the character becomes an opt-in SUGGESTION in the caller's own
     // inbox, from where "Add" runs claimAccountForUser — which applies the same gate and routes them
     // to the XP-delta check. The real owner clears it; an attacker's suggestion clears nothing.
-    if (existing && !autoClaimAllowed(existing, !!byHash)) {
+    // TRUST ON FIRST PLUGIN USE. A roster member nobody has ever linked — no hash on the account, no
+    // verification, no role waiting — is claimed by the first Discord login whose plugin plays it.
+    // Weaker than proof (someone who knows the RSN and holds a token could get there first), so it
+    // lands PROVISIONAL on the staff review queue as "this Discord ↔ this RSN": usable at once,
+    // confirmed or rejected by a mod afterwards. The hash from this play is anchored, so from here
+    // on only that client matches. A role-carrying row stays gated — a takeover there is a promotion.
+    const firstUse =
+      !!existing &&
+      !byHash &&
+      !!accountHash &&
+      existing.kind === 'member' &&
+      existing.source === 'roster' &&
+      existing.leftAt == null &&
+      existing.accountHash == null &&
+      existing.verifiedAt == null &&
+      !existing.pendingRole;
+    if (existing && !firstUse && !autoClaimAllowed(existing, !!byHash)) {
       const suggestion = await db.query.detectedAccounts.findFirst({
         where: and(eq(detectedAccounts.userId, userId), eq(detectedAccounts.rsnNormalized, normalizedRsn)),
       });
@@ -988,14 +1007,17 @@ async function autoLinkOrSuggestOnPlay(
         rsn,
         rsnNormalized: normalizedRsn,
         accountHash,
-        method: 'plugin',
+        method: firstUse ? 'plugin_first_use' : 'plugin',
+        provisional: firstUse,
         actorUserId: userId,
       });
       if (!claim.ok) return;
       await db
         .update(clanMemberships)
         .set({
-          source: existing.source === 'admin' ? 'admin' : 'application',
+          // A roster seat stays the roster's: claiming the account says who owns it, not how they
+          // came to be in the clan.
+          source: existing.source === 'admin' || existing.source === 'roster' ? existing.source : 'application',
           leftAt: existing.source === 'admin' ? existing.leftAt : null,
           lastSeenInClan: nowIso,
         })
@@ -1024,7 +1046,7 @@ async function autoLinkOrSuggestOnPlay(
       .values({
         clanMemberId,
         eventType: 'claimed',
-        newValue: JSON.stringify({ userId, via: 'plugin-play-autolink', method: 'plugin' }),
+        newValue: JSON.stringify({ userId, via: 'plugin-play-autolink', method: firstUse ? 'plugin_first_use' : 'plugin' }),
         actorUserId: userId,
       })
       .catch(() => {});
@@ -1072,7 +1094,9 @@ async function rememberPluginObservation(
   if (suggestion) {
     await db
       .update(detectedAccounts)
-      .set({ rsn, lastSeenAt: nowIso, status: 'pending', accountHash: anchoredHash ?? suggestion.accountHash })
+      // Status untouched: a DISMISSED suggestion is a decision — the player's Ignore, or staff
+      // rejecting their claim — and resetting it to pending on every play undid both.
+      .set({ rsn, lastSeenAt: nowIso, accountHash: anchoredHash ?? suggestion.accountHash })
       .where(eq(detectedAccounts.id, suggestion.id));
     return;
   }
@@ -1334,7 +1358,27 @@ export async function resolvePluginMember(
   // Which clan is this plugin talking to? The address answers when it names one, and the TOKEN
   // answers when it does not — see resolvePluginClan. A person with no seat anywhere still cannot
   // resolve a member, because there is no roster to resolve against.
-  const clan = await resolvePluginClan(request, user.id);
+  // A brand-new Discord person on the apex owns no seat, so the token names no clan — and the
+  // first-use claim below, the thing that would give them one, never ran. The roster itself answers:
+  // an account holds a live member seat in at most one clan, so an UNCLAIMED one being played names
+  // its clan unambiguously. A claimed account is someone's, and resolves through them or not at all.
+  let clan = await resolvePluginClan(request, user.id);
+  if (!clan && normalizedRsn) {
+    // clan-scope: global -- finding WHICH clan is the question; one live member seat per account.
+    const [rosterSeat] = await db
+      .select({ clanId: clanRoster.clanId })
+      .from(clanRoster)
+      .where(
+        and(
+          eq(clanRoster.rsnNormalized, normalizedRsn),
+          eq(clanRoster.kind, 'member'),
+          isNull(clanRoster.leftAt),
+          isNull(clanRoster.claimedAt),
+        ),
+      )
+      .limit(1);
+    if (rosterSeat) clan = await resolveClanById(rosterSeat.clanId);
+  }
   if (!clan) return null;
 
   // Re-link an established account whose pre-existing hash matches this play: if the hash is already
@@ -1360,6 +1404,7 @@ export async function resolvePluginMember(
       rsnNormalized: clanRoster.rsnNormalized,
       previousRsns: clanRoster.previousRsns,
       verifiedAt: clanRoster.verifiedAt,
+      verificationMethod: clanRoster.verificationMethod,
       provisional: clanRoster.provisional,
       accountHash: clanRoster.accountHash,
     })

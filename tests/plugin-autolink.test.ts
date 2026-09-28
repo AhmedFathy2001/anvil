@@ -153,7 +153,7 @@ test('an account already claimed by someone else is left alone', async () => {
   assert.equal(after.playerId, stranger.id, 'still theirs');
 });
 
-test('roster first, Discord later: token discovery plus XP proof becomes one identity', async () => {
+test('roster first, Discord later: first plugin play links it (provisionally), XP proof settles it', async () => {
   const { db, schema: s } = await loadDb();
 
   // The roster arrived first, so it has its own placeholder person and a real member seat.
@@ -180,30 +180,24 @@ test('roster first, Discord later: token discovery plus XP proof becomes one ide
     .returning();
   assert.notEqual(placeholder.id, discordPerson.id);
 
-  // On the apex the user owns no seat yet, so member resolution cannot succeed. The valid token
-  // must still leave a visible suggestion instead of returning before recording the observation.
+  // On the apex the user owns no seat yet — the roster names the clan, and the first plugin play of
+  // a never-linked member claims it provisionally (trust on first use, confirmed by staff later).
   const resolved = await A.resolvePluginMember(
     new Request('https://anvilosrs.com/api/plugin/config', {
       headers: {
         Authorization: 'Bearer token-roster-first',
         'X-RSN': 'Roster First',
-        // A freshly supplied client hash is not proof and must not be anchored to the roster row.
-        'X-Account-Hash': 'untrusted-new-hash',
+        'X-Account-Hash': 'first-use-hash',
       },
     }),
   );
-  assert.equal(resolved, null, 'there is no owned seat to resolve before proof');
-
-  const suggestions = await db
-    .select()
-    .from(s.detectedAccounts)
-    .where(and(eq(s.detectedAccounts.userId, discordUser.id), eq(s.detectedAccounts.rsnNormalized, 'roster first')));
-  assert.equal(suggestions.length, 1, 'the account is offered on the Discord profile');
-  assert.equal(suggestions[0].accountHash, null, 'an unanchored client value is not stored as proof');
+  assert.equal(resolved?.clanMemberId, seat.id, 'resolves to the roster seat on first play');
 
   const [beforeProof] = await db.select().from(s.accounts).where(eq(s.accounts.id, account.id));
-  assert.equal(beforeProof.playerId, placeholder.id, 'discovery alone grants no ownership');
-  assert.equal(beforeProof.accountHash, null, 'and does not poison the stable hash');
+  assert.equal(beforeProof.playerId, discordPerson.id, 'linked to the Discord person');
+  assert.equal(beforeProof.provisional, 1, 'but provisional — on the staff review queue');
+  assert.equal(beforeProof.verificationMethod, 'plugin_first_use');
+  assert.equal(beforeProof.accountHash, 'first-use-hash', 'anchored to the client that claimed it');
 
   // The XP-delta route delegates to this transaction after it observes the requested gain.
   const { claimAccountForPerson } = await import('../src/lib/accountClaim.ts');
@@ -217,6 +211,7 @@ test('roster first, Discord later: token discovery plus XP proof becomes one ide
   });
   assert.ok(claim.ok, JSON.stringify(claim));
   assert.equal(claim.accountId, account.id, 'the roster account is reused rather than duplicated');
+  assert.equal(claim.alreadyOurs, true, 'the proof lands on the account they already hold');
 
   const [afterProof] = await db.select().from(s.accounts).where(eq(s.accounts.id, account.id));
   assert.equal(afterProof.playerId, discordPerson.id, 'the account now belongs to the Discord person');

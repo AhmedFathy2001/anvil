@@ -68,8 +68,9 @@ export default async function ClanNeedsReviewPage() {
         <h2 className="text-[16.5px] font-semibold">Awaiting confirmation</h2>
       </div>
       <p className="mb-1.5 ml-4 max-w-[64ch] text-[13.5px] text-text-muted">
-        Members who proved control by training the account (stat-delta) and are waiting for a confirmation
-        stamp. Review the Discord identity and approve, or reject to revoke and let them re-attempt.
+        Discord logins matched to an RSN — by training the account (stat-delta), a manual request, or
+        automatically the first time their plugin played it. Auto-linked ones are already live; check the
+        Discord identity against the RSN and approve, or reject to hand the account back.
       </p>
       <p className="mb-3.5 ml-4">
         <GuideLink href="/guide/moderator#verify">What to check before you approve</GuideLink>

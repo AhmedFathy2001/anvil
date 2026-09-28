@@ -64,11 +64,16 @@ export default function VerificationsClient({ items }: { items: PendingMember[] 
       {items.map((m) => {
         const busy = pendingId === m.id;
         const isManualPending = m.verificationMethod === 'manual' && !m.verifiedAt;
+        // Auto-linked when this Discord login's plugin first played the RSN — already live, so the
+        // question for the mod is only "is this the right person?".
+        const isFirstUse = m.verificationMethod === 'plugin_first_use';
         const methodLabel = isManualPending
           ? 'manual request'
-          : m.verificationMethod
-            ? `via ${m.verificationMethod}`
-            : 'unverified';
+          : isFirstUse
+            ? 'auto-linked · first plugin use'
+            : m.verificationMethod
+              ? `via ${m.verificationMethod}`
+              : 'unverified';
         return (
           <div
             key={m.id}
@@ -91,7 +96,9 @@ export default function VerificationsClient({ items }: { items: PendingMember[] 
                       className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded ${
                         isManualPending
                           ? 'bg-orange-500/20 text-orange-300'
-                          : m.verificationMethod === 'stat_delta'
+                          : isFirstUse
+                            ? 'bg-sky-500/20 text-sky-300'
+                            : m.verificationMethod === 'stat_delta'
                             ? 'bg-yellow-500/20 text-yellow-400'
                             : 'bg-brown-light text-text-muted'
                       }`}
