@@ -22,5 +22,5 @@ export async function GET(request: Request) {
     // Unknown host (the apex, or a clan with no site of its own) — a neutral mark beats erroring,
     // so an embed that points here never shows a broken image.
   }
-  return clanMark(name, logoUrl, new URL(request.url).origin);
+  return clanMark(name, logoUrl);
 }

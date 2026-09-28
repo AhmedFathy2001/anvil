@@ -1,6 +1,7 @@
 import { ImageResponse } from 'next/og';
 
 import { OG_CACHE_CONTROL } from '@/lib/ogCard';
+import { configuredOrigin } from '@/lib/request-origin';
 
 /**
  * A clan's crest as a raster image — the mark the embeds hang on the author line.
@@ -57,11 +58,24 @@ export function crestImage(name: string): ImageResponse {
  * The logo is fetched and re-encoded as a 128px PNG rather than redirected to, so the icon Discord
  * caches is always a small square raster whatever was uploaded (a 4MB photo, a transparent WebP).
  * Any failure falls back to the crest — an embed pointing here never shows a broken image.
+ *
+ * The server fetches this, so it only ever fetches OUR media: the S3 public base, or a path on the
+ * configured site origin (never the request's Host header, which a caller controls). The profile
+ * route already refuses anything else on write; this re-checks on read, and refuses redirects.
  */
-export async function clanMark(name: string, logoUrl: string | null | undefined, origin: string): Promise<Response> {
-  if (logoUrl) {
+function logoFetchUrl(logoUrl: string): URL | null {
+  const base = (process.env.S3_PUBLIC_BASE_URL || '').trim().replace(/\/+$/, '');
+  if (base && logoUrl.startsWith(`${base}/`)) return new URL(logoUrl);
+  const origin = configuredOrigin();
+  if (logoUrl.startsWith('/') && !logoUrl.startsWith('//') && origin) return new URL(logoUrl, origin);
+  return null;
+}
+
+export async function clanMark(name: string, logoUrl: string | null | undefined): Promise<Response> {
+  const target = logoUrl ? logoFetchUrl(logoUrl) : null;
+  if (target) {
     try {
-      const res = await fetch(new URL(logoUrl, origin), { signal: AbortSignal.timeout(8_000) });
+      const res = await fetch(target, { signal: AbortSignal.timeout(8_000), redirect: 'error' });
       if (res.ok) {
         const { default: sharp } = await import('sharp');
         const png = await sharp(Buffer.from(await res.arrayBuffer()))

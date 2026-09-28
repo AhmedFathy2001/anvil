@@ -11,9 +11,9 @@ export const dynamic = 'force-dynamic';
  * /api/og/clan/[slug]. An unknown slug falls back to a neutral Anvil mark rather than 404ing, so an
  * embed pointing here never shows a broken image.
  */
-export async function GET(request: Request, { params }: { params: Promise<{ slug: string }> }) {
+export async function GET(_request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const clan = await resolveClanBySlug(slug);
   const name = clan ? await getClanDisplayName(clan.id, clan.name) : 'Anvil';
-  return clanMark(name, clan?.logoUrl ?? null, new URL(request.url).origin);
+  return clanMark(name, clan?.logoUrl ?? null);
 }
