@@ -84,13 +84,14 @@ import { fmt, plural, getDiscordDict, resolveLocale, findDiscordLocale, type Dis
 // ── Shared embed furniture ──────────────────────────────────────────────────────────────────────
 
 /** The author line: whose Anvil answered. Links to the clan's site when it has a public URL, and
- *  wears the clan's crest (the deterministic monogram /api/og/crest draws) — the clan's mark on top,
+ *  wears the clan's mark (its logo, else the monogram /api/og/crest draws; by slug, since a clan
+ *  on the shared domain has no host of its own) — the clan's mark on top,
  *  the Anvil mark in the footer. */
 function authorOf(clan: ClanContext): DiscordEmbed['author'] {
   return {
     name: clamp(clan.name, LIMIT.author),
     url: clan.origin ?? undefined,
-    icon_url: clan.origin ? `${clan.origin}/api/og/crest` : undefined,
+    icon_url: clan.origin ? `${new URL(clan.origin).origin}/api/og/crest${clan.slug ? `/${encodeURIComponent(clan.slug)}` : ''}` : undefined,
   };
 }
 

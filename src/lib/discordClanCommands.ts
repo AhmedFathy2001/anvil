@@ -92,7 +92,7 @@ export type ClanCommand = (ctx: ClanCommandCtx) => Promise<ClanResult>;
  *  Discord will not display an SVG or a data: URI here, so it needs a real image URL. Absent when the
  *  clan has no public origin to serve it from. */
 function crestUrl(clan: ClanContext): string | undefined {
-  return clan.origin ? `${clan.origin}/api/og/crest` : undefined;
+  return clan.origin ? `${new URL(clan.origin).origin}/api/og/crest${clan.slug ? `/${encodeURIComponent(clan.slug)}` : ''}` : undefined;
 }
 
 function authorOf(clan: ClanContext): DiscordEmbed['author'] {

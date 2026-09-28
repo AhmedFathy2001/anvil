@@ -14,6 +14,8 @@ export interface ClanContext {
   name: string;
   /** Public base URL, for links out of the embed. Null on a self-host that never set APP_URL. */
   origin: string | null;
+  /** The clan's slug — names it on the shared domain, where the origin alone can't (its crest/logo). */
+  slug?: string;
   /** The Discord server this instance is bound to. Empty when the clan never connected one. */
   guildId: string;
   /** Which clan this is. The whole point of resolving by guild. */

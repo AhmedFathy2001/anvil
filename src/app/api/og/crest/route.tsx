@@ -1,10 +1,10 @@
 import { requireClanFromRequest } from '@/lib/clanContext';
-import { crestImage } from '@/lib/crestImage';
+import { clanMark } from '@/lib/crestImage';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * The clan's crest for the CURRENT HOST — used as the author icon on the clan-command embeds, which
+ * The clan's mark (its logo, else its crest) for the CURRENT HOST — used as the author icon on the clan-command embeds, which
  * run in the clan's own request context (so its origin resolves the right clan here).
  *
  * NO CALLER-SUPPLIED TEXT: the name is the clan this host resolves to, never a query parameter — the
@@ -13,11 +13,14 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: Request) {
   let name = 'Anvil';
+  let logoUrl: string | null = null;
   try {
-    name = (await requireClanFromRequest(request)).name || 'Anvil';
+    const clan = await requireClanFromRequest(request);
+    name = clan.name || 'Anvil';
+    logoUrl = clan.logoUrl;
   } catch {
     // Unknown host (the apex, or a clan with no site of its own) — a neutral mark beats erroring,
     // so an embed that points here never shows a broken image.
   }
-  return crestImage(name);
+  return clanMark(name, logoUrl, new URL(request.url).origin);
 }

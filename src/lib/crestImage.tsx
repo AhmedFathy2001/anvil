@@ -50,3 +50,29 @@ export function crestImage(name: string): ImageResponse {
     { width: size, height: size, headers: { 'Cache-Control': OG_CACHE_CONTROL } },
   );
 }
+
+/**
+ * The clan's mark for an embed icon: its uploaded logo when it has one, else the generated crest.
+ *
+ * The logo is fetched and re-encoded as a 128px PNG rather than redirected to, so the icon Discord
+ * caches is always a small square raster whatever was uploaded (a 4MB photo, a transparent WebP).
+ * Any failure falls back to the crest — an embed pointing here never shows a broken image.
+ */
+export async function clanMark(name: string, logoUrl: string | null | undefined, origin: string): Promise<Response> {
+  if (logoUrl) {
+    try {
+      const res = await fetch(new URL(logoUrl, origin), { signal: AbortSignal.timeout(8_000) });
+      if (res.ok) {
+        const { default: sharp } = await import('sharp');
+        const png = await sharp(Buffer.from(await res.arrayBuffer()))
+          .resize(128, 128, { fit: 'cover' })
+          .png()
+          .toBuffer();
+        return new Response(new Uint8Array(png), { headers: { 'Content-Type': 'image/png', 'Cache-Control': OG_CACHE_CONTROL } });
+      }
+    } catch {
+      // Fall through to the crest.
+    }
+  }
+  return crestImage(name);
+}

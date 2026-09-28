@@ -62,16 +62,18 @@ export async function getClanContext(guildId: string | null): Promise<ClanContex
   });
   if (!guildRow) return null;
 
-  const [name, languageRow] = await Promise.all([
+  const [name, languageRow, clanRow] = await Promise.all([
     getClanDisplayName(guildRow.clanId),
     db.query.settings.findFirst({
       where: and(eq(settings.clanId, guildRow.clanId), eq(settings.key, 'discord_language')),
     }),
+    db.query.clans.findFirst({ columns: { slug: true }, where: eq(clans.id, guildRow.clanId) }),
   ]);
   return {
     clanId: guildRow.clanId,
     name,
     origin: configuredOrigin(),
+    slug: clanRow?.slug,
     guildId: wanted,
     // Federation was removed; clans live in one app now.
     language: languageRow?.value?.trim() || null,
