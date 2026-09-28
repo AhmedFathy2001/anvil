@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { seatForRequest } from '@/lib/roster';
 import { db } from '@/db';
-import { accounts, clanMemberships, clanRoster, eventParticipants, weeklyParticipants } from '@/db/schema';
+import { accounts, clanRoster, eventParticipants, weeklyParticipants } from '@/db/schema';
+import { mergeSeats } from '@/lib/mergeSeats';
 import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, ne, sql } from 'drizzle-orm';
 import { normalizeRsn, verifyAdminOrModerator } from '@/lib/auth';
 import { log } from '@/lib/logger';
 
@@ -13,10 +14,9 @@ import { log } from '@/lib/logger';
 //   - eventParticipants.name (current-event enrollments)
 //   - weekly_participants.rsn + rsnNormalized (keeps FK, no re-enrollment)
 //
-// Merge handling: if the new RSN already exists as a separate clan member,
-// we only auto-merge when that target is an unused guest (no players, no
-// weekly participants). Otherwise we refuse with 409 so an admin can reconcile
-// manually rather than lose history.
+// Merge handling: if the new RSN already exists as a separate seat in this clan (clan-sync
+// seats a renamed player's new name as a stranger), that seat is folded into this one first.
+// Only refused (409) when the two are claimed by different people.
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -75,42 +75,21 @@ export async function POST(
   );
 
   if (conflict) {
-    const [conflictPlayers, conflictWeekly] = await Promise.all([
-      db.select({ id: eventParticipants.id }).from(eventParticipants).where(eq(eventParticipants.clanMemberId, conflict.id)),
-      db.select({ id: weeklyParticipants.id }).from(weeklyParticipants).where(eq(weeklyParticipants.clanMemberId, conflict.id)),
-    ]);
-
-    const isUnusedGuest =
-      conflict.kind === 'guest'
-      && conflictPlayers.length === 0
-      && conflictWeekly.length === 0;
-
-    if (!isUnusedGuest) {
+    // The usual case: clan-sync matches by name, so the new name already arrived as a separate
+    // "joined" seat (ranked, maybe enrolled in the week) while this one went "left". That is the
+    // same account — fold it into this seat so the history here survives, then rename below.
+    const merged = await mergeSeats({
+      clanId: source.clanId,
+      sourceId: conflict.id,
+      targetId: memberId,
+      actorUserId: user.userId > 0 ? user.userId : null,
+      note: `Rename ${source.rsn} → ${newRsn}`,
+    });
+    if (!merged.ok) {
       return NextResponse.json(
-        {
-          error: 'mergeRequired',
-          message: 'A clan member with that RSN already exists and has activity. Resolve manually.',
-          conflictMemberId: conflict.id,
-          conflictCounts: {
-            players: conflictPlayers.length,
-            weeklyParticipants: conflictWeekly.length,
-          },
-        },
+        { error: 'mergeRequired', message: merged.error, conflictMemberId: conflict.id },
         { status: 409 },
       );
-    }
-
-    // Unused guest: drop the seat so the rename can proceed, and the account behind it only if no
-    // other clan is still seating it. Another clan's roster is not this admin's to edit.
-    await db.delete(clanMemberships).where(eq(clanMemberships.id, conflict.id));
-    // clan-scope: global -- the id came from a row this request already established, so the clan is settled upstream.
-    const stillSeated = await db
-      .select({ id: clanMemberships.id })
-      .from(clanMemberships)
-      .where(eq(clanMemberships.accountId, conflict.accountId))
-      .limit(1);
-    if (stillSeated.length === 0) {
-      await db.delete(accounts).where(eq(accounts.id, conflict.accountId));
     }
     log.info('clan.rename.merge', {
       adminUserId: user.userId,
@@ -120,9 +99,30 @@ export async function POST(
     });
   }
 
+  // The name being given up joins the account's rename history (read AFTER any merge above, which
+  // may already have rewritten it), and the new one leaves it.
+  const [fresh] = await db
+    .select({ rsn: accounts.rsn, previousRsns: accounts.previousRsns })
+    .from(accounts)
+    .where(eq(accounts.id, source.accountId))
+    .limit(1);
+  let previous: string[] = [];
+  try {
+    const parsed = JSON.parse(fresh?.previousRsns ?? '[]');
+    if (Array.isArray(parsed)) previous = parsed;
+  } catch {
+    /* malformed history: start over */
+  }
+  const previousRsns = Array.from(new Set([...previous, source.rsn, fresh?.rsn ?? source.rsn]))
+    .filter((n) => n && normalizeRsn(n) !== newNormalized);
+
   // Canonical rename on the ACCOUNT — so it is visible in every clan this account plays in, which
   // is the point of accounts being global.
-  await updateAccountOfSeat(memberId, { rsn: newRsn, rsnNormalized: newNormalized });
+  await updateAccountOfSeat(memberId, {
+    rsn: newRsn,
+    rsnNormalized: newNormalized,
+    previousRsns: previousRsns.length ? JSON.stringify(previousRsns) : null,
+  });
 
   // Cascade the name to every FK-carrying row.
   await db
@@ -130,10 +130,17 @@ export async function POST(
     .set({ name: newRsn })
     .where(eq(eventParticipants.clanMemberId, memberId));
 
+  // A week both names were enrolled in (the merge above moved the new name's row here) already
+  // holds the new name, and (competition, rsn) is unique — leave the old-name row of that week be.
   await db
     .update(weeklyParticipants)
     .set({ rsn: newRsn, rsnNormalized: newNormalized })
-    .where(eq(weeklyParticipants.clanMemberId, memberId));
+    .where(
+      and(
+        eq(weeklyParticipants.clanMemberId, memberId),
+        sql`not exists (select 1 from weekly_participants wp where wp.competition_id = ${sql.raw('"weekly_participants"."competition_id"')} and wp.rsn_normalized = ${newNormalized})`,
+      ),
+    );
 
   log.info('clan.rename.ok', {
     adminUserId: user.userId,

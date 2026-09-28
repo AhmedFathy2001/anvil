@@ -1,20 +1,12 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/db';
-import { accounts, clanAuditLog, clanMemberships, clanRoster, eventParticipants, eventSignups, signupFees, weeklyParticipants } from '@/db/schema';
-import { findRosterSeat, loginOf } from '@/lib/roster';
-import { and, eq } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { requireClanFromRequest } from '@/lib/clanContext';
-import { mergeEmptyPersonInto } from '@/lib/mergePeople';
+import { mergeSeats } from '@/lib/mergeSeats';
 
 // POST /api/admin/clan/merge { sourceId, targetId }
-// Merge two clan_members rows that are actually the same player (typically a left+joined
-// pair from a rename when accountHash wasn't available). Moves all references to target
-// and deletes source.
-//
-// Why both rows can exist: clan-sync only sees RSNs; without an accountHash to anchor
-// identity, a rename looks like "X left, Y joined". A mod making a judgment call uses
-// this endpoint to reconcile.
+// Merge two roster seats that are actually the same player (typically a left+joined pair from a
+// rename, which clan-sync can only see by name). Moves all references to target and deletes source;
+// the survivor keeps whichever name the in-game roster still lists — see lib/mergeSeats.
 export async function POST(request: Request) {
   const session = await verifyAdminOrModerator();
   if (!session) {
@@ -35,159 +27,18 @@ export async function POST(request: Request) {
   }
 
   // BOTH SEATS MUST BE THIS CLAN'S. Seat ids are global and these two arrive in the request body,
-  // so unscoped this let an admin of any clan merge two of another clan's members — a destructive
-  // identity edit that rewrites RSN history and moves ownership. 404 rather than an explanation, so
-  // the error cannot be used to probe which seat ids exist elsewhere.
+  // so unscoped this let an admin of any clan merge two of another clan's members. mergeSeats
+  // answers 404 for a seat outside the clan, so the error cannot probe which ids exist elsewhere.
   const clan = await requireClanFromRequest(request);
-  const [source, target] = await Promise.all([
-    findRosterSeat(and(eq(clanRoster.id, sourceId), eq(clanRoster.clanId, clan.id))),
-    findRosterSeat(and(eq(clanRoster.id, targetId), eq(clanRoster.clanId, clan.id))),
-  ]);
-  if (!source || !target) {
-    return NextResponse.json({ error: 'Source or target not found' }, { status: 404 });
+  const result = await mergeSeats({
+    clanId: clan.id,
+    sourceId,
+    targetId,
+    actorUserId: session.userId > 0 ? session.userId : null,
+    note: body.note,
+  });
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
   }
-
-  // Refuse if both are actively claimed by different users — that's a real conflict that
-  // needs the users involved to resolve, not an admin merge.
-  if (source.claimedAt && target.claimedAt && source.playerId !== target.playerId) {
-    return NextResponse.json(
-      { error: 'Both records are claimed by different users. Resolve ownership before merging.' },
-      { status: 409 },
-    );
-  }
-
-  const targetPrevious: string[] = (() => {
-    if (!target.previousRsns) return [];
-    try {
-      const parsed = JSON.parse(target.previousRsns);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  })();
-  const sourcePrevious: string[] = (() => {
-    if (!source.previousRsns) return [];
-    try {
-      const parsed = JSON.parse(source.previousRsns);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  })();
-  // The source's current rsn itself is now historical for the target.
-  const merged = Array.from(new Set([...targetPrevious, ...sourcePrevious, source.rsn].filter(Boolean)));
-
-  // The surviving identity's owner: at most one side is claimed (the conflict guard above), so this
-  // is unambiguous. Sign-ups adopted from the source inherit it when they were an unowned guest.
-  // Every account has a placeholder person, so playerId alone does not say which side has a human
-  // owner. Prefer the CLAIMED side; otherwise keep the target placeholder. Choosing target.playerId
-  // unconditionally here used to detach a claimed source account from its Discord person.
-  const finalOwner = target.claimedAt
-    ? target.playerId
-    : source.claimedAt
-      ? source.playerId
-      : target.playerId ?? source.playerId ?? null;
-  const finalLogin = await loginOf(finalOwner);
-
-  // Move references off of source.
-  await db.update(eventParticipants).set({ clanMemberId: targetId }).where(eq(eventParticipants.clanMemberId, sourceId));
-  await db
-    .update(weeklyParticipants)
-    .set({ clanMemberId: targetId })
-    .where(eq(weeklyParticipants.clanMemberId, sourceId));
-  await db
-    .update(clanAuditLog)
-    .set({ clanMemberId: targetId })
-    .where(eq(clanAuditLog.clanMemberId, sourceId));
-
-  // Event sign-ups: carry the source's sign-ups over to the target, deduping on the
-  // (event_id, clan_member_id) unique index. FK enforcement is OFF in this DB (no
-  // PRAGMA foreign_keys=ON — see db/index.ts), so the source delete below would otherwise silently
-  // ORPHAN these rows (they'd vanish from the Sign-ups panel, which inner-joins clan_members) and the
-  // onDelete cascade to signup_fees would never fire. Handle both explicitly.
-  const sourceSignups = await db
-    .select({ id: eventSignups.id, eventId: eventSignups.eventId, userId: eventSignups.userId })
-    .from(eventSignups)
-    .where(eq(eventSignups.clanMemberId, sourceId));
-  if (sourceSignups.length) {
-    const targetEventIds = new Set(
-      (
-        await db
-          .select({ eventId: eventSignups.eventId })
-          .from(eventSignups)
-          .where(eq(eventSignups.clanMemberId, targetId))
-      ).map((r) => r.eventId),
-    );
-    for (const s of sourceSignups) {
-      if (targetEventIds.has(s.eventId)) {
-        // Target already has a sign-up for this event — drop the duplicate source row. FK cascade to
-        // signup_fees isn't enforced here, so remove its fee first to avoid an orphaned fee row.
-        await db.delete(signupFees).where(eq(signupFees.signupId, s.id));
-        await db.delete(eventSignups).where(eq(eventSignups.id, s.id));
-      } else {
-        await db
-          .update(eventSignups)
-          // event_signups.user_id names a LOGIN; finalOwner is a PERSON.
-          .set({ clanMemberId: targetId, userId: s.userId ?? finalLogin })
-          .where(eq(eventSignups.id, s.id));
-        targetEventIds.add(s.eventId);
-      }
-    }
-  }
-
-  // Promote any source-side fields the target is missing. All of these describe the account.
-  await db
-    .update(accounts)
-    .set({
-      previousRsns: merged.length ? JSON.stringify(merged) : null,
-      accountHash: target.accountHash ?? source.accountHash,
-      playerId: finalOwner ?? target.playerId ?? source.playerId ?? undefined,
-      isPrimary: target.isPrimary === 1 || source.isPrimary === 1 ? 1 : 0,
-      verifiedAt: target.verifiedAt ?? source.verifiedAt,
-      verificationMethod: target.verificationMethod ?? source.verificationMethod,
-      verifiedByUserId: target.verifiedByUserId ?? source.verifiedByUserId,
-      provisional: target.claimedAt ? target.provisional : source.provisional,
-      claimedAt: target.claimedAt ?? source.claimedAt,
-    })
-    .where(eq(accounts.id, target.accountId));
-
-  // Drop the losing SEAT, and the account behind it only if no other clan is still seating it —
-  // a merge inside one clan has no business removing an account another clan still rosters.
-  await db.delete(clanMemberships).where(eq(clanMemberships.id, sourceId));
-  if (source.accountId !== target.accountId) {
-    // clan-scope: global -- the id came from a row this request already established, so the clan is settled upstream.
-    const stillSeated = await db
-      .select({ id: clanMemberships.id })
-      .from(clanMemberships)
-      .where(eq(clanMemberships.accountId, source.accountId))
-      .limit(1);
-    if (stillSeated.length === 0) {
-      await db.delete(accounts).where(eq(accounts.id, source.accountId));
-    }
-  }
-
-  // The account merge can empty either placeholder: normally the source account is deleted, but a
-  // claimed source also moves the target account onto the source's person. Preserve any person-level
-  // history and remove only rows that now hold neither an account nor a login.
-  if (finalOwner != null) {
-    for (const priorOwner of new Set([source.playerId, target.playerId])) {
-      if (priorOwner != null && priorOwner !== finalOwner) {
-        await mergeEmptyPersonInto(priorOwner, finalOwner, session.userId > 0 ? session.userId : null);
-      }
-    }
-  }
-
-  // Audit the merge against the surviving target so history stays attached.
-  db.insert(clanAuditLog)
-    .values({
-      clanMemberId: targetId,
-      eventType: 'merged',
-      oldValue: JSON.stringify({ mergedFromMemberId: sourceId, mergedFromRsn: source.rsn }),
-      newValue: JSON.stringify({ intoMemberId: targetId, rsn: target.rsn }),
-      actorUserId: session.userId > 0 ? session.userId : null,
-      notes: body.note || null,
-    })
-    .catch(() => {});
-
-  return NextResponse.json({ success: true, targetId, mergedRsn: source.rsn });
+  return NextResponse.json({ success: true, targetId: result.targetId, mergedRsn: result.mergedRsn, rsn: result.rsn });
 }
