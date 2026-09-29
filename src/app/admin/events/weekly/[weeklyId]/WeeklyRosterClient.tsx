@@ -21,11 +21,14 @@ export default function WeeklyRosterClient({
   type,
   standings,
   mode,
+  includeGuests,
 }: {
   competitionId: number;
   type: string;
   standings: WeeklyStanding[];
   mode: 'participants' | 'baselines';
+  /** The competition's guest switch — shown and flippable on the participants view. */
+  includeGuests?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -57,14 +60,14 @@ export default function WeeklyRosterClient({
   const surplusIds = new Set(surplus);
   const enteredGuests = standings.filter((r) => r.kind === 'guest' && !r.left);
 
-  async function removeParticipants(ids: number[], said: string) {
+  async function removeParticipants(ids: number[], said: string, opts: { dropGuests?: boolean } = {}) {
     if (ids.length === 0) return;
     await call(
       `/api/admin/weekly/${competitionId}/participants`,
       {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ participantIds: ids }),
+        body: JSON.stringify({ participantIds: ids, dropGuests: opts.dropGuests === true }),
       },
       said,
     );
@@ -90,12 +93,12 @@ export default function WeeklyRosterClient({
       title: `Take all ${ids.length} guest${ids.length === 1 ? '' : 's'} out?`,
       body:
         scoring > 0
-          ? `${scoring} of them ${scoring === 1 ? 'has' : 'have'} already scored, and those standings go with them. Members are untouched.`
-          : 'Members are untouched. Guests who join later are not re-entered automatically.',
+          ? `${scoring} of them ${scoring === 1 ? 'has' : 'have'} already scored, and those standings go with them. Members are untouched, and guests stay out for the rest of this competition.`
+          : 'Members are untouched. Guests stay out for the rest of this competition, including ones who join later.',
       confirmLabel: 'Take them out',
     });
     if (!ok) return;
-    await removeParticipants(ids, `${ids.length} guest${ids.length === 1 ? '' : 's'} removed.`);
+    await removeParticipants(ids, `${ids.length} guest${ids.length === 1 ? '' : 's'} removed.`, { dropGuests: true });
   }
 
   async function keepOnePerPerson() {
@@ -126,6 +129,20 @@ export default function WeeklyRosterClient({
     } finally {
       setBusy(false);
     }
+  }
+
+  // The comp's guest switch, reversible after creation. Off stops the roster sweep entering guests
+  // (the ones already in stay until dropped); on enters them on the next tick.
+  async function setIncludeGuests(on: boolean) {
+    await call(
+      `/api/admin/weekly/${competitionId}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ includeGuests: on }),
+      },
+      on ? 'Guests will be entered on the next sweep.' : 'Guests will no longer be entered.',
+    );
   }
 
   async function addNames() {
@@ -307,9 +324,25 @@ export default function WeeklyRosterClient({
             )}
           </h2>
           <div className="flex items-center gap-2">
-            {/* The blanket includeGuests switch is decided once, at creation, and never revisited.
-                This is the other half: drop the guests after the fact without re-typing the name of
-                every member you did want. */}
+            {mode === 'participants' && includeGuests !== undefined && (
+              <button
+                type="button"
+                role="switch"
+                aria-checked={includeGuests}
+                onClick={() => setIncludeGuests(!includeGuests)}
+                disabled={busy}
+                title={includeGuests ? 'Guests are entered automatically — click to stop' : 'Guests are left out — click to enter them'}
+                className={`whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-xs transition-colors disabled:opacity-50 ${
+                  includeGuests
+                    ? 'border-gold/40 text-gold hover:bg-gold/10'
+                    : 'border-card-border text-text-muted hover:border-gold/40 hover:text-gold'
+                }`}
+              >
+                Guests: {includeGuests ? 'on' : 'off'}
+              </button>
+            )}
+            {/* Drop the guests already entered. Also switches guests off, or the next sweep would
+                put every one of them straight back. */}
             {mode === 'participants' && enteredGuests.length > 0 && (
               <button
                 type="button"

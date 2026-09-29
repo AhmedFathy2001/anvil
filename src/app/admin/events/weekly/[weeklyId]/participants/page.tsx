@@ -16,5 +16,5 @@ export default async function WeeklyParticipantsPage({ params }: { params: Promi
 
   const standings = await getWeeklyStandings(id);
 
-  return <WeeklyRosterClient competitionId={id} type={comp.type} standings={standings} mode="participants" />;
+  return <WeeklyRosterClient competitionId={id} type={comp.type} standings={standings} mode="participants" includeGuests={comp.includeGuests === 1} />;
 }

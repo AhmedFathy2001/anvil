@@ -67,6 +67,11 @@ export async function POST(request: Request) {
   if (!seat) {
     return NextResponse.json({ enrolled: false, reason: 'not-a-member' });
   }
+  // The competition's own entry rule, same as the roster sweep: a comp with guests switched off
+  // takes none, however often a guest's plugin logs in.
+  if (seat.kind === 'guest' && active.includeGuests !== 1) {
+    return NextResponse.json({ enrolled: false, reason: 'guests-excluded' });
+  }
   const clanMemberId = seat.id;
 
   const existing = await db.query.weeklyParticipants.findFirst({

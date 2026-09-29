@@ -245,5 +245,11 @@ export async function DELETE(
     .where(and(eq(weeklyParticipants.competitionId, compId), inArray(weeklyParticipants.id, ids)))
     .returning({ id: weeklyParticipants.id });
 
+  // "Drop all guests" also switches the competition's guest setting off. Without it the rows were
+  // deleted and the cron's enrollment pass put every guest straight back on the next tick.
+  if (body.dropGuests === true) {
+    await db.update(weeklyCompetitions).set({ includeGuests: 0 }).where(eq(weeklyCompetitions.id, compId));
+  }
+
   return NextResponse.json({ removed: removed.length });
 }

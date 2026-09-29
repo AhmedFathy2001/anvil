@@ -50,13 +50,16 @@ export async function PUT(
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
-  const { title, startDate, endDate, status } = await request.json();
+  const { title, startDate, endDate, status, includeGuests } = await request.json();
 
   const updates: Record<string, unknown> = {};
   if (title !== undefined) updates.title = title;
   if (startDate !== undefined) updates.startDate = startDate;
   if (endDate !== undefined) updates.endDate = endDate;
   if (status !== undefined) updates.status = status;
+  // Reversible after creation: turning it off stops the cron re-entering guests; it does not remove
+  // the ones already entered (that is "Drop all guests"). Turning it on enters them on the next tick.
+  if (typeof includeGuests === 'boolean') updates.includeGuests = includeGuests ? 1 : 0;
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
