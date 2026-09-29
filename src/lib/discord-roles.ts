@@ -559,6 +559,31 @@ export async function isGuildMember(clanId: number, discordUserId: string): Prom
 // greedily keep the primary plus as many of the following names as fit — e.g.
 // "Drenvox mdps / Denoverse / GIM Drenvox" trims trailing names rather than dropping to primary-only.
 const DISCORD_NICK_MAX = 32;
+
+/**
+ * The order names go into a nickname: the PRIMARY account first, then secondary accounts, then
+ * guests last. One account can hold seats in several clans, so THIS clan's seat decides what it is
+ * here — a guest here is a guest in this server's nickname even if it is a member elsewhere; with no
+ * seat here, it is a guest only if every seat it holds is one. Ties break alphabetically so the nick
+ * does not reshuffle between syncs — a reshuffle is a PATCH, and a guild audit-log line, for nothing.
+ */
+export function orderNicknameAccounts<T extends { rsn: string; isPrimary: number | null; kind: string; clanId: number }>(
+  accounts: T[],
+  clanId: number,
+): T[] {
+  const key = (rsn: string) => rsn.trim().toLowerCase();
+  const tierOf = new Map<string, number>();
+  const byRsn = new Map<string, T[]>();
+  for (const a of accounts) byRsn.set(key(a.rsn), [...(byRsn.get(key(a.rsn)) ?? []), a]);
+  for (const [rsn, seats] of byRsn) {
+    const here = seats.find((a) => a.clanId === clanId);
+    const guest = here ? here.kind === 'guest' : seats.every((a) => a.kind === 'guest');
+    tierOf.set(rsn, seats.some((a) => a.isPrimary === 1) ? 0 : guest ? 2 : 1);
+  }
+  const tier = (a: T) => tierOf.get(key(a.rsn)) ?? 1;
+  return [...accounts].sort((a, b) => tier(a) - tier(b) || a.rsn.localeCompare(b.rsn, undefined, { sensitivity: 'base' }));
+}
+
 function buildLinkedNickname(rsns: string[]): string | null {
   const seen = new Set<string>();
   const cleaned: string[] = [];
@@ -1068,7 +1093,7 @@ export async function syncRolesForClanMember(
   if (!skipNickname && cfg.setNicknameOnLink && (cfg.overwriteNickname || !currentNick)) {
     // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
     const accounts = await db
-      .select({ rsn: clanRoster.rsn, isPrimary: clanRoster.isPrimary })
+      .select({ rsn: clanRoster.rsn, isPrimary: clanRoster.isPrimary, kind: clanRoster.kind, clanId: clanRoster.clanId })
       .from(clanRoster)
       // Same correction as above; here it decides what somebody's server NICKNAME is set to.
       .innerJoin(users, eq(users.playerId, clanRoster.playerId))
@@ -1080,7 +1105,7 @@ export async function syncRolesForClanMember(
         ),
       )
       .orderBy(desc(clanRoster.isPrimary));
-    const rsns = accounts.map((a) => a.rsn);
+    const rsns = orderNicknameAccounts(accounts, member.clanId).map((a) => a.rsn);
     if (rsns.length === 0 && member.rsn) rsns.push(member.rsn);
     const desired = buildLinkedNickname(rsns);
     if (desired && desired !== currentNick && (await setGuildMemberNick(cfg, discordUserId, desired))) {
