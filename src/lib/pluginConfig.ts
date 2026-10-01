@@ -5,7 +5,7 @@ import { and, count, eq, inArray, isNull, ne } from 'drizzle-orm';
 import { inAcceptedCohostClan, invitedToEvent } from '@/lib/eventAccess';
 import { BOSSES, FUN_DEATH_MESSAGES, weeklyMetricLabel, COUNTER_TARGETS } from '@/lib/constants';
 import { DEFAULT_TIER_BANDS, normalizeTierBands, type TierBand } from '@/lib/tileFilter';
-import { bossUniqueIds } from '@/lib/moments';
+import { bossNotableIds } from '@/lib/moments';
 import { getItemMapping } from '@/lib/osrsItems';
 import { clogItemNames } from '@/lib/clogDataset';
 import { guaranteedDropsFor, parseGuaranteedOverrides, petFacts, type DropFacts } from '@/lib/dropFacts';
@@ -460,7 +460,7 @@ export async function getAlwaysNotifyItemIds(clanId: number, racedBoss?: string 
   //
   // Added FIRST and unconditionally: these are ids, not name patterns, so they bypass the substring
   // matching below entirely.
-  const raced = racedBoss ? [...bossUniqueIds(racedBoss)] : [];
+  const raced = racedBoss ? [...bossNotableIds(racedBoss)] : [];
   const admin = await getLineSetting(clanId, ALWAYS_NOTIFY_SETTING_KEY);
   const patterns = [...NOTABLE_ITEM_PATTERNS, ...admin.map((s) => s.toLowerCase()).filter(Boolean)];
   const key = patterns.join('');

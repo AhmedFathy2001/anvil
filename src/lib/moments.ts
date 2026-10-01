@@ -228,6 +228,44 @@ export function bossUniqueIds(metric: string): Set<number> {
 }
 
 const drops = npcDrops as unknown as Record<string, { i: number; d: number; q?: number }[]>;
+
+/**
+ * A log item this boss drops more often than this (1-in-N) is filler, not a story — Phantom Muspah
+ * logs Ancient essence (1/1.67) and Charged ice (every kill) beside its 1/100 shard.
+ */
+const COMMON_LOG_DENOMINATOR = 50;
+const notableCache = new Map<string, Set<number>>();
+
+/**
+ * The boss's log items minus the ones it hands out on most kills.
+ *
+ * The log page is Jagex's list of what the boss can give you, which is not the same as what is worth
+ * a post: it files the essence and ice every Muspah kill drops right next to the Venator shard. Used
+ * where "on the page" means "announce it" — the raced boss's always-notify ids, and a week's unique
+ * moments — so a BOTW stops posting every pile of essence. An item with no known rate from this
+ * boss's own tables (a pet, a raid-chest unique) stays: the dataset cannot call it common.
+ */
+export function bossNotableIds(metric: string): Set<number> {
+  const cached = notableCache.get(metric);
+  if (cached) return cached;
+  const names = bossSourceNames(metric);
+  const rarest = new Map<number, number>();
+  for (const [source, table] of Object.entries(drops)) {
+    if (!names.has(norm(source))) continue;
+    for (const row of table) {
+      if (!Number.isFinite(row.d)) continue;
+      rarest.set(row.i, Math.max(rarest.get(row.i) ?? 0, row.d));
+    }
+  }
+  const ids = new Set(
+    [...bossUniqueIds(metric)].filter((id) => {
+      const d = rarest.get(id);
+      return d == null || d >= COMMON_LOG_DENOMINATOR;
+    }),
+  );
+  notableCache.set(metric, ids);
+  return ids;
+}
 const dropIndexCache = new Map<string, Map<number, { denominator: number; stack: number }>>();
 
 export interface DropInfo {
@@ -596,7 +634,7 @@ function weeklyKindFor(obs: Observation, weekly: WeeklyScope): MomentKind | null
   }
   // A drop counts when it came from the boss being raced AND the game itself considers it notable.
   if (!fromThisBoss) return null;
-  if (obs.itemId != null && bossUniqueIds(weekly.metric).has(obs.itemId)) return 'unique';
+  if (obs.itemId != null && bossNotableIds(weekly.metric).has(obs.itemId)) return 'unique';
   // The boss's log page is Jagex's own list of what's special about it, so where one exists it is
   // the answer — second-guessing it with a rarity floor is how 500 death runes became a highlight.
   if (bossClogPage(weekly.metric)) return null;
