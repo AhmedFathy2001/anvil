@@ -841,7 +841,9 @@ export const eventParticipants = pgTable('event_participants', {
   // even when the board has no pvp tile. Purely cosmetic (superlatives — "Most Deaths", "Loot Lord",
   // "PKer"); never feeds scoring. See lib/eventRecap.
   deaths: integer('deaths').default(0),
-  lootGpGained: integer('loot_gp_gained').default(0),
+  // bigint: an event's loot passes int4's 2.147B for a heavy raider, and the counters push accepts up
+  // to a trillion — on int4 the whole UPDATE failed, taking deaths/pvp/minutes down with it.
+  lootGpGained: bigint('loot_gp_gained', { mode: 'number' }).default(0),
   pvpKills: integer('pvp_kills').default(0),
   // Same contract, added later: `biggestHit` = hardest single hitsplat landed this event
   // ("Heavy Hitter"); `minutesPlayed` = minutes actually logged in during it, counted from game
@@ -1673,7 +1675,7 @@ export const playerEventFacts = pgTable('player_event_facts', {
   xpGained: integer('xp_gained').default(0).notNull(),
   kcGained: integer('kc_gained').default(0).notNull(),
   deaths: integer('deaths').default(0).notNull(),
-  lootGpGained: integer('loot_gp_gained').default(0).notNull(),
+  lootGpGained: bigint('loot_gp_gained', { mode: 'number' }).default(0).notNull(),
   pvpKills: integer('pvp_kills').default(0).notNull(),
   // Timeline / reliability. Days are 1-based from event start; lastActiveDay NULL = never active.
   // July lesson: WHEN someone went dark matters as much as whether — a mid-event drop-off on a
@@ -2340,7 +2342,7 @@ export const moments = pgTable('moments', {
   itemName: text('item_name'),
   quantity: integer('quantity').notNull().default(1),
   /** GE value of the item (or the whole haul, for a 'loot' moment), as the client priced it. */
-  valueGp: integer('value_gp'),
+  valueGp: bigint('value_gp', { mode: 'number' }),
   /** What it came from / what killed them — an NPC, a chest, an activity. Null when unknown. */
   source: text('source'),
   /** 'npc' | 'event' | 'pvp' | 'pickpocket' | 'skill' — the plugin's own loot-source taxonomy. */
