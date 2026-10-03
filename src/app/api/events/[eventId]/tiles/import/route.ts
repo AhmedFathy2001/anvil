@@ -10,6 +10,7 @@ import { parseTileWorkbook } from '@/lib/tileSpreadsheet';
 import { assertEventEditable } from '@/lib/eventLock';
 import { serializeTileMissionRules, type MissionRules } from '@/lib/eventRules';
 import { collectionDisplayTotal } from '@/lib/collectionSets';
+import { isRaidEffortMode, parseTileEffortConfig, type TileEffortConfig } from '@/lib/tileEffortConfig';
 
 // Bulk tile import — maps CSV/JSON rows onto an event's tiles by position (row order).
 // Built for Leagues-style boards where configuring hundreds of tiles one at a time is
@@ -39,6 +40,8 @@ interface ImportRow {
   tileType?: string;
   requiredAmount?: number | null;
   points?: number | null;
+  /** Balance-only execution and raid assumptions; does not affect completion tracking. */
+  effortConfig?: TileEffortConfig | null;
   category?: string | null;
   optional?: boolean;
   trackedStat?: string | null;
@@ -153,6 +156,36 @@ function validateRowFields(i: number, row: ImportRow): string | null {
     (!Number.isInteger(row.points) || row.points < 0)
   ) {
     return `Row ${i + 1}: points must be a non-negative integer`;
+  }
+  if (row.effortConfig != null) {
+    if (typeof row.effortConfig !== 'object' || Array.isArray(row.effortConfig)) {
+      return `Row ${i + 1}: effortConfig must be an object or null`;
+    }
+    const skill = row.effortConfig.skillRating;
+    if (skill != null && (!Number.isInteger(skill) || skill < 0 || skill > 5)) {
+      return `Row ${i + 1}: skillRating must be an integer from 0 to 5`;
+    }
+    const expectedHours = row.effortConfig.expectedHours;
+    if (expectedHours != null &&
+        (!Number.isFinite(expectedHours) || expectedHours <= 0 || expectedHours > 100_000)) {
+      return `Row ${i + 1}: expectedEffortHours must be greater than 0 and at most 100,000`;
+    }
+    const raid = row.effortConfig.raid;
+    if (raid != null) {
+      if (!isRaidEffortMode(raid.mode)) return `Row ${i + 1}: raidMode is not supported`;
+      if (raid.uniqueDenominator != null &&
+          (!Number.isFinite(raid.uniqueDenominator) || raid.uniqueDenominator <= 1 || raid.uniqueDenominator > 1_000_000)) {
+        return `Row ${i + 1}: raidUniqueDenominator must be greater than 1 and at most 1,000,000`;
+      }
+      if (raid.completionMinutes != null &&
+          (!Number.isFinite(raid.completionMinutes) || raid.completionMinutes <= 0 || raid.completionMinutes > 1_440)) {
+        return `Row ${i + 1}: raidCompletionMinutes must be greater than 0 and at most 1,440`;
+      }
+      if (raid.raidLevel != null &&
+          (!Number.isInteger(raid.raidLevel) || raid.raidLevel < 0 || raid.raidLevel > 1_000)) {
+        return `Row ${i + 1}: raidLevel must be an integer from 0 to 1,000`;
+      }
+    }
   }
   if (
     row.statGoal !== undefined && row.statGoal !== null &&
@@ -305,6 +338,10 @@ function tileFieldsFromRow(row: ImportRow, allowPreStart: boolean, derived: Deri
   const s: Record<string, unknown> = { updatedAt: new Date().toISOString() };
   if (row.description !== undefined) s.description = row.description || null;
   if (row.points !== undefined && row.points !== null) s.points = row.points;
+  if (row.effortConfig !== undefined) {
+    const effort = parseTileEffortConfig(row.effortConfig);
+    s.effortConfig = effort ? JSON.stringify(effort) : null;
+  }
   if (row.category !== undefined) s.category = row.category ? String(row.category).slice(0, 120) : null;
   if (row.optional !== undefined) s.optional = row.optional ? 1 : 0;
   if (row.trackedStat !== undefined) s.trackedStat = row.trackedStat || null;
@@ -415,7 +452,7 @@ function isNoopUpdate(updateSet: Record<string, unknown>, tile: Record<string, u
     const cur = tile[k];
     if (k === 'optional') {
       if ((v ? 1 : 0) !== (cur ? 1 : 0)) return false;
-    } else if (k === 'targetNpcs' || k === 'trackedItemIds') {
+    } else if (k === 'targetNpcs' || k === 'trackedItemIds' || k === 'effortConfig') {
       if (normalizeJsonCell(v) !== normalizeJsonCell(cur)) return false;
     } else if (k === 'itemRequirements') {
       if (normalizeItemReqsCell(v) !== normalizeItemReqsCell(cur)) return false;

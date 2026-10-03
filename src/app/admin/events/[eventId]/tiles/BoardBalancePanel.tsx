@@ -40,6 +40,7 @@ export default function BoardBalancePanel({
   pointsMode,
   tierBands,
   onApplyPoints,
+  onApplyAllPoints,
 }: {
   eventId: number;
   tiles: Tile[];
@@ -48,6 +49,10 @@ export default function BoardBalancePanel({
   pointsMode: boolean;
   tierBands?: TierBand[];
   onApplyPoints: (tileId: number, points: number) => Promise<boolean>;
+  onApplyAllPoints: (
+    changes: Array<{ tileId: number; points: number }>,
+    revision: string,
+  ) => Promise<boolean>;
 }) {
   const structural = useMemo(() => analyzeBoard(tiles, { pointsMode, tierBands }), [tiles, pointsMode, tierBands]);
   const [effortChecks, setEffortChecks] = useState<BalanceCheck[]>([]);
@@ -151,6 +156,7 @@ export default function BoardBalancePanel({
           tilesVersion={tilesVersion}
           onChecks={setEffortChecks}
           onApplyPoints={onApplyPoints}
+          onApplyAllPoints={onApplyAllPoints}
         />
 
         <p className="text-[10px] text-text-muted leading-relaxed">

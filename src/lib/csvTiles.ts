@@ -8,6 +8,14 @@
 //   description         free-text shown on the tile
 //   type                "standard" | "drop" | "kill" | "lap" | "pvp" | "gain" | "timed" | "deathless" | "lms" | "value" | "valuetotal" | "diary" | "ca"  (stat tiles use trackedStat/statType instead)
 //   points              integer reward weight (Leagues scoring)
+//   skillRating         balance audit only — execution difficulty from 0 (routine) to 5 (elite)
+//   expectedEffortHours balance audit only — person-hours including setup and failed attempts;
+//                       overrides a rough automatic estimate and models bespoke objectives
+//   raidMode            balance audit only — exact raid key (e.g. "tombsOfAmascutExpertMode")
+//   raidUniqueDenominator balance audit only — personal chance of any unique, expressed as 1-in-N
+//   raidCompletionMinutes balance audit only — expected minutes per completion, including wipes
+//   raidLevel           optional authoring context (e.g. ToA invocation); the supplied unique
+//                       denominator remains authoritative
 //   category            grouping tag(s) for the plugin/board filters, comma-separated for
 //                       several (e.g. "Inferno, PvM" — quote the cell)
 //   optional            true/false — doesn't count toward the total
@@ -58,6 +66,12 @@ export const TILE_CSV_COLUMNS = [
   'description',
   'type',
   'points',
+  'skillRating',
+  'expectedEffortHours',
+  'raidMode',
+  'raidUniqueDenominator',
+  'raidCompletionMinutes',
+  'raidLevel',
   'category',
   'optional',
   'requiredAmount',
@@ -90,6 +104,13 @@ import { missionClaimCap, parseTileMissionRules, type MissionRules } from '@/lib
 import { parseGpInput } from '@/lib/adminEventsFormat';
 import { SKILLS, SKILL_LABELS, BOSSES, canonicalAgilityCourse } from '@/lib/constants';
 import { HISCORES_ACTIVITIES } from '@/lib/hiscoresActivities';
+import {
+  RAID_EFFORT_MODES,
+  isRaidEffortMode,
+  parseTileEffortConfig,
+  type RaidEffortMode,
+  type TileEffortConfig,
+} from '@/lib/tileEffortConfig';
 
 export interface TileCsvItem {
   /** Item name to resolve on import. Empty when the entry pinned a raw id with no label. */
@@ -109,6 +130,7 @@ export interface TileCsvRow {
   tileType?: string;
   requiredAmount?: number | null;
   points?: number | null;
+  effortConfig?: TileEffortConfig | null;
   category?: string | null;
   optional?: boolean;
   trackedStat?: string | null;
@@ -258,6 +280,17 @@ function toNumberLoose(v: string): number | null {
   return null;
 }
 
+/** Same human-friendly syntax as toNumberLoose, but preserves decimals for rates and durations. */
+function toDecimalLoose(v: string): number | null {
+  const s = v.trim().toLowerCase().replace(/[,_ ]/g, '');
+  if (s === '') return null;
+  const m = s.match(/^(\d*\.?\d+)([kmb])?$/);
+  if (!m) return null;
+  const mult = m[2] === 'b' ? 1e9 : m[2] === 'm' ? 1e6 : m[2] === 'k' ? 1e3 : 1;
+  const n = parseFloat(m[1]) * mult;
+  return Number.isFinite(n) ? n : null;
+}
+
 // Forgiving duration → seconds. Accepts "mm:ss" / "hh:mm:ss", bare seconds ("1800"), or a
 // unit suffix ("30m", "30 min", "90s", "1h"). So the tricky "timeThresholdSeconds" column stops
 // forcing people to pre-convert minutes to seconds in their head.
@@ -310,6 +343,14 @@ function normalizeTrackedStat(raw: string): { key: string; type: 'skill' | 'boss
   return null;
 }
 
+/** Accept the stored raid key or the label shown in the tile editor. */
+function normalizeRaidEffortMode(raw: string): RaidEffortMode | null {
+  const value = raw.trim();
+  if (isRaidEffortMode(value)) return value;
+  const normalized = value.toLowerCase();
+  return RAID_EFFORT_MODES.find((mode) => mode.label.toLowerCase() === normalized)?.key ?? null;
+}
+
 export interface ParsedTileCsv {
   rows: TileCsvRow[];
   /** Per-row label, auto-filled as "Tile N" when blank. Length === rows.length. */
@@ -338,6 +379,12 @@ export function parseTileGrid(grid: string[][]): ParsedTileCsv {
     description: idx('description'),
     type: idx('type'),
     points: idx('points'),
+    skillRating: idx('skillrating'),
+    expectedEffortHours: idx('expectedefforthours'),
+    raidMode: idx('raidmode'),
+    raidUniqueDenominator: idx('raiduniquedenominator'),
+    raidCompletionMinutes: idx('raidcompletionminutes'),
+    raidLevel: idx('raidlevel'),
     category: idx('category'),
     optional: idx('optional'),
     requiredAmount: idx('requiredamount'),
@@ -376,6 +423,40 @@ export function parseTileGrid(grid: string[][]): ParsedTileCsv {
     if (col.description >= 0) row.description = get(cells, col.description).trim() || null;
     if (col.type >= 0) row.tileType = get(cells, col.type).trim().toLowerCase() || undefined;
     if (col.points >= 0) row.points = toIntOrNull(get(cells, col.points));
+    const skillRaw = get(cells, col.skillRating).trim();
+    const expectedHoursRaw = get(cells, col.expectedEffortHours).trim();
+    const raidModeRaw = get(cells, col.raidMode).trim();
+    const uniqueRaw = get(cells, col.raidUniqueDenominator).trim();
+    const completionRaw = get(cells, col.raidCompletionMinutes).trim();
+    const raidLevelRaw = get(cells, col.raidLevel).trim();
+    const skillRating = col.skillRating >= 0 ? toDecimalLoose(skillRaw) : null;
+    const expectedHours = col.expectedEffortHours >= 0 ? toDecimalLoose(expectedHoursRaw) : null;
+    const raidMode = col.raidMode >= 0 ? normalizeRaidEffortMode(raidModeRaw) : null;
+    const uniqueDenominator = col.raidUniqueDenominator >= 0 ? toDecimalLoose(uniqueRaw) : null;
+    const completionMinutes = col.raidCompletionMinutes >= 0 ? toDecimalLoose(completionRaw) : null;
+    const raidLevel = col.raidLevel >= 0 ? toDecimalLoose(raidLevelRaw) : null;
+    const hasRaidFields = !!(raidModeRaw || uniqueRaw || completionRaw || raidLevelRaw);
+    if (skillRaw || expectedHoursRaw || hasRaidFields) {
+      row.effortConfig = {
+        ...(skillRaw ? { skillRating: skillRating ?? Number.NaN } : {}),
+        ...(expectedHoursRaw ? { expectedHours: expectedHours ?? Number.NaN } : {}),
+        ...(hasRaidFields ? {
+          raid: {
+            // Preserve an invalid/missing authored key for the import route's strict validation.
+            mode: (raidMode ?? raidModeRaw) as RaidEffortMode,
+            ...(uniqueRaw ? { uniqueDenominator: uniqueDenominator ?? Number.NaN } : {}),
+            ...(completionRaw ? { completionMinutes: completionMinutes ?? Number.NaN } : {}),
+            ...(raidLevelRaw ? { raidLevel: raidLevel ?? Number.NaN } : {}),
+          },
+        } : {}),
+      };
+    } else if (
+      col.skillRating >= 0 || col.expectedEffortHours >= 0 || col.raidMode >= 0 || col.raidUniqueDenominator >= 0 ||
+      col.raidCompletionMinutes >= 0 || col.raidLevel >= 0
+    ) {
+      // Explicit blank calibration columns clear a previous per-tile override on re-import.
+      row.effortConfig = null;
+    }
     if (col.category >= 0) row.category = get(cells, col.category).trim() || null;
     if (col.optional >= 0) row.optional = toBool(get(cells, col.optional));
     if (col.requiredAmount >= 0) row.requiredAmount = toNumberLoose(get(cells, col.requiredAmount));
@@ -584,10 +665,16 @@ function tileItemsCell(t: Tile): string {
 export function tileToCsvRow(t: Tile): TileCsvRow {
   const cells = tileToCsvCells(t);
   const row: Record<string, unknown> = {};
+  const effortColumns = new Set(['skillRating', 'expectedEffortHours', 'raidMode', 'raidUniqueDenominator', 'raidCompletionMinutes', 'raidLevel']);
   TILE_CSV_COLUMNS.forEach((col, i) => {
+    // The spreadsheet uses five legible columns; the JSON/library representation keeps the same
+    // values as one typed object, which is exactly what the tile importer consumes.
+    if (effortColumns.has(col)) return;
     const v = cells[i];
     if (v !== undefined && v !== null && v !== '') row[col] = v;
   });
+  const effort = parseTileEffortConfig(t.effortConfig);
+  if (effort) row.effortConfig = effort;
   return row as TileCsvRow;
 }
 
@@ -596,11 +683,18 @@ export function tileToCsvCells(t: Tile): string[] {
   // total (recomputed from the items on import), and "items + requiredAmount" is the documented
   // pool syntax — emitting it would silently flip the collection into a pool on re-upload.
   const isCollection = parsedItemRequirements(t) != null;
+  const effort = parseTileEffortConfig(t.effortConfig);
   return [
     t.label ?? '',
     t.description ?? '',
     t.tileType ?? 'standard',
     String(t.points ?? 1),
+    effort?.skillRating != null ? String(effort.skillRating) : '',
+    effort?.expectedHours != null ? String(effort.expectedHours) : '',
+    effort?.raid?.mode ?? '',
+    effort?.raid?.uniqueDenominator != null ? String(effort.raid.uniqueDenominator) : '',
+    effort?.raid?.completionMinutes != null ? String(effort.raid.completionMinutes) : '',
+    effort?.raid?.raidLevel != null ? String(effort.raid.raidLevel) : '',
     t.category ?? '',
     t.optional ? 'true' : 'false',
     !isCollection && t.requiredAmount != null ? String(t.requiredAmount) : '',

@@ -661,6 +661,9 @@ export const tiles = pgTable('tiles', {
   // event's scoringMode is 'tiles'). Harder tiles carry more points. Defaults to
   // 1 so a points event behaves like a tile-count event until weights are set.
   points: integer('points').default(1).notNull(),
+  // Balance-auditor assumptions only: skill premium and optional raid mode / personal unique
+  // denominator / expected completion time. This never changes completion or plugin matching.
+  effortConfig: text('effort_config'),
   // Optimistic-concurrency stamp: bumped on every config edit (PUT/import). The editor
   // sends the value it loaded as `baseUpdatedAt`; a mismatch means someone else saved in
   // between and the write is rejected (409) instead of silently clobbering theirs.

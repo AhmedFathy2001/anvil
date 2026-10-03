@@ -1,6 +1,7 @@
 import type { TileCsvRow } from '@/lib/csvTiles';
 import type { ItemRequirement, TileConfig } from '@/lib/types';
 import { clanFetch } from '@/lib/clanFetch';
+import { parseTileEffortConfig } from '@/lib/tileEffortConfig';
 
 // Bridging the two shapes a task lives in.
 //
@@ -23,6 +24,7 @@ const EMPTY: TileConfig = {
   trackedItemIds: null,
   itemRequirements: null,
   points: 1,
+  effortConfig: null,
   category: null,
   sourceNpcs: null,
   targetNpcs: null,
@@ -91,6 +93,7 @@ export async function toTileConfig(
     statGoal: asNumber(row.statGoal),
     optional: !!row.optional,
     points: asNumber(row.points) ?? fallback.points,
+    effortConfig: parseTileEffortConfig(row.effortConfig),
     category: row.category ?? fallback.category,
     targetNpcs: asArray(row.targetNpcs),
     timedActivity: row.timedActivity ?? null,
@@ -130,6 +133,7 @@ export function payloadToCsvRow(payload: Record<string, unknown>): TileCsvRow {
     tileType: (payload.tileType as string) || 'standard',
     requiredAmount: (payload.requiredAmount as number | null) ?? null,
     points: (payload.points as number | null) ?? null,
+    effortConfig: parseTileEffortConfig(payload.effortConfig),
     category: (payload.category as string | null) ?? null,
     optional: !!payload.optional,
     trackedStat: (payload.trackedStat as string | null) ?? null,

@@ -19,6 +19,7 @@ import { parseTileMissionRules, type MissionReward } from '@/lib/eventRules';
 import MissionRewardEditor from '@/components/MissionRewardEditor';
 import NumberInput from '@/components/NumberInput';
 import { clanFetch } from '@/lib/clanFetch';
+import { RAID_EFFORT_MODES, parseTileEffortConfig } from '@/lib/tileEffortConfig';
 
 interface Props {
   /** Board editing: the tile row being edited. Omit when `onSave` takes over the write. */
@@ -562,6 +563,25 @@ export default function TileTrackingConfig({
   const [autoTrackDisabled, setAutoTrackDisabled] = useState<boolean>(initial.autoTrackDisabled || false);
   const [points, setPoints] = useState<string>(initial.points != null ? initial.points.toString() : "1");
   const [category, setCategory] = useState<string>(initial.category || "");
+  // Balance-only calibration. These values never alter plugin matching or completion; they only
+  // tell the effort audit what kind of raid/skill burden the author intended.
+  const initialEffort = parseTileEffortConfig(initial.effortConfig);
+  const [effortSkillRating, setEffortSkillRating] = useState<string>(
+    initialEffort?.skillRating != null ? String(initialEffort.skillRating) : '',
+  );
+  const [effortExpectedHours, setEffortExpectedHours] = useState<string>(
+    initialEffort?.expectedHours != null ? String(initialEffort.expectedHours) : '',
+  );
+  const [effortRaidMode, setEffortRaidMode] = useState<string>(initialEffort?.raid?.mode ?? '');
+  const [effortUniqueDenominator, setEffortUniqueDenominator] = useState<string>(
+    initialEffort?.raid?.uniqueDenominator != null ? String(initialEffort.raid.uniqueDenominator) : '',
+  );
+  const [effortCompletionMinutes, setEffortCompletionMinutes] = useState<string>(
+    initialEffort?.raid?.completionMinutes != null ? String(initialEffort.raid.completionMinutes) : '',
+  );
+  const [effortRaidLevel, setEffortRaidLevel] = useState<string>(
+    initialEffort?.raid?.raidLevel != null ? String(initialEffort.raid.raidLevel) : '',
+  );
   // Mission config — a mission is hidden until announced mid-event and carries its own scoring.
   const initMissionDecay = initial.missionRules?.decay ?? null;
   const [mission, setMission] = useState<boolean>(!!initial.mission);
@@ -1182,6 +1202,24 @@ export default function TileTrackingConfig({
     if (kind === 'value') {
       if (parseGp(valueGpText) == null) return 'Set a haul value like 5m, 500k, or 5000000.';
     }
+    if (effortSkillRating && (!Number.isInteger(Number(effortSkillRating)) || Number(effortSkillRating) < 0 || Number(effortSkillRating) > 5)) {
+      return 'Effort skill rating must be an integer from 0 to 5.';
+    }
+    if (effortExpectedHours && (!Number.isFinite(Number(effortExpectedHours)) || Number(effortExpectedHours) <= 0 || Number(effortExpectedHours) > 100000)) {
+      return 'Expected effort must be greater than 0 and at most 100,000 hours.';
+    }
+    if ((effortUniqueDenominator || effortCompletionMinutes || effortRaidLevel) && !effortRaidMode) {
+      return 'Choose a raid mode for the raid effort assumptions.';
+    }
+    if (effortUniqueDenominator && (!Number.isFinite(Number(effortUniqueDenominator)) || Number(effortUniqueDenominator) <= 1)) {
+      return 'Personal unique rate must be a denominator greater than 1.';
+    }
+    if (effortCompletionMinutes && (!Number.isFinite(Number(effortCompletionMinutes)) || Number(effortCompletionMinutes) <= 0)) {
+      return 'Expected completion minutes must be greater than 0.';
+    }
+    if (effortRaidLevel && (!Number.isInteger(Number(effortRaidLevel)) || Number(effortRaidLevel) < 0 || Number(effortRaidLevel) > 1000)) {
+      return 'Raid level must be an integer from 0 to 1,000.';
+    }
     return null;
   }
 
@@ -1207,6 +1245,18 @@ export default function TileTrackingConfig({
         optional,
         autoTrackDisabled,
         points: points ? Math.max(0, parseInt(points, 10) || 0) : 1,
+        effortConfig: {
+          ...(effortSkillRating ? { skillRating: Number(effortSkillRating) } : {}),
+          ...(effortExpectedHours ? { expectedHours: Number(effortExpectedHours) } : {}),
+          ...(effortRaidMode ? {
+            raid: {
+              mode: effortRaidMode,
+              ...(effortUniqueDenominator ? { uniqueDenominator: Number(effortUniqueDenominator) } : {}),
+              ...(effortCompletionMinutes ? { completionMinutes: Number(effortCompletionMinutes) } : {}),
+              ...(effortRaidLevel ? { raidLevel: Number(effortRaidLevel) } : {}),
+            },
+          } : {}),
+        },
         category: category.trim() || null,
         // Mission flag + per-mission scoring (assembled below; null-rules on a normal tile).
         mission,
@@ -1375,6 +1425,7 @@ export default function TileTrackingConfig({
           trackedItemIds: updated.trackedItemIds ? JSON.parse(updated.trackedItemIds) : null,
           itemRequirements: updated.itemRequirements ? JSON.parse(updated.itemRequirements) : null,
           points: updated.points ?? 1,
+          effortConfig: parseTileEffortConfig(updated.effortConfig),
           category: updated.category ?? null,
           sourceNpcs: updated.sourceNpcs ? JSON.parse(updated.sourceNpcs) : null,
           targetNpcs: updated.targetNpcs ? JSON.parse(updated.targetNpcs) : null,
@@ -2948,6 +2999,131 @@ export default function TileTrackingConfig({
           </div>
         </div>
       )}
+
+      {/* Scoring calibration travels with reusable tasks, CSV/XLSX exports, and concrete tiles.
+          It affects only the balance audit; tracking and completion remain independent. */}
+      <details
+        open={!!effortSkillRating || !!effortExpectedHours || !!effortRaidMode}
+        className="group rounded-lg border border-sky-500/20 bg-sky-500/5"
+      >
+          <summary className="cursor-pointer select-none list-none px-3 py-2 flex items-center gap-2 text-xs font-medium text-text-muted hover:text-foreground">
+            <span className="transition-transform group-open:rotate-90">▸</span>
+            Effort calibration
+            <span className="text-[10px] text-text-muted/70 font-normal">balance audit only</span>
+          </summary>
+          <div className="px-3 pb-3 space-y-3">
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Execution skill premium</label>
+              <Select
+                value={effortSkillRating}
+                onChange={setEffortSkillRating}
+                ariaLabel="Execution skill premium"
+                options={[
+                  { value: '', label: 'Automatic from accessibility floor' },
+                  { value: '0', label: '0 — routine (+0%)' },
+                  { value: '1', label: '1 — some attention (+5%)' },
+                  { value: '2', label: '2 — moderate (+10%)' },
+                  { value: '3', label: '3 — advanced (+15%)' },
+                  { value: '4', label: '4 — expert (+20%)' },
+                  { value: '5', label: '5 — elite (+25%)' },
+                ]}
+              />
+              <p className="text-[10px] text-text-muted mt-0.5">
+                Applied after expected time and failed attempts, so mechanical difficulty is not counted twice.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs text-text-muted mb-1">
+                Expected person-hours <span className="text-text-muted/60">(optional override)</span>
+              </label>
+              <Input
+                type="number"
+                min="0.01"
+                max="100000"
+                step="0.05"
+                value={effortExpectedHours}
+                onChange={(e) => setEffortExpectedHours(e.target.value)}
+                placeholder="use automatic model"
+                aria-label="Expected person-hours for balance"
+              />
+              <p className="text-[10px] text-text-muted mt-0.5">
+                End-to-end average including setup and failed attempts. Use this for bespoke CAs,
+                PvP, or anything the automatic EHP/EHB/drop model cannot measure well.
+              </p>
+            </div>
+
+            {isDrop && (sourcesIncludeRaid(sourceNpcsText) || !!effortRaidMode) && (
+              <div className="space-y-3 border-l border-sky-500/20 pl-3">
+                <div>
+                  <label className="block text-xs text-text-muted mb-1">Raid mode used for balancing</label>
+                  <Select
+                    value={effortRaidMode}
+                    onChange={setEffortRaidMode}
+                    placeholder="Use source/clan default"
+                    ariaLabel="Raid effort mode"
+                    options={[
+                      { value: '', label: 'Use source/clan default' },
+                      ...RAID_EFFORT_MODES.map((mode) => ({ value: mode.key, label: mode.label })),
+                    ]}
+                  />
+                  <p className="text-[10px] text-text-muted mt-0.5">
+                    This selects the reward table for the estimate only. RuneLite still matches the source names above.
+                  </p>
+                </div>
+
+                {effortRaidMode && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-xs text-text-muted mb-1">Personal unique rate</label>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-text-muted shrink-0">1 in</span>
+                        <Input
+                          type="number"
+                          min="1.01"
+                          step="0.01"
+                          value={effortUniqueDenominator}
+                          onChange={(e) => setEffortUniqueDenominator(e.target.value)}
+                          placeholder="clan default"
+                          aria-label="Personal raid unique denominator"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-text-muted mb-1">Minutes / completion</label>
+                      <Input
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        value={effortCompletionMinutes}
+                        onChange={(e) => setEffortCompletionMinutes(e.target.value)}
+                        placeholder="rate default"
+                        aria-label="Expected minutes per completed raid"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-text-muted mb-1">Raid level</label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="1000"
+                        value={effortRaidLevel}
+                        onChange={(e) => setEffortRaidLevel(e.target.value)}
+                        placeholder="e.g. 400"
+                        aria-label="Raid level or invocation"
+                      />
+                    </div>
+                  </div>
+                )}
+                <p className="text-[10px] text-text-muted leading-relaxed">
+                  Unique rate is the player&rsquo;s chance of any purple after invocation/points and team allocation.
+                  Completion minutes should include the average cost of wipes. Raid level is recorded as context;
+                  the supplied rate remains authoritative until a formula-backed calculator is added.
+                </p>
+              </div>
+            )}
+          </div>
+      </details>
 
       {/* Everything below is per-tile fine print: it applies to a minority of tiles, and shown open
           on every tile it triples the length of the form for no one's benefit. Opens by default when

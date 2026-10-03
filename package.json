@@ -22,6 +22,7 @@
     "verify:efficiency": "tsx scripts/verify-efficiency.mts",
     "db:studio": "drizzle-kit studio",
     "test": "node scripts/test-all.mjs",
+    "test:balance": "npx tsx --test tests/balance-effort.test.ts",
     "harness:plugin": "node scripts/plugin-harness.mjs",
     "test:missions": "npx tsx --test tests/mission-rewards.test.ts tests/mission-schedule.test.ts tests/mission-csv.test.ts tests/ladder-month.test.ts tests/event-rules-roundtrip.test.ts tests/mission-multiplier.test.ts",
     "test:roster": "npx tsx --test tests/roster-read-verdict.test.ts tests/roster-sync-diff.test.ts tests/roster-shape.test.ts",

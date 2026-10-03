@@ -10,6 +10,8 @@ import { analyzeEffort } from '@/lib/balanceEffort';
 import { computePlayerProfiles } from '@/lib/playerProfile';
 import { isPointsMode } from '@/lib/utils';
 import { BALANCE_RATES_SETTING_KEY } from '@/lib/balanceRates';
+import { RAID_LUCK_SETTING_KEY } from '@/lib/raidLuck';
+import { tileBalanceRevision } from '@/lib/tileBalanceRevision';
 
 // Effort-model side of the board-balance auditor. Runs server-side because the wiki
 // drop-rate dataset (~700KB) shouldn't ship to the client; the Tiles tab fetches this
@@ -38,10 +40,21 @@ export async function GET(
   const eventTiles = await db.query.tiles.findMany({ where: eq(tiles.eventId, eId) });
 
   let ratesOverride: unknown = null;
-  const stored = await getSetting(clan.id, BALANCE_RATES_SETTING_KEY);
+  let raidRatesOverride: unknown = null;
+  const [stored, storedRaidRates] = await Promise.all([
+    getSetting(clan.id, BALANCE_RATES_SETTING_KEY),
+    getSetting(clan.id, RAID_LUCK_SETTING_KEY),
+  ]);
   if (stored) {
     try {
       ratesOverride = JSON.parse(stored);
+    } catch {
+      /* malformed overrides are ignored — defaults still apply */
+    }
+  }
+  if (storedRaidRates) {
+    try {
+      raidRatesOverride = JSON.parse(storedRaidRates);
     } catch {
       /* malformed overrides are ignored — defaults still apply */
     }
@@ -54,7 +67,12 @@ export async function GET(
       ? Math.max(1, Math.round((Date.parse(event.endDate) - Date.parse(event.startDate)) / 86_400_000))
       : null;
 
-  const report = analyzeEffort(eventTiles, { pointsMode: isPointsMode(event.scoringMode), ratesOverride, eventDays });
+  const report = analyzeEffort(eventTiles, {
+    pointsMode: isPointsMode(event.scoringMode),
+    ratesOverride,
+    raidRatesOverride,
+    eventDays,
+  });
 
   // Pool-aware pass (plan A3): the assignee-band pricing above assumes SOMEONE capable exists —
   // check that against the actual sign-up pool (or, before anyone signs up, the whole clan as the
@@ -106,5 +124,11 @@ export async function GET(
     ...t,
     hours: t.hours ? t.hours.map((h) => (Number.isFinite(h) ? Math.round(h * 100) / 100 : null)) : null,
   }));
-  return NextResponse.json({ ...report, perTile });
+  return NextResponse.json({
+    ...report,
+    perTile,
+    // The bulk review sends this back when applying. It prevents an old preview from overwriting
+    // changes made by another editor while the dialog was open.
+    revision: tileBalanceRevision(eventTiles),
+  });
 }

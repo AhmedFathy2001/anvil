@@ -101,6 +101,7 @@ export async function POST(
         pvpMinLootValue: t.pvpMinLootValue,
         category: t.category,
         points: t.points,
+        effortConfig: t.effortConfig,
         // Reveal STATE is per-run: planned times from the old run make no sense on a new
         // schedule, and revealedAt/closedAt are stamps the reveal engine sets live.
         revealAt: null,

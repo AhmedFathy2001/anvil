@@ -3,6 +3,7 @@ import type { MissionReward } from '@/lib/eventRules';
 
 import type { SignupProfile } from '@/lib/signup';
 import type { StatContributionSnapshot } from '@/lib/statTracking';
+import type { TileEffortConfig } from '@/lib/tileEffortConfig';
 
 export interface Event {
   id: number;
@@ -73,6 +74,8 @@ export interface Tile extends TileRevealState {
   /** Kill tiles: the kill only counts with at least this many of the team in it (null = no gate). */
   coopMinMembers?: number | null;
   points?: number | null;
+  /** JSON balance-only assumptions; never changes what the plugin accepts as completion. */
+  effortConfig?: string | null;
   category?: string | null;
   sourceNpcs?: string | null; // JSON array of source NPC names (drop tiles only)
   targetNpcs?: string | null; // JSON array of target NPC names (kill tiles only)
@@ -199,6 +202,8 @@ export interface TileConfig {
   /** Kill tiles: the kill only counts with at least this many of the team in it (null = no gate). */
   coopMinMembers?: number | null;
   points: number;
+  /** Balance-only assumptions; stored as JSON on a board tile. */
+  effortConfig?: TileEffortConfig | null;
   category: string | null;
   // Specific source NPC names a drop must come from (e.g. ["Tekton"]). null = any source.
   sourceNpcs: string[] | null;

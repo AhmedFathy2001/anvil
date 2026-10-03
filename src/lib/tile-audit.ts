@@ -28,6 +28,7 @@ const AUDITED_FIELDS: { key: keyof TileRow; label: string; json?: boolean }[] = 
   { key: 'icon', label: 'Icon' },
   { key: 'tileType', label: 'Type' },
   { key: 'points', label: 'Points' },
+  { key: 'effortConfig', label: 'Effort calibration', json: true },
   { key: 'requiredAmount', label: 'Required amount' },
   { key: 'trackedStat', label: 'Tracked stat' },
   { key: 'statType', label: 'Stat type' },

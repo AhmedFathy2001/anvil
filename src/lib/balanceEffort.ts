@@ -16,16 +16,19 @@ import defaultRates from '@/data/balanceRates.json';
 import sourcedRates from '@/data/activityRates.json';
 import npcDrops from '@/data/npcDrops.json'; // regenerate with `npm run data:drops`
 import type { BalanceCheck } from '@/lib/boardBalance';
+import { bundleSize, chancePerKill } from '@/lib/clogLuck';
+import { raidSourcesByItem, raidUniqueChances } from '@/lib/raidLuck';
+import { expectedCollectionHours, type DropEffortAction, type DropEffortRequirement } from '@/lib/dropEffort';
+import { parseTileEffortConfig, type TileRaidEffortConfig } from '@/lib/tileEffortConfig';
 
 export type Triplet = [number, number, number]; // fast, average, slow
 export type Floor = 'anyone' | 'mid' | 'high' | 'elite';
 const FLOOR_ORDER: Floor[] = ['anyone', 'mid', 'high', 'elite'];
 
-// Difficulty is a first-class input, not just a label. An hour of elite content is worth
-// more points than an hour of AFK content, so we score points against *effort-hours*
-// (wall-clock × this multiplier) rather than raw wall-clock. This is what stops a one-shot
-// elite tile from being ranked as "overpaid" next to a chicken.
-const FLOOR_EFFORT_MULTIPLIER: Record<Floor, number> = { anyone: 1, mid: 1.6, high: 2.5, elite: 4 };
+// Difficulty is a modest execution premium. Attempt duration / success rate already prices most
+// mechanical difficulty, so a large multiplier here would count the same failures twice. Floors
+// map onto the 0–5 rubric used by the scoring design: routine=0, mid=1, high≈2.5, elite=4.
+const FLOOR_EFFORT_MULTIPLIER: Record<Floor, number> = { anyone: 1, mid: 1.05, high: 1.125, elite: 1.2 };
 
 // Nobody should ever be told to drop a hard tile to 2 points. A tile's suggested value is
 // clamped up to this floor by difficulty — prestige has a price regardless of throughput.
@@ -105,10 +108,16 @@ export interface TileEffort {
   floor: Floor;
   /** Difficulty multiplier applied to hours to get effort-hours (from the tile's floor). */
   difficulty: number;
+  /** Explicit 0–5 execution rating; null means the accessibility floor supplied the default. */
+  skillRating: number | null;
   /** Hours the tile is PRICED against: avg band normally, a fast-leaning blend for high/elite
    *  tiles (teams assign gated tiles to whoever's closest to capable — nobody sends the average
-   *  player to the Inferno). Null = unmodelled for pricing. */
+   *  player to the Inferno), less any earlier cumulative milestone on the same board. */
   pricingHours: number | null;
+  /** Pricing hours before cumulative-chain credit. */
+  grossPricingHours: number | null;
+  /** Earlier work automatically credited in a compatible 1 KC → 5 KC style chain. */
+  overlapCreditHours: number;
   /** Raw points ÷ real average hours — throughput, shown for reference. null when unmodelled. */
   rawPtsPerHour: number | null;
   /** Points ÷ effort-hours (difficulty-adjusted) — the yardstick used for ranking and flags. */
@@ -225,24 +234,68 @@ function activityForNames(rates: BalanceRates, names: (string | null | undefined
 // range (m–n). `r` is the number of rolls per kill, present only when the table rolls more
 // than once. Only i and d matter to the model; the rest rides along for future use.
 type DropEntry = { i: number; d: number; q?: number; m?: number; n?: number; r?: number };
-type DropSource = { source: string; d: number };
+type DropSource = {
+  source: string;
+  d: number;
+  rolls: number;
+  bundle: number;
+  /** Hiscores/activity key for raid tables whose display source is a chest label. */
+  bossKey?: string;
+  /** Raid unique tables choose one reward conditional on the purple roll. */
+  exclusive?: boolean;
+  assumed?: boolean;
+};
 
-// itemId → sources that drop it, cheapest (lowest 1-in-d) first. Built once per process.
-let dropIndex: Map<number, DropSource[]> | null = null;
-function itemSources(itemId: number): DropSource[] {
-  if (!dropIndex) {
-    dropIndex = new Map();
+// itemId → NPC sources that drop it, cheapest (lowest 1-in-d) first. Built once per process.
+let npcDropIndex: Map<number, DropSource[]> | null = null;
+function npcItemSources(itemId: number): DropSource[] {
+  if (!npcDropIndex) {
+    npcDropIndex = new Map();
     for (const [source, drops] of Object.entries(npcDrops as unknown as Record<string, DropEntry[]>)) {
       for (const e of drops) {
         if (!e || typeof e.i !== 'number' || typeof e.d !== 'number' || e.d <= 0) continue;
-        const list = dropIndex.get(e.i) ?? [];
-        list.push({ source, d: e.d });
-        dropIndex.set(e.i, list);
+        const list = npcDropIndex.get(e.i) ?? [];
+        list.push({
+          source,
+          d: e.d,
+          rolls: e.r && e.r > 0 ? e.r : 1,
+          bundle: bundleSize(e),
+        });
+        npcDropIndex.set(e.i, list);
       }
     }
-    for (const list of dropIndex.values()) list.sort((a, b) => a.d - b.d);
+    for (const list of npcDropIndex.values()) list.sort((a, b) => a.d - b.d);
   }
-  return dropIndex.get(itemId) ?? [];
+  return npcDropIndex.get(itemId) ?? [];
+}
+
+type DropResolver = (itemId: number, raidConfig?: TileRaidEffortConfig | null) => DropSource[];
+
+/** NPC tables plus context-adjusted raid tables, rebuilt per report because overrides vary by clan. */
+function dropResolver(raidRatesOverride?: unknown): DropResolver {
+  const raids = raidSourcesByItem(raidRatesOverride);
+  const baseUniqueDenominators = raidUniqueChances(raidRatesOverride);
+  return (itemId: number, raidConfig?: TileRaidEffortConfig | null) => {
+    const npc = raidConfig?.mode ? [] : npcItemSources(itemId);
+    const raid = (raids.get(itemId) ?? [])
+      .filter((r) => !raidConfig?.mode || r.bossKey === raidConfig.mode)
+      .map((r) => {
+        const baseUnique = baseUniqueDenominators[r.bossKey];
+        const adjustedDenominator = raidConfig?.uniqueDenominator && baseUnique > 0
+          ? r.denominator * (raidConfig.uniqueDenominator / baseUnique)
+          : r.denominator;
+        return {
+          source: r.source,
+          d: adjustedDenominator,
+          rolls: r.rolls,
+          bundle: r.bundle,
+          bossKey: r.bossKey,
+          exclusive: true,
+          assumed: r.assumed,
+        };
+      });
+    return [...npc, ...raid];
+  };
 }
 
 // Superior slayer monsters can't be farmed back-to-back: one "kill" costs ~200 on-task
@@ -253,17 +306,33 @@ const IMBUED_HEART_ID = 20724;
 let superiorSet: Set<string> | null = null;
 function isSuperiorSource(source: string): boolean {
   if (!superiorSet) {
-    superiorSet = new Set(itemSources(IMBUED_HEART_ID).map((s) => s.source.toLowerCase()));
+    superiorSet = new Set(npcItemSources(IMBUED_HEART_ID).map((s) => s.source.toLowerCase()));
   }
   return superiorSet.has(source.trim().toLowerCase());
 }
 
-/** Best (cheapest) source for an item, optionally restricted to the tile's source filter. */
-function bestSource(itemId: number, restrict: string[] | null): DropSource | null {
-  const sources = itemSources(itemId);
-  if (!restrict || restrict.length === 0) return sources[0] ?? null;
-  const wanted = restrict.map((s) => s.trim().toLowerCase());
-  return sources.find((s) => wanted.includes(s.source.toLowerCase())) ?? null;
+function sourceNames(source: DropSource): string[] {
+  const boss = source.bossKey ? BOSSES.find((b) => b.key === source.bossKey) : null;
+  return [source.source, source.bossKey, boss?.label, ...(boss?.aliases ?? [])].filter((s): s is string => !!s);
+}
+
+function sourceAllowed(source: DropSource, restrict: string[] | null): boolean {
+  if (!restrict || restrict.length === 0) return true;
+  const candidates = new Set(sourceNames(source).map(normName));
+  return restrict.some((wanted) => candidates.has(normName(wanted)));
+}
+
+function sourcesForItem(
+  itemId: number,
+  restrict: string[] | null,
+  resolveDrops: DropResolver,
+  raidConfig?: TileRaidEffortConfig | null,
+): DropSource[] {
+  return resolveDrops(itemId, raidConfig).filter((source) =>
+    // An explicit balance mode is intentionally separate from RuneLite's source name. For example,
+    // tracking still receives "Tombs of Amascut" while balancing may pin the Expert table.
+    raidConfig?.mode && source.bossKey === raidConfig.mode ? true : sourceAllowed(source, restrict),
+  );
 }
 
 // ---- Per-tile estimation ------------------------------------------------------------
@@ -320,8 +389,74 @@ function parseJsonArray<T>(raw: string | null | undefined): T[] | null {
   }
 }
 
-function estimateTile(tile: Tile, rates: BalanceRates): { hours: Triplet | null; floor: Floor; note: string | null } {
+function jsonListSignature(raw: string | null | undefined): string {
+  const values = parseJsonArray<string | number>(raw);
+  return values ? values.map(String).map(normName).sort().join('|') : '';
+}
+
+/**
+ * Cumulative objectives with the same key share their earlier work. This is deliberately narrow:
+ * a speed task is NOT grouped with KC (the execution achievement stays additive), while 1 Zuk KC
+ * and 5 Zuk KC are the same measurable progression and the latter should price only four more.
+ */
+function progressionStep(tile: Tile): { key: string; amount: number } | null {
+  if (tile.trackedStat && tile.statGoal && tile.statGoal > 0) {
+    const stats = tile.trackedStat.split(',').map(normName).sort().join('|');
+    return { key: `stat:${tile.statType ?? 'boss'}:${tile.statBasis ?? 'gain'}:${stats}`, amount: tile.statGoal };
+  }
   const type = tile.tileType ?? 'standard';
+  const amount = tile.requiredAmount;
+  if (!amount || amount <= 0) return null;
+  if (type === 'drop' && !tile.itemRequirements) {
+    const items = jsonListSignature(tile.trackedItemIds);
+    if (!items) return null;
+    return {
+      key: `drop:${items}:${jsonListSignature(tile.sourceNpcs)}:${tile.perKillCap ?? ''}:${tile.timeThresholdSeconds ?? ''}`,
+      amount,
+    };
+  }
+  if (type === 'kill' || type === 'lap' || type === 'diary' || type === 'ca' || type === 'pvp') {
+    const targets = jsonListSignature(tile.targetNpcs);
+    if (!targets) return null;
+    return {
+      key: `${type}:${targets}:${tile.coopCredit ?? ''}:${tile.coopMinMembers ?? ''}:${tile.partySize ?? ''}:${tile.pvpMinLootValue ?? ''}`,
+      amount,
+    };
+  }
+  if (type === 'lms') {
+    return { key: `lms:placement-${tile.timeThresholdSeconds ?? 1}`, amount };
+  }
+  if (type === 'gain') {
+    const items = jsonListSignature(tile.trackedItemIds);
+    return items ? { key: `gain:${items}`, amount } : null;
+  }
+  return null;
+}
+
+function killTripletForDropSource(
+  rates: BalanceRates,
+  source: DropSource,
+  raidConfig?: TileRaidEffortConfig | null,
+): KillTriplet {
+  const base = killTripletForNames(rates, sourceNames(source));
+  if (!source.bossKey || source.bossKey !== raidConfig?.mode || !raidConfig.completionMinutes) return base;
+  const desiredAverageSeconds = raidConfig.completionMinutes * 60;
+  const average = base.sec[1];
+  if (!Number.isFinite(average) || average <= 0) {
+    return { ...base, sec: [desiredAverageSeconds, desiredAverageSeconds, desiredAverageSeconds] };
+  }
+  const scale = desiredAverageSeconds / average;
+  return { ...base, sec: base.sec.map((s) => s * scale) as Triplet };
+}
+
+function estimateTile(
+  tile: Tile,
+  rates: BalanceRates,
+  resolveDrops: DropResolver,
+): { hours: Triplet | null; floor: Floor; note: string | null } {
+  const type = tile.tileType ?? 'standard';
+  const effortConfig = parseTileEffortConfig(tile.effortConfig);
+  const raidConfig = effortConfig?.raid ?? null;
 
   // Hiscores-polled stat tiles (stored as tileType 'standard' + trackedStat).
   if (tile.trackedStat && tile.statGoal) {
@@ -358,48 +493,66 @@ function estimateTile(tile: Tile, rates: BalanceRates): { hours: Triplet | null;
 
   if (type === 'drop') {
     const restrict = parseJsonArray<string>(tile.sourceNpcs);
-    const reqs = parseJsonArray<{ itemId: number; requiredAmount: number; group?: string | null }>(tile.itemRequirements);
+    const reqs = parseJsonArray<DropEffortRequirement>(tile.itemRequirements);
     let floor: Floor = 'anyone';
     let defaulted = false;
-    let missing = 0;
-
-    // Expected hours to collect one list of (itemId × count) requirements.
-    const hoursForReqs = (rs: { itemId: number; requiredAmount: number }[]): Triplet | null => {
-      const total: Triplet = [0, 0, 0];
-      for (const r of rs) {
-        const src = bestSource(r.itemId, restrict);
-        if (!src) {
-          missing += 1;
-          return null;
-        }
-        const kt = killTriplet(rates, src.source);
-        defaulted = defaulted || kt.defaulted;
-        floor = maxFloor(floor, kt.floor);
-        for (let b = 0; b < 3; b++) total[b] += r.requiredAmount * src.d * (kt.sec[b] / 3600);
-      }
-      return total;
-    };
+    let assumedRaidRate = false;
 
     if (reqs && reqs.length > 0) {
-      // Item-set mode: ungrouped items always required; grouped sets are alternatives → min.
-      const ungrouped = reqs.filter((r) => !r.group?.trim());
-      const groups = new Map<string, typeof reqs>();
-      for (const r of reqs) {
-        const g = r.group?.trim()?.toLowerCase();
-        if (!g) continue;
-        if (!groups.has(g)) groups.set(g, []);
-        groups.get(g)!.push(r);
+      const bySource = new Map<string, { source: DropSource; byReq: Map<number, DropSource> }>();
+      for (let i = 0; i < reqs.length; i++) {
+        for (const source of sourcesForItem(reqs[i].itemId, restrict, resolveDrops, raidConfig)) {
+          const key = `${source.bossKey ?? ''}\u0000${source.source.toLowerCase()}`;
+          const action = bySource.get(key) ?? { source, byReq: new Map<number, DropSource>() };
+          const held = action.byReq.get(i);
+          // Duplicate rows can describe variants of the same table. Preserve the historical
+          // optimistic authoring assumption by taking the best rate for that named source.
+          if (!held || chancePerKill(source.d, source.rolls) > chancePerKill(held.d, held.rolls)) {
+            action.byReq.set(i, source);
+          }
+          bySource.set(key, action);
+        }
       }
-      const baseHours = hoursForReqs(ungrouped);
-      if (baseHours == null && ungrouped.length > 0) return { hours: null, floor, note: 'drop rate unknown for some items' };
-      let setHours: Triplet | null = groups.size === 0 ? [0, 0, 0] : null;
-      for (const set of groups.values()) {
-        const h = hoursForReqs(set);
-        if (h && (setHours == null || h[1] < setHours[1])) setHours = h;
+      if (bySource.size === 0) {
+        return { hours: null, floor: 'anyone', note: 'drop rate unknown for the required items' };
       }
-      if (setHours == null) return { hours: null, floor, note: 'drop rate unknown for some items' };
-      const hours = [0, 1, 2].map((b) => (baseHours?.[b] ?? 0) + setHours![b]) as Triplet;
-      return { hours, floor, note: defaulted ? 'generic kill time used for some sources' : null };
+
+      const actionsByBand: [DropEffortAction[], DropEffortAction[], DropEffortAction[]] = [[], [], []];
+      for (const { source, byReq } of bySource.values()) {
+        const kt = killTripletForDropSource(rates, source, raidConfig);
+        defaulted = defaulted || kt.defaulted;
+        floor = maxFloor(floor, kt.floor);
+        assumedRaidRate = assumedRaidRate || !!source.assumed;
+        const outcomes = [...byReq.entries()].map(([requirement, drop]) => ({
+          requirement,
+          chance: chancePerKill(drop.d, drop.rolls),
+          quantity: tile.perKillCap === 1 ? 1 : drop.bundle,
+        }));
+        for (let b = 0; b < 3; b++) {
+          actionsByBand[b].push({
+            source: source.source,
+            hours: kt.sec[b] / 3600,
+            exclusive: !!source.exclusive,
+            outcomes,
+          });
+        }
+      }
+      const hours = [0, 1, 2].map((b) =>
+        expectedCollectionHours(reqs, tile.groupMode, actionsByBand[b]),
+      );
+      if (hours.some((h) => h == null)) {
+        return { hours: null, floor, note: 'collection drop model could not reach every required set' };
+      }
+      const notes = [
+        defaulted ? 'generic kill time used for some sources' : null,
+        assumedRaidRate
+          ? raidConfig?.uniqueDenominator
+            ? 'raid unique chance uses this tile\'s effort calibration'
+            : 'raid unique chance uses the clan raid_luck_rates assumption'
+          : null,
+        raidConfig?.completionMinutes ? 'raid duration uses this tile\'s expected completion time' : null,
+      ].filter(Boolean);
+      return { hours: hours as Triplet, floor, note: notes.length ? notes.join('; ') : null };
     }
 
     // Simple pool: any N drops from the tracked items. Combined rate per source-kill.
@@ -407,27 +560,56 @@ function estimateTile(tile: Tile, rates: BalanceRates): { hours: Triplet | null;
     if (!ids || ids.length === 0 || !tile.requiredAmount) {
       return { hours: null, floor: 'anyone', note: 'no tracked items — submissions are manual-ish' };
     }
-    // Group pool items by their best source and take the source with the best combined rate.
-    const bySource = new Map<string, { invD: number }>();
+    // Group pool items by source and choose the source with the best expected time in each player
+    // band. Comparing denominators alone can choose a common but extremely slow source.
+    const bySource = new Map<string, { source: DropSource; byItem: Map<number, DropSource> }>();
     for (const id of ids) {
-      const src = bestSource(id, restrict);
-      if (!src) continue;
-      const cur = bySource.get(src.source) ?? { invD: 0 };
-      cur.invD += 1 / src.d;
-      bySource.set(src.source, cur);
+      for (const source of sourcesForItem(id, restrict, resolveDrops, raidConfig)) {
+        const key = `${source.bossKey ?? ''}\u0000${source.source.toLowerCase()}`;
+        const cur = bySource.get(key) ?? { source, byItem: new Map<number, DropSource>() };
+        const held = cur.byItem.get(id);
+        const value = chancePerKill(source.d, source.rolls) * source.bundle;
+        const heldValue = held ? chancePerKill(held.d, held.rolls) * held.bundle : -1;
+        if (!held || value > heldValue) cur.byItem.set(id, source);
+        bySource.set(key, cur);
+      }
     }
     if (bySource.size === 0) return { hours: null, floor: 'anyone', note: 'drop rate unknown for the tracked items' };
-    let best: { source: string; kills: number } | null = null;
-    for (const [source, { invD }] of bySource) {
-      const kills = tile.requiredAmount / invD;
-      if (!best || kills < best.kills) best = { source, kills };
+    const hours: Triplet = [Infinity, Infinity, Infinity];
+    let usedAssumedRaidRate = false;
+    let usedDefault = false;
+    for (const { source, byItem } of bySource.values()) {
+      const drops = [...byItem.values()];
+      const kt = killTripletForDropSource(rates, source, raidConfig);
+      const chances = drops.map((d) => chancePerKill(d.d, d.rolls));
+      const expectedCredits = tile.perKillCap === 1
+        ? source.exclusive
+          ? Math.min(1, chances.reduce((sum, p) => sum + p, 0))
+          : 1 - chances.reduce((none, p) => none * (1 - p), 1)
+        : drops.reduce((sum, d, i) => sum + chances[i] * d.bundle, 0);
+      if (expectedCredits <= 0) continue;
+      for (let b = 0; b < 3; b++) {
+        const candidate = (tile.requiredAmount / expectedCredits) * (kt.sec[b] / 3600);
+        if (candidate < hours[b]) hours[b] = candidate;
+      }
+      floor = maxFloor(floor, kt.floor);
+      usedDefault = usedDefault || kt.defaulted;
+      usedAssumedRaidRate = usedAssumedRaidRate || !!source.assumed;
     }
-    const kt = killTriplet(rates, best!.source);
-    floor = maxFloor(floor, kt.floor);
+    if (!hours.some(Number.isFinite)) return { hours: null, floor, note: 'no usable rate for the tracked items' };
+    const notes = [
+      usedDefault ? 'generic kill time used for some sources' : null,
+      usedAssumedRaidRate
+        ? raidConfig?.uniqueDenominator
+          ? 'raid unique chance uses this tile\'s effort calibration'
+          : 'raid unique chance uses the clan raid_luck_rates assumption'
+        : null,
+      raidConfig?.completionMinutes ? 'raid duration uses this tile\'s expected completion time' : null,
+    ].filter(Boolean);
     return {
-      hours: kt.sec.map((s) => (best!.kills * s) / 3600) as Triplet,
+      hours,
       floor,
-      note: kt.defaulted ? `generic kill time used for ${best!.source}` : null,
+      note: notes.length ? notes.join('; ') : null,
     };
   }
 
@@ -557,17 +739,36 @@ function poissonTail(n: number, lambda: number): number {
 
 export function analyzeEffort(
   tiles: Tile[],
-  opts: { pointsMode: boolean; ratesOverride?: unknown; eventDays?: number | null },
+  opts: { pointsMode: boolean; ratesOverride?: unknown; raidRatesOverride?: unknown; eventDays?: number | null },
 ): EffortReport {
   const rates = mergeRates(opts.ratesOverride);
+  const resolveDrops = dropResolver(opts.raidRatesOverride);
   const scoringMode = opts.pointsMode ? 'points' : 'tiles';
   const scored = tiles.filter((t) => !t.optional);
 
   const perTile: TileEffort[] = scored.map((t) => {
-    const { hours, floor, note } = estimateTile(t, rates);
+    const estimate = estimateTile(t, rates, resolveDrops);
+    const floor = estimate.floor;
+    let hours = estimate.hours;
+    let note = estimate.note;
+    const effortConfig = parseTileEffortConfig(t.effortConfig);
+    if (effortConfig?.expectedHours != null) {
+      const expected = effortConfig.expectedHours;
+      const modelAverage = hours?.[1];
+      if (hours && modelAverage != null && Number.isFinite(modelAverage) && modelAverage > 0) {
+        const scale = expected / modelAverage;
+        hours = hours.map((value) => Number.isFinite(value) ? value * scale : value) as Triplet;
+      } else {
+        // No usable native spread: a deliberately modest qualified-player band around the
+        // author's average. The explicit S0–S5 premium still prices execution separately.
+        hours = [expected * 0.8, expected, expected * 1.35];
+      }
+      note = [note, 'expected effort uses this tile\'s manual calibration'].filter(Boolean).join('; ');
+    }
     const weight = tileWeight(scoringMode, t.points ?? 1);
     const avg = hours && Number.isFinite(hours[1]) && hours[1] > 0 ? hours[1] : null;
-    const difficulty = FLOOR_EFFORT_MULTIPLIER[floor];
+    const skillRating = effortConfig?.skillRating ?? null;
+    const difficulty = skillRating != null ? 1 + 0.05 * skillRating : FLOOR_EFFORT_MULTIPLIER[floor];
     // Assignee-band pricing (plan A2): high/elite tiles price against 60/40 fast/avg — and when
     // the avg band literally can't do it (Infinity) but the fast band can, the fast band alone
     // carries the price: that's exactly the Inferno case, a real tile for the one who'll get it.
@@ -601,10 +802,13 @@ export function analyzeEffort(
       hours,
       floor,
       difficulty,
+      skillRating,
       rawPtsPerHour: avg ? weight / avg : null,
       ptsPerHour: effortAvg ? weight / effortAvg : null,
       oneOff,
       pricingHours,
+      grossPricingHours: pricingHours,
+      overlapCreditHours: 0,
       hitProbability,
       pClass,
       expectedPoints: hitProbability != null ? weight * hitProbability : null,
@@ -612,6 +816,43 @@ export function analyzeEffort(
       note,
     };
   });
+
+  // Marginal progression pricing. All completion odds/hours above remain the full tile requirement;
+  // only the fairness denominator changes. That makes the report honest in both directions: "5 KC"
+  // still says how long five kills take, while its points recommendation pays for four extra kills
+  // when a 1-KC tile on the same board already awards the opener.
+  const progressionGroups = new Map<string, { amount: number; effort: TileEffort }[]>();
+  scored.forEach((tile, index) => {
+    const step = progressionStep(tile);
+    const effort = perTile[index];
+    if (!step || effort.grossPricingHours == null) return;
+    const group = progressionGroups.get(step.key) ?? [];
+    group.push({ amount: step.amount, effort });
+    progressionGroups.set(step.key, group);
+  });
+  for (const group of progressionGroups.values()) {
+    if (group.length < 2) continue;
+    group.sort((a, b) => a.amount - b.amount || a.effort.tileId - b.effort.tileId);
+    let priorAmount = -Infinity;
+    let priorGross = 0;
+    for (const step of group) {
+      const gross = step.effort.grossPricingHours!;
+      if (step.amount > priorAmount && priorGross > 0 && gross > priorGross) {
+        step.effort.overlapCreditHours = priorGross;
+        step.effort.pricingHours = gross - priorGross;
+        step.effort.rawPtsPerHour = step.effort.weight / step.effort.pricingHours;
+        step.effort.ptsPerHour = step.effort.weight / (step.effort.pricingHours * step.effort.difficulty);
+        step.effort.note = [
+          step.effort.note,
+          `${priorGross.toFixed(2)}h credited from an earlier cumulative milestone`,
+        ].filter(Boolean).join('; ');
+      }
+      if (step.amount > priorAmount) {
+        priorAmount = step.amount;
+        priorGross = Math.max(priorGross, gross);
+      }
+    }
+  }
 
   const modelled = perTile.filter((t) => t.ptsPerHour != null);
   // The median (and the over/underpaid flags) are set by grind tiles only — one-offs have

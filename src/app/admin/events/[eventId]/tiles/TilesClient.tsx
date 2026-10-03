@@ -36,6 +36,7 @@ import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import { useDialog } from '@/components/Confirm';
 import GuideLink from '@/components/GuideLink';
+import { parseTileEffortConfig } from '@/lib/tileEffortConfig';
 
 // Map a stored Tile to TileTrackingConfig's `initial` shape. Shared by the drawer (Cards view)
 // and the Quick Build two-pane editor so both drive the exact same complete config form.
@@ -63,6 +64,7 @@ function tileToTrackingInitial(tile: Tile) {
     coopCredit: tile.coopCredit ?? null,
     coopMinMembers: tile.coopMinMembers ?? null,
     points: tile.points ?? 1,
+    effortConfig: parseTileEffortConfig(tile.effortConfig),
     category: tile.category ?? null,
     sourceNpcs: tile.sourceNpcs ? (JSON.parse(tile.sourceNpcs) as string[]) : null,
     targetNpcs: tile.targetNpcs ? (JSON.parse(tile.targetNpcs) as string[]) : null,
@@ -141,7 +143,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   const [importMsg, setImportMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [adding, setAdding] = useState(false);
-  const { confirm, ask } = useDialog();
+  const { confirm, ask, notify } = useDialog();
   const [reordering, setReordering] = useState(false);
   // What authoring THIS board involves — which views it offers, what its entries are called, and
   // what its format still needs from you (lib/tileAuthoring). Everything below asks the model
@@ -245,6 +247,39 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     }
     const updated = await res.json();
     setLocalTiles((prev) => prev.map((t) => (t.id === tileId ? { ...t, points: updated.points, updatedAt: updated.updatedAt } : t)));
+    return true;
+  }
+
+  async function applyAllSuggestedPoints(
+    changes: Array<{ tileId: number; points: number }>,
+    revision: string,
+  ): Promise<boolean> {
+    const res = await clanFetch(`/api/events/${event.id}/tiles/bulk`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ changes, revision }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const message = data.error || 'Could not apply the point suggestions.';
+      setImportMsg({ type: 'error', text: message });
+      notify(message, 'error');
+      return false;
+    }
+
+    const data = (await res.json()) as {
+      updated: number;
+      changes: Array<{ tileId: number; points: number }>;
+      updatedAt: string;
+    };
+    const pointByTile = new Map(data.changes.map((change) => [change.tileId, change.points]));
+    setLocalTiles((prev) =>
+      prev.map((tile) => {
+        const points = pointByTile.get(tile.id);
+        return points == null ? tile : { ...tile, points, updatedAt: data.updatedAt };
+      }),
+    );
+    notify(`Applied ${data.updated} point suggestion${data.updated === 1 ? '' : 's'}.`);
     return true;
   }
 
@@ -1822,6 +1857,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         pointsMode={pointsMode}
         tierBands={tierBands}
         onApplyPoints={applySuggestedPoints}
+        onApplyAllPoints={applyAllSuggestedPoints}
       />
 
       <TileHistoryPanel eventId={event.id} />

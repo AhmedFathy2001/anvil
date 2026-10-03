@@ -7,6 +7,7 @@ import { verifyTileEditorForEvent } from '@/lib/auth';
 import { assertEventEditable } from '@/lib/eventLock';
 import { diffTiles, logTileAudit } from '@/lib/tile-audit';
 import { atLeast } from '@/lib/clanRoles';
+import { tileBalanceRevision } from '@/lib/tileBalanceRevision';
 
 // Set one thing on many tiles at once.
 //
@@ -24,6 +25,107 @@ type AllowedField = (typeof ALLOWED)[number];
 
 const MAX_TILES = 500;
 
+interface PointChange {
+  tileId: number;
+  points: number;
+}
+
+async function applyReviewedPointChanges(
+  eId: number,
+  editor: { userId: number },
+  rawChanges: unknown[],
+  revision: unknown,
+) {
+  if (rawChanges.length === 0) {
+    return NextResponse.json({ error: 'There are no point suggestions to apply.' }, { status: 400 });
+  }
+  if (rawChanges.length > MAX_TILES) {
+    return NextResponse.json({ error: `That's more than ${MAX_TILES} tiles at once.` }, { status: 400 });
+  }
+  if (typeof revision !== 'string' || !revision) {
+    return NextResponse.json({ error: 'This review is missing its board revision. Reopen it and try again.' }, { status: 400 });
+  }
+
+  const changes: PointChange[] = [];
+  for (const value of rawChanges) {
+    if (!value || typeof value !== 'object') {
+      return NextResponse.json({ error: 'Every suggestion must name a tile and its points.' }, { status: 400 });
+    }
+    const { tileId, points } = value as { tileId?: unknown; points?: unknown };
+    if (!Number.isInteger(tileId) || !Number.isInteger(points) || (points as number) < 0) {
+      return NextResponse.json(
+        { error: 'Every suggestion needs a valid tile id and whole-number points of 0 or more.' },
+        { status: 400 },
+      );
+    }
+    changes.push({ tileId: tileId as number, points: points as number });
+  }
+
+  if (new Set(changes.map((change) => change.tileId)).size !== changes.length) {
+    return NextResponse.json({ error: 'A tile can only appear once in a point review.' }, { status: 400 });
+  }
+
+  const updatedAt = new Date().toISOString();
+  const outcome = await db.transaction(async (tx) => {
+    // Lock every row that contributed to the report. A concurrent single-tile save either lands
+    // first (making the revision stale) or waits until this all-or-nothing update has completed.
+    const board = await tx
+      .select()
+      .from(tiles)
+      .where(eq(tiles.eventId, eId))
+      .for('update');
+
+    if (tileBalanceRevision(board) !== revision) {
+      return { kind: 'stale' as const };
+    }
+
+    const byId = new Map(board.map((tile) => [tile.id, tile]));
+    if (changes.some((change) => !byId.has(change.tileId))) {
+      return { kind: 'missing' as const };
+    }
+
+    const changed = changes
+      .map((change) => ({ before: byId.get(change.tileId)!, points: change.points }))
+      .filter(({ before, points }) => before.points !== points);
+
+    for (const change of changed) {
+      await tx
+        .update(tiles)
+        .set({ points: change.points, updatedAt })
+        .where(and(eq(tiles.eventId, eId), eq(tiles.id, change.before.id)));
+    }
+
+    return { kind: 'ok' as const, changed };
+  });
+
+  if (outcome.kind === 'stale') {
+    return NextResponse.json(
+      { error: 'The board changed while this review was open. Reopen the review to get fresh suggestions.' },
+      { status: 409 },
+    );
+  }
+  if (outcome.kind === 'missing') {
+    return NextResponse.json({ error: 'One or more reviewed tiles are no longer on this board.' }, { status: 409 });
+  }
+
+  for (const change of outcome.changed) {
+    logTileAudit({
+      eventId: eId,
+      action: 'updated',
+      tileId: change.before.id,
+      tileLabel: change.before.label,
+      changedFields: diffTiles(change.before, { ...change.before, points: change.points }),
+      actorUserId: editor.userId,
+    });
+  }
+
+  return NextResponse.json({
+    updated: outcome.changed.length,
+    changes: outcome.changed.map((change) => ({ tileId: change.before.id, points: change.points })),
+    updatedAt,
+  });
+}
+
 export async function PATCH(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
@@ -40,8 +142,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
   if (locked) return locked;
 
   const body = (await request.json().catch(() => null)) as
-    | { tileIds?: unknown; set?: Record<string, unknown> }
+    | { tileIds?: unknown; set?: Record<string, unknown>; changes?: unknown; revision?: unknown }
     | null;
+
+  // A balance review sets a different point value on every tile. It gets its own atomic shape
+  // instead of making N calls to the single-tile route (which could stop halfway through).
+  if (Array.isArray(body?.changes)) {
+    return applyReviewedPointChanges(eId, editor, body.changes, body.revision);
+  }
 
   const tileIds = Array.isArray(body?.tileIds)
     ? body.tileIds.filter((id): id is number => Number.isInteger(id))

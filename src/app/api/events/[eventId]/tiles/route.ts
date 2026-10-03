@@ -9,6 +9,7 @@ import { parseEventRules, hasRevealPolicy, visibleTiles, isMissionTile, serializ
 import { assertEventEditable } from '@/lib/eventLock';
 import { collectionDisplayTotal, type CollectionRequirement } from '@/lib/collectionSets';
 import { atLeast } from '@/lib/clanRoles';
+import { isRaidEffortMode, parseTileEffortConfig } from '@/lib/tileEffortConfig';
 
 export async function GET(
   request: Request,
@@ -64,7 +65,7 @@ export async function PUT(
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;
-  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, statBasis, trackingMode, optional, autoTrackDisabled, trackedItemIds, itemRequirements, groupMode, perKillCap, coopCredit, coopMinMembers, points, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, pvpMinLootValue, revealAt, revealState, mission, missionRules, baseUpdatedAt, liveOverride } = await request.json();
+  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, statBasis, trackingMode, optional, autoTrackDisabled, trackedItemIds, itemRequirements, groupMode, perKillCap, coopCredit, coopMinMembers, points, effortConfig, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, pvpMinLootValue, revealAt, revealState, mission, missionRules, baseUpdatedAt, liveOverride } = await request.json();
 
   if (!tileId) {
     return NextResponse.json({ error: 'tileId is required' }, { status: 400 });
@@ -120,6 +121,50 @@ export async function PUT(
   if (points !== undefined && points !== null) {
     if (!Number.isInteger(points) || points < 0) {
       return NextResponse.json({ error: 'points must be a non-negative integer' }, { status: 400 });
+    }
+  }
+
+  // Balance-only assumptions. They deliberately live outside tracking config: changing a ToA
+  // invocation/unique-rate assumption must never change what loot source completes the tile.
+  let effortConfigJson: string | null | undefined;
+  if (effortConfig !== undefined) {
+    if (effortConfig === null) {
+      effortConfigJson = null;
+    } else if (!effortConfig || typeof effortConfig !== 'object' || Array.isArray(effortConfig)) {
+      return NextResponse.json({ error: 'effortConfig must be an object or null' }, { status: 400 });
+    } else {
+      const cfg = effortConfig as Record<string, unknown>;
+      if (cfg.skillRating != null &&
+          (!Number.isInteger(cfg.skillRating) || (cfg.skillRating as number) < 0 || (cfg.skillRating as number) > 5)) {
+        return NextResponse.json({ error: 'effortConfig.skillRating must be an integer from 0 to 5' }, { status: 400 });
+      }
+      if (cfg.expectedHours != null &&
+          (typeof cfg.expectedHours !== 'number' || !Number.isFinite(cfg.expectedHours) || cfg.expectedHours <= 0 || cfg.expectedHours > 100_000)) {
+        return NextResponse.json({ error: 'effortConfig.expectedHours must be greater than 0 and at most 100,000' }, { status: 400 });
+      }
+      if (cfg.raid != null) {
+        if (typeof cfg.raid !== 'object' || Array.isArray(cfg.raid)) {
+          return NextResponse.json({ error: 'effortConfig.raid must be an object or null' }, { status: 400 });
+        }
+        const raid = cfg.raid as Record<string, unknown>;
+        if (!isRaidEffortMode(raid.mode)) {
+          return NextResponse.json({ error: 'effortConfig.raid.mode is not a supported raid mode' }, { status: 400 });
+        }
+        if (raid.uniqueDenominator != null &&
+            (typeof raid.uniqueDenominator !== 'number' || !Number.isFinite(raid.uniqueDenominator) || raid.uniqueDenominator <= 1 || raid.uniqueDenominator > 1_000_000)) {
+          return NextResponse.json({ error: 'Raid unique denominator must be greater than 1 and at most 1,000,000' }, { status: 400 });
+        }
+        if (raid.completionMinutes != null &&
+            (typeof raid.completionMinutes !== 'number' || !Number.isFinite(raid.completionMinutes) || raid.completionMinutes <= 0 || raid.completionMinutes > 1_440)) {
+          return NextResponse.json({ error: 'Raid completion minutes must be greater than 0 and at most 1,440' }, { status: 400 });
+        }
+        if (raid.raidLevel != null &&
+            (!Number.isInteger(raid.raidLevel) || (raid.raidLevel as number) < 0 || (raid.raidLevel as number) > 1_000)) {
+          return NextResponse.json({ error: 'Raid level must be an integer from 0 to 1,000' }, { status: 400 });
+        }
+      }
+      const parsed = parseTileEffortConfig(effortConfig);
+      effortConfigJson = parsed ? JSON.stringify(parsed) : null;
     }
   }
 
@@ -332,6 +377,7 @@ export async function PUT(
     autoTrackDisabled: autoTrackDisabled !== undefined ? (autoTrackDisabled ? 1 : 0) : tile.autoTrackDisabled,
     // point weight is always editable (admin can tune standings even mid-event)
     points: points !== undefined && points !== null ? points : tile.points,
+    ...(effortConfigJson !== undefined ? { effortConfig: effortConfigJson } : {}),
     // category (free-text grouping for plugin filters) is always editable
     category: category !== undefined ? (category ? String(category).slice(0, 120) : null) : tile.category,
     // source-NPC restriction (drop tiles only) is always editable
