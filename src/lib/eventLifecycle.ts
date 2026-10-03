@@ -8,6 +8,7 @@ import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
 import { getEventRecap } from '@/lib/eventRecap';
 import { writePlayerEventFacts } from '@/lib/playerEventFacts';
 import { processTileReveals } from '@/lib/revealEngine';
+import { boardRevealIsDue } from '@/lib/eventBoardReveal';
 import { settleLadderMonths } from '@/lib/monthlyChampion';
 import { parseEventRules, isTileRevealed } from '@/lib/eventRules';
 import { scoreTeams } from '@/lib/boardScoring';
@@ -149,6 +150,24 @@ export async function processEventLifecycleNotifications(): Promise<void> {
   // clan-scope: global -- the lifecycle tick is cron-driven and spans clans by design.
   const allEvents = await db.select().from(events);
   const now = new Date().toISOString();
+  const nowMs = Date.parse(now);
+
+  // OPTIONAL PRE-START BOARD REVEAL. New boards stay private while they are authored, but a host
+  // may choose a public reveal moment before play begins. This flips only the event-level master
+  // gate: staged reveal policies and mission tiles keep their own hidden/live state. Conditional on
+  // tilesRevealed=0 so overlapping cron ticks cannot do the work twice. With no timestamp there is
+  // nothing to do here — both start doors below remain the automatic fallback.
+  for (const event of allEvents) {
+    if (!boardRevealIsDue(event, nowMs)) continue;
+    const revealed = await db
+      .update(events)
+      .set({ tilesRevealed: 1 })
+      .where(and(eq(events.id, event.id), eq(events.tilesRevealed, 0)))
+      .returning({ id: events.id });
+    if (revealed.length > 0) {
+      log.info('event-lifecycle.board-reveal', { eventId: event.id, revealAt: event.tilesRevealAt });
+    }
+  }
 
   // Events whose start time has passed (or is imminent) but haven't been announced yet.
   for (const event of allEvents) {

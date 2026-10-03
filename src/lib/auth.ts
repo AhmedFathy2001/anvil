@@ -14,6 +14,7 @@ import { requireSecret } from '@/lib/env';
 import { applyPendingRole } from '@/lib/pending-role';
 import { onCharacterLinked } from '@/lib/identity';
 import { claimAccountForPerson } from '@/lib/accountClaim';
+import { pickActivePluginEvent } from '@/lib/pluginEventPick';
 
 const ADMIN_SESSION_SECRET = requireSecret('ADMIN_SESSION_SECRET', 'dev-admin-secret');
 const CAPTAIN_SESSION_SECRET = requireSecret('CAPTAIN_SESSION_SECRET', 'dev-captain-secret');
@@ -1548,18 +1549,11 @@ export async function verifyPluginToken(
     );
 
   // A member in two concurrent events resolves to ONE — the plugin scopes to a single active event
-  // (until the multi-enrollment rework lands). The pick is DETERMINISTIC, not row order: events
-  // already RUNNING beat upcoming ones the member is merely pre-drafted into, and among running
-  // events the latest start wins (the freshest board is almost always the one being played).
-  const candidates = playerRows.filter(
-    (p) => p.teamId && !p.forceEndedAt && (!p.endDate || p.endDate > nowIso),
-  );
-  const started = (p: (typeof candidates)[number]) => !!p.startDate && p.startDate <= nowIso;
-  candidates.sort((a, b) => {
-    if (started(a) !== started(b)) return started(a) ? -1 : 1;
-    return (b.startDate ?? '').localeCompare(a.startDate ?? '');
-  });
-  const pick = candidates[0];
+  // (until the multi-enrollment rework lands). Upcoming enrollments belong in /plugin/schedule, not
+  // event-scoped config/activity: treating one as active leaked prepared completion rows into the
+  // RuneLite "Team activity" section before the event began. Among genuinely live events, the
+  // freshest start wins deterministically.
+  const pick = pickActivePluginEvent(playerRows, nowIso);
   if (!pick) return null;
 
   return {

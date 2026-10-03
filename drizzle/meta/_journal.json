@@ -449,6 +449,13 @@
       "when": 1790550200000,
       "tag": "0105_tile_effort_config",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1790550300000,
+      "tag": "0106_event_board_reveal_schedule",
+      "breakpoints": true
     }
   ]
 }

@@ -491,6 +491,12 @@ export const events = pgTable('events', {
   // moderator) always see the board regardless. Existing events were backfilled to 1
   // so their current (visible) behavior is preserved.
   tilesRevealed: integer('tiles_revealed').default(0).notNull(),
+  // Optional whole-board reveal before the event starts. The minute lifecycle tick flips
+  // `tilesRevealed` when this instant arrives; null keeps the normal fallback where both the
+  // scheduled-start path and Start Now reveal/arm the board at the start moment. This is the
+  // master visibility gate only — staggered reveal policies and mission tiles still retain their
+  // per-tile gates after the board is armed.
+  tilesRevealAt: text('tiles_reveal_at'),
   // Multi-account enrollment (all of a person's picked accounts land on ONE team). Set at create.
   //   maxAccountsPerPerson — how many of their linked accounts a person may enter for THIS event.
   //     1 (default) = classic one-account-per-person; existing events keep exactly that behaviour.

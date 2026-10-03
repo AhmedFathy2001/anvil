@@ -435,6 +435,8 @@ export async function PATCH(
   }
   // Admin-controlled member-facing tile reveal. Coerce to 0/1 so a bare boolean works.
   if ('tilesRevealed' in body) updates.tilesRevealed = body.tilesRevealed ? 1 : 0;
+  // Optional whole-board reveal before start. Null preserves the normal reveal-at-start fallback.
+  if ('tilesRevealAt' in body) updates.tilesRevealAt = body.tilesRevealAt;
   // Per-event game rules (lib/eventRules) — lets admins tune interval/bonus settings in place.
   // The reveal POLICY itself shouldn't hop between kinds mid-event; the change-type action (which
   // is pre-start-gated and rebuilds tiles) is the way to switch modes.
@@ -492,7 +494,7 @@ export async function PATCH(
   const isIsoString = (v: unknown): v is string =>
     typeof v === 'string' && !Number.isNaN(Date.parse(v));
 
-  for (const field of ['startDate', 'endDate', 'signupOpensAt', 'signupDeadline', 'paymentDeadline', 'captainSelectionDeadline'] as const) {
+  for (const field of ['startDate', 'endDate', 'tilesRevealAt', 'signupOpensAt', 'signupDeadline', 'paymentDeadline', 'captainSelectionDeadline'] as const) {
     if (field in body && body[field] !== null && !isIsoString(body[field])) {
       return NextResponse.json({ error: `${field} must be an ISO date string or null` }, { status: 400 });
     }
@@ -516,9 +518,24 @@ export async function PATCH(
   }
   const finalStart = 'startDate' in body ? (body.startDate as string | null) : existing.startDate;
   const finalEnd = 'endDate' in body ? (body.endDate as string | null) : existing.endDate;
+  const finalTilesRevealAt = 'tilesRevealAt' in body
+    ? (body.tilesRevealAt as string | null)
+    : existing.tilesRevealAt;
   if (finalStart && finalEnd && finalEnd <= finalStart) {
     return NextResponse.json(
       { error: 'endDate must be after startDate' },
+      { status: 400 },
+    );
+  }
+  if (finalTilesRevealAt && !finalStart) {
+    return NextResponse.json(
+      { error: 'Set the event start before scheduling an early board reveal.' },
+      { status: 400 },
+    );
+  }
+  if (finalTilesRevealAt && finalStart && Date.parse(finalTilesRevealAt) >= Date.parse(finalStart)) {
+    return NextResponse.json(
+      { error: 'The board reveal must be before the event start.' },
       { status: 400 },
     );
   }

@@ -4,6 +4,7 @@ import type { Event, Tile } from '@/lib/types';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DateRangeField from '@/components/DateRangeField';
+import DateTimePicker from '@/components/DateTimePicker';
 import NumberInput from '@/components/NumberInput';
 import RevealRulesPanel from '../RevealRulesPanel';
 import EventEditorsPanel from '../EventEditorsPanel';
@@ -34,6 +35,7 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
   const [endDate, setEndDate] = useState(() => event.endDate ?? '');
   const [editDates, setEditDates] = useState(false);
   const [savingDates, setSavingDates] = useState(false);
+  const [dateError, setDateError] = useState('');
 
   const [editType, setEditType] = useState(false);
   const [typeMode, setTypeMode] = useState<EventMode>(() => modeKeyFor(event.format, event.scoringMode, event.rules));
@@ -43,6 +45,9 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
   const [typeError, setTypeError] = useState('');
 
   const [savingReveal, setSavingReveal] = useState(false);
+  const [tilesRevealAt, setTilesRevealAt] = useState(() => event.tilesRevealAt ?? '');
+  const [savingRevealAt, setSavingRevealAt] = useState(false);
+  const [revealScheduleMsg, setRevealScheduleMsg] = useState('');
   const [recomputing, setRecomputing] = useState(false);
   const [recomputeMsg, setRecomputeMsg] = useState('');
   const [cloning, setCloning] = useState(false);
@@ -65,6 +70,7 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
 
   async function saveDates() {
     setSavingDates(true);
+    setDateError('');
     try {
       const res = await clanFetch(`/api/events/${event.id}`, {
         method: 'PATCH',
@@ -78,6 +84,9 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
         setEndDate(updated.endDate ?? '');
         setEditDates(false);
         router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setDateError(data.error || 'Could not save the dates.');
       }
     } finally {
       setSavingDates(false);
@@ -178,18 +187,54 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
 
   async function toggleReveal() {
     setSavingReveal(true);
+    setRevealScheduleMsg('');
+    try {
+      const revealing = !currentEvent.tilesRevealed;
+      const res = await clanFetch(`/api/events/${event.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        // Hiding is an explicit cancellation of an already-scheduled reveal. Without clearing a
+        // due timestamp, the lifecycle tick would correctly open it again within a minute and make
+        // the Hide button look broken.
+        body: JSON.stringify({
+          tilesRevealed: revealing,
+          ...(!revealing && currentEvent.tilesRevealAt ? { tilesRevealAt: null } : {}),
+        }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setCurrentEvent(updated);
+        setTilesRevealAt(updated.tilesRevealAt ?? '');
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setRevealScheduleMsg(data.error || 'Could not change board visibility.');
+      }
+    } finally {
+      setSavingReveal(false);
+    }
+  }
+
+  async function saveRevealSchedule() {
+    setSavingRevealAt(true);
+    setRevealScheduleMsg('');
     try {
       const res = await clanFetch(`/api/events/${event.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tilesRevealed: !currentEvent.tilesRevealed }),
+        body: JSON.stringify({ tilesRevealAt: tilesRevealAt || null }),
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setCurrentEvent(await res.json());
+        setCurrentEvent(data);
+        setTilesRevealAt(data.tilesRevealAt ?? '');
+        setRevealScheduleMsg(data.tilesRevealAt ? 'Reveal scheduled.' : 'Early reveal cleared.');
         router.refresh();
+      } else {
+        setRevealScheduleMsg(data.error || 'Could not save the reveal time.');
       }
     } finally {
-      setSavingReveal(false);
+      setSavingRevealAt(false);
     }
   }
 
@@ -352,6 +397,7 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
             <p className="text-xs text-text-muted mt-2">
               Times are in your local timezone ({Intl.DateTimeFormat().resolvedOptions().timeZone}).
             </p>
+            {dateError && <p className="text-xs text-red-400 mt-2">{dateError}</p>}
             <div className="flex gap-2 mt-3">
               <Button onClick={saveDates} disabled={savingDates} tone="gold">
                 {savingDates ? 'Saving…' : 'Save dates'}
@@ -360,6 +406,7 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
                 onClick={() => {
                   setStartDate(currentEvent.startDate ?? '');
                   setEndDate(currentEvent.endDate ?? '');
+                  setDateError('');
                   setEditDates(false);
                 }}
               >
@@ -396,7 +443,12 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
         <p className="text-sm text-text-muted mb-3">
           {currentEvent.tilesRevealed
             ? 'Members can see the board.'
-            : 'Tiles are hidden — only staff can see the board until you reveal them.'}
+            : currentEvent.tilesRevealAt
+              ? <>
+                  Tiles are hidden until{' '}
+                  <span suppressHydrationWarning>{new Date(currentEvent.tilesRevealAt).toLocaleString()}</span>.
+                </>
+              : 'Tiles are hidden — only staff can see the board until you reveal them or the event starts.'}
         </p>
         {/* Revealing mid-event is fine; HIDING once the event has started would black out the live
             board for members, so the hide action drops away once the event begins. */}
@@ -404,6 +456,48 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
           <Button onClick={toggleReveal} disabled={savingReveal} tone={currentEvent.tilesRevealed ? undefined : 'gold'}>
             {savingReveal ? 'Saving…' : currentEvent.tilesRevealed ? 'Hide tiles from members' : 'Reveal tiles to members'}
           </Button>
+        )}
+
+        {!eventStarted && !currentEvent.tilesRevealed && (
+          <div className="mt-4 pt-4 border-t border-card-border">
+            <label className="block text-xs font-medium mb-1">Reveal board early (optional)</label>
+            <p className="text-[11px] text-text-muted mb-2 leading-relaxed">
+              Pick a time before the event starts. Leave this empty and the board reveals automatically
+              at the start as usual. Staggered tiles and missions still follow their own reveal rules.
+            </p>
+            {currentEvent.startDate ? (
+              <div className="max-w-sm">
+                <DateTimePicker
+                  value={tilesRevealAt}
+                  onChange={(value) => {
+                    setTilesRevealAt(value);
+                    setRevealScheduleMsg('');
+                  }}
+                  placeholder="Reveal at event start"
+                  ariaLabel="Early board reveal date and time"
+                />
+                <div className="flex items-center gap-2 mt-3">
+                  <Button
+                    onClick={saveRevealSchedule}
+                    disabled={savingRevealAt || tilesRevealAt === (currentEvent.tilesRevealAt ?? '')}
+                    tone="gold"
+                  >
+                    {savingRevealAt ? 'Saving…' : 'Save reveal time'}
+                  </Button>
+                  {revealScheduleMsg && (
+                    <span className={`text-xs ${revealScheduleMsg.includes('scheduled') || revealScheduleMsg.includes('cleared') ? 'text-text-muted' : 'text-red-400'}`}>
+                      {revealScheduleMsg}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-gold">Set the event start date first.</p>
+            )}
+          </div>
+        )}
+        {revealScheduleMsg && (eventStarted || !!currentEvent.tilesRevealed) && (
+          <p className="text-xs text-red-400 mt-2">{revealScheduleMsg}</p>
         )}
       </section>
 

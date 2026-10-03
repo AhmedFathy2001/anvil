@@ -56,6 +56,7 @@ export async function POST(
       // Everything run-specific starts fresh: no dates, draft idle, tiles hidden for private authoring.
       startDate: null,
       endDate: null,
+      tilesRevealAt: null,
       signupOpensAt: null,
       signupDeadline: null,
       paymentDeadline: null,
