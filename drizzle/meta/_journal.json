@@ -484,6 +484,13 @@
       "when": 1790550700000,
       "tag": "0110_event_rulebook",
       "breakpoints": true
+    },
+    {
+      "idx": 111,
+      "version": "7",
+      "when": 1790550800000,
+      "tag": "0111_event_participant_names",
+      "breakpoints": true
     }
   ]
 }

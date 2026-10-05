@@ -1495,19 +1495,24 @@ export async function verifyPluginToken(
   // connected to the other one resolved no active event at all. They were playing on their own
   // clan's team, on a board their clan co-hosts, and the plugin said there was nothing on.
   //
-  // So: any seat this PERSON holds, on a board the connected clan hosts OR co-hosts. Both halves
-  // matter. Widening to the person alone would track a board in a clan they merely happen to be in;
-  // keeping the event side narrow is what makes the reach exactly as far as the site's own idea of
-  // whose board it is (lib/eventCards unions the same two sets for the clan's events page).
+  // So: any seat THIS CHARACTER holds, on a board the connected clan hosts OR co-hosts. Both halves
+  // matter. Keeping the event side narrow is what makes the reach exactly as far as the site's own
+  // idea of whose board it is (lib/eventCards unions the same two sets for the clan's events page).
+  //
+  // THE CHARACTER, NOT THE PERSON. This took every seat the person owned, so somebody logged into an
+  // ALT resolved to their MAIN's entry whenever the main was on a live board — and the alt's drops,
+  // kills and XP were filed against the main's team. The co-host case this exists for is one
+  // character seated twice (its own clan's roster and the host's), which is the same account.
   const [cohosted, ownSeats] = await Promise.all([
     db
       .select({ eventId: eventCohosts.eventId })
       .from(eventCohosts)
       .where(and(eq(eventCohosts.clanId, member.clanId), eq(eventCohosts.status, 'accepted'))),
+    // clan-scope: global -- one character's own seats in every clan; the event side below is scoped.
     db
       .select({ id: clanRoster.id })
       .from(clanRoster)
-      .where(and(await seatsOwnedByAnywhere(member.userId), isNull(clanRoster.leftAt))),
+      .where(and(eq(clanRoster.accountId, member.accountId), isNull(clanRoster.leftAt))),
   ]);
   const seatIds = [...new Set([member.clanMemberId, ...ownSeats.map((s) => s.id)])];
   const cohostedIds = cohosted.map((c) => c.eventId);
