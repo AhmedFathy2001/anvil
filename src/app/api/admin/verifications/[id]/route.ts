@@ -1,16 +1,17 @@
 import { NextResponse } from 'next/server';
 import { seatForRequest } from '@/lib/roster';
 import { db } from '@/db';
-import { clanAuditLog, detectedAccounts } from '@/db/schema';
-import { loginOf, unclaimAccountOfSeat, updateAccountOfSeat } from '@/lib/roster';
+import { clanAuditLog } from '@/db/schema';
+import { updateAccountOfSeat } from '@/lib/roster';
+import { fileCharacterReport } from '@/lib/characterReports';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { applyPendingRole } from '@/lib/pending-role';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 
-// POST /api/admin/verifications/[id] { action: 'approve' | 'reject' }
-// Approve clears the provisional flag — the clan member becomes fully verified.
-// Reject revokes the verification (clears userId/verifiedAt/method/claimedAt) so the user
-// can re-attempt or another user can claim it. Both actions log to clan_audit_log.
+// POST /api/admin/verifications/[id] { action: 'approve' | 'reject', note? }
+// Approve clears the review flag — nothing about the account changes but that.
+// Reject REPORTS the link to Anvil (lib/characterReports); only platform staff take a character off
+// someone. Both actions log to clan_audit_log.
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -78,58 +79,30 @@ export async function POST(
     return NextResponse.json({ success: true, status: 'approved' });
   }
 
-  // reject — revoke verification, free the member up for re-claim. Only a claim still under review:
-  // this now takes the account away, and a settled member is not something this queue can undo.
+  // REPORT, not reject. Rejecting took the character off the person — an ownership change that holds
+  // in every clan they play in, decided by one. A clan now raises it with Anvil
+  // (lib/characterReports) and platform staff decide; the link stays as it is meanwhile, flagged.
   if (!member.provisional) {
     return NextResponse.json({ error: 'Member is not provisional' }, { status: 400 });
   }
-  // reject — revoke verification, free the member up for re-claim.
-  //
-  // THE ACCOUNT GOES BACK, not just the stamp. Clearing claimedAt alone left the account under the
-  // claimant's person — still listed as theirs, still resolving their plugin to this seat — which is
-  // the opposite of a rejection. It returns to a placeholder person of its own, the state every
-  // unclaimed roster account is in.
-  const claimantLogin = await loginOf(member.playerId);
-  await unclaimAccountOfSeat(memberId);
-  await updateAccountOfSeat(memberId, {
-    provisional: 0,
-    verifiedAt: null,
-    verificationMethod: null,
-    verifiedByUserId: null,
-    claimedAt: null,
-    // A first-use claim anchored the claimant's client hash. Rejected, that hash is theirs, not the
-    // account's — left in place it would lock the real owner's plugin out.
-    ...(member.verificationMethod === 'plugin_first_use' ? { accountHash: null } : {}),
+  const report = await fileCharacterReport({
+    accountId: member.accountId,
+    clanId: member.clanId,
+    reportedByUserId: session.userId > 0 ? session.userId : null,
+    kind: 'claim_review',
+    body: body.note || `Clan staff dispute this link (${member.verificationMethod ?? 'unknown method'}).`,
   });
-  // And their plugin must not simply take it again on the next request: first-use auto-claim honours
-  // a dismissed suggestion, so record one. They can still prove it with the XP check.
-  if (claimantLogin != null) {
-    const nowIso = new Date().toISOString();
-    await db
-      .insert(detectedAccounts)
-      .values({
-        userId: claimantLogin,
-        rsn: member.rsn,
-        rsnNormalized: member.rsnNormalized,
-        status: 'dismissed',
-        detectedAt: nowIso,
-        lastSeenAt: nowIso,
-      })
-      .onConflictDoUpdate({
-        target: [detectedAccounts.userId, detectedAccounts.rsnNormalized],
-        set: { status: 'dismissed', accountHash: null },
-      });
-  }
 
   db.insert(clanAuditLog)
     .values({
       clanMemberId: memberId,
-      eventType: 'mod_rejected',
-      oldValue: JSON.stringify({ provisional: 1, method: member.verificationMethod, claimantUserId: claimantLogin }),
+      eventType: 'mod_reported',
+      oldValue: JSON.stringify({ provisional: 1, method: member.verificationMethod }),
+      newValue: JSON.stringify({ reportId: report.id }),
       actorUserId: session.userId > 0 ? session.userId : null,
       notes: body.note || null,
     })
     .catch(() => {});
 
-  return NextResponse.json({ success: true, status: 'rejected' });
+  return NextResponse.json({ success: true, status: 'reported', reportId: report.id });
 }

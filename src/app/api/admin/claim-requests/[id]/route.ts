@@ -2,9 +2,13 @@ import { NextResponse } from 'next/server';
 
 import { requireClan } from '@/lib/clanContext';
 import { verifyAdminOrModerator } from '@/lib/auth';
-import { approveClaimRequest, rejectClaimRequest } from '@/lib/claimRequests';
+import { forwardClaimRequest, rejectClaimRequest } from '@/lib/claimRequests';
 
-// POST /api/admin/claim-requests/[id] { action: 'approve' | 'reject' }
+// POST /api/admin/claim-requests/[id] { action: 'forward' | 'reject', note? }
+//
+// 'forward' sends the mod's vouch to Anvil (lib/characterReports); platform staff make the link. A
+// clan no longer binds a character to a person itself — that would change the person in every clan.
+// 'approve' is accepted as an alias of 'forward' for a client that has not reloaded.
 //
 // A moderator vouching that a person really is the member they claim to be — the human half of the
 // takeover fix. Auto-claim by public RSN is gone; the two ways left are the member proving control
@@ -24,8 +28,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const body = await request.json().catch(() => null);
   const action = body?.action;
-  if (action !== 'approve' && action !== 'reject') {
-    return NextResponse.json({ error: "action must be 'approve' or 'reject'" }, { status: 400 });
+  if (action !== 'forward' && action !== 'approve' && action !== 'reject') {
+    return NextResponse.json({ error: "action must be 'forward' or 'reject'" }, { status: 400 });
   }
 
   if (action === 'reject') {
@@ -34,10 +38,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ ok: true, action: 'reject' });
   }
 
-  const res = await approveClaimRequest(clan.id, id, session.userId);
+  const res = await forwardClaimRequest(clan.id, id, session.userId, typeof body?.note === 'string' ? body.note : null);
   if (!res.ok) {
-    const status = res.code === 'not_found' ? 404 : res.code === 'owned_by_other' ? 409 : 400;
-    return NextResponse.json({ error: res.error }, { status });
+    return NextResponse.json({ error: res.error }, { status: res.code === 'not_found' ? 404 : 400 });
   }
-  return NextResponse.json({ ok: true, action: 'approve', accountId: res.accountId });
+  return NextResponse.json({ ok: true, action: 'forward', reportId: res.reportId });
 }

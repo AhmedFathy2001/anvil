@@ -1,16 +1,12 @@
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
-import { db } from '@/db';
-import { clanRoster, users } from '@/db/schema';
-import { findRosterSeat, seatInClan, updateAccountOfSeat } from '@/lib/roster';
-import { and, eq, isNull } from 'drizzle-orm';
+import { seatInClan, updateAccountOfSeat } from '@/lib/roster';
 import { verifyAdmin } from '@/lib/auth';
-import { onCharacterLinked } from '@/lib/identity';
 import { isGuildMember, syncRolesForClanMember } from '@/lib/discord-roles';
 
-// POST { clanMemberId, discordUserId } — manually bind a clan member to a Discord user (for the
+// POST { clanMemberId, discordUserId } — point an UNCLAIMED roster entry at a Discord user (for the
 // stragglers auto-resolution can't reach). Validates the user is in the guild, caches the id on the
-// member (and links the site user if one owns that Discord account), then syncs their roles.
+// entry, then syncs their roles. Never links a site login — that is the player's own act.
 export async function POST(request: Request) {
   const clan = await requireClan();
   if (!(await verifyAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -33,30 +29,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "That Discord user isn't in the server." }, { status: 400 });
   }
 
-  const linkedUser = await db.query.users.findFirst({ where: eq(users.discordId, discordUserId) });
-
-  // Associate the Discord account with the whole ACCOUNT, not just this row: every clan_member row
-  // for this RSN (the self-report + drafted duplicates that otherwise leave a drafted player
-  // unlinked) gets the id, plus the site user if one owns that Discord login. The picked row is
-  // always updated (admin override); other same-RSN rows only when they aren't already linked to a
-  // DIFFERENT user, so we never hijack someone else's account.
-  await updateAccountOfSeat(clanMemberId, { discordId: discordUserId, ...(linkedUser && member.playerId == null ? { userId: linkedUser.id } : {}) });
-  // Newly attached to an owner → adopt any guest sign-ups this character already had.
-  if (linkedUser && member.playerId == null) await onCharacterLinked(clanMemberId, linkedUser.id);
-
-  if (member.rsnNormalized) {
-    // clan-scope: global -- identity is global — the same OSRS account is one account however many clans roster it.
-    const siblings = await db
-      .select({ id: clanRoster.id, userId: clanRoster.playerId })
-      .from(clanRoster)
-      .where(and(eq(clanRoster.rsnNormalized, member.rsnNormalized), isNull(clanRoster.leftAt)));
-    for (const row of siblings) {
-      if (row.id === clanMemberId) continue;
-      if (row.userId != null && (!linkedUser || row.userId !== linkedUser.id)) continue; // linked elsewhere — leave it
-      await updateAccountOfSeat(row.id, { discordId: discordUserId, ...(linkedUser && row.userId == null ? { userId: linkedUser.id } : {}) });
-      if (linkedUser && row.userId == null) await onCharacterLinked(row.id, linkedUser.id);
-    }
+  // ONLY an entry nobody has claimed. The Discord id here is a name-match cache that lets role sync
+  // reach a roster straggler; once a player owns the character, their own Discord login is the
+  // answer, and a clan overwriting it (or, as this used to try, attaching a site login to it) would be
+  // one clan deciding who that person is everywhere. Those go to Anvil (lib/characterReports).
+  if (member.claimedAt != null) {
+    return NextResponse.json(
+      {
+        error: 'This character belongs to a player, so their Discord comes from their own login. Report it to Anvil if it is wrong.',
+        code: 'reportToAnvil',
+      },
+      { status: 403 },
+    );
   }
+  await updateAccountOfSeat(clanMemberId, { discordId: discordUserId });
 
   // Assign roles only — do NOT rename them. The site RSN can be stale (renames) or an alt, so
   // clobbering their current Discord nick on a manual link is wrong (skipNickname = true).

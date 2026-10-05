@@ -57,6 +57,13 @@ export async function POST(
     return NextResponse.json({ error: 'Member not found' }, { status: 404 });
   }
 
+  // A rename rewrites the CHARACTER, in every clan it is in. A clan may tidy an entry nobody has
+  // claimed (its own roster data); once a player owns it, only Anvil changes it (lib/characterReports).
+  // Renames in game are picked up by the roster sync through the account hash regardless.
+  if (source.claimedAt != null) {
+    return NextResponse.json({ error: 'This character belongs to a player, so only Anvil can change it. Use “Report to Anvil” on the roster row.', code: 'reportToAnvil' }, { status: 403 });
+  }
+
   if (source.rsnNormalized === newNormalized) {
     // Noop: only the casing changed. Still worth refreshing display casing.
     if (source.rsn !== newRsn) {

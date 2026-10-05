@@ -4,6 +4,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { avatarUrl } from '@/lib/discord-oauth';
 import { requireClan } from '@/lib/clanContext';
 import { pendingClaimRequests } from '@/lib/claimRequests';
+import { openReportAccountIds } from '@/lib/characterReports';
 import VerificationsClient, { type PendingMember } from './VerificationsClient';
 import ClaimRequestsClient from './ClaimRequestsClient';
 import GuideLink from '@/components/GuideLink';
@@ -20,6 +21,7 @@ export default async function ClanNeedsReviewPage() {
     .select({
       id: clanRoster.id,
       rsn: clanRoster.rsn,
+      accountId: clanRoster.accountId,
       verifiedAt: clanRoster.verifiedAt,
       verificationMethod: clanRoster.verificationMethod,
       claimedAt: clanRoster.claimedAt,
@@ -42,9 +44,14 @@ export default async function ClanNeedsReviewPage() {
     .where(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.provisional, 1), isNull(clanRoster.leftAt)))
     .orderBy(clanRoster.claimedAt);
 
+  // Which of these this clan (or another) has already raised with Anvil — shown as sent, not re-asked.
+  const reported = await openReportAccountIds([...rows.map((r) => r.accountId), ...claimRequests.map((c) => c.accountId)]);
+  const claimItems = claimRequests.map((c) => ({ ...c, forwarded: reported.has(c.accountId) }));
+
   const items: PendingMember[] = rows.map((r) => ({
     id: r.id,
     rsn: r.rsn,
+    reported: reported.has(r.accountId),
     verifiedAt: r.verifiedAt,
     verificationMethod: r.verificationMethod,
     claimedAt: r.claimedAt,
@@ -61,7 +68,7 @@ export default async function ClanNeedsReviewPage() {
 
   return (
     <div>
-      <ClaimRequestsClient items={claimRequests} />
+      <ClaimRequestsClient items={claimItems} />
 
       <div className="mb-1.5 flex items-center gap-2.5">
         <span className="molten h-5 w-1 shrink-0 rounded-sm" />
@@ -69,8 +76,10 @@ export default async function ClanNeedsReviewPage() {
       </div>
       <p className="mb-1.5 ml-4 max-w-[64ch] text-[13.5px] text-text-muted">
         Discord logins matched to an RSN — by training the account (stat-delta), a manual request, or
-        automatically the first time their plugin played it. Auto-linked ones are already live; check the
-        Discord identity against the RSN and approve, or reject to hand the account back.
+        automatically the first time their plugin played it. They are already live and lose nothing while
+        they wait; check the Discord identity against the RSN and approve to clear the flag. If it looks
+        wrong, report it — taking a character off someone is Anvil&rsquo;s call, since it is theirs in
+        every clan.
       </p>
       <p className="mb-3.5 ml-4">
         <GuideLink href="/guide/moderator#verify">What to check before you approve</GuideLink>

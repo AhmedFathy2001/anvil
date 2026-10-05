@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { requirePlatformPage } from '@/lib/platformAccess';
 import { libraryActor } from '@/lib/guideAccess';
 import { pendingCount as pendingProposals } from '@/lib/guideProposals';
+import { openCharacterReportCount } from '@/lib/characterReports';
 import { hasPlatformRole } from '@/lib/clanRoles';
 import { avatarUrl } from '@/lib/discord-oauth';
 import { db } from '@/db';
@@ -74,6 +75,8 @@ export default async function StaffLayout({ children }: { children: React.ReactN
         // Reports about the product, from every clan. Was a triage queue in each clan's own admin
         // area, which asked every clan admin to look after a queue that was never theirs.
         { href: '/staff/feedback', label: 'Feedback', icon: '💬', matchPrefix: true },
+        // Characters clans raised: who owns a character is the platform's call (lib/characterReports).
+        { href: '/staff/reports', label: 'Character reports', icon: '⚑', badge: await openCharacterReportCount(), matchPrefix: true },
         // What broke, across every clan. The platform had no way to learn it was failing except a
         // member posting in Discord; this is the surface the hourly digest links back to.
         { href: '/staff/errors', label: 'Errors', icon: '⚠', matchPrefix: true },

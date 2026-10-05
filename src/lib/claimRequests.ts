@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { accounts, clanAuditLog, clanMemberships, detectedAccounts, users } from '@/db/schema';
 import { avatarUrl } from '@/lib/discord-oauth';
 import { claimAccountForPerson } from '@/lib/accountClaim';
+import { fileCharacterReport } from '@/lib/characterReports';
 
 /**
  * Mod-approve: the other way an unclaimed roster member links, when self-verify is a poor fit.
@@ -158,6 +159,53 @@ export async function approveClaimRequest(
   return { ok: true, accountId: claim.accountId };
 }
 
+/**
+ * A clan mod vouching for a claim — FORWARDED to Anvil rather than applied.
+ *
+ * Binding a character to a person changes who that person is in every clan, so a clan does not get
+ * to do it on its own say-so any more (lib/characterReports). The mod's vouch travels with the
+ * request as the report body; platform staff assign it from /staff/reports. The suggestion stays
+ * pending so the clan's queue shows it as sent rather than forgetting it.
+ */
+export async function forwardClaimRequest(
+  clanId: number,
+  requestId: number,
+  modUserId: number,
+  note?: string | null,
+): Promise<{ ok: true; reportId: number } | { ok: false; code: 'not_found' | 'no_person'; error: string }> {
+  const [req] = await pendingByIdInClan(clanId, requestId);
+  if (!req) return { ok: false, code: 'not_found', error: 'That request is no longer open.' };
+
+  const [requester] = await db
+    .select({ playerId: users.playerId, displayName: users.displayName })
+    .from(detectedAccounts)
+    .innerJoin(users, eq(users.id, detectedAccounts.userId))
+    .where(eq(detectedAccounts.id, requestId));
+  if (!requester?.playerId) {
+    return { ok: false, code: 'no_person', error: 'That account has no person to attach to.' };
+  }
+
+  const report = await fileCharacterReport({
+    accountId: req.accountId,
+    clanId,
+    reportedByUserId: modUserId,
+    kind: 'claim_request',
+    claimantPlayerId: requester.playerId,
+    body: `Clan staff vouch that ${requester.displayName ?? 'the requester'} owns this character.${note?.trim() ? `\n${note.trim()}` : ''}`,
+  });
+
+  db.insert(clanAuditLog)
+    .values({
+      clanId,
+      eventType: 'claim_request_forwarded',
+      actorUserId: modUserId,
+      newValue: JSON.stringify({ requestId, accountId: req.accountId, playerId: requester.playerId, reportId: report.id }),
+    })
+    .catch(() => {});
+
+  return { ok: true, reportId: report.id };
+}
+
 /** Reject: the suggestion is dismissed, nothing is bound. The requester can still self-verify by XP. */
 export async function rejectClaimRequest(
   clanId: number,
@@ -181,7 +229,7 @@ export async function rejectClaimRequest(
 /** One pending request, re-verified to still name an unclaimed member seat in this clan. */
 async function pendingByIdInClan(clanId: number, requestId: number) {
   return db
-    .select({ id: detectedAccounts.id })
+    .select({ id: detectedAccounts.id, accountId: accounts.id })
     .from(detectedAccounts)
     .innerJoin(accounts, eq(accounts.rsnNormalized, detectedAccounts.rsnNormalized))
     .innerJoin(

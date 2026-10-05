@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo } from 'react';
 import { avatarUrl } from '@/lib/discord-oauth';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
-import Combobox from '@/components/Combobox';
 import ActionMenu, { type ActionItem } from '@/components/ActionMenu';
 import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
@@ -66,11 +65,6 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
   const [filter, setFilter] = useState<MainFilter>('all');
   const [search, setSearch] = useState('');
   const [savingRoleId, setSavingRoleId] = useState<number | null>(null);
-  const [addingTo, setAddingTo] = useState<number | null>(null); // user whose add-character input is open
-  const [addRsn, setAddRsn] = useState('');
-  const [unlinked, setUnlinked] = useState<{ id: number; rsn: string; isGuest: boolean }[]>([]);
-  const [charBusy, setCharBusy] = useState(false);
-  const [charError, setCharError] = useState('');
 
   // Rename form (display name only — role is edited inline on the row now).
   const [editDisplayName, setEditDisplayName] = useState('');
@@ -148,7 +142,6 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
     if (res.ok) {
       const data = await res.json();
       setUsers(data.people ?? []);
-      setUnlinked(data.unlinked ?? []);
     }
     setLoading(false);
   }
@@ -184,38 +177,6 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
     });
     if (res.ok) fetchUsers();
     else notify((await res.json().catch(() => ({}))).error || 'Could not update ban', 'error');
-  }
-
-  async function addCharacter(user: User) {
-    const rsn = addRsn.trim();
-    if (!rsn) return;
-    setCharBusy(true);
-    setCharError('');
-    const res = await clanFetch(`/api/admin/users/${user.id}/characters`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rsn }),
-    });
-    setCharBusy(false);
-    if (res.ok) {
-      setAddingTo(null);
-      setAddRsn('');
-      fetchUsers();
-    } else {
-      setCharError((await res.json().catch(() => ({}))).error || 'Could not add character');
-    }
-  }
-
-  async function removeCharacter(user: User, char: Character) {
-    const ok = await confirm({
-      title: `Remove ${char.rsn} from ${user.displayName}?`,
-      body: 'The account stops being theirs. Results already recorded under it stay where they are.',
-      confirmLabel: 'Remove',
-    });
-    if (!ok) return;
-    const res = await clanFetch(`/api/admin/users/${user.id}/characters/${char.id}`, { method: 'DELETE' });
-    if (res.ok) fetchUsers();
-    else notify((await res.json().catch(() => ({}))).error || 'Could not remove character', 'error');
   }
 
   useEffect(() => {
@@ -430,40 +391,10 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
                 title={`${c.isGuest ? 'Guest' : 'Member'}${c.verified ? ' · verified' : ''}${c.left ? ' · left clan' : ''}`}
               >
                 {c.rsn}
-                <button
-                  onClick={() => removeCharacter(user, c)}
-                  className="text-red-400/70 hover:text-red-300 leading-none"
-                  title="Remove character"
-                  aria-label={`Remove ${c.rsn}`}
-                >
-                  ×
-                </button>
               </span>
             ))}
-            {addingTo === user.id ? (
-              <span className="inline-flex items-center gap-1">
-                <Combobox
-                  value={addRsn}
-                  onChange={setAddRsn}
-                  suggestions={unlinked.map((u) => u.rsn)}
-                  placeholder="Pick a roster/guest account or type an RSN"
-                  ariaLabel="Character RSN"
-                  className="w-64 max-w-[60vw]"
-                />
-                <button onClick={() => addCharacter(user)} disabled={charBusy} className="text-[11px] text-gold disabled:opacity-50">
-                  {charBusy ? '…' : 'Add'}
-                </button>
-                <button onClick={() => { setAddingTo(null); setAddRsn(''); setCharError(''); }} className="text-[11px] text-text-muted">✕</button>
-              </span>
-            ) : (
-              <button
-                onClick={() => { setAddingTo(user.id); setAddRsn(''); setCharError(''); }}
-                className="text-[11px] px-1.5 py-0.5 rounded border border-dashed border-card-border text-text-muted hover:border-gold/40 hover:text-gold transition-colors"
-              >
-                + character
-              </button>
-            )}
-            {addingTo === user.id && charError && <span className="text-[11px] text-red-400 w-full">{charError}</span>}
+            {/* No add/remove here: a character is its player's, in every clan. They link their own;
+                anything wrong goes to Anvil from the roster row's "Report to Anvil". */}
           </div>
         </div>
       </div>

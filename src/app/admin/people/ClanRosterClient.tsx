@@ -606,15 +606,25 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
     if (res.ok) fetchAll();
   }
 
-  // Make this account the person's primary (main) — the default representative for per-person events
-  // and the name their team takes. Demotes their other accounts server-side.
-  async function setPrimary(member: ClanMember) {
-    const res = await clanFetch(`/api/admin/clan/${member.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ setPrimary: true }),
+  // "Report to Anvil" — the one thing a clan can do about a CHARACTER a player owns (wrong owner, a
+  // rename or duplicate to merge). Who owns a character is the platform's call: it is that player's in
+  // every clan they play in, so one clan's staff do not get to rewrite it (lib/characterReports).
+  async function reportToAnvil(member: ClanMember) {
+    const text = await ask({
+      title: `Report ${member.rsn} to Anvil`,
+      label: 'What is wrong? (wrong owner, renamed, duplicate of another entry…)',
+      required: true,
+      multiline: true,
+      confirmLabel: 'Send to Anvil',
     });
-    if (res.ok) fetchAll();
+    if (!text) return;
+    const res = await clanFetch('/api/admin/character-reports', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seatId: member.id, kind: 'other', body: text }),
+    });
+    if (res.ok) notify(`Sent to Anvil. Staff will look at ${member.rsn}.`);
+    else notify((await res.json().catch(() => ({}))).error || 'Could not send the report', 'error');
   }
 
   async function removeMember(member: ClanMember) {
@@ -748,21 +758,20 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
 
   // The per-row actions for an active member, collapsed into one dropdown instead of a button row.
   function buildRowActions(m: ClanMember): ActionItem[] {
-    const items: ActionItem[] = [{ label: 'Rename', onClick: () => openRename(m) }];
+    // A character a player has claimed is theirs, in every clan: renaming it is Anvil's, not ours. An
+    // entry nobody has claimed yet is this clan's roster data and stays editable.
+    const items: ActionItem[] = m.userId ? [] : [{ label: 'Rename', onClick: () => openRename(m) }];
     if (isAdmin) items.push({ label: 'Set role', onClick: () => openRole(m), variant: 'gold' });
     items.push({
       label: m.isGuest ? 'Promote to member' : 'Demote to guest',
       onClick: () => togglePromote(m),
     });
-    // Set-primary only matters for a linked person, and only when this isn't already their main.
-    if (m.userId && m.isPrimary !== 1) {
-      items.push({
-        label: 'Set as main account',
-        onClick: () => setPrimary(m),
-        title: 'Make this the person’s primary account — the default entry for per-person events',
-      });
-    }
     items.push({ label: 'Remove from roster', onClick: () => removeMember(m), variant: 'danger' });
+    items.push({
+      label: 'Report to Anvil',
+      onClick: () => reportToAnvil(m),
+      title: 'Wrong owner, a rename or a duplicate — Anvil staff fix the character itself',
+    });
     if (isAdmin && m.userId) {
       items.push({
         // "from this clan", said out loud. The button used to ban someone off the whole platform

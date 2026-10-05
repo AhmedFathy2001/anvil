@@ -10,7 +10,8 @@ import type { ClaimRequest } from '@/lib/claimRequests';
  *
  * These appear because the plugin refused to auto-claim an established member on a public RSN (the
  * takeover fix). A request names a Discord identity and the roster member it wants; the mod's job is
- * the one a machine cannot do — recognise the person. Approve binds it; reject leaves the member to
+ * the one a machine cannot do — recognise the person. Vouching sends it to Anvil, which binds it
+ * (lib/characterReports); reject leaves the member to
  * prove it themselves by XP.
  *
  * The distinction from the verifications list below: those are members who ALREADY proved control by
@@ -18,12 +19,12 @@ import type { ClaimRequest } from '@/lib/claimRequests';
  * standing in for the proof. So the copy leans on identity ("do you know this person?") rather than
  * on a method.
  */
-export default function ClaimRequestsClient({ items }: { items: ClaimRequest[] }) {
+export default function ClaimRequestsClient({ items }: { items: (ClaimRequest & { forwarded: boolean })[] }) {
   const router = useRouter();
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function act(id: number, action: 'approve' | 'reject') {
+  async function act(id: number, action: 'forward' | 'reject') {
     setBusyId(id);
     setError(null);
     try {
@@ -51,9 +52,9 @@ export default function ClaimRequestsClient({ items }: { items: ClaimRequest[] }
         <h2 className="text-[16.5px] font-semibold">Claim requests</h2>
       </div>
       <p className="mb-3.5 ml-4 max-w-[64ch] text-[13.5px] text-text-muted">
-        Someone is asking to link one of your members&rsquo; accounts. A public name is no longer proof
-        of ownership, so approve only if you recognise the person — otherwise leave it, and they can
-        prove it themselves by training the account a little.
+        Someone is asking to link one of your members&rsquo; accounts. If you recognise them, vouch for
+        it and Anvil makes the link — a character is its player&rsquo;s in every clan, so the platform
+        decides. Otherwise leave it, and they can prove it themselves by training the account a little.
       </p>
 
       {error && (
@@ -98,13 +99,17 @@ export default function ClaimRequestsClient({ items }: { items: ClaimRequest[] }
                   >
                     Not them
                   </button>
-                  <button
-                    onClick={() => act(r.id, 'approve')}
-                    disabled={busy}
-                    className="rounded-lg border border-accent-green/40 bg-accent-green/20 px-3 py-1.5 text-sm text-accent-green-light transition-colors hover:bg-accent-green/30 disabled:opacity-50"
-                  >
-                    Yes, that&rsquo;s them
-                  </button>
+                  {r.forwarded ? (
+                    <span className="px-3 py-1.5 text-xs text-text-muted">Sent to Anvil</span>
+                  ) : (
+                    <button
+                      onClick={() => act(r.id, 'forward')}
+                      disabled={busy}
+                      className="rounded-lg border border-accent-green/40 bg-accent-green/20 px-3 py-1.5 text-sm text-accent-green-light transition-colors hover:bg-accent-green/30 disabled:opacity-50"
+                    >
+                      Yes, that&rsquo;s them — send to Anvil
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

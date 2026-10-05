@@ -41,16 +41,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const existing = await seatForRequest(request, memberId);
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  // Set-primary: demote the person's other accounts, promote this one. Only meaningful once someone
-  // has claimed the account — an unclaimed one has a person of its own and no siblings to be main among.
+  // Set-primary is the PERSON's choice — a main is a main in every clan, so one clan's staff picking
+  // it for them reached into all the others. They set it on their own profile.
   if (body.setPrimary) {
-    if (existing.claimedAt == null || existing.playerId == null) {
-      return NextResponse.json({ error: 'Only a linked account can be set as the main.' }, { status: 400 });
-    }
-    // Across every account this person owns, in every clan — a main is a main everywhere.
-    await db.update(accounts).set({ isPrimary: 0 }).where(eq(accounts.playerId, existing.playerId));
-    await db.update(accounts).set({ isPrimary: 1 }).where(eq(accounts.id, existing.accountId));
-    return NextResponse.json({ ok: true });
+    return NextResponse.json(
+      { error: 'A player picks their own main on their profile. Clan staff manage the roster, not the character.' },
+      { status: 403 },
+    );
   }
 
   // Split by where each field lives: the Discord id belongs to the account, everything else to
@@ -61,8 +58,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (body.notes !== undefined) seatPatch.notes = body.notes;
   if (body.rejoin) seatPatch.leftAt = null;
 
+  // The Discord id is a name-match CACHE on an unclaimed roster entry. Once a person has claimed the
+  // character their own Discord login is the answer, and a clan overwriting it would be one clan
+  // editing that person everywhere.
   const accountPatch: Record<string, unknown> = {};
-  if (body.discordId !== undefined) accountPatch.discordId = body.discordId;
+  if (body.discordId !== undefined) {
+    if (existing.claimedAt != null) {
+      return NextResponse.json(
+        { error: 'This character belongs to a player — their Discord comes from their own login. Report it to Anvil if it is wrong.' },
+        { status: 403 },
+      );
+    }
+    accountPatch.discordId = body.discordId;
+  }
 
   if (Object.keys(seatPatch).length === 0 && Object.keys(accountPatch).length === 0) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 });

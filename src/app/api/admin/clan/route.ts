@@ -122,10 +122,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Already in roster', id: existing.id }, { status: 409 });
   }
   if (existing && existing.leftAt) {
-    await db
-      .update(accounts)
-      .set({ rsn, discordId: body.discordId ?? existing.discordId })
-      .where(eq(accounts.id, existing.accountId));
+    // The character itself is only this clan's to touch while nobody has claimed it.
+    if (existing.claimedAt == null) {
+      await db
+        .update(accounts)
+        .set({ rsn, discordId: body.discordId ?? existing.discordId })
+        .where(eq(accounts.id, existing.accountId));
+    }
     await db
       .update(clanMemberships)
       .set({
@@ -139,7 +142,7 @@ export async function POST(request: Request) {
   }
 
   const account = await findOrCreateAccount({ rsn, rsnNormalized });
-  if (body.discordId) {
+  if (body.discordId && !account.claimedAt) {
     await db.update(accounts).set({ discordId: body.discordId }).where(eq(accounts.id, account.id));
   }
   // An admin saying so is one of the three ways membership is granted, so this may seat a member.

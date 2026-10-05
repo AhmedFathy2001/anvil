@@ -11,6 +11,8 @@ export interface PendingMember {
   verificationMethod: string | null;
   claimedAt: string | null;
   notes: string | null;
+  /** Already raised with Anvil (lib/characterReports). */
+  reported: boolean;
   user: {
     id: number;
     displayName: string | null;
@@ -121,13 +123,20 @@ export default function VerificationsClient({ items }: { items: PendingMember[] 
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => act(m.id, 'reject')}
-                  disabled={busy}
-                  className="px-3 py-1.5 text-sm border border-red-500/30 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
-                >
-                  Reject
-                </button>
+                {m.reported ? (
+                  <span className="px-3 py-1.5 text-xs text-text-muted" title="Anvil staff will decide who this character belongs to.">
+                    Reported to Anvil
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => act(m.id, 'reject')}
+                    disabled={busy}
+                    title="Taking a character off someone is Anvil's call — this sends it to them."
+                    className="px-3 py-1.5 text-sm border border-red-500/30 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    Report to Anvil
+                  </button>
+                )}
                 <button
                   onClick={() => act(m.id, 'approve')}
                   disabled={busy}

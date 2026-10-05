@@ -1287,6 +1287,38 @@ export const platformActAs = pgTable('platform_act_as', {
 ]);
 
 /**
+ * A clan asking ANVIL to fix a character — the only thing a clan can do about who owns one.
+ *
+ * Characters belong to people, and people cross clans. A clan admin used to be able to attach a
+ * character to someone, take it off them, rename it or merge it, and every one of those wrote the
+ * ACCOUNT — so one clan's call changed the person everywhere, in clans that never agreed to it. Clans
+ * now manage their roster (seats) and nothing else; anything about the character itself is raised
+ * here and decided by platform staff in /staff/reports.
+ *
+ * `kind`: 'wrong_owner' | 'rename' | 'merge' | 'claim_review' (a plugin/XP link a mod disputes) |
+ * 'claim_request' (someone asked the clan to vouch for them) | 'other'.
+ */
+export const characterReports = pgTable('character_reports', {
+  id: serial('id').primaryKey(),
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  // The clan that raised it — context for staff, never authority over the outcome.
+  clanId: integer('clan_id').references(() => clans.id, { onDelete: 'set null' }),
+  reportedByUserId: integer('reported_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  // For a claim request: the person asking to be given the character.
+  claimantPlayerId: integer('claimant_player_id').references(() => players.id, { onDelete: 'set null' }),
+  kind: text('kind').notNull().default('other'),
+  body: text('body'),
+  status: text('status').notNull().default('open'), // 'open' | 'resolved' | 'dismissed'
+  resolution: text('resolution'),
+  resolvedByUserId: integer('resolved_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  resolvedAt: text('resolved_at'),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (table) => [
+  index('character_reports_open_idx').on(table.status, table.createdAt),
+  index('character_reports_account_idx').on(table.accountId),
+]);
+
+/**
  * A clan barring someone from ITSELF. Not from the platform.
  *
  * These are two different acts and they were one flag. `users.banned` is read by verifyUser, which
