@@ -4,6 +4,7 @@ import { getClanDisplayName } from '@/lib/pluginConfig';
 import { clanSectionMetadata } from '@/lib/seoPages';
 import { notFound } from 'next/navigation';
 import Persona from './Persona';
+import { accountTypeLabel } from '@/lib/accountType';
 import {
   getActivityStandings,
   getCompetitionHistory,
@@ -246,6 +247,11 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               <h1 className="text-3xl font-bold text-gold break-words">{profile.rsn}</h1>
+              {accountTypeLabel(profile.accountType) && profile.accountType !== 'normal' && (
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-brown-light text-foreground/80">
+                  {accountTypeLabel(profile.accountType)}
+                </span>
+              )}
               {profile.isGuest && (
                 <span className="text-[11px] px-2 py-0.5 rounded-full bg-text-muted/15 text-text-muted">guest</span>
               )}

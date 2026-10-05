@@ -7,7 +7,7 @@
 import { db } from '@/db';
 import { clanAuditLog, clanRoster, events, eventParticipants, users, memberDailyStats, memberMilestones, playerEventFacts, playerSnapshots, weeklyCompetitions, weeklyParticipants, accounts } from '@/db/schema';
 import { findRosterSeat, statSnapshotOf } from '@/lib/roster';
-import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { computeEfficiency, type EfficiencyResult } from '@/lib/efficiency';
 import {
@@ -154,6 +154,8 @@ export interface AccountProfile {
   accountId: number;
   rsn: string;
   status: string;
+  /** Game mode the plugin reported (lib/accountType), or null while unknown. */
+  accountType: string | null;
   /** When the stats below were last observed. Null if we've never successfully fetched them. */
   statsAt: string | null;
   efficiency: EfficiencyResult | null;
@@ -256,10 +258,15 @@ async function accountProfileFrom(row: {
     statsLastSnapshot: row.statsLastSnapshot,
   });
 
+  const [mode] = await db
+    .select({ accountType: accounts.accountType })
+    .from(accounts)
+    .where(eq(accounts.id, row.accountId));
   const base = {
     accountId: row.accountId,
     rsn: row.rsn,
     status: row.status,
+    accountType: mode?.accountType ?? null,
   };
 
   if (!snapshot) {
@@ -1275,9 +1282,15 @@ export async function getCompetitionHistory(clanMemberId: number, rsn: string): 
 // ── Personas (one human, several accounts) ───────────────────────────────────────────────────────
 
 export interface PersonaAccount {
-  /** The SEAT in this clan. Every character on this card has one — that is what makes it visible. */
-  id: number;
+  /** The CHARACTER (accounts.id). */
+  accountId: number;
+  /** Its seat in THIS clan, or null when it plays elsewhere — the link target, and the status below. */
+  id: number | null;
   rsn: string;
+  /** Where it stands in this clan: a member, a guest, or not here at all. */
+  status: 'member' | 'guest' | 'out';
+  /** Ironman mode, when the plugin has reported it (lib/accountType). */
+  accountType: string | null;
   isPrimary: boolean;
   ehp: number | null;
   ehb: number | null;
@@ -1316,50 +1329,76 @@ export async function getPersona(clanMemberId: number): Promise<Persona | null> 
   // belongs to a person is the one whose `playerId` points back at them.
   const user = await db.query.users.findFirst({ where: eq(users.playerId, member.playerId) });
   const rows = await listMembers(member.clanId);
-  const siblings = await db
-    .select({ id: clanRoster.id, rsn: clanRoster.rsn, isPrimary: clanRoster.isPrimary })
+
+  // EVERY CHARACTER THE PERSON OWNS, in every clan — each marked member / guest / not in this clan.
+  // This used to show only the characters seated here, on the theory that someone's alts elsewhere
+  // were that clan's business. Anvil's position now is the opposite: characters are the PERSON's,
+  // and a clan seeing the whole of who it is dealing with is the point (the clan cannot change any
+  // of them — lib/characterReports). Claimed characters only: an unclaimed roster entry has no person.
+  // clan-scope: global -- one person's own characters, across clans by definition; their seats HERE are joined below.
+  const owned = await db
+    .select({
+      accountId: accounts.id,
+      rsn: accounts.rsn,
+      isPrimary: accounts.isPrimary,
+      accountType: accounts.accountType,
+      overallXp: accounts.statsOverallXp,
+      shared: accounts.shared,
+    })
+    .from(accounts)
+    .where(and(eq(accounts.playerId, member.playerId), isNotNull(accounts.claimedAt)));
+  const seatsHere = await db
+    .select({ id: clanRoster.id, accountId: clanRoster.accountId, kind: clanRoster.kind })
     .from(clanRoster)
-    // This clan's seats only. Someone's alts in another clan are that clan's business, and naming
-    // them here would out a person's other accounts to a clan they never joined.
-    .where(
-      and(
-        eq(clanRoster.clanId, member.clanId),
-        eq(clanRoster.playerId, member.playerId),
-        isNull(clanRoster.leftAt),
-      ),
-    );
-  // SEATS, AND ONLY SEATS. This briefly listed characters the person had merely published, back when
-  // `shared` was a visibility flag a clan was supposed to honour. Sharing means something else now —
-  // public on Anvil, which is the platform's business — and what a CLAN may see is what it holds a
-  // seat for. Somebody who wants their alt to show up here offers it as a guest and this clan's own
-  // door answers; the seat that follows is what puts it on this card. See lib/accountVisibility.
-  if (siblings.length <= 1) return null;
+    .where(and(eq(clanRoster.clanId, member.clanId), eq(clanRoster.playerId, member.playerId), isNull(clanRoster.leftAt)));
+  const seatByAccount = new Map(seatsHere.map((x) => [x.accountId, x]));
+  // The one thing that keeps a character off this card: its player turned off sharing for it, and it
+  // has no seat here (lib/accountVisibility — a clan always sees what it holds a seat for).
+  for (let i = owned.length - 1; i >= 0; i--) {
+    if (!owned[i].shared && !seatByAccount.has(owned[i].accountId)) owned.splice(i, 1);
+  }
+  // An unclaimed seat on this person (rare — a roster entry under a placeholder) still belongs here.
+  for (const seat of seatsHere) {
+    if (!owned.some((o) => o.accountId === seat.accountId)) {
+      const row = rows.find((r) => r.id === seat.id);
+      owned.push({ accountId: seat.accountId, rsn: row?.rsn ?? '', isPrimary: 0, accountType: null, overallXp: row?.overallXp ?? null, shared: true });
+    }
+  }
+  if (owned.length <= 1) return null;
 
   const statsById = new Map(rows.map((r) => [r.id, r]));
-  const accounts: PersonaAccount[] = siblings
-    .map((sib) => {
-      const stats = statsById.get(sib.id);
+  const rank = { member: 0, guest: 1, out: 2 } as const;
+  const characters: PersonaAccount[] = owned
+    .map((o) => {
+      const seat = seatByAccount.get(o.accountId);
+      const stats = seat ? statsById.get(seat.id) : undefined;
+      const status: PersonaAccount['status'] = !seat ? 'out' : seat.kind === 'member' ? 'member' : 'guest';
       return {
-        id: sib.id,
-        rsn: sib.rsn,
-        isPrimary: sib.isPrimary === 1,
+        accountId: o.accountId,
+        id: seat?.id ?? null,
+        rsn: o.rsn,
+        status,
+        accountType: o.accountType ?? null,
+        isPrimary: o.isPrimary === 1,
         ehp: stats?.ehp ?? null,
         ehb: stats?.ehb ?? null,
-        overallXp: stats?.overallXp ?? null,
+        overallXp: stats?.overallXp ?? o.overallXp ?? null,
       };
     })
-    .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary) || (b.ehp ?? 0) - (a.ehp ?? 0));
-
+    .sort(
+      (a, b) =>
+        Number(b.isPrimary) - Number(a.isPrimary) || rank[a.status] - rank[b.status] || (b.ehp ?? 0) - (a.ehp ?? 0),
+    );
   return {
     userId: member.playerId,
     discordId: user?.discordId ?? null,
     discordUsername: user?.discordUsername ?? null,
     discordAvatar: user?.discordAvatar ?? null,
-    accounts,
+    accounts: characters,
     // Summed, not averaged: hours spent on an alt are still hours this person played.
-    totalEhp: accounts.reduce((sum, a) => sum + (a.ehp ?? 0), 0),
-    totalEhb: accounts.reduce((sum, a) => sum + (a.ehb ?? 0), 0),
-    totalXp: accounts.reduce((sum, a) => sum + (a.overallXp ?? 0), 0),
+    totalEhp: characters.reduce((sum, a) => sum + (a.ehp ?? 0), 0),
+    totalEhb: characters.reduce((sum, a) => sum + (a.ehb ?? 0), 0),
+    totalXp: characters.reduce((sum, a) => sum + (a.overallXp ?? 0), 0),
   };
 }
 

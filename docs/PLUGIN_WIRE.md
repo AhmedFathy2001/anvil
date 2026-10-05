@@ -320,6 +320,19 @@ cleared tier rather than only the highest), the four counts `diaryEasy` / `diary
 is `1` easy | `2` medium | `4` hard | `8` elite. Send both the counts and the masks: the counts are
 what an older server understands, the masks are what a profile grid draws.
 
+A push may also carry the character's GAME MODE, as the raw value of the in-game `IRONMAN` varbit
+(`VarbitID.IRONMAN`, 1777):
+
+```json
+{ "accountType": 3 }
+```
+
+`0` regular, `1` ironman, `2` ultimate, `3` hardcore, `4` group, `5` hardcore group, `6` unranked
+group; anything else is ignored. Unlike the progress keys this is **not** max-merged — a mode goes
+down (de-ironing, a hardcore death), so the latest value wins. Read it only once the game has
+populated it (a login reads `0` for a few ticks), and send it only when it changed. Servers without
+this key ignore it.
+
 A push may also carry item LISTS — the quests themselves, not just how many:
 
 ```json

@@ -463,6 +463,13 @@
       "when": 1790550400000,
       "tag": "0107_character_reports",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1790550500000,
+      "tag": "0108_account_type",
+      "breakpoints": true
     }
   ]
 }

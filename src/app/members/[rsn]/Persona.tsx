@@ -3,6 +3,15 @@
 import { useState } from 'react';
 import type { Persona as PersonaData } from '@/lib/memberProfile';
 import ClanLink from '@/components/ClanLink';
+import { accountTypeBadge, accountTypeLabel } from '@/lib/accountType';
+
+// Where each character stands in THIS clan. Every character the person owns is listed (lib/memberProfile
+// getPersona); the chip is what tells a clan which of them it actually has.
+const STATUS: Record<'member' | 'guest' | 'out', { label: string; cls: string }> = {
+  member: { label: 'member', cls: 'bg-accent-green/15 text-accent-green-light' },
+  guest: { label: 'guest', cls: 'bg-blue-500/15 text-blue-300' },
+  out: { label: 'not in this clan', cls: 'bg-brown-light text-text-muted' },
+};
 
 // One human, several accounts. Grouped strictly by linked Discord — see getPersona() for why we
 // never infer alts from anything softer.
@@ -69,8 +78,10 @@ export default function Persona({
           <div className="space-y-1.5">
             {persona.accounts.map((a) => (
               <ClanLink
-                key={a.id}
-                href={`/members/${encodeURIComponent(a.rsn)}`}
+                key={a.accountId}
+                // A character seated here opens its page in this clan; one that isn't has no page here,
+                // so it opens its own Anvil page instead (a platform path — never clan-prefixed).
+                href={a.id != null ? `/members/${encodeURIComponent(a.rsn)}` : `/p/${encodeURIComponent(a.rsn)}`}
                 className={`grid grid-cols-[minmax(0,1fr)_4.5rem_4.5rem_5rem] gap-2 text-sm py-1 items-center hover:text-gold ${
                   a.id === currentMemberId ? 'text-gold' : ''
                 }`}
@@ -80,6 +91,17 @@ export default function Persona({
                   {a.isPrimary && (
                     <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-gold/15 text-gold">main</span>
                   )}
+                  {accountTypeBadge(a.accountType) && (
+                    <span
+                      className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-brown-light text-foreground/80"
+                      title={accountTypeLabel(a.accountType) ?? undefined}
+                    >
+                      {accountTypeBadge(a.accountType)}
+                    </span>
+                  )}
+                  <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded-full ${STATUS[a.status].cls}`}>
+                    {STATUS[a.status].label}
+                  </span>
                   {a.id === currentMemberId && <span className="ml-2 text-[10px] text-text-muted">viewing</span>}
                 </span>
                 <span className="text-right tabular-nums text-text-muted">{a.ehp?.toFixed(1) ?? '—'}</span>

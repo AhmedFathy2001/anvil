@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { memberProgress, memberProgressItems } from '@/db/schema';
+import { accounts, memberProgress, memberProgressItems } from '@/db/schema';
+import { accountTypeFromVarbit } from '@/lib/accountType';
 import { and, eq, inArray } from 'drizzle-orm';
 import { resolvePluginMember } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
@@ -35,11 +36,31 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: { progress?: unknown; items?: unknown; caVarps?: unknown; caPoints?: unknown };
+  let body: { progress?: unknown; items?: unknown; caVarps?: unknown; caPoints?: unknown; accountType?: unknown };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+  }
+
+  // GAME MODE, from the IRONMAN varbit (lib/accountType). NOT max-merged like the progress keys: a
+  // mode really does go down — de-ironing, a hardcore death — so the latest report is the truth. The
+  // plugin only reads it once the game has populated the varbit (a login reads 0 for a few ticks),
+  // and writes are skipped when nothing changed.
+  const accountType = accountTypeFromVarbit(body?.accountType);
+  let accountTypeStored = false;
+  if (accountType) {
+    const [current] = await db
+      .select({ accountType: accounts.accountType })
+      .from(accounts)
+      .where(eq(accounts.id, member.accountId));
+    if (current && current.accountType !== accountType) {
+      await db
+        .update(accounts)
+        .set({ accountType, accountTypeAt: new Date().toISOString() })
+        .where(eq(accounts.id, member.accountId));
+      accountTypeStored = true;
+    }
   }
 
   // COMBAT TASKS arrive as the game's own bits: twenty-one varps the plugin read without knowing
@@ -96,7 +117,7 @@ export async function POST(request: Request) {
   }
 
   const incoming = cleanProgress(Array.isArray(body?.progress) ? body.progress : []);
-  if (incoming.size === 0) return NextResponse.json({ ok: true, updated: 0, itemsStored, combatTasks: decodeReport(decode) });
+  if (incoming.size === 0) return NextResponse.json({ ok: true, updated: 0, itemsStored, accountTypeStored, combatTasks: decodeReport(decode) });
 
   const keys = [...incoming.keys()];
   const existing = await db
@@ -105,7 +126,7 @@ export async function POST(request: Request) {
     .where(and(eq(memberProgress.accountId, member.accountId), inArray(memberProgress.key, keys)));
 
   const updates = progressUpdates(new Map(existing.map((r) => [r.key, r.value])), incoming);
-  if (updates.size === 0) return NextResponse.json({ ok: true, updated: 0, itemsStored, combatTasks: decodeReport(decode) });
+  if (updates.size === 0) return NextResponse.json({ ok: true, updated: 0, itemsStored, accountTypeStored, combatTasks: decodeReport(decode) });
 
   const now = new Date().toISOString();
   for (const [key, value] of updates) {
@@ -118,7 +139,7 @@ export async function POST(request: Request) {
       });
   }
 
-  return NextResponse.json({ ok: true, updated: updates.size, itemsStored, combatTasks: decodeReport(decode) });
+  return NextResponse.json({ ok: true, updated: updates.size, itemsStored, accountTypeStored, combatTasks: decodeReport(decode) });
 }
 
 /**

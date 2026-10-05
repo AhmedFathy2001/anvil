@@ -45,6 +45,8 @@
     "test:verification": "npx tsx --test tests/clan-verification.test.ts",
     "test:characterreports": "npx tsx --test tests/character-reports.test.ts",
     "test:homeclan": "npx tsx --test tests/home-clan.test.ts",
+    "test:accounttype": "npx tsx --test tests/account-type.test.ts",
+    "test:personachars": "npx tsx --test tests/persona-characters.test.ts",
     "test:eventaccess": "npx tsx --test tests/event-access.test.ts",
     "test:onbehalf": "npx tsx --test tests/signup-on-behalf.test.ts",
     "test:leaderboard": "npx tsx --test tests/clan-leaderboard.test.ts",

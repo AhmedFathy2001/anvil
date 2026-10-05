@@ -306,6 +306,14 @@ export const accounts = pgTable('accounts', {
   shared: boolean('shared').notNull().default(true),
   claimedAt: text('claimed_at'),
 
+  // ── Game mode ────────────────────────────────────────────────────────────────────────────
+  // 'normal' | 'ironman' | 'hardcore' | 'ultimate' | 'group' | 'hardcore_group' | 'unranked_group'.
+  // Reported by the plugin from the in-game ironman varbit (lib/accountType) — the hiscores cannot
+  // tell the group modes apart. NOT max-merged like progress: a mode goes down (de-ironing, a
+  // hardcore death), so the latest report wins. Null until a plugin has said.
+  accountType: text('account_type'),
+  accountTypeAt: text('account_type_at'),
+
   // ── Hiscores state ───────────────────────────────────────────────────────────────────────
   // Here rather than on the roster seat because Jagex tracks accounts, not memberships. One row per
   // account is what lets the sweep poll a person in three clans ONCE instead of three times — the
