@@ -794,6 +794,29 @@ const ptBr: PartialGuideDict = {
         body: 'Pets e Champion’s scrolls repetidos precisam de uma captura manual. O plugin tira para você e salva em `.runelite/osrs-bingo-pending/` — **Copy folder path** no painel lateral do Anvil abre a pasta — então você anexa no site em vez de caçar uma imagem depois.',
       },
     },
+    limits: {
+      title: 'Limitações conhecidas',
+      intro:
+        'Algumas coisas não dá para rastrear perfeitamente — quase sempre por causa do que o próprio jogo informa, não do Anvil. A solução é sempre a mesma: tire uma captura de tela e envie manualmente.',
+      rows: [
+        {
+          term: 'Barraging e outras mortes em vários alvos',
+          body: 'As contagens de kills (KC) vêm do que o jogo informa a cada morte, e magias de vários alvos como Ice Barrage fazem ele perder algumas, então **o KC pode sair menor** do que você matou. O Loot Tracker do próprio RuneLite também conta a menos do mesmo jeito — é um limite do motor do jogo, não um bug do Anvil.',
+        },
+        {
+          term: 'Combat achievements que você já fez antes',
+          body: 'Ative **repeat completion** nas configurações de Combat Achievements do jogo. Sem isso, o jogo não anuncia uma tarefa que você já concluiu, e o plugin só consegue creditar o que o jogo anuncia.',
+        },
+        {
+          term: 'O combat achievement do contrato do Yama',
+          body: 'O jogo não anuncia essa de novo nem com repeat completion ativado, então o plugin nunca a vê. Tire uma captura de tela e envie manualmente.',
+        },
+        {
+          term: 'Casas de coleta sem o plugin',
+          body: 'Quantidades de itens — um número de peixes, minérios, toras — não estão nos hiscores, então só o plugin as rastreia. Sem ele, tire captura de cada inventário; ou, se o item aparece no Loot Tracker, uma captura zerado em 0 no início e outra no fim.',
+        },
+      ],
+    },
   },
 
   admin: {

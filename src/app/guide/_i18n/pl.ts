@@ -794,6 +794,29 @@ const pl: PartialGuideDict = {
         body: 'Pety i powtórzone Champion’s scrolle wymagają ręcznego zrzutu ekranu. Plugin robi go za ciebie i zapisuje w `.runelite/osrs-bingo-pending/` — **Copy folder path** w panelu bocznym Anvil otwiera ten folder — więc załączasz go na stronie, zamiast szukać obrazka po fakcie.',
       },
     },
+    limits: {
+      title: 'Znane ograniczenia',
+      intro:
+        'Kilku rzeczy nie da się śledzić idealnie — prawie zawsze przez to, co raportuje sama gra, a nie Anvil. Rozwiązanie jest za każdym razem takie samo: zrób zrzut ekranu i prześlij go ręcznie.',
+      rows: [
+        {
+          term: 'Barraging i inne zabójstwa wielu celów',
+          body: 'Liczba zabójstw (KC) pochodzi z tego, co gra raportuje przy każdym zabójstwie, a czary wielocelowe jak Ice Barrage sprawiają, że część umyka, więc **KC może wyjść niższe** niż to, co zabiłeś. Własny Loot Tracker RuneLite zaniża w ten sam sposób — to ograniczenie silnika gry, a nie błąd Anvil.',
+        },
+        {
+          term: 'Combat Achievement, które wykonałeś wcześniej',
+          body: 'Włącz **repeat completion** w ustawieniach Combat Achievements w grze. Bez tego gra nie ogłasza zadania, które już ukończyłeś, a plugin może zaliczyć tylko to, co gra ogłosi.',
+        },
+        {
+          term: 'Combat Achievement za kontrakt Yama',
+          body: 'Gra nie ogłasza go ponownie nawet z włączonym repeat completion, więc plugin nigdy go nie widzi. Zrób zrzut ekranu i prześlij go ręcznie.',
+        },
+        {
+          term: 'Pola zbierania bez pluginu',
+          body: 'Liczby przedmiotów — pewna liczba ryb, rud, kłód — nie ma w hiscores, więc śledzi je tylko plugin. Bez niego zrób zrzut każdego ekwipunku; albo, jeśli przedmiot widać w Loot Trackerze, zrzut po wyzerowaniu do 0 na początku i kolejny na końcu.',
+        },
+      ],
+    },
   },
 
   admin: {

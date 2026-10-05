@@ -806,6 +806,29 @@ const fr: PartialGuideDict = {
         body: 'Les familiers et les Champion’s scrolls en double demandent une capture manuelle. Le plugin la prend pour toi et l’enregistre dans `.runelite/osrs-bingo-pending/` — **Copy folder path** dans le panneau latéral Anvil ouvre le dossier — pour que tu la joignes sur le site au lieu de chercher une image après coup.',
       },
     },
+    limits: {
+      title: 'Limites connues',
+      intro:
+        'Quelques éléments ne peuvent pas être suivis parfaitement — presque toujours à cause de ce que le jeu lui-même rapporte, pas d’Anvil. La solution est chaque fois la même : faites une capture d’écran et soumettez-la manuellement.',
+      rows: [
+        {
+          term: 'Le barraging et les autres kills multi-cibles',
+          body: 'Les compteurs de kills (KC) viennent de ce que le jeu rapporte à chaque kill, et les sorts multi-cibles comme Ice Barrage lui en font rater certains, donc **le KC peut sortir plus bas** que ce que vous avez tué. Le Loot Tracker de RuneLite sous-compte de la même façon — c’est une limite du moteur du jeu, pas un bug d’Anvil.',
+        },
+        {
+          term: 'Les combat achievements déjà réalisés',
+          body: 'Activez **repeat completion** dans les paramètres des Combat Achievements du jeu. Sans cela, le jeu n’annonce pas une tâche que vous avez déjà accomplie, et le plugin ne peut créditer que ce que le jeu annonce.',
+        },
+        {
+          term: 'Le combat achievement du contrat Yama',
+          body: 'Le jeu ne l’annonce pas de nouveau, même avec repeat completion activé, donc le plugin ne le voit jamais. Faites une capture d’écran et soumettez-la manuellement.',
+        },
+        {
+          term: 'Les cases de collecte sans le plugin',
+          body: 'Les quantités d’objets — un nombre de poissons, de minerais, de bûches — ne figurent pas dans les hiscores, donc seul le plugin les suit. Sans lui, faites une capture de chaque inventaire ; ou, si l’objet apparaît dans le Loot Tracker, une capture remis à 0 au début et une autre à la fin.',
+        },
+      ],
+    },
   },
 
   admin: {

@@ -805,6 +805,29 @@ const nl: PartialGuideDict = {
         body: 'Pets en dubbele Champion’s scrolls hebben een handmatige screenshot nodig. De plugin maakt hem voor je en bewaart hem in `.runelite/osrs-bingo-pending/` — **Copy folder path** in het Anvil-zijpaneel opent de map — zodat je hem op de site toevoegt in plaats van achteraf naar een plaatje te zoeken.',
       },
     },
+    limits: {
+      title: 'Bekende beperkingen',
+      intro:
+        'Een paar dingen zijn niet perfect bij te houden — bijna altijd door wat het spel zelf meldt, niet door Anvil. De oplossing is elke keer dezelfde: maak een screenshot en dien die handmatig in.',
+      rows: [
+        {
+          term: 'Barraging en andere kills op meerdere doelen',
+          body: 'Kill-aantallen (KC) komen uit wat het spel per kill meldt, en spreuken met meerdere doelen zoals Ice Barrage laten het er een paar missen, dus **KC kan lager uitvallen** dan wat je hebt gedood. RuneLites eigen Loot Tracker telt op dezelfde manier te laag — het is een limiet van de game-engine, geen Anvil-bug.',
+        },
+        {
+          term: 'Combat achievements die je eerder hebt gedaan',
+          body: 'Zet **repeat completion** aan in de Combat Achievements-instellingen van het spel. Zonder die optie kondigt het spel een taak die je al hebt voltooid niet aan, en de plugin kan alleen toekennen wat het spel aankondigt.',
+        },
+        {
+          term: 'De Yama-contract combat achievement',
+          body: 'Het spel kondigt deze niet opnieuw aan, ook niet met repeat completion aan, dus de plugin ziet hem nooit. Maak een screenshot en dien hem handmatig in.',
+        },
+        {
+          term: 'Verzamelvakjes zonder de plugin',
+          body: 'Aantallen items — een aantal vissen, ertsen, boomstammen — staan niet in de hiscores, dus alleen de plugin houdt ze bij. Zonder plugin: maak een screenshot van elke inventory; of, als het item in de Loot Tracker staat, een screenshot na het resetten naar 0 aan het begin en nog een aan het eind.',
+        },
+      ],
+    },
   },
 
   admin: {

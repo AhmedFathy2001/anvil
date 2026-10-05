@@ -804,6 +804,29 @@ const ko: PartialGuideDict = {
         body: '펫과 중복 Champion’s scroll은 수동 스크린샷이 필요합니다. 플러그인이 대신 찍어 `.runelite/osrs-bingo-pending/`에 저장하며(Anvil 사이드 패널의 **Copy folder path**로 폴더가 열립니다), 나중에 사진을 찾는 대신 사이트에서 첨부하면 됩니다.',
       },
     },
+    limits: {
+      title: '알려진 제한 사항',
+      intro:
+        '몇 가지는 완벽하게 추적할 수 없습니다 —— 거의 항상 Anvil이 아니라 게임 자체가 보고하는 내용 때문입니다. 해결책은 매번 같습니다: 스크린샷을 찍어 수동으로 제출하세요.',
+      rows: [
+        {
+          term: 'Barraging 등 다중 대상 처치',
+          body: '처치 수(KC)는 게임이 처치마다 보고하는 내용에서 나오는데, Ice Barrage 같은 다중 대상 주문은 일부를 놓치게 만들어 **KC가 실제로 처치한 수보다 낮게 나올 수** 있습니다. RuneLite의 자체 Loot Tracker도 같은 방식으로 적게 셉니다 —— 게임 엔진의 한계이지 Anvil의 버그가 아닙니다.',
+        },
+        {
+          term: '이전에 이미 달성한 Combat Achievements',
+          body: '게임의 Combat Achievements 설정에서 **repeat completion**(반복 완료)을 켜세요. 켜지 않으면 이미 완료한 과제는 게임이 알려 주지 않고, 플러그인은 게임이 알려 주는 것만 인정할 수 있습니다.',
+        },
+        {
+          term: 'Yama 계약 Combat Achievement',
+          body: 'repeat completion을 켜도 게임이 이것은 다시 알려 주지 않으므로 플러그인이 전혀 보지 못합니다. 스크린샷을 찍어 수동으로 제출하세요.',
+        },
+        {
+          term: '플러그인 없이 하는 채집 타일',
+          body: '아이템 수 —— 물고기, 광석, 통나무의 개수 —— 는 hiscores에 없으므로 플러그인만 추적할 수 있습니다. 플러그인이 없다면 모든 인벤토리를 스크린샷으로 찍거나, 아이템이 Loot Tracker에 나온다면 시작할 때 0으로 초기화한 화면과 끝날 때의 화면을 각각 스크린샷으로 찍으세요.',
+        },
+      ],
+    },
   },
 
   admin: {

@@ -805,6 +805,29 @@ const es: PartialGuideDict = {
         body: 'Las mascotas y los Champion’s scrolls repetidos necesitan una captura manual. El plugin la hace por ti y la guarda en `.runelite/osrs-bingo-pending/` — **Copy folder path** en el panel lateral de Anvil abre la carpeta — así la adjuntas en la web en vez de buscar una imagen después.',
       },
     },
+    limits: {
+      title: 'Limitaciones conocidas',
+      intro:
+        'Hay cosas que no se pueden registrar a la perfección — casi siempre por lo que informa el propio juego, no Anvil. La solución es siempre la misma: haz una captura de pantalla y envíala manualmente.',
+      rows: [
+        {
+          term: 'El barraging y otras muertes a varios objetivos',
+          body: 'Los recuentos de kills (KC) salen de lo que el juego informa por cada muerte, y los hechizos de varios objetivos como Ice Barrage hacen que se le escapen algunas, así que **el KC puede salir más bajo** de lo que has matado. El Loot Tracker de RuneLite también cuenta de menos igual — es un límite del motor del juego, no un fallo de Anvil.',
+        },
+        {
+          term: 'Combat achievements que ya hiciste antes',
+          body: 'Activa **repeat completion** en los ajustes de Combat Achievements del juego. Sin ello, el juego no anuncia una tarea que ya completaste, y el plugin solo puede acreditar lo que el juego anuncia.',
+        },
+        {
+          term: 'El combat achievement del contrato de Yama',
+          body: 'El juego no lo vuelve a anunciar ni siquiera con repeat completion activado, así que el plugin nunca lo ve. Haz una captura de pantalla y envíala manualmente.',
+        },
+        {
+          term: 'Casillas de recolección sin el plugin',
+          body: 'Las cantidades de objetos — un número de peces, minerales, troncos — no están en los hiscores, así que solo las registra el plugin. Sin él, haz una captura de cada inventario; o, si el objeto aparece en el Loot Tracker, una captura reiniciado a 0 al principio y otra al final.',
+        },
+      ],
+    },
   },
 
   admin: {

@@ -805,6 +805,29 @@ const de: PartialGuideDict = {
         body: 'Pets und doppelte Champion’s scrolls brauchen einen manuellen Screenshot. Das Plugin macht ihn für dich und legt ihn in `.runelite/osrs-bingo-pending/` ab — **Copy folder path** im Anvil-Seitenpanel öffnet den Ordner — damit du ihn auf der Seite anhängst, statt hinterher nach einem Bild zu suchen.',
       },
     },
+    limits: {
+      title: 'Bekannte Einschränkungen',
+      intro:
+        'Ein paar Dinge lassen sich nicht perfekt erfassen — fast immer wegen dem, was das Spiel selbst meldet, nicht wegen Anvil. Die Lösung ist jedes Mal dieselbe: Screenshot machen und manuell einreichen.',
+      rows: [
+        {
+          term: 'Barraging und andere Kills mit mehreren Zielen',
+          body: 'Kill-Zahlen (KC) stammen aus dem, was das Spiel pro Kill meldet, und Zauber mit mehreren Zielen wie Ice Barrage lassen es manche verpassen, sodass **KC niedriger ausfallen kann**, als du getötet hast. Auch RuneLites eigener Loot Tracker zählt so zu wenig — das ist eine Grenze der Spiel-Engine, kein Anvil-Fehler.',
+        },
+        {
+          term: 'Combat Achievements, die du schon erledigt hast',
+          body: 'Schalte **repeat completion** in den Combat-Achievements-Einstellungen des Spiels ein. Ohne sie kündigt das Spiel eine bereits erledigte Aufgabe nicht an, und das Plugin kann nur anrechnen, was das Spiel ankündigt.',
+        },
+        {
+          term: 'Die Combat Achievement für den Yama-Vertrag',
+          body: 'Diese kündigt das Spiel selbst mit eingeschaltetem repeat completion nicht erneut an, also sieht das Plugin sie nie. Mach einen Screenshot und reiche sie manuell ein.',
+        },
+        {
+          term: 'Sammelfelder ohne das Plugin',
+          body: 'Gegenstandszahlen — eine Anzahl Fische, Erze, Baumstämme — stehen nicht in den Hiscores, also erfasst sie nur das Plugin. Ohne es: Screenshot von jedem Inventar; oder, wenn der Gegenstand im Loot Tracker auftaucht, ein Screenshot nach dem Zurücksetzen auf 0 zu Beginn und noch einer am Ende.',
+        },
+      ],
+    },
   },
 
   admin: {

@@ -803,6 +803,29 @@ const zhHans: PartialGuideDict = {
         body: '宠物和重复的 Champion’s scroll 需要手动截图。插件会替你截好并保存到 `.runelite/osrs-bingo-pending/`（Anvil 侧边栏的 **Copy folder path** 可以打开该文件夹），你在网站上直接附加即可，不必事后再去翻找图片。',
       },
     },
+    limits: {
+      title: '已知限制',
+      intro:
+        '有几样东西无法被完美记录 —— 几乎总是因为游戏本身上报的内容，而不是 Anvil。解决办法每次都一样：截图并手动提交。',
+      rows: [
+        {
+          term: 'Barraging 与其他多目标击杀',
+          body: '击杀数（KC）来自游戏对每次击杀的上报，而 Ice Barrage 这类多目标法术会让它漏掉一部分，所以**KC 可能比你实际击杀的少**。RuneLite 自带的 Loot Tracker 也会以同样的方式少计 —— 这是游戏引擎的限制，不是 Anvil 的 bug。',
+        },
+        {
+          term: '你以前完成过的 Combat Achievements',
+          body: '在游戏的 Combat Achievements 设置中打开 **repeat completion**（重复完成）。不开的话，游戏不会提示你已经完成过的任务，而插件只能记入游戏提示过的内容。',
+        },
+        {
+          term: 'Yama 契约 Combat Achievement',
+          body: '即使开了 repeat completion，游戏也不会再次提示这一项，所以插件永远看不到它。截图并手动提交。',
+        },
+        {
+          term: '没有插件时的采集格',
+          body: '物品数量 —— 若干条鱼、矿石、原木 —— 不在 hiscores 上，所以只有插件能记录。没有插件的话，请给每个背包截图；或者，如果该物品出现在 Loot Tracker 里，开始时截一张重置为 0 的图，结束时再截一张。',
+        },
+      ],
+    },
   },
 
   admin: {

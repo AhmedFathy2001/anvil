@@ -810,6 +810,29 @@ const da: PartialGuideDict = {
         body: 'Pets og ekstra Champion’s scrolls kræver et manuelt screenshot. Pluginnet tager det for dig og gemmer det i `.runelite/osrs-bingo-pending/` — **Copy folder path** i Anvil-sidepanelet åbner mappen — så du vedhæfter det på siden i stedet for at lede efter et billede bagefter.',
       },
     },
+    limits: {
+      title: 'Kendte begrænsninger',
+      intro:
+        'Et par ting kan ikke spores perfekt — næsten altid på grund af, hvad selve spillet rapporterer, ikke Anvil. Løsningen er den samme hver gang: tag et skærmbillede og indsend det manuelt.',
+      rows: [
+        {
+          term: 'Barraging og andre drab på flere mål',
+          body: 'Antal drab (KC) kommer fra det, spillet rapporterer pr. drab, og trylleformularer med flere mål som Ice Barrage får det til at overse nogle, så **KC kan blive lavere** end det, du har dræbt. RuneLites egen Loot Tracker undertæller på samme måde — det er en begrænsning i spilmotoren, ikke en Anvil-fejl.',
+        },
+        {
+          term: 'Combat Achievements, du har klaret før',
+          body: 'Slå **repeat completion** til i spillets indstillinger for Combat Achievements. Uden den melder spillet ikke en opgave, du allerede har klaret, og pluginnet kan kun give point for det, spillet melder.',
+        },
+        {
+          term: 'Yama-kontrakten som Combat Achievement',
+          body: 'Spillet melder ikke denne igen, selv med repeat completion slået til, så pluginnet ser den aldrig. Tag et skærmbillede og indsend den manuelt.',
+        },
+        {
+          term: 'Indsamlingsfelter uden pluginnet',
+          body: 'Antal genstande — et antal fisk, malme, træstammer — står ikke på hiscores, så kun pluginnet kan spore dem. Uden det skal du tage skærmbillede af hvert inventar; eller, hvis genstanden vises i Loot Tracker, et skærmbillede nulstillet til 0 i starten og igen til sidst.',
+        },
+      ],
+    },
   },
 
   admin: {

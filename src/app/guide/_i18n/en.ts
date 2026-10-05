@@ -800,6 +800,29 @@ export const en = {
         body: 'Pets and duplicate Champion’s scrolls need a manual screenshot. The plugin takes one for you and saves it to `.runelite/osrs-bingo-pending/` — **Copy folder path** in the Anvil side panel opens it — so you attach it on the site rather than hunting for a shot after the fact.',
       },
     },
+    limits: {
+      title: 'Known limitations',
+      intro:
+        'A few things can’t be tracked perfectly — almost always because of what the game itself reports, not Anvil. The fix is the same every time: screenshot it and submit it manually.',
+      rows: [
+        {
+          term: 'Barraging and other multi-target kills',
+          body: 'Kill counts come from what the game reports per kill, and multi-target spells like Ice Barrage make it miss some, so **KC can come out lower** than you killed. RuneLite’s own Loot Tracker undercounts the same way — it’s a game-engine limit, not an Anvil bug.',
+        },
+        {
+          term: 'Combat achievements you’ve done before',
+          body: 'Turn on **repeat completion** in the game’s Combat Achievements settings. Without it the game won’t announce a task you’ve already completed, and the plugin can only credit what the game announces.',
+        },
+        {
+          term: 'The Yama contract combat achievement',
+          body: 'The game doesn’t announce this one again even with repeat completion on, so the plugin never sees it. Screenshot it and submit it manually.',
+        },
+        {
+          term: 'Gathering tiles without the plugin',
+          body: 'Item counts — a number of fish, ores, logs — aren’t on the hiscores, so only the plugin tracks them. Without it, screenshot every inventory; or, if the item shows in the Loot Tracker, screenshot it reset to 0 at the start and again at the end.',
+        },
+      ],
+    },
   },
 
   admin: {

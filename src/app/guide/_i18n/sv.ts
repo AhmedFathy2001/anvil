@@ -804,6 +804,29 @@ const sv: PartialGuideDict = {
         body: 'Pets och dubbletter av Champion’s scrolls kräver en manuell skärmbild. Pluginet tar den åt dig och sparar den i `.runelite/osrs-bingo-pending/` — **Copy folder path** i Anvils sidopanel öppnar mappen — så att du bifogar den på sajten i stället för att leta efter en bild efteråt.',
       },
     },
+    limits: {
+      title: 'Kända begränsningar',
+      intro:
+        'Några saker går inte att spåra perfekt — nästan alltid på grund av vad själva spelet rapporterar, inte Anvil. Lösningen är densamma varje gång: ta en skärmbild och skicka in den manuellt.',
+      rows: [
+        {
+          term: 'Barraging och andra dråp på flera mål',
+          body: 'Antal dråp (KC) kommer från det spelet rapporterar per dråp, och flermålsformler som Ice Barrage gör att en del missas, så **KC kan bli lägre** än vad du dödat. RuneLites egen Loot Tracker räknar för lågt på samma sätt — det är en begränsning i spelmotorn, inte en Anvil-bugg.',
+        },
+        {
+          term: 'Combat achievements du gjort förut',
+          body: 'Slå på **repeat completion** i spelets inställningar för Combat Achievements. Utan den meddelar spelet inte en uppgift du redan klarat, och pluginet kan bara ge poäng för det spelet meddelar.',
+        },
+        {
+          term: 'Yama-kontraktets combat achievement',
+          body: 'Spelet meddelar inte denna igen ens med repeat completion på, så pluginet ser den aldrig. Ta en skärmbild och skicka in den manuellt.',
+        },
+        {
+          term: 'Insamlingsrutor utan pluginet',
+          body: 'Antal föremål — ett antal fiskar, malmer, stockar — finns inte på hiscores, så bara pluginet spårar dem. Utan det: ta en skärmbild av varje inventory; eller, om föremålet syns i Loot Tracker, en skärmbild nollställd till 0 i början och en igen i slutet.',
+        },
+      ],
+    },
   },
 
   admin: {

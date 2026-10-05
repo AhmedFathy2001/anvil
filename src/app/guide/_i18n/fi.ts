@@ -805,6 +805,29 @@ const fi: PartialGuideDict = {
         body: 'Lemmikit ja toistuvat Champion’s scrollit vaativat käsin otetun kuvakaappauksen. Plugin ottaa sen puolestasi ja tallentaa kansioon `.runelite/osrs-bingo-pending/` — **Copy folder path** Anvilin sivupaneelissa avaa sen — joten liität sen sivustolle sen sijaan että etsisit kuvaa jälkikäteen.',
       },
     },
+    limits: {
+      title: 'Tunnetut rajoitukset',
+      intro:
+        'Muutamia asioita ei voi seurata täydellisesti — lähes aina sen vuoksi, mitä itse peli raportoi, ei Anvilin. Korjaus on joka kerta sama: ota kuvakaappaus ja lähetä se käsin.',
+      rows: [
+        {
+          term: 'Barraging ja muut usean kohteen tapot',
+          body: 'Tappomäärät (KC) tulevat siitä, mitä peli raportoi kustakin taposta, ja usean kohteen loitsut kuten Ice Barrage saavat sen ohittamaan osan, joten **KC voi jäädä pienemmäksi** kuin mitä olet tappanut. RuneLiten oma Loot Tracker alilaskee samalla tavalla — kyse on pelimoottorin rajoituksesta, ei Anvilin viasta.',
+        },
+        {
+          term: 'Combat Achievementit, jotka olet tehnyt aiemmin',
+          body: 'Ota pelin Combat Achievements -asetuksista käyttöön **repeat completion**. Ilman sitä peli ei ilmoita tehtävästä, jonka olet jo suorittanut, ja plugin voi hyvittää vain sen, minkä peli ilmoittaa.',
+        },
+        {
+          term: 'Yama-sopimuksen Combat Achievement',
+          body: 'Peli ei ilmoita tätä uudelleen edes repeat completionin ollessa päällä, joten plugin ei koskaan näe sitä. Ota kuvakaappaus ja lähetä se käsin.',
+        },
+        {
+          term: 'Keräilyruudut ilman pluginia',
+          body: 'Esinemääriä — tietty määrä kaloja, malmeja, tukkeja — ei ole hiscoresissa, joten vain plugin seuraa niitä. Ilman sitä ota kuvakaappaus jokaisesta inventaariosta; tai jos esine näkyy Loot Trackerissa, kuvakaappaus nollattuna 0:aan alussa ja uudestaan lopussa.',
+        },
+      ],
+    },
   },
 
   admin: {

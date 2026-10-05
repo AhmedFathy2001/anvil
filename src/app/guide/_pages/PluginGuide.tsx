@@ -84,6 +84,7 @@ export default async function PluginGuide({ lang }: { lang: string }) {
     { id: 'notifications', n: 6, title: p.notifications.title },
     { id: 'clips', n: 7, title: p.clips.title },
     { id: 'trouble', n: 8, title: p.trouble.title },
+    { id: 'limits', n: 9, title: p.limits.title },
   ];
 
   return (
@@ -294,6 +295,14 @@ export default async function PluginGuide({ lang }: { lang: string }) {
         <Note tag={p.trouble.missingNote.tag}>
           <p>{rt(p.trouble.missingNote.body, v)}</p>
         </Note>
+      </Section>
+
+      {/* ---------------------------------------------------------------- 9 */}
+      {/* Things the GAME doesn't report, so nothing can track them. A list meant to grow: add a row
+          to `plugin.limits.rows` (every locale) as new ones turn up. */}
+      <Section id="limits" n={9} title={p.limits.title} labels={t.common}>
+        <p className="text-text-muted">{rt(p.limits.intro, v)}</p>
+        <Rows rows={rows(p.limits.rows, v)} />
       </Section>
     </GuideShell>
   );
