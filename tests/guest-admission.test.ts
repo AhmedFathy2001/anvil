@@ -205,7 +205,7 @@ test('a departed seat is not quietly resurrected by turning up again', async () 
 
 // ── One member seat ───────────────────────────────────────────────────────────────────────────
 
-test('an account is a member of one clan; joining another demotes the first', async () => {
+test('an account is a member of one clan, and a sync never takes it from the other', async () => {
   const { db, schema: s } = await loadDb();
   const [pl] = await db.insert(s.players).values({ displayName: 'Transfer' }).returning();
   const [acct] = await db
@@ -218,12 +218,15 @@ test('an account is a member of one clan; joining another demotes the first', as
     .values({ clanId: approvalClan, accountId: acct.id, kind: 'member', source: 'roster' })
     .returning();
 
-  const { demotedFrom } = await G.claimMemberSeat(openClan, acct.id);
-  assert.equal(demotedFrom, approvalClan);
+  assert.equal(await G.memberSeatElsewhere(openClan, acct.id), approvalClan, 'held by the other clan');
+  assert.equal(await G.memberSeatElsewhere(approvalClan, acct.id), null, 'not "elsewhere" from its own clan');
 
   const was = await db.query.clanMemberships.findFirst({ where: eq(s.clanMemberships.id, oldSeat.id) });
-  assert.equal(was?.kind, 'guest', 'demoted, not deleted');
-  assert.equal(was?.leftAt, null, 'and not removed — their history there is the clan’s record too');
+  assert.equal(was?.kind, 'member', 'asking moved nothing');
+
+  // Once they leave, it is free.
+  await db.update(s.clanMemberships).set({ leftAt: new Date().toISOString() }).where(eq(s.clanMemberships.id, oldSeat.id));
+  assert.equal(await G.memberSeatElsewhere(openClan, acct.id), null);
 });
 
 test('the database refuses a second member seat outright', async () => {

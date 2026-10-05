@@ -283,46 +283,29 @@ export async function pendingRequests(clanId: number): Promise<PendingRequest[]>
 }
 
 /**
- * Claiming an account as a MEMBER of this clan, which it can only be in one place.
+ * The OTHER clan this account is a member of, if any.
  *
- * The in-game roster is the evidence and an account cannot be in two clans, so a later sync is
- * simply the more current truth: the previous clan's seat DEMOTES to guest rather than the write
- * failing. Their history there survives, and that clan can remove them or they can leave.
+ * An account is a member of one clan at a time (the `clan_memberships_one_member_seat` index). A
+ * roster sync used to settle a conflict by demoting the other clan's seat to guest — "the later sync
+ * is the more current truth". That made every sync a lever on OTHER clans: a clan created under a
+ * real clan's name could push that clan's roster and quietly demote its members everywhere else.
  *
- * Without this the unique index would reject the sync outright, and a clan would find its roster
- * refusing to import a player who had transferred in — the common case, not an edge one.
+ * So a sync never moves a membership any more. Someone listed by this roster who is a member
+ * elsewhere is seated here as a GUEST, and becomes a member here when they leave the other clan —
+ * themselves (`leaveClan`), by that clan's own roster dropping them, or by platform staff. The next
+ * sync then promotes them.
  */
-export async function claimMemberSeat(clanId: number, accountId: number): Promise<{ demotedFrom: number | null }> {
-  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
+export async function memberSeatElsewhere(clanId: number, accountId: number): Promise<number | null> {
+  // clan-scope: global -- the one-member-seat rule spans clans by definition; this only reads which clan holds it.
   const elsewhere = await db.query.clanMemberships.findFirst({
     where: and(
       eq(clanMemberships.accountId, accountId),
       eq(clanMemberships.kind, 'member'),
       isNull(clanMemberships.leftAt),
     ),
+    columns: { clanId: true },
   });
-
-  if (elsewhere && elsewhere.clanId !== clanId) {
-    await db
-      .update(clanMemberships)
-      .set({ kind: 'guest' })
-      .where(eq(clanMemberships.id, elsewhere.id));
-
-    await db
-      .insert(clanAuditLog)
-      .values({
-        clanId: elsewhere.clanId,
-        clanMemberId: elsewhere.id,
-        eventType: 'member_left_for_another_clan',
-        newValue: JSON.stringify({ nowMemberOf: clanId }),
-        notes: 'demoted to guest — an account is a member of one clan at a time',
-      })
-      .catch(() => {});
-
-    return { demotedFrom: elsewhere.clanId };
-  }
-
-  return { demotedFrom: null };
+  return elsewhere && elsewhere.clanId !== clanId ? elsewhere.clanId : null;
 }
 
 /**

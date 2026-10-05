@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { findOrCreateAccount, findOrCreateSeat, updateAccountOfSeat } from '@/lib/roster';
 import { isBannedFromClan } from '@/lib/clanBans';
-import { claimMemberSeat } from '@/lib/guestAdmission';
+import { memberSeatElsewhere } from '@/lib/guestAdmission';
 import { claimFromRoster, verificationOf } from '@/lib/clanVerification';
 import { db } from '@/db';
 import { getSetting, setSetting } from '@/lib/settings';
@@ -165,12 +165,7 @@ export async function POST(request: Request) {
               message: `"${clanName}" is already verified for another clan on Anvil. If that is wrong, contact support and we will sort it out.`,
               byClanSlug: claim.byClanSlug,
             }
-          : claim.outcome === 'not-owner'
-            ? {
-                error: 'notClanOwner',
-                message: `Your rank in ${clanName} is "${claim.rank ?? 'unknown'}". The first roster sync has to come from an owner or deputy owner — after that anyone with site admin can sync.`,
-              }
-            : matchedButUnverified
+          : matchedButUnverified
               ? {
                   error: 'accountNotVerified',
                   message: `You are in the ${clanName} member list, but that character is not verified on Anvil yet. Verify it on your profile, then sync again — a clan name is claimed by a proven account, so the claim can be traced to a real one.`,
@@ -467,6 +462,8 @@ export async function POST(request: Request) {
   }
 
   const refusedBanned: string[] = [];
+  // Listed by this roster but a member of another clan on Anvil — seated as guests, never moved.
+  const memberElsewhere: string[] = [];
 
   if (toInsert.length > 0) {
     // THE grant. Membership is never assumed anywhere else in the codebase — this sweep is the
@@ -489,17 +486,17 @@ export async function POST(request: Request) {
         continue;
       }
 
-      // An account is a member of ONE clan. If this roster claims someone who is a member
-      // elsewhere, that seat demotes to guest — the in-game roster is the evidence, they cannot be
-      // in both, so the later sync is simply the more current truth. Without this the unique index
-      // rejects the sync outright and a clan finds its roster refusing to import a player who
-      // transferred in, which is the common case rather than an edge one.
-      await claimMemberSeat(clan.id, account.id);
+      // An account is a member of ONE clan, and a sync never takes that membership from another
+      // clan (lib/guestAdmission memberSeatElsewhere). Listed here but a member elsewhere → a GUEST
+      // seat here, promoted by a later sync once they have left the other clan.
+      const heldBy = await memberSeatElsewhere(clan.id, account.id);
+      const kind = heldBy == null ? ('member' as const) : ('guest' as const);
+      if (heldBy != null) memberElsewhere.push(row.rsn);
 
-      const seatId = await findOrCreateSeat(clan.id, account.id, { kind: 'member', source: 'roster' });
+      const seatId = await findOrCreateSeat(clan.id, account.id, { kind, source: 'roster' });
       await db
         .update(clanMemberships)
-        .set({ kind: 'member', source: 'roster', rank: row.rank, lastSeenInClan: now, leftAt: null })
+        .set({ kind, source: 'roster', rank: row.rank, lastSeenInClan: now, leftAt: null })
         .where(eq(clanMemberships.id, seatId));
       insertedRows.push({ id: seatId, rsn: row.rsn });
     }
@@ -550,7 +547,13 @@ export async function POST(request: Request) {
     // the exclusivity index has held since the last time it was claimed, and asking again cost a
     // query per member per sync to learn that.
     if (u.setKind === 'member' && !u.setLeftAt && (u.becameMember || u.returning)) {
-      await claimMemberSeat(clan.id, u.accountId);
+      // Never by taking it from another clan: still a member there → stays (or becomes) a guest here.
+      if ((await memberSeatElsewhere(clan.id, u.accountId)) != null) {
+        u.setKind = 'guest';
+        u.becameMember = false;
+        u.seatUnchanged = false;
+        memberElsewhere.push(u.setRsn);
+      }
     }
 
     if (!u.seatUnchanged) {
@@ -792,6 +795,9 @@ export async function POST(request: Request) {
     // Anyone the in-game roster listed whom this clan has banned from the SITE. Named rather than
     // dropped, so a roster that syncs 51 of 52 says which one and why.
     refusedBanned,
+    // In this roster, but a member of another clan on Anvil. Seated as guests: a sync never moves a
+    // membership between clans — they become members here once they leave the other one.
+    memberElsewhere,
     changes: changes.map((c) => ({
       type: c.type,
       rsn: c.rsn,

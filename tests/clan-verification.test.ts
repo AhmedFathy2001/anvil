@@ -163,7 +163,7 @@ test('someone not in the roster they pushed proves nothing', async () => {
   assert.equal((await V.verificationOf(other.id)).verified, false);
 });
 
-test('a rank-and-file member cannot verify their own clan', async () => {
+test('any rank in the roster verifies the clan — the owner-tier gate is gone', async () => {
   const { db, schema: s } = await loadDb();
   const [c] = await db.insert(s.clans).values({ slug: 'grunts', name: 'Grunts' }).returning();
 
@@ -174,7 +174,8 @@ test('a rank-and-file member cannot verify their own clan', async () => {
     pusherAccountId: null,
     roster: ROSTER,
   });
-  assert.deepEqual(r, { outcome: 'not-owner', rank: 'Recruit' });
+  assert.equal(r.outcome, 'verified');
+  assert.equal((await V.verificationOf(c.id)).verified, true);
 });
 
 test('an empty clan name verifies nothing', async () => {

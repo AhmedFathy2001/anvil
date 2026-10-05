@@ -6,8 +6,10 @@
 //
 // HOW THE PROOF WORKS. The roster payload is self-attesting: the plugin reads the clan member list
 // from the game, and the person pushing it appears in that list with their rank. So the server can
-// ask a question only a real member could pass — "are you in the roster you just sent me, holding an
-// owner-tier rank?" — without needing anything the client could not already have.
+// ask a question only a real member could pass — "are you in the roster you just sent me?" — without
+// needing anything the client could not already have. Any rank: the owner-tier requirement held new
+// clans hostage to one person's session, and the harm a squatter could do with a sync (demoting real
+// members' seats elsewhere) is gone — a sync never moves a membership between clans now.
 //
 // WHAT IT IS NOT. This is practical proof, not cryptographic. A modified client can send whatever it
 // likes, and saying otherwise in the code would be worse than the limitation itself. What backs it:
@@ -17,14 +19,13 @@
 //     supplied client value is not treated as independent proof
 //   - a second claim is refused and escalates to a human rather than silently losing
 //
-// It raises the cost from "type a name" to "control an account with an owner rank in that clan, or
-// modify your client", and gives the real owners a place to complain. That is the honest claim.
+// It raises the cost from "type a name" to "control a verified account in that clan, or modify your
+// client", and gives the real owners a place to complain. That is the honest claim.
 
 import { and, eq, isNotNull, ne, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanAuditLog, clans } from '@/db/schema';
-import { isOwnerTierRank } from '@/lib/ingameRanks';
 
 export { isOwnerTierRank } from '@/lib/ingameRanks';
 
@@ -52,7 +53,6 @@ export type ClaimResult =
   /** Another clan verified this name first. A human decides. */
   | { outcome: 'taken'; byClanSlug: string }
   /** The pusher is in the roster but not senior enough. */
-  | { outcome: 'not-owner'; rank: string | null }
   /** The pusher is not in the roster they sent, which is the one thing a real member cannot be. */
   | { outcome: 'not-in-roster' };
 
@@ -116,7 +116,22 @@ export async function claimFromRoster(opts: {
     ? opts.roster.find((r) => r.rsnNormalized === opts.pusherRsnNormalized)
     : undefined;
   if (!me) return { outcome: 'not-in-roster' };
-  if (!isOwnerTierRank(me.rank)) return { outcome: 'not-owner', rank: me.rank };
+  // ANY RANK. The first sync used to need an owner or deputy owner, which held every new clan
+  // hostage to one person's game session (and failed outright when a clan renamed its owner rank).
+  // Being in the roster, on a verified character, from an account the site already made admin, is
+  // the claim; what made a squatted name dangerous — a sync demoting real members' seats in their
+  // real clan — no longer exists (lib/guestAdmission memberSeatElsewhere), and the full unique
+  // index still keeps one name to one clan.
+
+
+  // Held — unverified — by another clan. Since 0082 an in-game name belongs to one clan whether or
+  // not it is verified, so writing it here would fail on the index and surface as a 500 mid-sync.
+  // Refuse it the way a verified holder is refused, and leave the arbitration to /staff.
+  const heldUnverified = await db.query.clans.findFirst({
+    where: and(sql`lower(trim(${clans.inGameName})) = ${name.toLowerCase()}`, ne(clans.id, opts.clanId)),
+    columns: { slug: true },
+  });
+  if (heldUnverified) return { outcome: 'taken', byClanSlug: heldUnverified.slug };
 
   const nowIso = new Date().toISOString();
   await db
