@@ -108,6 +108,29 @@ export async function inAcceptedCohostClan(eventId: number, playerId: number): P
   return row.length > 0;
 }
 
+/**
+ * A MEMBER seat (not a guest one) in a clan that has accepted a co-host seat on this event — the bar
+ * for playing it from that clan's roster, which is higher than the bar for looking at it.
+ */
+export async function memberOfAcceptedCohostClan(eventId: number, playerId: number): Promise<boolean> {
+  const row = await db
+    .select({ id: eventCohosts.id })
+    .from(eventCohosts)
+    .innerJoin(clanMemberships, eq(clanMemberships.clanId, eventCohosts.clanId))
+    .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
+    .where(
+      and(
+        eq(eventCohosts.eventId, eventId),
+        eq(eventCohosts.status, 'accepted'),
+        eq(accounts.playerId, playerId),
+        eq(clanMemberships.kind, 'member'),
+        isNull(clanMemberships.leftAt),
+      ),
+    )
+    .limit(1);
+  return row.length > 0;
+}
+
 /** A staff grant in this clan, which is authority without necessarily a roster seat. */
 async function hasGrantIn(clanId: number, playerId: number): Promise<boolean> {
   const row = await db
@@ -170,10 +193,12 @@ export async function canEnterEvent(opts: {
 
   if (await hasSeatIn(event.clanId, opts.playerId)) return { outcome: 'insider' };
 
-  // A member of an accepted co-host clan signs up with their OWN clan's seat (lib/eventSeats) — the
-  // host said yes to their whole clan by accepting it as a co-host. Sending them through entry would
-  // put them in the host's guest queue and onto the host's roster, a clan they share nothing with.
-  if (await inAcceptedCohostClan(opts.eventId, opts.playerId)) return { outcome: 'insider' };
+  // A MEMBER of an accepted co-host clan signs up with their OWN clan's seat (lib/eventSeats) — the
+  // host said yes to that clan's members by accepting it as a co-host. Sending them through entry
+  // would put them in the host's guest queue and onto the host's roster, a clan they share nothing
+  // with. Members only: a guest seat there can be had for the asking under an `open` policy, and the
+  // host said yes to a roster, not to whoever that clan lets visit.
+  if (await memberOfAcceptedCohostClan(opts.eventId, opts.playerId)) return { outcome: 'insider' };
 
   if (!(await canSeeEvent({ eventId: opts.eventId, playerId: opts.playerId }))) {
     return { outcome: 'refused', reason: 'not-visible' };

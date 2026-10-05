@@ -168,6 +168,28 @@ test("a co-host's member enters directly, with their own clan's seat", async () 
   assert.deepEqual((await signupSeatsFor(event, gMemberPlayer)).map((x) => x.clanId), [guestClan]);
 });
 
+test("a co-host's GUEST is not its member — no entry, no seat from there", async () => {
+  const { canEnterEvent } = await import('../src/lib/eventAccess.ts');
+  const { signupSeatsFor } = await import('../src/lib/eventSeats.ts');
+  const [p] = await db.insert(s.players).values({ displayName: 'Walkup' }).returning();
+  const [a] = await db.insert(s.accounts).values({ playerId: p.id, rsn: 'Walkup', rsnNormalized: 'walkup' }).returning();
+  await db.insert(s.clanMemberships).values({ clanId: guestClan, accountId: a.id, kind: 'guest' });
+
+  assert.notDeepEqual(await canEnterEvent({ eventId, playerId: p.id }), { outcome: 'insider' });
+  assert.deepEqual(await signupSeatsFor({ id: eventId, clanId: hostClan }, p.id), []);
+});
+
+test("a host ban outranks a co-host seat", async () => {
+  const { signupSeatsFor } = await import('../src/lib/eventSeats.ts');
+  const event = { id: eventId, clanId: hostClan };
+  assert.equal((await signupSeatsFor(event, gMemberPlayer)).length, 1);
+
+  const [ban] = await db.insert(s.clanBans).values({ clanId: hostClan, playerId: gMemberPlayer }).returning();
+  assert.deepEqual(await signupSeatsFor(event, gMemberPlayer), [], 'banned by the host: nothing to sign up with');
+  await db.update(s.clanBans).set({ liftedAt: new Date().toISOString() }).where(eq(s.clanBans.id, ban.id));
+  assert.equal((await signupSeatsFor(event, gMemberPlayer)).length, 1, 'lifted: back');
+});
+
 test('adopting an existing team tags it, keeps its players, and records an accepted co-host', async () => {
   const [ev] = await db.insert(s.events).values({ clanId: hostClan, name: 'Old VS', boardSize: 25 }).returning();
   adoptEvent = ev.id;

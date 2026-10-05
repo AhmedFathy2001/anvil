@@ -11,6 +11,7 @@ import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanRoster, eventCohosts } from '@/db/schema';
+import { isBannedFromClan } from '@/lib/clanBans';
 
 /** The host, then every clan that accepted a co-host seat on this event. */
 export async function signupClanIds(event: { id: number; clanId: number }): Promise<number[]> {
@@ -30,12 +31,23 @@ export async function signupClanIds(event: { id: number; clanId: number }): Prom
  * matches the seat offered now.
  */
 export async function signupSeatsFor(event: { id: number; clanId: number }, playerId: number) {
-  const clanIds = await signupClanIds(event);
-  const seats = await db
-    .select()
-    .from(clanRoster)
-    .where(and(inArray(clanRoster.clanId, clanIds), eq(clanRoster.playerId, playerId), isNull(clanRoster.leftAt)))
-    .orderBy(desc(clanRoster.isPrimary), desc(clanRoster.verifiedAt));
+  // A co-host seat is the host's yes to that clan's MEMBERS — so it never outranks the host's no. A
+  // host ban empties the person's seats in the host clan; without this their co-host seat would walk
+  // them straight back onto the board.
+  const clanIds = (await isBannedFromClan(event.clanId, playerId)) ? [] : await signupClanIds(event);
+  if (clanIds.length === 0) return [];
+  const cohostIds = clanIds.filter((c) => c !== event.clanId);
+  const seats = (
+    await db
+      .select()
+      .from(clanRoster)
+      .where(and(inArray(clanRoster.clanId, clanIds), eq(clanRoster.playerId, playerId), isNull(clanRoster.leftAt)))
+      .orderBy(desc(clanRoster.isPrimary), desc(clanRoster.verifiedAt))
+  )
+    // Any seat in the host clan (its own guests included — the host admitted them); only MEMBER seats
+    // in a co-host. A guest seat there can be had for the asking under an `open` policy, and the host
+    // agreed to that clan's roster, not to whoever it lets visit.
+    .filter((s) => s.clanId === event.clanId || (cohostIds.includes(s.clanId) && s.kind === 'member'));
 
   const byAccount = new Map<number, (typeof seats)[number]>();
   for (const seat of seats) {
