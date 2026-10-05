@@ -182,7 +182,7 @@ test('the cron never folds in a stranger that another clan also rosters', async 
   await db.update(s.accounts).set({ statsOverallXp: 80_000_000 }).where(eq(s.accounts.id, x.real.id));
   await db.update(s.accounts).set({ statsOverallXp: 80_005_000 }).where(eq(s.accounts.id, x.stranger.id));
   const otherClan = (await db.insert(s.clans).values({ slug: 'neighbours', name: 'Neighbours' }).returning())[0].id;
-  await db.insert(s.clanMemberships).values({ clanId: otherClan, accountId: x.stranger.id, kind: 'member', source: 'roster' });
+  await db.insert(s.clanMemberships).values({ clanId: otherClan, accountId: x.stranger.id, kind: 'guest', source: 'roster' });
   await logSplit(x.realSeat.id, x.strangerSeat.id, 'Kimmy');
 
   await D.applyConfidentRenames({ liveFetchCap: 0 });
