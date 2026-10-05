@@ -5,7 +5,7 @@
 // page anyone can link to from becoming a way to hammer Jagex on our behalf.
 
 import { db } from '@/db';
-import { clanAuditLog, clanRoster, events, eventParticipants, users, memberDailyStats, memberMilestones, playerEventFacts, playerSnapshots, weeklyCompetitions, weeklyParticipants, accounts } from '@/db/schema';
+import { clanAuditLog, clanRoster, events, eventParticipants, users, memberDailyStats, memberMilestones, playerEventFacts, playerSnapshots, weeklyCompetitions, weeklyParticipants, accounts, players } from '@/db/schema';
 import { findRosterSeat, statSnapshotOf } from '@/lib/roster';
 import { and, desc, eq, gte, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
@@ -1352,10 +1352,20 @@ export async function getPersona(clanMemberId: number): Promise<Persona | null> 
     .from(clanRoster)
     .where(and(eq(clanRoster.clanId, member.clanId), eq(clanRoster.playerId, member.playerId), isNull(clanRoster.leftAt)));
   const seatByAccount = new Map(seatsHere.map((x) => [x.accountId, x]));
-  // The one thing that keeps a character off this card: its player turned off sharing for it, and it
-  // has no seat here (lib/accountVisibility — a clan always sees what it holds a seat for).
+  // WHAT KEEPS A CHARACTER WITHOUT A SEAT HERE OFF THIS CARD — the same two consents the apex reads
+  // (lib/apexProfiles), because listing a character under this person is LINKING it to them:
+  //   - the character is shared (public on Anvil), and
+  //   - the person agreed to have their characters linked publicly (players.linkAccountsPublicly).
+  // Either one off, and only the characters seated here show — a clan always sees what it holds a
+  // seat for (lib/accountVisibility). A platform-banned person's other characters are not shown.
+  const ownerRow = await db.query.players.findFirst({
+    where: eq(players.id, member.playerId),
+    columns: { linkAccountsPublicly: true, banned: true },
+  });
+  const linkable = !!ownerRow?.linkAccountsPublicly && !ownerRow?.banned;
   for (let i = owned.length - 1; i >= 0; i--) {
-    if (!owned[i].shared && !seatByAccount.has(owned[i].accountId)) owned.splice(i, 1);
+    if (seatByAccount.has(owned[i].accountId)) continue;
+    if (!linkable || !owned[i].shared) owned.splice(i, 1);
   }
   // An unclaimed seat on this person (rare — a roster entry under a placeholder) still belongs here.
   for (const seat of seatsHere) {

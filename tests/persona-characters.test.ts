@@ -12,6 +12,9 @@ const DB = useTestDatabase('personachars');
 
 let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
 let seatHere: number;
+let personId: number;
+let dbRef: Awaited<ReturnType<typeof loadDb>>['db'];
+let schemaRef: Awaited<ReturnType<typeof loadDb>>['schema'];
 
 before(async () => {
   await resetDatabase(DB);
@@ -20,7 +23,10 @@ before(async () => {
   const { db, schema: s } = loaded;
   const here = (await db.insert(s.clans).values({ slug: 'here', name: 'Here' }).returning())[0].id;
   const there = (await db.insert(s.clans).values({ slug: 'there', name: 'There' }).returning())[0].id;
-  const person = (await db.insert(s.players).values({ displayName: 'Multi' }).returning())[0].id;
+  const person = (await db.insert(s.players).values({ displayName: 'Multi', linkAccountsPublicly: true }).returning())[0].id;
+  personId = person;
+  dbRef = db;
+  schemaRef = s;
   const now = new Date().toISOString();
   const mk = async (rsn: string, extra: Record<string, unknown> = {}) =>
     (await db.insert(s.accounts).values({ playerId: person, rsn, rsnNormalized: rsn.toLowerCase(), claimedAt: now, ...extra }).returning())[0].id;
@@ -53,4 +59,12 @@ test('every shared character, with where it stands here', async () => {
   assert.equal(byRsn.get('Elsewhere')?.id, null, 'no seat here to link to');
   assert.equal(byRsn.has('Hidden'), false, 'its player turned sharing off and it has no seat here');
   assert.equal(p.accounts[0].rsn, 'Main', 'the main first');
+});
+
+test('without the person’s consent to link their characters, only the ones seated here show', async () => {
+  const { eq } = await import('drizzle-orm');
+  const { getPersona } = await import('../src/lib/memberProfile.ts');
+  await dbRef.update(schemaRef.players).set({ linkAccountsPublicly: false }).where(eq(schemaRef.players.id, personId));
+  const p = await getPersona(seatHere);
+  assert.deepEqual(p?.accounts.map((a) => a.rsn).sort(), ['Alt', 'Main']);
 });
