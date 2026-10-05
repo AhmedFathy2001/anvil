@@ -64,7 +64,7 @@ const es: PartialGuideDict = {
         eyebrow: 'Para jugadores',
         title: 'Configurar el plugin de RuneLite',
         blurb:
-          'Instala el plugin, conéctalo a este sitio, y deja que envíe tus drops. También cubre las notificaciones de Discord y los clips de OBS.',
+          'Instala el plugin, inicia sesión desde su panel lateral y deja que envíe tus drops. Cubre también las notificaciones de Discord y los clips de OBS.',
         minutes: '~3 min de configuración',
       },
       board: {
@@ -442,12 +442,12 @@ const es: PartialGuideDict = {
   plugin: {
     metaTitle: 'Configurar el plugin de RuneLite — Anvil',
     metaDescription:
-      'Instala el plugin de RuneLite de Anvil, conéctalo a este sitio, y configura las notificaciones de Discord y los clips de OBS.',
+      'Instala el plugin de RuneLite de Anvil, inicia sesión desde su panel lateral y configura las notificaciones de Discord y los clips de OBS.',
     eyebrow: 'Anvil · plugin de RuneLite',
     title: 'Guía de configuración para jugadores',
-    dek: 'Instálalo, apúntalo a {clanName}, y juega. El plugin envía tus drops del bingo, publica tus drops raros y tus muertes en Discord y — si usas OBS — guarda y publica clips de los momentos que merece la pena volver a ver.',
+    dek: 'Instálalo, inicia sesión y juega. El plugin envía tus drops de bingo, publica en Discord tus drops raros y tus muertes y —si usas OBS— guarda y publica clips de los momentos que merece la pena volver a ver.',
     facts: [
-      { strong: '2 campos', rest: 'y el registro está en marcha' },
+      { strong: '1 botón', rest: 'y el registro está en marcha' },
       { strong: '~3 min', rest: 'para la configuración básica' },
       { strong: 'Los clips', rest: 'necesitan OBS + 5 minutos más' },
     ],
@@ -458,30 +458,19 @@ const es: PartialGuideDict = {
       title: 'Instala el plugin',
       body: [
         'En RuneLite: **Configuration** (la llave inglesa) → **Plugin Hub** → busca **Anvil** → **Install**. El editor es `AhmedFathy2001`.',
-        'Un único plugin sirve a todos los clanes — lo apuntas a este sitio en el siguiente paso, así que no hay nada específico del clan que descargar. Una vez instalado, abre **Configuration → Anvil** para llegar al panel de ajustes que se usa a lo largo de toda esta guía.',
+        'Un único plugin sirve a todos los clanes — siempre se conecta a `anvilosrs.com`, y es el inicio de sesión (siguiente paso) lo que lo vincula a ti y a tus clanes. No hay nada específico del clan que descargar ni ninguna dirección que escribir. Una vez instalado, aparece un botón **Anvil** en la barra lateral de RuneLite, y sus ajustes están en **Configuration → Anvil**.',
+      ],
+      warningHeading: '¿Por qué RuneLite muestra una advertencia?',
+      warningBody: [
+        'Al instalar Anvil, el Plugin Hub muestra esta advertencia: _“This plugin submits your IP address and your account\'s gameplay data (RSN, drops, kill counts, XP and progress) to anvilosrs.com, a 3rd-party server not controlled or verified by the RuneLite developers.”_ Es lo esperado: RuneLite muestra una advertencia así para cada plugin que habla con un servidor externo.',
+        'Anvil es un sitio de terceros: no lo gestionan ni RuneLite ni Jagex. Para registrar tus drops y tu progreso para tu clan, el plugin tiene que enviar peticiones a `anvilosrs.com`, y cualquier petición web le muestra al servidor la dirección IP de la que viene. Eso es todo lo que dice la advertencia.',
+        'Lo que envía el plugin es tu propia partida, para los clanes y eventos en los que estás, firmada con tu Account Token. Tu dirección IP se usa como la usa cualquier web — para responder peticiones y limitar abusos —, no para seguirte. Y una instalación nueva no contacta con nada hasta que pulsas **Sign in with Discord**.',
       ],
     },
 
     connect: {
-      title: 'Conectar con este sitio',
-      intro: 'Para empezar solo importa la sección **Setup**. Todo lo demás tiene valores por defecto razonables.',
-      figure: {
-        caption: 'Configuration → Anvil → Setup',
-        alt: 'La sección Setup del plugin de Anvil, con los campos Site URL y Account Token recuadrados',
-        legend: [
-          {
-            label: 'Site URL',
-            body: 'para {clanName} es `{origin}`. El campo llega vacío, así que hay que rellenarlo. No hace falta barra final, y `https://` se añade si lo omites.',
-          },
-          {
-            label: 'Account Token',
-            body: 'tu llave personal a este sitio. O dejas que el plugin lo rellene por ti (más abajo), o lo pegas tú. Trátalo como una contraseña.',
-          },
-        ],
-      },
-      easyHeading: 'La vía fácil: inicia sesión desde el plugin',
-      easyIntro:
-        'Con la Site URL puesta y el token todavía vacío, el **panel lateral de Anvil** muestra un botón **Sign in with Discord**. Púlsalo y el plugin te guía — sin copiar nada.',
+      title: 'Inicia sesión',
+      intro: 'Abre el panel **Anvil** desde la barra lateral de RuneLite y pulsa **Sign in with Discord**. El navegador se abre en `anvilosrs.com`; aprueba allí el código y el plugin rellena su Account Token por sí solo — nada que escribir, nada que copiar.',
       panelFigure: {
         caption: 'RuneLite → el botón Anvil',
         alt: 'La barra de iconos de RuneLite, con el botón Anvil del final resaltado',
@@ -502,17 +491,17 @@ const es: PartialGuideDict = {
           },
           {
             label: 'Connects to',
-            body: 'la Site URL que escribiste, deletreada antes de que te comprometas. Comprueba que pone `{origin}`: es el sitio al que pertenecerá tu token.',
+            body: 'siempre `anvilosrs.com` — el único sitio con el que habla el plugin, y al que pertenece tu token.',
           },
         ],
       },
       easySteps: [
-        'El panel muestra un código y abre tu navegador en este sitio.',
-        'Comprueba que el código de la página coincide con el de RuneLite, y pulsa **Approve**.',
-        'El panel dice _Signed in_ y rellena el Account Token por ti.',
+        'Pulsa **Sign in with Discord**. El panel muestra un código corto y abre el navegador en `anvilosrs.com`.',
+        'Inicia sesión allí con Discord si aún no lo has hecho, comprueba que el código de la página coincide con el de RuneLite y pulsa **Approve**.',
+        'De vuelta en RuneLite, el panel dice _Signed in_ y ya ha rellenado el Account Token por ti. Listo.',
       ],
       linkFigure: {
-        caption: 'Este sitio → /link-device',
+        caption: 'anvilosrs.com → /link-device',
         alt: 'La página Link your RuneLite client, con el campo del código y el botón Approve recuadrados',
         legend: [
           { label: 'El código', body: 'tiene que coincidir con lo que el plugin te está mostrando ahora mismo.' },
@@ -522,17 +511,10 @@ const es: PartialGuideDict = {
           },
         ],
       },
-      brokeredNote: {
-        tag: 'Por qué aparece un segundo dominio',
-        body: [
-          'La aprobación ocurre aquí, en `{origin}`. Si aún no has iniciado sesión en el sitio, el paso de inicio de sesión pasa por el acceso compartido de Discord de Anvil en `anvilosrs.com` para confirmar tu identidad de Discord, y luego te devuelve directamente aquí — es el mismo acceso que te da el botón Login de este sitio, no una parte del flujo del plugin.',
-          'El plugin en sí solo habla con `{origin}`: se niega a abrir cualquier página de inicio de sesión que no esté en la Site URL que escribiste.',
-        ],
-      },
       directNote: {
         tag: 'Dónde ocurre esto',
         body: [
-          'Todo el flujo se queda en `{origin}` — el código se emite aquí, se aprueba aquí con el propio acceso de Discord de {clanName}, y el token se entrega aquí. El plugin se niega a abrir cualquier página de inicio de sesión que no esté en la Site URL que escribiste, así que nada de este paso llega a otra instalación de Anvil.',
+          'Todo el flujo se queda en `anvilosrs.com` — el código se emite allí, lo apruebas allí con tu propio inicio de sesión de Discord, y el token vuelve directamente al plugin. El plugin solo abre páginas de inicio de sesión en `anvilosrs.com`, así que un enlace de inicio de sesión que apunte a otro sitio no viene de él.',
         ],
       },
       settingsRefreshNote: {
@@ -546,9 +528,9 @@ const es: PartialGuideDict = {
         'No lo confundas con **Connect clans** del panel lateral — ese es el botón aparte y opcional que te conecta con otros clanes de Anvil, y solo aparece cuando ya has iniciado sesión aquí.',
       manualFallback:
         'Si el navegador no se abre solo, el panel imprime la dirección y el código para que lo abras a mano. Los códigos caducan a los diez minutos — simplemente vuelve a pulsar el botón.',
-      manualHeading: 'La vía manual: copia tu token',
+      manualHeading: 'Plan B: pega tu token a mano',
       manualIntro:
-        'Inicia sesión con Discord y abre [Profile → plugin token](/profile#plugin-token).',
+        'Si iniciar sesión desde el plugin no te funciona, copia tu token aquí abajo (o desde [Profile → plugin token](/profile#plugin-token), donde también puedes rotarlo) y pégalo en **Configuration → Anvil → Account Token**. Es el único ajuste que tienes que tocar.',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: 'La tarjeta RuneLite plugin en la página de perfil, con el campo del token y los botones Reveal, Copy y Rotate recuadrados',
@@ -803,8 +785,8 @@ const es: PartialGuideDict = {
           body: 'El token es incorrecto o se ha rotado. Vuelve a copiarlo desde [Profile → RuneLite plugin](/profile#plugin-token), o vacía el campo e inicia sesión de nuevo desde el plugin.',
         },
         {
-          term: '`Anvil: can’t reach the site — tracking is OFF.`',
-          body: 'Revisa la Site URL por si hay erratas — debería ser `{origin}`. Si está bien, el sitio probablemente esté caído.',
+          term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',
+          body: 'El plugin no consigue llegar a `anvilosrs.com`. Revisa tu conexión a internet y cualquier cortafuegos o VPN que pueda estar bloqueando RuneLite. Si todo eso está bien, el sitio probablemente esté caído un momento — el plugin se vuelve a conectar solo.',
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',

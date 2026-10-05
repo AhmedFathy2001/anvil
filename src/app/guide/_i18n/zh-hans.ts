@@ -62,7 +62,7 @@ const zhHans: PartialGuideDict = {
         eyebrow: '面向玩家',
         title: 'RuneLite 插件设置',
         blurb:
-          '安装插件，把它连到本站，让它替你提交掉落。同时涵盖 Discord 通知与 OBS 片段。',
+          '安装插件，在它的侧边栏面板里登录，然后让它替你提交掉落。也涵盖 Discord 通知与 OBS 片段。',
         minutes: '约 3 分钟完成设置',
       },
       board: {
@@ -440,12 +440,12 @@ const zhHans: PartialGuideDict = {
   plugin: {
     metaTitle: 'RuneLite 插件设置 — Anvil',
     metaDescription:
-      '安装 Anvil 的 RuneLite 插件，把它连到本站，并设置 Discord 通知与 OBS 片段。',
+      '安装 Anvil 的 RuneLite 插件，在它的侧边栏面板里登录，并设置 Discord 通知与 OBS 片段。',
     eyebrow: 'Anvil · RuneLite 插件',
     title: '玩家设置指南',
-    dek: '装好它，把它指向 {clanName}，然后照常玩。插件会提交你的宾果掉落，把稀有掉落和死亡发到 Discord —— 如果你在跑 OBS，还会把值得回看的瞬间保存成片段并发出去。',
+    dek: '装上、登录、开玩。插件会提交你的宾果掉落，把稀有掉落和死亡发到 Discord，而且 —— 如果你开着 OBS —— 还会保存并发布值得回看的精彩片段。',
     facts: [
-      { strong: '两个字段', rest: '就能开始记录' },
+      { strong: '一个按钮', rest: '就能开始记录' },
       { strong: '约 3 分钟', rest: '完成基础设置' },
       { strong: '片段功能', rest: '需要 OBS 再加 5 分钟' },
     ],
@@ -456,30 +456,19 @@ const zhHans: PartialGuideDict = {
       title: '安装插件',
       body: [
         '在 RuneLite 中：**Configuration**（扳手图标）→ **Plugin Hub** → 搜索 **Anvil** → **Install**。发布者是 `AhmedFathy2001`。',
-        '一个插件服务所有氏族 —— 下一步你会把它指向本站，所以没有任何与氏族相关的东西需要额外下载。装好之后，打开 **Configuration → Anvil** 即可进入本指南全程使用的设置面板。',
+        '一个插件服务所有氏族 —— 它始终连接 `anvilosrs.com`，而把它和你、和你的氏族绑在一起的，是登录（下一步）。没有任何与氏族相关的东西需要下载，也没有地址需要填写。装好之后，RuneLite 侧边栏会出现一个 **Anvil** 按钮，设置则在 **Configuration → Anvil** 里。',
+      ],
+      warningHeading: '为什么 RuneLite 会显示警告？',
+      warningBody: [
+        '安装 Anvil 时，Plugin Hub 会显示这条警告：_“This plugin submits your IP address and your account\'s gameplay data (RSN, drops, kill counts, XP and progress) to anvilosrs.com, a 3rd-party server not controlled or verified by the RuneLite developers.”_ 这是正常的 —— 任何与外部服务器通信的插件，RuneLite 都会显示类似的警告。',
+        'Anvil 是第三方网站 —— 它既不由 RuneLite 运营，也不由 Jagex 运营。为了替你的氏族记录你的掉落和进度，插件必须向 `anvilosrs.com` 发送请求，而任何网络请求都会让服务器看到它来自哪个 IP 地址。警告说的就是这么一回事。',
+        '插件发送的只是你自己的游戏数据，只发给你所在的氏族和活动，并由你的 Account Token 签名。你的 IP 地址的用途和任何网站一样 —— 用来响应请求和限流 —— 而不是追踪你。而且刚装好的插件在你点击 **Sign in with Discord** 之前不会联系任何地方。',
       ],
     },
 
     connect: {
-      title: '连接到本站',
-      intro: '想跑起来，只有 **Setup** 这一节重要。其余各项都有合理的默认值。',
-      figure: {
-        caption: 'Configuration → Anvil → Setup',
-        alt: 'Anvil 插件的 Setup 区块，Site URL 与 Account Token 两个字段被方框标出',
-        legend: [
-          {
-            label: 'Site URL',
-            body: '对 {clanName} 来说是 `{origin}`。这个字段初始为空，必须你自己填。结尾不需要斜杠，若省略 `https://` 会自动补上。',
-          },
-          {
-            label: 'Account Token',
-            body: '你访问本站的个人密钥。要么让插件替你填（见下），要么自己粘贴。请把它当作密码对待。',
-          },
-        ],
-      },
-      easyHeading: '简单办法：直接在插件里登录',
-      easyIntro:
-        '当 Site URL 已填、令牌仍为空时，**Anvil 侧边栏**会出现一个 **Sign in with Discord** 按钮。点它，插件会一步步带你走完 —— 什么都不用复制。',
+      title: '登录',
+      intro: '从 RuneLite 侧边栏打开 **Anvil** 面板，点击 **Sign in with Discord**。浏览器会打开 `anvilosrs.com`；在那里批准验证码，插件就会自己填好 Account Token —— 不用输入，也不用复制。',
       panelFigure: {
         caption: 'RuneLite → Anvil 按钮',
         alt: 'RuneLite 的侧边图标栏，最下方的 Anvil 按钮被圈出',
@@ -500,17 +489,17 @@ const zhHans: PartialGuideDict = {
           },
           {
             label: 'Connects to',
-            body: '你填写的 Site URL，在你确认之前先写明白。请核对它显示的是 `{origin}` —— 这就是你的令牌将要归属的站点。',
+            body: '始终是 `anvilosrs.com` —— 插件唯一会通信的站点，也是你的令牌所属的站点。',
           },
         ],
       },
       easySteps: [
-        '面板会显示一段代码，并在本站打开你的浏览器。',
-        '核对网页上的代码与 RuneLite 中显示的一致，然后点 **Approve**。',
-        '面板会显示 _Signed in_，并替你把 Account Token 填好。',
+        '点击 **Sign in with Discord**。面板会显示一个短验证码，并在浏览器中打开 `anvilosrs.com`。',
+        '如果还没登录，先在那里用 Discord 登录，核对页面上的验证码与 RuneLite 里的一致，然后点击 **Approve**。',
+        '回到 RuneLite，面板会显示 _Signed in_，Account Token 也已替你填好。就这样。',
       ],
       linkFigure: {
-        caption: '本站 → /link-device',
+        caption: 'anvilosrs.com → /link-device',
         alt: 'Link your RuneLite client 页面，代码字段与 Approve 按钮被方框标出',
         legend: [
           { label: '那段代码', body: '它必须与插件此刻显示给你的完全一致。' },
@@ -520,17 +509,10 @@ const zhHans: PartialGuideDict = {
           },
         ],
       },
-      brokeredNote: {
-        tag: '为什么会出现第二个域名',
-        body: [
-          '批准这一步发生在这里，也就是 `{origin}`。如果你还没登录本站，登录环节会经由 Anvil 在 `anvilosrs.com` 上的共享 Discord 登录来确认你的 Discord 身份，随后直接把你送回这里 —— 那和本站 Login 按钮给你的是同一套登录，并不属于插件流程。',
-          '插件本身只和 `{origin}` 通信：它拒绝打开任何不在你所填 Site URL 上的登录页面。',
-        ],
-      },
       directNote: {
         tag: '这一切发生在哪里',
         body: [
-          '整个流程都留在 `{origin}` —— 代码在这里签发、在这里用 {clanName} 自己的 Discord 登录批准、令牌也在这里交回。插件拒绝打开任何不在你所填 Site URL 上的登录页面，因此这一步不会触及另一套 Anvil 部署。',
+          '整个流程都留在 `anvilosrs.com` —— 验证码在那里签发，你在那里用自己的 Discord 登录批准，令牌直接交回插件。插件只会打开 `anvilosrs.com` 上的登录页面，所以指向其他任何地方的登录链接都不是它发出的。',
         ],
       },
       settingsRefreshNote: {
@@ -544,9 +526,9 @@ const zhHans: PartialGuideDict = {
         '别把它和侧边栏里的 **Connect clans** 弄混 —— 那是另一个可选按钮，用来把你连到其他 Anvil 氏族，而且只有在你已经登录之后才会出现。',
       manualFallback:
         '如果浏览器没有自动打开，面板会把网址和代码打印出来，你可以手动打开。代码十分钟后失效 —— 再按一次按钮即可。',
-      manualHeading: '手动办法：复制你的令牌',
+      manualHeading: '备用办法：手动粘贴令牌',
       manualIntro:
-        '用 Discord 登录并打开 [Profile → plugin token](/profile#plugin-token)。',
+        '如果从插件登录对你不起作用，就复制下面的令牌（或到 [Profile → plugin token](/profile#plugin-token) 复制，那里也可以轮换它），粘贴到 **Configuration → Anvil → Account Token**。这是你唯一需要动的设置。',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: '个人资料页上的 RuneLite plugin 卡片，令牌字段与 Reveal、Copy、Rotate 按钮被方框标出',
@@ -801,8 +783,8 @@ const zhHans: PartialGuideDict = {
           body: '令牌不对或已被轮换。从 [Profile → RuneLite plugin](/profile#plugin-token) 重新复制，或者清空该字段再从插件里重新登录。',
         },
         {
-          term: '`Anvil: can’t reach the site — tracking is OFF.`',
-          body: '检查 Site URL 有没有打错 —— 它应当是 `{origin}`。如果没错，那多半是站点挂了。',
+          term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',
+          body: '插件连不上 `anvilosrs.com`。检查你的网络连接，以及可能拦截 RuneLite 的防火墙或 VPN。如果这些都没问题，多半是站点暂时挂了 —— 插件会自己重新连上。',
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',

@@ -364,32 +364,22 @@ update at least a couple of times a year.
 
 ---
 
-## 11. Point the RuneLite plugin at your instance
+## 11. The RuneLite plugin and your instance
 
-The companion plugin is published to the RuneLite Plugin Hub as **Anvil** — one shared
-plugin serves every clan, you don't publish your own. Your members:
+The companion plugin is published to the RuneLite Plugin Hub as **Anvil**, and the hub
+build is hardwired to `https://anvilosrs.com`: it has no Site URL setting, so it cannot be
+pointed at a self-hosted instance. (Its setup for players is: install **Anvil** from the
+Plugin Hub → open the Anvil sidebar panel → **Sign in with Discord** → approve in the
+browser — see [`PLUGIN_SETUP.md`](./PLUGIN_SETUP.md).)
 
-1. Install **Anvil** from the RuneLite Plugin Hub.
-2. In **RuneLite → Configuration → Anvil → Site URL**, enter your instance's URL (e.g.
-   `https://bingo.yourclan.com`, no trailing slash). **This is required for self-hosters** —
-   the field ships **empty**, with no built-in default pointing at any reference instance.
-3. Leave **Account Token** blank and hit **Sign in with Discord** in the side panel — a
-   device-code flow pinned to your own domain fills it in (nothing goes through the broker
-   on a self-host with its own Discord app). Copy/pasting the token from **Profile →
-   RuneLite plugin → Reveal → Copy** also works. One token covers every event they're
-   signed up for; after that the account they log in on links to their profile
-   automatically.
-
-See [`PLUGIN_SETUP.md`](./PLUGIN_SETUP.md) for the member walkthrough, the "is it working?"
-signals, and troubleshooting. A public copy of the same guide is served by your own
-instance at `/guide/plugin` (and `/guide/admin` for staff), already filled in with your
-domain — that's the link to hand your clan.
-
-If you'd rather ship a build whose **Site URL** defaults to your domain, change the
-`apiUrl()` default in `src/main/java/com/anvil/AnvilConfig.java` in the
-[plugin repo](https://github.com/AhmedFathy2001/anvil-plugin) and build with
-`./gradlew build`. That means running your own Hub listing instead of the shared **Anvil**
-plugin — see [`PLUGIN_SUBMISSION.md`](./PLUGIN_SUBMISSION.md).
+To use the plugin with your own instance you have to build your own copy: change the base
+URL in the [plugin repo](https://github.com/AhmedFathy2001/anvil-plugin) to your domain and
+build with `./gradlew build`, then distribute that build to your members yourself (a
+side-loaded/dev build, or your own Hub listing — see
+[`PLUGIN_SUBMISSION.md`](./PLUGIN_SUBMISSION.md)). The device-code sign-in
+(`/link-device`) then runs against your own domain. The public guide your instance serves at
+`/guide/plugin` describes the hub build's `anvilosrs.com` flow, so adjust what you tell your
+clan accordingly.
 
 ---
 
@@ -463,6 +453,6 @@ future `db:migrate` runs break. It's for throwaway scratch DBs only.
 | Cron routes return **401** | The `Authorization: Bearer …` header doesn't match `CRON_SECRET`. |
 | Discord login bounces with `invalid_redirect_uri` | `DISCORD_REDIRECT_URI` and the URL registered in the Discord app must match character-for-character, including `https://` and the trailing path. |
 | Uploads fail, everything else works | No storage driver configured — see §7. |
-| Plugin says it can't reach the site | **Site URL** is empty or has a trailing slash / wrong scheme. Check `GET /api/version` in a browser first. |
+| Plugin says it can't reach the site | The Plugin Hub build only talks to `anvilosrs.com`; a self-hosted instance needs your own plugin build with its base URL set to your domain (see §11). Check `GET /api/version` in a browser first. |
 | Clan sync rejected | The in-game clan name reported by the plugin doesn't match **In-game clan name** in `/admin/clan`. Blank it to accept any clan. |
 

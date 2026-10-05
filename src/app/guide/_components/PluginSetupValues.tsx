@@ -4,17 +4,19 @@ import { useCallback, useEffect, useState } from 'react';
 import ClanLink from '@/components/ClanLink';
 
 /**
- * The two values the reader came here to paste, in the guide itself.
+ * The fallback for when in-plugin sign-in doesn't work: the reader's Account Token, in the guide
+ * itself, ready to paste into Configuration → Anvil. (There is no Site URL any more — the plugin
+ * always talks to anvilosrs.com.)
  *
  * The token is fetched only in the signed-in browser. It is never rendered into the public guide's
  * server HTML, and stays blurred until the reader deliberately reveals or copies it.
  */
-export default function PluginSetupValues({ origin, tokenLabel }: { origin: string; tokenLabel: string }) {
+export default function PluginSetupValues({ tokenLabel }: { tokenLabel: string }) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [signedOut, setSignedOut] = useState(false);
   const [revealed, setRevealed] = useState(false);
-  const [copied, setCopied] = useState<'origin' | 'token' | null>(null);
+  const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -37,12 +39,12 @@ export default function PluginSetupValues({ origin, tokenLabel }: { origin: stri
     };
   }, []);
 
-  const copy = useCallback(async (kind: 'origin' | 'token', value: string) => {
-    if (kind === 'token') setRevealed(true);
+  const copy = useCallback(async (value: string) => {
+    setRevealed(true);
     try {
       await navigator.clipboard.writeText(value);
-      setCopied(kind);
-      setTimeout(() => setCopied((current) => (current === kind ? null : current)), 2000);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     } catch {
       setError('Copy failed — reveal the value and copy it manually.');
     }
@@ -51,17 +53,10 @@ export default function PluginSetupValues({ origin, tokenLabel }: { origin: stri
   return (
     <div className="my-5 rounded-xl border border-gold/30 bg-gold/[0.04] p-4">
       <div className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-gold/80">
-        Your setup values
+        Your token
       </div>
 
-      <SetupRow label="Site URL">
-        <code className="min-w-0 flex-1 break-all rounded-lg border border-card-border bg-brown-dark px-3 py-2 font-mono text-sm text-foreground">
-          {origin}
-        </code>
-        <CopyButton copied={copied === 'origin'} onClick={() => copy('origin', origin)} />
-      </SetupRow>
-
-      <div className="mt-3 border-t border-card-border pt-3">
+      <div>
         {loading ? (
           <p className="text-sm text-text-muted">Checking whether you&rsquo;re signed in…</p>
         ) : signedOut ? (
@@ -93,7 +88,7 @@ export default function PluginSetupValues({ origin, tokenLabel }: { origin: stri
             >
               {revealed ? 'Hide' : 'Reveal'}
             </button>
-            <CopyButton copied={copied === 'token'} onClick={() => copy('token', token)} />
+            <CopyButton copied={copied} onClick={() => copy(token)} />
           </SetupRow>
         ) : (
           <div className="flex flex-wrap items-center justify-between gap-3 text-sm">

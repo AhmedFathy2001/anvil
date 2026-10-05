@@ -213,8 +213,8 @@ export default function PlayerCard({
               </span>
             ) : (
               <span className="text-foreground/80">
-                The RuneLite plugin hasn&rsquo;t reached us yet — paste your token and play to track drops
-                automatically.
+                The RuneLite plugin hasn&rsquo;t reached us yet — install it, click Sign in with Discord in its sidebar panel,
+                and play to track drops automatically.
               </span>
             )}
             <ClanLink

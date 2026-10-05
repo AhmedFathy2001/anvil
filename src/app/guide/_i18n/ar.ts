@@ -63,7 +63,7 @@ const ar: PartialGuideDict = {
         eyebrow: 'للاعبين',
         title: 'إعداد إضافة RuneLite',
         blurb:
-          'ثبّت الإضافة، اربطها بهذا الموقع، ودعها ترسل الـ drops الخاصة بك. يغطي أيضًا إشعارات Discord ومقاطع OBS.',
+          'ثبّت الإضافة، وسجّل الدخول من لوحتها الجانبية، ودعها ترسل الـ drops الخاصة بك. يشمل أيضًا إشعارات Discord ومقاطع OBS.',
         minutes: 'إعداد في ~3 دقائق',
       },
       board: {
@@ -441,12 +441,12 @@ const ar: PartialGuideDict = {
   plugin: {
     metaTitle: 'إعداد إضافة RuneLite — Anvil',
     metaDescription:
-      'ثبّت إضافة Anvil لـ RuneLite، واربطها بهذا الموقع، وأعدّ إشعارات Discord ومقاطع OBS.',
+      'ثبّت إضافة Anvil لـ RuneLite، وسجّل الدخول من لوحتها الجانبية، واضبط إشعارات Discord ومقاطع OBS.',
     eyebrow: 'Anvil · إضافة RuneLite',
     title: 'دليل الإعداد للاعبين',
-    dek: 'ثبّتها، وجّهها إلى {clanName}، والعب. الإضافة ترسل drops الـ bingo الخاصة بك، وتنشر الـ drops النادرة وحالات الموت على Discord — وإن كنت تشغّل OBS، تحفظ وتنشر مقاطع اللحظات التي تستحق مشاهدة ثانية.',
+    dek: 'ثبّتها، وسجّل الدخول، والعب. ترسل الإضافة الـ drops الخاصة بك في البينغو، وتنشر الـ drops النادرة وحالات الموت على Discord، و— إن كنت تشغّل OBS — تحفظ وتنشر مقاطع اللحظات التي تستحق المشاهدة مجددًا.',
     facts: [
-      { strong: 'حقلان', rest: 'ويبدأ التتبّع' },
+      { strong: 'زر واحد', rest: 'ويبدأ التتبّع' },
       { strong: '~3 دقائق', rest: 'للإعداد الأساسي' },
       { strong: 'المقاطع', rest: 'تحتاج OBS و5 دقائق إضافية' },
     ],
@@ -457,30 +457,19 @@ const ar: PartialGuideDict = {
       title: 'ثبّت الإضافة',
       body: [
         'في RuneLite: **Configuration** (المفتاح) ← **Plugin Hub** ← ابحث عن **Anvil** ← **Install**. الناشر هو `AhmedFathy2001`.',
-        'إضافة واحدة تخدم كل العشائر — أنت من يوجّهها إلى هذا الموقع في الخطوة التالية، فليس هناك ما تنزّله خاصًا بعشيرة بعينها. بعد التثبيت، افتح **Configuration → Anvil** للوصول إلى لوحة الإعدادات المستخدَمة في هذا الدليل كله.',
+        'إضافة واحدة تخدم كل العشائر — فهي تتصل دائمًا بـ `anvilosrs.com`، وتسجيل الدخول (الخطوة التالية) هو ما يربطها بك وبعشائرك. ليس هناك ما تنزّله خاصًا بعشيرة بعينها ولا عنوان تكتبه. بعد التثبيت يظهر زر **Anvil** في الشريط الجانبي لـ RuneLite، وتجد إعداداتها في **Configuration → Anvil**.',
+      ],
+      warningHeading: 'لماذا يعرض RuneLite تحذيرًا؟',
+      warningBody: [
+        'عند تثبيت Anvil، يعرض Plugin Hub هذا التحذير: _“This plugin submits your IP address and your account\'s gameplay data (RSN, drops, kill counts, XP and progress) to anvilosrs.com, a 3rd-party server not controlled or verified by the RuneLite developers.”_ هذا متوقَّع — فـ RuneLite يعرض تحذيرًا مثله لكل إضافة تتحدث مع خادم خارجي.',
+        'Anvil موقع تابع لجهة خارجية — لا يديره RuneLite ولا Jagex. لكي تتتبّع الإضافة الـ drops وتقدّمك لصالح عشيرتك، عليها أن ترسل طلبات إلى `anvilosrs.com`، وأي طلب ويب يُظهر للخادم عنوان IP الذي جاء منه. هذا كل ما يعنيه التحذير.',
+        'ما ترسله الإضافة هو لعبك أنت فقط، للعشائر والفعاليات التي أنت فيها، موقَّعًا بـ Account Token الخاص بك. ويُستخدم عنوان IP كما يستخدمه أي موقع — للرد على الطلبات والحدّ من الإساءة — لا لتتبّعك. والتثبيت الجديد لا يتصل بأي شيء على الإطلاق حتى تضغط **Sign in with Discord**.',
       ],
     },
 
     connect: {
-      title: 'اربطها بهذا الموقع',
-      intro: 'قسم **Setup** وحده هو ما يهم للانطلاق. كل ما عداه له قيم افتراضية معقولة.',
-      figure: {
-        caption: 'Configuration → Anvil → Setup',
-        alt: 'قسم Setup في إضافة Anvil، وحقلا Site URL و Account Token محاطان بإطار',
-        legend: [
-          {
-            label: 'Site URL',
-            body: 'لـ {clanName} هو `{origin}`. يأتي الحقل فارغًا، فعليك ملؤه. لا حاجة لشرطة مائلة في النهاية، و`https://` تُضاف تلقائيًا إن أغفلتها.',
-          },
-          {
-            label: 'Account Token',
-            body: 'مفتاحك الشخصي لهذا الموقع. إمّا أن تدع الإضافة تملأه لك (أدناه)، أو تلصقه بنفسك. عامله معاملة كلمة المرور.',
-          },
-        ],
-      },
-      easyHeading: 'الطريق السهل: سجّل الدخول من الإضافة',
-      easyIntro:
-        'مع ضبط Site URL وبقاء الرمز فارغًا، تعرض **لوحة Anvil الجانبية** زر **Sign in with Discord**. اضغطه وستقودك الإضافة عبر الخطوات — دون نسخ أي شيء.',
+      title: 'سجّل الدخول',
+      intro: 'افتح لوحة **Anvil** من الشريط الجانبي لـ RuneLite واضغط **Sign in with Discord**. سيفتح متصفحك على `anvilosrs.com`؛ وافق على الرمز هناك وستملأ الإضافة Account Token بنفسها — لا شيء تكتبه ولا شيء تنسخه.',
       panelFigure: {
         caption: 'RuneLite ← زر Anvil',
         alt: 'شريط أيقونات RuneLite الجانبي، وزر Anvil في أسفله محاط بإطار',
@@ -501,17 +490,17 @@ const ar: PartialGuideDict = {
           },
           {
             label: 'Connects to',
-            body: 'الـ Site URL الذي كتبته، مكتوبًا بوضوح قبل أن تمضي فيه. تأكّد أنه يقول `{origin}` — فهذا هو الموقع الذي سينتمي إليه رمزك.',
+            body: 'دائمًا `anvilosrs.com` — الموقع الوحيد الذي تتحدث معه الإضافة، والموقع الذي ينتمي إليه رمزك.',
           },
         ],
       },
       easySteps: [
-        'تعرض اللوحة رمزًا وتفتح متصفحك على هذا الموقع.',
-        'تأكّد أن الرمز في الصفحة مطابق للرمز في RuneLite، ثم اضغط **Approve**.',
-        'تقول اللوحة _Signed in_ وتملأ Account Token نيابةً عنك.',
+        'اضغط **Sign in with Discord**. تعرض اللوحة رمزًا قصيرًا وتفتح متصفحك على `anvilosrs.com`.',
+        'سجّل الدخول هناك عبر Discord إن لم تكن قد فعلت، وتأكّد أن الرمز في الصفحة يطابق الرمز في RuneLite، ثم اضغط **Approve**.',
+        'بالعودة إلى RuneLite، تقول اللوحة _Signed in_ وقد ملأت Account Token نيابةً عنك. هذا كل شيء.',
       ],
       linkFigure: {
-        caption: 'هذا الموقع ← /link-device',
+        caption: 'anvilosrs.com → /link-device',
         alt: 'صفحة Link your RuneLite client، وحقل الرمز وزر Approve محاطان بإطار',
         legend: [
           { label: 'الرمز', body: 'يجب أن يطابق ما تعرضه الإضافة أمامك الآن.' },
@@ -521,17 +510,10 @@ const ar: PartialGuideDict = {
           },
         ],
       },
-      brokeredNote: {
-        tag: 'لماذا يظهر نطاق آخر',
-        body: [
-          'الموافقة تتم هنا، على `{origin}`. إن لم تكن مسجّل الدخول في الموقع بعد، تمرّ خطوة الدخول عبر تسجيل دخول Discord المشترك الخاص بـ Anvil على `anvilosrs.com` للتأكد من هويتك على Discord، ثم تعيدك إلى هنا مباشرة — وهو تسجيل الدخول نفسه الذي يمنحك إياه زر Login في هذا الموقع، لا جزء من مسار الإضافة.',
-          'أما الإضافة نفسها فلا تتحدث إلا مع `{origin}`: وترفض فتح أي صفحة تسجيل دخول ليست على الـ Site URL الذي كتبته.',
-        ],
-      },
       directNote: {
         tag: 'أين يحدث هذا',
         body: [
-          'كل هذا المسار يبقى على `{origin}` — الرمز يُصدر هنا، ويُوافَق عليه هنا عبر تسجيل دخول Discord الخاص بـ {clanName}، ويُسلَّم الرمز هنا. والإضافة ترفض فتح أي صفحة تسجيل دخول ليست على الـ Site URL الذي كتبته، فلا شيء في هذه الخطوة يصل إلى نسخة Anvil أخرى.',
+          'كل هذا المسار يبقى على `anvilosrs.com` — الرمز يُصدر هناك، وتوافق عليه هناك بتسجيل دخولك عبر Discord، ويعود الرمز مباشرة إلى الإضافة. والإضافة لا تفتح صفحات تسجيل الدخول إلا على `anvilosrs.com`، فأي رابط تسجيل دخول يشير إلى مكان آخر لم يأتِ منها.',
         ],
       },
       settingsRefreshNote: {
@@ -545,9 +527,9 @@ const ar: PartialGuideDict = {
         'لا تخلط بينه وبين **Connect clans** في اللوحة الجانبية — ذاك زر منفصل واختياري يربطك بعشائر Anvil الأخرى، ولا يظهر إلا بعد أن تكون مسجّل الدخول هنا بالفعل.',
       manualFallback:
         'إن لم يفتح المتصفح من تلقاء نفسه، تطبع اللوحة العنوان والرمز لتفتحه يدويًا. تنتهي صلاحية الرموز بعد عشر دقائق — اضغط الزر مرة أخرى فحسب.',
-      manualHeading: 'الطريق اليدوي: انسخ رمزك',
+      manualHeading: 'حلّ احتياطي: الصق رمزك يدويًا',
       manualIntro:
-        'سجّل الدخول عبر Discord وافتح [Profile → plugin token](/profile#plugin-token).',
+        'إن لم ينجح تسجيل الدخول من الإضافة معك، انسخ رمزك أدناه (أو من [Profile → plugin token](/profile#plugin-token)، حيث يمكنك أيضًا تدويره) والصقه في **Configuration → Anvil → Account Token**. هذا هو الإعداد الوحيد الذي تحتاج إلى لمسه.',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: 'بطاقة RuneLite plugin في صفحة الملف الشخصي، وحقل الرمز وأزرار Reveal و Copy و Rotate محاطة بإطار',
@@ -802,8 +784,8 @@ const ar: PartialGuideDict = {
           body: 'الرمز خاطئ أو جرى تدويره. أعد نسخه من [Profile → RuneLite plugin](/profile#plugin-token)، أو أفرغ الحقل وسجّل الدخول من الإضافة مجددًا.',
         },
         {
-          term: '`Anvil: can’t reach the site — tracking is OFF.`',
-          body: 'تحقق من Site URL بحثًا عن أخطاء طباعية — يجب أن يكون `{origin}`. فإن كان صحيحًا، فالموقع على الأرجح معطّل.',
+          term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',
+          body: 'لا تستطيع الإضافة الوصول إلى `anvilosrs.com`. تحقّق من اتصالك بالإنترنت ومن أي جدار حماية أو VPN قد يحجب RuneLite. إن كان كل ذلك سليمًا، فالموقع على الأرجح معطّل للحظات — وستعيد الإضافة الاتصال من تلقاء نفسها.',
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',

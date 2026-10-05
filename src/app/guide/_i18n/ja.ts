@@ -63,7 +63,7 @@ const ja: PartialGuideDict = {
         eyebrow: 'プレイヤー向け',
         title: 'RuneLite プラグインの設定',
         blurb:
-          'プラグインを入れ、このサイトにつなぎ、ドロップの提出を任せる。Discord 通知と OBS クリップも扱います。',
+          'プラグインを入れ、サイドパネルからログインし、ドロップの提出を任せる。Discord 通知と OBS クリップも扱います。',
         minutes: '設定は約 3 分',
       },
       board: {
@@ -441,12 +441,12 @@ const ja: PartialGuideDict = {
   plugin: {
     metaTitle: 'RuneLite プラグインの設定 — Anvil',
     metaDescription:
-      'Anvil の RuneLite プラグインを導入し、このサイトにつなぎ、Discord 通知と OBS クリップを設定する。',
+      'Anvil の RuneLite プラグインを導入し、サイドパネルからログインして、Discord 通知と OBS クリップを設定する。',
     eyebrow: 'Anvil · RuneLite プラグイン',
     title: 'プレイヤー向け設定ガイド',
-    dek: '入れて、{clanName} に向けて、あとは普通に遊ぶだけ。プラグインがビンゴのドロップを提出し、レアドロップと死亡を Discord に投稿し —— OBS を動かしているなら —— 見返す価値のある瞬間をクリップとして保存・投稿します。',
+    dek: '入れて、ログインして、あとは普通に遊ぶだけ。プラグインがビンゴのドロップを提出し、レアドロップと死亡を Discord に投稿し —— OBS を動かしているなら —— 見返す価値のある瞬間をクリップとして保存・投稿します。',
     facts: [
-      { strong: '2 つの欄', rest: 'で記録が始まる' },
+      { strong: 'ボタン 1 つ', rest: 'で記録が始まる' },
       { strong: '約 3 分', rest: '基本設定に必要な時間' },
       { strong: 'クリップ', rest: 'は OBS ともう 5 分が必要' },
     ],
@@ -457,30 +457,19 @@ const ja: PartialGuideDict = {
       title: 'プラグインを入れる',
       body: [
         'RuneLite で：**Configuration**（レンチのアイコン）→ **Plugin Hub** → **Anvil** を検索 → **Install**。公開者は `AhmedFathy2001` です。',
-        '1 つのプラグインがすべてのクランに対応します —— 次の手順でこのサイトに向けるので、クラン固有のダウンロードは一切ありません。導入後に **Configuration → Anvil** を開けば、このガイド全体で使う設定パネルに入れます。',
+        '1 つのプラグインがすべてのクランに対応します —— 接続先は常に `anvilosrs.com` で、あなたとあなたのクランに結びつけるのはログイン（次の手順）です。クラン固有のダウンロードも、入力するアドレスもありません。導入すると RuneLite のサイドバーに **Anvil** ボタンが現れ、設定は **Configuration → Anvil** にあります。',
+      ],
+      warningHeading: 'なぜ RuneLite に警告が出るのか',
+      warningBody: [
+        'Anvil を導入すると、Plugin Hub に次の警告が表示されます：_“This plugin submits your IP address and your account\'s gameplay data (RSN, drops, kill counts, XP and progress) to anvilosrs.com, a 3rd-party server not controlled or verified by the RuneLite developers.”_ これは想定どおりです —— 外部のサーバーと通信するプラグインには、RuneLite は必ず同様の警告を出します。',
+        'Anvil はサードパーティのサイトです —— RuneLite や Jagex が運営しているものではありません。クランのためにドロップや進捗を記録するには、プラグインが `anvilosrs.com` にリクエストを送る必要があり、どんな Web リクエストもサーバーには送信元の IP アドレスが見えます。警告が言っているのはそれだけです。',
+        'プラグインが送るのは、あなたが参加しているクランとイベントのための、あなた自身のプレイ情報だけで、Account Token で署名されています。IP アドレスはどの Web サイトとも同じ使い方 —— リクエストへの応答とレート制限 —— をするだけで、あなたを追跡するためには使いません。そして導入したばかりのプラグインは、**Sign in with Discord** を押すまでどこにも接続しません。',
       ],
     },
 
     connect: {
-      title: 'このサイトにつなぐ',
-      intro: '動かし始めるうえで重要なのは **Setup** の節だけです。ほかはすべて妥当な初期値になっています。',
-      figure: {
-        caption: 'Configuration → Anvil → Setup',
-        alt: 'Anvil プラグインの Setup セクション。Site URL と Account Token の欄が枠で囲まれている',
-        legend: [
-          {
-            label: 'Site URL',
-            body: '{clanName} なら `{origin}` です。初期状態は空なので自分で入力する必要があります。末尾のスラッシュは不要で、`https://` を省いても自動で補われます。',
-          },
-          {
-            label: 'Account Token',
-            body: 'このサイトに対するあなた個人の鍵です。プラグインに入力させる（下記）か、自分で貼り付けるか。パスワードと同じ扱いをしてください。',
-          },
-        ],
-      },
-      easyHeading: '楽な方法：プラグインからログインする',
-      easyIntro:
-        'Site URL が入っていてトークンがまだ空のとき、**Anvil のサイドパネル**に **Sign in with Discord** ボタンが出ます。押せばプラグインが最後まで案内してくれます —— 何もコピーする必要はありません。',
+      title: 'ログインする',
+      intro: 'RuneLite のサイドバーから **Anvil** パネルを開き、**Sign in with Discord** を押します。ブラウザで `anvilosrs.com` が開くので、そこでコードを承認すれば、プラグインが Account Token を自分で入力します —— 入力もコピーも不要です。',
       panelFigure: {
         caption: 'RuneLite → Anvil ボタン',
         alt: 'RuneLite のサイドバーのアイコン列。いちばん下の Anvil ボタンを囲んで示している',
@@ -501,17 +490,17 @@ const ja: PartialGuideDict = {
           },
           {
             label: 'Connects to',
-            body: 'あなたが入力した Site URL を、決める前にそのまま書き出したものです。`{origin}` になっているか確かめてください —— あなたのトークンが属するサイトです。',
+            body: '常に `anvilosrs.com` です —— プラグインが通信する唯一のサイトで、あなたのトークンが属するサイトです。',
           },
         ],
       },
       easySteps: [
-        'パネルにコードが表示され、このサイトがブラウザで開きます。',
-        'ページ上のコードが RuneLite に出ているものと一致するか確かめてから **Approve** を押します。',
-        'パネルに _Signed in_ と表示され、Account Token が自動で入ります。',
+        '**Sign in with Discord** を押します。パネルに短いコードが表示され、ブラウザで `anvilosrs.com` が開きます。',
+        'まだログインしていなければそこで Discord でログインし、ページ上のコードが RuneLite に出ているものと一致するか確かめてから **Approve** を押します。',
+        'RuneLite に戻ると、パネルに _Signed in_ と表示され、Account Token が自動で入っています。これで完了です。',
       ],
       linkFigure: {
-        caption: 'このサイト → /link-device',
+        caption: 'anvilosrs.com → /link-device',
         alt: 'Link your RuneLite client ページ。コード欄と Approve ボタンが枠で囲まれている',
         legend: [
           { label: 'そのコード', body: 'いま手元のプラグインが表示しているものと一致していなければなりません。' },
@@ -521,17 +510,10 @@ const ja: PartialGuideDict = {
           },
         ],
       },
-      brokeredNote: {
-        tag: 'なぜ別のドメインが出てくるのか',
-        body: [
-          '承認はここ、`{origin}` で行われます。まだサイトにログインしていない場合、ログイン手順だけが `anvilosrs.com` にある Anvil 共通の Discord ログインを経由して Discord 上の本人確認を行い、そのまますぐここへ戻します —— それはこのサイトの Login ボタンで得られるのと同じログインであって、プラグインの流れの一部ではありません。',
-          'プラグイン自体は `{origin}` としか通信しません。あなたが入力した Site URL 上にないログインページは開くことを拒否します。',
-        ],
-      },
       directNote: {
         tag: 'これがどこで起きるか',
         body: [
-          'この流れはすべて `{origin}` の中で完結します —— コードはここで発行され、ここで {clanName} 自身の Discord ログインによって承認され、トークンもここで返されます。プラグインは入力された Site URL 上にないログインページを開くことを拒否するので、この手順で別の Anvil 環境に何かが渡ることはありません。',
+          'この流れはすべて `anvilosrs.com` の中で完結します —— コードはそこで発行され、あなた自身の Discord ログインでそこで承認し、トークンはそのままプラグインに返されます。プラグインは `anvilosrs.com` 上のログインページしか開かないので、ほかの場所を指すログインリンクはプラグインから来たものではありません。',
         ],
       },
       settingsRefreshNote: {
@@ -545,9 +527,9 @@ const ja: PartialGuideDict = {
         'サイドパネルの **Connect clans** と混同しないでください —— あれは他の Anvil クランとつなぐための、独立した任意のボタンで、ここにログイン済みになって初めて現れます。',
       manualFallback:
         'ブラウザが自動で開かない場合、パネルにアドレスとコードが表示されるので手動で開けます。コードは 10 分で失効します —— もう一度ボタンを押すだけで大丈夫です。',
-      manualHeading: '手動の方法：トークンをコピーする',
+      manualHeading: '予備の方法：トークンを手で貼り付ける',
       manualIntro:
-        'Discord でログインして [Profile → plugin token](/profile#plugin-token) を開きます。',
+        'プラグインからのログインがうまくいかない場合は、下のトークンをコピーし（[Profile → plugin token](/profile#plugin-token) からでもコピーでき、そこでローテーションもできます）、**Configuration → Anvil → Account Token** に貼り付けてください。触る必要がある設定はそれだけです。',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: 'プロフィールページの RuneLite plugin カード。トークン欄と Reveal・Copy・Rotate ボタンが枠で囲まれている',
@@ -802,8 +784,8 @@ const ja: PartialGuideDict = {
           body: 'トークンが違うか、ローテートされました。[Profile → RuneLite plugin](/profile#plugin-token) からコピーし直すか、欄を空にしてプラグインから再ログインしてください。',
         },
         {
-          term: '`Anvil: can’t reach the site — tracking is OFF.`',
-          body: 'Site URL に打ち間違いがないか確認を —— `{origin}` のはずです。合っているなら、サイト側が落ちている可能性が高いです。',
+          term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',
+          body: 'プラグインが `anvilosrs.com` に届いていません。インターネット接続と、RuneLite を妨げているかもしれないファイアウォールや VPN を確認してください。問題がなければ、サイトが一時的に落ちている可能性が高いです —— プラグインは自分で再接続します。',
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',

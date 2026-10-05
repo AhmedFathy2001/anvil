@@ -26,7 +26,8 @@ export const SEARCH_TERMS: Record<Exclude<GuidePage, ''>, string[]> = {
   plugin: [
     'plugin', 'runelite', 'install', 'hub', 'client', 'token', 'link', 'linking', 'verify',
     'verification', 'rsn', 'account', 'character', 'sync', 'roster', 'tracking', 'not tracking',
-    'not showing', 'drops', 'overlay', 'sidebar',
+    'not showing', 'drops', 'overlay', 'sidebar', 'sign in', 'login', 'log in', 'warning',
+    'third party', '3rd party', 'ip address', 'privacy',
   ],
   admin: [
     'admin', 'event', 'events', 'run', 'running', 'host', 'hosting', 'launch', 'start', 'signup',

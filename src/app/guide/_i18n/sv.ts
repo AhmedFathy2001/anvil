@@ -63,7 +63,7 @@ const sv: PartialGuideDict = {
         eyebrow: 'För spelare',
         title: 'Installera RuneLite-pluginet',
         blurb:
-          'Installera pluginet, koppla det till den här sajten och låt det skicka in dina drops. Täcker även Discord-notiser och klipp via OBS.',
+          'Installera pluginet, logga in från dess sidopanel och låt det skicka in dina drops. Täcker även Discord-notiser och klipp via OBS.',
         minutes: '~3 min installation',
       },
       board: {
@@ -441,12 +441,12 @@ const sv: PartialGuideDict = {
   plugin: {
     metaTitle: 'Installera RuneLite-pluginet — Anvil',
     metaDescription:
-      'Installera Anvils RuneLite-plugin, koppla det till den här sajten och sätt upp Discord-notiser och OBS-klipp.',
+      'Installera Anvils RuneLite-plugin, logga in från dess sidopanel och ställ in Discord-notiser och OBS-klipp.',
     eyebrow: 'Anvil · RuneLite-plugin',
     title: 'Installationsguide för spelare',
-    dek: 'Installera det, peka det mot {clanName} och spela. Pluginet skickar in dina bingo-drops, postar dina sällsynta drops och dödsfall till Discord och — om du kör OBS — sparar och postar klipp av ögonblicken som är värda att se igen.',
+    dek: 'Installera det, logga in och spela. Pluginet skickar in dina bingo-drops, postar dina sällsynta drops och dödsfall på Discord och — om du kör OBS — sparar och postar klipp av ögonblicken som är värda att se igen.',
     facts: [
-      { strong: '2 fält', rest: 'så är spårningen igång' },
+      { strong: '1 knapp', rest: 'så är spårningen igång' },
       { strong: '~3 min', rest: 'för grundinstallationen' },
       { strong: 'Klipp', rest: 'kräver OBS + 5 minuter till' },
     ],
@@ -457,30 +457,19 @@ const sv: PartialGuideDict = {
       title: 'Installera pluginet',
       body: [
         'I RuneLite: **Configuration** (skiftnyckeln) → **Plugin Hub** → sök på **Anvil** → **Install**. Utgivaren är `AhmedFathy2001`.',
-        'Ett plugin räcker för alla klaner — du pekar det mot den här sajten i nästa steg, så det finns inget klanspecifikt att ladda ner. När det är installerat, öppna **Configuration → Anvil** för att nå inställningarna som används genom hela den här guiden.',
+        'Ett plugin räcker för alla klaner — det ansluter alltid till `anvilosrs.com`, och det är inloggningen (nästa steg) som knyter det till dig och dina klaner. Det finns inget klanspecifikt att ladda ner och ingen adress att skriva in. När det är installerat dyker en **Anvil**-knapp upp i RuneLites sidofält, och inställningarna finns under **Configuration → Anvil**.',
+      ],
+      warningHeading: 'Varför visar RuneLite en varning?',
+      warningBody: [
+        'När du installerar Anvil visar Plugin Hub den här varningen: _“This plugin submits your IP address and your account\'s gameplay data (RSN, drops, kill counts, XP and progress) to anvilosrs.com, a 3rd-party server not controlled or verified by the RuneLite developers.”_ Det är väntat — RuneLite visar en liknande varning för alla plugins som pratar med en extern server.',
+        'Anvil är en tredjepartssajt — den drivs varken av RuneLite eller Jagex. För att spåra dina drops och framsteg åt din klan måste pluginet skicka förfrågningar till `anvilosrs.com`, och varje webbförfrågan visar servern vilken IP-adress den kom från. Det är allt varningen betyder.',
+        'Det pluginet skickar är ditt eget spelande för de klaner och events du är med i, kopplat till din Account Token. Din IP-adress används som vilken webbplats som helst använder den — för att svara på förfrågningar och begränsa missbruk — inte för att spåra dig. Och en nyinstallation kontaktar ingenting alls förrän du klickar på **Sign in with Discord**.',
       ],
     },
 
     connect: {
-      title: 'Koppla till den här sajten',
-      intro: 'Bara avsnittet **Setup** spelar roll för att komma igång. Allt annat har vettiga standardvärden.',
-      figure: {
-        caption: 'Configuration → Anvil → Setup',
-        alt: 'Setup-avsnittet i Anvil-pluginet, med fälten Site URL och Account Token inramade',
-        legend: [
-          {
-            label: 'Site URL',
-            body: 'för {clanName} är det `{origin}`. Fältet är tomt från början, så du måste fylla i det. Inget snedstreck på slutet behövs, och `https://` läggs till om du utelämnar det.',
-          },
-          {
-            label: 'Account Token',
-            body: 'din personliga nyckel till den här sajten. Antingen låter du pluginet fylla i den åt dig (nedan), eller så klistrar du in den själv. Behandla den som ett lösenord.',
-          },
-        ],
-      },
-      easyHeading: 'Den enkla vägen: logga in från pluginet',
-      easyIntro:
-        'När Site URL är satt och token fortfarande är tom visar **Anvils sidopanel** en **Sign in with Discord**-knapp. Klicka på den så leder pluginet dig igenom — utan att du kopierar något.',
+      title: 'Logga in',
+      intro: 'Öppna **Anvil**-panelen från RuneLites sidofält och klicka på **Sign in with Discord**. Webbläsaren öppnas på `anvilosrs.com`; godkänn koden där så fyller pluginet själv i sin Account Token — inget att skriva, inget att kopiera.',
       panelFigure: {
         caption: 'RuneLite → Anvil-knappen',
         alt: 'RuneLites sidopanel med Anvil-knappen längst ned i ikonraden inringad',
@@ -501,17 +490,17 @@ const sv: PartialGuideDict = {
           },
           {
             label: 'Connects to',
-            body: 'den Site URL du skrev, utskriven innan du binder dig. Kontrollera att det står `{origin}` — det är sidan din token kommer att tillhöra.',
+            body: 'alltid `anvilosrs.com` — den enda sajt pluginet pratar med, och den som din token hör till.',
           },
         ],
       },
       easySteps: [
-        'Panelen visar en kod och öppnar din webbläsare på den här sajten.',
-        'Kontrollera att koden på sidan stämmer med den i RuneLite, klicka sedan **Approve**.',
-        'Panelen säger _Signed in_ och fyller i Account Token åt dig.',
+        'Klicka på **Sign in with Discord**. Panelen visar en kort kod och öppnar webbläsaren på `anvilosrs.com`.',
+        'Logga in med Discord där om du inte redan är inloggad, kontrollera att koden på sidan stämmer med den i RuneLite och klicka sedan på **Approve**.',
+        'Tillbaka i RuneLite säger panelen _Signed in_ och har fyllt i Account Token åt dig. Klart.',
       ],
       linkFigure: {
-        caption: 'Den här sajten → /link-device',
+        caption: 'anvilosrs.com → /link-device',
         alt: 'Sidan Link your RuneLite client, med kodfältet och Approve-knappen inramade',
         legend: [
           { label: 'Koden', body: 'den måste stämma med det pluginet visar för dig just nu.' },
@@ -521,17 +510,10 @@ const sv: PartialGuideDict = {
           },
         ],
       },
-      brokeredNote: {
-        tag: 'Därför dyker en annan domän upp',
-        body: [
-          'Godkännandet sker här, på `{origin}`. Om du inte redan är inloggad på sajten går själva inloggningssteget via Anvils delade Discord-inloggning på `anvilosrs.com` för att bekräfta vem du är på Discord, och skickar dig sedan direkt tillbaka hit — det är samma inloggning som Login-knappen på den här sajten ger dig, inte en del av pluginets flöde.',
-          'Pluginet självt pratar bara med `{origin}`: det vägrar öppna en inloggningssida som inte ligger på den Site URL du skrev in.',
-        ],
-      },
       directNote: {
         tag: 'Var det här sker',
         body: [
-          'Hela flödet stannar på `{origin}` — koden utfärdas här, godkänns här med {clanName}s egen Discord-inloggning, och token lämnas tillbaka här. Pluginet vägrar öppna en inloggningssida som inte ligger på den Site URL du skrev in, så inget i det här steget når en annan Anvil-installation.',
+          'Hela flödet stannar på `anvilosrs.com` — koden utfärdas där, du godkänner den där med din egen Discord-inloggning, och token skickas direkt tillbaka till pluginet. Pluginet öppnar bara inloggningssidor på `anvilosrs.com`, så en inloggningslänk som pekar någon annanstans kommer inte från det.',
         ],
       },
       settingsRefreshNote: {
@@ -545,9 +527,9 @@ const sv: PartialGuideDict = {
         'Ska inte förväxlas med **Connect clans** i sidopanelen — det är den separata, frivilliga knappen som kopplar dig till andra Anvil-klaner, och den dyker upp först när du redan är inloggad här.',
       manualFallback:
         'Om webbläsaren inte öppnas av sig själv skriver panelen ut adressen och koden så att du kan öppna den manuellt. Koder går ut efter tio minuter — tryck bara på knappen igen.',
-      manualHeading: 'Den manuella vägen: kopiera din token',
+      manualHeading: 'Reservväg: klistra in din token för hand',
       manualIntro:
-        'Logga in med Discord och öppna [Profile → plugin token](/profile#plugin-token).',
+        'Om inloggningen från pluginet inte fungerar för dig, kopiera din token nedan (eller från [Profile → plugin token](/profile#plugin-token), där du också kan rotera den) och klistra in den i **Configuration → Anvil → Account Token**. Det är den enda inställningen du behöver röra.',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: 'RuneLite plugin-kortet på profilsidan, med tokenfältet och knapparna Reveal, Copy och Rotate inramade',
@@ -802,8 +784,8 @@ const sv: PartialGuideDict = {
           body: 'Token är fel eller har roterats. Kopiera den på nytt från [Profile → RuneLite plugin](/profile#plugin-token), eller töm fältet och logga in från pluginet igen.',
         },
         {
-          term: '`Anvil: can’t reach the site — tracking is OFF.`',
-          body: 'Kontrollera Site URL efter stavfel — den ska vara `{origin}`. Stämmer den är sajten troligen nere.',
+          term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',
+          body: 'Pluginet når inte `anvilosrs.com`. Kontrollera din internetanslutning och eventuell brandvägg eller VPN som kan blockera RuneLite. Om allt det ser bra ut ligger sajten förmodligen nere en stund — pluginet återansluter av sig självt.',
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',

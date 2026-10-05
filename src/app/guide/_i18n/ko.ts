@@ -63,7 +63,7 @@ const ko: PartialGuideDict = {
         eyebrow: '플레이어용',
         title: 'RuneLite 플러그인 설정',
         blurb:
-          '플러그인을 설치하고, 이 사이트에 연결하고, 드롭 제출을 맡기세요. Discord 알림과 OBS 클립도 다룹니다.',
+          '플러그인을 설치하고, 사이드 패널에서 로그인한 뒤, 드롭 제출을 맡기세요. Discord 알림과 OBS 클립도 다룹니다.',
         minutes: '설정 약 3분',
       },
       board: {
@@ -441,12 +441,12 @@ const ko: PartialGuideDict = {
   plugin: {
     metaTitle: 'RuneLite 플러그인 설정 — Anvil',
     metaDescription:
-      'Anvil의 RuneLite 플러그인을 설치하고, 이 사이트에 연결하고, Discord 알림과 OBS 클립을 설정하세요.',
+      'Anvil RuneLite 플러그인을 설치하고, 사이드 패널에서 로그인한 뒤, Discord 알림과 OBS 클립을 설정합니다.',
     eyebrow: 'Anvil · RuneLite 플러그인',
     title: '플레이어용 설정 가이드',
-    dek: '설치하고, {clanName}을(를) 향하게 하고, 그냥 플레이하세요. 플러그인이 빙고 드롭을 제출하고, 희귀 드롭과 사망을 Discord에 올리며 —— OBS를 켜 두었다면 —— 다시 볼 만한 순간을 클립으로 저장하고 올려 줍니다.',
+    dek: '설치하고, 로그인하고, 플레이하세요. 플러그인이 빙고 드롭을 제출하고, 희귀 드롭과 사망을 Discord에 올리며 —— OBS를 쓴다면 —— 다시 볼 만한 순간을 클립으로 저장해 올립니다.',
     facts: [
-      { strong: '입력란 2개', rest: '면 기록이 시작됩니다' },
+      { strong: '버튼 1개', rest: '면 기록이 시작됩니다' },
       { strong: '약 3분', rest: '기본 설정에 걸리는 시간' },
       { strong: '클립', rest: '은 OBS와 5분이 더 필요합니다' },
     ],
@@ -457,30 +457,19 @@ const ko: PartialGuideDict = {
       title: '플러그인 설치하기',
       body: [
         'RuneLite에서: **Configuration**(렌치 아이콘) → **Plugin Hub** → **Anvil** 검색 → **Install**. 게시자는 `AhmedFathy2001`입니다.',
-        '플러그인 하나가 모든 클랜을 담당합니다 —— 다음 단계에서 이 사이트를 가리키게 하므로, 클랜별로 따로 받을 것은 전혀 없습니다. 설치한 뒤 **Configuration → Anvil**을 열면 이 가이드 내내 사용할 설정 패널로 들어갑니다.',
+        '플러그인 하나가 모든 클랜을 담당합니다 —— 항상 `anvilosrs.com`에 연결되고, 당신과 당신의 클랜에 묶어 주는 것은 로그인(다음 단계)입니다. 클랜별로 받을 것도, 입력할 주소도 없습니다. 설치하면 RuneLite 사이드바에 **Anvil** 버튼이 나타나고, 설정은 **Configuration → Anvil**에 있습니다.',
+      ],
+      warningHeading: 'RuneLite는 왜 경고를 띄우나요?',
+      warningBody: [
+        'Anvil을 설치하면 Plugin Hub에 다음 경고가 표시됩니다: _“This plugin submits your IP address and your account\'s gameplay data (RSN, drops, kill counts, XP and progress) to anvilosrs.com, a 3rd-party server not controlled or verified by the RuneLite developers.”_ 예상된 일입니다 —— RuneLite는 외부 서버와 통신하는 모든 플러그인에 이런 경고를 띄웁니다.',
+        'Anvil은 서드파티 사이트입니다 —— RuneLite나 Jagex가 운영하지 않습니다. 클랜을 위해 당신의 드롭과 진행 상황을 기록하려면 플러그인이 `anvilosrs.com`으로 요청을 보내야 하고, 모든 웹 요청은 서버에 그 요청이 온 IP 주소를 보여 줍니다. 경고가 말하는 것은 그게 전부입니다.',
+        '플러그인이 보내는 것은 당신이 속한 클랜과 이벤트를 위한 당신 자신의 플레이 기록뿐이며, Account Token으로 서명됩니다. IP 주소는 여느 웹사이트와 똑같이 —— 요청에 응답하고 과도한 요청을 제한하는 데 —— 쓰일 뿐, 당신을 추적하는 데 쓰이지 않습니다. 그리고 갓 설치한 플러그인은 **Sign in with Discord**를 누르기 전까지 아무 곳에도 연결하지 않습니다.',
       ],
     },
 
     connect: {
-      title: '이 사이트에 연결하기',
-      intro: '시작하는 데 중요한 것은 **Setup** 항목뿐입니다. 나머지는 모두 합리적인 기본값을 가지고 있습니다.',
-      figure: {
-        caption: 'Configuration → Anvil → Setup',
-        alt: 'Anvil 플러그인의 Setup 영역. Site URL과 Account Token 입력란이 네모로 표시되어 있음',
-        legend: [
-          {
-            label: 'Site URL',
-            body: '{clanName}이라면 `{origin}`입니다. 처음에는 비어 있으므로 직접 채워야 합니다. 끝에 슬래시는 필요 없고, `https://`를 빼면 자동으로 붙습니다.',
-          },
-          {
-            label: 'Account Token',
-            body: '이 사이트에 대한 당신 개인의 열쇠입니다. 플러그인이 대신 채우게 하거나(아래 참고), 직접 붙여 넣으세요. 비밀번호처럼 다루시길.',
-          },
-        ],
-      },
-      easyHeading: '쉬운 길: 플러그인에서 바로 로그인',
-      easyIntro:
-        'Site URL이 채워져 있고 토큰이 아직 비어 있으면 **Anvil 사이드 패널**에 **Sign in with Discord** 버튼이 나타납니다. 누르면 플러그인이 끝까지 안내합니다 —— 아무것도 복사할 필요가 없습니다.',
+      title: '로그인',
+      intro: 'RuneLite 사이드바에서 **Anvil** 패널을 열고 **Sign in with Discord**를 누르세요. 브라우저에서 `anvilosrs.com`이 열리면 거기서 코드를 승인하세요. 그러면 플러그인이 Account Token을 스스로 채웁니다 —— 입력할 것도, 복사할 것도 없습니다.',
       panelFigure: {
         caption: 'RuneLite → Anvil 버튼',
         alt: 'RuneLite 사이드바 아이콘 줄에서 맨 아래 Anvil 버튼을 표시한 모습',
@@ -501,17 +490,17 @@ const ko: PartialGuideDict = {
           },
           {
             label: 'Connects to',
-            body: '당신이 입력한 Site URL을, 결정하기 전에 그대로 적어 둔 것입니다. `{origin}`이 맞는지 확인하세요 — 당신의 토큰이 속하게 될 사이트입니다.',
+            body: '항상 `anvilosrs.com`입니다 —— 플러그인이 통신하는 유일한 사이트이자, 당신의 토큰이 속한 사이트입니다.',
           },
         ],
       },
       easySteps: [
-        '패널에 코드가 표시되고, 브라우저가 이 사이트로 열립니다.',
-        '페이지의 코드가 RuneLite에 표시된 것과 같은지 확인한 뒤 **Approve**를 누릅니다.',
-        '패널에 _Signed in_ 이라고 나오면서 Account Token이 자동으로 채워집니다.',
+        '**Sign in with Discord**를 누릅니다. 패널에 짧은 코드가 나타나고 브라우저에서 `anvilosrs.com`이 열립니다.',
+        '아직 로그인하지 않았다면 거기서 Discord로 로그인하고, 페이지의 코드가 RuneLite에 표시된 코드와 같은지 확인한 뒤 **Approve**를 누릅니다.',
+        'RuneLite로 돌아오면 패널에 _Signed in_ 이라고 나오고 Account Token이 채워져 있습니다. 끝입니다.',
       ],
       linkFigure: {
-        caption: '이 사이트 → /link-device',
+        caption: 'anvilosrs.com → /link-device',
         alt: 'Link your RuneLite client 페이지. 코드 입력란과 Approve 버튼이 네모로 표시되어 있음',
         legend: [
           { label: '그 코드', body: '지금 플러그인이 보여 주고 있는 것과 반드시 일치해야 합니다.' },
@@ -521,17 +510,10 @@ const ko: PartialGuideDict = {
           },
         ],
       },
-      brokeredNote: {
-        tag: '왜 다른 도메인이 나타나는가',
-        body: [
-          '승인은 여기, `{origin}`에서 이뤄집니다. 아직 사이트에 로그인하지 않았다면 로그인 단계만 `anvilosrs.com`의 Anvil 공용 Discord 로그인을 거쳐 Discord 신원을 확인한 뒤 곧바로 여기로 되돌려 보냅니다 —— 그것은 이 사이트의 Login 버튼으로 얻는 것과 같은 로그인이며, 플러그인 흐름의 일부가 아닙니다.',
-          '플러그인 자체는 `{origin}`하고만 통신합니다: 당신이 입력한 Site URL이 아닌 로그인 페이지는 열기를 거부합니다.',
-        ],
-      },
       directNote: {
         tag: '이 일이 어디서 일어나는가',
         body: [
-          '이 흐름 전체가 `{origin}` 안에서 끝납니다 —— 코드는 여기서 발급되고, 여기서 {clanName} 자체의 Discord 로그인으로 승인되며, 토큰도 여기서 넘겨받습니다. 플러그인은 입력된 Site URL이 아닌 로그인 페이지를 열기를 거부하므로, 이 단계에서 다른 Anvil 설치로 넘어가는 것은 아무것도 없습니다.',
+          '이 흐름 전체가 `anvilosrs.com` 안에서 끝납니다 —— 코드는 거기서 발급되고, 당신의 Discord 로그인으로 거기서 승인되며, 토큰은 곧바로 플러그인으로 돌아갑니다. 플러그인은 `anvilosrs.com`의 로그인 페이지만 열기 때문에, 다른 곳을 가리키는 로그인 링크는 플러그인이 보낸 것이 아닙니다.',
         ],
       },
       settingsRefreshNote: {
@@ -545,9 +527,9 @@ const ko: PartialGuideDict = {
         '사이드 패널의 **Connect clans**와 혼동하지 마세요 —— 그것은 다른 Anvil 클랜과 연결해 주는 별개의 선택 버튼이며, 여기에 이미 로그인한 뒤에야 나타납니다.',
       manualFallback:
         '브라우저가 저절로 열리지 않으면 패널이 주소와 코드를 표시하니 직접 여시면 됩니다. 코드는 10분 뒤 만료됩니다 —— 버튼을 한 번 더 누르면 됩니다.',
-      manualHeading: '수동으로 하는 길: 토큰 복사하기',
+      manualHeading: '대안: 토큰을 직접 붙여넣기',
       manualIntro:
-        'Discord로 로그인해 [Profile → plugin token](/profile#plugin-token)을 여세요.',
+        '플러그인에서 로그인이 되지 않으면, 아래의 토큰을 복사해(또는 [Profile → plugin token](/profile#plugin-token)에서 — 거기서 교체도 할 수 있습니다) **Configuration → Anvil → Account Token**에 붙여넣으세요. 건드려야 할 설정은 그것뿐입니다.',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: '프로필 페이지의 RuneLite plugin 카드. 토큰 입력란과 Reveal·Copy·Rotate 버튼이 네모로 표시되어 있음',
@@ -802,8 +784,8 @@ const ko: PartialGuideDict = {
           body: '토큰이 틀렸거나 교체되었습니다. [Profile → RuneLite plugin](/profile#plugin-token)에서 다시 복사하거나, 칸을 비우고 플러그인에서 다시 로그인하세요.',
         },
         {
-          term: '`Anvil: can’t reach the site — tracking is OFF.`',
-          body: 'Site URL에 오타가 없는지 확인하세요 —— `{origin}`이어야 합니다. 맞다면 사이트가 내려갔을 가능성이 큽니다.',
+          term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',
+          body: '플러그인이 `anvilosrs.com`에 닿지 못하고 있습니다. 인터넷 연결과, RuneLite를 막고 있을 수 있는 방화벽이나 VPN을 확인하세요. 모두 정상이라면 사이트가 잠시 내려갔을 가능성이 큽니다 —— 플러그인이 알아서 다시 연결합니다.',
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',

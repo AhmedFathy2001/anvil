@@ -29,7 +29,7 @@ export default function PluginPlayerTokenClient() {
   async function rotate() {
     const ok = await confirm({
       title: 'Rotate your plugin token?',
-      body: 'The old one stops working immediately, so your RuneLite plugin goes quiet until you paste the new token into its config.',
+      body: 'The old one stops working immediately, so your RuneLite plugin goes quiet until you sign in from its sidebar panel again (or paste the new token into its config).',
       confirmLabel: 'Rotate it',
     });
     if (!ok) return;
@@ -64,9 +64,10 @@ export default function PluginPlayerTokenClient() {
   return (
     <div>
       <p className="text-sm text-text-muted mb-3">
-        Paste this into your RuneLite plugin&rsquo;s <span className="text-foreground">Account Token</span> field.
-        It works across every event you&rsquo;re signed up for — no need to re-paste each event.
-        Rotate if you ever suspect it&rsquo;s leaked.
+        The plugin normally fills this in for you when you click <span className="text-foreground">Sign in with Discord</span> in
+        its sidebar panel. If that doesn&rsquo;t work, paste it into the plugin&rsquo;s{' '}
+        <span className="text-foreground">Account Token</span> setting yourself. It works across every event
+        you&rsquo;re signed up for. Rotate if you ever suspect it&rsquo;s leaked.
       </p>
       <div className="flex flex-wrap gap-2 items-center">
         <code

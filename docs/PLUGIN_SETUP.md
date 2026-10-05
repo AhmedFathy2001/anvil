@@ -4,16 +4,17 @@ The **Anvil** plugin is the companion that makes tracking automatic: it captures
 drops, boss kill-counts, skill XP, NPC kills, timed clears, achievement diaries and
 more, burns a tamper-evident codeword + timestamp onto every screenshot, shows your
 board in the collection log, and tracks weekly SotW/BotW — all with no manual
-submitting. One shared plugin serves every clan (hosted or self-hosted); you point
-it at your clan's site.
+submitting. One shared plugin serves every clan: it always talks to
+`https://anvilosrs.com` (there is no Site URL setting), and signing in is what ties it
+to you and your clans.
 
 This guide is for **members** (getting linked) and **clan admins** (helping members
-and syncing the roster). It applies to both hosted (`yourclan.anvilosrs.com`) and
-self-hosted instances.
+and syncing the roster). The Plugin Hub build only works with `anvilosrs.com`;
+self-hosted instances are not supported by it (see § 9).
 
 > **Members should read the in-app guide instead.** Every instance serves a
 > screenshot-annotated, instance-aware version at **`/guide/plugin`** (and a staff
-> guide at `/guide/admin`) — it fills in your actual Site URL, and it covers OBS clip
+> guide at `/guide/admin`) — it walks through the sign-in with screenshots, and it covers OBS clip
 > capture, which this document does not. Source: `src/app/guide/`. Keep both in step
 > when plugin behaviour changes.
 
@@ -24,36 +25,40 @@ self-hosted instances.
 RuneLite → **Configuration** (wrench) → **Plugin Hub** → search **Anvil** → Install.
 Publisher is `AhmedFathy2001`, entry point `com.anvil.AnvilPlugin`.
 
-## 2. Configure (two fields)
+## 2. Sign in
 
-Open **Configuration → Anvil**. Only the **Setup** section matters to get going:
+Open the **Anvil** panel from the RuneLite sidebar (the Anvil icon in the icon strip)
+and click **Sign in with Discord**. That's the whole setup — nothing to type or paste.
+It is a device-code flow (RFC 8628 shape) that fills the **Account Token** in for you:
 
-| Field | What to enter |
-| --- | --- |
-| **Site URL** | Your clan's Anvil address, e.g. `https://yourclan.anvilosrs.com` (no trailing slash; `https://` is added if you omit it). **Required** — this field ships empty, so you must set it. Ask your clan admin if unsure. |
-| **Account Token** | Your personal token. Easiest: leave it blank and use **Sign in with Discord** (below). Otherwise paste it from **Profile → RuneLite plugin → Reveal → Copy**. One token works across every event you're signed up for. It's a secret — don't share it. |
-
-That's the whole setup. A side panel appears once connected.
-
-### Sign in from the plugin (no copy/paste)
-
-With a Site URL set and the token still empty, the side panel offers **Sign in with
-Discord** — a device-code flow (RFC 8628 shape) that fills the token in for you:
-
-1. The plugin `POST`s `/api/plugin/auth/start` **on the configured Site URL** and shows
+1. The plugin `POST`s `/api/plugin/auth/start` on `https://anvilosrs.com` and shows
    the returned user code.
-2. It opens `<Site URL>/link-device?code=…` in the browser. The URL is pinned to the
-   configured home origin — a response steering the browser anywhere else is refused,
-   which is what makes this safe for hosted, self-hosted and standalone instances alike.
-3. You confirm the code matches and press **Approve** (a live web session is required —
-   only ever approve a code *your own* client is displaying).
-4. The plugin polls `/api/plugin/auth/poll` and stores the token. Codes are single-use
-   and expire in 10 minutes.
+2. It opens `https://anvilosrs.com/link-device?code=…` in the browser. The URL is
+   pinned to `anvilosrs.com` — a response steering the browser anywhere else is refused.
+3. You log in with Discord if needed, confirm the code matches and press **Approve**
+   (only ever approve a code *your own* client is displaying).
+4. The plugin polls `/api/plugin/auth/poll` and stores the token; the panel says
+   *Signed in*. Codes are single-use and expire in 10 minutes.
 
-The broker is never involved — see `src/lib/pluginDeviceAuth.ts`. On a **managed**
-instance the *website login* itself is brokered through the shared Anvil app, so members
-who aren't signed in yet will pass through `anvilosrs.com` at step 3; a BYO-Discord-app
-instance (`DISCORD_CLIENT_ID` + secret + redirect URI set) never leaves your domain.
+See `src/lib/pluginDeviceAuth.ts`. If the browser doesn't open by itself, the panel
+prints the address and code so you can open it manually.
+
+**Fallback — paste the token by hand.** If sign-in won't work for you, copy your token
+from **Profile → RuneLite plugin → Reveal → Copy** and paste it into **Configuration →
+Anvil → Account Token**. One token works across every event you're signed up for. It's
+a secret — don't share it.
+
+### The Plugin Hub's third-party warning
+
+Installing Anvil shows the hub's standard warning: *"This plugin submits your IP
+address and your account's gameplay data (RSN, drops, kill counts, XP and progress) to
+anvilosrs.com, a 3rd-party server not controlled or verified by the RuneLite
+developers."* Anvil is not run by RuneLite or Jagex, and any request the plugin sends
+to `anvilosrs.com` reveals the client's IP to the server — that is all the warning
+means. The plugin only sends the member's own gameplay for the clans/events they're
+in, authenticated by their account token; IPs are used to serve requests and
+rate-limit. A fresh install contacts nothing until the member clicks **Sign in with
+Discord**. The public guide (`/guide/plugin#install`) explains this to players.
 
 > **Where's the token?** On your clan's site, log in with Discord, open **Profile**,
 > scroll to the **RuneLite plugin** card (`recommended` badge). Use **Reveal** →
@@ -61,7 +66,7 @@ instance (`DISCORD_CLIENT_ID` + secret + redirect URI set) never leaves your dom
 
 ## 3. How linking works
 
-You don't enter a link code. After the token is pasted, the plugin reports the account
+You don't enter a link code. Once you are signed in, the plugin reports the account
 you are playing. A brand-new account can link immediately. An account that is already
 on a clan roster needs one ownership check first, because the RuneScape name is public
 and the client-reported account hash is not authenticated. Use **Verify by XP** on the
@@ -114,8 +119,8 @@ and repeats at most every 5 minutes:
 
 | You see | Fix |
 | --- | --- |
-| `Anvil: your Account Token was rejected — tracking is OFF. Re-copy your token…` | Token is wrong/rotated. Profile → Plugin → Reveal → Copy → repaste into **Account Token**. |
-| `Anvil: can't reach the site (host) — tracking is OFF. Check the Site URL…` | Wrong/typo'd **Site URL**, or the site is down. Confirm the address (no trailing slash). |
+| `Anvil: your Account Token was rejected — tracking is OFF. Re-copy your token…` | Token is wrong/rotated. Sign in from the Anvil panel again, or Profile → Plugin → Reveal → Copy → repaste into **Account Token**. |
+| `Anvil: can't reach the site … — tracking is OFF.` | The client can't reach `anvilosrs.com`: check the internet connection and any firewall/VPN blocking RuneLite; otherwise the site is briefly down (the plugin reconnects by itself). |
 | `…you're logged in as "<RSN>" but isn't linked to your Anvil account — your drops won't count. Verify this RSN on the Anvil site.` | That account isn't linked. Add it from Profile → "Accounts we noticed you playing," or use Verify by XP / Manual review. |
 | `Anvil: reconnected — tracking is back on.` | (Informational — it recovered.) |
 
@@ -170,13 +175,13 @@ clip posts twice).
   in the Collection Log **Bingo** tab — one click pushes your in-game clan roster to
   the site (this is how clan membership is granted; verify/link flows only create
   guests).
-- Members who join mid-event just install, set Site URL + token, and play — no
-  per-event setup.
+- Members who join mid-event just install, click **Sign in with Discord** in the
+  Anvil panel, and play — no per-event setup.
 
 ## 9. Self-hosting note
 
-If you run your own instance, everything above is identical — members simply set
-**Site URL** to your domain. If you want to spare them typing it, you can ship a
-build whose `apiUrl()` default is your domain (see
-[`SELF_HOSTING.md`](./SELF_HOSTING.md) § 8), at the cost of maintaining your own Hub
-listing instead of using the shared **Anvil** plugin.
+The Plugin Hub build has no Site URL setting — it always talks to `anvilosrs.com`, so
+it cannot be pointed at a self-hosted instance. Running your own instance means
+building and distributing your own plugin build whose base URL is your domain (see
+[`SELF_HOSTING.md`](./SELF_HOSTING.md) § 11), at the cost of maintaining it yourself
+instead of using the shared **Anvil** plugin.

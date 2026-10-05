@@ -14,10 +14,11 @@ import { chat, items, legend, paragraphs, rows, rt } from '../_i18n/rich';
 import PluginSetupValues from '../_components/PluginSetupValues';
 
 /**
- * Canonical origin for the "paste this into Site URL" instruction. Same resolution order as
- * lib/request-origin (env first — Host is attacker-controllable), with a Host fallback that's
- * acceptable here because the value is only ever *displayed*, never redirected to. Local dev has
- * neither, so it degrades to the placeholder.
+ * Canonical origin for the `{origin}` placeholder in the guide copy (the plugin itself no longer has
+ * a Site URL — it always talks to anvilosrs.com). Same resolution order as lib/request-origin (env
+ * first — Host is attacker-controllable), with a Host fallback that's acceptable here because the
+ * value is only ever *displayed*, never redirected to. Local dev has neither, so it degrades to the
+ * placeholder.
  */
 async function siteOrigin(): Promise<string> {
   const fromEnv = (u: string | undefined): string | null => {
@@ -102,26 +103,18 @@ export default async function PluginGuide({ lang }: { lang: string }) {
       {/* ---------------------------------------------------------------- 1 */}
       <Section id="install" n={1} title={p.install.title} labels={t.common}>
         {paragraphs(p.install.body, v)}
+
+        {/* The Plugin Hub's standard third-party warning, explained before it puts anyone off. */}
+        <h3 className="text-lg font-semibold pt-2">{p.install.warningHeading}</h3>
+        {paragraphs(p.install.warningBody, v)}
       </Section>
 
       {/* ---------------------------------------------------------------- 2 */}
       <Section id="connect" n={2} title={p.connect.title} labels={t.common}>
         <p className="text-text-muted">{rt(p.connect.intro, v)}</p>
 
-        <Figure
-          src="/guide/plugin-setup.png"
-          width={534}
-          height={330}
-          alt={p.connect.figure.alt}
-          caption={p.connect.figure.caption}
-          legend={legend(p.connect.figure.legend, v)}
-        />
-
         {oauthMode !== 'none' && (
           <>
-            <h3 className="text-lg font-semibold pt-2">{p.connect.easyHeading}</h3>
-            <p className="text-text-muted">{rt(p.connect.easyIntro, v)}</p>
-
             {/* Where the panel IS, before what is in it. "Open the side panel" assumes you already
                 know which of twenty identical icons opens it, which is the step people get stuck on. */}
             <Figure
@@ -155,12 +148,8 @@ export default async function PluginGuide({ lang }: { lang: string }) {
               legend={legend(p.connect.linkFigure.legend, v)}
             />
 
-            {/* Instance-specific: where the browser actually goes to authenticate you. */}
-            {false ? (
-              <Note tag={p.connect.brokeredNote.tag}>{paragraphs(p.connect.brokeredNote.body, v, '')}</Note>
-            ) : (
-              <Note tag={p.connect.directNote.tag}>{paragraphs(p.connect.directNote.body, v, '')}</Note>
-            )}
+            {/* Where the browser actually goes to authenticate you. */}
+            <Note tag={p.connect.directNote.tag}>{paragraphs(p.connect.directNote.body, v, '')}</Note>
 
             <Note tag={p.connect.settingsRefreshNote.tag}>
               {paragraphs(p.connect.settingsRefreshNote.body, v, '')}
@@ -171,14 +160,14 @@ export default async function PluginGuide({ lang }: { lang: string }) {
             )}
 
             <p className="text-text-muted text-sm">{rt(p.connect.manualFallback, v)}</p>
-
-            <h3 className="text-lg font-semibold pt-2">{p.connect.manualHeading}</h3>
           </>
         )}
 
+        <h3 className="text-lg font-semibold pt-2">{p.connect.manualHeading}</h3>
+
         <p className="text-text-muted">{rt(p.connect.manualIntro, v)}</p>
 
-        <PluginSetupValues origin={origin} tokenLabel={p.connect.tokenFigure.legend[0].label} />
+        <PluginSetupValues tokenLabel={p.connect.tokenFigure.legend[0].label} />
 
         <Figure
           src="/guide/site-token.png"

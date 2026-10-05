@@ -64,7 +64,7 @@ const fi: PartialGuideDict = {
         eyebrow: 'Pelaajille',
         title: 'RuneLite-pluginin käyttöönotto',
         blurb:
-          'Asenna plugin, yhdistä se tähän sivustoon ja anna sen lähettää dropit puolestasi. Kattaa myös Discord-ilmoitukset ja OBS-leikkeet.',
+          'Asenna plugin, kirjaudu sisään sen sivupaneelista ja anna sen lähettää dropit puolestasi. Kattaa myös Discord-ilmoitukset ja OBS-leikkeet.',
         minutes: '~3 min käyttöönotto',
       },
       board: {
@@ -442,12 +442,12 @@ const fi: PartialGuideDict = {
   plugin: {
     metaTitle: 'RuneLite-pluginin käyttöönotto — Anvil',
     metaDescription:
-      'Asenna Anvilin RuneLite-plugin, yhdistä se tähän sivustoon ja ota käyttöön Discord-ilmoitukset sekä OBS-leikkeet.',
+      'Asenna Anvilin RuneLite-plugin, kirjaudu sisään sen sivupaneelista ja ota käyttöön Discord-ilmoitukset ja OBS-leikkeet.',
     eyebrow: 'Anvil · RuneLite-plugin',
     title: 'Käyttöönotto-opas pelaajille',
-    dek: 'Asenna se, osoita se kohteeseen {clanName} ja pelaa. Plugin lähettää bingo-droppisi, julkaisee harvinaiset droppisi ja kuolemasi Discordiin ja — jos käytät OBS:ää — tallentaa ja julkaisee leikkeet hetkistä, jotka kannattaa katsoa uudelleen.',
+    dek: 'Asenna se, kirjaudu sisään ja pelaa. Plugin lähettää bingo-droppisi, postaa harvinaiset dropit ja kuolemat Discordiin ja — jos käytät OBS:ää — tallentaa ja postaa leikkeitä hetkistä, jotka kannattaa katsoa uudelleen.',
     facts: [
-      { strong: '2 kenttää', rest: 'ja seuranta on käynnissä' },
+      { strong: '1 painike', rest: 'ja seuranta on käynnissä' },
       { strong: '~3 min', rest: 'perusasetuksiin' },
       { strong: 'Leikkeet', rest: 'vaativat OBS:n + 5 minuuttia lisää' },
     ],
@@ -458,30 +458,19 @@ const fi: PartialGuideDict = {
       title: 'Asenna plugin',
       body: [
         'RuneLitessä: **Configuration** (jakoavain) → **Plugin Hub** → hae **Anvil** → **Install**. Julkaisija on `AhmedFathy2001`.',
-        'Yksi plugin palvelee kaikkia klaaneja — osoitat sen tähän sivustoon seuraavassa vaiheessa, joten mitään klaanikohtaista ei tarvitse ladata. Kun se on asennettu, avaa **Configuration → Anvil** päästäksesi asetuspaneeliin, jota tässä oppaassa käytetään läpi koko matkan.',
+        'Yksi plugin palvelee kaikkia klaaneja — se yhdistää aina osoitteeseen `anvilosrs.com`, ja sisäänkirjautuminen (seuraava vaihe) on se, mikä liittää sen sinuun ja klaaneihisi. Mitään klaanikohtaista ei tarvitse ladata eikä mitään osoitetta kirjoittaa. Asennuksen jälkeen RuneLiten sivupalkkiin ilmestyy **Anvil**-painike, ja asetukset löytyvät kohdasta **Configuration → Anvil**.',
+      ],
+      warningHeading: 'Miksi RuneLite näyttää varoituksen?',
+      warningBody: [
+        'Kun asennat Anvilin, Plugin Hub näyttää tämän varoituksen: _“This plugin submits your IP address and your account\'s gameplay data (RSN, drops, kill counts, XP and progress) to anvilosrs.com, a 3rd-party server not controlled or verified by the RuneLite developers.”_ Tämä on odotettua — RuneLite näyttää samanlaisen varoituksen jokaiselle pluginille, joka keskustelee ulkopuolisen palvelimen kanssa.',
+        'Anvil on kolmannen osapuolen sivusto — sitä eivät ylläpidä RuneLite eivätkä Jagex. Jotta plugin voi seurata droppejasi ja edistymistäsi klaanillesi, sen täytyy lähettää pyyntöjä osoitteeseen `anvilosrs.com`, ja jokainen verkkopyyntö näyttää palvelimelle IP-osoitteen, josta se tuli. Siinä kaikki, mitä varoitus tarkoittaa.',
+        'Plugin lähettää vain omaa pelaamistasi niille klaaneille ja tapahtumille, joissa olet mukana, sidottuna Account Tokeniisi. IP-osoitettasi käytetään kuten mikä tahansa verkkosivusto sitä käyttää — pyyntöihin vastaamiseen ja väärinkäytön rajoittamiseen — ei sinun seuraamiseesi. Eikä juuri asennettu plugin ota yhteyttä mihinkään ennen kuin klikkaat **Sign in with Discord**.',
       ],
     },
 
     connect: {
-      title: 'Yhdistä tähän sivustoon',
-      intro: 'Vain **Setup**-osio on tärkeä alkuun pääsemiseksi. Kaikella muulla on järkevät oletusarvot.',
-      figure: {
-        caption: 'Configuration → Anvil → Setup',
-        alt: 'Anvil-pluginin Setup-osio, jossa Site URL- ja Account Token -kentät on kehystetty',
-        legend: [
-          {
-            label: 'Site URL',
-            body: 'kohteelle {clanName} se on `{origin}`. Kenttä on tyhjä alusta asti, joten se on täytettävä. Loppukauttaviivaa ei tarvita, ja `https://` lisätään jos jätät sen pois.',
-          },
-          {
-            label: 'Account Token',
-            body: 'henkilökohtainen avaimesi tähän sivustoon. Anna joko pluginin täyttää se puolestasi (alla) tai liitä se itse. Kohtele sitä kuin salasanaa.',
-          },
-        ],
-      },
-      easyHeading: 'Helppo tapa: kirjaudu sisään pluginista',
-      easyIntro:
-        'Kun Site URL on asetettu ja token vielä tyhjä, **Anvilin sivupaneeli** näyttää **Sign in with Discord** -painikkeen. Klikkaa sitä, niin plugin opastaa sinut läpi — mitään ei tarvitse kopioida.',
+      title: 'Kirjaudu sisään',
+      intro: 'Avaa **Anvil**-paneeli RuneLiten sivupalkista ja klikkaa **Sign in with Discord**. Selain avautuu osoitteeseen `anvilosrs.com`; hyväksy koodi siellä, niin plugin täyttää Account Tokeninsa itse — ei mitään kirjoitettavaa, ei mitään kopioitavaa.',
       panelFigure: {
         caption: 'RuneLite → Anvil-painike',
         alt: 'RuneLiten sivupalkin kuvakkeet, joissa Anvil-painike rivin alalaidassa on ympyröity',
@@ -502,17 +491,17 @@ const fi: PartialGuideDict = {
           },
           {
             label: 'Connects to',
-            body: 'kirjoittamasi Site URL kirjoitettuna auki ennen kuin sitoudut siihen. Tarkista, että siinä lukee `{origin}` — tämä on se sivusto, jolle tokenisi kuuluu.',
+            body: 'aina `anvilosrs.com` — ainoa sivusto, jonka kanssa plugin keskustelee, ja se, johon tokenisi kuuluu.',
           },
         ],
       },
       easySteps: [
-        'Paneeli näyttää koodin ja avaa selaimesi tähän sivustoon.',
-        'Tarkista että sivun koodi vastaa RuneLitessä näkyvää, ja klikkaa sitten **Approve**.',
-        'Paneeli sanoo _Signed in_ ja täyttää Account Tokenin puolestasi.',
+        'Klikkaa **Sign in with Discord**. Paneeli näyttää lyhyen koodin ja avaa selaimen osoitteeseen `anvilosrs.com`.',
+        'Kirjaudu siellä Discordilla, jos et ole jo kirjautunut, tarkista että sivun koodi vastaa RuneLitessa näkyvää ja klikkaa sitten **Approve**.',
+        'Takaisin RuneLitessa paneeli sanoo _Signed in_ ja on täyttänyt Account Tokenin puolestasi. Siinä kaikki.',
       ],
       linkFigure: {
-        caption: 'Tämä sivusto → /link-device',
+        caption: 'anvilosrs.com → /link-device',
         alt: 'Link your RuneLite client -sivu, jossa koodikenttä ja Approve-painike on kehystetty',
         legend: [
           { label: 'Koodi', body: 'sen on vastattava sitä, mitä plugin näyttää sinulle juuri nyt.' },
@@ -522,17 +511,10 @@ const fi: PartialGuideDict = {
           },
         ],
       },
-      brokeredNote: {
-        tag: 'Miksi toinen verkkotunnus ilmestyy',
-        body: [
-          'Hyväksyntä tapahtuu täällä, osoitteessa `{origin}`. Jos et ole vielä kirjautunut sivustolle, itse kirjautumisvaihe kulkee Anvilin jaetun Discord-kirjautumisen kautta osoitteessa `anvilosrs.com` vahvistaakseen Discord-henkilöllisyytesi, ja palauttaa sinut sitten suoraan takaisin tänne — se on sama kirjautuminen jonka saat tämän sivuston Login-painikkeesta, ei osa pluginin kulkua.',
-          'Plugin itse puhuu vain osoitteen `{origin}` kanssa: se kieltäytyy avaamasta kirjautumissivua, joka ei ole kirjoittamassasi Site URL -osoitteessa.',
-        ],
-      },
       directNote: {
         tag: 'Missä tämä tapahtuu',
         body: [
-          'Koko kulku pysyy osoitteessa `{origin}` — koodi myönnetään täällä, hyväksytään täällä {clanName}:n omalla Discord-kirjautumisella, ja token luovutetaan täällä. Plugin kieltäytyy avaamasta kirjautumissivua, joka ei ole kirjoittamassasi Site URL -osoitteessa, joten mikään tässä vaiheessa ei päädy toiseen Anvil-asennukseen.',
+          'Koko tämä kulku pysyy osoitteessa `anvilosrs.com` — koodi myönnetään siellä, hyväksyt sen siellä omalla Discord-kirjautumisellasi, ja token palautetaan suoraan pluginille. Plugin avaa kirjautumissivuja vain osoitteessa `anvilosrs.com`, joten muualle osoittava kirjautumislinkki ei ole peräisin siltä.',
         ],
       },
       settingsRefreshNote: {
@@ -546,9 +528,9 @@ const fi: PartialGuideDict = {
         'Ei pidä sekoittaa sivupaneelin **Connect clans** -painikkeeseen — se on erillinen, vapaaehtoinen painike joka yhdistää sinut muihin Anvil-klaaneihin, ja se ilmestyy vasta kun olet jo kirjautunut täällä.',
       manualFallback:
         'Jos selain ei aukea itsestään, paneeli tulostaa osoitteen ja koodin, jotta voit avata sen käsin. Koodit vanhenevat kymmenessä minuutissa — paina vain painiketta uudelleen.',
-      manualHeading: 'Käsityötapa: kopioi tokenisi',
+      manualHeading: 'Varakeino: liitä token käsin',
       manualIntro:
-        'Kirjaudu sisään Discordilla ja avaa [Profile → plugin token](/profile#plugin-token).',
+        'Jos kirjautuminen pluginista ei toimi sinulla, kopioi tokenisi alta (tai kohdasta [Profile → plugin token](/profile#plugin-token), jossa voit myös vaihtaa sen) ja liitä se kohtaan **Configuration → Anvil → Account Token**. Se on ainoa asetus, johon sinun tarvitsee koskea.',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: 'Profiilisivun RuneLite plugin -kortti, jossa token-kenttä sekä Reveal-, Copy- ja Rotate-painikkeet on kehystetty',
@@ -803,8 +785,8 @@ const fi: PartialGuideDict = {
           body: 'Token on väärä tai se on kierrätetty. Kopioi se uudelleen kohdasta [Profile → RuneLite plugin](/profile#plugin-token), tai tyhjennä kenttä ja kirjaudu pluginista uudelleen.',
         },
         {
-          term: '`Anvil: can’t reach the site — tracking is OFF.`',
-          body: 'Tarkista Site URL kirjoitusvirheiden varalta — sen pitäisi olla `{origin}`. Jos se on oikein, sivusto on todennäköisesti alhaalla.',
+          term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',
+          body: 'Plugin ei tavoita osoitetta `anvilosrs.com`. Tarkista internetyhteytesi sekä mahdollinen palomuuri tai VPN, joka voi estää RuneLiten. Jos kaikki on kunnossa, sivusto on luultavasti hetken alhaalla — plugin yhdistää uudelleen itsestään.',
         },
         {
           term: '`…you’re logged in as "<RSN>" but isn’t linked… your drops won’t count.`',

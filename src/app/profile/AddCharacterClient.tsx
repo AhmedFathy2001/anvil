@@ -106,7 +106,8 @@ export default function AddCharacterClient({
     <div>
       <p className="mb-3 max-w-[62ch] text-sm text-text-muted">
         The easy way{first ? '' : ', and the one to reach for'}: install <b className="text-foreground">Anvil</b>{' '}
-        from the RuneLite plugin hub, paste your token once, and play the account. It appears here automatically;
+        from the RuneLite Plugin Hub, click <b className="text-foreground">Sign in with Discord</b> in its sidebar panel once, and
+        play the account. It appears here automatically;
         new accounts link immediately, while an account already on a roster asks for a one-time XP or moderator check.
       </p>
 
@@ -140,7 +141,8 @@ export default function AddCharacterClient({
       {error && <p className="mt-1 text-sm text-red-400">{error}</p>}
 
       <p className="mt-2 text-xs text-text-muted">
-        Goes in the plugin&rsquo;s <b className="text-foreground">Account Token</b> field — you never re-paste it.{' '}
+        Sign-in not working? Paste this into the plugin&rsquo;s <b className="text-foreground">Account Token</b>{' '}
+        setting instead — you never re-paste it.{' '}
         <ClanLink href="/guide/plugin" className="text-gold hover:text-gold-light">
           Setup guide →
         </ClanLink>

@@ -8,7 +8,7 @@ import ClanLink from '@/components/ClanLink';
 //
 // This replaces the old three-step checklist plus a separate "RuneLite plugin" section. Everything
 // that used to be a form (manual linking, rotation, ignored accounts) moved to the drawer at the
-// bottom of the page — what's left is one token, one button, and a beacon that watches for the
+// bottom of the page — what's left is the in-plugin sign-in (token paste as a fallback), and a beacon that watches for the
 // first ping so nobody has to guess whether it worked or reload the page to find out.
 
 interface Props {
@@ -139,7 +139,7 @@ export default function ConnectCard({
         {linkedCount > 0 ? 'Finish connecting your account' : 'Connect your account'}
       </h2>
       <p className="text-sm text-text-muted mt-1.5 mb-5 max-w-[62ch]">
-        One token, once. Paste it into the Anvil plugin and play — the account appears here automatically.
+        Install the Anvil plugin, sign in from its side panel, and play — the account appears here automatically.
         New accounts link immediately; an account already on a roster needs one quick XP or moderator check first.
       </p>
 
@@ -148,45 +148,55 @@ export default function ConnectCard({
           You&rsquo;re in{discordUsername ? <> as <b className="text-foreground">@{discordUsername}</b></> : null}.
         </Step>
 
-        <Step n={2} done={tokenDone} title="Copy your token" last={false}>
-          Goes in the plugin&rsquo;s <b className="text-foreground">Account Token</b> field. It works for every
-          event — you never re-paste it.
-          <div className="flex flex-wrap gap-2 mt-2.5 max-w-[640px]">
-            <code
-              onClick={() => setRevealed(true)}
-              title={revealed ? undefined : 'Click to reveal'}
-              className={`flex-1 min-w-[220px] px-3 py-2.5 bg-brown-dark border border-card-border rounded-lg text-sm font-mono truncate ${
-                revealed ? 'text-foreground' : 'text-text-muted select-none cursor-pointer'
-              }`}
-              style={revealed ? undefined : { filter: 'blur(5px)' }}
-            >
-              {loading ? 'loading…' : token ?? '—'}
-            </code>
-            <button
-              type="button"
-              onClick={() => setRevealed((r) => !r)}
-              className="px-3 py-2.5 text-sm font-semibold border border-card-border rounded-lg hover:border-gold/40 transition-colors"
-            >
-              {revealed ? 'Hide' : 'Reveal'}
-            </button>
-            <button
-              type="button"
-              onClick={copy}
-              disabled={!token}
-              className="px-4 py-2.5 text-sm font-semibold bg-gold hover:bg-gold-light text-brown-dark rounded-lg transition-colors disabled:opacity-50"
-            >
-              {copied ? 'Copied' : 'Copy token'}
-            </button>
-          </div>
-          {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
-        </Step>
-
-        <Step n={3} done={connected} title="Log in to the game" last>
-          Install <b className="text-foreground">Anvil</b> from the RuneLite plugin hub, paste the token, log
-          in.{' '}
+        <Step n={2} done={tokenDone} title="Install the plugin and sign in" last={false}>
+          Install <b className="text-foreground">Anvil</b> from the RuneLite Plugin Hub, open the{' '}
+          <b className="text-foreground">Anvil</b> panel in the RuneLite sidebar and click{' '}
+          <b className="text-foreground">Sign in with Discord</b>. Approve the code in the browser tab that opens — the plugin
+          fills in its token by itself.{' '}
           <ClanLink href="/guide/plugin" className="text-gold hover:text-gold-light">
             Setup guide with screenshots →
           </ClanLink>
+          <details className="mt-2.5 max-w-[640px]">
+            <summary className="cursor-pointer text-xs text-text-muted hover:text-foreground">
+              Sign-in not working? Paste your token by hand instead
+            </summary>
+            <p className="mt-2 text-xs text-text-muted">
+              Copy it into the plugin&rsquo;s <b className="text-foreground">Account Token</b> setting
+              (Configuration → Anvil). It works for every event — you never re-paste it.
+            </p>
+            <div className="flex flex-wrap gap-2 mt-2">
+              <code
+                onClick={() => setRevealed(true)}
+                title={revealed ? undefined : 'Click to reveal'}
+                className={`flex-1 min-w-[220px] px-3 py-2.5 bg-brown-dark border border-card-border rounded-lg text-sm font-mono truncate ${
+                  revealed ? 'text-foreground' : 'text-text-muted select-none cursor-pointer'
+                }`}
+                style={revealed ? undefined : { filter: 'blur(5px)' }}
+              >
+                {loading ? 'loading…' : token ?? '—'}
+              </code>
+              <button
+                type="button"
+                onClick={() => setRevealed((r) => !r)}
+                className="px-3 py-2.5 text-sm font-semibold border border-card-border rounded-lg hover:border-gold/40 transition-colors"
+              >
+                {revealed ? 'Hide' : 'Reveal'}
+              </button>
+              <button
+                type="button"
+                onClick={copy}
+                disabled={!token}
+                className="px-4 py-2.5 text-sm font-semibold bg-gold hover:bg-gold-light text-brown-dark rounded-lg transition-colors disabled:opacity-50"
+              >
+                {copied ? 'Copied' : 'Copy token'}
+              </button>
+            </div>
+            {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
+          </details>
+        </Step>
+
+        <Step n={3} done={connected} title="Log in to the game" last>
+          Log in to the account you want tracked and play — it shows up here on its own.
           {!connected && (
             <div className="mt-2.5 flex items-center gap-3 rounded-xl border border-dashed border-card-border bg-brown-dark/50 px-3 py-2.5 text-sm text-text-muted">
               <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 animate-pulse shrink-0" />
