@@ -176,6 +176,20 @@ test('the cron heals an unclaimed split and sends a claimed one to Anvil', async
   assert.ok(open.some((r) => r.account.id === c.real.id && r.kind === 'rename' && r.requestedRsn === 'Joey'), 'it went to Anvil');
 });
 
+test('the cron never folds in a stranger that another clan also rosters', async () => {
+  const D = await import('../src/lib/renameDetection.ts');
+  const x = await split('Kim', 'Kimmy', { unclaimed: true });
+  await db.update(s.accounts).set({ statsOverallXp: 80_000_000 }).where(eq(s.accounts.id, x.real.id));
+  await db.update(s.accounts).set({ statsOverallXp: 80_005_000 }).where(eq(s.accounts.id, x.stranger.id));
+  const otherClan = (await db.insert(s.clans).values({ slug: 'neighbours', name: 'Neighbours' }).returning())[0].id;
+  await db.insert(s.clanMemberships).values({ clanId: otherClan, accountId: x.stranger.id, kind: 'member', source: 'roster' });
+  await logSplit(x.realSeat.id, x.strangerSeat.id, 'Kimmy');
+
+  await D.applyConfidentRenames({ liveFetchCap: 0 });
+  assert.equal((await db.query.accounts.findFirst({ where: eq(s.accounts.id, x.real.id) }))?.rsn, 'Kim', 'not this clan’s alone — staff decide');
+  assert.ok(await db.query.accounts.findFirst({ where: eq(s.accounts.id, x.stranger.id) }), 'the other clan’s entry is untouched');
+});
+
 test('a smaller account on the old name is not this character', async () => {
   const D = await import('../src/lib/renameDetection.ts');
   assert.equal(D.xpVerdict(50_000_000, 1_000_000)?.ok, false, 'XP never goes down');

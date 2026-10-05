@@ -339,15 +339,14 @@ export async function renameFromPlugin(
   recentChecks.set(key, Date.now());
   if (recentChecks.size > 5000) recentChecks.clear();
 
-  const account = await db.query.accounts.findFirst({ where: eq(accounts.id, accountId), columns: { rsn: true, statsOverallXp: true } });
+  const account = await db.query.accounts.findFirst({ where: eq(accounts.id, accountId), columns: { rsn: true } });
   if (!account) return false;
-  const holder = await db.query.accounts.findFirst({ where: and(eq(accounts.rsnNormalized, newNorm), ne(accounts.id, accountId)), columns: { id: true } });
 
+  // PROOF OR NOTHING. A character with no XP on record cannot be compared, and that is not a pass:
+  // renaming a never-polled account to a stronger player's name would make that player's gains this
+  // character's on every stat tile. It waits for the sweep to record its XP, or for staff.
   const proof = await corroborateRename(accountId, newRsn);
-  // Never polled and nobody holds the name: there is nothing to compare and nothing to take — the
-  // event baseline (if any) is captured on the new name from here on.
-  const nothingToCompare = proof === 'unknown' && (account.statsOverallXp == null || account.statsOverallXp <= 0) && !holder;
-  if (proof === 'ok' || nothingToCompare) {
+  if (proof === 'ok') {
     const res = await renameCharacter(accountId, newRsn, {
       actorUserId: opts.userId,
       via: 'plugin',

@@ -17,7 +17,7 @@
 import { and, desc, eq, gte, inArray, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanAuditLog, clanMemberships, clanRoster, playerSnapshots } from '@/db/schema';
+import { accounts, clanAuditLog, clanMemberships, clanRoster, playerSnapshots } from '@/db/schema';
 import { fetchHiscoresSnapshot } from '@/lib/hiscores';
 
 const WINDOW_MS = 10 * 60 * 1000;
@@ -251,15 +251,32 @@ export async function applyConfidentRenames(opts: { lookbackDays?: number; maxCl
       // clan — a crafted roster ("X left, Y joined", with Y picked to match X's XP) must not rename
       // it — and one seated elsewhere is other clans' data too. Those go to Anvil with the evidence;
       // a claimed player's own plugin still heals it on their next login (renameFromPlugin).
-      // clan-scope: global -- where else this character sits is exactly the question.
+      // BOTH SIDES must be this clan's alone: the renamed character AND the stranger it would absorb.
+      // A stranger also seated in another clan is that clan's roster entry too, and folding it in
+      // from this clan's sync would rewrite another tenant's data. A stranger with a hash is a
+      // Jagex account somebody's plugin anchored — not this clan's to merge either.
+      // clan-scope: global -- where else either account sits is exactly the question.
       const elsewhere = await db
         .select({ id: clanMemberships.id })
         .from(clanMemberships)
-        .where(and(eq(clanMemberships.accountId, p.leftAccountId), ne(clanMemberships.clanId, clanId)))
+        .where(
+          and(inArray(clanMemberships.accountId, [p.leftAccountId, p.joinedAccountId]), ne(clanMemberships.clanId, clanId)),
+        )
         .limit(1);
+      const stranger = await db.query.accounts.findFirst({
+        where: eq(accounts.id, p.joinedAccountId),
+        columns: { claimedAt: true, accountHash: true },
+      });
+      const blocked = p.leftClaimed
+        ? 'it belongs to a player, so Anvil applies it'
+        : elsewhere.length > 0
+          ? 'one of the two is on other clans’ rosters too'
+          : stranger?.claimedAt || stranger?.accountHash
+            ? `${p.newRsn} is anchored to an account already`
+            : null;
       const res =
-        p.leftClaimed || elsewhere.length > 0
-          ? ({ ok: false, error: p.leftClaimed ? 'it belongs to a player, so Anvil applies it' : 'it is on other clans’ rosters too' } as const)
+        blocked
+          ? ({ ok: false, error: blocked } as const)
           : await renameCharacter(p.leftAccountId, p.newRsn, {
               actorUserId: null,
               via: 'roster',
