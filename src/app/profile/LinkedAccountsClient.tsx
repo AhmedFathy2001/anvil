@@ -148,9 +148,9 @@ export default function LinkedAccountsClient({ accounts }: { accounts: LinkedAcc
               {m.provisional && (
                 <span
                   className="text-[10px] uppercase tracking-wider font-bold bg-yellow-500/15 text-yellow-400 border border-yellow-500/30 px-1.5 py-0.5 rounded"
-                  title="Verified via stat-delta — awaiting moderator confirmation"
+                  title="Linked and fully usable — a moderator will look it over"
                 >
-                  provisional
+                  in review
                 </span>
               )}
             </div>

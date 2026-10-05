@@ -131,8 +131,8 @@ function ManualReviewPath({ router }: { router: ReturnType<typeof useRouter> }) 
       <div className="border border-orange-500/30 bg-orange-500/5 rounded-lg p-4">
         <div className="text-orange-300 font-semibold mb-1">Request submitted</div>
         <div className="text-sm text-foreground/80">
-          A moderator will review your claim. Your account appears in your profile as{' '}
-          <span className="text-yellow-400">provisional</span> until approved.
+          A moderator will review your claim. Until then it shows in your profile as{' '}
+          <span className="text-yellow-400">awaiting review</span>.
         </div>
       </div>
     );
@@ -280,8 +280,8 @@ function StatDeltaPath({
         {error && <p className="text-red-400 text-sm mt-2">{error}</p>}
         <p className="text-xs text-text-muted mt-3 leading-relaxed">
           We&apos;ll snapshot your Hiscores XP and pick a random skill for you to train. Gain ≥1,000 XP
-          in that <em>specific</em> skill within 30 minutes and your account is verified. A moderator
-          confirms before it&apos;s fully cleared (provisional status).
+          in that <em>specific</em> skill within 30 minutes and your account is verified and ready to use.
+          It&apos;s flagged for a moderator to look over, which changes nothing for you.
         </p>
       </div>
     );
@@ -296,8 +296,8 @@ function StatDeltaPath({
       <div className="border border-green-500/30 bg-green-500/10 rounded-lg p-4">
         <div className="text-green-400 font-semibold mb-1">Verification succeeded</div>
         <div className="text-sm text-foreground/80">
-          Detected {check.delta?.toLocaleString()} XP in {check.skill}. Your account is linked but{' '}
-          <span className="text-yellow-400">provisional</span> — a moderator will confirm shortly.
+          Detected {check.delta?.toLocaleString()} XP in {check.skill}. Your account is linked and ready
+          to use — it&apos;s flagged for a moderator to look over, which changes nothing for you.
         </div>
       </div>
     );

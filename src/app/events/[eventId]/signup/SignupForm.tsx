@@ -590,11 +590,6 @@ export default function SignupForm({
                     primary
                   </span>
                 )}
-                {acct.provisional === 1 && (
-                  <span className="text-[10px] uppercase tracking-wide bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded">
-                    provisional
-                  </span>
-                )}
               </label>
             );
           })}
