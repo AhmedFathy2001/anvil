@@ -249,10 +249,13 @@ export default function CoHostPanel({
       {settlement?.relevant && (
         <div className="border-t border-card-border px-5 py-4">
           <div className="mb-1 text-[13px] font-semibold">Settlement</div>
+          {/* What the numbers MEAN depends on the policy the settlement was computed under (lib/coHostSettlement). */}
           <p className="mb-2.5 text-[12px] text-text-muted">
-            {cashPolicy === 'each-settles'
-              ? 'Each clan keeps its members’ fees and pays its own winners — net is that clan’s surplus.'
-              : 'The host holds the pot — net is what the host owes each clan (winnings − fees in).'}
+            {settlement.cashPolicy === 'each-settles'
+              ? 'No money crosses clans: each clan keeps its players’ fees and pays its own winners. Keeps = fees − winnings.'
+              : settlement.cashPolicy === 'clans-collect-host-pays'
+                ? 'Each clan sends the fees it collected to you; you pay every winner. Transfer is what each clan owes you.'
+                : 'You collected every fee and pay every winner directly, so nothing crosses clans. You keep the fees left after payouts.'}
           </p>
           <div className="overflow-x-auto">
             <table className="w-full text-[12.5px]">
@@ -262,7 +265,10 @@ export default function CoHostPanel({
                   <th className="px-3 py-1 text-right font-medium">Entrants</th>
                   <th className="px-3 py-1 text-right font-medium">Fees in</th>
                   <th className="px-3 py-1 text-right font-medium">Winnings</th>
-                  <th className="py-1 pl-3 text-right font-medium">Net</th>
+                  {settlement.cashPolicy === 'clans-collect-host-pays' && (
+                    <th className="px-3 py-1 text-right font-medium" title="Negative: the clan pays the host">Transfer</th>
+                  )}
+                  <th className="py-1 pl-3 text-right font-medium" title="What the clan holds once transfers and its payouts are done">Keeps</th>
                 </tr>
               </thead>
               <tbody>
@@ -275,11 +281,24 @@ export default function CoHostPanel({
                     <td className="px-3 py-1.5 text-right tabular-nums">{c.entrants}</td>
                     <td className="px-3 py-1.5 text-right tabular-nums">{gp(c.fees)}</td>
                     <td className="px-3 py-1.5 text-right tabular-nums">{gp(c.winnings)}</td>
-                    <td className={`py-1.5 pl-3 text-right font-medium tabular-nums ${c.net > 0 ? 'text-accent-green-light' : c.net < 0 ? 'text-accent-red' : ''}`}>
-                      {gp(c.net)}
+                    {settlement.cashPolicy === 'clans-collect-host-pays' && (
+                      <td className={`px-3 py-1.5 text-right tabular-nums ${c.transfer < 0 ? 'text-accent-red' : c.transfer > 0 ? 'text-accent-green-light' : ''}`}>
+                        {gp(c.transfer)}
+                      </td>
+                    )}
+                    <td className={`py-1.5 pl-3 text-right font-medium tabular-nums ${c.keeps > 0 ? 'text-accent-green-light' : c.keeps < 0 ? 'text-accent-red' : ''}`}>
+                      {gp(c.keeps)}
                     </td>
                   </tr>
                 ))}
+                <tr className="border-t border-card-border text-text-muted">
+                  <td className="py-1.5 pr-3">Total</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">{settlement.clans.reduce((n, c) => n + c.entrants, 0)}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">{gp(settlement.totals.fees)}</td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">{gp(settlement.totals.winnings)}</td>
+                  {settlement.cashPolicy === 'clans-collect-host-pays' && <td />}
+                  <td className="py-1.5 pl-3 text-right tabular-nums">{gp(settlement.totals.fees - settlement.totals.winnings)}</td>
+                </tr>
               </tbody>
             </table>
           </div>

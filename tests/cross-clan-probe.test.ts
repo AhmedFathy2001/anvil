@@ -157,12 +157,11 @@ test('5 · cash policy reconciles per clan', async () => {
   assert.equal(set.relevant, true);
   const host = set.clans.find((c) => c.isHost)!;
   const bravo = set.clans.find((c) => c.clanId === G.B)!;
-  assert.equal(host.fees, 2_000_000);
+  // Fees come from real sign-up fee rows (tests/cohost-settlement covers them and every policy);
+  // these players were rostered straight onto teams, so what reconciles here is the winnings side.
   assert.equal(host.winnings, 2_000_000);
-  assert.equal(host.net, 0, 'Alpha in = out');
-  assert.equal(bravo.fees, 2_000_000);
   assert.equal(bravo.winnings, 1_000_000);
-  assert.equal(bravo.net, -1_000_000, 'Bravo put in 2M, took 1M');
+  assert.equal(bravo.transfer, 0, 'under host-holds nothing crosses clans');
 });
 
 test('6 · freemium is generous now, and gates when flipped', async () => {
