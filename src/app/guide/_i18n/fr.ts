@@ -827,6 +827,10 @@ const fr: PartialGuideDict = {
           term: 'Les cases de collecte sans le plugin',
           body: 'Les quantités d’objets — un nombre de poissons, de minerais, de bûches — ne figurent pas dans les hiscores, donc seul le plugin les suit. Sans lui, faites une capture de chaque inventaire ; ou, si l’objet apparaît dans le Loot Tracker, une capture remis à 0 au début et une autre à la fin.',
         },
+        {
+          term: 'Implings, poissons, minerais et autres gains d’objets',
+          body: 'Attraper des implings et récolter des objets (poissons, minerais et tout ce qui est compté d’après ce qui arrive dans votre inventaire) **n’est parfois pas suivi correctement, même avec le plugin**. Gardez des captures d’écran au fil de l’eau, et si un compte semble trop bas, signalez-le et soumettez la différence manuellement.',
+        },
       ],
     },
   },

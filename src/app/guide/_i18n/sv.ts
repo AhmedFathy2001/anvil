@@ -825,6 +825,10 @@ const sv: PartialGuideDict = {
           term: 'Insamlingsrutor utan pluginet',
           body: 'Antal föremål — ett antal fiskar, malmer, stockar — finns inte på hiscores, så bara pluginet spårar dem. Utan det: ta en skärmbild av varje inventory; eller, om föremålet syns i Loot Tracker, en skärmbild nollställd till 0 i början och en igen i slutet.',
         },
+        {
+          term: 'Implings, fisk, malm och andra föremålsvinster',
+          body: 'Att fånga implings och samla föremål (fisk, malm och allt annat som räknas utifrån det som landar i ditt inventory) **spåras ibland inte korrekt, även med pluginet**. Spara skärmbilder längs vägen, och om en räkning ser för låg ut, rapportera det och skicka in skillnaden manuellt.',
+        },
       ],
     },
   },

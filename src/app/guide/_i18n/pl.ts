@@ -815,6 +815,10 @@ const pl: PartialGuideDict = {
           term: 'Pola zbierania bez pluginu',
           body: 'Liczby przedmiotów — pewna liczba ryb, rud, kłód — nie ma w hiscores, więc śledzi je tylko plugin. Bez niego zrób zrzut każdego ekwipunku; albo, jeśli przedmiot widać w Loot Trackerze, zrzut po wyzerowaniu do 0 na początku i kolejny na końcu.',
         },
+        {
+          term: 'Implingi, ryby, rudy i inne zdobycze przedmiotów',
+          body: 'Łapanie implingów i zbieranie przedmiotów (ryb, rud i wszystkiego, co liczy się na podstawie tego, co ląduje w ekwipunku) **czasem nie jest śledzone poprawnie, nawet z pluginem**. Zachowuj zrzuty ekranu na bieżąco, a jeśli liczba wygląda na zaniżoną, zgłoś to i prześlij różnicę ręcznie.',
+        },
       ],
     },
   },

@@ -826,6 +826,10 @@ const nl: PartialGuideDict = {
           term: 'Verzamelvakjes zonder de plugin',
           body: 'Aantallen items — een aantal vissen, ertsen, boomstammen — staan niet in de hiscores, dus alleen de plugin houdt ze bij. Zonder plugin: maak een screenshot van elke inventory; of, als het item in de Loot Tracker staat, een screenshot na het resetten naar 0 aan het begin en nog een aan het eind.',
         },
+        {
+          term: 'Implings, vis, erts en andere itemwinsten',
+          body: 'Het vangen van implings en het verzamelen van items (vis, erts en alles wat wordt geteld op basis van wat in je inventory belandt) **wordt soms niet goed bijgehouden, zelfs met de plugin**. Bewaar onderweg screenshots, en als een telling te laag lijkt, meld het en dien het verschil handmatig in.',
+        },
       ],
     },
   },

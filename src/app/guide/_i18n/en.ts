@@ -821,6 +821,10 @@ export const en = {
           term: 'Gathering tiles without the plugin',
           body: 'Item counts — a number of fish, ores, logs — aren’t on the hiscores, so only the plugin tracks them. Without it, screenshot every inventory; or, if the item shows in the Loot Tracker, screenshot it reset to 0 at the start and again at the end.',
         },
+        {
+          term: 'Implings, fish, ores and other item gains',
+          body: 'Catching implings and gathering items (fish, ores and anything else counted by what lands in your inventory) **sometimes doesn’t track correctly, even with the plugin**. Keep screenshots as you go, and if a count looks short, report it and submit the difference manually.',
+        },
       ],
     },
   },

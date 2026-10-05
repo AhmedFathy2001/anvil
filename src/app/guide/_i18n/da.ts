@@ -831,6 +831,10 @@ const da: PartialGuideDict = {
           term: 'Indsamlingsfelter uden pluginnet',
           body: 'Antal genstande — et antal fisk, malme, træstammer — står ikke på hiscores, så kun pluginnet kan spore dem. Uden det skal du tage skærmbillede af hvert inventar; eller, hvis genstanden vises i Loot Tracker, et skærmbillede nulstillet til 0 i starten og igen til sidst.',
         },
+        {
+          term: 'Implings, fisk, malme og andre genstandsgevinster',
+          body: 'At fange implings og samle genstande (fisk, malme og alt andet, der tælles ud fra det, der lander i dit inventory) **registreres nogle gange ikke korrekt, selv med pluginnet**. Gem skærmbilleder undervejs, og hvis en optælling ser for lav ud, så rapportér det og indsend forskellen manuelt.',
+        },
       ],
     },
   },

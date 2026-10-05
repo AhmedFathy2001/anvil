@@ -826,6 +826,10 @@ const de: PartialGuideDict = {
           term: 'Sammelfelder ohne das Plugin',
           body: 'Gegenstandszahlen — eine Anzahl Fische, Erze, Baumstämme — stehen nicht in den Hiscores, also erfasst sie nur das Plugin. Ohne es: Screenshot von jedem Inventar; oder, wenn der Gegenstand im Loot Tracker auftaucht, ein Screenshot nach dem Zurücksetzen auf 0 zu Beginn und noch einer am Ende.',
         },
+        {
+          term: 'Implings, Fisch, Erze und andere Item-Zuwächse',
+          body: 'Das Fangen von Implings und das Sammeln von Items (Fisch, Erze und alles andere, das danach gezählt wird, was in deinem Inventar landet) **wird manchmal auch mit dem Plugin nicht korrekt erfasst**. Mach unterwegs Screenshots, und wenn eine Zahl zu niedrig aussieht, melde es und reiche die Differenz manuell ein.',
+        },
       ],
     },
   },

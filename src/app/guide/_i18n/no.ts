@@ -825,6 +825,10 @@ const no: PartialGuideDict = {
           term: 'Innsamlingsruter uten pluginet',
           body: 'Antall gjenstander — et antall fisk, malm, tømmerstokker — står ikke på hiscores, så bare pluginet sporer dem. Uten det: ta skjermbilde av hvert inventar; eller, hvis gjenstanden vises i Loot Tracker, et skjermbilde nullstilt til 0 i starten og et til på slutten.',
         },
+        {
+          term: 'Implings, fisk, malm og andre gjenstandsgevinster',
+          body: 'Å fange implings og samle gjenstander (fisk, malm og alt annet som telles ut fra det som havner i inventory) **spores noen ganger ikke riktig, selv med pluginet**. Ta vare på skjermbilder underveis, og hvis en telling ser for lav ut, meld fra og send inn differansen manuelt.',
+        },
       ],
     },
   },

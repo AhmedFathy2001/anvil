@@ -826,6 +826,10 @@ const fi: PartialGuideDict = {
           term: 'Keräilyruudut ilman pluginia',
           body: 'Esinemääriä — tietty määrä kaloja, malmeja, tukkeja — ei ole hiscoresissa, joten vain plugin seuraa niitä. Ilman sitä ota kuvakaappaus jokaisesta inventaariosta; tai jos esine näkyy Loot Trackerissa, kuvakaappaus nollattuna 0:aan alussa ja uudestaan lopussa.',
         },
+        {
+          term: 'Implingit, kalat, malmit ja muut esineiden saannit',
+          body: 'Implingien pyydystäminen ja esineiden kerääminen (kalat, malmit ja kaikki muu, mikä lasketaan siitä, mitä inventoryysi päätyy) **ei toisinaan seuraudu oikein edes pluginin kanssa**. Säilytä kuvakaappauksia matkan varrella, ja jos määrä näyttää liian pieneltä, ilmoita siitä ja lähetä erotus käsin.',
+        },
       ],
     },
   },

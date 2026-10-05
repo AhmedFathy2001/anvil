@@ -815,6 +815,10 @@ const ptBr: PartialGuideDict = {
           term: 'Casas de coleta sem o plugin',
           body: 'Quantidades de itens — um número de peixes, minérios, toras — não estão nos hiscores, então só o plugin as rastreia. Sem ele, tire captura de cada inventário; ou, se o item aparece no Loot Tracker, uma captura zerado em 0 no início e outra no fim.',
         },
+        {
+          term: 'Implings, peixes, minérios e outros ganhos de itens',
+          body: 'Capturar implings e coletar itens (peixes, minérios e qualquer outra coisa contada pelo que chega ao seu inventário) **às vezes não é rastreado corretamente, mesmo com o plugin**. Guarde capturas de tela ao longo do caminho, e se uma contagem parecer baixa, avise e envie a diferença manualmente.',
+        },
       ],
     },
   },

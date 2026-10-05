@@ -826,6 +826,10 @@ const es: PartialGuideDict = {
           term: 'Casillas de recolección sin el plugin',
           body: 'Las cantidades de objetos — un número de peces, minerales, troncos — no están en los hiscores, así que solo las registra el plugin. Sin él, haz una captura de cada inventario; o, si el objeto aparece en el Loot Tracker, una captura reiniciado a 0 al principio y otra al final.',
         },
+        {
+          term: 'Implings, peces, minerales y otras ganancias de objetos',
+          body: 'Capturar implings y recolectar objetos (peces, minerales y cualquier otra cosa que se cuente por lo que llega a tu inventario) **a veces no se registra bien, incluso con el plugin**. Guarda capturas de pantalla sobre la marcha, y si un recuento parece corto, avísalo y envía la diferencia manualmente.',
+        },
       ],
     },
   },
