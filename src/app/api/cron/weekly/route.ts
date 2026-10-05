@@ -6,8 +6,7 @@ import { clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema'
 import { eq, asc, and, or, isNull, lt } from 'drizzle-orm';
 import {
   enrollAllPlayers,
-  probeRsnReachable,
-  reviewPendingRenames,
+  probeRsnForAccount,
   computeLeaderboard,
   getEffectiveParticipants,
 } from '@/lib/weekly';
@@ -129,7 +128,7 @@ export async function GET(request: Request) {
   const REPROBE_AGE_THRESHOLD = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
   // clan-scope: global -- the sweep runs across every clan by design; that is what a platform-wide cron is.
   const unrankedCandidates = await db
-    .select({ id: clanRoster.id, rsn: clanRoster.rsn })
+    .select({ id: clanRoster.id, rsn: clanRoster.rsn, lastXp: clanRoster.statsOverallXp })
     .from(clanRoster)
     .where(
       and(
@@ -142,12 +141,13 @@ export async function GET(request: Request) {
 
   let revived = 0;
   for (const m of unrankedCandidates) {
-    const probe = await probeRsnReachable(m.rsn);
+    // 'different' = the name answers, but for a smaller account: a stranger took it. Stay parked.
+    const probe = await probeRsnForAccount(m.rsn, m.lastXp ?? null);
     const nowIso = new Date().toISOString();
     if (probe === 'reachable') {
       await updateAccountOfSeat(m.id, { status: 'active', statusLastChecked: nowIso });
       revived++;
-    } else if (probe === 'unranked') {
+    } else if (probe === 'unranked' || probe === 'different') {
       // Still gone — just bump statusLastChecked so we don't keep retrying this same
       // batch every tick.
       await updateAccountOfSeat(m.id, { statusLastChecked: nowIso });
@@ -170,14 +170,16 @@ export async function GET(request: Request) {
     }
   }
 
-  // Pending-rename auto-reviewer. Cap at 5/tick — each row costs up to 2 hiscores
-  // calls, so a batch of 5 ≈ 10 calls × 0.5 s = 5 s of work. Sits inside the same
-  // function budget as the rest of the tick.
-  let renameReview = { reviewed: 0, approved: 0, denied: 0, deferred: 0 };
+  // Renames the in-game roster split into "X left, Y joined": confident pairs (same rank, matching
+  // XP, one partner each) are healed onto the real character within one tick — the event entry and
+  // baseline stay, the roster seat follows the new name (lib/renameDetection). Anything it cannot
+  // apply goes to Anvil staff. Capped hiscores lookups keep it inside the tick's budget.
+  let renameReview = { clans: 0, applied: 0, raised: 0 };
   try {
-    renameReview = await reviewPendingRenames(5);
+    const { applyConfidentRenames } = await import('@/lib/renameDetection');
+    renameReview = await applyConfidentRenames({ lookbackDays: 2, maxClans: 25, liveFetchCap: 4 });
   } catch (err) {
-    log.warn('weekly-cron.rename-review-fail', undefined, err);
+    log.warn('weekly-cron.rename-heal-fail', undefined, err);
   }
 
   log.info('weekly-cron.tick', {

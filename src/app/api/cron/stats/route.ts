@@ -492,6 +492,31 @@ export async function GET(request: Request) {
         continue;
       }
 
+      // SOMEBODY ELSE'S HISCORES. Overall XP never goes down, so a name answering with LESS than this
+      // account last had is not this account: its player renamed and a stranger took the old name.
+      // Storing it would feed the stranger's stats into this character's event baseline and gains
+      // (false tile completions, polluted history). Quarantine it like a 404 instead; the rename is
+      // healed by the plugin, the roster-split detector or Anvil staff (lib/characterRename).
+      if (entry.accountId != null && entry.lastSnapshot) {
+        let lastXp = 0;
+        try {
+          lastXp = Math.max(0, (JSON.parse(entry.lastSnapshot) as HiscoresSnapshot).skills?.overall?.xp ?? 0);
+        } catch {
+          lastXp = 0;
+        }
+        const nowXp = Math.max(0, result.snapshot.skills?.overall?.xp ?? 0);
+        if (lastXp > 0 && nowXp > 0 && nowXp < lastXp) {
+          fetchErrors++;
+          if (entry.clanMemberId != null) unrankedMemberIds.add(entry.clanMemberId);
+          log.warn('stats-cron.name-taken', { accountId: entry.accountId, rsn: entry.fetchRsn, lastXp, nowXp });
+          for (const w of entry.weekly) {
+            await db.update(weeklyParticipants).set({ lastUpdated: ts }).where(eq(weeklyParticipants.id, w.participant.id));
+          }
+          for (const b of entry.bingo) b.ctx.result.errors.push(`${entry.fetchRsn} now belongs to a different account — waiting for the rename`);
+          continue;
+        }
+      }
+
       membersFetched++;
       if (entry.rosterOnly) fillerFetched++;
       const snapshot = result.snapshot;

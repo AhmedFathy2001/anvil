@@ -10,6 +10,7 @@ interface Report {
   id: number;
   kind: string;
   body: string | null;
+  requestedRsn: string | null;
   status: string;
   resolution: string | null;
   createdAt: string;
@@ -21,7 +22,7 @@ interface Report {
 
 const KIND_LABEL: Record<string, string> = {
   wrong_owner: 'Wrong owner',
-  rename: 'Rename',
+  rename: 'Rename request',
   merge: 'Duplicate / merge',
   claim_review: 'Disputed link',
   claim_request: 'Clan vouches for a claim',
@@ -92,7 +93,10 @@ export default function ReportsClient() {
           {items.map((r) => (
             <div key={r.id} className="rounded-xl border border-card-border bg-card-bg p-4">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-semibold">{r.account.rsn}</span>
+                <span className="font-semibold">
+                  {r.account.rsn}
+                  {r.requestedRsn ? <span className="text-text-muted"> → {r.requestedRsn}</span> : null}
+                </span>
                 <span className="rounded-full bg-brown-light px-2 py-0.5 text-[10px] font-medium text-text-muted">
                   {KIND_LABEL[r.kind] ?? r.kind}
                 </span>
@@ -130,6 +134,18 @@ export default function ReportsClient() {
                     className="w-full resize-y rounded border border-card-border bg-brown-dark px-2 py-1.5 text-xs focus:border-gold/40 focus:outline-none"
                   />
                   <div className="flex flex-wrap gap-2">
+                    {r.requestedRsn && (
+                      <button
+                        disabled={busy === r.id}
+                        onClick={() =>
+                          act(r, { action: 'rename', toRsn: r.requestedRsn, note: note(r) || `Renamed to ${r.requestedRsn}`, reportId: r.id }, `/api/staff/characters/${r.account.id}`)
+                        }
+                        className="rounded-lg border border-gold/40 bg-gold/10 px-3 py-1.5 text-sm text-gold hover:bg-gold/20 disabled:opacity-50"
+                        title="Renames the character and folds in any duplicate a roster sync made under the new name — roster seat, event entry and baseline end up on one character."
+                      >
+                        Apply rename to {r.requestedRsn}
+                      </button>
+                    )}
                     {r.claimant && (
                       <button
                         disabled={busy === r.id}

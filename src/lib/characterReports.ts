@@ -36,14 +36,19 @@ export async function fileCharacterReport(input: {
   kind: ReportKind;
   body?: string | null;
   claimantPlayerId?: number | null;
+  /** For a 'rename': the name the character should take. Part of the de-duplication key. */
+  requestedRsn?: string | null;
 }): Promise<{ id: number; created: boolean }> {
   const claimant = input.claimantPlayerId ?? null;
+  const requested = input.requestedRsn?.trim() || null;
   const open = await db.query.characterReports.findFirst({
     where: and(
       eq(characterReports.accountId, input.accountId),
       eq(characterReports.kind, input.kind),
       eq(characterReports.status, 'open'),
       claimant == null ? isNull(characterReports.claimantPlayerId) : eq(characterReports.claimantPlayerId, claimant),
+      // Two different names asked for one character are two questions, not one.
+      requested == null ? isNull(characterReports.requestedRsn) : eq(characterReports.requestedRsn, requested),
     ),
     columns: { id: true, body: true },
   });
@@ -64,6 +69,7 @@ export async function fileCharacterReport(input: {
       clanId: input.clanId,
       reportedByUserId: input.reportedByUserId,
       claimantPlayerId: input.claimantPlayerId ?? null,
+      requestedRsn: requested,
       kind: input.kind,
       body,
     })
@@ -91,6 +97,8 @@ export interface CharacterReportView {
   id: number;
   kind: string;
   body: string | null;
+  /** For a rename: the name asked for. */
+  requestedRsn: string | null;
   status: string;
   resolution: string | null;
   createdAt: string;
@@ -136,6 +144,7 @@ export async function listCharacterReports(opts: { status?: 'open' | 'all' } = {
     id: x.r.id,
     kind: x.r.kind,
     body: x.r.body,
+    requestedRsn: x.r.requestedRsn,
     status: x.r.status,
     resolution: x.r.resolution,
     createdAt: x.r.createdAt,
@@ -285,4 +294,34 @@ export async function reassignCharacter(
     })
     .catch(() => {});
   return { ok: true };
+}
+
+/**
+ * Close the player's own rename-request rows (pending_renames, which their profile lists) for this
+ * character, once Anvil has decided — so "pending" on their profile turns into the answer.
+ * `newRsn` null = every pending request for the character.
+ */
+export async function settleRenameRequests(
+  accountId: number,
+  newRsn: string | null,
+  status: 'approved' | 'denied',
+  resolution: string,
+): Promise<void> {
+  const { clanMemberships, pendingRenames } = await import('@/db/schema');
+  const { normalizeRsn } = await import('@/lib/auth');
+  // clan-scope: global -- one character's seats in every clan; a rename is a fact about the character.
+  const seatIds = (
+    await db.select({ id: clanMemberships.id }).from(clanMemberships).where(eq(clanMemberships.accountId, accountId))
+  ).map((s) => s.id);
+  if (seatIds.length === 0) return;
+  await db
+    .update(pendingRenames)
+    .set({ status, resolution, reviewedAt: new Date().toISOString() })
+    .where(
+      and(
+        inArray(pendingRenames.clanMemberId, seatIds),
+        eq(pendingRenames.status, 'pending'),
+        newRsn ? eq(pendingRenames.newRsnNormalized, normalizeRsn(newRsn)) : undefined,
+      ),
+    );
 }

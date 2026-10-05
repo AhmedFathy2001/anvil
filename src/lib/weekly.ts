@@ -106,6 +106,25 @@ export async function probeRsnReachable(rsn: string): Promise<'reachable' | 'unr
 }
 
 /**
+ * The same probe, for an account we already know: 'different' when the name answers with LESS overall
+ * XP than the account last had — XP never goes down, so the name now belongs to someone else (its
+ * player renamed and a stranger took it). Reviving on 'reachable' alone put the stranger's stats
+ * back into the original character's events.
+ */
+export async function probeRsnForAccount(
+  rsn: string,
+  lastKnownXp: number | null,
+): Promise<'reachable' | 'unranked' | 'transient' | 'different'> {
+  const result = await fetchSnapshotWithRetry(rsn);
+  if (result.kind !== 'value') return result.kind;
+  const xp = result.snapshot.skills?.overall?.xp;
+  if (typeof lastKnownXp === 'number' && lastKnownXp > 0 && typeof xp === 'number' && xp > 0 && xp < lastKnownXp) {
+    return 'different';
+  }
+  return 'reachable';
+}
+
+/**
  * Tagged result for a weekly metric read. The value/unranked/error separation lets the caller react
  * differently to "the account isn't on hiscores" (terminal — flip status to unranked,
  * stop wasting future cron slots) vs "the call broke transiently" (retry next tick).
@@ -417,6 +436,34 @@ export async function submitRenameRequest(input: SubmitRenameInput): Promise<Sub
     })
     .returning({ id: pendingRenames.id });
 
+  // ANVIL DECIDES. A rename changes the character in every clan it plays in, so it goes to platform
+  // staff (/staff/reports) with the evidence attached — not to an automatic reviewer, and not to a
+  // clan. Approving it there renames the character and absorbs any duplicate a roster sync made
+  // under the new name (lib/characterRename), then answers this row.
+  const evidence: string[] = [];
+  try {
+    const now = await fetchHiscoresOnce(newRsn);
+    const oldStats = JSON.parse(oldSnapshotJson) as HiscoresSnapshot | Record<string, never>;
+    const oldXp = (oldStats as HiscoresSnapshot).skills?.overall?.xp ?? cm.statsOverallXp ?? null;
+    const newXp = now.skills?.overall?.xp ?? null;
+    evidence.push(`${newRsn} is on the hiscores${typeof newXp === 'number' ? ` with ${newXp.toLocaleString()} XP` : ''}.`);
+    if (typeof oldXp === 'number' && typeof newXp === 'number') {
+      evidence.push(newXp >= oldXp ? `That is at least the ${oldXp.toLocaleString()} XP last seen on ${cm.rsn} — consistent with a rename.` : `That is LESS than the ${oldXp.toLocaleString()} XP last seen on ${cm.rsn} — probably a different account.`);
+    }
+    if (detectNegativeGains(oldStats, now)) evidence.push('Some skills went DOWN versus the old name — likely a different account.');
+  } catch {
+    evidence.push(`${newRsn} could not be found on the hiscores (yet).`);
+  }
+  const { fileCharacterReport } = await import('@/lib/characterReports');
+  await fileCharacterReport({
+    accountId: cm.accountId,
+    clanId: cm.clanId,
+    reportedByUserId: input.submittedByUserId,
+    kind: 'rename',
+    requestedRsn: newRsn,
+    body: `The player says ${cm.rsn} is now ${newRsn}. ${evidence.join(' ')}`,
+  });
+
   return { ok: true, id: inserted[0].id };
 }
 
@@ -450,159 +497,10 @@ function detectNegativeGains(
   return false;
 }
 
-async function markResolved(prId: number, status: 'approved' | 'denied', resolution: string): Promise<void> {
-  await db
-    .update(pendingRenames)
-    .set({ status, resolution, reviewedAt: new Date().toISOString() })
-    .where(eq(pendingRenames.id, prId));
-}
-
-interface PendingRow {
-  id: number;
-  clanMemberId: number;
-  oldRsn: string;
-  newRsn: string;
-  oldRsnNormalized: string;
-  newRsnNormalized: string;
-  oldSnapshot: string;
-}
-
-async function approveRename(pr: PendingRow): Promise<{ ok: true } | { ok: false; reason: string }> {
-  // If another clan_member already holds the new normalized RSN, we can only
-  // proceed safely when it's clearly stale (left, unranked, or archived). An
-  // active different member with the same target name is a swap that needs
-  // human attention.
-  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
-  const conflict = await findRosterSeat(and(
-      eq(clanRoster.rsnNormalized, pr.newRsnNormalized),
-      ne(clanRoster.id, pr.clanMemberId),
-    ));
-  if (conflict) {
-    const stale = conflict.leftAt != null || conflict.status !== 'active';
-    if (!stale) {
-      return { ok: false, reason: 'target RSN held by another active clan member' };
-    }
-    // Soft-archive the stale row so the unique index on rsn_normalized frees up.
-    await db
-      .update(clanMemberships)
-      .set({ leftAt: conflict.leftAt ?? new Date().toISOString() })
-      .where(eq(clanMemberships.id, conflict.id));
-    await updateAccountOfSeat(conflict.id, {
-      status: 'archived',
-      statusLastChecked: new Date().toISOString(),
-    });
-  }
-
-  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
-  const cm = await findRosterSeat(eq(clanRoster.id, pr.clanMemberId));
-  if (!cm) return { ok: false, reason: 'clan member no longer exists' };
-
-  // Append the OLD rsn to previousRsns if it isn't already there.
-  let previousRsns: string[] = [];
-  if (cm.previousRsns) {
-    try {
-      const parsed = JSON.parse(cm.previousRsns);
-      if (Array.isArray(parsed)) previousRsns = parsed;
-    } catch {
-      // ignore malformed legacy JSON
-    }
-  }
-  if (cm.rsn && cm.rsn !== pr.newRsn && !previousRsns.includes(cm.rsn)) {
-    previousRsns.push(cm.rsn);
-  }
-
-  await db
-    .update(accounts)
-    .set({
-      rsn: pr.newRsn,
-      rsnNormalized: pr.newRsnNormalized,
-      previousRsns: JSON.stringify(previousRsns),
-      // If we'd quarantined this member because the old name 404'd, the rename
-      // brings them back to 'active'. Otherwise preserve the existing status.
-      status: cm.status === 'unranked' ? 'active' : cm.status,
-      statusLastChecked: new Date().toISOString(),
-    })
-    .where(eq(clanMemberships.id, pr.clanMemberId));
-
-  await applyRenameToActiveWeeklyParticipants(pr.clanMemberId, pr.oldRsn, pr.newRsn);
-
-  return { ok: true };
-}
-
-/**
- * Auto-reviewer pass. Called once per cron tick with a small batch cap so we
- * stay within the function budget. Each pending row consumes up to 2 hiscores
- * calls (probe + full fetch for the gains check).
- */
-export async function reviewPendingRenames(
-  maxPerTick = 5,
-): Promise<{ reviewed: number; approved: number; denied: number; deferred: number }> {
-  const pending = await db
-    .select()
-    .from(pendingRenames)
-    .where(eq(pendingRenames.status, 'pending'))
-    .orderBy(asc(pendingRenames.createdAt))
-    .limit(maxPerTick);
-
-  let approved = 0;
-  let denied = 0;
-  let deferred = 0;
-
-  for (const pr of pending) {
-    const probe = await probeRsnReachable(pr.newRsn);
-    if (probe === 'unranked') {
-      await markResolved(pr.id, 'denied', 'New name not found on hiscores');
-      denied++;
-      continue;
-    }
-    if (probe === 'transient') {
-      deferred++;
-      continue;
-    }
-
-    let oldSnapshot: HiscoresSnapshot | Record<string, never> = {};
-    try {
-      const parsed = JSON.parse(pr.oldSnapshot);
-      if (parsed && typeof parsed === 'object') oldSnapshot = parsed;
-    } catch {
-      // leave as empty — heuristic will simply be lighter for this submission
-    }
-
-    const hasOldStats =
-      'skills' in oldSnapshot && oldSnapshot.skills && Object.keys(oldSnapshot.skills).length > 0;
-
-    if (hasOldStats) {
-      let newStats: HiscoresSnapshot;
-      try {
-        newStats = await fetchHiscoresOnce(pr.newRsn);
-      } catch (err) {
-        log.warn('pending-renames.fetch-new-fail', { id: pr.id, newRsn: pr.newRsn }, err);
-        deferred++;
-        continue;
-      }
-      if (detectNegativeGains(oldSnapshot, newStats)) {
-        await markResolved(pr.id, 'denied', 'Negative gains detected — different account likely holds this name');
-        denied++;
-        continue;
-      }
-    }
-
-    const result = await approveRename(pr);
-    if (result.ok) {
-      await markResolved(
-        pr.id,
-        'approved',
-        hasOldStats ? 'Auto-approved: no negative gains, new name reachable' : 'Auto-approved: new name reachable (no old snapshot available)',
-      );
-      approved++;
-    } else {
-      await markResolved(pr.id, 'denied', `Approval blocked: ${result.reason}`);
-      denied++;
-    }
-  }
-
-  return { reviewed: pending.length, approved, denied, deferred };
-}
+// The automatic reviewer that lived here (reviewPendingRenames / approveRename) is gone: renames are
+// decided by Anvil staff from /staff/reports (see submitRenameRequest), and the confident
+// roster-split ones are healed by the cron (lib/renameDetection applyConfidentRenames). Its approval
+// step had never worked — it UPDATEd accounts filtered on a clan_memberships column.
 
 /**
  * SQL predicate for "this participant still counts": no clan link (a manually-added guest),

@@ -19,11 +19,12 @@ const STATUS_STYLE: Record<string, string> = {
   pending: 'text-yellow-400 border-yellow-500/30 bg-yellow-500/10',
   approved: 'text-accent-green-light border-accent-green/30 bg-accent-green/10',
   rejected: 'text-red-400 border-red-500/30 bg-red-500/10',
+  denied: 'text-red-400 border-red-500/30 bg-red-500/10',
 };
 
-// Changed your RSN in game? A moderator carries the history across, so a rename doesn't cost you
-// your events, your milestones or your place on the boards. The API has always been here; this is
-// the first UI for it.
+// Changed your RSN in game? With the plugin, the rename is picked up by itself on your next login
+// (the account hash proves it is you). Without it, this asks Anvil staff (/staff/reports), who apply
+// it to the character in every clan — events, milestones and standings stay with it.
 export default function RenameRequestClient({
   accounts,
 }: {
@@ -82,8 +83,9 @@ export default function RenameRequestClient({
     <div>
       <div className="font-semibold text-sm">Name change</div>
       <p className="text-xs text-text-muted mt-0.5 max-w-[70ch]">
-        Changed your RSN in game? Tell us the new name and a moderator moves your history — events,
-        milestones and standings — across to it.
+        Changed your RSN in game? If you use the Anvil plugin, just log in — it picks the new name up by
+        itself. Otherwise tell us the new name and Anvil staff move your character across to it, with its
+        events, milestones and standings.
       </p>
 
       {open.length > 0 && (
@@ -94,14 +96,14 @@ export default function RenameRequestClient({
               className={`text-xs border rounded-lg px-3 py-2 ${STATUS_STYLE[r.status] ?? 'border-card-border'}`}
             >
               <span className="font-mono">{r.oldRsn}</span> → <span className="font-mono">{r.newRsn}</span> ·
-              waiting on a moderator
+              waiting on Anvil staff
             </div>
           ))}
         </div>
       )}
 
       {done && open.length === 0 && (
-        <p className="text-xs text-accent-green-light mt-2.5">Sent — a moderator will pick it up.</p>
+        <p className="text-xs text-accent-green-light mt-2.5">Sent — Anvil staff will pick it up.</p>
       )}
 
       <div className="flex flex-wrap gap-2 mt-2.5 max-w-[640px]">

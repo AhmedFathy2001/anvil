@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 
 import { CAN_WRITE, requirePlatformApi } from '@/lib/platformAccess';
-import { detachCharacter, reassignCharacter, resolveCharacterReport } from '@/lib/characterReports';
+import { detachCharacter, reassignCharacter, resolveCharacterReport, settleRenameRequests } from '@/lib/characterReports';
+import { renameCharacter } from '@/lib/characterRename';
 
 /**
- * POST /api/staff/characters/[id] { action: 'detach' | 'reassign', toPlayerId?, note?, reportId? }
+ * POST /api/staff/characters/[id] { action: 'detach' | 'reassign' | 'rename', toPlayerId?, toRsn?, note?, reportId? }
  *
  * The character tools clans no longer have (lib/characterReports). Staff only — support is read-only.
  * Passing `reportId` closes that report as resolved with the note, so acting and closing are one step.
@@ -31,8 +32,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
     const res = await reassignCharacter(accountId, toPlayerId, actor, note);
     if (!res.ok) return NextResponse.json({ error: res.error }, { status: 409 });
+  } else if (body?.action === 'rename') {
+    // The character takes the new name, absorbing a duplicate a roster sync made under it
+    // (lib/characterRename) — the roster seat, event entry and baseline end up on one character.
+    const toRsn = typeof body?.toRsn === 'string' ? body.toRsn : '';
+    const res = await renameCharacter(accountId, toRsn, { actorUserId: actor, via: 'staff', note });
+    if (!res.ok) return NextResponse.json({ error: res.error }, { status: 409 });
+    await settleRenameRequests(accountId, toRsn, 'approved', note || `Renamed to ${toRsn} by Anvil staff`);
   } else {
-    return NextResponse.json({ error: "action must be 'detach' or 'reassign'" }, { status: 400 });
+    return NextResponse.json({ error: "action must be 'detach', 'reassign' or 'rename'" }, { status: 400 });
   }
 
   const reportId = Number(body?.reportId);

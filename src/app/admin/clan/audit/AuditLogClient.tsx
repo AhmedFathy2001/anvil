@@ -17,6 +17,8 @@ interface RenameSuggestion {
   leftXp: number | null;
   joinedXp: number | null;
   xpMatchPct: number | null;
+  /** The old character has an owner — its rename is Anvil's to apply, so this sends it there. */
+  leftClaimed?: boolean;
 }
 
 export interface AuditEntry {
@@ -120,15 +122,28 @@ export default function AuditLogClient({
     setActingOn(s.joinedMemberId);
     setError(null);
     try {
-      const res = await clanFetch('/api/admin/clan/merge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sourceId: s.leftMemberId,
-          targetId: s.joinedMemberId,
-          note: `Approved as rename: ${s.oldRsn} → ${s.newRsn} (${s.deltaSeconds}s apart, rank ${s.rank ?? 'unknown'})`,
-        }),
-      });
+      // A claimed character is its player's in every clan, so its rename goes to Anvil
+      // (lib/characterReports); an unclaimed roster entry is this clan's to merge.
+      const res = s.leftClaimed
+        ? await clanFetch('/api/admin/character-reports', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              seatId: s.leftMemberId,
+              kind: 'rename',
+              requestedRsn: s.newRsn,
+              body: `Roster shows ${s.oldRsn} leaving and ${s.newRsn} joining ${s.deltaSeconds}s apart at rank ${s.rank ?? 'unknown'}; XP within ${s.xpMatchPct ?? '?'}%.`,
+            }),
+          })
+        : await clanFetch('/api/admin/clan/merge', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sourceId: s.leftMemberId,
+              targetId: s.joinedMemberId,
+              note: `Approved as rename: ${s.oldRsn} → ${s.newRsn} (${s.deltaSeconds}s apart, rank ${s.rank ?? 'unknown'})`,
+            }),
+          });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || 'Merge failed');
@@ -279,7 +294,7 @@ export default function AuditLogClient({
                       disabled={busy}
                       className="text-xs px-2.5 py-1 bg-accent-green/20 border border-accent-green/40 text-accent-green-light hover:bg-accent-green/30 rounded transition-colors disabled:opacity-50"
                     >
-                      {busy ? 'Merging…' : 'Confirm rename'}
+                      {busy ? 'Working…' : s.leftClaimed ? 'Confirm — send to Anvil' : 'Confirm rename'}
                     </button>
                   </div>
                 </li>

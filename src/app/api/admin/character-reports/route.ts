@@ -30,12 +30,14 @@ export async function POST(request: Request) {
   const seat = await seatForRequest(request, seatId);
   if (!seat) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
+  const requestedRsn = kind === 'rename' && typeof body?.requestedRsn === 'string' ? body.requestedRsn.trim().slice(0, 12) || null : null;
   const report = await fileCharacterReport({
     accountId: seat.accountId,
     clanId: seat.clanId,
     reportedByUserId: session.userId > 0 ? session.userId : null,
     kind,
     body: text,
+    requestedRsn,
   });
   return NextResponse.json({ ok: true, reportId: report.id, created: report.created });
 }

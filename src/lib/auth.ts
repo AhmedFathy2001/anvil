@@ -730,16 +730,14 @@ async function ensurePluginVerifiedOnPlay(
   }
 }
 
-// Apply an in-game rename detected during plugin play: the caller's stable account hash
-// matched a clan_member whose stored RSN differs from the name they're logged in as. Mirrors
-// the bookkeeping clan-sync/link already do — updates the display RSN, appends the old name to
-// previousRsns, lifts the member out of the `unranked` park (a rename, not a ban, explains the
-// old-name 404), writes a `renamed` audit row, and propagates into active weekly_participants so
-// leaderboard tracking resumes on the new name. Best-effort: never blocks the plugin request.
+// Apply an in-game rename detected during plugin play: the caller's stable account hash matched a
+// seat whose stored RSN differs from the name they're logged in as — proof it is the same character.
 //
-// Guards the rsn_normalized uniqueness index: if a *different* active member already holds the
-// new name (a phantom split an earlier name-only roster sync created), we leave the rows alone
-// for the mod-gated suspected-renames → merge flow rather than throw on the update.
+// Delegates to lib/characterRename, which ABSORBS a duplicate already holding the new name. That
+// duplicate is the normal case, not an edge one: the in-game roster only carries names, so a sync
+// that ran before this login seated the new name as a stranger. This used to see the clash and give
+// up, leaving the real character on a dead name (stat tiles polling a 404) for the rest of the event.
+// Best-effort: never blocks the plugin request.
 async function applyRenameOnPlay(
   memberId: number,
   oldRsn: string,
@@ -748,62 +746,21 @@ async function applyRenameOnPlay(
   nowIso: string,
 ): Promise<void> {
   try {
-    const newRsn = sanitizeRsn(newRsnRaw);
-    const newNorm = normalizeRsn(newRsn);
-    if (!newRsn || normalizeRsn(oldRsn) === newNorm) return;
-
-    // Uniqueness guard — another live member already owns the new name → defer to merge.
-    // clan-scope: global -- identity is global — one OSRS account is one account however many clans roster it.
-    const clash = await findRosterSeat(and(eq(clanRoster.rsnNormalized, newNorm), isNull(clanRoster.leftAt)));
-    if (clash && clash.id !== memberId) return;
-
+    if (normalizeRsn(oldRsn) === normalizeRsn(sanitizeRsn(newRsnRaw))) return;
     // clan-scope: global -- identity is global — one OSRS account is one account however many clans roster it.
     const member = await findRosterSeat(eq(clanRoster.id, memberId));
     if (!member) return;
-
-    // Append the old name to the alias history (dedup by normalized form).
-    let previous: string[] = [];
-    if (member.previousRsns) {
-      try {
-        const parsed = JSON.parse(member.previousRsns);
-        if (Array.isArray(parsed)) previous = parsed.filter((p): p is string => typeof p === 'string');
-      } catch { /* ignore malformed */ }
-    }
-    if (member.rsn && !previous.some((p) => normalizeRsn(p) === normalizeRsn(member.rsn))) {
-      previous.push(member.rsn);
-    }
-
-    await updateAccountOfSeat(memberId, {
-      rsn: newRsn,
-      rsnNormalized: newNorm,
-      previousRsns: JSON.stringify(previous),
-      // A detected rename proves the old-name hiscores 404 was a rename, not a ban — re-activate
-      // so the weekly cron polls the new name again instead of waiting on the re-probe pass.
-      status: member.status === 'unranked' ? 'active' : member.status,
+    // Dynamic import: characterRename imports normalizeRsn/sanitizeRsn from this module.
+    const { renameCharacter } = await import('@/lib/characterRename');
+    await renameCharacter(member.accountId, newRsnRaw, {
+      actorUserId: userId,
+      via: 'plugin',
+      note: 'Detected via plugin play (accountHash matched)',
     });
-    await db
-      .update(clanMemberships)
-      .set({ lastSeenInClan: nowIso })
-      .where(eq(clanMemberships.id, memberId));
-
-    db.insert(clanAuditLog)
-      .values({
-        clanMemberId: memberId,
-        eventType: 'renamed',
-        oldValue: JSON.stringify({ rsn: oldRsn }),
-        newValue: JSON.stringify({ rsn: newRsn }),
-        notes: 'Detected via plugin play (accountHash matched)',
-        actorUserId: userId,
-      })
-      .catch(() => {});
-
-    // Propagate into active weekly comps (merge/rename participant rows). Dynamic import avoids a
-    // static cycle — weekly.ts imports normalizeRsn/sanitizeRsn from this module.
-    const { applyRenameToActiveWeeklyParticipants } = await import('@/lib/weekly');
-    await applyRenameToActiveWeeklyParticipants(memberId, oldRsn, newRsn).catch(() => {});
+    await db.update(clanMemberships).set({ lastSeenInClan: nowIso }).where(eq(clanMemberships.id, memberId));
   } catch {
-    // Rename application is best-effort — a failure must not break the plugin request. The
-    // suspected-renames → merge flow and the pendingRenames reviewer remain as backstops.
+    // Best-effort — a failure must not break the plugin request. A rename request (Anvil staff)
+    // remains the backstop.
   }
 }
 
@@ -910,8 +867,31 @@ async function autoLinkOrSuggestOnPlay(
     const ownedAccount = accountHash
       ? await db.query.accounts.findFirst({ where: eq(accounts.accountHash, accountHash) })
       : null;
-    const ownedByRsn =
+    let ownedByRsn =
       ownedAccount ?? (await db.query.accounts.findFirst({ where: eq(accounts.rsnNormalized, normalizedRsn) }));
+
+    // A RENAME BEFORE THE HASH WAS EVER SEEN. Nobody's account carries this hash and the caller does
+    // not own this name — but they may own the character under its OLD name (linked by the XP check
+    // or a mod vouch, so never hash-anchored). Rename that one rather than minting a second account
+    // for the same character; the hash is anchored on it by the play that follows
+    // (ensurePluginVerifiedOnPlay). See lib/characterRename hashlessRenameCandidate for the evidence.
+    if (!ownedAccount && accountHash && !(ownedByRsn?.claimedAt != null)) {
+      const me = await personOf(userId);
+      if (me != null) {
+        const { hashlessRenameCandidate, renameCharacter } = await import('@/lib/characterRename');
+        const candidate = await hashlessRenameCandidate(me, normalizedRsn);
+        if (candidate != null) {
+          const res = await renameCharacter(candidate, rsn, {
+            actorUserId: userId,
+            via: 'plugin',
+            note: 'Old name gone from the hiscores; the owner’s plugin is playing the new one',
+          });
+          if (res.ok) {
+            ownedByRsn = await db.query.accounts.findFirst({ where: eq(accounts.id, candidate) });
+          }
+        }
+      }
+    }
 
     // Owned already — theirs (linked) or someone else's (not ours to touch). Nothing to CLAIM here.
     // Claimed, not "has a person": every account has a person, so player_id says nothing about
