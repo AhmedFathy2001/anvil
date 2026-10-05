@@ -6,7 +6,7 @@
 // clan they play in. Clans now own their ROSTER (seats: kick, rank, guest/member, ban) and nothing
 // about the character; the rest is raised here and decided by platform staff in /staff/reports.
 
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, characterReports, clanAuditLog, clans, detectedAccounts, players, users } from '@/db/schema';
@@ -20,8 +20,14 @@ export function isReportKind(v: unknown): v is ReportKind {
 }
 
 /**
- * Raise a character with Anvil. Idempotent per (account, kind) while one is open — a mod pressing the
- * button twice, or two mods of two clans, add to one thread rather than starting a second.
+ * Raise a character with Anvil. Idempotent per (account, kind, claimant) while one is open — a mod
+ * pressing the button twice, or two mods of two clans, add to one thread rather than starting a
+ * second.
+ *
+ * The CLAIMANT is part of the key. Two clans vouching for two DIFFERENT people over one character is
+ * a dispute, not a duplicate: folded into one report, the second vouch would sit under the first
+ * claimant's name and its "Give to …" button — and staff would hand the character to the person
+ * neither text was about.
  */
 export async function fileCharacterReport(input: {
   accountId: number;
@@ -31,11 +37,13 @@ export async function fileCharacterReport(input: {
   body?: string | null;
   claimantPlayerId?: number | null;
 }): Promise<{ id: number; created: boolean }> {
+  const claimant = input.claimantPlayerId ?? null;
   const open = await db.query.characterReports.findFirst({
     where: and(
       eq(characterReports.accountId, input.accountId),
       eq(characterReports.kind, input.kind),
       eq(characterReports.status, 'open'),
+      claimant == null ? isNull(characterReports.claimantPlayerId) : eq(characterReports.claimantPlayerId, claimant),
     ),
     columns: { id: true, body: true },
   });
@@ -152,6 +160,8 @@ export async function resolveCharacterReport(
   actorUserId: number,
   status: 'resolved' | 'dismissed',
   resolution?: string | null,
+  /** When closing as a side effect of acting on a character: only a report ABOUT that character. */
+  forAccountId?: number,
 ): Promise<boolean> {
   const [row] = await db
     .update(characterReports)
@@ -161,7 +171,13 @@ export async function resolveCharacterReport(
       resolvedByUserId: actorUserId,
       resolvedAt: new Date().toISOString(),
     })
-    .where(and(eq(characterReports.id, id), eq(characterReports.status, 'open')))
+    .where(
+      and(
+        eq(characterReports.id, id),
+        eq(characterReports.status, 'open'),
+        forAccountId != null ? eq(characterReports.accountId, forAccountId) : undefined,
+      ),
+    )
     .returning({ id: characterReports.id });
   return !!row;
 }

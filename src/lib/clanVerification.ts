@@ -26,6 +26,7 @@ import { and, eq, isNotNull, ne, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanAuditLog, clans } from '@/db/schema';
+import { releaseRosterMemberships } from '@/lib/homeClan';
 
 export { isOwnerTierRank } from '@/lib/ingameRanks';
 
@@ -198,12 +199,19 @@ export async function verifyManually(
   return { ok: true };
 }
 
-/** Withdraw a badge — a dispute resolved the other way, or a claim that turned out to be false. */
+/**
+ * Withdraw a badge — a dispute resolved the other way, or a claim that turned out to be false.
+ *
+ * Also RELEASES the memberships its roster syncs made (lib/homeClan). A sync never moves a membership
+ * between clans, so a clan that was not who it said it was would otherwise keep every member it
+ * synced, and the real clan's roster could only seat them as guests.
+ */
 export async function unverify(clanId: number, byUserId: number, reason?: string | null): Promise<void> {
   await db
     .update(clans)
     .set({ ingameNameVerifiedAt: null, ingameNameClaimedByAccountId: null })
     .where(eq(clans.id, clanId));
+  await releaseRosterMemberships(clanId, byUserId);
 
   await db
     .insert(clanAuditLog)

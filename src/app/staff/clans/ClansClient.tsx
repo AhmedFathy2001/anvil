@@ -94,7 +94,7 @@ export default function ClansClient({
     const reason = await ask({
       title: 'Withdraw the verified badge',
       body:
-        'The clan stops being able to sync a roster or enter a cross-clan leaderboard, and this reason is written into their history where their own staff will read it.',
+        'The clan stops being able to sync a roster or enter a cross-clan leaderboard, and every member its roster synced becomes a guest — so the real clan can seat them. This reason is written into their history where their own staff will read it.',
       label: 'Why',
       placeholder: 'Disputed name — the other claimant holds the owner rank in game.',
       multiline: true,

@@ -77,6 +77,19 @@ test('filing twice adds to one open report rather than starting a second', async
   assert.equal(listed[0].clan?.slug, 'reporter');
 });
 
+test('two clans vouching for two different people stay two reports', async () => {
+  const x = await R.fileCharacterReport({ accountId, clanId, reportedByUserId: staffUser, kind: 'claim_request', claimantPlayerId: owner, body: 'it is Holder' });
+  const y = await R.fileCharacterReport({ accountId, clanId, reportedByUserId: staffUser, kind: 'claim_request', claimantPlayerId: other, body: 'it is Rightful' });
+  assert.notEqual(x.id, y.id);
+  const again = await R.fileCharacterReport({ accountId, clanId, reportedByUserId: staffUser, kind: 'claim_request', claimantPlayerId: other, body: 'yes Rightful' });
+  assert.equal(again.id, y.id, 'the same claimant again folds in');
+
+  // Acting on a character closes only a report about it.
+  assert.equal(await R.resolveCharacterReport(x.id, staffUser, 'dismissed', null, accountId + 999), false);
+  await R.resolveCharacterReport(x.id, staffUser, 'dismissed', null, accountId);
+  await R.resolveCharacterReport(y.id, staffUser, 'dismissed', null, accountId);
+});
+
 test('staff detach hands the character back and stops the old plugin re-taking it', async () => {
   assert.equal(await R.detachCharacter(accountId, staffUser, 'wrong person'), true);
   const acct = await db.query.accounts.findFirst({ where: eq(s.accounts.id, accountId) });
@@ -105,7 +118,7 @@ test('resolving closes it once', async () => {
   assert.equal(await R.resolveCharacterReport(open.id, staffUser, 'resolved', 'reassigned'), true);
   assert.equal(await R.resolveCharacterReport(open.id, staffUser, 'dismissed'), false);
   assert.equal((await R.listCharacterReports()).length, 0);
-  assert.equal((await R.listCharacterReports({ status: 'all' }))[0].resolution, 'reassigned');
+  assert.equal((await R.listCharacterReports({ status: 'all' })).find((r) => r.id === open.id)?.resolution, 'reassigned');
 });
 
 test('the clan-side attach and detach routes are retired', async () => {

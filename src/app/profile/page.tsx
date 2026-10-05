@@ -21,6 +21,8 @@ import { InReach, PersonalBests, PublicProfile, TrophyCase } from './LockerRail'
 import LinkedAccountsClient from './LinkedAccountsClient';
 import OtherAccountsClient from './OtherAccountsClient';
 import DetectedAccountsClient from './DetectedAccountsClient';
+import HomeClanConflicts from './HomeClanConflicts';
+import { membershipConflicts } from '@/lib/homeClan';
 import SecurityDrawer from './SecurityDrawer';
 import { emissionSettingsView } from '@/lib/emissionSettings';
 import { atLeast } from '@/lib/clanRoles';
@@ -186,6 +188,9 @@ export default async function ProfilePage({
         ? 'member-in-game'
         : 'guest';
 
+  // Two in-game rosters listing one of their characters: theirs to settle (lib/homeClan).
+  const homeConflicts = await membershipConflicts(session.playerId);
+
   const avatar = user.discordId ? avatarUrl(user.discordId, user.discordAvatar) : null;
   // session.role, NOT user.role. `users.role` is the LEGACY GLOBAL column, and lib/auth says what
   // reading it costs: "it made every admin an admin of every clan on the deployment, which is the
@@ -334,6 +339,7 @@ export default async function ProfilePage({
               </p>
             )}
 
+            <HomeClanConflicts initial={homeConflicts} />
             <DetectedAccountsClient initial={detected} />
 
             {locker.accounts.length === 0 ? (

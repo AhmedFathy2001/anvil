@@ -37,7 +37,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const reportId = Number(body?.reportId);
   if (Number.isInteger(reportId) && reportId > 0) {
-    await resolveCharacterReport(reportId, actor, 'resolved', note ?? body.action);
+    // Only a report about THIS character — an id from another report must not be closed by acting here.
+    await resolveCharacterReport(reportId, actor, 'resolved', note ?? body.action, accountId);
   }
   return NextResponse.json({ ok: true });
 }
