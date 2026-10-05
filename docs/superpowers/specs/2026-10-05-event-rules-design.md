@@ -1,4 +1,4 @@
-# Event rules: per-event rulebook, event-page card, co-host-aware bot, rules posts
+# Event rules + co-host Discord: rulebook, event-page card, co-host-aware bot, fan-out, logo fix
 
 Date: 2026-10-05 · Status: approved design, pending implementation plan
 
@@ -92,8 +92,54 @@ Date: 2026-10-05 · Status: approved design, pending implementation plan
 - At start: in `lib/eventLifecycle.ts` and the start-now path in `app/api/events/[eventId]/route.ts`,
   right after `notifyEventStart`, call `postEventRules(eventId)` when `rules.rulesAtStart` — fire and
   forget. The existing `startNotified` atomic flip guarantees one post per event.
-- Out of scope / follow-up: fanning out the start announcement itself (and other notifications) to
-  co-host servers.
+- Target webhook per clan comes from the co-host fan-out resolver (section 6), so a co-host's
+  "co-hosted boards" channel receives the rules too.
+
+### 6. Co-host fan-out of bingo progress ("both ways")
+
+Every clan on a co-hosted board gets the board's bingo posts in its own Discord — the host's server
+for boards it co-hosts elsewhere, and co-hosts' servers for the boards it hosts. Symmetric by
+construction: the fan-out is keyed on the event, not on who is host.
+
+- `lib/discord.ts`: new `sendEventBingoWebhook(eventId, hostClanId, build: (targetClanId) =>
+  Promise<DiscordWebhookPayload>)`. Targets = host + accepted co-hosts (`acceptedCohostClanIds`).
+  Built per target so each clan gets **its own member-role ping** (`memberPing(targetClanId)`). The
+  embed content (including the host's crest and author) is shared. Sends in parallel; a missing
+  webhook for a target is skipped silently; returns true if the host post succeeded (preserves
+  existing caller semantics).
+- Webhook for a co-host target: new setting `discord_webhook_cohost` ("Co-hosted boards" channel),
+  falling back to `discord_webhook_bingo` → `discord_webhook_url`. Host target unchanged
+  (`sendBingoWebhook`). Toggle `discord_cohost_posts_enabled` (default on): off means the clan
+  receives no fan-out posts for boards it doesn't own (its own boards are unaffected).
+  Both keys added to the settings allow-list and to the Webhooks panel in Admin → Integrations
+  (webhook field + toggle, with copy explaining "posts from boards you co-host, and boards you host
+  that other clans co-host, land here").
+- Fanned out (board progress everyone on the board cares about): `notifySubmission`,
+  `notifyMergedSubmission`, `notifySubmissionDeleted`, `notifyTileCompletion`,
+  `notifyTilesRevealed`, `notifyBountyClaim`, `notifyMissionPrize`, `notifyDraftStart`,
+  `notifyDraftComplete`, `notifyTeamWin`, `notifyEventStart`, `notifyEventForceEnd`,
+  `notifyEventEnd`, and the rules post (section 5).
+- Host only (staff/money/clan-scoped): `notifyEventStartHeld`, `notifyPayout`,
+  `notifySignupApproved`, `notifyMonthlyChampion`, weekly posts.
+- Params: fanned-out notifiers that lack `eventId` gain it (callers already have it).
+- Links inside fanned-out embeds stay as today (event URL by id); per-target link rewriting is out of
+  scope.
+
+### 7. Clan logo in Discord posts (bug)
+
+Symptom: a clan with an uploaded logo (theafkspot) still shows the generated crest as the embed
+author icon. `/api/og/crest/<slug>` already serves the logo (verified live 2026-10-05), but its URL
+never changes when the logo does, so Discord's media proxy keeps the image it cached when the clan
+had only the crest.
+
+- New helper `clanMarkUrl(base, slug, logoUrl)` in `lib/crestImage` (or a small pure sibling):
+  `${base}/api/og/crest/${slug}?v=${shortHash(logoUrl ?? 'crest')}`. The version changes exactly
+  when the logo changes, so Discord refetches.
+- Replace the three hand-built URLs: `clanCrestIcon` (`lib/discord.ts`), `authorOf`
+  (`lib/discordCommands.ts`), the clan-command author (`lib/discordClanCommands.ts`), and the crest
+  fallback in `lib/discordIdentity.ts`. Each caller must have `logoUrl` (add it to the clan selects /
+  `ClanContext`).
+- The routes ignore `?v`; nothing else changes.
 
 ## Testing
 
@@ -102,6 +148,10 @@ Date: 2026-10-05 · Status: approved design, pending implementation plan
 - DB-backed: co-host guild `pickEvent` / `loadEvent` resolve the co-hosted event; a non-co-host and a
   pending/declined co-host do not; `resolveEventRulebook` reads the host clan's settings; post-rules
   route rejects a co-host targeting the host's clan.
+- Fan-out: `sendEventBingoWebhook` targets host + accepted co-hosts only, skips a co-host with
+  `discord_cohost_posts_enabled` off, prefers `discord_webhook_cohost` for co-host targets, pings
+  each target's own member role (webhook send mocked).
+- Pure: `clanMarkUrl` version changes with `logoUrl`, stable otherwise.
 - Run suites one at a time, `--maxWorkers=4`.
 
 ## Risks
