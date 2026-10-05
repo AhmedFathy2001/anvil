@@ -14,10 +14,10 @@
 // the 15-minute cron (lib/characterRename absorbs the stranger into the real character). Ambiguous
 // ones stay as suggestions on the clan's audit page, and on a claimed character go to Anvil.
 
-import { and, desc, eq, gte, inArray } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanAuditLog, clanRoster, playerSnapshots } from '@/db/schema';
+import { clanAuditLog, clanMemberships, clanRoster, playerSnapshots } from '@/db/schema';
 import { fetchHiscoresSnapshot } from '@/lib/hiscores';
 
 const WINDOW_MS = 10 * 60 * 1000;
@@ -246,11 +246,26 @@ export async function applyConfidentRenames(opts: { lookbackDays?: number; maxCl
     if (clanId == null) continue;
     const pairs = await detectSuspectedRenames(clanId, { lookbackDays: opts.lookbackDays ?? 2, liveFetchCap: opts.liveFetchCap ?? 4 });
     for (const p of pairs.filter((x) => x.confident)) {
-      const res = await renameCharacter(p.leftAccountId, p.newRsn, {
-        actorUserId: null,
-        via: 'roster',
-        note: `Roster showed ${p.oldRsn} leaving and ${p.newRsn} joining at the same rank with matching XP`,
-      });
+      // A SYNC IS A CLAN ADMIN'S PUSH, so what it may rename on its own is only what that clan owns:
+      // an UNCLAIMED character seated in this clan alone. A claimed character is its player's in every
+      // clan — a crafted roster ("X left, Y joined", with Y picked to match X's XP) must not rename
+      // it — and one seated elsewhere is other clans' data too. Those go to Anvil with the evidence;
+      // a claimed player's own plugin still heals it on their next login (renameFromPlugin).
+      // clan-scope: global -- where else this character sits is exactly the question.
+      const elsewhere = await db
+        .select({ id: clanMemberships.id })
+        .from(clanMemberships)
+        .where(and(eq(clanMemberships.accountId, p.leftAccountId), ne(clanMemberships.clanId, clanId)))
+        .limit(1);
+      const res =
+        p.leftClaimed || elsewhere.length > 0
+          ? ({ ok: false, error: p.leftClaimed ? 'it belongs to a player, so Anvil applies it' : 'it is on other clans’ rosters too' } as const)
+          : await renameCharacter(p.leftAccountId, p.newRsn, {
+              actorUserId: null,
+              via: 'roster',
+              note: `Roster showed ${p.oldRsn} leaving and ${p.newRsn} joining at the same rank with matching XP`,
+              absorb: 'split',
+            });
       if (res.ok) {
         applied++;
       } else {
@@ -259,7 +274,7 @@ export async function applyConfidentRenames(opts: { lookbackDays?: number; maxCl
           clanId,
           reportedByUserId: null,
           kind: 'rename',
-          body: `Looks like ${p.oldRsn} renamed to ${p.newRsn} (same rank, XP within ${p.xpMatchPct}%), but it could not be applied automatically: ${res.error}`,
+          body: `Looks like ${p.oldRsn} renamed to ${p.newRsn} (same rank, XP within ${p.xpMatchPct}%). Not applied automatically: ${res.error}.`,
           requestedRsn: p.newRsn,
         });
         raised++;

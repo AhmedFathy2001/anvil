@@ -40,12 +40,25 @@ after(async () => {
 });
 
 /** The split a sync leaves: the real character (claimed, in the event, seat now a guest) and the stranger. */
-async function split(oldRsn: string, newRsn: string, opts: { hash?: string | null; strangerClaimedBy?: number | null; strangerHash?: string | null } = {}) {
+async function split(
+  oldRsn: string,
+  newRsn: string,
+  opts: { hash?: string | null; strangerClaimedBy?: number | null; strangerHash?: string | null; unclaimed?: boolean } = {},
+) {
   n++;
   const now = new Date().toISOString();
+  const owner = opts.unclaimed ? (await db.insert(s.players).values({ displayName: oldRsn }).returning())[0].id : person;
   const [real] = await db
     .insert(s.accounts)
-    .values({ playerId: person, rsn: oldRsn, rsnNormalized: oldRsn.toLowerCase(), claimedAt: now, verifiedAt: now, accountHash: opts.hash === undefined ? `h${n}` : opts.hash, status: 'unranked' })
+    .values({
+      playerId: owner,
+      rsn: oldRsn,
+      rsnNormalized: oldRsn.toLowerCase(),
+      claimedAt: opts.unclaimed ? null : now,
+      verifiedAt: opts.unclaimed ? null : now,
+      accountHash: opts.hash === undefined ? `h${n}` : opts.hash,
+      status: 'unranked',
+    })
     .returning();
   const [realSeat] = await db.insert(s.clanMemberships).values({ clanId, accountId: real.id, kind: 'guest', source: 'roster', rank: 'Sergeant' }).returning();
   const [participant] = await db.insert(s.eventParticipants).values({ eventId, clanMemberId: realSeat.id, accountId: real.id, name: oldRsn }).returning();
@@ -66,7 +79,7 @@ async function split(oldRsn: string, newRsn: string, opts: { hash?: string | nul
 
 test('a rename folds the stranger the sync made into the real character', async () => {
   const x = await split('Bob', 'Bobby');
-  const res = await R.renameCharacter(x.real.id, 'Bobby', { actorUserId: null, via: 'plugin' });
+  const res = await R.renameCharacter(x.real.id, 'Bobby', { actorUserId: null, via: 'staff', absorb: 'staff' });
   assert.equal(res.ok, true);
 
   const acct = await db.query.accounts.findFirst({ where: eq(s.accounts.id, x.real.id) });
@@ -87,7 +100,7 @@ test('a rename folds the stranger the sync made into the real character', async 
 test('a stranger that is somebody else’s character is a dispute, not a rename', async () => {
   const other = (await db.insert(s.players).values({ displayName: 'Other' }).returning())[0].id;
   const x = await split('Carl', 'Carla', { strangerClaimedBy: other });
-  const res = await R.renameCharacter(x.real.id, 'Carla', { actorUserId: null, via: 'roster' });
+  const res = await R.renameCharacter(x.real.id, 'Carla', { actorUserId: null, via: 'roster', absorb: 'staff' });
   assert.equal(res.ok, false);
   assert.equal(res.ok === false && res.reason, 'owned_by_other');
   assert.equal((await db.query.accounts.findFirst({ where: eq(s.accounts.id, x.real.id) }))?.rsn, 'Carl', 'nothing moved');
@@ -95,7 +108,7 @@ test('a stranger that is somebody else’s character is a dispute, not a rename'
 
 test('two different account hashes are two different accounts', async () => {
   const x = await split('Dan', 'Dana', { hash: 'hd1', strangerHash: 'hd2' });
-  const res = await R.renameCharacter(x.real.id, 'Dana', { actorUserId: null, via: 'staff' });
+  const res = await R.renameCharacter(x.real.id, 'Dana', { actorUserId: null, via: 'staff', absorb: 'staff' });
   assert.equal(res.ok === false && res.reason, 'different_account');
 });
 
@@ -111,28 +124,56 @@ test('a hashless character whose old name is gone is the one the plugin is playi
   assert.equal(await R.hashlessRenameCandidate(p2, 'eddie'), null);
 });
 
-test('the roster split is detected and healed by the cron, in this clan only', async () => {
-  const D = await import('../src/lib/renameDetection.ts');
-  const x = await split('Fay', 'Faye');
-  await db.update(s.accounts).set({ statsOverallXp: 50_000_000 }).where(eq(s.accounts.id, x.real.id));
-  await db.update(s.accounts).set({ statsOverallXp: 50_010_000 }).where(eq(s.accounts.id, x.stranger.id));
+async function logSplit(leftSeat: number, joinedSeat: number, newRsn: string) {
   const at = new Date().toISOString();
   await db.insert(s.clanAuditLog).values([
-    { clanId, clanMemberId: x.realSeat.id, eventType: 'left', occurredAt: at },
-    { clanId, clanMemberId: x.strangerSeat.id, eventType: 'joined', newValue: JSON.stringify({ rsn: 'Faye', rank: 'Sergeant' }), occurredAt: at },
+    { clanId, clanMemberId: leftSeat, eventType: 'left', occurredAt: at },
+    { clanId, clanMemberId: joinedSeat, eventType: 'joined', newValue: JSON.stringify({ rsn: newRsn, rank: 'Sergeant' }), occurredAt: at },
   ]);
+}
+
+test('absorbing needs the roster split as evidence, unless staff decide', async () => {
+  const x = await split('Gus', 'Gussy');
+  const res = await R.renameCharacter(x.real.id, 'Gussy', { actorUserId: null, via: 'plugin', absorb: 'split' });
+  assert.equal(res.ok === false && res.reason, 'needs_review', 'no split on record: claiming a taken name is not proof');
+  await logSplit(x.realSeat.id, x.strangerSeat.id, 'Gussy');
+  const again = await R.renameCharacter(x.real.id, 'Gussy', { actorUserId: null, via: 'plugin', absorb: 'split' });
+  assert.equal(again.ok, true);
+});
+
+test('a holder anchored to another hash is refused even when ours has none yet', async () => {
+  const x = await split('Hal', 'Hally', { hash: null, strangerHash: 'someone-else' });
+  await logSplit(x.realSeat.id, x.strangerSeat.id, 'Hally');
+  const res = await R.renameCharacter(x.real.id, 'Hally', { actorUserId: null, via: 'plugin', absorb: 'split', reportingHash: 'mine' });
+  assert.equal(res.ok === false && res.reason, 'different_account');
+  const blind = await R.renameCharacter(x.real.id, 'Hally', { actorUserId: null, via: 'plugin', absorb: 'split' });
+  assert.equal(blind.ok === false && blind.reason, 'needs_review', 'nothing to compare its hash with');
+});
+
+test('the cron heals an unclaimed split and sends a claimed one to Anvil', async () => {
+  const D = await import('../src/lib/renameDetection.ts');
+  const C = await import('../src/lib/characterReports.ts');
+
+  const u = await split('Ivy', 'Ivie', { unclaimed: true });
+  const c = await split('Jo', 'Joey');
+  // Distinct XP per pair — identical ones would make each 'left' match both 'joined', and an
+  // ambiguous pair is (rightly) never applied without a human.
+  for (const [x, xp] of [[u, 50_000_000], [c, 120_000_000]] as const) {
+    await db.update(s.accounts).set({ statsOverallXp: xp }).where(eq(s.accounts.id, x.real.id));
+    await db.update(s.accounts).set({ statsOverallXp: xp + 10_000 }).where(eq(s.accounts.id, x.stranger.id));
+  }
+  await logSplit(u.realSeat.id, u.strangerSeat.id, 'Ivie');
+  await new Promise((r) => setTimeout(r, 5)); // distinct pairs, both within the window
+  await logSplit(c.realSeat.id, c.strangerSeat.id, 'Joey');
 
   const other = (await db.insert(s.clans).values({ slug: 'elsewhere', name: 'Elsewhere' }).returning())[0].id;
   assert.deepEqual(await D.detectSuspectedRenames(other), [], 'another clan sees nothing of it');
 
-  const pairs = await D.detectSuspectedRenames(clanId, { liveFetchCap: 0 });
-  const pair = pairs.find((p) => p.oldRsn === 'Fay');
-  assert.ok(pair, 'paired');
-  assert.equal(pair!.confident, true);
-
-  const out = await D.applyConfidentRenames({ liveFetchCap: 0 });
-  assert.ok(out.applied >= 1);
-  assert.equal((await db.query.accounts.findFirst({ where: eq(s.accounts.id, x.real.id) }))?.rsn, 'Faye');
+  await D.applyConfidentRenames({ liveFetchCap: 0 });
+  assert.equal((await db.query.accounts.findFirst({ where: eq(s.accounts.id, u.real.id) }))?.rsn, 'Ivie', 'the clan’s own roster data heals');
+  assert.equal((await db.query.accounts.findFirst({ where: eq(s.accounts.id, c.real.id) }))?.rsn, 'Jo', 'a player’s character is not renamed by a sync');
+  const open = await C.listCharacterReports();
+  assert.ok(open.some((r) => r.account.id === c.real.id && r.kind === 'rename' && r.requestedRsn === 'Joey'), 'it went to Anvil');
 });
 
 test('a smaller account on the old name is not this character', async () => {

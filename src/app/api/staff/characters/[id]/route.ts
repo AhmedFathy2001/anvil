@@ -36,7 +36,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // The character takes the new name, absorbing a duplicate a roster sync made under it
     // (lib/characterRename) — the roster seat, event entry and baseline end up on one character.
     const toRsn = typeof body?.toRsn === 'string' ? body.toRsn : '';
-    const res = await renameCharacter(accountId, toRsn, { actorUserId: actor, via: 'staff', note });
+    const res = await renameCharacter(accountId, toRsn, { actorUserId: actor, via: 'staff', note, absorb: 'staff' });
     if (!res.ok) return NextResponse.json({ error: res.error }, { status: 409 });
     await settleRenameRequests(accountId, toRsn, 'approved', note || `Renamed to ${toRsn} by Anvil staff`);
   } else {

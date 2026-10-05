@@ -27,7 +27,74 @@ export type RenameVia = 'plugin' | 'roster' | 'staff';
 
 export type RenameOutcome =
   | { ok: true; changed: boolean; absorbed: number }
-  | { ok: false; reason: 'invalid' | 'not_found' | 'owned_by_other' | 'different_account'; error: string };
+  | {
+      ok: false;
+      reason: 'invalid' | 'not_found' | 'owned_by_other' | 'different_account' | 'needs_review';
+      error: string;
+    };
+
+/**
+ * When a rename may ABSORB an existing account that holds the new name.
+ *
+ *  - 'staff': a human at Anvil looked at it.
+ *  - 'split': only with ROSTER-SPLIT evidence — in some clan, this character's seat logged `left` and
+ *    the holder's seat logged `joined` within one sync (rosterSplitEvidence). That is the only shape a
+ *    genuine rename leaves behind; without it, "absorb whoever holds the name" is a way to take over
+ *    an unclaimed roster entry by claiming its name from a modified client.
+ */
+export type AbsorbPolicy = 'staff' | 'split';
+
+const SPLIT_WINDOW_MS = 10 * 60 * 1000;
+
+/** Did one sync, in one clan, report this character leaving and the holder joining? */
+export async function rosterSplitEvidence(accountId: number, holderAccountId: number): Promise<boolean> {
+  // clan-scope: global -- one character's seats in every clan, compared pairwise within each clan below.
+  const seats = await db
+    .select({ id: clanMemberships.id, clanId: clanMemberships.clanId, accountId: clanMemberships.accountId })
+    .from(clanMemberships)
+    .where(inArray(clanMemberships.accountId, [accountId, holderAccountId]));
+  const ours = seats.filter((x) => x.accountId === accountId);
+  const theirs = seats.filter((x) => x.accountId === holderAccountId);
+  if (ours.length === 0 || theirs.length === 0) return false;
+  const rows = await db
+    .select({ seat: clanAuditLog.clanMemberId, clanId: clanAuditLog.clanId, type: clanAuditLog.eventType, at: clanAuditLog.occurredAt })
+    .from(clanAuditLog)
+    .where(and(inArray(clanAuditLog.clanMemberId, seats.map((x) => x.id)), inArray(clanAuditLog.eventType, ['left', 'joined'])));
+  for (const o of ours) {
+    for (const t of theirs.filter((x) => x.clanId === o.clanId)) {
+      const lefts = rows.filter((r) => r.seat === o.id && r.type === 'left');
+      const joins = rows.filter((r) => r.seat === t.id && r.type === 'joined');
+      for (const l of lefts) {
+        for (const j of joins) {
+          if (Math.abs(Date.parse(l.at) - Date.parse(j.at)) <= SPLIT_WINDOW_MS) return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Do the hiscores agree that `newRsn` is this character? Its overall XP must line up with what the
+ * character last had (lib/renameDetection xpVerdict — never less, not much more).
+ *
+ * The plugin reports the name it is logged in as, and a modified client can report any name. A name
+ * cannot fake someone else's hiscores, so this is what stops "rename" from being a way to claim a
+ * stronger player's name (their gains on our stat tiles) or an unclaimed member's (their seats).
+ *   'ok' — they match · 'mismatch' — a different account · 'unknown' — can't tell yet.
+ */
+export async function corroborateRename(accountId: number, newRsn: string): Promise<'ok' | 'mismatch' | 'unknown'> {
+  const account = await db.query.accounts.findFirst({ where: eq(accounts.id, accountId), columns: { statsOverallXp: true } });
+  const lastXp = account?.statsOverallXp ?? null;
+  if (lastXp == null || lastXp <= 0) return 'unknown';
+  const { fetchSnapshotWithRetry } = await import('@/lib/hiscores');
+  const { xpVerdict } = await import('@/lib/renameDetection');
+  const res = await fetchSnapshotWithRetry(newRsn);
+  if (res.kind !== 'value') return 'unknown';
+  const verdict = xpVerdict(lastXp, res.snapshot.skills?.overall?.xp ?? undefined);
+  if (!verdict) return 'unknown';
+  return verdict.ok ? 'ok' : 'mismatch';
+}
 
 function parsePrevious(raw: string | null | undefined): string[] {
   if (!raw) return [];
@@ -46,7 +113,14 @@ function parsePrevious(raw: string | null | undefined): string[] {
 export async function renameCharacter(
   accountId: number,
   newRsnRaw: string,
-  opts: { actorUserId: number | null; via: RenameVia; note?: string | null },
+  opts: {
+    actorUserId: number | null;
+    via: RenameVia;
+    note?: string | null;
+    absorb: AbsorbPolicy;
+    /** The hash the PLUGIN reported for this play — the identity of the account actually logged in. */
+    reportingHash?: string | null;
+  },
 ): Promise<RenameOutcome> {
   const newRsn = sanitizeRsn(newRsnRaw);
   const newNorm = normalizeRsn(newRsn);
@@ -67,9 +141,29 @@ export async function renameCharacter(
     if (holder.claimedAt && (!account.claimedAt || holder.playerId !== account.playerId)) {
       return { ok: false, reason: 'owned_by_other', error: `${holder.rsn} belongs to another player on Anvil.` };
     }
-    // Two different account hashes are two different Jagex accounts, whatever their names say.
-    if (holder.accountHash && account.accountHash && holder.accountHash !== account.accountHash) {
+    // Two different account hashes are two different Jagex accounts, whatever their names say — ours
+    // as stored, or (when ours has none yet) the one the plugin is reporting for this very play.
+    const ourHash = account.accountHash ?? opts.reportingHash ?? null;
+    if (holder.accountHash && (!ourHash || holder.accountHash !== ourHash)) {
+      if (!ourHash && opts.via !== 'staff') {
+        return {
+          ok: false,
+          reason: 'needs_review',
+          error: `${holder.rsn} is anchored to an account hash and this character has none to compare — Anvil staff will look at it.`,
+        };
+      }
+    }
+    if (holder.accountHash && ourHash && holder.accountHash !== ourHash) {
       return { ok: false, reason: 'different_account', error: `${holder.rsn} is a different account (its hash differs).` };
+    }
+    // Absorbing is taking an account's seats and event entries. Only with the evidence a real rename
+    // leaves, or a human's say-so (AbsorbPolicy).
+    if (opts.absorb === 'split' && !(await rosterSplitEvidence(accountId, holder.id))) {
+      return {
+        ok: false,
+        reason: 'needs_review',
+        error: `${holder.rsn} is already on a roster and nothing shows it was this character renamed — Anvil staff will look at it.`,
+      };
     }
 
     // Fold each of the holder's seats into ours. Same clan → mergeSeats (moves event entries,
@@ -215,4 +309,68 @@ export async function hashlessRenameCandidate(playerId: number, newNorm: string)
     .where(and(eq(accounts.playerId, playerId), isNull(accounts.accountHash), isNotNull(accounts.claimedAt)));
   const gone = hashless.filter((a) => a.rsnNormalized !== newNorm && a.status === 'unranked');
   return gone.length === 1 ? gone[0].id : null;
+}
+
+/** Hiscores checks for plugin-reported renames, at most one per (account, name) per hour per process. */
+const recentChecks = new Map<string, number>();
+const CHECK_EVERY_MS = 60 * 60 * 1000;
+
+/**
+ * A rename the PLUGIN reported — the name it says it is logged in as, against a character it proved
+ * by account hash (or, for a never-anchored one, by hashlessRenameCandidate). The client is not
+ * trusted for the NAME: a modified one can send any. So:
+ *   1. the hiscores must agree the new name is this character (corroborateRename);
+ *   2. an account already holding the name is absorbed only with roster-split evidence, and never
+ *      when it is anchored to a different hash than the one being reported;
+ *   3. anything that can't be shown goes to Anvil staff as a rename report, with what was found.
+ * Returns true when the character now has the new name.
+ */
+export async function renameFromPlugin(
+  accountId: number,
+  newRsnRaw: string,
+  opts: { userId: number; reportingHash: string | null; clanId: number | null; note: string },
+): Promise<boolean> {
+  const newRsn = sanitizeRsn(newRsnRaw);
+  const newNorm = normalizeRsn(newRsn);
+  if (!newNorm) return false;
+  const key = `${accountId}:${newNorm}`;
+  const last = recentChecks.get(key);
+  if (last != null && Date.now() - last < CHECK_EVERY_MS) return false;
+  recentChecks.set(key, Date.now());
+  if (recentChecks.size > 5000) recentChecks.clear();
+
+  const account = await db.query.accounts.findFirst({ where: eq(accounts.id, accountId), columns: { rsn: true, statsOverallXp: true } });
+  if (!account) return false;
+  const holder = await db.query.accounts.findFirst({ where: and(eq(accounts.rsnNormalized, newNorm), ne(accounts.id, accountId)), columns: { id: true } });
+
+  const proof = await corroborateRename(accountId, newRsn);
+  // Never polled and nobody holds the name: there is nothing to compare and nothing to take — the
+  // event baseline (if any) is captured on the new name from here on.
+  const nothingToCompare = proof === 'unknown' && (account.statsOverallXp == null || account.statsOverallXp <= 0) && !holder;
+  if (proof === 'ok' || nothingToCompare) {
+    const res = await renameCharacter(accountId, newRsn, {
+      actorUserId: opts.userId,
+      via: 'plugin',
+      note: opts.note,
+      absorb: 'split',
+      reportingHash: opts.reportingHash,
+    });
+    if (res.ok) return true;
+    await raise(accountId, opts, newRsn, `The plugin reports ${account.rsn} is now ${newRsn}, but it could not be applied: ${res.error}`);
+    return false;
+  }
+  await raise(
+    accountId,
+    opts,
+    newRsn,
+    proof === 'mismatch'
+      ? `The plugin reports ${account.rsn} is now ${newRsn}, but ${newRsn}'s hiscores XP does not match ${account.rsn}'s — likely a different account. Not applied.`
+      : `The plugin reports ${account.rsn} is now ${newRsn}; the hiscores could not confirm it yet. Not applied automatically.`,
+  );
+  return false;
+}
+
+async function raise(accountId: number, opts: { userId: number; clanId: number | null }, newRsn: string, body: string) {
+  const { fileCharacterReport } = await import('@/lib/characterReports');
+  await fileCharacterReport({ accountId, clanId: opts.clanId, reportedByUserId: opts.userId, kind: 'rename', requestedRsn: newRsn, body }).catch(() => {});
 }

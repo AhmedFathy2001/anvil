@@ -744,17 +744,21 @@ async function applyRenameOnPlay(
   newRsnRaw: string,
   userId: number,
   nowIso: string,
+  reportingHash: string | null,
 ): Promise<void> {
   try {
     if (normalizeRsn(oldRsn) === normalizeRsn(sanitizeRsn(newRsnRaw))) return;
     // clan-scope: global -- identity is global — one OSRS account is one account however many clans roster it.
     const member = await findRosterSeat(eq(clanRoster.id, memberId));
     if (!member) return;
-    // Dynamic import: characterRename imports normalizeRsn/sanitizeRsn from this module.
-    const { renameCharacter } = await import('@/lib/characterRename');
-    await renameCharacter(member.accountId, newRsnRaw, {
-      actorUserId: userId,
-      via: 'plugin',
+    // Dynamic import: characterRename imports normalizeRsn/sanitizeRsn from this module. The hash
+    // proves WHICH character; the name is still the client's word, so renameFromPlugin wants the
+    // hiscores to agree and roster-split evidence before it absorbs anything.
+    const { renameFromPlugin } = await import('@/lib/characterRename');
+    await renameFromPlugin(member.accountId, newRsnRaw, {
+      userId,
+      reportingHash,
+      clanId: member.clanId,
       note: 'Detected via plugin play (accountHash matched)',
     });
     await db.update(clanMemberships).set({ lastSeenInClan: nowIso }).where(eq(clanMemberships.id, memberId));
@@ -878,15 +882,18 @@ async function autoLinkOrSuggestOnPlay(
     if (!ownedAccount && accountHash && !(ownedByRsn?.claimedAt != null)) {
       const me = await personOf(userId);
       if (me != null) {
-        const { hashlessRenameCandidate, renameCharacter } = await import('@/lib/characterRename');
+        const { hashlessRenameCandidate, renameFromPlugin } = await import('@/lib/characterRename');
         const candidate = await hashlessRenameCandidate(me, normalizedRsn);
         if (candidate != null) {
-          const res = await renameCharacter(candidate, rsn, {
-            actorUserId: userId,
-            via: 'plugin',
+          // Same guards as a hash-proven rename: hiscores must agree, absorbing needs split evidence
+          // and never takes an account anchored to a different hash than this play's.
+          const done = await renameFromPlugin(candidate, rsn, {
+            userId,
+            reportingHash: accountHash,
+            clanId,
             note: 'Old name gone from the hiscores; the owner’s plugin is playing the new one',
           });
-          if (res.ok) {
+          if (done) {
             ownedByRsn = await db.query.accounts.findFirst({ where: eq(accounts.id, candidate) });
           }
         }
@@ -1450,7 +1457,7 @@ export async function resolvePluginMember(
   }
   if (!matchedMember) return null; // current account isn't on this user's roster (by hash or name)
   if (renamedFrom) {
-    await applyRenameOnPlay(matchedMember.id, renamedFrom, currentRsn.trim(), user.id, nowIso);
+    await applyRenameOnPlay(matchedMember.id, renamedFrom, currentRsn.trim(), user.id, nowIso, accountHash);
   }
   // A confirmed RSN match means the caller is logged into an account they own — proof enough to
   // verify it, enrolled anywhere or not. Best-effort: never blocks, no-ops once verified + anchored.
