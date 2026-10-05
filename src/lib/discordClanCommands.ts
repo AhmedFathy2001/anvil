@@ -27,6 +27,7 @@ import {
 } from '@/lib/discordEmbeds';
 import { fmt, type DiscordDict } from '@/lib/discordI18n';
 import { resolveInvoker, type ClanContext, type InvokerIdentity } from '@/lib/discordContext';
+import { clanMarkUrl } from '@/lib/clanMarkUrl';
 
 import { competitionImageUrl, itemIconUrl, bossImageUrl } from '@/lib/tileIcons';
 import { clogPageItems, clogPageIndex, clogPageNames } from '@/lib/clogDataset';
@@ -92,7 +93,7 @@ export type ClanCommand = (ctx: ClanCommandCtx) => Promise<ClanResult>;
  *  Discord will not display an SVG or a data: URI here, so it needs a real image URL. Absent when the
  *  clan has no public origin to serve it from. */
 function crestUrl(clan: ClanContext): string | undefined {
-  return clan.origin ? `${new URL(clan.origin).origin}/api/og/crest${clan.slug ? `/${encodeURIComponent(clan.slug)}` : ''}` : undefined;
+  return clan.origin ? clanMarkUrl(clan.origin, clan.slug, clan.logoUrl) : undefined;
 }
 
 function authorOf(clan: ClanContext): DiscordEmbed['author'] {

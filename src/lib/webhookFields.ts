@@ -31,6 +31,8 @@ export interface SettingField {
   readonly help: string;
   /** `plain` only. */
   readonly placeholder?: string;
+  /** `toggle` only: what an UNSET setting means (opt-in by default). */
+  readonly defaultOn?: boolean;
 }
 
 export interface WebhookSection {
@@ -92,6 +94,28 @@ export const WEBHOOK_SECTIONS = [
         key: 'discord_webhook_coffer',
         label: 'Coffer channel (optional)',
         help: "Every movement of the clan's gp — donations reported and approved, prizes owed and paid, adjustments — each with the balance it leaves behind. Unlike the channels above this one has no fallback: leave it blank and nothing about the coffer is posted anywhere.",
+      },
+    ],
+  },
+  {
+    id: 'cohost',
+    group: 'site',
+    title: 'Co-hosted boards',
+    blurb:
+      'Boards your clan plays with another clan post to every clan on them — boards you co-host elsewhere, and your own boards that other clans co-host. Both sides need this set up (or a bingo channel) to see them.',
+    fields: [
+      {
+        kind: 'webhook',
+        key: 'discord_webhook_cohost',
+        label: 'Co-hosted boards channel',
+        help: "Start, end, submissions, completions, reveals and rules for boards shared with another clan. Blank uses your bingo events channel.",
+      },
+      {
+        kind: 'toggle',
+        key: 'discord_cohost_posts_enabled',
+        label: 'Post co-hosted boards here',
+        help: "Off and only your own boards post to your server. The other clan's server is unaffected.",
+        defaultOn: true,
       },
     ],
   },

@@ -14,6 +14,7 @@ import { parseEventRules, isTileRevealed } from '@/lib/eventRules';
 import { scoreTeams } from '@/lib/boardScoring';
 import { drawStartLocation } from '@/lib/startProof';
 import { log } from '@/lib/logger';
+import { postEventRules } from '@/lib/eventRulesPost';
 
 // The awards worth celebrating in the Discord end post, most-fun-first — we take the first few of
 // these that actually have a winner so the embed stays punchy.
@@ -241,6 +242,13 @@ export async function processEventLifecycleNotifications(): Promise<void> {
         startProofSessionMinutes: startProof?.maxSessionMinutes ?? null,
         ...(await eventBoardSummary(event)),
       });
+      // The rules land right under the start post, in every clan on the board. Behind the same
+      // startNotified flip, so they post once.
+      if (parseEventRules(event.rules).rulesAtStart) {
+        await postEventRules(event.id, event.clanId).catch((error) =>
+          log.warn('event-lifecycle.rules-post-fail', { eventId: event.id }, error),
+        );
+      }
     }
   }
 

@@ -127,7 +127,9 @@
     "test:errors": "npx tsx --test tests/error-events.test.ts",
     "test:jsonld": "npx tsx --test tests/json-ld.test.ts",
     "test:seo": "npx tsx --test tests/seo.test.ts",
-    "test:apexhome": "npx tsx --test tests/apex-home-signals.test.ts"
+    "test:apexhome": "npx tsx --test tests/apex-home-signals.test.ts",
+    "test:rulebook": "npx tsx --test tests/event-rulebook.test.ts",
+    "test:cohostdiscord": "npx tsx --test tests/cohost-discord.test.ts"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",

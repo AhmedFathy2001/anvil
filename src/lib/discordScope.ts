@@ -6,7 +6,7 @@
 //
 // lib/discordContext re-exports all of it, so importers do not need to know this file exists.
 
-import { en, plural, type DiscordDict } from '@/lib/discordI18n';
+import { en, fmt, plural, type DiscordDict } from '@/lib/discordI18n';
 
 /** The clan whose Discord this is. */
 export interface ClanContext {
@@ -16,6 +16,8 @@ export interface ClanContext {
   origin: string | null;
   /** The clan's slug — names it on the shared domain, where the origin alone can't (its crest/logo). */
   slug?: string;
+  /** The clan's uploaded logo, or null for the generated crest. Versions the mark URL (lib/clanMarkUrl). */
+  logoUrl?: string | null;
   /** The Discord server this instance is bound to. Empty when the clan never connected one. */
   guildId: string;
   /** Which clan this is. The whole point of resolving by guild. */
@@ -63,6 +65,10 @@ export interface EventContext {
   tilesRevealed: boolean;
   teamCount: number;
   playerCount: number;
+  /** The clan that owns the board. Differs from the asking clan on a board it co-hosts. */
+  hostClanId?: number;
+  /** Set only when the asking clan is a CO-HOST here: the host's name, for "hosted by". */
+  hostClanName?: string | null;
 }
 
 /**
@@ -110,6 +116,7 @@ export function contextLine(
   const parts: string[] = [clan.name];
   if (event) {
     parts.push(event.name);
+    if (event.hostClanName) parts.push(fmt(t.common.hostedBy, { clan: event.hostClanName }));
     parts.push(
       event.phase === 'running'
         ? t.common.phaseRunning

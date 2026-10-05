@@ -15,6 +15,7 @@
 import sharp from 'sharp';
 
 import { getSettingMap, setSetting } from '@/lib/settings';
+import { clanMarkUrl } from '@/lib/clanMarkUrl';
 import { resolveClanById } from '@/lib/clanContext';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { discordRest, getBotCredentials } from '@/lib/discord-roles';
@@ -51,7 +52,7 @@ export async function getBotIdentity(clanId: number): Promise<BotIdentity> {
     const clan = await resolveClanById(clanId);
     const clanName = clan ? await getClanDisplayName(clanId, clan.name) : 'Anvil';
     const origin = configuredOrigin();
-    const crest = clan && origin ? `${origin}/api/og/crest/${clan.slug}` : null;
+    const crest = clan && origin ? clanMarkUrl(origin, clan.slug, clan.logoUrl) : null;
     value =
       mode === 'clan'
         ? { mode, name: clanName, avatarUrl: clan?.logoUrl ?? crest }

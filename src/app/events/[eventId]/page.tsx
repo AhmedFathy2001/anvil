@@ -40,6 +40,8 @@ import {
 import { deriveTileIcon } from '@/lib/tileIcons';
 import { buildLadderView } from '@/lib/ladderView';
 import LadderClient from './LadderClient';
+import EventRulesCard from '@/components/events/EventRulesCard';
+import { loadRulesFacts } from '@/lib/eventRulebook';
 import { getTierBands } from '@/lib/pluginConfig';
 import { computeEventMvp, computeMemberBreakdown, topMember, rollupByOwner, type StatGainMap, type TeamMvp } from '@/lib/memberBreakdown';
 import { loadPlayerOwners } from '@/lib/draftProfiles';
@@ -105,6 +107,8 @@ export default async function EventScoreboardPage({
   if (!event) notFound();
 
   const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, id));
+  // The board's rules (mechanics + the host's rulebook) — the same words every clan's Discord gets.
+  const rulesFacts = await loadRulesFacts(id).catch(() => null);
   const eventTeams = await db.select().from(teams).where(eq(teams.eventId, id));
   // The HOST's bands — the tiles were authored against them, whichever clan's address this is.
   const tierBands = await getTierBands(event.clanId);
@@ -547,6 +551,7 @@ export default async function EventScoreboardPage({
         signupFee={event.signupFee}
       />
       )}
+      {rulesFacts && <EventRulesCard facts={rulesFacts} />}
       {/* Post-event actions — one quiet card that folds in whichever of the recap / survey CTAs apply,
           rather than two stacked gold banners shouting the same "event ended" note twice. */}
       {(showRecapCta || showSurveyCta) && (

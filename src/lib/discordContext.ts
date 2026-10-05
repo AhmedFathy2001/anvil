@@ -22,8 +22,8 @@
 // Everything here is read-only and cheap; commands compose it and never re-derive it.
 
 import { db } from '@/db';
-import { clanRoster, clans, eventParticipants, events, players, settings, teams, users } from '@/db/schema';
-import { eq, and, isNull, inArray } from 'drizzle-orm';
+import { clanRoster, clans, eventCohosts, eventParticipants, events, settings, teams, users } from '@/db/schema';
+import { eq, and, isNull, inArray, or } from 'drizzle-orm';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { configuredOrigin } from '@/lib/request-origin';
 import { eventStage } from '@/lib/eventStage';
@@ -62,21 +62,33 @@ export async function getClanContext(guildId: string | null): Promise<ClanContex
   });
   if (!guildRow) return null;
 
-  const [name, languageRow, clanRow] = await Promise.all([
-    getClanDisplayName(guildRow.clanId),
-    db.query.settings.findFirst({
-      where: and(eq(settings.clanId, guildRow.clanId), eq(settings.key, 'discord_language')),
-    }),
-    db.query.clans.findFirst({ columns: { slug: true }, where: eq(clans.id, guildRow.clanId) }),
+  const ctx = await clanContextById(guildRow.clanId);
+  return { ...ctx, guildId: wanted };
+}
+
+/**
+ * A clan's Discord context by id rather than by guild — for posts Anvil makes on its own (the rules
+ * post to every clan on a board), where nobody typed anything. `guildId` is the stored one, or empty.
+ */
+export async function clanContextById(clanId: number): Promise<ClanContext> {
+  const [name, settingRows, clanRow] = await Promise.all([
+    getClanDisplayName(clanId),
+    db
+      .select({ key: settings.key, value: settings.value })
+      .from(settings)
+      .where(and(eq(settings.clanId, clanId), inArray(settings.key, ['discord_language', 'discord_guild_id']))),
+    db.query.clans.findFirst({ columns: { slug: true, logoUrl: true }, where: eq(clans.id, clanId) }),
   ]);
+  const map = new Map(settingRows.map((r) => [r.key, r.value?.trim() || null]));
   return {
-    clanId: guildRow.clanId,
+    clanId,
     name,
     origin: configuredOrigin(),
     slug: clanRow?.slug,
-    guildId: wanted,
+    logoUrl: clanRow?.logoUrl ?? null,
+    guildId: map.get('discord_guild_id') ?? '',
     // Federation was removed; clans live in one app now.
-    language: languageRow?.value?.trim() || null,
+    language: map.get('discord_language') ?? null,
   };
 }
 
@@ -88,10 +100,12 @@ function phaseOf(e: typeof events.$inferSelect, at: number): EventPhase {
 }
 
 /** Build the public EventContext (with team/player counts) from a raw events row. */
-async function toEventContext(row: typeof events.$inferSelect, now: Date): Promise<EventContext> {
-  const [teamRows, playerRows] = await Promise.all([
+async function toEventContext(row: typeof events.$inferSelect, now: Date, viewerClanId?: number): Promise<EventContext> {
+  const cohosted = viewerClanId != null && row.clanId !== viewerClanId;
+  const [teamRows, playerRows, hostClanName] = await Promise.all([
     db.select({ id: teams.id }).from(teams).where(eq(teams.eventId, row.id)),
-    db.select({ id: players.id }).from(eventParticipants).where(eq(eventParticipants.eventId, row.id)),
+    db.select({ id: eventParticipants.id }).from(eventParticipants).where(eq(eventParticipants.eventId, row.id)),
+    cohosted ? getClanDisplayName(row.clanId).catch(() => null) : Promise.resolve(null),
   ]);
   return {
     id: row.id,
@@ -106,7 +120,24 @@ async function toEventContext(row: typeof events.$inferSelect, now: Date): Promi
     tilesRevealed: row.tilesRevealed === 1,
     teamCount: teamRows.length,
     playerCount: playerRows.length,
+    hostClanId: row.clanId,
+    hostClanName,
   };
+}
+
+/**
+ * The events a clan's Discord answers about: its own, plus every board it holds an ACCEPTED co-host
+ * seat on. A co-host plays the board from home, so its members type `/bingo board` in their own
+ * server and expect the shared board — not "no events". Pending and declined seats see nothing.
+ */
+async function eventsVisibleTo(clanId: number): Promise<(typeof events.$inferSelect)[]> {
+  // clan-scope: global -- own rows by clanId, plus co-hosted rows by an accepted event_cohosts seat
+  // held by this same clan; no other clan's board can match either arm.
+  const cohosted = db
+    .select({ id: eventCohosts.eventId })
+    .from(eventCohosts)
+    .where(and(eq(eventCohosts.clanId, clanId), eq(eventCohosts.status, 'accepted')));
+  return db.select().from(events).where(or(eq(events.clanId, clanId), inArray(events.id, cohosted)));
 }
 
 /**
@@ -119,7 +150,7 @@ async function toEventContext(row: typeof events.$inferSelect, now: Date): Promi
  * point of resolving the guild first.
  */
 export async function pickEvent(clanId: number, now: Date = new Date()): Promise<EventContext | null> {
-  const rows = await db.select().from(events).where(eq(events.clanId, clanId));
+  const rows = await eventsVisibleTo(clanId);
   if (rows.length === 0) return null;
 
   const at = now.getTime();
@@ -133,7 +164,7 @@ export async function pickEvent(clanId: number, now: Date = new Date()): Promise
     return Date.parse(b.endDate ?? b.startDate ?? b.createdAt) - Date.parse(a.endDate ?? a.startDate ?? a.createdAt);
   });
 
-  return toEventContext(sorted[0], now);
+  return toEventContext(sorted[0], now, clanId);
 }
 
 /**
@@ -142,22 +173,32 @@ export async function pickEvent(clanId: number, now: Date = new Date()): Promise
  * board's standings. Empty when nothing is live; the caller falls back to {@link pickEvent} then.
  */
 export async function listLiveEvents(clanId: number, now: Date = new Date()): Promise<EventContext[]> {
-  const rows = await db.select().from(events).where(eq(events.clanId, clanId));
+  const rows = await eventsVisibleTo(clanId);
   const at = now.getTime();
   const live = rows
     .filter((e) => eventStage(e, at) === 'run')
     .sort((a, b) => Date.parse(b.startDate ?? b.createdAt) - Date.parse(a.startDate ?? a.createdAt));
-  return Promise.all(live.map((r) => toEventContext(r, now)));
+  return Promise.all(live.map((r) => toEventContext(r, now, clanId)));
 }
 
 /**
- * Load one event by id — but only if it belongs to THIS clan. The clanId check is what stops a
+ * Load one event by id — but only if it belongs to THIS clan (or this clan co-hosts it). The clanId check is what stops a
  * shared button or a stale id from reaching across into another clan's board.
  */
 export async function loadEvent(eventId: number, clanId: number, now: Date = new Date()): Promise<EventContext | null> {
-  const row = await db.query.events.findFirst({ where: and(eq(events.id, eventId), eq(events.clanId, clanId)) });
+  // clan-scope: global -- read by id, then held to this clan: its own, or an accepted co-host seat.
+  const row = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!row) return null;
-  return toEventContext(row, now);
+  if (row.clanId !== clanId) {
+    // A board this clan co-hosts is as much its own here as one it hosts; any other clan's is not.
+    const seat = await db
+      .select({ id: eventCohosts.id })
+      .from(eventCohosts)
+      .where(and(eq(eventCohosts.eventId, eventId), eq(eventCohosts.clanId, clanId), eq(eventCohosts.status, 'accepted')))
+      .limit(1);
+    if (seat.length === 0) return null;
+  }
+  return toEventContext(row, now, clanId);
 }
 
 export async function getCrossClanContext(eventId: number): Promise<CrossClanContext> {
@@ -174,7 +215,7 @@ export async function getCrossClanContext(eventId: number): Promise<CrossClanCon
   // clan-scope: global -- a Discord guild maps to exactly one clan, and this lookup IS that mapping.
   const rows = await db
     .select({
-      playerId: players.id,
+      participantId: eventParticipants.id,
       teamId: eventParticipants.teamId,
       seatClanId: clanRoster.clanId,
     })

@@ -245,6 +245,11 @@ export interface EventRules {
    * picking it off a list. Off by default: a normal clan event drafts.
    */
   teamChoice: boolean;
+  /**
+   * Post the board's rules (mechanics + rulebook) to every participating clan's Discord when the
+   * event starts. On by default — the moment a board opens is the moment people read the rules.
+   */
+  rulesAtStart: boolean;
 }
 
 /** The optional halves of the sign-up form. The account picker and the fee are never optional. */
@@ -306,6 +311,7 @@ export const DEFAULT_EVENT_RULES: EventRules = {
   startProof: null,
   captainInvites: false,
   teamChoice: false,
+  rulesAtStart: true,
 };
 
 /**
@@ -500,6 +506,8 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
     startProof,
     captainInvites: obj.captainInvites === true,
     teamChoice: obj.teamChoice === true,
+    // Only an explicit false turns it off; every board stored before this existed posts.
+    rulesAtStart: obj.rulesAtStart !== false,
   };
 }
 
@@ -616,6 +624,9 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
   if (o.teamChoice !== undefined && typeof o.teamChoice !== 'boolean') {
     return { error: 'rules.teamChoice must be a boolean' };
   }
+  if (o.rulesAtStart !== undefined && typeof o.rulesAtStart !== 'boolean') {
+    return { error: 'rules.rulesAtStart must be a boolean' };
+  }
   if (o.startProof !== undefined && o.startProof !== null) {
     const s = o.startProof as {
       onMissing?: unknown; autoAcceptPlugin?: unknown; locations?: unknown; maxSessionMinutes?: unknown;
@@ -667,6 +678,7 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     canonical.monthlyAward === null &&
     !canonical.captainInvites &&
     !canonical.teamChoice &&
+    canonical.rulesAtStart &&
     // WITHOUT THIS the toggles are wiped by any other rules edit. "Default" here means "storing
     // nothing loses nothing", and a board that has switched a sign-up section on or off has said
     // something that null cannot hold — so it has to be asked about like every other key.

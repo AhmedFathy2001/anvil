@@ -19,9 +19,10 @@
 //     Unrevealed boards are the one exception and stay hidden here too.
 
 import { db } from '@/db';
-import { events, players, teams, tiles, completions, clanRoster, settings, eventSignups, eventParticipants } from '@/db/schema';
+import { events, players, teams, tiles, completions, clanRoster, eventSignups, eventParticipants } from '@/db/schema';
 import { and, desc, eq, inArray, or } from 'drizzle-orm';
 import { getTeamStandings, type TeamStanding } from '@/lib/statStandings';
+import { clanMarkUrl } from '@/lib/clanMarkUrl';
 import {
   parseEventRules,
   hasRevealPolicy,
@@ -30,12 +31,11 @@ import {
   missionTiles,
   nextRevealAt,
   nextMissionAt,
-  type EventRules,
 } from '@/lib/eventRules';
 import { signupWindowState } from '@/lib/signup';
-import { computePrizePool, countApprovedSignups } from '@/lib/prizePool';
-import { eventPoolGp } from '@/lib/coffer';
 import { formatGp } from '@/lib/adminEventsFormat';
+import { loadRulesFacts } from '@/lib/eventRulebook';
+import { buildRulesEmbeds } from '@/lib/rulesMechanics';
 import { eventShapeBadge } from '@/lib/utils';
 import {
   EMBED_COLOR,
@@ -91,7 +91,7 @@ function authorOf(clan: ClanContext): DiscordEmbed['author'] {
   return {
     name: clamp(clan.name, LIMIT.author),
     url: clan.origin ?? undefined,
-    icon_url: clan.origin ? `${new URL(clan.origin).origin}/api/og/crest${clan.slug ? `/${encodeURIComponent(clan.slug)}` : ''}` : undefined,
+    icon_url: clan.origin ? clanMarkUrl(clan.origin, clan.slug, clan.logoUrl) : undefined,
   };
 }
 
@@ -324,151 +324,9 @@ async function liveStandingsEmbed(t: DiscordDict, clan: ClanContext, events_: Ev
 
 // ── /bingo rules ────────────────────────────────────────────────────────────────────────────────
 //
-// Two kinds of rule get confused with each other, so this command answers both and keeps them
-// visibly apart:
-//
-//   MECHANICS — how THIS board scores and reveals. Anvil knows these exactly (they're the event's
-//   own configuration), they differ per board, and they're the ones people actually get wrong:
-//   "does first team get a bonus?", "why is that tile locked?", "do I need a starting shot?".
-//   Derived fresh every time, so they can never drift from what the board is really doing.
-//
-//   HOUSE RULES — the clan's own prose: keep a screenshot, use the plugin, don't cheat. Stable
-//   across boards, written by staff, and stored as a plain settings row (`board_rules`) so editing
-//   them is a text box and not a deploy. `board_rules_url` links the long version.
-
-/** The clan's authored rules, if any. Scoped to the clan — `settings` is keyed on (clanId, key), so
- *  an unfiltered read would show an arbitrary other clan's house rules here. */
-async function readHouseRules(clanId: number): Promise<{ text: string | null; url: string | null }> {
-  const rows = await db
-    .select({ key: settings.key, value: settings.value })
-    .from(settings)
-    .where(and(eq(settings.clanId, clanId), inArray(settings.key, ['board_rules', 'board_rules_url'])));
-  const map = new Map(rows.map((r) => [r.key, r.value?.trim() || null]));
-  return { text: map.get('board_rules') ?? null, url: map.get('board_rules_url') ?? null };
-}
-
-/** Sentences describing how the board scores and opens. One bullet per rule that is actually on. */
-function mechanicsLines(
-  t: DiscordDict,
-  event: EventContext,
-  rules: EventRules,
-  pool: number,
-  fee: number | null,
-  missionCounts: { total: number; announced: number },
-): string[] {
-  const out: string[] = [];
-
-  out.push(event.scoringMode === 'points' ? t.rules.scoringPoints : t.rules.scoringTiles);
-
-  if (event.format === 'tilerace') out.push(t.rules.tileRace);
-
-  // Reveal policy is the single most-asked mechanic on a modern board — a player who can't see a
-  // tile assumes something is broken rather than that the board is drip-feeding on purpose.
-  switch (rules.revealPolicy) {
-    case 'scheduled':
-      out.push(t.rules.revealScheduled);
-      break;
-    case 'interval':
-      out.push(
-        plural(rules.revealBatchSize, t.rules.revealIntervalOne, t.rules.revealIntervalMany, {
-          order: rules.revealOrder === 'random' ? t.rules.revealOrderRandom : t.rules.revealOrderBoard,
-          minutes: rules.revealIntervalMinutes,
-        }),
-      );
-      break;
-    case 'bounty':
-      out.push(t.rules.revealBounty);
-      break;
-    case 'rotating':
-      out.push(fmt(t.rules.revealRotating, { n: rules.revealWindowSize }));
-      break;
-    default:
-      if (event.tilesRevealed) out.push(t.rules.revealAll);
-  }
-
-  if (!event.tilesRevealed) out.push(t.rules.notRevealed);
-
-  if (rules.lockout && rules.revealPolicy !== 'bounty') out.push(t.rules.lockout);
-  if (rules.firstBonus > 0) {
-    out.push(fmt(t.rules.firstBonus, { amount: code(`+${rules.firstBonus}`) }));
-  }
-  if (rules.decay) {
-    const { targetPct, hours } = rules.decay;
-    out.push(fmt(targetPct < 100 ? t.rules.decay : t.rules.growth, { pct: targetPct, hours }));
-  }
-  if (rules.mission) {
-    const when =
-      rules.mission.announceMode === 'interval'
-        ? fmt(t.rules.missionWhenInterval, { minutes: rules.mission.intervalMinutes })
-        : rules.mission.announceMode === 'scheduled'
-          ? t.rules.missionWhenScheduled
-          : t.rules.missionWhenManual;
-    out.push(fmt(t.rules.missions, { when }));
-    // The scoring is the part that gets misread: a mission's points are ON TOP, so a team can end
-    // above 100% of the board, and the board total never moves when one is announced.
-    const counted =
-      missionCounts.total > 0
-        ? ` ${fmt(t.rules.missionAnnouncedCount, { announced: missionCounts.announced, total: missionCounts.total })}`
-        : '';
-    out.push(`${t.rules.missionBonusNote}${counted}`.trimEnd());
-  }
-
-  if (rules.startProof) {
-    out.push(rules.startProof.onMissing === 'reject' ? t.rules.startProofStrict : t.rules.startProofFlag);
-    if (rules.startProof.maxSessionMinutes > 0) {
-      out.push(fmt(t.rules.startProofSession, { minutes: rules.startProof.maxSessionMinutes }));
-    }
-  }
-
-  if (rules.teamChoice) out.push(t.rules.teamChoice);
-  else if (rules.captainInvites) out.push(t.rules.captainInvites);
-
-  if (event.playerCount > 0 && fee) out.push(fmt(t.rules.entryFee, { amount: code(formatGp(fee)) }));
-  if (pool > 0) out.push(fmt(t.rules.prizePool, { amount: code(formatGp(pool)) }));
-
-  return out;
-}
-
-/**
- * How credit actually reaches the board, told from what THIS board contains rather than in general.
- *
- * The question every event gets asked is some version of "I don't run the plugin — am I stuck?",
- * and the honest answer depends on the tiles. Hiscores-backed tiles (boss KC, skilling) need no
- * client at all, only a logout; everything else needs evidence, which the plugin files for you and
- * which you can otherwise upload yourself. Saying that with the board's own numbers in it beats a
- * paragraph of general advice.
- */
-function trackingLines(
-  t: DiscordDict,
-  clan: ClanContext,
-  boardTilesOnly: { trackedStat: string | null }[],
-): string[] {
-  if (boardTilesOnly.length === 0) return [];
-  const hiscores = boardTilesOnly.filter((tile) => (tile.trackedStat ?? '').trim().length > 0).length;
-  const proof = boardTilesOnly.length - hiscores;
-
-  const out: string[] = ['', t.rules.trackingHeading];
-  out.push(t.rules.trackingPlugin);
-  if (hiscores > 0) {
-    out.push(
-      hiscores === boardTilesOnly.length
-        ? t.rules.trackingHiscoresAll
-        : fmt(t.rules.trackingHiscoresSome, { n: hiscores }),
-    );
-  }
-  if (proof > 0) {
-    const where = clan.origin
-      ? fmt(t.rules.trackingWhereUrl, { url: clan.origin })
-      : t.rules.trackingWhereNoUrl;
-    out.push(
-      proof === boardTilesOnly.length
-        ? fmt(t.rules.trackingProofAll, { where })
-        : fmt(t.rules.trackingProofSome, { n: proof, where }),
-    );
-  }
-  out.push(t.rules.trackingKeepShot);
-  return out;
-}
+// Mechanics (derived from the board) and the rulebook (the host's prose), built in lib/rulesMechanics
+// from facts read in lib/eventRulebook — the same words the event page and the rules post show. On a
+// co-hosted board the rulebook is the HOST's, in every clan's Discord.
 
 async function rulesEmbeds(
   t: DiscordDict,
@@ -476,73 +334,15 @@ async function rulesEmbeds(
   event: EventContext,
   cross: CrossClanContext,
 ): Promise<DiscordEmbed[]> {
-  const [row, house, allTiles] = await Promise.all([
-    // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
-    db.query.events.findFirst({ where: eq(events.id, event.id) }),
-    readHouseRules(clan.clanId),
-    db
-      .select({ id: tiles.id, mission: tiles.mission, revealedAt: tiles.revealedAt, trackedStat: tiles.trackedStat })
-      .from(tiles)
-      .where(eq(tiles.eventId, event.id)),
-  ]);
-  const rules = parseEventRules(row?.rules);
-  const [approved, cofferFunded] = await Promise.all([
-    countApprovedSignups(event.id).catch(() => 0),
-    eventPoolGp(event.id).catch(() => 0),
-  ]);
-  const pool = computePrizePool({
-    addedPrizePool: row?.addedPrizePool ?? null,
-    signupFee: row?.signupFee ?? null,
-    approvedCount: approved,
-    cofferFunded,
+  const facts = await loadRulesFacts(event.id);
+  if (!facts) return [];
+  return buildRulesEmbeds(t, facts, {
+    origin: clan.origin,
+    eventUrl: eventUrl(clan, event.id),
+    author: authorOf(clan),
+    fields: [field(t.common.fieldFormat, shapeLabel(event)), statField(t.common.fieldTeams, event.teamCount)],
+    footer: contextLine(clan, event, cross, t),
   });
-
-  const missionPool = missionTiles(allTiles);
-  const missionCounts = {
-    total: missionPool.length,
-    announced: missionPool.filter((t) => t.revealedAt).length,
-  };
-
-  const body = [
-    ...mechanicsLines(t, event, rules, pool, row?.signupFee ?? null, missionCounts),
-    // Tile names stay hidden on an unrevealed board, but HOW tracking works is not a spoiler.
-    ...trackingLines(t, clan, boardTiles(allTiles)),
-    '',
-    contextLine(clan, event, cross, t),
-  ];
-
-  const embeds: DiscordEmbed[] = [
-    {
-      title: clamp(fmt(t.rules.title, { event: event.name }), LIMIT.title),
-      url: eventUrl(clan, event.id),
-      description: clamp(body.join('\n'), LIMIT.description),
-      color: EMBED_COLOR.gold,
-      author: authorOf(clan),
-      fields: [field(t.common.fieldFormat, shapeLabel(event)), statField(t.common.fieldTeams, event.teamCount)],
-    },
-  ];
-
-  // House rules ride in their OWN embed rather than appended to the mechanics: they're a different
-  // kind of statement (clan policy, not board configuration) and mixing them makes both skimmable
-  // by nobody. Long rulesets get their first section plus a link — Discord's 4096-character cap is
-  // not a place to dump a full rules document, and a truncated rule reads as a complete one.
-  if (house.text || house.url) {
-    const full = house.text ?? '';
-    const truncated = full.length > LIMIT.description - 200;
-    const shown = truncated ? `${full.slice(0, LIMIT.description - 200).trimEnd()}…` : full;
-    const tail = house.url
-      ? `\n\n${truncated ? t.rules.houseContinues : t.rules.houseFull} ${house.url}`
-      : truncated
-        ? `\n\n${t.rules.houseTrimmed}`
-        : '';
-    embeds.push({
-      title: clamp(fmt(t.rules.houseTitle, { clan: clamp(clan.name, 80) }), LIMIT.title),
-      description: clamp(`${shown}${tail}`.trim(), LIMIT.description),
-      color: EMBED_COLOR.blue,
-    });
-  }
-
-  return embeds;
 }
 
 // ── /bingo me ───────────────────────────────────────────────────────────────────────────────────

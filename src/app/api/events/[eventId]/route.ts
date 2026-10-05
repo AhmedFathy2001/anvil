@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
+import { postEventRules } from '@/lib/eventRulesPost';
 import { events, tiles, teams, completions, submissions, eventStartProofs } from '@/db/schema';
 import { eq, inArray, and } from 'drizzle-orm';
 import { del } from '@/lib/storage';
@@ -305,7 +306,10 @@ export async function PATCH(
         startProofLocation: startProof?.location ?? null,
         startProofSessionMinutes: startProof?.maxSessionMinutes ?? null,
         ...(await eventBoardSummary(updated)),
-      }).catch(() => {});
+      })
+        // The rules land right under the start post, in every clan on the board (lib/eventRulesPost).
+        .then(() => (parseEventRules(updated.rules).rulesAtStart ? postEventRules(updated.id, updated.clanId) : null))
+        .catch(() => {});
     }
 
     // Balance advisory (never a blocker — lopsided teams can be a deliberate social choice): if

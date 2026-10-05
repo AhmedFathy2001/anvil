@@ -7,6 +7,7 @@ import DateRangeField from '@/components/DateRangeField';
 import DateTimePicker from '@/components/DateTimePicker';
 import NumberInput from '@/components/NumberInput';
 import RevealRulesPanel from '../RevealRulesPanel';
+import RulebookPanel from '../RulebookPanel';
 import EventEditorsPanel from '../EventEditorsPanel';
 import { EVENT_MODES, modeKeyFor, type EventMode } from '@/lib/eventModes';
 import { eventModeLabel, isTileRaceFormat, isPointsMode } from '@/lib/utils';
@@ -503,6 +504,8 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
 
       {/* Only renders on reveal-policy boards — a classic board has nothing to schedule. */}
       <RevealRulesPanel event={currentEvent} tiles={tiles} />
+
+      <RulebookPanel eventId={event.id} />
 
       {canManageEditors && <EventEditorsPanel eventId={event.id} />}
 

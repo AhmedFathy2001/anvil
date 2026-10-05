@@ -477,6 +477,13 @@
       "when": 1790550600000,
       "tag": "0109_character_report_requested_rsn",
       "breakpoints": true
+    },
+    {
+      "idx": 110,
+      "version": "7",
+      "when": 1790550700000,
+      "tag": "0110_event_rulebook",
+      "breakpoints": true
     }
   ]
 }

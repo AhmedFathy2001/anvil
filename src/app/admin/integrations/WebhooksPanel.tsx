@@ -47,7 +47,7 @@ function Field({ field, channels, botEnabled }: { field: SettingField } & Props)
       />
     );
   }
-  return <ToggleSetting settingKey={field.key} label={field.label} helpText={field.help} />;
+  return <ToggleSetting settingKey={field.key} label={field.label} helpText={field.help} defaultOn={field.defaultOn} />;
 }
 
 function Card({ children }: { children: React.ReactNode }) {

@@ -7,6 +7,7 @@ import { eventTileCount, eventShapeBadge } from '@/lib/utils';
 import { formatGp, formatWeeklyGain, SPARK_DAYS } from '@/lib/adminEventsFormat';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import type { CoHostedBoardLink } from '@/lib/coHost';
+import PostRulesButton from '@/components/PostRulesButton';
 import ClanLink from '@/components/ClanLink';
 import { useDialog } from '@/components/Confirm';
 import type {
@@ -168,33 +169,38 @@ export default function EventsClient({
           </SectionHead>
           <div className="grid gap-2">
             {cohosted.map((b) => (
-              <ClanLink
-                key={b.eventId}
-                href={b.href}
-                className="flex items-center justify-between gap-3 border border-card-border rounded-xl bg-card-bg px-4 py-3 hover:border-gold/40 transition-colors"
-              >
-                <div className="min-w-0">
-                  <div className="font-medium truncate">{b.name}</div>
-                  <div className="text-xs text-text-muted">
-                    Hosted by {b.hostName}
-                    {b.startDate && (
-                      <>
-                        {' · starts '}
-                        <LocalTime date={b.startDate} format="date" />
-                      </>
-                    )}
-                  </div>
-                </div>
-                <span
-                  className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full border ${
-                    b.canAuthor
-                      ? 'border-gold/40 text-gold bg-gold/10'
-                      : 'border-card-border text-text-muted'
-                  }`}
+              <div key={b.eventId} className="border border-card-border rounded-xl bg-card-bg px-4 py-3 hover:border-gold/40 transition-colors">
+                <ClanLink
+                  href={b.href}
+                  className="flex items-center justify-between gap-3"
                 >
-                  {b.canAuthor ? 'Edit board →' : 'View board →'}
-                </span>
-              </ClanLink>
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">{b.name}</div>
+                    <div className="text-xs text-text-muted">
+                      Hosted by {b.hostName}
+                      {b.startDate && (
+                        <>
+                          {' · starts '}
+                          <LocalTime date={b.startDate} format="date" />
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <span
+                    className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full border ${
+                      b.canAuthor
+                        ? 'border-gold/40 text-gold bg-gold/10'
+                        : 'border-card-border text-text-muted'
+                    }`}
+                  >
+                    {b.canAuthor ? 'Edit board →' : 'View board →'}
+                  </span>
+                </ClanLink>
+                {/* The board's rules, into THIS clan's server — the host posts to everyone, a co-host to itself. */}
+                <div className="mt-2">
+                  <PostRulesButton eventId={b.eventId} label="Post rules to our Discord" />
+                </div>
+              </div>
             ))}
           </div>
           {cohosted.some((b) => !b.canAuthor) && (

@@ -544,6 +544,11 @@ export const events = pgTable('events', {
   //   plus firstBonus / decay / lockout scoring modifiers.
   // NULL = classic behaviour everywhere; parseEventRules(null) returns the defaults.
   rules: text('rules'),
+  // The board's own rules, in the host's words (markdown). Blank → the host clan's house rules
+  // (settings.board_rules). Distinct from `rules` above, which is game CONFIGURATION, not prose. Read
+  // through lib/eventRulebook so every surface — the event page, /bingo rules in any clan on the
+  // board, the rules post — shows the same text.
+  rulebook: text('rulebook'),
   // Post-finish edit lock override. Finished events (past endDate / force-ended) refuse every
   // event-content mutation (teams, players, draft, tiles, completions, submissions — see
   // lib/eventLock.ts). Setting this ISO stamp re-opens editing for corrections; clearing it locks

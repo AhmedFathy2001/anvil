@@ -35,6 +35,7 @@ export const en = {
     phaseUpcoming: 'not started',
     phaseEnded: 'ended',
     phaseDraft: 'draft',
+    hostedBy: 'hosted by {clan}',
     contextVisitingTeamsOne: 'cross-clan · 1 visiting team',
     contextVisitingTeamsMany: 'cross-clan · {n} visiting teams',
     contextVisitingPlayersOne: '1 visiting player',
