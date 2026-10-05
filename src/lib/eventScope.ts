@@ -10,12 +10,13 @@
 // the "one hop, never a copy" rule the schema is built on, and it means the guard is a single line
 // per route rather than a clan filter threaded through every query in it.
 
-import { and, eq } from 'drizzle-orm';
-import { notFound } from 'next/navigation';
+import { and, eq, isNull } from 'drizzle-orm';
+import { headers } from 'next/headers';
+import { notFound, redirect } from 'next/navigation';
 
 import { db } from '@/db';
-import { clans, eventCohosts, events, weeklyCompetitions } from '@/db/schema';
-import { requireClan, resolveClanFromRequest } from '@/lib/clanContext';
+import { accounts, clanMemberships, clans, eventCohosts, events, weeklyCompetitions } from '@/db/schema';
+import { currentClan, requireClan, resolveClanFromRequest } from '@/lib/clanContext';
 import { canSeeEvent } from '@/lib/eventAccess';
 import { resolvePluginClan, verifyUser } from '@/lib/auth';
 
@@ -85,6 +86,8 @@ export async function requireEventForPage(eventId: number): Promise<ScopedEvent>
 export async function requireEventForParticipantPage(
   eventId: number,
 ): Promise<{ event: ScopedEvent; apiPrefix: string | null }> {
+  // On the apex (no clan in the address) an event link still has one right answer — send it there.
+  if (!(await currentClan())) await redirectToEventAddress(eventId);
   const clan = await requireClan();
   const owned = await eventInClan(clan.id, eventId);
   let event = owned;
@@ -110,6 +113,59 @@ export async function requireEventForParticipantPage(
   if (!(await canSeeEvent({ eventId, playerId: session?.playerId ?? null }))) notFound();
 
   return { event, apiPrefix };
+}
+
+/**
+ * `anvilosrs.com/events/<id>` — an event address with no clan in it.
+ *
+ * Every event lives under a clan (`/c/<slug>/events/<id>`), but bare links get made: the RuneLite
+ * plugin's "View event" built exactly this, and a hub release takes days to reach everybody. The id
+ * names exactly one event, so the address has one right answer — redirect there, keeping the rest of
+ * the path (/signup, /recap…) and the query.
+ *
+ * WHICH CLAN: the viewer's own when they play it from a co-hosting clan (lib/eventScope
+ * requireEventForParticipantPage serves them there), otherwise the host's. Visibility is checked
+ * before saying anything, so a private event 404s here exactly as it would at its own address.
+ */
+async function redirectToEventAddress(eventId: number): Promise<never> {
+  if (!Number.isInteger(eventId)) notFound();
+  // clan-scope: global -- the address names no clan; the event's own row says which one it is.
+  const [row] = await db
+    .select({ id: events.id, hostSlug: clans.slug })
+    .from(events)
+    .innerJoin(clans, eq(clans.id, events.clanId))
+    .where(eq(events.id, eventId))
+    .limit(1);
+  if (!row) notFound();
+  const session = await verifyUser();
+  if (!(await canSeeEvent({ eventId, playerId: session?.playerId ?? null }))) notFound();
+
+  let slug = row.hostSlug;
+  if (session?.playerId != null) {
+    // clan-scope: global -- the viewer's own accepted co-host clans for this one event.
+    const [mine] = await db
+      .select({ slug: clans.slug })
+      .from(eventCohosts)
+      .innerJoin(clans, eq(clans.id, eventCohosts.clanId))
+      .innerJoin(clanMemberships, eq(clanMemberships.clanId, eventCohosts.clanId))
+      .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
+      .where(
+        and(
+          eq(eventCohosts.eventId, eventId),
+          eq(eventCohosts.status, 'accepted'),
+          eq(accounts.playerId, session.playerId),
+          eq(clanMemberships.kind, 'member'),
+          isNull(clanMemberships.leftAt),
+        ),
+      )
+      .limit(1);
+    if (mine) slug = mine.slug;
+  }
+
+  const h = await headers();
+  const path = h.get('x-anvil-pathname') ?? `/events/${eventId}`;
+  const qs = h.get('x-anvil-search') ?? '';
+  redirect(`/c/${slug}${path.startsWith('/events/') ? path : `/events/${eventId}`}${qs}`);
 }
 
 // ── Weekly competitions, same story ──────────────────────────────────────────────────────────

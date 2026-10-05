@@ -127,10 +127,16 @@ export function eventNoun(format: string | null | undefined): 'bingo' | 'race' |
 export function eventShapeBadge(
   format: string | null | undefined,
   scoringMode: string | null | undefined,
-  boardSize: number,
+  /** Null on a PUBLIC view of a board the host hasn't revealed: its size is part of what is hidden. */
+  boardSize: number | null,
   rules?: string | null,
 ): string {
   const key = modeKeyFor(format, scoringMode, rules);
+  if (boardSize == null) {
+    if (key === 'classic') return 'Bingo';
+    if (key === 'race') return 'Race';
+    return eventModeLabel(format, scoringMode, rules);
+  }
   if (key === 'classic') return `${boardSize}×${boardSize}`;
   if (key === 'race') return `Race · ${boardSize}`;
   return `${eventModeLabel(format, scoringMode, rules)} · ${boardSize}`;

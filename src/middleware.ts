@@ -171,6 +171,7 @@ export async function middleware(request: NextRequest) {
     // keeps it instead of mistaking it for something a caller sent.
     downstream.set('x-anvil-clan-proof', await clanHeaderProof(slug));
     downstream.set('x-anvil-pathname', url.pathname);
+    downstream.set('x-anvil-search', request.nextUrl.search);
     return NextResponse.rewrite(url, { request: { headers: downstream } });
   }
 
@@ -300,6 +301,8 @@ export async function middleware(request: NextRequest) {
   // `downstream` above, not a fresh copy of the request: a fresh copy would carry the caller's
   // own x-anvil-clan-slug straight back in, which is the whole bug.
   downstream.set('x-anvil-pathname', pathname);
+  // The query, for the same reason — a page redirecting a clanless address keeps ?invite=… intact.
+  downstream.set('x-anvil-search', request.nextUrl.search);
   return NextResponse.next({ request: { headers: downstream } });
 }
 

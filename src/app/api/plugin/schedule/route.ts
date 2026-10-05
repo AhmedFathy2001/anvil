@@ -22,5 +22,8 @@ export async function GET(request: Request) {
   // did: the Host names the clan and nothing asked whether the caller was in it.
   // A resolved seat may be a GUEST seat, which is not membership — see pluginScheduleViewer.
   const member = await resolvePluginMember(request);
-  return NextResponse.json(await buildSchedule(clan.id, await pluginScheduleViewer(clan.id, member?.userId)));
+  const viewer = await pluginScheduleViewer(clan.id, member?.userId);
+  return NextResponse.json(
+    await buildSchedule(clan.id, { ...viewer, viewerRsn: request.headers.get('x-rsn'), viewerAccountHash: request.headers.get('x-account-hash') }),
+  );
 }

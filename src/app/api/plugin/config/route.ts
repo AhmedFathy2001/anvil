@@ -153,6 +153,10 @@ async function homeBoardForUser(clanId: number, userId: number): Promise<{
     here.find((e) => isLive(e) && e.clanMemberId != null && primaryIds.has(e.clanMemberId)) ??
     here.find(isLive);
   if (!live) return null;
+  // Started but not revealed: there is no board to be a fraction of yet, and its size stays hidden.
+  // clan-scope: global -- the event this person is enrolled in, by its own id.
+  const revealedRow = await db.query.events.findFirst({ where: eq(events.id, live.eventId), columns: { tilesRevealed: true } });
+  if (!revealedRow?.tilesRevealed) return null;
 
   // Scored through lib/boardScoring, so this pre-login summary is the same fraction the board itself
   // shows once they log in — optional tiles out, missions a bonus, a drip board against its pool.
@@ -245,7 +249,7 @@ export async function GET(request: Request) {
       // panel shows the schedule even when the player isn't enrolled anywhere.
       const [schedule, activeWeekly, weeklyNames, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, dropRarityFloor, facts, unlinkedActiveEvent, homeBoard, switchableClans] =
         await Promise.all([
-          pluginScheduleViewer(clan.id, userOnly.userId).then((v) => buildSchedule(clan.id, v)),
+          pluginScheduleViewer(clan.id, userOnly.userId).then((v) => buildSchedule(clan.id, { ...v, viewerRsn: request.headers.get('x-rsn'), viewerAccountHash: request.headers.get('x-account-hash') })),
           getActiveWeekly(clan.id),
           weeklyTrackedNames(clan.id),
           getNotificationWebhooks(clan.id),
@@ -620,7 +624,7 @@ export async function GET(request: Request) {
   // webhooks and fun-death pool the plugin posts with directly.
   const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, dropRarityFloor, tiers, facts] =
     await Promise.all([
-      pluginScheduleViewer(clan.id, auth.userId).then((v) => buildSchedule(clan.id, v)),
+      pluginScheduleViewer(clan.id, auth.userId).then((v) => buildSchedule(clan.id, { ...v, viewerRsn: request.headers.get('x-rsn'), viewerAccountHash: request.headers.get('x-account-hash') })),
       getActiveWeekly(clan.id),
       getNotificationWebhooks(clan.id),
       getFunDeathMessages(clan.id),

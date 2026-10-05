@@ -238,7 +238,10 @@ export async function loadEventCards(
     // The DENOMINATOR is the whole board, including tiles that have not been revealed yet. Scoring
     // against only the open ones makes a reveal board read as nearly finished when it has barely
     // started (the event page does the same — ScoreboardClient's boardPointsTotal).
-    const total = points ? boardTotals.get(event.id) ?? 0 : tileCounts.get(event.id) ?? 0;
+    // Nothing about the board's size leaves the host before the reveal — tile count or points.
+    // A finished board's size is no secret any more, flag or not.
+    const revealed = !!event.tilesRevealed || status === 'past';
+    const total = !revealed ? 0 : points ? boardTotals.get(event.id) ?? 0 : tileCounts.get(event.id) ?? 0;
     const unit = points ? 'pts' : 'tiles';
     const claimedRaw = claimCounts.get(event.id) ?? 0;
 
@@ -276,7 +279,7 @@ export async function loadEventCards(
     return {
       id: event.id,
       name: event.name,
-      shape: eventShapeBadge(event.format, event.scoringMode, event.boardSize, event.rules),
+      shape: eventShapeBadge(event.format, event.scoringMode, revealed ? event.boardSize : null, event.rules),
       chips,
       status,
       top: top && top.score > 0 ? top : null,
@@ -284,7 +287,7 @@ export async function loadEventCards(
       endDate: event.endDate,
       format: (event.format === 'ladder' ? 'ladder' : event.format === 'tilerace' ? 'tilerace' : 'bingo') as EventCard['format'],
       mode: modeKeyFor(event.format, event.scoringMode, rules),
-      board: { tiles: tileCounts.get(event.id) ?? 0, claimed },
+      board: { tiles: revealed ? tileCounts.get(event.id) ?? 0 : 0, claimed },
       // Only set when this clan is a co-host (the event's own clan is someone else). Drives a
       // "co-hosted" hint on the card.
       hostSlug: cardHostSlug,

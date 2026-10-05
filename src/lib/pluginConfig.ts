@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { getSetting, getSettingText, getSettingMap } from '@/lib/settings';
-import { accounts, clanMemberships, clanStaff, clans, eventSignups, events, tiles, users, weeklyCompetitions } from '@/db/schema';
-import { and, count, eq, inArray, isNull, ne } from 'drizzle-orm';
+import { accounts, clanMemberships, clanStaff, clans, eventCohosts, eventParticipants, eventSignups, events, tiles, users, weeklyCompetitions } from '@/db/schema';
+import { and, count, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { inAcceptedCohostClan, invitedToEvent } from '@/lib/eventAccess';
 import { BOSSES, FUN_DEATH_MESSAGES, weeklyMetricLabel, COUNTER_TARGETS } from '@/lib/constants';
 import { DEFAULT_TIER_BANDS, normalizeTierBands, type TierBand } from '@/lib/tileFilter';
@@ -21,7 +21,14 @@ export interface ScheduleBingo {
   endDate: string;
   status: 'active' | 'upcoming';
   boardSize: number | null;
-  tileCount: number;
+  /** Null until the host reveals the board — how big it is is part of what is hidden. */
+  tileCount: number | null;
+  /**
+   * The LOGGED-IN CHARACTER's place in it: 'entered' (approved / on the board), 'pending' (signed up,
+   * awaiting the host), or null (not signed up). Per character, not per person — the same person on
+   * their main and their alt sees two different answers, because those are two different entries.
+   */
+  yourEntry?: 'entered' | 'pending' | null;
   // Lets the plugin pick the right in-game view without a second fetch:
   //   format='tilerace' → race track; format='bingo' + scoringMode='points' → accordion;
   //   format='bingo' + scoringMode='tiles' → square grid.
@@ -85,14 +92,30 @@ const SCHEDULE_CAP = 10;
  */
 export async function buildSchedule(
   clanId: number,
-  opts: { member?: boolean; viewerPlayerId?: number | null } = {},
+  opts: {
+    member?: boolean;
+    viewerPlayerId?: number | null;
+    /** The character the plugin is logged in as (X-RSN / X-Account-Hash) — for `yourEntry`. */
+    viewerRsn?: string | null;
+    viewerAccountHash?: string | null;
+  } = {},
 ): Promise<PluginSchedule> {
   const nowIso = new Date().toISOString();
 
+  // This clan's events AND the ones it CO-HOSTS (an accepted seat on another clan's board): a
+  // co-host's members play those from their own clan, so their schedule has to list them.
+  const cohostedIds = (
+    await db
+      .select({ eventId: eventCohosts.eventId })
+      .from(eventCohosts)
+      .where(and(eq(eventCohosts.clanId, clanId), eq(eventCohosts.status, 'accepted')))
+  ).map((r) => r.eventId);
   const [allEvents, allWeeklies] = await Promise.all([
-    db.select().from(events).where(eq(events.clanId, clanId)),
+    // clan-scope: this clan -- its own events, plus the ones it holds an accepted co-host seat on.
+    db.select().from(events).where(cohostedIds.length ? or(eq(events.clanId, clanId), inArray(events.id, cohostedIds)) : eq(events.clanId, clanId)),
     db.select().from(weeklyCompetitions).where(eq(weeklyCompetitions.clanId, clanId)),
   ]);
+  const cohosted = new Set(cohostedIds);
 
   const member = opts.member === true;
   // Somebody who is NOT a member here but holds some standing on specific boards — a guest who
@@ -114,7 +137,9 @@ export async function buildSchedule(
       e.visibility !== 'invited' &&
       // `clan` is the DEFAULT, so this is most boards. A member gets the index; a stranger gets
       // whatever the clan deliberately marked public.
-      (member || e.visibility === 'public' || viaStanding.has(e.id)),
+      // A co-hosted board is this clan's to play: its members see it like one of their own.
+      (member || e.visibility === 'public' || viaStanding.has(e.id)) &&
+      (e.clanId === clanId || cohosted.has(e.id)),
   );
 
   // Tile counts per event in one query — avoids N+1 against the tiles table.
@@ -128,14 +153,23 @@ export async function buildSchedule(
     for (const row of tileCounts) tileCountMap.set(row.eventId, row.count);
   }
 
+  const entries = await entriesForCharacter(
+    opts.viewerPlayerId ?? null,
+    opts.viewerRsn ?? null,
+    opts.viewerAccountHash ?? null,
+    bingoCandidates.map((e) => e.id),
+  );
+
   const bingos: ScheduleBingo[] = bingoCandidates.map((e) => ({
     id: e.id,
     title: e.name,
     startDate: e.startDate!,
     endDate: e.endDate!,
     status: e.startDate! > nowIso ? 'upcoming' : 'active',
-    boardSize: e.boardSize,
-    tileCount: tileCountMap.get(e.id) ?? 0,
+    boardSize: e.tilesRevealed ? e.boardSize : null,
+    // Hidden until revealed: the board's size is part of what the host is keeping back.
+    tileCount: e.tilesRevealed ? tileCountMap.get(e.id) ?? 0 : null,
+    yourEntry: entries ? entries.get(e.id) ?? null : undefined,
     format: e.format,
     scoringMode: e.scoringMode,
   }));
@@ -163,6 +197,52 @@ export async function buildSchedule(
     bingos: bingos.slice(0, SCHEDULE_CAP),
     weeklies: weeklies.slice(0, SCHEDULE_CAP),
   };
+}
+
+/**
+ * Where ONE CHARACTER stands in each of these events: 'entered' (approved sign-up or a place on the
+ * board) or 'pending' (signed up, waiting on the host). Undefined when the character can't be
+ * resolved — the field is then omitted rather than claiming "not signed up".
+ *
+ * The character is the one the plugin is logged in as, matched hash-first then by name, and only
+ * among the viewer's OWN characters — a header naming somebody else's RSN resolves to nothing.
+ */
+async function entriesForCharacter(
+  playerId: number | null,
+  rsn: string | null,
+  accountHash: string | null,
+  eventIds: number[],
+): Promise<Map<number, 'entered' | 'pending'> | undefined> {
+  if (playerId == null || eventIds.length === 0 || (!rsn && !accountHash)) return undefined;
+  const mine = await db
+    .select({ id: accounts.id, rsnNormalized: accounts.rsnNormalized, accountHash: accounts.accountHash })
+    .from(accounts)
+    .where(eq(accounts.playerId, playerId));
+  const { normalizeRsn } = await import('@/lib/auth');
+  const norm = rsn ? normalizeRsn(rsn) : null;
+  const account =
+    (accountHash ? mine.find((a) => a.accountHash === accountHash) : undefined) ??
+    (norm ? mine.find((a) => a.rsnNormalized === norm) : undefined);
+  if (!account) return undefined;
+
+  const out = new Map<number, 'entered' | 'pending'>();
+  // clan-scope: global -- one character's own sign-ups, on seats in any clan running these events.
+  const signups = await db
+    .select({ eventId: eventSignups.eventId, status: eventSignups.status })
+    .from(eventSignups)
+    .innerJoin(clanMemberships, eq(clanMemberships.id, eventSignups.clanMemberId))
+    .where(and(eq(clanMemberships.accountId, account.id), inArray(eventSignups.eventId, eventIds), ne(eventSignups.status, 'withdrawn')));
+  for (const sg of signups) {
+    if (sg.status === 'approved') out.set(sg.eventId, 'entered');
+    else if (!out.has(sg.eventId)) out.set(sg.eventId, 'pending');
+  }
+  // On the board without a sign-up row (added by the host or a co-host's roster) is entered too.
+  const onBoard = await db
+    .select({ eventId: eventParticipants.eventId })
+    .from(eventParticipants)
+    .where(and(eq(eventParticipants.accountId, account.id), inArray(eventParticipants.eventId, eventIds)));
+  for (const p of onBoard) out.set(p.eventId, 'entered');
+  return out;
 }
 
 /**

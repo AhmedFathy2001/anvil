@@ -94,9 +94,11 @@ export default async function EventScoreboardPage({
 }: {
   params: Promise<{ eventId: string }>;
 }) {
-  const clan = await requireClan();
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
+  // Before requireClan: on the apex this redirects to the event's own address instead of 404ing.
+  await requireEventForParticipantPage(id);
+  const clan = await requireClan();
 
   // Whose event is this? Ids are global and this one came from the URL. A co-host's address reaches
   // it too (`apiPrefix` set): its members play from their own clan, not the host's.
@@ -359,7 +361,8 @@ export default async function EventScoreboardPage({
   // Missions are excluded: they're a bonus dropped mid-event from their own pool, so counting them
   // here would move the advertised board total the moment one is announced (see lib/eventRules).
   const requiredTiles = scoredBoardTiles(eventTiles).filter((t) => !t.optional);
-  const pointsOnBoard = pointsMode
+  // Null until revealed: how many points the board holds is part of what the host is keeping back.
+  const pointsOnBoard = pointsMode && event.tilesRevealed
     ? requiredTiles.reduce((sum, t) => sum + (t.points ?? 0), 0)
     : null;
   // Resolved against the LIVE pool, so a board whose prizes are set as shares advertises what each
@@ -419,7 +422,7 @@ export default async function EventScoreboardPage({
             closedAt: t.closedAt,
           }))}
         view={ladderView}
-        shapeBadge={eventShapeBadge(event.format, event.scoringMode, event.boardSize, event.rules)}
+        shapeBadge={eventShapeBadge(event.format, event.scoringMode, event.tilesRevealed ? event.boardSize : null, event.rules)}
         hiddenTileCount={hiddenTileCount}
         nextRevealAt={upcomingRevealAt}
         prizePool={prizePool}
@@ -498,7 +501,7 @@ export default async function EventScoreboardPage({
       />}
       <EventHero
         name={event.name}
-        shapeBadge={eventShapeBadge(event.format, event.scoringMode, event.boardSize, event.rules)}
+        shapeBadge={eventShapeBadge(event.format, event.scoringMode, event.tilesRevealed ? event.boardSize : null, event.rules)}
         pointsOnBoard={pointsOnBoard}
         teamsCount={safeTeams.length}
         prizePool={prizePool}
