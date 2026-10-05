@@ -519,7 +519,7 @@ export async function coHostedBoardLinks(
       return {
         ...b,
         canAuthor,
-        href: canAuthor ? `/c/${b.hostSlug}/admin/events/${b.eventId}/tiles` : `/c/${b.hostSlug}/events/${b.eventId}`,
+        href: canAuthor ? `/c/${b.hostSlug}/admin/events/${b.eventId}/tiles` : `/events/${b.eventId}`,
       };
     })
     .filter((b) => !scopedEditor || b.canAuthor);

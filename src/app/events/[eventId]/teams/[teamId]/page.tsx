@@ -1,6 +1,6 @@
 import { db } from '@/db';
-import { requireEventForPage } from '@/lib/eventScope';
-import { requireClan } from '@/lib/clanContext';
+import { requireEventForParticipantPage } from '@/lib/eventScope';
+import EventApiHost from '@/components/EventApiHost';
 import { events, tiles, teams, completions, eventParticipants } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
@@ -23,11 +23,10 @@ export default async function TeamBoardPage({
 }: {
   params: Promise<{ eventId: string; teamId: string }>;
 }) {
-  const clan = await requireClan();
   const { eventId, teamId } = await params;
   const eId = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.
-  await requireEventForPage(eId);
+  const { apiPrefix } = await requireEventForParticipantPage(eId);
   const tId = idParam(teamId);
 
   const event = await db.query.events.findFirst({
@@ -54,7 +53,8 @@ export default async function TeamBoardPage({
   const rawEventPlayers = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eId));
   // Owner per player so TeamBoardClient can roll a person's accounts into one contributor (per-person).
   const eventPlayers = attachOwners(rawEventPlayers, await loadPlayerOwners(rawEventPlayers));
-  const tierBands = await getTierBands(clan.id);
+  // The HOST's bands — the tiles were authored against them, whichever clan's address this is.
+  const tierBands = await getTierBands(event.clanId);
 
   const tileIds = eventTiles.map((t) => t.id);
   let teamCompletions: Completion[] = [];
@@ -108,13 +108,16 @@ export default async function TeamBoardPage({
   const boardTiles = visibleTiles(parseEventRules(event.rules), eventTiles);
 
   return (
-    <TeamBoardClient
-      event={event}
-      team={safeTeam}
-      tiles={boardTiles}
-      completions={teamCompletions}
-      players={eventPlayers}
-      tierBands={tierBands}
-    />
+    <>
+      <EventApiHost eventId={event.id} prefix={apiPrefix} />
+      <TeamBoardClient
+        event={event}
+        team={safeTeam}
+        tiles={boardTiles}
+        completions={teamCompletions}
+        players={eventPlayers}
+        tierBands={tierBands}
+      />
+    </>
   );
 }

@@ -27,9 +27,30 @@ export function clanPrefixFromLocation(): string {
   return m ? m[0] : '';
 }
 
+/**
+ * Events whose API lives at another clan's address than the page's.
+ *
+ * The one exception to "the URL is the authority": a co-hosted event's participant pages render at
+ * the co-host's address (lib/eventScope `requireEventForParticipantPage`), but the event is the
+ * host's, and its routes answer clan-role questions about the clan they are addressed through. So
+ * those pages register the host's prefix here (`<EventApiHost>`) and `/api/events/<that id>/…` goes
+ * there. Keyed by event id, so nothing else the page fetches — nav, profile, other events — moves.
+ */
+const eventApiPrefixes = new Map<number, string>();
+
+export function registerEventApiPrefix(eventId: number, prefix: string): void {
+  eventApiPrefixes.set(eventId, prefix);
+}
+
+function prefixFor(path: string): string {
+  const m = /^\/api\/events\/(\d+)(?=\/|\?|$)/.exec(path);
+  const registered = m ? eventApiPrefixes.get(Number(m[1])) : undefined;
+  return registered ?? clanPrefixFromLocation();
+}
+
 /** The clan-aware path, without performing the request — for callers that build a URL first. */
 export function clanUrl(path: string): string {
-  return withClanPrefix(clanPrefixFromLocation(), path);
+  return withClanPrefix(prefixFor(path), path);
 }
 
 export function clanFetch(path: string, init?: RequestInit): Promise<Response> {

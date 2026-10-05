@@ -23,6 +23,7 @@ import EventBriefing from '@/components/team/EventBriefing';
 import { acceptedCohostClanIds } from '@/lib/coHost';
 import { idParam } from '@/lib/routeIds';
 import AccountChangeCard from '@/components/AccountChangeCard';
+import EventApiHost from '@/components/EventApiHost';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +51,14 @@ export default async function MyTeamPage({
   const event = await db.query.events.findFirst({ where: eq(events.id, team.eventId) });
   if (!event) notFound();
 
+  // A co-host's members open their team from their OWN clan's address. The event's API still lives
+  // at the host's, so its calls are sent there (components/EventApiHost).
+  const hostSlug =
+    event.clanId === clan.id
+      ? null
+      : (await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { slug: true } }))?.slug ?? null;
+  const apiHost = <EventApiHost eventId={event.id} prefix={hostSlug ? `/c/${hostSlug}` : null} />;
+
   // Origin-aware back link: reaching your own team via the scoreboard redirects here (see the view-
   // board page), so honour where you came from — back to the scoreboard, not the My Teams hub.
   const backHref = from === 'scoreboard' ? `/events/${event.id}` : '/team';
@@ -69,6 +78,7 @@ export default async function MyTeamPage({
   if (event.draftStatus === 'active' || event.draftStatus === 'paused') {
     return (
       <div className={membership.isCaptain ? 'max-w-6xl mx-auto' : undefined}>
+        {apiHost}
         {/* Asking is a player's action and answering is a manager's, and this team page is the one
           screen both of them already open — so the card carries both halves and renders neither
           when there is nothing to ask and nothing waiting. */}
@@ -120,7 +130,8 @@ export default async function MyTeamPage({
   const [allEventTiles, rawEventPlayers, tierBands] = await Promise.all([
     db.select().from(tiles).where(eq(tiles.eventId, event.id)),
     db.select().from(eventParticipants).where(eq(eventParticipants.eventId, event.id)),
-    getTierBands(clan.id),
+    // The HOST's bands — the tiles were authored against them.
+    getTierBands(event.clanId),
   ]);
   // The team hub is a PLAYER surface. A captain is a player with extra buttons — not staff — so an
   // unrevealed board is as hidden here as it is on the event page: the tiles are dropped before the
@@ -195,6 +206,7 @@ export default async function MyTeamPage({
 
   return (
     <div>
+      {apiHost}
       <div className="flex items-center justify-between gap-3 mb-4">
         <ClanLink href={backHref} className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors">
           &larr; {backLabel}

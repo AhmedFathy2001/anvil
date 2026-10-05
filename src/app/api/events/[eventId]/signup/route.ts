@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { clanRoster, eventParticipants, eventSignups, events, signupFees, teamInvites, teams } from '@/db/schema';
-import { findRosterSeats } from '@/lib/roster';
+import { signupSeatsFor } from '@/lib/eventSeats';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { generatePlayerToken, verifyUser } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
@@ -37,29 +37,21 @@ export async function GET(
 
   // Verified, currently-in-clan accounts the user owns. Unverified accounts can't be
   // used to sign up — verification is the gate that proves "this user controls this RSN".
-  const myAccounts = await db
-    .select({
-      id: clanRoster.id,
-      rsn: clanRoster.rsn,
-      isPrimary: clanRoster.isPrimary,
-      verifiedAt: clanRoster.verifiedAt,
-      verificationMethod: clanRoster.verificationMethod,
-      provisional: clanRoster.provisional,
-    })
-    .from(clanRoster)
-    .where(
-      and(
-        // Scoped to the EVENT'S clan. Unscoped, this offered — and the POST below accepted — a seat
-        // from another clan the same person happens to sit in, which would put a foreign seat into
-        // this event's sign-ups and onto its board. Entering another clan's event is a real thing,
-        // but it goes through admission and gets a seat HERE first; it is not done by naming a seat
-        // that belongs somewhere else.
-        eq(clanRoster.clanId, event.clanId),
-        eq(clanRoster.playerId, session.playerId),
-        isNull(clanRoster.leftAt),
-      ),
-    )
-    .orderBy(desc(clanRoster.isPrimary), desc(clanRoster.verifiedAt));
+  //
+  // The event's own clan, or a clan co-hosting it (lib/eventSeats). Never any other clan the person
+  // happens to sit in: that would put a foreign seat into this event's sign-ups and onto its board.
+  // Entering another clan's event is a real thing, but it goes through admission and gets a seat
+  // HERE first; it is not done by naming a seat that belongs somewhere else.
+  const myAccounts = session.playerId == null
+    ? []
+    : (await signupSeatsFor(event, session.playerId)).map((a) => ({
+        id: a.id,
+        rsn: a.rsn,
+        isPrimary: a.isPrimary,
+        verifiedAt: a.verifiedAt,
+        verificationMethod: a.verificationMethod,
+        provisional: a.provisional,
+      }));
 
   // Existing signup for this user/event (if any).
   const signup = await db.query.eventSignups.findFirst({
@@ -233,10 +225,9 @@ export async function POST(
     invite = row!;
   }
 
-  // Confirm every chosen account belongs to this user, is verified, and still in clan.
-  const myAccounts = await findRosterSeats(
-    and(eq(clanRoster.clanId, event.clanId), eq(clanRoster.playerId, session.playerId), isNull(clanRoster.leftAt)),
-  );
+  // Confirm every chosen account belongs to this user, is verified, and still in a clan running
+  // this event — the host, or an accepted co-host (lib/eventSeats).
+  const myAccounts = session.playerId == null ? [] : await signupSeatsFor(event, session.playerId);
   const accountById = new Map(myAccounts.map((a) => [a.id, a]));
   for (const cid of selectedIds) {
     const acc = accountById.get(cid);

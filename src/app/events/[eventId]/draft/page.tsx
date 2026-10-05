@@ -1,5 +1,6 @@
 import { db } from '@/db';
-import { requireEventForPage } from '@/lib/eventScope';
+import { requireEventForParticipantPage } from '@/lib/eventScope';
+import EventApiHost from '@/components/EventApiHost';
 import { events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
@@ -16,11 +17,16 @@ export default async function DraftSpectatorPage({
   const id = parseInt(eventId, 10);
 
   // Whose event is this? Ids are global and this one came from the URL.
-  await requireEventForPage(id);
+  const { apiPrefix } = await requireEventForParticipantPage(id);
   const event = await db.query.events.findFirst({
     where: eq(events.id, id),
   });
   if (!event) notFound();
 
-  return <DraftSpectatorClient event={event} />;
+  return (
+    <>
+      <EventApiHost eventId={event.id} prefix={apiPrefix} />
+      <DraftSpectatorClient event={event} />
+    </>
+  );
 }

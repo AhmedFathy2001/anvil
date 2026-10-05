@@ -170,6 +170,11 @@ export async function canEnterEvent(opts: {
 
   if (await hasSeatIn(event.clanId, opts.playerId)) return { outcome: 'insider' };
 
+  // A member of an accepted co-host clan signs up with their OWN clan's seat (lib/eventSeats) — the
+  // host said yes to their whole clan by accepting it as a co-host. Sending them through entry would
+  // put them in the host's guest queue and onto the host's roster, a clan they share nothing with.
+  if (await inAcceptedCohostClan(opts.eventId, opts.playerId)) return { outcome: 'insider' };
+
   if (!(await canSeeEvent({ eventId: opts.eventId, playerId: opts.playerId }))) {
     return { outcome: 'refused', reason: 'not-visible' };
   }

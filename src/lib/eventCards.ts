@@ -41,8 +41,8 @@ export interface EventCard {
       draws the share; on a points board `top.total` is a point total and says nothing about it. */
   board: { tiles: number; claimed: number };
   /** The HOST clan's slug when the clan this list is for is only a CO-HOST — null when it owns the
-      event. A co-hosted event lives at its host's URL (an event belongs to exactly one clan's
-      address), so a co-host's card links across to `/c/<hostSlug>/events/<id>`. */
+      event. Only a hint: the card still links to this clan's own `/events/<id>`, which serves a
+      co-host's members the board (lib/eventScope `requireEventForParticipantPage`). */
   hostSlug: string | null;
 }
 
@@ -83,8 +83,8 @@ export async function loadEventCards(
 ): Promise<EventCard[]> {
   const nowIso = now.toISOString();
   // The events this clan HOSTS, plus the ones it CO-HOSTS (an accepted seat on another clan's event).
-  // A co-hosted event is the visiting clan's too — it should appear on their events pages, linking
-  // across to the host's URL. Everything below derives from `all` and inherits this scope.
+  // A co-hosted event is the visiting clan's too — it appears on their events pages, at their own
+  // address. Everything below derives from `all` and inherits this scope.
   const cohosted = await db
     .select({ eventId: eventCohosts.eventId, hostSlug: clans.slug })
     .from(eventCohosts)
@@ -285,8 +285,8 @@ export async function loadEventCards(
       format: (event.format === 'ladder' ? 'ladder' : event.format === 'tilerace' ? 'tilerace' : 'bingo') as EventCard['format'],
       mode: modeKeyFor(event.format, event.scoringMode, rules),
       board: { tiles: tileCounts.get(event.id) ?? 0, claimed },
-      // Only set when this clan is a co-host (the event's own clan is someone else). Drives the
-      // cross-clan link and a "co-hosted" hint on the card.
+      // Only set when this clan is a co-host (the event's own clan is someone else). Drives a
+      // "co-hosted" hint on the card.
       hostSlug: cardHostSlug,
       foot:
         status === 'upcoming'

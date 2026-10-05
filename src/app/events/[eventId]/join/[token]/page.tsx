@@ -6,6 +6,7 @@ import { verifyUser } from '@/lib/auth';
 import { signupWindowState } from '@/lib/signup';
 import { checkInvite, isWellFormedToken, invitePath } from '@/lib/teamInvites';
 import { clanHrefFor } from '@/lib/clanScopedPaths';
+import { isAcceptedCohost } from '@/lib/coHost';
 import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
@@ -41,9 +42,21 @@ export default async function JoinPage({
   // the apex, where /events/<id>/signup is not a page. The invite then did the one thing it must
   // never do: worked right up to the moment somebody used it, and answered "Not found" to the
   // person it was minted for.
-  const host = event
-    // clan-scope: global -- the event was already resolved by the token above; this only names the clan that owns it.
-    ? await db.query.clans.findFirst({ where: eq(clans.id, event.clanId), columns: { slug: true } })
+  //
+  // A CO-HOST's team sends its invitees to the co-host's own address, not the host's: the people a
+  // co-host invites are its own members, who play the board from their clan (lib/eventScope
+  // `requireEventForParticipantPage`) and sign up with their own seats (lib/eventSeats). Landing them
+  // inside the host's clan is the bounce this exists to avoid.
+  const invitedTeam = invite && event
+    ? await db.query.teams.findFirst({ where: eq(teams.id, invite.teamId), columns: { eventId: true, clanId: true } })
+    : null;
+  const homeClanId =
+    event && invitedTeam?.eventId === event.id && invitedTeam.clanId != null && (await isAcceptedCohost(event.id, invitedTeam.clanId))
+      ? invitedTeam.clanId
+      : event?.clanId;
+  const host = homeClanId != null
+    // clan-scope: global -- the event was already resolved by the token above; this only names the clan whose address it is played from.
+    ? await db.query.clans.findFirst({ where: eq(clans.id, homeClanId), columns: { slug: true } })
     : null;
   const href = (path: string) => clanHrefFor(host?.slug, path);
 

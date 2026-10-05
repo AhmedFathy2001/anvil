@@ -138,6 +138,36 @@ let adoptEvent: number;
 let adoptTeam: number; // the pre-drawn "guest clan" team, untagged, with a player on it
 let adoptOtherTeam: number; // the host's own team on the same event
 
+// ── Playing from home: a co-host's members sign up with their OWN clan's seat ─────────────────
+//
+// They used to be sent to the host's address and through entry — a guest seat in the host clan,
+// often via its approval queue — for a clan they share nobody with.
+
+test("a co-host's member enters directly, with their own clan's seat", async () => {
+  const { canEnterEvent } = await import('../src/lib/eventAccess.ts');
+  const { signupSeatsFor } = await import('../src/lib/eventSeats.ts');
+  const event = { id: eventId, clanId: hostClan };
+
+  assert.deepEqual(await canEnterEvent({ eventId, playerId: gMemberPlayer }), { outcome: 'insider' });
+  const seats = await signupSeatsFor(event, gMemberPlayer);
+  assert.equal(seats.length, 1);
+  assert.equal(seats[0].clanId, guestClan, 'the seat offered is the one they already hold at home');
+
+  // Also a guest of the host with the same character (from before co-hosting): one seat, the host's,
+  // so an earlier sign-up made on it still matches.
+  const accountId = seats[0].accountId;
+  const [hostSeat] = await db.insert(s.clanMemberships).values({ clanId: hostClan, accountId, kind: 'guest' }).returning();
+  const both = await signupSeatsFor(event, gMemberPlayer);
+  assert.deepEqual(both.map((x) => x.id), [hostSeat.id]);
+  await db.delete(s.clanMemberships).where(eq(s.clanMemberships.id, hostSeat.id));
+
+  // A clan that was only invited to co-host — not accepted — lends no seats.
+  const [other] = await db.insert(s.clans).values({ slug: 'other', name: 'Other Clan' }).returning();
+  await db.insert(s.clanMemberships).values({ clanId: other.id, accountId, kind: 'guest' });
+  await C.inviteCoHost(eventId, other.id, null);
+  assert.deepEqual((await signupSeatsFor(event, gMemberPlayer)).map((x) => x.clanId), [guestClan]);
+});
+
 test('adopting an existing team tags it, keeps its players, and records an accepted co-host', async () => {
   const [ev] = await db.insert(s.events).values({ clanId: hostClan, name: 'Old VS', boardSize: 25 }).returning();
   adoptEvent = ev.id;
@@ -250,7 +280,7 @@ test("a co-host's staff author the board only once the host lets them", async ()
   assert.equal(await E.isEventEditor(gAdmin, eventId), false, 'switching it off takes it back');
 });
 
-test("the co-hosted board shows in the co-host clan's own admin, linked across to the host", async () => {
+test("the co-hosted board shows in the co-host clan's own admin — authoring at the host, playing at home", async () => {
   const E = await import('../src/lib/eventEditors.ts');
 
   // gMod holds an explicit grant on the host board (the Tiles-tab test above), so it's editable from
@@ -267,7 +297,8 @@ test("the co-hosted board shows in the co-host clan's own admin, linked across t
 
   const forAdmin = mine(await C.coHostedBoardLinks(guestClan, gAdmin, false));
   assert.equal(forAdmin[0].canAuthor, false);
-  assert.equal(forAdmin[0].href, `/c/host/events/${eventId}`);
+  // The public board stays at the co-host's own address (lib/eventScope requireEventForParticipantPage).
+  assert.equal(forAdmin[0].href, `/events/${eventId}`);
   // A scoped editor only sees what they can author.
   assert.deepEqual(mine(await C.coHostedBoardLinks(guestClan, gAdmin, true)), []);
 

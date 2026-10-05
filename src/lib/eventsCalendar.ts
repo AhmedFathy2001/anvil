@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { clans, eventCohosts, events, weeklyCompetitions } from '@/db/schema';
+import { eventCohosts, events, weeklyCompetitions } from '@/db/schema';
 import { and, eq, gte, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { modeKeyFor } from '@/lib/eventModes';
 import { BOSSES, EFFICIENCY_LABELS, SKILL_LABELS } from '@/lib/constants';
@@ -56,14 +56,11 @@ export async function loadCalendar(
   const from = new Date(now.getTime() - weeksBack * WEEK_MS).toISOString();
   const nowIso = now.toISOString();
 
-  // Events this clan CO-HOSTS belong on its calendar too, linking across to the host's URL.
+  // Events this clan CO-HOSTS belong on its calendar too, at this clan's own address.
   const cohosted = await db
-    .select({ eventId: eventCohosts.eventId, hostSlug: clans.slug })
+    .select({ eventId: eventCohosts.eventId })
     .from(eventCohosts)
-    .innerJoin(events, eq(events.id, eventCohosts.eventId))
-    .innerJoin(clans, eq(clans.id, events.clanId))
     .where(and(eq(eventCohosts.clanId, clanId), eq(eventCohosts.status, 'accepted')));
-  const hostSlugByEvent = new Map(cohosted.map((c) => [c.eventId, c.hostSlug]));
   const cohostedIds = cohosted.map((c) => c.eventId);
 
   const [boardRows, weekRows] = await Promise.all([
@@ -121,7 +118,8 @@ export async function loadCalendar(
       kind: modeKeyFor(b.format, b.scoringMode, b.rules),
       name: b.name,
       shortName: b.name.replace(/^Tile Race: /, '').replace(/^The Ladder — /, ''),
-      href: b.clanId === clanId ? `/events/${b.id}` : `/c/${hostSlugByEvent.get(b.id) ?? ''}/events/${b.id}`,
+      // A co-host's members play it from their own address too (lib/eventScope).
+      href: `/events/${b.id}`,
       start,
       // Open-ended and force-ended runs still need a right edge to draw to.
       end: b.forceEndedAt ?? b.endDate ?? (state === 'past' ? nowIso : to),

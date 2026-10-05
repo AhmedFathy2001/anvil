@@ -1,7 +1,9 @@
 import { db } from '@/db';
-import { requireEventForPage } from '@/lib/eventScope';
+import { requireEventForParticipantPage } from '@/lib/eventScope';
+import { signupSeatsFor } from '@/lib/eventSeats';
+import EventApiHost from '@/components/EventApiHost';
 import { clanRoster, eventParticipants, eventSignups, events, signupFees, surveyQuestions, teamInvites, teams } from '@/db/schema';
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import { verifyUser } from '@/lib/auth';
 import { parseProfile, signupWindowState, signupEditState } from '@/lib/signup';
@@ -27,7 +29,7 @@ export default async function EventSignupPage({
   const { invite: inviteToken } = await searchParams;
   const id = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.
-  await requireEventForPage(id);
+  const { apiPrefix } = await requireEventForParticipantPage(id);
   if (!Number.isFinite(id)) notFound();
 
   const session = await verifyUser();
@@ -65,24 +67,17 @@ export default async function EventSignupPage({
   // event's own clan, so the character options are the person's seats HERE — not across every clan.
   // Without the clanId filter, someone with the same character seated in two clans (a member of one,
   // a guest of another) saw that character listed once per seat: "Playing as … Denoverse, Denoverse".
-  const myAccounts = await db
-    .select({
-      id: clanRoster.id,
-      rsn: clanRoster.rsn,
-      isPrimary: clanRoster.isPrimary,
-      verifiedAt: clanRoster.verifiedAt,
-      verificationMethod: clanRoster.verificationMethod,
-      provisional: clanRoster.provisional,
-    })
-    .from(clanRoster)
-    .where(
-      and(
-        eq(clanRoster.clanId, event.clanId),
-        eq(clanRoster.playerId, session.playerId),
-        isNull(clanRoster.leftAt),
-      ),
-    )
-    .orderBy(desc(clanRoster.isPrimary), desc(clanRoster.verifiedAt));
+  // On a co-hosted event an accepted co-host's seats count too (lib/eventSeats), one per character.
+  const myAccounts = session.playerId == null
+    ? []
+    : (await signupSeatsFor(event, session.playerId)).map((a) => ({
+        id: a.id,
+        rsn: a.rsn,
+        isPrimary: a.isPrimary,
+        verifiedAt: a.verifiedAt,
+        verificationMethod: a.verificationMethod,
+        provisional: a.provisional,
+      }));
 
   const maxAccounts = event.maxAccountsPerPerson ?? 1;
 
@@ -195,6 +190,7 @@ export default async function EventSignupPage({
 
   return (
     <div className="max-w-2xl mx-auto">
+      <EventApiHost eventId={event.id} prefix={apiPrefix} />
       <div className="flex items-center gap-2 mb-2">
         <span className="w-1 h-7 bg-gold rounded-full" />
         <h1 className="text-2xl sm:text-3xl font-bold text-gold break-words min-w-0">Sign up: {event.name}</h1>

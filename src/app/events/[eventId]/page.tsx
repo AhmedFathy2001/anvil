@@ -8,7 +8,8 @@ import { canonicalPathFor, socialMetadata } from '@/lib/seo';
 import { JsonLd, breadcrumbLd, eventLd } from '@/lib/jsonLd';
 import { clanTrail } from '@/lib/seoPages';
 import { clanHref } from '@/lib/clanPath';
-import { eventInClan, requireEventForPage } from '@/lib/eventScope';
+import { eventInClan, requireEventForParticipantPage } from '@/lib/eventScope';
+import EventApiHost from '@/components/EventApiHost';
 import { events, tiles, teams, completions, eventSignups, clanRoster, players, submissions, surveyQuestions, surveyResponses, eventStartProofs, eventParticipants } from '@/db/schema';
 import { and, eq, isNull, inArray, count } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
@@ -95,8 +96,9 @@ export default async function EventScoreboardPage({
   const { eventId } = await params;
   const id = parseInt(eventId, 10);
 
-  // Whose event is this? Ids are global and this one came from the URL.
-  await requireEventForPage(id);
+  // Whose event is this? Ids are global and this one came from the URL. A co-host's address reaches
+  // it too (`apiPrefix` set): its members play from their own clan, not the host's.
+  const { apiPrefix } = await requireEventForParticipantPage(id);
   const event = await db.query.events.findFirst({
     where: eq(events.id, id),
   });
@@ -104,7 +106,8 @@ export default async function EventScoreboardPage({
 
   const eventTiles = await db.select().from(tiles).where(eq(tiles.eventId, id));
   const eventTeams = await db.select().from(teams).where(eq(teams.eventId, id));
-  const tierBands = await getTierBands(clan.id);
+  // The HOST's bands — the tiles were authored against them, whichever clan's address this is.
+  const tierBands = await getTierBands(event.clanId);
 
   const tileIds = eventTiles.map((t) => t.id);
   let eventCompletions: {
@@ -465,11 +468,12 @@ export default async function EventScoreboardPage({
 
   return (
     <>
+      <EventApiHost eventId={event.id} prefix={apiPrefix} />
       {/* A board is an EVENT — it has a name, a start, an end and an organiser — and saying so is
           what lets it appear in search as an event rather than as a blue link. Emitted only for a
           clan a stranger may read: a `members` clan never renders children at all (the layout swaps
           in ClanPrivate), and an invite-only board is not reachable here without a seat. */}
-      <JsonLd
+      {!apiPrefix && <JsonLd
         data={eventLd({
           name: event.name,
           url: `/c/${clan.slug}/events/${event.id}`,
@@ -479,15 +483,15 @@ export default async function EventScoreboardPage({
           clanName: clan.name,
           clanSlug: clan.slug,
         })}
-      />
-      <JsonLd
+      />}
+      {!apiPrefix && <JsonLd
         data={breadcrumbLd(
           clanTrail(clan, [
             { name: 'Competitions', path: `/c/${clan.slug}/events` },
             { name: event.name, path: `/c/${clan.slug}/events/${event.id}` },
           ]),
         )}
-      />
+      />}
       <EventHero
         name={event.name}
         shapeBadge={eventShapeBadge(event.format, event.scoringMode, event.boardSize, event.rules)}

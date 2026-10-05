@@ -14,7 +14,7 @@ import { and, eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 
 import { db } from '@/db';
-import { events, weeklyCompetitions } from '@/db/schema';
+import { clans, eventCohosts, events, weeklyCompetitions } from '@/db/schema';
 import { requireClan, resolveClanFromRequest } from '@/lib/clanContext';
 import { canSeeEvent } from '@/lib/eventAccess';
 import { resolvePluginClan, verifyUser } from '@/lib/auth';
@@ -65,6 +65,51 @@ export async function requireEventForPage(eventId: number): Promise<ScopedEvent>
   if (!(await canSeeEvent({ eventId, playerId: session?.playerId ?? null }))) notFound();
 
   return event;
+}
+
+/**
+ * A co-hosted event, as reached from a CO-HOST's address.
+ *
+ * An event still belongs to exactly one clan — the host — and everything that RUNS it (admin pages,
+ * staff writes, grading) is answered at the host's address alone, through `requireEventForPage` and
+ * `eventForRequest`. But a co-host's members are playing it from their own clan: sending them across
+ * to `/c/<host>/…` drops them into a clan they have nothing to do with, under its nav, its home and
+ * its roster. So the PARTICIPANT pages — the board, sign-up, recap, survey, a team's page, the draft
+ * view — also answer at an accepted co-host's address.
+ *
+ * Only pages. `apiPrefix` is the host's prefix when the page was reached through a co-host, and the
+ * page hands it to `<EventApiHost>` so the event's own API calls still go to the host's address. A
+ * clan role read off the co-host's address would otherwise be asked the host's questions: a co-host
+ * admin is `admin` THERE, and "is this person an admin" on an event route means of the host.
+ */
+export async function requireEventForParticipantPage(
+  eventId: number,
+): Promise<{ event: ScopedEvent; apiPrefix: string | null }> {
+  const clan = await requireClan();
+  const owned = await eventInClan(clan.id, eventId);
+  let event = owned;
+  let apiPrefix: string | null = null;
+  if (!event && Number.isInteger(eventId)) {
+    const [row] = await db
+      .select({ event: events, hostSlug: clans.slug })
+      .from(eventCohosts)
+      .innerJoin(events, eq(events.id, eventCohosts.eventId))
+      .innerJoin(clans, eq(clans.id, events.clanId))
+      .where(
+        and(eq(eventCohosts.eventId, eventId), eq(eventCohosts.clanId, clan.id), eq(eventCohosts.status, 'accepted')),
+      )
+      .limit(1);
+    if (row) {
+      event = row.event;
+      apiPrefix = `/c/${row.hostSlug}`;
+    }
+  }
+  if (!event) notFound();
+
+  const session = await verifyUser();
+  if (!(await canSeeEvent({ eventId, playerId: session?.playerId ?? null }))) notFound();
+
+  return { event, apiPrefix };
 }
 
 // ── Weekly competitions, same story ──────────────────────────────────────────────────────────

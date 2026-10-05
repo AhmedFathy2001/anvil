@@ -1,11 +1,18 @@
 import { db } from '@/db';
 import { clans, events, teams, eventParticipants, clanRoster, eventSignups, signupFees, eventStartProofs, teamStaff } from '@/db/schema';
-import { and, eq, inArray, isNull, isNotNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull, isNotNull, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
 // The clan a board belongs to, named on every card so a team from another clan is legible as one —
 // and so its link can cross to the right address rather than resolving against the page's prefix.
 const hostClan = alias(clans, 'host_clan');
+// A co-host's team (teams.clan_id) is played from the CO-HOST's own address (lib/eventScope
+// `requireEventForParticipantPage`), so its card links there — LEFT joined, a host team has none.
+const teamClan = alias(clans, 'team_clan');
+// Spelled with sql.raw: inside .select() Drizzle renders `${alias.col}` BARE, and both aliases have
+// a `slug` — Postgres would refuse the ambiguity.
+const HOME_CLAN_SLUG = sql<string>`coalesce(${sql.raw('"team_clan"."slug"')}, ${sql.raw('"host_clan"."slug"')})`;
+const HOME_CLAN_NAME = sql<string>`coalesce(${sql.raw('"team_clan"."name"')}, ${sql.raw('"host_clan"."name"')})`;
 import { redirect } from 'next/navigation';
 import LocalTime from '@/components/LocalTime';
 import { verifyUser } from '@/lib/auth';
@@ -123,8 +130,8 @@ export default async function MyTeamsHubPage() {
         eventId: events.id,
         eventName: events.name,
         format: events.format,
-        clanSlug: hostClan.slug,
-        clanName: hostClan.name,
+        clanSlug: HOME_CLAN_SLUG,
+        clanName: HOME_CLAN_NAME,
         startDate: events.startDate,
         endDate: events.endDate,
         forceEndedAt: events.forceEndedAt,
@@ -133,6 +140,7 @@ export default async function MyTeamsHubPage() {
       .innerJoin(teams, eq(eventParticipants.teamId, teams.id))
       .innerJoin(events, eq(eventParticipants.eventId, events.id))
       .innerJoin(hostClan, eq(hostClan.id, events.clanId))
+      .leftJoin(teamClan, eq(teamClan.id, teams.clanId))
       .where(and(inArray(eventParticipants.clanMemberId, memberIds), isNotNull(eventParticipants.teamId)));
     for (const r of playerRows) add(r, 'player');
     myPlayerRows = playerRows;
@@ -147,8 +155,8 @@ export default async function MyTeamsHubPage() {
       eventId: events.id,
       eventName: events.name,
       format: events.format,
-      clanSlug: hostClan.slug,
-      clanName: hostClan.name,
+      clanSlug: HOME_CLAN_SLUG,
+      clanName: HOME_CLAN_NAME,
       startDate: events.startDate,
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
@@ -156,6 +164,7 @@ export default async function MyTeamsHubPage() {
     .from(teams)
     .innerJoin(events, eq(teams.eventId, events.id))
     .innerJoin(hostClan, eq(hostClan.id, events.clanId))
+    .leftJoin(teamClan, eq(teamClan.id, teams.clanId))
     .where(eq(teams.captainUserId, user.userId));
   for (const r of captainRows) add(r, 'captain');
 
@@ -170,8 +179,8 @@ export default async function MyTeamsHubPage() {
       eventId: events.id,
       eventName: events.name,
       format: events.format,
-      clanSlug: hostClan.slug,
-      clanName: hostClan.name,
+      clanSlug: HOME_CLAN_SLUG,
+      clanName: HOME_CLAN_NAME,
       startDate: events.startDate,
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
@@ -180,6 +189,7 @@ export default async function MyTeamsHubPage() {
     .innerJoin(teams, eq(teamStaff.teamId, teams.id))
     .innerJoin(events, eq(teams.eventId, events.id))
     .innerJoin(hostClan, eq(hostClan.id, events.clanId))
+    .leftJoin(teamClan, eq(teamClan.id, teams.clanId))
     .where(eq(teamStaff.userId, user.userId));
   for (const r of staffRows) add(r, 'staff');
 

@@ -76,7 +76,7 @@ const CLAN_MARKERS = /\bclanId\b|\bclan_id\b|\bclanScope\b|\bforClan\b|\bclan\.i
 // come in matched pairs. Exempting only the event half meant a correctly guarded competition handler
 // still reported, which is how a rule earns the reputation that makes people stop reading it.
 const GUARDS = {
-  events: /\b(?:eventForRequest|requireEventForPage|eventInClan)\s*\(/,
+  events: /\b(?:eventForRequest|requireEventForPage|requireEventForParticipantPage|eventInClan)\s*\(/,
   weeklyCompetitions: /\b(?:competitionForRequest|requireCompetitionForPage|competitionInClan)\s*\(/,
 };
 // Reading a table is reading it, whichever clause names it.
