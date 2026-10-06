@@ -24,14 +24,19 @@ interface EffortTileWire {
   ptsPerHour: number | null; // points ÷ effort-hours (difficulty-adjusted — the ranking metric)
   oneOff: boolean;
   suggestedPoints: number | null;
+  suggestionStatus: 'eligible' | 'unmodelled' | 'lottery' | 'unreachable' | 'needs-calibration';
   pClass: 'grind' | 'long-shot' | 'lottery' | 'unreachable' | null;
   note: string | null;
+  /** The server's over/underpaid verdict — the only source for the ▲▼ markers. */
+  pphFlag: 'over' | 'under' | null;
 }
 interface EffortWire {
   perTile: EffortTileWire[];
   medianPtsPerHour: number | null;
   modelledCount: number;
   unmodelledCount: number;
+  suggestionBudget: number;
+  suggestedBudget: number;
   eliteShare: number;
   checks: BalanceCheck[];
   revision: string;
@@ -47,6 +52,8 @@ interface SuggestionReview {
   unchanged: EffortTileWire[];
   unmodelled: EffortTileWire[];
   lotteries: EffortTileWire[];
+  unreachable: EffortTileWire[];
+  needsCalibration: EffortTileWire[];
 }
 
 const FLOOR_STYLE: Record<EffortTileWire['floor'], string> = {
@@ -64,9 +71,18 @@ function fmtHours(h: number | null): string {
 }
 
 function buildSuggestionReview(tiles: EffortTileWire[]): SuggestionReview {
-  const review: SuggestionReview = { changes: [], unchanged: [], unmodelled: [], lotteries: [] };
+  const review: SuggestionReview = {
+    changes: [],
+    unchanged: [],
+    unmodelled: [],
+    lotteries: [],
+    unreachable: [],
+    needsCalibration: [],
+  };
   for (const tile of tiles) {
     if (tile.pClass === 'lottery') review.lotteries.push(tile);
+    else if (tile.suggestionStatus === 'unreachable') review.unreachable.push(tile);
+    else if (tile.suggestionStatus === 'needs-calibration') review.needsCalibration.push(tile);
     else if (tile.suggestedPoints == null) review.unmodelled.push(tile);
     else if (tile.suggestedPoints === tile.weight) review.unchanged.push(tile);
     else review.changes.push(tile);
@@ -121,7 +137,8 @@ function SuggestionReviewDialog({
   const modalRef = useModalA11y<HTMLDivElement>({ onClose: close });
   const currentTotal = review.changes.reduce((sum, tile) => sum + tile.weight, 0);
   const proposedTotal = review.changes.reduce((sum, tile) => sum + (tile.suggestedPoints ?? 0), 0);
-  const skipped = review.unchanged.length + review.unmodelled.length + review.lotteries.length;
+  const skipped = review.unchanged.length + review.unmodelled.length + review.lotteries.length +
+    review.unreachable.length + review.needsCalibration.length;
 
   async function applyAll() {
     if (review.changes.length === 0 || applying) return;
@@ -233,6 +250,16 @@ function SuggestionReviewDialog({
                   detail="Very low-probability RNG tiles are intentionally author-priced jackpots. The model labels them, but never auto-reprices them."
                   tiles={review.lotteries}
                 />
+                <SkippedTiles
+                  title="Does not fit the event"
+                  detail="These deterministic objectives need more serious-camp time than the event contains. Raising points would not make them completable; shrink the requirement instead."
+                  tiles={review.unreachable}
+                />
+                <SkippedTiles
+                  title="Needs rate calibration"
+                  detail="These currently rely on a generic kill or activity time. Add a clan rate or an expected-hours override before allowing automatic repricing."
+                  tiles={review.needsCalibration}
+                />
               </div>
             </div>
           )}
@@ -272,7 +299,6 @@ export default function EffortTable({
   pointsMode,
   tilesVersion,
   onChecks,
-  onApplyPoints,
   onApplyAllPoints,
 }: {
   eventId: number;
@@ -281,14 +307,11 @@ export default function EffortTable({
   tilesVersion: number;
   /** Effort-side checks bubble up so the panel shows one unified checks list. */
   onChecks: (checks: BalanceCheck[]) => void;
-  /** Applies a suggested point value; resolves when the tile is saved so we can refetch. */
-  onApplyPoints: (tileId: number, points: number) => Promise<boolean>;
   /** Applies the exact reviewed suggestion set in one all-or-nothing request. */
   onApplyAllPoints: (changes: PointChange[], revision: string) => Promise<boolean>;
 }) {
   const [report, setReport] = useState<EffortWire | null>(null);
   const [loading, setLoading] = useState(true);
-  const [applying, setApplying] = useState<number | null>(null);
   const [reviewSnapshot, setReviewSnapshot] = useState<{
     review: SuggestionReview;
     revision: string;
@@ -322,7 +345,7 @@ export default function EffortTable({
 
   const modelled = report.perTile
     .filter((t) => t.ptsPerHour != null)
-    // Grind tiles first (ranked by adjusted throughput), one-offs pooled at the bottom.
+    // Grind tiles first (ranked by adjusted throughput), tiny completions pooled at the bottom.
     .sort((a, b) => Number(a.oneOff) - Number(b.oneOff) || (b.ptsPerHour ?? 0) - (a.ptsPerHour ?? 0));
   const median = report.medianPtsPerHour;
   const currentReview = buildSuggestionReview(report.perTile);
@@ -332,6 +355,7 @@ export default function EffortTable({
       <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
         <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wide">
           Points vs effort{median != null && <> · board median {median.toFixed(1)} adj. pts/h</>}
+          {pointsMode && report.suggestionBudget > 0 && <> · {report.suggestionBudget.toLocaleString()} pts redistributed</>}
         </p>
         {pointsMode && (
           <button
@@ -357,14 +381,15 @@ export default function EffortTable({
                 <th className="py-1 pr-2 font-semibold text-right" title="Raw points per real hour (throughput)">Pts/h</th>
                 <th className="py-1 pr-2 font-semibold text-right" title="Points per difficulty-adjusted hour — the fairness metric ranked here">Adj. pts/h</th>
                 {pointsMode && <th className="py-1 pr-2 font-semibold text-right">Suggested</th>}
-                {pointsMode && <th className="py-1 font-semibold" />}
               </tr>
             </thead>
             <tbody>
               {modelled.map((t) => {
                 // One-offs are judged on difficulty, not throughput — never flagged over/under.
-                const over = !t.oneOff && median != null && t.ptsPerHour! > median * 3;
-                const under = !t.oneOff && median != null && t.ptsPerHour! < median / 3;
+                // The server's verdict only: it leaves out lotteries, needs ≥5 graded tiles and only
+                // flags points boards — recomputing it here flagged rows the server deliberately didn't.
+                const over = t.pphFlag === 'over';
+                const under = t.pphFlag === 'under';
                 const avg = t.hours?.[1] ?? null;
                 return (
                   <tr
@@ -406,7 +431,7 @@ export default function EffortTable({
                     </td>
                     <td className={`py-1.5 pr-2 text-right font-medium ${over ? 'text-amber-300' : under ? 'text-red-300' : t.oneOff ? 'text-text-muted' : 'text-foreground/90'}`}>
                       {t.oneOff ? (
-                        <span className="text-[10px] uppercase tracking-wide text-text-muted" title="Single completion — scored on difficulty, not throughput">one-off</span>
+                        <span className="text-[10px] uppercase tracking-wide text-text-muted" title="Under five minutes — too small to benchmark points per hour">tiny</span>
                       ) : (
                         <>
                           {t.ptsPerHour!.toFixed(1)}
@@ -417,24 +442,7 @@ export default function EffortTable({
                     {pointsMode && (
                       <td className="py-1.5 pr-2 text-right text-gold">{t.suggestedPoints ?? '—'}</td>
                     )}
-                    {pointsMode && (
-                      <td className="py-1.5 text-right">
-                        {t.suggestedPoints != null && t.suggestedPoints !== t.weight && (
-                          <button
-                            disabled={applying === t.tileId}
-                            onClick={async () => {
-                              setApplying(t.tileId);
-                              const ok = await onApplyPoints(t.tileId, t.suggestedPoints!);
-                              setApplying(null);
-                              if (ok) void refetch();
-                            }}
-                            className="text-[10px] px-2 py-0.5 rounded border border-gold/30 text-gold hover:bg-gold/15 transition-colors disabled:opacity-50"
-                          >
-                            {applying === t.tileId ? '…' : 'Apply'}
-                          </button>
-                        )}
-                      </td>
-                    )}
+
                   </tr>
                 );
               })}
@@ -452,7 +460,8 @@ export default function EffortTable({
         Estimates from curated rates (fast / average / slow player) + wiki drop rates — rough by design.
         <span className="text-foreground/80"> Adj. pts/h</span> adds a modest execution premium after
         failures are already priced (explicit S0–S5 = +0–25%); manual person-hours cover bespoke objectives,
-        cumulative milestones are priced on added work, and one-off tiles are scored on difficulty alone.
+        cumulative milestones are priced on added work, and suggestions redistribute the existing eligible
+        point pool rather than inflating the board. Lottery, unreachable, unmodelled and generic-rate tiles stay untouched.
         Override shared rates through <span className="text-gold">balance_rates</span> /{' '}
         <span className="text-gold">raid_luck_rates</span>, or calibrate one tile in its editor.
       </p>

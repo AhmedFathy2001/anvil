@@ -6,6 +6,7 @@
 //
 // Pure and client-safe: the Tiles tab recomputes the report live as tiles change.
 
+import { isMissionTile } from '@/lib/eventRules';
 import type { Tile } from '@/lib/types';
 import { splitCategories, tileTierKey, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { tileWeight } from '@/lib/utils';
@@ -68,8 +69,9 @@ export function analyzeBoard(
   const bands = (opts.tierBands && opts.tierBands.length > 0 ? [...opts.tierBands] : [...DEFAULT_TIER_BANDS])
     .sort((a, b) => a.min - b.min);
   const scoringMode = opts.pointsMode ? 'points' : 'tiles';
-  // Optional tiles don't count toward standings, so they don't count toward balance either.
-  const scored = tiles.filter((t) => !t.optional);
+  // Optional tiles and missions don't count toward the board's standings (missions are a bonus
+  // announced mid-event — lib/boardScoring), so they don't count toward its balance either.
+  const scored = tiles.filter((t) => !t.optional && !isMissionTile(t));
   const weightOf = (t: Tile) => tileWeight(scoringMode, t.points ?? 1);
   const totalWeight = scored.reduce((sum, t) => sum + weightOf(t), 0);
 

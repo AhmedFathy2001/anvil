@@ -3,8 +3,8 @@ import { eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { getSetting } from '@/lib/settings';
-import { tiles, events } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { eventParticipants, eventSignups, events, teams, tiles } from '@/db/schema';
+import { and, count, eq, isNotNull } from 'drizzle-orm';
 import { verifyTileEditorForEvent } from '@/lib/auth';
 import { analyzeEffort } from '@/lib/balanceEffort';
 import { computePlayerProfiles } from '@/lib/playerProfile';
@@ -67,11 +67,23 @@ export async function GET(
       ? Math.max(1, Math.round((Date.parse(event.endDate) - Date.parse(event.startDate)) / 86_400_000))
       : null;
 
+  // Players per team: a team-tracked XP/KC goal is fed by every member at once. Before the draft
+  // there are no placed players, so approved sign-ups over the planned teams stand in.
+  const [teamCount, placed, approved] = await Promise.all([
+    db.select({ n: count() }).from(teams).where(eq(teams.eventId, eId)),
+    db.select({ n: count() }).from(eventParticipants).where(and(eq(eventParticipants.eventId, eId), isNotNull(eventParticipants.teamId))),
+    db.select({ n: count() }).from(eventSignups).where(and(eq(eventSignups.eventId, eId), eq(eventSignups.status, 'approved'))),
+  ]);
+  const nTeams = teamCount[0]?.n ?? 0;
+  const players = (placed[0]?.n ?? 0) || (approved[0]?.n ?? 0);
+  const teamSize = nTeams > 0 && players > 0 ? players / nTeams : null;
+
   const report = analyzeEffort(eventTiles, {
     pointsMode: isPointsMode(event.scoringMode),
     ratesOverride,
     raidRatesOverride,
     eventDays,
+    teamSize,
   });
 
   // Pool-aware pass (plan A3): the assignee-band pricing above assumes SOMEONE capable exists —

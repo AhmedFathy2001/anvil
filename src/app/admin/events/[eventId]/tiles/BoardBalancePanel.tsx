@@ -39,7 +39,6 @@ export default function BoardBalancePanel({
   tilesVersion,
   pointsMode,
   tierBands,
-  onApplyPoints,
   onApplyAllPoints,
 }: {
   eventId: number;
@@ -48,7 +47,6 @@ export default function BoardBalancePanel({
   tilesVersion: number;
   pointsMode: boolean;
   tierBands?: TierBand[];
-  onApplyPoints: (tileId: number, points: number) => Promise<boolean>;
   onApplyAllPoints: (
     changes: Array<{ tileId: number; points: number }>,
     revision: string,
@@ -155,7 +153,6 @@ export default function BoardBalancePanel({
           pointsMode={pointsMode}
           tilesVersion={tilesVersion}
           onChecks={setEffortChecks}
-          onApplyPoints={onApplyPoints}
           onApplyAllPoints={onApplyAllPoints}
         />
 

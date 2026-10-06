@@ -231,25 +231,11 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     setEditingFresh((prev) => (prev && prev.id === updated.id ? { ...prev, ...patch } : prev));
   }
 
-  // Effort-model refetch trigger + the balance panel's one-click "apply suggested points".
+  // Effort-model refetch trigger + the balance panel's reviewed, all-at-once "apply suggested points".
+  // There is no single-tile apply: suggestions split ONE budget, so applying one moves the total and
+  // every other suggestion with it — repeated single applies inflated the board.
   const [tilesVersion, setTilesVersion] = useState(0);
   useEffect(() => setTilesVersion((v) => v + 1), [localTiles]);
-  async function applySuggestedPoints(tileId: number, points: number): Promise<boolean> {
-    const res = await clanFetch(`/api/events/${event.id}/tiles`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tileId, points }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setImportMsg({ type: 'error', text: data.error || 'Could not update points.' });
-      return false;
-    }
-    const updated = await res.json();
-    setLocalTiles((prev) => prev.map((t) => (t.id === tileId ? { ...t, points: updated.points, updatedAt: updated.updatedAt } : t)));
-    return true;
-  }
-
   async function applyAllSuggestedPoints(
     changes: Array<{ tileId: number; points: number }>,
     revision: string,
@@ -1856,7 +1842,6 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
         tilesVersion={tilesVersion}
         pointsMode={pointsMode}
         tierBands={tierBands}
-        onApplyPoints={applySuggestedPoints}
         onApplyAllPoints={applyAllSuggestedPoints}
       />
 

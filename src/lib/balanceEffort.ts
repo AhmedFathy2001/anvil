@@ -20,6 +20,7 @@ import { bundleSize, chancePerKill } from '@/lib/clogLuck';
 import { raidSourcesByItem, raidUniqueChances } from '@/lib/raidLuck';
 import { expectedCollectionHours, type DropEffortAction, type DropEffortRequirement } from '@/lib/dropEffort';
 import { parseTileEffortConfig, type TileRaidEffortConfig } from '@/lib/tileEffortConfig';
+import { isMissionTile } from '@/lib/eventRules';
 
 export type Triplet = [number, number, number]; // fast, average, slow
 export type Floor = 'anyone' | 'mid' | 'high' | 'elite';
@@ -34,11 +35,10 @@ const FLOOR_EFFORT_MULTIPLIER: Record<Floor, number> = { anyone: 1, mid: 1.05, h
 // clamped up to this floor by difficulty — prestige has a price regardless of throughput.
 const FLOOR_MIN_POINTS: Record<Floor, number> = { anyone: 5, mid: 15, high: 50, elite: 100 };
 
-// One-shot / trivial tiles ("Complete Doom 1–8", "Kill a chicken") aren't grinds — their
-// value is the difficulty of doing the thing once, not points-per-hour. We keep them in the
-// table but exclude them from the board median and the over/underpaid flags, and never
-// suggest lowering them (only lifting to the difficulty floor). A tile counts as one-off if
-// it's a single completion, or if a single rep is under ~5 minutes of real time.
+// Truly tiny tiles ("Kill a chicken") aren't useful points-per-hour benchmarks. Required amount
+// 1 does NOT make a tile tiny: one Inferno, one LMS win or one rare drop can consume hours. The old
+// count===1 shortcut was why a 20-hour one-drop tile received the same 15-point floor as a trivial
+// completion instead of being priced from its effort.
 const ONE_OFF_TINY_HOURS = 0.08;
 
 // Realizability — the troll axis. Points measure value-vs-time and stay author-owned: a fairly
@@ -86,6 +86,9 @@ interface ActivityRate {
   // so a team earns `partySize` KC per raid instance — a team-sum KC goal costs 1/partySize the
   // raids one soloist would. Left unset (→ 1) for solo content, so this never discounts a boss.
   partySize?: number;
+  // Group bosses (Corp, Nex, Nightmare): the kill time is a mass/team kill, but each drop goes to ONE
+  // player of the group. Per player-hour a drop is lootSplit× rarer than the table's 1-in-d. Unset → 1.
+  lootSplit?: number;
 }
 interface SkillRate {
   xpPerHour: Triplet;
@@ -102,6 +105,7 @@ export interface BalanceRates {
 export interface TileEffort {
   tileId: number;
   label: string;
+  tileType: string;
   weight: number;
   /** Expected player-hours [fast, avg, slow]; Infinity = that band can't do it; null = unmodelled. */
   hours: Triplet | null;
@@ -122,7 +126,7 @@ export interface TileEffort {
   rawPtsPerHour: number | null;
   /** Points ÷ effort-hours (difficulty-adjusted) — the yardstick used for ranking and flags. */
   ptsPerHour: number | null;
-  /** Single-completion / trivial tile: judged on difficulty, not throughput; excluded from the median. */
+  /** Sub-five-minute tile: too small to be a useful throughput benchmark; excluded from the median. */
   oneOff: boolean;
   /** P(the tile completes within the event window) at an assumed serious camp; null = unmodelled. */
   hitProbability: number | null;
@@ -136,8 +140,12 @@ export interface TileEffort {
   /** Face points × hitProbability — what the tile is worth to a team plan. Null when unmodelled. */
   expectedPoints: number | null;
   suggestedPoints: number | null;
+  /** Why bulk suggestion deliberately leaves this tile alone. null means it is eligible. */
+  suggestionStatus: 'eligible' | 'unmodelled' | 'lottery' | 'unreachable' | 'needs-calibration';
   /** Why the tile couldn't be modelled, or which fallback was used. */
   note: string | null;
+  /** The server's over/underpaid verdict — the only one the table may show (points boards, ≥5 graded). */
+  pphFlag: 'over' | 'under' | null;
 }
 
 export interface EffortReport {
@@ -145,6 +153,9 @@ export interface EffortReport {
   medianPtsPerHour: number | null;
   modelledCount: number;
   unmodelledCount: number;
+  /** Current and proposed totals for auto-priceable tiles. These should remain equal. */
+  suggestionBudget: number;
+  suggestedBudget: number;
   /** Weight share whose floor is high/elite. */
   eliteShare: number;
   checks: BalanceCheck[];
@@ -172,7 +183,9 @@ const SOURCED_ACTIVITIES: Record<string, ActivityRate> = (() => {
   for (const [key, entry] of Object.entries(sourced)) {
     const base = curated[key];
     if (!base || !Array.isArray(base.killSeconds) || entry.killSeconds?.length !== 3) continue;
-    out[key] = { ...base, killSeconds: entry.killSeconds as Triplet };
+    // Sorted: fast ≤ average ≤ slow is an invariant everything downstream relies on, and a sourced
+    // row can arrive out of order (Spindel's fast band was slower than its slow one).
+    out[key] = { ...base, killSeconds: [...entry.killSeconds].sort((a, b) => a - b) as Triplet };
   }
   return out;
 })();
@@ -335,6 +348,12 @@ function sourcesForItem(
   );
 }
 
+/** Chance at least one member receives the item from a shared raid completion. */
+function partyHitChance(personalChance: number, partySize: number): number {
+  const p = Math.max(0, Math.min(1, personalChance));
+  return 1 - Math.pow(1 - p, Math.max(1, partySize));
+}
+
 // ---- Per-tile estimation ------------------------------------------------------------
 
 const maxFloor = (a: Floor, b: Floor): Floor =>
@@ -352,18 +371,28 @@ function floorFromHours(hours: Triplet, declared: Floor): Floor {
 // Resolves a kill-time triplet from the first of `names` that matches a curated rate. Boss KC
 // tiles pass [label, ...aliases, key] so an abbreviated display label ("CoX: CM") still finds
 // its rate via an alias; simple sources pass a single-element list.
-type KillTriplet = { sec: Triplet; floor: Floor; defaulted: boolean; partySize: number };
-function killTripletForNames(rates: BalanceRates, names: (string | null | undefined)[]): KillTriplet {
+type KillTriplet = { sec: Triplet; floor: Floor; defaulted: boolean; partySize: number; lootSplit: number };
+const BOSS_NAMES = new Set(
+  BOSSES.flatMap((boss) => [boss.key, boss.label, ...(boss.aliases ?? [])]).map(normName),
+);
+
+function killTripletForNames(
+  rates: BalanceRates,
+  names: (string | null | undefined)[],
+  fallback: 'boss' | 'mob' = 'boss',
+): KillTriplet {
   // Spawn-gated sources first: a superior "kill" costs a whole encounter (task kills +
   // task availability), not a respawn timer.
   for (const n of names) {
     if (n && isSuperiorSource(n)) {
       const sec = rates.gated?.superiorEncounterSeconds ?? [1500, 3000, 6000];
-      return { sec, floor: 'mid', defaulted: false, partySize: 1 };
+      return { sec, floor: 'mid', defaulted: false, partySize: 1, lootSplit: 1 };
     }
   }
   const act = activityForNames(rates, names);
-  if (act?.killSeconds) return { sec: act.killSeconds, floor: act.floor ?? 'anyone', defaulted: false, partySize: 1 };
+  if (act?.killSeconds) {
+    return { sec: act.killSeconds, floor: act.floor ?? 'anyone', defaulted: false, partySize: 1, lootSplit: Math.max(1, act.lootSplit ?? 1) };
+  }
   // Attempt-model activities (CG, raids, Inferno) have no flat kill time — a "kill" costs
   // an attempt divided by the band's success rate (Infinity where that band can't finish).
   // partySize (raids only) is carried through so KC-count tiles can amortise the shared kill.
@@ -371,14 +400,12 @@ function killTripletForNames(rates: BalanceRates, names: (string | null | undefi
     const sec = [0, 1, 2].map((b) =>
       act.successRate![b] > 0 ? (act.attemptMinutes![b] * 60) / act.successRate![b] : Infinity,
     ) as Triplet;
-    return { sec, floor: act.floor ?? 'high', defaulted: false, partySize: Math.max(1, act.partySize ?? 1) };
+    return { sec, floor: act.floor ?? 'high', defaulted: false, partySize: Math.max(1, act.partySize ?? 1), lootSplit: 1 };
   }
-  return { sec: rates.generic.bossKillSeconds, floor: 'mid', defaulted: true, partySize: 1 };
+  return fallback === 'mob'
+    ? { sec: rates.generic.mobKillSeconds, floor: 'anyone', defaulted: true, partySize: 1, lootSplit: 1 }
+    : { sec: rates.generic.bossKillSeconds, floor: 'mid', defaulted: true, partySize: 1, lootSplit: 1 };
 }
-function killTriplet(rates: BalanceRates, source: string): KillTriplet {
-  return killTripletForNames(rates, [source]);
-}
-
 function parseJsonArray<T>(raw: string | null | undefined): T[] | null {
   if (!raw) return null;
   try {
@@ -438,7 +465,13 @@ function killTripletForDropSource(
   source: DropSource,
   raidConfig?: TileRaidEffortConfig | null,
 ): KillTriplet {
-  const base = killTripletForNames(rates, sourceNames(source));
+  const names = sourceNames(source);
+  const bossLike = !!source.bossKey || names.some((name) => BOSS_NAMES.has(normName(name)));
+  // Most rows in npcDrops are ordinary monsters. Treating every unknown source as a boss made an
+  // abyssal-demon drop cost 140 seconds per kill while a kill tile used 16 seconds for that same
+  // monster. Known bosses keep the boss fallback; ordinary/shared Slayer and revenant drops use the
+  // mob fallback until a curated source rate replaces it.
+  const base = killTripletForNames(rates, names, bossLike ? 'boss' : 'mob');
   if (!source.bossKey || source.bossKey !== raidConfig?.mode || !raidConfig.completionMinutes) return base;
   const desiredAverageSeconds = raidConfig.completionMinutes * 60;
   const average = base.sec[1];
@@ -453,12 +486,26 @@ function estimateTile(
   tile: Tile,
   rates: BalanceRates,
   resolveDrops: DropResolver,
-): { hours: Triplet | null; floor: Floor; note: string | null } {
+): {
+  hours: Triplet | null;
+  floor: Floor;
+  note: string | null;
+  /** Players whose hours a completion consumes at once (a raid party) — widens the camp window. */
+  campers?: number;
+  /** Successes the tile needs when that isn't its raw count (a 500-item stack = one drop). */
+  needed?: number;
+} {
   const type = tile.tileType ?? 'standard';
   const effortConfig = parseTileEffortConfig(tile.effortConfig);
   const raidConfig = effortConfig?.raid ?? null;
 
   // Hiscores-polled stat tiles (stored as tileType 'standard' + trackedStat).
+  // A MILESTONE ("reach a lifetime total") costs whatever each account still lacks — 0h for someone
+  // already past it, the whole climb for a fresh account. Pricing it as a full in-event gain called
+  // "Reach 99 Attack" a 130-hour unreachable tile. Unmodelled unless the author calibrates it.
+  if (tile.trackedStat && tile.statGoal && tile.statBasis === 'milestone') {
+    return { hours: null, floor: 'anyone', note: 'lifetime target — its cost depends on each account’s current total' };
+  }
   if (tile.trackedStat && tile.statGoal) {
     if (tile.statType === 'skill') {
       const skill = rates.skills[tile.trackedStat];
@@ -477,17 +524,19 @@ function estimateTile(
     const label = boss?.label ?? BOSS_LABEL_BY_KEY.get(firstKey) ?? firstKey;
     const names = boss ? [boss.label, ...(boss.aliases ?? []), boss.key] : [label];
     const { sec, floor, defaulted, partySize } = killTripletForNames(rates, names);
-    // Raid KC is a team-sum goal: a party of `partySize` earns that many KC per raid instance,
-    // so the team runs statGoal/partySize raids, not statGoal. Solo content has partySize 1.
-    const raids = tile.statGoal! / partySize;
+    // PLAYER-HOURS, like every other tile. A party of `partySize` earns that many KC per raid, so the
+    // team runs statGoal/partySize raids — but each raid occupies all partySize players, so the
+    // player-hours are statGoal × raid time either way. Dividing by the party priced raids in
+    // party clock time (a third or a quarter of their real cost) against player-hour windows.
     return {
-      hours: sec.map((s) => (raids * s) / 3600) as Triplet,
+      hours: sec.map((s) => (tile.statGoal! * s) / 3600) as Triplet,
       floor,
       note: defaulted
         ? `no kill-time entry for ${label} — generic boss time used`
         : partySize > 1
-          ? `raid KC — assumes a ~${partySize}-player party (each raid credits every member)`
+          ? `raid KC — player-hours for a ~${partySize}-player party (each raid credits every member)`
           : null,
+      campers: partySize,
     };
   }
 
@@ -497,6 +546,7 @@ function estimateTile(
     let floor: Floor = 'anyone';
     let defaulted = false;
     let assumedRaidRate = false;
+    let partyMax = 1;
 
     if (reqs && reqs.length > 0) {
       const bySource = new Map<string, { source: DropSource; byReq: Map<number, DropSource> }>();
@@ -520,19 +570,27 @@ function estimateTile(
       const actionsByBand: [DropEffortAction[], DropEffortAction[], DropEffortAction[]] = [[], [], []];
       for (const { source, byReq } of bySource.values()) {
         const kt = killTripletForDropSource(rates, source, raidConfig);
+        const partySize = source.bossKey
+          ? Math.max(1, tile.timeThresholdSeconds ?? kt.partySize)
+          : 1;
         defaulted = defaulted || kt.defaulted;
         floor = maxFloor(floor, kt.floor);
         assumedRaidRate = assumedRaidRate || !!source.assumed;
         const outcomes = [...byReq.entries()].map(([requirement, drop]) => ({
           requirement,
-          chance: chancePerKill(drop.d, drop.rolls),
+          chance: partyHitChance(chancePerKill(drop.d, drop.rolls), partySize),
           quantity: tile.perKillCap === 1 ? 1 : drop.bundle,
         }));
+        partyMax = Math.max(partyMax, partySize);
         for (let b = 0; b < 3; b++) {
           actionsByBand[b].push({
             source: source.source,
-            hours: kt.sec[b] / 3600,
-            exclusive: !!source.exclusive,
+            // Player-hours: a raid occupies the whole party (whose combined chance is above), and a
+            // group boss's drop goes to one of lootSplit players.
+            hours: (kt.sec[b] / 3600) * partySize * kt.lootSplit,
+            // One player's purple is exclusive; a party has several independent personal reward
+            // rolls and can therefore land more than one relevant item in the same completion.
+            exclusive: !!source.exclusive && partySize === 1,
             outcomes,
           });
         }
@@ -552,7 +610,7 @@ function estimateTile(
           : null,
         raidConfig?.completionMinutes ? 'raid duration uses this tile\'s expected completion time' : null,
       ].filter(Boolean);
-      return { hours: hours as Triplet, floor, note: notes.length ? notes.join('; ') : null };
+      return { hours: hours as Triplet, floor, note: notes.length ? notes.join('; ') : null, campers: partyMax };
     }
 
     // Simple pool: any N drops from the tracked items. Combined rate per source-kill.
@@ -578,20 +636,37 @@ function estimateTile(
     const hours: Triplet = [Infinity, Infinity, Infinity];
     let usedAssumedRaidRate = false;
     let usedDefault = false;
+    let poolNeeded: number | undefined;
+    let poolParty = 1;
     for (const { source, byItem } of bySource.values()) {
       const drops = [...byItem.values()];
       const kt = killTripletForDropSource(rates, source, raidConfig);
-      const chances = drops.map((d) => chancePerKill(d.d, d.rolls));
-      const expectedCredits = tile.perKillCap === 1
-        ? source.exclusive
+      const partySize = source.bossKey
+        ? Math.max(1, tile.timeThresholdSeconds ?? kt.partySize)
+        : 1;
+      const chances = drops.map((d) => partyHitChance(chancePerKill(d.d, d.rolls), partySize));
+      // DROPS, not items. A stack counts once per drop: 500 thrownaxes from one 500–1000 drop is ONE
+      // drop to wait for, not 500 / 750 of one. So: drops needed = ceil(amount / typical stack).
+      const dropChance = tile.perKillCap === 1
+        ? source.exclusive && partySize === 1
           ? Math.min(1, chances.reduce((sum, p) => sum + p, 0))
           : 1 - chances.reduce((none, p) => none * (1 - p), 1)
-        : drops.reduce((sum, d, i) => sum + chances[i] * d.bundle, 0);
-      if (expectedCredits <= 0) continue;
+        : chances.reduce((sum, p) => sum + p, 0);
+      if (dropChance <= 0) continue;
+      const stack = tile.perKillCap === 1
+        ? 1
+        : drops.reduce((sum, d, i) => sum + chances[i] * d.bundle, 0) / chances.reduce((sum, p) => sum + p, 0);
+      const dropsNeeded = Math.max(1, Math.ceil(tile.requiredAmount / Math.max(1, stack)));
+      // Player-hours: a raid occupies its whole party; a group boss's drop goes to one of lootSplit.
+      const playerHoursPerKill = (b: number) => (kt.sec[b] / 3600) * partySize * kt.lootSplit;
       for (let b = 0; b < 3; b++) {
-        const candidate = (tile.requiredAmount / expectedCredits) * (kt.sec[b] / 3600);
-        if (candidate < hours[b]) hours[b] = candidate;
+        const candidate = (dropsNeeded / dropChance) * playerHoursPerKill(b);
+        if (candidate < hours[b]) {
+          hours[b] = candidate;
+          if (b === 1) poolNeeded = dropsNeeded;
+        }
       }
+      poolParty = Math.max(poolParty, partySize);
       floor = maxFloor(floor, kt.floor);
       usedDefault = usedDefault || kt.defaulted;
       usedAssumedRaidRate = usedAssumedRaidRate || !!source.assumed;
@@ -610,26 +685,38 @@ function estimateTile(
       hours,
       floor,
       note: notes.length ? notes.join('; ') : null,
+      campers: poolParty,
+      needed: poolNeeded,
     };
   }
 
   if (type === 'kill') {
     const targets = parseJsonArray<string>(tile.targetNpcs);
     if (!tile.requiredAmount) return { hours: null, floor: 'anyone', note: 'no required amount' };
-    const known = targets?.find((t) => activityFor(rates, t) || isSuperiorSource(t));
-    if (known) {
-      const kt = killTriplet(rates, known);
-      const reps = tile.requiredAmount! / kt.partySize; // raids credit the whole party
+    const choices = (targets?.length ? targets : ['']).map((target) => {
+      const bossLike = BOSS_NAMES.has(normName(target));
       return {
-        hours: kt.sec.map((s) => (reps * s) / 3600) as Triplet,
-        floor: kt.floor,
-        note: kt.partySize > 1 ? `raid — assumes a ~${kt.partySize}-player party` : null,
+        target,
+        rate: killTripletForNames(rates, [target], bossLike ? 'boss' : 'mob'),
       };
-    }
+    });
+    // A multi-target tile means ANY listed target counts. Price the fastest valid choice per band;
+    // never let the presence of one superior Slayer monster force the whole "Bloodvelds" family
+    // to use the 50-minute superior-encounter rate when ordinary Bloodvelds are also allowed.
+    // Player-hours: a raid kill occupies the whole party, so no party discount (see the KC path).
+    const hours = [0, 1, 2].map((band) =>
+      Math.min(...choices.map(({ rate }) => (tile.requiredAmount! * rate.sec[band]) / 3600)),
+    ) as Triplet;
+    const averageChoice = choices.reduce((best, choice) => (choice.rate.sec[1] < best.rate.sec[1] ? choice : best));
     return {
-      hours: rates.generic.mobKillSeconds.map((s) => (tile.requiredAmount! * s) / 3600) as Triplet,
-      floor: 'anyone',
-      note: 'generic mob kill time used',
+      hours,
+      floor: averageChoice.rate.floor,
+      campers: averageChoice.rate.partySize,
+      note: averageChoice.rate.partySize > 1
+        ? `raid — player-hours for a ~${averageChoice.rate.partySize}-player party`
+        : averageChoice.rate.defaulted
+          ? 'generic mob kill time used'
+          : null,
     };
   }
 
@@ -735,18 +822,122 @@ function poissonTail(n: number, lambda: number): number {
   return Math.max(0, Math.min(1, 1 - cdf));
 }
 
+function minimumSuggestedPoints(tile: TileEffort): number {
+  // A hard speed task is an achievement over and above merely completing the encounter. This is
+  // the explicit 150-point prestige floor behind the 65-minute Inferno benchmark; an ordinary
+  // elite completion keeps the 100-point floor.
+  if (tile.tileType === 'timed' && tile.floor === 'elite') return 150;
+  return FLOOR_MIN_POINTS[tile.floor];
+}
+
+function suggestionStatus(tile: TileEffort): TileEffort['suggestionStatus'] {
+  if (tile.pricingHours == null) return 'unmodelled';
+  if (tile.pClass === 'lottery') return 'lottery';
+  // Points cannot make a deterministic objective fit inside the event. Suggest shrinking it, not
+  // turning it into a five-digit tile that consumes the whole board's score budget.
+  if (tile.pClass === 'unreachable') return 'unreachable';
+  // A manually supplied end-to-end estimate deliberately supersedes a generic source fallback.
+  const manuallyCalibrated = /manual calibration/.test(tile.note ?? '');
+  if (!manuallyCalibrated && /generic/.test(tile.note ?? '')) return 'needs-calibration';
+  return 'eligible';
+}
+
+/**
+ * Divide the candidates' EXISTING point budget by marginal difficulty-adjusted effort.
+ *
+ * Suggestions must not mint 100k extra points merely because the board contains long-tailed
+ * grinds. Existing points define the event's scale; effort decides how that fixed pool is
+ * redistributed. Lower difficulty floors are applied with a water-filling pass, then the small
+ * rounding remainder is assigned where it introduces the least error so the budget remains exact.
+ */
+function allocateSuggestionBudget(candidates: TileEffort[]): void {
+  if (candidates.length === 0) return;
+  const budget = candidates.reduce((sum, tile) => sum + tile.weight, 0);
+  const rows = candidates.map((tile) => ({
+    tile,
+    score: Math.max(1e-9, tile.pricingHours! * tile.difficulty),
+    floor: minimumSuggestedPoints(tile),
+    exact: 0,
+    points: 0,
+  }));
+  const floorTotal = rows.reduce((sum, row) => sum + row.floor, 0);
+
+  // A tiny author budget cannot satisfy every prestige floor. In that unusual case retain the
+  // exact budget and allocate from effort with a universal 1-point minimum instead of inflating it.
+  if (floorTotal > budget) {
+    for (const row of rows) row.floor = budget >= rows.length ? 1 : 0;
+  }
+
+  let remaining = budget;
+  let active = [...rows];
+  while (active.length > 0) {
+    const scoreTotal = active.reduce((sum, row) => sum + row.score, 0);
+    const scale = remaining / scoreTotal;
+    const belowFloor = active.filter((row) => row.score * scale < row.floor);
+    if (belowFloor.length === 0) {
+      for (const row of active) row.exact = row.score * scale;
+      break;
+    }
+    const fixed = new Set(belowFloor);
+    for (const row of belowFloor) {
+      row.exact = row.floor;
+      remaining -= row.floor;
+    }
+    active = active.filter((row) => !fixed.has(row));
+  }
+
+  // Nice five-point values first (whole points below 20), then repair the rounding delta exactly.
+  for (const row of rows) {
+    row.points = row.exact >= 20 ? Math.round(row.exact / 5) * 5 : Math.max(row.floor, Math.round(row.exact));
+  }
+  let delta = budget - rows.reduce((sum, row) => sum + row.points, 0);
+  while (delta !== 0) {
+    const direction = Math.sign(delta);
+    let magnitude = Math.abs(delta) >= 5 ? 5 : 1;
+    let step = direction * magnitude;
+    let options = rows.filter((row) => row.points + step >= row.floor);
+    // Several rows can each sit only 1–4 points above their floor after five-point rounding.
+    // Repair those one point at a time instead of giving up with an over-budget result.
+    if (options.length === 0 && magnitude === 5) {
+      magnitude = 1;
+      step = direction;
+      options = rows.filter((row) => row.points + step >= row.floor);
+    }
+    if (options.length === 0) break;
+    options.sort((a, b) => {
+      const costA = Math.abs(a.points + step - a.exact) - Math.abs(a.points - a.exact);
+      const costB = Math.abs(b.points + step - b.exact) - Math.abs(b.points - b.exact);
+      return costA - costB || a.tile.tileId - b.tile.tileId;
+    });
+    options[0].points += step;
+    delta -= step;
+  }
+
+  for (const row of rows) row.tile.suggestedPoints = row.points;
+}
+
 // ---- Board-level audit --------------------------------------------------------------
 
 export function analyzeEffort(
   tiles: Tile[],
-  opts: { pointsMode: boolean; ratesOverride?: unknown; raidRatesOverride?: unknown; eventDays?: number | null },
+  opts: {
+    pointsMode: boolean;
+    ratesOverride?: unknown;
+    raidRatesOverride?: unknown;
+    eventDays?: number | null;
+    /** Players per team — a team-tracked XP/KC goal is fed by all of them at once. */
+    teamSize?: number | null;
+  },
 ): EffortReport {
   const rates = mergeRates(opts.ratesOverride);
   const resolveDrops = dropResolver(opts.raidRatesOverride);
   const scoringMode = opts.pointsMode ? 'points' : 'tiles';
-  const scored = tiles.filter((t) => !t.optional);
+  // Optional tiles and MISSIONS are scored outside the board (missions are a bonus announced
+  // mid-event — lib/boardScoring), so neither sets the board's prices nor gets repriced by them.
+  const scored = tiles.filter((t) => !t.optional && !isMissionTile(t));
 
   const perTile: TileEffort[] = scored.map((t) => {
+    const type = t.tileType ?? 'standard';
     const estimate = estimateTile(t, rates, resolveDrops);
     const floor = estimate.floor;
     let hours = estimate.hours;
@@ -776,15 +967,25 @@ export function analyzeEffort(
     const gated = floor === 'high' || floor === 'elite';
     const pricingHours = gated && fast != null ? (avg != null ? 0.6 * fast + 0.4 * avg : fast) : avg;
     const effortAvg = pricingHours != null ? pricingHours * difficulty : null;
-    // Single-completion or sub-5-minute tiles are one-offs: judged on difficulty, not throughput.
+    // Only genuinely tiny work is excluded from the board's points/hour benchmark. A requirement
+    // of one can still be hours of work (rare drop, LMS win, Inferno), so count alone says nothing.
     const count = t.statGoal ?? t.requiredAmount ?? null;
-    const oneOff = count === 1 || (avg != null && avg < ONE_OFF_TINY_HOURS);
-    // Realizability: expected successes in the camp window at the avg-band rate → P(≥needed).
-    const windowHours = CAMP_HOURS_PER_DAY * CAMPERS_PER_TILE * Math.max(1, opts.eventDays ?? DEFAULT_EVENT_DAYS);
+    const oneOff = avg != null && avg < ONE_OFF_TINY_HOURS;
+    // Realizability: expected successes in the camp window at the pricing rate (the average band, or
+    // the fast-leaning blend for high/elite tiles) → P(≥needed).
+    // The window is player-hours, so it widens with the players a tile really draws on at once: a
+    // raid party, or — for a team-tracked XP/KC GAIN — the whole team, whose every hour counts.
+    const teamGain = !!t.trackedStat && t.statBasis !== 'milestone' && (t.trackingMode ?? 'team') === 'team';
+    const campers = Math.max(
+      CAMPERS_PER_TILE,
+      estimate.campers ?? 1,
+      teamGain && opts.teamSize ? Math.round(opts.teamSize) : 0,
+    );
+    const windowHours = CAMP_HOURS_PER_DAY * campers * Math.max(1, opts.eventDays ?? DEFAULT_EVENT_DAYS);
     let hitProbability: number | null = null;
     let pClass: TileEffort['pClass'] = null;
     if (pricingHours != null) {
-      const needed = Math.max(1, count ?? 1);
+      const needed = Math.max(1, estimate.needed ?? count ?? 1);
       hitProbability = poissonTail(needed, needed * (windowHours / pricingHours));
       pClass =
         hitProbability < LOTTERY_P
@@ -798,6 +999,7 @@ export function analyzeEffort(
     return {
       tileId: t.id,
       label: t.label,
+      tileType: type,
       weight,
       hours,
       floor,
@@ -813,7 +1015,9 @@ export function analyzeEffort(
       pClass,
       expectedPoints: hitProbability != null ? weight * hitProbability : null,
       suggestedPoints: null, // filled below once the board median is known
+      suggestionStatus: 'unmodelled', // finalised after marginal progression pricing
       note,
+      pphFlag: null,
     };
   });
 
@@ -855,31 +1059,26 @@ export function analyzeEffort(
   }
 
   const modelled = perTile.filter((t) => t.ptsPerHour != null);
-  // The median (and the over/underpaid flags) are set by grind tiles only — one-offs have
-  // near-zero denominators that would blow up the benchmark, and lottery tiles are priced as
-  // jackpots on purpose (EV math is meaningless as a flag in either direction). Difficulty-
-  // adjusted throughout.
+  // The median remains a diagnostic for CURRENT points. It no longer sets suggested values:
+  // learning tomorrow's prices from today's bad prices was self-referential, and long-tailed
+  // boards could mint several times their entire current score.
   const graded = modelled.filter((t) => !t.oneOff && t.pClass !== 'lottery');
   const pphSorted = graded.map((t) => t.ptsPerHour!).sort((a, b) => a - b);
-  const medianPph = pphSorted.length ? pphSorted[Math.floor(pphSorted.length / 2)] : null;
+  const mid = Math.floor(pphSorted.length / 2);
+  const medianPph = pphSorted.length
+    ? pphSorted.length % 2
+      ? pphSorted[mid]
+      : (pphSorted[mid - 1] + pphSorted[mid]) / 2
+    : null;
 
-  if (medianPph && opts.pointsMode) {
-    for (const t of perTile) {
-      if (t.pricingHours == null) continue;
-      // Lottery tiles keep the author's points untouched — 1pt meme and 800pt jackpot are both
-      // legitimate; the class label + expected points carry the information instead.
-      if (t.pClass === 'lottery') continue;
-      const floorMin = FLOOR_MIN_POINTS[t.floor];
-      if (t.oneOff) {
-        // Never dock a one-off on throughput grounds — only lift it to its difficulty floor.
-        t.suggestedPoints = Math.max(floorMin, t.weight);
-      } else {
-        const raw = medianPph * t.pricingHours! * t.difficulty;
-        const rounded = raw >= 20 ? Math.round(raw / 5) * 5 : Math.max(1, Math.round(raw));
-        t.suggestedPoints = Math.max(floorMin, rounded);
-      }
-    }
-  }
+  for (const tile of perTile) tile.suggestionStatus = suggestionStatus(tile);
+  const suggestionCandidates = perTile.filter((tile) => tile.suggestionStatus === 'eligible');
+  if (opts.pointsMode) allocateSuggestionBudget(suggestionCandidates);
+  const suggestionBudget = suggestionCandidates.reduce((sum, tile) => sum + tile.weight, 0);
+  const suggestedBudget = suggestionCandidates.reduce(
+    (sum, tile) => sum + (tile.suggestedPoints ?? tile.weight),
+    0,
+  );
 
   const totalWeight = perTile.reduce((s, t) => s + t.weight, 0);
   const eliteWeight = perTile
@@ -896,6 +1095,8 @@ export function analyzeEffort(
   if (medianPph && opts.pointsMode && graded.length >= 5) {
     const over = graded.filter((t) => t.ptsPerHour! > medianPph * 3);
     const under = graded.filter((t) => t.ptsPerHour! < medianPph / 3);
+    for (const t of over) t.pphFlag = 'over';
+    for (const t of under) t.pphFlag = 'under';
     const underAlsoUnreachable = under.filter((t) => unreachableIds.has(t.tileId)).length;
     if (over.length) {
       checks.push({
@@ -1031,6 +1232,8 @@ export function analyzeEffort(
     medianPtsPerHour: medianPph,
     modelledCount: modelled.length,
     unmodelledCount: perTile.length - modelled.length,
+    suggestionBudget,
+    suggestedBudget,
     eliteShare,
     checks,
   };
