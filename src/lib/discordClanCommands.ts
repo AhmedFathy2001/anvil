@@ -32,6 +32,9 @@ import { clanMarkUrl } from '@/lib/clanMarkUrl';
 import { competitionImageUrl, itemIconUrl, bossImageUrl } from '@/lib/tileIcons';
 import { clogPageItems, clogPageIndex, clogPageNames } from '@/lib/clogDataset';
 import { matchBestsToPages, titleCaseActivity } from '@/lib/clogProfile';
+import { clogImageQuery } from '@/lib/clogImage';
+import { killcountsForPage } from '@/lib/clogKillcounts';
+import { statSnapshotOf } from '@/lib/roster';
 import { getEffectiveParticipants } from '@/lib/weekly';
 import { weeklyMetricLabel } from '@/lib/weeklyLabels';
 import { weeklyUnit } from '@/lib/weeklyStage';
@@ -724,7 +727,9 @@ async function pbsResult(ctx: ClanCommandCtx, picked: { accountId: number | null
         description: clamp(body.join('\n'), LIMIT.description),
         color: EMBED_COLOR.gold,
         author: authorOf(clan),
-        ...thumb(pageQuery ? (bossImageUrl(shown[0].activity) ?? itemIconUrl(CLOG_ITEM_ID)) : STATS_ICON),
+        // The page heading names the boss ("Tombs of Amascut"); a run's own name ("…expert mode solo")
+        // doesn't match a picture, and a mode filter can leave only runs like that.
+        ...thumb(pageQuery ? (bossImageUrl([...grouped.keys()][0] ?? shown[0].activity) ?? bossImageUrl(shown[0].activity) ?? itemIconUrl(CLOG_ITEM_ID)) : STATS_ICON),
       },
     ],
     shareable: true,
@@ -837,23 +842,46 @@ async function clogPageResult(
   const catalogue = clogPageItems(page); // ordered [{ id, name }]
   const pageIds = clogPageIndex().get(page) ?? new Set<number>();
   const owned = await db
-    .select({ itemId: memberClogItems.itemId })
+    .select({ itemId: memberClogItems.itemId, quantity: memberClogItems.quantity })
     .from(memberClogItems)
     .where(eq(memberClogItems.accountId, picked.accountId));
-  const ownedSet = new Set(owned.map((r) => r.itemId).filter((id) => pageIds.has(id)));
-  const got = catalogue.filter((it) => ownedSet.has(it.id));
+  const qty = new Map<number, number>();
+  for (const r of owned) if (pageIds.has(r.itemId)) qty.set(r.itemId, Math.max(qty.get(r.itemId) ?? 0, r.quantity));
+  const got = catalogue.filter((it) => qty.has(it.id));
 
   const kcRows = await db
     .select({ label: memberClogKc.label, count: memberClogKc.count })
     .from(memberClogKc)
     .where(and(eq(memberClogKc.accountId, picked.accountId), eq(memberClogKc.pageName, page)));
+  // The game's own counter lines exist only for pages the player OPENED in-game; otherwise fall back
+  // to the hiscores killcount for the page's boss(es), the way the profile does.
+  let bossKills: Record<string, number> = {};
+  if (kcRows.length === 0) {
+    try {
+      const snap = JSON.parse((await statSnapshotOf(picked.accountId)) ?? 'null') as { bosses?: Record<string, { score?: number }> } | null;
+      for (const [key, entry] of Object.entries(snap?.bosses ?? {})) {
+        if (typeof entry?.score === 'number' && entry.score > 0) bossKills[key] = entry.score;
+      }
+    } catch {
+      bossKills = {};
+    }
+  }
+  const kcs = killcountsForPage(page, kcRows, bossKills);
 
   const body: string[] = [fmt(t.clog.pageProgress, { obtained: got.length, total: catalogue.length })];
-  if (kcRows.length) {
-    body.push(fmt(t.clog.pageKc, { kc: kcRows.map((k) => `${k.label} ${k.count.toLocaleString()}`).join(' · ') }));
+  if (kcs.length) {
+    body.push(fmt(t.clog.pageKc, { kc: kcs.map((k) => `${k.label} ${k.count.toLocaleString()}`).join(' · ') }));
   }
   if (got.length) {
-    body.push('', t.clog.pageHave, ...got.slice(0, 24).map((it) => `• ${clamp(it.name, 60)}`));
+    // ×N when the log has more than one — the count the game shows in the slot's corner.
+    body.push(
+      '',
+      t.clog.pageHave,
+      ...got.slice(0, 24).map((it) => {
+        const n = qty.get(it.id) ?? 1;
+        return `• ${clamp(it.name, 60)}${n > 1 ? ` ×${n.toLocaleString()}` : ''}`;
+      }),
+    );
     if (got.length > 24) body.push(`-# ${fmt(t.common.more, { n: got.length - 24 })}`);
   } else {
     body.push('', t.clog.pageNone);
@@ -870,6 +898,11 @@ async function clogPageResult(
         author: authorOf(clan),
         // The boss's own picture (falls back to its signature drop, then the log book).
         ...thumb(bossImageUrl(page) ?? itemIconUrl(CLOG_ITEM_ID)),
+        // The page as the game draws it — icons, counts, gaps dimmed. Signed, versioned by the sync
+        // so Discord's image cache can't show yesterday's log. See lib/clogImage.
+        ...(clan.origin
+          ? { image: { url: `${clan.origin}/api/og/clog?${clogImageQuery(picked.accountId, page, String(synced.syncedAt ?? ''))}` } }
+          : {}),
       },
     ],
     shareable: true,
