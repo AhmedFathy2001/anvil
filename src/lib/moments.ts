@@ -245,6 +245,40 @@ const notableCache = new Map<string, Set<number>>();
  * moments — so a BOTW stops posting every pile of essence. An item with no known rate from this
  * boss's own tables (a pet, a raid-chest unique) stays: the dataset cannot call it common.
  */
+/**
+ * Untradeable collection-log items rarer than 1-in-500 anywhere in the drop dataset — the uniques the
+ * plugin's value and rarity gates both miss. An untradeable has no GE price, so it only clears the
+ * value floor if its alch value happens to; and a 1/600 Noxious point is more common than the
+ * plugin's tightest rarity setting (1/1000). So Araxxor's halberd pieces never posted at all.
+ *
+ * Pets are left out: they have their own path, and a second "Notable drop" for the same pet would
+ * be a double post. Items with no known rate are left out too — rarity is the only filter here, and
+ * "unknown" would let in every untradeable in the log. Built once; the inputs are shipped files.
+ */
+const UNTRADEABLE_UNIQUE_DENOMINATOR = 500;
+let untradeableUniqueCache: Set<number> | null = null;
+
+export function untradeableUniqueIds(tradeableIds: Set<number>): Set<number> {
+  if (untradeableUniqueCache) return untradeableUniqueCache;
+  const rarest = new Map<number, number>();
+  for (const table of Object.values(drops)) {
+    for (const row of table) {
+      if (Number.isFinite(row.d)) rarest.set(row.i, Math.max(rarest.get(row.i) ?? 0, row.d));
+    }
+  }
+  const petPage = clogPageNames().find((p) => norm(p) === norm('All Pets'));
+  const pets = new Set(petPage ? clogPageItems(petPage).map((i) => i.id) : []);
+  const ids = new Set<number>();
+  for (const page of clogPageNames()) {
+    for (const item of clogPageItems(page)) {
+      if (tradeableIds.has(item.id) || pets.has(item.id)) continue;
+      if ((rarest.get(item.id) ?? 0) >= UNTRADEABLE_UNIQUE_DENOMINATOR) ids.add(item.id);
+    }
+  }
+  untradeableUniqueCache = ids;
+  return ids;
+}
+
 export function bossNotableIds(metric: string): Set<number> {
   const cached = notableCache.get(metric);
   if (cached) return cached;

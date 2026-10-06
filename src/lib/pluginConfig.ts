@@ -5,8 +5,9 @@ import { and, count, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { inAcceptedCohostClan, invitedToEvent } from '@/lib/eventAccess';
 import { BOSSES, FUN_DEATH_MESSAGES, weeklyMetricLabel, COUNTER_TARGETS } from '@/lib/constants';
 import { DEFAULT_TIER_BANDS, normalizeTierBands, type TierBand } from '@/lib/tileFilter';
-import { bossNotableIds } from '@/lib/moments';
+import { bossNotableIds, untradeableUniqueIds } from '@/lib/moments';
 import { getItemMapping } from '@/lib/osrsItems';
+import { getItemPrices } from '@/lib/itemPrices';
 import { clogItemNames } from '@/lib/clogDataset';
 import { guaranteedDropsFor, parseGuaranteedOverrides, petFacts, type DropFacts } from '@/lib/dropFacts';
 
@@ -554,7 +555,17 @@ export async function getAlwaysNotifyItemIds(clanId: number, racedBoss?: string 
     // Item data is out; the raced boss's ids come from a shipped file and still stand on their own.
     return [...new Set([...raced, ...(notableIdCache?.ids ?? [])])];
   }
-  const ids = new Set<number>(raced);
+  // Untradeable uniques (Araxxor's Noxious pieces, Hydra's heart/fang/eye…): no GE price to clear the
+  // value floor, and too common for the rarity floor, so without this they never posted. "Has a GE
+  // price" is the tradeable test; with no price data we add none rather than call everything untradeable.
+  let untradeable: Set<number> = new Set();
+  try {
+    const prices = await getItemPrices();
+    if (prices.size > 1000) untradeable = untradeableUniqueIds(new Set(prices.keys()));
+  } catch {
+    // Prices are out: the notable patterns and the raced boss still stand.
+  }
+  const ids = new Set<number>([...raced, ...untradeable]);
   for (const it of items) {
     const n = it.name.toLowerCase();
     for (const p of patterns) {
