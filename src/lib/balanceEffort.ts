@@ -158,6 +158,12 @@ export interface EffortReport {
   suggestedBudget: number;
   /** Weight share whose floor is high/elite. */
   eliteShare: number;
+  /**
+   * The board at FACE value vs what it's realistically worth inside the event: each modelled tile at
+   * face × P(completes in the window), unmodelled tiles at face (nothing to discount them by). The gap
+   * is how much of the board is luck or out of reach — the number a points board should be read by.
+   */
+  boardPoints: { face: number; expected: number; lotteryFace: number };
   checks: BalanceCheck[];
 }
 
@@ -346,6 +352,21 @@ function sourcesForItem(
     // tracking still receives "Tombs of Amascut" while balancing may pin the Expert table.
     raidConfig?.mode && source.bossKey === raidConfig.mode ? true : sourceAllowed(source, restrict),
   );
+}
+
+/**
+ * Who a raid drop costs, and whose chance it uses.
+ *
+ * The unique odds belong to the RAID: the per-person rate (raid_luck_rates) is set for a typical
+ * party, so the raid's total chance is partyHitChance(personal, typical) whoever runs it — points are
+ * shared, a solo raider earns them all. A tile that pins an exact party (`timeThresholdSeconds` on a
+ * raid drop tile) changes only how many players' time each raid costs. Reading that party as more
+ * personal rolls priced a solo Tbow at three times a three-man's player-hours, the wrong way round.
+ */
+function raidParty(source: DropSource, tile: Tile, kt: KillTriplet): { party: number; typical: number } {
+  if (!source.bossKey) return { party: 1, typical: 1 };
+  const typical = Math.max(1, kt.partySize);
+  return { party: Math.max(1, tile.timeThresholdSeconds ?? typical), typical };
 }
 
 /** Chance at least one member receives the item from a shared raid completion. */
@@ -570,15 +591,13 @@ function estimateTile(
       const actionsByBand: [DropEffortAction[], DropEffortAction[], DropEffortAction[]] = [[], [], []];
       for (const { source, byReq } of bySource.values()) {
         const kt = killTripletForDropSource(rates, source, raidConfig);
-        const partySize = source.bossKey
-          ? Math.max(1, tile.timeThresholdSeconds ?? kt.partySize)
-          : 1;
+        const { party: partySize, typical } = raidParty(source, tile, kt);
         defaulted = defaulted || kt.defaulted;
         floor = maxFloor(floor, kt.floor);
         assumedRaidRate = assumedRaidRate || !!source.assumed;
         const outcomes = [...byReq.entries()].map(([requirement, drop]) => ({
           requirement,
-          chance: partyHitChance(chancePerKill(drop.d, drop.rolls), partySize),
+          chance: partyHitChance(chancePerKill(drop.d, drop.rolls), typical),
           quantity: tile.perKillCap === 1 ? 1 : drop.bundle,
         }));
         partyMax = Math.max(partyMax, partySize);
@@ -590,7 +609,7 @@ function estimateTile(
             hours: (kt.sec[b] / 3600) * partySize * kt.lootSplit,
             // One player's purple is exclusive; a party has several independent personal reward
             // rolls and can therefore land more than one relevant item in the same completion.
-            exclusive: !!source.exclusive && partySize === 1,
+            exclusive: !!source.exclusive && typical === 1,
             outcomes,
           });
         }
@@ -641,14 +660,12 @@ function estimateTile(
     for (const { source, byItem } of bySource.values()) {
       const drops = [...byItem.values()];
       const kt = killTripletForDropSource(rates, source, raidConfig);
-      const partySize = source.bossKey
-        ? Math.max(1, tile.timeThresholdSeconds ?? kt.partySize)
-        : 1;
-      const chances = drops.map((d) => partyHitChance(chancePerKill(d.d, d.rolls), partySize));
+      const { party: partySize, typical } = raidParty(source, tile, kt);
+      const chances = drops.map((d) => partyHitChance(chancePerKill(d.d, d.rolls), typical));
       // DROPS, not items. A stack counts once per drop: 500 thrownaxes from one 500–1000 drop is ONE
       // drop to wait for, not 500 / 750 of one. So: drops needed = ceil(amount / typical stack).
       const dropChance = tile.perKillCap === 1
-        ? source.exclusive && partySize === 1
+        ? source.exclusive && typical === 1
           ? Math.min(1, chances.reduce((sum, p) => sum + p, 0))
           : 1 - chances.reduce((none, p) => none * (1 - p), 1)
         : chances.reduce((sum, p) => sum + p, 0);
@@ -1085,6 +1102,11 @@ export function analyzeEffort(
     .filter((t) => t.floor === 'high' || t.floor === 'elite')
     .reduce((s, t) => s + t.weight, 0);
   const eliteShare = totalWeight ? eliteWeight / totalWeight : 0;
+  const boardPoints = {
+    face: totalWeight,
+    expected: perTile.reduce((sum, t) => sum + (t.expectedPoints ?? t.weight), 0),
+    lotteryFace: perTile.filter((t) => t.pClass === 'lottery').reduce((sum, t) => sum + t.weight, 0),
+  };
 
   const checks: BalanceCheck[] = [];
   const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -1235,6 +1257,7 @@ export function analyzeEffort(
     suggestionBudget,
     suggestedBudget,
     eliteShare,
+    boardPoints,
     checks,
   };
 }

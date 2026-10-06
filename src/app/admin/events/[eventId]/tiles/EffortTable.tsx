@@ -38,6 +38,8 @@ interface EffortWire {
   suggestionBudget: number;
   suggestedBudget: number;
   eliteShare: number;
+  /** Face points vs what the board is realistically worth (each tile × its chance in the event). */
+  boardPoints?: { face: number; expected: number; lotteryFace: number };
   checks: BalanceCheck[];
   revision: string;
 }
@@ -357,6 +359,16 @@ export default function EffortTable({
           Points vs effort{median != null && <> · board median {median.toFixed(1)} adj. pts/h</>}
           {pointsMode && report.suggestionBudget > 0 && <> · {report.suggestionBudget.toLocaleString()} pts redistributed</>}
         </p>
+        {pointsMode && report.boardPoints && report.boardPoints.face > 0 && (
+          <p
+            className="w-full text-[11px] text-text-muted"
+            title="Each tile counted at its points × the chance it gets done inside the event. Lotteries and out-of-reach grinds count for what they're likely to pay, not their face value."
+          >
+            Board worth: <span className="text-foreground/90">{Math.round(report.boardPoints.expected).toLocaleString()}</span> realistically of{' '}
+            {report.boardPoints.face.toLocaleString()} face ({Math.round((report.boardPoints.expected / report.boardPoints.face) * 100)}%)
+            {report.boardPoints.lotteryFace > 0 && <> · {report.boardPoints.lotteryFace.toLocaleString()} pts on lottery tiles</>}
+          </p>
+        )}
         {pointsMode && (
           <button
             type="button"

@@ -466,3 +466,22 @@ test('over/underpaid flags come from the server and need five graded tiles', () 
   assert.equal(few.perTile[0].pphFlag, null);
 });
 
+test('a raid tile pinned to a solo party costs one player, not more rolls', () => {
+  const party = analyzeEffort([raidDropTile()], { pointsMode: true }).perTile[0];
+  const solo = analyzeEffort([raidDropTile({ timeThresholdSeconds: 1 })], { pointsMode: true }).perTile[0];
+  assert.ok(party.hours && solo.hours);
+  // Same raid chance either way (the odds belong to the raid); a solo raid costs one player's time.
+  closeTo(solo.hours![1] * 3, party.hours![1]);
+});
+
+test('the board reads at expected points: lotteries count for their odds', () => {
+  const tiles = [
+    { ...raidDropTile({ id: 1, points: 100 }) },
+    statTile({ id: 2, label: '10 Vorkath', trackedStat: 'vorkath', statType: 'boss', statGoal: 10, points: 20 }),
+  ];
+  const report = analyzeEffort(tiles, { pointsMode: true });
+  assert.equal(report.boardPoints.face, 120);
+  assert.ok(report.boardPoints.expected < report.boardPoints.face, 'the Tbow is not a sure 100');
+  assert.ok(report.boardPoints.expected > 15, 'the Vorkath tile is near-certain');
+});
+
