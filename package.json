@@ -69,6 +69,7 @@
     "test:drops": "npx tsx --test tests/drop-facts.test.ts",
     "test:chattags": "npx tsx --test tests/chat-tags.test.ts",
     "test:discord": "npx tsx --test tests/discord-interactions.test.ts",
+    "test:discordsweep": "npx tsx --test tests/discord-command-sweep.test.ts tests/discord-clan-commands.test.ts",
     "test:scoring": "npx tsx --test tests/board-scoring.test.ts",
     "test:milestone": "npx tsx --test tests/stat-milestone.test.ts",
     "test:baseline": "npx tsx --test tests/stat-baseline.test.ts",

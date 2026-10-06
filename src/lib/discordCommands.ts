@@ -19,7 +19,7 @@
 //     Unrevealed boards are the one exception and stay hidden here too.
 
 import { db } from '@/db';
-import { events, players, teams, tiles, completions, clanRoster, eventSignups, eventParticipants } from '@/db/schema';
+import { events, teams, tiles, completions, clanRoster, eventSignups, eventParticipants } from '@/db/schema';
 import { and, desc, eq, inArray, or } from 'drizzle-orm';
 import { getTeamStandings, type TeamStanding } from '@/lib/statStandings';
 import { clanMarkUrl } from '@/lib/clanMarkUrl';
@@ -365,7 +365,7 @@ async function meEmbed(
 ): Promise<DiscordEmbed> {
   const myPlayers = memberIds.length || accountIds.length
     ? await db
-        .select({ id: players.id, name: eventParticipants.name, teamId: eventParticipants.teamId })
+        .select({ id: eventParticipants.id, name: eventParticipants.name, teamId: eventParticipants.teamId })
         .from(eventParticipants)
         .where(and(eq(eventParticipants.eventId, event.id), mineOnBoard(memberIds, accountIds)))
     : [];
@@ -985,23 +985,60 @@ async function resolveBingo(
 // options, so they ride a compact JSON blob instead. Same contract as /bingo: the button rebuilds
 // the answer from its own custom_id, so a share survives a redeploy and shows the numbers as NOW.
 
-const CLAN_SHARE_PREFIX = 'cx:';
+// Two prefixes. `cy:` is the current, compact form: `cy:<name>|<sub>|k=v&k=v`, escaping only the four
+// separator characters. `cx:` was base64url JSON — and was CLIPPED to Discord's 100-char custom_id
+// cap, so any share whose options ran long (`/stats pbs account:Drenvox mdps activity:Tombs of
+// Amascut` encodes to 115) produced a button that could never decode: "too old to share", every
+// time, the moment it was pressed. Old `cx:` buttons already in channels still decode below.
+const CLAN_SHARE_PREFIX = 'cy:';
+const LEGACY_CLAN_SHARE_PREFIX = 'cx:';
+const CUSTOM_ID_MAX = 100;
 
+const escShare = (v: string) => v.replace(/[%|&=]/g, (c) => `%${c.charCodeAt(0).toString(16).padStart(2, '0')}`);
+const unescShare = (v: string) => v.replace(/%([0-9a-f]{2})/gi, (_, h: string) => String.fromCharCode(parseInt(h, 16)));
+
+/** The Share button's custom_id, or null when it cannot fit — no button beats a broken one. */
 export function encodeClanShare(
   name: string,
   sub: string | null,
   options: Record<string, string | number | boolean>,
-): string {
-  const json = JSON.stringify({ n: name, s: sub, o: options });
-  return (CLAN_SHARE_PREFIX + Buffer.from(json, 'utf8').toString('base64url')).slice(0, 100);
+): string | null {
+  const opts = Object.entries(options)
+    .map(([k, v]) => {
+      // Type rides in the first character so a number or boolean comes back as itself.
+      const typed = typeof v === 'number' ? `n${v}` : typeof v === 'boolean' ? `b${v ? 1 : 0}` : `s${v}`;
+      return `${escShare(k)}=${escShare(typed)}`;
+    })
+    .join('&');
+  const id = `${CLAN_SHARE_PREFIX}${escShare(name)}|${escShare(sub ?? '')}|${opts}`;
+  return id.length <= CUSTOM_ID_MAX ? id : null;
 }
 
 export function decodeClanShare(
   customId: string,
 ): { n: string; s: string | null; o: Record<string, string | number | boolean> } | null {
-  if (!customId.startsWith(CLAN_SHARE_PREFIX)) return null;
+  if (customId.startsWith(CLAN_SHARE_PREFIX)) {
+    const parts = customId.slice(CLAN_SHARE_PREFIX.length).split('|');
+    if (parts.length !== 3 || !parts[0]) return null;
+    const o: Record<string, string | number | boolean> = {};
+    for (const pair of parts[2] ? parts[2].split('&') : []) {
+      const eq = pair.indexOf('=');
+      if (eq <= 0) return null;
+      const key = unescShare(pair.slice(0, eq));
+      const raw = unescShare(pair.slice(eq + 1));
+      const kind = raw[0];
+      const body = raw.slice(1);
+      if (kind === 'n') o[key] = Number(body);
+      else if (kind === 'b') o[key] = body === '1';
+      else if (kind === 's') o[key] = body;
+      else return null;
+    }
+    const sub = unescShare(parts[1]);
+    return { n: unescShare(parts[0]), s: sub || null, o };
+  }
+  if (!customId.startsWith(LEGACY_CLAN_SHARE_PREFIX)) return null;
   try {
-    const json = Buffer.from(customId.slice(CLAN_SHARE_PREFIX.length), 'base64url').toString('utf8');
+    const json = Buffer.from(customId.slice(LEGACY_CLAN_SHARE_PREFIX.length), 'base64url').toString('utf8');
     const parsed = JSON.parse(json) as { n?: unknown; s?: unknown; o?: unknown };
     if (typeof parsed.n !== 'string') return null;
     return {
@@ -1045,7 +1082,7 @@ async function replyClanCommand(
   if ('text' in result) return textReply(result.text, { ephemeral: true });
   const isWrite = CLAN_WRITE_SUBS[opts.name]?.has(ctx.sub ?? '') ?? false;
   const shareCustomId =
-    opts.ephemeral && result.shareable && !isWrite ? encodeClanShare(opts.name, ctx.sub, ctx.options) : undefined;
+    (opts.ephemeral && result.shareable && !isWrite ? encodeClanShare(opts.name, ctx.sub, ctx.options) : null) ?? undefined;
   const response = embedReply(result.embeds, {
     ephemeral: opts.ephemeral,
     components: shareCustomId ? [shareRow(ctx.t.common.shareButton, shareCustomId)] : undefined,

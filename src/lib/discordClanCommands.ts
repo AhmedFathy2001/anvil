@@ -31,6 +31,7 @@ import { clanMarkUrl } from '@/lib/clanMarkUrl';
 
 import { competitionImageUrl, itemIconUrl, bossImageUrl } from '@/lib/tileIcons';
 import { clogPageItems, clogPageIndex, clogPageNames } from '@/lib/clogDataset';
+import { matchBestsToPages, titleCaseActivity } from '@/lib/clogProfile';
 import { getEffectiveParticipants } from '@/lib/weekly';
 import { weeklyMetricLabel } from '@/lib/weeklyLabels';
 import { weeklyUnit } from '@/lib/weeklyStage';
@@ -649,15 +650,70 @@ async function pbsResult(ctx: ClanCommandCtx, picked: { accountId: number | null
   if (rows.length === 0) return { text: fmt(t.stats.noPbs, { who: picked.rsn }) };
 
   const pageQuery = typeof ctx.options.page === 'string' ? ctx.options.page.trim().toLowerCase() : '';
-  const shown = pageQuery ? rows.filter((r) => r.activity.includes(pageQuery)) : rows;
+  // One spelling per run. The live capture stores the game's chat-line name ("tombs of amascut:
+  // expert mode") and the profile import RuneLite's key ("tombs of amascut expert mode"), so the
+  // same best arrived twice. Punctuation-blind key, fastest wins.
+  const merged = new Map<string, (typeof rows)[number]>();
+  for (const r of rows) {
+    const key = `${r.activity.replace(/[^a-z0-9]+/gi, ' ').trim().toLowerCase()}\u0000${r.teamSize}`;
+    const prior = merged.get(key);
+    if (!prior || r.centis < prior.centis) merged.set(key, r);
+  }
+  const all = [...merged.values()];
+  const shown = pageQuery
+    ? all.filter((r) => r.activity.replace(/[^a-z0-9]+/gi, ' ').includes(pageQuery.replace(/[^a-z0-9]+/gi, ' ').trim()))
+    : all;
   if (pageQuery && shown.length === 0) return { text: fmt(t.stats.noPbActivity, { q: clamp(pageQuery, 60) }) };
-  shown.sort((a, b) => a.activity.localeCompare(b.activity) || a.teamSize - b.teamSize);
 
-  const line = (r: (typeof shown)[number]) =>
-    `• **${titleCase(r.activity)}**${r.teamSize > 0 ? ` (${r.teamSize})` : ''} — ${code(formatPersonalBest(r.centis))}`;
+  // mode / size narrow a raid's twenty-odd bests to the run being asked about. Read off the run's own
+  // name, so it works for whatever the game calls a mode — "hard" is ToA Expert, ToB Hard Mode and
+  // CoX Challenge Mode alike.
+  const modeWanted = typeof ctx.options.mode === 'string' ? ctx.options.mode : '';
+  const sizeWanted = typeof ctx.options.size === 'number' ? ctx.options.size : null;
+  const keepRun = (name: string): boolean => {
+    const n = name.toLowerCase();
+    if (modeWanted) {
+      const mode = /\b(expert|hard mode|challenge)\b/.test(n) ? 'hard' : /\bentry\b/.test(n) ? 'entry' : 'normal';
+      if (mode !== modeWanted) return false;
+    }
+    if (sizeWanted != null) {
+      const size = /\bsolo\b/.test(n) ? 1 : Number(/\b(\d+)(?:-\d+)? players?\b/.exec(n)?.[1] ?? NaN);
+      if (size !== sizeWanted) return false;
+    }
+    return true;
+  };
+
+  // Grouped the way the profile shows them: one heading per log page ("Tombs of Amascut"), the run
+  // underneath by what qualifies it ("Expert mode 4 players"). Repeating the raid name on every
+  // line is what made a ToA player's list read as eighteen different activities.
+  const grouped = matchBestsToPages(
+    shown.map((r) => ({ activity: r.activity, teamSize: r.teamSize, time: formatPersonalBest(r.centis) })),
+    clogPageNames(),
+  );
+  const placed = new Set([...grouped.values()].flat().map((b) => b.activity));
+  for (const [page, list] of grouped) {
+    const kept = list.filter((b) => keepRun(b.activity));
+    if (kept.length) grouped.set(page, kept);
+    else grouped.delete(page);
+  }
+  const lines: string[] = [];
+  for (const page of [...grouped.keys()].sort((a, b) => a.localeCompare(b))) {
+    lines.push(`**${page}**`);
+    // Mode first, then party size — all the normal runs, then all the Expert ones, rather than the
+    // profile's party-size-first order, which interleaves them in a list this long.
+    const mode = (label: string) => label.replace(/\b(solo|\d+(-\d+)? players?)\b/gi, '').replace(/^best overall$/i, '').trim().toLowerCase();
+    const runs = [...grouped.get(page)!].sort((a, b) => mode(a.label).localeCompare(mode(b.label)) || a.partySize - b.partySize);
+    for (const b of runs) lines.push(`• ${b.label} — ${code(b.time)}`);
+  }
+  // Anything no log page claims still shows, under its own name.
+  for (const r of shown.filter((r) => !placed.has(r.activity) && keepRun(r.activity)).sort((a, b) => a.activity.localeCompare(b.activity))) {
+    lines.push(`• **${titleCaseActivity(r.activity)}**${r.teamSize > 0 ? ` (${r.teamSize})` : ''} — ${code(formatPersonalBest(r.centis))}`);
+  }
+  if (lines.length === 0) return { text: fmt(t.stats.noPbActivity, { q: clamp([pageQuery, modeWanted, sizeWanted ?? ''].filter(Boolean).join(' · '), 60) }) };
+  const MAX_LINES = 30;
   const url = profileUrl(clan, picked.rsn, 'pbs');
-  const body = [t.stats.pbsHeading, ...shown.slice(0, 20).map(line)];
-  if (shown.length > 20) body.push(`-# ${fmt(t.common.more, { n: shown.length - 20 })}`);
+  const body = [t.stats.pbsHeading, ...lines.slice(0, MAX_LINES)];
+  if (lines.length > MAX_LINES) body.push(`-# ${fmt(t.common.more, { n: lines.length - MAX_LINES })}`);
   body.push('', clanLine(clan)); // title already links to the PBs tab
 
   return {

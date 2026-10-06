@@ -77,13 +77,19 @@ test('canManageCoffer: treasurer/admin/owner yes, others no', async () => {
 
 test('clan share ids round-trip name, sub and options', async () => {
   const { encodeClanShare, decodeClanShare } = await load();
-  assert.deepEqual(decodeClanShare(encodeClanShare('sotw', null, {})), { n: 'sotw', s: null, o: {} });
-  assert.deepEqual(decodeClanShare(encodeClanShare('eff', null, { metric: 'ehb' })), {
+  assert.deepEqual(decodeClanShare(encodeClanShare('sotw', null, {})!), { n: 'sotw', s: null, o: {} });
+  assert.deepEqual(decodeClanShare(encodeClanShare('eff', null, { metric: 'ehb' })!), {
     n: 'eff',
     s: null,
     o: { metric: 'ehb' },
   });
-  assert.deepEqual(decodeClanShare(encodeClanShare('coffer', 'balance', {})), { n: 'coffer', s: 'balance', o: {} });
+  assert.deepEqual(decodeClanShare(encodeClanShare('coffer', 'balance', {})!), { n: 'coffer', s: 'balance', o: {} });
+  // Types and the separator characters survive.
+  assert.deepEqual(decodeClanShare(encodeClanShare('stats', 'pbs', { activity: 'A|B&C=D%E', top: 5, mine: true })!), {
+    n: 'stats',
+    s: 'pbs',
+    o: { activity: 'A|B&C=D%E', top: 5, mine: true },
+  });
 
   // Anything that isn't one of ours is refused rather than guessed at — the /bingo path takes over.
   assert.equal(decodeClanShare('share:board'), null);
@@ -93,8 +99,28 @@ test('clan share ids round-trip name, sub and options', async () => {
 test('a clan share id fits inside the 100 characters Discord allows on a custom_id', async () => {
   const { encodeClanShare } = await load();
   const id = encodeClanShare('coffer', 'balance', { member: '123456789012345678' });
-  assert.ok(id.length <= 100, `custom_id is ${id.length} chars`);
-  assert.ok(id.startsWith('cx:'));
+  assert.ok(id && id.length <= 100, `custom_id is ${id?.length} chars`);
+  assert.ok(id!.startsWith('cy:'));
+});
+
+test('the /stats pbs share that used to break now decodes', async () => {
+  // base64 JSON of this was 115 chars, clipped to 100, and so undecodable — "too old to share".
+  const { encodeClanShare, decodeClanShare } = await load();
+  const options = { account: 'Drenvox mdps', activity: 'Tombs of Amascut: Expert Mode' };
+  const id = encodeClanShare('stats', 'pbs', options);
+  assert.ok(id && id.length <= 100, `custom_id is ${id?.length} chars`);
+  assert.deepEqual(decodeClanShare(id!), { n: 'stats', s: 'pbs', o: options });
+});
+
+test('too long to fit means no share button, never a clipped one', async () => {
+  const { encodeClanShare } = await load();
+  assert.equal(encodeClanShare('stats', 'pbs', { activity: 'x'.repeat(120) }), null);
+});
+
+test('buttons already posted in the old base64 form still decode', async () => {
+  const { decodeClanShare } = await load();
+  const legacy = 'cx:' + Buffer.from(JSON.stringify({ n: 'eff', s: null, o: { metric: 'ehb' } })).toString('base64url');
+  assert.deepEqual(decodeClanShare(legacy), { n: 'eff', s: null, o: { metric: 'ehb' } });
 });
 
 // ── language: option ────────────────────────────────────────────────────────────────────────────

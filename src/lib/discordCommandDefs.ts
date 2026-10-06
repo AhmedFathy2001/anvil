@@ -113,6 +113,30 @@ const PAGE_OPTION = {
   autocomplete: true,
 } as const;
 
+// /stats pbs filters. One raid can hold twenty-odd bests — every scale, in every mode — so these
+// narrow it to the run someone is actually asking about. "Hard" is each raid's harder mode under its
+// own name: ToA Expert, ToB Hard Mode, CoX Challenge Mode.
+const PB_MODE_OPTION = {
+  name: 'mode',
+  description: 'Raid difficulty (leave blank for all)',
+  type: OPTION_TYPE.STRING,
+  required: false,
+  choices: [
+    { name: 'Normal', value: 'normal' },
+    { name: 'Hard (ToA Expert, ToB Hard Mode, CoX Challenge Mode)', value: 'hard' },
+    { name: 'Entry', value: 'entry' },
+  ],
+} as const;
+
+const PB_SIZE_OPTION = {
+  name: 'size',
+  description: 'Team size — 1 for solo (leave blank for all)',
+  type: OPTION_TYPE.INTEGER,
+  required: false,
+  min_value: 1,
+  max_value: 100,
+} as const;
+
 const ACCOUNT_OPTION = {
   name: 'account',
   description: 'Which account — type to pick (defaults to the main)',
@@ -179,7 +203,7 @@ const CLAN_DEFINITIONS = [
       { name: 'levels', description: 'Skill levels and XP', type: OPTION_TYPE.SUB_COMMAND, options: [MEMBER_OPTION, ACCOUNT_OPTION, LANGUAGE_OPTION] },
       { name: 'efficiency', description: 'EHP and EHB, and where each comes from', type: OPTION_TYPE.SUB_COMMAND, options: [MEMBER_OPTION, ACCOUNT_OPTION, LANGUAGE_OPTION] },
       { name: 'clog', description: "Collection log — overall, or one boss's page", type: OPTION_TYPE.SUB_COMMAND, options: [PAGE_OPTION, ACCOUNT_OPTION, MEMBER_OPTION, LANGUAGE_OPTION] },
-      { name: 'pbs', description: 'Personal bests — all, or one activity', type: OPTION_TYPE.SUB_COMMAND, options: [PAGE_OPTION, ACCOUNT_OPTION, MEMBER_OPTION, LANGUAGE_OPTION] },
+      { name: 'pbs', description: 'Personal bests — all, or one activity', type: OPTION_TYPE.SUB_COMMAND, options: [PAGE_OPTION, PB_MODE_OPTION, PB_SIZE_OPTION, ACCOUNT_OPTION, MEMBER_OPTION, LANGUAGE_OPTION] },
       { name: 'luck', description: 'Drop luck across tracked drops', type: OPTION_TYPE.SUB_COMMAND, options: [MEMBER_OPTION, ACCOUNT_OPTION, LANGUAGE_OPTION] },
       { name: 'collectors', description: 'Clan leaderboard — the top collection logs', type: OPTION_TYPE.SUB_COMMAND, options: [LANGUAGE_OPTION] },
       { name: 'luckboard', description: 'Clan leaderboard — the driest and the luckiest', type: OPTION_TYPE.SUB_COMMAND, options: [LANGUAGE_OPTION] },
