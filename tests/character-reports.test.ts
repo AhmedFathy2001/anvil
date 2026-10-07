@@ -64,17 +64,26 @@ after(async () => {
 test('filing twice adds to one open report rather than starting a second', async () => {
   const a = await R.fileCharacterReport({ accountId, clanId, reportedByUserId: staffUser, kind: 'claim_review', body: 'not theirs' });
   const b = await R.fileCharacterReport({ accountId, clanId, reportedByUserId: staffUser, kind: 'claim_review', body: 'still not theirs' });
+  await R.fileCharacterReport({ accountId, clanId, reportedByUserId: staffUser, kind: 'claim_review', body: 'still not theirs' });
   assert.equal(a.created, true);
   assert.equal(b.created, false);
   assert.equal(a.id, b.id);
   const [row] = await db.select().from(s.characterReports).where(eq(s.characterReports.id, a.id));
   assert.match(row.body ?? '', /not theirs[\s\S]*still not theirs/);
+  assert.equal(row.body?.match(/still not theirs/g)?.length, 1, 'an identical retry is not appended');
   assert.deepEqual([...(await R.openReportAccountIds([accountId]))], [accountId]);
 
   const listed = await R.listCharacterReports();
   assert.equal(listed.length, 1);
   assert.equal(listed[0].account.ownerName, 'Holder');
   assert.equal(listed[0].clan?.slug, 'reporter');
+});
+
+test('repeated automatic rename evidence is collapsed to its newest reading', () => {
+  const first = 'Looks like IMPURITY renamed to SIX MILLION (same rank, XP within 0%). Not applied automatically: it belongs to a player, so Anvil applies it.';
+  const latest = 'Looks like IMPURITY renamed to SIX MILLION (same rank, XP within 0.1%). Not applied automatically: it belongs to a player, so Anvil applies it.';
+  assert.equal(R.compactCharacterReportBody(`${first}\n\n${latest}\n\n${latest}`), latest);
+  assert.equal(R.mergeCharacterReportBody(first, latest), latest);
 });
 
 test('two clans vouching for two different people stay two reports', async () => {

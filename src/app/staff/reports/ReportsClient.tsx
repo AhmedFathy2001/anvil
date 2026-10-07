@@ -5,6 +5,9 @@ import { useEffect, useState } from 'react';
 import ClanLink from '@/components/ClanLink';
 import LocalTime from '@/components/LocalTime';
 import { clanFetch } from '@/lib/clanFetch';
+import type { PersonHit } from '@/lib/platformView';
+
+import PersonPicker, { personName } from '../people/PersonPicker';
 
 interface Report {
   id: number;
@@ -41,6 +44,8 @@ export default function ReportsClient() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<number | null>(null);
   const [error, setError] = useState('');
+  const [reassigning, setReassigning] = useState<number | null>(null);
+  const [targetPerson, setTargetPerson] = useState<PersonHit | null>(null);
 
   async function load(f: 'open' | 'all') {
     const res = await fetch(`/api/staff/character-reports?status=${f}`);
@@ -52,13 +57,14 @@ export default function ReportsClient() {
     void load(filter);
   }, [filter]);
 
-  async function act(r: Report, payload: Record<string, unknown>, url: string, method = 'POST') {
+  async function act(r: Report, payload: Record<string, unknown>, url: string, method = 'POST'): Promise<boolean> {
     setBusy(r.id);
     setError('');
     const res = await clanFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     if (!res.ok) setError((await res.json().catch(() => null))?.error ?? 'That did not work.');
     await load(filter);
     setBusy(null);
+    return res.ok;
   }
 
   const note = (r: Report) => (document.getElementById(`note-${r.id}`) as HTMLTextAreaElement | null)?.value ?? '';
@@ -166,25 +172,17 @@ export default function ReportsClient() {
                         Take it off {r.account.ownerName ?? 'them'}
                       </button>
                     )}
-                    <span className="flex items-center gap-1">
-                      <input
-                        id={`to-${r.id}`}
-                        inputMode="numeric"
-                        placeholder="person id"
-                        className="w-24 rounded border border-card-border bg-brown-dark px-2 py-1.5 text-xs focus:border-gold/40 focus:outline-none"
-                      />
-                      <button
-                        disabled={busy === r.id}
-                        onClick={() => {
-                          const id = Number((document.getElementById(`to-${r.id}`) as HTMLInputElement | null)?.value);
-                          if (!Number.isInteger(id) || id <= 0) return setError('Enter a person id from /staff/people.');
-                          void act(r, { action: 'reassign', toPlayerId: id, note: note(r) || `Reassigned to person #${id}`, reportId: r.id }, `/api/staff/characters/${r.account.id}`);
-                        }}
-                        className="rounded-lg border border-card-border px-3 py-1.5 text-sm text-text-muted hover:border-gold/40 disabled:opacity-50"
-                      >
-                        Give to this person
-                      </button>
-                    </span>
+                    <button
+                      disabled={busy === r.id}
+                      onClick={() => {
+                        setReassigning((current) => (current === r.id ? null : r.id));
+                        setTargetPerson(null);
+                        setError('');
+                      }}
+                      className="rounded-lg border border-card-border px-3 py-1.5 text-sm text-text-muted hover:border-gold/40 disabled:opacity-50"
+                    >
+                      {reassigning === r.id ? 'Close person search' : 'Give to another person…'}
+                    </button>
                     <button
                       disabled={busy === r.id}
                       onClick={() => act(r, { id: r.id, status: 'resolved', resolution: note(r) || 'Resolved' }, '/api/staff/character-reports', 'PATCH')}
@@ -200,6 +198,56 @@ export default function ReportsClient() {
                       Dismiss
                     </button>
                   </div>
+                  {reassigning === r.id && (
+                    <div className="max-w-2xl pt-1">
+                      <PersonPicker
+                        key={`${r.id}-${targetPerson?.playerId ?? 'empty'}`}
+                        title="Choose the character owner"
+                        help="Search by RuneScape name, display name, Discord id, or #person-id, then confirm the selected person below."
+                        selected={targetPerson}
+                        onSelect={setTargetPerson}
+                        excludeId={r.account.playerId}
+                      />
+                      {targetPerson && (
+                        <div className="mt-2 flex flex-wrap justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReassigning(null);
+                              setTargetPerson(null);
+                            }}
+                            className="rounded-lg border border-card-border px-3 py-1.5 text-sm text-text-muted hover:border-gold/40"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy === r.id}
+                            onClick={async () => {
+                              const target = targetPerson;
+                              const ok = await act(
+                                r,
+                                {
+                                  action: 'reassign',
+                                  toPlayerId: target.playerId,
+                                  note: note(r) || `Given to ${personName(target)}`,
+                                  reportId: r.id,
+                                },
+                                `/api/staff/characters/${r.account.id}`,
+                              );
+                              if (ok) {
+                                setReassigning(null);
+                                setTargetPerson(null);
+                              }
+                            }}
+                            className="rounded-lg border border-gold/40 bg-gold/10 px-3 py-1.5 text-sm text-gold hover:bg-gold/20 disabled:opacity-50"
+                          >
+                            Give character to {personName(targetPerson)}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

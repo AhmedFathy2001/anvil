@@ -19,6 +19,50 @@ export function isReportKind(v: unknown): v is ReportKind {
   return typeof v === 'string' && (REPORT_KINDS as readonly string[]).includes(v);
 }
 
+function automaticEvidenceKey(block: string): string | null {
+  // The rename sweep can rediscover the same pair on every sync. Its confidence percentage may
+  // move slightly as the hiscores update, but that is newer evidence for the same report rather
+  // than another operator note. Keep the newest reading in that one evidence slot.
+  const rename = block.match(/^Looks like\s+(.+?)\s+renamed to\s+(.+?)\s+\([^\n)]*\)\.\s+Not applied automatically:/i);
+  if (!rename) return null;
+  const normalize = (value: string) => value.trim().replace(/\s+/g, ' ').toLowerCase();
+  return `automatic-rename:${normalize(rename[1])}:${normalize(rename[2])}`;
+}
+
+/**
+ * Turn a report's append-only notes into a readable thread. Exact retries appear once, while
+ * automatic rename evidence for the same old/new pair is refreshed in place. This also makes old
+ * reports that accumulated one paragraph per plugin ping readable as soon as staff reloads them.
+ */
+export function compactCharacterReportBody(value: string | null | undefined): string | null {
+  if (!value?.trim()) return null;
+
+  const blocks: string[] = [];
+  const positionByKey = new Map<string, number>();
+  for (const raw of value.replace(/\r\n?/g, '\n').split(/\n\s*\n+/)) {
+    const block = raw.trim();
+    if (!block) continue;
+    const automaticKey = automaticEvidenceKey(block);
+    const key = automaticKey ?? `note:${block}`;
+    const prior = positionByKey.get(key);
+    if (prior == null) {
+      positionByKey.set(key, blocks.length);
+      blocks.push(block);
+    } else if (automaticKey) {
+      blocks[prior] = block;
+    }
+  }
+  return blocks.join('\n\n') || null;
+}
+
+export function mergeCharacterReportBody(
+  existing: string | null | undefined,
+  incoming: string | null | undefined,
+): string | null {
+  const next = incoming?.trim().slice(0, 2000) || null;
+  return compactCharacterReportBody([existing, next].filter((part): part is string => !!part).join('\n\n'));
+}
+
 /**
  * Raise a character with Anvil. Idempotent per (account, kind, claimant) while one is open — a mod
  * pressing the button twice, or two mods of two clans, add to one thread rather than starting a
@@ -52,12 +96,13 @@ export async function fileCharacterReport(input: {
     ),
     columns: { id: true, body: true },
   });
-  const body = input.body?.trim().slice(0, 2000) || null;
+  const body = mergeCharacterReportBody(null, input.body);
   if (open) {
-    if (body && body !== open.body) {
+    const mergedBody = mergeCharacterReportBody(open.body, body);
+    if (mergedBody !== open.body) {
       await db
         .update(characterReports)
-        .set({ body: open.body ? `${open.body}\n\n${body}` : body })
+        .set({ body: mergedBody })
         .where(eq(characterReports.id, open.id));
     }
     return { id: open.id, created: false };
@@ -143,7 +188,7 @@ export async function listCharacterReports(opts: { status?: 'open' | 'all' } = {
   return rows.map((x) => ({
     id: x.r.id,
     kind: x.r.kind,
-    body: x.r.body,
+    body: compactCharacterReportBody(x.r.body),
     requestedRsn: x.r.requestedRsn,
     status: x.r.status,
     resolution: x.r.resolution,
