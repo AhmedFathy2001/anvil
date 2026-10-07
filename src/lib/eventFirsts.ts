@@ -1,6 +1,7 @@
 import { db } from '@/db';
 import { completions, eventParticipants, teams, tiles } from '@/db/schema';
 import { asc, eq, inArray } from 'drizzle-orm';
+import { eventActivityIsValid } from '@/lib/completionGate';
 
 /**
  * The firsts of a board — who started it, who drew first blood, who cleared the first timed run.
@@ -36,7 +37,7 @@ const FIRSTS: { key: string; emoji: string; title: string; blurb: string; types:
   { key: 'first-pk', emoji: '🗡️', title: 'First blood (PvP)', blurb: 'First player kill claimed', types: ['pvp'] },
 ];
 
-export async function loadEventFirsts(eventId: number): Promise<EventFirst[]> {
+export async function loadEventFirsts(eventId: number, startDate: string | null): Promise<EventFirst[]> {
   // Claim order, oldest first. The board's own completions only — this never touches other events.
   const rows = await db
     .select({
@@ -52,7 +53,8 @@ export async function loadEventFirsts(eventId: number): Promise<EventFirst[]> {
     .where(eq(tiles.eventId, eventId))
     .orderBy(asc(completions.completedAt));
 
-  if (rows.length === 0) return [];
+  const validRows = rows.filter((row) => eventActivityIsValid({ startDate }, row.completedAt));
+  if (validRows.length === 0) return [];
 
   const teamRows = await db
     .select({ id: teams.id, name: teams.name, color: teams.color })
@@ -60,7 +62,7 @@ export async function loadEventFirsts(eventId: number): Promise<EventFirst[]> {
     .where(eq(teams.eventId, eventId));
   const teamById = new Map(teamRows.map((t) => [t.id, t]));
 
-  const playerIds = [...new Set(rows.map((r) => r.creditPlayerId).filter((id): id is number => id != null))];
+  const playerIds = [...new Set(validRows.map((r) => r.creditPlayerId).filter((id): id is number => id != null))];
   const playerRows = playerIds.length
     ? await db.select({ id: eventParticipants.id, name: eventParticipants.name }).from(eventParticipants).where(inArray(eventParticipants.id, playerIds))
     : [];
@@ -87,7 +89,7 @@ export async function loadEventFirsts(eventId: number): Promise<EventFirst[]> {
 
   // Who got the board moving. A mission is dropped mid-event, so it can't be the thing that started
   // it — the opener has to be a board tile.
-  const opener = rows.find((r) => r.mission !== 1);
+  const opener = validRows.find((r) => r.mission !== 1);
   if (opener) {
     out.push(
       entryFor(opener, {
@@ -100,7 +102,7 @@ export async function loadEventFirsts(eventId: number): Promise<EventFirst[]> {
   }
 
   for (const spec of FIRSTS) {
-    const row = rows.find((r) => spec.types.includes(r.tileType ?? 'standard'));
+    const row = validRows.find((r) => spec.types.includes(r.tileType ?? 'standard'));
     // Don't repeat the opener under a second name when it was also the first of its kind.
     if (row && row !== opener) out.push(entryFor(row, spec));
   }

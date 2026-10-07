@@ -61,6 +61,24 @@ export function eventHasStarted(event: Pick<EventRow, 'startDate'>, now: number 
   return startMs != null && startMs <= now;
 }
 
+/**
+ * Whether an event-owned row genuinely happened during the event.
+ *
+ * This is deliberately stricter than merely checking that the event is live now. Old versions of
+ * the ingest paths could attach activity while a board was only revealed, before its start. Those
+ * rows must stay quarantined after the whistle too; otherwise an invalid pre-start completion that
+ * is hidden today would suddenly score when the scheduled start arrives.
+ */
+export function eventActivityIsValid(
+  event: Pick<EventRow, 'startDate'>,
+  occurredAt: string | null | undefined,
+  now: number = Date.now(),
+): boolean {
+  const startMs = parseStamp(event.startDate);
+  const occurredMs = parseStamp(occurredAt);
+  return startMs != null && startMs <= now && occurredMs != null && occurredMs >= startMs;
+}
+
 // The scoring fields a mission overrides on the event rules (lockout / first-clear bonus / decay).
 // expiryHours is engine-only (auto-close), not a gate concern.
 function pickMissionScoring(tileRules: string | null): Pick<EventRules, 'lockout' | 'firstBonus' | 'decay'> {

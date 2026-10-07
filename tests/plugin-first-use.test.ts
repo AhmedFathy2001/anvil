@@ -126,3 +126,26 @@ test('on the apex (no clan in the address) a brand-new login still claims — th
   assert.equal(acct.playerId, me.person);
   assert.equal(acct.provisional, 1);
 });
+
+test('the real config endpoint claims before it asks the token which clan it belongs to', async () => {
+  // This is the production deadlock the resolvePluginMember unit path did not cover. /config used to
+  // ask resolvePluginClan first; a new Discord person owns no seat until resolvePluginMember claims
+  // this roster row, so the route returned 404 before the claim code could ever run.
+  const me = await setup('Config Newbie');
+  const { GET } = await import('../src/app/api/plugin/config/route.ts');
+  const response = await GET(
+    new Request('https://anvilosrs.com/api/plugin/config', {
+      headers: {
+        Authorization: `Bearer ${me.token}`,
+        'X-RSN': 'Config Newbie',
+        'X-Account-Hash': 'hash-config',
+      },
+    }),
+  );
+
+  assert.equal(response.status, 200, await response.text());
+  const acct = await account(me.accountId);
+  assert.equal(acct.playerId, me.person, 'the config request performed the claim');
+  assert.equal(acct.accountHash, 'hash-config');
+  assert.ok(acct.claimedAt);
+});

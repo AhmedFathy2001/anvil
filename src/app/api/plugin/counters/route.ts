@@ -4,6 +4,8 @@ import { eventParticipants, events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { resolvePluginMember } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
+import { eventHasStarted } from '@/lib/completionGate';
+import { parseStamp } from '@/lib/dbTime';
 
 // Real-time ingest for the fun end-of-event "recap" counters (total deaths, total loot GP, and PvP
 // kills for the active event). The plugin pushes ABSOLUTE per-event totals — idempotent, so a retry
@@ -75,7 +77,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, updated: 0 });
   }
 
-  const nowIso = new Date().toISOString();
+  const now = Date.now();
 
   // Resolve the member's active-event player row (same rule the stats ingest uses): drafted onto a team,
   // event not force-ended and not past its end date. Counters are per-event, so they land on that row.
@@ -90,6 +92,7 @@ export async function POST(request: Request) {
       biggestHit: eventParticipants.biggestHit,
       minutesPlayed: eventParticipants.minutesPlayed,
       caTasks: eventParticipants.caTasks,
+      startDate: events.startDate,
       endDate: events.endDate,
       forceEndedAt: events.forceEndedAt,
     })
@@ -97,7 +100,11 @@ export async function POST(request: Request) {
     .innerJoin(events, eq(eventParticipants.eventId, events.id))
     .where(eq(eventParticipants.clanMemberId, member.clanMemberId));
   const active = playerRows.find(
-    (p) => p.teamId && !p.forceEndedAt && (!p.endDate || p.endDate > nowIso),
+    (p) =>
+      p.teamId &&
+      !p.forceEndedAt &&
+      eventHasStarted(p, now) &&
+      (!p.endDate || (parseStamp(p.endDate) ?? 0) > now),
   );
   if (!active) {
     return NextResponse.json({ ok: true, updated: 0 });

@@ -4,7 +4,7 @@
 // signs in with Discord, so one human is two rows until the character is claimed. Claiming now tidies
 // up after itself, and an operator can repair the ones that never were.
 //
-// THE POINT OF THE FIRST TEST is the list of tables. Five of them name a person, and the delete at
+// THE POINT OF THE FIRST TEST is the list of tables. Six of them name a person, and the delete at
 // the end of a merge is a cascade — a table added later and forgotten would not error, it would
 // quietly take its rows with it. So one row is planted in every one of them and counted afterwards.
 //
@@ -66,6 +66,12 @@ test('everything that names the person moves, and the empty row goes', async () 
   await db.insert(s.clanBans).values({ clanId, playerId: ghost, reason: 'was rude' });
   await db.insert(s.clanJoinRequests).values({ clanId, accountId: acctId, playerId: ghost });
   await db.insert(s.eventInvites).values({ eventId, playerId: ghost });
+  await db.insert(s.characterReports).values({
+    clanId,
+    accountId: acctId,
+    claimantPlayerId: ghost,
+    kind: 'claim_request',
+  });
 
   // The login half: a person with nothing but a Discord account.
   const human = await person('hyperi0n');
@@ -73,7 +79,7 @@ test('everything that names the person moves, and the empty row goes', async () 
 
   const r = await mergePeople({ sourcePlayerId: ghost, targetPlayerId: human });
   assert.ok(r.ok, JSON.stringify(r));
-  assert.deepEqual(r.moved, { accounts: 1, logins: 0, bans: 1, joinRequests: 1, invites: 1 });
+  assert.deepEqual(r.moved, { accounts: 1, logins: 0, bans: 1, joinRequests: 1, invites: 1, reports: 1 });
 
   // The survivor holds all of it.
   assert.equal((await db.select().from(s.accounts).where(eq(s.accounts.playerId, human))).length, 1);
@@ -83,6 +89,10 @@ test('everything that names the person moves, and the empty row goes', async () 
     1,
   );
   assert.equal((await db.select().from(s.eventInvites).where(eq(s.eventInvites.playerId, human))).length, 1);
+  assert.equal(
+    (await db.select().from(s.characterReports).where(eq(s.characterReports.claimantPlayerId, human))).length,
+    1,
+  );
 
   // And the husk is gone rather than lingering in the operator's search.
   assert.equal(await db.query.players.findFirst({ where: eq(s.players.id, ghost) }), undefined);
@@ -215,7 +225,7 @@ test('no table references a person without mergePeople knowing about it', () => 
     if (/references\(\(\) => players\.id/.test(line)) tables.push(current);
   }
 
-  const handled = ['accounts', 'users', 'clanBans', 'clanJoinRequests', 'eventInvites'];
+  const handled = ['accounts', 'users', 'clanBans', 'clanJoinRequests', 'eventInvites', 'characterReports'];
   assert.deepEqual(
     [...new Set(tables)].sort(),
     [...handled].sort(),

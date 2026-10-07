@@ -15,6 +15,7 @@ import { writePlayerEventFacts } from '@/lib/playerEventFacts';
 import { buildDraftBalance, bestBalancingSwap, projectedSpreadPct } from '@/lib/draftBalance';
 import { parseEventRules, hasRevealPolicy, visibleTiles, validateEventRules } from '@/lib/eventRules';
 import { announceNextMission } from '@/lib/revealEngine';
+import { clearPreStartEventActivity } from '@/lib/preStartActivity';
 
 export async function GET(
   request: Request,
@@ -574,6 +575,9 @@ export async function PATCH(
   // row is committed so Discord's image proxy can immediately fetch the newly-visible board. Hiding
   // and re-revealing deliberately posts again: the second reveal is a new announcement, not a retry.
   if (!existing.tilesRevealed && !!updated.tilesRevealed) {
+    // Reveal means "members may see the board", never "play has started". Clean any activity an
+    // older ingest path attached to this never-started event before announcing the preview.
+    if (!updated.startNotified) await clearPreStartEventActivity(updated.id);
     const allTiles = await db.select().from(tiles).where(eq(tiles.eventId, updated.id));
     const tileCount = visibleTiles(parseEventRules(updated.rules), allTiles).length;
     notifyBoardRevealed({

@@ -234,10 +234,19 @@ async function weeklyTrackedNames(clanId: number): Promise<{ kc: string[]; skill
 }
 
 export async function GET(request: Request) {
+  // Resolve the PLAYER before resolving the clan.
+  //
+  // This ordering is load-bearing for a newly signed-in Discord user whose character already came
+  // from clan sync. Their token cannot name a clan yet because the synced seat still belongs to the
+  // roster placeholder person. `verifyPluginToken` runs resolvePluginMember, which uses the played
+  // RSN to find that unclaimed seat, claims the account and folds the placeholder into the Discord
+  // person. Only then can the token name the clan. Resolving the clan first returned 404 here and
+  // skipped that work forever, even though /config is the first request the plugin makes on login.
+  const auth = await verifyPluginToken(request);
+
   // See lib/pluginNoClan for why this is answered rather than thrown.
   const clan = await resolvePluginClan(request);
   if (!clan) return noClanForPlugin();
-  const auth = await verifyPluginToken(request);
   if (!auth) {
     // Distinguish "bad token" from "valid token but no active event" so the plugin
     // doesn't surface a misleading "failed to connect" when the user just isn't

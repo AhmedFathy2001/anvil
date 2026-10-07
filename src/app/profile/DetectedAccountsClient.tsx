@@ -6,9 +6,9 @@ import ClanLink from '@/components/ClanLink';
 
 type Detected = { id: number; rsn: string; lastSeenAt: string };
 
-// Opt-in inbox for accounts the plugin saw this user play but that aren't linked yet. Add attaches a
-// safe new account immediately; an established roster account is directed to proof first. Ignore opts
-// out (the server keeps it dismissed so it won't be re-suggested).
+// Inbox for established accounts the plugin saw this user play but could not safely auto-link. These
+// go straight to ownership proof; safe new accounts never reach this list because first use links
+// them immediately. Ignore opts out (the server keeps it dismissed so it won't be re-suggested).
 //
 // Renders as bare rows at the top of the "Your accounts" card rather than its own section: it's the
 // same list, one state earlier, and a member shouldn't have to work out why their accounts are in
@@ -18,28 +18,23 @@ export default function DetectedAccountsClient({ initial }: { initial: Detected[
   const [accounts, setAccounts] = useState<Detected[]>(initial);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState('');
-  const [proofRsn, setProofRsn] = useState<string | null>(null);
   // Relative time is client-only — a server-rendered "14 minutes ago" would hydrate against a
   // different minute and warn.
   const [nowMs, setNowMs] = useState<number | null>(null);
   useEffect(() => setNowMs(Date.now()), []);
 
-  async function act(id: number, action: 'link' | 'dismiss') {
+  async function dismiss(id: number) {
     setBusyId(id);
     setError('');
-    setProofRsn(null);
     try {
       const res = await fetch(`/api/profile/detected-accounts/${id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action: 'dismiss' }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data.error || (action === 'link' ? 'Could not add account' : 'Could not ignore account'));
-        if (data.code === 'needs_verification') {
-          setProofRsn(accounts.find((account) => account.id === id)?.rsn ?? null);
-        }
+        setError(data.error || 'Could not ignore account');
         return;
       }
       setAccounts((list) => list.filter((a) => a.id !== id));
@@ -68,42 +63,29 @@ export default function DetectedAccountsClient({ initial }: { initial: Detected[
               </span>
             </div>
             <div className="text-xs text-text-muted mt-0.5">
-              We saw you play this{nowMs !== null ? ` ${ago(a.lastSeenAt, nowMs)}` : ''}. Yours?
+              RuneLite found this character{nowMs !== null ? ` ${ago(a.lastSeenAt, nowMs)}` : ''}. Verify it to
+              connect the clan-sync record to your Discord account.
             </div>
           </div>
           <div className="ml-auto flex items-center gap-2 shrink-0">
             <button
               type="button"
-              onClick={() => act(a.id, 'dismiss')}
+              onClick={() => dismiss(a.id)}
               disabled={busyId === a.id}
               className="px-3 py-1.5 text-sm text-text-muted border border-card-border rounded-lg hover:text-foreground transition-colors disabled:opacity-50"
             >
               Not mine
             </button>
-            <button
-              type="button"
-              onClick={() => act(a.id, 'link')}
-              disabled={busyId === a.id}
-              className="px-3 py-1.5 text-sm font-semibold bg-gold hover:bg-gold-light text-brown-dark rounded-lg transition-colors disabled:opacity-50"
+            <ClanLink
+              href={`/profile?connect=${encodeURIComponent(a.rsn)}#link-account`}
+              className="px-3 py-1.5 text-sm font-semibold bg-gold hover:bg-gold-light text-brown-dark rounded-lg transition-colors"
             >
-              {busyId === a.id ? 'Working…' : 'Add to my profile'}
-            </button>
+              Verify ownership
+            </ClanLink>
           </div>
         </div>
       ))}
-      {error && (
-        <p className="text-sm text-red-400">
-          {error}{' '}
-          {proofRsn && (
-            <ClanLink
-              href={`/profile?connect=${encodeURIComponent(proofRsn)}#link-account`}
-              className="font-semibold text-gold hover:text-gold-light"
-            >
-              Start the XP check →
-            </ClanLink>
-          )}
-        </p>
-      )}
+      {error && <p className="text-sm text-red-400">{error}</p>}
     </div>
   );
 }

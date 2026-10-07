@@ -19,6 +19,7 @@ import { isDraftInProgress } from '@/lib/eventReadiness';
 import { assertEventEditable } from '@/lib/eventLock';
 import { parseEventRules } from '@/lib/eventRules';
 import { startProofGate, NO_START_PROOF_FLAG, START_PROOF_REQUIRED_CODE } from '@/lib/startProof';
+import { eventHasStarted } from '@/lib/completionGate';
 
 export async function GET(
   request: Request,
@@ -152,12 +153,11 @@ export async function POST(
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
 
-  // Block submissions before event starts (admin can bypass)
-  if (!isAdmin && event.startDate) {
-    const now = new Date().toISOString();
-    if (now < event.startDate) {
-      return NextResponse.json({ error: 'Event has not started yet' }, { status: 400 });
-    }
+  // A revealed board is still read-only until the whistle. This applies to admins too: the manual
+  // completion route already refuses pre-start board surgery, and accepting proof here would let it
+  // sit invisibly then auto-complete the tile on the first post-start ping.
+  if (!eventHasStarted(event)) {
+    return NextResponse.json({ error: 'Event has not started yet' }, { status: 400 });
   }
   // Start safeguard belt: the lifecycle cron holds an unready event's startDate in the future, but
   // between the start moment and the next tick the date can briefly read as passed — never accept a

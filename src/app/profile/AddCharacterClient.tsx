@@ -17,6 +17,8 @@ import LinkAccountClient from './LinkAccountClient';
 export default function AddCharacterClient({
   first = false,
   suggestedRsn = '',
+  linkedCount = 0,
+  detectedCount = 0,
 }: {
   first?: boolean;
   /**
@@ -27,6 +29,9 @@ export default function AddCharacterClient({
    * be somewhere else before anything happens.
    */
   suggestedRsn?: string;
+  /** Server-rendered baselines keep a ping between paint and the first poll from disappearing. */
+  linkedCount?: number;
+  detectedCount?: number;
 }) {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
@@ -36,9 +41,10 @@ export default function AddCharacterClient({
   const [error, setError] = useState('');
   const [showManual, setShowManual] = useState(Boolean(suggestedRsn));
   const [heard, setHeard] = useState(false);
-  // How many characters are linked right now, so a login that lands while this is open is seen as a
-  // CHANGE rather than the baseline it's measured against.
-  const baseline = useRef<number | null>(null);
+  // Both outcomes count. A safe first-use play becomes linked immediately; a protected roster row
+  // becomes a detected account that needs the XP/mod check. Watching only `linked` made the latter
+  // sit on "Listening…" forever even though the plugin had arrived successfully.
+  const baseline = useRef({ linked: linkedCount, detected: detectedCount });
 
   useEffect(() => {
     let alive = true;
@@ -56,22 +62,34 @@ export default function AddCharacterClient({
     };
   }, []);
 
-  // Watch for the first ping the same way the locker's ConnectCard does: poll the cheap connection
-  // beacon while the tab is visible, and the moment a new character lands hand over to a server
-  // refresh (which re-renders the real list instead of a client guess at it).
+  useEffect(() => {
+    baseline.current = { linked: linkedCount, detected: detectedCount };
+    setHeard(false);
+  }, [linkedCount, detectedCount]);
+
+  // Watch for the first ping the same way the locker's ConnectCard does. Two seconds keeps the
+  // browser feeling connected to RuneLite, and an immediate visibility/focus poll covers the common
+  // flow where somebody pastes the token, plays, then comes back to this tab.
   useEffect(() => {
     if (heard) return;
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let polling = false;
     const poll = async () => {
-      if (!alive) return;
+      if (!alive || polling) return;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
       if (document.visibilityState === 'visible') {
+        polling = true;
         try {
           const res = await fetch('/api/profile/connection', { cache: 'no-store' });
           if (res.ok) {
-            const next = (await res.json()) as { linked: number };
-            if (baseline.current == null) baseline.current = next.linked;
-            else if (next.linked > baseline.current) {
+            const next = (await res.json()) as { linked: number; detected: number };
+            const prev = baseline.current;
+            baseline.current = next;
+            if (next.linked !== prev.linked || next.detected !== prev.detected) {
               setHeard(true);
               router.refresh();
               return;
@@ -79,14 +97,23 @@ export default function AddCharacterClient({
           }
         } catch {
           /* a missed poll is covered by the next one */
+        } finally {
+          polling = false;
         }
       }
-      timer = setTimeout(poll, 10_000);
+      timer = setTimeout(poll, 2_000);
+    };
+    const pollWhenVisible = () => {
+      if (document.visibilityState === 'visible') void poll();
     };
     poll();
+    document.addEventListener('visibilitychange', pollWhenVisible);
+    window.addEventListener('focus', pollWhenVisible);
     return () => {
       alive = false;
       if (timer) clearTimeout(timer);
+      document.removeEventListener('visibilitychange', pollWhenVisible);
+      window.removeEventListener('focus', pollWhenVisible);
     };
   }, [heard, router]);
 
@@ -154,8 +181,8 @@ export default function AddCharacterClient({
           <span>A character came through — loading…</span>
         ) : (
           <span>
-            Listening for your next login… <b className="text-foreground">this page updates itself</b> the moment we
-            see you.
+            Waiting for RuneLite… <b className="text-foreground">log in or hop worlds once</b> and this page
+            updates within a few seconds.
           </span>
         )}
       </div>

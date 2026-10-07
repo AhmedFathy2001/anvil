@@ -75,6 +75,24 @@ export default function ApexHome({
         </div>
       </header>
 
+      {/* Identity comes before activity. A clan-sync record can be waiting even when this person
+          already owns another character/clan, so this must not live only in the empty-home branch. */}
+      {found.length > 0 && (
+        <section className="mb-10 rounded-2xl border border-gold/45 bg-gold/[0.07] p-5 sm:p-6">
+          <div className="mb-3">
+            <div className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-gold/80">
+              Account verification needed
+            </div>
+            <h2 className="mt-1 text-xl font-semibold">Claim your clan character</h2>
+            <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-text-muted">
+              Clan sync already has the character below, but it is not connected to your Discord account yet.
+              Verify it once and its clan seat, stats and event history move onto this account automatically.
+            </p>
+          </div>
+          <FoundSeats seats={found} />
+        </section>
+      )}
+
       {view.clans.length === 0 ? (
         // NOT a dead end. This used to be one card — "you're not in a clan yet" and two buttons —
         // which threw away everything we know about the person reading it. They have characters,
@@ -82,13 +100,6 @@ export default function ApexHome({
         // looking at. So the personal half of this page renders either way, and the clan doors sit
         // under it as an invitation rather than as the entire page.
         <div className="flex flex-col gap-10">
-          {found.length > 0 && (
-            <div>
-              <Label>We think we found you</Label>
-              <FoundSeats seats={found} />
-            </div>
-          )}
-
           <Empty hasCharacters={view.characters.length > 0} />
 
           {view.characters.length > 0 && (
@@ -358,9 +369,21 @@ function Empty({ hasCharacters }: { hasCharacters: boolean }) {
           : 'Connect a character and Anvil starts tracking its XP, kills, collection log and milestones — no clan required. Join one when you want the events.'}
       </p>
       <div className="mt-5 flex flex-wrap gap-3">
+        {!hasCharacters && (
+          <ClanLink
+            href="/profile#link-account"
+            className="rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+          >
+            Connect my RuneScape account
+          </ClanLink>
+        )}
         <ClanLink
           href="/clans"
-          className="rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+          className={`rounded-lg px-4 py-2.5 text-sm transition-colors ${
+            hasCharacters
+              ? 'bg-gold font-semibold text-brown-dark hover:bg-gold-light'
+              : 'border border-card-border hover:border-gold-dark'
+          }`}
         >
           Enter the Clan Hall
         </ClanLink>
@@ -442,24 +465,25 @@ function FoundSeats({ seats }: { seats: FoundSeat[] }) {
       {seats.map((s) => (
         <div
           key={`${s.clanSlug}/${s.rsn}`}
-          className="flex flex-wrap items-center gap-3 rounded-xl border border-gold/25 bg-gold/[0.04] px-4 py-3.5 sm:px-5"
+          className="flex flex-wrap items-center gap-3 rounded-xl border border-gold/35 bg-brown-dark/45 px-4 py-3.5 sm:px-5"
         >
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[15px] font-medium">{s.rsn}</span>
             <span className="mt-0.5 block truncate text-[12.5px] text-text-muted">
-              on {s.clanName}&rsquo;s roster{s.member ? '' : ' as a guest'} · not connected yet
+              Found on {s.clanName}&rsquo;s synced roster{s.member ? '' : ' as a guest'} · waiting for you
             </span>
           </span>
           <ClanLink
-            href={`/profile?connect=${encodeURIComponent(s.rsn)}`}
+            href={`/profile?connect=${encodeURIComponent(s.rsn)}#link-account`}
             className="shrink-0 rounded-lg bg-gold px-3.5 py-2 text-[13px] font-semibold text-brown-dark transition-colors hover:bg-gold-light"
           >
-            That&rsquo;s me
+            Verify &amp; claim
           </ClanLink>
         </div>
       ))}
       <p className="text-[12px] text-text-dim">
-        Matched by Discord name, so it is a guess — connecting the character is what proves it.
+        This suggestion comes from a Discord-name match, so Anvil does not claim it silently. RuneLite
+        verification or the quick XP check proves it is really yours.
       </p>
     </div>
   );

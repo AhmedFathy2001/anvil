@@ -19,6 +19,7 @@ let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
 let s: Awaited<ReturnType<typeof loadDb>>['schema'];
 let evaluateCompletionGate: typeof import('../src/lib/completionGate.ts')['evaluateCompletionGate'];
 let eventHasStarted: typeof import('../src/lib/completionGate.ts')['eventHasStarted'];
+let eventActivityIsValid: typeof import('../src/lib/completionGate.ts')['eventActivityIsValid'];
 
 let eventId: number;
 let tileId: number;
@@ -36,7 +37,7 @@ async function gateWithStart(startDate: string | null) {
 before(async () => {
   await resetDatabase(DB);
   ({ db, pool, schema: s } = await loadDb());
-  ({ evaluateCompletionGate, eventHasStarted } = await import('../src/lib/completionGate.ts'));
+  ({ evaluateCompletionGate, eventHasStarted, eventActivityIsValid } = await import('../src/lib/completionGate.ts'));
 
   const [clan] = await db.insert(s.clans).values({ slug: 'gate', name: 'Gate Test' }).returning();
   const [ev] = await db.insert(s.events).values({ clanId: clan.id, name: 'Bingo', boardSize: 25 }).returning();
@@ -81,4 +82,17 @@ test('eventHasStarted is the temporal truth, in either stored time format', () =
   assert.equal(eventHasStarted({ startDate: '2026-08-29 11:00:00' }, now), true, 'past space-format');
   assert.equal(eventHasStarted({ startDate: '2026-08-29T13:00:00Z' }, now), false, 'future');
   assert.equal(eventHasStarted({ startDate: null }, now), false, 'no start = not started');
+});
+
+test('event activity must happen after the whistle and stays invalid after the event starts', () => {
+  const now = Date.parse('2026-08-29T14:00:00Z');
+  const event = { startDate: '2026-08-29T12:00:00Z' };
+  assert.equal(eventActivityIsValid(event, '2026-08-29T11:59:59Z', now), false, 'pre-start row');
+  assert.equal(eventActivityIsValid(event, '2026-08-29 12:00:00', now), true, 'space-format at start');
+  assert.equal(eventActivityIsValid(event, '2026-08-29T12:00:01Z', now), true, 'post-start row');
+  assert.equal(
+    eventActivityIsValid({ startDate: '2026-08-30T12:00:00Z' }, '2026-08-30T12:00:01Z', now),
+    false,
+    'a future event is not scoreable even if a client supplies a future row timestamp',
+  );
 });

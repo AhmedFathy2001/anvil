@@ -152,7 +152,12 @@ export default function PersonProfile({
             <p className="mb-4 text-sm text-text-muted">
               No characters linked yet — here&rsquo;s the quickest way to add your first.
             </p>
-            <AddCharacterClient first suggestedRsn={suggestedRsn} />
+            <AddCharacterClient
+              first
+              suggestedRsn={suggestedRsn}
+              linkedCount={characters.length}
+              detectedCount={detected.length}
+            />
           </div>
         ) : (
           <>
@@ -190,7 +195,11 @@ export default function PersonProfile({
                 Add another character
               </summary>
               <div className="px-4 pb-4">
-                <AddCharacterClient suggestedRsn={suggestedRsn} />
+                <AddCharacterClient
+                  suggestedRsn={suggestedRsn}
+                  linkedCount={characters.length}
+                  detectedCount={detected.length}
+                />
               </div>
             </details>
           </>

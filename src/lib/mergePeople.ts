@@ -12,7 +12,7 @@
 // MOVE what the row carries before deleting it, which is what this does, rather than to leave litter
 // in the one tool an operator uses to check that identity merged.
 //
-// EVERY TABLE THAT NAMES A PERSON IS HANDLED HERE. There are five, and the list is load-bearing: a
+// EVERY TABLE THAT NAMES A PERSON IS HANDLED HERE. There are six, and the list is load-bearing: a
 // table added later and forgotten would be silently cascade-deleted by the delete at the end.
 //
 //   accounts.player_id            NOT NULL, cascade   → moved
@@ -20,6 +20,7 @@
 //   clan_bans.player_id           NOT NULL, cascade   → moved, duplicates lifted (see below)
 //   clan_join_requests.player_id  nullable, set null  → moved
 //   event_invites.player_id       nullable, cascade   → moved, duplicates dropped
+//   character_reports.claimant_player_id nullable, set null → moved
 //
 // tests/merge-people.test.ts builds a row in each of them and checks the count afterwards, so the
 // list above stays honest.
@@ -29,6 +30,7 @@ import { and, eq, isNull, inArray, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   accounts,
+  characterReports,
   clanAuditLog,
   clanBans,
   clanJoinRequests,
@@ -42,7 +44,7 @@ export type MergeResult =
   | {
       ok: true;
       /** What moved, for the operator log and the confirmation. */
-      moved: { accounts: number; logins: number; bans: number; joinRequests: number; invites: number };
+      moved: { accounts: number; logins: number; bans: number; joinRequests: number; invites: number; reports: number };
       /** A live ban the target already had, so the duplicate was lifted rather than moved. */
       duplicateBansLifted: number;
       duplicateInvitesDropped: number;
@@ -193,6 +195,15 @@ async function mergePeopleWith(
       .where(eq(clanJoinRequests.playerId, sourcePlayerId))
       .returning({ id: clanJoinRequests.id });
 
+    // Claim reports are the breadcrumb that says WHO asked to receive a character. Leaving this on
+    // the soon-to-be-deleted placeholder made ON DELETE SET NULL erase the claimant at exactly the
+    // moment their roster identity was successfully merged.
+    const reports = await tx
+      .update(characterReports)
+      .set({ claimantPlayerId: targetPlayerId })
+      .where(eq(characterReports.claimantPlayerId, sourcePlayerId))
+      .returning({ id: characterReports.id });
+
     // The login last, so that if anything above throws, the human is still signed in as somebody.
     const logins = await tx
       .update(users)
@@ -209,6 +220,7 @@ async function mergePeopleWith(
         bans: bans.length,
         joinRequests: requests.length,
         invites: invites.length,
+        reports: reports.length,
       },
       duplicateBansLifted,
       duplicateInvitesDropped,

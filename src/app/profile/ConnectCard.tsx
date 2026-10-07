@@ -65,16 +65,34 @@ export default function ConnectCard({
     };
   }, []);
 
+  // A server refresh updates these props without necessarily remounting this client component. Re-arm
+  // the beacon from that new truth so detecting the account is not the last update we ever observe.
+  useEffect(() => {
+    baseline.current = {
+      connected,
+      linked: linkedCount,
+      verified: verifiedCount,
+      detected: detectedCount,
+    };
+    setHeard(false);
+  }, [connected, linkedCount, verifiedCount, detectedCount]);
+
   // The beacon. Poll while the tab is visible; stop the moment something lands and hand over to a
   // server refresh, which re-renders the real page state rather than a client guess at it.
   useEffect(() => {
     if (heard) return;
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let polling = false;
 
     const poll = async () => {
-      if (!alive) return;
+      if (!alive || polling) return;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
       if (document.visibilityState === 'visible') {
+        polling = true;
         try {
           const res = await fetch('/api/profile/connection', { cache: 'no-store' });
           if (res.ok) {
@@ -95,15 +113,24 @@ export default function ConnectCard({
           }
         } catch {
           /* a missed poll is not worth an error message — the next one covers it */
+        } finally {
+          polling = false;
         }
       }
-      timer = setTimeout(poll, 10_000);
+      timer = setTimeout(poll, 2_000);
     };
 
+    const pollWhenVisible = () => {
+      if (document.visibilityState === 'visible') void poll();
+    };
     poll();
+    document.addEventListener('visibilitychange', pollWhenVisible);
+    window.addEventListener('focus', pollWhenVisible);
     return () => {
       alive = false;
       if (timer) clearTimeout(timer);
+      document.removeEventListener('visibilitychange', pollWhenVisible);
+      window.removeEventListener('focus', pollWhenVisible);
     };
   }, [heard, router]);
 
@@ -119,7 +146,8 @@ export default function ConnectCard({
     }
   }, [token]);
 
-  const tokenDone = connected || verifiedCount > 0;
+  const accountSeen = linkedCount > 0 || detectedCount > 0;
+  const tokenDone = connected || verifiedCount > 0 || accountSeen;
 
   return (
     <section
@@ -195,17 +223,24 @@ export default function ConnectCard({
           </details>
         </Step>
 
-        <Step n={3} done={connected} title="Log in to the game" last>
-          Log in to the account you want tracked and play — it shows up here on its own.
-          {!connected && (
+        <Step n={3} done={accountSeen} title={detectedCount > 0 ? 'Verify the character we found' : 'Log in to the game'} last>
+          {detectedCount > 0 ? (
+            <>
+              RuneLite reached Anvil. Confirm the detected character under <b className="text-foreground">Your accounts</b>{' '}
+              below; a rostered character may need the quick XP check.
+            </>
+          ) : (
+            <>Log in to the account you want tracked and play — it shows up here on its own.</>
+          )}
+          {!accountSeen && (
             <div className="mt-2.5 flex items-center gap-3 rounded-xl border border-dashed border-card-border bg-brown-dark/50 px-3 py-2.5 text-sm text-text-muted">
               <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 animate-pulse shrink-0" />
               {heard ? (
                 <span>Something came through — loading your locker…</span>
               ) : (
                 <span>
-                  Listening for your first login… <b className="text-foreground">this page updates itself</b> the
-                  moment we see you.
+                  Waiting for RuneLite… <b className="text-foreground">log in or hop worlds once</b> and this
+                  page updates within a few seconds.
                 </span>
               )}
             </div>

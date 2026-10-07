@@ -64,6 +64,8 @@ export interface WeeklyScope {
 
 export interface EventScope {
   id: number;
+  /** Scheduled/actual event start. Used to reject a client backlog captured before the whistle. */
+  startedAt?: string;
   /** The team this member plays for on that event, stamped onto every moment it scopes. */
   teamId: number | null;
   /** Sources the board names — tile source/target NPCs and timed activities. */

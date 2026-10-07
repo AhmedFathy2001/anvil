@@ -52,6 +52,7 @@ import { atLeast } from '@/lib/clanRoles';
 import ClanLink from '@/components/ClanLink';
 import { canEnterEvent } from '@/lib/eventAccess';
 import EnterEvent from './EnterEvent';
+import { eventActivityIsValid } from '@/lib/completionGate';
 
 export const dynamic = 'force-dynamic';
 
@@ -132,7 +133,7 @@ export default async function EventScoreboardPage({
     const tileIdSet = new Set(tileIds);
     const allCompletions = await db.select().from(completions);
     eventCompletions = allCompletions
-      .filter((c) => tileIdSet.has(c.tileId))
+      .filter((c) => tileIdSet.has(c.tileId) && eventActivityIsValid(event, c.completedAt))
       .map((c) => ({
         id: c.id,
         teamId: c.teamId,
@@ -155,9 +156,11 @@ export default async function EventScoreboardPage({
           teamId: submissions.teamId,
           creditPlayerId: submissions.creditPlayerId,
           amount: submissions.amount,
+          createdAt: submissions.createdAt,
         })
         .from(submissions)
         .where(inArray(submissions.tileId, tileIds))
+        .then((rows) => rows.filter((row) => eventActivityIsValid(event, row.createdAt)))
     : [];
   const eventPlayers = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, id));
   // Multi-account: owner per player + slot mode, so 'per-person' events rank the MVP by person.
@@ -309,10 +312,12 @@ export default async function EventScoreboardPage({
   const rules = parseEventRules(event.rules);
   // The board's firsts — read in claim order, so they're a fact about the event rather than a
   // recomputation of the standings.
-  const firsts = await loadEventFirsts(event.id);
+  const firsts = await loadEventFirsts(event.id, event.startDate);
   // The week's colour: pets, big drops and deaths that happened while the board ran. Scoped at
   // ingest (lib/moments), so this is a plain read — and never any part of the scoring.
-  const eventMoments = await momentsForEvent(event.id, 12);
+  const eventMoments = (await momentsForEvent(event.id, 12)).filter((moment) =>
+    eventActivityIsValid(event, moment.occurredAt),
+  );
   const boardTiles = visibleTiles(rules, eventTiles);
   const hiddenTileCount = hasRevealPolicy(rules) ? eventTiles.length - visibleTiles(rules, eventTiles).length : 0;
   // Nothing here is staff-only any more: this page shows one board, the member's. The "which tiles

@@ -15,6 +15,7 @@ import { scoreTeams } from '@/lib/boardScoring';
 import { drawStartLocation } from '@/lib/startProof';
 import { log } from '@/lib/logger';
 import { postEventRules } from '@/lib/eventRulesPost';
+import { clearPreStartEventActivity } from '@/lib/preStartActivity';
 
 // The awards worth celebrating in the Discord end post, most-fun-first — we take the first few of
 // these that actually have a winner so the embed stays punchy.
@@ -152,6 +153,24 @@ export async function processEventLifecycleNotifications(): Promise<void> {
   const allEvents = await db.select().from(events);
   const now = new Date().toISOString();
   const nowMs = Date.parse(now);
+
+  // A public board reveal is visibility only. Older ingest paths confused it with the start and may
+  // already have left activity behind. While the event has never emitted its start notification,
+  // none of that data can be legitimate: clear it before either an early reveal or the real start.
+  // Once startNotified flips this never runs again, so rescheduling an event that genuinely ran
+  // cannot erase history.
+  for (const event of allEvents) {
+    if (event.startNotified || event.forceEndedAt) continue;
+    try {
+      const cleared = await clearPreStartEventActivity(event.id);
+      const removed = cleared.completions + cleared.submissions + cleared.moments;
+      if (removed > 0) {
+        log.warn('event-lifecycle.pre-start-activity-cleared', { eventId: event.id, ...cleared });
+      }
+    } catch (error) {
+      log.warn('event-lifecycle.pre-start-activity-clear-fail', { eventId: event.id }, error);
+    }
+  }
 
   // OPTIONAL PRE-START BOARD REVEAL. New boards stay private while they are authored, but a host
   // may choose a public reveal moment before play begins. This flips only the event-level master

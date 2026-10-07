@@ -2,6 +2,8 @@ import { db } from '@/db';
 import { getSetting, getSettingMap } from '@/lib/settings';
 import { clanMemberships, events, moments, eventParticipants, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, desc, eq, inArray } from 'drizzle-orm';
+import { eventHasStarted } from '@/lib/completionGate';
+import { parseStamp } from '@/lib/dbTime';
 import {
   DEFAULT_CLAN_SCOPE,
   isClanWorthy,
@@ -46,8 +48,6 @@ export interface ActiveScopes {
  * as the counters ingest resolves it — drafted onto a team, event neither force-ended nor past.
  */
 export async function activeScopesFor(clanMemberId: number, clanId: number, now: Date = new Date()): Promise<ActiveScopes> {
-  const nowIso = now.toISOString();
-
   // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const weeklyRows = await db
     .select({
@@ -80,25 +80,20 @@ export async function activeScopesFor(clanMemberId: number, clanId: number, now:
     .from(eventParticipants)
     .innerJoin(events, eq(eventParticipants.eventId, events.id))
     .where(eq(eventParticipants.clanMemberId, clanMemberId));
-  // STARTED, not merely un-ended. This asked only whether the end date had passed, so a board six
-  // weeks out — drafted, teams picked, nothing begun — matched every time and quietly took every
-  // moment its players made: deaths, drops and clog slots all filed under an event that had not
-  // happened yet, and taken away from the competition running that week.
-  //
-  // A null start is treated as started. That is the same reading the rest of the app takes of it —
-  // an event with no date set is a board somebody is running right now, not one scheduled for
-  // never.
+  // STARTED, not merely un-ended. A revealed board is still only a preview until the whistle. Use
+  // the shared parser rather than comparing timestamp strings: Postgres defaults use a space while
+  // browser-authored dates use ISO `T`, and lexicographic comparisons disagree on same-day times.
   const active = playerRows.find(
     (p) =>
       p.teamId &&
       !p.forceEndedAt &&
-      (!p.startDate || p.startDate <= nowIso) &&
-      (!p.endDate || p.endDate > nowIso),
+      eventHasStarted(p, now.getTime()) &&
+      (!p.endDate || (parseStamp(p.endDate) ?? 0) > now.getTime()),
   );
 
   // The team comes from the same row that decided the event is theirs, so the stamp and the scope
   // can never disagree about which side they were on.
-  const event = active ? await eventScope(active.eventId, active.teamId, clanId) : null;
+  const event = active ? await eventScope(active.eventId, active.teamId, clanId, active.startDate!) : null;
   return { weeklies, event, clan: await clanScope(clanId) };
 }
 
@@ -110,7 +105,7 @@ export async function activeScopesFor(clanMemberId: number, clanId: number, now:
  * half of it, including when nothing was credited (the tile was finished, the source was wrong, the
  * item was the other unique). That near-miss is precisely what a highlight feed is for.
  */
-async function eventScope(eventId: number, teamId: number | null, clanId: number): Promise<EventScope> {
+async function eventScope(eventId: number, teamId: number | null, clanId: number, startedAt: string): Promise<EventScope> {
   const rows = await db
     .select({
       sourceNpcs: tiles.sourceNpcs,
@@ -138,6 +133,7 @@ async function eventScope(eventId: number, teamId: number | null, clanId: number
 
   return {
     id: eventId,
+    startedAt,
     teamId,
     sources: [...sources],
     itemIds: [...itemIds],
@@ -225,7 +221,14 @@ export async function recordMoments(
   scopes: ActiveScopes,
 ): Promise<{ stored: number; matched: number }> {
   const planned: PlannedMoment[] = [];
-  for (const obs of observations) planned.push(...classifyObservation(obs, scopes));
+  for (const obs of observations) {
+    // A client retries a short backlog after reconnecting. If it reconnects just after the event
+    // starts, those pre-start observations must not be filed onto the newly-live board.
+    const eventStart = scopes.event?.startedAt ? parseStamp(scopes.event.startedAt) : null;
+    const occurred = parseStamp(obs.occurredAt);
+    const event = eventStart != null && (occurred == null || occurred < eventStart) ? null : scopes.event;
+    planned.push(...classifyObservation(obs, { ...scopes, event }));
+  }
   if (planned.length === 0) return { stored: 0, matched: 0 };
 
   let stored = 0;
