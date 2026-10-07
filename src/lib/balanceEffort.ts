@@ -141,7 +141,9 @@ export interface TileEffort {
   expectedPoints: number | null;
   suggestedPoints: number | null;
   /** Why bulk suggestion deliberately leaves this tile alone. null means it is eligible. */
-  suggestionStatus: 'eligible' | 'unmodelled' | 'lottery' | 'unreachable' | 'needs-calibration';
+  suggestionStatus: 'eligible' | 'unmodelled' | 'lottery' | 'unreachable' | 'needs-calibration' | 'pinned';
+  /** Author kept the face value (effortConfig.lockPoints, or a Troll-category tile). */
+  pointsPinned: boolean;
   /** Why the tile couldn't be modelled, or which fallback was used. */
   note: string | null;
   /** The server's over/underpaid verdict — the only one the table may show (points boards, ≥5 graded). */
@@ -840,6 +842,10 @@ function poissonTail(n: number, lambda: number): number {
 }
 
 function minimumSuggestedPoints(tile: TileEffort): number {
+  // A later rung of a cumulative ladder is priced on its added kills only. The prestige floor was
+  // already paid by the ladder's opener; flooring every rung again made "25 more Muspah" worth the
+  // same 50 points as the first 25 and handed a short ladder several times the board's rate.
+  if (tile.overlapCreditHours > 0) return FLOOR_MIN_POINTS.anyone;
   // A hard speed task is an achievement over and above merely completing the encounter. This is
   // the explicit 150-point prestige floor behind the 65-minute Inferno benchmark; an ordinary
   // elite completion keeps the 100-point floor.
@@ -848,6 +854,7 @@ function minimumSuggestedPoints(tile: TileEffort): number {
 }
 
 function suggestionStatus(tile: TileEffort): TileEffort['suggestionStatus'] {
+  if (tile.pointsPinned) return 'pinned';
   if (tile.pricingHours == null) return 'unmodelled';
   if (tile.pClass === 'lottery') return 'lottery';
   // Points cannot make a deterministic objective fit inside the event. Suggest shrinking it, not
@@ -1033,6 +1040,9 @@ export function analyzeEffort(
       expectedPoints: hitProbability != null ? weight * hitProbability : null,
       suggestedPoints: null, // filled below once the board median is known
       suggestionStatus: 'unmodelled', // finalised after marginal progression pricing
+      // A joke tile priced at 1 is a deliberate choice, not a mispricing — redistribution must not
+      // turn a Troll pet into the board's biggest tile.
+      pointsPinned: !!effortConfig?.lockPoints || /\btroll\b/i.test(t.category ?? ''),
       note,
       pphFlag: null,
     };

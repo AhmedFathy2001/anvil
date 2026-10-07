@@ -24,7 +24,7 @@ interface EffortTileWire {
   ptsPerHour: number | null; // points ÷ effort-hours (difficulty-adjusted — the ranking metric)
   oneOff: boolean;
   suggestedPoints: number | null;
-  suggestionStatus: 'eligible' | 'unmodelled' | 'lottery' | 'unreachable' | 'needs-calibration';
+  suggestionStatus: 'eligible' | 'unmodelled' | 'lottery' | 'unreachable' | 'needs-calibration' | 'pinned';
   pClass: 'grind' | 'long-shot' | 'lottery' | 'unreachable' | null;
   note: string | null;
   /** The server's over/underpaid verdict — the only source for the ▲▼ markers. */
@@ -51,6 +51,7 @@ interface PointChange {
 
 interface SuggestionReview {
   changes: EffortTileWire[];
+  pinned: EffortTileWire[];
   unchanged: EffortTileWire[];
   unmodelled: EffortTileWire[];
   lotteries: EffortTileWire[];
@@ -75,6 +76,7 @@ function fmtHours(h: number | null): string {
 function buildSuggestionReview(tiles: EffortTileWire[]): SuggestionReview {
   const review: SuggestionReview = {
     changes: [],
+    pinned: [],
     unchanged: [],
     unmodelled: [],
     lotteries: [],
@@ -82,7 +84,8 @@ function buildSuggestionReview(tiles: EffortTileWire[]): SuggestionReview {
     needsCalibration: [],
   };
   for (const tile of tiles) {
-    if (tile.pClass === 'lottery') review.lotteries.push(tile);
+    if (tile.suggestionStatus === 'pinned') review.pinned.push(tile);
+    else if (tile.pClass === 'lottery') review.lotteries.push(tile);
     else if (tile.suggestionStatus === 'unreachable') review.unreachable.push(tile);
     else if (tile.suggestionStatus === 'needs-calibration') review.needsCalibration.push(tile);
     else if (tile.suggestedPoints == null) review.unmodelled.push(tile);
@@ -139,7 +142,7 @@ function SuggestionReviewDialog({
   const modalRef = useModalA11y<HTMLDivElement>({ onClose: close });
   const currentTotal = review.changes.reduce((sum, tile) => sum + tile.weight, 0);
   const proposedTotal = review.changes.reduce((sum, tile) => sum + (tile.suggestedPoints ?? 0), 0);
-  const skipped = review.unchanged.length + review.unmodelled.length + review.lotteries.length +
+  const skipped = review.pinned.length + review.unchanged.length + review.unmodelled.length + review.lotteries.length +
     review.unreachable.length + review.needsCalibration.length;
 
   async function applyAll() {
@@ -237,6 +240,11 @@ function SuggestionReviewDialog({
                 Skipped automatically
               </p>
               <div className="space-y-2">
+                <SkippedTiles
+                  title="Locked by you"
+                  detail="Troll-category tiles and tiles with “Keep my points” ticked keep their face value and stay out of the redistribution."
+                  tiles={review.pinned}
+                />
                 <SkippedTiles
                   title="Already at the suggestion"
                   detail="These tiles already match the model, so writing them again would only create noise in tile history."

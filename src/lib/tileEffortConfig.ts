@@ -26,6 +26,8 @@ export interface TileEffortConfig {
   /** Average person-hours to finish, including setup and failed attempts; overrides rough models. */
   expectedHours?: number | null;
   raid?: TileRaidEffortConfig | null;
+  /** Author pins the face value: bulk point suggestions skip this tile and leave its points alone. */
+  lockPoints?: boolean | null;
 }
 
 const RAID_MODE_KEYS = new Set<string>(RAID_EFFORT_MODES.map((m) => m.key));
@@ -67,5 +69,6 @@ export function parseTileEffortConfig(raw: unknown): TileEffortConfig | null {
       if (Number.isInteger(level) && level >= 0 && level <= 1_000) out.raid.raidLevel = level;
     }
   }
-  return out.skillRating != null || out.expectedHours != null || out.raid ? out : null;
+  if (input.lockPoints === true) out.lockPoints = true;
+  return out.skillRating != null || out.expectedHours != null || out.raid || out.lockPoints ? out : null;
 }

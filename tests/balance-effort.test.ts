@@ -485,3 +485,72 @@ test('the board reads at expected points: lotteries count for their odds', () =>
   assert.ok(report.boardPoints.expected > 15, 'the Vorkath tile is near-certain');
 });
 
+
+test('a ladder pays its prestige floor once: later rungs are priced on added work', () => {
+  const base = {
+    ...raidDropTile(),
+    tileType: 'standard',
+    trackedItemIds: null,
+    sourceNpcs: null,
+    statType: 'skill',
+    effortConfig: null,
+  };
+  // Four short "high" rungs plus one long filler that soaks most of the budget, so every rung's
+  // effort share sits under the 50-point high floor — previously each one was clamped to 50.
+  const report = analyzeEffort([
+    { ...base, id: 1, label: '25 mining', trackedStat: 'mining', statGoal: 25, points: 100 },
+    { ...base, id: 2, label: '50 mining', trackedStat: 'mining', statGoal: 50, points: 100 },
+    { ...base, id: 3, label: '150 mining', trackedStat: 'mining', statGoal: 150, points: 100 },
+    { ...base, id: 4, label: '250 mining', trackedStat: 'mining', statGoal: 250, points: 100 },
+    { ...base, id: 5, label: 'Long filler', trackedStat: 'fishing', statGoal: 2000, points: 400 },
+  ], {
+    pointsMode: true,
+    ratesOverride: {
+      skills: {
+        mining: { xpPerHour: [100, 100, 100], floor: 'high' },
+        fishing: { xpPerHour: [100, 100, 100], floor: 'anyone' },
+      },
+    },
+  });
+
+  const [opener, second, third, fourth] = report.perTile.map((tile) => tile.suggestedPoints!);
+  assert.equal(opener, 50, 'the opener keeps the high prestige floor');
+  assert.ok(second < 50, `a 25-unit rung should not be floored to 50 (got ${second})`);
+  assert.ok(third > second && fourth > second, 'rungs with more added work pay more');
+  assert.equal(report.suggestedBudget, report.suggestionBudget);
+});
+
+test('locked and Troll-category tiles keep their points and stay out of the redistribution', () => {
+  const base = {
+    ...raidDropTile(),
+    tileType: 'standard',
+    trackedItemIds: null,
+    sourceNpcs: null,
+    statType: 'skill',
+    effortConfig: null,
+  };
+  const report = analyzeEffort([
+    { ...base, id: 1, label: 'Doggo', trackedStat: 'mining', statGoal: 5000, points: 1, category: 'Troll' },
+    { ...base, id: 2, label: 'Pinned', trackedStat: 'fishing', statGoal: 5000, points: 7, effortConfig: JSON.stringify({ lockPoints: true }) },
+    { ...base, id: 3, label: 'One hour', trackedStat: 'woodcutting', statGoal: 100, points: 200 },
+    { ...base, id: 4, label: 'Two hours', trackedStat: 'smithing', statGoal: 200, points: 100 },
+  ], {
+    pointsMode: true,
+    ratesOverride: {
+      skills: {
+        mining: { xpPerHour: [100, 100, 100], floor: 'anyone' },
+        fishing: { xpPerHour: [100, 100, 100], floor: 'anyone' },
+        woodcutting: { xpPerHour: [100, 100, 100], floor: 'anyone' },
+        smithing: { xpPerHour: [100, 100, 100], floor: 'anyone' },
+      },
+    },
+  });
+
+  assert.deepEqual(report.perTile.map((tile) => tile.suggestionStatus), ['pinned', 'pinned', 'eligible', 'eligible']);
+  assert.equal(report.perTile[0].suggestedPoints, null);
+  assert.equal(report.perTile[1].suggestedPoints, null);
+  assert.equal(report.suggestionBudget, 300);
+  assert.deepEqual(report.perTile.slice(2).map((tile) => tile.suggestedPoints), [100, 200]);
+  assert.equal(parseTileEffortConfig({ lockPoints: true })?.lockPoints, true);
+  assert.equal(parseTileEffortConfig({ lockPoints: 'yes' }), null);
+});

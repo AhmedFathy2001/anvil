@@ -573,6 +573,7 @@ export default function TileTrackingConfig({
     initialEffort?.expectedHours != null ? String(initialEffort.expectedHours) : '',
   );
   const [effortRaidMode, setEffortRaidMode] = useState<string>(initialEffort?.raid?.mode ?? '');
+  const [effortLockPoints, setEffortLockPoints] = useState<boolean>(!!initialEffort?.lockPoints);
   const [effortUniqueDenominator, setEffortUniqueDenominator] = useState<string>(
     initialEffort?.raid?.uniqueDenominator != null ? String(initialEffort.raid.uniqueDenominator) : '',
   );
@@ -1248,6 +1249,7 @@ export default function TileTrackingConfig({
         effortConfig: {
           ...(effortSkillRating ? { skillRating: Number(effortSkillRating) } : {}),
           ...(effortExpectedHours ? { expectedHours: Number(effortExpectedHours) } : {}),
+          ...(effortLockPoints ? { lockPoints: true } : {}),
           ...(effortRaidMode ? {
             raid: {
               mode: effortRaidMode,
@@ -3003,7 +3005,7 @@ export default function TileTrackingConfig({
       {/* Scoring calibration travels with reusable tasks, CSV/XLSX exports, and concrete tiles.
           It affects only the balance audit; tracking and completion remain independent. */}
       <details
-        open={!!effortSkillRating || !!effortExpectedHours || !!effortRaidMode}
+        open={!!effortSkillRating || !!effortExpectedHours || !!effortRaidMode || effortLockPoints}
         className="group rounded-lg border border-sky-500/20 bg-sky-500/5"
       >
           <summary className="cursor-pointer select-none list-none px-3 py-2 flex items-center gap-2 text-xs font-medium text-text-muted hover:text-foreground">
@@ -3012,6 +3014,13 @@ export default function TileTrackingConfig({
             <span className="text-[10px] text-text-muted/70 font-normal">balance audit only</span>
           </summary>
           <div className="px-3 pb-3 space-y-3">
+            <Checkbox
+              checked={effortLockPoints}
+              onChange={setEffortLockPoints}
+              label="Keep my points"
+              description="Bulk point suggestions skip this tile. Use it for joke or deliberately priced tiles."
+            />
+
             <div>
               <label className="block text-xs text-text-muted mb-1">Execution skill premium</label>
               <Select
