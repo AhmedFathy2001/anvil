@@ -53,6 +53,7 @@ import ClanLink from '@/components/ClanLink';
 import { canEnterEvent } from '@/lib/eventAccess';
 import EnterEvent from './EnterEvent';
 import { eventActivityIsValid } from '@/lib/completionGate';
+import LocalTime from '@/components/LocalTime';
 
 export const dynamic = 'force-dynamic';
 
@@ -561,6 +562,7 @@ export default async function EventScoreboardPage({
         windowOpen={window.open}
         windowReason={window.reason}
         signupFee={event.signupFee}
+        signupClosesAt={event.signupDeadline ?? event.startDate}
       />
       )}
       {rulesFacts && <EventRulesCard facts={rulesFacts} />}
@@ -652,6 +654,7 @@ function SignupBanner({
   windowOpen,
   windowReason,
   signupFee,
+  signupClosesAt,
   signupReturn,
 }: {
   eventId: number;
@@ -662,6 +665,8 @@ function SignupBanner({
   windowOpen: boolean;
   windowReason: string | null;
   signupFee: number | null;
+  /** Explicit deadline when set; otherwise the event start is the final sign-up cutoff. */
+  signupClosesAt: string | null;
   /** Where login should come back to — clan-prefixed, because `/login` is on the apex. */
   signupReturn: string;
 }) {
@@ -726,6 +731,12 @@ function SignupBanner({
       <div className="min-w-0">
         <div className="font-semibold">{title}</div>
         <div className="text-sm text-text-muted">{body}</div>
+        {signupClosesAt && windowReason !== 'event_started' && (
+          <div className="text-xs text-text-muted mt-1">
+            Sign-ups {windowReason === 'closed' ? 'closed' : 'close'} at{' '}
+            <LocalTime date={signupClosesAt} />.
+          </div>
+        )}
       </div>
       {ctaLabel && (
         <ClanLink
