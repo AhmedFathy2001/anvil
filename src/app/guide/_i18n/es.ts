@@ -460,12 +460,6 @@ const es: PartialGuideDict = {
         'En RuneLite: **Configuration** (la llave inglesa) → **Plugin Hub** → busca **Anvil** → **Install**. El editor es `AhmedFathy2001`.',
         'Un único plugin sirve a todos los clanes — siempre se conecta a `anvilosrs.com`, y es el inicio de sesión (siguiente paso) lo que lo vincula a ti y a tus clanes. No hay nada específico del clan que descargar ni ninguna dirección que escribir. Una vez instalado, aparece un botón **Anvil** en la barra lateral de RuneLite, y sus ajustes están en **Configuration → Anvil**.',
       ],
-      warningHeading: '¿Por qué RuneLite muestra una advertencia?',
-      warningBody: [
-        'Al instalar Anvil, el Plugin Hub muestra esta advertencia: _“This plugin submits your IP address and your account\'s gameplay data (RSN, drops, kill counts, XP and progress) to anvilosrs.com, a 3rd-party server not controlled or verified by the RuneLite developers.”_ Es lo esperado: RuneLite muestra una advertencia así para cada plugin que habla con un servidor externo.',
-        'Anvil es un sitio de terceros: no lo gestionan ni RuneLite ni Jagex. Para registrar tus drops y tu progreso para tu clan, el plugin tiene que enviar peticiones a `anvilosrs.com`, y cualquier petición web le muestra al servidor la dirección IP de la que viene. Eso es todo lo que dice la advertencia.',
-        'Lo que envía el plugin es tu propia partida, para los clanes y eventos en los que estás, firmada con tu Account Token. Tu dirección IP se usa como la usa cualquier web — para responder peticiones y limitar abusos —, no para seguirte. Y una instalación nueva no contacta con nada hasta que pulsas **Sign in with Discord**.',
-      ],
     },
 
     connect: {
@@ -546,8 +540,8 @@ const es: PartialGuideDict = {
         ],
       },
       goodToKnow: {
-        tag: 'Conviene saberlo',
-        body: ['Un solo token cubre todos los eventos en los que estás inscrito aquí — nunca lo vuelves a pegar por cada bingo.'],
+        tag: 'Usa el panel lateral a diario',
+        body: ['**El panel lateral de Anvil es tu espacio de trabajo principal**: inicia sesión allí, consulta tus clanes y eventos activos, sigue el progreso, toma capturas iniciales, ejecuta sincronizaciones y abre las herramientas de soporte. **Configuration → Anvil**, que se muestra abajo, es solo para preferencias. El Account Token se rellena automáticamente; pégalo allí únicamente si falla el inicio de sesión desde el panel lateral. Un solo token cubre todos los eventos en los que estás inscrito — no tienes que volver a pegarlo para cada bingo.'],
       },
     },
 

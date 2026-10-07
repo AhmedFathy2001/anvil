@@ -460,12 +460,6 @@ const nl: PartialGuideDict = {
         'In RuneLite: **Configuration** (de moersleutel) → **Plugin Hub** → zoek op **Anvil** → **Install**. De uitgever is `AhmedFathy2001`.',
         'Eén plugin bedient alle clans — hij maakt altijd verbinding met `anvilosrs.com`, en pas het inloggen (volgende stap) koppelt hem aan jou en je clans. Er valt niets clanspecifieks te downloaden en geen adres in te typen. Na installatie verschijnt er een **Anvil**-knop in de zijbalk van RuneLite, en de instellingen staan onder **Configuration → Anvil**.',
       ],
-      warningHeading: 'Waarom toont RuneLite een waarschuwing?',
-      warningBody: [
-        'Als je Anvil installeert, toont de Plugin Hub deze waarschuwing: _“This plugin submits your IP address and your account\'s gameplay data (RSN, drops, kill counts, XP and progress) to anvilosrs.com, a 3rd-party server not controlled or verified by the RuneLite developers.”_ Dat is normaal — RuneLite toont zo’n waarschuwing bij elke plugin die met een externe server praat.',
-        'Anvil is een site van derden — hij wordt niet beheerd door RuneLite of Jagex. Om je drops en voortgang voor je clan bij te houden, moet de plugin verzoeken naar `anvilosrs.com` sturen, en elk webverzoek laat de server zien van welk IP-adres het komt. Meer betekent de waarschuwing niet.',
-        'Wat de plugin verstuurt, is je eigen spel voor de clans en events waar je in zit, gekoppeld aan je Account Token. Je IP-adres wordt gebruikt zoals elke website het gebruikt — om verzoeken te beantwoorden en misbruik te beperken — niet om je te volgen. En een verse installatie neemt nergens contact mee op totdat je op **Sign in with Discord** klikt.',
-      ],
     },
 
     connect: {
@@ -546,8 +540,8 @@ const nl: PartialGuideDict = {
         ],
       },
       goodToKnow: {
-        tag: 'Goed om te weten',
-        body: ['Eén token dekt elk event waarvoor je je hier hebt ingeschreven — je plakt hem nooit opnieuw per bingo.'],
+        tag: 'Gebruik dagelijks het zijpaneel',
+        body: ['**Het Anvil-zijpaneel is je belangrijkste werkplek**: meld je daar aan, bekijk je clans en actieve events, volg de voortgang, maak startfoto’s, voer synchronisaties uit en open de supporttools. **Configuration → Anvil**, hieronder afgebeeld, is alleen voor voorkeuren. De Account Token wordt automatisch ingevuld; plak er alleen zelf een als aanmelden via het zijpaneel mislukt. Eén token geldt voor alle events waarvoor je bent ingeschreven — je plakt hem nooit opnieuw per bingo.'],
       },
     },
 

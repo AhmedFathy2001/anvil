@@ -466,12 +466,6 @@ export const en = {
         'In RuneLite: **Configuration** (the wrench) → **Plugin Hub** → search **Anvil** → **Install**. The publisher is `AhmedFathy2001`.',
         'One plugin serves every clan — it always connects to `anvilosrs.com`, and signing in (next step) is what ties it to you and your clans. There is nothing clan-specific to download and no address to type in. Once installed, an **Anvil** button appears in the RuneLite sidebar, and its settings live under **Configuration → Anvil**.',
       ],
-      warningHeading: 'Why does RuneLite show a warning?',
-      warningBody: [
-        'When you install Anvil, the Plugin Hub shows this warning: _“This plugin submits your IP address and your account\'s gameplay data (RSN, drops, kill counts, XP and progress) to anvilosrs.com, a 3rd-party server not controlled or verified by the RuneLite developers.”_ That’s expected — RuneLite shows a warning like it for every plugin that talks to an outside server.',
-        'Anvil is a third-party site — it isn’t run by RuneLite or Jagex. To track your drops and progress for your clan, the plugin has to send requests to `anvilosrs.com`, and any web request shows the server the IP address it came from. That’s all the warning is saying.',
-        'What the plugin sends is your own gameplay, for the clans and events you’re in, signed with your Account Token. Your IP address is used the way any website uses one — to answer requests and to rate-limit — not to track you. And a fresh install contacts nothing at all until you click **Sign in with Discord**.',
-      ],
     },
 
     connect: {
@@ -552,8 +546,10 @@ export const en = {
         ],
       },
       goodToKnow: {
-        tag: 'Good to know',
-        body: ['One token covers every event you’re signed up for here — you never re-paste it per bingo.'],
+        tag: 'Use the sidebar day to day',
+        body: [
+          'The **Anvil sidebar is your main workspace**: sign in there, see your clans and live events, follow progress, take starting shots, run syncs and open support tools. **Configuration → Anvil**, shown below, is only for preferences. Its Account Token is filled automatically; paste one there only if sidebar sign-in fails. One token covers every event you’re signed up for — you never re-paste it per bingo.',
+        ],
       },
     },
 

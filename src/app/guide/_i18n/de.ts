@@ -460,12 +460,6 @@ const de: PartialGuideDict = {
         'In RuneLite: **Configuration** (der Schraubenschlüssel) → **Plugin Hub** → nach **Anvil** suchen → **Install**. Der Herausgeber ist `AhmedFathy2001`.',
         'Ein Plugin bedient alle Clans — es verbindet sich immer mit `anvilosrs.com`, und erst die Anmeldung (nächster Schritt) verknüpft es mit dir und deinen Clans. Es gibt nichts clanspezifisches herunterzuladen und keine Adresse einzutippen. Nach der Installation erscheint in der RuneLite-Seitenleiste eine **Anvil**-Schaltfläche, und die Einstellungen findest du unter **Configuration → Anvil**.',
       ],
-      warningHeading: 'Warum zeigt RuneLite eine Warnung?',
-      warningBody: [
-        'Wenn du Anvil installierst, zeigt der Plugin Hub diese Warnung: _“This plugin submits your IP address and your account\'s gameplay data (RSN, drops, kill counts, XP and progress) to anvilosrs.com, a 3rd-party server not controlled or verified by the RuneLite developers.”_ Das ist normal — RuneLite zeigt eine solche Warnung bei jedem Plugin, das mit einem externen Server spricht.',
-        'Anvil ist eine Drittanbieter-Seite — sie wird weder von RuneLite noch von Jagex betrieben. Um deine Drops und deinen Fortschritt für deinen Clan zu erfassen, muss das Plugin Anfragen an `anvilosrs.com` schicken, und jede Webanfrage zeigt dem Server die IP-Adresse, von der sie kommt. Mehr bedeutet die Warnung nicht.',
-        'Was das Plugin sendet, ist dein eigenes Spielgeschehen für die Clans und Events, in denen du bist, verknüpft mit deinem Account Token. Deine IP-Adresse wird so verwendet, wie jede Website sie verwendet — um Anfragen zu beantworten und Missbrauch zu begrenzen —, nicht um dich zu verfolgen. Und eine frische Installation kontaktiert überhaupt nichts, bis du auf **Sign in with Discord** klickst.',
-      ],
     },
 
     connect: {
@@ -546,8 +540,8 @@ const de: PartialGuideDict = {
         ],
       },
       goodToKnow: {
-        tag: 'Gut zu wissen',
-        body: ['Ein Token deckt jedes Event ab, für das du hier angemeldet bist — du fügst ihn nie pro Bingo neu ein.'],
+        tag: 'Nutze im Alltag das Seitenpanel',
+        body: ['**Das Anvil-Seitenpanel ist dein zentraler Arbeitsbereich**: Melde dich dort an, sieh deine Clans und laufenden Events, verfolge den Fortschritt, nimm Startbilder auf, führe Synchronisierungen aus und öffne die Support-Werkzeuge. **Configuration → Anvil**, unten gezeigt, ist nur für Einstellungen gedacht. Der Account Token wird automatisch eingetragen; füge dort nur dann einen ein, wenn die Anmeldung über das Seitenpanel fehlschlägt. Ein Token gilt für alle Events, für die du angemeldet bist — du musst ihn nicht für jedes Bingo neu einfügen.'],
       },
     },
 

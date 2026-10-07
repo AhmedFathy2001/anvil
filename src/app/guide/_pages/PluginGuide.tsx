@@ -104,10 +104,6 @@ export default async function PluginGuide({ lang }: { lang: string }) {
       {/* ---------------------------------------------------------------- 1 */}
       <Section id="install" n={1} title={p.install.title} labels={t.common}>
         {paragraphs(p.install.body, v)}
-
-        {/* The Plugin Hub's standard third-party warning, explained before it puts anyone off. */}
-        <h3 className="text-lg font-semibold pt-2">{p.install.warningHeading}</h3>
-        {paragraphs(p.install.warningBody, v)}
       </Section>
 
       {/* ---------------------------------------------------------------- 2 */}
@@ -164,6 +160,17 @@ export default async function PluginGuide({ lang }: { lang: string }) {
           </>
         )}
 
+        <Note tag={p.connect.goodToKnow.tag}>{paragraphs(p.connect.goodToKnow.body, v, '')}</Note>
+
+        <Figure
+          src="/guide/plugin-settings.png"
+          width={237}
+          height={754}
+          alt=""
+          caption={p.connect.goodToKnow.tag}
+          legend={[]}
+        />
+
         <h3 className="text-lg font-semibold pt-2">{p.connect.manualHeading}</h3>
 
         <p className="text-text-muted">{rt(p.connect.manualIntro, v)}</p>
@@ -179,7 +186,6 @@ export default async function PluginGuide({ lang }: { lang: string }) {
           legend={legend(p.connect.tokenFigure.legend, v)}
         />
 
-        <Note tag={p.connect.goodToKnow.tag}>{paragraphs(p.connect.goodToKnow.body, v, '')}</Note>
       </Section>
 
       {/* ---------------------------------------------------------------- 3 */}

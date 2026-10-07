@@ -459,12 +459,6 @@ const ko: PartialGuideDict = {
         'RuneLite에서: **Configuration**(렌치 아이콘) → **Plugin Hub** → **Anvil** 검색 → **Install**. 게시자는 `AhmedFathy2001`입니다.',
         '플러그인 하나가 모든 클랜을 담당합니다 —— 항상 `anvilosrs.com`에 연결되고, 당신과 당신의 클랜에 묶어 주는 것은 로그인(다음 단계)입니다. 클랜별로 받을 것도, 입력할 주소도 없습니다. 설치하면 RuneLite 사이드바에 **Anvil** 버튼이 나타나고, 설정은 **Configuration → Anvil**에 있습니다.',
       ],
-      warningHeading: 'RuneLite는 왜 경고를 띄우나요?',
-      warningBody: [
-        'Anvil을 설치하면 Plugin Hub에 다음 경고가 표시됩니다: _“This plugin submits your IP address and your account\'s gameplay data (RSN, drops, kill counts, XP and progress) to anvilosrs.com, a 3rd-party server not controlled or verified by the RuneLite developers.”_ 예상된 일입니다 —— RuneLite는 외부 서버와 통신하는 모든 플러그인에 이런 경고를 띄웁니다.',
-        'Anvil은 서드파티 사이트입니다 —— RuneLite나 Jagex가 운영하지 않습니다. 클랜을 위해 당신의 드롭과 진행 상황을 기록하려면 플러그인이 `anvilosrs.com`으로 요청을 보내야 하고, 모든 웹 요청은 서버에 그 요청이 온 IP 주소를 보여 줍니다. 경고가 말하는 것은 그게 전부입니다.',
-        '플러그인이 보내는 것은 당신이 속한 클랜과 이벤트를 위한 당신 자신의 플레이 기록뿐이며, Account Token으로 서명됩니다. IP 주소는 여느 웹사이트와 똑같이 —— 요청에 응답하고 과도한 요청을 제한하는 데 —— 쓰일 뿐, 당신을 추적하는 데 쓰이지 않습니다. 그리고 갓 설치한 플러그인은 **Sign in with Discord**를 누르기 전까지 아무 곳에도 연결하지 않습니다.',
-      ],
     },
 
     connect: {
@@ -545,8 +539,8 @@ const ko: PartialGuideDict = {
         ],
       },
       goodToKnow: {
-        tag: '알아두면 좋은 것',
-        body: ['토큰 하나면 여기서 신청한 모든 이벤트에 적용됩니다 —— 빙고마다 다시 붙여 넣을 필요가 없습니다.'],
+        tag: '평소에는 사이드 패널 사용',
+        body: ['**Anvil 사이드 패널이 기본 작업 공간입니다**. 여기에서 로그인하고, 클랜과 진행 중인 이벤트를 확인하고, 진행 상황을 추적하고, 시작 스크린샷을 찍고, 동기화와 지원 도구를 실행하세요. 아래의 **Configuration → Anvil**은 환경 설정을 바꿀 때만 사용합니다. Account Token은 자동으로 입력되므로 사이드 패널 로그인이 실패한 경우에만 직접 붙여 넣으세요. 토큰 하나면 신청한 모든 이벤트에 적용되며 빙고마다 다시 붙여 넣을 필요가 없습니다.'],
       },
     },
 

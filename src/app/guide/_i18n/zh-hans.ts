@@ -458,12 +458,6 @@ const zhHans: PartialGuideDict = {
         '在 RuneLite 中：**Configuration**（扳手图标）→ **Plugin Hub** → 搜索 **Anvil** → **Install**。发布者是 `AhmedFathy2001`。',
         '一个插件服务所有氏族 —— 它始终连接 `anvilosrs.com`，而把它和你、和你的氏族绑在一起的，是登录（下一步）。没有任何与氏族相关的东西需要下载，也没有地址需要填写。装好之后，RuneLite 侧边栏会出现一个 **Anvil** 按钮，设置则在 **Configuration → Anvil** 里。',
       ],
-      warningHeading: '为什么 RuneLite 会显示警告？',
-      warningBody: [
-        '安装 Anvil 时，Plugin Hub 会显示这条警告：_“This plugin submits your IP address and your account\'s gameplay data (RSN, drops, kill counts, XP and progress) to anvilosrs.com, a 3rd-party server not controlled or verified by the RuneLite developers.”_ 这是正常的 —— 任何与外部服务器通信的插件，RuneLite 都会显示类似的警告。',
-        'Anvil 是第三方网站 —— 它既不由 RuneLite 运营，也不由 Jagex 运营。为了替你的氏族记录你的掉落和进度，插件必须向 `anvilosrs.com` 发送请求，而任何网络请求都会让服务器看到它来自哪个 IP 地址。警告说的就是这么一回事。',
-        '插件发送的只是你自己的游戏数据，只发给你所在的氏族和活动，并由你的 Account Token 签名。你的 IP 地址的用途和任何网站一样 —— 用来响应请求和限流 —— 而不是追踪你。而且刚装好的插件在你点击 **Sign in with Discord** 之前不会联系任何地方。',
-      ],
     },
 
     connect: {
@@ -544,8 +538,8 @@ const zhHans: PartialGuideDict = {
         ],
       },
       goodToKnow: {
-        tag: '值得一提',
-        body: ['一个令牌涵盖你在此报名的所有活动 —— 不需要每场宾果都重新粘贴一次。'],
+        tag: '日常使用侧边栏',
+        body: ['**Anvil 侧边栏是你的主要工作区**：在这里登录、查看氏族和进行中的活动、跟踪进度、拍摄起始截图、运行同步并打开支持工具。下方的 **Configuration → Anvil** 仅用于调整偏好设置。Account Token 会自动填入；只有侧边栏登录失败时才需要手动粘贴。一个令牌适用于你报名的所有活动 — 无需为每场宾果重新粘贴。'],
       },
     },
 

@@ -43,22 +43,14 @@ It is a device-code flow (RFC 8628 shape) that fills the **Account Token** in fo
 See `src/lib/pluginDeviceAuth.ts`. If the browser doesn't open by itself, the panel
 prints the address and code so you can open it manually.
 
+Use the **Anvil side panel** as the day-to-day workspace: it shows clans, live events,
+progress, starting shots, sync actions and support tools. **Configuration → Anvil** is
+only for preferences and the manual token fallback below.
+
 **Fallback — paste the token by hand.** If sign-in won't work for you, copy your token
 from **Profile → RuneLite plugin → Reveal → Copy** and paste it into **Configuration →
 Anvil → Account Token**. One token works across every event you're signed up for. It's
 a secret — don't share it.
-
-### The Plugin Hub's third-party warning
-
-Installing Anvil shows the hub's standard warning: *"This plugin submits your IP
-address and your account's gameplay data (RSN, drops, kill counts, XP and progress) to
-anvilosrs.com, a 3rd-party server not controlled or verified by the RuneLite
-developers."* Anvil is not run by RuneLite or Jagex, and any request the plugin sends
-to `anvilosrs.com` reveals the client's IP to the server — that is all the warning
-means. The plugin only sends the member's own gameplay for the clans/events they're
-in, authenticated by their account token; IPs are used to serve requests and
-rate-limit. A fresh install contacts nothing until the member clicks **Sign in with
-Discord**. The public guide (`/guide/plugin#install`) explains this to players.
 
 > **Where's the token?** On your clan's site, log in with Discord, open **Profile**,
 > scroll to the **RuneLite plugin** card (`recommended` badge). Use **Reveal** →

@@ -95,18 +95,20 @@ export function Figure({
           className="mx-auto max-w-full h-auto rounded"
         />
       </div>
-      <ol className="mt-4 space-y-2.5">
-        {legend.map((item) => (
-          <li key={item.n} className="flex gap-3 text-sm">
-            <span className="shrink-0 w-6 h-6 rounded-full bg-gold text-brown-dark font-bold text-xs grid place-items-center">
-              {item.n}
-            </span>
-            <span className="text-text-muted min-w-0">
-              <span className="text-foreground font-medium">{item.label}</span> — {item.body}
-            </span>
-          </li>
-        ))}
-      </ol>
+      {legend.length > 0 && (
+        <ol className="mt-4 space-y-2.5">
+          {legend.map((item) => (
+            <li key={item.n} className="flex gap-3 text-sm">
+              <span className="shrink-0 w-6 h-6 rounded-full bg-gold text-brown-dark font-bold text-xs grid place-items-center">
+                {item.n}
+              </span>
+              <span className="text-text-muted min-w-0">
+                <span className="text-foreground font-medium">{item.label}</span> — {item.body}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
     </figure>
   );
 }

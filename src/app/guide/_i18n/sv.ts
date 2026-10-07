@@ -459,12 +459,6 @@ const sv: PartialGuideDict = {
         'I RuneLite: **Configuration** (skiftnyckeln) → **Plugin Hub** → sök på **Anvil** → **Install**. Utgivaren är `AhmedFathy2001`.',
         'Ett plugin räcker för alla klaner — det ansluter alltid till `anvilosrs.com`, och det är inloggningen (nästa steg) som knyter det till dig och dina klaner. Det finns inget klanspecifikt att ladda ner och ingen adress att skriva in. När det är installerat dyker en **Anvil**-knapp upp i RuneLites sidofält, och inställningarna finns under **Configuration → Anvil**.',
       ],
-      warningHeading: 'Varför visar RuneLite en varning?',
-      warningBody: [
-        'När du installerar Anvil visar Plugin Hub den här varningen: _“This plugin submits your IP address and your account\'s gameplay data (RSN, drops, kill counts, XP and progress) to anvilosrs.com, a 3rd-party server not controlled or verified by the RuneLite developers.”_ Det är väntat — RuneLite visar en liknande varning för alla plugins som pratar med en extern server.',
-        'Anvil är en tredjepartssajt — den drivs varken av RuneLite eller Jagex. För att spåra dina drops och framsteg åt din klan måste pluginet skicka förfrågningar till `anvilosrs.com`, och varje webbförfrågan visar servern vilken IP-adress den kom från. Det är allt varningen betyder.',
-        'Det pluginet skickar är ditt eget spelande för de klaner och events du är med i, kopplat till din Account Token. Din IP-adress används som vilken webbplats som helst använder den — för att svara på förfrågningar och begränsa missbruk — inte för att spåra dig. Och en nyinstallation kontaktar ingenting alls förrän du klickar på **Sign in with Discord**.',
-      ],
     },
 
     connect: {
@@ -545,8 +539,8 @@ const sv: PartialGuideDict = {
         ],
       },
       goodToKnow: {
-        tag: 'Bra att veta',
-        body: ['En token räcker för alla event du är anmäld till här — du klistrar aldrig in den på nytt per bingo.'],
+        tag: 'Använd sidopanelen till vardags',
+        body: ['**Anvils sidopanel är din huvudsakliga arbetsyta**: logga in där, se dina klaner och aktiva event, följ framsteg, ta startbilder, kör synkroniseringar och öppna supportverktyg. **Configuration → Anvil**, som visas nedan, är bara till för inställningar. Account Token fylls i automatiskt; klistra bara in en där om inloggningen via sidopanelen misslyckas. En token räcker för alla event du är anmäld till — du klistrar aldrig in den igen per bingo.'],
       },
     },
 

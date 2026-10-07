@@ -459,12 +459,6 @@ const no: PartialGuideDict = {
         'I RuneLite: **Configuration** (skiftenøkkelen) → **Plugin Hub** → søk etter **Anvil** → **Install**. Utgiveren er `AhmedFathy2001`.',
         'Ett plugin dekker alle klaner — det kobler seg alltid til `anvilosrs.com`, og det er innloggingen (neste trinn) som knytter det til deg og klanene dine. Det er ingenting klanspesifikt å laste ned og ingen adresse å skrive inn. Når det er installert, dukker en **Anvil**-knapp opp i RuneLites sidefelt, og innstillingene ligger under **Configuration → Anvil**.',
       ],
-      warningHeading: 'Hvorfor viser RuneLite en advarsel?',
-      warningBody: [
-        'Når du installerer Anvil, viser Plugin Hub denne advarselen: _“This plugin submits your IP address and your account\'s gameplay data (RSN, drops, kill counts, XP and progress) to anvilosrs.com, a 3rd-party server not controlled or verified by the RuneLite developers.”_ Det er forventet — RuneLite viser en lignende advarsel for alle plugins som snakker med en ekstern server.',
-        'Anvil er et tredjepartsnettsted — det drives verken av RuneLite eller Jagex. For å spore dropsene og fremgangen din for klanen må pluginet sende forespørsler til `anvilosrs.com`, og enhver nettforespørsel viser serveren hvilken IP-adresse den kom fra. Det er alt advarselen betyr.',
-        'Det pluginet sender, er ditt eget spill for klanene og eventene du er med i, knyttet til din Account Token. IP-adressen din brukes slik ethvert nettsted bruker den — til å svare på forespørsler og begrense misbruk — ikke til å spore deg. Og en fersk installasjon kontakter ingenting i det hele tatt før du klikker **Sign in with Discord**.',
-      ],
     },
 
     connect: {
@@ -545,8 +539,8 @@ const no: PartialGuideDict = {
         ],
       },
       goodToKnow: {
-        tag: 'Verdt å vite',
-        body: ['Ett token dekker alle eventene du er påmeldt her — du limer det aldri inn på nytt per bingo.'],
+        tag: 'Bruk sidepanelet til daglig',
+        body: ['**Anvil-sidepanelet er hovedarbeidsområdet ditt**: logg inn der, se klanene og aktive eventer, følg fremdriften, ta startbilder, kjør synkroniseringer og åpne støtteverktøy. **Configuration → Anvil**, vist nedenfor, er bare for innstillinger. Account Token fylles ut automatisk; lim bare inn et der hvis innlogging via sidepanelet mislykkes. Ett token dekker alle eventene du er påmeldt — du limer det aldri inn på nytt per bingo.'],
       },
     },
 

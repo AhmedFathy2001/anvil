@@ -460,12 +460,6 @@ const fi: PartialGuideDict = {
         'RuneLitessä: **Configuration** (jakoavain) → **Plugin Hub** → hae **Anvil** → **Install**. Julkaisija on `AhmedFathy2001`.',
         'Yksi plugin palvelee kaikkia klaaneja — se yhdistää aina osoitteeseen `anvilosrs.com`, ja sisäänkirjautuminen (seuraava vaihe) on se, mikä liittää sen sinuun ja klaaneihisi. Mitään klaanikohtaista ei tarvitse ladata eikä mitään osoitetta kirjoittaa. Asennuksen jälkeen RuneLiten sivupalkkiin ilmestyy **Anvil**-painike, ja asetukset löytyvät kohdasta **Configuration → Anvil**.',
       ],
-      warningHeading: 'Miksi RuneLite näyttää varoituksen?',
-      warningBody: [
-        'Kun asennat Anvilin, Plugin Hub näyttää tämän varoituksen: _“This plugin submits your IP address and your account\'s gameplay data (RSN, drops, kill counts, XP and progress) to anvilosrs.com, a 3rd-party server not controlled or verified by the RuneLite developers.”_ Tämä on odotettua — RuneLite näyttää samanlaisen varoituksen jokaiselle pluginille, joka keskustelee ulkopuolisen palvelimen kanssa.',
-        'Anvil on kolmannen osapuolen sivusto — sitä eivät ylläpidä RuneLite eivätkä Jagex. Jotta plugin voi seurata droppejasi ja edistymistäsi klaanillesi, sen täytyy lähettää pyyntöjä osoitteeseen `anvilosrs.com`, ja jokainen verkkopyyntö näyttää palvelimelle IP-osoitteen, josta se tuli. Siinä kaikki, mitä varoitus tarkoittaa.',
-        'Plugin lähettää vain omaa pelaamistasi niille klaaneille ja tapahtumille, joissa olet mukana, sidottuna Account Tokeniisi. IP-osoitettasi käytetään kuten mikä tahansa verkkosivusto sitä käyttää — pyyntöihin vastaamiseen ja väärinkäytön rajoittamiseen — ei sinun seuraamiseesi. Eikä juuri asennettu plugin ota yhteyttä mihinkään ennen kuin klikkaat **Sign in with Discord**.',
-      ],
     },
 
     connect: {
@@ -546,8 +540,8 @@ const fi: PartialGuideDict = {
         ],
       },
       goodToKnow: {
-        tag: 'Hyvä tietää',
-        body: ['Yksi token kattaa kaikki tapahtumat joihin olet täällä ilmoittautunut — sitä ei tarvitse liittää uudelleen bingoa kohden.'],
+        tag: 'Käytä sivupaneelia päivittäin',
+        body: ['**Anvilin sivupaneeli on pääasiallinen työtilasi**: kirjaudu siellä sisään, katso klaanisi ja aktiiviset tapahtumat, seuraa edistymistä, ota aloituskuvia, suorita synkronointeja ja avaa tukityökalut. Alla näkyvä **Configuration → Anvil** on vain asetuksia varten. Account Token täytetään automaattisesti; liitä se sinne vain, jos kirjautuminen sivupaneelista epäonnistuu. Yksi token kattaa kaikki tapahtumat, joihin olet ilmoittautunut — sitä ei tarvitse liittää uudelleen jokaista bingoa varten.'],
       },
     },
 

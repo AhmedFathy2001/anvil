@@ -459,12 +459,6 @@ const ja: PartialGuideDict = {
         'RuneLite で：**Configuration**（レンチのアイコン）→ **Plugin Hub** → **Anvil** を検索 → **Install**。公開者は `AhmedFathy2001` です。',
         '1 つのプラグインがすべてのクランに対応します —— 接続先は常に `anvilosrs.com` で、あなたとあなたのクランに結びつけるのはログイン（次の手順）です。クラン固有のダウンロードも、入力するアドレスもありません。導入すると RuneLite のサイドバーに **Anvil** ボタンが現れ、設定は **Configuration → Anvil** にあります。',
       ],
-      warningHeading: 'なぜ RuneLite に警告が出るのか',
-      warningBody: [
-        'Anvil を導入すると、Plugin Hub に次の警告が表示されます：_“This plugin submits your IP address and your account\'s gameplay data (RSN, drops, kill counts, XP and progress) to anvilosrs.com, a 3rd-party server not controlled or verified by the RuneLite developers.”_ これは想定どおりです —— 外部のサーバーと通信するプラグインには、RuneLite は必ず同様の警告を出します。',
-        'Anvil はサードパーティのサイトです —— RuneLite や Jagex が運営しているものではありません。クランのためにドロップや進捗を記録するには、プラグインが `anvilosrs.com` にリクエストを送る必要があり、どんな Web リクエストもサーバーには送信元の IP アドレスが見えます。警告が言っているのはそれだけです。',
-        'プラグインが送るのは、あなたが参加しているクランとイベントのための、あなた自身のプレイ情報だけで、Account Token で署名されています。IP アドレスはどの Web サイトとも同じ使い方 —— リクエストへの応答とレート制限 —— をするだけで、あなたを追跡するためには使いません。そして導入したばかりのプラグインは、**Sign in with Discord** を押すまでどこにも接続しません。',
-      ],
     },
 
     connect: {
@@ -545,8 +539,8 @@ const ja: PartialGuideDict = {
         ],
       },
       goodToKnow: {
-        tag: '知っておくと良いこと',
-        body: ['トークン 1 つでここで参加登録したすべてのイベントをカバーします —— ビンゴごとに貼り直す必要はありません。'],
+        tag: '普段はサイドパネルを使う',
+        body: ['**Anvil サイドパネルがメインの作業場所です**。ここからサインインし、クランや開催中のイベントを確認し、進捗を追い、開始時のスクリーンショットを撮り、同期やサポートツールを使います。下に示す **Configuration → Anvil** は設定変更のためだけに使います。Account Token は自動入力されるので、サイドパネルからのサインインが失敗した場合にだけ手動で貼り付けてください。1 つのトークンで参加登録したすべてのイベントに対応し、ビンゴごとに貼り直す必要はありません。'],
       },
     },
 
