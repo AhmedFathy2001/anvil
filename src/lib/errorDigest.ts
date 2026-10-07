@@ -49,6 +49,35 @@ const RED = 0xd9534f;
 const AMBER = 0xe0aa1e;
 
 /**
+ * Keep the database/server cause in the short Discord excerpt.
+ *
+ * Instrumentation deliberately prefixes a long ORM query before `— caused by …`. Taking the first
+ * 300 characters therefore hid the only actionable part of database failures — exactly the alert
+ * an operator needs the cause for. Keep some query context at the front and reserve the rest for
+ * the cause; ordinary messages retain the old straight truncation.
+ */
+export function digestMessage(message: string, limit = 300): string {
+  if (message.length <= limit) return message;
+
+  const marker = ' — caused by ';
+  const causeAt = message.indexOf(marker);
+  if (causeAt < 0) return `${message.slice(0, Math.max(0, limit - 1))}…`;
+
+  const causeBudget = Math.max(1, Math.floor(limit * 0.6) - marker.length);
+  const rawCause = message.slice(causeAt + marker.length);
+  const cause = rawCause.length > causeBudget
+    ? `${rawCause.slice(0, causeBudget - 1)}…`
+    : rawCause;
+  const suffix = `${marker}${cause}`;
+  const headBudget = Math.max(1, limit - suffix.length);
+  const head = message.slice(0, causeAt);
+  const clippedHead = head.length > headBudget
+    ? `${head.slice(0, Math.max(0, headBudget - 1))}…`
+    : head;
+  return `${clippedHead}${suffix}`.slice(0, limit);
+}
+
+/**
  * The digest, or null when there is nothing to say.
  *
  * NULL IS THE COMMON CASE and it matters that it stays that way: an hourly job that posts "0 errors"
@@ -77,7 +106,7 @@ export function buildDigest(rows: DigestRow[], windowLabel = 'the last hour'): D
       name: `${isNew(row) ? '🆕 ' : ''}${row.name} ×${delta.toLocaleString()}`.slice(0, 256),
       value: [
         // The message is the useful line, so it goes first and gets the room.
-        '```', row.message.slice(0, 300), '```',
+        '```', digestMessage(row.message), '```',
         [
           row.path ? `\`${row.path}\`` : null,
           row.clanSlug ? `clan \`${row.clanSlug}\`` : 'apex',

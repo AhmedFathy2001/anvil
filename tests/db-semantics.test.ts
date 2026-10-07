@@ -23,6 +23,7 @@ let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
 let s: Awaited<ReturnType<typeof loadDb>>['schema'];
 let savePersonalBests: typeof import('../src/lib/personalBests.ts')['savePersonalBests'];
 let applyWeeklyValue: typeof import('../src/lib/weekly.ts')['applyWeeklyValue'];
+let saveStatSnapshot: typeof import('../src/lib/roster.ts')['saveStatSnapshot'];
 let eq: typeof import('drizzle-orm')['eq'];
 let and: typeof import('drizzle-orm')['and'];
 let count: typeof import('drizzle-orm')['count'];
@@ -38,6 +39,7 @@ before(async () => {
   ({ db, pool, schema: s } = await loadDb());
   ({ savePersonalBests } = await import('../src/lib/personalBests.ts'));
   ({ applyWeeklyValue } = await import('../src/lib/weekly.ts'));
+  ({ saveStatSnapshot } = await import('../src/lib/roster.ts'));
   ({ eq, and, count, sum } = await import('drizzle-orm'));
 
   const [clan] = await db
@@ -103,6 +105,29 @@ test('onConflictDoNothing returns nothing when it did nothing', async () => {
 
   const second = await db.insert(s.accounts).values(values).onConflictDoNothing().returning({ id: s.accounts.id });
   assert.equal(second.length, 0, 'conflicting insert must report NO row, or notifications double-fire');
+});
+
+// The stats sweep holds account ids across a slow external hiscores fetch. A rename merge can
+// delete one of those accounts in the meantime, so the snapshot writer must treat a vanished parent
+// as completed stale work rather than failing the whole cron tick on its foreign key.
+test('stat snapshot upsert updates a live account and ignores one merged away', async () => {
+  const accountId = await makeAccount('Snapshot Race');
+
+  await saveStatSnapshot(accountId, '{"xp":1}');
+  await saveStatSnapshot(accountId, '{"xp":2}');
+  const [updated] = await db
+    .select()
+    .from(s.accountStatSnapshots)
+    .where(eq(s.accountStatSnapshots.accountId, accountId));
+  assert.equal(updated?.snapshot, '{"xp":2}', 'the ordinary upsert still updates the snapshot');
+
+  await db.delete(s.accounts).where(eq(s.accounts.id, accountId));
+  await assert.doesNotReject(saveStatSnapshot(accountId, '{"xp":3}'));
+  const stale = await db
+    .select()
+    .from(s.accountStatSnapshots)
+    .where(eq(s.accountStatSnapshots.accountId, accountId));
+  assert.equal(stale.length, 0, 'a stale sweep id must not recreate an orphaned snapshot');
 });
 
 // ── Personal bests keep the fastest, whatever the order ───────────────────────────────────────

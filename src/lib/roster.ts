@@ -77,9 +77,24 @@ export async function statSnapshotOf(accountId: number): Promise<string | null> 
 /** Store this account's newest snapshot. Written only when it actually changed — see api/cron/stats. */
 export async function saveStatSnapshot(accountId: number, snapshot: string): Promise<void> {
   // clan-scope: global -- an OSRS account is one account however many clans roster it.
+  //
+  // The sweep builds its work list before fetching from Jagex. An account can be merged away during
+  // that fetch, leaving this function with an id that was valid at the start of the tick and no
+  // longer exists. A direct VALUES insert then loses the whole cron tick to the snapshot table's
+  // foreign key. Select the parent under a key-share lock instead: a deletion that already won makes
+  // this a no-op; one that starts afterwards waits, then its cascade removes the snapshot normally.
+  const liveAccount = db
+    .select({
+      accountId: accounts.id,
+      snapshot: sql<string>`${snapshot}`.as('snapshot'),
+    })
+    .from(accounts)
+    .where(eq(accounts.id, accountId))
+    .for('key share');
+
   await db
     .insert(accountStatSnapshots)
-    .values({ accountId, snapshot })
+    .select(liveAccount)
     .onConflictDoUpdate({ target: accountStatSnapshots.accountId, set: { snapshot } });
 }
 

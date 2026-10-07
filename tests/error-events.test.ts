@@ -16,7 +16,7 @@ import {
   ownFrame,
   trimStack,
 } from '../src/lib/errorFingerprint.ts';
-import { buildDigest, deltaOf, isNew, type DigestRow } from '../src/lib/errorDigest.ts';
+import { buildDigest, deltaOf, digestMessage, isNew, type DigestRow } from '../src/lib/errorDigest.ts';
 
 test('the variable parts of a message do not enter its identity', () => {
   // THE POINT OF THE WHOLE TABLE. Without this, one broken handler hit with two hundred different
@@ -167,4 +167,20 @@ test('Discord field limits are respected even for a pathological error', () => {
     assert.ok(f.name.length <= 256, `field name ${f.name.length}`);
     assert.ok(f.value.length <= 1024, `field value ${f.value.length}`);
   }
+});
+
+test('a long database query does not push its cause out of the digest', () => {
+  const message = [
+    `Failed query: insert into account_stat_snapshots ${'values ($1, $2), '.repeat(30)}`,
+    ' — caused by PostgresError: insert or update violates foreign key constraint account_stat_snapshots_account_id_fkey',
+  ].join('');
+
+  const excerpt = digestMessage(message);
+  assert.ok(excerpt.length <= 300);
+  assert.match(excerpt, /^Failed query:/);
+  assert.match(excerpt, /caused by PostgresError:/);
+  assert.match(excerpt, /foreign key constraint/);
+
+  const digest = buildDigest([row({ message })])!;
+  assert.match(digest.fields[0].value, /caused by PostgresError:/);
 });
