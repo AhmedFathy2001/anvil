@@ -49,6 +49,8 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
   const [tilesRevealAt, setTilesRevealAt] = useState(() => event.tilesRevealAt ?? '');
   const [savingRevealAt, setSavingRevealAt] = useState(false);
   const [revealScheduleMsg, setRevealScheduleMsg] = useState('');
+  const [testingRevealPost, setTestingRevealPost] = useState(false);
+  const [testRevealMsg, setTestRevealMsg] = useState('');
   const [recomputing, setRecomputing] = useState(false);
   const [recomputeMsg, setRecomputeMsg] = useState('');
   const [cloning, setCloning] = useState(false);
@@ -236,6 +238,20 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
       }
     } finally {
       setSavingRevealAt(false);
+    }
+  }
+
+  async function testRevealPost() {
+    setTestingRevealPost(true);
+    setTestRevealMsg('');
+    try {
+      const res = await clanFetch(`/api/admin/events/${event.id}/test-board-reveal`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      setTestRevealMsg(res.ok ? 'Posted to this clan’s bingo channel only.' : data.error || 'Could not post the preview.');
+    } catch {
+      setTestRevealMsg('Could not post the preview.');
+    } finally {
+      setTestingRevealPost(false);
     }
   }
 
@@ -500,6 +516,21 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
         {revealScheduleMsg && (eventStarted || !!currentEvent.tilesRevealed) && (
           <p className="text-xs text-red-400 mt-2">{revealScheduleMsg}</p>
         )}
+        <div className="mt-4 pt-4 border-t border-card-border">
+          <p className="text-xs text-text-muted mb-2">
+            Sends the real board image and links to this clan only. It does not reveal the board or notify co-hosts.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={testRevealPost} disabled={testingRevealPost}>
+              {testingRevealPost ? 'Posting…' : 'Test Discord board post'}
+            </Button>
+            {testRevealMsg && (
+              <span className={`text-xs ${testRevealMsg.startsWith('Posted') ? 'text-green-400' : 'text-red-400'}`}>
+                {testRevealMsg}
+              </span>
+            )}
+          </div>
+        </div>
       </section>
 
       {/* Only renders on reveal-policy boards — a classic board has nothing to schedule. */}

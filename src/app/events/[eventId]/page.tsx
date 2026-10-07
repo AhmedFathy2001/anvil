@@ -91,10 +91,14 @@ export async function generateMetadata({
 
 export default async function EventScoreboardPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ eventId: string }>;
+  searchParams: Promise<{ tile?: string | string[] }>;
 }) {
   const { eventId } = await params;
+  const requestedTile = (await searchParams).tile;
+  const initialTileId = Number(Array.isArray(requestedTile) ? requestedTile[0] : requestedTile);
   const id = parseInt(eventId, 10);
   // Before requireClan: on the apex this redirects to the event's own address instead of 404ing.
   await requireEventForParticipantPage(id);
@@ -626,6 +630,7 @@ export default async function EventScoreboardPage({
           staffOnlyTileIds={staffOnlyTileIds}
           hiddenSchedule={hiddenSchedule}
           boardPointsTotal={pointsOnBoard}
+          initialTileId={Number.isInteger(initialTileId) && initialTileId > 0 ? initialTileId : null}
         />
         </>
       )}

@@ -46,6 +46,7 @@ export async function GET(
     .then((r) => r[0]?.c ?? 0);
 
   return NextResponse.json({
+    isHost: event.clanId === clan.id,
     enabled: cfg !== null,
     categoryId: event.discordCategoryId,
     draftStatus: event.draftStatus,
@@ -84,6 +85,12 @@ export async function POST(
   }
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+
+  // Accepted co-hosts may opt their own server into the shared bingo role, but only the event host
+  // may initiate provisioning/assignment. This prevents a co-host admin from driving the host bot.
+  if (event.clanId !== clan.id) {
+    return NextResponse.json({ error: 'Only the event host can manage Discord roles and channels.' }, { status: 403 });
+  }
 
   const cfg = await loadTeamChannelConfig(clan.id);
   if (!cfg) {

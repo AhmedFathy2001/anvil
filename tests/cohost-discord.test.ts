@@ -22,6 +22,7 @@ let eventId: number;
 
 const posts: { url: string; body: Record<string, unknown> }[] = [];
 const realFetch = globalThis.fetch;
+const realBotToken = process.env.DISCORD_BOT_TOKEN;
 
 before(async () => {
   await resetDatabase(DB);
@@ -56,13 +57,19 @@ before(async () => {
   ]);
 
   globalThis.fetch = (async (url: string | URL, init?: RequestInit) => {
-    posts.push({ url: String(url), body: JSON.parse(String(init?.body ?? '{}')) });
+    const href = String(url);
+    if (href.endsWith('/users/@me')) {
+      return Response.json({ id: 'bot-user' });
+    }
+    posts.push({ url: href, body: JSON.parse(String(init?.body ?? '{}')) });
     return new Response(null, { status: 204 });
   }) as typeof fetch;
 });
 
 after(async () => {
   globalThis.fetch = realFetch;
+  if (realBotToken === undefined) delete process.env.DISCORD_BOT_TOKEN;
+  else process.env.DISCORD_BOT_TOKEN = realBotToken;
   await pool.end();
   await dropDatabase(DB);
 });
@@ -107,6 +114,49 @@ test('fan-out: host + accepted co-host only, co-host channel preferred, each pin
   assert.equal(byUrl.get('https://discord.test/guest-cohost')?.content, '<@&222>');
 });
 
+test('board reveal fans out a signed full-board image and interactive link', async () => {
+  const previousRedirect = process.env.DISCORD_REDIRECT_URI;
+  process.env.DISCORD_REDIRECT_URI = 'https://anvil.test/api/auth/discord/callback';
+  try {
+    const { notifyBoardRevealed } = await import('../src/lib/discord.ts');
+    posts.length = 0;
+    const ok = await notifyBoardRevealed({
+      clanId: hostClan,
+      eventId,
+      eventName: 'Rumble',
+      startDate: '2099-01-01T00:00:00.000Z',
+      revealedAt: '2026-10-07T12:00:00.000Z',
+      tileCount: 25,
+    });
+    assert.equal(ok, true);
+    assert.equal(posts.length, 2);
+    for (const post of posts) {
+      const embed = (post.body.embeds as { url?: string; image?: { url?: string } }[])[0];
+      assert.equal(embed.url, `https://anvil.test/events/${eventId}`);
+      assert.match(embed.image?.url ?? '', /^https:\/\/anvil\.test\/api\/og\/board\?e=1&v=/);
+      assert.match(embed.image?.url ?? '', /&s=[A-Za-z0-9_-]+$/);
+    }
+  } finally {
+    if (previousRedirect === undefined) delete process.env.DISCORD_REDIRECT_URI;
+    else process.env.DISCORD_REDIRECT_URI = previousRedirect;
+  }
+});
+
+test('board reveal test post stays in the current clan and never fans out', async () => {
+  const { notifyBoardRevealed } = await import('../src/lib/discord.ts');
+  posts.length = 0;
+  const ok = await notifyBoardRevealed({
+    clanId: hostClan,
+    eventId,
+    eventName: 'Rumble',
+    revealedAt: 'test-123',
+    tileCount: 25,
+    test: true,
+  });
+  assert.equal(ok, true);
+  assert.deepEqual(posts.map((post) => post.url), ['https://discord.test/host-bingo']);
+});
+
 test('fan-out: a co-host that switched it off gets nothing; the host still posts', async () => {
   const { sendEventBingoWebhook } = await import('../src/lib/discord.ts');
   await db.insert(s.settings).values({ clanId: guestClan, key: 'discord_cohost_posts_enabled', value: 'false' });
@@ -146,4 +196,54 @@ test('postEventRules: one post per clan, each in its own channel, under the host
   assert.equal(embeds.length, 2);
   assert.match(embeds[0].description ?? '', /hosted by Host Clan/);
   assert.equal(embeds[1].description, 'Rumble rules');
+});
+
+test('bingo-role fan-out uses only accepted co-hosts that explicitly opted in, with each own role', async () => {
+  process.env.DISCORD_BOT_TOKEN = 'cohost-role-test-token';
+  await db.insert(s.settings).values([
+    { clanId: hostClan, key: 'discord_team_sync_enabled', value: 'true' },
+    { clanId: hostClan, key: 'discord_guild_id', value: 'host-guild' },
+    { clanId: hostClan, key: 'discord_bingo_role_id', value: 'host-role' },
+    { clanId: guestClan, key: 'discord_guild_id', value: 'guest-guild' },
+    { clanId: guestClan, key: 'discord_bingo_role_id', value: 'guest-role' },
+    { clanId: guestClan, key: 'discord_cohost_role_sync_enabled', value: 'true' },
+    // Even an opted-in clan is excluded until its co-host invitation is accepted.
+    { clanId: pendingClan, key: 'discord_guild_id', value: 'pending-guild' },
+    { clanId: pendingClan, key: 'discord_bingo_role_id', value: 'pending-role' },
+    { clanId: pendingClan, key: 'discord_cohost_role_sync_enabled', value: 'true' },
+  ]);
+
+  const [person] = await db.insert(s.players).values({ displayName: 'Role Tester' }).returning();
+  const [user] = await db
+    .insert(s.users)
+    .values({ displayName: 'Role Tester', playerId: person.id, discordId: 'discord-user-1' })
+    .returning();
+  const [account] = await db
+    .insert(s.accounts)
+    .values({ playerId: person.id, rsn: 'Role Tester', rsnNormalized: 'role tester' })
+    .returning();
+  const [seat] = await db
+    .insert(s.clanMemberships)
+    .values({ clanId: hostClan, accountId: account.id, kind: 'member' })
+    .returning();
+  await db.insert(s.eventSignups).values({
+    eventId,
+    userId: user.id,
+    clanMemberId: seat.id,
+    status: 'approved',
+  });
+
+  posts.length = 0;
+  const { assignBingoRoleToApprovedSignups } = await import('../src/lib/discord-teams.ts');
+  const report = await assignBingoRoleToApprovedSignups(eventId);
+  assert.equal(report.ok, true);
+  assert.deepEqual(
+    posts.map((p) => p.url).sort(),
+    [
+      'https://discord.com/api/v10/guilds/guest-guild/members/discord-user-1/roles/guest-role',
+      'https://discord.com/api/v10/guilds/host-guild/members/discord-user-1/roles/host-role',
+    ],
+  );
+  assert.equal(report.roleServers?.length, 2);
+  assert.equal(posts.some((p) => p.url.includes('pending-guild')), false);
 });

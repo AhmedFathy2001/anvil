@@ -121,6 +121,8 @@ interface Props {
    * team is 39% done when the board is only a third open.
    */
   boardPointsTotal?: number | null;
+  /** Opens a visible tile directly (used by RuneLite's sidebar catalogue links). */
+  initialTileId?: number | null;
 }
 
 interface TeamGains {
@@ -129,9 +131,11 @@ interface TeamGains {
   tileGains: Record<number, number>; // tileId -> gained
 }
 
-export default function ScoreboardClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null }: Props) {
+export default function ScoreboardClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, initialTileId = null }: Props) {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
-  const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
+  const [selectedTileId, setSelectedTileId] = useState<number | null>(() =>
+    initialTileId != null && tiles.some((tile) => tile.id === initialTileId) ? initialTileId : null,
+  );
   const [fullscreen, setFullscreen] = useState(false);
   const [teamGains, setTeamGains] = useState<TeamGains[]>([]);
   // Which team's board the viewer is looking at. Null = everyone's, the shared view.

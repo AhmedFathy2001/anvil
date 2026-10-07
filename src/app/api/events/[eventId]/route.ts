@@ -7,7 +7,7 @@ import { events, tiles, teams, completions, submissions, eventStartProofs } from
 import { eq, inArray, and } from 'drizzle-orm';
 import { del } from '@/lib/storage';
 import { verifyAdmin, verifyAdminOrModerator } from '@/lib/auth';
-import { notifyEventForceEnd, notifyEventStart } from '@/lib/discord';
+import { notifyBoardRevealed, notifyEventForceEnd, notifyEventStart } from '@/lib/discord';
 import { emptyTeamCount, getEventStartReadiness, eventBoardSummary, drawStartProof } from '@/lib/eventLifecycle';
 import { describeStartBlockers } from '@/lib/eventReadiness';
 import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
@@ -305,6 +305,7 @@ export async function PATCH(
         format: updated.format,
         startProofLocation: startProof?.location ?? null,
         startProofSessionMinutes: startProof?.maxSessionMinutes ?? null,
+        boardImageVersion: event.tilesRevealed ? null : now,
         ...(await eventBoardSummary(updated)),
       })
         // The rules land right under the start post, in every clan on the board (lib/eventRulesPost).
@@ -568,6 +569,22 @@ export async function PATCH(
     .set(updates)
     .where(eq(events.id, id))
     .returning();
+
+  // A manual 0→1 reveal is the same audience event as a scheduled reveal. Announce only after the
+  // row is committed so Discord's image proxy can immediately fetch the newly-visible board. Hiding
+  // and re-revealing deliberately posts again: the second reveal is a new announcement, not a retry.
+  if (!existing.tilesRevealed && !!updated.tilesRevealed) {
+    const allTiles = await db.select().from(tiles).where(eq(tiles.eventId, updated.id));
+    const tileCount = visibleTiles(parseEventRules(updated.rules), allTiles).length;
+    notifyBoardRevealed({
+      clanId: updated.clanId,
+      eventId: updated.id,
+      eventName: updated.name,
+      startDate: updated.startDate,
+      revealedAt: new Date().toISOString(),
+      tileCount,
+    }).catch(() => {});
+  }
 
   return NextResponse.json(updated);
 }

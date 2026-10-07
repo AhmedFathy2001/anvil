@@ -14,10 +14,11 @@ const DEFAULT_CAPTAIN_ROLE_ID = '';
 // come from the "Discord roles & nicknames" section / env — this section reuses them.
 export default function DiscordTeamChannelSettings() {
   const [teamSync, setTeamSync] = useState(false);
+  const [cohostRoleSync, setCohostRoleSync] = useState(false);
   const [bingoRoleId, setBingoRoleId] = useState('');
   const [captainRoleId, setCaptainRoleId] = useState('');
 
-  const [original, setOriginal] = useState({ teamSync: false, bingoRoleId: '', captainRoleId: '' });
+  const [original, setOriginal] = useState({ teamSync: false, cohostRoleSync: false, bingoRoleId: '', captainRoleId: '' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -28,16 +29,19 @@ export default function DiscordTeamChannelSettings() {
         const data = await loadSettings();
         const next = {
           teamSync: data.discord_team_sync_enabled === 'true',
+          cohostRoleSync: data.discord_cohost_role_sync_enabled === 'true',
           bingoRoleId: data.discord_bingo_role_id || DEFAULT_BINGO_ROLE_ID,
           captainRoleId: data.discord_captain_role_id || DEFAULT_CAPTAIN_ROLE_ID,
         };
         setTeamSync(next.teamSync);
+        setCohostRoleSync(next.cohostRoleSync);
         setBingoRoleId(next.bingoRoleId);
         setCaptainRoleId(next.captainRoleId);
         // Compare against what's actually stored, so prefilled defaults show as
         // "unsaved" and a Save persists them.
         setOriginal({
           teamSync: next.teamSync,
+          cohostRoleSync: next.cohostRoleSync,
           bingoRoleId: data.discord_bingo_role_id || '',
           captainRoleId: data.discord_captain_role_id || '',
         });
@@ -58,13 +62,14 @@ export default function DiscordTeamChannelSettings() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           discord_team_sync_enabled: teamSync ? 'true' : '',
+          discord_cohost_role_sync_enabled: cohostRoleSync ? 'true' : '',
           discord_bingo_role_id: bingoRoleId.trim(),
           discord_captain_role_id: captainRoleId.trim(),
         }),
       });
       if (res.ok) {
         invalidateSettings();
-        setOriginal({ teamSync, bingoRoleId: bingoRoleId.trim(), captainRoleId: captainRoleId.trim() });
+        setOriginal({ teamSync, cohostRoleSync, bingoRoleId: bingoRoleId.trim(), captainRoleId: captainRoleId.trim() });
         setMessage({ type: 'success', text: 'Saved.' });
       } else {
         const data = await res.json();
@@ -79,6 +84,7 @@ export default function DiscordTeamChannelSettings() {
 
   const hasChanges =
     teamSync !== original.teamSync ||
+    cohostRoleSync !== original.cohostRoleSync ||
     bingoRoleId.trim() !== original.bingoRoleId ||
     captainRoleId.trim() !== original.captainRoleId;
 
@@ -98,6 +104,20 @@ export default function DiscordTeamChannelSettings() {
             and assign contestants their roles. Requires the bot connected in the Discord bot tab. The
             bot needs <em>Manage Roles</em> and <em>Manage Channels</em>, with its role above the team
             roles it creates.
+          </>
+        }
+      />
+
+      <Checkbox
+        checked={cohostRoleSync}
+        onChange={setCohostRoleSync}
+        label="Allow co-hosted events to assign this server’s bingo role"
+        description={
+          <>
+            Explicitly opts this clan into role fan-out for events it has accepted as a co-host.
+            Anvil uses this clan&apos;s bot, server, and contestant role only; it never creates team
+            channels or accepts a role ID from the host. Leave this on through event cleanup if you
+            want Anvil to remove the role afterward.
           </>
         }
       />

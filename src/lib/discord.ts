@@ -9,6 +9,7 @@ import { formatGp } from '@/lib/adminEventsFormat';
 import { placeLabel } from '@/lib/eventRules';
 import { deriveTileIcon, skillIconUrl, bossItemForStatKey, itemIconUrl, type IconableTile } from '@/lib/tileIcons';
 import { eq } from 'drizzle-orm';
+import { boardRevealImageQuery } from '@/lib/boardRevealImage';
 
 import { db } from '@/db';
 import { acceptedCohostClanIds } from '@/lib/coHost';
@@ -803,6 +804,46 @@ export async function notifyTilesRevealed(params: TilesRevealedNotifyParams): Pr
   return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] });
 }
 
+export interface BoardRevealedNotifyParams {
+  clanId: number;
+  eventId: number;
+  eventName: string;
+  startDate?: string | null;
+  /** A cache-busting reveal stamp; scheduled/manual callers pass the instant that won the reveal. */
+  revealedAt: string;
+  tileCount: number;
+  /** Host-only preview: exercise the exact embed/image without notifying accepted co-hosts. */
+  test?: boolean;
+}
+
+/** Whole-board reveal, distinct from the live reveal engine's per-tile/mission announcements. */
+export async function notifyBoardRevealed(params: BoardRevealedNotifyParams): Promise<boolean> {
+  const boardUrl = eventLeaderboardUrl(params.eventId);
+  const base = siteBaseUrl();
+  const imageUrl = base
+    ? `${base}/api/og/board?${boardRevealImageQuery(params.eventId, params.revealedAt)}`
+    : null;
+  const starts = params.startDate ? ` Play begins ${discordTime(params.startDate, 'R')}.` : '';
+  const description = params.test
+    ? `This is a private test of tomorrow's board-reveal post.${boardUrl ? `\n\n[Open the interactive board →](${boardUrl})` : ''}`
+    : `The full board is open for preview.${starts}${boardUrl ? `\n\n[Browse every tile and its details →](${boardUrl})` : ''}`;
+  const embed: DiscordEmbed = {
+    ...eventAuthor(params.eventId, params.eventName),
+    title: params.test ? '🧪 Board reveal preview' : '🧩 Board revealed',
+    description,
+    color: EMBED_COLOR.gold,
+    fields: [statField('Board', `${params.tileCount} ${params.tileCount === 1 ? 'tile' : 'tiles'}`)],
+    ...(boardUrl ? { url: boardUrl } : {}),
+    ...(imageUrl ? { image: { url: imageUrl } } : {}),
+  };
+  const payload = { embeds: [await withClanCrest(params.clanId, embed)] };
+  // A test must never surprise co-host servers. The real reveal uses the ordinary accepted-cohost
+  // fan-out, where each receiving clan may independently disable co-host posts.
+  return params.test
+    ? (await sendBingoWebhookReport(params.clanId, payload)) === 'sent'
+    : sendEventBingoWebhook(params.clanId, params.eventId, payload, { ping: true });
+}
+
 interface BountyClaimNotifyParams {
   /** The clan this posts for — decides which webhook it lands in. */
   clanId: number;
@@ -1121,10 +1162,12 @@ interface EventStartNotifyParams {
   startProofLocation?: string | null;
   /** Minutes the session may have been running when the shot is taken. 0/null = not asked for. */
   startProofSessionMinutes?: number | null;
+  /** Set only when starting the event also flips the master board reveal gate. */
+  boardImageVersion?: string | null;
 }
 
 export async function notifyEventStart(params: EventStartNotifyParams): Promise<boolean> {
-  const { eventId, eventName, startDate, endDate, format, tileCount, openTileCount, totalPoints, startProofLocation, startProofSessionMinutes } = params;
+  const { eventId, eventName, startDate, endDate, format, tileCount, openTileCount, totalPoints, startProofLocation, startProofSessionMinutes, boardImageVersion } = params;
   // Wording follows who is competing, not the format name — a board that ranks people can't be
   // wished luck "to all teams", and its entries are tasks.
   const axes = eventAxes({ format, scoringMode: 'points', endDate });
@@ -1181,6 +1224,9 @@ export async function notifyEventStart(params: EventStartNotifyParams): Promise<
     color: EMBED_COLOR.green,
     fields,
     ...(eventLeaderboardUrl(eventId) ? { url: eventLeaderboardUrl(eventId)! } : {}),
+    ...(boardImageVersion && siteBaseUrl()
+      ? { image: { url: `${siteBaseUrl()}/api/og/board?${boardRevealImageQuery(eventId, boardImageVersion)}` } }
+      : {}),
   };
 
   return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [await withClanCrest(params.clanId, embed)] }, { ping: true });

@@ -15,6 +15,7 @@ interface TeamState {
 }
 
 interface StatusData {
+  isHost: boolean;
   enabled: boolean;
   categoryId: string | null;
   draftStatus: string;
@@ -80,19 +81,25 @@ export default function DiscordTeamProvisioning({
       const data = await res.json();
       if (res.ok) {
         const r = data.report || {};
+        const roleServerNote = (report: { roleServers?: { failed?: number }[] } | undefined) => {
+          const servers = report?.roleServers ?? [];
+          if (servers.length <= 1) return '';
+          const failed = servers.reduce((sum, server) => sum + (server.failed ?? 0), 0);
+          return ` across ${servers.length} approved Discord servers${failed ? ` (${failed} assignment(s) failed — usually the member is not in that server)` : ''}`;
+        };
         let text = 'Done.';
         let type: 'success' | 'error' = 'success';
         if (action === 'sync-all') {
           const teamsN = r.provision?.teams?.length ?? 0;
           const assignedN = r.assign?.assigned ?? 0;
           const skippedN = r.assign?.skipped ?? 0;
-          text = `Set up ${teamsN} team channel(s) and assigned roles to ${assignedN} contestant(s)${skippedN ? `, ${skippedN} skipped (no linked Discord)` : ''}.`;
+          text = `Set up ${teamsN} team channel(s) and assigned roles to ${assignedN} contestant(s)${roleServerNote(r.assign)}${skippedN ? `, ${skippedN} skipped (no linked Discord)` : ''}.`;
         } else if (action === 'provision') {
           text = `Provisioned ${r.teams?.length ?? 0} team(s)${r.captainsAssigned ? `, ${r.captainsAssigned} captain(s) assigned` : ''}.`;
         } else if (action === 'assign-rosters') {
-          text = `Assigned roles to ${r.assigned ?? 0} contestant(s)${r.skipped ? `, ${r.skipped} skipped (no linked Discord)` : ''}.`;
+          text = `Assigned roles to ${r.assigned ?? 0} contestant(s)${roleServerNote(r)}${r.skipped ? `, ${r.skipped} skipped (no linked Discord)` : ''}.`;
         } else if (action === 'assign-bingo-role') {
-          text = `Gave the bingo role to ${r.assigned ?? 0} approved contestant(s)${r.skipped ? `, ${r.skipped} skipped (no linked Discord)` : ''}.`;
+          text = `Gave the bingo role to ${r.assigned ?? 0} approved contestant(s)${roleServerNote(r)}${r.skipped ? `, ${r.skipped} skipped (no linked Discord)` : ''}.`;
         } else if (action === 'unassign-shared-roles') {
           text = `Removed the bingo role from ${r.bingoRemoved ?? 0} member(s) and the captain role from ${r.captainRemoved ?? 0}.`;
         } else if (action === 'teardown') {
@@ -136,6 +143,19 @@ export default function DiscordTeamProvisioning({
           </ClanLink>{' '}
           (needs the bot token + server ID). Once on, this is where you provision channels and assign
           everyone — automatically when the draft ends, or with a button here.
+        </p>
+      </div>
+    );
+  }
+
+  if (!status.isHost) {
+    return (
+      <div className="pt-8 border-t border-card-border">
+        <h2 className="text-lg font-bold mb-1">Discord Channels &amp; Roles</h2>
+        <p className="text-xs text-text-muted">
+          The host manages this event&apos;s Discord actions. Your clan can opt its own contestant role
+          into the fan-out under Integrations → Discord team channels; the host can never choose a
+          role or server for you.
         </p>
       </div>
     );

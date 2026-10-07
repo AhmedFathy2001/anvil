@@ -57,6 +57,9 @@ const EXPOSED_KEYS = [
   // Discord team channels (bot-driven, see lib/discord-teams.ts): per-team roles +
   // locked voice/text channels, plus the two shared role IDs every event reuses.
   'discord_team_sync_enabled',
+  // Explicit, per-clan consent for a co-hosted event to assign this server's configured bingo
+  // role with this clan's bot. Off by default; accepted co-host status alone is never enough.
+  'discord_cohost_role_sync_enabled',
   'discord_bingo_role_id',
   'discord_captain_role_id',
   // Clan house rules, laid out by the Discord bot on /bingo rules and linkable from the site.

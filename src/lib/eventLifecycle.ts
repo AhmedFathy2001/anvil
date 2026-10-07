@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { events, teams, tiles, completions, eventParticipants } from '@/db/schema';
 import { eq, and, inArray, isNotNull, isNull, count } from 'drizzle-orm';
-import { notifyEventStart, notifyEventEnd, notifyEventStartHeld } from '@/lib/discord';
+import { notifyBoardRevealed, notifyEventStart, notifyEventEnd, notifyEventStartHeld } from '@/lib/discord';
 import { autoConfirmEventFees, shouldAutoConfirmOnEventEnd } from '@/lib/feeConfirmations';
 import { computeStartReadiness, type StartReadiness } from '@/lib/eventReadiness';
 import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
@@ -10,7 +10,7 @@ import { writePlayerEventFacts } from '@/lib/playerEventFacts';
 import { processTileReveals } from '@/lib/revealEngine';
 import { boardRevealIsDue } from '@/lib/eventBoardReveal';
 import { settleLadderMonths } from '@/lib/monthlyChampion';
-import { parseEventRules, isTileRevealed } from '@/lib/eventRules';
+import { parseEventRules, isTileRevealed, visibleTiles } from '@/lib/eventRules';
 import { scoreTeams } from '@/lib/boardScoring';
 import { drawStartLocation } from '@/lib/startProof';
 import { log } from '@/lib/logger';
@@ -167,6 +167,18 @@ export async function processEventLifecycleNotifications(): Promise<void> {
       .returning({ id: events.id });
     if (revealed.length > 0) {
       log.info('event-lifecycle.board-reveal', { eventId: event.id, revealAt: event.tilesRevealAt });
+      // `allEvents` was read before this loop. Keep its in-memory row in step so, when reveal and
+      // start share the same minute, the start post does not attach the same board image again.
+      event.tilesRevealed = 1;
+      const revealedTiles = await db.select().from(tiles).where(eq(tiles.eventId, event.id));
+      await notifyBoardRevealed({
+        clanId: event.clanId,
+        eventId: event.id,
+        eventName: event.name,
+        startDate: event.startDate,
+        revealedAt: now,
+        tileCount: visibleTiles(parseEventRules(event.rules), revealedTiles).length,
+      }).catch((error) => log.warn('event-lifecycle.board-reveal-post-fail', { eventId: event.id }, error));
     }
   }
 
@@ -240,6 +252,7 @@ export async function processEventLifecycleNotifications(): Promise<void> {
         format: event.format,
         startProofLocation: startProof?.location ?? null,
         startProofSessionMinutes: startProof?.maxSessionMinutes ?? null,
+        boardImageVersion: event.tilesRevealed ? null : now,
         ...(await eventBoardSummary(event)),
       });
       // The rules land right under the start post, in every clan on the board. Behind the same

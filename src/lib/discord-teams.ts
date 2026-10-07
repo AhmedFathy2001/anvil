@@ -27,6 +27,7 @@ import { findRosterSeat } from '@/lib/roster';
 import { and, eq, isNotNull } from 'drizzle-orm';
 import { log } from '@/lib/logger';
 import { discordRest, getBotCredentials, resolveDiscordIdForMember } from '@/lib/discord-roles';
+import { acceptedCohostClanIds } from '@/lib/coHost';
 
 // Discord permission bits (https://discord.com/developers/docs/topics/permissions).
 // All fit comfortably in 32 bits, so plain-number bitwise ops are safe; we serialise the
@@ -93,6 +94,45 @@ export async function loadTeamChannelConfig(clanId: number): Promise<TeamChannel
     bingoRoleId: (await getSetting(clanId, 'discord_bingo_role_id')) || null,
     captainRoleId: (await getSetting(clanId, 'discord_captain_role_id')) || null,
   };
+}
+
+interface SharedBingoRoleTarget {
+  clanId: number;
+  cfg: TeamChannelConfig;
+}
+
+/**
+ * Accepted co-hosts that explicitly allow this event to touch their contestant role. Each target
+ * resolves its own bot, guild and pre-selected role; the host never supplies any of those IDs.
+ * This intentionally does not create team roles/channels in co-host servers, whose resource IDs
+ * would need a separate per-guild mapping rather than the host-only columns on `teams`.
+ */
+async function cohostBingoRoleTargets(eventId: number): Promise<SharedBingoRoleTarget[]> {
+  const clanIds = await acceptedCohostClanIds(eventId).catch(() => [] as number[]);
+  const targets: SharedBingoRoleTarget[] = [];
+  const seen = new Set<string>();
+  for (const clanId of clanIds) {
+    if ((await getSetting(clanId, 'discord_cohost_role_sync_enabled')) !== 'true') continue;
+    const [creds, bingoRoleId] = await Promise.all([
+      getBotCredentials(clanId),
+      getSetting(clanId, 'discord_bingo_role_id'),
+    ]);
+    if (!creds || !bingoRoleId?.trim()) continue;
+    const identity = `${creds.guildId}:${bingoRoleId.trim()}`;
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    targets.push({
+      clanId,
+      cfg: {
+        botToken: creds.botToken,
+        guildId: creds.guildId,
+        botUserId: null,
+        bingoRoleId: bingoRoleId.trim(),
+        captainRoleId: null,
+      },
+    });
+  }
+  return targets;
 }
 
 // =============================================================================
@@ -223,7 +263,7 @@ async function createChannel(
   return channel.id;
 }
 
-async function addRole(cfg: TeamChannelConfig, discordUserId: string, roleId: string): Promise<void> {
+async function addRole(cfg: TeamChannelConfig, discordUserId: string, roleId: string): Promise<boolean> {
   const res = await discordRest(
     cfg.botToken,
     `/guilds/${cfg.guildId}/members/${discordUserId}/roles/${roleId}`,
@@ -231,12 +271,14 @@ async function addRole(cfg: TeamChannelConfig, discordUserId: string, roleId: st
   );
   if (!res.ok) {
     log.warn('discord-teams.add-role-fail', { status: res.status, discordUserId, roleId });
+    return false;
   }
+  return true;
 }
 
 // Strip a role from a member. 404 (member left the guild, or never had the role) is a no-op,
 // not a failure — this is used for cleanup where "already gone" is the desired end state.
-async function removeRole(cfg: TeamChannelConfig, discordUserId: string, roleId: string): Promise<void> {
+async function removeRole(cfg: TeamChannelConfig, discordUserId: string, roleId: string): Promise<boolean> {
   const res = await discordRest(
     cfg.botToken,
     `/guilds/${cfg.guildId}/members/${discordUserId}/roles/${roleId}`,
@@ -244,7 +286,9 @@ async function removeRole(cfg: TeamChannelConfig, discordUserId: string, roleId:
   );
   if (!res.ok && res.status !== 404) {
     log.warn('discord-teams.remove-role-fail', { status: res.status, discordUserId, roleId });
+    return false;
   }
+  return true;
 }
 
 // DELETE a role or channel; 404 (already gone) is treated as success. Returns ok:false only
@@ -441,6 +485,8 @@ export interface AssignReport {
   reason?: string;
   assigned: number;
   skipped: number;
+  /** Bingo-role operations per Discord server. Co-host failures never block the host assignment. */
+  roleServers?: { clanId: number; guildId: string; assigned: number; failed: number }[];
 }
 
 /**
@@ -471,6 +517,13 @@ export async function assignTeamRoles(eventId: number): Promise<AssignReport> {
     .from(eventParticipants)
     .where(and(eq(eventParticipants.eventId, eventId), isNotNull(eventParticipants.teamId)));
 
+  const cohostTargets = await cohostBingoRoleTargets(eventId);
+  const roleServers: NonNullable<AssignReport['roleServers']> = [];
+  if (cfg.bingoRoleId) roleServers.push({ clanId: event.clanId, guildId: cfg.guildId, assigned: 0, failed: 0 });
+  for (const target of cohostTargets) {
+    roleServers.push({ clanId: target.clanId, guildId: target.cfg.guildId, assigned: 0, failed: 0 });
+  }
+
   let assigned = 0;
   let skipped = 0;
   for (const player of drafted) {
@@ -484,12 +537,25 @@ export async function assignTeamRoles(eventId: number): Promise<AssignReport> {
       skipped++;
       continue;
     }
-    if (cfg.bingoRoleId) await addRole(cfg, discordId, cfg.bingoRoleId);
+    if (cfg.bingoRoleId) {
+      const ok = await addRole(cfg, discordId, cfg.bingoRoleId);
+      const report = roleServers.find((r) => r.clanId === event.clanId);
+      if (report) {
+        if (ok) report.assigned++;
+        else report.failed++;
+      }
+    }
     await addRole(cfg, discordId, teamRoleId);
+    for (const target of cohostTargets) {
+      const ok = await addRole(target.cfg, discordId, target.cfg.bingoRoleId!);
+      const report = roleServers.find((r) => r.clanId === target.clanId)!;
+      if (ok) report.assigned++;
+      else report.failed++;
+    }
     assigned++;
   }
 
-  return { ok: true, assigned, skipped };
+  return { ok: true, assigned, skipped, roleServers };
 }
 
 // =============================================================================
@@ -523,6 +589,17 @@ export async function assignBingoRoleToApprovedSignups(eventId: number): Promise
     .from(eventSignups)
     .where(and(eq(eventSignups.eventId, eventId), eq(eventSignups.status, 'approved')));
 
+  const cohostTargets = await cohostBingoRoleTargets(eventId);
+  const roleServers: NonNullable<AssignReport['roleServers']> = [
+    { clanId: event.clanId, guildId: cfg.guildId, assigned: 0, failed: 0 },
+    ...cohostTargets.map((target) => ({
+      clanId: target.clanId,
+      guildId: target.cfg.guildId,
+      assigned: 0,
+      failed: 0,
+    })),
+  ];
+
   let assigned = 0;
   let skipped = 0;
   for (const signup of approved) {
@@ -534,11 +611,19 @@ export async function assignBingoRoleToApprovedSignups(eventId: number): Promise
       skipped++;
       continue;
     }
-    await addRole(cfg, discordId, cfg.bingoRoleId);
+    const hostOk = await addRole(cfg, discordId, cfg.bingoRoleId);
+    if (hostOk) roleServers[0].assigned++;
+    else roleServers[0].failed++;
+    for (const target of cohostTargets) {
+      const ok = await addRole(target.cfg, discordId, target.cfg.bingoRoleId!);
+      const report = roleServers.find((r) => r.clanId === target.clanId)!;
+      if (ok) report.assigned++;
+      else report.failed++;
+    }
     assigned++;
   }
 
-  return { ok: true, assigned, skipped };
+  return { ok: true, assigned, skipped, roleServers };
 }
 
 // =============================================================================
@@ -550,6 +635,7 @@ export interface UnassignReport {
   reason?: string;
   bingoRemoved: number;
   captainRemoved: number;
+  roleServers?: { clanId: number; guildId: string; removed: number; failed: number }[];
 }
 
 /**
@@ -603,10 +689,25 @@ export async function unassignSharedRoles(eventId: number): Promise<UnassignRepo
 
   let bingoRemoved = 0;
   let captainRemoved = 0;
+  const cohostTargets = await cohostBingoRoleTargets(eventId);
+  const roleServers: NonNullable<UnassignReport['roleServers']> = [];
   if (cfg.bingoRoleId) {
+    const hostReport = { clanId: event.clanId, guildId: cfg.guildId, removed: 0, failed: 0 };
+    roleServers.push(hostReport);
     for (const did of bingoIds) {
-      await removeRole(cfg, did, cfg.bingoRoleId);
+      const ok = await removeRole(cfg, did, cfg.bingoRoleId);
+      if (ok) hostReport.removed++;
+      else hostReport.failed++;
       bingoRemoved++;
+    }
+  }
+  for (const target of cohostTargets) {
+    const report = { clanId: target.clanId, guildId: target.cfg.guildId, removed: 0, failed: 0 };
+    roleServers.push(report);
+    for (const did of bingoIds) {
+      const ok = await removeRole(target.cfg, did, target.cfg.bingoRoleId!);
+      if (ok) report.removed++;
+      else report.failed++;
     }
   }
   if (cfg.captainRoleId) {
@@ -616,7 +717,7 @@ export async function unassignSharedRoles(eventId: number): Promise<UnassignRepo
     }
   }
 
-  return { ok: true, bingoRemoved, captainRemoved };
+  return { ok: true, bingoRemoved, captainRemoved, roleServers };
 }
 
 // =============================================================================
