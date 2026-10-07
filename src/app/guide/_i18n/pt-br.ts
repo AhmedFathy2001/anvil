@@ -342,10 +342,10 @@ const ptBr: PartialGuideDict = {
       },
     },
     channels: {
-      title: 'Onde as coisas são postadas',
+      title: 'Configurar webhooks',
       body: [
         'O Anvil posta por **webhooks**, um por canal, e cada um deles é opcional. Nada é postado em lugar nenhum até você apontar um feed para um canal — um clã recém-criado fica em silêncio de propósito, não por acidente.',
-        'A aba Webhooks pode criá-los para você: escolha um canal, aperte **Criar**, e o bot faz o webhook com a permissão dele. Colar uma URL que você mesmo criou no Discord funciona igualzinho.',
+        'Abra **Admin → Configurações → Webhooks** e comece pelo webhook principal de anúncios. Com o bot conectado, escolha um canal, aperte **Criar webhook** e depois **Testar**. Sem o bot, abra no Discord **Editar canal → Integrações → Webhooks**, crie um, copie a URL, cole no Anvil e aperte **Adicionar**. Uma URL de webhook pode postar no canal, então trate-a como senha; se vazar, apague-a no Discord e crie outra. **Criar webhook** substitui o destino salvo, enquanto **Adicionar outro** mantém os dois e distribui entre eles as postagens de maior volume.',
       ],
       feeds: [
         {
@@ -369,7 +369,7 @@ const ptBr: PartialGuideDict = {
     roles: {
       title: 'Cargos e apelidos',
       body: [
-        'Duas sincronizações, ambas desligadas até você ligar, e ambas guiadas pela lista de membros e não pelo que alguém digita no Discord.',
+        'As duas sincronizações ficam desligadas até você ativá-las em **Admin → Configurações → Cargos e canais**. Ative a sincronização de cargos, deixe ligada a correspondência automática de rank pelo nome, escolha os cargos gerais de membros e convidados que quiser, salve e aperte **Sincronizar cargos e apelidos agora**. Cada pessoa também precisa ter uma conta do Discord vinculada. Para a correspondência automática, o cargo do Discord deve ter o mesmo nome do rank no jogo: `Owner`, `Deputy Owner`, `Coordinator`, `Overseer`, `General`, `Captain`, `Lieutenant`, `Sergeant`, `Corporal` ou `Recruit`; ranks personalizados funcionam com o mesmo nome. Maiúsculas e minúsculas não importam e sublinhados contam como espaços, mas palavras extras não combinam — `General` funciona, `OSRS General` não. Os cargos gerais de membros e convidados são escolhidos à parte e podem ter qualquer nome.',
       ],
       ways: [
         {

@@ -340,10 +340,10 @@ const zhHans: PartialGuideDict = {
       },
     },
     channels: {
-      title: '东西发到哪里',
+      title: '设置 Webhook',
       body: [
         'Anvil 通过 **Webhook** 发帖，每个频道一个，而且全都是可选的。在你把某个信息流指向某个频道之前，什么都不会发到任何地方——崭新的氏族是刻意安静，不是出了差错。',
-        'Webhook 标签页可以替你创建：选一个频道，按 **创建**，机器人就用它的权限造好 Webhook。粘贴一个你自己在 Discord 里生成的网址，效果完全一样。',
+        '打开 **管理 → 设置 → Webhook**，先设置主要公告 Webhook。机器人已连接时，选择频道，按 **创建 Webhook**，再点 **测试**。没有机器人时，在 Discord 中打开该频道的 **编辑频道 → 集成 → Webhook**，创建一个，复制网址，粘贴到 Anvil 并按 **添加**。Webhook 网址可以向频道发帖，所以要像密码一样保管；如果泄露，请在 Discord 中删除并新建。**创建 Webhook** 会替换已保存的目标，而 **再添加一个** 会保留两者，并在繁忙时轮换发帖。',
       ],
       feeds: [
         {
@@ -367,7 +367,7 @@ const zhHans: PartialGuideDict = {
     roles: {
       title: '身份组与昵称',
       body: [
-        '两种同步，在你开启之前都是关的，而且都由成员名单驱动，而不是由谁在 Discord 里打的字驱动。',
+        '两种同步默认关闭，需要在 **管理 → 设置 → 身份组与频道** 中启用。打开身份组同步，保持“按名称自动匹配游戏内等级”开启，按需选择通用成员与访客身份组，保存后按 **立即同步身份组与昵称**。每个人还必须关联 Discord 账号。自动匹配要求 Discord 身份组与游戏内等级同名：`Owner`、`Deputy Owner`、`Coordinator`、`Overseer`、`General`、`Captain`、`Lieutenant`、`Sergeant`、`Corporal` 或 `Recruit`；自定义等级也要使用相同名称。大小写不敏感，下划线等同于空格，但多余单词不会匹配：`General` 可以，`OSRS General` 不可以。通用成员和访客身份组需另外选择，名称可以任意。',
       ],
       ways: [
         {

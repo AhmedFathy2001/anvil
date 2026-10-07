@@ -341,10 +341,10 @@ const no: PartialGuideDict = {
       },
     },
     channels: {
-      title: 'Hvor ting postes',
+      title: 'Sett opp webhooks',
       body: [
         'Anvil poster gjennom **webhooks**, én per kanal, og hver eneste er valgfri. Ingenting postes noe sted før du peker en feed mot en kanal — en fersk klan er taus med vilje, ikke ved et uhell.',
-        'Webhooks-fanen kan lage dem for deg: velg en kanal, trykk **Opprett**, og boten lager webhooken med rettigheten sin. Å lime inn en URL du lagde selv i Discord virker helt likt.',
+        'Åpne **Admin → Innstillinger → Webhooks** og start med hovedwebhooken for kunngjøringer. Med boten tilkoblet velger du en kanal, trykker **Opprett webhook** og deretter **Test**. Uten boten går du i Discord til kanalens **Rediger kanal → Integrasjoner → Webhooks**, oppretter en, kopierer URL-en, limer den inn i Anvil og trykker **Legg til**. En webhook-URL kan poste i kanalen, så behandle den som et passord; slett den i Discord og lag en ny hvis den lekker. **Opprett webhook** erstatter målet, mens **Legg til en til** beholder begge og fordeler travle poster mellom dem.',
       ],
       feeds: [
         {
@@ -368,7 +368,7 @@ const no: PartialGuideDict = {
     roles: {
       title: 'Roller og kallenavn',
       body: [
-        'To synkroniseringer, begge av til du slår dem på, og begge styrt av medlemslista framfor av noe noen skriver i Discord.',
+        'Begge synkroniseringene er av til du aktiverer dem under **Admin → Innstillinger → Roller og kanaler**. Slå på rollesynkronisering, la automatisk rangmatching stå på, velg eventuelle medlems- og gjesteroller, lagre og trykk **Synkroniser roller og kallenavn nå**. Hver person må også ha en koblet Discord-konto. Automatisk matching krever samme navn som rangen i spillet: `Owner`, `Deputy Owner`, `Coordinator`, `Overseer`, `General`, `Captain`, `Lieutenant`, `Sergeant`, `Corporal` eller `Recruit`; egne ranger virker med samme navn. Store og små bokstaver spiller ingen rolle, og understrek regnes som mellomrom, men ekstra ord matcher ikke — `General` virker, `OSRS General` gjør ikke det. Vanlige medlems- og gjesteroller velges separat og kan hete hva som helst.',
       ],
       ways: [
         {

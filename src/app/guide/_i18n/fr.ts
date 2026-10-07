@@ -343,10 +343,10 @@ const fr: PartialGuideDict = {
       },
     },
     channels: {
-      title: 'Où les choses se publient',
+      title: 'Configurer les webhooks',
       body: [
         'Anvil publie via des **webhooks**, un par salon, et chacun est facultatif. Rien n’est publié nulle part tant que vous ne dirigez pas un flux vers un salon — un clan tout neuf est silencieux à dessein, pas par accident.',
-        'L’onglet Webhooks peut les créer pour vous : choisissez un salon, appuyez sur **Créer**, et le bot fabrique le webhook avec sa permission. Coller une URL que vous avez faite vous-même dans Discord fonctionne à l’identique.',
+        'Ouvrez **Admin → Paramètres → Webhooks** et commencez par le webhook principal d’annonces. Avec le bot connecté, choisissez un salon, appuyez sur **Créer un webhook**, puis sur **Tester**. Sans le bot, ouvrez dans Discord **Modifier le salon → Intégrations → Webhooks**, créez-en un, copiez son URL, collez-la dans Anvil et appuyez sur **Ajouter**. Une URL de webhook peut publier dans le salon : traitez-la comme un mot de passe ; si elle fuit, supprimez-la dans Discord et recréez-en une. **Créer un webhook** remplace la destination enregistrée, tandis que **En ajouter un autre** conserve les deux et répartit les publications chargées entre eux.',
       ],
       feeds: [
         {
@@ -370,7 +370,7 @@ const fr: PartialGuideDict = {
     roles: {
       title: 'Rôles et pseudos',
       body: [
-        'Deux synchronisations, toutes deux coupées tant que vous ne les activez pas, et toutes deux pilotées par la liste de membres plutôt que par ce que quelqu’un tape dans Discord.',
+        'Les deux synchronisations sont coupées jusqu’à leur activation sous **Admin → Paramètres → Rôles et salons**. Activez la synchronisation des rôles, laissez la correspondance automatique des grades activée, choisissez au besoin les rôles généraux de membres et d’invités, enregistrez, puis appuyez sur **Synchroniser les rôles et pseudos maintenant**. Chaque personne doit aussi avoir un compte Discord lié. Pour la correspondance automatique, le rôle Discord doit porter le nom du grade en jeu : `Owner`, `Deputy Owner`, `Coordinator`, `Overseer`, `General`, `Captain`, `Lieutenant`, `Sergeant`, `Corporal` ou `Recruit` ; les grades personnalisés fonctionnent avec le même nom. La casse est ignorée et les tirets bas valent des espaces, mais pas les mots supplémentaires : `General` fonctionne, `OSRS General` non. Les rôles généraux de membres et d’invités sont choisis séparément et peuvent porter n’importe quel nom.',
       ],
       ways: [
         {

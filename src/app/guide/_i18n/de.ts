@@ -342,10 +342,10 @@ const de: PartialGuideDict = {
       },
     },
     channels: {
-      title: 'Wo was landet',
+      title: 'Webhooks einrichten',
       body: [
         'Anvil postet über **Webhooks**, einen pro Kanal, und jeder davon ist optional. Nichts wird irgendwo gepostet, bis du einen Feed auf einen Kanal richtest — ein frischer Clan ist absichtlich still, nicht versehentlich.',
-        'Der Webhooks-Tab kann sie für dich anlegen: Kanal wählen, **Erstellen** drücken, und der Bot legt den Webhook mit seiner Berechtigung an. Eine selbst in Discord erzeugte URL einzufügen funktioniert genauso.',
+        'Öffne **Admin → Einstellungen → Webhooks** und beginne mit dem Haupt-Webhook für Ankündigungen. Ist der Bot verbunden, wählst du einen Kanal, klickst **Webhook erstellen** und danach **Testen**. Ohne Bot öffnest du in Discord beim Kanal **Kanal bearbeiten → Integrationen → Webhooks**, erstellst einen Webhook, kopierst seine URL, fügst sie in Anvil ein und klickst **Hinzufügen**. Eine Webhook-URL kann in den Kanal posten; behandle sie daher wie ein Passwort. Wenn sie bekannt wird, lösche sie in Discord und erstelle eine neue. **Webhook erstellen** ersetzt das gespeicherte Ziel, **Weiteren hinzufügen** behält beide und verteilt viele Posts auf sie.',
       ],
       feeds: [
         {
@@ -369,7 +369,7 @@ const de: PartialGuideDict = {
     roles: {
       title: 'Rollen und Nicknamen',
       body: [
-        'Zwei Syncs, beide aus, bis du sie einschaltest, und beide von der Mitgliederliste gesteuert statt von irgendetwas, das jemand in Discord tippt.',
+        'Beide Syncs sind aus, bis du sie unter **Admin → Einstellungen → Rollen & Kanäle** aktivierst. Schalte den Rollen-Sync ein, lass die automatische Rangzuordnung an, wähle gegebenenfalls Mitglieder- und Gastrollen, speichere und klicke **Rollen & Nicknamen jetzt synchronisieren**. Jede Person braucht außerdem ein verknüpftes Discord-Konto. Für die automatische Zuordnung muss die Discord-Rolle wie der Rang im Spiel heißen: `Owner`, `Deputy Owner`, `Coordinator`, `Overseer`, `General`, `Captain`, `Lieutenant`, `Sergeant`, `Corporal` oder `Recruit`; eigene Ränge funktionieren mit demselben Namen. Groß-/Kleinschreibung ist egal und Unterstriche gelten als Leerzeichen, zusätzliche Wörter passen aber nicht — `General` funktioniert, `OSRS General` nicht. Allgemeine Mitglieder- und Gastrollen werden separat gewählt und dürfen beliebig heißen.',
       ],
       ways: [
         {

@@ -342,10 +342,10 @@ const nl: PartialGuideDict = {
       },
     },
     channels: {
-      title: 'Waar dingen posten',
+      title: 'Webhooks instellen',
       body: [
         'Anvil post via **webhooks**, één per kanaal, en elk daarvan is optioneel. Er wordt nergens iets gepost tot je een feed op een kanaal richt — een verse clan is stil met opzet, niet per ongeluk.',
-        'Het tabblad Webhooks kan ze voor je maken: kies een kanaal, druk op **Aanmaken**, en de bot maakt de webhook met zijn permissie. Een URL plakken die je zelf in Discord maakte werkt precies zo.',
+        'Open **Beheer → Instellingen → Webhooks** en begin met de hoofdwebhook voor aankondigingen. Is de bot verbonden, kies dan een kanaal, druk op **Webhook maken** en daarna op **Testen**. Zonder bot open je in Discord bij het kanaal **Kanaal bewerken → Integraties → Webhooks**, maak je er een, kopieer je de URL, plak je die in Anvil en druk je op **Toevoegen**. Een webhook-URL kan in het kanaal posten, dus behandel hem als een wachtwoord; verwijder hem in Discord en maak een nieuwe als hij uitlekt. **Webhook maken** vervangt de bestemming, terwijl **Nog een toevoegen** beide bewaart en drukke posts over ze verdeelt.',
       ],
       feeds: [
         {
@@ -369,7 +369,7 @@ const nl: PartialGuideDict = {
     roles: {
       title: 'Rollen en bijnamen',
       body: [
-        'Twee synchronisaties, allebei uit tot je ze aanzet, en allebei aangestuurd door de ledenlijst in plaats van door wat iemand in Discord typt.',
+        'Beide synchronisaties staan uit tot je ze inschakelt onder **Beheer → Instellingen → Rollen & kanalen**. Zet rolsynchronisatie aan, laat automatisch rang op naam koppelen ingeschakeld, kies eventueel algemene leden- en gastrollen, sla op en druk op **Rollen & bijnamen nu synchroniseren**. Iedereen moet ook een gekoppeld Discord-account hebben. Voor automatisch koppelen moet de Discord-rol dezelfde naam hebben als de rang in het spel: `Owner`, `Deputy Owner`, `Coordinator`, `Overseer`, `General`, `Captain`, `Lieutenant`, `Sergeant`, `Corporal` of `Recruit`; eigen rangen werken met dezelfde naam. Hoofdletters maken niet uit en onderstrepingstekens tellen als spaties, maar extra woorden komen niet overeen — `General` werkt, `OSRS General` niet. Algemene leden- en gastrollen kies je apart en mogen elke naam hebben.',
       ],
       ways: [
         {

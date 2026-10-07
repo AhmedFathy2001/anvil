@@ -342,10 +342,10 @@ const fi: PartialGuideDict = {
       },
     },
     channels: {
-      title: 'Minne asiat julkaistaan',
+      title: 'Webhookien määritys',
       body: [
         'Anvil julkaisee **webhookien** kautta, yksi per kanava, ja jokainen niistä on valinnainen. Mitään ei julkaista minnekään ennen kuin osoitat syötteen kanavalle — tuore klaani on hiljainen tarkoituksella, ei vahingossa.',
-        'Webhookit-välilehti voi luoda ne puolestasi: valitse kanava, paina **Luo**, ja botti tekee webhookin oikeudellaan. Itse Discordissa tekemäsi URL-osoitteen liittäminen toimii aivan samoin.',
+        'Avaa **Ylläpito → Asetukset → Webhookit** ja aloita ilmoitusten pää-webhookista. Kun botti on yhdistetty, valitse kanava, paina **Luo webhook** ja sitten **Testaa**. Ilman bottia avaa Discordissa kanavan **Muokkaa kanavaa → Integraatiot → Webhooks**, luo webhook, kopioi sen URL, liitä se Anviliin ja paina **Lisää**. Webhook-URL voi julkaista kanavalle, joten käsittele sitä salasanana; jos se vuotaa, poista se Discordissa ja luo uusi. **Luo webhook** korvaa tallennetun kohteen, kun taas **Lisää toinen** säilyttää molemmat ja kierrättää vilkkaat julkaisut niiden välillä.',
       ],
       feeds: [
         {
@@ -369,7 +369,7 @@ const fi: PartialGuideDict = {
     roles: {
       title: 'Roolit ja nimimerkit',
       body: [
-        'Kaksi synkronointia, molemmat pois kunnes otat ne käyttöön, ja molemmat jäsenlistan ohjaamia eikä sen mitä joku kirjoittaa Discordiin.',
+        'Molemmat synkronoinnit ovat pois käytöstä, kunnes otat ne käyttöön kohdassa **Ylläpito → Asetukset → Roolit ja kanavat**. Ota roolisynkronointi käyttöön, jätä automaattinen rankin nimivastaavuus päälle, valitse mahdolliset jäsen- ja vierasroolit, tallenna ja paina **Synkronoi roolit ja nimimerkit nyt**. Jokaisella henkilöllä pitää myös olla yhdistetty Discord-tili. Automaattinen vastaavuus vaatii pelin rankin nimen: `Owner`, `Deputy Owner`, `Coordinator`, `Overseer`, `General`, `Captain`, `Lieutenant`, `Sergeant`, `Corporal` tai `Recruit`; omat rankit toimivat samalla nimellä. Kirjainkoolla ei ole väliä ja alaviiva vastaa välilyöntiä, mutta ylimääräiset sanat eivät täsmää — `General` toimii, `OSRS General` ei. Yleiset jäsen- ja vierasroolit valitaan erikseen ja ne voidaan nimetä vapaasti.',
       ],
       ways: [
         {

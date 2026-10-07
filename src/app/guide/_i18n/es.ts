@@ -342,10 +342,10 @@ const es: PartialGuideDict = {
       },
     },
     channels: {
-      title: 'Dónde se publica cada cosa',
+      title: 'Configurar webhooks',
       body: [
         'Anvil publica mediante **webhooks**, uno por canal, y todos son opcionales. No se publica nada en ninguna parte hasta que apuntas un flujo a un canal — un clan recién creado está en silencio a propósito, no por accidente.',
-        'La pestaña Webhooks puede crearlos por ti: elige un canal, pulsa **Crear**, y el bot fabrica el webhook con su permiso. Pegar una URL que hayas hecho tú en Discord funciona igual.',
+        'Abre **Admin → Ajustes → Webhooks** y empieza por el webhook principal de anuncios. Con el bot conectado, elige un canal, pulsa **Crear webhook** y después **Probar**. Sin el bot, abre en Discord **Editar canal → Integraciones → Webhooks**, crea uno, copia su URL, pégala en Anvil y pulsa **Añadir**. Una URL de webhook puede publicar en el canal, así que trátala como una contraseña; si se filtra, bórrala en Discord y crea otra. **Crear webhook** sustituye el destino guardado, mientras que **Añadir otro** conserva ambos y reparte entre ellos las publicaciones de mucho tráfico.',
       ],
       feeds: [
         {
@@ -369,7 +369,7 @@ const es: PartialGuideDict = {
     roles: {
       title: 'Roles y apodos',
       body: [
-        'Dos sincronizaciones, ambas apagadas hasta que las actives, y ambas guiadas por la lista de miembros y no por lo que alguien escriba en Discord.',
+        'Las dos sincronizaciones están apagadas hasta que las actives en **Admin → Ajustes → Roles y canales**. Activa la sincronización de roles, deja encendida la coincidencia automática de rango por nombre, elige los roles generales de miembros e invitados que quieras, guarda y pulsa **Sincronizar roles y apodos ahora**. Cada persona también necesita tener vinculada su cuenta de Discord. Para la coincidencia automática, el rol de Discord debe llamarse igual que el rango del juego: `Owner`, `Deputy Owner`, `Coordinator`, `Overseer`, `General`, `Captain`, `Lieutenant`, `Sergeant`, `Corporal` o `Recruit`; los rangos personalizados funcionan con el mismo nombre. No importan las mayúsculas y los guiones bajos cuentan como espacios, pero las palabras extra no coinciden: `General` funciona; `OSRS General`, no. Los roles generales de miembros e invitados se eligen aparte y pueden llamarse como quieras.',
       ],
       ways: [
         {

@@ -342,10 +342,10 @@ const it: PartialGuideDict = {
       },
     },
     channels: {
-      title: 'Dove finiscono le cose',
+      title: 'Configurare i webhook',
       body: [
         'Anvil pubblica tramite **webhook**, uno per canale, e sono tutti facoltativi. Non viene pubblicato niente da nessuna parte finché non indirizzi un feed a un canale — un clan appena nato è silenzioso di proposito, non per sbaglio.',
-        'La scheda Webhook può crearli per te: scegli un canale, premi **Crea**, e il bot fabbrica il webhook con il suo permesso. Incollare un URL che hai creato tu in Discord funziona allo stesso modo.',
+        'Apri **Admin → Impostazioni → Webhook** e parti dal webhook principale degli annunci. Con il bot collegato scegli un canale, premi **Crea webhook** e poi **Test**. Senza il bot, in Discord apri **Modifica canale → Integrazioni → Webhook**, creane uno, copia l’URL, incollalo in Anvil e premi **Aggiungi**. Un URL webhook può pubblicare nel canale, quindi trattalo come una password; se viene esposto, eliminalo in Discord e creane uno nuovo. **Crea webhook** sostituisce la destinazione salvata, mentre **Aggiungine un altro** mantiene entrambi e distribuisce fra loro i post più intensi.',
       ],
       feeds: [
         {
@@ -369,7 +369,7 @@ const it: PartialGuideDict = {
     roles: {
       title: 'Ruoli e nickname',
       body: [
-        'Due sincronizzazioni, entrambe spente finché non le attivi, ed entrambe guidate dalla lista membri e non da ciò che qualcuno scrive in Discord.',
+        'Entrambe le sincronizzazioni restano spente finché non le attivi in **Admin → Impostazioni → Ruoli e canali**. Attiva la sincronizzazione ruoli, lascia accesa la corrispondenza automatica del rank, scegli gli eventuali ruoli generali per membri e ospiti, salva e premi **Sincronizza ruoli e nickname ora**. Ogni persona deve anche avere un account Discord collegato. Per la corrispondenza automatica, il ruolo Discord deve avere lo stesso nome del rank in gioco: `Owner`, `Deputy Owner`, `Coordinator`, `Overseer`, `General`, `Captain`, `Lieutenant`, `Sergeant`, `Corporal` o `Recruit`; anche i rank personalizzati funzionano con lo stesso nome. Maiuscole e minuscole non contano e gli underscore valgono come spazi, ma le parole extra non corrispondono: `General` funziona, `OSRS General` no. I ruoli generali di membri e ospiti si scelgono separatamente e possono avere qualsiasi nome.',
       ],
       ways: [
         {

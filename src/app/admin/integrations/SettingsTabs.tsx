@@ -20,6 +20,7 @@ import BalanceRatesSetting from '@/components/BalanceRatesSetting';
 import PlainSetting from '@/components/PlainSetting';
 import ToggleSetting from '@/components/ToggleSetting';
 import RoleSetting from '@/components/RoleSetting';
+import GuideLink from '@/components/GuideLink';
 
 interface SettingsTabsProps {
   channels: BroadcastChannel[];
@@ -128,10 +129,13 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
             />
           </Card>
           <Card>
-            <FieldHeader title="Roles & nicknames">
-              Give linked members their rank + default roles, optionally set nicknames to their RSN. Needs the bot
-              connected in the Discord bot tab.
-            </FieldHeader>
+            <div className="flex items-start justify-between gap-3">
+              <FieldHeader title="Roles & nicknames">
+                Give linked members their rank + default roles, optionally set nicknames to their RSN. Needs the bot
+                connected in the Discord bot tab.
+              </FieldHeader>
+              <GuideLink href="/guide/discord#roles">Role sync setup guide</GuideLink>
+            </div>
             <DiscordRoleSyncSettings />
             <div className="border-t border-card-border pt-5 mt-5">
               <p className="text-sm font-medium mb-1">Roles the sync assigns</p>

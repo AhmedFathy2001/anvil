@@ -346,10 +346,10 @@ const da: PartialGuideDict = {
       },
     },
     channels: {
-      title: 'Hvor tingene skrives',
+      title: 'Opsæt webhooks',
       body: [
         'Anvil skriver gennem **webhooks**, én pr. kanal, og hver eneste er valgfri. Der skrives intet nogen steder, før du peger en feed mod en kanal — en frisk klan er tavs med vilje, ikke ved et uheld.',
-        'Webhooks-fanen kan lave dem for dig: vælg en kanal, tryk **Opret**, og botten laver webhooken med sin rettighed. At indsætte en URL, du selv har lavet i Discord, virker på samme måde.',
+        'Åbn **Admin → Indstillinger → Webhooks**, og begynd med den primære annoncerings-webhook. Med botten forbundet vælger du en kanal, trykker **Opret webhook** og derefter **Test**. Uden botten går du i Discord til kanalens **Rediger kanal → Integrationer → Webhooks**, opretter en, kopierer URL’en, indsætter den i Anvil og trykker **Tilføj**. En webhook-URL kan skrive i kanalen, så behandl den som en adgangskode; slet den i Discord og lav en ny, hvis den lækker. **Opret webhook** erstatter destinationen, mens **Tilføj endnu en** beholder begge og fordeler travle opslag mellem dem.',
       ],
       feeds: [
         {
@@ -373,7 +373,7 @@ const da: PartialGuideDict = {
     roles: {
       title: 'Roller og kaldenavne',
       body: [
-        'To synkroniseringer, begge slukket til du slår dem til, og begge styret af medlemslisten frem for af noget, nogen skriver i Discord.',
+        'Begge synkroniseringer er slukket, indtil du aktiverer dem under **Admin → Indstillinger → Roller & kanaler**. Slå rollesynkronisering til, behold automatisk rangmatch, vælg eventuelle medlems- og gæsteroller, gem, og tryk **Synkroniser roller og kaldenavne nu**. Hver person skal også have sin Discord-konto forbundet. Automatisk match kræver samme navn som rangen i spillet: `Owner`, `Deputy Owner`, `Coordinator`, `Overseer`, `General`, `Captain`, `Lieutenant`, `Sergeant`, `Corporal` eller `Recruit`; egne ranger virker med det samme navn. Store/små bogstaver er ligegyldige, og understregninger tæller som mellemrum, men ekstra ord gør ikke — `General` virker, `OSRS General` gør ikke. Almindelige medlems- og gæsteroller vælges separat og kan hedde hvad som helst.',
       ],
       ways: [
         {

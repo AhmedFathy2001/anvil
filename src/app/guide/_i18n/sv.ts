@@ -341,10 +341,10 @@ const sv: PartialGuideDict = {
       },
     },
     channels: {
-      title: 'Var saker postas',
+      title: 'Konfigurera webhooks',
       body: [
         'Anvil postar genom **webhooks**, en per kanal, och varenda en är valfri. Inget postas någonstans förrän du riktar ett flöde mot en kanal — en färsk klan är tyst med flit, inte av misstag.',
-        'Webhooks-fliken kan skapa dem åt dig: välj en kanal, tryck **Skapa**, så gör boten webhooken med sin behörighet. Att klistra in en URL du gjort själv i Discord fungerar precis likadant.',
+        'Öppna **Admin → Inställningar → Webhooks** och börja med den primära webhooken för annonseringar. Med boten ansluten väljer du en kanal, trycker **Skapa webhook** och sedan **Testa**. Utan boten går du i Discord till kanalens **Redigera kanal → Integrationer → Webhooks**, skapar en, kopierar URL:en, klistrar in den i Anvil och trycker **Lägg till**. En webhook-URL kan posta i kanalen, så behandla den som ett lösenord; radera den i Discord och skapa en ny om den läcker. **Skapa webhook** ersätter destinationen, medan **Lägg till en till** behåller båda och fördelar täta inlägg mellan dem.',
       ],
       feeds: [
         {
@@ -368,7 +368,7 @@ const sv: PartialGuideDict = {
     roles: {
       title: 'Roller och smeknamn',
       body: [
-        'Två synkroniseringar, båda av tills du slår på dem, och båda styrda av medlemslistan snarare än av något någon skriver i Discord.',
+        'Båda synkroniseringarna är av tills du aktiverar dem under **Admin → Inställningar → Roller & kanaler**. Slå på rollsynkronisering, lämna automatisk rangmatchning på, välj eventuella medlems- och gästroller, spara och tryck **Synkronisera roller och smeknamn nu**. Varje person måste också ha ett länkat Discord-konto. Automatisk matchning kräver samma namn som rangen i spelet: `Owner`, `Deputy Owner`, `Coordinator`, `Overseer`, `General`, `Captain`, `Lieutenant`, `Sergeant`, `Corporal` eller `Recruit`; egna ranger fungerar med samma namn. Versaler spelar ingen roll och understreck räknas som mellanslag, men extra ord matchar inte — `General` fungerar, `OSRS General` gör det inte. Vanliga medlems- och gästroller väljs separat och kan heta vad som helst.',
       ],
       ways: [
         {

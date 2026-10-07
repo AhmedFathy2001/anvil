@@ -342,10 +342,10 @@ const pl: PartialGuideDict = {
       },
     },
     channels: {
-      title: 'Gdzie co trafia',
+      title: 'Konfiguracja webhooków',
       body: [
         'Anvil publikuje przez **webhooki**, po jednym na kanał, i każdy z nich jest opcjonalny. Nic nigdzie nie trafia, dopóki nie skierujesz strumienia na kanał — świeży klan milczy celowo, nie przez przypadek.',
-        'Zakładka Webhooki może je utworzyć za ciebie: wybierz kanał, naciśnij **Utwórz**, a bot zrobi webhook swoim uprawnieniem. Wklejenie adresu, który sam zrobiłeś w Discordzie, działa identycznie.',
+        'Otwórz **Admin → Ustawienia → Webhooki** i zacznij od głównego webhooka ogłoszeń. Gdy bot jest połączony, wybierz kanał, naciśnij **Utwórz webhook**, a potem **Test**. Bez bota otwórz w Discordzie dla kanału **Edytuj kanał → Integracje → Webhooki**, utwórz webhook, skopiuj jego URL, wklej go do Anvila i naciśnij **Dodaj**. URL webhooka pozwala publikować na kanale, więc traktuj go jak hasło; jeśli wycieknie, usuń go w Discordzie i utwórz nowy. **Utwórz webhook** zastępuje zapisany cel, a **Dodaj kolejny** zachowuje oba i rozdziela intensywny ruch między nimi.',
       ],
       feeds: [
         {
@@ -369,7 +369,7 @@ const pl: PartialGuideDict = {
     roles: {
       title: 'Role i pseudonimy',
       body: [
-        'Dwie synchronizacje, obie wyłączone, dopóki ich nie włączysz, i obie sterowane listą członków, a nie tym, co ktoś wpisze na Discordzie.',
+        'Obie synchronizacje są wyłączone, dopóki nie włączysz ich w **Admin → Ustawienia → Role i kanały**. Włącz synchronizację ról, pozostaw automatyczne dopasowanie rangi po nazwie, wybierz ewentualne ogólne role członków i gości, zapisz i naciśnij **Synchronizuj role i pseudonimy teraz**. Każda osoba musi też mieć połączone konto Discord. Automatyczne dopasowanie wymaga nazwy roli zgodnej z rangą w grze: `Owner`, `Deputy Owner`, `Coordinator`, `Overseer`, `General`, `Captain`, `Lieutenant`, `Sergeant`, `Corporal` lub `Recruit`; własne rangi działają z tą samą nazwą. Wielkość liter nie ma znaczenia, a podkreślniki liczą się jak spacje, lecz dodatkowe słowa nie pasują — `General` działa, `OSRS General` nie. Ogólne role członków i gości wybiera się osobno i mogą nazywać się dowolnie.',
       ],
       ways: [
         {

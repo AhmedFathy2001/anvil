@@ -344,10 +344,10 @@ export const en = {
     },
 
     channels: {
-      title: 'Where things post',
+      title: 'Set up webhooks',
       body: [
         'Anvil posts through **webhooks**, one per channel, and every one of them is optional. Nothing posts anywhere until you point a feed at a channel — a fresh clan is silent by design rather than by accident.',
-        'The Webhooks tab can create them for you: pick a channel, press **Create**, and the bot makes the webhook using its Manage Webhooks permission. Pasting a URL you made yourself in Discord works identically.',
+        'Open **Admin → Settings → Webhooks** and start with **Master announcements webhook**. With the bot connected, choose a channel, press **Create webhook**, then use **Test** beside the saved URL. Without the bot, open that Discord channel’s **Edit Channel → Integrations → Webhooks**, create one, copy its URL, paste it into Anvil, and press **Add**. A webhook URL can post to its channel, so treat it like a password; if it leaks, delete it in Discord and create a new one. **Create webhook** replaces the saved destination, while **Add another** keeps both and rotates busy posts between them.',
       ],
       feeds: [
         {
@@ -360,7 +360,7 @@ export const en = {
         },
         {
           term: 'The split feeds',
-          body: 'Rare drops, pets, deaths, collection log, combat achievements, levels, quests, diaries, clips, PvP kills and Leagues each take their own channel. Splitting them is the difference between a feed people read and one they mute.',
+          body: 'Bingo, weekly results and sign-ups can split from announcements; rare drops, pets, deaths, collection log, combat achievements, levels, quests, diaries, clips, PvP kills and Leagues can split from the plugin default. Blank split feeds fall back to their parent channel. The coffer is the exception: blank means no money posts at all.',
         },
       ],
       note: {
@@ -372,12 +372,12 @@ export const en = {
     roles: {
       title: 'Roles and nicknames',
       body: [
-        'Two syncs, both off until you turn them on, and both driven by the roster rather than by anything anyone types in Discord.',
+        'Both syncs are off until you enable them under **Admin → Settings → Roles & channels**, and both are driven by the roster. Turn on **Enable Discord role sync**, leave **Auto-match in-game rank → Discord role by name** on, select any general **Member roles** and **Guest roles**, save, then press **Sync roles & nicknames now**. Every person also needs a linked Discord identity; the sync report names anyone it could not resolve.',
       ],
       ways: [
         {
           term: 'Role sync',
-          body: 'Map your in-game ranks to Discord roles and Anvil keeps them in step. There are also single roles for members, guests, captains and the current event, so you can @ the right people without maintaining a list by hand.',
+          body: 'For automatic rank matching, the Discord role name must match the in-game clan rank: `Owner`, `Deputy Owner`, `Coordinator`, `Overseer`, `General`, `Captain`, `Lieutenant`, `Sergeant`, `Corporal` or `Recruit`. Custom ranks work too when their Discord role uses that same name. Matching ignores letter case and treats underscores like spaces, but extra words do not match: `General` works; `OSRS General` does not. Member and guest roles are picked separately, so their names can be anything.',
         },
         {
           term: 'Nickname sync',
@@ -386,7 +386,7 @@ export const en = {
       ],
       note: {
         tag: 'The bot’s role has to sit above the ones it manages',
-        body: 'Discord refuses to let any bot touch a role at or above its own, and it refuses silently from your side — the sync simply does nothing. Drag the Anvil role up in Server Settings → Roles and it starts working; nothing needs re-inviting.',
+        body: 'Discord refuses to let any bot touch a role at or above its own. Drag the Anvil role above every rank, member and guest role under **Server Settings → Roles**, then save the Anvil settings and run **Sync roles & nicknames now**. Nothing needs re-inviting.',
       },
     },
 
@@ -435,7 +435,7 @@ export const en = {
         },
         {
           term: 'Is the bot’s role high enough?',
-          body: 'Only for role and nickname sync — see above. This is the one that fails silently.',
+          body: 'For role or nickname sync, put the bot above every role it manages, check that each person has linked Discord, and check rank-role names exactly as listed above. Save first, then run **Sync roles & nicknames now**; its skipped list tells you who still needs linking.',
         },
       ],
       note: {
