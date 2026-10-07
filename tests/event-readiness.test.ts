@@ -9,11 +9,28 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  areEventRostersFinal,
   computeStartReadiness,
   describeStartBlockers,
   isDraftInProgress,
   startBlockerLabel,
 } from '../src/lib/eventReadiness.ts';
+
+test('fully assigned direct rosters are final without a draft', () => {
+  assert.equal(areEventRostersFinal('none', [10, 20], [10, 10, 20]), true);
+});
+
+test('direct rosters are not final with an unassigned entrant or empty team', () => {
+  assert.equal(areEventRostersFinal('none', [10, 20], [10, null]), false);
+  assert.equal(areEventRostersFinal('none', [10, 20], [10, 10]), false);
+  assert.equal(areEventRostersFinal('none', [10, 20], [10, 20, 99]), false);
+});
+
+test('a completed draft remains final while active and paused drafts do not', () => {
+  assert.equal(areEventRostersFinal('completed', [], []), true);
+  assert.equal(areEventRostersFinal('active', [10, 20], [10, 20]), false);
+  assert.equal(areEventRostersFinal('paused', [10, 20], [10, 20]), false);
+});
 
 test('a fully set up event is ready: draft completed (or never used), players on teams', () => {
   for (const draftStatus of ['none', 'completed']) {

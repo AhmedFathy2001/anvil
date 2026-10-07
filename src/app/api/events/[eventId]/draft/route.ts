@@ -375,6 +375,7 @@ export async function POST(
         eventName: event.name,
         teams: teamsWithPlayers,
         eventId: id,
+        directAssignment: event.draftStatus === 'none',
       });
 
       if (success) {

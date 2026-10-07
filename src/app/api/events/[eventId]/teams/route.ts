@@ -233,13 +233,13 @@ export async function PATCH(
   const now = new Date();
   const eventStarted = event?.startDate && new Date(event.startDate) <= now;
 
-  // Captains may rebrand their team only in the window between the draft wrapping up and
-  // the event going live — before that the roster isn't theirs yet, after that renames
-  // would churn scoreboards mid-game. Admins can edit any time.
+  // Captains may rebrand before the event goes live as long as a draft is not actively assembling
+  // the roster. Directly assigned teams never enter a completed-draft state, so requiring that flag
+  // would permanently lock their captains out. Admins can edit any time.
   if (!isAdmin) {
-    if (event?.draftStatus !== 'completed') {
+    if (event && isDraftInProgress(event.draftStatus)) {
       return NextResponse.json(
-        { error: 'Team name and color open up once the draft is finalized.' },
+        { error: 'Team name and color are locked while the draft is in progress.' },
         { status: 403 },
       );
     }

@@ -98,9 +98,10 @@ export function lifecycleSteps(
     },
     {
       key: 'teams',
-      label: 'Drafted',
+      // Teams can be drafted, selected during sign-up, or assigned directly by staff.
+      label: 'Teams',
       detail: teamsDone
-        ? `${counts.teamCount} teams`
+        ? `${counts.teamCount} ready`
         : counts.teamCount > 0
           ? 'nobody assigned'
           : 'no teams',

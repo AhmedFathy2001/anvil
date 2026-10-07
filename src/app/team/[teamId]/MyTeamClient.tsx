@@ -82,9 +82,10 @@ export default function MyTeamClient({
 
   const teamPlayers = useMemo(() => players.filter((p) => p.teamId === team.id), [players, team.id]);
   const eventStarted = !event.startDate || new Date(event.startDate) <= new Date();
-  // Captains may rebrand (name + color) only between draft finalization and event start —
-  // the API enforces the same window.
-  const canEditName = isCaptain && !eventStarted && event.draftStatus === 'completed';
+  // Captains may rebrand before start whenever no draft is actively assembling the roster. This
+  // includes pre-assigned teams, whose draft status intentionally remains "none".
+  const canEditName =
+    isCaptain && !eventStarted && event.draftStatus !== 'active' && event.draftStatus !== 'paused';
 
   const eventCountdown = useCountdown(!eventStarted ? event.startDate : null);
   const { countdown, setNextRefresh } = useRefreshCountdown();

@@ -2,7 +2,7 @@ import type { LifecycleStep } from '@/lib/eventStage';
 import ClanLink from '@/components/ClanLink';
 
 /**
- * The event's whole life in one strip: Built → Tiles → Drafted → Running → Results → Payouts.
+ * The event's whole life in one strip: Built → Tiles → Teams → Running → Results → Payouts.
  *
  * Exactly one step is lit (lib/eventStage decides which), and each step links to the surface that
  * moves it forward — so "what do I do next" is answerable without opening anything.

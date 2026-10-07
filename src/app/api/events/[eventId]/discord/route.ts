@@ -10,6 +10,7 @@ import {
   provisionTeamDiscord,
   assignTeamRoles,
   assignBingoRoleToApprovedSignups,
+  eventRostersReadyForAssignment,
   unassignSharedRoles,
   teardownTeamDiscord,
 } from '@/lib/discord-teams';
@@ -34,8 +35,11 @@ export async function GET(
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
-  const cfg = await loadTeamChannelConfig(clan.id);
-  const eventTeams = await db.select().from(teams).where(eq(teams.eventId, id));
+  const [cfg, eventTeams, rostersReady] = await Promise.all([
+    loadTeamChannelConfig(clan.id),
+    db.select().from(teams).where(eq(teams.eventId, id)),
+    eventRostersReadyForAssignment(id, event.draftStatus),
+  ]);
 
   // For the pre-draft "give bingo role" button: how many sign-ups are approved, and
   // whether a bingo role is even configured to hand out.
@@ -50,6 +54,7 @@ export async function GET(
     enabled: cfg !== null,
     categoryId: event.discordCategoryId,
     draftStatus: event.draftStatus,
+    rostersReady,
     bingoRoleConfigured: !!cfg?.bingoRoleId,
     captainRoleConfigured: !!cfg?.captainRoleId,
     approvedSignups,
@@ -110,8 +115,8 @@ export async function POST(
     }
 
     case 'assign-rosters': {
-      if (event.draftStatus !== 'completed') {
-        return NextResponse.json({ error: 'The draft must be completed before assigning team roles.' }, { status: 409 });
+      if (!(await eventRostersReadyForAssignment(id, event.draftStatus))) {
+        return NextResponse.json({ error: 'Every team must have players and every entrant must be assigned first.' }, { status: 409 });
       }
       const report = await assignTeamRoles(id);
       if (!report.ok) return NextResponse.json({ error: report.reason || 'Assignment failed' }, { status: 400 });
@@ -120,10 +125,11 @@ export async function POST(
 
     // One-click "set up everything": create the roles/channels, then assign contestant roles.
     // The same pair that runs automatically when the draft completes — exposed as a button so an
-    // admin can (re-)run it after the fact. Requires a completed draft (rosters must be final).
+    // admin can (re-)run it after the fact. A completed draft OR fully assigned direct rosters are
+    // final enough to sync.
     case 'sync-all': {
-      if (event.draftStatus !== 'completed') {
-        return NextResponse.json({ error: 'The draft must be completed first.' }, { status: 409 });
+      if (!(await eventRostersReadyForAssignment(id, event.draftStatus))) {
+        return NextResponse.json({ error: 'Every team must have players and every entrant must be assigned first.' }, { status: 409 });
       }
       const provision = await provisionTeamDiscord(id);
       if (!provision.ok) return NextResponse.json({ error: provision.reason || 'Provisioning failed' }, { status: 400 });

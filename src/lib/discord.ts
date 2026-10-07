@@ -982,10 +982,12 @@ interface DraftCompleteNotifyParams {
   eventName: string;
   teams: TeamWithPlayers[];
   eventId?: number | null;
+  /** The rosters were assembled directly, so do not claim a draft happened. */
+  directAssignment?: boolean;
 }
 
 export async function notifyDraftComplete(params: DraftCompleteNotifyParams): Promise<boolean> {
-  const { eventName, teams, eventId } = params;
+  const { eventName, teams, eventId, directAssignment = false } = params;
 
   // One field per team — the roster is the point of this post, so it stays a field block.
   const fields: DiscordEmbedField[] = teams.map((team) =>
@@ -994,8 +996,10 @@ export async function notifyDraftComplete(params: DraftCompleteNotifyParams): Pr
 
   const embed: DiscordEmbed = {
     ...eventAuthor(eventId, eventName),
-    title: '🏆 Draft complete',
-    description: `Rosters are locked for **${eventName}**.`,
+    title: directAssignment ? '🏆 Teams confirmed' : '🏆 Draft complete',
+    description: directAssignment
+      ? `Rosters are set for **${eventName}**.`
+      : `Rosters are locked for **${eventName}**.`,
     color: EMBED_COLOR.gold,
     fields,
   };

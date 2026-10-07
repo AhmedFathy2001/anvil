@@ -47,6 +47,24 @@ export function isDraftInProgress(draftStatus: string): boolean {
   return draftStatus === 'active' || draftStatus === 'paused';
 }
 
+/**
+ * Whether roster-dependent follow-up work can safely run. A completed draft is final by
+ * definition. With no draft, final means every entrant is assigned and every team is populated.
+ */
+export function areEventRostersFinal(
+  draftStatus: string,
+  teamIds: readonly number[],
+  playerTeamIds: readonly (number | null)[],
+): boolean {
+  if (draftStatus === 'completed') return true;
+  if (draftStatus !== 'none' || teamIds.length === 0 || playerTeamIds.length === 0) return false;
+  if (playerTeamIds.some((teamId) => teamId == null)) return false;
+  const configured = new Set(teamIds);
+  if (playerTeamIds.some((teamId) => teamId != null && !configured.has(teamId))) return false;
+  const occupied = new Set(playerTeamIds);
+  return teamIds.every((teamId) => occupied.has(teamId));
+}
+
 export function computeStartReadiness(counts: StartReadinessCounts): StartReadiness {
   const blockers: StartBlockerCode[] = [];
   if (isDraftInProgress(counts.draftStatus)) blockers.push('draft-in-progress');

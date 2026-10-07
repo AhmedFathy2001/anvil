@@ -8,9 +8,9 @@
  *                   text channel + a locked voice channel. Captains also get the captain
  *                   role. Safe to run before the draft ends and re-runnable (idempotent:
  *                   anything already created is reused, not duplicated).
- *   2. assign     — give every drafted contestant the shared "bingo" role + their team's
- *                   role (which unlocks their team channels). Gated on draftStatus
- *                   === 'completed' since rosters aren't final until then.
+ *   2. assign     — give every rostered contestant the shared "bingo" role + their team's
+ *                   role (which unlocks their team channels). Available after a completed draft
+ *                   or when every entrant is already on a populated, preconfigured team.
  *   3. teardown   — delete the per-team roles/channels + the event category. Leaves the
  *                   shared bingo/captain roles alone (they're admin-configured, not ours).
  *
@@ -28,6 +28,7 @@ import { and, eq, isNotNull } from 'drizzle-orm';
 import { log } from '@/lib/logger';
 import { discordRest, getBotCredentials, resolveDiscordIdForMember } from '@/lib/discord-roles';
 import { acceptedCohostClanIds } from '@/lib/coHost';
+import { areEventRostersFinal } from '@/lib/eventReadiness';
 
 // Discord permission bits (https://discord.com/developers/docs/topics/permissions).
 // All fit comfortably in 32 bits, so plain-number bitwise ops are safe; we serialise the
@@ -480,6 +481,31 @@ export async function provisionTeamDiscord(eventId: number): Promise<ProvisionRe
 // Assign rosters
 // =============================================================================
 
+/**
+ * A draft is only one way to finalize rosters. Clan-v-clan and sign-up-selected teams arrive fully
+ * assigned without ever starting one; requiring draftStatus=completed made those admins run an
+ * empty draft purely to unlock Discord. For a no-draft event, be deliberately strict: every
+ * entrant must be assigned and every configured team must contain somebody.
+ */
+export async function eventRostersReadyForAssignment(eventId: number, knownDraftStatus?: string): Promise<boolean> {
+  const [event, eventTeams, participants] = await Promise.all([
+    knownDraftStatus == null
+      ? db.query.events.findFirst({ where: eq(events.id, eventId), columns: { draftStatus: true } })
+      : Promise.resolve({ draftStatus: knownDraftStatus }),
+    db.select({ id: teams.id }).from(teams).where(eq(teams.eventId, eventId)),
+    db
+      .select({ teamId: eventParticipants.teamId })
+      .from(eventParticipants)
+      .where(eq(eventParticipants.eventId, eventId)),
+  ]);
+  if (!event) return false;
+  return areEventRostersFinal(
+    event.draftStatus,
+    eventTeams.map((team) => team.id),
+    participants.map((player) => player.teamId),
+  );
+}
+
 export interface AssignReport {
   ok: boolean;
   reason?: string;
@@ -490,9 +516,9 @@ export interface AssignReport {
 }
 
 /**
- * Give every drafted contestant the shared bingo role + their team's role. Requires the
- * draft to be completed (rosters are final) and the teams to be provisioned (each team
- * must have a discordRoleId). Players whose Discord account can't be resolved are skipped.
+ * Give every rostered contestant the shared bingo role + their team's role. Rosters may be final
+ * through a completed draft or through fully populated direct assignment. Teams must be
+ * provisioned (each team must have a discordRoleId). Unresolvable Discord accounts are skipped.
  */
 export async function assignTeamRoles(eventId: number): Promise<AssignReport> {
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
@@ -500,8 +526,8 @@ export async function assignTeamRoles(eventId: number): Promise<AssignReport> {
   if (!event) return { ok: false, reason: 'event not found', assigned: 0, skipped: 0 };
   const cfg = await loadTeamChannelConfig(event.clanId);
   if (!cfg) return { ok: false, reason: 'team sync disabled or unconfigured', assigned: 0, skipped: 0 };
-  if (event.draftStatus !== 'completed') {
-    return { ok: false, reason: 'draft is not completed', assigned: 0, skipped: 0 };
+  if (!(await eventRostersReadyForAssignment(eventId, event.draftStatus))) {
+    return { ok: false, reason: 'rosters are not fully assigned', assigned: 0, skipped: 0 };
   }
 
   const eventTeams = await db.select().from(teams).where(eq(teams.eventId, eventId));

@@ -19,6 +19,7 @@ interface StatusData {
   enabled: boolean;
   categoryId: string | null;
   draftStatus: string;
+  rostersReady: boolean;
   bingoRoleConfigured: boolean;
   captainRoleConfigured: boolean;
   approvedSignups: number;
@@ -27,7 +28,8 @@ interface StatusData {
 }
 
 // Admin panel for an event's Teams tab: create per-team Discord roles + locked channels,
-// and assign contestant roles once the draft is done. Hidden entirely when the feature is
+// and assign contestant roles once rosters are final (drafted or directly assigned). Hidden
+// entirely when the feature is
 // disabled — UNLESS `showWhenDisabled` is set, which instead surfaces a short "it's off, enable
 // it here" hint (used in the post-draft view so an admin isn't left staring at nothing).
 export default function DiscordTeamProvisioning({
@@ -142,7 +144,7 @@ export default function DiscordTeamProvisioning({
             Advanced settings → Discord team channels
           </ClanLink>{' '}
           (needs the bot token + server ID). Once on, this is where you provision channels and assign
-          everyone — automatically when the draft ends, or with a button here.
+          everyone — automatically when a draft ends, or with a button for pre-assigned rosters.
         </p>
       </div>
     );
@@ -161,7 +163,7 @@ export default function DiscordTeamProvisioning({
     );
   }
 
-  const draftComplete = status.draftStatus === 'completed';
+  const rostersReady = status.rostersReady;
   const anyProvisioned = status.teams.some((t) => t.hasRole || t.hasTextChannel || t.hasVoiceChannel);
 
   return (
@@ -178,9 +180,9 @@ export default function DiscordTeamProvisioning({
       </summary>
       <p className="text-xs text-text-muted mb-4">
         Create a private voice + text channel per team and assign Discord roles. You can provision
-        roles &amp; channels now; contestant roles are assigned automatically when the draft completes
-        (or with the button below). Give every approved sign-up the shared bingo role at any time — even
-        before the draft — so they can see the bingo channel and get pinged with the rules.
+        roles &amp; channels now; contestant roles are assigned automatically when a draft completes,
+        or with the button below once direct rosters are fully assigned. Give every approved sign-up
+        the shared bingo role at any time so they can see the bingo channel and get pinged with the rules.
       </p>
 
       {status.teams.length > 0 && (
@@ -199,10 +201,9 @@ export default function DiscordTeamProvisioning({
       )}
 
       <div className="flex flex-wrap gap-2 items-center">
-        {/* One-click primary action once the draft is done: create channels/roles AND assign
-            everyone. This is what runs automatically on draft completion; the button lets an
-            admin (re-)run it. */}
-        {draftComplete && (
+        {/* One-click primary action once rosters are final: create channels/roles AND assign
+            everyone. Drafts run this automatically; direct rosters use this button. */}
+        {rostersReady && (
           <button
             onClick={() => runAction('sync-all')}
             disabled={!!busy || status.teams.length === 0}
@@ -244,8 +245,8 @@ export default function DiscordTeamProvisioning({
 
         <button
           onClick={() => runAction('assign-rosters')}
-          disabled={!!busy || !draftComplete || !status.fullyProvisioned}
-          title={!draftComplete ? 'Available once the draft is completed' : !status.fullyProvisioned ? 'Provision roles & channels first' : undefined}
+          disabled={!!busy || !rostersReady || !status.fullyProvisioned}
+          title={!rostersReady ? 'Assign every entrant and put at least one player on each team first' : !status.fullyProvisioned ? 'Provision roles & channels first' : undefined}
           className="text-sm font-medium bg-accent-green/15 text-accent-green-light border border-accent-green/30 px-4 py-2 rounded-lg hover:bg-accent-green/25 transition-colors disabled:opacity-50"
         >
           {busy === 'assign-rosters' ? 'Assigning…' : 'Assign Contestant Roles'}
@@ -289,10 +290,10 @@ export default function DiscordTeamProvisioning({
         />
       )}
 
-      {!draftComplete && (
+      {!rostersReady && (
         <p className="text-xs text-text-muted mt-2">
-          Contestant role assignment unlocks when the draft is completed — captains get their roles as
-          soon as you provision.
+          Contestant role assignment unlocks after the draft, or once every entrant is assigned and
+          every direct-entry team has a player. Captains get their roles as soon as you provision.
         </p>
       )}
 

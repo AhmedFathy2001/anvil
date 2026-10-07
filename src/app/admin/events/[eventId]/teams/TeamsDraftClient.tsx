@@ -57,15 +57,16 @@ interface Props {
 }
 
 // How the event's teams come to exist — chosen on the wizard's first screen. 'draft' = the classic
-// captains-pick flow; 'individual' = every player on their own solo team; 'one_team' = whole clan
-// on one shared roster. The non-draft formats have no team-creation or draft steps at all.
-type TeamFormat = 'draft' | 'individual' | 'one_team';
+// captains-pick flow; 'preassigned' = teams/rosters are built directly; 'individual' = every
+// player on their own solo team; 'one_team' = whole clan on one shared roster.
+type TeamFormat = 'draft' | 'preassigned' | 'individual' | 'one_team';
 
 export default function TeamsDraftClient({ event, tiles, teams, players: initialPlayers, completions, editLocked = false }: Props) {
   const router = useRouter();
   // What this event actually IS — a ladder and a race aren't bingos, and the start copy says so.
   const noun = eventNoun(event.format);
-  const revealPolicyMode = hasRevealPolicy(parseEventRules(event.rules));
+  const parsedRules = parseEventRules(event.rules);
+  const revealPolicyMode = hasRevealPolicy(parsedRules);
   const [deleting, setDeleting] = useState<number | null>(null);
   const { confirm, notify } = useDialog();
   const [selectedClanMemberIds, setSelectedClanMemberIds] = useState<number[]>([]);
@@ -114,6 +115,12 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     if (teams.length === 1 && assigned.length > 0) return 'one_team';
     if (teams.length >= 2) {
       const maxRoster = Math.max(...teams.map((t) => initialPlayers.filter((p) => p.teamId === t.id).length));
+      // A board whose entrants chose/joined existing teams is already rostered; making the admin
+      // perform an empty draft after that would only change a status flag. The complete-assignment
+      // fallback also covers imported/manual clan-v-clan rosters created before teamChoice existed.
+      if (parsedRules.teamChoice || (assigned.length > 0 && assigned.length === initialPlayers.length)) {
+        return 'preassigned';
+      }
       if (assigned.length > 0 && maxRoster <= 1) return 'individual'; // all solo teams
       return 'draft'; // multiple teams being built by hand — the classic flow
     }
@@ -124,7 +131,8 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   })();
   const [format, setFormat] = useState<TeamFormat | null>(derivedFormat);
   const formatStorageKey = `draft-format-${event.id}`;
-  const nonDraft = format === 'individual' || format === 'one_team';
+  const automaticFormat = format === 'individual' || format === 'one_team';
+  const nonDraft = format === 'preassigned' || automaticFormat;
 
   useEventStream(event.id, {
     onUpdate: useCallback((data: EventStreamData) => {
@@ -169,7 +177,11 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   // phase; the phase bar (below) navigates between them so nothing off-step is on screen.
   const [activeStep, setActiveStep] = useState<number>(() => {
     if (draft.status !== 'none') return 3;
-    // Non-draft formats only use steps 1 (enroll & team up) and 3 (rosters & start).
+    if (derivedFormat === 'preassigned') {
+      if (teams.length < 1) return 0;
+      return initialPlayers.length > 0 ? 3 : 1;
+    }
+    // Automatic non-draft formats only use steps 1 (enroll & team up) and 3 (rosters & start).
     if (derivedFormat === 'individual' || derivedFormat === 'one_team') {
       return initialPlayers.some((p) => p.teamId != null) ? 3 : 1;
     }
@@ -202,7 +214,12 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     let effectiveFormat = derivedFormat;
     if (derivedFormat === null) {
       const storedFormat = window.sessionStorage.getItem(formatStorageKey);
-      if (storedFormat === 'draft' || storedFormat === 'individual' || storedFormat === 'one_team') {
+      if (
+        storedFormat === 'draft' ||
+        storedFormat === 'preassigned' ||
+        storedFormat === 'individual' ||
+        storedFormat === 'one_team'
+      ) {
         setFormat(storedFormat);
         effectiveFormat = storedFormat;
       }
@@ -218,8 +235,8 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     }
     // No remembered place: a just-restored non-draft format starts on its enroll step (the SSR
     // initializer couldn't know the stored choice).
-    if (effectiveFormat !== derivedFormat && (effectiveFormat === 'individual' || effectiveFormat === 'one_team')) {
-      goToStep(1, 'replace');
+    if (effectiveFormat !== derivedFormat && effectiveFormat && effectiveFormat !== 'draft') {
+      goToStep(effectiveFormat === 'preassigned' && teams.length < 1 ? 0 : 1, 'replace');
       return;
     }
     // Stamp the initial entry so returning to it via Back restores the right step.
@@ -624,6 +641,8 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     } catch {}
     if (f === 'draft') {
       goToStep(teams.length < 2 ? 0 : draft.players.length < 1 ? 1 : 2);
+    } else if (f === 'preassigned') {
+      goToStep(teams.length < 1 ? 0 : draft.players.length < 1 ? 1 : 3);
     } else {
       goToStep(draft.players.some((p) => p.teamId != null) ? 3 : 1);
     }
@@ -663,7 +682,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     }
   }
 
-  // Non-draft formats: team up everyone sitting unassigned in the pool in one click — solo teams
+  // Automatic formats: team up everyone sitting unassigned in the pool in one click — solo teams
   // ('individual') or the one shared team ('one_team'). This replaces team creation + the draft.
   const [placing, setPlacing] = useState(false);
   const [placeNotice, setPlaceNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -709,7 +728,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
 
   // Guided phase tracker across the whole Teams & Draft flow. Purely a clarity layer over the
   // existing state — nothing here changes draft behaviour.
-  const teamsDone = teams.length >= 2;
+  const teamsDone = teams.length >= (format === 'preassigned' ? 1 : 2);
   const poolDone = draft.players.length >= 1;
   // "Done" means the saved order covers every current team — not merely "an order was
   // once saved". Deleting/adding teams after saving used to leave a stale order that
@@ -721,21 +740,35 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   // Non-draft formats: how many pool players still need their (solo/shared) team.
   const unplacedCount = draft.players.filter((p) => p.teamId === null).length;
   const allPlaced = poolDone && unplacedCount === 0;
-  // Draft format walks steps 0-3; non-draft formats only have "enroll & team up" (step 1) and
-  // "rosters & start" (step 3) — team creation, draft order and the draft itself don't exist.
-  const phases = nonDraft
+  // A direct-roster event keeps team setup and enrollment, but has no order/run-draft ceremony.
+  // Automatic formats only have "enroll & team up" and "rosters & start".
+  const phases = format === 'preassigned'
     ? [
+        { label: 'Set up teams', done: teamsDone },
+        { label: 'Fill player pool', done: poolDone },
+        { label: 'Rosters & start', done: allPlaced && eventStarted },
+      ]
+    : automaticFormat
+      ? [
         { label: 'Enroll & team up', done: allPlaced },
         { label: 'Rosters & start', done: allPlaced && eventStarted },
       ]
-    : [
+      : [
         { label: 'Set up teams', done: teamsDone },
         { label: 'Fill player pool', done: poolDone },
         { label: 'Set draft order', done: orderDone },
         { label: 'Run draft', done: draftDone },
       ];
-  const stepForPhase = nonDraft ? [1, 3] : [0, 1, 2, 3];
-  const nextHint = nonDraft
+  const stepForPhase = format === 'preassigned' ? [0, 1, 3] : automaticFormat ? [1, 3] : [0, 1, 2, 3];
+  const nextHint = format === 'preassigned'
+    ? !teamsDone
+      ? 'Create the team or teams players will join.'
+      : !poolDone
+        ? 'Add everyone who’s playing; sign-ups can place them directly onto an existing team.'
+        : unplacedCount > 0
+          ? `Assign the remaining ${unplacedCount} player${unplacedCount === 1 ? '' : 's'} on the roster screen — no draft is needed.`
+          : 'Every entrant is already assigned — review the rosters or start the event.'
+    : automaticFormat
     ? !poolDone
       ? 'Add everyone who’s playing — sign-ups add players automatically, or enroll and add members below.'
       : unplacedCount > 0
@@ -756,7 +789,13 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               : 'Everything’s ready — start the draft below.';
 
   // Whether the on-screen step is finished, so "Continue" only unlocks when it's safe to move on.
-  const stepDone = nonDraft
+  const stepDone = format === 'preassigned'
+    ? activeStep === 0
+      ? teamsDone
+      : activeStep === 1
+        ? poolDone
+        : true
+    : automaticFormat
     ? activeStep === 1
       ? poolDone
       : true
@@ -784,7 +823,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
             <GuideLink href="/guide/captain#draft">How a draft runs</GuideLink>
             <GuideLink href="/guide/clan-vs-clan#team">Playing another clan</GuideLink>
           </p>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <button
               type="button"
               onClick={() => chooseFormat('draft')}
@@ -794,6 +833,17 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               <p className="text-xs text-text-muted leading-relaxed">
                 The classic team bingo: create teams, fill a player pool, then captains take turns
                 picking. Best for balanced competitive boards.
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={() => chooseFormat('preassigned')}
+              className="text-left rounded-xl border border-card-border bg-card-bg p-4 hover:border-gold/50 hover:bg-card-bg-hover transition-colors"
+            >
+              <div className="text-sm font-bold mb-1">Build rosters directly</div>
+              <p className="text-xs text-text-muted leading-relaxed">
+                Create the teams and place people straight onto them. Best for clan-v-clan or any
+                event whose sides are already decided — no draft order or picking round.
               </p>
             </button>
             <button
@@ -878,7 +928,13 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
         <p className="text-xs text-text-muted mt-2">
           Format:{' '}
           <span className="text-foreground/80">
-            {format === 'draft' ? 'Draft into teams' : format === 'individual' ? 'One team each' : 'One shared team'}
+            {format === 'draft'
+              ? 'Draft into teams'
+              : format === 'preassigned'
+                ? 'Pre-assigned teams'
+                : format === 'individual'
+                  ? 'One team each'
+                  : 'One shared team'}
           </span>
           {draft.status === 'none' && (
             <>
@@ -927,7 +983,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
       </>
       )}
 
-      {format === 'draft' && activeStep === 0 && (
+      {(format === 'draft' || format === 'preassigned') && activeStep === 0 && (
         <>
       {/* Teams */}
       <div>
@@ -935,7 +991,11 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
           <span className="w-1 h-5 bg-gold rounded-full" />
           Teams
         </h2>
-        <p className="text-xs text-text-muted mb-4">The teams players get drafted into. Give each one a captain (a captain can also play).</p>
+        <p className="text-xs text-text-muted mb-4">
+          {format === 'preassigned'
+            ? 'The teams players join directly. Give each one a captain; there is no draft after the rosters are filled.'
+            : 'The teams players get drafted into. Give each one a captain (a captain can also play).'}
+        </p>
         {teams.length > 0 ? (
           <div className="space-y-2 mb-6">
             {teams.map((team) => {
@@ -1035,7 +1095,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
         {/* Pre-draft only: once the draft is live, DraftControlPanel below carries the same numbers
             (measured against the average rather than the leader) plus the levers. Two spreads on one
             screen is two answers to one question. */}
-        {!nonDraft && (activeStep === 2 || activeStep === 3) && !isDraftInProgress && (
+        {format === 'draft' && (activeStep === 2 || activeStep === 3) && !isDraftInProgress && (
           <div className="mb-6">
             <BalancePanel
               eventId={event.id}
@@ -1054,7 +1114,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
         {/* Running-draft steering: live power, the swap the engine already knows about, the
             per-captain filter, mid-draft moves and resume-from. Renders itself away unless the
             draft is actually active or paused. */}
-        {!nonDraft && (activeStep === 2 || activeStep === 3) && isDraftInProgress && (
+        {format === 'draft' && (activeStep === 2 || activeStep === 3) && isDraftInProgress && (
           <div className="mb-6">
             <DraftControlPanel
               eventId={event.id}
@@ -1065,7 +1125,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
             />
           </div>
         )}
-        {!nonDraft && (activeStep === 2 || activeStep === 3) && (draft.status !== 'none' || draft.teamOrder.length > 0) && (
+        {format === 'draft' && (activeStep === 2 || activeStep === 3) && (draft.status !== 'none' || draft.teamOrder.length > 0) && (
           <div className="mb-6">
             <DraftStatus
               status={draft.status}
@@ -1088,7 +1148,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
             draftInProgress={isDraftInProgress}
             // Non-draft formats already chose the placement on the format screen — enroll straight
             // into it instead of asking again.
-            fixedPlacement={nonDraft ? (format as 'individual' | 'one_team') : undefined}
+            fixedPlacement={automaticFormat ? (format as 'individual' | 'one_team') : undefined}
             onEnrolled={async () => {
               await fetchDraft();
               router.refresh();
@@ -1098,7 +1158,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
 
         {/* Non-draft formats: the one-click replacement for team creation + the draft. Teams up
             everyone still unassigned in the pool (sign-up players, manual adds, guests). */}
-        {nonDraft && activeStep === 1 && draft.status === 'none' && (
+        {automaticFormat && activeStep === 1 && draft.status === 'none' && (
           <div className="mb-6 border border-gold/25 rounded-xl p-4 bg-gold/5 space-y-2">
             <div className="flex items-center gap-2">
               <span className="w-1 h-4 bg-gold rounded-full" />
@@ -1329,7 +1389,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
             </div>
         )}
 
-        {!nonDraft && activeStep === 2 && draft.status === 'none' && signupsOpen && (
+        {format === 'draft' && activeStep === 2 && draft.status === 'none' && signupsOpen && (
             <div>
               <h3 className="text-lg font-bold mb-1 flex items-center gap-2">
                 <span className="w-1 h-4 bg-gold rounded-full" />
@@ -1430,7 +1490,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
 
         {/* Not started yet — nudge back to the order step where Start lives. (Draft format only;
             non-draft formats never run one.) */}
-        {!nonDraft && activeStep === 3 && draft.status === 'none' && (
+        {format === 'draft' && activeStep === 3 && draft.status === 'none' && (
           <div className="text-sm text-text-muted border border-dashed border-card-border rounded-xl p-4">
             Nothing to run yet. Finish the <span className="text-foreground/80">draft order</span> and press{' '}
             <span className="text-foreground/80">Start Draft</span> on the previous step to begin picking.
@@ -1462,7 +1522,12 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                   Ready to go
                 </h3>
                 <p className="text-xs text-text-muted mb-3">
-                  {nonDraft ? 'Everyone is on a team.' : 'The draft is done.'} Starting the {noun} now
+                  {format === 'preassigned'
+                    ? 'The rosters are already assigned — no draft is required.'
+                    : automaticFormat
+                      ? 'Everyone is on a team.'
+                      : 'The draft is done.'}{' '}
+                  Starting the {noun} now
                   marks the event live, announces the start in Discord, and{' '}
                   {revealPolicyMode
                     ? 'arms the board — tiles then open on the rotation configured on the Overview tab.'
