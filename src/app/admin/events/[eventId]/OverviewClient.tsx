@@ -278,6 +278,8 @@ function BuildHome({
   onEventChange: (e: Event) => void;
 }) {
   const [starting, setStarting] = useState(false);
+  const [testingReveal, setTestingReveal] = useState(false);
+  const [testRevealStatus, setTestRevealStatus] = useState('');
   const { confirm } = useDialog();
   const [error, setError] = useState('');
 
@@ -375,6 +377,22 @@ function BuildHome({
     }
   }
 
+  async function testBoardReveal() {
+    setTestingReveal(true);
+    setTestRevealStatus('');
+    try {
+      const res = await clanFetch(`/api/admin/events/${event.id}/test-board-reveal`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      setTestRevealStatus(
+        res.ok
+          ? 'Preview posted to this clan\'s bingo channel. The real board is still hidden.'
+          : data.error || 'Could not post the board preview.',
+      );
+    } finally {
+      setTestingReveal(false);
+    }
+  }
+
   return (
     <section className="border border-gold/30 rounded-xl bg-card-bg overflow-hidden">
       <div className="p-5 bg-gradient-to-br from-gold/[0.07] to-transparent">
@@ -426,8 +444,16 @@ function BuildHome({
         <div className="flex flex-wrap gap-2">
           <QuietLink href={`/events/${event.id}`}>See the player&apos;s view ↗</QuietLink>
           <QuietLink href={`/admin/events/${event.id}/tiles`}>Check the board balance</QuietLink>
-          <QuietLink href="/admin/announce">Send a test announcement</QuietLink>
+          <button
+            type="button"
+            onClick={testBoardReveal}
+            disabled={testingReveal || counts.tileCount === 0}
+            className="px-2.5 py-1 text-xs rounded-lg border border-gold/40 text-gold hover:border-gold hover:bg-gold/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {testingReveal ? 'Posting board…' : 'Test board reveal in Discord'}
+          </button>
         </div>
+        {testRevealStatus && <p className="text-xs text-text-muted mt-2">{testRevealStatus}</p>}
       </div>
     </section>
   );
