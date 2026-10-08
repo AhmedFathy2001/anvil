@@ -2547,8 +2547,9 @@ export type ForgePlayerEvent = typeof forgePlayerEvents.$inferSelect;
 // ONE table for the movements below, told apart by `kind`:
 //   'donation'   — a member says they handed gp in. POSITIVE, and it counts for NOTHING until staff
 //                  approve it: an unapproved donation is a claim, not money.
-//   'withdrawal' — a withdrawal the RuneLite plugin saw in the physical Clan Coffer. NEGATIVE and
-//                  approved immediately; named only when the local player's game message agrees.
+//   'withdrawal' — a coffer→bank custody transfer the RuneLite plugin saw. NEGATIVE for the audit
+//                  trail, but excluded from the available-balance math: banking gp is not spending
+//                  it. Named only when the local player's game message agrees.
 //   'adjustment' — staff correcting reality (seed the pot, write off gp spent outside Anvil, fix a
 //                  typo). Signed either way, counts the moment it is written.
 //   'award'      — a mission prize owed to a player. NEGATIVE, written the moment the prize is
@@ -2577,7 +2578,7 @@ export const cofferEntries = pgTable('coffer_entries', {
   clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
   // See CofferKind. Text, not an enum, so a new movement kind is a code change not a migration.
   kind: text('kind').notNull(),
-  // Signed gp. Donations/refunds positive, withdrawals/awards negative, adjustments either way.
+  // Signed gp. Donations/refunds positive, custody transfers/awards negative, adjustments either way.
   amount: bigint('amount', { mode: 'number' }).notNull(),
   // See CofferStatus. Which values are legal depends on the kind (donations sit pending → approved
   // or rejected; awards reserved → paid / cancelled / unfunded; adjustments and refunds land approved).

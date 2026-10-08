@@ -11,6 +11,15 @@ import assert from 'node:assert/strict';
 import { countsTowardBalance, foldBalance } from '../src/lib/cofferMath.ts';
 import { computePrizePool } from '../src/lib/prizePoolMath.ts';
 
+test('moving physical coffer coins to a bank does not spend clan funds', () => {
+  const balance = foldBalance([
+    { kind: 'donation', status: 'approved', total: 10_000_000 },
+    { kind: 'withdrawal', status: 'approved', total: -10_000_000 },
+  ]);
+  assert.equal(countsTowardBalance({ kind: 'withdrawal', status: 'approved' }), false);
+  assert.deepEqual(balance, { confirmed: 10_000_000, reserved: 0, available: 10_000_000, pending: 0 });
+});
+
 test('a reserved pool is committed money — it leaves the available balance at once', () => {
   const balance = foldBalance([
     { kind: 'donation', status: 'approved', total: 1_000_000_000 },

@@ -133,16 +133,17 @@ export default function CofferClient({
    * The full ledger below answers "what happened" and is mostly donations; this answers the question
    * a treasurer is actually asked in Discord — what has this clan promised, and what has it paid.
    * Prizes and pools are the site's own movements; a negative adjustment is the same thing done by
-   * hand, so both belong here or the log quietly under-reports what left.
+   * hand, so both belong here or the log quietly under-reports what was spent. A physical coffer to
+   * bank transfer does not: the clan still owns that gp.
    */
   const moneyOut = entries.filter(
-    (e) => e.kind === 'award' || e.kind === 'pool' || e.kind === 'withdrawal' || (e.kind === 'adjustment' && e.amount < 0),
+    (e) => e.kind === 'award' || e.kind === 'pool' || (e.kind === 'adjustment' && e.amount < 0),
   );
   const stillOwed = moneyOut
     .filter((e) => e.status === 'reserved' || e.status === 'planned' || e.status === 'unfunded')
     .reduce((sum, e) => sum + Math.abs(e.amount), 0);
   const paidOut = moneyOut
-    .filter((e) => e.status === 'paid' || e.kind === 'adjustment' || e.kind === 'withdrawal')
+    .filter((e) => e.status === 'paid' || e.kind === 'adjustment')
     .reduce((sum, e) => sum + Math.abs(e.amount), 0);
 
   async function act(entryId: number, action: 'approve' | 'reject' | 'pay' | 'cancel') {
@@ -225,7 +226,7 @@ export default function CofferClient({
         <div>
           <p className="text-xs font-semibold">In-game Clan Coffer</p>
           <p className="text-[11px] text-text-muted">
-            A separate physical reading from RuneLite; deposits and withdrawals update the ledger automatically.
+            A separate physical reading from RuneLite. Deposits fund the ledger; moving coins to a bank is tracked but not treated as spending.
           </p>
         </div>
         {physicalState ? (
@@ -545,7 +546,7 @@ export default function CofferClient({
 
 function kindLabel(e: CofferLedgerRow): string {
   if (e.kind === 'donation') return 'donation';
-  if (e.kind === 'withdrawal') return 'in-game withdrawal';
+  if (e.kind === 'withdrawal') return 'coffer → bank transfer';
   if (e.kind === 'award') return e.place ? `prize (place ${e.place})` : 'prize';
   if (e.kind === 'pool') return 'prize pool';
   if (e.kind === 'refund') return 'refund';

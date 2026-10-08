@@ -62,8 +62,11 @@ test('an adjustment says which way it went', () => {
   assert.match(cofferLine(entry({ kind: 'adjustment', amount: -500, rsn: null }), null), /taken/);
 });
 
-test('an automatic in-game withdrawal names the withdrawing member', () => {
-  assert.match(cofferLine(entry({ kind: 'withdrawal', amount: -500, rsn: 'Drenvox' }), null), /Drenvox.*withdrew/);
+test('an automatic coffer-to-bank transfer names the member and does not call it spending', () => {
+  const line = cofferLine(entry({ kind: 'withdrawal', amount: -500, rsn: 'Drenvox' }), 1_000);
+  assert.match(line, /Drenvox.*moved.*to their bank/);
+  assert.match(line, /not spending/);
+  assert.match(line, /Anvil balance remains \*\*1,000 gp\*\*/);
 });
 
 test('amounts read as gp, and negatives are not shown as negative', () => {

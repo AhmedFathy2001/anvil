@@ -5,7 +5,7 @@
 // to import @/db to find out.
 //
 // Three numbers, and they are not interchangeable:
-//   confirmed — approved donations + withdrawals + adjustments + refunds. What the clan HAS.
+//   confirmed — approved donations + adjustments + refunds. What the clan HAS.
 //   reserved  — gp already committed: prizes claimed but not yet sent, and pools handed to an event.
 //   available — confirmed − reserved. The ONLY number a prize may be funded against, because the
 //               alternative is promising the same 50m to two winners while a treasurer is asleep.
@@ -19,9 +19,13 @@ export function countsTowardBalance(entry: { kind: string; status: string }): bo
     case 'donation':
       return entry.status === 'approved';
     case 'adjustment':
-    case 'withdrawal':
     case 'refund':
       return entry.status !== 'rejected' && entry.status !== 'cancelled';
+    case 'withdrawal':
+      // RuneLite saw coins move from the physical Clan Coffer into a member's bank. That changes
+      // custody, not ownership: the clan still has the gp until a prize/payment or explicit negative
+      // adjustment records that it was actually spent.
+      return false;
     case 'award':
     // A prize pool handed to an event is the same movement as an award, one step earlier: the gp is
     // committed to a board that splits it its own way, rather than to a person who won a place.
@@ -34,7 +38,7 @@ export function countsTowardBalance(entry: { kind: string; status: string }): bo
 }
 
 export interface CofferBalance {
-  /** Approved donations + withdrawals + adjustments + refunds, in gp. */
+  /** Approved donations + adjustments + refunds, in gp. Physical bank transfers do not change it. */
   confirmed: number;
   /** Claimed-but-unpaid prizes, as a POSITIVE number of gp owed. */
   reserved: number;

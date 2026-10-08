@@ -16,7 +16,7 @@ export function cofferLine(entry: CofferEntry, balanceAfter: number | null): str
 
   switch (entry.kind) {
     case 'withdrawal':
-      return `🏧 ${who} withdrew **${gp(Math.abs(entry.amount))}** from the in-game Clan Coffer${note}${left}`;
+      return `🏦 ${who} moved **${gp(Math.abs(entry.amount))}** from the in-game Clan Coffer to their bank — custody transfer, not spending${note}${balanceAfter == null ? '' : `\n> Anvil balance remains **${gp(balanceAfter)}**.`}`;
     case 'donation':
       return entry.status === 'approved'
         ? `💰 ${who} donated **${gp(entry.amount)}**${note}${left}`

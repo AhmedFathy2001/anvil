@@ -113,7 +113,7 @@ export default async function CofferPage() {
                     {e.kind === 'pool'
                       ? 'prize money for an event'
                       : e.kind === 'withdrawal'
-                        ? `withdrawn by ${e.memberName ?? e.rsn ?? 'the clan'}`
+                        ? `moved to a bank by ${e.memberName ?? e.rsn ?? 'the clan'} (not spent)`
                       : `${e.kind === 'award' ? 'won by' : e.kind === 'donation' ? 'from' : '·'} ${
                           e.memberName ?? e.rsn ?? 'the clan'
                         }`}
