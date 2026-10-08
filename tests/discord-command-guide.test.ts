@@ -72,3 +72,20 @@ test('/guide topic:commands walks the same sections as the page, each with text 
     assert.ok(dict[id]?.body?.length || dict[id]?.intro, `${id} has text for Discord`);
   }
 });
+
+test('every site guide is a /guide topic, and every step resolves to text', async () => {
+  const { GUIDE_OUTLINES } = await import('../src/lib/discordGuides.ts');
+  const { GUIDE_PAGES } = await import('../src/app/guide/_i18n/index.ts');
+  const covered = new Set(Object.values(GUIDE_OUTLINES).map((o) => o.page));
+  for (const page of GUIDE_PAGES) {
+    if (page) assert.ok(covered.has(page), `/guide has no topic for the ${page} guide`);
+  }
+  const dict = en as unknown as Record<string, Record<string, { title?: string; body?: string[]; intro?: string }>>;
+  for (const [topic, o] of Object.entries(GUIDE_OUTLINES)) {
+    for (const id of o.sections) {
+      const section = dict[o.ns]?.[o.keys?.[id] ?? id];
+      assert.ok(section?.title, `/guide ${topic} step ${id} has no title`);
+      assert.ok(section?.body?.length || section?.intro, `/guide ${topic} step ${id} has no text`);
+    }
+  }
+});

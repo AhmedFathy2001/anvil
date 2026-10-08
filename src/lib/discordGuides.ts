@@ -20,6 +20,13 @@ interface GuideOutline {
   page: GuidePage;
   /** Section anchor ids IN PAGE ORDER — mirrors each page's own <Section> list. Step n = sections[n-1]. */
   sections: string[];
+  /** Where an anchor id and its dictionary key differ (the coffer's `#in` is `coffer.inbound`). */
+  keys?: Record<string, string>;
+}
+
+/** The dictionary entry for one section, following an anchor → key rename where there is one. */
+function sectionDict(g: Record<string, unknown>, outline: GuideOutline, id: string): Record<string, unknown> | undefined {
+  return g[outline.keys?.[id] ?? id] as Record<string, unknown> | undefined;
 }
 
 // Mirrors src/app/guide/_pages/*Guide.tsx section order. The choice values in the command def are
@@ -30,6 +37,7 @@ export const GUIDE_OUTLINES: Record<string, GuideOutline> = {
   board: { ns: 'board', page: 'board', sections: ['kinds', 'pick', 'bulk', 'traps', 'points', 'reveal', 'check'] },
   clan: { ns: 'clan', page: 'clan', sections: ['before', 'create', 'live', 'setup', 'members', 'first', 'together'] },
   fees: { ns: 'fees', page: 'fees', sections: ['set', 'collect', 'sign', 'pay', 'disputes'] },
+  coffer: { ns: 'coffer', page: 'coffer', sections: ['what', 'in', 'out', 'who', 'short'], keys: { in: 'inbound' } },
   formats: { ns: 'formats', page: 'formats', sections: ['shape', 'reveal', 'scoring', 'missions', 'choose'] },
   captain: { ns: 'captain', page: 'captain', sections: ['before', 'warroom', 'draft', 'roster', 'during'] },
   admin: { ns: 'admin', page: 'admin', sections: ['access', 'setup', 'channels', 'roster', 'board', 'tiles', 'teams', 'launch', 'after'] },
@@ -99,7 +107,7 @@ export async function guideCommand(ctx: ClanCommandCtx): Promise<ClanResult> {
       return { text: fmt(t.guide.noSuchStep, { total }) };
     }
     const id = outline.sections[stepNum - 1];
-    const section = (g[id] as Record<string, unknown>) ?? {};
+    const section = sectionDict(g, outline, id) ?? {};
     const sectionTitle = asString(section.title) ?? id;
     const url = guideUrl(clan.origin, ctx.locale, outline.page, id);
 
@@ -132,7 +140,7 @@ export async function guideCommand(ctx: ClanCommandCtx): Promise<ClanResult> {
     '',
     t.guide.stepsHeading,
     ...outline.sections.map((id, i) => {
-      const title = asString((g[id] as Record<string, unknown> | undefined)?.title) ?? id;
+      const title = asString(sectionDict(g, outline, id)?.title) ?? id;
       return `**${i + 1}.** ${clamp(title, 80)}`;
     }),
   );

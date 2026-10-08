@@ -226,6 +226,7 @@ const CLAN_DEFINITIONS = [
           { name: 'Boards & tiles', value: 'board' },
           { name: 'Start a clan', value: 'clan' },
           { name: 'Fees & prizes', value: 'fees' },
+          { name: 'Clan coffer', value: 'coffer' },
           { name: 'Event formats', value: 'formats' },
           { name: 'Captain & draft', value: 'captain' },
           { name: 'Running an event', value: 'admin' },
