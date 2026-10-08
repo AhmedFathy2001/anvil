@@ -231,6 +231,7 @@ const CLAN_DEFINITIONS = [
           { name: 'Running an event', value: 'admin' },
           { name: 'Moderating proof', value: 'moderator' },
           { name: 'Clan vs clan', value: 'clanvsclan' },
+          { name: 'Slash commands', value: 'commands' },
         ],
       },
       {

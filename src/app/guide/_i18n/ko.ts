@@ -122,6 +122,13 @@ const ko: PartialGuideDict = {
           'RSN을 하나도 손으로 모으지 않고 클랜 대항전을 여는 법: 팀마다 초대 링크 하나, 그리고 상대 쪽 관리자가 자기들 절반을 직접 굴릴 수 있는 자리 하나.',
         minutes: '팀당 약 5분',
       },
+      commands: {
+        eyebrow: '모든 멤버용',
+        title: '슬래시 명령어',
+        blurb:
+          '봇이 Discord에서 응답하는 모든 명령어, 각 옵션이 하는 일, 실제 예시, 그리고 명령어가 안 보일 때 확인할 것.',
+        minutes: '약 6분',
+      },
     },
   },
 
@@ -388,7 +395,7 @@ const ko: PartialGuideDict = {
     commands: {
       title: '슬래시 명령어',
       body: [
-        '봇은 서버에서 `/bingo`에 응답합니다: **board**, **rules**, **leaderboard**, **me**, **team**. 진행 중인 이벤트를 읽으므로 자기 순위를 보려고 Discord를 떠날 필요가 없습니다.',
+        '봇은 서버에서 `/bingo`(보드, 순위, 규칙, 내 카드)에 더해 `/sotw`, `/stats`, `/coffer` 같은 클랜 명령어에도 응답합니다. 모두 사이트의 실시간 정보를 읽으므로, 자기 순위를 보려고 Discord를 떠날 필요가 없습니다. [모든 명령어와 옵션]({commandsGuide})은 별도 페이지에 정리되어 있습니다.',
         '봇이 들어온 뒤 1분쯤 지나 나타납니다. 아예 나타나지 않는다면 그 초대가 봇은 허용했지만 명령어는 허용하지 않은 것입니다 — 둘은 별개의 권한이고, 오래된 초대 링크는 한쪽만 요청했습니다. Discord 봇 탭에서 초대 링크를 다시 여세요. 봇이 쫓겨나거나 무언가 초기화되지는 않습니다.',
       ],
       note: {
@@ -1825,10 +1832,15 @@ const ko: PartialGuideDict = {
     inbound: {
       title: 'gp를 들여오기',
       body: [
-        '길은 둘, 차이는 누가 시작하느냐뿐입니다. 멤버는 `/coffer`에서 자기 기부를 신고하고 스태프가 믿어주기를 기다립니다. 회계 담당은 이미 도착한 것을 기록하는데, 그 입력 **자체가** 승인입니다.',
+        '평소의 경로는 RuneLite 플러그인이 자동으로 처리합니다. 게임 안에서 Clan Coffer를 열면 Anvil이 실제 코인 잔액을 보고 입금과 출금을 기록합니다. 처음 본 금액은 기준점일 뿐이며, 연 사람이 안에 있던 돈을 전부 기부한 것처럼 꾸미지 않습니다.',
+        '수동 기록은 아무도 플러그인을 켜 두지 않은 사이에 일어난 일을 위해 남아 있습니다. 멤버는 `/coffer`에서 자기 기부를 신고하고 스태프가 믿어주기를 기다립니다. 회계 담당은 이미 도착한 것을 기록하는데, 그 입력 **자체가** 승인입니다.',
         '어느 쪽이든 기부는 **사람**에게 귀속됩니다. 이는 들리는 것보다 무겁습니다. 공개 페이지의 기부 순위는 대다수 기부자가 받는 유일한 감사이고, 「클랜」 이름으로 들어온 gp는 아무에게도 고마움을 표하지 않습니다.',
       ],
       rows: [
+        {
+          term: '게임 안에서 금고 열기',
+          body: 'Anvil을 켜고 로그인한 상태에서 (Profile sync → **Sync Clan Coffer**는 기본으로 켜져 있습니다). 일치하는 게임 메시지가 나오면 본인의 입금이나 출금이 본인 이름으로 기록됩니다. 공백 뒤에 발견된 변화는 본 사람의 이름을 붙이지 않고 맞춰 넣습니다. Admin → Coffer에는 마지막으로 확인된 실제 금액과 그 시각이 표시됩니다.',
+        },
         {
           term: '멤버가 신고한다',
           body: '공개 금고 페이지에서, 스크린샷이 있다면 함께. 대기 상태로 들어와 당신의 대기열에 나타납니다. 승인해야 비로소 진짜 돈이 됩니다.',
@@ -2041,6 +2053,236 @@ const ko: PartialGuideDict = {
           body: '거의 틀림없이 그럴 겁니다. 자기 팀이 얽힌 건은 전부 다른 관리자에게 넘기세요 —— 당신이 불공정할까 봐가 아니라, 불공정하지 않았음을 증명해야 하는 자리에 스스로를 두어서는 안 되기 때문입니다.',
         },
       ],
+    },
+  },
+
+  commands: {
+    metaTitle: 'Discord 슬래시 명령어 — Anvil',
+    metaDescription:
+      'Anvil의 모든 슬래시 명령어 — /bingo, /sotw, /botw, /eff, /coffer, /stats, /guide — 각 옵션 설명, 예시, 누가 무엇을 쓸 수 있는지, 그리고 명령어가 안 보일 때의 해결법.',
+    eyebrow: 'Anvil · Discord에서',
+    title: '슬래시 명령어',
+    dek: '클랜 Discord에서 `/`를 입력하면 Anvil이 사이트의 실시간 정보로 답합니다: 보드, 순위, 내 카드, 주간 대회, 금고, 그리고 누구의 스탯이든. 이 페이지는 그 전체 목록이며, 봇이 실제로 등록하는 명령어에서 생성되므로 낡을 일이 없습니다.',
+    facts: [
+      { strong: '비공개', rest: '나만 보이는 답변, 공유 버튼 포함' },
+      { strong: '내 언어', rest: 'Discord에 설정된 언어 그대로' },
+      { strong: '읽기 전용', rest: '/coffer add와 remove 제외' },
+    ],
+    footnote:
+      '봇을 처음 설정하는 방법은 [Discord 가이드](/guide/discord)에 있습니다. 이 페이지는 사용법을 다룹니다.',
+
+    using: {
+      title: '명령어가 작동하는 방식',
+      body: [
+        '봇이 볼 수 있는 아무 채널에서 `/`를 입력하고 목록에서 Anvil 명령어를 고르세요. 그러면 Discord가 옵션을 채울 칸으로 보여줍니다. Tab을 누르거나 클릭해서 추가하세요. 아래에서 `<angle brackets>`(꺾쇠괄호) 안의 옵션은 필수이고, `[square brackets]`(대괄호) 안의 옵션은 선택이라 빼도 됩니다.',
+        '모든 답변은 **비공개**입니다. 나만 보이므로 하루에 열 번 보드를 확인해도 아무도 신경 쓰지 않습니다. 채널에 보여줄 만하다면 답변 아래의 **Share to channel**을 누르세요. 공유본은 그 순간 새로 만들어지므로, 나중에 공유한 순위는 그때의 순위입니다.',
+      ],
+      rows: [
+        { term: '필수', body: '`<amount>` — 채우기 전까지 Discord가 명령어를 보내지 않습니다.' },
+        { term: '선택', body: '`[member]` — 빼면 명령어가 나, 내 팀, 또는 클랜 전체에 대해 답합니다.' },
+        { term: '목록', body: 'Discord가 제시하는 값 중 하나를 고릅니다. 직접 입력할 수는 없습니다.' },
+        { term: '입력해서 검색', body: '입력을 시작한 뒤 제안에서 고릅니다. 보스 이름이나 내 계정 같은 것들입니다.' },
+        { term: '멤버', body: '서버에서 누군가를 고릅니다. @멘션과 같습니다.' },
+      ],
+      note: {
+        tag: '명령어는 클랜 서버에서만 작동합니다',
+        body: '모든 답변은 하나의 클랜에 관한 것인데, DM에는 답할 클랜이 없습니다. 그래서 명령어가 DM에는 나타나지 않습니다.',
+      },
+    },
+
+    bingo: {
+      title: '보드 명령어: /bingo',
+      intro:
+        '`/bingo`는 하나의 보드에 관한 명령어입니다. 여러 보드가 진행 중이면 **board**와 **leaderboard**는 전부를 나열하고, 나머지는 진행 중인 보드, 그다음 시작할 보드, 그다음 막 끝난 보드 순으로 골라 답합니다.',
+    },
+
+    clan: {
+      title: '클랜 명령어',
+      intro:
+        '이것들은 보드가 아니라 클랜에 대해 답하므로, 빙고가 진행 중이든 아니든 작동합니다: 주간 대회, 효율, 금고, 누구의 스탯이든, 그리고 설정 가이드.',
+    },
+
+    options: {
+      title: '어디서나 보게 될 옵션',
+      intro: '몇몇 옵션은 그것이 있는 모든 명령어에서 같은 뜻입니다:',
+      rows: [
+        {
+          term: '`member`',
+          body: '서버의 다른 사람. 빼면 나 자신에 대해 묻습니다. 그 사람이 사이트에서 쓴 Discord 로그인으로 Anvil 계정을 찾으므로, Anvil에 한 번이라도 로그인한 멤버에게만 작동합니다.',
+        },
+        {
+          term: '`account`',
+          body: '부계정이 있는 사람이라면, 그 사람의 어느 OSRS 계정인지. 입력해서 고르고, 빼면 본계정이 됩니다.',
+        },
+        {
+          term: '`page`',
+          body: '보스나 활동을 입력해서 검색: `Zulrah`, `Theatre of Blood`, `Tempoross`. 빼면 전체 보기입니다.',
+        },
+        {
+          term: '`language`',
+          body: '이번 한 번만 다른 언어로 답합니다. 기본적으로는 Discord에 설정된 언어, 또는 클랜이 고른 봇 언어로 받습니다.',
+        },
+        {
+          term: '`amount`',
+          body: '편한 방식으로 쓰는 gp: `5m`, `2.5b`, `500k`, 또는 `2,500,000` 같은 그냥 숫자.',
+        },
+      ],
+    },
+
+    who: {
+      title: '누가 무엇을 쓸 수 있나',
+      body: [
+        '서버의 누구나 모든 읽기 전용 명령어를 실행할 수 있습니다. 보이는 것은 멤버가 보는 것과 같습니다. 칸이 아직 공개되지 않은 보드는 스태프에게도 Discord에서 숨겨진 채로 남습니다.',
+        '**나**에 대해 답하는 명령어(`/bingo me`, member 없는 `/stats`)는 어느 Anvil 계정이 내 것인지 알아야 합니다. 사이트에서 쓴 Discord 로그인으로 찾으므로, Discord로 Anvil에 한 번 로그인하면 그 뒤로는 작동합니다.',
+      ],
+      rows: [
+        { term: '모두', body: '`/coffer add`와 `/coffer remove`를 제외한 모든 명령어.' },
+        {
+          term: '회계 담당, 관리자, 소유자',
+          body: '`/coffer add`와 `/coffer remove`. Discord 역할이 아니라 **Anvil 사이트에서의** 역할로 확인합니다. 채팅 서버의 직급이 클랜 돈을 다룰 권한을 뜻한 적은 한 번도 없기 때문입니다.',
+        },
+      ],
+    },
+
+    trouble: {
+      title: '명령어가 작동하지 않을 때',
+      intro: '흔한 원인들, 대략 일어나는 순서대로:',
+      rows: [
+        {
+          term: '목록에 Anvil 명령어가 없음',
+          body: '봇이 명령어 없이 초대되었습니다 — 그건 별개의 권한이고, 오래된 초대 링크는 한쪽만 요청했습니다. 관리자가 Admin → Integrations → Discord bot에서 초대 링크를 다시 엽니다. 봇이 쫓겨나거나 무언가 초기화되지는 않습니다. 새로 추가된 명령어는 나타나기까지 최대 한 시간이 걸릴 수 있습니다.',
+        },
+        {
+          term: '“The application did not respond”',
+          body: 'Anvil에 잠시 연결할 수 없었던 것으로, 보통 업데이트 중입니다. 몇 초 뒤에 다시 실행하세요.',
+        },
+        {
+          term: '나에 대해 「이 보드에 없음」이라고 나옴',
+          body: '이 보드에 참가하지 않았거나, Anvil이 내 Discord를 내 계정과 연결하지 못한 것입니다. 이 Discord 계정으로 사이트에 로그인하고 프로필을 확인하세요.',
+        },
+        {
+          term: '멤버의 스탯이 비어서 돌아옴',
+          body: '그 사람이 아직 Discord로 Anvil에 로그인하지 않았거나, 그 계정의 하이스코어를 아직 읽지 않았습니다. `account` 옵션으로 다시 해 보거나, 한 번 로그인해 달라고 부탁하세요.',
+        },
+        {
+          term: '`/coffer add`가 권한이 없다고 함',
+          body: 'Anvil 사이트에서의 역할이 회계 담당, 관리자, 소유자가 아니거나, 이 Discord가 사이트에 로그인하는 계정이 아닙니다.',
+        },
+      ],
+    },
+
+    labels: {
+      options: '옵션',
+      noOptions: '옵션 없음 — 그냥 실행하세요.',
+      example: '예시',
+      examples: '예시',
+      required: '필수',
+      optional: '선택',
+      choices: '선택지',
+      range: '{min}부터 {max}까지',
+      kinds: {
+        text: '텍스트',
+        number: '숫자',
+        member: '멤버',
+        choice: '목록에서 고르기',
+        search: '입력해서 검색',
+        yesno: '예 또는 아니요',
+      },
+    },
+
+    examples: {
+      'bingo board': {
+        examples: ['/bingo board'],
+        tip: '지금 진행 중인 보드. 보드가 공개되기 전까지는 여기서도 칸 이름이 숨겨집니다.',
+      },
+      'bingo leaderboard': {
+        examples: ['/bingo leaderboard'],
+        tip: '팀 순위. 보드의 채점 방식에 따라 점수나 칸 수로 표시됩니다.',
+      },
+      'bingo rules': {
+        examples: ['/bingo rules'],
+        tip: '이 보드의 채점 방식(이벤트 자체에서 읽어오므로 항상 정확합니다), 그리고 클랜의 자체 규칙.',
+      },
+      'bingo apply': {
+        examples: ['/bingo apply'],
+        tip: '참가하는 방법: 참가 신청, 참가비, 그리고 내 신청 상태.',
+      },
+      'bingo next': {
+        examples: ['/bingo next'],
+        tip: '다음에 올 것: 칸 공개, 미션, 또는 마감.',
+      },
+      'bingo me': {
+        examples: ['/bingo me'],
+        tip: '내 팀, 내 순위, 그리고 내 앞으로 인정된 칸.',
+      },
+      'bingo help': {
+        examples: ['/bingo help'],
+        tip: '봇이 답할 수 있는 것의 짧은 목록을 Discord 안에서.',
+      },
+      'bingo team': {
+        examples: ['/bingo team', '/bingo team name:Iron Wolves'],
+        tip: '팀 카드: 점수, 명단, 최근 칸. 이름을 빼면 내 팀입니다.',
+      },
+      sotw: {
+        examples: ['/sotw', '/sotw language:Deutsch'],
+        tip: '진행 중인 모든 Skill of the Week, 각각의 상위권, 그리고 내 순위.',
+      },
+      botw: {
+        examples: ['/botw'],
+        tip: '진행 중인 모든 Boss of the Week와 실시간 순위.',
+      },
+      eff: {
+        examples: ['/eff', '/eff metric:EHB'],
+        tip: '클랜 효율 순위표와 그 안에서의 내 순위. 기본은 EHP(efficient hours played)이고, 보스는 EHB를 고르세요.',
+      },
+      'coffer balance': {
+        examples: ['/coffer balance'],
+        tip: '금고 잔액, 기부 순위, 그리고 최근 움직임.',
+      },
+      'coffer add': {
+        examples: ['/coffer add amount:5m', '/coffer add amount:250k note:Raffle proceeds'],
+        tip: '회계 담당, 관리자, 소유자 전용. 들어온 gp를 기록하며, 금고 피드 채널에도 올라갑니다.',
+      },
+      'coffer remove': {
+        examples: ['/coffer remove amount:20m note:SOTW prize'],
+        tip: '회계 담당, 관리자, 소유자 전용. 금고를 0 아래로 내리는 것은 거부합니다. 정말 그럴 생각이라면 금고 페이지에서 기록하세요.',
+      },
+      'stats profile': {
+        examples: ['/stats profile', '/stats profile member:@Zezima'],
+        tip: '계정 하나를 한눈에: 전투 레벨과 총 레벨, EHP와 EHB, 컬렉션 로그 수, 개인 최고 기록.',
+      },
+      'stats levels': {
+        examples: ['/stats levels', '/stats levels account:My Iron'],
+        tip: '모든 스킬의 레벨과 XP.',
+      },
+      'stats efficiency': {
+        examples: ['/stats efficiency'],
+        tip: 'EHP와 EHB, 그리고 그것이 어느 스킬과 보스에서 나오는지.',
+      },
+      'stats clog': {
+        examples: ['/stats clog', '/stats clog page:Zulrah'],
+        tip: '컬렉션 로그 전체 진행도, 또는 보스 하나의 페이지.',
+      },
+      'stats pbs': {
+        examples: ['/stats pbs', '/stats pbs page:Theatre of Blood mode:Hard size:3'],
+        tip: '개인 최고 기록. 레이드는 모드와 팀 인원별로 기록이 따로 있으니, `mode`와 `size`로 원하는 기록을 찾으세요.',
+      },
+      'stats luck': {
+        examples: ['/stats luck', '/stats luck member:@Zezima'],
+        tip: 'Anvil이 추적하는 드롭 전반에서 그 계정이 얼마나 운이 좋았는지.',
+      },
+      'stats collectors': {
+        examples: ['/stats collectors'],
+        tip: '클랜에서 가장 큰 컬렉션 로그들.',
+      },
+      'stats luckboard': {
+        examples: ['/stats luckboard'],
+        tip: '클랜에서 드롭이 가장 안 뜬 멤버와 가장 운 좋은 멤버.',
+      },
+      guide: {
+        examples: ['/guide topic:Plugin setup', '/guide topic:Plugin setup step:5'],
+        tip: 'Discord 안의 설정 가이드: 단계 목록, 또는 사이트의 해당 단계로 바로 가는 링크가 달린 한 단계.',
+      },
     },
   },
 };

@@ -15,7 +15,7 @@ import { listCategories } from '@/lib/guideCategoryStore';
 // their own page doesn't have to read the treasurer's blurb first. The grouping lives here rather
 // than in the dictionary: which audience a guide belongs to isn't a translation decision.
 const GROUPS: { key: 'playing' | 'running' | 'clan'; pages: Exclude<GuidePage, ''>[] }[] = [
-  { key: 'playing', pages: ['plugin', 'captain'] },
+  { key: 'playing', pages: ['plugin', 'captain', 'commands'] },
   { key: 'running', pages: ['admin', 'formats', 'board', 'clan-vs-clan'] },
   // Starting a clan comes first here on purpose: it is the only guide whose reader does not have one
   // yet, and the rest of this group is written for someone already running it.
@@ -35,6 +35,7 @@ const CARD_KEY = {
   moderator: 'moderator',
   fees: 'fees',
   coffer: 'coffer',
+  commands: 'commands',
 } as const;
 
 export async function guideIndexMetadata(lang: string): Promise<Metadata> {

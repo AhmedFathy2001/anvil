@@ -123,6 +123,13 @@ const es: PartialGuideDict = {
           'Clan contra clan sin recoger ni un solo RSN a mano: un enlace de invitación por equipo, y un puesto para que su propio moderador lleve su mitad.',
         minutes: '~5 min por equipo',
       },
+      commands: {
+        eyebrow: 'Para todos los miembros',
+        title: 'Comandos slash',
+        blurb:
+          'Cada comando al que responde el bot en Discord, qué hace cada opción, ejemplos prácticos, y qué comprobar cuando alguno no aparece.',
+        minutes: '~6 min',
+      },
     },
   },
 
@@ -389,7 +396,7 @@ const es: PartialGuideDict = {
     commands: {
       title: 'Comandos slash',
       body: [
-        'El bot responde a `/bingo` en tu servidor: **board**, **rules**, **leaderboard**, **me** y **team**. Leen el evento en curso, así que nadie tiene que salir de Discord para ver cómo va.',
+        'El bot responde a `/bingo` en tu servidor (el tablero, la clasificación, las reglas, tu propio cartón) y a comandos del clan como `/sotw`, `/stats` y `/coffer`. Leen el sitio en directo, así que nadie tiene que salir de Discord para ver cómo va. [Cada comando y sus opciones]({commandsGuide}) tiene su propia página.',
         'Aparecen alrededor de un minuto después de que el bot entre. Si no aparecen nunca, la invitación concedió el bot pero no sus comandos — son dos permisos separados, y un enlace de invitación antiguo solo pedía uno. Vuelve a abrir el enlace desde la pestaña Bot de Discord; no expulsa al bot ni reinicia nada.',
       ],
       note: {
@@ -1826,10 +1833,15 @@ const es: PartialGuideDict = {
     inbound: {
       title: 'Meter oro',
       body: [
-        'Dos caminos, y solo se diferencian en quién los empieza. Un miembro declara su propia donación desde `/coffer` y esta espera a que el staff se la crea; un tesorero registra una que ya llegó, y el hecho de teclearla **es** la aprobación.',
+        'El plugin de RuneLite se encarga solo del caso normal: abre el Clan Coffer en el juego y Anvil registra los depósitos y las retiradas a partir de su saldo real de monedas. El primer vistazo es solo una referencia — nunca da por hecho que quien lo abrió donó todo lo que ya había dentro.',
+        'Los registros manuales siguen ahí para todo lo que pasó mientras nadie tenía el plugin abierto. Un miembro declara su propia donación desde `/coffer` y esta espera a que el staff se la crea; un tesorero registra una que ya llegó, y el hecho de teclearla **es** la aprobación.',
         'En ambos casos se acredita a una **persona**. Pesa más de lo que parece: la lista de mayores donantes de la página pública es el único agradecimiento que la mayoría recibirá, y el oro que llega como «el clan» no agradece a nadie.',
       ],
       rows: [
+        {
+          term: 'Abre la caja en el juego',
+          body: 'con Anvil activado y con la sesión iniciada (Profile sync → **Sync Clan Coffer** viene activado por defecto). Un mensaje del juego que coincida te acredita a ti tu propio depósito o retirada; los cambios que se ven tras un tiempo sin mirar se cuadran sin nombrar a quien los observó. Admin → Coffer muestra la última cantidad física y cuándo se vio.',
+        },
         {
           term: 'La declara un miembro',
           body: 'desde la página pública de la caja, con captura si la tiene. Llega como pendiente y aparece en tu cola. Aprobarla es lo que la convierte en dinero real.',
@@ -1908,6 +1920,236 @@ const es: PartialGuideDict = {
       note: {
         tag: 'Anvil no envía nada',
         body: 'Todo premio acaba con una persona entregando oro en el juego y marcando una línea. El trabajo del libro es asegurar que esa línea existe, que dice quién y cuánto, y que una semana después nadie tenga que reconstruirla del historial de Discord.',
+      },
+    },
+  },
+
+  commands: {
+    metaTitle: 'Comandos slash de Discord — Anvil',
+    metaDescription:
+      'Todos los comandos slash de Anvil — /bingo, /sotw, /botw, /eff, /coffer, /stats y /guide — con cada opción explicada, ejemplos, quién puede usar qué, y soluciones cuando los comandos no aparecen.',
+    eyebrow: 'Anvil · en Discord',
+    title: 'Comandos slash',
+    dek: 'Escribe `/` en el Discord de tu clan y Anvil responde desde el sitio en directo: el tablero, la clasificación, tu propio cartón, las semanales, la caja y las estadísticas de cualquiera. Esta página es la lista completa, generada a partir de los comandos que el bot registra de verdad, así que nunca está desactualizada.',
+    facts: [
+      { strong: 'Privado', rest: 'respuestas que solo ves tú, con un botón para compartir' },
+      { strong: 'Tu idioma', rest: 'el que tengas configurado en Discord' },
+      { strong: 'Solo lectura', rest: 'salvo /coffer add y remove' },
+    ],
+    footnote:
+      'Configurar el bot en primer lugar está en la [guía de Discord](/guide/discord). Esta página trata de cómo usarlo.',
+
+    using: {
+      title: 'Cómo funciona un comando',
+      body: [
+        'Escribe `/` en cualquier canal que el bot pueda ver y elige un comando de Anvil de la lista. Discord muestra entonces sus opciones como casillas para rellenar: pulsa Tab o haz clic en una para añadirla. Abajo, las opciones marcadas `<angle brackets>` (entre ángulos) son obligatorias; las marcadas `[square brackets]` (entre corchetes) son opcionales y puedes omitirlas.',
+        'Toda respuesta es **privada**: solo la ves tú, así que mirar el tablero diez veces al día no molesta a nadie. Si merece la pena enseñarlo al canal, pulsa **Share to channel** debajo de la respuesta. La copia compartida se genera en ese momento, así que una clasificación compartida más tarde es la clasificación tal como esté entonces.',
+      ],
+      rows: [
+        { term: 'Obligatoria', body: '`<amount>` — Discord no enviará el comando hasta que esté rellenada.' },
+        { term: 'Opcional', body: '`[member]` — si la omites, el comando responde sobre ti, tu equipo o todo el clan.' },
+        { term: 'Una lista', body: 'elige uno de los valores que ofrece Discord; no puedes escribir el tuyo.' },
+        { term: 'Escribe para buscar', body: 'empieza a escribir y elige entre las sugerencias, como nombres de jefes o tus propias cuentas.' },
+        { term: 'Un miembro', body: 'elige a alguien del servidor, igual que con una @mención.' },
+      ],
+      note: {
+        tag: 'Los comandos solo funcionan en el servidor de tu clan',
+        body: 'Cada respuesta trata de un clan, y un MD no tiene ningún clan sobre el que responder. Por eso los comandos no aparecen en los MD.',
+      },
+    },
+
+    bingo: {
+      title: 'Comandos del tablero: /bingo',
+      intro:
+        '`/bingo` trata de un solo tablero. Cuando hay varios tableros en marcha, **board** y **leaderboard** los listan todos; el resto responde sobre el tablero en curso, si no el próximo en empezar, y si no el que acaba de terminar.',
+    },
+
+    clan: {
+      title: 'Comandos del clan',
+      intro:
+        'Estos responden sobre el clan y no sobre un tablero, así que funcionan haya o no un bingo en marcha: las semanales, la eficiencia, la caja, las estadísticas de cualquiera y las guías de configuración.',
+    },
+
+    options: {
+      title: 'Opciones que verás por todas partes',
+      intro: 'Algunas opciones significan lo mismo en todos los comandos que las tienen:',
+      rows: [
+        {
+          term: '`member`',
+          body: 'otra persona del servidor. Omítela para preguntar por ti. Encuentra su cuenta de Anvil a través del inicio de sesión con Discord que usó en el sitio, así que solo funciona con miembros que hayan entrado en Anvil al menos una vez.',
+        },
+        {
+          term: '`account`',
+          body: 'cuál de las cuentas de OSRS de esa persona, para quien tenga alts. Escribe para elegir; omítela para su cuenta principal.',
+        },
+        {
+          term: '`page`',
+          body: 'un jefe o actividad, escribiendo para buscar: `Zulrah`, `Theatre of Blood`, `Tempoross`. Omítela para la vista general.',
+        },
+        {
+          term: '`language`',
+          body: 'responder esta vez en otro idioma. Por defecto recibes el idioma de tu Discord, o el idioma del bot que haya elegido el clan.',
+        },
+        {
+          term: '`amount`',
+          body: 'oro como se dice normalmente: `5m`, `2.5b`, `500k`, o un número sin más como `2,500,000`.',
+        },
+      ],
+    },
+
+    who: {
+      title: 'Quién puede usar qué',
+      body: [
+        'Cualquiera en el servidor puede usar todos los comandos de solo lectura. Lo que ves es lo que vería un miembro: un tablero cuyas casillas aún no se han revelado también sigue oculto en Discord, incluso para el staff.',
+        'Los comandos que responden sobre **ti** (`/bingo me`, `/stats` sin miembro) necesitan saber qué cuenta de Anvil es la tuya. La encuentran a través del inicio de sesión con Discord que usaste en el sitio, así que entra en Anvil con Discord una vez y a partir de ahí funcionan.',
+      ],
+      rows: [
+        { term: 'Todo el mundo', body: 'todos los comandos salvo `/coffer add` y `/coffer remove`.' },
+        {
+          term: 'Tesoreros, admins, propietarios',
+          body: '`/coffer add` y `/coffer remove`. Se comprueba con tu rol **en el sitio de Anvil**, nunca con tu rol de Discord, porque un rango en un servidor de chat nunca ha significado controlar el dinero del clan.',
+        },
+      ],
+    },
+
+    trouble: {
+      title: 'Cuando un comando no funciona',
+      intro: 'Las causas habituales, más o menos en el orden en que ocurren:',
+      rows: [
+        {
+          term: 'No hay comandos de Anvil en la lista',
+          body: 'el bot se invitó sin sus comandos — es un permiso aparte, y los enlaces de invitación antiguos solo pedían uno. Un admin vuelve a abrir el enlace de invitación desde Admin → Integrations → Discord bot. No expulsa al bot ni reinicia nada. Los comandos recién añadidos pueden tardar hasta una hora en aparecer.',
+        },
+        {
+          term: '«The application did not respond»',
+          body: 'Anvil no estuvo disponible un momento, normalmente en mitad de una actualización. Vuelve a lanzarlo unos segundos después.',
+        },
+        {
+          term: '«No estás en este tablero» sobre ti',
+          body: 'o no te has apuntado a este tablero, o Anvil no consigue enlazar tu Discord con tu cuenta. Inicia sesión en el sitio con esta cuenta de Discord y revisa tu perfil.',
+        },
+        {
+          term: 'Las estadísticas de un miembro salen vacías',
+          body: 'todavía no ha entrado en Anvil con Discord, o aún no se han leído los hiscores de su cuenta. Prueba otra vez con la opción `account`, o pídele que inicie sesión una vez.',
+        },
+        {
+          term: '`/coffer add` dice que no puedes',
+          body: 'tu rol en el sitio de Anvil no es tesorero, admin ni propietario, o este Discord no es la cuenta con la que inicias sesión en el sitio.',
+        },
+      ],
+    },
+
+    labels: {
+      options: 'Opciones',
+      noOptions: 'Sin opciones — simplemente ejecútalo.',
+      example: 'Ejemplo',
+      examples: 'Ejemplos',
+      required: 'obligatoria',
+      optional: 'opcional',
+      choices: 'Valores',
+      range: 'de {min} a {max}',
+      kinds: {
+        text: 'texto',
+        number: 'número',
+        member: 'un miembro',
+        choice: 'elegir de una lista',
+        search: 'escribe para buscar',
+        yesno: 'sí o no',
+      },
+    },
+
+    examples: {
+      'bingo board': {
+        examples: ['/bingo board'],
+        tip: 'El tablero que está en marcha ahora mismo. Hasta que se revele, los nombres de las casillas también siguen ocultos aquí.',
+      },
+      'bingo leaderboard': {
+        examples: ['/bingo leaderboard'],
+        tip: 'La clasificación de equipos, por puntos o por casillas según cómo puntúe el tablero.',
+      },
+      'bingo rules': {
+        examples: ['/bingo rules'],
+        tip: 'Cómo puntúa este tablero (leído del propio evento, así que siempre es correcto), y luego las normas de la casa de tu clan.',
+      },
+      'bingo apply': {
+        examples: ['/bingo apply'],
+        tip: 'Cómo entrar: las inscripciones, la cuota, y cómo va tu propia inscripción.',
+      },
+      'bingo next': {
+        examples: ['/bingo next'],
+        tip: 'Lo que viene ahora: una revelación de casillas, una misión o una fecha límite.',
+      },
+      'bingo me': {
+        examples: ['/bingo me'],
+        tip: 'Tu equipo, tu puesto y las casillas que se te han acreditado.',
+      },
+      'bingo help': {
+        examples: ['/bingo help'],
+        tip: 'Una lista breve de lo que responde el bot, dentro de Discord.',
+      },
+      'bingo team': {
+        examples: ['/bingo team', '/bingo team name:Iron Wolves'],
+        tip: 'La ficha de un equipo: puntuación, plantilla y casillas recientes. Omite el nombre para ver tu propio equipo.',
+      },
+      sotw: {
+        examples: ['/sotw', '/sotw language:Deutsch'],
+        tip: 'Cada Skill of the Week activo, los primeros de cada uno y en qué puesto vas tú.',
+      },
+      botw: {
+        examples: ['/botw'],
+        tip: 'Cada Boss of the Week activo y su clasificación en directo.',
+      },
+      eff: {
+        examples: ['/eff', '/eff metric:EHB'],
+        tip: 'La clasificación de eficiencia del clan y tu puesto en ella. EHP (efficient hours played) por defecto; elige EHB para jefes.',
+      },
+      'coffer balance': {
+        examples: ['/coffer balance'],
+        tip: 'El saldo de la caja, los mayores donantes y los últimos movimientos.',
+      },
+      'coffer add': {
+        examples: ['/coffer add amount:5m', '/coffer add amount:250k note:Raffle proceeds'],
+        tip: 'Solo tesoreros, admins y propietarios. Registra oro que entra; también se publica en el canal del feed de la caja.',
+      },
+      'coffer remove': {
+        examples: ['/coffer remove amount:20m note:SOTW prize'],
+        tip: 'Solo tesoreros, admins y propietarios. Se niega a dejar la caja por debajo de cero; regístralo en la página de la caja si de verdad es lo que quieres.',
+      },
+      'stats profile': {
+        examples: ['/stats profile', '/stats profile member:@Zezima'],
+        tip: 'Una cuenta de un vistazo: nivel de combate y total, EHP y EHB, número de entradas del collection log y récords personales.',
+      },
+      'stats levels': {
+        examples: ['/stats levels', '/stats levels account:My Iron'],
+        tip: 'El nivel y la XP de cada habilidad.',
+      },
+      'stats efficiency': {
+        examples: ['/stats efficiency'],
+        tip: 'EHP y EHB, y de qué habilidades y jefes salen.',
+      },
+      'stats clog': {
+        examples: ['/stats clog', '/stats clog page:Zulrah'],
+        tip: 'El progreso del collection log en general, o la página de un jefe.',
+      },
+      'stats pbs': {
+        examples: ['/stats pbs', '/stats pbs page:Theatre of Blood mode:Hard size:3'],
+        tip: 'Récords personales. Las raids guardan un tiempo por modo y tamaño de equipo, así que usa `mode` y `size` para encontrar la run que buscas.',
+      },
+      'stats luck': {
+        examples: ['/stats luck', '/stats luck member:@Zezima'],
+        tip: 'Cuánta suerte ha tenido la cuenta con los drops que sigue Anvil.',
+      },
+      'stats collectors': {
+        examples: ['/stats collectors'],
+        tip: 'Los collection logs más grandes del clan.',
+      },
+      'stats luckboard': {
+        examples: ['/stats luckboard'],
+        tip: 'Los miembros del clan más secos y los que más suerte tienen.',
+      },
+      guide: {
+        examples: ['/guide topic:Plugin setup', '/guide topic:Plugin setup step:5'],
+        tip: 'Una guía de configuración dentro de Discord: la lista de pasos, o un solo paso con un enlace directo a él en el sitio.',
       },
     },
   },

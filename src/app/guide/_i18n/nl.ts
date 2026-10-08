@@ -123,6 +123,13 @@ const nl: PartialGuideDict = {
           'Clan tegen clan zonder ook maar één RSN met de hand te verzamelen: één uitnodigingslink per team, en een plek waarmee hun eigen moderator hun helft runt.',
         minutes: '~5 min per team',
       },
+      commands: {
+        eyebrow: 'Voor elk lid',
+        title: 'Slash-commando’s',
+        blurb:
+          'Elk commando waarop de bot in Discord antwoordt, wat elke optie doet, uitgewerkte voorbeelden, en wat je controleert als er een niet verschijnt.',
+        minutes: '~6 min',
+      },
     },
   },
 
@@ -389,7 +396,7 @@ const nl: PartialGuideDict = {
     commands: {
       title: 'Slash-commando’s',
       body: [
-        'De bot beantwoordt `/bingo` in je server: **board**, **rules**, **leaderboard**, **me** en **team**. Ze lezen het lopende event, dus niemand hoeft Discord te verlaten om te zien hoe hij ervoor staat.',
+        'De bot beantwoordt `/bingo` in je server (het bord, de stand, de regels, je eigen kaart) plus clancommando’s zoals `/sotw`, `/stats` en `/coffer`. Ze lezen de live site, dus niemand hoeft Discord te verlaten om te zien hoe hij ervoor staat. [Elk commando en zijn opties]({commandsGuide}) heeft een eigen pagina.',
         'Ze verschijnen ongeveer een minuut nadat de bot binnenkomt. Verschijnen ze helemaal niet, dan gaf de uitnodiging de bot wel maar zijn commando’s niet — dat zijn twee losse permissies, en een oudere uitnodigingslink vroeg er maar één. Open de link opnieuw op het tabblad Discord-bot; dat schopt de bot er niet uit en zet niets terug.',
       ],
       note: {
@@ -1826,10 +1833,15 @@ const nl: PartialGuideDict = {
     inbound: {
       title: 'Gp binnenkrijgen',
       body: [
-        'Twee routes, en ze verschillen alleen in wie ze begint. Een lid meldt zijn eigen donatie via `/coffer` en die wacht tot de staf hem gelooft; een penningmeester legt er een vast die al binnen is, en dat hij hem intikt **is** de goedkeuring.',
+        'De RuneLite-plugin regelt de gewone route automatisch: open de Clan Coffer in het spel en Anvil legt stortingen en opnames vast aan de hand van het echte muntensaldo. De eerste blik is alleen een nulmeting — hij doet nooit alsof degene die hem opende alles gedoneerd heeft wat er al in zat.',
+        'Handmatige vastleggingen blijven voor alles wat gebeurde terwijl niemand de plugin open had. Een lid meldt zijn eigen donatie via `/coffer` en die wacht tot de staf hem gelooft; een penningmeester legt er een vast die al binnen is, en dat hij hem intikt **is** de goedkeuring.',
         'Hoe dan ook wordt hij aan een **persoon** toegeschreven. Dat weegt zwaarder dan het klinkt: de lijst met grootste gevers op de publieke pagina is het enige bedankje dat de meeste gevers ooit krijgen, en gp dat binnenkomt als "de clan" bedankt niemand.',
       ],
       rows: [
+        {
+          term: 'Open de kas in het spel',
+          body: 'met Anvil ingeschakeld en ingelogd (Profile sync → **Sync Clan Coffer** staat standaard aan). Een bijpassend spelbericht schrijft je eigen storting of opname aan jou toe; veranderingen die pas na een onderbreking gezien worden, worden verrekend zonder de waarnemer te noemen. Admin → Coffer toont het laatst geziene fysieke bedrag en wanneer dat gezien is.',
+        },
         {
           term: 'Een lid meldt er een',
           body: 'via de publieke kaspagina, met een schermafbeelding als die er is. Hij komt binnen als wachtend en verschijnt in je wachtrij. Goedkeuren is wat er echt geld van maakt.',
@@ -2042,6 +2054,236 @@ const nl: PartialGuideDict = {
           body: 'dat doe je vrijwel zeker. Geef alles wat je eigen team betreft door aan een andere moderator — niet omdat je oneerlijk zou zijn, maar omdat je niet zou moeten hoeven bewijzen dat je dat niet was.',
         },
       ],
+    },
+  },
+
+  commands: {
+    metaTitle: 'Discord-slash-commando’s — Anvil',
+    metaDescription:
+      'Elk slash-commando van Anvil — /bingo, /sotw, /botw, /eff, /coffer, /stats en /guide — met elke optie uitgelegd, voorbeelden, wie wat mag gebruiken, en oplossingen voor commando’s die niet verschijnen.',
+    eyebrow: 'Anvil · in Discord',
+    title: 'Slash-commando’s',
+    dek: 'Typ `/` in de Discord van je clan en Anvil antwoordt vanaf de live site: het bord, de stand, je eigen kaart, de weekcompetities, de kas en de stats van wie dan ook. Deze pagina is de volledige lijst, gegenereerd uit de commando’s die de bot echt registreert, dus hij is nooit verouderd.',
+    facts: [
+      { strong: 'Privé', rest: 'antwoorden die alleen jij ziet, met een Share-knop' },
+      { strong: 'Jouw taal', rest: 'waar je Discord ook op ingesteld staat' },
+      { strong: 'Alleen lezen', rest: 'behalve /coffer add en remove' },
+    ],
+    footnote:
+      'Hoe je de bot überhaupt opzet, staat in de [Discord-handleiding](/guide/discord). Deze pagina gaat over het gebruik ervan.',
+
+    using: {
+      title: 'Zo werkt een commando',
+      body: [
+        'Typ `/` in een kanaal dat de bot kan zien en kies een Anvil-commando uit de lijst. Discord toont dan de opties als vakken om in te vullen: druk op Tab of klik er een aan om hem toe te voegen. Opties tussen punthaken, `<angle brackets>`, zijn hieronder verplicht; opties tussen vierkante haken, `[square brackets]`, zijn optioneel en mag je weglaten.',
+        'Elk antwoord is **privé**: alleen jij ziet het, dus tien keer per dag het bord checken stoort niemand. Is het de moeite waard om aan het kanaal te laten zien, druk dan op **Share to channel** onder het antwoord. De gedeelde kopie wordt op dat moment opnieuw opgebouwd, dus een stand die je later deelt is de stand van dat moment.',
+      ],
+      rows: [
+        { term: 'Verplicht', body: '`<amount>` — Discord verstuurt het commando pas als dit is ingevuld.' },
+        { term: 'Optioneel', body: '`[member]` — laat het weg en het commando antwoordt over jou, je team of de hele clan.' },
+        { term: 'Een lijst', body: 'kies een van de waarden die Discord aanbiedt; zelf iets typen kan niet.' },
+        { term: 'Typen om te zoeken', body: 'begin te typen en kies uit de suggesties, zoals bossnamen of je eigen accounts.' },
+        { term: 'Een lid', body: 'kies iemand uit de server, net als bij een @mention.' },
+      ],
+      note: {
+        tag: 'Commando’s werken alleen in de server van je clan',
+        body: 'Elk antwoord gaat over één clan, en een DM heeft geen clan om over te antwoorden. Daarom verschijnen de commando’s niet in DM’s.',
+      },
+    },
+
+    bingo: {
+      title: 'Bordcommando’s: /bingo',
+      intro:
+        '`/bingo` gaat over één bord. Als er meerdere borden live zijn, tonen **board** en **leaderboard** ze allemaal; de rest antwoordt over het bord dat nu loopt, anders het volgende dat start, anders het bord dat net is afgelopen.',
+    },
+
+    clan: {
+      title: 'Clancommando’s',
+      intro:
+        'Deze antwoorden over de clan in plaats van over een bord, dus ze werken of er nu een bingo loopt of niet: de weekcompetities, efficiëntie, de kas, de stats van wie dan ook, en de installatiehandleidingen.',
+    },
+
+    options: {
+      title: 'Opties die je overal tegenkomt',
+      intro: 'Een paar opties betekenen hetzelfde bij elk commando dat ze heeft:',
+      rows: [
+        {
+          term: '`member`',
+          body: 'iemand anders in de server. Laat het weg om naar jezelf te vragen. Het vindt hun Anvil-account via de Discord-login die ze op de site gebruikten, dus het werkt alleen voor leden die één keer bij Anvil zijn ingelogd.',
+        },
+        {
+          term: '`account`',
+          body: 'welk van de OSRS-accounts van die persoon, voor mensen met alts. Typ om te kiezen; laat het weg voor hun main.',
+        },
+        {
+          term: '`page`',
+          body: 'een boss of activiteit, getypt om te zoeken: `Zulrah`, `Theatre of Blood`, `Tempoross`. Laat het weg voor het totaaloverzicht.',
+        },
+        {
+          term: '`language`',
+          body: 'antwoord deze ene keer in een andere taal. Standaard krijg je de taal waarop je Discord staat, of de bottaal die de clan gekozen heeft.',
+        },
+        {
+          term: '`amount`',
+          body: 'gp op de makkelijke manier: `5m`, `2.5b`, `500k`, of een gewoon getal zoals `2,500,000`.',
+        },
+      ],
+    },
+
+    who: {
+      title: 'Wie wat mag gebruiken',
+      body: [
+        'Iedereen in de server kan elk alleen-lezen-commando gebruiken. Wat je ziet is wat een lid zou zien: een bord waarvan de vakjes nog niet onthuld zijn, blijft ook in Discord verborgen, zelfs voor de staf.',
+        'Commando’s die over **jou** antwoorden (`/bingo me`, `/stats` zonder member) moeten weten welk Anvil-account van jou is. Ze vinden het via de Discord-login die je op de site gebruikte, dus log één keer met Discord in bij Anvil en vanaf dan werken ze.',
+      ],
+      rows: [
+        { term: 'Iedereen', body: 'elk commando behalve `/coffer add` en `/coffer remove`.' },
+        {
+          term: 'Penningmeesters, admins, eigenaren',
+          body: '`/coffer add` en `/coffer remove`. Gecontroleerd aan de hand van je rol **op de Anvil-site**, nooit je Discord-rol, want een rang in een chatserver heeft nog nooit zeggenschap over het geld van de clan betekend.',
+        },
+      ],
+    },
+
+    trouble: {
+      title: 'Als een commando niet werkt',
+      intro: 'De gebruikelijke oorzaken, ongeveer in de volgorde waarin ze voorkomen:',
+      rows: [
+        {
+          term: 'Geen Anvil-commando’s in de lijst',
+          body: 'de bot is uitgenodigd zonder zijn commando’s — dat is een losse permissie, en oudere uitnodigingslinks vroegen er maar één. Een admin opent de uitnodigingslink opnieuw via Admin → Integrations → Discord bot. Dat schopt de bot er niet uit en zet niets terug. Nieuw toegevoegde commando’s kunnen tot een uur nodig hebben om te verschijnen.',
+        },
+        {
+          term: '"The application did not respond"',
+          body: 'Anvil was even onbereikbaar, meestal midden in een update. Probeer het een paar seconden later opnieuw.',
+        },
+        {
+          term: '"Niet op dit bord" over jezelf',
+          body: 'je hebt je niet voor dit bord ingeschreven, of Anvil kan je Discord niet aan je account koppelen. Log op de site in met dit Discord-account en controleer je profiel.',
+        },
+        {
+          term: 'De stats van een lid komen leeg terug',
+          body: 'die persoon is nog niet met Discord bij Anvil ingelogd, of de hiscores van het account zijn nog niet gelezen. Probeer het opnieuw met de optie `account`, of vraag diegene één keer in te loggen.',
+        },
+        {
+          term: '`/coffer add` zegt dat het niet mag',
+          body: 'je rol op de Anvil-site is niet penningmeester, admin of eigenaar, of deze Discord is niet het account waarmee je op de site inlogt.',
+        },
+      ],
+    },
+
+    labels: {
+      options: 'Opties',
+      noOptions: 'Geen opties — gewoon uitvoeren.',
+      example: 'Voorbeeld',
+      examples: 'Voorbeelden',
+      required: 'verplicht',
+      optional: 'optioneel',
+      choices: 'Keuzes',
+      range: 'van {min} tot {max}',
+      kinds: {
+        text: 'tekst',
+        number: 'getal',
+        member: 'een lid',
+        choice: 'kies uit een lijst',
+        search: 'typ om te zoeken',
+        yesno: 'ja of nee',
+      },
+    },
+
+    examples: {
+      'bingo board': {
+        examples: ['/bingo board'],
+        tip: 'Het bord dat nu loopt. Tot het bord onthuld is, blijven de namen van de vakjes ook hier verborgen.',
+      },
+      'bingo leaderboard': {
+        examples: ['/bingo leaderboard'],
+        tip: 'De teamstand, in punten of vakjes, afhankelijk van hoe het bord telt.',
+      },
+      'bingo rules': {
+        examples: ['/bingo rules'],
+        tip: 'Hoe dit bord telt (rechtstreeks uit het event gelezen, dus altijd juist), en daarna de huisregels van je clan.',
+      },
+      'bingo apply': {
+        examples: ['/bingo apply'],
+        tip: 'Hoe je erin komt: inschrijvingen, het inschrijfgeld, en hoe het met je eigen inschrijving staat.',
+      },
+      'bingo next': {
+        examples: ['/bingo next'],
+        tip: 'Wat er hierna komt: een onthulling van vakjes, een missie of een deadline.',
+      },
+      'bingo me': {
+        examples: ['/bingo me'],
+        tip: 'Je team, je plek en de vakjes die aan jou zijn toegeschreven.',
+      },
+      'bingo help': {
+        examples: ['/bingo help'],
+        tip: 'Een korte lijst van waar de bot op antwoordt, gewoon in Discord.',
+      },
+      'bingo team': {
+        examples: ['/bingo team', '/bingo team name:Iron Wolves'],
+        tip: 'De kaart van een team: score, opstelling en recente vakjes. Laat de naam weg voor je eigen team.',
+      },
+      sotw: {
+        examples: ['/sotw', '/sotw language:Deutsch'],
+        tip: 'Elke actieve Skill of the Week, de top van elk, en waar jij staat.',
+      },
+      botw: {
+        examples: ['/botw'],
+        tip: 'Elke actieve Boss of the Week en de live stand ervan.',
+      },
+      eff: {
+        examples: ['/eff', '/eff metric:EHB'],
+        tip: 'De efficiëntieranglijst van de clan en jouw plek erin. Standaard EHP (efficient hours played); kies EHB voor bossen.',
+      },
+      'coffer balance': {
+        examples: ['/coffer balance'],
+        tip: 'Het saldo van de kas, de grootste gevers en de recente bewegingen.',
+      },
+      'coffer add': {
+        examples: ['/coffer add amount:5m', '/coffer add amount:250k note:Raffle proceeds'],
+        tip: 'Alleen voor penningmeesters, admins en eigenaren. Legt binnenkomend gp vast; het wordt ook in het kasfeedkanaal gepost.',
+      },
+      'coffer remove': {
+        examples: ['/coffer remove amount:20m note:SOTW prize'],
+        tip: 'Alleen voor penningmeesters, admins en eigenaren. Weigert de kas onder nul te brengen; leg dat vast op de kaspagina als je het echt meent.',
+      },
+      'stats profile': {
+        examples: ['/stats profile', '/stats profile member:@Zezima'],
+        tip: 'Eén account in één oogopslag: combat- en totaallevel, EHP en EHB, aantal in het collection log en persoonlijke records.',
+      },
+      'stats levels': {
+        examples: ['/stats levels', '/stats levels account:My Iron'],
+        tip: 'Het level en de XP van elke skill.',
+      },
+      'stats efficiency': {
+        examples: ['/stats efficiency'],
+        tip: 'EHP en EHB, en uit welke skills en bosses ze komen.',
+      },
+      'stats clog': {
+        examples: ['/stats clog', '/stats clog page:Zulrah'],
+        tip: 'Voortgang in het collection log in totaal, of de pagina van één boss.',
+      },
+      'stats pbs': {
+        examples: ['/stats pbs', '/stats pbs page:Theatre of Blood mode:Hard size:3'],
+        tip: 'Persoonlijke records. Raids houden een tijd bij per modus en teamgrootte, dus gebruik `mode` en `size` om de run te vinden die je bedoelt.',
+      },
+      'stats luck': {
+        examples: ['/stats luck', '/stats luck member:@Zezima'],
+        tip: 'Hoeveel geluk het account heeft gehad met de drops die Anvil bijhoudt.',
+      },
+      'stats collectors': {
+        examples: ['/stats collectors'],
+        tip: 'De grootste collection logs van de clan.',
+      },
+      'stats luckboard': {
+        examples: ['/stats luckboard'],
+        tip: 'De droogste en gelukkigste leden van de clan.',
+      },
+      guide: {
+        examples: ['/guide topic:Plugin setup', '/guide topic:Plugin setup step:5'],
+        tip: 'Een installatiehandleiding binnen Discord: de lijst met stappen, of één stap met een link er rechtstreeks naartoe op de site.',
+      },
     },
   },
 };

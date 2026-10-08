@@ -26,6 +26,7 @@ const CARD_KEY = {
   moderator: 'moderator',
   fees: 'fees',
   coffer: 'coffer',
+  commands: 'commands',
 } as const;
 
 const ITEMS = (Object.keys(SEARCH_TERMS) as (keyof typeof SEARCH_TERMS)[]).map((page) => {

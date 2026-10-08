@@ -35,6 +35,8 @@ export const GUIDE_OUTLINES: Record<string, GuideOutline> = {
   admin: { ns: 'admin', page: 'admin', sections: ['access', 'setup', 'channels', 'roster', 'board', 'tiles', 'teams', 'launch', 'after'] },
   moderator: { ns: 'moderator', page: 'moderator', sections: ['what', 'queue', 'submissions', 'verify', 'roster', 'startshot', 'judgement'] },
   clanvsclan: { ns: 'clanVsClan', page: 'clan-vs-clan', sections: ['shape', 'team', 'staff', 'link', 'captains', 'player', 'dead'] },
+  // Mirrors COMMANDS_SECTIONS in _pages/CommandsGuide.
+  commands: { ns: 'commands', page: 'commands', sections: ['using', 'bingo', 'clan', 'options', 'who', 'trouble'] },
 };
 
 export const GUIDE_TOPICS = Object.keys(GUIDE_OUTLINES);

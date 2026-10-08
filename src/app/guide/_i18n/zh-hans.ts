@@ -121,6 +121,13 @@ const zhHans: PartialGuideDict = {
           '氏族对抗赛，不用手工收集一个 RSN：每队一条邀请链接，再加一个让对方自己的管理员打理他们那一半的席位。',
         minutes: '每队约 5 分钟',
       },
+      commands: {
+        eyebrow: '面向每一位成员',
+        title: '斜杠命令',
+        blurb:
+          '机器人在 Discord 里响应的每一条命令、每个选项的作用、实际示例，以及某条命令不出现时该检查什么。',
+        minutes: '约 6 分钟',
+      },
     },
   },
 
@@ -387,7 +394,7 @@ const zhHans: PartialGuideDict = {
     commands: {
       title: '斜杠命令',
       body: [
-        '机器人在你的服务器里响应 `/bingo`：**board**、**rules**、**leaderboard**、**me** 和 **team**。它们读取正在进行的活动，所以没人需要离开 Discord 就能看到自己的位置。',
+        '机器人在你的服务器里响应 `/bingo`（棋盘、排名、规则、你自己的卡片），以及 `/sotw`、`/stats`、`/coffer` 等氏族命令。它们读取网站上的实时数据，所以没人需要离开 Discord 就能看到自己的位置。[每条命令及其选项]({commandsGuide})都有专门的页面。',
         '机器人加入后大约一分钟它们才会出现。如果始终不出现，说明那次邀请授予了机器人却没有授予它的命令——这是两项独立权限，而较早的邀请链接只申请了其中一项。从 Discord 机器人标签页重新打开邀请链接即可；这不会踢出机器人，也不会重置任何东西。',
       ],
       note: {
@@ -1824,10 +1831,15 @@ const zhHans: PartialGuideDict = {
     inbound: {
       title: '让金币进来',
       body: [
-        '两条路，区别只在于由谁发起。成员在 `/coffer` 自己上报捐款，等管理层相信它；财务登记一笔已经到账的，而他登记这个动作**本身**就是批准。',
+        '日常的那条路由 RuneLite 插件自动处理：在游戏里打开 Clan Coffer，Anvil 就会根据它真实的金币余额记录存入和取出。第一次看到的数额只是基准 — 它从不假装打开的人捐出了里面原有的全部金币。',
+        '手动登记留给没人开着插件时发生的事。成员在 `/coffer` 自己上报捐款，等管理层相信它；财务登记一笔已经到账的，而他登记这个动作**本身**就是批准。',
         '无论哪条路，都要记到某个**人**头上。这比听起来重要：公开页上的捐款榜，是多数捐款人唯一会得到的谢意，而以「氏族」名义进来的金币不感谢任何人。',
       ],
       rows: [
+        {
+          term: '在游戏里打开金库',
+          body: '启用 Anvil 并登录（Profile sync → **Sync Clan Coffer** 默认开启）。出现对应的游戏消息时，你自己的存入或取出会记在你名下；隔了一段时间才看到的变化会被对账补齐，但不会记在看到它的人名下。Admin → Coffer 会显示最后一次看到的实际金额及其时间。',
+        },
         {
           term: '成员自己上报',
           body: '在公开的金库页面提交，有截图更好。它以待处理状态落地并出现在你的队列里。批准，才让它变成真钱。',
@@ -2040,6 +2052,236 @@ const zhHans: PartialGuideDict = {
           body: '你几乎肯定是。把任何牵涉到自己队伍的事交给另一位管理员 —— 不是因为你会不公正，而是因为你本就不该被迫去证明自己没有。',
         },
       ],
+    },
+  },
+
+  commands: {
+    metaTitle: 'Discord 斜杠命令 — Anvil',
+    metaDescription:
+      'Anvil 的全部斜杠命令 — /bingo、/sotw、/botw、/eff、/coffer、/stats 和 /guide — 逐一说明每个选项，附示例、谁能用什么，以及命令不出现时的解决办法。',
+    eyebrow: 'Anvil · 在 Discord 里',
+    title: '斜杠命令',
+    dek: '在你氏族的 Discord 里输入 `/`，Anvil 就会用网站的实时数据回答：棋盘、排名、你自己的卡片、周赛、金库，以及任何人的数据。本页是完整列表，直接由机器人实际注册的命令生成，所以永远不会过时。',
+    facts: [
+      { strong: '私密', rest: '只有你能看到的回复，附带分享按钮' },
+      { strong: '你的语言', rest: '跟随你的 Discord 语言设置' },
+      { strong: '只读', rest: '/coffer add 和 remove 除外' },
+    ],
+    footnote:
+      '机器人的初次设置见 [Discord 指南](/guide/discord)。本页讲的是怎么用它。',
+
+    using: {
+      title: '命令怎么用',
+      body: [
+        '在机器人能看到的任意频道输入 `/`，从列表中选一条 Anvil 命令。Discord 随后会把它的选项显示成一个个待填的框：按 Tab 或点击即可添加。下文中写在 `<angle brackets>`（尖括号）里的选项是必填的；写在 `[square brackets]`（方括号）里的选项是可选的，可以不填。',
+        '每条回复都是**私密**的：只有你能看到，所以一天看十次棋盘也不会打扰任何人。如果值得让频道看看，就按回复下方的 **Share to channel**。分享出去的那份会在那一刻重新生成，所以晚些分享的排名就是那时的排名。',
+      ],
+      rows: [
+        { term: '必填', body: '`<amount>` — 不填好，Discord 就不会发送这条命令。' },
+        { term: '可选', body: '`[member]` — 不填的话，命令会回答关于你、你的队伍或整个氏族的情况。' },
+        { term: '列表', body: '从 Discord 给出的值里选一个；不能自己输入。' },
+        { term: '输入搜索', body: '开始输入，再从建议里选，比如首领名字或你自己的账号。' },
+        { term: '成员', body: '从服务器里选一个人，和 @提及 一样。' },
+      ],
+      note: {
+        tag: '命令只在你氏族的服务器里有效',
+        body: '每条回复都是关于某一个氏族的，而私信里没有可以回答的氏族。所以私信里不会出现这些命令。',
+      },
+    },
+
+    bingo: {
+      title: '棋盘命令：/bingo',
+      intro:
+        '`/bingo` 针对的是一块棋盘。同时有多块棋盘进行时，**board** 和 **leaderboard** 会把它们全部列出；其余命令则依次针对正在进行的棋盘、下一块要开始的棋盘、刚刚结束的棋盘。',
+    },
+
+    clan: {
+      title: '氏族命令',
+      intro:
+        '这些命令回答的是氏族而不是某块棋盘，所以不管有没有宾果在进行都能用：周赛、效率、金库、任何人的数据，以及设置指南。',
+    },
+
+    options: {
+      title: '到处都会见到的选项',
+      intro: '有几个选项，在任何带有它们的命令里意思都一样：',
+      rows: [
+        {
+          term: '`member`',
+          body: '服务器里的另一个人。不填就是问你自己。它通过对方在网站上使用的 Discord 登录找到其 Anvil 账号，所以只对至少登录过一次 Anvil 的成员有效。',
+        },
+        {
+          term: '`account`',
+          body: '对方的哪个 OSRS 账号，给有小号的人用。输入后选择；不填就是主号。',
+        },
+        {
+          term: '`page`',
+          body: '一个首领或活动，输入搜索：`Zulrah`、`Theatre of Blood`、`Tempoross`。不填则显示总览。',
+        },
+        {
+          term: '`language`',
+          body: '仅这一次用另一种语言回答。默认是你 Discord 所设的语言，或氏族选定的机器人语言。',
+        },
+        {
+          term: '`amount`',
+          body: '用顺手的方式写金币：`5m`、`2.5b`、`500k`，或者像 `2,500,000` 这样的普通数字。',
+        },
+      ],
+    },
+
+    who: {
+      title: '谁能用什么',
+      body: [
+        '服务器里的任何人都能运行所有只读命令。你看到的就是成员会看到的：格子尚未揭晓的棋盘，在 Discord 里也照样隐藏，管理层也不例外。',
+        '回答关于**你**的命令（`/bingo me`、不带 member 的 `/stats`）需要知道哪个 Anvil 账号是你的。它们通过你在网站上使用的 Discord 登录来找，所以用 Discord 登录一次 Anvil，之后就都能用了。',
+      ],
+      rows: [
+        { term: '所有人', body: '除 `/coffer add` 和 `/coffer remove` 之外的所有命令。' },
+        {
+          term: '财务、管理员、所有者',
+          body: '`/coffer add` 和 `/coffer remove`。核对的是你**在 Anvil 网站上**的角色，而不是 Discord 身份组，因为聊天服务器里的头衔从来不代表能动氏族的钱。',
+        },
+      ],
+    },
+
+    trouble: {
+      title: '命令不起作用时',
+      intro: '常见原因，大致按发生的先后排列：',
+      rows: [
+        {
+          term: '列表里没有 Anvil 命令',
+          body: '机器人被邀请时没带上它的命令 — 这是一项单独的权限，较早的邀请链接只申请了其中一项。由管理员在 Admin → Integrations → Discord bot 重新打开邀请链接。这不会踢出机器人，也不会重置任何东西。新加入的命令最多可能要一小时才会出现。',
+        },
+        {
+          term: '“The application did not respond”',
+          body: 'Anvil 暂时连不上，通常是在更新。几秒后再运行一次。',
+        },
+        {
+          term: '关于自己显示「不在这块棋盘上」',
+          body: '要么你没有参加这块棋盘，要么 Anvil 无法把你的 Discord 对应到你的账号。用这个 Discord 账号登录网站，并检查你的个人资料。',
+        },
+        {
+          term: '某位成员的数据是空的',
+          body: '对方还没用 Discord 登录过 Anvil，或者其账号的排行榜数据还没读取。加上 `account` 选项再试一次，或请对方登录一次。',
+        },
+        {
+          term: '`/coffer add` 说你没权限',
+          body: '你在 Anvil 网站上的角色不是财务、管理员或所有者，或者这个 Discord 不是你登录网站用的那个账号。',
+        },
+      ],
+    },
+
+    labels: {
+      options: '选项',
+      noOptions: '没有选项 — 直接运行即可。',
+      example: '示例',
+      examples: '示例',
+      required: '必填',
+      optional: '可选',
+      choices: '可选值',
+      range: '从 {min} 到 {max}',
+      kinds: {
+        text: '文本',
+        number: '数字',
+        member: '成员',
+        choice: '从列表中选',
+        search: '输入搜索',
+        yesno: '是或否',
+      },
+    },
+
+    examples: {
+      'bingo board': {
+        examples: ['/bingo board'],
+        tip: '当前正在进行的棋盘。棋盘揭晓之前，这里的格子名称同样保持隐藏。',
+      },
+      'bingo leaderboard': {
+        examples: ['/bingo leaderboard'],
+        tip: '队伍排名，按棋盘的计分方式显示积分或格子数。',
+      },
+      'bingo rules': {
+        examples: ['/bingo rules'],
+        tip: '这块棋盘如何计分（直接读取活动本身，所以总是准确的），然后是你们氏族自己的规矩。',
+      },
+      'bingo apply': {
+        examples: ['/bingo apply'],
+        tip: '怎么参加：报名、报名费，以及你自己报名的进度。',
+      },
+      'bingo next': {
+        examples: ['/bingo next'],
+        tip: '接下来是什么：一次格子揭晓、一个任务，或一个截止时间。',
+      },
+      'bingo me': {
+        examples: ['/bingo me'],
+        tip: '你的队伍、你的名次，以及记在你名下的格子。',
+      },
+      'bingo help': {
+        examples: ['/bingo help'],
+        tip: '在 Discord 里列出机器人能回答什么的简短清单。',
+      },
+      'bingo team': {
+        examples: ['/bingo team', '/bingo team name:Iron Wolves'],
+        tip: '一支队伍的卡片：分数、成员和最近完成的格子。不填名字就是你自己的队伍。',
+      },
+      sotw: {
+        examples: ['/sotw', '/sotw language:Deutsch'],
+        tip: '所有进行中的 Skill of the Week、每项的前几名，以及你的排名。',
+      },
+      botw: {
+        examples: ['/botw'],
+        tip: '所有进行中的 Boss of the Week 及其实时排名。',
+      },
+      eff: {
+        examples: ['/eff', '/eff metric:EHB'],
+        tip: '氏族的效率排行榜以及你在其中的名次。默认是 EHP（efficient hours played）；打首领就选 EHB。',
+      },
+      'coffer balance': {
+        examples: ['/coffer balance'],
+        tip: '金库余额、捐款榜和最近的进出。',
+      },
+      'coffer add': {
+        examples: ['/coffer add amount:5m', '/coffer add amount:250k note:Raffle proceeds'],
+        tip: '仅限财务、管理员和所有者。登记进来的金币；同时会发到金库推送频道。',
+      },
+      'coffer remove': {
+        examples: ['/coffer remove amount:20m note:SOTW prize'],
+        tip: '仅限财务、管理员和所有者。拒绝让金库低于零；如果你确实要这么做，请在金库页面登记。',
+      },
+      'stats profile': {
+        examples: ['/stats profile', '/stats profile member:@Zezima'],
+        tip: '一眼看清一个账号：战斗等级与总等级、EHP 与 EHB、收藏日志数量和个人最佳。',
+      },
+      'stats levels': {
+        examples: ['/stats levels', '/stats levels account:My Iron'],
+        tip: '每项技能的等级和经验值。',
+      },
+      'stats efficiency': {
+        examples: ['/stats efficiency'],
+        tip: 'EHP 和 EHB，以及它们分别来自哪些技能和首领。',
+      },
+      'stats clog': {
+        examples: ['/stats clog', '/stats clog page:Zulrah'],
+        tip: '收藏日志的总体进度，或某个首领的那一页。',
+      },
+      'stats pbs': {
+        examples: ['/stats pbs', '/stats pbs page:Theatre of Blood mode:Hard size:3'],
+        tip: '个人最佳。团队副本按模式和队伍人数分别记录时间，所以用 `mode` 和 `size` 找到你要的那一场。',
+      },
+      'stats luck': {
+        examples: ['/stats luck', '/stats luck member:@Zezima'],
+        tip: '在 Anvil 追踪的掉落中，这个账号的运气如何。',
+      },
+      'stats collectors': {
+        examples: ['/stats collectors'],
+        tip: '氏族里最大的收藏日志。',
+      },
+      'stats luckboard': {
+        examples: ['/stats luckboard'],
+        tip: '氏族里最非和最欧的成员。',
+      },
+      guide: {
+        examples: ['/guide topic:Plugin setup', '/guide topic:Plugin setup step:5'],
+        tip: 'Discord 里的设置指南：步骤列表，或者单独一步并附上直达网站上该步骤的链接。',
+      },
     },
   },
 };

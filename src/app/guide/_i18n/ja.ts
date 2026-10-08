@@ -122,6 +122,13 @@ const ja: PartialGuideDict = {
           'RSN を一つも手で集めずにクラン対抗を回す：チームごとに 1 本の招待リンクと、相手側のモデレーターが自分たちの半分を運営できる席。',
         minutes: 'チームごとに約 5 分',
       },
+      commands: {
+        eyebrow: 'すべてのメンバー向け',
+        title: 'スラッシュコマンド',
+        blurb:
+          'ボットが Discord で応答するすべてのコマンド、各オプションの意味、実例、そしてコマンドが出てこないときに確認すること。',
+        minutes: '約 6 分',
+      },
     },
   },
 
@@ -388,7 +395,7 @@ const ja: PartialGuideDict = {
     commands: {
       title: 'スラッシュコマンド',
       body: [
-        'ボットはあなたのサーバーで `/bingo` に応答します：**board**、**rules**、**leaderboard**、**me**、**team**。進行中のイベントを読むので、自分の位置を確かめるのに Discord を離れる必要はありません。',
+        'ボットはあなたのサーバーで `/bingo`（ボード、順位、ルール、自分のカード）に加え、`/sotw`、`/stats`、`/coffer` といったクランコマンドにも応答します。どれもサイトの最新の状態を読むので、自分の位置を確かめるのに Discord を離れる必要はありません。[すべてのコマンドとそのオプション]({commandsGuide})は専用のページにまとめてあります。',
         'ボットが参加してから一分ほどで現れます。まったく現れない場合、その招待はボットは許可したのにコマンドは許可しなかったということです——これは別々の権限で、古い招待リンクは片方しか求めていませんでした。Discord ボットタブから招待リンクを開き直してください。ボットが追い出されることも、何かがリセットされることもありません。',
       ],
       note: {
@@ -1825,10 +1832,15 @@ const ja: PartialGuideDict = {
     inbound: {
       title: 'gp を入れる',
       body: [
-        '道は二つ、違うのは誰が始めるかだけです。メンバーは `/coffer` から自分の寄付を申告し、スタッフが信じるのを待ちます。会計担当はすでに届いた分を記録し、その入力**そのもの**が承認になります。',
+        'ふだんの道は RuneLite プラグインが自動でこなします。ゲーム内の Clan Coffer を開くと、Anvil はその実際のコイン残高から入金と出金を記録します。最初に見た額は基準値にすぎず、開いた人が中にあった全額を寄付したことにはしません。',
+        '手動の記録は、誰もプラグインを開いていなかった間に起きたことのために残っています。メンバーは `/coffer` から自分の寄付を申告し、スタッフが信じるのを待ちます。会計担当はすでに届いた分を記録し、その入力**そのもの**が承認になります。',
         'どちらの道でも、寄付は**個人**の名前に付きます。これは見た目より重い話です。公開ページの寄付者ランキングは、多くの寄付者が受け取る唯一の礼であり、「クラン」名義で入ってきた gp は誰にも礼を言いません。',
       ],
       rows: [
+        {
+          term: 'ゲーム内で金庫を開く',
+          body: 'Anvil を有効にしてログインした状態で（Profile sync → **Sync Clan Coffer** は既定でオン）。対応するゲームメッセージが出れば、あなた自身の入金・出金はあなたの名前で記録されます。間が空いたあとに見つかった変化は、見た人の名前を付けずに帳尻を合わせます。Admin → Coffer には、最後に確認された実際の金額とその時刻が表示されます。',
+        },
         {
           term: 'メンバーが申告する',
           body: '公開の金庫ページから、スクリーンショットがあれば添えて。保留として届き、あなたのキューに現れます。承認して初めて本物のお金になります。',
@@ -2041,6 +2053,236 @@ const ja: PartialGuideDict = {
           body: 'ほぼ間違いなくそうでしょう。自分のチームが絡むものはすべて別のモデレーターに回してください —— 不公平になるからではなく、不公平でなかったと証明させられる立場に自分を置くべきではないからです。',
         },
       ],
+    },
+  },
+
+  commands: {
+    metaTitle: 'Discord スラッシュコマンド — Anvil',
+    metaDescription:
+      'Anvil のすべてのスラッシュコマンド — /bingo、/sotw、/botw、/eff、/coffer、/stats、/guide — 各オプションの説明、実例、誰が何を使えるか、そしてコマンドが出てこないときの直し方。',
+    eyebrow: 'Anvil · Discord で',
+    title: 'スラッシュコマンド',
+    dek: 'クランの Discord で `/` を打てば、Anvil がサイトの最新の状態から答えます：ボード、順位、自分のカード、週間コンペ、金庫、そして誰のステータスでも。このページはその全一覧で、ボットが実際に登録しているコマンドから生成されているので、古くなることはありません。',
+    facts: [
+      { strong: '非公開', rest: '自分にだけ見える返答、共有ボタン付き' },
+      { strong: 'あなたの言語', rest: 'Discord で設定している言語のまま' },
+      { strong: '読み取り専用', rest: '/coffer add と remove を除く' },
+    ],
+    footnote:
+      'そもそものボットの設定は [Discord ガイド](/guide/discord) にあります。このページは使い方の話です。',
+
+    using: {
+      title: 'コマンドの使い方',
+      body: [
+        'ボットが見えるチャンネルならどこでも `/` を打ち、一覧から Anvil のコマンドを選びます。すると Discord がオプションを入力欄として表示するので、Tab を押すかクリックして追加します。以下で `<angle brackets>`（山かっこ）のオプションは必須、`[square brackets]`（角かっこ）のオプションは任意で、省略できます。',
+        '返答はすべて**非公開**です。見えるのは自分だけなので、一日に十回ボードを確かめても誰の迷惑にもなりません。チャンネルに見せる価値があれば、返答の下の **Share to channel** を押してください。共有されるものはその瞬間に作り直されるので、あとから共有した順位はその時点の順位です。',
+      ],
+      rows: [
+        { term: '必須', body: '`<amount>` — 入力するまで Discord はコマンドを送信しません。' },
+        { term: '任意', body: '`[member]` — 省略すると、コマンドはあなた自身、あなたのチーム、またはクラン全体について答えます。' },
+        { term: 'リスト', body: 'Discord が示す値から一つ選びます。自分で入力することはできません。' },
+        { term: '入力して検索', body: '打ち始めて候補から選びます。ボス名や自分のアカウントなど。' },
+        { term: 'メンバー', body: 'サーバーの誰かを選びます。@メンションと同じです。' },
+      ],
+      note: {
+        tag: 'コマンドはクランのサーバーでしか動きません',
+        body: '返答はどれも一つのクランについてのもので、DM には答える対象のクランがありません。だからコマンドは DM には出てきません。',
+      },
+    },
+
+    bingo: {
+      title: 'ボードのコマンド：/bingo',
+      intro:
+        '`/bingo` は一つのボードについて答えます。複数のボードが進行中のときは **board** と **leaderboard** がすべてを一覧にします。それ以外のコマンドは、進行中のボード、次に始まるボード、直前に終わったボードの順に対象を選びます。',
+    },
+
+    clan: {
+      title: 'クランのコマンド',
+      intro:
+        'これらはボードではなくクランについて答えるので、ビンゴが開催中かどうかに関係なく使えます：週間コンペ、効率、金庫、誰かのステータス、そして設定ガイド。',
+    },
+
+    options: {
+      title: 'どこでも出てくるオプション',
+      intro: 'いくつかのオプションは、それを持つどのコマンドでも同じ意味です：',
+      rows: [
+        {
+          term: '`member`',
+          body: 'サーバーの他の誰か。省略すると自分について尋ねます。相手がサイトで使った Discord ログインからその人の Anvil アカウントを見つけるので、Anvil に一度でもログインしたことのあるメンバーにしか使えません。',
+        },
+        {
+          term: '`account`',
+          body: 'サブアカウントを持つ人の、どの OSRS アカウントか。入力して選びます。省略するとメインになります。',
+        },
+        {
+          term: '`page`',
+          body: 'ボスやアクティビティを入力して検索します：`Zulrah`、`Theatre of Blood`、`Tempoross`。省略すると全体の表示になります。',
+        },
+        {
+          term: '`language`',
+          body: 'この一回だけ別の言語で答えます。既定では Discord で設定している言語、またはクランが選んだボットの言語になります。',
+        },
+        {
+          term: '`amount`',
+          body: 'gp を気軽な書き方で：`5m`、`2.5b`、`500k`、または `2,500,000` のような普通の数字。',
+        },
+      ],
+    },
+
+    who: {
+      title: '誰が何を使えるか',
+      body: [
+        'サーバーの誰でも、読み取り専用のコマンドはすべて実行できます。見えるのはメンバーが見るのと同じものです：マスがまだ公開されていないボードは、スタッフであっても Discord で隠れたままです。',
+        '**あなた**について答えるコマンド（`/bingo me`、member なしの `/stats`）は、どの Anvil アカウントがあなたのものかを知る必要があります。サイトで使った Discord ログインから見つけるので、一度 Discord で Anvil にログインすれば、それ以降は動きます。',
+      ],
+      rows: [
+        { term: '全員', body: '`/coffer add` と `/coffer remove` 以外のすべてのコマンド。' },
+        {
+          term: '会計担当、管理者、オーナー',
+          body: '`/coffer add` と `/coffer remove`。確認されるのは **Anvil サイト上の**役割で、Discord のロールではありません。チャットサーバーでの肩書きが、クランのお金を動かす権限を意味したことは一度もないからです。',
+        },
+      ],
+    },
+
+    trouble: {
+      title: 'コマンドが動かないとき',
+      intro: 'よくある原因を、だいたい起きる順に：',
+      rows: [
+        {
+          term: '一覧に Anvil のコマンドがない',
+          body: 'ボットがコマンドなしで招待されています —— これは別の権限で、古い招待リンクは片方しか求めていませんでした。管理者が Admin → Integrations → Discord bot から招待リンクを開き直します。ボットが追い出されることも、何かがリセットされることもありません。新しく追加されたコマンドは、出てくるまで最大一時間かかることがあります。',
+        },
+        {
+          term: '“The application did not respond”',
+          body: 'Anvil に一時的につながらなかった状態で、たいていは更新の最中です。数秒後にもう一度実行してください。',
+        },
+        {
+          term: '自分について「このボードにいない」と出る',
+          body: 'このボードに参加していないか、Anvil があなたの Discord とアカウントを結びつけられていないかのどちらかです。この Discord アカウントでサイトにログインし、プロフィールを確認してください。',
+        },
+        {
+          term: 'メンバーのステータスが空で返ってくる',
+          body: 'その人がまだ Discord で Anvil にログインしていないか、そのアカウントのハイスコアがまだ読み込まれていません。`account` オプションを付けてもう一度試すか、一度ログインしてもらってください。',
+        },
+        {
+          term: '`/coffer add` で権限がないと言われる',
+          body: 'Anvil サイト上のあなたの役割が会計担当・管理者・オーナーのいずれでもないか、この Discord がサイトにログインしているアカウントではありません。',
+        },
+      ],
+    },
+
+    labels: {
+      options: 'オプション',
+      noOptions: 'オプションなし —— そのまま実行するだけ。',
+      example: '例',
+      examples: '例',
+      required: '必須',
+      optional: '任意',
+      choices: '選択肢',
+      range: '{min} から {max} まで',
+      kinds: {
+        text: 'テキスト',
+        number: '数値',
+        member: 'メンバー',
+        choice: 'リストから選ぶ',
+        search: '入力して検索',
+        yesno: 'はい／いいえ',
+      },
+    },
+
+    examples: {
+      'bingo board': {
+        examples: ['/bingo board'],
+        tip: '今進行中のボード。ボードが公開されるまでは、ここでもマスの名前は隠れたままです。',
+      },
+      'bingo leaderboard': {
+        examples: ['/bingo leaderboard'],
+        tip: 'チームの順位。ボードの採点方式に応じて、ポイントかマス数で表示されます。',
+      },
+      'bingo rules': {
+        examples: ['/bingo rules'],
+        tip: 'このボードの採点方法（イベント自体から読み取るので常に正確）と、クラン独自のハウスルール。',
+      },
+      'bingo apply': {
+        examples: ['/bingo apply'],
+        tip: '参加する方法：参加登録、参加費、そして自分の登録の状況。',
+      },
+      'bingo next': {
+        examples: ['/bingo next'],
+        tip: '次に来るもの：マスの公開、ミッション、または締め切り。',
+      },
+      'bingo me': {
+        examples: ['/bingo me'],
+        tip: 'あなたのチーム、あなたの順位、そしてあなたの手柄になったマス。',
+      },
+      'bingo help': {
+        examples: ['/bingo help'],
+        tip: 'ボットが答えられることの短い一覧を、Discord の中で。',
+      },
+      'bingo team': {
+        examples: ['/bingo team', '/bingo team name:Iron Wolves'],
+        tip: 'チームのカード：スコア、メンバー、最近のマス。名前を省略すると自分のチームになります。',
+      },
+      sotw: {
+        examples: ['/sotw', '/sotw language:Deutsch'],
+        tip: '開催中のすべての Skill of the Week、それぞれの上位、そしてあなたの順位。',
+      },
+      botw: {
+        examples: ['/botw'],
+        tip: '開催中のすべての Boss of the Week と、その現在の順位。',
+      },
+      eff: {
+        examples: ['/eff', '/eff metric:EHB'],
+        tip: 'クランの効率ランキングと、その中でのあなたの順位。既定は EHP（efficient hours played）で、ボス狩りなら EHB を選びます。',
+      },
+      'coffer balance': {
+        examples: ['/coffer balance'],
+        tip: '金庫の残高、寄付者ランキング、最近の動き。',
+      },
+      'coffer add': {
+        examples: ['/coffer add amount:5m', '/coffer add amount:250k note:Raffle proceeds'],
+        tip: '会計担当、管理者、オーナー専用。入ってきた gp を記録し、金庫フィードのチャンネルにも投稿されます。',
+      },
+      'coffer remove': {
+        examples: ['/coffer remove amount:20m note:SOTW prize'],
+        tip: '会計担当、管理者、オーナー専用。金庫をゼロ未満にすることは拒否します。本当にそうするつもりなら金庫ページで記録してください。',
+      },
+      'stats profile': {
+        examples: ['/stats profile', '/stats profile member:@Zezima'],
+        tip: 'ひとつのアカウントをひと目で：戦闘レベルと合計レベル、EHP と EHB、コレクションログの数、自己ベスト。',
+      },
+      'stats levels': {
+        examples: ['/stats levels', '/stats levels account:My Iron'],
+        tip: '全スキルのレベルと XP。',
+      },
+      'stats efficiency': {
+        examples: ['/stats efficiency'],
+        tip: 'EHP と EHB、そしてそれがどのスキルとボスから来ているか。',
+      },
+      'stats clog': {
+        examples: ['/stats clog', '/stats clog page:Zulrah'],
+        tip: 'コレクションログの全体の進捗、またはひとつのボスのページ。',
+      },
+      'stats pbs': {
+        examples: ['/stats pbs', '/stats pbs page:Theatre of Blood mode:Hard size:3'],
+        tip: '自己ベスト。レイドはモードとチーム人数ごとにタイムを持つので、`mode` と `size` で目当ての記録を探してください。',
+      },
+      'stats luck': {
+        examples: ['/stats luck', '/stats luck member:@Zezima'],
+        tip: 'Anvil が追跡しているドロップ全体で、そのアカウントがどれだけ運に恵まれてきたか。',
+      },
+      'stats collectors': {
+        examples: ['/stats collectors'],
+        tip: 'クランで最も大きいコレクションログ。',
+      },
+      'stats luckboard': {
+        examples: ['/stats luckboard'],
+        tip: 'クランで最もドロップに見放されたメンバーと、最も運の良いメンバー。',
+      },
+      guide: {
+        examples: ['/guide topic:Plugin setup', '/guide topic:Plugin setup step:5'],
+        tip: 'Discord の中の設定ガイド：ステップの一覧、またはサイト上のそのステップへ直接飛ぶリンク付きの一つのステップ。',
+      },
     },
   },
 };

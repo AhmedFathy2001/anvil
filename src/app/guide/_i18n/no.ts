@@ -122,6 +122,13 @@ const no: PartialGuideDict = {
           'Klan mot klan uten å samle inn et eneste RSN for hånd: én invitasjonslenke per lag, og en plass som lar deres egen moderator styre sin halvdel.',
         minutes: '~5 min per lag',
       },
+      commands: {
+        eyebrow: 'For alle medlemmer',
+        title: 'Slash-kommandoer',
+        blurb:
+          'Hver kommando boten svarer på i Discord, hva hvert alternativ gjør, gjennomgåtte eksempler, og hva du sjekker når en ikke dukker opp.',
+        minutes: '~6 min',
+      },
     },
   },
 
@@ -388,7 +395,7 @@ const no: PartialGuideDict = {
     commands: {
       title: 'Slash-kommandoer',
       body: [
-        'Boten svarer på `/bingo` på serveren din: **board**, **rules**, **leaderboard**, **me** og **team**. De leser arrangementet som går, så ingen må forlate Discord for å se hvor de ligger.',
+        'Boten svarer på `/bingo` på serveren din (brettet, stillingen, reglene, ditt eget kort) pluss klankommandoer som `/sotw`, `/stats` og `/coffer`. De leser det levende nettstedet, så ingen må forlate Discord for å se hvor de ligger. [Hver kommando og alternativene dens]({commandsGuide}) har sin egen side.',
         'De dukker opp omtrent ett minutt etter at boten har blitt med. Dukker de ikke opp i det hele tatt, ga invitasjonen boten men ikke kommandoene — det er to separate rettigheter, og en eldre invitasjonslenke ba bare om den ene. Åpne lenka på nytt fra Discord-bot-fanen; det kaster ikke ut boten og nullstiller ingenting.',
       ],
       note: {
@@ -1825,10 +1832,15 @@ const no: PartialGuideDict = {
     inbound: {
       title: 'Å få gp inn',
       body: [
-        'To veier, og de skiller seg bare på hvem som starter dem. Et medlem melder inn sin egen donasjon fra `/coffer`, og den venter på at staben skal tro på den; en kasserer registrerer en som allerede er kommet, og at hen taster den **er** godkjenningen.',
+        'RuneLite-pluginet tar seg av den vanlige veien automatisk: åpne Clan Coffer i spillet, så registrerer Anvil innskudd og uttak ut fra den faktiske myntsaldoen. Den første titten er bare et utgangspunkt — den later aldri som om den som åpnet kassa, donerte alt som allerede lå i den.',
+        'Manuelle registreringer finnes fortsatt for alt som skjedde mens ingen hadde pluginet åpent. Et medlem melder inn sin egen donasjon fra `/coffer`, og den venter på at staben skal tro på den; en kasserer registrerer en som allerede er kommet, og at hen taster den **er** godkjenningen.',
         'Uansett blir den kreditert en **person**. Det betyr mer enn det høres ut som: listen over de største giverne på den offentlige siden er den eneste takken de fleste givere får, og gp som kommer inn som "klanen" takker ingen.',
       ],
       rows: [
+        {
+          term: 'Åpne kassa i spillet',
+          body: 'med Anvil aktivert og pålogget (Profile sync → **Sync Clan Coffer** er på som standard). En samsvarende spillmelding krediterer ditt eget innskudd eller uttak til deg; endringer som blir sett etter et opphold, blir avstemt uten å navngi den som så dem. Admin → Coffer viser det siste fysiske beløpet og når det ble sett.',
+        },
         {
           term: 'Et medlem melder inn en',
           body: 'fra den offentlige kassesiden, med et skjermbilde hvis de har et. Den lander som ventende og dukker opp i køen din. Å godkjenne den er det som gjør den til ekte penger.',
@@ -1907,6 +1919,236 @@ const no: PartialGuideDict = {
       note: {
         tag: 'Anvil sender ingenting',
         body: 'Hver premie ender med at et menneske rekker over gp i spillet og krysser av en linje. Regnskapets jobb er å sørge for at linjen finnes, at den sier hvem og hvor mye, og at ingen en uke senere må grave det fram fra Discord-historikken.',
+      },
+    },
+  },
+
+  commands: {
+    metaTitle: 'Slash-kommandoer i Discord — Anvil',
+    metaDescription:
+      'Alle Anvils slash-kommandoer — /bingo, /sotw, /botw, /eff, /coffer, /stats og /guide — med hvert alternativ forklart, eksempler, hvem som kan bruke hva, og løsninger når kommandoer ikke dukker opp.',
+    eyebrow: 'Anvil · i Discord',
+    title: 'Slash-kommandoer',
+    dek: 'Skriv `/` i klanens Discord, så svarer Anvil fra det levende nettstedet: brettet, stillingen, ditt eget kort, ukekonkurransene, kassa og hvem som helst sine stats. Denne siden er hele listen, generert fra kommandoene boten faktisk registrerer, så den er aldri utdatert.',
+    facts: [
+      { strong: 'Privat', rest: 'svar bare du ser, med en Share-knapp' },
+      { strong: 'Ditt språk', rest: 'det Discord-en din er satt til' },
+      { strong: 'Bare lesing', rest: 'unntatt /coffer add og remove' },
+    ],
+    footnote:
+      'Å sette opp boten i utgangspunktet står i [Discord-veiledningen](/guide/discord). Denne siden handler om å bruke den.',
+
+    using: {
+      title: 'Slik virker en kommando',
+      body: [
+        'Skriv `/` i en hvilken som helst kanal boten kan se, og velg en Anvil-kommando fra listen. Discord viser så alternativene som felt du fyller inn: trykk Tab eller klikk på et for å legge det til. Alternativer skrevet som `<angle brackets>` nedenfor er påkrevd; de skrevet som `[square brackets]` er valgfrie, og du kan utelate dem.',
+        'Hvert svar er **privat**: bare du ser det, så å sjekke brettet ti ganger om dagen plager ingen. Er det verdt å vise kanalen, trykk **Share to channel** under svaret. Den delte kopien bygges i det øyeblikket, så en stilling som deles senere, er stillingen slik den er da.',
+      ],
+      rows: [
+        { term: 'Påkrevd', body: '`<amount>` — Discord sender ikke kommandoen før det er fylt inn.' },
+        { term: 'Valgfritt', body: '`[member]` — utelat det, så svarer kommandoen om deg, laget ditt eller hele klanen.' },
+        { term: 'En liste', body: 'velg en av verdiene Discord tilbyr; du kan ikke skrive din egen.' },
+        { term: 'Skriv for å søke', body: 'begynn å skrive og velg blant forslagene, for eksempel bossnavn eller dine egne kontoer.' },
+        { term: 'Et medlem', body: 'velg noen fra serveren, akkurat som med en @mention.' },
+      ],
+      note: {
+        tag: 'Kommandoene virker bare på klanens server',
+        body: 'Hvert svar handler om én klan, og en DM har ingen klan å svare om. Derfor dukker ikke kommandoene opp i DM-er.',
+      },
+    },
+
+    bingo: {
+      title: 'Brettkommandoer: /bingo',
+      intro:
+        '`/bingo` handler om ett brett. Når flere brett går, lister **board** og **leaderboard** opp alle; resten svarer om brettet som går, deretter det neste som starter, deretter det som nettopp er ferdig.',
+    },
+
+    clan: {
+      title: 'Klankommandoer',
+      intro:
+        'Disse svarer om klanen i stedet for et brett, så de virker uansett om en bingo går: ukekonkurransene, effektivitet, kassa, hvem som helst sine stats og oppsettsveiledningene.',
+    },
+
+    options: {
+      title: 'Alternativer du ser overalt',
+      intro: 'Noen få alternativer betyr det samme på hver kommando som har dem:',
+      rows: [
+        {
+          term: '`member`',
+          body: 'noen andre på serveren. Utelat det for å spørre om deg selv. Det finner Anvil-kontoen deres via Discord-innloggingen de brukte på nettstedet, så det virker bare for medlemmer som har logget inn på Anvil én gang.',
+        },
+        {
+          term: '`account`',
+          body: 'hvilken av personens OSRS-kontoer, for folk med alts. Skriv for å velge; utelat det for main-en deres.',
+        },
+        {
+          term: '`page`',
+          body: 'en boss eller aktivitet, søkbar ved å skrive: `Zulrah`, `Theatre of Blood`, `Tempoross`. Utelat det for helhetsbildet.',
+        },
+        {
+          term: '`language`',
+          body: 'svar denne ene gangen på et annet språk. Som standard får du språket Discord-en din er satt til, eller klanens valgte botspråk.',
+        },
+        {
+          term: '`amount`',
+          body: 'gp på den enkle måten: `5m`, `2.5b`, `500k`, eller et vanlig tall som `2,500,000`.',
+        },
+      ],
+    },
+
+    who: {
+      title: 'Hvem som kan bruke hva',
+      body: [
+        'Alle på serveren kan kjøre alle kommandoene som bare leser. Det du ser, er det et medlem ville sett: et brett med ruter som ikke er avslørt ennå, forblir skjult i Discord også, selv for staben.',
+        'Kommandoer som svarer om **deg** (`/bingo me`, `/stats` uten member) må vite hvilken Anvil-konto som er din. De finner den via Discord-innloggingen du brukte på nettstedet, så logg inn på Anvil med Discord én gang, så virker de fra da av.',
+      ],
+      rows: [
+        { term: 'Alle', body: 'alle kommandoer unntatt `/coffer add` og `/coffer remove`.' },
+        {
+          term: 'Kasserere, admins, eiere',
+          body: '`/coffer add` og `/coffer remove`. Sjekkes mot rollen din **på Anvil-nettstedet**, aldri Discord-rollen din, fordi en rang på en chatteserver aldri har betydd kontroll over klanens penger.',
+        },
+      ],
+    },
+
+    trouble: {
+      title: 'Når en kommando ikke virker',
+      intro: 'De vanlige årsakene, omtrent i den rekkefølgen de skjer:',
+      rows: [
+        {
+          term: 'Ingen Anvil-kommandoer i listen',
+          body: 'boten ble invitert uten kommandoene sine — det er en separat rettighet, og eldre invitasjonslenker ba bare om den ene. En admin åpner invitasjonslenka på nytt fra Admin → Integrations → Discord bot. Det kaster ikke ut boten og nullstiller ingenting. Nylig lagt til kommandoer kan bruke opptil en time på å dukke opp.',
+        },
+        {
+          term: '"The application did not respond"',
+          body: 'Anvil var kortvarig utilgjengelig, som regel midt i en oppdatering. Kjør den igjen noen sekunder senere.',
+        },
+        {
+          term: '"Ikke med på dette brettet" om deg selv',
+          body: 'enten har du ikke meldt deg på dette brettet, eller så klarer ikke Anvil å koble Discord-en din til kontoen din. Logg inn på nettstedet med denne Discord-kontoen og sjekk profilen din.',
+        },
+        {
+          term: 'Et medlems stats kommer tomme tilbake',
+          body: 'de har ikke logget inn på Anvil med Discord ennå, eller så er ikke hiscores for kontoen deres lest inn ennå. Prøv igjen med alternativet `account`, eller be dem logge inn én gang.',
+        },
+        {
+          term: '`/coffer add` sier at du ikke får lov',
+          body: 'rollen din på Anvil-nettstedet er ikke kasserer, admin eller eier, eller så er ikke denne Discord-en kontoen du logger inn på nettstedet med.',
+        },
+      ],
+    },
+
+    labels: {
+      options: 'Alternativer',
+      noOptions: 'Ingen alternativer — bare kjør den.',
+      example: 'Eksempel',
+      examples: 'Eksempler',
+      required: 'påkrevd',
+      optional: 'valgfritt',
+      choices: 'Valg',
+      range: 'fra {min} til {max}',
+      kinds: {
+        text: 'tekst',
+        number: 'tall',
+        member: 'et medlem',
+        choice: 'velg fra en liste',
+        search: 'skriv for å søke',
+        yesno: 'ja eller nei',
+      },
+    },
+
+    examples: {
+      'bingo board': {
+        examples: ['/bingo board'],
+        tip: 'Brettet som går akkurat nå. Til brettet er avslørt, forblir rutenavnene skjult her også.',
+      },
+      'bingo leaderboard': {
+        examples: ['/bingo leaderboard'],
+        tip: 'Lagenes stilling, med poeng eller ruter avhengig av hvordan brettet teller.',
+      },
+      'bingo rules': {
+        examples: ['/bingo rules'],
+        tip: 'Hvordan dette brettet teller (lest rett fra selve eventet, så det stemmer alltid), og deretter klanens egne husregler.',
+      },
+      'bingo apply': {
+        examples: ['/bingo apply'],
+        tip: 'Hvordan du blir med: påmelding, avgiften, og hvor din egen påmelding står.',
+      },
+      'bingo next': {
+        examples: ['/bingo next'],
+        tip: 'Hva som kommer nå: en ruteavsløring, et oppdrag eller en frist.',
+      },
+      'bingo me': {
+        examples: ['/bingo me'],
+        tip: 'Laget ditt, plasseringen din og rutene som er kreditert deg.',
+      },
+      'bingo help': {
+        examples: ['/bingo help'],
+        tip: 'En kort liste over hva boten svarer på, inne i Discord.',
+      },
+      'bingo team': {
+        examples: ['/bingo team', '/bingo team name:Iron Wolves'],
+        tip: 'Et lags kort: poeng, lagoppstilling og siste ruter. Utelat navnet for ditt eget lag.',
+      },
+      sotw: {
+        examples: ['/sotw', '/sotw language:Deutsch'],
+        tip: 'Hver aktive Skill of the Week, toppen av hver, og hvor du ligger.',
+      },
+      botw: {
+        examples: ['/botw'],
+        tip: 'Hver aktive Boss of the Week og den aktuelle stillingen.',
+      },
+      eff: {
+        examples: ['/eff', '/eff metric:EHB'],
+        tip: 'Klanens effektivitetsliste og plasseringen din på den. EHP (efficient hours played) som standard; velg EHB for bossing.',
+      },
+      'coffer balance': {
+        examples: ['/coffer balance'],
+        tip: 'Kassas saldo, de største giverne og de siste bevegelsene.',
+      },
+      'coffer add': {
+        examples: ['/coffer add amount:5m', '/coffer add amount:250k note:Raffle proceeds'],
+        tip: 'Bare kasserere, admins og eiere. Registrerer gp som kommer inn; det blir også lagt ut i kassas feed-kanal.',
+      },
+      'coffer remove': {
+        examples: ['/coffer remove amount:20m note:SOTW prize'],
+        tip: 'Bare kasserere, admins og eiere. Nekter å ta kassa under null; registrer det på kassesiden hvis du mener det.',
+      },
+      'stats profile': {
+        examples: ['/stats profile', '/stats profile member:@Zezima'],
+        tip: 'Én konto i et blikk: combat- og totalnivå, EHP og EHB, antall i collection log og personlige rekorder.',
+      },
+      'stats levels': {
+        examples: ['/stats levels', '/stats levels account:My Iron'],
+        tip: 'Hver skills nivå og XP.',
+      },
+      'stats efficiency': {
+        examples: ['/stats efficiency'],
+        tip: 'EHP og EHB, og hvilke skills og bosser de kommer fra.',
+      },
+      'stats clog': {
+        examples: ['/stats clog', '/stats clog page:Zulrah'],
+        tip: 'Framgang i collection log totalt, eller siden for én boss.',
+      },
+      'stats pbs': {
+        examples: ['/stats pbs', '/stats pbs page:Theatre of Blood mode:Hard size:3'],
+        tip: 'Personlige rekorder. Raids lagrer en tid per mode og lagstørrelse, så bruk `mode` og `size` for å finne runden du mener.',
+      },
+      'stats luck': {
+        examples: ['/stats luck', '/stats luck member:@Zezima'],
+        tip: 'Hvor heldig kontoen har vært på tvers av dropsene Anvil følger med på.',
+      },
+      'stats collectors': {
+        examples: ['/stats collectors'],
+        tip: 'Klanens største collection logs.',
+      },
+      'stats luckboard': {
+        examples: ['/stats luckboard'],
+        tip: 'Klanens mest uheldige og mest heldige medlemmer.',
+      },
+      guide: {
+        examples: ['/guide topic:Plugin setup', '/guide topic:Plugin setup step:5'],
+        tip: 'En oppsettsveiledning inne i Discord: listen over trinn, eller ett trinn med en lenke rett til det på nettstedet.',
       },
     },
   },

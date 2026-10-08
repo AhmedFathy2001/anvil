@@ -37,6 +37,12 @@ The rest answer about the CLAN, and resolve no board:
 /guide <topic> [step] a setup guide — the overview or one step, with a link to it
 ```
 
+The member-facing reference — every command, each option explained, examples, who can use what —
+is the site guide at `/guide/commands` (`/guide topic:Slash commands` in Discord). It is generated from
+`COMMAND_DEFINITIONS` by `lib/discordCommandGuide.ts`, so a new command or option appears there on its
+own; only its example and tip are written by hand, in `commands.examples` in the guide dictionary
+(`npm run test:commandguide` fails until they are).
+
 Almost everything is **read-only**. The one exception is `/coffer add|remove`, which records a
 manual coffer adjustment — gated on the invoker's **site** role in this clan (treasurer, admin or
 owner in `clan_staff`, exactly `verifyFeeCollector`'s rule), **never** a Discord role, because it is

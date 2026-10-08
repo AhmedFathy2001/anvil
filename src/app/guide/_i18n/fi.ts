@@ -123,6 +123,13 @@ const fi: PartialGuideDict = {
           'Klaani vastaan klaani ilman että kerää yhtäkään RSN:ää käsin: yksi kutsulinkki joukkuetta kohden, ja paikka jolla heidän oma moderaattorinsa hoitaa oman puoliskonsa.',
         minutes: '~5 min joukkuetta kohden',
       },
+      commands: {
+        eyebrow: 'Jokaiselle jäsenelle',
+        title: 'Kauttaviivakomennot',
+        blurb:
+          'Jokainen komento, johon botti vastaa Discordissa, mitä kukin valinta tekee, valmiit esimerkit, ja mitä tarkistaa kun jokin komento ei näy.',
+        minutes: '~6 min',
+      },
     },
   },
 
@@ -389,7 +396,7 @@ const fi: PartialGuideDict = {
     commands: {
       title: 'Kauttaviivakomennot',
       body: [
-        'Botti vastaa komentoon `/bingo` palvelimellasi: **board**, **rules**, **leaderboard**, **me** ja **team**. Ne lukevat käynnissä olevaa tapahtumaa, joten kenenkään ei tarvitse poistua Discordista nähdäkseen tilanteensa.',
+        'Botti vastaa palvelimellasi komentoon `/bingo` (taulu, tilanne, säännöt, oma korttisi) sekä klaanikomentoihin kuten `/sotw`, `/stats` ja `/coffer`. Ne lukevat sivustoa reaaliajassa, joten kenenkään ei tarvitse poistua Discordista nähdäkseen tilanteensa. [Jokaisella komennolla ja sen valinnoilla]({commandsGuide}) on oma sivunsa.',
         'Ne ilmestyvät noin minuutin kuluttua botin liittymisestä. Jos ne eivät ilmesty lainkaan, kutsu myönsi botin muttei sen komentoja — ne ovat kaksi erillistä oikeutta, ja vanhempi kutsulinkki pyysi vain toista. Avaa kutsulinkki uudelleen Discord-botti-välilehdeltä; se ei poista bottia eikä nollaa mitään.',
       ],
       note: {
@@ -1826,10 +1833,15 @@ const fi: PartialGuideDict = {
     inbound: {
       title: 'Gp:n saaminen sisään',
       body: [
-        'Kaksi reittiä, ja ne eroavat vain siinä kuka aloittaa. Jäsen ilmoittaa oman lahjoituksensa osoitteessa `/coffer` ja se odottaa että henkilökunta uskoo sen; rahastonhoitaja kirjaa jo saapuneen, ja hänen kirjaamisensa **on** hyväksyntä.',
+        'RuneLite-plugin hoitaa tavallisen reitin automaattisesti: avaa pelin Clan Coffer, niin Anvil kirjaa talletukset ja nostot sen todellisesta kolikkosaldosta. Ensimmäinen vilkaisu on vain lähtötaso — se ei koskaan oleta, että avaaja lahjoitti kaiken mitä siellä jo oli.',
+        'Manuaalinen kirjaus on yhä olemassa kaikelle, mikä tapahtui kun kenelläkään ei ollut pluginia auki. Jäsen ilmoittaa oman lahjoituksensa osoitteessa `/coffer` ja se odottaa että henkilökunta uskoo sen; rahastonhoitaja kirjaa jo saapuneen, ja hänen kirjaamisensa **on** hyväksyntä.',
         'Kummassakin tapauksessa se kirjataan **henkilölle**. Sillä on enemmän väliä kuin miltä kuulostaa: julkisen sivun lahjoittajalista on ainoa kiitos jonka useimmat lahjoittajat koskaan saavat, ja "klaanilta" saapunut gp ei kiitä ketään.',
       ],
       rows: [
+        {
+          term: 'Avaa kassa pelissä',
+          body: 'Anvil käytössä ja sisäänkirjautuneena (Profile sync → **Sync Clan Coffer** on oletuksena päällä). Vastaava peliviesti kirjaa oman talletuksesi tai nostosi sinulle; tauon jälkeen havaitut muutokset täsmäytetään nimeämättä havaitsijaa. Admin → Coffer näyttää viimeksi nähdyn fyysisen summan ja milloin se nähtiin.',
+        },
         {
           term: 'Jäsen ilmoittaa lahjoituksen',
           body: 'julkiselta kassasivulta, kuvakaappauksen kanssa jos sellainen on. Se saapuu odottavana ja ilmestyy jonoosi. Hyväksyminen on se, mikä tekee siitä oikeaa rahaa.',
@@ -2042,6 +2054,236 @@ const fi: PartialGuideDict = {
           body: 'melkein varmasti olet. Anna kaikki oman joukkueesi asiat toiselle moderaattorille — ei siksi että olisit epäreilu, vaan siksi ettei sinun pitäisi joutua todistamaan ettet ollut.',
         },
       ],
+    },
+  },
+
+  commands: {
+    metaTitle: 'Discordin kauttaviivakomennot — Anvil',
+    metaDescription:
+      'Jokainen Anvilin kauttaviivakomento — /bingo, /sotw, /botw, /eff, /coffer, /stats ja /guide — jokainen valinta selitettynä, esimerkit, kuka saa käyttää mitä, ja korjaukset komentoihin, jotka eivät näy.',
+    eyebrow: 'Anvil · Discordissa',
+    title: 'Kauttaviivakomennot',
+    dek: 'Kirjoita `/` klaanisi Discordiin, niin Anvil vastaa suoraan sivustolta reaaliajassa: taulu, tilanne, oma korttisi, viikkokisat, kassa ja kenen tahansa statsit. Tämä sivu on koko lista, joka on luotu niistä komennoista, jotka botti oikeasti rekisteröi, joten se ei ole koskaan vanhentunut.',
+    facts: [
+      { strong: 'Yksityinen', rest: 'vastaukset, jotka vain sinä näet, ja Share-painike' },
+      { strong: 'Sinun kielesi', rest: 'se, jolle Discordisi on asetettu' },
+      { strong: 'Vain luku', rest: 'paitsi /coffer add ja remove' },
+    ],
+    footnote:
+      'Botin käyttöönotto ylipäätään on [Discord-oppaassa](/guide/discord). Tämä sivu kertoo sen käyttämisestä.',
+
+    using: {
+      title: 'Näin komento toimii',
+      body: [
+        'Kirjoita `/` mille tahansa kanavalle, jonka botti näkee, ja valitse listalta Anvil-komento. Discord näyttää sitten sen valinnat täytettävinä kenttinä: paina Tab tai klikkaa valintaa lisätäksesi sen. Alla kulmasulkeissa, `<angle brackets>`, olevat valinnat ovat pakollisia; hakasulkeissa, `[square brackets]`, olevat ovat valinnaisia ja voit jättää ne pois.',
+        'Jokainen vastaus on **yksityinen**: vain sinä näet sen, joten taulun tarkistaminen kymmenen kertaa päivässä ei häiritse ketään. Jos se kannattaa näyttää kanavalle, paina vastauksen alla **Share to channel**. Jaettu kopio rakennetaan uudelleen sillä hetkellä, joten myöhemmin jaettu tilanne on tilanne sellaisena kuin se silloin on.',
+      ],
+      rows: [
+        { term: 'Pakollinen', body: '`<amount>` — Discord ei lähetä komentoa ennen kuin se on täytetty.' },
+        { term: 'Valinnainen', body: '`[member]` — jätä se pois, niin komento vastaa sinusta, joukkueestasi tai koko klaanista.' },
+        { term: 'Lista', body: 'valitse jokin Discordin tarjoamista arvoista; omaa arvoa et voi kirjoittaa.' },
+        { term: 'Kirjoita hakeaksesi', body: 'ala kirjoittaa ja valitse ehdotuksista, kuten bossien nimistä tai omista tileistäsi.' },
+        { term: 'Jäsen', body: 'valitse joku palvelimelta, samaan tapaan kuin @maininnalla.' },
+      ],
+      note: {
+        tag: 'Komennot toimivat vain klaanisi palvelimella',
+        body: 'Jokainen vastaus koskee yhtä klaania, eikä yksityisviestillä ole klaania, josta vastata. Siksi komennot eivät näy yksityisviesteissä.',
+      },
+    },
+
+    bingo: {
+      title: 'Taulukomennot: /bingo',
+      intro:
+        '`/bingo` koskee yhtä taulua. Kun useampi taulu on käynnissä, **board** ja **leaderboard** listaavat ne kaikki; muut vastaavat käynnissä olevasta taulusta, sen puuttuessa seuraavaksi alkavasta ja sitten juuri päättyneestä.',
+    },
+
+    clan: {
+      title: 'Klaanikomennot',
+      intro:
+        'Nämä vastaavat klaanista eivätkä taulusta, joten ne toimivat oli bingo käynnissä tai ei: viikkokisat, tehokkuus, kassa, kenen tahansa statsit ja käyttöönotto-oppaat.',
+    },
+
+    options: {
+      title: 'Valinnat, jotka näet kaikkialla',
+      intro: 'Muutama valinta tarkoittaa samaa jokaisessa komennossa, jossa se on:',
+      rows: [
+        {
+          term: '`member`',
+          body: 'joku muu palvelimella. Jätä pois kysyäksesi itsestäsi. Se löytää hänen Anvil-tilinsä sen Discord-kirjautumisen kautta, jota hän käytti sivustolla, joten se toimii vain jäsenille, jotka ovat kirjautuneet Anviliin kerran.',
+        },
+        {
+          term: '`account`',
+          body: 'mikä hänen OSRS-tileistään, alteja pelaaville. Kirjoita valitaksesi; jätä pois päätiliä varten.',
+        },
+        {
+          term: '`page`',
+          body: 'bossi tai aktiviteetti, haettuna kirjoittamalla: `Zulrah`, `Theatre of Blood`, `Tempoross`. Jätä pois kokonaisnäkymää varten.',
+        },
+        {
+          term: '`language`',
+          body: 'vastaa tämän yhden kerran eri kielellä. Oletuksena saat kielen, jolle Discordisi on asetettu, tai klaanin valitseman botin kielen.',
+        },
+        {
+          term: '`amount`',
+          body: 'gp helposti: `5m`, `2.5b`, `500k` tai tavallinen luku kuten `2,500,000`.',
+        },
+      ],
+    },
+
+    who: {
+      title: 'Kuka saa käyttää mitä',
+      body: [
+        'Kuka tahansa palvelimella voi ajaa jokaisen vain luku -komennon. Näet saman kuin jäsen näkisi: taulu, jonka ruutuja ei ole vielä paljastettu, pysyy piilossa myös Discordissa, jopa henkilökunnalta.',
+        '**Sinusta** vastaavien komentojen (`/bingo me`, `/stats` ilman member-valintaa) täytyy tietää, mikä Anvil-tili on sinun. Ne löytävät sen sen Discord-kirjautumisen kautta, jota käytit sivustolla, joten kirjaudu Anviliin Discordilla kerran, niin ne toimivat siitä lähtien.',
+      ],
+      rows: [
+        { term: 'Kaikki', body: 'jokainen komento paitsi `/coffer add` ja `/coffer remove`.' },
+        {
+          term: 'Rahastonhoitajat, adminit, omistajat',
+          body: '`/coffer add` ja `/coffer remove`. Tarkistetaan roolistasi **Anvil-sivustolla**, ei koskaan Discord-roolistasi, koska arvo chat-palvelimella ei ole koskaan tarkoittanut määräysvaltaa klaanin rahoihin.',
+        },
+      ],
+    },
+
+    trouble: {
+      title: 'Kun komento ei toimi',
+      intro: 'Tavalliset syyt, suunnilleen siinä järjestyksessä kuin ne tulevat vastaan:',
+      rows: [
+        {
+          term: 'Listalla ei ole Anvil-komentoja',
+          body: 'botti kutsuttiin ilman sen komentoja — se on erillinen oikeus, ja vanhemmat kutsulinkit pyysivät vain toista. Admin avaa kutsulinkin uudelleen kohdasta Admin → Integrations → Discord bot. Se ei poista bottia eikä nollaa mitään. Uusien komentojen ilmestyminen voi kestää jopa tunnin.',
+        },
+        {
+          term: '"The application did not respond"',
+          body: 'Anvil ei ollut hetkeen tavoitettavissa, yleensä kesken päivityksen. Aja komento uudelleen muutaman sekunnin päästä.',
+        },
+        {
+          term: '"Et ole tällä taululla" itsestäsi',
+          body: 'joko et ole liittynyt tähän tauluun, tai Anvil ei pysty yhdistämään Discordiasi tiliisi. Kirjaudu sivustolle tällä Discord-tilillä ja tarkista profiilisi.',
+        },
+        {
+          term: 'Jäsenen statsit tulevat tyhjinä',
+          body: 'hän ei ole vielä kirjautunut Anviliin Discordilla, tai hänen tilinsä hiscoreseja ei ole vielä luettu. Yritä uudelleen `account`-valinnalla, tai pyydä häntä kirjautumaan kerran.',
+        },
+        {
+          term: '`/coffer add` sanoo, ettet voi',
+          body: 'roolisi Anvil-sivustolla ei ole rahastonhoitaja, admin tai omistaja, tai tämä Discord ei ole se tili, jolla kirjaudut sivustolle.',
+        },
+      ],
+    },
+
+    labels: {
+      options: 'Valinnat',
+      noOptions: 'Ei valintoja — aja vain.',
+      example: 'Esimerkki',
+      examples: 'Esimerkit',
+      required: 'pakollinen',
+      optional: 'valinnainen',
+      choices: 'Vaihtoehdot',
+      range: '{min}–{max}',
+      kinds: {
+        text: 'teksti',
+        number: 'luku',
+        member: 'jäsen',
+        choice: 'valitse listalta',
+        search: 'kirjoita hakeaksesi',
+        yesno: 'kyllä tai ei',
+      },
+    },
+
+    examples: {
+      'bingo board': {
+        examples: ['/bingo board'],
+        tip: 'Juuri nyt käynnissä oleva taulu. Ruutujen nimet pysyvät piilossa täälläkin, kunnes taulu paljastetaan.',
+      },
+      'bingo leaderboard': {
+        examples: ['/bingo leaderboard'],
+        tip: 'Joukkueiden tilanne, pisteinä tai ruutuina sen mukaan, miten taulu pisteytetään.',
+      },
+      'bingo rules': {
+        examples: ['/bingo rules'],
+        tip: 'Miten tämä taulu pisteytetään (luettu suoraan tapahtumasta, joten se on aina oikein), ja sitten klaanisi omat säännöt.',
+      },
+      'bingo apply': {
+        examples: ['/bingo apply'],
+        tip: 'Miten pääset mukaan: ilmoittautumiset, osallistumismaksu, ja missä vaiheessa oma ilmoittautumisesi on.',
+      },
+      'bingo next': {
+        examples: ['/bingo next'],
+        tip: 'Mitä on tulossa seuraavaksi: ruutujen paljastus, tehtävä tai määräaika.',
+      },
+      'bingo me': {
+        examples: ['/bingo me'],
+        tip: 'Joukkueesi, sijoituksesi ja sinulle kirjatut ruudut.',
+      },
+      'bingo help': {
+        examples: ['/bingo help'],
+        tip: 'Lyhyt lista siitä, mihin botti vastaa, suoraan Discordissa.',
+      },
+      'bingo team': {
+        examples: ['/bingo team', '/bingo team name:Iron Wolves'],
+        tip: 'Joukkueen kortti: pisteet, kokoonpano ja viimeisimmät ruudut. Jätä nimi pois nähdäksesi oman joukkueesi.',
+      },
+      sotw: {
+        examples: ['/sotw', '/sotw language:Deutsch'],
+        tip: 'Jokainen aktiivinen Skill of the Week, kunkin kärki ja oma sijoituksesi.',
+      },
+      botw: {
+        examples: ['/botw'],
+        tip: 'Jokainen aktiivinen Boss of the Week ja sen reaaliaikainen tilanne.',
+      },
+      eff: {
+        examples: ['/eff', '/eff metric:EHB'],
+        tip: 'Klaanin tehokkuuslista ja sijoituksesi siinä. Oletuksena EHP (efficient hours played); valitse EHB bossaukseen.',
+      },
+      'coffer balance': {
+        examples: ['/coffer balance'],
+        tip: 'Kassan saldo, suurimmat lahjoittajat ja viimeisimmät liikkeet.',
+      },
+      'coffer add': {
+        examples: ['/coffer add amount:5m', '/coffer add amount:250k note:Raffle proceeds'],
+        tip: 'Vain rahastonhoitajille, admineille ja omistajille. Kirjaa sisään tulevan gp:n; se postataan myös kassan syötekanavalle.',
+      },
+      'coffer remove': {
+        examples: ['/coffer remove amount:20m note:SOTW prize'],
+        tip: 'Vain rahastonhoitajille, admineille ja omistajille. Kieltäytyy viemästä kassaa alle nollan; kirjaa se kassasivulla, jos todella tarkoitat sitä.',
+      },
+      'stats profile': {
+        examples: ['/stats profile', '/stats profile member:@Zezima'],
+        tip: 'Yksi tili yhdellä silmäyksellä: combat- ja kokonaistaso, EHP ja EHB, collection login määrä ja ennätykset.',
+      },
+      'stats levels': {
+        examples: ['/stats levels', '/stats levels account:My Iron'],
+        tip: 'Jokaisen skillin taso ja XP.',
+      },
+      'stats efficiency': {
+        examples: ['/stats efficiency'],
+        tip: 'EHP ja EHB, ja mistä skilleistä ja bosseista ne tulevat.',
+      },
+      'stats clog': {
+        examples: ['/stats clog', '/stats clog page:Zulrah'],
+        tip: 'Collection login edistyminen kokonaisuutena, tai yhden bossin sivu.',
+      },
+      'stats pbs': {
+        examples: ['/stats pbs', '/stats pbs page:Theatre of Blood mode:Hard size:3'],
+        tip: 'Henkilökohtaiset ennätykset. Raideilla on oma aika kullekin moodille ja joukkuekoolle, joten käytä valintoja `mode` ja `size` löytääksesi tarkoittamasi runin.',
+      },
+      'stats luck': {
+        examples: ['/stats luck', '/stats luck member:@Zezima'],
+        tip: 'Kuinka onnekas tili on ollut Anvilin seuraamissa dropeissa.',
+      },
+      'stats collectors': {
+        examples: ['/stats collectors'],
+        tip: 'Klaanin suurimmat collection logit.',
+      },
+      'stats luckboard': {
+        examples: ['/stats luckboard'],
+        tip: 'Klaanin kuivimmat ja onnekkaimmat jäsenet.',
+      },
+      guide: {
+        examples: ['/guide topic:Plugin setup', '/guide topic:Plugin setup step:5'],
+        tip: 'Käyttöönotto-opas Discordissa: vaiheiden lista, tai yksi vaihe linkillä suoraan siihen sivustolla.',
+      },
     },
   },
 };

@@ -64,4 +64,9 @@ export const SEARCH_TERMS: Record<Exclude<GuidePage, ''>, string[]> = {
     'cohost', 'co host', 'visiting', 'guest', 'guests', 'invite link', 'other clan', 'together',
     'shared', 'pool',
   ],
+  commands: [
+    'command', 'commands', 'slash', 'slash command', '/bingo', '/stats', '/sotw', '/botw', '/eff',
+    'options', 'parameters', 'params', 'usage', 'syntax', 'pbs', 'personal best', 'clog', 'luck',
+    'ehp', 'ehb', 'leaderboard', 'standings', 'autocomplete', 'share', 'help',
+  ],
 };

@@ -32,6 +32,7 @@ export default async function DiscordGuide({ lang }: { lang: string }) {
     adminGuide: guideHref(locale.code, 'admin'),
     clanGuide: guideHref(locale.code, 'clan'),
     moderatorGuide: guideHref(locale.code, 'moderator'),
+    commandsGuide: guideHref(locale.code, 'commands'),
   };
 
   const SECTIONS = [

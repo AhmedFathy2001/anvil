@@ -127,6 +127,13 @@ export const en = {
           'Clan-v-clan without collecting a single RSN by hand: one invite link per team, and a seat that lets their moderator run their own half.',
         minutes: '~5 min per team',
       },
+      commands: {
+        eyebrow: 'For every member',
+        title: 'Slash commands',
+        blurb:
+          'Every command the bot answers in Discord, what each option does, worked examples, and what to check when one doesn’t show up.',
+        minutes: '~6 min',
+      },
     },
   },
 
@@ -393,7 +400,7 @@ export const en = {
     commands: {
       title: 'Slash commands',
       body: [
-        'The bot answers `/bingo` in your server: **board**, **rules**, **leaderboard**, **me** and **team**. They read the live event, so nobody has to leave Discord to check where they stand.',
+        'The bot answers `/bingo` in your server (the board, the standings, the rules, your own card) plus clan commands like `/sotw`, `/stats` and `/coffer`. They read the live site, so nobody has to leave Discord to check where they stand. [Every command and its options]({commandsGuide}) has its own page.',
         'They appear a minute or so after the bot joins. If they never appear at all, the invite granted the bot but not its commands — the two are separate permissions and an older invite link only asked for one. Re-run the invite link from the Discord bot tab; it does not kick the bot or reset anything.',
       ],
       note: {
@@ -2041,6 +2048,237 @@ export const en = {
         },
       ],
     },
+  },
+
+  commands: {
+    metaTitle: 'Discord slash commands — Anvil',
+    metaDescription:
+      'Every Anvil slash command — /bingo, /sotw, /botw, /eff, /coffer, /stats and /guide — with each option explained, examples, who can use what, and fixes for commands that don’t appear.',
+    eyebrow: 'Anvil · in Discord',
+    title: 'Slash commands',
+    dek: 'Type `/` in your clan’s Discord and Anvil answers from the live site: the board, the standings, your own card, the weeklies, the coffer and anybody’s stats. This page is the full list, generated from the commands the bot actually registers, so it is never out of date.',
+    facts: [
+      { strong: 'Private', rest: 'answers only you can see, with a Share button' },
+      { strong: 'Your language', rest: 'whatever your Discord is set to' },
+      { strong: 'Read-only', rest: 'except /coffer add and remove' },
+    ],
+    footnote:
+      'Setting the bot up in the first place is the [Discord guide](/guide/discord). This page is about using it.',
+
+    using: {
+      title: 'How a command works',
+      body: [
+        'Type `/` in any channel the bot can see and pick an Anvil command from the list. Discord then shows its options as boxes to fill in: press Tab or click one to add it. Options in `<angle brackets>` below are required; options in `[square brackets]` are optional and you can leave them out.',
+        'Every answer is **private**: only you see it, so checking the board ten times a day bothers nobody. If it is worth showing the channel, press **Share to channel** under the answer. The shared copy is rebuilt at that moment, so standings shared later are the standings as they are then.',
+      ],
+      rows: [
+        { term: 'Required', body: '`<amount>` — Discord will not send the command until it is filled in.' },
+        { term: 'Optional', body: '`[member]` — leave it out and the command answers about you, your team or the whole clan.' },
+        { term: 'A list', body: 'pick one of the values Discord offers; you can’t type your own.' },
+        { term: 'Type to search', body: 'start typing and pick from the suggestions, such as boss names or your own accounts.' },
+        { term: 'A member', body: 'pick someone from the server, the same as an @mention.' },
+      ],
+      note: {
+        tag: 'Commands only work in your clan’s server',
+        body: 'Every answer is about one clan, and a DM has no clan to answer about. That is why the commands don’t appear in DMs.',
+      },
+    },
+
+    bingo: {
+      title: 'Board commands: /bingo',
+      intro:
+        '`/bingo` is about one board. When several boards are live, **board** and **leaderboard** list them all; the rest answer about the board that is running, then the next one to start, then the one that just ended.',
+    },
+
+    clan: {
+      title: 'Clan commands',
+      intro:
+        'These answer about the clan rather than a board, so they work whether or not a bingo is running: the weeklies, efficiency, the coffer, anybody’s stats, and the setup guides.',
+    },
+
+    options: {
+      title: 'Options you’ll see everywhere',
+      intro: 'A few options mean the same thing on every command that has them:',
+      rows: [
+        {
+          term: '`member`',
+          body: 'someone else in the server. Leave it out to ask about yourself. It finds their Anvil account through the Discord login they used on the site, so it only works for members who have signed in to Anvil once.',
+        },
+        {
+          term: '`account`',
+          body: 'which of that person’s OSRS accounts, for people with alts. Type to pick; leave it out for their main.',
+        },
+        {
+          term: '`page`',
+          body: 'a boss or activity, typed to search: `Zulrah`, `Theatre of Blood`, `Tempoross`. Leave it out for the overall view.',
+        },
+        {
+          term: '`language`',
+          body: 'answer this one time in a different language. By default you get the language your Discord is set to, or the clan’s chosen bot language.',
+        },
+        {
+          term: '`amount`',
+          body: 'gp the friendly way: `5m`, `2.5b`, `500k`, or a plain number like `2,500,000`.',
+        },
+      ],
+    },
+
+    who: {
+      title: 'Who can use what',
+      body: [
+        'Anyone in the server can run every read-only command. What you see is what a member would see: a board whose tiles aren’t revealed yet stays hidden in Discord too, even for staff.',
+        'Commands that answer about **you** (`/bingo me`, `/stats` with no member) need to know which Anvil account is yours. They find it through the Discord login you used on the site, so sign in to Anvil with Discord once and they work from then on.',
+      ],
+      rows: [
+        { term: 'Everyone', body: 'every command except `/coffer add` and `/coffer remove`.' },
+        {
+          term: 'Treasurers, admins, owners',
+          body: '`/coffer add` and `/coffer remove`. Checked against your role **on the Anvil site**, never your Discord role, because a rank in a chat server has never meant control of the clan’s money.',
+        },
+      ],
+    },
+
+    trouble: {
+      title: 'When a command doesn’t work',
+      intro: 'The usual causes, roughly in the order they happen:',
+      rows: [
+        {
+          term: 'No Anvil commands in the list',
+          body: 'the bot was invited without its commands — that is a separate permission, and older invite links only asked for one. An admin re-runs the invite link from Admin → Integrations → Discord bot. It doesn’t kick the bot or reset anything. Newly added commands can take up to an hour to appear.',
+        },
+        {
+          term: '“The application did not respond”',
+          body: 'Anvil was briefly unreachable, usually mid-update. Run it again a few seconds later.',
+        },
+        {
+          term: '“Not on this board” about yourself',
+          body: 'either you haven’t entered this board, or Anvil can’t match your Discord to your account. Sign in to the site with this Discord account and check your profile.',
+        },
+        {
+          term: 'A member’s stats come back empty',
+          body: 'they haven’t signed in to Anvil with Discord yet, or their account’s hiscores haven’t been read yet. Try again with the `account` option, or ask them to sign in once.',
+        },
+        {
+          term: '`/coffer add` says you can’t',
+          body: 'your role on the Anvil site isn’t treasurer, admin or owner, or this Discord isn’t the account you sign in to the site with.',
+        },
+      ],
+    },
+
+    labels: {
+      options: 'Options',
+      noOptions: 'No options — just run it.',
+      example: 'Example',
+      examples: 'Examples',
+      required: 'required',
+      optional: 'optional',
+      choices: 'Choices',
+      range: 'from {min} to {max}',
+      kinds: {
+        text: 'text',
+        number: 'number',
+        member: 'a member',
+        choice: 'pick from a list',
+        search: 'type to search',
+        yesno: 'yes or no',
+      },
+    },
+
+    // Keyed by the command path. Every registered command must have one (tests/discord-command-guide).
+    examples: {
+      'bingo board': {
+        examples: ['/bingo board'],
+        tip: 'The board running right now. Until the board is revealed, tile names stay hidden here too.',
+      },
+      'bingo leaderboard': {
+        examples: ['/bingo leaderboard'],
+        tip: 'Team standings, with points or tiles depending on how the board scores.',
+      },
+      'bingo rules': {
+        examples: ['/bingo rules'],
+        tip: 'How this board scores (read off the event itself, so it is always right), then your clan’s own house rules.',
+      },
+      'bingo apply': {
+        examples: ['/bingo apply'],
+        tip: 'How to get in: sign-ups, the fee, and where your own sign-up stands.',
+      },
+      'bingo next': {
+        examples: ['/bingo next'],
+        tip: 'What’s coming next: a tile reveal, a mission, or a deadline.',
+      },
+      'bingo me': {
+        examples: ['/bingo me'],
+        tip: 'Your team, your place, and the tiles credited to you.',
+      },
+      'bingo help': {
+        examples: ['/bingo help'],
+        tip: 'A short list of what the bot answers, inside Discord.',
+      },
+      'bingo team': {
+        examples: ['/bingo team', '/bingo team name:Iron Wolves'],
+        tip: 'A team’s card: score, roster and recent tiles. Leave the name out for your own team.',
+      },
+      sotw: {
+        examples: ['/sotw', '/sotw language:Deutsch'],
+        tip: 'Every active Skill of the Week, the top of each, and where you rank.',
+      },
+      botw: {
+        examples: ['/botw'],
+        tip: 'Every active Boss of the Week and its live standings.',
+      },
+      eff: {
+        examples: ['/eff', '/eff metric:EHB'],
+        tip: 'The clan’s efficiency leaderboard and your rank in it. EHP (efficient hours played) by default; pick EHB for bossing.',
+      },
+      'coffer balance': {
+        examples: ['/coffer balance'],
+        tip: 'The coffer’s balance, the top donors, and the latest movements.',
+      },
+      'coffer add': {
+        examples: ['/coffer add amount:5m', '/coffer add amount:250k note:Raffle proceeds'],
+        tip: 'Treasurers, admins and owners only. Records gp coming in; it is also posted to the coffer feed channel.',
+      },
+      'coffer remove': {
+        examples: ['/coffer remove amount:20m note:SOTW prize'],
+        tip: 'Treasurers, admins and owners only. Refuses to take the coffer below zero; record that on the coffer page if you mean it.',
+      },
+      'stats profile': {
+        examples: ['/stats profile', '/stats profile member:@Zezima'],
+        tip: 'One account at a glance: combat and total level, EHP and EHB, collection log count and personal bests.',
+      },
+      'stats levels': {
+        examples: ['/stats levels', '/stats levels account:My Iron'],
+        tip: 'Every skill’s level and XP.',
+      },
+      'stats efficiency': {
+        examples: ['/stats efficiency'],
+        tip: 'EHP and EHB, and which skills and bosses they come from.',
+      },
+      'stats clog': {
+        examples: ['/stats clog', '/stats clog page:Zulrah'],
+        tip: 'Collection log progress overall, or one boss’s page.',
+      },
+      'stats pbs': {
+        examples: ['/stats pbs', '/stats pbs page:Theatre of Blood mode:Hard size:3'],
+        tip: 'Personal bests. Raids keep a time per mode and team size, so use `mode` and `size` to find the run you mean.',
+      },
+      'stats luck': {
+        examples: ['/stats luck', '/stats luck member:@Zezima'],
+        tip: 'How lucky the account has been across the drops Anvil tracks.',
+      },
+      'stats collectors': {
+        examples: ['/stats collectors'],
+        tip: 'The clan’s biggest collection logs.',
+      },
+      'stats luckboard': {
+        examples: ['/stats luckboard'],
+        tip: 'The clan’s driest and luckiest members.',
+      },
+      guide: {
+        examples: ['/guide topic:Plugin setup', '/guide topic:Plugin setup step:5'],
+        tip: 'A setup guide inside Discord: the list of steps, or one step with a link straight to it on the site.',
+      },
+    } as Record<string, { examples: string[]; tip: string }>,
   },
 };
 

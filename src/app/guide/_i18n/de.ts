@@ -123,6 +123,13 @@ const de: PartialGuideDict = {
           'Clan gegen Clan, ohne einen einzigen RSN von Hand einzusammeln: ein Einladungslink pro Team, und ein Platz, mit dem deren eigener Moderator die eigene Hälfte führt.',
         minutes: '~5 Min. pro Team',
       },
+      commands: {
+        eyebrow: 'Für alle Mitglieder',
+        title: 'Slash-Befehle',
+        blurb:
+          'Jeder Befehl, auf den der Bot in Discord antwortet, was jede Option tut, durchgespielte Beispiele, und was du prüfst, wenn einer nicht auftaucht.',
+        minutes: '~6 Min.',
+      },
     },
   },
 
@@ -389,7 +396,7 @@ const de: PartialGuideDict = {
     commands: {
       title: 'Slash-Befehle',
       body: [
-        'Der Bot beantwortet `/bingo` in deinem Server: **board**, **rules**, **leaderboard**, **me** und **team**. Sie lesen das laufende Event, sodass niemand Discord verlassen muss, um seinen Stand zu prüfen.',
+        'Der Bot beantwortet `/bingo` in deinem Server (das Board, den Stand, die Regeln, deine eigene Karte) und dazu Clan-Befehle wie `/sotw`, `/stats` und `/coffer`. Sie lesen die Seite live mit, sodass niemand Discord verlassen muss, um seinen Stand zu prüfen. [Jeder Befehl und seine Optionen]({commandsGuide}) hat eine eigene Seite.',
         'Sie erscheinen etwa eine Minute nachdem der Bot beigetreten ist. Erscheinen sie gar nicht, hat die Einladung den Bot gewährt, aber nicht seine Befehle — das sind zwei getrennte Berechtigungen, und ein älterer Einladungslink hat nur eine davon angefragt. Öffne den Link im Discord-Bot-Tab erneut; das wirft den Bot nicht raus und setzt nichts zurück.',
       ],
       note: {
@@ -1826,10 +1833,15 @@ const de: PartialGuideDict = {
     inbound: {
       title: 'Gold hineinbekommen',
       body: [
-        'Zwei Wege, und sie unterscheiden sich nur darin, wer sie beginnt. Ein Mitglied meldet seine eigene Spende über `/coffer` und sie wartet darauf, dass das Team sie glaubt; ein Kassenwart erfasst eine bereits eingetroffene, und dass er sie eintippt **ist** die Genehmigung.',
+        'Den gewöhnlichen Weg erledigt das RuneLite-Plugin automatisch: öffne die Clan Coffer im Spiel, und Anvil erfasst Ein- und Auszahlungen anhand ihres echten Münzbestands. Der erste Blick ist nur eine Ausgangsbasis — er tut nie so, als hätte derjenige, der sie geöffnet hat, alles gespendet, was schon drin liegt.',
+        'Manuelle Einträge bleiben für alles, was passiert ist, während niemand das Plugin offen hatte. Ein Mitglied meldet seine eigene Spende über `/coffer` und sie wartet darauf, dass das Team sie glaubt; ein Kassenwart erfasst eine bereits eingetroffene, und dass er sie eintippt **ist** die Genehmigung.',
         'So oder so wird sie einer **Person** gutgeschrieben. Das wiegt schwerer, als es klingt: die Spenderliste auf der öffentlichen Seite ist der einzige Dank, den die meisten Spender je bekommen, und Gold, das als „der Clan" ankommt, dankt niemandem.',
       ],
       rows: [
+        {
+          term: 'Die Kasse im Spiel öffnen',
+          body: 'mit aktiviertem und angemeldetem Anvil (Profile sync → **Sync Clan Coffer** ist standardmäßig an). Eine passende Spielnachricht schreibt dir deine eigene Ein- oder Auszahlung gut; Änderungen, die erst nach einer Lücke auffallen, werden abgeglichen, ohne den Beobachter zu nennen. Admin → Coffer zeigt den zuletzt gesehenen tatsächlichen Betrag und wann er gesehen wurde.',
+        },
         {
           term: 'Ein Mitglied meldet eine',
           body: 'über die öffentliche Kassenseite, mit Screenshot, falls vorhanden. Sie landet als offen und taucht in deiner Warteschlange auf. Das Genehmigen macht sie zu echtem Geld.',
@@ -2042,6 +2054,236 @@ const de: PartialGuideDict = {
           body: 'das bist du mit ziemlicher Sicherheit. Gib alles, was dein eigenes Team betrifft, an einen anderen Moderator ab — nicht weil du unfair wärst, sondern weil du nicht beweisen müssen sollst, dass du es nicht warst.',
         },
       ],
+    },
+  },
+
+  commands: {
+    metaTitle: 'Discord-Slash-Befehle — Anvil',
+    metaDescription:
+      'Jeder Slash-Befehl von Anvil — /bingo, /sotw, /botw, /eff, /coffer, /stats und /guide — mit jeder Option erklärt, Beispielen, wer was nutzen darf, und Lösungen für Befehle, die nicht erscheinen.',
+    eyebrow: 'Anvil · in Discord',
+    title: 'Slash-Befehle',
+    dek: 'Tipp `/` im Discord deines Clans, und Anvil antwortet live von der Seite: das Board, der Stand, deine eigene Karte, die Wochenwettbewerbe, die Kasse und die Stats von wem auch immer. Diese Seite ist die vollständige Liste, erzeugt aus den Befehlen, die der Bot tatsächlich registriert — sie ist also nie veraltet.',
+    facts: [
+      { strong: 'Privat', rest: 'Antworten, die nur du siehst, mit einem Share-Button' },
+      { strong: 'Deine Sprache', rest: 'die, auf die dein Discord eingestellt ist' },
+      { strong: 'Nur lesend', rest: 'außer /coffer add und remove' },
+    ],
+    footnote:
+      'Den Bot überhaupt einzurichten ist Sache der [Discord-Anleitung](/guide/discord). Diese Seite handelt davon, ihn zu benutzen.',
+
+    using: {
+      title: 'So funktioniert ein Befehl',
+      body: [
+        'Tipp `/` in einem beliebigen Kanal, den der Bot sehen kann, und wähl einen Anvil-Befehl aus der Liste. Discord zeigt dann seine Optionen als Felder zum Ausfüllen: drück Tab oder klick auf eine, um sie hinzuzufügen. Optionen in spitzen Klammern, `<angle brackets>`, sind unten Pflicht; Optionen in eckigen Klammern, `[square brackets]`, sind optional, und du kannst sie weglassen.',
+        'Jede Antwort ist **privat**: nur du siehst sie, also stört es niemanden, wenn du zehnmal am Tag aufs Board schaust. Wenn es sich lohnt, es dem Kanal zu zeigen, drück **Share to channel** unter der Antwort. Die geteilte Kopie wird in dem Moment neu erstellt — ein später geteilter Stand ist also der Stand von dann.',
+      ],
+      rows: [
+        { term: 'Pflicht', body: '`<amount>` — Discord schickt den Befehl erst ab, wenn das ausgefüllt ist.' },
+        { term: 'Optional', body: '`[member]` — lass es weg, und der Befehl antwortet über dich, dein Team oder den ganzen Clan.' },
+        { term: 'Eine Liste', body: 'wähl einen der Werte, die Discord anbietet; eigene kannst du nicht eintippen.' },
+        { term: 'Tippen zum Suchen', body: 'fang an zu tippen und wähl aus den Vorschlägen, etwa Bossnamen oder deine eigenen Accounts.' },
+        { term: 'Ein Mitglied', body: 'wähl jemanden aus dem Server, genau wie bei einer @-Erwähnung.' },
+      ],
+      note: {
+        tag: 'Befehle funktionieren nur im Server deines Clans',
+        body: 'Jede Antwort betrifft einen Clan, und eine DM hat keinen Clan, über den sie antworten könnte. Deshalb erscheinen die Befehle nicht in DMs.',
+      },
+    },
+
+    bingo: {
+      title: 'Board-Befehle: /bingo',
+      intro:
+        '`/bingo` dreht sich um ein Board. Wenn mehrere Boards laufen, listen **board** und **leaderboard** sie alle auf; der Rest antwortet über das Board, das gerade läuft, sonst das nächste, das startet, sonst das, das gerade geendet hat.',
+    },
+
+    clan: {
+      title: 'Clan-Befehle',
+      intro:
+        'Diese antworten über den Clan statt über ein Board, funktionieren also, ob gerade ein Bingo läuft oder nicht: die Wochenwettbewerbe, Effizienz, die Kasse, die Stats von jedem und die Einrichtungsanleitungen.',
+    },
+
+    options: {
+      title: 'Optionen, die dir überall begegnen',
+      intro: 'Ein paar Optionen bedeuten bei jedem Befehl, der sie hat, dasselbe:',
+      rows: [
+        {
+          term: '`member`',
+          body: 'jemand anderes im Server. Lass es weg, um nach dir selbst zu fragen. Es findet den Anvil-Account der Person über den Discord-Login, den sie auf der Seite benutzt hat — funktioniert also nur bei Mitgliedern, die sich einmal bei Anvil angemeldet haben.',
+        },
+        {
+          term: '`account`',
+          body: 'welcher der OSRS-Accounts dieser Person, für Leute mit Alts. Tippen zum Auswählen; lass es weg für den Main.',
+        },
+        {
+          term: '`page`',
+          body: 'ein Boss oder eine Aktivität, per Suche getippt: `Zulrah`, `Theatre of Blood`, `Tempoross`. Lass es weg für die Gesamtansicht.',
+        },
+        {
+          term: '`language`',
+          body: 'antwortet dieses eine Mal in einer anderen Sprache. Standardmäßig bekommst du die Sprache, auf die dein Discord eingestellt ist, oder die vom Clan gewählte Bot-Sprache.',
+        },
+        {
+          term: '`amount`',
+          body: 'gp auf die bequeme Art: `5m`, `2.5b`, `500k` oder eine einfache Zahl wie `2,500,000`.',
+        },
+      ],
+    },
+
+    who: {
+      title: 'Wer was nutzen darf',
+      body: [
+        'Jeder im Server kann jeden nur lesenden Befehl ausführen. Was du siehst, ist das, was ein Mitglied sehen würde: ein Board, dessen Felder noch nicht aufgedeckt sind, bleibt auch in Discord verborgen, selbst für das Team.',
+        'Befehle, die über **dich** antworten (`/bingo me`, `/stats` ohne member), müssen wissen, welcher Anvil-Account deiner ist. Sie finden ihn über den Discord-Login, den du auf der Seite benutzt hast — melde dich also einmal mit Discord bei Anvil an, und ab dann funktionieren sie.',
+      ],
+      rows: [
+        { term: 'Alle', body: 'jeder Befehl außer `/coffer add` und `/coffer remove`.' },
+        {
+          term: 'Kassenwarte, Admins, Besitzer',
+          body: '`/coffer add` und `/coffer remove`. Geprüft wird deine Rolle **auf der Anvil-Seite**, nie deine Discord-Rolle, denn ein Rang in einem Chatserver hat noch nie Verfügungsgewalt über das Geld des Clans bedeutet.',
+        },
+      ],
+    },
+
+    trouble: {
+      title: 'Wenn ein Befehl nicht funktioniert',
+      intro: 'Die üblichen Ursachen, ungefähr in der Reihenfolge, in der sie auftreten:',
+      rows: [
+        {
+          term: 'Keine Anvil-Befehle in der Liste',
+          body: 'der Bot wurde ohne seine Befehle eingeladen — das ist eine eigene Berechtigung, und ältere Einladungslinks haben nur eine davon angefragt. Ein Admin öffnet den Einladungslink erneut unter Admin → Integrations → Discord bot. Das wirft den Bot nicht raus und setzt nichts zurück. Neu hinzugefügte Befehle können bis zu einer Stunde brauchen, bis sie erscheinen.',
+        },
+        {
+          term: '„The application did not respond“',
+          body: 'Anvil war kurz nicht erreichbar, meist mitten in einem Update. Führ den Befehl ein paar Sekunden später noch einmal aus.',
+        },
+        {
+          term: '„Nicht auf diesem Brett“ über dich selbst',
+          body: 'entweder bist du diesem Board nicht beigetreten, oder Anvil kann dein Discord nicht deinem Account zuordnen. Melde dich mit diesem Discord-Konto auf der Seite an und prüf dein Profil.',
+        },
+        {
+          term: 'Die Stats eines Mitglieds kommen leer zurück',
+          body: 'die Person hat sich noch nicht mit Discord bei Anvil angemeldet, oder die Hiscores ihres Accounts wurden noch nicht gelesen. Versuch es noch einmal mit der Option `account`, oder bitte sie, sich einmal anzumelden.',
+        },
+        {
+          term: '`/coffer add` sagt, du darfst nicht',
+          body: 'deine Rolle auf der Anvil-Seite ist nicht Kassenwart, Admin oder Besitzer, oder dieses Discord ist nicht das Konto, mit dem du dich auf der Seite anmeldest.',
+        },
+      ],
+    },
+
+    labels: {
+      options: 'Optionen',
+      noOptions: 'Keine Optionen — einfach ausführen.',
+      example: 'Beispiel',
+      examples: 'Beispiele',
+      required: 'Pflicht',
+      optional: 'optional',
+      choices: 'Auswahl',
+      range: 'von {min} bis {max}',
+      kinds: {
+        text: 'Text',
+        number: 'Zahl',
+        member: 'ein Mitglied',
+        choice: 'aus einer Liste wählen',
+        search: 'tippen zum Suchen',
+        yesno: 'ja oder nein',
+      },
+    },
+
+    examples: {
+      'bingo board': {
+        examples: ['/bingo board'],
+        tip: 'Das Board, das gerade läuft. Bis das Board aufgedeckt ist, bleiben die Feldnamen auch hier verborgen.',
+      },
+      'bingo leaderboard': {
+        examples: ['/bingo leaderboard'],
+        tip: 'Der Teamstand, mit Punkten oder Feldern, je nachdem, wie das Board wertet.',
+      },
+      'bingo rules': {
+        examples: ['/bingo rules'],
+        tip: 'Wie dieses Board wertet (direkt aus dem Event gelesen, also immer korrekt), danach die Hausregeln deines Clans.',
+      },
+      'bingo apply': {
+        examples: ['/bingo apply'],
+        tip: 'Wie du reinkommst: Anmeldungen, die Gebühr, und wo deine eigene Anmeldung steht.',
+      },
+      'bingo next': {
+        examples: ['/bingo next'],
+        tip: 'Was als Nächstes kommt: ein Feld wird aufgedeckt, eine Mission oder eine Deadline.',
+      },
+      'bingo me': {
+        examples: ['/bingo me'],
+        tip: 'Dein Team, deine Platzierung und die Felder, die dir gutgeschrieben wurden.',
+      },
+      'bingo help': {
+        examples: ['/bingo help'],
+        tip: 'Eine kurze Liste dessen, worauf der Bot antwortet, direkt in Discord.',
+      },
+      'bingo team': {
+        examples: ['/bingo team', '/bingo team name:Iron Wolves'],
+        tip: 'Die Karte eines Teams: Punktzahl, Aufstellung und letzte Felder. Lass den Namen weg für dein eigenes Team.',
+      },
+      sotw: {
+        examples: ['/sotw', '/sotw language:Deutsch'],
+        tip: 'Jeder aktive Skill of the Week, die Spitze von jedem, und wo du stehst.',
+      },
+      botw: {
+        examples: ['/botw'],
+        tip: 'Jeder aktive Boss of the Week und sein Live-Stand.',
+      },
+      eff: {
+        examples: ['/eff', '/eff metric:EHB'],
+        tip: 'Die Effizienz-Rangliste des Clans und dein Platz darin. Standardmäßig EHP (efficient hours played); wähl EHB fürs Bossing.',
+      },
+      'coffer balance': {
+        examples: ['/coffer balance'],
+        tip: 'Der Kontostand der Kasse, die größten Spender und die letzten Bewegungen.',
+      },
+      'coffer add': {
+        examples: ['/coffer add amount:5m', '/coffer add amount:250k note:Raffle proceeds'],
+        tip: 'Nur für Kassenwarte, Admins und Besitzer. Erfasst eingehendes Gold; es wird außerdem im Kassen-Feed-Kanal gepostet.',
+      },
+      'coffer remove': {
+        examples: ['/coffer remove amount:20m note:SOTW prize'],
+        tip: 'Nur für Kassenwarte, Admins und Besitzer. Bringt die Kasse nie unter null; erfasse das auf der Kassenseite, wenn du es wirklich so meinst.',
+      },
+      'stats profile': {
+        examples: ['/stats profile', '/stats profile member:@Zezima'],
+        tip: 'Ein Account auf einen Blick: Kampf- und Gesamtlevel, EHP und EHB, Einträge im Collection Log und persönliche Bestzeiten.',
+      },
+      'stats levels': {
+        examples: ['/stats levels', '/stats levels account:My Iron'],
+        tip: 'Level und XP jedes Skills.',
+      },
+      'stats efficiency': {
+        examples: ['/stats efficiency'],
+        tip: 'EHP und EHB, und aus welchen Skills und Bossen sie stammen.',
+      },
+      'stats clog': {
+        examples: ['/stats clog', '/stats clog page:Zulrah'],
+        tip: 'Fortschritt im Collection Log insgesamt, oder die Seite eines Bosses.',
+      },
+      'stats pbs': {
+        examples: ['/stats pbs', '/stats pbs page:Theatre of Blood mode:Hard size:3'],
+        tip: 'Persönliche Bestzeiten. Raids speichern eine Zeit pro Modus und Teamgröße, nimm also `mode` und `size`, um den Run zu finden, den du meinst.',
+      },
+      'stats luck': {
+        examples: ['/stats luck', '/stats luck member:@Zezima'],
+        tip: 'Wie viel Glück der Account bei den Drops hatte, die Anvil verfolgt.',
+      },
+      'stats collectors': {
+        examples: ['/stats collectors'],
+        tip: 'Die größten Collection Logs des Clans.',
+      },
+      'stats luckboard': {
+        examples: ['/stats luckboard'],
+        tip: 'Die Clanmitglieder mit dem meisten Pech und dem meisten Glück.',
+      },
+      guide: {
+        examples: ['/guide topic:Plugin setup', '/guide topic:Plugin setup step:5'],
+        tip: 'Eine Einrichtungsanleitung direkt in Discord: die Liste der Schritte, oder ein einzelner Schritt mit einem Link direkt dorthin auf der Seite.',
+      },
     },
   },
 };
