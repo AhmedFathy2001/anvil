@@ -45,8 +45,10 @@ async function fetchBotUser(token: string): Promise<{ id: string; name: string }
 // Manage Webhooks (the four the features need), plus the basics to post: View Channel, Send
 // Messages, Embed Links, Attach Files, Read Message History — and for guides: Manage Threads (a bot
 // can't delete even its own forum post without it), Send Messages in Threads, and Change Nickname
-// (the per-server bot name, lib/discordIdentity).
-const INVITE_PERMISSIONS = '293064526864';
+// (the per-server bot name, lib/discordIdentity). Plus Create Invite (bit 0): an event server
+// (lib/eventDiscord) needs it both for players' single-use invites and for adding opted-in players
+// with guilds.join.
+const INVITE_PERMISSIONS = '293064526865';
 
 // Ready-made "add the bot to my server" link. guild_id pre-selects the configured server so the
 // admin can't add it to the wrong one; without a server ID yet, Discord asks them to pick.

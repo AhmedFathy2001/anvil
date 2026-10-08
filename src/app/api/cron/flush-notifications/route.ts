@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { flushPendingNotifications } from '@/lib/notifications';
 import { processEventLifecycleNotifications } from '@/lib/eventLifecycle';
 import { timingSafeStrEqual } from '@/lib/auth';
+import { recheckPendingEventServerMembers } from '@/lib/eventDiscord';
 
 // Per-minute backstop for the submission-notification debounce. Opportunistic flushes (run at the end
 // of each submission request) cover active events; this catches buckets that went quiet after the last
@@ -31,6 +32,9 @@ export async function GET(request: Request) {
 
   // Independent concerns — don't let a lifecycle-notification failure block the debounce flush.
   await processEventLifecycleNotifications().catch(() => {});
+  // Event Discord servers have no gateway connection, so a player who joined through their invite is
+  // only noticed here (lib/eventDiscord). One indexed query when nobody is pending.
+  await recheckPendingEventServerMembers().catch(() => {});
   const posted = await flushPendingNotifications();
   return NextResponse.json({ posted });
 }

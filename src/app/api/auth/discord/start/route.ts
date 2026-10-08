@@ -51,6 +51,7 @@ export async function GET(request: Request) {
     const apexStart = new URL('/api/auth/discord/start', originForHost(apexDomain()));
     apexStart.searchParams.set('return', returnTo);
     apexStart.searchParams.set('clan', clan.host);
+    if (url.searchParams.get('join') === '1') apexStart.searchParams.set('join', '1');
     return NextResponse.redirect(apexStart);
   }
 
@@ -64,7 +65,9 @@ export async function GET(request: Request) {
   const requestedClanHost = url.searchParams.get('clan');
 
   const state = crypto.randomBytes(24).toString('hex');
-  const res = NextResponse.redirect(buildAuthorizeUrl(state));
+  // `join=1` is the event page's "add me automatically" opt-in (lib/eventDiscord): the same login,
+  // plus the guilds.join scope. The callback stores the grant only if Discord actually granted it.
+  const res = NextResponse.redirect(buildAuthorizeUrl(state, { join: url.searchParams.get('join') === '1' }));
   const cookie = {
     httpOnly: true,
     sameSite: 'lax' as const,

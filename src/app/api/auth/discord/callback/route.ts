@@ -1,4 +1,11 @@
-import { exchangeCodeForToken, fetchDiscordUser } from '@/lib/discord-oauth';
+import { eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { users } from '@/db/schema';
+import { exchangeCodeForTokenSet, fetchDiscordUser } from '@/lib/discord-oauth';
+import { storeJoinGrant } from '@/lib/discordUserTokens';
+import { joinPendingEventServersNow } from '@/lib/eventDiscord';
+import { scopeAllowsJoin } from '@/lib/eventDiscordPlan';
+import { log } from '@/lib/logger';
 import { safeReturnPath } from '@/lib/safe-redirect';
 import { completeDiscordLogin, loginFailPage } from '@/lib/discord-login';
 import { apexDomain, resolveReturnHost } from '@/lib/clanContext';
@@ -44,9 +51,10 @@ export async function GET(request: Request) {
   }
 
   let discordUser;
+  let tokenSet;
   try {
-    const accessToken = await exchangeCodeForToken(code);
-    discordUser = await fetchDiscordUser(accessToken);
+    tokenSet = await exchangeCodeForTokenSet(code);
+    discordUser = await fetchDiscordUser(tokenSet.accessToken);
   } catch (e) {
     return loginFailPage(e instanceof Error ? e.message : 'Discord exchange failed.', 502);
   }
@@ -57,12 +65,32 @@ export async function GET(request: Request) {
   const returnHost = (await resolveReturnHost(cookieMap.get(RETURN_HOST_COOKIE))) ?? apexDomain();
 
   try {
-    return await completeDiscordLogin(discordUser, {
+    const res = await completeDiscordLogin(discordUser, {
       returnTo,
       returnHost,
       request,
       clearCookies: [STATE_COOKIE, RETURN_COOKIE, RETURN_HOST_COOKIE],
     });
+    // The event page's auto-join opt-in (start?join=1). Only kept when Discord actually granted
+    // guilds.join; a plain login carries no such scope and stores nothing. Best-effort: failing to
+    // store it just means the player gets the invite flow instead.
+    if (scopeAllowsJoin(tokenSet.scope)) {
+      const user = await db.query.users.findFirst({
+        where: eq(users.discordId, discordUser.id),
+        columns: { id: true, banned: true },
+      });
+      if (user && !user.banned) {
+        await storeJoinGrant(user.id, tokenSet).catch((err) => {
+          log.warn('oauth.store-join-grant-fail', { userId: user.id }, err);
+        });
+        // Add them now, with the token in hand, to every event server they're waiting on — this
+        // works even where grants can't be stored (no DISCORD_TOKEN_KEY).
+        await joinPendingEventServersNow(discordUser.id, tokenSet.accessToken).catch((err) => {
+          log.warn('oauth.join-now-fail', { userId: user.id }, err);
+        });
+      }
+    }
+    return res;
   } catch (e) {
     return loginFailPage(e instanceof Error ? e.message : 'Could not complete login.', 500);
   }

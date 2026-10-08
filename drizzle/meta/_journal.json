@@ -512,6 +512,13 @@
       "when": 1790551100000,
       "tag": "0114_remove_withdrawn_prestart_participants",
       "breakpoints": true
+    },
+    {
+      "idx": 115,
+      "version": "7",
+      "when": 1790551200000,
+      "tag": "0115_event_discord_servers",
+      "breakpoints": true
     }
   ]
 }

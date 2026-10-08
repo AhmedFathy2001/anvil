@@ -766,6 +766,22 @@ export async function resolveDiscordIdForMember(
  * The role sweep tries each against the guild and uses the first that's actually a member, so a
  * dead cached id can no longer shadow a live link, and no nickname/RSN needs to change.
  */
+/**
+ * The Discord id a seat's owner PROVED by signing in with Discord — the person who owns the account,
+ * else whoever signed it up. No guild search and no cached legacy id: lib/eventDiscord DMs and invites
+ * this id into a server, so a name-match guess could hand somebody else the invite.
+ */
+export async function provenDiscordIdForSeat(member: { id: number; playerId: number | null }): Promise<string | null> {
+  if (member.playerId != null) {
+    const viaPerson = await discordIdForPerson(member.playerId);
+    if (viaPerson) return viaPerson;
+  }
+  const signup = await db.query.eventSignups.findFirst({
+    where: and(eq(eventSignups.clanMemberId, member.id), isNotNull(eventSignups.userId)),
+  });
+  return signup?.userId != null ? discordIdForUser(signup.userId) : null;
+}
+
 async function gatherDiscordIdCandidates(member: MinimalClanMember): Promise<string[]> {
   const out: string[] = [];
   const add = (id: string | null | undefined) => {

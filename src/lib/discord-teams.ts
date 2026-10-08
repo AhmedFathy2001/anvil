@@ -30,6 +30,7 @@ import { discordRest, getBotCredentials, resolveDiscordIdForMember } from '@/lib
 import { acceptedCohostClanIds } from '@/lib/coHost';
 import { areEventRostersFinal } from '@/lib/eventReadiness';
 import { isSafeAutomatedRole } from '@/lib/discordRoleSafety';
+import { syncEventDiscordFireAndForget, usesEventServer } from '@/lib/eventDiscord';
 
 // Discord permission bits (https://discord.com/developers/docs/topics/permissions).
 // All fit comfortably in 32 bits, so plain-number bitwise ops are safe; we serialise the
@@ -1027,6 +1028,12 @@ export async function teardownTeamDiscord(eventId: number): Promise<TeardownRepo
  */
 export function syncTeamDiscordOnDraftCompleteFireAndForget(eventId: number): void {
   (async () => {
+    // A co-hosted event with its own event server (joint/single) is handled entirely by
+    // lib/eventDiscord; building host-server channels as well would duplicate every team.
+    if (await usesEventServer(eventId)) {
+      syncEventDiscordFireAndForget(eventId);
+      return;
+    }
     // Both calls resolve the clan from the event and no-op when the feature is off, so this is just
     // the ordering — provision the roles/channels, then hand them out.
     await provisionTeamDiscord(eventId);

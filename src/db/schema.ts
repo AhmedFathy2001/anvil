@@ -492,6 +492,19 @@ export const events = pgTable('events', {
   // category channel that holds every team's locked text + voice channels for this
   // event. Null = not yet provisioned. Cleared on teardown.
   discordCategoryId: text('discord_category_id'),
+  // WHERE THIS EVENT'S DISCORD LIVES (lib/eventDiscord). 'own' = the host's bound server, via
+  // lib/discord-teams as before. 'joint' = a separate event server holding one role per team plus
+  // shared text/voice, with each clan's private planning channels in that clan's OWN server.
+  // 'single' = one server (new or either clan's) holds roles, shared channels AND per-team planning.
+  // joint/single are only offered on co-hosted events.
+  discordLayout: text('discord_layout').notNull().default('own'),
+  // The event server for joint/single, and the clan whose bot drives it (its admin proved Manage
+  // Server there). Shared category + channels are recorded here; per-team ones in teamDiscordResources.
+  eventGuildId: text('event_guild_id'),
+  eventGuildClanId: integer('event_guild_clan_id').references(() => clans.id, { onDelete: 'set null' }),
+  eventGuildCategoryId: text('event_guild_category_id'),
+  eventGuildTextChannelId: text('event_guild_text_channel_id'),
+  eventGuildVoiceChannelId: text('event_guild_voice_channel_id'),
   // Member-facing tile visibility. 0 = tiles are hidden from non-staff: the web board
   // renders a "tiles not revealed yet" placeholder and the plugin returns empty tile
   // lists. 1 = revealed to everyone. Admin-only toggle on the event Overview tab. New
@@ -2922,3 +2935,72 @@ export const guideBulkRuns = pgTable('guide_bulk_runs', {
   index('guide_bulk_runs_clan_idx').on(t.clanId),
 ]);
 export type GuideBulkRun = typeof guideBulkRuns.$inferSelect;
+
+/**
+ * Per-team Discord resources in servers OTHER than the host's bound one (lib/eventDiscord). The
+ * host-only columns on `teams` can't describe a team that has a role in the event server AND a
+ * planning channel in its own clan's server, so each (team, server, purpose) is a row here.
+ *   purpose 'event'    — the team's role in the event server (plus private channels in 'single' mode,
+ *                        or for a drafted team that has no clan server of its own)
+ *   purpose 'planning' — the team's private role + text + voice in its clan's own server ('joint')
+ * clanId is whose bot created them, and the only clan that may tear them down.
+ */
+export const teamDiscordResources = pgTable('team_discord_resources', {
+  id: serial('id').primaryKey(),
+  teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  guildId: text('guild_id').notNull(),
+  purpose: text('purpose').notNull(),
+  categoryId: text('category_id'),
+  roleId: text('role_id'),
+  textChannelId: text('text_channel_id'),
+  voiceChannelId: text('voice_channel_id'),
+}, (t) => [
+  uniqueIndex('team_discord_resources_unique').on(t.teamId, t.guildId, t.purpose),
+]);
+export type TeamDiscordResource = typeof teamDiscordResources.$inferSelect;
+
+/**
+ * Getting a rostered player into an event server. One row per (event, server, Discord account).
+ *   status  'pending' → 'joined'. Joined is observed, never assumed: a role PUT that Discord accepts.
+ *   method  'auto' (guilds.join with the player's own grant) | 'invite' (single-use invite they opened)
+ *   joinCode — shown in the bot's DM AND on the player's signed-in event page, so a player can tell a
+ *              real Anvil DM from a copycat. The invite itself is never put in a DM.
+ */
+export const eventDiscordMembers = pgTable('event_discord_members', {
+  id: serial('id').primaryKey(),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  teamId: integer('team_id').references(() => teams.id, { onDelete: 'set null' }),
+  guildId: text('guild_id').notNull(),
+  discordId: text('discord_id').notNull(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  joinCode: text('join_code').notNull(),
+  status: text('status').notNull().default('pending'),
+  method: text('method'),
+  dmStatus: text('dm_status').notNull().default('none'),
+  inviteCode: text('invite_code'),
+  inviteExpiresAt: text('invite_expires_at'),
+  lastCheckedAt: text('last_checked_at'),
+  lastError: text('last_error'),
+  joinedAt: text('joined_at'),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (t) => [
+  uniqueIndex('event_discord_members_unique').on(t.eventId, t.guildId, t.discordId),
+  index('event_discord_members_status_idx').on(t.status, t.lastCheckedAt),
+]);
+export type EventDiscordMember = typeof eventDiscordMembers.$inferSelect;
+
+/**
+ * A player's OPT-IN Discord grant for `guilds.join` (lib/discordUserTokens). Only written when the
+ * player chose "add me automatically"; plain logins never ask for it. Both tokens are encrypted with
+ * lib/secretBox under DISCORD_TOKEN_KEY — without that env var nothing is stored and players fall back
+ * to the invite flow.
+ */
+export const userDiscordTokens = pgTable('user_discord_tokens', {
+  userId: integer('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  accessToken: text('access_token').notNull(),
+  refreshToken: text('refresh_token'),
+  expiresAt: text('expires_at').notNull(),
+  scope: text('scope').notNull(),
+  updatedAt: text('updated_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+});

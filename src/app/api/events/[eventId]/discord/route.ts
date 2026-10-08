@@ -143,6 +143,15 @@ export async function POST(
     );
   }
 
+  // An event server (joint/single, lib/eventDiscord) owns the team roles and channels; creating them
+  // in the host's server too would duplicate every team. Cleanup actions stay available.
+  if (event.discordLayout !== 'own' && ['provision', 'assign-rosters', 'sync-all'].includes(action)) {
+    return NextResponse.json(
+      { error: 'This event uses a separate event server. Manage it from the Event Discord server panel.' },
+      { status: 409 },
+    );
+  }
+
   switch (action) {
     case 'provision': {
       const report = await provisionTeamDiscord(id, scope);

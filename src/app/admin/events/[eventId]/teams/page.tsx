@@ -6,6 +6,7 @@ import { notFound } from 'next/navigation';
 import TeamsDraftClient from './TeamsDraftClient';
 import CoHostPanel from './CoHostPanel';
 import AccessPanel from './AccessPanel';
+import EventDiscordServerPanel from '@/components/EventDiscordServerPanel';
 import { cohostsForEvent } from '@/lib/coHost';
 import { settlementForEvent } from '@/lib/coHostSettlement';
 import { loadEventProfiles, attachProfiles } from '@/lib/draftProfiles';
@@ -88,6 +89,7 @@ export default async function EventTeamsPage({
       )}
       <AccessPanel eventId={id} />
       <CoHostPanel eventId={id} initial={cohosts} cashPolicy={event.cashPolicy} settlement={settlement} />
+      <EventDiscordServerPanel eventId={id} />
       <TeamsDraftClient
         event={event}
         tiles={eventTiles}

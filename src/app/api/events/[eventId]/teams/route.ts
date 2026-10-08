@@ -7,6 +7,7 @@ import { teams, events, users } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain } from '@/lib/auth';
 import { updateTeamDiscordIdentity } from '@/lib/discord-teams';
+import { updateTeamEventDiscordIdentity } from '@/lib/eventDiscord';
 import { captainSeatNotice, placeCaptainOnTeam } from '@/lib/teamCaptain';
 import { assertEventEditable } from '@/lib/eventLock';
 
@@ -308,6 +309,13 @@ export async function PATCH(
   // Mirror the rebrand onto Discord (role name/color + channel names) — fire-and-forget,
   // the site edit must not fail on a Discord hiccup.
   updateTeamDiscordIdentity(teamId).catch(() => {});
+  // ...and onto a co-hosted event's own server + planning channels (lib/eventDiscord). The acting
+  // clan may rename planning in its own server: the host for a host admin, the team's own clan for its
+  // captain. Anyone else's planning follows only where that clan switched team sync on.
+  if (updateData.name !== undefined || updateData.color !== undefined) {
+    const actingClanId = isAdmin ? event?.clanId : team.clanId ?? undefined;
+    updateTeamEventDiscordIdentity(teamId, actingClanId ?? undefined).catch(() => {});
+  }
 
   const { captainPassword: _, ...safeTeam } = updated;
   return NextResponse.json({ ...safeTeam, captainNotice });

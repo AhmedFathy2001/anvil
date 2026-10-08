@@ -45,17 +45,81 @@ export function isDiscordOAuthConfigured(): boolean {
   return getOAuthMode() !== 'none';
 }
 
-export function buildAuthorizeUrl(state: string): string {
+/**
+ * `join` adds the `guilds.join` scope — the player's OPT-IN for "add me to my event's Discord server
+ * automatically" (lib/eventDiscord). Never on a plain login: a sign-in screen that asks to "join
+ * servers for you" is exactly what phishing looks like, so it is only asked from the event page where
+ * the player pressed the button for it. `prompt=consent` there, since the extra scope needs a screen.
+ */
+export function buildAuthorizeUrl(state: string, opts: { join?: boolean } = {}): string {
   const { clientId, redirectUri } = requireConfig();
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: 'identify email',
+    scope: opts.join ? 'identify email guilds.join' : 'identify email',
     state,
-    prompt: 'none',
+    prompt: opts.join ? 'consent' : 'none',
   });
   return `${AUTHORIZE_URL}?${params.toString()}`;
+}
+
+export interface DiscordTokenSet {
+  accessToken: string;
+  refreshToken: string | null;
+  /** Seconds until the access token expires. */
+  expiresIn: number;
+  scope: string;
+}
+
+/** Exchange a login code, keeping everything the token endpoint returned. */
+export async function exchangeCodeForTokenSet(code: string): Promise<DiscordTokenSet> {
+  const { clientId, clientSecret, redirectUri } = requireConfig();
+  const body = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    grant_type: 'authorization_code',
+    code,
+    redirect_uri: redirectUri,
+  });
+  return postTokenEndpoint(body);
+}
+
+/** Refresh a stored grant (lib/discordUserTokens). */
+export async function refreshTokenSet(refreshToken: string): Promise<DiscordTokenSet> {
+  const { clientId, clientSecret } = requireConfig();
+  const body = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+  });
+  return postTokenEndpoint(body);
+}
+
+async function postTokenEndpoint(body: URLSearchParams): Promise<DiscordTokenSet> {
+  const res = await fetch(TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Discord token exchange failed (${res.status}): ${text}`);
+  }
+  const data = (await res.json()) as {
+    access_token?: string;
+    refresh_token?: string;
+    expires_in?: number;
+    scope?: string;
+  };
+  if (!data.access_token) throw new Error('Discord token response missing access_token');
+  return {
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token ?? null,
+    expiresIn: typeof data.expires_in === 'number' ? data.expires_in : 0,
+    scope: data.scope ?? '',
+  };
 }
 
 export async function exchangeCodeForToken(code: string): Promise<string> {
