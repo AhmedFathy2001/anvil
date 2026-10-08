@@ -17,6 +17,7 @@ interface BotStatus {
   tokenValid: boolean | null;
   botUser: string | null;
   guildId: string;
+  guildVerified: boolean;
   // Whether the bot is actually a member of THIS clan's server. null = unknown (no token, no server
   // ID, or Discord unreachable). A valid token alone proves nothing — with the shared bot it's valid
   // for every clan, including ones that never invited it.
@@ -125,13 +126,15 @@ export default function DiscordBotSettings() {
     return <div className="text-text-muted text-sm">Loading bot status…</div>;
   }
 
-  const hasChanges = guildId.trim() !== status.guildId || tokenInput.trim() !== '';
+  // Existing installations predate ownership proof. Let their manager press Save without changing
+  // the ID to verify it; until then every bot-driven feature treats the stored value as inert.
+  const hasChanges = guildId.trim() !== status.guildId || tokenInput.trim() !== '' || (!!guildId.trim() && !status.guildVerified);
   const badTokenSet = status.configured && status.tokenValid === false;
   // "Ready" means the bot can actually do something HERE: a valid token AND membership of this
   // clan's server. Anything less is reported as work still to do, never as a green tick.
   const needsInvite = status.configured && !badTokenSet && status.inGuild === false;
   const needsGuildId = status.configured && !badTokenSet && !status.guildId;
-  const ready = status.configured && !badTokenSet && status.inGuild === true;
+  const ready = status.configured && !badTokenSet && status.guildVerified && status.inGuild === true;
   const inviteButton = status.inviteUrl && (
     <a
       href={status.inviteUrl}
@@ -178,13 +181,20 @@ export default function DiscordBotSettings() {
             Add your Discord server ID below so Anvil knows which server to work in.
           </p>
         )}
+        {!!status.guildId && !status.guildVerified && !badTokenSet && (
+          <p className="text-xs text-yellow-400 mt-1">
+            This server ID has not been ownership-verified yet. Sign in with a Discord account that owns the
+            server or has Manage Server, make sure the bot is already in it, then press Save. Discord actions
+            stay disabled until that succeeds.
+          </p>
+        )}
         {ready && status.missingPermissions.length > 0 && (
           <p className="text-xs text-yellow-400 mt-1">
             The bot is in your server but is missing {status.missingPermissions.join(', ')}. Grant those under
             Server Settings → Roles (and drag its role above the ones it manages), or re-run the invite link below.
           </p>
         )}
-        {status.inGuild === null && status.configured && status.guildId && !badTokenSet && (
+        {status.inGuild === null && status.configured && status.guildVerified && status.guildId && !badTokenSet && (
           <p className="text-xs text-text-muted mt-1">
             Couldn&apos;t reach Discord to check whether the bot is in your server — retry in a moment.
           </p>
@@ -253,8 +263,8 @@ export default function DiscordBotSettings() {
           className="w-full px-3 py-2 rounded-lg bg-brown-dark border border-card-border text-sm focus:outline-none focus:border-gold/60"
         />
         <p className="text-xs text-text-muted mt-1">
-          Right-click your server icon in Discord → Copy Server ID (needs Developer Mode on). The bot must be a
-          member of this server.
+          Right-click your server icon in Discord → Copy Server ID (needs Developer Mode on). The bot must already
+          be a member, and your signed-in Discord account must own the server or have Manage Server.
         </p>
       </div>
 

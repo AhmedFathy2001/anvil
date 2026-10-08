@@ -57,12 +57,26 @@ export async function getClanContext(guildId: string | null): Promise<ClanContex
   if (!wanted) return null;
 
   // clan-scope: global -- a Discord guild maps to exactly one clan, and this lookup IS that mapping.
-  const guildRow = await db.query.settings.findFirst({
-    where: and(eq(settings.key, 'discord_guild_id'), eq(settings.value, wanted)),
-  });
-  if (!guildRow) return null;
+  const verifiedClans = db
+    .select({ clanId: settings.clanId })
+    .from(settings)
+    .where(and(eq(settings.key, 'discord_guild_verified_id'), eq(settings.value, wanted)));
+  const guildRows = await db
+    .select({ clanId: settings.clanId })
+    .from(settings)
+    .where(
+      and(
+        eq(settings.key, 'discord_guild_id'),
+        eq(settings.value, wanted),
+        inArray(settings.clanId, verifiedClans),
+      ),
+    )
+    .limit(2);
+  // Zero means unbound/unverified. Two means legacy/corrupt duplicate ownership; refusing is safer
+  // than whichever row findFirst happened to return, which could route one clan's command to another.
+  if (guildRows.length !== 1) return null;
 
-  const ctx = await clanContextById(guildRow.clanId);
+  const ctx = await clanContextById(guildRows[0].clanId);
   return { ...ctx, guildId: wanted };
 }
 

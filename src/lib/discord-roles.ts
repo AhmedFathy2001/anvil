@@ -17,6 +17,7 @@ import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
 import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { log } from '@/lib/logger';
 import { normalizeRsn } from '@/lib/auth';
+import { isSafeAutomatedRole } from '@/lib/discordRoleSafety';
 
 const DISCORD_API = 'https://discord.com/api/v10';
 
@@ -236,8 +237,14 @@ export function isSharedBotAvailable(): boolean {
 export async function getBotCredentials(clanId: number): Promise<{ botToken: string; guildId: string } | null> {
   const resolved = await resolveBotToken(clanId);
   if (!resolved) return null;
-  const guildId = await clanGuildId(clanId);
-  if (!guildId) return null;
+  const [guildId, verifiedGuildId] = await Promise.all([
+    clanGuildId(clanId),
+    getSetting(clanId, 'discord_guild_verified_id'),
+  ]);
+  // A guild id is a routing capability, not harmless configuration. Legacy values and arbitrary
+  // IDs written outside the verified bot-connection route are display-only: no Discord read or
+  // write may use them until a Discord manager proves the binding.
+  if (!guildId || verifiedGuildId?.trim() !== guildId) return null;
   return { botToken: resolved.token, guildId };
 }
 
@@ -396,6 +403,7 @@ export interface DiscordRole {
   name: string;
   position: number;
   managed: boolean;
+  permissions: string;
 }
 
 export async function fetchGuildRoles(clanId: number): Promise<DiscordRole[]> {
@@ -937,22 +945,27 @@ export async function syncRolesForClanMember(
 
   const allGuests = ownedRows.every((r) => r.kind === 'guest');
 
-  // If any part of the config is name-based or auto-matching is on, we need the
-  // live guild role list. Fetched at most once per sync. When all config is
-  // strictly ID-based and auto-match is off, we skip the GET entirely.
-  const needGuildRoles =
-    cfg.autoMatchRankByName ||
-    cfg.defaultRoleNames.length > 0 ||
-    cfg.guestRoleNames.length > 0;
+  // Always read the live role list before a write. Besides name matching, its permission bitfields
+  // are the final guard that prevents a stale/forged config from assigning an administrative role.
   let guildRoles: DiscordRole[] = ctx?.guildRoles ?? [];
-  if (needGuildRoles && !ctx) {
+  if (!ctx) {
     const rolesRes = await discordFetch(cfg, `/guilds/${cfg.guildId}/roles`);
     if (rolesRes.ok) {
       guildRoles = (await rolesRes.json()) as DiscordRole[];
     } else {
       log.warn('discord-roles.list-roles-fail', { status: rolesRes.status, ctx: 'syncRolesForClanMember' });
+      return {
+        ok: false,
+        reason: 'Discord roles could not be verified — no roles were changed',
+        discordUserId,
+        added: [],
+        removed: [],
+      };
     }
   }
+  const safeRoleIds = new Set(
+    guildRoles.filter((role) => isSafeAutomatedRole(role, cfg.guildId)).map((role) => role.id),
+  );
 
   // Pick highest rank using Discord role positions when available — that lets the
   // admin's Discord role ordering dictate clan rank precedence (including custom
@@ -1024,16 +1037,20 @@ export async function syncRolesForClanMember(
   // Target role set
   const target = new Set<string>();
   if (allGuests) {
-    resolvedGuests.forEach((id) => target.add(id));
+    resolvedGuests.forEach((id) => {
+      if (safeRoleIds.has(id)) target.add(id);
+    });
   } else {
-    resolvedDefaults.forEach((id) => target.add(id));
+    resolvedDefaults.forEach((id) => {
+      if (safeRoleIds.has(id)) target.add(id);
+    });
     const rankKey = normalizeRankKey(highestRank);
     if (rankKey) {
       // 1) Explicit map override wins
       let roleId: string | null = cfg.rankRoleMap[rankKey] ?? null;
       // 2) Auto-match against guild role name
       if (!roleId && cfg.autoMatchRankByName) roleId = findRoleIdForRankByName(rankKey, guildRoles);
-      if (roleId) {
+      if (roleId && safeRoleIds.has(roleId)) {
         target.add(roleId);
         // For custom rank names that aren't in RANK_PRECEDENCE (e.g. "marshal"),
         // the role wasn't pre-walked above. Record it so a future downgrade can

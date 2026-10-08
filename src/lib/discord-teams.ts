@@ -29,6 +29,7 @@ import { log } from '@/lib/logger';
 import { discordRest, getBotCredentials, resolveDiscordIdForMember } from '@/lib/discord-roles';
 import { acceptedCohostClanIds } from '@/lib/coHost';
 import { areEventRostersFinal } from '@/lib/eventReadiness';
+import { isSafeAutomatedRole } from '@/lib/discordRoleSafety';
 
 // Discord permission bits (https://discord.com/developers/docs/topics/permissions).
 // All fit comfortably in 32 bits, so plain-number bitwise ops are safe; we serialise the
@@ -79,6 +80,16 @@ async function getBotUserId(botToken: string): Promise<string | null> {
   return me.id;
 }
 
+async function safeAutomatedRoleIds(botToken: string, guildId: string): Promise<Set<string>> {
+  const res = await discordRest(botToken, `/guilds/${guildId}/roles`);
+  if (!res.ok) {
+    log.warn('discord-teams.role-safety-read-fail', { status: res.status, guildId });
+    return new Set();
+  }
+  const roles = (await res.json()) as { id: string; managed?: boolean; permissions?: string }[];
+  return new Set(roles.filter((role) => isSafeAutomatedRole(role, guildId)).map((role) => role.id));
+}
+
 /**
  * Resolve live config. Returns null when the feature is disabled OR the bot
  * credentials are missing — callers treat that as "skip silently".
@@ -88,12 +99,18 @@ export async function loadTeamChannelConfig(clanId: number): Promise<TeamChannel
   if (!enabled) return null;
   const creds = await getBotCredentials(clanId);
   if (!creds) return null;
+  const [botUserId, bingoRoleId, captainRoleId, safeRoleIds] = await Promise.all([
+    getBotUserId(creds.botToken),
+    getSetting(clanId, 'discord_bingo_role_id'),
+    getSetting(clanId, 'discord_captain_role_id'),
+    safeAutomatedRoleIds(creds.botToken, creds.guildId),
+  ]);
   return {
     botToken: creds.botToken,
     guildId: creds.guildId,
-    botUserId: await getBotUserId(creds.botToken),
-    bingoRoleId: (await getSetting(clanId, 'discord_bingo_role_id')) || null,
-    captainRoleId: (await getSetting(clanId, 'discord_captain_role_id')) || null,
+    botUserId,
+    bingoRoleId: bingoRoleId && safeRoleIds.has(bingoRoleId) ? bingoRoleId : null,
+    captainRoleId: captainRoleId && safeRoleIds.has(captainRoleId) ? captainRoleId : null,
   };
 }
 
@@ -119,6 +136,8 @@ async function cohostBingoRoleTargets(eventId: number): Promise<SharedBingoRoleT
       getSetting(clanId, 'discord_bingo_role_id'),
     ]);
     if (!creds || !bingoRoleId?.trim()) continue;
+    const safeRoleIds = await safeAutomatedRoleIds(creds.botToken, creds.guildId);
+    if (!safeRoleIds.has(bingoRoleId.trim())) continue;
     const identity = `${creds.guildId}:${bingoRoleId.trim()}`;
     if (seen.has(identity)) continue;
     seen.add(identity);

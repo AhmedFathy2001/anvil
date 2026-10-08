@@ -9,6 +9,8 @@ import { setSetting, getSettingMap } from '@/lib/settings';
 import { verifyAdmin } from '@/lib/auth';
 import { sendTestWebhook } from '@/lib/discord';
 import { WEBHOOK_PAGE_SETTING_KEYS } from '@/lib/webhookFields';
+import { fetchGuildRoles } from '@/lib/discord-roles';
+import { isSafeAutomatedRole } from '@/lib/discordRoleSafety';
 
 const EXPOSED_KEYS = [
   // Every destination and switch the Integrations → Webhooks page renders: the announcements
@@ -46,7 +48,6 @@ const EXPOSED_KEYS = [
   // (discord_rank_role_map, discord_default_role_*, discord_guest_role_*) stay
   // out of this whitelist — they need the guild-roles picker, not a plain text box.
   'discord_role_sync_enabled',
-  'discord_guild_id',
   'discord_auto_match_rank_by_name',
   'discord_nickname_sync_enabled',
   // Which language the Discord bot answers in. Blank = follow each member's own Discord locale,
@@ -123,6 +124,31 @@ export async function PUT(request: Request) {
   }
 
   const body = (await request.json()) as Partial<Record<ExposedKey, string | null>>;
+
+  // These IDs are handed to Discord's add-role endpoint later, including during co-host fan-out.
+  // Validate against the clan's OWN verified guild now; a forged request must not save an
+  // Administrator/moderator role even if it bypasses the picker UI.
+  const automatedRoleIds = [body.discord_bingo_role_id, body.discord_captain_role_id]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .map((value) => value.trim());
+  if (automatedRoleIds.length > 0) {
+    if (automatedRoleIds.some((id) => !/^\d+$/.test(id))) {
+      return NextResponse.json({ error: 'Discord role IDs must be numeric.' }, { status: 400 });
+    }
+    const roles = await fetchGuildRoles(clan.id);
+    const safeIds = new Set(
+      roles
+        .filter((role) => role.name !== '@everyone' && isSafeAutomatedRole(role, ''))
+        .map((role) => role.id),
+    );
+    if (automatedRoleIds.some((id) => !safeIds.has(id))) {
+      return NextResponse.json(
+        { error: 'A selected Discord role is missing, bot-managed, or has administrative/moderation permissions.' },
+        { status: 400 },
+      );
+    }
+  }
+
   for (const key of EXPOSED_KEYS) {
     const raw = body[key];
     if (raw === undefined) continue;

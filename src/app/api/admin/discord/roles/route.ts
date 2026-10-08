@@ -3,6 +3,7 @@ import { requireClan } from '@/lib/clanContext';
 import { getSetting, setSetting } from '@/lib/settings';
 import { verifyAdmin } from '@/lib/auth';
 import { fetchGuildRoles } from '@/lib/discord-roles';
+import { isSafeAutomatedRole } from '@/lib/discordRoleSafety';
 
 
 function parseIds(raw: string | null): string[] {
@@ -31,7 +32,7 @@ export async function GET() {
   const roles = await fetchGuildRoles(clan.id);
   // Top-of-server first (matches Discord); drop @everyone and bot-managed roles (can't be assigned).
   const sorted = roles
-    .filter((r) => r.name !== '@everyone' && !r.managed)
+    .filter((r) => r.name !== '@everyone' && isSafeAutomatedRole(r, ''))
     .sort((a, b) => b.position - a.position);
 
   return NextResponse.json({
@@ -52,8 +53,24 @@ export async function POST(request: Request) {
     | null;
   if (!body) return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
 
-  await setSetting(clan.id, 'discord_default_role_ids', JSON.stringify(cleanIds(body.defaultRoleIds)));
-  await setSetting(clan.id, 'discord_guest_role_ids', JSON.stringify(cleanIds(body.guestRoleIds)));
+  const defaultRoleIds = cleanIds(body.defaultRoleIds);
+  const guestRoleIds = cleanIds(body.guestRoleIds);
+  const requested = new Set([...defaultRoleIds, ...guestRoleIds]);
+  const roles = await fetchGuildRoles(clan.id);
+  const safe = new Set(
+    roles
+      .filter((role) => role.name !== '@everyone' && isSafeAutomatedRole(role, ''))
+      .map((role) => role.id),
+  );
+  if ([...requested].some((id) => !safe.has(id))) {
+    return NextResponse.json(
+      { error: 'One of those roles is missing, bot-managed, or has administrative/moderation permissions.' },
+      { status: 400 },
+    );
+  }
+
+  await setSetting(clan.id, 'discord_default_role_ids', JSON.stringify(defaultRoleIds));
+  await setSetting(clan.id, 'discord_guest_role_ids', JSON.stringify(guestRoleIds));
 
   return NextResponse.json({ success: true });
 }

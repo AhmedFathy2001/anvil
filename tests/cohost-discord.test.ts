@@ -61,6 +61,13 @@ before(async () => {
     if (href.endsWith('/users/@me')) {
       return Response.json({ id: 'bot-user' });
     }
+    if (/\/guilds\/[^/]+\/roles$/.test(href)) {
+      return Response.json([
+        { id: 'host-role', name: 'Host bingo', position: 2, managed: false, permissions: '0' },
+        { id: 'guest-role', name: 'Guest bingo', position: 2, managed: false, permissions: '0' },
+        { id: 'pending-role', name: 'Pending bingo', position: 2, managed: false, permissions: '0' },
+      ]);
+    }
     posts.push({ url: href, body: JSON.parse(String(init?.body ?? '{}')) });
     return new Response(null, { status: 204 });
   }) as typeof fetch;
@@ -203,12 +210,15 @@ test('bingo-role fan-out uses only accepted co-hosts that explicitly opted in, w
   await db.insert(s.settings).values([
     { clanId: hostClan, key: 'discord_team_sync_enabled', value: 'true' },
     { clanId: hostClan, key: 'discord_guild_id', value: 'host-guild' },
+    { clanId: hostClan, key: 'discord_guild_verified_id', value: 'host-guild' },
     { clanId: hostClan, key: 'discord_bingo_role_id', value: 'host-role' },
     { clanId: guestClan, key: 'discord_guild_id', value: 'guest-guild' },
+    { clanId: guestClan, key: 'discord_guild_verified_id', value: 'guest-guild' },
     { clanId: guestClan, key: 'discord_bingo_role_id', value: 'guest-role' },
     { clanId: guestClan, key: 'discord_cohost_role_sync_enabled', value: 'true' },
     // Even an opted-in clan is excluded until its co-host invitation is accepted.
     { clanId: pendingClan, key: 'discord_guild_id', value: 'pending-guild' },
+    { clanId: pendingClan, key: 'discord_guild_verified_id', value: 'pending-guild' },
     { clanId: pendingClan, key: 'discord_bingo_role_id', value: 'pending-role' },
     { clanId: pendingClan, key: 'discord_cohost_role_sync_enabled', value: 'true' },
   ]);

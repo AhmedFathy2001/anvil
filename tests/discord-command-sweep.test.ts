@@ -78,6 +78,7 @@ before(async () => {
 
   const [clan] = await db.insert(s.clans).values({ slug: 'sweep', name: 'The Sweep Spot', inGameName: 'Sweep' }).returning();
   await db.insert(s.settings).values({ clanId: clan.id, key: 'discord_guild_id', value: GUILD });
+  await db.insert(s.settings).values({ clanId: clan.id, key: 'discord_guild_verified_id', value: GUILD });
 
   const [person] = await db.insert(s.players).values({ displayName: 'Drenvox mdps' }).returning();
   await db.insert(s.users).values({ displayName: 'Drenvox', discordId: DISCORD_ID, playerId: person.id });

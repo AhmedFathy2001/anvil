@@ -16,10 +16,68 @@ import { discordRest } from '@/lib/discord-roles';
 const NONE = BigInt(0);
 const ADMINISTRATOR = BigInt(1) << BigInt(3);
 const MANAGE_CHANNELS = BigInt(1) << BigInt(4);
+const MANAGE_GUILD = BigInt(1) << BigInt(5);
 const VIEW_CHANNEL = BigInt(1) << BigInt(10);
 const MANAGE_NICKNAMES = BigInt(1) << BigInt(27);
 const MANAGE_ROLES = BigInt(1) << BigInt(28);
 const MANAGE_WEBHOOKS = BigInt(1) << BigInt(29);
+
+export interface GuildManagerCheck {
+  ok: boolean;
+  guildName: string | null;
+  reason?: string;
+}
+
+/**
+ * Prove that a Discord identity is allowed to bind a guild to an Anvil clan.
+ *
+ * The bot token is only transport: it lets us read the guild, member and role records. Authority
+ * comes from the signed-in human being the guild owner or holding Administrator / Manage Server.
+ * Merely knowing a guild id (or being an Anvil clan admin) is intentionally not enough.
+ */
+export async function discordUserCanManageGuild(
+  botToken: string,
+  guildId: string,
+  discordUserId: string,
+): Promise<GuildManagerCheck> {
+  const [guildRes, memberRes, rolesRes] = await Promise.all([
+    discordRest(botToken, `/guilds/${guildId}`),
+    discordRest(botToken, `/guilds/${guildId}/members/${discordUserId}`),
+    discordRest(botToken, `/guilds/${guildId}/roles`),
+  ]);
+
+  if (guildRes.status === 404 || guildRes.status === 403) {
+    return { ok: false, guildName: null, reason: 'The bot is not in that Discord server.' };
+  }
+  if (!guildRes.ok) {
+    return { ok: false, guildName: null, reason: `Discord could not verify that server (${guildRes.status}).` };
+  }
+  const guild = (await guildRes.json()) as { name?: string; owner_id?: string };
+  const guildName = guild.name ?? null;
+  if (guild.owner_id === discordUserId) return { ok: true, guildName };
+
+  if (memberRes.status === 404 || memberRes.status === 403) {
+    return { ok: false, guildName, reason: 'Your signed-in Discord account is not a member of that server.' };
+  }
+  if (!memberRes.ok || !rolesRes.ok) {
+    const status = !memberRes.ok ? memberRes.status : rolesRes.status;
+    return { ok: false, guildName, reason: `Discord could not verify your server permissions (${status}).` };
+  }
+
+  const member = (await memberRes.json()) as { roles?: string[] };
+  const roleIds = new Set(member.roles ?? []);
+  const roles = (await rolesRes.json()) as { id: string; permissions: string }[];
+  let permissions = NONE;
+  for (const role of roles) {
+    if (role.id === guildId || roleIds.has(role.id)) permissions |= BigInt(role.permissions);
+  }
+  if ((permissions & (ADMINISTRATOR | MANAGE_GUILD)) !== NONE) return { ok: true, guildName };
+  return {
+    ok: false,
+    guildName,
+    reason: 'Your signed-in Discord account needs Administrator or Manage Server in that server.',
+  };
+}
 
 // Permission overwrite target types.
 const OVERWRITE_ROLE = 0;
