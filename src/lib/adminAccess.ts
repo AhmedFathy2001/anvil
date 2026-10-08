@@ -62,6 +62,9 @@ const MODERATOR_PATHS = [
   '/admin/tile-library',
   // Every staff seat may read the clan's guides; the pages and routes check canEditGuides to write.
   '/admin/guides',
+  // A co-hosted board's own corner: this clan's sign-ups, its team, the board if the host allows it,
+  // and its Discord. The page re-checks the co-host seat; Discord setup is admin-only within it.
+  '/admin/cohosted',
 ];
 
 /**

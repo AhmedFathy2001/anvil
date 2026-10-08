@@ -3,7 +3,8 @@ import { eventForRequest } from '@/lib/eventScope';
 import { resolvePlayers } from '@/lib/signupPlayer';
 import { db } from '@/db';
 import { clanAuditLog, clanRoster, events, eventSignups, eventParticipants, signupFees, teams, users } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import { cohostSignupClanFor } from '@/lib/eventEditors';
 import { generatePlayerToken, verifyAdminOrModerator, verifyEventTreasurer, verifyUser } from '@/lib/auth';
 import { parseProfile } from '@/lib/signup';
 import { parseConfirmations } from '@/lib/feeConfirmations';
@@ -28,7 +29,10 @@ export async function GET(
   // Clan staff, or this board's own treasurer — the fee rows they're here to work through hang off
   // these sign-ups, so refusing the list would leave them a tab with nothing on it.
   const session = (await verifyAdminOrModerator()) ?? (await verifyEventTreasurer(id));
-  if (!session) {
+  // …or a CO-HOST's staff, who see only the sign-ups held through their own clan's seats.
+  const viewer = session ? null : await verifyUser();
+  const cohostClanId = !session && viewer ? await cohostSignupClanFor(id, viewer.userId) : null;
+  if (!session && cohostClanId == null) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -56,7 +60,11 @@ export async function GET(
     .leftJoin(users, eq(eventSignups.userId, users.id))
     .innerJoin(clanRoster, eq(eventSignups.clanMemberId, clanRoster.id))
     .leftJoin(signupFees, eq(signupFees.signupId, eventSignups.id))
-    .where(eq(eventSignups.eventId, id));
+    .where(
+      cohostClanId == null
+        ? eq(eventSignups.eventId, id)
+        : and(eq(eventSignups.eventId, id), eq(clanRoster.clanId, cohostClanId)),
+    );
 
   // Look up which signup users captain a team in this event so the UI can render
   // captain-only actions (demote) without an extra round-trip.

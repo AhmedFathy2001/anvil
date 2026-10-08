@@ -24,10 +24,10 @@
 // (event_id, account_id) backs it in the database, which is what makes `enrolParticipant` safe to
 // call concurrently: the conflict clause turns a race into the same answer both callers wanted.
 
-import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, notInArray, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanRoster, eventParticipants } from '@/db/schema';
+import { clanRoster, eventParticipants, eventSignups } from '@/db/schema';
 
 export type Participant = typeof eventParticipants.$inferSelect;
 
@@ -96,6 +96,40 @@ export async function participantForSeat(eventId: number, seatId: number | null 
   return db.query.eventParticipants.findFirst({
     where: and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.clanMemberId, seatId)),
   });
+}
+
+/**
+ * Remove the participant behind a withdrawn seat, unless the same account still has another active
+ * sign-up on this event. Cross-clan boards can legitimately hold two seats for one account; one
+ * stale/withdrawn seat must not eject the active one.
+ */
+export async function removeParticipantForWithdrawnSeat(
+  eventId: number,
+  seatId: number | null | undefined,
+): Promise<boolean> {
+  const accountId = await accountOfSeat(seatId);
+  if (accountId != null) {
+    // clan-scope: global -- an account can hold seats in both host and co-host clans; finding any
+    // active sign-up for that same account is deliberately cross-clan and prevents ejecting it.
+    const [active] = await db
+      .select({ id: eventSignups.id })
+      .from(eventSignups)
+      .innerJoin(clanRoster, eq(clanRoster.id, eventSignups.clanMemberId))
+      .where(
+        and(
+          eq(eventSignups.eventId, eventId),
+          eq(clanRoster.accountId, accountId),
+          notInArray(eventSignups.status, ['withdrawn', 'rejected']),
+        ),
+      )
+      .limit(1);
+    if (active) return false;
+  }
+
+  const participant = await participantForSeat(eventId, seatId);
+  if (!participant) return false;
+  await db.delete(eventParticipants).where(eq(eventParticipants.id, participant.id));
+  return true;
 }
 
 /** Every account already on this board — for bulk enrolment deciding what is new. */

@@ -398,8 +398,6 @@ export async function provisionTeamDiscord(
   const cfg = await loadTeamChannelConfig(event.clanId);
   if (!cfg) return { ok: false, reason: 'team sync disabled or unconfigured', teams: [], captainsAssigned: 0 };
 
-  if (!event) return { ok: false, reason: 'event not found', teams: [], captainsAssigned: 0 };
-
   const eventTeams = teamsInScope(
     await db.select().from(teams).where(eq(teams.eventId, eventId)),
     event.clanId,

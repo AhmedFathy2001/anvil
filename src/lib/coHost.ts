@@ -492,7 +492,7 @@ export async function setCohostStaffCanEditBoard(eventId: number, cohostId: numb
 export interface CoHostedBoardLink extends CoHostedBoard {
   /** They may author it: the host let this clan's staff in, or granted them the board by name. */
   canAuthor: boolean;
-  /** Cross-clan, so a hard navigation — the host's admin Tiles tab, or its public board. */
+  /** This clan's co-host page for the board, or (a board-grant holder) the host's Tiles tab. */
   href: string;
 }
 
@@ -519,7 +519,12 @@ export async function coHostedBoardLinks(
       return {
         ...b,
         canAuthor,
-        href: canAuthor ? `/c/${b.hostSlug}/admin/events/${b.eventId}/tiles` : `/events/${b.eventId}`,
+        // Staff of this clan get their own corner of the board, at their own address (sign-ups,
+        // team, Discord, and a link to the tiles when allowed). Someone who only holds a board grant
+        // goes straight to the tiles they were given, at the host's.
+        href: scopedEditor
+          ? `/c/${b.hostSlug}/admin/events/${b.eventId}/tiles`
+          : `/admin/cohosted/${b.eventId}`,
       };
     })
     .filter((b) => !scopedEditor || b.canAuthor);

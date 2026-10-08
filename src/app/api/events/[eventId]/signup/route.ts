@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
-import { clanRoster, eventParticipants, eventSignups, events, signupFees, teamInvites, teams } from '@/db/schema';
+import { eventParticipants, eventSignups, events, signupFees, teamInvites, teams } from '@/db/schema';
 import { signupSeatsFor } from '@/lib/eventSeats';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { generatePlayerToken, verifyUser } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { parseProfile, sanitizeProfile, serializeProfile, signupWindowState, signupEditState } from '@/lib/signup';
 import { checkInvite, isWellFormedToken } from '@/lib/teamInvites';
 import { parseEventRules } from '@/lib/eventRules';
-import { enrolParticipant, participantForSeat } from '@/lib/participants';
+import { enrolParticipant, participantForSeat, removeParticipantForWithdrawnSeat } from '@/lib/participants';
 
 export async function GET(
   request: Request,
@@ -268,8 +268,7 @@ export async function POST(
   for (const r of deselected) {
     await db.update(eventSignups).set({ status: 'withdrawn', updatedAt: now }).where(eq(eventSignups.id, r.id));
     await db.delete(signupFees).where(eq(signupFees.signupId, r.id));
-    const participant = await participantForSeat(id, r.clanMemberId);
-    if (participant) await db.delete(eventParticipants).where(eq(eventParticipants.id, participant.id));
+    await removeParticipantForWithdrawnSeat(id, r.clanMemberId);
   }
 
   // The team they asked for, on a team-choice event. Validated against THIS event's teams — an id
@@ -462,8 +461,7 @@ export async function DELETE(
     if (fee) {
       await db.delete(signupFees).where(eq(signupFees.id, fee.id));
     }
-    const participant = await participantForSeat(id, r.clanMemberId);
-    if (participant) await db.delete(eventParticipants).where(eq(eventParticipants.id, participant.id));
+    await removeParticipantForWithdrawnSeat(id, r.clanMemberId);
   }
 
   return NextResponse.json({ ok: true });

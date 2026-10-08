@@ -1,5 +1,4 @@
 import { db } from '@/db';
-import { clanGrant } from '@/lib/clanGrants';
 import { clanStaff, eventCohosts, eventEditors, events, platformActAs } from '@/db/schema';
 import { and, eq, gt, inArray, isNull, or, type SQL } from 'drizzle-orm';
 
@@ -241,4 +240,43 @@ export async function setUserAssignedEvents(
   for (const id of current) {
     if (!next.has(id)) await revokeEventEditor(id, userId, 'editor');
   }
+}
+
+/**
+ * The co-host clan this user runs sign-ups for on this event, or null.
+ *
+ * A co-host's staff (moderator and up, or a live operator "act as" grant in that clan) handle their
+ * OWN clan's sign-ups — approve, reject, withdraw — and nobody else's. Unlike board authoring this
+ * needs no host opt-in: who joins from LFL is LFL's call, the same way their roster and fees already
+ * are (lib/teamStaff). The caller still checks that the sign-up's seat belongs to this clan.
+ */
+export async function cohostSignupClanFor(eventId: number, userId: number): Promise<number | null> {
+  const viaStaff = await db
+    .select({ clanId: eventCohosts.clanId })
+    .from(eventCohosts)
+    .innerJoin(clanStaff, and(eq(clanStaff.clanId, eventCohosts.clanId), eq(clanStaff.userId, userId)))
+    .where(
+      and(
+        eq(eventCohosts.eventId, eventId),
+        eq(eventCohosts.status, 'accepted'),
+        inArray(clanStaff.role, ['owner', 'admin', 'moderator']),
+      ),
+    )
+    .limit(1);
+  if (viaStaff[0]) return viaStaff[0].clanId;
+  const viaActAs = await db
+    .select({ clanId: eventCohosts.clanId })
+    .from(eventCohosts)
+    .innerJoin(platformActAs, and(eq(platformActAs.clanId, eventCohosts.clanId), eq(platformActAs.userId, userId)))
+    .where(
+      and(
+        eq(eventCohosts.eventId, eventId),
+        eq(eventCohosts.status, 'accepted'),
+        isNull(platformActAs.revokedAt),
+        gt(platformActAs.expiresAt, new Date().toISOString()),
+        inArray(platformActAs.role, ['admin', 'moderator']),
+      ),
+    )
+    .limit(1);
+  return viaActAs[0]?.clanId ?? null;
 }

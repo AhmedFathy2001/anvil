@@ -165,7 +165,7 @@ export default function EventsClient({
       {cohosted.length > 0 && (
         <section className="mb-8">
           <SectionHead color="bg-blue-400" title="Co-hosted with other clans">
-            <span className="text-xs text-text-muted/60 font-normal">run from the host&apos;s admin</span>
+            <span className="text-xs text-text-muted/60 font-normal">your sign-ups, team and Discord for each</span>
           </SectionHead>
           <div className="grid gap-2">
             {cohosted.map((b) => (
@@ -193,20 +193,12 @@ export default function EventsClient({
                         : 'border-card-border text-text-muted'
                     }`}
                   >
-                    {b.canAuthor ? 'Edit board →' : 'View board →'}
+                    Open →
                   </span>
                 </ClanLink>
                 {/* The board's rules, into THIS clan's server — the host posts to everyone, a co-host to itself. */}
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <PostRulesButton eventId={b.eventId} label="Post rules to our Discord" />
-                  {/* Your side of the event's Discord — event server, planning channels, contestant
-                      role — managed at your own address, with your own bot. */}
-                  <ClanLink
-                    href={`/events/${b.eventId}/discord`}
-                    className="text-xs font-medium px-2.5 py-1 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40"
-                  >
-                    Discord setup →
-                  </ClanLink>
                 </div>
               </div>
             ))}

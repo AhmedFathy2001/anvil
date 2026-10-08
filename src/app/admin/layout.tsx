@@ -108,11 +108,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const cohostedGroup: SidebarGroup | null = cohosted.length
     ? {
         label: 'Co-hosted',
-        items: cohosted.flatMap((b) => [
-          { href: b.href, label: b.name, icon: '🤝' },
-          // Each co-host runs its own side of the event's Discord, from its own address.
-          ...(isAdmin ? [{ href: `/events/${b.eventId}/discord`, label: `${b.name} · Discord`, icon: '💬' }] : []),
-        ]),
+        items: cohosted.map((b) => ({ href: b.href, label: b.name, icon: '🤝', matchPrefix: true })),
       }
     : null;
 

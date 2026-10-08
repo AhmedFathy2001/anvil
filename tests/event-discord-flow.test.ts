@@ -421,3 +421,19 @@ test('commands in an unbound server answer for the invoker’s own clan, only wh
   assert.equal(ctx?.guildId, EVENT_GUILD, 'passes the guild check here');
   assert.equal(await resolveForeignClan(EVENT_GUILD, 'nobody-we-know'), null);
 });
+
+test('co-host sign-up staff: the co-host’s moderators and up, or an operator acting as one', async () => {
+  const { cohostSignupClanFor } = await import('../src/lib/eventEditors.ts');
+  assert.equal(await cohostSignupClanFor(eventId, cohostAdminUser), null, 'no seat yet');
+  await db.insert(s.clanStaff).values({ clanId: cohostClan, userId: cohostAdminUser, role: 'member' });
+  assert.equal(await cohostSignupClanFor(eventId, cohostAdminUser), null, 'a plain member seat is not staff');
+  await db.update(s.clanStaff).set({ role: 'moderator' }).where(eq(s.clanStaff.userId, cohostAdminUser));
+  assert.equal(await cohostSignupClanFor(eventId, cohostAdminUser), cohostClan);
+  // The host's own admin is not a co-host's staff (their authority there is the host's own).
+  assert.equal(await cohostSignupClanFor(eventId, hostAdminUser), null);
+  await db.insert(s.platformActAs).values({
+    clanId: cohostClan, userId: hostAdminUser, role: 'admin', reason: 'test',
+    expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+  });
+  assert.equal(await cohostSignupClanFor(eventId, hostAdminUser), cohostClan, 'a live act-as grant counts');
+});

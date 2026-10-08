@@ -149,3 +149,29 @@ test('the real config endpoint claims before it asks the token which clan it bel
   assert.equal(acct.accountHash, 'hash-config');
   assert.ok(acct.claimedAt);
 });
+
+test('an XP-verified account can later connect RuneLite and gain its tracking anchor', async () => {
+  const me = await setup('XP Then Plugin');
+  const { claimAccountForPerson } = await import('../src/lib/accountClaim.ts');
+  const proof = await claimAccountForPerson({
+    playerId: me.person,
+    rsn: 'XP Then Plugin',
+    rsnNormalized: 'xp then plugin',
+    method: 'stat_delta',
+    provisional: false,
+    actorUserId: me.login,
+  });
+  assert.ok(proof.ok, JSON.stringify(proof));
+
+  const before = await account(me.accountId);
+  assert.equal(before.verificationMethod, 'stat_delta');
+  assert.equal(before.accountHash, null);
+
+  const resolved = await play(me.token, 'XP Then Plugin', 'hash-after-xp');
+  assert.equal(resolved?.clanMemberId, me.seatId);
+  const after = await account(me.accountId);
+  assert.equal(after.verificationMethod, 'plugin');
+  assert.equal(after.accountHash, 'hash-after-xp');
+  assert.equal(after.provisional, 0);
+  assert.ok(after.verifiedAt);
+});

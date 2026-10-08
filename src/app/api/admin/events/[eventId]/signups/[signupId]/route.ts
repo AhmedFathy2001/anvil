@@ -10,8 +10,9 @@ import { generatePlayerToken } from '@/lib/auth';
 import { sanitizeProfile, serializeProfile } from '@/lib/signup';
 import { notifySignupApproved } from '@/lib/discord';
 import { atLeast } from '@/lib/clanRoles';
-import { enrolParticipant, participantForSeat } from '@/lib/participants';
+import { enrolParticipant, participantForSeat, removeParticipantForWithdrawnSeat } from '@/lib/participants';
 import { assertEventEditable } from '@/lib/eventLock';
+import { cohostSignupClanFor } from '@/lib/eventEditors';
 
 // Per-signup admin actions. All admin-only — captain selection is high-stakes and we
 // don't want a moderator accidentally locking the wrong person in.
@@ -36,12 +37,17 @@ export async function PATCH(
 ) {
   const clan = await requireClan();
   const session = await verifyUser();
-  if (!session || !atLeast(session.role, 'admin')) {
-    return NextResponse.json({ error: 'Admin only' }, { status: 401 });
-  }
+  if (!session) return NextResponse.json({ error: 'Admin only' }, { status: 401 });
+  const isHostAdmin = atLeast(session.role, 'admin');
 
   const { eventId, signupId } = await params;
   const evtId = parseInt(eventId, 10);
+  // A co-host's staff may answer their OWN clan's sign-ups (checked against the seat once the
+  // sign-up is loaded) and nothing more — captains, teams and answers stay the host's.
+  const cohostClanId = isHostAdmin || !Number.isFinite(evtId) ? null : await cohostSignupClanFor(evtId, session.userId);
+  if (!isHostAdmin && cohostClanId == null) {
+    return NextResponse.json({ error: 'Admin only' }, { status: 401 });
+  }
   // Whose event is this? Ids are global and this one came from the URL.
   if (!(await eventForRequest(request, evtId))) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -76,6 +82,16 @@ export async function PATCH(
   });
   if (!signup) {
     return NextResponse.json({ error: 'Signup not found' }, { status: 404 });
+  }
+  if (cohostClanId != null) {
+    if (!['approve', 'reject', 'withdraw'].includes(body.action)) {
+      return NextResponse.json({ error: 'Only the host can do that.' }, { status: 403 });
+    }
+    // clan-scope: this clan -- the seat by id, then required to be the co-host's own clan right here.
+    const seat = signup.clanMemberId == null ? undefined : await findRosterSeat(eq(clanRoster.id, signup.clanMemberId));
+    if (!seat || seat.clanId !== cohostClanId) {
+      return NextResponse.json({ error: 'Signup not found' }, { status: 404 });
+    }
   }
 
   const now = new Date().toISOString();
@@ -308,10 +324,7 @@ export async function PATCH(
 
       // Withdrawal means they are no longer playing. Keeping an already-assigned row here made a
       // pre-start clan-v-clan roster count withdrawn members forever (and kept tracking them).
-      const participant = await participantForSeat(evtId, signup.clanMemberId);
-      if (participant) {
-        await db.delete(eventParticipants).where(eq(eventParticipants.id, participant.id));
-      }
+      await removeParticipantForWithdrawnSeat(evtId, signup.clanMemberId);
 
       logAction('signup_withdrawn', { by: 'admin' });
       return NextResponse.json({ signup: updated });

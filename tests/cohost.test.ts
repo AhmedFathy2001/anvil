@@ -315,12 +315,15 @@ test("the co-hosted board shows in the co-host clan's own admin — authoring at
   const forMod = mine(await C.coHostedBoardLinks(guestClan, gMod, false));
   assert.equal(forMod.length, 1);
   assert.equal(forMod[0].canAuthor, true);
-  assert.equal(forMod[0].href, `/c/host/admin/events/${eventId}/tiles`);
+  // Co-host staff land on their own corner of the board at their own address, which links on to the
+  // host's Tiles tab when they may author it.
+  assert.equal(forMod[0].href, `/admin/cohosted/${eventId}`);
+  // Only someone holding nothing but the board grant goes straight to the tiles.
+  assert.equal(mine(await C.coHostedBoardLinks(guestClan, gMod, true))[0]?.href, `/c/host/admin/events/${eventId}/tiles`);
 
   const forAdmin = mine(await C.coHostedBoardLinks(guestClan, gAdmin, false));
   assert.equal(forAdmin[0].canAuthor, false);
-  // The public board stays at the co-host's own address (lib/eventScope requireEventForParticipantPage).
-  assert.equal(forAdmin[0].href, `/events/${eventId}`);
+  assert.equal(forAdmin[0].href, `/admin/cohosted/${eventId}`);
   // A scoped editor only sees what they can author.
   assert.deepEqual(mine(await C.coHostedBoardLinks(guestClan, gAdmin, true)), []);
 
