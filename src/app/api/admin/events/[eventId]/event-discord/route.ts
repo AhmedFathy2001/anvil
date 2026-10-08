@@ -15,6 +15,7 @@ import {
   teardownClanPlanning,
   teardownEventServer,
 } from '@/lib/eventDiscord';
+import { assignCohostBingoRoleToApprovedSignups, unassignCohostBingoRole } from '@/lib/discord-teams';
 
 /**
  * The event Discord server for a co-hosted event (lib/eventDiscord).
@@ -105,6 +106,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
       const r = await teardownClanPlanning(id, clan.id);
       if (!r.ok) return NextResponse.json({ error: r.error, report: r }, { status: 400 });
       break;
+    }
+    case 'cohost-role-assign':
+    case 'cohost-role-remove': {
+      // A co-host's own contestant role, in its own server, for its own members only. The host's
+      // shared roles live on its Teams tab.
+      if (role !== 'cohost') return NextResponse.json({ error: 'This is for co-hosts.' }, { status: 403 });
+      const r = action === 'cohost-role-assign'
+        ? await assignCohostBingoRoleToApprovedSignups(id, clan.id)
+        : await unassignCohostBingoRole(id, clan.id);
+      if (!r.ok) return NextResponse.json({ error: r.reason }, { status: 400 });
+      return NextResponse.json({ success: true, report: r, status: await adminStatus(id, clan.id) });
     }
     default:
       return NextResponse.json({ error: 'Unknown action' }, { status: 400 });

@@ -228,6 +228,30 @@ export default function EventDiscordServerPanel({ eventId }: { eventId: number }
           </div>
         )}
 
+        {/* A co-host's own contestant role, in its own server */}
+        {status.cohostRole && (
+          <div className="space-y-2 rounded-lg border border-card-border p-3">
+            <div className="font-semibold">Your contestant role</div>
+            <p className="text-[12px] text-text-muted">
+              Gives your clan’s approved sign-ups for this event the contestant role in your own server, so they can see your bingo channels. Only your own members, only your own role.
+            </p>
+            {status.cohostRole.ready ? (
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => run('cohost-role-assign', {}, 'Contestant role given to your approved sign-ups.')} disabled={!!busy} className="rounded-md border border-card-border px-3 py-1.5 text-[13px] disabled:opacity-50">
+                  {busy === 'cohost-role-assign' ? 'Working…' : 'Give the contestant role'}
+                </button>
+                <button onClick={() => run('cohost-role-remove', {}, 'Contestant role taken back off.')} disabled={!!busy} className="rounded-md border border-accent-red/50 px-3 py-1.5 text-[13px] text-accent-red disabled:opacity-50">
+                  Take it back off
+                </button>
+              </div>
+            ) : (
+              <p className="text-[12px] text-accent-red">
+                Turn on co-hosted event role tools and pick your contestant role under Integrations → Discord team channels first.
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Members */}
         {status.layout !== 'own' && status.members.length > 0 && (
           <div className="space-y-2">

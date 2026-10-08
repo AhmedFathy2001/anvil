@@ -46,6 +46,7 @@ import { findRosterSeat } from '@/lib/roster';
 import { resolveClanById, originForHost, apexDomain } from '@/lib/clanContext';
 import { joinAccessToken, hasJoinGrant, grantStorageAvailable, dropJoinGrant } from '@/lib/discordUserTokens';
 import { isDiscordOAuthConfigured } from '@/lib/discord-oauth';
+import { cohostBingoRoleReady } from '@/lib/discord-teams';
 import {
   buildJoinDm,
   classifyRolePut,
@@ -1035,6 +1036,12 @@ export interface AdminStatus {
   provisioned: boolean;
   sharedText: boolean;
   sharedVoice: boolean;
+  /**
+   * A co-host's own contestant role in its own server (lib/discord-teams). Null for the host, whose
+   * shared roles are on the Teams tab. `ready` = co-host role tools are switched on and a safe role
+   * is selected under Integrations.
+   */
+  cohostRole: { ready: boolean } | null;
   /** DISCORD_TOKEN_KEY set: players who allowed auto-join earlier are added later too. */
   autoJoinStoresGrants: boolean;
   ownServerConnected: boolean;
@@ -1095,6 +1102,7 @@ export async function adminStatus(eventId: number, clanId: number): Promise<Admi
     provisioned: await eventServerProvisioned(event),
     sharedText: !!event.eventGuildTextChannelId,
     sharedVoice: !!event.eventGuildVoiceChannelId,
+    cohostRole: role === 'cohost' ? { ready: await cohostBingoRoleReady(eventId, clanId) } : null,
     autoJoinStoresGrants: grantStorageAvailable(),
     ownServerConnected: !!ownCreds,
     ownTeamSyncEnabled: teamSync === 'true',

@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { clanGrant } from '@/lib/clanGrants';
-import { clanStaff, eventCohosts, eventEditors, events } from '@/db/schema';
-import { and, eq, inArray, or, type SQL } from 'drizzle-orm';
+import { clanStaff, eventCohosts, eventEditors, events, platformActAs } from '@/db/schema';
+import { and, eq, gt, inArray, isNull, or, type SQL } from 'drizzle-orm';
 
 // Board-scoped staff grants (event_editors). A grant lets someone do ONE job on ONE event without
 // holding the clan-wide role for it: 'editor' authors that board's tiles, 'treasurer' collects its
@@ -82,7 +82,26 @@ export async function cohostBoardEventIds(
         opts.hostClanId != null ? eq(events.clanId, opts.hostClanId) : undefined,
       ),
     );
-  return [...new Set(rows.map((r) => r.eventId))];
+  // An operator with a live, unexpired "act as" grant in the co-host clan stands in for its staff
+  // there (lib/actAs) — the same reach verifyUser gives them at that clan's address. Without this
+  // they were admin of the co-host everywhere except on the boards it co-hosts.
+  const borrowed = await db
+    .select({ eventId: eventCohosts.eventId })
+    .from(eventCohosts)
+    .innerJoin(platformActAs, and(eq(platformActAs.clanId, eventCohosts.clanId), eq(platformActAs.userId, userId)))
+    .innerJoin(events, eq(events.id, eventCohosts.eventId))
+    .where(
+      and(
+        eq(eventCohosts.status, 'accepted'),
+        eq(eventCohosts.staffCanEditBoard, true),
+        isNull(platformActAs.revokedAt),
+        gt(platformActAs.expiresAt, new Date().toISOString()),
+        inArray(platformActAs.role, ['admin', 'moderator']),
+        opts.eventId != null ? eq(eventCohosts.eventId, opts.eventId) : undefined,
+        opts.hostClanId != null ? eq(events.clanId, opts.hostClanId) : undefined,
+      ),
+    );
+  return [...new Set([...rows, ...borrowed].map((r) => r.eventId))];
 }
 
 /**

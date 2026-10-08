@@ -348,3 +348,22 @@ test('with no DISCORD_TOKEN_KEY, allowing auto-join still adds the player right 
   // A token for someone else's account is refused by Discord and changes nothing.
   assert.equal(await E.joinPendingEventServersNow('u-host-player', 'wrong-token'), 0);
 });
+
+test('an operator acting as the co-host’s admin can author the co-hosted board; an expired grant can’t', async () => {
+  const { cohostBoardEventIds } = await import('../src/lib/eventEditors.ts');
+  await db.update(s.eventCohosts).set({ staffCanEditBoard: true }).where(eq(s.eventCohosts.id, cohostRowId));
+  const [grant] = await db
+    .insert(s.platformActAs)
+    .values({ clanId: cohostClan, userId: hostAdminUser, role: 'admin', reason: 'test', expiresAt: new Date(Date.now() + 3600_000).toISOString() })
+    .returning();
+  assert.deepEqual(await cohostBoardEventIds(hostAdminUser, { eventId }), [eventId]);
+  await db.update(s.platformActAs).set({ expiresAt: new Date(Date.now() - 1000).toISOString() }).where(eq(s.platformActAs.id, grant.id));
+  assert.deepEqual(await cohostBoardEventIds(hostAdminUser, { eventId }), []);
+});
+
+test('the co-host’s panel offers its own contestant role tools; the host’s does not', async () => {
+  const cohost = await E.adminStatus(eventId, cohostClan);
+  assert.equal(cohost?.role, 'cohost');
+  assert.deepEqual(cohost?.cohostRole, { ready: false }, 'not switched on under Integrations yet');
+  assert.equal((await E.adminStatus(eventId, hostClan))?.cohostRole, null);
+});

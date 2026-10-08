@@ -42,6 +42,9 @@ export default async function EventDiscordPage({ params }: { params: Promise<{ e
       </ClanLink>
       <h1 className="mt-1 mb-6 text-2xl font-bold text-gold">Event Discord</h1>
 
+      {/* Admins come here to set it up, so their panel comes first; their own join status follows. */}
+      {showAdmin && <EventDiscordServerPanel eventId={id} />}
+
       {session ? (
         <DiscordJoinClient eventId={id} returnTo={returnTo} />
       ) : (
@@ -53,11 +56,6 @@ export default async function EventDiscordPage({ params }: { params: Promise<{ e
         </div>
       )}
 
-      {showAdmin && (
-        <div className="mt-10">
-          <EventDiscordServerPanel eventId={id} />
-        </div>
-      )}
     </div>
   );
 }
