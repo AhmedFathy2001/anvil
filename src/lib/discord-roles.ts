@@ -431,7 +431,10 @@ export async function createGuildRole(
 ): Promise<DiscordRole | null> {
   const creds = await getBotCredentials(clanId);
   if (!creds) return null;
-  const body: Record<string, unknown> = { name };
+  // permissions '0' explicitly. Left out, Discord copies @everyone's permissions onto the role — and
+  // when those include anything administrative (Manage Events, Mention @everyone…) the new role fails
+  // isSafeAutomatedRole and every picker hides it: "created", then never seen again.
+  const body: Record<string, unknown> = { name, permissions: '0' };
   if (typeof opts.color === 'number') body.color = opts.color;
   if (typeof opts.mentionable === 'boolean') body.mentionable = opts.mentionable;
   const res = await discordRest(creds.botToken, `/guilds/${creds.guildId}/roles`, {

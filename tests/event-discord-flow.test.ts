@@ -401,3 +401,11 @@ test('a refused rename keeps the join, and the note says why', async () => {
   const after = await db.query.eventDiscordMembers.findFirst({ where: eq(s.eventDiscordMembers.discordId, 'u-host-player') });
   assert.equal(after?.lastError, null, 'cleared once the rename works');
 });
+
+test('roles Anvil creates grant nothing server-wide, so the pickers can always list them', async () => {
+  const { createGuildRole } = await import('../src/lib/discord-roles.ts');
+  calls.length = 0;
+  assert.ok(await createGuildRole(cohostClan, 'bingo'));
+  const post = calls.find((c) => c.method === 'POST' && c.path === `/guilds/${COHOST_GUILD}/roles`);
+  assert.equal(post?.body.permissions, '0', 'without it Discord copies @everyone’s permissions');
+});

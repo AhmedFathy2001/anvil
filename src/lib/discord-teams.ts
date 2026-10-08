@@ -213,7 +213,9 @@ async function createRole(
 ): Promise<string | null> {
   const res = await discordRest(cfg.botToken, `/guilds/${cfg.guildId}/roles`, {
     method: 'POST',
-    body: JSON.stringify({ name: name.slice(0, 100), color, mentionable: true, hoist: false }),
+    // permissions '0': a team role only opens its channels through overwrites. Without it Discord
+    // copies @everyone's permissions, handing every contestant whatever extras @everyone has.
+    body: JSON.stringify({ name: name.slice(0, 100), color, permissions: '0', mentionable: true, hoist: false }),
   });
   if (!res.ok) {
     const detail = await describeDiscordError(res);
