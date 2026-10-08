@@ -9,6 +9,7 @@ import { useDialog } from '@/components/Confirm';
 interface TeamState {
   id: number;
   name: string;
+  clanId: number | null;
   hasRole: boolean;
   hasTextChannel: boolean;
   hasVoiceChannel: boolean;
@@ -16,6 +17,7 @@ interface TeamState {
 
 interface StatusData {
   isHost: boolean;
+  clanName: string;
   enabled: boolean;
   categoryId: string | null;
   draftStatus: string;
@@ -25,7 +27,22 @@ interface StatusData {
   approvedSignups: number;
   teams: TeamState[];
   fullyProvisioned: boolean;
+  ownTeamId: number | null;
+  ownTeamName: string | null;
+  cohosts: { clanId: number; clanName: string }[];
 }
+
+type ProvisionScope = 'all-teams' | 'own-clan';
+type DiscordAction =
+  | 'sync-all'
+  | 'provision'
+  | 'assign-rosters'
+  | 'assign-bingo-role'
+  | 'unassign-shared-roles'
+  | 'teardown'
+  | 'request-cohost-setup'
+  | 'assign-cohost-bingo-role'
+  | 'unassign-cohost-bingo-role';
 
 // Admin panel for an event's Teams tab: create per-team Discord roles + locked channels,
 // and assign contestant roles once rosters are final (drafted or directly assigned). Hidden
@@ -42,6 +59,7 @@ export default function DiscordTeamProvisioning({
   const [status, setStatus] = useState<StatusData | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [scope, setScope] = useState<ProvisionScope | null>(null);
   const { confirm } = useDialog();
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   // Teardown gets a real confirmation dialog (listing exactly what will be deleted +
@@ -62,8 +80,13 @@ export default function DiscordTeamProvisioning({
     loadStatus();
   }, [loadStatus]);
 
-  async function runAction(action: 'sync-all' | 'provision' | 'assign-rosters' | 'assign-bingo-role' | 'unassign-shared-roles' | 'teardown') {
-    if (action === 'unassign-shared-roles') {
+  useEffect(() => {
+    if (!status || scope !== null) return;
+    setScope(status.ownTeamId && status.cohosts.length > 0 ? 'own-clan' : 'all-teams');
+  }, [scope, status]);
+
+  async function runAction(action: DiscordAction) {
+    if (action === 'unassign-shared-roles' || action === 'unassign-cohost-bingo-role') {
       const ok = await confirm({
         title: 'Take the shared roles back off everyone?',
         body:
@@ -78,7 +101,7 @@ export default function DiscordTeamProvisioning({
       const res = await clanFetch(`/api/events/${eventId}/discord`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, scope: scope ?? 'all-teams' }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -104,6 +127,17 @@ export default function DiscordTeamProvisioning({
           text = `Gave the bingo role to ${r.assigned ?? 0} approved contestant(s)${roleServerNote(r)}${r.skipped ? `, ${r.skipped} skipped (no linked Discord)` : ''}.`;
         } else if (action === 'unassign-shared-roles') {
           text = `Removed the bingo role from ${r.bingoRemoved ?? 0} member(s) and the captain role from ${r.captainRemoved ?? 0}.`;
+        } else if (action === 'assign-cohost-bingo-role') {
+          text = `Gave ${status?.clanName ?? 'this clan'}'s bingo role to ${r.changed ?? 0} member(s)${r.failed ? `; ${r.failed} were not in this Discord or could not receive it` : ''}.`;
+        } else if (action === 'unassign-cohost-bingo-role') {
+          text = `Removed ${status?.clanName ?? 'this clan'}'s bingo role from ${r.changed ?? 0} member(s).`;
+        } else if (action === 'request-cohost-setup') {
+          const reports = Array.isArray(data.report) ? data.report : [];
+          const sent = reports.filter((item: { status?: string }) => item.status === 'sent').length;
+          const skipped = reports.filter((item: { status?: string }) => item.status === 'skipped').length;
+          const failed = reports.filter((item: { status?: string }) => item.status === 'failed').length;
+          text = `Setup request sent to ${sent} cohost Discord${sent === 1 ? '' : 's'}${skipped ? `; ${skipped} skipped because their cohost channel is off or missing` : ''}${failed ? `; ${failed} failed` : ''}.`;
+          if (sent === 0) type = 'error';
         } else if (action === 'teardown') {
           const failedN = (r.rolesFailed ?? 0) + (r.channelsFailed ?? 0) + (r.categoryFailed ? 1 : 0);
           text = `Removed ${r.rolesDeleted ?? 0} role(s) and ${r.channelsDeleted ?? 0} channel(s)${r.categoryDeleted ? ', plus the event category' : ''}.`;
@@ -153,42 +187,103 @@ export default function DiscordTeamProvisioning({
   if (!status.isHost) {
     return (
       <div className="pt-8 border-t border-card-border">
-        <h2 className="text-lg font-bold mb-1">Discord Channels &amp; Roles</h2>
-        <p className="text-xs text-text-muted">
-          The host manages this event&apos;s Discord actions. Your clan can opt its own contestant role
-          into the fan-out under Integrations → Discord team channels; the host can never choose a
-          role or server for you.
-        </p>
+        <h2 className="text-lg font-bold mb-1">{status.clanName} Discord setup</h2>
+        <div className="mt-2 rounded-lg border border-indigo-500/30 bg-indigo-500/10 p-3 text-xs">
+          <p className="font-semibold text-indigo-200">Only {status.clanName} admins control this server</p>
+          <p className="mt-1 text-text-muted">
+            The event host can ask you to set this up, but cannot assign your roles or create your
+            channels. Actions here use only {status.clanName}&apos;s bot and configured bingo role.
+          </p>
+        </div>
+        {status.bingoRoleConfigured ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => runAction('assign-cohost-bingo-role')}
+              disabled={!!busy || status.approvedSignups === 0}
+              className="text-sm font-medium bg-gold/15 text-gold border border-gold/30 px-4 py-2 rounded-lg hover:bg-gold/25 transition-colors disabled:opacity-50"
+            >
+              {busy === 'assign-cohost-bingo-role'
+                ? 'Assigning…'
+                : `Give ${status.clanName} bingo role to your entrants`}
+            </button>
+            <button
+              onClick={() => runAction('unassign-cohost-bingo-role')}
+              disabled={!!busy}
+              className="text-sm font-medium bg-amber-400/10 text-amber-400 border border-amber-400/20 px-4 py-2 rounded-lg hover:bg-amber-400/20 transition-colors disabled:opacity-50"
+            >
+              {busy === 'unassign-cohost-bingo-role' ? 'Removing…' : `Remove ${status.clanName} bingo role`}
+            </button>
+          </div>
+        ) : (
+          <p className="mt-3 text-xs text-text-muted">
+            To use the role buttons, open{' '}
+            <ClanLink href="/admin/integrations" className="text-gold hover:underline">
+              Integrations → Discord team channels
+            </ClanLink>
+            , select your contestant role, and enable co-hosted event role tools. Private team
+            channels remain entirely your clan&apos;s choice in Discord.
+          </p>
+        )}
+        {message && (
+          <div className={`mt-3 rounded-lg border px-3 py-2 text-sm ${message.type === 'success' ? 'border-green-500/30 bg-green-500/10 text-green-400' : 'border-red-500/30 bg-red-500/10 text-red-400'}`}>
+            {message.text}
+          </div>
+        )}
       </div>
     );
   }
 
   const rostersReady = status.rostersReady;
   const anyProvisioned = status.teams.some((t) => t.hasRole || t.hasTextChannel || t.hasVoiceChannel);
+  const selectedScope = scope ?? (status.ownTeamId && status.cohosts.length > 0 ? 'own-clan' : 'all-teams');
+  const scopedTeams = selectedScope === 'own-clan'
+    ? status.teams.filter((team) => team.id === status.ownTeamId)
+    : status.teams;
+  const scopedFullyProvisioned =
+    scopedTeams.length > 0 &&
+    scopedTeams.every((team) => team.hasRole && team.hasTextChannel && team.hasVoiceChannel);
 
   return (
     <details className="pt-8 border-t border-card-border group" open={anyProvisioned}>
       <summary className="cursor-pointer select-none list-none flex items-center gap-2 mb-2">
         <h2 className="text-lg font-bold flex items-center gap-2">
           <span className="w-1 h-5 bg-indigo-400 rounded-full" />
-          Discord Channels &amp; Roles
+          {status.clanName} Discord Channels &amp; Roles
         </h2>
         <span className="text-[10px] uppercase tracking-wide text-text-muted px-1.5 py-0.5 rounded border border-card-border">
           Optional
         </span>
         <span className="ml-auto text-text-muted transition-transform group-open:rotate-90">▸</span>
       </summary>
-      <p className="text-xs text-text-muted mb-4">
-        Create a private voice + text channel per team and assign Discord roles. You can provision
-        roles &amp; channels now; contestant roles are assigned automatically when a draft completes,
-        or with the button below once direct rosters are fully assigned. Give every approved sign-up
-        the shared bingo role at any time so they can see the bingo channel and get pinged with the rules.
-      </p>
+      <div className="mb-4 rounded-lg border border-indigo-500/30 bg-indigo-500/10 p-3 text-xs">
+        <p className="font-semibold text-indigo-200">These controls affect {status.clanName}&apos;s Discord only</p>
+        <p className="mt-1 text-text-muted">
+          A row named after a cohost is still an event team—it does not mean Anvil is changing that
+          clan&apos;s server. Choose whether your Discord needs channels for every team or only your own.
+        </p>
+      </div>
+
+      {status.ownTeamId && status.cohosts.length > 0 && (
+        <div className="mb-4 grid gap-2 sm:grid-cols-2">
+          <ScopeOption
+            checked={selectedScope === 'own-clan'}
+            onChange={() => setScope('own-clan')}
+            title={`${status.ownTeamName ?? status.clanName} only`}
+            description={`Create one team channel/role and give shared roles only to ${status.clanName}'s entrants.`}
+          />
+          <ScopeOption
+            checked={selectedScope === 'all-teams'}
+            onChange={() => setScope('all-teams')}
+            title="All event teams"
+            description={`Create a channel/role for every team inside ${status.clanName}'s Discord and assign every entrant present there.`}
+          />
+        </div>
+      )}
 
       {status.teams.length > 0 && (
         <div className="space-y-1.5 mb-4">
           {status.teams.map((t) => (
-            <div key={t.id} className="flex items-center justify-between border border-card-border rounded-lg p-2 bg-card-bg text-sm">
+            <div key={t.id} className={`flex items-center justify-between border rounded-lg p-2 bg-card-bg text-sm ${scopedTeams.some((team) => team.id === t.id) ? 'border-indigo-500/40' : 'border-card-border opacity-55'}`}>
               <span className="font-medium">{t.name}</span>
               <div className="flex items-center gap-1.5">
                 <Badge label="Role" on={t.hasRole} />
@@ -206,24 +301,28 @@ export default function DiscordTeamProvisioning({
         {rostersReady && (
           <button
             onClick={() => runAction('sync-all')}
-            disabled={!!busy || status.teams.length === 0}
-            title="Create every team's channel + role and assign each contestant their roles — in one click"
+            disabled={!!busy || scopedTeams.length === 0}
+            title={`Create the selected team channels and assign ${selectedScope === 'own-clan' ? `${status.clanName}'s` : 'all'} contestants — in this Discord only`}
             className="text-sm font-semibold bg-accent-green/25 text-accent-green-light border border-accent-green/50 px-4 py-2 rounded-lg hover:bg-accent-green/35 transition-colors disabled:opacity-50"
           >
             {busy === 'sync-all'
               ? 'Setting up…'
-              : status.fullyProvisioned
-                ? 'Re-sync channels & assign everyone'
-                : 'Set up team channels & assign everyone'}
+              : scopedFullyProvisioned
+                ? `Re-sync ${selectedScope === 'own-clan' ? 'my team' : 'all teams'} in this Discord`
+                : `Set up ${selectedScope === 'own-clan' ? 'my team' : 'all teams'} in this Discord`}
           </button>
         )}
 
         <button
           onClick={() => runAction('provision')}
-          disabled={!!busy || status.teams.length === 0}
+          disabled={!!busy || scopedTeams.length === 0}
           className="text-sm font-medium bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 px-4 py-2 rounded-lg hover:bg-indigo-500/25 transition-colors disabled:opacity-50"
         >
-          {busy === 'provision' ? 'Provisioning…' : status.fullyProvisioned ? 'Re-sync Roles & Channels' : 'Create Roles & Channels'}
+          {busy === 'provision'
+            ? 'Provisioning…'
+            : scopedFullyProvisioned
+              ? 'Re-sync selected roles & channels'
+              : 'Create selected roles & channels'}
         </button>
 
         <button
@@ -234,22 +333,24 @@ export default function DiscordTeamProvisioning({
               ? 'Set a bingo role ID under Integrations → Discord team channels first'
               : status.approvedSignups === 0
                 ? 'No approved sign-ups yet'
-                : `Give the bingo role to all ${status.approvedSignups} approved contestant(s)`
+                : `Give the bingo role to ${selectedScope === 'own-clan' ? `${status.clanName}'s` : 'all'} approved contestant(s)`
           }
           className="text-sm font-medium bg-gold/15 text-gold border border-gold/30 px-4 py-2 rounded-lg hover:bg-gold/25 transition-colors disabled:opacity-50"
         >
           {busy === 'assign-bingo-role'
             ? 'Assigning…'
-            : `Give bingo role to approved${status.approvedSignups ? ` (${status.approvedSignups})` : ''}`}
+            : `Give bingo role to ${selectedScope === 'own-clan' ? 'my entrants' : 'all approved'}`}
         </button>
 
         <button
           onClick={() => runAction('assign-rosters')}
-          disabled={!!busy || !rostersReady || !status.fullyProvisioned}
-          title={!rostersReady ? 'Assign every entrant and put at least one player on each team first' : !status.fullyProvisioned ? 'Provision roles & channels first' : undefined}
+          disabled={!!busy || !rostersReady || !scopedFullyProvisioned}
+          title={!rostersReady ? 'Assign every entrant and put at least one player on each team first' : !scopedFullyProvisioned ? 'Provision the selected roles & channels first' : undefined}
           className="text-sm font-medium bg-accent-green/15 text-accent-green-light border border-accent-green/30 px-4 py-2 rounded-lg hover:bg-accent-green/25 transition-colors disabled:opacity-50"
         >
-          {busy === 'assign-rosters' ? 'Assigning…' : 'Assign Contestant Roles'}
+          {busy === 'assign-rosters'
+            ? 'Assigning…'
+            : `Assign ${selectedScope === 'own-clan' ? 'my team' : 'all team'} roles`}
         </button>
 
         {(status.bingoRoleConfigured || status.captainRoleConfigured) && (
@@ -259,7 +360,9 @@ export default function DiscordTeamProvisioning({
             title="Take the shared bingo & captain roles off this event’s members (the roles themselves are kept)"
             className="text-sm font-medium bg-amber-400/10 text-amber-400 border border-amber-400/20 px-4 py-2 rounded-lg hover:bg-amber-400/20 transition-colors disabled:opacity-50"
           >
-            {busy === 'unassign-shared-roles' ? 'Removing…' : 'Remove bingo & captain roles'}
+            {busy === 'unassign-shared-roles'
+              ? 'Removing…'
+              : `Remove ${selectedScope === 'own-clan' ? 'my entrants’' : 'all'} bingo & captain roles`}
           </button>
         )}
 
@@ -276,6 +379,28 @@ export default function DiscordTeamProvisioning({
           </button>
         )}
       </div>
+
+      {status.cohosts.length > 0 && (
+        <div className="mt-4 rounded-lg border border-card-border bg-card-bg p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold">Cohost Discords are theirs to manage</p>
+              <p className="mt-0.5 text-xs text-text-muted">
+                Ask {status.cohosts.map((cohost) => cohost.clanName).join(', ')} to configure their own
+                bingo role and any private channels. This sends instructions only—it changes nothing
+                in their server.
+              </p>
+            </div>
+            <button
+              onClick={() => runAction('request-cohost-setup')}
+              disabled={!!busy}
+              className="shrink-0 text-sm font-medium bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 px-4 py-2 rounded-lg hover:bg-indigo-500/25 transition-colors disabled:opacity-50"
+            >
+              {busy === 'request-cohost-setup' ? 'Sending request…' : 'Request cohost Discord setup'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {teardownOpen && (
         <TeardownConfirmModal
@@ -309,6 +434,28 @@ export default function DiscordTeamProvisioning({
         </div>
       )}
     </details>
+  );
+}
+
+function ScopeOption({
+  checked,
+  onChange,
+  title,
+  description,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  title: string;
+  description: string;
+}) {
+  return (
+    <label className={`cursor-pointer rounded-lg border p-3 transition-colors ${checked ? 'border-indigo-400/60 bg-indigo-500/15' : 'border-card-border bg-card-bg hover:border-indigo-400/30'}`}>
+      <span className="flex items-center gap-2 text-sm font-semibold">
+        <input type="radio" checked={checked} onChange={onChange} className="accent-indigo-400" />
+        {title}
+      </span>
+      <span className="mt-1 block pl-5 text-xs text-text-muted">{description}</span>
+    </label>
   );
 }
 

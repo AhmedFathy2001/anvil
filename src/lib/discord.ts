@@ -1111,7 +1111,7 @@ interface DraftCompleteNotifyParams {
   directAssignment?: boolean;
 }
 
-export async function notifyDraftComplete(params: DraftCompleteNotifyParams): Promise<boolean> {
+function draftCompletePayload(params: DraftCompleteNotifyParams): DiscordWebhookPayload {
   const { eventName, teams, eventId, directAssignment = false } = params;
 
   // One field per team — the roster is the point of this post, so it stays a field block.
@@ -1129,7 +1129,20 @@ export async function notifyDraftComplete(params: DraftCompleteNotifyParams): Pr
     fields,
   };
 
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] });
+  return { embeds: [embed] };
+}
+
+export async function notifyDraftComplete(params: DraftCompleteNotifyParams): Promise<boolean> {
+  return sendEventBingoWebhook(params.clanId, params.eventId, draftCompletePayload(params));
+}
+
+/** Manual roster post: the viewing clan posts only into its own chosen event channel. */
+export async function notifyDraftCompleteForClan(
+  params: DraftCompleteNotifyParams & { cohost: boolean },
+): Promise<boolean> {
+  const payload = draftCompletePayload(params);
+  if (!params.cohost) return sendBingoWebhook(params.clanId, payload);
+  return (await sendCohostWebhook(params.clanId, payload)) === 'sent';
 }
 
 interface DraftStartNotifyParams {

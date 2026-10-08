@@ -661,7 +661,7 @@ export default function SignupAdminPanel({
               {loading
                 ? 'Loading…'
                 : filtersActive
-                  ? `${visibleSignups.length} shown · ${signups.length} total`
+                  ? `${visibleSignups.length} shown · ${activeSignups.length} active${withdrawnCount > 0 ? ` · ${withdrawnCount} withdrawn` : ''}`
                   : `${activeSignups.length} active${withdrawnCount > 0 ? ` · ${withdrawnCount} withdrawn` : ''}`}
             </span>
             {!loading && isAdmin && (

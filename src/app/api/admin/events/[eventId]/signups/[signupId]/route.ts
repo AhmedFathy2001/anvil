@@ -4,7 +4,7 @@ import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { clanAuditLog, clanRoster, events, eventSignups, eventParticipants, signupFees, teams, users } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 import { generatePlayerToken } from '@/lib/auth';
 import { sanitizeProfile, serializeProfile } from '@/lib/signup';
@@ -22,7 +22,7 @@ import { assertEventEditable } from '@/lib/eventLock';
 //   withdraw        → status = 'withdrawn'. The manual "remove from the event" action for
 //                     when a player who already paid asks to drop (self-withdraw is blocked
 //                     for them). Clears an untouched fee; keeps a paid one for the refund
-//                     trail. Removes them from the draft pool if not yet on a team.
+//                     trail. Removes them from the event roster, including a pre-assigned team.
 //   promote-captain → create a team with captainUserId = signup.userId, and a players
 //                     row for the captain on that team. Idempotent: re-running upgrades
 //                     the existing assignment if the user already has a team.
@@ -306,16 +306,12 @@ export async function PATCH(
         await db.delete(signupFees).where(eq(signupFees.id, fee.id));
       }
 
-      // Remove from the draft pool if they aren't already drafted onto a team.
-      await db
-        .delete(eventParticipants)
-        .where(
-          and(
-            eq(eventParticipants.eventId, evtId),
-            eq(eventParticipants.clanMemberId, signup.clanMemberId),
-            isNull(eventParticipants.teamId),
-          ),
-        );
+      // Withdrawal means they are no longer playing. Keeping an already-assigned row here made a
+      // pre-start clan-v-clan roster count withdrawn members forever (and kept tracking them).
+      const participant = await participantForSeat(evtId, signup.clanMemberId);
+      if (participant) {
+        await db.delete(eventParticipants).where(eq(eventParticipants.id, participant.id));
+      }
 
       logAction('signup_withdrawn', { by: 'admin' });
       return NextResponse.json({ signup: updated });

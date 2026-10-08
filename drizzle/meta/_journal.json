@@ -505,6 +505,13 @@
       "when": 1790551000000,
       "tag": "0113_clan_coffer_sync",
       "breakpoints": true
+    },
+    {
+      "idx": 114,
+      "version": "7",
+      "when": 1790551100000,
+      "tag": "0114_remove_withdrawn_prestart_participants",
+      "breakpoints": true
     }
   ]
 }

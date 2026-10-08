@@ -1563,9 +1563,10 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               <button
                 onClick={resendRosterToDiscord}
                 disabled={resendingRoster}
+                title="Posts only to the Discord belonging to the clan shown in the top navigation"
                 className="text-sm font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-4 py-2 rounded-lg hover:bg-indigo-500/20 transition-colors disabled:opacity-50"
               >
-                {resendingRoster ? 'Sending...' : 'Send Roster to Discord'}
+                {resendingRoster ? 'Sending...' : 'Send roster to this clan’s Discord'}
               </button>
               {rosterMessage && (
                 <span className={`text-sm ${rosterMessage.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>{rosterMessage.text}</span>

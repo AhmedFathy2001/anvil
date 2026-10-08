@@ -125,34 +125,32 @@ interface SharedBingoRoleTarget {
  * This intentionally does not create team roles/channels in co-host servers, whose resource IDs
  * would need a separate per-guild mapping rather than the host-only columns on `teams`.
  */
-async function cohostBingoRoleTargets(eventId: number): Promise<SharedBingoRoleTarget[]> {
+async function cohostBingoRoleTarget(eventId: number, clanId: number): Promise<SharedBingoRoleTarget | null> {
   const clanIds = await acceptedCohostClanIds(eventId).catch(() => [] as number[]);
-  const targets: SharedBingoRoleTarget[] = [];
-  const seen = new Set<string>();
-  for (const clanId of clanIds) {
-    if ((await getSetting(clanId, 'discord_cohost_role_sync_enabled')) !== 'true') continue;
-    const [creds, bingoRoleId] = await Promise.all([
-      getBotCredentials(clanId),
-      getSetting(clanId, 'discord_bingo_role_id'),
-    ]);
-    if (!creds || !bingoRoleId?.trim()) continue;
-    const safeRoleIds = await safeAutomatedRoleIds(creds.botToken, creds.guildId);
-    if (!safeRoleIds.has(bingoRoleId.trim())) continue;
-    const identity = `${creds.guildId}:${bingoRoleId.trim()}`;
-    if (seen.has(identity)) continue;
-    seen.add(identity);
-    targets.push({
-      clanId,
-      cfg: {
-        botToken: creds.botToken,
-        guildId: creds.guildId,
-        botUserId: null,
-        bingoRoleId: bingoRoleId.trim(),
-        captainRoleId: null,
-      },
-    });
-  }
-  return targets;
+  if (!clanIds.includes(clanId)) return null;
+  if ((await getSetting(clanId, 'discord_cohost_role_sync_enabled')) !== 'true') return null;
+  const [creds, bingoRoleId] = await Promise.all([
+    getBotCredentials(clanId),
+    getSetting(clanId, 'discord_bingo_role_id'),
+  ]);
+  if (!creds || !bingoRoleId?.trim()) return null;
+  const safeRoleIds = await safeAutomatedRoleIds(creds.botToken, creds.guildId);
+  if (!safeRoleIds.has(bingoRoleId.trim())) return null;
+  return {
+    clanId,
+    cfg: {
+      botToken: creds.botToken,
+      guildId: creds.guildId,
+      botUserId: null,
+      bingoRoleId: bingoRoleId.trim(),
+      captainRoleId: null,
+    },
+  };
+}
+
+/** A co-host can inspect only whether its own explicitly selected contestant role is ready. */
+export async function cohostBingoRoleReady(eventId: number, clanId: number): Promise<boolean> {
+  return (await cohostBingoRoleTarget(eventId, clanId)) !== null;
 }
 
 // =============================================================================
@@ -371,13 +369,26 @@ export interface ProvisionReport {
   captainsAssigned: number;
 }
 
+export type DiscordProvisionScope = 'all-teams' | 'own-clan';
+
+function teamsInScope<T extends { clanId: number | null }>(
+  eventTeams: T[],
+  hostClanId: number,
+  scope: DiscordProvisionScope,
+): T[] {
+  return scope === 'own-clan' ? eventTeams.filter((team) => team.clanId === hostClanId) : eventTeams;
+}
+
 /**
  * Create (or reuse) the Discord category + per-team role + locked text/voice channels for
  * an event, and give each team captain the captain role + their team role. Idempotent —
  * anything already recorded on the row is left as-is. Persists new IDs as it goes so a
  * partial failure (rate limit, perms) leaves a resumable state.
  */
-export async function provisionTeamDiscord(eventId: number): Promise<ProvisionReport> {
+export async function provisionTeamDiscord(
+  eventId: number,
+  scope: DiscordProvisionScope = 'all-teams',
+): Promise<ProvisionReport> {
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return { ok: false, reason: 'event not found', teams: [], captainsAssigned: 0 };
@@ -386,9 +397,18 @@ export async function provisionTeamDiscord(eventId: number): Promise<ProvisionRe
 
   if (!event) return { ok: false, reason: 'event not found', teams: [], captainsAssigned: 0 };
 
-  const eventTeams = await db.select().from(teams).where(eq(teams.eventId, eventId));
+  const eventTeams = teamsInScope(
+    await db.select().from(teams).where(eq(teams.eventId, eventId)),
+    event.clanId,
+    scope,
+  );
   if (eventTeams.length === 0) {
-    return { ok: false, reason: 'no teams to provision', teams: [], captainsAssigned: 0 };
+    return {
+      ok: false,
+      reason: scope === 'own-clan' ? 'this clan does not have its own team on the event' : 'no teams to provision',
+      teams: [],
+      captainsAssigned: 0,
+    };
   }
 
   // 1) Category (one per event). The very first Discord write, so a misconfigured bot
@@ -507,6 +527,7 @@ export async function provisionTeamDiscord(eventId: number): Promise<ProvisionRe
  * entrant must be assigned and every configured team must contain somebody.
  */
 export async function eventRostersReadyForAssignment(eventId: number, knownDraftStatus?: string): Promise<boolean> {
+  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope.
   const [event, eventTeams, participants] = await Promise.all([
     knownDraftStatus == null
       ? db.query.events.findFirst({ where: eq(events.id, eventId), columns: { draftStatus: true } })
@@ -539,7 +560,10 @@ export interface AssignReport {
  * through a completed draft or through fully populated direct assignment. Teams must be
  * provisioned (each team must have a discordRoleId). Unresolvable Discord accounts are skipped.
  */
-export async function assignTeamRoles(eventId: number): Promise<AssignReport> {
+export async function assignTeamRoles(
+  eventId: number,
+  scope: DiscordProvisionScope = 'all-teams',
+): Promise<AssignReport> {
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return { ok: false, reason: 'event not found', assigned: 0, skipped: 0 };
@@ -549,7 +573,11 @@ export async function assignTeamRoles(eventId: number): Promise<AssignReport> {
     return { ok: false, reason: 'rosters are not fully assigned', assigned: 0, skipped: 0 };
   }
 
-  const eventTeams = await db.select().from(teams).where(eq(teams.eventId, eventId));
+  const eventTeams = teamsInScope(
+    await db.select().from(teams).where(eq(teams.eventId, eventId)),
+    event.clanId,
+    scope,
+  );
   const roleByTeam = new Map<number, string>();
   for (const t of eventTeams) if (t.discordRoleId) roleByTeam.set(t.id, t.discordRoleId);
   if (roleByTeam.size === 0) {
@@ -562,12 +590,8 @@ export async function assignTeamRoles(eventId: number): Promise<AssignReport> {
     .from(eventParticipants)
     .where(and(eq(eventParticipants.eventId, eventId), isNotNull(eventParticipants.teamId)));
 
-  const cohostTargets = await cohostBingoRoleTargets(eventId);
   const roleServers: NonNullable<AssignReport['roleServers']> = [];
   if (cfg.bingoRoleId) roleServers.push({ clanId: event.clanId, guildId: cfg.guildId, assigned: 0, failed: 0 });
-  for (const target of cohostTargets) {
-    roleServers.push({ clanId: target.clanId, guildId: target.cfg.guildId, assigned: 0, failed: 0 });
-  }
 
   let assigned = 0;
   let skipped = 0;
@@ -591,12 +615,6 @@ export async function assignTeamRoles(eventId: number): Promise<AssignReport> {
       }
     }
     await addRole(cfg, discordId, teamRoleId);
-    for (const target of cohostTargets) {
-      const ok = await addRole(target.cfg, discordId, target.cfg.bingoRoleId!);
-      const report = roleServers.find((r) => r.clanId === target.clanId)!;
-      if (ok) report.assigned++;
-      else report.failed++;
-    }
     assigned++;
   }
 
@@ -614,7 +632,10 @@ export async function assignTeamRoles(eventId: number): Promise<AssignReport> {
  * with the rules before the draft happens. Requires `discord_bingo_role_id` to be set.
  * Sign-ups whose Discord account can't be resolved are skipped.
  */
-export async function assignBingoRoleToApprovedSignups(eventId: number): Promise<AssignReport> {
+export async function assignBingoRoleToApprovedSignups(
+  eventId: number,
+  scope: DiscordProvisionScope = 'all-teams',
+): Promise<AssignReport> {
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return { ok: false, reason: 'event not found', assigned: 0, skipped: 0 };
@@ -634,20 +655,20 @@ export async function assignBingoRoleToApprovedSignups(eventId: number): Promise
     .from(eventSignups)
     .where(and(eq(eventSignups.eventId, eventId), eq(eventSignups.status, 'approved')));
 
-  const cohostTargets = await cohostBingoRoleTargets(eventId);
   const roleServers: NonNullable<AssignReport['roleServers']> = [
     { clanId: event.clanId, guildId: cfg.guildId, assigned: 0, failed: 0 },
-    ...cohostTargets.map((target) => ({
-      clanId: target.clanId,
-      guildId: target.cfg.guildId,
-      assigned: 0,
-      failed: 0,
-    })),
   ];
 
   let assigned = 0;
   let skipped = 0;
   for (const signup of approved) {
+    if (scope === 'own-clan') {
+      // clan-scope: this clan -- looked up by seat id, then skipped unless seat.clanId matches the clan (checked just below).
+      const seat = signup.clanMemberId == null
+        ? null
+        : await findRosterSeat(eq(clanRoster.id, signup.clanMemberId));
+      if (!seat || seat.clanId !== event.clanId) continue;
+    }
     // Prefer the OAuth-linked user; fall back to the chosen clan member's cached Discord id.
     const discordId =
       (await discordIdForUserId(signup.userId)) ??
@@ -659,16 +680,115 @@ export async function assignBingoRoleToApprovedSignups(eventId: number): Promise
     const hostOk = await addRole(cfg, discordId, cfg.bingoRoleId);
     if (hostOk) roleServers[0].assigned++;
     else roleServers[0].failed++;
-    for (const target of cohostTargets) {
-      const ok = await addRole(target.cfg, discordId, target.cfg.bingoRoleId!);
-      const report = roleServers.find((r) => r.clanId === target.clanId)!;
-      if (ok) report.assigned++;
-      else report.failed++;
-    }
     assigned++;
   }
 
   return { ok: true, assigned, skipped, roleServers };
+}
+
+export interface CohostRoleReport {
+  ok: boolean;
+  reason?: string;
+  changed: number;
+  failed: number;
+  skipped: number;
+}
+
+/**
+ * Give a co-host's own contestant role from that co-host's admin surface. The event host cannot
+ * call this on the co-host's behalf: the route supplies the viewing clan id after authenticating
+ * one of that clan's admins.
+ */
+export async function assignCohostBingoRoleToApprovedSignups(
+  eventId: number,
+  clanId: number,
+): Promise<CohostRoleReport> {
+  const target = await cohostBingoRoleTarget(eventId, clanId);
+  if (!target?.cfg.bingoRoleId) {
+    return {
+      ok: false,
+      reason: 'Enable co-hosted event role tools and select your contestant role under Integrations first.',
+      changed: 0,
+      failed: 0,
+      skipped: 0,
+    };
+  }
+  const approved = await db
+    .select()
+    .from(eventSignups)
+    .where(and(eq(eventSignups.eventId, eventId), eq(eventSignups.status, 'approved')));
+  let changed = 0;
+  let failed = 0;
+  let skipped = 0;
+  for (const signup of approved) {
+    // clan-scope: this clan -- looked up by seat id, then skipped unless seat.clanId matches the clan (checked just below).
+    const seat = signup.clanMemberId == null
+      ? null
+      : await findRosterSeat(eq(clanRoster.id, signup.clanMemberId));
+    if (!seat || seat.clanId !== clanId) continue;
+    const discordId =
+      (await discordIdForUserId(signup.userId)) ??
+      (await discordIdForPlayerClanMember(signup.clanMemberId));
+    if (!discordId) {
+      skipped++;
+      continue;
+    }
+    if (await addRole(target.cfg, discordId, target.cfg.bingoRoleId)) changed++;
+    else failed++;
+  }
+  return { ok: true, changed, failed, skipped };
+}
+
+/** Remove only the viewing co-host's own contestant role from everybody tied to this event. */
+export async function unassignCohostBingoRole(
+  eventId: number,
+  clanId: number,
+): Promise<CohostRoleReport> {
+  const target = await cohostBingoRoleTarget(eventId, clanId);
+  if (!target?.cfg.bingoRoleId) {
+    return {
+      ok: false,
+      reason: 'Your co-hosted event contestant role is not configured.',
+      changed: 0,
+      failed: 0,
+      skipped: 0,
+    };
+  }
+  const [signups, players] = await Promise.all([
+    db.select().from(eventSignups).where(eq(eventSignups.eventId, eventId)),
+    db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eventId)),
+  ]);
+  const discordIds = new Set<string>();
+  let skipped = 0;
+  for (const signup of signups) {
+    // clan-scope: this clan -- looked up by seat id, then skipped unless seat.clanId matches the clan (checked just below).
+    const seat = signup.clanMemberId == null
+      ? null
+      : await findRosterSeat(eq(clanRoster.id, signup.clanMemberId));
+    if (!seat || seat.clanId !== clanId) continue;
+    const discordId =
+      (await discordIdForUserId(signup.userId)) ??
+      (await discordIdForPlayerClanMember(signup.clanMemberId));
+    if (discordId) discordIds.add(discordId);
+    else skipped++;
+  }
+  for (const player of players) {
+    // clan-scope: this clan -- looked up by seat id, then skipped unless seat.clanId matches the clan (checked just below).
+    const seat = player.clanMemberId == null
+      ? null
+      : await findRosterSeat(eq(clanRoster.id, player.clanMemberId));
+    if (!seat || seat.clanId !== clanId) continue;
+    const discordId = await discordIdForPlayerClanMember(player.clanMemberId);
+    if (discordId) discordIds.add(discordId);
+    else skipped++;
+  }
+  let changed = 0;
+  let failed = 0;
+  for (const discordId of discordIds) {
+    if (await removeRole(target.cfg, discordId, target.cfg.bingoRoleId)) changed++;
+    else failed++;
+  }
+  return { ok: true, changed, failed, skipped };
 }
 
 // =============================================================================
@@ -694,7 +814,10 @@ export interface UnassignReport {
  * event this will strip their role there too. Fine for the normal sequential-event flow;
  * callers should warn the admin.
  */
-export async function unassignSharedRoles(eventId: number): Promise<UnassignReport> {
+export async function unassignSharedRoles(
+  eventId: number,
+  scope: DiscordProvisionScope = 'all-teams',
+): Promise<UnassignReport> {
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return { ok: false, reason: 'event not found', bingoRemoved: 0, captainRemoved: 0 };
@@ -710,7 +833,12 @@ export async function unassignSharedRoles(eventId: number): Promise<UnassignRepo
   const bingoIds = new Set<string>();
   const captainIds = new Set<string>();
 
-  const eventTeams = await db.select().from(teams).where(eq(teams.eventId, eventId));
+  const eventTeams = teamsInScope(
+    await db.select().from(teams).where(eq(teams.eventId, eventId)),
+    event.clanId,
+    scope,
+  );
+  const scopedTeamIds = new Set(eventTeams.map((team) => team.id));
   for (const t of eventTeams) {
     if (t.captainUserId == null) continue;
     const did = await discordIdForUserId(t.captainUserId);
@@ -722,19 +850,24 @@ export async function unassignSharedRoles(eventId: number): Promise<UnassignRepo
 
   const signups = await db.select().from(eventSignups).where(eq(eventSignups.eventId, eventId));
   for (const s of signups) {
+    if (scope === 'own-clan') {
+      // clan-scope: this clan -- looked up by seat id, then skipped unless seat.clanId matches the clan (checked just below).
+      const seat = s.clanMemberId == null ? null : await findRosterSeat(eq(clanRoster.id, s.clanMemberId));
+      if (!seat || seat.clanId !== event.clanId) continue;
+    }
     const did = (await discordIdForUserId(s.userId)) ?? (await discordIdForPlayerClanMember(s.clanMemberId));
     if (did) bingoIds.add(did);
   }
 
   const eventPlayers = await db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eventId));
   for (const p of eventPlayers) {
+    if (scope === 'own-clan' && (p.teamId == null || !scopedTeamIds.has(p.teamId))) continue;
     const did = await discordIdForPlayerClanMember(p.clanMemberId);
     if (did) bingoIds.add(did);
   }
 
   let bingoRemoved = 0;
   let captainRemoved = 0;
-  const cohostTargets = await cohostBingoRoleTargets(eventId);
   const roleServers: NonNullable<UnassignReport['roleServers']> = [];
   if (cfg.bingoRoleId) {
     const hostReport = { clanId: event.clanId, guildId: cfg.guildId, removed: 0, failed: 0 };
@@ -744,15 +877,6 @@ export async function unassignSharedRoles(eventId: number): Promise<UnassignRepo
       if (ok) hostReport.removed++;
       else hostReport.failed++;
       bingoRemoved++;
-    }
-  }
-  for (const target of cohostTargets) {
-    const report = { clanId: target.clanId, guildId: target.cfg.guildId, removed: 0, failed: 0 };
-    roleServers.push(report);
-    for (const did of bingoIds) {
-      const ok = await removeRole(target.cfg, did, target.cfg.bingoRoleId!);
-      if (ok) report.removed++;
-      else report.failed++;
     }
   }
   if (cfg.captainRoleId) {

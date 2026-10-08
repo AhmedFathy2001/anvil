@@ -13,7 +13,12 @@ import {
   eventRostersReadyForAssignment,
   unassignSharedRoles,
   teardownTeamDiscord,
+  cohostBingoRoleReady,
+  assignCohostBingoRoleToApprovedSignups,
+  unassignCohostBingoRole,
 } from '@/lib/discord-teams';
+import { cohostsForEvent, isAcceptedCohost } from '@/lib/coHost';
+import { requestCohostDiscordSetup } from '@/lib/cohostDiscordSetup';
 
 // GET — current provisioning state for the admin Teams tab: whether the feature is
 // configured, and which teams already have a role + channels.
@@ -35,10 +40,13 @@ export async function GET(
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
-  const [cfg, eventTeams, rostersReady] = await Promise.all([
+  const isHost = event.clanId === clan.id;
+  const [cfg, eventTeams, rostersReady, cohosts, cohostRoleConfigured] = await Promise.all([
     loadTeamChannelConfig(clan.id),
     db.select().from(teams).where(eq(teams.eventId, id)),
     eventRostersReadyForAssignment(id, event.draftStatus),
+    isHost ? cohostsForEvent(id) : Promise.resolve([]),
+    isHost ? Promise.resolve(false) : cohostBingoRoleReady(id, clan.id),
   ]);
 
   // For the pre-draft "give bingo role" button: how many sign-ups are approved, and
@@ -49,18 +57,24 @@ export async function GET(
     .where(and(eq(eventSignups.eventId, id), eq(eventSignups.status, 'approved')))
     .then((r) => r[0]?.c ?? 0);
 
+  const ownTeam = eventTeams.find((team) => team.clanId === clan.id) ?? null;
   return NextResponse.json({
-    isHost: event.clanId === clan.id,
-    enabled: cfg !== null,
+    isHost,
+    clanName: clan.name,
+    enabled: isHost ? cfg !== null : true,
     categoryId: event.discordCategoryId,
     draftStatus: event.draftStatus,
     rostersReady,
-    bingoRoleConfigured: !!cfg?.bingoRoleId,
+    bingoRoleConfigured: isHost ? !!cfg?.bingoRoleId : cohostRoleConfigured,
     captainRoleConfigured: !!cfg?.captainRoleId,
     approvedSignups,
+    cohosts: cohosts
+      .filter((cohost) => cohost.status === 'accepted')
+      .map((cohost) => ({ clanId: cohost.clanId, clanName: cohost.clanName })),
     teams: eventTeams.map((t) => ({
       id: t.id,
       name: t.name,
+      clanId: t.clanId,
       hasRole: !!t.discordRoleId,
       hasTextChannel: !!t.discordTextChannelId,
       hasVoiceChannel: !!t.discordVoiceChannelId,
@@ -69,6 +83,8 @@ export async function GET(
     fullyProvisioned:
       eventTeams.length > 0 &&
       eventTeams.every((t) => t.discordRoleId && t.discordTextChannelId && t.discordVoiceChannelId),
+    ownTeamId: ownTeam?.id ?? null,
+    ownTeamName: ownTeam?.name ?? null,
   });
 }
 
@@ -91,10 +107,32 @@ export async function POST(
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!event) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
 
-  // Accepted co-hosts may opt their own server into the shared bingo role, but only the event host
-  // may initiate provisioning/assignment. This prevents a co-host admin from driving the host bot.
+  const body = await request.json();
+  const { action } = body;
+  const scope = body.scope === 'own-clan' ? 'own-clan' : 'all-teams';
+
+  // A co-host acts only on its own explicitly configured contestant role. It can never provision,
+  // assign, or remove anything in the host's server.
   if (event.clanId !== clan.id) {
-    return NextResponse.json({ error: 'Only the event host can manage Discord roles and channels.' }, { status: 403 });
+    if (!(await isAcceptedCohost(id, clan.id))) {
+      return NextResponse.json({ error: 'Only accepted co-hosts can manage their Discord setup.' }, { status: 403 });
+    }
+    if (action === 'assign-cohost-bingo-role') {
+      const report = await assignCohostBingoRoleToApprovedSignups(id, clan.id);
+      if (!report.ok) return NextResponse.json({ error: report.reason || 'Assignment failed' }, { status: 400 });
+      return NextResponse.json({ success: true, report });
+    }
+    if (action === 'unassign-cohost-bingo-role') {
+      const report = await unassignCohostBingoRole(id, clan.id);
+      if (!report.ok) return NextResponse.json({ error: report.reason || 'Removal failed' }, { status: 400 });
+      return NextResponse.json({ success: true, report });
+    }
+    return NextResponse.json({ error: 'This action belongs to the event host.' }, { status: 403 });
+  }
+
+  if (action === 'request-cohost-setup') {
+    const report = await requestCohostDiscordSetup(id, event.name, clan.name);
+    return NextResponse.json({ success: true, report });
   }
 
   const cfg = await loadTeamChannelConfig(clan.id);
@@ -105,11 +143,9 @@ export async function POST(
     );
   }
 
-  const { action } = await request.json();
-
   switch (action) {
     case 'provision': {
-      const report = await provisionTeamDiscord(id);
+      const report = await provisionTeamDiscord(id, scope);
       if (!report.ok) return NextResponse.json({ error: report.reason || 'Provisioning failed' }, { status: 400 });
       return NextResponse.json({ success: true, report });
     }
@@ -118,7 +154,7 @@ export async function POST(
       if (!(await eventRostersReadyForAssignment(id, event.draftStatus))) {
         return NextResponse.json({ error: 'Every team must have players and every entrant must be assigned first.' }, { status: 409 });
       }
-      const report = await assignTeamRoles(id);
+      const report = await assignTeamRoles(id, scope);
       if (!report.ok) return NextResponse.json({ error: report.reason || 'Assignment failed' }, { status: 400 });
       return NextResponse.json({ success: true, report });
     }
@@ -131,21 +167,21 @@ export async function POST(
       if (!(await eventRostersReadyForAssignment(id, event.draftStatus))) {
         return NextResponse.json({ error: 'Every team must have players and every entrant must be assigned first.' }, { status: 409 });
       }
-      const provision = await provisionTeamDiscord(id);
+      const provision = await provisionTeamDiscord(id, scope);
       if (!provision.ok) return NextResponse.json({ error: provision.reason || 'Provisioning failed' }, { status: 400 });
-      const assign = await assignTeamRoles(id);
+      const assign = await assignTeamRoles(id, scope);
       if (!assign.ok) return NextResponse.json({ error: assign.reason || 'Role assignment failed' }, { status: 400 });
       return NextResponse.json({ success: true, report: { provision, assign } });
     }
 
     case 'assign-bingo-role': {
-      const report = await assignBingoRoleToApprovedSignups(id);
+      const report = await assignBingoRoleToApprovedSignups(id, scope);
       if (!report.ok) return NextResponse.json({ error: report.reason || 'Assignment failed' }, { status: 400 });
       return NextResponse.json({ success: true, report });
     }
 
     case 'unassign-shared-roles': {
-      const report = await unassignSharedRoles(id);
+      const report = await unassignSharedRoles(id, scope);
       if (!report.ok) return NextResponse.json({ error: report.reason || 'Removal failed' }, { status: 400 });
       return NextResponse.json({ success: true, report });
     }

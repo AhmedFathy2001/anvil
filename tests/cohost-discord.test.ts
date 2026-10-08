@@ -223,7 +223,7 @@ test('postEventRules: one post per clan, each in its own channel, under the host
   assert.ok(posts.some((post) => post.url.endsWith(`/messages/${results[1].messageId}`)));
 });
 
-test('bingo-role fan-out uses only accepted co-hosts that explicitly opted in, with each own role', async () => {
+test('the host assigns only its own role; each opted-in, accepted co-host assigns its own, to its own members', async () => {
   process.env.DISCORD_BOT_TOKEN = 'cohost-role-test-token';
   await db.insert(s.settings).values([
     { clanId: hostClan, key: 'discord_team_sync_enabled', value: 'true' },
@@ -261,17 +261,47 @@ test('bingo-role fan-out uses only accepted co-hosts that explicitly opted in, w
     status: 'approved',
   });
 
+  // A member of the co-host, signed up through their own clan's seat.
+  const [guestPerson] = await db.insert(s.players).values({ displayName: 'Guest Tester' }).returning();
+  const [guestUser] = await db
+    .insert(s.users)
+    .values({ displayName: 'Guest Tester', playerId: guestPerson.id, discordId: 'discord-user-2' })
+    .returning();
+  const [guestAccount] = await db
+    .insert(s.accounts)
+    .values({ playerId: guestPerson.id, rsn: 'Guest Tester', rsnNormalized: 'guest tester' })
+    .returning();
+  const [guestSeat] = await db
+    .insert(s.clanMemberships)
+    .values({ clanId: guestClan, accountId: guestAccount.id, kind: 'member' })
+    .returning();
+  await db.insert(s.eventSignups).values({ eventId, userId: guestUser.id, clanMemberId: guestSeat.id, status: 'approved' });
+
+  const {
+    assignBingoRoleToApprovedSignups,
+    assignCohostBingoRoleToApprovedSignups,
+  } = await import('../src/lib/discord-teams.ts');
+
+  // The host's run touches the host's server only — never a co-host's.
   posts.length = 0;
-  const { assignBingoRoleToApprovedSignups } = await import('../src/lib/discord-teams.ts');
   const report = await assignBingoRoleToApprovedSignups(eventId);
   assert.equal(report.ok, true);
-  assert.deepEqual(
-    posts.map((p) => p.url).sort(),
-    [
-      'https://discord.com/api/v10/guilds/guest-guild/members/discord-user-1/roles/guest-role',
-      'https://discord.com/api/v10/guilds/host-guild/members/discord-user-1/roles/host-role',
-    ],
-  );
-  assert.equal(report.roleServers?.length, 2);
-  assert.equal(posts.some((p) => p.url.includes('pending-guild')), false);
+  assert.ok(posts.length > 0);
+  assert.ok(posts.every((p) => p.url.startsWith('https://discord.com/api/v10/guilds/host-guild/')));
+  assert.ok(posts.some((p) => p.url.endsWith('/members/discord-user-1/roles/host-role')));
+  assert.equal(report.roleServers?.length, 1);
+
+  // The co-host's own run: its own role, its own server, its own members only.
+  posts.length = 0;
+  const own = await assignCohostBingoRoleToApprovedSignups(eventId, guestClan);
+  assert.equal(own.ok, true);
+  assert.deepEqual(posts.map((p) => p.url), [
+    'https://discord.com/api/v10/guilds/guest-guild/members/discord-user-2/roles/guest-role',
+  ]);
+
+  // Opted in, but its invitation was never accepted: nothing happens.
+  posts.length = 0;
+  const pending = await assignCohostBingoRoleToApprovedSignups(eventId, pendingClan);
+  assert.equal(pending.ok, false);
+  assert.equal(posts.length, 0);
 });

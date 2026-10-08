@@ -11,7 +11,7 @@ import { parseEventRules } from '@/lib/eventRules';
 import { parseStamp } from '@/lib/dbTime';
 import { buildDraftBalance, dynamicNextTeam, picksTakenByTeam } from '@/lib/draftBalance';
 import { loadEventProfiles, attachProfiles } from '@/lib/draftProfiles';
-import { notifyDraftComplete, notifyDraftStart } from '@/lib/discord';
+import { notifyDraftComplete, notifyDraftCompleteForClan, notifyDraftStart } from '@/lib/discord';
 import { syncTeamDiscordOnDraftCompleteFireAndForget } from '@/lib/discord-teams';
 import { assertEventEditable } from '@/lib/eventLock';
 
@@ -370,12 +370,13 @@ export async function POST(
           .map(p => p.name),
       }));
 
-      const success = await notifyDraftComplete({
+      const success = await notifyDraftCompleteForClan({
         clanId: clan.id,
         eventName: event.name,
         teams: teamsWithPlayers,
         eventId: id,
         directAssignment: event.draftStatus === 'none',
+        cohost: event.clanId !== clan.id,
       });
 
       if (success) {

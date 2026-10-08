@@ -3,7 +3,7 @@ import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { clanRoster, eventParticipants, eventSignups, events, signupFees, teamInvites, teams } from '@/db/schema';
 import { signupSeatsFor } from '@/lib/eventSeats';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { generatePlayerToken, verifyUser } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { parseProfile, sanitizeProfile, serializeProfile, signupWindowState, signupEditState } from '@/lib/signup';
@@ -268,7 +268,8 @@ export async function POST(
   for (const r of deselected) {
     await db.update(eventSignups).set({ status: 'withdrawn', updatedAt: now }).where(eq(eventSignups.id, r.id));
     await db.delete(signupFees).where(eq(signupFees.signupId, r.id));
-    await db.delete(eventParticipants).where(and(eq(eventParticipants.eventId, id), eq(eventParticipants.clanMemberId, r.clanMemberId), isNull(eventParticipants.teamId)));
+    const participant = await participantForSeat(id, r.clanMemberId);
+    if (participant) await db.delete(eventParticipants).where(eq(eventParticipants.id, participant.id));
   }
 
   // The team they asked for, on a team-choice event. Validated against THIS event's teams — an id
@@ -461,7 +462,8 @@ export async function DELETE(
     if (fee) {
       await db.delete(signupFees).where(eq(signupFees.id, fee.id));
     }
-    await db.delete(eventParticipants).where(and(eq(eventParticipants.eventId, id), eq(eventParticipants.clanMemberId, r.clanMemberId), isNull(eventParticipants.teamId)));
+    const participant = await participantForSeat(id, r.clanMemberId);
+    if (participant) await db.delete(eventParticipants).where(eq(eventParticipants.id, participant.id));
   }
 
   return NextResponse.json({ ok: true });

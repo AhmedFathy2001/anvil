@@ -111,13 +111,12 @@ export default function DiscordTeamChannelSettings() {
       <Checkbox
         checked={cohostRoleSync}
         onChange={setCohostRoleSync}
-        label="Allow co-hosted events to assign this server’s bingo role"
+        label="Enable bingo-role tools for co-hosted events"
         description={
           <>
-            Explicitly opts this clan into role fan-out for events it has accepted as a co-host.
-            Anvil uses this clan&apos;s bot, server, and contestant role only; it never creates team
-            channels or accepts a role ID from the host. Leave this on through event cleanup if you
-            want Anvil to remove the role afterward.
+            Lets your admins assign or remove this clan&apos;s contestant role from their copy of a
+            co-hosted event. The host may send a setup request, but cannot run these actions or pick
+            a role for you. Anvil uses only this clan&apos;s bot, server, and selected contestant role.
           </>
         }
       />
