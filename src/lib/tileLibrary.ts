@@ -215,6 +215,7 @@ export async function libraryTierCounts(clanId: number): Promise<Record<string, 
  * tile kind (a 10M-XP goal stranded on a drop task, say).
  */
 export async function updateTask(
+  clanId: number,
   id: number,
   patch: { label?: string; description?: string | null; points?: number; category?: string | null; config?: TileCsvRow },
 ): Promise<void> {
@@ -230,8 +231,9 @@ export async function updateTask(
   // Keep the stored mirror of label/points/category inside `config` honest — the importer reads
   // those from the row it's handed, so a drifted copy would resurrect the old values on a draw.
   if (Object.keys(set).length === 0) return;
-  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
-  const existing = await db.query.tileLibrary.findFirst({ where: eq(tileLibrary.id, id) });
+  // Scoped to the clan: the id comes straight from a request body, and an unscoped lookup let any
+  // clan's tile editor rewrite another clan's library task by number.
+  const existing = await db.query.tileLibrary.findFirst({ where: and(eq(tileLibrary.id, id), eq(tileLibrary.clanId, clanId)) });
   if (!existing) return;
   if (patch.config === undefined) {
     const cfg = parseConfig(existing.config);
@@ -244,17 +246,22 @@ export async function updateTask(
     };
     set.config = JSON.stringify(merged);
   }
-  await db.update(tileLibrary).set(set).where(eq(tileLibrary.id, id));
+  await db.update(tileLibrary).set(set).where(and(eq(tileLibrary.id, id), eq(tileLibrary.clanId, clanId)));
 }
 
 // Re-exported so routes can delete/update without importing the table directly.
-export async function deleteTask(id: number): Promise<void> {
-  await db.delete(tileLibrary).where(eq(tileLibrary.id, id));
+export async function deleteTask(clanId: number, id: number): Promise<void> {
+  await db.delete(tileLibrary).where(and(eq(tileLibrary.id, id), eq(tileLibrary.clanId, clanId)));
 }
 
-export async function deleteTasks(ids: number[]): Promise<void> {
-  if (ids.length === 0) return;
-  await db.delete(tileLibrary).where(inArray(tileLibrary.id, ids));
+/** Delete this clan's tasks by id. Ids belonging to another clan's library are simply not matched. */
+export async function deleteTasks(clanId: number, ids: number[]): Promise<number> {
+  if (ids.length === 0) return 0;
+  const gone = await db
+    .delete(tileLibrary)
+    .where(and(inArray(tileLibrary.id, ids), eq(tileLibrary.clanId, clanId)))
+    .returning({ id: tileLibrary.id });
+  return gone.length;
 }
 
 export async function countLibrary(): Promise<number> {

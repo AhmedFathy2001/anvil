@@ -50,6 +50,11 @@ export async function GET() {
 export async function POST(request: Request) {
   const editor = await verifyTileEditorAnywhere();
   if (!editor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // Changing the library is a CLAN authoring job. Someone who only holds a board — a grant on one
+  // event, or a co-host's staff let onto one — may draw from it and read it, never rewrite it.
+  if (!editor.canEditTiles || editor.editorScope !== 'all') {
+    return NextResponse.json({ error: 'Only your clan’s tile authors can change the library.' }, { status: 403 });
+  }
   const clan = await requireClan();
 
   const body = await request.json().catch(() => ({}));
@@ -76,7 +81,7 @@ export async function POST(request: Request) {
 
   if (action === 'update') {
     if (!Number.isInteger(body.id)) return NextResponse.json({ error: 'id required' }, { status: 400 });
-    await updateTask(body.id, {
+    await updateTask(clan.id, body.id, {
       label: typeof body.label === 'string' ? body.label : undefined,
       description: body.description === undefined ? undefined : (body.description || null),
       points: typeof body.points === 'number' ? body.points : undefined,
@@ -89,8 +94,8 @@ export async function POST(request: Request) {
   if (action === 'delete') {
     const ids = Array.isArray(body.ids) ? body.ids.filter((n: unknown) => Number.isInteger(n)) : [];
     if (ids.length === 0) return NextResponse.json({ error: 'No ids given' }, { status: 400 });
-    await deleteTasks(ids);
-    return NextResponse.json({ ok: true, deleted: ids.length });
+    const deleted = await deleteTasks(clan.id, ids);
+    return NextResponse.json({ ok: true, deleted });
   }
 
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
