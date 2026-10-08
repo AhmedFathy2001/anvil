@@ -2526,9 +2526,11 @@ export type ForgePlayerEvent = typeof forgePlayerEvents.$inferSelect;
 // here — there is no `clans.balance` column, because a cached total is a number that can disagree
 // with its own history, and the history is the thing people argue about.
 //
-// ONE table for four movements, told apart by `kind`:
+// ONE table for the movements below, told apart by `kind`:
 //   'donation'   — a member says they handed gp in. POSITIVE, and it counts for NOTHING until staff
 //                  approve it: an unapproved donation is a claim, not money.
+//   'withdrawal' — a withdrawal the RuneLite plugin saw in the physical Clan Coffer. NEGATIVE and
+//                  approved immediately; named only when the local player's game message agrees.
 //   'adjustment' — staff correcting reality (seed the pot, write off gp spent outside Anvil, fix a
 //                  typo). Signed either way, counts the moment it is written.
 //   'award'      — a mission prize owed to a player. NEGATIVE, written the moment the prize is
@@ -2540,7 +2542,7 @@ export type ForgePlayerEvent = typeof forgePlayerEvents.$inferSelect;
 // `amount` is SIGNED and in gp, so the balance is one SUM over the rows that count (lib/coffer
 // `settledAmount`). It is a bigint because a clan coffer outgrows int4 — 2.1b gp is a normal number
 // in this game, and the overall-xp overflow already taught us that lesson once.
-export type CofferKind = 'donation' | 'adjustment' | 'award' | 'refund';
+export type CofferKind = 'donation' | 'withdrawal' | 'adjustment' | 'award' | 'pool' | 'refund';
 // 'unfunded' is an award that was never reserved because the pot was dry when the prize was claimed.
 // It holds no money and never will — it is kept so the ledger can say WHY somebody won a mission and
 // took points instead of gp, which is the first question they ask.
@@ -2557,7 +2559,7 @@ export const cofferEntries = pgTable('coffer_entries', {
   clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
   // See CofferKind. Text, not an enum, so a new movement kind is a code change not a migration.
   kind: text('kind').notNull(),
-  // Signed gp. Donations/refunds positive, awards negative, adjustments either way.
+  // Signed gp. Donations/refunds positive, withdrawals/awards negative, adjustments either way.
   amount: bigint('amount', { mode: 'number' }).notNull(),
   // See CofferStatus. Which values are legal depends on the kind (donations sit pending → approved
   // or rejected; awards reserved → paid / cancelled / unfunded; adjustments and refunds land approved).
@@ -2604,6 +2606,43 @@ export const cofferEntries = pgTable('coffer_entries', {
     .where(sql`${t.weeklyCompetitionId} IS NOT NULL`),
 ]);
 export type CofferEntry = typeof cofferEntries.$inferSelect;
+
+// Last physical balance observed in the OSRS Clan Coffer. This deliberately does not replace the
+// ledger above: Anvil's pot can include off-game funds and reserved prizes, while this row answers
+// the narrower audit question “what was actually in the in-game coffer when a client last looked?”
+export const clanCofferSyncState = pgTable('clan_coffer_sync_state', {
+  clanId: integer('clan_id').primaryKey().references(() => clans.id, { onDelete: 'cascade' }),
+  balance: bigint('balance', { mode: 'number' }).notNull(),
+  observedByClanMemberId: integer('observed_by_clan_member_id').references(() => clanMemberships.id, { onDelete: 'set null' }),
+  observedAt: timestamp('observed_at', { withTimezone: true }).notNull().defaultNow(),
+  lastEventKey: text('last_event_key').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+export type ClanCofferSyncState = typeof clanCofferSyncState.$inferSelect;
+
+// Append-only receipt for every accepted observation, including baselines and duplicate observers.
+// `(clan,event_key)` is the network retry idempotency boundary; the state row plus advisory lock
+// handles distinct clients independently reporting the same physical change.
+export const clanCofferSyncEvents = pgTable('clan_coffer_sync_events', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  eventKey: text('event_key').notNull(),
+  kind: text('kind').notNull(),
+  outcome: text('outcome').notNull(),
+  amount: bigint('amount', { mode: 'number' }).notNull().default(0),
+  beforeBalance: bigint('before_balance', { mode: 'number' }).notNull(),
+  afterBalance: bigint('after_balance', { mode: 'number' }).notNull(),
+  actorConfirmed: boolean('actor_confirmed').notNull().default(false),
+  clanMemberId: integer('clan_member_id').references(() => clanMemberships.id, { onDelete: 'set null' }),
+  rsn: text('rsn'),
+  cofferEntryId: integer('coffer_entry_id').references(() => cofferEntries.id, { onDelete: 'set null' }),
+  pluginVersion: text('plugin_version'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('clan_coffer_sync_events_clan_event_unique').on(t.clanId, t.eventKey),
+  index('clan_coffer_sync_events_clan_created_idx').on(t.clanId, t.createdAt),
+]);
+export type ClanCofferSyncEvent = typeof clanCofferSyncEvents.$inferSelect;
 
 // ── What broke, and how often ────────────────────────────────────────────────────────────────────
 //

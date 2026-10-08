@@ -9,6 +9,7 @@ import { formatGp, parseGpInput } from '@/lib/adminEventsFormat';
 import { splitEvenly } from '@/lib/splitGp';
 import GuideLink from '@/components/GuideLink';
 import { useDialog } from '@/components/Confirm';
+import LocalTime from '@/components/LocalTime';
 import type { CofferBalance } from '@/lib/cofferMath';
 import type { CofferLedgerRow } from '@/lib/coffer';
 
@@ -30,11 +31,14 @@ export default function CofferClient({
   balance,
   entries,
   roster,
+  physicalState,
 }: {
   balance: CofferBalance;
   entries: CofferLedgerRow[];
   /** Who a donation can be credited to — every current seat, guests included. */
   roster: DonorSeat[];
+  /** Last amount a member's plugin read from the physical in-game Clan Coffer. */
+  physicalState: { balance: number; observedAt: string } | null;
 }) {
   const router = useRouter();
   const { confirm } = useDialog();
@@ -132,13 +136,13 @@ export default function CofferClient({
    * hand, so both belong here or the log quietly under-reports what left.
    */
   const moneyOut = entries.filter(
-    (e) => e.kind === 'award' || e.kind === 'pool' || (e.kind === 'adjustment' && e.amount < 0),
+    (e) => e.kind === 'award' || e.kind === 'pool' || e.kind === 'withdrawal' || (e.kind === 'adjustment' && e.amount < 0),
   );
   const stillOwed = moneyOut
     .filter((e) => e.status === 'reserved' || e.status === 'planned' || e.status === 'unfunded')
     .reduce((sum, e) => sum + Math.abs(e.amount), 0);
   const paidOut = moneyOut
-    .filter((e) => e.status === 'paid' || e.kind === 'adjustment')
+    .filter((e) => e.status === 'paid' || e.kind === 'adjustment' || e.kind === 'withdrawal')
     .reduce((sum, e) => sum + Math.abs(e.amount), 0);
 
   async function act(entryId: number, action: 'approve' | 'reject' | 'pay' | 'cancel') {
@@ -215,6 +219,25 @@ export default function CofferClient({
         <Figure label="Available" value={formatGp(balance.available)} accent hint="What a new prize can be funded against" />
         <Figure label="Promised" value={formatGp(balance.reserved)} hint="Won, not yet sent" />
         <Figure label="Confirmed total" value={formatGp(balance.confirmed)} hint="Everything approved, before promises" />
+      </div>
+
+      <div className="border border-card-border rounded-xl bg-card-bg px-4 py-3 mb-6 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-xs font-semibold">In-game Clan Coffer</p>
+          <p className="text-[11px] text-text-muted">
+            A separate physical reading from RuneLite; deposits and withdrawals update the ledger automatically.
+          </p>
+        </div>
+        {physicalState ? (
+          <div className="text-right">
+            <p className="text-lg font-bold text-gold">{formatGp(physicalState.balance)}</p>
+            <p className="text-[10px] text-text-muted">
+              last seen <LocalTime date={physicalState.observedAt} />
+            </p>
+          </div>
+        ) : (
+          <p className="text-xs text-text-muted">Not observed yet — open the coffer with Anvil enabled.</p>
+        )}
       </div>
 
       {msg && <p className="text-sm text-amber-300 mb-4">{msg}</p>}
@@ -522,6 +545,7 @@ export default function CofferClient({
 
 function kindLabel(e: CofferLedgerRow): string {
   if (e.kind === 'donation') return 'donation';
+  if (e.kind === 'withdrawal') return 'in-game withdrawal';
   if (e.kind === 'award') return e.place ? `prize (place ${e.place})` : 'prize';
   if (e.kind === 'pool') return 'prize pool';
   if (e.kind === 'refund') return 'refund';

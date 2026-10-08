@@ -62,6 +62,10 @@ test('an adjustment says which way it went', () => {
   assert.match(cofferLine(entry({ kind: 'adjustment', amount: -500, rsn: null }), null), /taken/);
 });
 
+test('an automatic in-game withdrawal names the withdrawing member', () => {
+  assert.match(cofferLine(entry({ kind: 'withdrawal', amount: -500, rsn: 'Drenvox' }), null), /Drenvox.*withdrew/);
+});
+
 test('amounts read as gp, and negatives are not shown as negative', () => {
   // An award is stored as a negative movement; "-5,000,000 gp paid" would read as a refund.
   const line = cofferLine(entry({ kind: 'award', status: 'paid', amount: -5_000_000 }), null);

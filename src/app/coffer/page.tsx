@@ -42,7 +42,7 @@ export default async function CofferPage() {
         Clan coffer
       </h1>
       <p className="text-sm text-text-muted mb-6">
-        The pot mission prizes are paid out of. Everything in it was donated by members.
+        The pot mission prizes are paid out of, with in-game coffer movements tracked automatically.
       </p>
 
       <div className="grid sm:grid-cols-3 gap-3 mb-6">
@@ -112,6 +112,8 @@ export default async function CofferPage() {
                     </span>{' '}
                     {e.kind === 'pool'
                       ? 'prize money for an event'
+                      : e.kind === 'withdrawal'
+                        ? `withdrawn by ${e.memberName ?? e.rsn ?? 'the clan'}`
                       : `${e.kind === 'award' ? 'won by' : e.kind === 'donation' ? 'from' : '·'} ${
                           e.memberName ?? e.rsn ?? 'the clan'
                         }`}

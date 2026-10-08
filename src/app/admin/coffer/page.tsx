@@ -4,6 +4,7 @@ import { clanHref } from '@/lib/clanPath';
 import { requireClan } from '@/lib/clanContext';
 import { verifyFeeCollector } from '@/lib/auth';
 import { getCofferBalance, listCofferEntries } from '@/lib/coffer';
+import { getPhysicalCofferState } from '@/lib/cofferSync';
 import { db } from '@/db';
 import { clanRoster } from '@/db/schema';
 import { and, eq, isNull, asc } from 'drizzle-orm';
@@ -23,7 +24,7 @@ export default async function AdminCofferPage() {
   if (!session) redirect(await clanHref('/admin'));
   const clan = await requireClan();
 
-  const [balance, entries, roster] = await Promise.all([
+  const [balance, entries, roster, physicalState] = await Promise.all([
     getCofferBalance(clan.id),
     listCofferEntries({ clanId: clan.id, limit: 200 }),
     // Who a donation can be credited to. Guests included: somebody who is not on the roster proper
@@ -33,7 +34,18 @@ export default async function AdminCofferPage() {
       .from(clanRoster)
       .where(and(eq(clanRoster.clanId, clan.id), isNull(clanRoster.leftAt)))
       .orderBy(asc(clanRoster.rsn)),
+    getPhysicalCofferState(clan.id),
   ]);
 
-  return <CofferClient balance={balance} entries={entries} roster={roster} />;
+  return (
+    <CofferClient
+      balance={balance}
+      entries={entries}
+      roster={roster}
+      physicalState={physicalState ? {
+        balance: Number(physicalState.balance),
+        observedAt: physicalState.observedAt.toISOString(),
+      } : null}
+    />
+  );
 }

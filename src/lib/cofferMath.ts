@@ -5,7 +5,7 @@
 // to import @/db to find out.
 //
 // Three numbers, and they are not interchangeable:
-//   confirmed — approved donations + adjustments + refunds. What the clan HAS.
+//   confirmed — approved donations + withdrawals + adjustments + refunds. What the clan HAS.
 //   reserved  — gp already committed: prizes claimed but not yet sent, and pools handed to an event.
 //   available — confirmed − reserved. The ONLY number a prize may be funded against, because the
 //               alternative is promising the same 50m to two winners while a treasurer is asleep.
@@ -19,6 +19,7 @@ export function countsTowardBalance(entry: { kind: string; status: string }): bo
     case 'donation':
       return entry.status === 'approved';
     case 'adjustment':
+    case 'withdrawal':
     case 'refund':
       return entry.status !== 'rejected' && entry.status !== 'cancelled';
     case 'award':
@@ -33,7 +34,7 @@ export function countsTowardBalance(entry: { kind: string; status: string }): bo
 }
 
 export interface CofferBalance {
-  /** Approved donations + adjustments + refunds, in gp. */
+  /** Approved donations + withdrawals + adjustments + refunds, in gp. */
   confirmed: number;
   /** Claimed-but-unpaid prizes, as a POSITIVE number of gp owed. */
   reserved: number;

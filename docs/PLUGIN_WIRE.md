@@ -76,7 +76,33 @@ the clan's clips channel); `leagues-channel` (`POST /api/plugin/notify` accepts
 `moments` (`POST /api/plugin/moments` — the pets/uniques/deaths highlight feed for a
 competition week or a running board); `drop-facts` (a `dropFacts` block on
 `/api/plugin/config`, below); `mission-prizes` (what a mission pays, place by place —
-below).
+below); `coffer-sync` (absolute in-game Clan Coffer observations posted to
+`/api/plugin/coffer`, below).
+
+### `coffer-sync`
+
+While the Clan Coffer interface is open, the plugin reads the coin stack and posts either a
+baseline or a balance transition:
+
+```json
+{
+  "eventKey": "6604e6a4-29f6-4d17-979f-cfcd752c8178",
+  "kind": "deposit",
+  "beforeBalance": 12000000,
+  "afterBalance": 17000000,
+  "actorConfirmed": true
+}
+```
+
+The first snapshot establishes physical state and never creates a donation. The server serializes
+observations per clan and deduplicates both retry keys and distinct clients reporting the same final
+balance. A continuous transition creates one approved ledger movement; the authenticated member is
+named only when a nearby server-authored coffer message confirms the same direction. A gap between
+server state and the client's `beforeBalance` is recorded as an unattributed reconciliation.
+
+This is intentionally an absolute-balance protocol. It recovers after a client was offline or a
+request was lost, and no client gets to say “add this amount” repeatedly. Without the capability the
+plugin does not read the interface or call the endpoint.
 
 ### `mission-prizes`
 

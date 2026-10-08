@@ -1816,10 +1816,15 @@ export const en = {
     inbound: {
       title: 'Getting gp in',
       body: [
-        'Two routes, and they differ only in who starts them. A member reports their own donation from `/coffer` and it waits for staff to believe it; a treasurer records one that already arrived, and their typing it **is** the approval.',
+        'The RuneLite plugin handles the ordinary route automatically: open the in-game Clan Coffer and Anvil records deposits and withdrawals from its real coin balance. The first look is only a baseline — it never pretends the person who opened it donated everything already inside.',
+        'Manual records remain for anything that happened while nobody had the plugin open. A member reports their own donation from `/coffer` and it waits for staff to believe it; a treasurer records one that already arrived, and their typing it **is** the approval.',
         'Either way it is credited to a **person**. That matters more than it looks: the top-donor list on the public page is the only thanks most donors ever get, and gp that arrives as “the clan” thanks nobody.',
       ],
       rows: [
+        {
+          term: 'Open the coffer in game',
+          body: 'with Anvil enabled and signed in (Profile sync → **Sync Clan Coffer** is on by default). A matching game message credits your own deposit or withdrawal to you; changes seen after a gap are reconciled without naming the observer. Admin → Coffer shows the last physical amount and when it was seen.',
+        },
         {
           term: 'A member reports one',
           body: 'from the public coffer page, with a screenshot if they have one. It lands pending and shows up in your queue. Approving it is what makes it real money.',
