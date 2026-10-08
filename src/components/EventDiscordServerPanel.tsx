@@ -95,6 +95,7 @@ export default function EventDiscordServerPanel({ eventId }: { eventId: number }
     pending: status.members.filter((m) => m.status === 'pending').length,
     noDiscord: status.members.filter((m) => m.status === 'no-discord').length,
     dmFailed: status.members.filter((m) => m.status === 'pending' && m.dmStatus === 'failed').length,
+    notRenamed: status.members.filter((m) => m.status === 'joined' && m.lastError?.startsWith('Not renamed')).length,
   };
 
   return (
@@ -259,6 +260,11 @@ export default function EventDiscordServerPanel({ eventId }: { eventId: number }
               Players · {counts.joined} in · {counts.pending} not yet
               {counts.noDiscord > 0 && ` · ${counts.noDiscord} without Discord`}
             </div>
+            {counts.notRenamed > 0 && (
+              <p className="text-[12px] text-yellow-300/90">
+                {counts.notRenamed} couldn’t be renamed to their enrolled name. Usually the bot’s role sits below theirs: drag the Anvil role to the top of Server Settings → Roles, then press Re-check players. The server owner can never be renamed.
+              </p>
+            )}
             {counts.dmFailed > 0 && (
               <p className="text-[12px] text-accent-red">
                 {counts.dmFailed} couldn’t be DMed (they share no server with the bot, or have DMs off). Ask their captain to send them to their event page.
@@ -276,6 +282,7 @@ export default function EventDiscordServerPanel({ eventId }: { eventId: number }
                         {m.method === 'auto' && ' (auto)'}
                         {m.status === 'pending' && m.dmStatus === 'failed' && ' · DM failed'}
                         {m.status === 'pending' && m.dmStatus === 'sent' && ' · DM sent'}
+                        {m.lastError && <div className="text-[11px] text-yellow-300/90">{m.lastError}</div>}
                       </td>
                     </tr>
                   ))}

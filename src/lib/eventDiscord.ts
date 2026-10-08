@@ -686,13 +686,29 @@ function enrolledNick(name: string | null | undefined): string | null {
  * Set a member's nickname in the event server. Best-effort: Discord refuses for the server owner and
  * for anyone whose top role sits above the bot's, and neither should stop them getting their role.
  */
-async function setNickname(ctx: ServerCtx, discordId: string, nick: string): Promise<boolean> {
+async function setNickname(ctx: ServerCtx, discordId: string, nick: string): Promise<string | null> {
   const res = await discordRest(ctx.botToken, `/guilds/${ctx.guildId}/members/${discordId}`, {
     method: 'PATCH',
     body: JSON.stringify({ nick }),
   });
-  if (!res.ok) log.warn('event-discord.nick-fail', { status: res.status, guildId: ctx.guildId });
-  return res.ok;
+  if (res.ok) return null;
+  log.warn('event-discord.nick-fail', { status: res.status, guildId: ctx.guildId });
+  if (res.status !== 403) return `Couldn’t set their nickname (Discord ${res.status}).`;
+  // The two ways Discord says no, told apart so the admin knows which one they can fix.
+  if ((await guildOwnerId(ctx)) === discordId) {
+    return 'Not renamed: Discord never lets a bot rename the server owner.';
+  }
+  return 'Not renamed: one of their roles sits above the bot’s. Drag the Anvil role to the top of Server Settings → Roles, then re-check.';
+}
+
+const ownerCache = new Map<string, { id: string | null; at: number }>();
+async function guildOwnerId(ctx: ServerCtx): Promise<string | null> {
+  const hit = ownerCache.get(ctx.guildId);
+  if (hit && Date.now() - hit.at < 10 * 60_000) return hit.id;
+  const res = await discordRest(ctx.botToken, `/guilds/${ctx.guildId}`);
+  const id = res.ok ? ((await res.json()) as { owner_id?: string }).owner_id ?? null : null;
+  ownerCache.set(ctx.guildId, { id, at: Date.now() });
+  return id;
 }
 
 /** Discord id → enrolled name, for one event's rostered players. */
@@ -789,9 +805,10 @@ async function settleMember(
   const nick = enrolledNick(name);
   const put = await putRole(ctx, row.discordId, roleId);
   if (put === 'joined') {
-    // Re-applied on every pass, so a renamed enrolment (or a nickname changed by hand) follows.
-    if (nick) await setNickname(ctx, row.discordId, nick);
-    return { status: 'joined', method: row.inviteCode ? 'invite' : 'existing' };
+    // Re-applied on every pass, so a renamed enrolment (or a nickname changed by hand) follows. A
+    // refusal doesn't undo the join; it's kept as the row's note so the admin panel can say why.
+    const nickError = nick ? await setNickname(ctx, row.discordId, nick) : null;
+    return { status: 'joined', method: row.inviteCode ? 'invite' : 'existing', ...(nickError ? { error: nickError } : {}) };
   }
   if (put === 'error') return { status: 'pending', error: 'Discord refused the team role (check the bot’s role position).' };
   const userId = row.userId ?? (await userIdForDiscord(row.discordId));
@@ -866,7 +883,7 @@ export async function syncEventServerMembers(eventId: number): Promise<MemberSyn
     if (settled.status === 'joined') {
       await db
         .update(eventDiscordMembers)
-        .set({ status: 'joined', method: settled.method, joinedAt: row.joinedAt ?? stamp, lastCheckedAt: stamp, lastError: null, userId })
+        .set({ status: 'joined', method: settled.method, joinedAt: row.joinedAt ?? stamp, lastCheckedAt: stamp, lastError: settled.error ?? null, userId })
         .where(eq(eventDiscordMembers.id, row.id));
       result.joined++;
       if (settled.method === 'auto') result.autoJoined++;
@@ -930,7 +947,7 @@ export async function recheckPendingEventServerMembers(now: Date = new Date()): 
         joined++;
         await db
           .update(eventDiscordMembers)
-          .set({ status: 'joined', method: settled.method, joinedAt: stamp, lastCheckedAt: stamp, lastError: null })
+          .set({ status: 'joined', method: settled.method, joinedAt: stamp, lastCheckedAt: stamp, lastError: settled.error ?? null })
           .where(eq(eventDiscordMembers.id, row.id));
       } else {
         await db
@@ -1055,7 +1072,7 @@ export async function playerSettle(eventId: number, userId: number): Promise<{ o
   if (settled.status === 'joined') {
     await db
       .update(eventDiscordMembers)
-      .set({ status: 'joined', method: settled.method, joinedAt: stamp, lastCheckedAt: stamp, lastError: null, userId })
+      .set({ status: 'joined', method: settled.method, joinedAt: stamp, lastCheckedAt: stamp, lastError: settled.error ?? null, userId })
       .where(eq(eventDiscordMembers.id, row.id));
     return { ok: true, status: 'joined' };
   }

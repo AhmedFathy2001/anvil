@@ -31,6 +31,8 @@ const inGuild = new Map<string, Set<string>>([
   [COHOST_GUILD, new Set(['u-cohost-player'])],
 ]);
 let nextId = 1000;
+/** Members the bot may not rename (above its role, or the owner — 'u-host-admin' owns the fakes). */
+const nickRefused = new Set<string>();
 const realFetch = globalThis.fetch;
 
 function json(status: number, body: unknown): Response {
@@ -73,6 +75,9 @@ function fakeDiscord(method: string, path: string, body: Body): Response {
     return json(200, { code: 'abcInvite', expires_at: new Date(Date.now() + 86_400_000).toISOString() });
   }
   if (method === 'DELETE') return json(204, null);
+  if (method === 'PATCH' && (m = path.match(/^\/guilds\/\d+\/members\/(.+)$/)) && nickRefused.has(m[1])) {
+    return json(403, { code: 50013, message: 'Missing Permissions' });
+  }
   if (method === 'PATCH') return json(200, { id: path.split('/').pop() });
   return json(500, { message: `fake discord: unhandled ${method} ${path}` });
 }
@@ -383,4 +388,16 @@ test('players are nicknamed after their enrolled name, also when added automatic
   assert.equal(await E.joinPendingEventServersNow('u-cohost-player', 'player-access-token'), 1);
   const join = calls.find((c) => c.method === 'PUT' && c.path === `/guilds/${EVENT_GUILD}/members/u-cohost-player`);
   assert.equal(join?.body.nick, 'Cohost Player');
+});
+
+test('a refused rename keeps the join, and the note says why', async () => {
+  nickRefused.add('u-host-player');
+  await E.syncEventServerMembers(eventId);
+  const row = await db.query.eventDiscordMembers.findFirst({ where: eq(s.eventDiscordMembers.discordId, 'u-host-player') });
+  assert.equal(row?.status, 'joined');
+  assert.match(row?.lastError ?? '', /roles sits above the bot’s/);
+  nickRefused.delete('u-host-player');
+  await E.syncEventServerMembers(eventId);
+  const after = await db.query.eventDiscordMembers.findFirst({ where: eq(s.eventDiscordMembers.discordId, 'u-host-player') });
+  assert.equal(after?.lastError, null, 'cleared once the rename works');
 });
