@@ -3010,3 +3010,25 @@ export const userDiscordTokens = pgTable('user_discord_tokens', {
   scope: text('scope').notNull(),
   updatedAt: text('updated_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 });
+
+/**
+ * "I'm planning to go for this tile" — TEAM-PRIVATE (lib/tileClaims). Only the claimer's own
+ * teammates (and their captain/staff) ever read these; no public surface, the pulse, or the plugin's
+ * anonymous board touches this table. Keyed on the PERSON's login, not an account, so somebody with
+ * two characters on the team is one claimer. Claims on tiles the team has completed are dropped on
+ * read rather than deleted, so they come back if a completion is undone.
+ */
+export const tileClaims = pgTable('tile_claims', {
+  id: serial('id').primaryKey(),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  tileId: integer('tile_id').notNull().references(() => tiles.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  participantId: integer('participant_id').references(() => eventParticipants.id, { onDelete: 'set null' }),
+  note: text('note'),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (t) => [
+  uniqueIndex('tile_claims_team_tile_user_unique').on(t.teamId, t.tileId, t.userId),
+  index('tile_claims_team_idx').on(t.teamId),
+]);
+export type TileClaim = typeof tileClaims.$inferSelect;

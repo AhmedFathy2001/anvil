@@ -40,6 +40,7 @@
     "test:commandguide": "npx tsx --test tests/discord-command-guide.test.ts",
     "test:eventimage": "npx tsx --test tests/event-image.test.ts",
     "test:tilelibrary": "npx tsx --test tests/tile-library-scope.test.ts",
+    "test:tileclaims": "npx tsx --test tests/tile-claims.test.ts",
     "test:authority": "npx tsx --test tests/clan-authority.test.ts",
     "test:platform": "npx tsx --test tests/platform-authority.test.ts",
     "test:peopleview": "npx tsx --test tests/people-browse.test.ts",

@@ -44,6 +44,8 @@ interface BingoBoardProps {
   matchedTileIds?: Set<number> | null;
   /** Tiles only THIS viewer (staff) can see — members get a board without them. */
   staffOnlyTileIds?: Set<number> | null;
+  /** Team view: teammates planning each tile (lib/tileClaims). */
+  claimedBy?: Map<number, string[]> | null;
   /** Board POSITIONS on a line the viewed team has completed (lib/bingoLines). */
   linePositions?: Set<number> | null;
   /** Board POSITIONS that would finish a line for the viewed team. */
@@ -64,6 +66,7 @@ export default function BingoBoard({
   pointsMode,
   matchedTileIds,
   staffOnlyTileIds,
+  claimedBy,
   linePositions,
   neededPositions,
 }: BingoBoardProps) {
@@ -119,6 +122,7 @@ export default function BingoBoard({
             dimmed={matchedTileIds ? !matchedTileIds.has(tile.id) : false}
             manualOnly={isManualOnlyDropTile(tile)}
             staffOnly={staffOnlyTileIds?.has(tile.id) ?? false}
+            claimedBy={claimedBy?.get(tile.id)}
             markersOnly={!activeTeamId}
             inLine={linePositions?.has(tile.position) ?? false}
             needed={neededPositions?.has(tile.position) ?? false}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import ImageUpload from './ImageUpload';
 import LocalTime from '@/components/LocalTime';
 import Select from '@/components/Select';
@@ -102,6 +102,8 @@ interface Props {
   pointsMode?: boolean;
   // Admin all-teams view: label each submission with its team (submissions can span teams here).
   teamNameById?: Record<number, string>;
+  /** Surface-specific content shown first in the body — the team page's planning (claims) section. */
+  extra?: ReactNode;
 }
 
 /** Contributor rows shown before "Show all" — enough to see the shape of a board without a wall. */
@@ -129,6 +131,7 @@ export default function TileDetailModal({
   teamStatProgress,
   pointsMode,
   teamNameById,
+  extra,
 }: Props) {
   const [amount, setAmount] = useState('1');
   const [imageUrls, setImageUrls] = useState<string[]>(['']);
@@ -591,6 +594,7 @@ export default function TileDetailModal({
         </div>
 
         <div className="p-4 space-y-4">
+          {extra}
           {/* What the tile tracks — the admin-configured items/NPCs/raid. Item lists are
               suppressed when the per-item progress section below already names them. */}
           <TileTargets tile={tile} hideItems={!!perItemProgress?.length} />

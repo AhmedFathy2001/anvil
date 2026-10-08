@@ -19,6 +19,7 @@ import MemberBreakdown from '@/components/MemberBreakdown';
 import BoardFilters from '@/components/BoardFilters';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { clanFetch } from '@/lib/clanFetch';
+import { TeamPlanPanel, TileClaimSection, useTeamClaims } from './TeamClaims';
 
 interface Props {
   event: Event;
@@ -81,6 +82,9 @@ export default function MyTeamClient({
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
 
   const teamPlayers = useMemo(() => players.filter((p) => p.teamId === team.id), [players, team.id]);
+  // Team-private planning: who is going for which tile. Not loaded while the board is sealed.
+  const claims = useTeamClaims(team.id, !boardHidden && tiles.length > 0);
+  const tileLabelById = useMemo(() => new Map(tiles.map((t) => [t.id, t.label])), [tiles]);
   const eventStarted = !event.startDate || new Date(event.startDate) <= new Date();
   // Captains may rebrand before start whenever no draft is actively assembling the roster. This
   // includes pre-assigned teams, whose draft status intentionally remains "none".
@@ -576,6 +580,11 @@ export default function MyTeamClient({
               </div>
             ) : (
               <>
+            <TeamPlanPanel
+              claims={claims}
+              tileLabel={(id) => tileLabelById.get(id) ?? null}
+              onOpenTile={handleTileClick}
+            />
             <BoardFilters tiles={tiles} tierBands={tierBands} pointsMode={pointsMode} onMatched={setMatchedTileIds} />
             <EventBoard
               format={event.format}
@@ -590,6 +599,7 @@ export default function MyTeamClient({
               statProgress={statProgress}
               pointsMode={pointsMode}
               matchedTileIds={matchedTileIds}
+              claimedBy={claims.byTile}
             />
               </>
             )}
@@ -642,6 +652,13 @@ export default function MyTeamClient({
           currentPlayerId={myPlayerId ?? undefined}
           statProgress={gains[selectedTile.id]}
           pointsMode={pointsMode}
+          extra={
+            <TileClaimSection
+              claims={claims}
+              tileId={selectedTile.id}
+              completed={selectedTileCompletedBy.length > 0}
+            />
+          }
         />
       )}
     </div>
