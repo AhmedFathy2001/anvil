@@ -4,6 +4,8 @@ import { teams, teamStaff, users } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { verifyAdmin, verifyUser } from '@/lib/auth';
 import { listTeamStaff } from '@/lib/teamStaff';
+import { requireClan } from '@/lib/clanContext';
+import { eventInClan } from '@/lib/eventScope';
 
 /**
  * Grant and revoke the extra seats on one team.
@@ -15,7 +17,13 @@ import { listTeamStaff } from '@/lib/teamStaff';
 
 async function requireTeam(teamId: number) {
   const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId) });
-  if (!team) return { error: NextResponse.json({ error: 'Team not found' }, { status: 404 }) };
+  // The team's event must be THIS clan's. Admin of any clan used to be enough to seat yourself as
+  // staff on any team on the deployment, which on a co-hosted board meant a co-host admin could take
+  // a seat on the host's own team. Same 404 for "no such team" and "not yours".
+  const clan = await requireClan();
+  if (!team || !(await eventInClan(clan.id, team.eventId))) {
+    return { error: NextResponse.json({ error: 'Team not found' }, { status: 404 }) };
+  }
   return { team };
 }
 
@@ -90,6 +98,8 @@ export async function DELETE(
   if (!Number.isFinite(tId) || !Number.isFinite(userId)) {
     return NextResponse.json({ error: 'teamId and userId are required' }, { status: 400 });
   }
+  const found = await requireTeam(tId);
+  if ('error' in found) return found.error;
 
   await db.delete(teamStaff).where(and(eq(teamStaff.teamId, tId), eq(teamStaff.userId, userId)));
   return NextResponse.json({ ok: true, staff: await listTeamStaff(tId) });

@@ -23,6 +23,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
   const eventId = Number((await params).eventId);
   const event = await eventForRequest(request, eventId);
   if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  // The co-host list carries the money settlement: host admins only, like every write here. It used
+  // to answer anyone at the host's address, signed in or not.
+  const session = await verifyUser();
+  if (!session || !atLeast(session.role, 'admin')) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   return NextResponse.json({
     cohosts: await cohostsForEvent(eventId),
     cashPolicy: event.cashPolicy,
