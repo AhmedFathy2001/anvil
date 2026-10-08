@@ -216,6 +216,39 @@ test('bulk enrolment naming one person by both their seats enrols them once', as
   assert.equal(rows.length, 1);
 });
 
+test('withdrawing one cross-clan seat keeps the participant while the account has another active sign-up', async () => {
+  const { db, schema: s } = await loadDb();
+  const [event] = await db
+    .insert(s.events)
+    .values({ clanId: hostClan, name: 'Withdrawal Board', boardSize: 25 })
+    .returning();
+  const participant = await P.enrolParticipant({
+    eventId: event.id,
+    clanMemberId: homeSeat,
+    name: 'Traveller',
+  });
+  await db.insert(s.eventSignups).values([
+    { eventId: event.id, clanMemberId: guestSeat, status: 'withdrawn' },
+    { eventId: event.id, clanMemberId: homeSeat, status: 'approved' },
+  ]);
+
+  assert.equal(await P.removeParticipantForWithdrawnSeat(event.id, guestSeat), false);
+  assert.ok(
+    await db.query.eventParticipants.findFirst({ where: eq(s.eventParticipants.id, participant.row.id) }),
+    'the separate approved sign-up still owns the roster row',
+  );
+
+  await db
+    .update(s.eventSignups)
+    .set({ status: 'withdrawn' })
+    .where(and(eq(s.eventSignups.eventId, event.id), eq(s.eventSignups.clanMemberId, homeSeat)));
+  assert.equal(await P.removeParticipantForWithdrawnSeat(event.id, homeSeat), true);
+  assert.equal(
+    await db.query.eventParticipants.findFirst({ where: eq(s.eventParticipants.id, participant.row.id) }),
+    undefined,
+  );
+});
+
 // ── Swapping the tracked account ──────────────────────────────────────────────────────────────
 //
 // An admin can change which of somebody's characters a board follows — an RSN gets banned, or they

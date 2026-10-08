@@ -138,7 +138,8 @@
     "test:seo": "npx tsx --test tests/seo.test.ts",
     "test:apexhome": "npx tsx --test tests/apex-home-signals.test.ts",
     "test:rulebook": "npx tsx --test tests/event-rulebook.test.ts tests/event-rules-post-migration.test.ts",
-    "test:cohostdiscord": "npx tsx --test tests/cohost-discord.test.ts"
+    "test:cohostdiscord": "npx tsx --test tests/cohost-discord.test.ts",
+    "test:withdrawnroster": "npx tsx --test tests/withdrawn-roster-migration.test.ts"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",

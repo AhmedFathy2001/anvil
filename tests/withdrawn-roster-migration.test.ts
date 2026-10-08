@@ -29,13 +29,15 @@ before(async () => {
     ])
     .returning();
   const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString();
-  const [upcoming, past] = await db
-    .insert(s.events)
-    .values([
-      { clanId: host.id, name: 'Upcoming', boardSize: 5, startDate: day(3), endDate: day(10) },
-      { clanId: host.id, name: 'Already started', boardSize: 5, startDate: day(-10), endDate: day(3) },
-    ])
-    .returning();
+  // The imported schema includes 0115/0116 columns while this database deliberately stops at
+  // 0113. Seed through the old table shape, then let migrateRest apply 0114 and everything after.
+  const insertEvent = async (name: string, startDate: string, endDate: string) =>
+    Number((await pool.query(
+      'insert into events (clan_id, name, board_size, start_date, end_date) values ($1, $2, $3, $4, $5) returning id',
+      [host.id, name, 5, startDate, endDate],
+    )).rows[0].id);
+  const upcomingId = await insertEvent('Upcoming', day(3), day(10));
+  const pastId = await insertEvent('Already started', day(-10), day(3));
 
   const makeAccount = async (rsn: string) => {
     const [person] = await db.insert(s.players).values({ displayName: rsn }).returning();
@@ -51,13 +53,13 @@ before(async () => {
     .values({ clanId: host.id, accountId: staleAccount.id, kind: 'member' })
     .returning();
   await db.insert(s.eventSignups).values({
-    eventId: upcoming.id,
+    eventId: upcomingId,
     clanMemberId: staleSeat.id,
     status: 'withdrawn',
   });
   staleParticipantId = (await db
     .insert(s.eventParticipants)
-    .values({ eventId: upcoming.id, clanMemberId: staleSeat.id, accountId: staleAccount.id, name: 'Amascuff' })
+    .values({ eventId: upcomingId, clanMemberId: staleSeat.id, accountId: staleAccount.id, name: 'Amascuff' })
     .returning())[0].id;
 
   const pastAccount = await makeAccount('Past Player');
@@ -66,13 +68,13 @@ before(async () => {
     .values({ clanId: host.id, accountId: pastAccount.id, kind: 'member' })
     .returning();
   await db.insert(s.eventSignups).values({
-    eventId: past.id,
+    eventId: pastId,
     clanMemberId: pastSeat.id,
     status: 'withdrawn',
   });
   pastParticipantId = (await db
     .insert(s.eventParticipants)
-    .values({ eventId: past.id, clanMemberId: pastSeat.id, accountId: pastAccount.id, name: 'Past Player' })
+    .values({ eventId: pastId, clanMemberId: pastSeat.id, accountId: pastAccount.id, name: 'Past Player' })
     .returning())[0].id;
 
   // One account can hold a host seat and a co-host seat. A stale withdrawn copy must not remove the
@@ -86,12 +88,12 @@ before(async () => {
     ])
     .returning();
   await db.insert(s.eventSignups).values([
-    { eventId: upcoming.id, clanMemberId: oldSeat.id, status: 'withdrawn' },
-    { eventId: upcoming.id, clanMemberId: activeSeat.id, status: 'approved' },
+    { eventId: upcomingId, clanMemberId: oldSeat.id, status: 'withdrawn' },
+    { eventId: upcomingId, clanMemberId: activeSeat.id, status: 'approved' },
   ]);
   activeParticipantId = (await db
     .insert(s.eventParticipants)
-    .values({ eventId: upcoming.id, clanMemberId: activeSeat.id, accountId: activeAccount.id, name: 'Still Playing' })
+    .values({ eventId: upcomingId, clanMemberId: activeSeat.id, accountId: activeAccount.id, name: 'Still Playing' })
     .returning())[0].id;
 
   migrateRest(DB);
