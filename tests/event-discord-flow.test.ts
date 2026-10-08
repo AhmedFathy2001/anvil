@@ -409,3 +409,15 @@ test('roles Anvil creates grant nothing server-wide, so the pickers can always l
   const post = calls.find((c) => c.method === 'POST' && c.path === `/guilds/${COHOST_GUILD}/roles`);
   assert.equal(post?.body.permissions, '0', 'without it Discord copies @everyone’s permissions');
 });
+
+test('commands in an unbound server answer for the invoker’s own clan, only when it’s public', async () => {
+  const { resolveForeignClan } = await import('../src/lib/discordContext.ts');
+  await db.update(s.clans).set({ visibility: 'members' }).where(eq(s.clans.id, cohostClan));
+  assert.equal(await resolveForeignClan(EVENT_GUILD, 'u-cohost-player'), null, 'a members-only clan stays home');
+  await db.update(s.clans).set({ visibility: 'public' }).where(eq(s.clans.id, cohostClan));
+  const ctx = await resolveForeignClan(EVENT_GUILD, 'u-cohost-player');
+  assert.equal(ctx?.clanId, cohostClan);
+  assert.equal(ctx?.visiting, true);
+  assert.equal(ctx?.guildId, EVENT_GUILD, 'passes the guild check here');
+  assert.equal(await resolveForeignClan(EVENT_GUILD, 'nobody-we-know'), null);
+});

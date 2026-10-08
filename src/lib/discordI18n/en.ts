@@ -230,6 +230,7 @@ export const en = {
     dm: 'Run this in your clan’s Discord server — a board command needs to know which clan is asking.',
     wrongGuild:
       'This bot is connected to a different server than **{clan}**’s Anvil. Ask an admin to check the server ID under Integrations.',
+    writeAtHome: 'That changes **{clan}**’s coffer, so it only works in {clan}’s own Discord server.',
     unknownCommand: 'Anvil doesn’t answer {command} — try {suggestion}.',
     unknownSub: 'Unknown command. Try {list}.',
     noBoards: '**{clan}** has no boards yet.',

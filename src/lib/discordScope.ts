@@ -30,6 +30,12 @@ export interface ClanContext {
    * has no Arabic client language to detect.
    */
   language: string | null;
+  /**
+   * Answering in a server this clan never bound — a co-hosted event's joint server, or anywhere a
+   * member of a PUBLIC clan runs a command (lib/discordContext resolveForeignClan). Read-only there:
+   * the clan's money is only ever moved from its own server.
+   */
+  visiting?: boolean;
 }
 
 /**

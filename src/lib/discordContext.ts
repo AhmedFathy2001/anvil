@@ -23,7 +23,8 @@
 
 import { db } from '@/db';
 import { clanRoster, clans, eventCohosts, eventParticipants, events, settings, teams, users } from '@/db/schema';
-import { eq, and, isNull, inArray, or } from 'drizzle-orm';
+import { eq, and, isNull, inArray, or, ne, desc } from 'drizzle-orm';
+import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { configuredOrigin } from '@/lib/request-origin';
 import { eventStage } from '@/lib/eventStage';
@@ -78,6 +79,55 @@ export async function getClanContext(guildId: string | null): Promise<ClanContex
 
   const ctx = await clanContextById(guildRows[0].clanId);
   return { ...ctx, guildId: wanted };
+}
+
+/**
+ * The clan to answer for in a server NO clan has bound — the joint server of a co-hosted event, or a
+ * friend's server a member runs a command in.
+ *
+ * It is the INVOKER's own clan, and only when that clan is public: a public clan's boards and stats
+ * are already readable by anybody on the site, so answering for it elsewhere reveals nothing new,
+ * while a members-only clan stays inside its own server. When the server is a co-hosted event's,
+ * the clans running that event come first; otherwise their full member seat beats a guest seat.
+ * Null when they have no public clan — the caller then refuses as before.
+ */
+export async function resolveForeignClan(guildId: string, discordId: string | null): Promise<ClanContext | null> {
+  if (!discordId) return null;
+  const user = await db.query.users.findFirst({ where: eq(users.discordId, discordId), columns: { playerId: true } });
+  if (user?.playerId == null) return null;
+
+  // clan-scope: global -- the invoker's own seats, across every clan they belong to; that is the question.
+  const seats = await db
+    .select({ clanId: clanRoster.clanId, kind: clanRoster.kind, visibility: clans.visibility })
+    .from(clanRoster)
+    .innerJoin(clans, eq(clans.id, clanRoster.clanId))
+    .where(and(eq(clanRoster.playerId, user.playerId), isNull(clanRoster.leftAt), eq(clans.status, 'active')));
+  const publicSeats = seats.filter((s) => clanVisibilityOf(s.visibility) === 'public');
+  if (publicSeats.length === 0) return null;
+
+  // A co-hosted event whose server this is: its host and accepted co-hosts.
+  // clan-scope: global -- events are matched by the server they set up, then narrowed to their clans.
+  const eventHere = await db
+    .select({ id: events.id, clanId: events.clanId })
+    .from(events)
+    .where(and(eq(events.eventGuildId, guildId), ne(events.discordLayout, 'own')))
+    .orderBy(desc(events.id))
+    .limit(1);
+  const running = new Set<number>();
+  if (eventHere[0]) {
+    running.add(eventHere[0].clanId);
+    const cohosts = await db
+      .select({ clanId: eventCohosts.clanId })
+      .from(eventCohosts)
+      .where(and(eq(eventCohosts.eventId, eventHere[0].id), eq(eventCohosts.status, 'accepted')));
+    for (const c of cohosts) running.add(c.clanId);
+  }
+
+  const score = (s: (typeof publicSeats)[number]) => (running.has(s.clanId) ? 2 : 0) + (s.kind === 'member' ? 1 : 0);
+  const best = [...publicSeats].sort((a, b) => score(b) - score(a))[0];
+  const ctx = await clanContextById(best.clanId);
+  // This server, so checkGuild passes; `visiting` keeps it read-only.
+  return { ...ctx, guildId, visiting: true };
 }
 
 /**

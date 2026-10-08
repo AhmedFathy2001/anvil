@@ -49,6 +49,7 @@ import {
 } from '@/lib/discordEmbeds';
 import {
   getClanContext,
+  resolveForeignClan,
   pickEvent,
   listLiveEvents,
   getCrossClanContext,
@@ -927,7 +928,11 @@ async function resolveClan(
   { ok: true; clan: ClanContext; t: DiscordDict; locale: string } | { ok: false; response: InteractionResponse }
 > {
   const t = await getDiscordDict(locale);
-  const clan = await getClanContext(interaction.guild_id ?? null);
+  // A server no clan bound (a co-hosted event's joint server, a friend's server): answer for the
+  // invoker's own clan when it's public — lib/discordContext resolveForeignClan.
+  const clan =
+    (await getClanContext(interaction.guild_id ?? null)) ??
+    (interaction.guild_id ? await resolveForeignClan(interaction.guild_id, invokerId(interaction)) : null);
   if (!clan) {
     return {
       ok: false,
@@ -1078,9 +1083,13 @@ async function replyClanCommand(
   ctx: ClanCommandCtx,
   opts: { name: string; ephemeral: boolean; sharedBy?: string },
 ): Promise<InteractionResponse> {
+  const isWrite = CLAN_WRITE_SUBS[opts.name]?.has(ctx.sub ?? '') ?? false;
+  // Outside the clan's own server the bot only reads: money moves from home, where its staff are.
+  if (isWrite && ctx.clan.visiting) {
+    return textReply(fmt(ctx.t.errors.writeAtHome, { clan: ctx.clan.name }), { ephemeral: true });
+  }
   const result = await handler(ctx);
   if ('text' in result) return textReply(result.text, { ephemeral: true });
-  const isWrite = CLAN_WRITE_SUBS[opts.name]?.has(ctx.sub ?? '') ?? false;
   const shareCustomId =
     (opts.ephemeral && result.shareable && !isWrite ? encodeClanShare(opts.name, ctx.sub, ctx.options) : null) ?? undefined;
   const response = embedReply(result.embeds, {
@@ -1200,7 +1209,9 @@ export async function handleAutocomplete(interaction: Interaction): Promise<Inte
   if (focused.name === 'page') return autocompleteReply(suggestClogPages(focused.value));
 
   if (focused.name === 'account') {
-    const clan = await getClanContext(interaction.guild_id ?? null);
+    const clan =
+      (await getClanContext(interaction.guild_id ?? null)) ??
+      (interaction.guild_id ? await resolveForeignClan(interaction.guild_id, invokerId(interaction)) : null);
     if (!clan) return autocompleteReply([]);
     const memberOpt = typeof focused.siblings.member === 'string' ? focused.siblings.member : '';
     const discordId = memberOpt || invokerId(interaction) || '';
