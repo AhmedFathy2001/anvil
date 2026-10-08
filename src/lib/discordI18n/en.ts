@@ -99,7 +99,7 @@ export const en = {
       '• **Decay** — a tile is worth full points when it opens and slides to {pct}% over {hours}h. Early finishes score more.',
     growth: '• **Growth** — a tile starts at full value and climbs to {pct}% over {hours}h. Waiting scores more.',
     missions: '• **Missions** — extra objectives revealed mid-event, {when}. Nobody sees one before it’s announced.',
-    missionWhenInterval: 'every {minutes} minutes',
+    missionWhenInterval: 'every {minutes} minutes after the event starts',
     missionWhenScheduled: 'on a schedule',
     missionWhenManual: 'when staff drop them',
     missionBonusNote:

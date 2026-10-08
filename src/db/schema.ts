@@ -549,6 +549,14 @@ export const events = pgTable('events', {
   // through lib/eventRulebook so every surface — the event page, /bingo rules in any clan on the
   // board, the rules post — shows the same text.
   rulebook: text('rulebook'),
+  // Optional host-edited body for the FIRST Discord rules embed. Null keeps the live message
+  // generated from this event's mechanics; a value freezes the prefilled draft the host edited.
+  // The separate `rulebook` above remains the house-rules/addendum embed.
+  rulesMessage: text('rules_message'),
+  // Discord webhook messages are editable when addressed through the webhook that created them.
+  // One shared event fans out to several clans, so retain one message snowflake per clan id. If a
+  // destination webhook changes, editing returns 404 and the post flow replaces this id safely.
+  rulesMessageIds: jsonb('rules_message_ids').$type<Record<string, string>>().notNull().default({}),
   // Post-finish edit lock override. Finished events (past endDate / force-ended) refuse every
   // event-content mutation (teams, players, draft, tiles, completions, submissions — see
   // lib/eventLock.ts). Setting this ISO stamp re-opens editing for corrections; clearing it locks

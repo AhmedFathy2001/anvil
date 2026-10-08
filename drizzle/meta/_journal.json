@@ -491,6 +491,13 @@
       "when": 1790550800000,
       "tag": "0111_event_participant_names",
       "breakpoints": true
+    },
+    {
+      "idx": 112,
+      "version": "7",
+      "when": 1790550900000,
+      "tag": "0112_editable_event_rules_posts",
+      "breakpoints": true
     }
   ]
 }

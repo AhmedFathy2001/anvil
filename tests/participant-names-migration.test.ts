@@ -20,8 +20,15 @@ before(async () => {
   pool = p;
   const clan = (await db.insert(s.clans).values({ slug: 'mig', name: 'Mig' }).returning())[0].id;
   const day = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString();
-  const live = (await db.insert(s.events).values({ clanId: clan, name: 'Live', boardSize: 5, startDate: day(-1), endDate: day(5) }).returning())[0].id;
-  const past = (await db.insert(s.events).values({ clanId: clan, name: 'Past', boardSize: 5, startDate: day(-20), endDate: day(-10) }).returning())[0].id;
+  // The imported schema includes columns added after this deliberately old database shape. Seed
+  // through the old SQL shape so a later nullable events column does not make this 0111 data-
+  // migration test fail before the migration it is meant to exercise can run.
+  const insertEvent = async (name: string, startDate: string, endDate: string) => Number((await pool.query(
+    'insert into events (clan_id, name, board_size, start_date, end_date) values ($1, $2, $3, $4, $5) returning id',
+    [clan, name, 5, startDate, endDate],
+  )).rows[0].id);
+  const live = await insertEvent('Live', day(-1), day(5));
+  const past = await insertEvent('Past', day(-20), day(-10));
   const person = (await db.insert(s.players).values({ displayName: 'P' }).returning())[0].id;
   const [acct] = await db.insert(s.accounts).values({ playerId: person, rsn: 'Luderwasblue', rsnNormalized: 'luderwasblue' }).returning();
   const [seat] = await db.insert(s.clanMemberships).values({ clanId: clan, accountId: acct.id, kind: 'member' }).returning();

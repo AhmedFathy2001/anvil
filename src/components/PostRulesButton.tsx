@@ -8,6 +8,7 @@ interface Result {
   clanId: number;
   clanName: string;
   status: 'sent' | 'skipped' | 'failed';
+  action?: 'posted' | 'updated';
 }
 
 /**
@@ -15,7 +16,17 @@ interface Result {
  * co-host's, to that clan's own server (the route decides — see post-rules/route.ts). Reports per
  * clan, because "posted" means nothing to a host whose co-host never set up a channel.
  */
-export default function PostRulesButton({ eventId, label = 'Post rules to Discord' }: { eventId: number; label?: string }) {
+export default function PostRulesButton({
+  eventId,
+  label = 'Post rules to Discord',
+  beforePost,
+  onPosted,
+}: {
+  eventId: number;
+  label?: string;
+  beforePost?: () => Promise<boolean>;
+  onPosted?: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<Result[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +36,7 @@ export default function PostRulesButton({ eventId, label = 'Post rules to Discor
     setError(null);
     setResults(null);
     try {
+      if (beforePost && !(await beforePost())) return;
       const res = await clanFetch(`/api/admin/events/${eventId}/post-rules`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -32,7 +44,11 @@ export default function PostRulesButton({ eventId, label = 'Post rules to Discor
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) setError(d.error ?? 'Could not post the rules.');
-      else setResults(d.results ?? []);
+      else {
+        const next = Array.isArray(d.results) ? d.results : [];
+        setResults(next);
+        if (next.some((result: Result) => result.status === 'sent')) onPosted?.();
+      }
     } catch {
       setError('Could not post the rules.');
     } finally {
@@ -58,7 +74,7 @@ export default function PostRulesButton({ eventId, label = 'Post rules to Discor
             <li key={r.clanId} className={r.status === 'sent' ? 'text-green-400' : r.status === 'failed' ? 'text-red-400' : 'text-text-muted'}>
               {r.clanName}:{' '}
               {r.status === 'sent'
-                ? 'posted'
+                ? r.action === 'updated' ? 'updated existing post' : 'posted'
                 : r.status === 'failed'
                   ? 'Discord refused the post'
                   : 'no channel set up (Integrations → Webhooks)'}

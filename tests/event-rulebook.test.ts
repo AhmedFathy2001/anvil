@@ -38,6 +38,7 @@ const facts = (over: Partial<RulesFacts> = {}): RulesFacts => ({
   fee: null,
   missionCounts: { total: 0, announced: 0 },
   boardTiles: [{ trackedStat: null }],
+  rulesMessage: null,
   rulebook: pickRulebook('Keep a screenshot.', null, null, 'The AFK Spot'),
   ...over,
 });
@@ -54,6 +55,16 @@ test('buildRulesEmbeds: mechanics embed + rulebook embed titled with the HOST', 
 test('buildRulesEmbeds: no rulebook → mechanics only', () => {
   const embeds = buildRulesEmbeds(en, facts({ rulebook: pickRulebook(null, null, null, 'H') }), { origin: null });
   assert.equal(embeds.length, 1);
+});
+
+test('buildRulesEmbeds: an event-specific Discord message replaces the generated mechanics body', () => {
+  const embeds = buildRulesEmbeds(en, facts({ rulesMessage: 'Custom rules for this bingo.' }), {
+    origin: 'https://anvilosrs.com',
+    footer: '-# context',
+  });
+  assert.match(embeds[0].description ?? '', /^Custom rules for this bingo\./);
+  assert.match(embeds[0].description ?? '', /context$/);
+  assert.doesNotMatch(embeds[0].description ?? '', /Scoring/);
 });
 
 test('buildRulesEmbeds: a long rulebook is trimmed and points at the full link', () => {

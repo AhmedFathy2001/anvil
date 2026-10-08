@@ -36,6 +36,8 @@ export interface RulesFacts {
   missionCounts: { total: number; announced: number };
   /** Board tiles only (missions excluded) — how credit reaches them. */
   boardTiles: { trackedStat: string | null }[];
+  /** Host-edited first Discord embed body. Null means derive it live from the mechanics above. */
+  rulesMessage: string | null;
   rulebook: Rulebook;
 }
 
@@ -187,6 +189,15 @@ export function trackingLines(
   return out;
 }
 
+/** The editable first-embed draft, before its per-clan context footer is added. */
+export function defaultRulesMessage(t: DiscordDict, facts: RulesFacts, origin: string | null): string {
+  return [
+    ...mechanicsLines(t, facts.event, facts.rules, facts.pool, facts.fee, facts.missionCounts),
+    // Tile names stay hidden on an unrevealed board, but HOW tracking works is not a spoiler.
+    ...trackingLines(t, origin, facts.boardTiles),
+  ].join('\n');
+}
+
 /**
  * The rulebook as its own embed. It rides in a SEPARATE embed rather than appended to the mechanics:
  * it's a different kind of statement (policy, not board configuration) and mixing them makes both
@@ -226,12 +237,8 @@ export function buildRulesEmbeds(
     footer?: string;
   },
 ): DiscordEmbed[] {
-  const body = [
-    ...mechanicsLines(t, facts.event, facts.rules, facts.pool, facts.fee, facts.missionCounts),
-    // Tile names stay hidden on an unrevealed board, but HOW tracking works is not a spoiler.
-    ...trackingLines(t, opts.origin, facts.boardTiles),
-    ...(opts.footer ? ['', opts.footer] : []),
-  ];
+  const message = facts.rulesMessage?.trim() || defaultRulesMessage(t, facts, opts.origin);
+  const body = [message, ...(opts.footer ? ['', opts.footer] : [])];
   const embeds: DiscordEmbed[] = [
     {
       title: clamp(fmt(t.rules.title, { event: facts.event.name }), LIMIT.title),

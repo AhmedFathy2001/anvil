@@ -20,7 +20,7 @@ let pendingClan: number;
 let strangerClan: number;
 let eventId: number;
 
-const posts: { url: string; body: Record<string, unknown> }[] = [];
+const posts: { url: string; method: string; body: Record<string, unknown> }[] = [];
 const realFetch = globalThis.fetch;
 const realBotToken = process.env.DISCORD_BOT_TOKEN;
 
@@ -68,7 +68,11 @@ before(async () => {
         { id: 'pending-role', name: 'Pending bingo', position: 2, managed: false, permissions: '0' },
       ]);
     }
-    posts.push({ url: href, body: JSON.parse(String(init?.body ?? '{}')) });
+    posts.push({ url: href, method: init?.method ?? 'GET', body: JSON.parse(String(init?.body ?? '{}')) });
+    if (new URL(href).searchParams.get('wait') === 'true') {
+      return Response.json({ id: `rules-message-${posts.length}` });
+    }
+    if (init?.method === 'PATCH') return Response.json({ ok: true });
     return new Response(null, { status: 204 });
   }) as typeof fetch;
 });
@@ -192,17 +196,31 @@ test('postEventRules: one post per clan, each in its own channel, under the host
   posts.length = 0;
   const results = await postEventRules(eventId, hostClan);
   assert.deepEqual(
-    results.map((r) => [r.clanId, r.status]),
+    results.map((r) => [r.clanId, r.status, r.action]),
     [
-      [hostClan, 'sent'],
-      [guestClan, 'sent'],
+      [hostClan, 'sent', 'posted'],
+      [guestClan, 'sent', 'posted'],
     ],
   );
-  const guestPost = posts.find((p) => p.url === 'https://discord.test/guest-cohost');
+  const guestPost = posts.find((p) => p.url.startsWith('https://discord.test/guest-cohost?'));
   const embeds = guestPost?.body.embeds as { title?: string; description?: string }[];
   assert.equal(embeds.length, 2);
   assert.match(embeds[0].description ?? '', /hosted by Host Clan/);
   assert.equal(embeds[1].description, 'Rumble rules');
+
+  const row = await db.query.events.findFirst({ where: (await import('drizzle-orm')).eq(s.events.id, eventId) });
+  assert.deepEqual(row?.rulesMessageIds, {
+    [String(hostClan)]: results[0].messageId,
+    [String(guestClan)]: results[1].messageId,
+  });
+
+  posts.length = 0;
+  const updated = await postEventRules(eventId, hostClan);
+  assert.deepEqual(updated.map((r) => r.action), ['updated', 'updated']);
+  assert.equal(posts.length, 2);
+  assert.ok(posts.every((post) => post.method === 'PATCH'));
+  assert.ok(posts.some((post) => post.url.endsWith(`/messages/${results[0].messageId}`)));
+  assert.ok(posts.some((post) => post.url.endsWith(`/messages/${results[1].messageId}`)));
 });
 
 test('bingo-role fan-out uses only accepted co-hosts that explicitly opted in, with each own role', async () => {

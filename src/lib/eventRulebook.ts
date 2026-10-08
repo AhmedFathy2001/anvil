@@ -78,6 +78,7 @@ export async function loadRulesFacts(eventId: number): Promise<RulesFacts | null
     fee: row.signupFee ?? null,
     missionCounts: { total: missionPool.length, announced: missionPool.filter((t) => t.revealedAt).length },
     boardTiles: boardTiles(allTiles),
+    rulesMessage: row.rulesMessage?.trim() || null,
     rulebook,
   };
 }

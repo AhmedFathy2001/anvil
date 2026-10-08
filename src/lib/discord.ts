@@ -106,13 +106,21 @@ export function pickWebhookUrl(raw: string | null | undefined, cursorKey: string
 // URLs is chosen round-robin. Pass the master key (`discord_webhook_url`) last so every destination
 // falls back to it — set only the master and everything posts there ("simple" mode); set the
 // specific keys to split channels ("advanced" mode).
-async function resolveWebhookUrl(clanId: number, ...keys: string[]): Promise<string | null> {
+async function resolveWebhookDestination(
+  clanId: number,
+  ...keys: string[]
+): Promise<{ urls: string[]; cursorKey: string } | null> {
   for (const key of keys) {
     const urls = parseWebhookUrls(await getSettingUrl(clanId, key));
-    // Round-robin cursor is per (clan, key): two clans sharing a key must not share a cursor.
-    if (urls.length) return pickCycledUrl(urls, `${clanId}:${key}`);
+    if (urls.length) return { urls, cursorKey: `${clanId}:${key}` };
   }
   return null;
+}
+
+async function resolveWebhookUrl(clanId: number, ...keys: string[]): Promise<string | null> {
+  const destination = await resolveWebhookDestination(clanId, ...keys);
+  // Round-robin cursor is per (clan, key): two clans sharing a key must not share a cursor.
+  return destination ? pickCycledUrl(destination.urls, destination.cursorKey) : null;
 }
 
 const MAX_RETRY_MS = 5000;
@@ -262,6 +270,123 @@ export async function sendBingoWebhookReport(
   const url = await resolveWebhookUrl(clanId, BINGO_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!url) return 'skipped';
   return (await sendToWebhook(url, payload, clanId)) ? 'sent' : 'failed';
+}
+
+export interface EditableWebhookResult {
+  status: 'sent' | 'skipped' | 'failed';
+  action?: 'posted' | 'updated';
+  messageId?: string;
+}
+
+function webhookRequestUrl(webhookUrl: string, opts: { messageId?: string; wait?: boolean }): string {
+  const url = new URL(webhookUrl);
+  if (opts.messageId) {
+    url.pathname = `${url.pathname.replace(/\/$/, '')}/messages/${encodeURIComponent(opts.messageId)}`;
+  }
+  if (opts.wait) url.searchParams.set('wait', 'true');
+  return url.toString();
+}
+
+async function editableWebhookRequest(url: string, method: 'POST' | 'PATCH', payload: DiscordWebhookPayload): Promise<Response> {
+  const send = () => fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const response = await send();
+  if (response.status !== 429) return response;
+
+  const headerVal = response.headers.get('retry-after');
+  let retryMs = headerVal ? Number(headerVal) * 1000 : 0;
+  if (!retryMs) {
+    try {
+      const body = (await response.clone().json()) as { retry_after?: number };
+      if (typeof body.retry_after === 'number') retryMs = body.retry_after * 1000;
+    } catch { /* body was not JSON */ }
+  }
+  retryMs = Math.max(250, Math.min(retryMs || 1000, MAX_RETRY_MS));
+  await new Promise((resolve) => setTimeout(resolve, retryMs));
+  return send();
+}
+
+/**
+ * Edit an earlier webhook post when its message id is known; otherwise post once with `wait=true`
+ * so Discord returns the new id. A missing old message (or a replaced destination webhook) falls
+ * back to a fresh post, while other edit failures do not risk creating a duplicate.
+ */
+async function upsertWebhookMessage(
+  destination: { urls: string[]; cursorKey: string },
+  payload: DiscordWebhookPayload,
+  clanId: number,
+  existingMessageId?: string,
+): Promise<EditableWebhookResult> {
+  try {
+    const stamped = stampEmbeds(payload);
+    if (existingMessageId) {
+      // A destination may round-robin several webhooks. The message belongs to exactly one of
+      // them, so try each configured token before deciding the old post disappeared.
+      for (const webhookUrl of destination.urls) {
+        const edit = await editableWebhookRequest(
+          webhookRequestUrl(webhookUrl, { messageId: existingMessageId }),
+          'PATCH',
+          stamped,
+        );
+        if (edit.ok) return { status: 'sent', action: 'updated', messageId: existingMessageId };
+        if (edit.status !== 404) {
+          const body = await edit.text().catch(() => '');
+          log.warn('discord.webhook-edit-fail', { clanId, status: edit.status, body: body.slice(0, 200) });
+          return { status: 'failed' };
+        }
+      }
+    }
+
+    const webhookUrl = pickCycledUrl(destination.urls, destination.cursorKey);
+    if (!webhookUrl) return { status: 'skipped' };
+    const createPayload = stampEmbeds({ ...(await webhookIdentity(clanId)), ...payload });
+    const create = await editableWebhookRequest(
+      webhookRequestUrl(webhookUrl, { wait: true }),
+      'POST',
+      createPayload,
+    );
+    if (!create.ok) {
+      const body = await create.text().catch(() => '');
+      log.warn('discord.webhook-create-fail', { clanId, status: create.status, body: body.slice(0, 200) });
+      return { status: 'failed' };
+    }
+    const body = (await create.json().catch(() => ({}))) as { id?: unknown };
+    return {
+      status: 'sent',
+      action: 'posted',
+      ...(typeof body.id === 'string' && body.id ? { messageId: body.id } : {}),
+    };
+  } catch (error) {
+    log.warn('discord.webhook-upsert-exception', { clanId }, error);
+    return { status: 'failed' };
+  }
+}
+
+/** Rules-post variant: unlike general notifications, it can update the post it created earlier. */
+export async function upsertBingoWebhookReport(
+  clanId: number,
+  payload: DiscordWebhookPayload,
+  existingMessageId?: string,
+): Promise<EditableWebhookResult> {
+  const destination = await resolveWebhookDestination(clanId, BINGO_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
+  if (!destination) return { status: 'skipped' };
+  return upsertWebhookMessage(destination, payload, clanId, existingMessageId);
+}
+
+/** Co-host rules-post variant, respecting that clan's fan-out opt-out and preferred channel. */
+export async function upsertCohostWebhook(
+  clanId: number,
+  payload: DiscordWebhookPayload,
+  existingMessageId?: string,
+): Promise<EditableWebhookResult> {
+  const enabled = (await getSettingUrl(clanId, COHOST_POSTS_KEY))?.trim();
+  if (enabled === 'false' || enabled === '0') return { status: 'skipped' };
+  const destination = await resolveWebhookDestination(clanId, COHOST_WEBHOOK_KEY, BINGO_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
+  if (!destination) return { status: 'skipped' };
+  return upsertWebhookMessage(destination, payload, clanId, existingMessageId);
 }
 
 /**
