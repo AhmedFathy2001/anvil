@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { normalizeRsn, requirePluginClan, verifyPluginTokenUser } from '@/lib/auth';
+import { requirePluginClan, resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
 import {
   getNotificationWebhooks,
   NOTIFY_CHANNELS,
@@ -12,10 +12,11 @@ import { leaguesIconUrl, markSeasonal } from '@/lib/leagues';
 import { stripChatTags, stripChatTagsDeep } from '@/lib/chatTags';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { db } from '@/db';
-import { accounts, clanRoster } from '@/db/schema';
-import { findRosterSeat, personOf, seatsOwnedBy } from '@/lib/roster';
+import { clanRoster } from '@/db/schema';
+import { findRosterSeat, seatsOwnedBy } from '@/lib/roster';
 import { clanTagsGuestEmissions, markGuestPost, personalWebhookTargets, socialEmissionClans } from '@/lib/emissionRouting';
 import { and, eq, isNull } from 'drizzle-orm';
+import { log } from '@/lib/logger';
 
 // The plugin POSTs clan notifications (death / kill / rare drop / CA) here instead of straight to
 // Discord, so it never receives or calls a webhook URL itself — the server owns those (RuneLite
@@ -63,40 +64,8 @@ function seasonalWebhookFor(webhooks: PluginWebhooks, channel: Channel): string 
 // hash and current RSN (BingoApiClient.authedRequest sets them on every call), so the poster is
 // identifiable without any plugin change: the hash is the reliable anchor (survives renames), the
 // header is the fallback for accounts that never completed a handshake.
-//
-// Read-only on purpose — the auto-link/verify machinery belongs on the gameplay routes, not on a
-// fire-and-forget notification.
-/**
- * The account the poster is currently on, resolved to a row THEY own.
- *
- * Scoped to the person (playerId) on purpose: the token proves who is posting, and routing must use
- * one of their OWN accounts — never resolve a hash to somebody else's row and announce it as theirs.
- * Hash first (rename-proof), RSN second. Null when it isn't one of their accounts (unclaimed, or an
- * alt they never linked), which sends the notification down the URL-clan fallback rather than
- * fanning it out — see the POST handler.
- */
-async function resolveOwnAccount(request: Request, playerId: number): Promise<{ id: number } | null> {
-  const hash = request.headers.get('X-Account-Hash')?.trim() || null;
-  if (hash) {
-    const [byHash] = await db
-      .select({ id: accounts.id })
-      .from(accounts)
-      .where(and(eq(accounts.accountHash, hash), eq(accounts.playerId, playerId)))
-      .limit(1);
-    if (byHash) return byHash;
-  }
-  const rsn = request.headers.get('X-RSN')?.trim() || null;
-  if (rsn) {
-    const [byRsn] = await db
-      .select({ id: accounts.id })
-      .from(accounts)
-      .where(and(eq(accounts.rsnNormalized, normalizeRsn(rsn)), eq(accounts.playerId, playerId)))
-      .limit(1);
-    if (byRsn) return byRsn;
-  }
-  return null;
-}
-
+// The account/routing resolution below uses the full plugin-member path. This helper only chooses
+// the display name for the old plain-text death/PvP payloads.
 async function posterRsn(request: Request, userId: number): Promise<string | null> {
   const accountHash = request.headers.get('X-Account-Hash')?.trim() || null;
   if (accountHash) {
@@ -118,7 +87,12 @@ async function posterRsn(request: Request, userId: number): Promise<string | nul
 
 export async function POST(request: Request) {
   const clan = await requirePluginClan(request);
-  const auth = await verifyPluginTokenUser(request);
+  // Resolve the same exact owned account as /moments. The old, second identity lookup understood
+  // neither previous RSNs nor the rest of the plugin's claim/rename path, so the site could accept
+  // a named pet into the feed and then silently find no Discord destination for the sibling call.
+  // Keep token-only auth as the fallback for personal hooks when the current account has no seat.
+  const member = await resolvePluginMember(request);
+  const auth = member ?? (await verifyPluginTokenUser(request));
   if (!auth) {
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <pluginToken>' }, { status: 401 });
   }
@@ -213,9 +187,7 @@ export async function POST(request: Request) {
   // whatever clan's site the plugin happens to point at. This is the in-the-wild half of the
   // multi-clan product, and it needs no plugin release because the plugin already posts once and the
   // server owns the webhooks. See lib/emissionRouting for the model (and its privacy gate).
-  const playerId = await personOf(auth.userId);
-  const account = playerId != null ? await resolveOwnAccount(request, playerId) : null;
-  const emissionClans = account ? await socialEmissionClans(account.id) : [];
+  const emissionClans = member ? await socialEmissionClans(member.accountId) : [];
 
   // Destination → the clan it belongs to (for that clan's bot name and icon); personal webhooks have none.
   const urls = new Map<string, number | undefined>();
@@ -255,6 +227,12 @@ export async function POST(request: Request) {
   if (urls.size === 0) {
     // No destination anywhere. Not an error; a webhook can be cleared on the site between the
     // plugin's config poll and this post.
+    log.warn('plugin-notify.no-destination', {
+      userId: auth.userId,
+      accountId: member?.accountId ?? null,
+      addressedClanId: clan.id,
+      channel,
+    });
     return new NextResponse(null, { status: 204 });
   }
 
@@ -269,5 +247,15 @@ export async function POST(request: Request) {
     });
     anyOk = anyOk || ok;
   }
-  return NextResponse.json({ ok: anyOk });
+  if (!anyOk) {
+    log.warn('plugin-notify.all-destinations-failed', {
+      userId: auth.userId,
+      accountId: member?.accountId ?? null,
+      addressedClanId: clan.id,
+      channel,
+      destinations: urls.size,
+    });
+    return NextResponse.json({ ok: false, error: 'Discord refused every destination' }, { status: 502 });
+  }
+  return NextResponse.json({ ok: true });
 }
