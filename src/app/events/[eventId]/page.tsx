@@ -96,10 +96,12 @@ export default async function EventScoreboardPage({
   searchParams,
 }: {
   params: Promise<{ eventId: string }>;
-  searchParams: Promise<{ tile?: string | string[] }>;
+  searchParams: Promise<{ tile?: string | string[]; rules?: string | string[] }>;
 }) {
   const { eventId } = await params;
-  const requestedTile = (await searchParams).tile;
+  const query = await searchParams;
+  const requestedTile = query.tile;
+  const showRules = (Array.isArray(query.rules) ? query.rules[0] : query.rules) === '1';
   const initialTileId = Number(Array.isArray(requestedTile) ? requestedTile[0] : requestedTile);
   const id = parseInt(eventId, 10);
   // Before requireClan: on the apex this redirects to the event's own address instead of 404ing.
@@ -565,7 +567,7 @@ export default async function EventScoreboardPage({
         signupClosesAt={event.signupDeadline ?? event.startDate}
       />
       )}
-      {rulesFacts && <EventRulesCard facts={rulesFacts} />}
+      {rulesFacts && <EventRulesCard facts={rulesFacts} defaultOpen={showRules} />}
       {/* Post-event actions — one quiet card that folds in whichever of the recap / survey CTAs apply,
           rather than two stacked gold banners shouting the same "event ended" note twice. */}
       {(showRecapCta || showSurveyCta) && (

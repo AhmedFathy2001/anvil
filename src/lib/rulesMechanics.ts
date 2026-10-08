@@ -204,16 +204,22 @@ export function defaultRulesMessage(t: DiscordDict, facts: RulesFacts, origin: s
  * skimmable by nobody. Long rulebooks get their first part plus a link — Discord's 4096-character
  * cap is not a place to dump a full rules document, and a truncated rule reads as a complete one.
  */
-export function rulebookEmbed(t: DiscordDict, rulebook: Rulebook): DiscordEmbed | null {
+export function rulebookEmbed(t: DiscordDict, rulebook: Rulebook, eventUrl?: string): DiscordEmbed | null {
   if (!rulebook.text && !rulebook.url) return null;
   const full = rulebook.text ?? '';
   const truncated = full.length > LIMIT.description - 200;
   const shown = truncated ? `${full.slice(0, LIMIT.description - 200).trimEnd()}…` : full;
-  const tail = rulebook.url
-    ? `\n\n${truncated ? t.rules.houseContinues : t.rules.houseFull} ${rulebook.url}`
-    : truncated
-      ? `\n\n${t.rules.houseTrimmed}`
-      : '';
+  const eventRulesUrl = eventUrl
+    ? `${eventUrl}${eventUrl.includes('?') ? '&' : '?'}rules=1#rules`
+    : null;
+  let tail = '';
+  if (rulebook.url) {
+    tail = `\n\n${truncated ? t.rules.houseContinues : t.rules.houseFull} ${rulebook.url}`;
+  } else if (truncated && eventRulesUrl) {
+    tail = `\n\n${fmt(t.rules.houseEventPage, { url: eventRulesUrl })}`;
+  } else if (truncated) {
+    tail = `\n\n${t.rules.houseTrimmed}`;
+  }
   return {
     title: clamp(fmt(t.rules.houseTitle, { clan: clamp(rulebook.hostClanName, 80) }), LIMIT.title),
     description: clamp(`${shown}${tail}`.trim(), LIMIT.description),
@@ -249,7 +255,7 @@ export function buildRulesEmbeds(
       ...(opts.fields ? { fields: opts.fields } : {}),
     },
   ];
-  const book = rulebookEmbed(t, facts.rulebook);
+  const book = rulebookEmbed(t, facts.rulebook, opts.eventUrl);
   if (book) embeds.push(book);
   return embeds;
 }

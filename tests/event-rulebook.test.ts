@@ -74,6 +74,17 @@ test('buildRulesEmbeds: a long rulebook is trimmed and points at the full link',
   assert.match(embeds[1].description ?? '', /https:\/\/x\/full/);
 });
 
+test('buildRulesEmbeds: a trimmed site rulebook links straight to the open rules card', () => {
+  const long = 'x'.repeat(6000);
+  const embeds = buildRulesEmbeds(en, facts({ rulebook: pickRulebook(long, null, null, 'H') }), {
+    origin: 'https://anvilosrs.com',
+    eventUrl: 'https://anvilosrs.com/events/42',
+  });
+  assert.match(embeds[1].description ?? '', /View the full rules on the event page/);
+  assert.match(embeds[1].description ?? '', /https:\/\/anvilosrs\.com\/events\/42\?rules=1#rules/);
+  assert.doesNotMatch(embeds[1].description ?? '', /ask staff/);
+});
+
 test('mechanicsLines: lockout and first bonus show only when on', () => {
   const off = mechanicsLines(en, facts().event, DEFAULT_EVENT_RULES, 0, null, { total: 0, announced: 0 });
   const on = mechanicsLines(en, facts().event, { ...DEFAULT_EVENT_RULES, lockout: true, firstBonus: 3 }, 0, null, { total: 0, announced: 0 });

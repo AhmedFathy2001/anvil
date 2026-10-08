@@ -73,6 +73,7 @@ export const en = {
     houseTitle: '📌 {clan} — house rules',
     houseContinues: '**The rules continue** — read them all at',
     houseFull: 'Full rules:',
+    houseEventPage: '-# → [View the full rules on the event page]({url})',
     houseTrimmed: '-# Trimmed to fit Discord — ask staff for the full ruleset.',
 
     scoringPoints:

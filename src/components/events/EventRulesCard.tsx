@@ -10,7 +10,7 @@ import { mechanicsLines, trackingLines, type RulesFacts } from '@/lib/rulesMecha
  * The mechanics lines are the Discord dictionary's English, which is Discord-flavoured markdown the
  * site renderer reads. No tile names anywhere, so it's safe on an unrevealed board.
  */
-export default function EventRulesCard({ facts }: { facts: RulesFacts }) {
+export default function EventRulesCard({ facts, defaultOpen = false }: { facts: RulesFacts; defaultOpen?: boolean }) {
   const mechanics = [
     ...mechanicsLines(en, facts.event, facts.rules, facts.pool, facts.fee, facts.missionCounts),
     ...trackingLines(en, null, facts.boardTiles),
@@ -18,7 +18,7 @@ export default function EventRulesCard({ facts }: { facts: RulesFacts }) {
   const book = facts.rulebook;
 
   return (
-    <details className="group mb-6 border border-card-border rounded-xl bg-card-bg">
+    <details id="rules" open={defaultOpen} className="group mb-6 border border-card-border rounded-xl bg-card-bg scroll-mt-4">
       <summary className="flex items-center gap-2 cursor-pointer select-none px-4 py-3 list-none [&::-webkit-details-marker]:hidden">
         <span className="w-1 h-5 bg-gold rounded-full" />
         <span className="font-semibold">Rules</span>
