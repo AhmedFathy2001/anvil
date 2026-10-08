@@ -1,5 +1,5 @@
 import { webhookIdentity } from '@/lib/discordIdentity';
-import { clanMarkUrl } from '@/lib/clanMarkUrl';
+import { clanMarkUrl, eventMarkUrl } from '@/lib/clanMarkUrl';
 import { log } from '@/lib/logger';
 import { getSettingText } from '@/lib/settings';
 import { startBlockerLabel, type StartBlockerCode } from '@/lib/eventReadiness';
@@ -13,7 +13,7 @@ import { boardRevealImageQuery } from '@/lib/boardRevealImage';
 
 import { db } from '@/db';
 import { acceptedCohostClanIds } from '@/lib/coHost';
-import { clans } from '@/db/schema';
+import { clans, events } from '@/db/schema';
 import {
   EMBED_COLOR,
   clamp,
@@ -961,7 +961,7 @@ export async function notifyBoardRevealed(params: BoardRevealedNotifyParams): Pr
     ...(boardUrl ? { url: boardUrl } : {}),
     ...(imageUrl ? { image: { url: imageUrl } } : {}),
   };
-  const payload = { embeds: [await withClanCrest(params.clanId, embed)] };
+  const payload = { embeds: [await withClanCrest(params.clanId, embed, params.eventId)] };
   // A test must never surprise co-host servers. The real reveal uses the ordinary accepted-cohost
   // fan-out, where each receiving clan may independently disable co-host posts.
   return params.test
@@ -1224,9 +1224,21 @@ async function clanCrestIcon(clanId: number): Promise<string | null> {
   return clan?.slug ? clanMarkUrl(base, clan.slug, clan.logoUrl) : null;
 }
 
-/** Stamp the clan crest onto an embed's existing author line, if we could resolve one. */
-async function withClanCrest(clanId: number, embed: DiscordEmbed): Promise<DiscordEmbed> {
-  const icon = await clanCrestIcon(clanId);
+/** An event's own icon, when it has one (lib/eventImage); null = use the clan's mark. */
+async function eventIcon(eventId: number | undefined): Promise<string | null> {
+  const base = siteBaseUrl();
+  if (!base || eventId == null) return null;
+  // clan-scope: global -- one event by id, from a sender that was handed that event.
+  const event = await db.query.events.findFirst({ columns: { iconUrl: true }, where: eq(events.id, eventId) });
+  return event?.iconUrl ? eventMarkUrl(base, eventId, event.iconUrl) : null;
+}
+
+/**
+ * Stamp a mark onto an embed's existing author line: the event's own icon when the post is about an
+ * event that has one, else the clan's crest.
+ */
+async function withClanCrest(clanId: number, embed: DiscordEmbed, eventId?: number): Promise<DiscordEmbed> {
+  const icon = (await eventIcon(eventId)) ?? (await clanCrestIcon(clanId));
   if (icon && embed.author) embed.author = { ...embed.author, icon_url: icon };
   return embed;
 }
@@ -1371,7 +1383,7 @@ export async function notifyEventStart(params: EventStartNotifyParams): Promise<
       : {}),
   };
 
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [await withClanCrest(params.clanId, embed)] }, { ping: true });
+  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [await withClanCrest(params.clanId, embed, params.eventId)] }, { ping: true });
 }
 
 interface EventEndNotifyParams {
@@ -1409,7 +1421,7 @@ export async function notifyEventForceEnd(params: EventEndNotifyParams): Promise
   };
 
   // No member ping on an admin force-end (abnormal termination, not a celebratory finish).
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [await withClanCrest(params.clanId, embed)] });
+  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [await withClanCrest(params.clanId, embed, params.eventId)] });
 }
 
 export async function notifyEventEnd(params: EventEndNotifyParams): Promise<boolean> {
@@ -1439,7 +1451,7 @@ export async function notifyEventEnd(params: EventEndNotifyParams): Promise<bool
     fields,
   };
 
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [await withClanCrest(params.clanId, embed)] }, { ping: true });
+  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [await withClanCrest(params.clanId, embed, params.eventId)] }, { ping: true });
 }
 
 interface PayoutNotifyParams {
@@ -1483,7 +1495,7 @@ export async function notifyPayout(params: PayoutNotifyParams): Promise<boolean>
     fields,
   };
 
-  return sendBingoWebhook(params.clanId, { ...(await memberPing(params.clanId)), embeds: [await withClanCrest(params.clanId, embed)] });
+  return sendBingoWebhook(params.clanId, { ...(await memberPing(params.clanId)), embeds: [await withClanCrest(params.clanId, embed, eventId)] });
 }
 
 // ---- Weekly competitions (SOTW / BOTW) — post to the dedicated weekly webhook ----

@@ -21,3 +21,8 @@ export function clanMarkUrl(base: string, slug: string | null | undefined, logoU
   const path = slug ? `/${encodeURIComponent(slug)}` : '';
   return `${origin}/api/og/crest${path}?v=${shortHash(logoUrl?.trim() || 'crest')}`;
 }
+
+/** `<origin>/api/og/event-icon/<id>?v=<icon version>` — an event's own mark, versioned the same way. */
+export function eventMarkUrl(base: string, eventId: number, iconUrl: string): string {
+  return `${new URL(base).origin}/api/og/event-icon/${eventId}?v=${shortHash(iconUrl.trim())}`;
+}

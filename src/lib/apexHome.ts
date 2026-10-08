@@ -51,6 +51,8 @@ export interface DiscoverEvent {
   clanSlug: string;
   clanName: string;
   clanLogoUrl: string | null;
+  /** The event's own icon, else its clan's logo; null = the crest (lib/eventImage). */
+  iconUrl: string | null;
   startDate: string | null;
   endDate: string | null;
   /** Running now, rather than starting later. */
@@ -449,6 +451,7 @@ export async function discoverEvents(
       clanSlug: clans.slug,
       clanName: clans.name,
       clanLogoUrl: clans.logoUrl,
+      eventIconUrl: events.iconUrl,
       startDate: events.startDate,
       endDate: events.endDate,
       signupDeadline: events.signupDeadline,
@@ -483,6 +486,7 @@ export async function discoverEvents(
         clanSlug: r.clanSlug,
         clanName: r.clanName,
         clanLogoUrl: r.clanLogoUrl,
+        iconUrl: r.eventIconUrl || r.clanLogoUrl,
         startDate: r.startDate,
         endDate: r.endDate,
         live,

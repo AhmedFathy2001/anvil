@@ -45,6 +45,10 @@ export function ogCard(opts: {
   title: string;
   subtitle?: string;
   stats?: OgStat[];
+  /** A data URL drawn full-bleed behind the text, darkened so the words stay legible (an event banner). */
+  background?: string | null;
+  /** A square data URL beside the eyebrow (an event's icon). */
+  badge?: string | null;
 }): ImageResponse {
   const stats = (opts.stats ?? []).slice(0, 4);
   // Long clan and event names have to stay on the card. Two steps rather than a scale factor,
@@ -67,21 +71,57 @@ export function ogCard(opts: {
           backgroundImage: `radial-gradient(circle at 88% 8%, rgba(224,170,30,0.20), rgba(224,170,30,0) 55%)`,
           padding: '68px 76px',
           fontFamily: 'sans-serif',
+          position: 'relative',
         }}
       >
+        {opts.background ? (
+          // Absolute, so it takes no part in the column layout; painted first, so the text sits on it.
+          // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
+          <img
+            src={opts.background}
+            width={1200}
+            height={630}
+            style={{ position: 'absolute', top: 0, left: 0, width: 1200, height: 630, objectFit: 'cover' }}
+          />
+        ) : null}
+        {opts.background ? (
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: 1200,
+              height: 630,
+              display: 'flex',
+              backgroundImage: 'linear-gradient(90deg, rgba(20,16,16,0.94) 0%, rgba(20,16,16,0.78) 55%, rgba(20,16,16,0.45) 100%)',
+            }}
+          />
+        ) : null}
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {opts.eyebrow ? (
-            <div
-              style={{
-                display: 'flex',
-                fontSize: 26,
-                letterSpacing: 4,
-                textTransform: 'uppercase',
-                color: C.gold,
-                marginBottom: 22,
-              }}
-            >
-              {opts.eyebrow}
+          {opts.eyebrow || opts.badge ? (
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 22 }}>
+              {opts.badge ? (
+                // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
+                <img
+                  src={opts.badge}
+                  width={84}
+                  height={84}
+                  style={{ width: 84, height: 84, borderRadius: 18, marginRight: 24, border: `3px solid ${C.border}` }}
+                />
+              ) : null}
+              {opts.eyebrow ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    fontSize: 26,
+                    letterSpacing: 4,
+                    textTransform: 'uppercase',
+                    color: C.gold,
+                  }}
+                >
+                  {opts.eyebrow}
+                </div>
+              ) : null}
             </div>
           ) : null}
           <div

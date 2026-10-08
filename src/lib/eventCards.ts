@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { eventIconUrl } from '@/lib/eventImage';
 import { clans, completions, eventCohosts, events, teams, tiles } from '@/db/schema';
 import { and, count, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 import { eventAxes } from '@/lib/eventAxes';
@@ -44,6 +45,8 @@ export interface EventCard {
       event. Only a hint: the card still links to this clan's own `/events/<id>`, which serves a
       co-host's members the board (lib/eventScope `requireEventForParticipantPage`). */
   hostSlug: string | null;
+  /** The card's picture: the event's own icon, else its HOST clan's logo; null = the crest. */
+  iconUrl: string | null;
 }
 
 export interface LoadEventCardsOptions {
@@ -86,12 +89,15 @@ export async function loadEventCards(
   // A co-hosted event is the visiting clan's too — it appears on their events pages, at their own
   // address. Everything below derives from `all` and inherits this scope.
   const cohosted = await db
-    .select({ eventId: eventCohosts.eventId, hostSlug: clans.slug })
+    .select({ eventId: eventCohosts.eventId, hostSlug: clans.slug, hostLogoUrl: clans.logoUrl })
     .from(eventCohosts)
     .innerJoin(events, eq(events.id, eventCohosts.eventId))
     .innerJoin(clans, eq(clans.id, events.clanId))
     .where(and(eq(eventCohosts.clanId, clanId), eq(eventCohosts.status, 'accepted')));
   const hostSlugByEvent = new Map(cohosted.map((c) => [c.eventId, c.hostSlug]));
+  // The host's logo is an event card's fallback picture — this clan's own for events it hosts.
+  const hostLogoByEvent = new Map(cohosted.map((c) => [c.eventId, c.hostLogoUrl]));
+  const [ownClan] = await db.select({ logoUrl: clans.logoUrl }).from(clans).where(eq(clans.id, clanId)).limit(1);
   const cohostedIds = cohosted.map((c) => c.eventId);
   const all = await db
     .select()
@@ -291,6 +297,7 @@ export async function loadEventCards(
       // Only set when this clan is a co-host (the event's own clan is someone else). Drives a
       // "co-hosted" hint on the card.
       hostSlug: cardHostSlug,
+      iconUrl: eventIconUrl(event, { logoUrl: hostLogoByEvent.has(event.id) ? hostLogoByEvent.get(event.id) : ownClan?.logoUrl }),
       foot:
         status === 'upcoming'
           ? event.startDate

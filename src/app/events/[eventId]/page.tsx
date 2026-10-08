@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 import { db } from '@/db';
-import { clanPrefix, currentClan, requireClan } from '@/lib/clanContext';
+import { clanPrefix, currentClan, requireClan, resolveClanById } from '@/lib/clanContext';
 import { canSeeEvent } from '@/lib/eventAccess';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { canonicalPathFor, socialMetadata } from '@/lib/seo';
@@ -10,6 +10,7 @@ import { clanTrail } from '@/lib/seoPages';
 import { clanHref } from '@/lib/clanPath';
 import { eventInClan, requireEventForParticipantPage } from '@/lib/eventScope';
 import EventApiHost from '@/components/EventApiHost';
+import { eventIconUrl } from '@/lib/eventImage';
 import { events, tiles, teams, completions, eventSignups, clanRoster, players, submissions, surveyQuestions, surveyResponses, eventStartProofs, eventParticipants } from '@/db/schema';
 import { and, eq, isNull, inArray, count } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
@@ -485,6 +486,8 @@ export default async function EventScoreboardPage({
     }
   }
 
+  // The icon falls back to the HOST's logo, even when this page is reached at a co-host's address.
+  const hostClan = event.clanId === clan.id ? clan : await resolveClanById(event.clanId);
   return (
     <>
       <EventApiHost eventId={event.id} prefix={apiPrefix} />
@@ -513,6 +516,9 @@ export default async function EventScoreboardPage({
       />}
       <EventHero
         name={event.name}
+        iconUrl={eventIconUrl(event, hostClan)}
+        bannerUrl={event.bannerUrl}
+        hostName={hostClan?.name ?? clan.name}
         shapeBadge={eventShapeBadge(event.format, event.scoringMode, event.tilesRevealed ? event.boardSize : null, event.rules)}
         pointsOnBoard={pointsOnBoard}
         teamsCount={safeTeams.length}

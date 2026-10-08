@@ -6,6 +6,7 @@ import { postEventRules } from '@/lib/eventRulesPost';
 import { events, tiles, teams, completions, submissions, eventStartProofs } from '@/db/schema';
 import { eq, inArray, and } from 'drizzle-orm';
 import { del } from '@/lib/storage';
+import { cleanEventImageUrl } from '@/lib/eventImage';
 import { verifyAdmin, verifyAdminOrModerator } from '@/lib/auth';
 import { notifyBoardRevealed, notifyEventForceEnd, notifyEventStart } from '@/lib/discord';
 import { emptyTeamCount, getEventStartReadiness, eventBoardSummary, drawStartProof } from '@/lib/eventLifecycle';
@@ -438,6 +439,13 @@ export async function PATCH(
       return NextResponse.json({ error: 'name must be 100 characters or fewer' }, { status: 400 });
     }
     updates.name = name;
+  }
+  // The event's icon and banner (lib/eventImage). Only our own uploads; null/'' clears.
+  for (const field of ['iconUrl', 'bannerUrl'] as const) {
+    if (!(field in body)) continue;
+    const cleaned = cleanEventImageUrl(body[field]);
+    if (!cleaned.ok) return NextResponse.json({ error: cleaned.error }, { status: 400 });
+    updates[field] = cleaned.value;
   }
   // Admin-controlled member-facing tile reveal. Coerce to 0/1 so a bare boolean works.
   if ('tilesRevealed' in body) updates.tilesRevealed = body.tilesRevealed ? 1 : 0;

@@ -37,6 +37,10 @@ export interface Event {
   feeMode?: string; // 'per-person' | 'per-account'
   // Per-event game rules JSON (lib/eventRules) — reveal policy + scoring modifiers. Null = classic.
   rules?: string | null;
+  /** Square event picture; null = the host clan's logo (lib/eventImage). */
+  iconUrl?: string | null;
+  /** Wide picture across the top of the event page; null = none. */
+  bannerUrl?: string | null;
 }
 
 export interface TileRevealState {

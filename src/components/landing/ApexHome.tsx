@@ -216,7 +216,7 @@ export default function ApexHome({
                     href={`/c/${d.clanSlug}/events/${d.eventId}`}
                     className="flex items-center gap-3.5 rounded-xl border border-card-border bg-card-bg px-4 py-3.5 transition-colors hover:border-gold/40 hover:bg-card-bg-hover sm:px-5"
                   >
-                    <ClanCrest slug={d.clanSlug} name={d.clanName} logoUrl={d.clanLogoUrl} size={26} />
+                    <ClanCrest slug={d.clanSlug} name={d.clanName} logoUrl={d.iconUrl} size={26} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[15px] font-medium">{d.name}</span>
                       <span className="mt-0.5 block truncate text-[12.5px] text-text-muted">

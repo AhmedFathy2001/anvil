@@ -63,7 +63,7 @@ export function crestImage(name: string): ImageResponse {
  * configured site origin (never the request's Host header, which a caller controls). The profile
  * route already refuses anything else on write; this re-checks on read, and refuses redirects.
  */
-function logoFetchUrl(logoUrl: string): URL | null {
+export function logoFetchUrl(logoUrl: string): URL | null {
   const base = (process.env.S3_PUBLIC_BASE_URL || '').trim().replace(/\/+$/, '');
   if (base && logoUrl.startsWith(`${base}/`)) return new URL(logoUrl);
   const origin = configuredOrigin();
@@ -90,3 +90,28 @@ export async function clanMark(name: string, logoUrl: string | null | undefined)
   }
   return crestImage(name);
 }
+
+/**
+ * One of OUR uploaded images, re-encoded by sharp for a `next/og` card (which can't draw WebP, the
+ * format uploads are stored in) and inlined as a data URL. Null on anything unexpected — the card is
+ * then simply drawn without it.
+ */
+export async function ourImageAsDataUrl(
+  url: string | null | undefined,
+  size: { width: number; height: number },
+  format: 'png' | 'jpeg' = 'jpeg',
+): Promise<string | null> {
+  const target = url ? logoFetchUrl(url) : null;
+  if (!target) return null;
+  try {
+    const res = await fetch(target, { signal: AbortSignal.timeout(8_000), redirect: 'error' });
+    if (!res.ok) return null;
+    const { default: sharp } = await import('sharp');
+    const img = sharp(Buffer.from(await res.arrayBuffer())).resize(size.width, size.height, { fit: 'cover' });
+    const buf = format === 'png' ? await img.png().toBuffer() : await img.jpeg({ quality: 82 }).toBuffer();
+    return `data:image/${format};base64,${buf.toString('base64')}`;
+  } catch {
+    return null;
+  }
+}
+

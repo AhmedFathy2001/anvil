@@ -134,6 +134,7 @@ export default async function EventsIndexPage({
                   }
                   chips={b.chips.slice(1)}
                   glyph={boardGlyphFor(b, hubKind(b.mode).accent)}
+                  pictureUrl={b.iconUrl}
                 />
               ))}
             </div>

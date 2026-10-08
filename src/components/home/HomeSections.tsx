@@ -371,11 +371,19 @@ function EventLiveCard({ e }: { e: HomeEvent }) {
         <span className="h-1.5 w-1.5 rounded-full bg-accent-green-light" />
         Live
       </span>
-      <h3 className="mt-1.5 truncate text-xl font-extrabold">{e.name}</h3>
-      <p className="mt-0.5 text-[12.5px] text-text-muted">
-        {e.shape}
-        {e.chips.length > 0 && <> · {e.chips.join(' · ')}</>}
-      </p>
+      <div className="mt-1.5 flex items-center gap-3">
+        {e.iconUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={e.iconUrl} alt="" className="h-11 w-11 shrink-0 rounded-xl object-cover" />
+        )}
+        <div className="min-w-0">
+          <h3 className="truncate text-xl font-extrabold">{e.name}</h3>
+          <p className="mt-0.5 text-[12.5px] text-text-muted">
+            {e.shape}
+            {e.chips.length > 0 && <> · {e.chips.join(' · ')}</>}
+          </p>
+        </div>
+      </div>
 
       {e.top && (
         <>
@@ -656,6 +664,7 @@ function EventCompetitionCard({ e }: { e: HomeEvent }) {
       }
       chips={e.chips.slice(1)}
       glyph={boardGlyphFor(e, hubKind(e.mode).accent)}
+      pictureUrl={e.iconUrl}
     />
   );
 }

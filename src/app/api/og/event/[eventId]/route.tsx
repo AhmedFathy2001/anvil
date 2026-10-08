@@ -7,6 +7,8 @@ import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { eventStage } from '@/lib/eventStage';
 import { visibilityOf } from '@/lib/eventVisibility';
 import { ogCard, type OgStat } from '@/lib/ogCard';
+import { ourImageAsDataUrl } from '@/lib/crestImage';
+import { eventIconUrl } from '@/lib/eventImage';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { DEFAULT_DESCRIPTION } from '@/lib/seo';
 
@@ -65,10 +67,18 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
   ];
 
   const format = FORMAT_LABEL[event.format] ?? 'Event';
+  // The event's banner behind the card, and its icon (else the clan's logo) beside the eyebrow.
+  // Both are our own uploads, re-encoded here; either failing just leaves the card without it.
+  const [background, badge] = await Promise.all([
+    ourImageAsDataUrl(event.bannerUrl, { width: 1200, height: 630 }, 'jpeg'),
+    ourImageAsDataUrl(eventIconUrl(event, clan), { width: 168, height: 168 }, 'png'),
+  ]);
   return ogCard({
     eyebrow: `${eyebrow} · ${format}`,
     title: event.name,
     subtitle: clanName || clan.name,
     stats,
+    background,
+    badge,
   });
 }

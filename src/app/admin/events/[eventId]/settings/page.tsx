@@ -5,6 +5,8 @@ import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import { verifyUser } from '@/lib/auth';
 import SettingsClient from './SettingsClient';
+import EventLookPanel from './EventLookPanel';
+import { requireClan } from '@/lib/clanContext';
 import SaveAsPresetButton from '@/components/SaveAsPresetButton';
 import { atLeast } from '@/lib/clanRoles';
 
@@ -26,14 +28,22 @@ export default async function EventSettingsPage({ params }: { params: Promise<{ 
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!event) notFound();
 
-  const [eventTiles, session] = await Promise.all([
+  const [eventTiles, session, clan] = await Promise.all([
     db.select().from(tiles).where(eq(tiles.eventId, id)),
     verifyUser(),
+    requireClan(),
   ]);
   const isAdmin = atLeast(session?.role, 'admin');
 
   return (
     <>
+      <EventLookPanel
+        eventId={event.id}
+        eventName={event.name}
+        clanLogoUrl={clan.logoUrl}
+        initialIcon={event.iconUrl}
+        initialBanner={event.bannerUrl}
+      />
       <SettingsClient event={event} tiles={eventTiles} canManageEditors={isAdmin} />
       {isAdmin && <SaveAsPresetButton eventId={event.id} defaultName={event.name} />}
     </>

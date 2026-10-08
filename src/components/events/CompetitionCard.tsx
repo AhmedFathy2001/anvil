@@ -34,6 +34,8 @@ interface Props {
   glyph?: React.ReactNode;
   /** The metric's own icon (a skill or boss sprite). Beats the kind's emoji when there is one. */
   iconUrl?: string | null;
+  /** The competition's own picture (an event's icon, or its clan's logo). Fills the badge. */
+  pictureUrl?: string | null;
   /** Hide the countdown — the week frame carries one for all of its cards. */
   hideTimer?: boolean;
 }
@@ -72,6 +74,7 @@ export default function CompetitionCard({
   chips = [],
   glyph,
   iconUrl,
+  pictureUrl,
   hideTimer,
 }: Props) {
   const meta = hubKind(kind);
@@ -101,7 +104,10 @@ export default function CompetitionCard({
               borderColor: `color-mix(in srgb, ${meta.accent} 38%, transparent)`,
             }}
           >
-            {iconUrl ? (
+            {pictureUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={pictureUrl} alt="" className="h-full w-full rounded-[7px] object-cover" />
+            ) : iconUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={iconUrl} alt="" className="h-5 w-5 object-contain" />
             ) : (

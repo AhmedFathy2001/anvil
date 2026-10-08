@@ -505,6 +505,11 @@ export const events = pgTable('events', {
   eventGuildCategoryId: text('event_guild_category_id'),
   eventGuildTextChannelId: text('event_guild_text_channel_id'),
   eventGuildVoiceChannelId: text('event_guild_voice_channel_id'),
+  // The event's own picture (lib/eventImage). iconUrl is square — cards, the header, Discord — and
+  // falls back to the host clan's logo, then the generated crest. bannerUrl is wide — the top of the
+  // event page and its link preview. Both are our own uploaded media; null = not set.
+  iconUrl: text('icon_url'),
+  bannerUrl: text('banner_url'),
   // Member-facing tile visibility. 0 = tiles are hidden from non-staff: the web board
   // renders a "tiles not revealed yet" placeholder and the plugin returns empty tile
   // lists. 1 = revealed to everyone. Admin-only toggle on the event Overview tab. New

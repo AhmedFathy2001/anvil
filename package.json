@@ -38,6 +38,7 @@
     "test:eventdiscord": "npx tsx --test tests/event-discord-plan.test.ts",
     "test:eventdiscordflow": "npx tsx --test tests/event-discord-flow.test.ts",
     "test:commandguide": "npx tsx --test tests/discord-command-guide.test.ts",
+    "test:eventimage": "npx tsx --test tests/event-image.test.ts",
     "test:authority": "npx tsx --test tests/clan-authority.test.ts",
     "test:platform": "npx tsx --test tests/platform-authority.test.ts",
     "test:peopleview": "npx tsx --test tests/people-browse.test.ts",

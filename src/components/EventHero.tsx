@@ -2,9 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { eventTimeState, formatExactTime, type EventPhase } from '@/lib/eventTime';
+import ClanCrest from '@/components/ClanCrest';
 
 interface Props {
   name: string;
+  /** Already resolved: the event's icon, else the host clan's logo, else null (crest). */
+  iconUrl?: string | null;
+  bannerUrl?: string | null;
+  /** Names the crest when there's no picture at all. */
+  hostName?: string;
   shapeBadge: string;
   pointsOnBoard: number | null;
   teamsCount: number;
@@ -52,6 +58,9 @@ const STATUS: Record<EventPhase, { label: string; dot: string; text: string }> =
 // styling ties it to the Anvil brand.
 export default function EventHero({
   name,
+  iconUrl = null,
+  bannerUrl = null,
+  hostName,
   shapeBadge,
   pointsOnBoard,
   teamsCount,
@@ -82,7 +91,27 @@ export default function EventHero({
       {/* Forge heat — a soft gold glow rising from the base, behind the content. */}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(90%_70%_at_50%_115%,rgba(212,175,55,0.14),transparent_70%)]" />
 
-      <div className="relative p-6 sm:p-8">
+      {/* The banner, or without one a thin tinted strip, so the icon always has an edge to sit on. */}
+      {bannerUrl ? (
+        <div className="relative aspect-[3/1] max-h-64 w-full overflow-hidden border-b border-gold/20">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={bannerUrl} alt="" className="h-full w-full object-cover" />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-card-bg/80 via-transparent to-transparent" />
+        </div>
+      ) : (
+        <div className="h-16 w-full bg-gradient-to-r from-gold/20 via-gold/5 to-transparent sm:h-20" />
+      )}
+
+      <div className="relative px-6 pb-6 sm:px-8 sm:pb-8">
+        <div className="-mt-8 mb-3 sm:-mt-10">
+          <ClanCrest
+            name={hostName || name}
+            logoUrl={iconUrl}
+            size={72}
+            rounded="rounded-2xl"
+            className="border-2 border-card-bg text-2xl shadow-lg shadow-black/30"
+          />
+        </div>
         {/* Identity. The status derives from the client clock, so keep its row height reserved and
             only fill it once mounted — otherwise a live event would flash "Draft" on first paint. */}
         <div className="mb-2 flex h-4 items-center text-[11px] font-semibold uppercase tracking-widest">

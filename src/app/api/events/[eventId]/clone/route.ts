@@ -53,6 +53,10 @@ export async function POST(
       // Game rules (reveal policy, scoring modifiers) are config, not run state — per-tile reveal
       // STATE lives on the tiles and is reset in the copy below.
       rules: source.rules,
+      // The look carries over too. The copy points at the same uploaded files, which is why deleting
+      // an event never deletes its icon or banner.
+      iconUrl: source.iconUrl,
+      bannerUrl: source.bannerUrl,
       // Everything run-specific starts fresh: no dates, draft idle, tiles hidden for private authoring.
       startDate: null,
       endDate: null,
