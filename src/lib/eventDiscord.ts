@@ -673,31 +673,64 @@ async function sendJoinDm(ctx: ServerCtx, discordId: string, body: Record<string
   return res.ok;
 }
 
+/** Discord's nickname limit. */
+const NICK_MAX = 32;
+
+/** The nickname a player gets in the event server: the name they're enrolled under. */
+function enrolledNick(name: string | null | undefined): string | null {
+  const nick = name?.trim().slice(0, NICK_MAX);
+  return nick ? nick : null;
+}
+
+/**
+ * Set a member's nickname in the event server. Best-effort: Discord refuses for the server owner and
+ * for anyone whose top role sits above the bot's, and neither should stop them getting their role.
+ */
+async function setNickname(ctx: ServerCtx, discordId: string, nick: string): Promise<boolean> {
+  const res = await discordRest(ctx.botToken, `/guilds/${ctx.guildId}/members/${discordId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ nick }),
+  });
+  if (!res.ok) log.warn('event-discord.nick-fail', { status: res.status, guildId: ctx.guildId });
+  return res.ok;
+}
+
+/** Discord id → enrolled name, for one event's rostered players. */
+async function enrolledNames(eventId: number): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  for (const p of await rosteredPlayers(eventId)) if (p.discordId) map.set(p.discordId, p.name);
+  return map;
+}
+
 /** Add with a player's guilds.join access token. 201 = added, 204 = already in. */
 async function joinWithToken(
   ctx: ServerCtx,
   discordId: string,
   roleId: string,
   accessToken: string,
+  nick?: string | null,
 ): Promise<'joined' | 'rejected' | 'error'> {
   const res = await discordRest(ctx.botToken, `/guilds/${ctx.guildId}/members/${discordId}`, {
     method: 'PUT',
-    body: JSON.stringify({ access_token: accessToken, roles: [roleId] }),
+    // Added already named after their enrolled name; Manage Nicknames covers it.
+    body: JSON.stringify({ access_token: accessToken, roles: [roleId], ...(nick ? { nick } : {}) }),
   });
   if (res.status === 201) return 'joined';
   if (res.status === 204) {
-    // Already a member: Discord ignores `roles` then, so hand the role over separately.
-    return (await putRole(ctx, discordId, roleId)) === 'joined' ? 'joined' : 'error';
+    // Already a member: Discord ignores `roles` and `nick` then, so hand both over separately.
+    if ((await putRole(ctx, discordId, roleId)) !== 'joined') return 'error';
+    if (nick) await setNickname(ctx, discordId, nick);
+    return 'joined';
   }
   log.warn('event-discord.auto-join-fail', { status: res.status, discordId });
   return res.status === 401 || res.status === 403 ? 'rejected' : 'error';
 }
 
 /** Add with the player's STORED grant (needs DISCORD_TOKEN_KEY). */
-async function autoJoin(ctx: ServerCtx, userId: number, discordId: string, roleId: string): Promise<'joined' | 'no-grant' | 'error'> {
+async function autoJoin(ctx: ServerCtx, userId: number, discordId: string, roleId: string, nick?: string | null): Promise<'joined' | 'no-grant' | 'error'> {
   const accessToken = await joinAccessToken(userId);
   if (!accessToken) return 'no-grant';
-  const r = await joinWithToken(ctx, discordId, roleId, accessToken);
+  const r = await joinWithToken(ctx, discordId, roleId, accessToken, nick);
   // Revoked, or belongs to another account. Stop using it.
   if (r === 'rejected') await dropJoinGrant(userId).catch(() => {});
   return r === 'joined' ? 'joined' : 'error';
@@ -723,7 +756,8 @@ export async function joinPendingEventServersNow(discordId: string, accessToken:
     const roleId = row.teamId != null ? (await eventRoleByTeam(event)).get(row.teamId) : undefined;
     if (!roleId) continue;
     const stamp = new Date().toISOString();
-    if ((await joinWithToken(ctx, discordId, roleId, accessToken)) === 'joined') {
+    const nick = enrolledNick((await enrolledNames(event.id)).get(discordId));
+    if ((await joinWithToken(ctx, discordId, roleId, accessToken, nick)) === 'joined') {
       joined++;
       await db
         .update(eventDiscordMembers)
@@ -750,13 +784,19 @@ async function settleMember(
   ctx: ServerCtx,
   row: EventDiscordMember,
   roleId: string,
+  name?: string | null,
 ): Promise<{ status: 'joined' | 'pending'; method?: 'auto' | 'invite' | 'existing'; error?: string }> {
+  const nick = enrolledNick(name);
   const put = await putRole(ctx, row.discordId, roleId);
-  if (put === 'joined') return { status: 'joined', method: row.inviteCode ? 'invite' : 'existing' };
+  if (put === 'joined') {
+    // Re-applied on every pass, so a renamed enrolment (or a nickname changed by hand) follows.
+    if (nick) await setNickname(ctx, row.discordId, nick);
+    return { status: 'joined', method: row.inviteCode ? 'invite' : 'existing' };
+  }
   if (put === 'error') return { status: 'pending', error: 'Discord refused the team role (check the bot’s role position).' };
   const userId = row.userId ?? (await userIdForDiscord(row.discordId));
   if (userId != null) {
-    const auto = await autoJoin(ctx, userId, row.discordId, roleId);
+    const auto = await autoJoin(ctx, userId, row.discordId, roleId, nick);
     if (auto === 'joined') return { status: 'joined', method: 'auto' };
   }
   return { status: 'pending' };
@@ -821,7 +861,7 @@ export async function syncEventServerMembers(eventId: number): Promise<MemberSyn
       row = { ...row, teamId: player.teamId };
     }
 
-    const settled = await settleMember(ctx, row, roleId);
+    const settled = await settleMember(ctx, row, roleId, player.name);
     const stamp = new Date().toISOString();
     if (settled.status === 'joined') {
       await db
@@ -879,11 +919,12 @@ export async function recheckPendingEventServerMembers(now: Date = new Date()): 
     const ctx = await eventServerCtx(event);
     if (!ctx) continue;
     const roleByTeam = await eventRoleByTeam(event);
+    const names = await enrolledNames(eventId);
     for (const row of rows) {
       if (row.guildId !== ctx.guildId) continue;
       const roleId = row.teamId != null ? roleByTeam.get(row.teamId) : undefined;
       if (!roleId) continue;
-      const settled = await settleMember(ctx, row, roleId);
+      const settled = await settleMember(ctx, row, roleId, names.get(row.discordId));
       const stamp = now.toISOString();
       if (settled.status === 'joined') {
         joined++;
@@ -1009,7 +1050,7 @@ export async function playerSettle(eventId: number, userId: number): Promise<{ o
   if (row.status === 'joined') return { ok: true, status: 'joined' };
   const roleId = row.teamId != null ? (await eventRoleByTeam(event)).get(row.teamId) : undefined;
   if (!roleId) return { ok: false, status: 'pending', error: 'Your team role isn’t set up yet.' };
-  const settled = await settleMember(ctx, { ...row, userId }, roleId);
+  const settled = await settleMember(ctx, { ...row, userId }, roleId, (await enrolledNames(eventId)).get(row.discordId));
   const stamp = new Date().toISOString();
   if (settled.status === 'joined') {
     await db

@@ -129,7 +129,7 @@ export default function EventDiscordServerPanel({ eventId }: { eventId: number }
         {layout !== 'own' && (
           <div className="space-y-2">
             <label className="block text-[12px] text-text-muted">
-              Server ID. You must own the server or have Administrator / Manage Server in it, and your clan’s Anvil bot must already be in it with Manage Roles, Manage Channels and Create Invite.
+              Server ID. You must own the server or have Administrator / Manage Server in it, and your clan’s Anvil bot must already be in it with Manage Roles, Manage Channels and Create Invite (plus Manage Nicknames, so players show under their enrolled name).
             </label>
             <div className="flex gap-2">
               <input
@@ -189,7 +189,7 @@ export default function EventDiscordServerPanel({ eventId }: { eventId: number }
               )}
             </div>
             <p className="text-[12px] text-text-muted">
-              Players who allowed auto-join are added straight away with their team role. Everyone else gets one DM from the bot pointing to their Anvil event page, which shows their invite and a verification code. The DM never contains an invite link.
+              Players who allowed auto-join are added straight away with their team role, and everyone in the server is nicknamed after the name they enrolled with. Everyone else gets one DM from the bot pointing to their Anvil event page, which shows their invite and a verification code. The DM never contains an invite link.
               {!status.autoJoinStoresGrants &&
                 ' DISCORD_TOKEN_KEY isn’t set here, so players are only added automatically at the moment they press “Allow” on their page, not on later re-checks.'}
             </p>

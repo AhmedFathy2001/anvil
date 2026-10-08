@@ -367,3 +367,20 @@ test('the co-host’s panel offers its own contestant role tools; the host’s d
   assert.deepEqual(cohost?.cohostRole, { ready: false }, 'not switched on under Integrations yet');
   assert.equal((await E.adminStatus(eventId, hostClan))?.cohostRole, null);
 });
+
+test('players are nicknamed after their enrolled name, also when added automatically', async () => {
+  inGuild.get(EVENT_GUILD)!.add('u-host-player');
+  inGuild.get(EVENT_GUILD)!.delete('u-cohost-player');
+  await db.update(s.eventDiscordMembers).set({ status: 'pending' }).where(eq(s.eventDiscordMembers.discordId, 'u-cohost-player'));
+
+  calls.length = 0;
+  const r = await E.syncEventServerMembers(eventId);
+  assert.ok(r.ok, r.error);
+  const nick = calls.find((c) => c.method === 'PATCH' && c.path === `/guilds/${EVENT_GUILD}/members/u-host-player`);
+  assert.deepEqual(nick?.body, { nick: 'Host Player' });
+
+  calls.length = 0;
+  assert.equal(await E.joinPendingEventServersNow('u-cohost-player', 'player-access-token'), 1);
+  const join = calls.find((c) => c.method === 'PUT' && c.path === `/guilds/${EVENT_GUILD}/members/u-cohost-player`);
+  assert.equal(join?.body.nick, 'Cohost Player');
+});
