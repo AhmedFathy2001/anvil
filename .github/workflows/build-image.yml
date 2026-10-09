@@ -161,3 +161,15 @@ jobs:
           # quote or a newline in it cannot become part of the command.
           ssh -i ~/.ssh/id_deploy -o BatchMode=yes "$SSH_USER@$SSH_HOST" \
             "/opt/anvil/deploy.sh $(printf %q "$CHANNEL") $(printf %q "$AFTER") $(printf %q "$VERSION") $(printf %q "$NOTES")"
+
+      # The command definitions are part of the release contract, not a background chore. The
+      # production box owns CRON_SECRET, so ask its authenticated cron wrapper rather than copying a
+      # Discord or cron credential into GitHub. A rejected registration now fails the deploy job.
+      # Beta deliberately does not run this: it uses the same Discord application as production and
+      # must not publish a command shape before the production handler for it is live.
+      - name: Reconcile Discord commands
+        if: env.SSH_HOST != '' && env.SSH_USER != '' && env.CHANNEL == 'stable'
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_deploy -o BatchMode=yes "$SSH_USER@$SSH_HOST" \
+            "/opt/anvil/cron-anvil.sh discord-commands"

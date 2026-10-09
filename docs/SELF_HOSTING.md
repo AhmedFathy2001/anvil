@@ -214,8 +214,9 @@ open or close, and queued Discord posts never send.
 | `/api/cron/weekly` | every 15 min | Weekly competition lifecycle (open / close / enrollment / rename review). Stat *values* come from the stats sweep, not here. |
 | `/api/cron/flush-notifications` | every minute | Drains queued Discord webhook posts. |
 | `/api/cron/backup` | daily | Off-box DB backup. No-op (200) unless `S3_BACKUP_BUCKET` is configured. |
+| `/api/cron/discord-commands` | daily and after deploy | Reconcile the bot's slash-command tree with this build. |
 
-All four require `Authorization: Bearer $CRON_SECRET`, and all four **fail with 500 in
+All five require `Authorization: Bearer $CRON_SECRET`, and all five **fail with 500 in
 production if `CRON_SECRET` is unset**.
 
 A plain crontab on the box is fine (`crontab -e`):
@@ -228,6 +229,7 @@ SITE=https://bingo.yourclan.com
 */15 * * * * curl -fsS -m 120 -H "Authorization: Bearer $CRON_SECRET" $SITE/api/cron/weekly > /dev/null
 *   * * * * curl -fsS -m 60  -H "Authorization: Bearer $CRON_SECRET" $SITE/api/cron/flush-notifications > /dev/null
 17  4 * * * curl -fsS -m 600 -H "Authorization: Bearer $CRON_SECRET" $SITE/api/cron/backup  > /dev/null
+40  4 * * * curl -fsS -m 60  -H "Authorization: Bearer $CRON_SECRET" $SITE/api/cron/discord-commands > /dev/null
 ```
 
 Any scheduler works — systemd timers, GitHub Actions, a Kubernetes CronJob, an uptime

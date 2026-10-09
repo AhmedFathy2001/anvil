@@ -38,6 +38,7 @@
     "test:eventdiscord": "npx tsx --test tests/event-discord-plan.test.ts",
     "test:eventdiscordflow": "npx tsx --test tests/event-discord-flow.test.ts",
     "test:commandguide": "npx tsx --test tests/discord-command-guide.test.ts",
+    "test:commandsync": "npx tsx --test tests/discord-command-sync.test.ts",
     "test:eventimage": "npx tsx --test tests/event-image.test.ts",
     "test:tilelibrary": "npx tsx --test tests/tile-library-scope.test.ts",
     "test:tileclaims": "npx tsx --test tests/tile-claims.test.ts",

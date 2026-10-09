@@ -14,3 +14,14 @@ printf "%s job=%s status=%s dur=%ss\n" "$(date -u +%FT%TZ)" "$job" "$code" "$(( 
 if [ "$(wc -l < "$LOG" 2>/dev/null || echo 0)" -gt 10000 ]; then
   tail -n 5000 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
 fi
+
+# Cron records failures in the journal; an interactive caller (notably the deploy workflow) also
+# needs a failing exit status. Otherwise a 401/502 is logged while CI reports a green deployment
+# whose commands never changed.
+case "$code" in
+  2??) exit 0 ;;
+  *)
+    echo "anvil cron job '$job' failed with HTTP $code" >&2
+    exit 1
+    ;;
+esac

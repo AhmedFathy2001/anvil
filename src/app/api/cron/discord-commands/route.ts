@@ -17,8 +17,8 @@ const CRON_SECRET = process.env.CRON_SECRET;
  * Registration already happens on boot (instrumentation.ts), so this is the self-heal: a boot that
  * couldn't reach Discord, a command edited without a redeploy, or a set that drifted for any reason
  * is reconciled here. Same reconcile as boot — syncClanCommands, which registers `sharedBotToken()`'s
- * commands (global on the multi-clan platform). A full-set PUT, idempotent, so running it daily costs
- * one write and can only converge; global registration takes up to an hour, which is why daily is plenty.
+ * commands globally and removes old guild-scoped copies that can shadow them. A full-set PUT is
+ * idempotent; the deploy calls this route as a required release step and daily cron heals later drift.
  *
  * A deployment with no bot token reconciles nothing and 200s. Same Bearer-CRON_SECRET auth as the
  * other /api/cron jobs; called by deploy/cron/site-cron.sh.
@@ -39,9 +39,15 @@ export async function GET(request: Request) {
 
   // No bot token is not a failure — a deployment with nothing to register 200s and cron stays quiet.
   // A real Discord failure 502s so the journal carries it.
-  const benign = result.reason === 'no-bot-token' || result.reason === 'shared-bot';
+  const benign = result.reason === 'no-bot-token' || result.reason === 'disabled';
   if (!result.ok && !benign) {
     return NextResponse.json({ ok: false, reason: result.reason }, { status: 502 });
   }
-  return NextResponse.json({ ok: true, scope: result.scope ?? null, count: result.count ?? 0, skipped: result.reason ?? null });
+  return NextResponse.json({
+    ok: true,
+    scope: result.scope ?? null,
+    count: result.count ?? 0,
+    clearedGuilds: result.clearedGuilds ?? 0,
+    skipped: result.reason ?? null,
+  });
 }

@@ -131,7 +131,7 @@ users with `autoEnrollWeekly` are enrolled on login. Values come from the same 1
 Hiscores sweep that feeds stat tiles.
 
 ### Scheduled jobs
-Four routes must be hit on a schedule — nothing calls them for you:
+Five routes must be hit on a schedule — nothing calls them for you:
 
 | Route | Cadence | Does |
 | --- | --- | --- |
@@ -139,6 +139,7 @@ Four routes must be hit on a schedule — nothing calls them for you:
 | `/api/cron/weekly` | every 15 min | Weekly competition lifecycle |
 | `/api/cron/flush-notifications` | every minute | Drains queued Discord posts |
 | `/api/cron/backup` | daily | Off-box DB backup (no-op unless configured) |
+| `/api/cron/discord-commands` | daily and after deploy | Reconcile slash commands and remove stale guild-scoped copies |
 
 All require `Authorization: Bearer $CRON_SECRET`, and all return **500 in production if
 `CRON_SECRET` is unset**. The repo ships no `vercel.json` — use system cron, systemd timers,

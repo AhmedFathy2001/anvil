@@ -26,7 +26,7 @@ Jagex hiscores. One call is the whole point.
 | `flush-notifications` | the pending-notification queue, and scheduled event start/end posts |
 | `forge-consume` | the Forge data-plane queue |
 | `backup` | the database (`pg_dump` to object storage) |
-| `discord-commands` | the shared bot's global slash-command set — a daily reconcile with the code (boot registers it too via `instrumentation.ts`; this self-heals drift or a boot that couldn't reach Discord) |
+| `discord-commands` | the shared bot's global slash-command set — awaited at boot, required after each production deploy, and reconciled daily; also removes old guild-scoped copies that shadow the global set |
 
 ## Installing / updating on the box
 

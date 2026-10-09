@@ -256,7 +256,10 @@ export async function PUT(request: Request) {
   if (typeof botToken === 'string' || typeof guildId === 'string') {
     // We've validated everything and committed both halves atomically. Command sync is deliberately
     // best-effort; Discord being temporarily unavailable must not roll back a proven binding.
-    syncClanCommandsInBackground(typeof guildId === 'string' ? 'guild-changed' : 'bot-token-saved');
+    syncClanCommandsInBackground(
+      typeof guildId === 'string' ? 'guild-changed' : 'bot-token-saved',
+      clan.id,
+    );
   }
 
   return NextResponse.json(await buildStatus(clan.id));
