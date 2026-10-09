@@ -166,6 +166,24 @@ test('never reaches into a clan the person does not belong to', async () => {
   assert.ok(!ids.includes(otherClansEvent));
 });
 
+test('an invited host event is shown to a guest of the invited clan', async () => {
+  const { db, schema: s } = await loadDb();
+  const [invited] = await db
+    .insert(s.events)
+    .values({
+      clanId: (await db.query.clans.findFirst({ where: eq(s.clans.slug, 'elsewhere') }))!.id,
+      name: 'AFK Spot hosts LFL',
+      boardSize: 25,
+      startDate: iso(7 * DAY),
+      visibility: 'invited',
+    })
+    .returning();
+  await db.insert(s.eventInvites).values({ eventId: invited.id, clanId: guestClan });
+
+  const ids = (await H.openSignups(me, [homeClan, guestClan])).map((o) => o.eventId);
+  assert.ok(ids.includes(invited.id), 'the LFL guest should not need an AFK Spot guest seat');
+});
+
 test('somebody with no clans is offered nothing', async () => {
   assert.deepEqual(await H.openSignups(other, []), []);
 });

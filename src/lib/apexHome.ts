@@ -5,6 +5,8 @@ import {
   accounts,
   clanMemberships,
   clans,
+  eventCohosts,
+  eventInvites,
   eventSignups,
   events,
   memberDailyStats,
@@ -258,8 +260,31 @@ export async function openSignups(
   playerId: number | null | undefined,
   clanIds: number[],
 ): Promise<(OpenSignup & { clanId: number; visibility: string | null })[]> {
-  if (playerId == null || clanIds.length === 0) return [];
+  if (playerId == null) return [];
   const nowIso = new Date().toISOString();
+
+  // An invitation is deliberately cross-clan: the host event does not belong to any clan in
+  // `clanIds`. Limiting the query to those clans meant an invited LFL guest could open an AFK Spot
+  // board from a pasted link, but the signed-in home never showed it. Giving them an AFK Spot guest
+  // seat appeared to fix discovery only because it added the HOST to `clanIds`.
+  //
+  // Carry the two explicit cross-clan relationships into this list instead: a personal/clan invite,
+  // or an accepted co-host seat. A guest seat in the invited clan counts, matching invitedToEvent;
+  // an arbitrary public event does not, since that belongs in the separate discovery feed.
+  const [personalInvites, clanInvites, cohosted] = await Promise.all([
+    db.select({ eventId: eventInvites.eventId }).from(eventInvites).where(eq(eventInvites.playerId, playerId)),
+    clanIds.length
+      ? db.select({ eventId: eventInvites.eventId }).from(eventInvites).where(inArray(eventInvites.clanId, clanIds))
+      : Promise.resolve([]),
+    clanIds.length
+      ? db
+          .select({ eventId: eventCohosts.eventId })
+          .from(eventCohosts)
+          .where(and(inArray(eventCohosts.clanId, clanIds), eq(eventCohosts.status, 'accepted')))
+      : Promise.resolve([]),
+  ]);
+  const externalIds = [...new Set([...personalInvites, ...clanInvites, ...cohosted].map((r) => r.eventId))];
+  if (clanIds.length === 0 && externalIds.length === 0) return [];
 
   // Every seat this person holds, anywhere. Their entry could sit on any of them, so narrowing this
   // to one clan would offer them events they are already signed up for through another seat.
@@ -297,7 +322,10 @@ export async function openSignups(
     .innerJoin(clans, eq(clans.id, events.clanId))
     .where(
       and(
-        inArray(events.clanId, clanIds),
+        or(
+          clanIds.length ? inArray(events.clanId, clanIds) : undefined,
+          externalIds.length ? inArray(events.id, externalIds) : undefined,
+        ),
         isNull(events.forceEndedAt),
         // THE WINDOW IS `signupWindowState`, TRANSLATED — not a rule invented here. That helper is
         // what the sign-up form itself obeys, and the first cut of this query diverged from it in a
