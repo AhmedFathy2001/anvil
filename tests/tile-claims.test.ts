@@ -100,6 +100,26 @@ test('once the team completes the tile, the claim stops showing and it can’t b
   assert.equal((await C.listTeamClaims(eventId, red, alice)).length, 1);
 });
 
+test('completed tiles replace planning with a deduplicated list of contributors', async () => {
+  const { completionMarkers } = await import('../src/lib/tileClaimsView.ts');
+  const markers = completionMarkers({
+    completion: {
+      creditPlayerId: 2,
+      statContributions: { split: [{ playerId: 1, gained: 40 }, { playerId: 2, gained: 60 }, { playerId: 3, gained: 0 }] },
+    },
+    submissions: [
+      { playerId: 1, creditPlayerId: null },
+      { playerId: 4, creditPlayerId: 2 },
+    ],
+    players: [{ id: 1, name: 'Alice' }, { id: 2, name: 'Bob' }, { id: 3, name: 'No gain' }],
+    myPlayerId: 1,
+  });
+  assert.deepEqual(markers, [
+    { name: 'Bob', mine: false },
+    { name: 'Alice', mine: true },
+  ]);
+});
+
 test('unclaim only removes the named person’s claim', async () => {
   await C.claimTile({ eventId, teamId: red, tileId: tileB, userId: bob, participantId: null, note: null });
   await C.unclaimTile(red, tileB, bob);

@@ -37,6 +37,7 @@ export async function GET(
       teamId: c.teamId,
       tileId: c.tileId,
       completedAt: c.completedAt,
+      creditPlayerId: c.creditPlayerId,
       // Parse the frozen KC/XP split so clients feed it straight into computeMemberBreakdown.
       statContributions: parseContributionSnapshot(c.statContributions),
       // Frozen rule-modified award (first bonus / decay) — clients score it over the live weight.

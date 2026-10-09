@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
-import { claimColor, claimInitials, claimMarkersByTile, claimsByPerson, NOTE_MAX, type TeamClaim } from '@/lib/tileClaimsView';
+import { claimColor, claimInitials, claimMarkersByTile, claimsByPerson, NOTE_MAX, type ClaimMarker, type TeamClaim } from '@/lib/tileClaimsView';
 import ClaimAvatars from '@/components/ClaimAvatars';
 import { deriveTileIcon } from '@/lib/tileIcons';
 import type { Tile } from '@/lib/types';
@@ -258,13 +258,45 @@ export function TeamPlanPanel({
 }
 
 /** The planning block inside a tile's popup: who's on it, and claim / unclaim for you. */
-export function TileClaimSection({ claims, tileId, completed }: { claims: Claims; tileId: number; completed: boolean }) {
+export function TileClaimSection({
+  claims,
+  tileId,
+  completed,
+  completers = [],
+}: {
+  claims: Claims;
+  tileId: number;
+  completed: boolean;
+  completers?: ClaimMarker[];
+}) {
   const onTile = claims.claims.filter((c) => c.tileId === tileId);
   const mine = onTile.find((c) => c.mine);
   const [note, setNote] = useState(mine?.note ?? '');
   useEffect(() => setNote(mine?.note ?? ''), [mine?.note, tileId]);
-  if (completed && onTile.length === 0) return null;
   const busy = claims.busyTile === tileId;
+
+  if (completed) {
+    return (
+      <div className="rounded-lg border border-accent-green/30 bg-accent-green/5 p-3">
+        <div className="mb-2 flex items-baseline justify-between gap-2">
+          <span className="text-sm font-semibold">Completed by</span>
+          <span className="text-[11px] text-text-muted">Planning closed</span>
+        </div>
+        {completers.length > 0 ? (
+          <div className="flex flex-wrap gap-x-3 gap-y-2 text-[13px]">
+            {completers.map((c) => (
+              <span key={c.name} className="inline-flex min-w-0 items-center gap-2">
+                <ClaimAvatars claims={[c]} size="sm" label="Completed by" />
+                <span className={c.mine ? 'font-semibold text-gold' : 'font-semibold'}>{c.mine ? 'You' : c.name}</span>
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[13px] text-text-muted">Credited to the team.</p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-lg border border-sky-400/30 bg-sky-500/5 p-3">

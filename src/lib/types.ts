@@ -139,6 +139,8 @@ export interface Completion {
   teamId: number;
   tileId: number;
   completedAt: string;
+  /** Player who landed an individually attributable completion; null for team/manual completions. */
+  creditPlayerId?: number | null;
   // Frozen per-member KC/XP split for a completed STAT tile (see completions.statContributions). Fed
   // to computeMemberBreakdown so a finished tile's "who got what %" stops drifting. Absent/null for
   // submission-backed / manual tiles and legacy stat completions (breakdown falls back to live gains).

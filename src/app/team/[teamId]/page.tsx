@@ -194,6 +194,7 @@ export default async function MyTeamPage({
           teamId: c.teamId,
           tileId: c.tileId,
           completedAt: c.completedAt,
+          creditPlayerId: c.creditPlayerId,
           statContributions: parseContributionSnapshot(c.statContributions),
           awardedPoints: c.awardedPoints,
         }))

@@ -20,6 +20,7 @@ import BoardFilters from '@/components/BoardFilters';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { clanFetch } from '@/lib/clanFetch';
 import { claimFilterIds, TeamPlanPanel, TileClaimSection, useTeamClaims, type ClaimFilter } from './TeamClaims';
+import { completionMarkers } from '@/lib/tileClaimsView';
 
 interface Props {
   event: Event;
@@ -289,6 +290,15 @@ export default function MyTeamClient({
 
   const selectedTile = tiles.find((t) => t.id === selectedTileId);
   const selectedTileSubmissions = submissions.filter((s) => s.tileId === selectedTileId);
+  const selectedCompletion = selectedTileId == null
+    ? undefined
+    : completions.find((c) => c.tileId === selectedTileId);
+  const selectedTileCompleters = completionMarkers({
+    completion: selectedCompletion,
+    submissions: selectedTileSubmissions,
+    players: teamPlayers,
+    myPlayerId,
+  });
   const selectedTileCompletedBy = selectedTileId
     ? completions.filter((c) => c.tileId === selectedTileId).map(() => ({ teamId: team.id, teamName: team.name, color: team.color }))
     : [];
@@ -668,6 +678,7 @@ export default function MyTeamClient({
               claims={claims}
               tileId={selectedTile.id}
               completed={selectedTileCompletedBy.length > 0}
+              completers={selectedTileCompleters}
             />
           }
         />

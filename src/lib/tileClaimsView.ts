@@ -25,6 +25,37 @@ export interface ClaimMarker {
   mine: boolean;
 }
 
+/**
+ * People who contributed to a completed tile. Prefer the completion's explicit finisher, then its
+ * frozen stat split, then submission credit. The structural input keeps this helper pure and usable
+ * by the client without pulling database code into the bundle.
+ */
+export function completionMarkers(opts: {
+  completion?: {
+    creditPlayerId?: number | null;
+    statContributions?: { split?: { playerId: number; gained: number }[] } | null;
+  } | null;
+  submissions: { playerId: number | null; creditPlayerId: number | null }[];
+  players: { id: number; name: string }[];
+  myPlayerId?: number | null;
+}): ClaimMarker[] {
+  if (!opts.completion) return [];
+  const ids = new Set<number>();
+  if (opts.completion.creditPlayerId != null) ids.add(opts.completion.creditPlayerId);
+  for (const part of opts.completion.statContributions?.split ?? []) {
+    if (part.gained > 0) ids.add(part.playerId);
+  }
+  for (const submission of opts.submissions) {
+    const id = submission.creditPlayerId ?? submission.playerId;
+    if (id != null) ids.add(id);
+  }
+  const names = new Map(opts.players.map((p) => [p.id, p.name]));
+  return [...ids]
+    .map((id) => ({ id, name: names.get(id) }))
+    .filter((p): p is { id: number; name: string } => Boolean(p.name))
+    .map((p) => ({ name: p.name, mine: p.id === opts.myPlayerId }));
+}
+
 /** Claims by tile, for the board's markers: tileId → claimers, oldest claim first. */
 export function claimMarkersByTile(claims: TeamClaim[]): Map<number, ClaimMarker[]> {
   const map = new Map<number, ClaimMarker[]>();
