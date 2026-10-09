@@ -24,6 +24,7 @@ import { acceptedCohostClanIds } from '@/lib/coHost';
 import { idParam } from '@/lib/routeIds';
 import AccountChangeCard from '@/components/AccountChangeCard';
 import EventApiHost from '@/components/EventApiHost';
+import { areEventRostersFinal } from '@/lib/eventReadiness';
 
 export const dynamic = 'force-dynamic';
 
@@ -127,12 +128,22 @@ export default async function MyTeamPage({
     );
   }
 
-  const [allEventTiles, rawEventPlayers, tierBands] = await Promise.all([
+  const [allEventTiles, rawEventPlayers, eventTeams, tierBands] = await Promise.all([
     db.select().from(tiles).where(eq(tiles.eventId, event.id)),
     db.select().from(eventParticipants).where(eq(eventParticipants.eventId, event.id)),
+    db.select({ id: teams.id }).from(teams).where(eq(teams.eventId, event.id)),
     // The HOST's bands — the tiles were authored against them.
     getTierBands(event.clanId),
   ]);
+  // A pre-assigned clan-v-clan roster never enters the draft state machine. Treat it as final once
+  // every entrant is assigned and every configured team has players, exactly as Discord role sync
+  // and event start-readiness do. `draftStatus === none` alone does not mean a draft is pending.
+  const rostersFinal = areEventRostersFinal(
+    event.draftStatus,
+    eventTeams.map((eventTeam) => eventTeam.id),
+    rawEventPlayers.map((player) => player.teamId),
+  );
+  const draftRequired = event.teamFormation !== 'per_clan' && !rostersFinal;
   // The team hub is a PLAYER surface. A captain is a player with extra buttons — not staff — so an
   // unrevealed board is as hidden here as it is on the event page: the tiles are dropped before the
   // page is built, not hidden in the client.
@@ -211,16 +222,6 @@ export default async function MyTeamPage({
         <ClanLink href={backHref} className="inline-flex items-center gap-1 text-text-muted text-sm hover:text-gold transition-colors">
           &larr; {backLabel}
         </ClanLink>
-        {/* The war room has ONE way in. When the draft hasn't started the banner below says why to
-            go there, so a second identical button above it was noise; once it has, this is it. */}
-        {membership.isCaptain && !eventStarted && event.draftStatus !== 'none' && (
-          <ClanLink
-            href={`/team/${tId}/applicants`}
-            className="text-sm font-medium bg-gold/10 text-gold border border-gold/20 px-3 py-1.5 rounded-lg hover:bg-gold/20 transition-colors"
-          >
-            Open the war room &rarr;
-          </ClanLink>
-        )}
       </div>
       <MyTeamClient
         event={event}
@@ -235,7 +236,7 @@ export default async function MyTeamPage({
              countdown instead of above them. Arriving at your own team page and reading two
              control panels before the team's name was the wrong way round. */
           <>
-            {membership.isCaptain && !eventStarted && event.draftStatus === 'none' && (
+            {membership.isCaptain && !eventStarted && draftRequired && event.draftStatus === 'none' && (
               <div className="mb-6 rounded-xl border border-gold/30 bg-gold/10 p-4 flex items-center justify-between gap-3 flex-wrap">
                 <div className="min-w-0">
                   <p className="font-semibold text-gold">The draft hasn&apos;t started yet</p>

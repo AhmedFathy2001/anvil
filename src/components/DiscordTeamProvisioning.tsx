@@ -18,6 +18,7 @@ interface TeamState {
 interface StatusData {
   isHost: boolean;
   clanName: string;
+  discordLayout: 'own' | 'joint' | 'single';
   enabled: boolean;
   categoryId: string | null;
   draftStatus: string;
@@ -159,6 +160,11 @@ export default function DiscordTeamProvisioning({
   }
 
   if (loading) return null;
+
+  // Joint/single-server events are fully represented by EventDiscordServerPanel on this page.
+  // This older panel reads the host server's legacy team columns, so showing it alongside the
+  // event-server state falsely makes successfully created roles/channels look missing.
+  if (status?.isHost && status.discordLayout !== 'own') return null;
 
   // Feature off for this clan. Normally render nothing, but in contexts that pass
   // showWhenDisabled (the post-draft view) surface a hint so the admin knows the option exists

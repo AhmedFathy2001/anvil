@@ -61,6 +61,7 @@ export async function GET(
   return NextResponse.json({
     isHost,
     clanName: clan.name,
+    discordLayout: event.discordLayout,
     enabled: isHost ? cfg !== null : true,
     categoryId: event.discordCategoryId,
     draftStatus: event.draftStatus,
