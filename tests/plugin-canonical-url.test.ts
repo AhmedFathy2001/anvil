@@ -8,64 +8,63 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { canonicalUrl, serverInfo } from '../src/lib/serverInfo.ts';
 
-/** Fresh import per case: canonicalUrl reads the environment at call time via apexDomain(). */
-async function load(env: Record<string, string | undefined>) {
+/** canonicalUrl reads these at call time; no cache-busting import is needed. */
+function setEnv(env: Record<string, string | undefined>) {
   for (const [k, v] of Object.entries(env)) {
     if (v === undefined) delete process.env[k];
     else process.env[k] = v;
   }
-  const mod = await import(`../src/lib/serverInfo.ts?${Math.random()}`);
-  return mod as typeof import('../src/lib/serverInfo.ts');
 }
 
-test('the apex is the canonical address', async () => {
-  const { canonicalUrl } = await load({ ANVIL_APEX_DOMAIN: 'anvilosrs.com', APP_URL: undefined });
+test('the apex is the canonical address', () => {
+  setEnv({ ANVIL_APEX_DOMAIN: 'anvilosrs.com', APP_URL: undefined });
   assert.equal(canonicalUrl(), 'https://anvilosrs.com');
 });
 
-test('a preview apex advertises itself, not production', async () => {
+test('a preview apex advertises itself, not production', () => {
   // The failure this guards: preview telling its users to point at the real site.
-  const { canonicalUrl } = await load({ ANVIL_APEX_DOMAIN: 'preview.anvilosrs.com', APP_URL: undefined });
+  setEnv({ ANVIL_APEX_DOMAIN: 'preview.anvilosrs.com', APP_URL: undefined });
   assert.equal(canonicalUrl(), 'https://preview.anvilosrs.com');
 });
 
-test('a self-hosted site advertises its OWN address', async () => {
+test('a self-hosted site advertises its OWN address', () => {
   // The one that matters most. A hard-coded domain here would tell every self-hoster to send their
   // clan's plugin traffic to somebody else's server.
-  const { canonicalUrl } = await load({ ANVIL_APEX_DOMAIN: 'bingo.someclan.org', APP_URL: undefined });
+  setEnv({ ANVIL_APEX_DOMAIN: 'bingo.someclan.org', APP_URL: undefined });
   assert.equal(canonicalUrl(), 'https://bingo.someclan.org');
 });
 
-test('APP_URL wins when the public address is not simply the apex', async () => {
-  const { canonicalUrl } = await load({
+test('APP_URL wins when the public address is not simply the apex', () => {
+  setEnv({
     ANVIL_APEX_DOMAIN: 'internal.example',
     APP_URL: 'https://anvil.myclan.gg',
   });
   assert.equal(canonicalUrl(), 'https://anvil.myclan.gg');
 });
 
-test('a path or trailing slash is reduced to the origin', async () => {
-  const { canonicalUrl } = await load({ ANVIL_APEX_DOMAIN: 'x', APP_URL: 'https://anvilosrs.com/c/theafkspot/' });
+test('a path or trailing slash is reduced to the origin', () => {
+  setEnv({ ANVIL_APEX_DOMAIN: 'x', APP_URL: 'https://anvilosrs.com/c/theafkspot/' });
   assert.equal(canonicalUrl(), 'https://anvilosrs.com', 'the plugin appends its own paths');
 });
 
-test('a scheme-less value is still usable', async () => {
-  const { canonicalUrl } = await load({ ANVIL_APEX_DOMAIN: 'x', APP_URL: 'anvilosrs.com' });
+test('a scheme-less value is still usable', () => {
+  setEnv({ ANVIL_APEX_DOMAIN: 'x', APP_URL: 'anvilosrs.com' });
   assert.equal(canonicalUrl(), 'https://anvilosrs.com');
 });
 
-test('a deployment that names no address advertises none', async () => {
+test('a deployment that names no address advertises none', () => {
   // The quiet default, and the reason canonicalUrl does NOT fall back to anvilosrs.com the way
   // apexDomain() does: a self-hoster who has configured neither must not be told to point their
   // clan at a server that is not theirs. Saying nothing is always safe; guessing is not.
-  const { canonicalUrl, serverInfo } = await load({ ANVIL_APEX_DOMAIN: undefined, APP_URL: undefined });
+  setEnv({ ANVIL_APEX_DOMAIN: undefined, APP_URL: undefined });
   assert.equal(canonicalUrl(), null);
   assert.equal(serverInfo().canonicalUrl, null, 'and the plugin therefore says nothing');
 });
 
-test('serverInfo carries it, alongside the capability the plugin gates on', async () => {
-  const { serverInfo } = await load({ ANVIL_APEX_DOMAIN: 'anvilosrs.com', APP_URL: undefined });
+test('serverInfo carries it, alongside the capability the plugin gates on', () => {
+  setEnv({ ANVIL_APEX_DOMAIN: 'anvilosrs.com', APP_URL: undefined });
   const info = serverInfo();
   assert.equal(info.canonicalUrl, 'https://anvilosrs.com');
   assert.ok(
