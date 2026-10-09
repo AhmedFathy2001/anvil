@@ -6,13 +6,13 @@ import { eq } from 'drizzle-orm';
 import { computeLeaderboard } from '@/lib/weekly';
 
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
   const compId = parseInt(id, 10);
 
-  const comp = await competitionForRequest(request, compId).then((c) => (c ? [c] : []));
+  const comp = await competitionForRequest(_request, compId).then((c) => (c ? [c] : []));
   if (comp.length === 0) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }

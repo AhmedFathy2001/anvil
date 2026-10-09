@@ -11,22 +11,22 @@ import { cachedPulseToken } from '@/lib/pulseCache';
  * 304 with no body. Weekly values only move on the 15-min stats sweep, so this rarely changes.
  */
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   const compId = parseInt(id, 10);
   if (!Number.isFinite(compId)) {
-    return jsonWithEtag(request, { v: 'none' });
+    return jsonWithEtag(_request, { v: 'none' });
   }
 
   // Collapse concurrent viewers' polls of the same board to one DB computation per ~5s.
-  const token = await cachedPulseToken(`weekly:${compId}`, () => computeWeeklyToken(request, compId));
-  return jsonWithEtag(request, { v: token });
+  const token = await cachedPulseToken(`weekly:${compId}`, () => computeWeeklyToken(_request, compId));
+  return jsonWithEtag(_request, { v: token });
 }
 
-async function computeWeeklyToken(request: Request, compId: number): Promise<string> {
-  const comp = await competitionForRequest(request, compId);
+async function computeWeeklyToken(_request: Request, compId: number): Promise<string> {
+  const comp = await competitionForRequest(_request, compId);
   if (!comp) {
     return 'none';
   }
