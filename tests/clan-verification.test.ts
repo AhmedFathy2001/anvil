@@ -243,13 +243,14 @@ test('the database refuses two verified clans with one name', async () => {
   );
 });
 
-test('but two UNVERIFIED clans may hold the same placeholder', async () => {
-  // They have proved nothing, so they reserve nothing. Reserving names on an unproven claim would
-  // let anyone squat a clan name by typing it.
+test('the database also refuses duplicate unverified clan names', async () => {
+  // A clan name gates roster sync before verification. Allowing two pending clans to hold it would
+  // route one in-game roster to both sites, so migration 0082 reserves it at creation time.
   const { db, schema: s } = await loadDb();
-  await db.insert(s.clans).values([
-    { slug: 'hopeful-a', name: 'Hopeful A', inGameName: 'Contested Name' },
-    { slug: 'hopeful-b', name: 'Hopeful B', inGameName: 'Contested Name' },
-  ]);
-  // No throw is the assertion.
+  await db.insert(s.clans).values({ slug: 'hopeful-a', name: 'Hopeful A', inGameName: 'Contested Name' });
+  await assert.rejects(
+    () => db.insert(s.clans).values({ slug: 'hopeful-b', name: 'Hopeful B', inGameName: 'contested name ' }),
+    (err: unknown) => (err as { cause?: { code?: string } }).cause?.code === '23505',
+    'case and surrounding whitespace cannot create a second reservation',
+  );
 });

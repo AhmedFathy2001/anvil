@@ -85,6 +85,22 @@ test('first plugin play claims the synced member, provisionally, and anchors the
   assert.equal(seat.kind, 'member');
 });
 
+test('first plugin play also links a member staff added before their Discord login', async () => {
+  const me = await setup('Admin Added', { source: 'admin' });
+  const resolved = await play(me.token, 'Admin Added', 'hash-admin-added');
+  assert.equal(resolved?.clanMemberId, me.seatId, 'the existing staff-created seat resolves immediately');
+
+  const acct = await account(me.accountId);
+  assert.equal(acct.playerId, me.person, 'the RuneLite account is attached to the Discord person');
+  assert.equal(acct.provisional, 1, 'staff can still review the first-use association');
+  assert.equal(acct.verificationMethod, 'plugin_first_use');
+  assert.equal(acct.accountHash, 'hash-admin-added');
+
+  const [seat] = await db.select().from(s.clanMemberships).where(eq(s.clanMemberships.id, me.seatId));
+  assert.equal(seat.source, 'admin', 'linking identity does not rewrite how membership was granted');
+  assert.equal(seat.kind, 'member');
+});
+
 test('playing again does not clear it off the review queue', async () => {
   const me = await setup('Synced Two');
   await play(me.token, 'Synced Two', 'hash-2');

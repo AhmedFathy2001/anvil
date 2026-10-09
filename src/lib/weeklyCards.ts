@@ -87,6 +87,7 @@ export async function loadWeeklyCards(
   // The leader of each competition, without reading its entrants. One window function beats N
   // queries and beats pulling every participant row into JS to sort it there.
   const gained = sql<number>`coalesce(${weeklyParticipants.currentValue}, 0) - coalesce(${weeklyParticipants.baselineValue}, 0)`;
+  // clan-scope: this clan -- `ids` comes only from weeklyCompetitions filtered by clanId above.
   const ranked = db
     .select({
       competitionId: weeklyParticipants.competitionId,
@@ -105,6 +106,7 @@ export async function loadWeeklyCards(
     .as('ranked');
 
   const [entrantRows, leaderRows] = await Promise.all([
+    // clan-scope: this clan -- `ids` comes only from weeklyCompetitions filtered by clanId above.
     db
       .select({ competitionId: weeklyParticipants.competitionId, c: count() })
       .from(weeklyParticipants)

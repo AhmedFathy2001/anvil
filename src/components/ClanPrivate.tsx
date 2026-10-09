@@ -1,4 +1,5 @@
 import AnvilMark from '@/components/AnvilMark';
+import ApplyToClan from '@/components/ApplyToClan';
 import ClanCrest from '@/components/ClanCrest';
 import ClanLink from '@/components/ClanLink';
 
@@ -91,12 +92,13 @@ export default function ClanPrivate({
           )}
           <div className="mt-7 flex flex-wrap justify-center gap-3">
             {canApply && (
-              <ClanLink
-                href={`/c/${slug}/join`}
-                className="rounded-lg bg-gold px-5 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
-              >
-                Ask to join
-              </ClanLink>
+              // There is no `/join` page. Use the same account picker + admission endpoint as the
+              // public clan card so a private clan's guest policy is actionable rather than a 404.
+              <ApplyToClan
+                slug={slug}
+                clanName={name}
+                labels={{ open: 'Guest here', approval: 'Ask to guest' }}
+              />
             )}
             <ClanLink
               href="/clans"

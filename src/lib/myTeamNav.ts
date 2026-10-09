@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { personOf, seatsOwnedByAnywhere } from '@/lib/roster';
+import { seatsOwnedByAnywhere } from '@/lib/roster';
 import { clanRoster, eventSignups, events, eventParticipants, teams, teamStaff } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull, or, gt } from 'drizzle-orm';
 
@@ -31,6 +31,7 @@ export async function countLiveTeamInvolvements(
   const notForceEnded = isNull(events.forceEndedAt);
 
   const [captainRows, staffRows, playerRows, signupRows] = await Promise.all([
+    // clan-scope: global -- this nav count follows the signed-in person across every clan by design.
     db
       .select({ teamId: teams.id })
       .from(teams)
@@ -38,12 +39,14 @@ export async function countLiveTeamInvolvements(
       .where(and(eq(teams.captainUserId, userId), notForceEnded, live)),
     // A staff seat is a reason to reach a team even when you neither captain nor play on it —
     // which is exactly the visiting-clan moderator case the seat exists for.
+    // clan-scope: global -- this nav count follows the signed-in person across every clan by design.
     db
       .select({ teamId: teamStaff.teamId })
       .from(teamStaff)
       .innerJoin(teams, eq(teamStaff.teamId, teams.id))
       .innerJoin(events, eq(teams.eventId, events.id))
       .where(and(eq(teamStaff.userId, userId), notForceEnded, live)),
+    // clan-scope: global -- the person owns these seats and the nav intentionally combines clans.
     db
       .select({ teamId: eventParticipants.teamId })
       .from(eventParticipants)
@@ -58,6 +61,7 @@ export async function countLiveTeamInvolvements(
           live,
         ),
       ),
+    // clan-scope: global -- sign-ups from every clan contribute to this person-level nav badge.
     db
       .select({ id: eventSignups.id })
       .from(eventSignups)

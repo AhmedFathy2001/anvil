@@ -21,34 +21,38 @@ before(async () => {
   await resetDatabase(DB, '0092_signup_questions');
   ({ db, pool, schema: s } = await loadDb());
 
-  const [clan] = await db.insert(s.clans).values({ slug: 'cleanup', name: 'Cleanup' }).returning();
-  const [event] = await db
-    .insert(s.events)
-    .values({ clanId: clan.id, name: 'Cleanup Event', boardSize: 25 })
-    .returning();
-  const people = await db
-    .insert(s.players)
-    .values([
-      { displayName: 'empty' },
-      { displayName: 'has account' },
-      { displayName: 'has login' },
-      { displayName: 'has ban' },
-      { displayName: 'has request' },
-      { displayName: 'has invite' },
-    ])
-    .returning();
-  ids = Object.fromEntries(people.map((p) => [p.displayName!.replace('has ', ''), p.id])) as typeof ids;
+  // This database deliberately stops at 0092 while the imported Drizzle schema describes HEAD.
+  // Seed through the historical SQL shape: a later column on any of these tables must not make a
+  // test of migration 0093 fail before 0093 is even applied.
+  const clanId = Number((await pool.query(
+    'insert into clans (slug, name) values ($1, $2) returning id',
+    ['cleanup', 'Cleanup'],
+  )).rows[0].id);
+  const eventId = Number((await pool.query(
+    'insert into events (clan_id, name, board_size) values ($1, $2, $3) returning id',
+    [clanId, 'Cleanup Event', 25],
+  )).rows[0].id);
+  const people = (await pool.query(
+    `insert into players (display_name) values
+      ('empty'), ('has account'), ('has login'), ('has ban'), ('has request'), ('has invite')
+     returning id, display_name`,
+  )).rows as { id: number; display_name: string }[];
+  ids = Object.fromEntries(people.map((p) => [p.display_name.replace('has ', ''), Number(p.id)])) as typeof ids;
 
-  const [account] = await db
-    .insert(s.accounts)
-    .values({ playerId: ids.account, rsn: 'Cleanup Main', rsnNormalized: 'cleanup main' })
-    .returning();
-  await db.insert(s.users).values({ playerId: ids.login, displayName: 'login' });
-  await db.insert(s.clanBans).values({ clanId: clan.id, playerId: ids.ban, reason: 'keep history' });
-  await db
-    .insert(s.clanJoinRequests)
-    .values({ clanId: clan.id, accountId: account.id, playerId: ids.request });
-  await db.insert(s.eventInvites).values({ eventId: event.id, playerId: ids.invite });
+  const accountId = Number((await pool.query(
+    'insert into accounts (player_id, rsn, rsn_normalized) values ($1, $2, $3) returning id',
+    [ids.account, 'Cleanup Main', 'cleanup main'],
+  )).rows[0].id);
+  await pool.query('insert into users (player_id, display_name) values ($1, $2)', [ids.login, 'login']);
+  await pool.query(
+    'insert into clan_bans (clan_id, player_id, reason) values ($1, $2, $3)',
+    [clanId, ids.ban, 'keep history'],
+  );
+  await pool.query(
+    'insert into clan_join_requests (clan_id, account_id, player_id) values ($1, $2, $3)',
+    [clanId, accountId, ids.request],
+  );
+  await pool.query('insert into event_invites (event_id, player_id) values ($1, $2)', [eventId, ids.invite]);
 
   migrateRest(DB);
 });

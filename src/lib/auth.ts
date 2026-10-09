@@ -939,8 +939,12 @@ async function autoLinkOrSuggestOnPlay(
     // the takeover. When refused, the character becomes an opt-in SUGGESTION in the caller's own
     // inbox, from where "Add" runs claimAccountForUser — which applies the same gate and routes them
     // to the XP-delta check. The real owner clears it; an attacker's suggestion clears nothing.
-    // TRUST ON FIRST PLUGIN USE. A roster member nobody has ever linked — no hash on the account, no
+    // TRUST ON FIRST PLUGIN USE. A member nobody has ever linked — no hash on the account, no
     // verification, no role waiting — is claimed by the first Discord login whose plugin plays it.
+    // That includes both sources which can authoritatively create a MEMBER seat: an in-game roster
+    // sync and a staff member adding the RSN by hand. Excluding `admin` here left the exact common
+    // onboarding order broken: staff add the player, the player signs in with Discord and RuneLite,
+    // and the two records never meet. It is the same provisional, reviewable claim either way.
     // Weaker than proof (someone who knows the RSN and holds a token could get there first), so it
     // lands PROVISIONAL on the staff review queue as "this Discord ↔ this RSN": usable at once,
     // confirmed or rejected by a mod afterwards. The hash from this play is anchored, so from here
@@ -950,7 +954,7 @@ async function autoLinkOrSuggestOnPlay(
       !byHash &&
       !!accountHash &&
       existing.kind === 'member' &&
-      existing.source === 'roster' &&
+      (existing.source === 'roster' || existing.source === 'admin') &&
       existing.leftAt == null &&
       existing.accountHash == null &&
       existing.verifiedAt == null &&

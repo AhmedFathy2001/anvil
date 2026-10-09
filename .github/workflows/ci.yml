@@ -21,8 +21,23 @@ jobs:
   checks:
     name: checks
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: anvil
+          POSTGRES_PASSWORD: anvil
+          POSTGRES_DB: postgres
+        ports:
+          - 5439:5432
+        options: >-
+          --health-cmd "pg_isready -U anvil -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       NEXT_TELEMETRY_DISABLED: 1
+      TEST_DATABASE_URL: postgres://anvil:anvil@127.0.0.1:5439/postgres
     steps:
       - uses: actions/checkout@v4
 

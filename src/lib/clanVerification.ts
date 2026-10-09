@@ -209,7 +209,9 @@ export async function verifyManually(
 export async function unverify(clanId: number, byUserId: number, reason?: string | null): Promise<void> {
   await db
     .update(clans)
-    .set({ ingameNameVerifiedAt: null, ingameNameClaimedByAccountId: null })
+    // The name itself is the reservation (0082 enforces uniqueness for verified and unverified
+    // clans alike). Withdrawing a false/disputed claim must therefore release the name too.
+    .set({ inGameName: null, ingameNameVerifiedAt: null, ingameNameClaimedByAccountId: null })
     .where(eq(clans.id, clanId));
   await releaseRosterMemberships(clanId, byUserId);
 
@@ -219,7 +221,7 @@ export async function unverify(clanId: number, byUserId: number, reason?: string
       clanId,
       eventType: 'ingame_name_unverified',
       actorUserId: byUserId,
-      newValue: JSON.stringify({ reason: reason ?? null }),
+      newValue: JSON.stringify({ inGameName: null, reason: reason ?? null }),
       notes: 'badge withdrawn by platform staff',
     })
     .catch(() => {});
