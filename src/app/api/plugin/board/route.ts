@@ -11,6 +11,7 @@ import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import { lapUnitNoun } from '@/lib/constants';
 import { parseEventRules, hasRevealPolicy, visibleTiles, nextRevealAt } from '@/lib/eventRules';
 import { listTeamClaims } from '@/lib/tileClaims';
+import { getItemMapping } from '@/lib/osrsItems';
 
 // GET /api/plugin/board — the board for an event: every tile with its grid slot, a representative
 // OSRS item icon, and which tiles each team has completed. Backs the Anvil clog tab's classic
@@ -222,6 +223,32 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null, v
   const eventTiles = visibleTiles(rules, allEventTiles);
   const hiddenTileCount = allEventTiles.length - eventTiles.length;
 
+  // Raw tracked_item_ids predate per-item requirements, so they carry ids but no display names.
+  // Resolve them once per server cache window and ship the names with the board: the in-game detail
+  // view should say what counts, not make a player decode "6571, 28919, …" by hand. A mapping outage
+  // degrades to the id without taking the board down.
+  const trackedItemNames = new Map<number, string>();
+  const rawTrackedIds = new Set(eventTiles.flatMap((t) => allItemIds(t.trackedItemIds, t.itemRequirements)));
+  for (const tile of eventTiles) {
+    if (!tile.itemRequirements) continue;
+    try {
+      const requirements = JSON.parse(tile.itemRequirements) as { itemId?: number; name?: string }[];
+      for (const requirement of requirements) {
+        if (typeof requirement.itemId === 'number' && typeof requirement.name === 'string' && requirement.name.trim()) {
+          trackedItemNames.set(requirement.itemId, requirement.name.trim());
+        }
+      }
+    } catch { /* malformed requirements are handled by the ordinary id fallback below */ }
+  }
+  const unnamedTrackedIds = new Set([...rawTrackedIds].filter((id) => !trackedItemNames.has(id)));
+  if (unnamedTrackedIds.size > 0) {
+    try {
+      for (const item of await getItemMapping()) {
+        if (unnamedTrackedIds.has(item.id)) trackedItemNames.set(item.id, item.name);
+      }
+    } catch { /* the ids remain usable when both upstream item catalogues are unavailable */ }
+  }
+
   // All completions across the event's tiles, grouped per team (drives the race pips + read-only).
   const tileIds = eventTiles.map((t) => t.id);
   const completionsByTeam = new Map<number, number[]>();
@@ -340,6 +367,10 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null, v
             ? notableItemFor(t.timedActivity) ?? -1
             : ((t.statType === 'boss' || t.statType === 'kc') ? bossItemForStatKey(t.trackedStat) ?? -1 : -1)),
         itemIds: allItemIds(t.trackedItemIds, t.itemRequirements),
+        trackedItems: allItemIds(t.trackedItemIds, t.itemRequirements).map((itemId) => ({
+          itemId,
+          name: trackedItemNames.get(itemId) ?? `Item ${itemId}`,
+        })),
         requiredAmount: t.requiredAmount ?? 1,
         requirement: tileRequirement(t),
         // Source restriction ("Only from …") shown structured on the plugin detail page, matching

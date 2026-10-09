@@ -205,6 +205,7 @@ test('an enrolled plugin character can plan on a revealed upcoming board, while 
     headers: { ...headers, 'Content-Type': 'application/json' },
     body: JSON.stringify({ eventId: upcoming.id, tileId: tile.id, note: 'before kickoff' }),
   }));
+  assert.ok(claimed);
   assert.equal(claimed.status, 200, await claimed.text());
   const claims = await C.listTeamClaims(upcoming.id, team.id, user.id);
   assert.equal(claims.length, 1);
