@@ -1,5 +1,7 @@
 'use client';
 
+import ClaimAvatars from '@/components/ClaimAvatars';
+
 import { useState, useEffect, useRef } from 'react';
 import ManualOnlyBadge from './ManualOnlyBadge';
 import { isManualOnlyDropTile } from '@/lib/clogManual';
@@ -48,7 +50,7 @@ interface LeaguesBoardProps {
   /** Tiles only THIS viewer (staff) can see — members get a board without them. */
   staffOnlyTileIds?: Set<number> | null;
   /** Team view: teammates planning each tile (lib/tileClaims). */
-  claimedBy?: Map<number, string[]> | null;
+  claimedBy?: Map<number, import('@/lib/tileClaimsView').ClaimMarker[]> | null;
   /** Difficulty bands (admin-configured). A long board groups under them instead of running flat. */
   tierBands?: TierBand[];
 }
@@ -221,13 +223,8 @@ export default function LeaguesBoard({
                     {tile.label}
                   </span>
                   {done && <span className="text-accent-green-light text-xs shrink-0">✓</span>}
-                  {!done && (claimedBy?.get(tile.id)?.length ?? 0) > 0 && (
-                    <span
-                      className="shrink-0 truncate max-w-[45%] text-[10px] rounded px-1.5 py-0.5 border border-sky-400/40 bg-sky-500/15 text-sky-200"
-                      title={`Planning: ${claimedBy!.get(tile.id)!.join(', ')}`}
-                    >
-                      🎯 {claimedBy!.get(tile.id)!.join(', ')}
-                    </span>
+                  {!done && claimedBy?.get(tile.id) && (
+                    <ClaimAvatars claims={claimedBy.get(tile.id)!} size="sm" />
                   )}
                   {staffOnly && (
                     <span

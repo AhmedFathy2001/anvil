@@ -19,7 +19,7 @@ import MemberBreakdown from '@/components/MemberBreakdown';
 import BoardFilters from '@/components/BoardFilters';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { clanFetch } from '@/lib/clanFetch';
-import { TeamPlanPanel, TileClaimSection, useTeamClaims } from './TeamClaims';
+import { claimFilterIds, TeamPlanPanel, TileClaimSection, useTeamClaims, type ClaimFilter } from './TeamClaims';
 
 interface Props {
   event: Event;
@@ -84,7 +84,15 @@ export default function MyTeamClient({
   const teamPlayers = useMemo(() => players.filter((p) => p.teamId === team.id), [players, team.id]);
   // Team-private planning: who is going for which tile. Not loaded while the board is sealed.
   const claims = useTeamClaims(team.id, !boardHidden && tiles.length > 0);
-  const tileLabelById = useMemo(() => new Map(tiles.map((t) => [t.id, t.label])), [tiles]);
+  const [claimFilter, setClaimFilter] = useState<ClaimFilter>('all');
+  const completedTileIds = useMemo(() => new Set(completions.map((c) => c.tileId)), [completions]);
+  // The planning filter narrows the board on top of whatever search/category/tier filter is set.
+  const boardMatched = useMemo(() => {
+    const byClaim = claimFilterIds(claimFilter, tiles, claims.claims, completedTileIds);
+    if (!byClaim) return matchedTileIds;
+    if (!matchedTileIds) return byClaim;
+    return new Set([...byClaim].filter((id) => matchedTileIds.has(id)));
+  }, [claimFilter, tiles, claims.claims, completedTileIds, matchedTileIds]);
   const eventStarted = !event.startDate || new Date(event.startDate) <= new Date();
   // Captains may rebrand before start whenever no draft is actively assembling the roster. This
   // includes pre-assigned teams, whose draft status intentionally remains "none".
@@ -582,7 +590,10 @@ export default function MyTeamClient({
               <>
             <TeamPlanPanel
               claims={claims}
-              tileLabel={(id) => tileLabelById.get(id) ?? null}
+              tiles={tiles}
+              completedIds={completedTileIds}
+              filter={claimFilter}
+              onFilter={setClaimFilter}
               onOpenTile={handleTileClick}
             />
             <BoardFilters tiles={tiles} tierBands={tierBands} pointsMode={pointsMode} onMatched={setMatchedTileIds} />
@@ -598,7 +609,7 @@ export default function MyTeamClient({
               dropProgress={dropProgress}
               statProgress={statProgress}
               pointsMode={pointsMode}
-              matchedTileIds={matchedTileIds}
+              matchedTileIds={boardMatched}
               claimedBy={claims.byTile}
             />
               </>

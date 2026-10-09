@@ -65,7 +65,7 @@ interface EventBoardProps {
    */
   staffOnlyTileIds?: Set<number> | null;
   /** Team view only: teammates planning each tile (lib/tileClaims). Never pass on a public board. */
-  claimedBy?: Map<number, string[]> | null;
+  claimedBy?: Map<number, import('@/lib/tileClaimsView').ClaimMarker[]> | null;
   /** Classic boards only: the line overlay for whichever team the viewer is looking at. */
   linePositions?: Set<number> | null;
   neededPositions?: Set<number> | null;

@@ -1,6 +1,8 @@
 'use client';
 
 import { cn, formatNumber } from '@/lib/utils';
+import ClaimAvatars from '@/components/ClaimAvatars';
+import type { ClaimMarker } from '@/lib/tileClaimsView';
 
 interface TileCellProps {
   label: string;
@@ -31,14 +33,7 @@ interface TileCellProps {
   /** The one tile that would finish a line for the viewed team — dashed, so it stands out to chase. */
   needed?: boolean;
   /** Teammates planning to go for it (team view only, lib/tileClaims). */
-  claimedBy?: string[];
-}
-
-/** Two-letter tag for a claimer, so a full tile still reads at a glance. */
-function initials(name: string): string {
-  const parts = name.trim().split(/[\s_]+/).filter(Boolean);
-  const tag = parts.length > 1 ? parts[0][0] + parts[1][0] : name.trim().slice(0, 2);
-  return tag.toUpperCase();
+  claimedBy?: ClaimMarker[];
 }
 
 export default function TileCell({ label, icon, completedBy, interactive, onClick, size, tileType, progress, statProgress, expanded, points, dimmed, manualOnly, staffOnly, markersOnly, inLine, needed, claimedBy }: TileCellProps) {
@@ -127,16 +122,11 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
         </div>
       )}
 
-      {/* Who on the team is going for it. Top-centre: the points (left) and manual/✓ (right) corners
-          are taken, and the spectator dots that also sit here never show in a team's own view. */}
+      {/* Who on the team is going for it, as coloured initials. Top-centre: the points (left) and
+          manual/✓ (right) corners are taken, and the spectator dots that also sit here never show in
+          a team's own view. */}
       {claimedBy && claimedBy.length > 0 && !isCompleted && (
-        <div
-          className="absolute top-1 left-1/2 -translate-x-1/2 flex items-center gap-0.5 rounded-full border border-sky-400/40 bg-sky-500/20 px-1 leading-none text-[7px] sm:text-[9px] font-semibold text-sky-200 py-px"
-          title={`Planning: ${claimedBy.join(', ')}`}
-        >
-          {claimedBy.slice(0, 2).map(initials).join(' ')}
-          {claimedBy.length > 2 && <span className="text-sky-300/80">+{claimedBy.length - 2}</span>}
-        </div>
+        <ClaimAvatars claims={claimedBy} size="xs" max={2} className="absolute top-1 left-1/2 -translate-x-1/2" />
       )}
 
       {/* Completed checkmark */}

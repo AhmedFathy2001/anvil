@@ -15,7 +15,7 @@ import { completions, eventParticipants, events, tileClaims, tiles, users } from
 import { isEventEnded } from '@/lib/survey';
 import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
 
-export { NOTE_MAX, cleanNote, claimNamesByTile, type TeamClaim } from '@/lib/tileClaimsView';
+export { NOTE_MAX, cleanNote, type TeamClaim } from '@/lib/tileClaimsView';
 import type { TeamClaim } from '@/lib/tileClaimsView';
 
 /** The ids of an event's tiles that members can see right now. */

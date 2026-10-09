@@ -45,7 +45,7 @@ interface BingoBoardProps {
   /** Tiles only THIS viewer (staff) can see — members get a board without them. */
   staffOnlyTileIds?: Set<number> | null;
   /** Team view: teammates planning each tile (lib/tileClaims). */
-  claimedBy?: Map<number, string[]> | null;
+  claimedBy?: Map<number, import('@/lib/tileClaimsView').ClaimMarker[]> | null;
   /** Board POSITIONS on a line the viewed team has completed (lib/bingoLines). */
   linePositions?: Set<number> | null;
   /** Board POSITIONS that would finish a line for the viewed team. */
