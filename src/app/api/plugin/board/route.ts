@@ -3,7 +3,7 @@ import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { events, tiles, teams, completions, submissions } from '@/db/schema';
 import { eq, inArray, and, sql } from 'drizzle-orm';
-import { verifyPluginToken } from '@/lib/auth';
+import { verifyPluginToken, verifyPluginTokenForEvent } from '@/lib/auth';
 import { getTierBands } from '@/lib/pluginConfig';
 import { tileTierKey } from '@/lib/tileFilter';
 import { jsonWithEtag } from '@/lib/httpEtag';
@@ -19,10 +19,9 @@ import { listTeamClaims } from '@/lib/tileClaims';
 // Two modes:
 //   • no params  → player-token authed; the caller's own *active* event, interactive (per-cell
 //                  `complete` = your team, per-item progress = your team). readOnly=false.
-//   • ?eventId=N → anonymous (mirrors /api/plugin/event/[id]); a read-only preview of any event
-//                  (upcoming, or a live event you're not in). `complete` = any team has it, so a
-//                  live preview shows board progress; the all-team list still drives the race pips.
-//                  readOnly=true.
+//   • ?eventId=N → public callers get the old read-only preview. An authenticated character enrolled
+//                  on that exact event gets their team-scoped interactive board even before it starts,
+//                  so planning claims work where they are most useful.
 
 // First OSRS item id usable as an in-game icon: a per-item requirement wins, else the first raw
 // tracked item id. Returns -1 ("no item icon") for manual/stat tiles — the plugin substitutes a
@@ -375,8 +374,8 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null, v
 export async function GET(request: Request) {
   const eventIdParam = new URL(request.url).searchParams.get('eventId');
 
-  // Read-only preview path — anonymous, like /api/plugin/event/[id]. Lets a member view any
-  // upcoming event's layout, or a live event they aren't competing in, without a team scope.
+  // Preview path. Anonymous/non-participants remain read-only; an authenticated participant is
+  // scoped to their exact team on this exact event (including before the start date).
   if (eventIdParam) {
     const eventId = Number(eventIdParam);
     if (!Number.isFinite(eventId) || eventId <= 0) {
@@ -390,7 +389,8 @@ export async function GET(request: Request) {
     }
     // ETag/304: the clog re-fetches on tab-open but the board rarely changes — an unchanged fetch
     // returns 304 with no body (a 1000-tile board can be tens of KB gzipped). See lib/httpEtag.
-    return jsonWithEtag(request, await buildBoard(event, null));
+    const auth = await verifyPluginTokenForEvent(request, eventId);
+    return jsonWithEtag(request, await buildBoard(event, auth?.teamId ?? null, auth?.userId ?? null));
   }
 
   // Interactive path — the caller's own active event, scoped to their team.

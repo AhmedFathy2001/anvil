@@ -139,3 +139,81 @@ test('the plugin board carries claims for the caller’s own team only, never on
   assert.equal(tileOf(await buildBoard(event, null), tileB)?.claims, undefined, 'the anonymous preview never does');
   assert.equal(JSON.stringify(await buildBoard(event, null)).includes('claims'), false);
 });
+
+test('an enrolled plugin character can plan on a revealed upcoming board, while its public preview stays read-only', async () => {
+  const [clan] = await db.select().from(s.clans).where(eq(s.clans.slug, 'c')).limit(1);
+  const [person] = await db.insert(s.players).values({ displayName: 'Planner' }).returning();
+  const [user] = await db.insert(s.users).values({
+    playerId: person.id,
+    displayName: 'Planner',
+    discordId: 'tile-claims-planner',
+    pluginToken: 'tile-claims-upcoming-token',
+  }).returning();
+  const [account] = await db.insert(s.accounts).values({
+    playerId: person.id,
+    rsn: 'Planning RSN',
+    rsnNormalized: 'planning rsn',
+  }).returning();
+  const [seat] = await db.insert(s.clanMemberships).values({
+    clanId: clan.id,
+    accountId: account.id,
+    kind: 'member',
+    source: 'roster',
+  }).returning();
+  const [upcoming] = await db.insert(s.events).values({
+    clanId: clan.id,
+    name: 'Upcoming Bingo',
+    boardSize: 5,
+    tilesRevealed: 1,
+    startDate: new Date(Date.now() + 864e5).toISOString(),
+  }).returning();
+  const [team] = await db.insert(s.teams).values({ eventId: upcoming.id, name: 'Planners', color: '#c90' }).returning();
+  await db.insert(s.eventParticipants).values({
+    eventId: upcoming.id,
+    teamId: team.id,
+    clanMemberId: seat.id,
+    accountId: account.id,
+    name: 'Planning RSN',
+  }).returning();
+  const [tile] = await db.insert(s.tiles).values({
+    eventId: upcoming.id,
+    position: 0,
+    label: 'Plan this early',
+    tileType: 'drop',
+  }).returning();
+
+  const headers = {
+    Authorization: 'Bearer tile-claims-upcoming-token',
+    'X-RSN': 'Planning RSN',
+    'x-anvil-clan-slug': 'c',
+  };
+  const boardUrl = `https://example.test/api/plugin/board?eventId=${upcoming.id}`;
+  const { GET } = await import('../src/app/api/plugin/board/route.ts');
+  const authed = await GET(new Request(boardUrl, { headers }));
+  assert.equal(authed.status, 200);
+  const before = await authed.json() as { readOnly: boolean; yourTeamId: number | null };
+  assert.equal(before.readOnly, false);
+  assert.equal(before.yourTeamId, team.id);
+
+  const publicPreview = await GET(new Request(boardUrl, { headers: { 'x-anvil-clan-slug': 'c' } }));
+  assert.equal(publicPreview.status, 200);
+  assert.equal(((await publicPreview.json()) as { readOnly: boolean }).readOnly, true);
+
+  const { POST } = await import('../src/app/api/plugin/claims/route.ts');
+  const claimed = await POST(new Request('https://example.test/api/plugin/claims', {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ eventId: upcoming.id, tileId: tile.id, note: 'before kickoff' }),
+  }));
+  assert.equal(claimed.status, 200, await claimed.text());
+  const claims = await C.listTeamClaims(upcoming.id, team.id, user.id);
+  assert.equal(claims.length, 1);
+  assert.deepEqual({ ...claims[0], createdAt: '<timestamp>' }, {
+    tileId: tile.id,
+    userId: user.id,
+    name: 'Planning RSN',
+    note: 'before kickoff',
+    createdAt: '<timestamp>',
+    mine: true,
+  });
+});

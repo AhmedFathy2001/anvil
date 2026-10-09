@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
+import { verifyPluginToken, verifyPluginTokenForEvent, verifyPluginTokenUser } from '@/lib/auth';
 import { rateLimitByKey } from '@/lib/rate-limit';
 import { claimTile, cleanNote, unclaimTile } from '@/lib/tileClaims';
 
@@ -10,8 +10,10 @@ import { claimTile, cleanNote, unclaimTile } from '@/lib/tileClaims';
  * taken from the request, so a client can only ever claim on its own team. Advertised as the
  * `tile-claims` capability; the plugin reads the result back from the authed /api/plugin/board.
  */
-async function caller(request: Request) {
-  const auth = await verifyPluginToken(request);
+async function caller(request: Request, eventId?: number) {
+  const auth = eventId != null
+    ? await verifyPluginTokenForEvent(request, eventId)
+    : await verifyPluginToken(request);
   if (!auth) {
     return { error: NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken>' }, { status: 401 }) };
   }
@@ -28,9 +30,11 @@ async function caller(request: Request) {
 
 // POST { tileId, note? } — claim it for yourself on your team (or update your note).
 export async function POST(request: Request) {
-  const c = await caller(request);
+  const body = (await request.json().catch(() => ({}))) as { eventId?: unknown; tileId?: unknown; note?: unknown };
+  const eventId = body.eventId == null ? undefined : Number(body.eventId);
+  if (eventId != null && !Number.isInteger(eventId)) return NextResponse.json({ error: 'Invalid eventId' }, { status: 400 });
+  const c = await caller(request, eventId);
   if ('error' in c) return c.error;
-  const body = (await request.json().catch(() => ({}))) as { tileId?: unknown; note?: unknown };
   const tileId = Number(body.tileId);
   if (!Number.isInteger(tileId)) return NextResponse.json({ error: 'tileId is required' }, { status: 400 });
   const r = await claimTile({
@@ -47,7 +51,10 @@ export async function POST(request: Request) {
 
 // DELETE ?tileId=… — drop your own claim. Only ever your own: clearing a teammate's is the team page's.
 export async function DELETE(request: Request) {
-  const c = await caller(request);
+  const eventIdParam = new URL(request.url).searchParams.get('eventId');
+  const eventId = eventIdParam == null ? undefined : Number(eventIdParam);
+  if (eventId != null && !Number.isInteger(eventId)) return NextResponse.json({ error: 'Invalid eventId' }, { status: 400 });
+  const c = await caller(request, eventId);
   if ('error' in c) return c.error;
   const tileId = Number(new URL(request.url).searchParams.get('tileId'));
   if (!Number.isInteger(tileId)) return NextResponse.json({ error: 'tileId is required' }, { status: 400 });

@@ -9,7 +9,7 @@ import { db } from '@/db';
 import { resolveClanById, resolveClanFromRequest, type ClanContext } from '@/lib/clanContext';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, clanStaff, clans, detectedAccounts, eventCohosts, eventEditors, eventParticipants, events, players, pluginLinks, teams, users, weeklyCompetitions } from '@/db/schema';
 import { findOrCreateSeat, findRosterSeat, findRosterSeats, personOf, personOfOrCreate, seatsOwnedBy, seatsOwnedByAnywhere, updateAccountOfSeat } from '@/lib/roster';
-import { and, desc, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 import { requireSecret } from '@/lib/env';
 import { applyPendingRole } from '@/lib/pending-role';
 import { onCharacterLinked } from '@/lib/identity';
@@ -1554,6 +1554,36 @@ export async function verifyPluginToken(
     eventId: pick.eventId,
     userId: member.userId,
     rsn: pick.name,
+  };
+}
+
+/**
+ * Resolve this exact logged-in character on one named event, including an upcoming event.
+ * Unlike verifyPluginToken this does not pick a live event: callers already supplied the event id,
+ * and the participant lookup is what proves the token may see and mutate that team's private plan.
+ */
+export async function verifyPluginTokenForEvent(
+  request: Request,
+  eventId: number,
+): Promise<{ playerId: number; teamId: number; eventId: number; userId: number; rsn: string } | null> {
+  if (!Number.isInteger(eventId) || eventId <= 0) return null;
+  const member = await resolvePluginMember(request);
+  if (!member) return null;
+  const participant = await db.query.eventParticipants.findFirst({
+    where: and(
+      eq(eventParticipants.eventId, eventId),
+      isNotNull(eventParticipants.teamId),
+      or(eq(eventParticipants.accountId, member.accountId), eq(eventParticipants.clanMemberId, member.clanMemberId)),
+    ),
+    columns: { id: true, teamId: true, name: true },
+  });
+  if (!participant || participant.teamId == null) return null;
+  return {
+    playerId: participant.id,
+    teamId: participant.teamId,
+    eventId,
+    userId: member.userId,
+    rsn: participant.name,
   };
 }
 
