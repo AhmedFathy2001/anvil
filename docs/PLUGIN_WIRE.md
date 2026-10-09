@@ -77,7 +77,36 @@ the clan's clips channel); `leagues-channel` (`POST /api/plugin/notify` accepts
 competition week or a running board); `drop-facts` (a `dropFacts` block on
 `/api/plugin/config`, below); `mission-prizes` (what a mission pays, place by place —
 below); `coffer-sync` (absolute in-game Clan Coffer observations posted to
-`/api/plugin/coffer`, below).
+`/api/plugin/coffer`, below); `tile-claims` (team-private "I'm going for this" on board tiles —
+below).
+
+### `tile-claims`
+
+Team-private planning: a teammate marks a tile they intend to go for. On the **authenticated**
+`GET /api/plugin/board` (bearer token, no `eventId`), a tile the caller's own team has claimed carries:
+
+```json
+"claims": [
+  { "name": "AliceRSN", "note": "doing it tonight", "mine": false },
+  { "name": "BobRSN", "note": null, "mine": true }
+]
+```
+
+Oldest claim first. The field is **absent** on tiles nobody claimed, on the anonymous
+`?eventId=` preview (always), on hidden tiles, and on tiles the team has completed — so a
+board with no claims is unchanged and keeps its ETag.
+
+Making and dropping your own claim:
+
+```
+POST   /api/plugin/claims          {"tileId": 123, "note": "optional, ≤ 80 chars"}
+DELETE /api/plugin/claims?tileId=123
+```
+
+The token decides the event and team; nothing team-related is read from the body. `POST` on a
+claimed tile updates your note. Errors: `404` for a tile that isn't on the event or isn't
+revealed (same answer for both), `409` once the event ended or your team completed the tile,
+`429` past 30 changes a minute. A plugin without the capability shows no claim UI.
 
 ### `coffer-sync`
 

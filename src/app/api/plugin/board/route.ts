@@ -10,6 +10,7 @@ import { jsonWithEtag } from '@/lib/httpEtag';
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import { lapUnitNoun } from '@/lib/constants';
 import { parseEventRules, hasRevealPolicy, visibleTiles, nextRevealAt } from '@/lib/eventRules';
+import { listTeamClaims } from '@/lib/tileClaims';
 
 // GET /api/plugin/board — the board for an event: every tile with its grid slot, a representative
 // OSRS item icon, and which tiles each team has completed. Backs the Anvil clog tab's classic
@@ -182,7 +183,7 @@ type EventRow = typeof events.$inferSelect;
 // Shared board builder. `callerTeamId` null = read-only preview (no per-team view); a number =
 // interactive for that team (per-cell + per-item progress).
 // Exported so other board surfaces reuse the exact same shape.
-export async function buildBoard(event: EventRow, callerTeamId: number | null) {
+export async function buildBoard(event: EventRow, callerTeamId: number | null, viewerUserId: number | null = null) {
   // Tiles stay hidden in-game until the host reveals them. Return the event shell with
   // an empty tile list (and no per-team completions, since those reference tiles) plus a
   // `tilesRevealed: false` flag the plugin can branch on. Mirrors the web board gate.
@@ -255,6 +256,21 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null) {
       if (r.itemId == null) continue;
       if (!perItemMap.has(r.tileId)) perItemMap.set(r.tileId, new Map());
       perItemMap.get(r.tileId)!.set(r.itemId, Number(r.total));
+    }
+  }
+
+  // TEAM-PRIVATE planning (lib/tileClaims): who on the caller's own team is going for which tile.
+  // Interactive path only — the anonymous preview (callerTeamId null) must never carry a team's plan.
+  // listTeamClaims already drops hidden and completed tiles. Absent when nobody has claimed a tile,
+  // so a board without claims is byte-identical (and keeps its ETag) for every client.
+  const claimsByTile = new Map<number, { name: string; note: string | null; mine: boolean }[]>();
+  if (callerTeamId != null) {
+    // Oldest claim first (then by name), so the order — and the ETag — is stable between fetches.
+    const claims = (await listTeamClaims(event.id, callerTeamId, viewerUserId ?? -1)).sort(
+      (a, b) => a.createdAt.localeCompare(b.createdAt) || a.name.localeCompare(b.name),
+    );
+    for (const c of claims) {
+      claimsByTile.set(c.tileId, [...(claimsByTile.get(c.tileId) ?? []), { name: c.name, note: c.note, mine: c.mine }]);
     }
   }
 
@@ -344,6 +360,7 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null) {
         // stopped accepting completions. Only sent on reveal-mode events.
         ...(revealMode ? { revealedAt: t.revealedAt ?? null, closedAt: t.closedAt ?? null } : {}),
         ...(itemRequirements ? { itemRequirements } : {}),
+        ...(claimsByTile.has(t.id) ? { claims: claimsByTile.get(t.id) } : {}),
       };
     }),
     teams: eventTeams.map((tm) => ({
@@ -385,5 +402,5 @@ export async function GET(request: Request) {
   if (!event) {
     return NextResponse.json({ error: 'Event not found' }, { status: 404 });
   }
-  return jsonWithEtag(request, await buildBoard(event, auth.teamId));
+  return jsonWithEtag(request, await buildBoard(event, auth.teamId, auth.userId));
 }

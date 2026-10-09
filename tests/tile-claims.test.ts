@@ -107,7 +107,7 @@ test('unclaim only removes the named person’s claim', async () => {
   assert.deepEqual(left.map((c) => c.userId), [alice]);
 });
 
-test('claims are wired into the team page only — never a public board or the anonymous pulse', async () => {
+test('claims are wired into the team page and the AUTHED plugin board only — never a public board or the pulse', async () => {
   const { execFileSync } = await import('node:child_process');
   const hits = execFileSync('git', ['grep', '-l', '-E', 'claimedBy=|useTeamClaims|/claims`|listTeamClaims', '--', 'src/app'], {
     encoding: 'utf8',
@@ -117,8 +117,25 @@ test('claims are wired into the team page only — never a public board or the a
     .filter(Boolean)
     .sort();
   assert.deepEqual(hits, [
+    // The authed plugin board (its anonymous path is covered by the test above).
+    'src/app/api/plugin/board/route.ts',
     'src/app/api/team/[teamId]/claims/route.ts',
     'src/app/team/[teamId]/MyTeamClient.tsx',
     'src/app/team/[teamId]/TeamClaims.tsx',
   ]);
+});
+
+test('the plugin board carries claims for the caller’s own team only, never on the anonymous preview', async () => {
+  const { buildBoard } = await import('../src/app/api/plugin/board/route.ts');
+  const event = (await db.query.events.findFirst({ where: eq(s.events.id, eventId) }))!;
+  const tileOf = (board: Awaited<ReturnType<typeof buildBoard>>, id: number) =>
+    (board.tiles as { tileId: number; claims?: { name: string; note: string | null; mine: boolean }[] }[]).find((t) => t.tileId === id);
+
+  const forRed = await buildBoard(event, red, alice);
+  assert.deepEqual(tileOf(forRed, tileB)?.claims, [{ name: 'AliceRSN', note: null, mine: true }]);
+  assert.equal(tileOf(forRed, tileA)?.claims, undefined, 'completed tile: no claims');
+
+  assert.equal(tileOf(await buildBoard(event, blue, bob), tileB)?.claims, undefined, 'Blue’s board has none of Red’s');
+  assert.equal(tileOf(await buildBoard(event, null), tileB)?.claims, undefined, 'the anonymous preview never does');
+  assert.equal(JSON.stringify(await buildBoard(event, null)).includes('claims'), false);
 });
