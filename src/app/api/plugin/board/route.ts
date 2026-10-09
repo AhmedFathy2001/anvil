@@ -5,6 +5,7 @@ import { events, tiles, teams, completions, submissions } from '@/db/schema';
 import { eq, inArray, and, sql } from 'drizzle-orm';
 import { verifyPluginToken } from '@/lib/auth';
 import { getTierBands } from '@/lib/pluginConfig';
+import { tileTierKey } from '@/lib/tileFilter';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import { lapUnitNoun } from '@/lib/constants';
@@ -206,10 +207,12 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null) {
     };
   }
 
-  const [allEventTiles, eventTeams] = await Promise.all([
+  const [allEventTiles, eventTeams, tierBands] = await Promise.all([
     db.query.tiles.findMany({ where: eq(tiles.eventId, event.id) }),
     db.query.teams.findMany({ where: eq(teams.eventId, event.id) }),
+    getTierBands(event.clanId),
   ]);
+  const tierLabels = new Map(tierBands.map((band) => [band.key, band.label]));
 
   // Reveal-policy events (see lib/eventRules): members only ever receive the revealed subset —
   // hidden tile content must never reach a client. Completions/teams stay full-board (they only
@@ -280,6 +283,7 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null) {
         }
       : {}),
     tiles: sortedTiles.map((t, index) => {
+      const tierKey = tileTierKey(t.points, tierBands);
       // Compound tiles carry several distinct items; surface the per-item breakdown so the plugin's
       // detail page can render the whole set like the website (progress is 0 in read-only preview).
       let itemRequirements:
@@ -308,6 +312,11 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null) {
         label: t.label,
         description: t.description ?? null,
         points: t.points ?? 0,
+        // Named difficulty is data, not something the plugin should reverse-engineer from points:
+        // clans can rename and retune their bands. Both key + label make sidebar search useful for
+        // a stable slug ("troll") and a customised display name alike.
+        tierKey,
+        tier: tierKey == null ? null : tierLabels.get(tierKey) ?? tierKey,
         // Tracked item first; timed/deathless tiles fall back to the activity's signature
         // reward (Colosseum → Dizana's quiver) so previews aren't a wall of book sprites.
         itemId: representativeItemId(t.trackedItemIds, t.itemRequirements) !== -1
