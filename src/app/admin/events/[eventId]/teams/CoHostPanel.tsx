@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import ClanCrest from '@/components/ClanCrest';
+import ClanPicker, { type PickedClan } from '@/components/ClanPicker';
 
 import { clanFetch } from '@/lib/clanFetch';
 import type { CohostRow } from '@/lib/coHost';
@@ -45,37 +46,60 @@ export default function CoHostPanel({
   settlement: EventSettlement | null;
 }) {
   const [cohosts, setCohosts] = useState(initial);
+  // Cash policy and each co-host's board access are DRAFTS until Save — clicking an option is not
+  // committing to it. `cohosts` holds what's saved; `boardDraft` only the unsaved flips.
+  const [savedCash, setSavedCash] = useState(initialCashPolicy);
   const [cashPolicy, setCashPolicy] = useState(initialCashPolicy);
+  const [boardDraft, setBoardDraft] = useState<Record<number, boolean>>({});
   const [settlement, setSettlement] = useState(initialSettlement);
-  const [slug, setSlug] = useState('');
+  const [pickedClan, setPickedClan] = useState<PickedClan | null>(null);
   const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedNote, setSavedNote] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function setCash(value: string) {
-    const prev = cashPolicy;
-    setCashPolicy(value);
-    const res = await clanFetch(`/api/events/${eventId}/co-hosts`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cashPolicy: value }),
-    });
-    if (!res.ok) setCashPolicy(prev);
+  const boardAccess = (c: CohostRow) => boardDraft[c.id] ?? c.staffCanEditBoard;
+  const changedBoard = cohosts.filter((c) => c.id in boardDraft && boardDraft[c.id] !== c.staffCanEditBoard);
+  const dirty = cashPolicy !== savedCash || changedBoard.length > 0;
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      const patch = async (body: object) => {
+        const res = await clanFetch(`/api/events/${eventId}/co-hosts`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          throw new Error(data?.error ?? 'Could not save');
+        }
+      };
+      if (cashPolicy !== savedCash) {
+        await patch({ cashPolicy });
+        setSavedCash(cashPolicy);
+      }
+      for (const c of changedBoard) {
+        await patch({ cohostId: c.id, staffCanEditBoard: boardDraft[c.id] });
+      }
+      setBoardDraft({});
+      // The settlement table is computed under the saved policy — re-read it.
+      await refresh();
+      setSavedNote(true);
+      setTimeout(() => setSavedNote(false), 2500);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
   }
 
-  // Whether this co-host's staff may author the board with you. Optimistic, rolled back on failure.
-  async function setBoardAccess(id: number, allowed: boolean) {
+  function discard() {
+    setCashPolicy(savedCash);
+    setBoardDraft({});
     setError(null);
-    setCohosts((rows) => rows.map((r) => (r.id === id ? { ...r, staffCanEditBoard: allowed } : r)));
-    const res = await clanFetch(`/api/events/${eventId}/co-hosts`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cohostId: id, staffCanEditBoard: allowed }),
-    });
-    if (!res.ok) {
-      setCohosts((rows) => rows.map((r) => (r.id === id ? { ...r, staffCanEditBoard: !allowed } : r)));
-      const data = await res.json().catch(() => null);
-      setError(data?.error ?? 'Could not change board access');
-    }
   }
 
   async function refresh() {
@@ -103,7 +127,7 @@ export default function CoHostPanel({
   }
 
   async function invite() {
-    const clanSlug = slug.trim().toLowerCase();
+    const clanSlug = pickedClan?.slug;
     if (!clanSlug) return;
     setBusy(true);
     setError(null);
@@ -121,7 +145,7 @@ export default function CoHostPanel({
         // `created: true`, so this no longer fires for the case that used to be a dead end.)
         setError('That clan is already on this event.');
       }
-      setSlug('');
+      setPickedClan(null);
       await refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -176,8 +200,8 @@ export default function CoHostPanel({
                   <label className="mt-2 ml-11 flex cursor-pointer items-start gap-2 text-[12.5px]">
                     <input
                       type="checkbox"
-                      checked={c.staffCanEditBoard}
-                      onChange={(e) => setBoardAccess(c.id, e.target.checked)}
+                      checked={boardAccess(c)}
+                      onChange={(e) => setBoardDraft((d) => ({ ...d, [c.id]: e.target.checked }))}
                       className="mt-0.5 h-3.5 w-3.5 accent-gold"
                     />
                     <span>
@@ -196,20 +220,11 @@ export default function CoHostPanel({
       )}
 
       <div className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center">
-        <div className="flex flex-1 items-center gap-1 rounded-lg border border-card-border bg-background px-3 py-2 text-sm focus-within:border-gold/50">
-          <span className="font-mono text-[13px] text-text-muted">anvilosrs.com/c/</span>
-          <input
-            value={slug}
-            onChange={(e) => setSlug(e.target.value.replace(/[^a-z0-9-]/gi, '').toLowerCase())}
-            onKeyDown={(e) => e.key === 'Enter' && invite()}
-            placeholder="clan-slug"
-            className="flex-1 bg-transparent font-mono text-[13px] text-foreground outline-none placeholder:text-text-muted/50"
-          />
-        </div>
+        <ClanPicker value={pickedClan} onChange={setPickedClan} disabled={busy} />
         <button
           type="button"
           onClick={invite}
-          disabled={busy || !slug.trim()}
+          disabled={busy || !pickedClan}
           className="shrink-0 rounded-lg bg-gold px-4 py-2 text-[13px] font-semibold text-brown-dark transition-colors hover:bg-gold-light disabled:opacity-50"
         >
           {busy ? 'Inviting…' : 'Invite'}
@@ -234,7 +249,7 @@ export default function CoHostPanel({
                   active ? 'border-gold/50 bg-gold/[0.06]' : 'border-card-border bg-background hover:border-gold/30'
                 }`}
               >
-                <input type="radio" name="cashPolicy" checked={active} onChange={() => setCash(c.value)} className="mt-0.5 h-4 w-4 accent-gold" />
+                <input type="radio" name="cashPolicy" checked={active} onChange={() => setCashPolicy(c.value)} className="mt-0.5 h-4 w-4 accent-gold" />
                 <span>
                   <span className={`block text-[13.5px] font-medium ${active ? 'text-gold' : ''}`}>{c.label}</span>
                   <span className="mt-0.5 block text-[12.5px] text-text-muted">{c.hint}</span>
@@ -244,6 +259,34 @@ export default function CoHostPanel({
           })}
         </div>
       </div>
+
+      {(dirty || savedNote) && (
+        <div className="flex items-center gap-3 border-t border-card-border px-5 py-3">
+          {dirty ? (
+            <>
+              <span className="text-[12.5px] text-text-muted">Unsaved changes.</span>
+              <button
+                type="button"
+                onClick={discard}
+                disabled={saving}
+                className="ml-auto text-[12.5px] text-text-muted hover:text-foreground hover:underline underline-offset-4"
+              >
+                Discard
+              </button>
+              <button
+                type="button"
+                onClick={save}
+                disabled={saving}
+                className="rounded-lg bg-gold px-4 py-1.5 text-[13px] font-semibold text-brown-dark transition-colors hover:bg-gold-light disabled:opacity-50"
+              >
+                {saving ? 'Saving…' : 'Save changes'}
+              </button>
+            </>
+          ) : (
+            <span className="text-[12.5px] text-accent-green-light">Saved.</span>
+          )}
+        </div>
+      )}
 
       {/* Settlement — the policy made concrete, once there's a co-host and a fee. */}
       {settlement?.relevant && (

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { clanFetch } from '@/lib/clanFetch';
+import ClanPicker, { type PickedClan } from '@/components/ClanPicker';
 
 interface Invite {
   id: number;
@@ -48,12 +49,16 @@ const ENTRY: { value: string; label: string; hint: string }[] = [
  * one without seeing the other is how you end up with a board nobody can find.
  */
 export default function AccessPanel({ eventId }: { eventId: number }) {
+  // Drafts, saved together by the Save button — picking an option is not committing to it.
   const [visibility, setVisibility] = useState<string | null>(null);
   const [entry, setEntry] = useState<string | null>(null);
   const [advertised, setAdvertised] = useState(false);
+  const [saved, setSaved] = useState<{ visibility: string | null; entry: string | null; advertised: boolean } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [savedNote, setSavedNote] = useState(false);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [guestPolicy, setGuestPolicy] = useState<string | null>(null);
-  const [slug, setSlug] = useState('');
+  const [pickedClan, setPickedClan] = useState<PickedClan | null>(null);
   // Inviting ONE PERSON. `event_invites` always took a clan or a person and the POST always accepted
   // `playerId`; what was missing was any way to turn a name into an id, so only half of inviting was
   // reachable from the product.
@@ -71,6 +76,7 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
     setVisibility(d.visibility);
     setEntry(d.entry);
     setAdvertised(!!d.advertised);
+    setSaved({ visibility: d.visibility, entry: d.entry, advertised: !!d.advertised });
     setInvites(d.invites ?? []);
     setGuestPolicy(d.guestPolicy ?? null);
   }, [eventId]);
@@ -79,33 +85,41 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
     load().catch(() => {});
   }, [load]);
 
-  async function patch(field: 'visibility' | 'entry', value: string) {
-    const prev = field === 'visibility' ? visibility : entry;
-    if (field === 'visibility') setVisibility(value);
-    else setEntry(value);
-    const res = await clanFetch(`/api/events/${eventId}/invites`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ [field]: value }),
-    });
-    if (!res.ok) {
-      if (field === 'visibility') setVisibility(prev);
-      else setEntry(prev);
+  const dirty =
+    saved != null &&
+    (visibility !== saved.visibility || (entry ?? 'open') !== (saved.entry ?? 'open') || advertised !== saved.advertised);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await clanFetch(`/api/events/${eventId}/invites`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ visibility, entry: entry ?? 'open', advertised }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error ?? 'Could not save');
+      setSaved({ visibility, entry: entry ?? 'open', advertised });
+      setSavedNote(true);
+      setTimeout(() => setSavedNote(false), 2500);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
     }
   }
 
-  async function setAdvertise(value: boolean) {
-    setAdvertised(value);
-    const res = await clanFetch(`/api/events/${eventId}/invites`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ advertised: value }),
-    });
-    if (!res.ok) setAdvertised(!value);
+  function discard() {
+    if (!saved) return;
+    setVisibility(saved.visibility);
+    setEntry(saved.entry);
+    setAdvertised(saved.advertised);
+    setError(null);
   }
 
   async function invite() {
-    const clanSlug = slug.trim().toLowerCase();
+    const clanSlug = pickedClan?.slug;
     if (!clanSlug) return;
     setBusy(true);
     setError(null);
@@ -117,7 +131,7 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error ?? 'Could not invite');
-      setSlug('');
+      setPickedClan(null);
       await load();
     } catch (e) {
       setError((e as Error).message);
@@ -198,14 +212,14 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
 
       <div className="grid gap-5 px-5 py-4 md:grid-cols-2">
         <div>
-          <Choice title="Who can see it" options={VISIBILITY} value={visibility} onPick={(v) => patch('visibility', v)} />
+          <Choice title="Who can see it" options={VISIBILITY} value={visibility} onPick={setVisibility} />
           {/* Readable by anyone is not the same as advertised to everyone — a separate yes. */}
           {visibility === 'public' && (
             <label className="mt-2 flex cursor-pointer items-start gap-2.5 rounded-xl border border-card-border bg-background p-3 text-[12.5px] hover:border-gold/30">
               <input
                 type="checkbox"
                 checked={advertised}
-                onChange={(e) => setAdvertise(e.target.checked)}
+                onChange={(e) => setAdvertised(e.target.checked)}
                 className="mt-0.5 h-4 w-4 accent-gold"
               />
               <span>
@@ -219,7 +233,7 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
           )}
         </div>
         <div>
-          <Choice title="Who can enter it" options={ENTRY} value={entry ?? 'open'} onPick={(v) => patch('entry', v)} />
+          <Choice title="Who can enter it" options={ENTRY} value={entry ?? 'open'} onPick={setEntry} />
           {/* The clan's own door is the stricter of the two and always wins in lib/guestAdmission —
               this setting could promise entry that the roster policy then refused, silently. */}
           {guestPolicy === 'closed' && (
@@ -230,6 +244,37 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
           )}
         </div>
       </div>
+
+      {(dirty || savedNote) && (
+        <div className="flex items-center gap-3 border-t border-card-border px-5 py-3">
+          {dirty ? (
+            <>
+              <span className="text-[12.5px] text-text-muted">Unsaved changes.</span>
+              <button
+                type="button"
+                onClick={discard}
+                disabled={saving}
+                className="ml-auto text-[12.5px] text-text-muted hover:text-foreground hover:underline underline-offset-4"
+              >
+                Discard
+              </button>
+              <button
+                type="button"
+                onClick={save}
+                disabled={saving}
+                className="rounded-lg bg-gold px-4 py-1.5 text-[13px] font-semibold text-brown-dark transition-colors hover:bg-gold-light disabled:opacity-50"
+              >
+                {saving ? 'Saving…' : 'Save changes'}
+              </button>
+            </>
+          ) : (
+            <span className="text-[12.5px] text-accent-green-light">Saved.</span>
+          )}
+        </div>
+      )}
+      {!(visibility === 'invited' || invites.length > 0) && error && (
+        <p className="px-5 pb-3 text-[12.5px] text-accent-red">{error}</p>
+      )}
 
       {/* Only meaningful while the board is invite-only — but shown whenever invites EXIST, so
           switching to "Anyone" does not hide a list somebody may want to clean up. */}
@@ -307,20 +352,11 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
             </div>
           ) : (
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="flex flex-1 items-center gap-1 rounded-lg border border-card-border bg-background px-3 py-2 text-sm focus-within:border-gold/50">
-              <span className="font-mono text-[13px] text-text-muted">anvilosrs.com/c/</span>
-              <input
-                value={slug}
-                onChange={(e) => setSlug(e.target.value.replace(/[^a-z0-9-]/gi, '').toLowerCase())}
-                onKeyDown={(e) => e.key === 'Enter' && invite()}
-                placeholder="clan-slug"
-                className="flex-1 bg-transparent font-mono text-[13px] text-foreground outline-none placeholder:text-text-muted/50"
-              />
-            </div>
+            <ClanPicker value={pickedClan} onChange={setPickedClan} disabled={busy} />
             <button
               type="button"
               onClick={invite}
-              disabled={busy || !slug.trim()}
+              disabled={busy || !pickedClan}
               className="shrink-0 rounded-lg bg-gold px-4 py-2 text-[13px] font-semibold text-brown-dark transition-colors hover:bg-gold-light disabled:opacity-50"
             >
               Invite

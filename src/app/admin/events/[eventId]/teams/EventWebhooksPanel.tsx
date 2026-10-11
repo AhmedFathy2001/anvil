@@ -1,5 +1,6 @@
 'use client';
 
+import Select from '@/components/Select';
 import { useCallback, useEffect, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 import { EVENT_POST_KINDS, type EventPostKind } from '@/lib/eventWebhookKinds';
@@ -172,22 +173,20 @@ export default function EventWebhooksPanel({ eventId, teams }: { eventId: number
               placeholder="Name (optional)"
               className="min-w-0 flex-1 rounded border border-card-border bg-brown-dark px-2.5 py-1.5 text-[12px]"
             />
-            <select
-              value={teamId ?? ''}
-              onChange={(e) => {
-                const v = e.target.value ? Number(e.target.value) : null;
+            <Select
+              value={teamId != null ? String(teamId) : ''}
+              onChange={(raw) => {
+                const v = raw ? Number(raw) : null;
                 setTeamId(v);
                 setKinds(v == null ? ALL_KINDS : TEAM_DEFAULT);
               }}
-              className="rounded border border-card-border bg-brown-dark px-2.5 py-1.5 text-[12px]"
-            >
-              <option value="">Whole event</option>
-              {teams.map((t) => (
-                <option key={t.id} value={t.id}>
-                  Team: {t.name}
-                </option>
-              ))}
-            </select>
+              ariaLabel="Which team this webhook is for"
+              className="min-w-[10rem] flex-1"
+              options={[
+                { value: '', label: 'Whole event' },
+                ...teams.map((t) => ({ value: String(t.id), label: `Team: ${t.name}` })),
+              ]}
+            />
           </div>
           {kindChips(kinds, (k) => setKinds((ks) => (ks.includes(k) ? (ks.length > 1 ? ks.filter((x) => x !== k) : ks) : [...ks, k])))}
           <button

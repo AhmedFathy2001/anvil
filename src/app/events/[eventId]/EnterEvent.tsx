@@ -1,5 +1,6 @@
 'use client';
 
+import Select from '@/components/Select';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -143,18 +144,14 @@ export default function EnterEvent({ eventId, signupFee }: { eventId: number; si
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">
         {options.length > 1 && (
-          <select
-            value={chosen ?? ''}
-            onChange={(e) => setChosen(Number(e.target.value) || null)}
-            className="rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-gold/50"
-          >
-            <option value="">Which character?</option>
-            {options.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.rsn}
-              </option>
-            ))}
-          </select>
+          <Select
+            value={chosen != null ? String(chosen) : ''}
+            onChange={(v) => setChosen(Number(v) || null)}
+            placeholder="Which character?"
+            ariaLabel="Which character"
+            className="min-w-[10rem]"
+            options={options.map((o) => ({ value: String(o.id), label: o.rsn }))}
+          />
         )}
         <button
           type="button"

@@ -1121,25 +1121,22 @@ export default function SignupAdminPanel({
                             {allTeams.length > 0 && (
                               <label className="flex items-center gap-1.5 text-xs text-text-muted">
                                 <span className="whitespace-nowrap">{s.team ? 'On team' : 'Wants'}</span>
-                                <select
+                                <Select
                                   value={String(s.team?.id ?? s.requestedTeam?.id ?? '')}
                                   disabled={actingId === s.id}
-                                  onChange={(e) =>
+                                  onChange={(v) =>
                                     performAction(s.id, {
                                       action: 'set-team',
-                                      teamId: e.target.value === '' ? null : Number(e.target.value),
+                                      teamId: v === '' ? null : Number(v),
                                     })
                                   }
-                                  className="px-2 py-1 rounded border border-card-border bg-brown-dark text-xs text-foreground disabled:opacity-50 focus:outline-none focus:border-gold"
-                                  title="Change which team this sign-up is on. Clearing it returns them to the pool."
-                                >
-                                  <option value="">No team (pool)</option>
-                                  {allTeams.map((t) => (
-                                    <option key={t.id} value={t.id}>
-                                      {t.name}
-                                    </option>
-                                  ))}
-                                </select>
+                                  ariaLabel="Change which team this sign-up is on. Clearing it returns them to the pool."
+                                  className="min-w-[9rem]"
+                                  options={[
+                                    { value: '', label: 'No team (pool)' },
+                                    ...allTeams.map((t) => ({ value: String(t.id), label: t.name })),
+                                  ]}
+                                />
                               </label>
                             )}
                             {s.status === 'approved' && (
