@@ -173,8 +173,16 @@ export default async function CharacterPage({ params }: { params: Promise<{ rsn:
         </div>
       </header>
 
-      {profile.statsAt || profile.skills.length > 0 ? (
-        <ProfileTabs
+      {/* The tabs render with or without a hiscores snapshot — the clan profile always has. Gating them
+          on the snapshot hid everything the plugin pushes on its own (collection log, quests, combat
+          achievements, records) until the sweep happened to reach this character. */}
+      {!profile.statsAt && profile.skills.length === 0 && (
+        <div className="mb-5 rounded-xl border border-dashed border-card-border px-5 py-4 text-center text-sm text-text-muted">
+          No hiscores yet for this character. Levels and XP appear once the hiscores sweep has seen it, or
+          as soon as the RuneLite plugin pushes.
+        </div>
+      )}
+      <ProfileTabs
           profile={profile}
           series={series}
           records={records}
@@ -195,12 +203,6 @@ export default async function CharacterPage({ params }: { params: Promise<{ rsn:
             <AccountProgressCard summary={progress} quests={questItems} combat={caItems} />
           }
         />
-      ) : (
-        <div className="rounded-xl border border-dashed border-card-border px-5 py-10 text-center text-sm text-text-muted">
-          Nothing tracked for this character yet. Stats appear once the hiscores sweep has seen it, or
-          as soon as the RuneLite plugin pushes.
-        </div>
-      )}
 
       {character.viewerOwns ? (
         <ProfileShare rsn={character.rsn} shared={!character.privateToViewer} />
