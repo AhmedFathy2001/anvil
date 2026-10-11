@@ -294,9 +294,11 @@ export default async function AdminDashboardPage() {
   const teamsById = new Map(teamCountRows.map((r) => [r.eventId, r.n]));
   const boardById = new Map(boardRows.map((b) => [b.id, b]));
 
-  const dated = index.filter((i) => i.startDate && i.endDate);
+  // An open-ended board (start, no end) is on the calendar too: it runs until someone ends it, so
+  // it covers the runway from its start onward. Leaving it out drew a live board as a gap.
+  const dated = index.filter((i) => i.startDate && (i.endDate || i.status !== 'ended'));
   const unscheduled = index
-    .filter((i) => i.kind === 'board' && (!i.startDate || !i.endDate) && i.status !== 'ended')
+    .filter((i) => i.kind === 'board' && !i.startDate && i.status !== 'ended')
     .map((i) => ({ id: i.id, name: i.title, href: i.href }));
 
   const running = dated.filter((i) => i.status === 'running');
@@ -306,7 +308,7 @@ export default async function AdminDashboardPage() {
 
   // The runway window, and the first hole in it that's still ahead of us.
   const runwayEnd = addDays(today, RUNWAY_WEEKS * 7);
-  const runwaySpans = dated.map((i) => ({ start: dayOf(i.startDate!), end: dayOf(i.endDate!) }));
+  const runwaySpans = dated.map((i) => ({ start: dayOf(i.startDate!), end: endDayOf(i, runwayEnd) }));
   const gap = findGaps(runwaySpans, today, runwayEnd, 2).find((g) => g.end >= today) ?? null;
 
   const queue = attentionQueue({
@@ -523,8 +525,9 @@ function NowBar({
         ) : (
           running.slice(0, 2).map((it, i) => {
             const start = Date.parse(it.startDate!);
-            const end = Date.parse(it.endDate!);
-            const pct = end > start ? Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100)) : 0;
+            // Open-ended: no finish line to measure against, so no countdown and a full bar.
+            const end = it.endDate ? Date.parse(it.endDate) : null;
+            const pct = end == null ? 100 : end > start ? Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100)) : 0;
             return (
               <div key={`${it.kind}-${it.id}`} className={i > 0 ? 'mt-4 pt-4 border-t border-card-border' : ''}>
                 <div className="flex items-center gap-2">
@@ -532,7 +535,9 @@ function NowBar({
                   <span className="text-[10px] uppercase tracking-[0.18em] text-accent-green-light">
                     Running now
                   </span>
-                  <span className="ml-auto text-[10px] text-text-muted">{remaining(end, now)}</span>
+                  <span className="ml-auto text-[10px] text-text-muted">
+                    {end == null ? 'no end date' : remaining(end, now)}
+                  </span>
                 </div>
                 {canOpenEvents ? (
                   <ClanLink href={it.href} className="block mt-1.5 font-semibold hover:text-gold transition-colors">
@@ -576,7 +581,7 @@ function NowBar({
             </div>
             <div className="text-[11px] text-text-muted/70 mt-2.5">
               {new Date(nextUp.startDate!).toLocaleDateString()} →{' '}
-              {new Date(nextUp.endDate!).toLocaleDateString()}
+              {nextUp.endDate ? new Date(nextUp.endDate).toLocaleDateString() : 'no end date'}
             </div>
           </>
         ) : (
@@ -594,6 +599,14 @@ function NowBar({
       </div>
     </div>
   );
+}
+
+/**
+ * The last day an item covers. An open-ended board (no end date) runs until someone ends it, so it
+ * reaches `horizon` — the far edge of whatever window is being drawn.
+ */
+function endDayOf(item: EventIndexItem, horizon: Date): Date {
+  return item.endDate ? dayOf(item.endDate) : horizon;
 }
 
 function remaining(end: number, now: number): string {
@@ -742,7 +755,7 @@ function Runway({ items, today, weeks }: { items: EventIndexItem[]; today: Date;
   const total = daysBetween(from, to) + 1;
   const pct = (days: number) => (days / total) * 100;
 
-  const inWindow = items.filter((i) => dayOf(i.endDate!) >= from && dayOf(i.startDate!) <= to);
+  const inWindow = items.filter((i) => endDayOf(i, to) >= from && dayOf(i.startDate!) <= to);
 
   // Lane packing reserves room for the LABEL, not just the bar.
   //
@@ -753,7 +766,7 @@ function Runway({ items, today, weeks }: { items: EventIndexItem[]; today: Date;
   const labelDays = Math.max(1, Math.ceil(total * LABEL_INSIDE_MIN));
   const laid = packLanes(inWindow, (i) => {
     const start = dayOf(i.startDate!);
-    const end = dayOf(i.endDate!);
+    const end = endDayOf(i, to);
     // Measure the VISIBLE extent, not the whole event: something already under way is clipped at
     // today, so a week-long competition three days from its end draws as a three-day sliver and
     // still needs label room beside it.
@@ -769,7 +782,7 @@ function Runway({ items, today, weeks }: { items: EventIndexItem[]; today: Date;
 
   // Empty stretches, drawn as what they are. Two days of nothing isn't news; a fortnight is.
   const gaps = findGaps(
-    inWindow.map((i) => ({ start: dayOf(i.startDate!), end: dayOf(i.endDate!) })),
+    inWindow.map((i) => ({ start: dayOf(i.startDate!), end: endDayOf(i, to) })),
     from,
     to,
     3,
@@ -851,7 +864,7 @@ function Runway({ items, today, weeks }: { items: EventIndexItem[]; today: Date;
             laid.map((l) => {
               // Real dates for drawing; l.end carries the label padding and would overstate it.
               const realStart = dayOf(l.item.startDate!);
-              const realEnd = dayOf(l.item.endDate!);
+              const realEnd = endDayOf(l.item, to);
               const rawLeft = pct(daysBetween(from, realStart));
               const left = Math.max(0, rawLeft);
               const width = Math.max(
@@ -874,7 +887,7 @@ function Runway({ items, today, weeks }: { items: EventIndexItem[]; today: Date;
                 <div key={`${l.item.kind}-${l.item.id}`}>
                   <ClanLink
                     href={l.item.href}
-                    title={`${l.item.title} · ${l.item.headline}`}
+                    title={`${l.item.title} · ${l.item.headline}${l.item.endDate ? '' : ' · no end date'}`}
                     style={{ left: `${left}%`, width: `${width}%`, top: `${l.lane * RUNWAY_ROW}px` }}
                     className={`absolute h-[24px] border flex items-center px-2 text-[10px] font-semibold overflow-hidden whitespace-nowrap hover:brightness-125 transition-[filter] ${tone} ${
                       clipped ? 'rounded-r-md border-l-0' : 'rounded-md'

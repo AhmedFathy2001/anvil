@@ -129,9 +129,8 @@ export default function SettingsClient({ event, tiles, canManageEditors = false 
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            rules: typeMeta.revealPolicy
-              ? { ...JSON.parse(currentEvent.rules ?? '{}'), revealPolicy: typeMeta.revealPolicy }
-              : { ...JSON.parse(currentEvent.rules ?? '{}'), revealPolicy: 'all' },
+            // Just the policy; the API merges it over the stored rules.
+            rules: { revealPolicy: typeMeta.revealPolicy ?? 'all' },
           }),
         });
         if (res.ok) {

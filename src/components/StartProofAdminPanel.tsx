@@ -7,7 +7,7 @@ import Input from '@/components/Input';
 import NumberInput from '@/components/NumberInput';
 import Checkbox from '@/components/Checkbox';
 import WorldMapPicker from '@/components/WorldMapPicker';
-import { DEFAULT_START_RADIUS } from '@/lib/startLocations';
+import { DEFAULT_START_RADIUS, START_LOCATIONS } from '@/lib/startLocations';
 import { clanFetch } from '@/lib/clanFetch';
 import {
   parseEventRules,
@@ -15,6 +15,7 @@ import {
   MIN_START_RADIUS,
   MAX_START_RADIUS,
   type StartProofMissing,
+  type StartProofPick,
   type StartLocation,
 } from '@/lib/eventRules';
 
@@ -88,12 +89,40 @@ export default function StartProofAdminPanel({
     rules.startProof?.maxSessionMinutes ?? DEFAULT_START_PROOF.maxSessionMinutes,
   );
   const [locations, setLocations] = useState<StartLocation[]>(rules.startProof?.locations ?? []);
+  const [pick, setPick] = useState<StartProofPick>(rules.startProof?.pick ?? 'random');
   // Index of the pool entry being pinned on the map, or -1 for none open.
   const [editing, setEditing] = useState(-1);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
   const [data, setData] = useState<PanelData | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
+
+  // What Save would send, and the same thing as of the last save — the difference is the "Unsaved
+  // changes" marker. Rows with neither a name nor a pin are blank lines, not spots, and don't count.
+  const draft = useMemo(
+    () =>
+      enabled
+        ? {
+            ...DEFAULT_START_PROOF,
+            onMissing,
+            autoAcceptPlugin: autoAccept,
+            locations: locations
+              .map((l) => ({ ...l, label: l.label.trim() }))
+              .filter((l) => l.label.length > 0 || l.x != null),
+            pick,
+            maxSessionMinutes: maxSession,
+          }
+        : null,
+    [enabled, onMissing, autoAccept, locations, pick, maxSession],
+  );
+  const draftKey = JSON.stringify(draft);
+  const [savedKey, setSavedKey] = useState(draftKey);
+  const dirty = draftKey !== savedKey;
+  // A pinned spot with no name used to be dropped on save, and the event then drew a random
+  // built-in town nobody had chosen. Refuse the save and point at the row instead.
+  const unnamed = enabled
+    ? locations.flatMap((l, i) => (l.x != null && l.label.trim().length === 0 ? [i] : []))
+    : [];
 
   const load = useCallback(async () => {
     const res = await clanFetch(`/api/admin/events/${event.id}/start-proofs`);
@@ -105,24 +134,24 @@ export default function StartProofAdminPanel({
   }, [load, startProofOn]);
 
   async function saveConfig() {
+    if (unnamed.length > 0) {
+      setMsg(unnamed.length === 1 ? 'Name the pinned spot before saving.' : 'Name the pinned spots before saving.');
+      setEditing(-1);
+      return;
+    }
     setSaving(true);
     setMsg('');
     try {
-      const startProof = enabled
-        ? {
-            ...DEFAULT_START_PROOF,
-            onMissing,
-            autoAcceptPlugin: autoAccept,
-            locations: locations.filter((l) => l.label.trim().length > 0),
-            maxSessionMinutes: maxSession,
-          }
-        : null;
+      const sentKey = draftKey;
       const res = await clanFetch(`/api/events/${event.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rules: { ...rules, startProof } }),
+        // Only this panel's key — the API merges it over the stored rules, so a stale copy of the
+        // rest (missions, month end) can't be written back over what another panel saved.
+        body: JSON.stringify({ rules: { startProof: draft } }),
       });
       if (res.ok) {
+        setSavedKey(sentKey);
         setMsg('Saved.');
         router.refresh();
         if (enabled) void load();
@@ -180,6 +209,19 @@ export default function StartProofAdminPanel({
   }
 
   const counts = data?.counts;
+  // How the drawn spot was chosen, read off the saved policy. The pool can be edited after the draw
+  // (the spot itself is frozen on the event), so a location that's no longer in it says so plainly.
+  const savedPool = rules.startProof?.locations ?? [];
+  const inPool = data?.location != null && savedPool.some((l) => l.label === data.location);
+  const drawSource = savedPool.length === 0
+    ? `Drawn at random from the built-in list (${START_LOCATIONS.length} spots).`
+    : !inPool
+      ? 'Drawn from the pool as it was at the start — it has been edited since.'
+      : rules.startProof?.pick === 'first'
+        ? 'Your first spot — you chose "always the first spot".'
+        : savedPool.length === 1
+          ? 'Your only spot.'
+          : `Drawn at random from your ${savedPool.length} spots.`;
 
   return (
     <div className="min-w-0 mb-6">
@@ -252,13 +294,40 @@ export default function StartProofAdminPanel({
 
             <div>
               <div className="text-xs text-text-muted mb-1">
-                Location pool — the spot is drawn from these when the event goes live. Empty draws from
-                the built-in list. Pin one on the map and the plugin checks players are actually there.
+                Location pool. When the event goes live one spot is picked{' '}
+                {pick === 'first' ? (
+                  <>&mdash; always the <strong>first</strong> one in this list.</>
+                ) : (
+                  <>
+                    <strong>at random</strong>, each equally likely. One spot here means it&apos;s always
+                    that spot.
+                  </>
+                )}{' '}
+                Leave it empty to draw at random from the built-in list ({START_LOCATIONS.length} towns
+                and banks). Pin a spot on the map and the plugin checks players are actually there.
               </div>
+
+              <label className="flex items-center gap-2 mb-2">
+                <span className="text-xs text-text-muted">Pick</span>
+                <div className="w-56">
+                  <Select
+                    value={pick}
+                    onChange={(v) => setPick(v as StartProofPick)}
+                    options={[
+                      { value: 'random', label: 'At random from the pool' },
+                      { value: 'first', label: 'Always the first spot' },
+                    ]}
+                    ariaLabel="How the spot is picked"
+                  />
+                </div>
+              </label>
 
               <div className="space-y-1.5">
                 {locations.map((loc, i) => (
-                  <div key={i} className="border border-card-border rounded-lg p-2">
+                  <div
+                    key={i}
+                    className={`border rounded-lg p-2 ${unnamed.includes(i) ? 'border-red-400/60' : 'border-card-border'}`}
+                  >
                     <div className="flex items-center gap-2">
                       <Input
                         value={loc.label}
@@ -289,6 +358,11 @@ export default function StartProofAdminPanel({
                         ✕
                       </button>
                     </div>
+                    {unnamed.includes(i) && (
+                      <p className="text-[11px] text-red-400 mt-1">
+                        Name this spot &mdash; it&apos;s what everyone is told to go to.
+                      </p>
+                    )}
 
                     {editing === i && (
                       <div className="mt-2 space-y-2">
@@ -350,6 +424,7 @@ export default function StartProofAdminPanel({
           >
             {saving ? 'Saving…' : 'Save'}
           </button>
+          {dirty && !saving && <span className="text-xs text-yellow-300">Unsaved changes</span>}
           {msg && <span className="text-xs text-text-muted">{msg}</span>}
         </div>
 
@@ -373,6 +448,7 @@ export default function StartProofAdminPanel({
                 {data.maxSessionMinutes > 0 && (
                   <span className="text-text-muted"> · session under {data.maxSessionMinutes}m</span>
                 )}
+                <span className="block text-[11px] text-text-muted">{drawSource}</span>
               </span>
               <span className="text-text-muted">
                 {counts.accepted}/{counts.total} accepted

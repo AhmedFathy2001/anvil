@@ -42,13 +42,6 @@ function isoToLocalInput(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function localInputToIso(local: string): string {
-  if (!local) return '';
-  const d = new Date(local);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toISOString();
-}
-
 function addDays(iso: string, days: number): string {
   if (!iso) return '';
   const d = new Date(iso);
@@ -74,8 +67,12 @@ export default function DateRangeField({ startIso, endIso, onChange, required, a
   const initialMode: 'range' | 'duration' = diffDays(startIso, endIso) != null ? 'duration' : 'range';
   const [mode, setMode] = useState<'range' | 'duration'>(initialMode);
   const [customDays, setCustomDays] = useState<number | null>(null);
+  // "No end date" is a choice in BOTH modes. It used to live only under Date range, so a host who
+  // was in Duration (where the presets land) could never get there — every start edit and "Start
+  // now" recomputed an end. While it's on, nothing here invents an end behind the host's back.
+  const [noEnd, setNoEnd] = useState(allowOpenEnded && !!startIso && !endIso);
+  const openEnded = allowOpenEnded && noEnd;
 
-  const startLocal = isoToLocalInput(startIso);
   const endLocal = isoToLocalInput(endIso);
   const computedDays = useMemo(() => diffDays(startIso, endIso), [startIso, endIso]);
 
@@ -87,25 +84,24 @@ export default function DateRangeField({ startIso, endIso, onChange, required, a
     }
   }, [computedDays, mode]);
 
-  function setStart(localValue: string) {
-    const nextStartIso = localInputToIso(localValue);
-    if (mode === 'duration') {
-      const days = customDays ?? computedDays ?? 7;
-      onChange({ startIso: nextStartIso, endIso: addDays(nextStartIso, days) });
-    } else {
-      onChange({ startIso: nextStartIso, endIso });
-    }
-  }
-
-  function setEnd(localValue: string) {
-    onChange({ startIso, endIso: localInputToIso(localValue) });
+  /** The end a new start implies: the chosen duration in Duration mode, untouched in Range mode. */
+  function endForStart(nextStartIso: string): string {
+    if (openEnded) return '';
+    if (mode !== 'duration') return endIso;
+    return nextStartIso ? addDays(nextStartIso, customDays ?? computedDays ?? 7) : '';
   }
 
   function applyDuration(days: number) {
     setCustomDays(days);
+    setNoEnd(false);
     if (startIso) {
       onChange({ startIso, endIso: addDays(startIso, days) });
     }
+  }
+
+  function chooseNoEnd() {
+    setNoEnd(true);
+    onChange({ startIso, endIso: '' });
   }
 
   function startNowSnapped() {
@@ -114,12 +110,7 @@ export default function DateRangeField({ startIso, endIso, onChange, required, a
     const d = new Date();
     d.setSeconds(0, 0);
     const iso = d.toISOString();
-    if (mode === 'duration') {
-      const days = customDays ?? computedDays ?? 7;
-      onChange({ startIso: iso, endIso: addDays(iso, days) });
-    } else {
-      onChange({ startIso: iso, endIso });
-    }
+    onChange({ startIso: iso, endIso: endForStart(iso) });
   }
 
   return (
@@ -144,14 +135,7 @@ export default function DateRangeField({ startIso, endIso, onChange, required, a
         <label className="block text-xs text-text-muted mb-1">Start</label>
         <DateTimePicker
           value={startIso}
-          onChange={(iso) => {
-            if (mode === 'duration') {
-              const days = customDays ?? computedDays ?? 7;
-              onChange({ startIso: iso, endIso: iso ? addDays(iso, days) : '' });
-            } else {
-              onChange({ startIso: iso, endIso });
-            }
-          }}
+          onChange={(iso) => onChange({ startIso: iso, endIso: endForStart(iso) })}
           placeholder="Pick a start date…"
           ariaLabel="Start date and time"
           required={required}
@@ -167,7 +151,14 @@ export default function DateRangeField({ startIso, endIso, onChange, required, a
             {allowOpenEnded && (
               <button
                 type="button"
-                onClick={() => onChange({ startIso, endIso: endIso ? '' : addDays(startIso || new Date().toISOString(), 7) })}
+                onClick={() => {
+                  if (endIso) {
+                    chooseNoEnd();
+                  } else {
+                    setNoEnd(false);
+                    onChange({ startIso, endIso: addDays(startIso || new Date().toISOString(), 7) });
+                  }
+                }}
                 className="text-[11px] text-text-muted hover:text-gold underline-offset-2 hover:underline"
               >
                 {endIso ? 'No end date' : 'Set an end date'}
@@ -176,24 +167,22 @@ export default function DateRangeField({ startIso, endIso, onChange, required, a
           </div>
           <DateTimePicker
             value={endIso}
-            onChange={(iso) => onChange({ startIso, endIso: iso })}
+            onChange={(iso) => {
+              if (iso) setNoEnd(false);
+              onChange({ startIso, endIso: iso });
+            }}
             placeholder="Pick an end date…"
             ariaLabel="End date and time"
             required={required}
           />
-          {allowOpenEnded && !endIso && (
-            <p className="text-[11px] text-gold/90 mt-1.5 leading-relaxed">
-              No end date — this runs until you end it yourself. Nothing closes it automatically, and
-              end-of-event posts, payouts and the recap wait for that.
-            </p>
-          )}
+          {allowOpenEnded && !endIso && <OpenEndedNote />}
         </div>
       ) : (
         <div>
           <label className="block text-xs text-text-muted mb-1">Duration</label>
           <div className="flex flex-wrap gap-1.5 mb-2">
             {DURATION_OPTIONS.map((opt) => {
-              const active = (customDays ?? computedDays) === opt.days;
+              const active = !openEnded && (customDays ?? computedDays) === opt.days;
               return (
                 <button
                   key={opt.days}
@@ -209,6 +198,20 @@ export default function DateRangeField({ startIso, endIso, onChange, required, a
                 </button>
               );
             })}
+            {allowOpenEnded && (
+              <button
+                type="button"
+                onClick={chooseNoEnd}
+                aria-pressed={openEnded}
+                className={`px-3 py-1.5 text-xs rounded border transition-colors ${
+                  openEnded
+                    ? 'bg-gold/20 border-gold text-gold'
+                    : 'border-card-border text-text-muted hover:border-gold/50 hover:text-foreground'
+                }`}
+              >
+                No end date
+              </button>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-text-muted">Custom:</span>
@@ -225,7 +228,8 @@ export default function DateRangeField({ startIso, endIso, onChange, required, a
             />
             <span className="text-xs text-text-muted">days</span>
           </div>
-          {endLocal && (
+          {openEnded && <OpenEndedNote />}
+          {endLocal && !openEnded && (
             <p className="text-[11px] text-text-muted mt-2">
               Ends <span className="text-foreground/80">{formatLocalDateTime(endIso)}</span>
               {endIso && <span className="text-text-muted/80"> ({formatUtcHint(endIso)})</span>}
@@ -234,6 +238,15 @@ export default function DateRangeField({ startIso, endIso, onChange, required, a
         </div>
       )}
     </div>
+  );
+}
+
+function OpenEndedNote() {
+  return (
+    <p className="text-[11px] text-gold/90 mt-1.5 leading-relaxed">
+      No end date — this runs until you end it yourself. Nothing closes it automatically, and
+      end-of-event posts, payouts and the recap wait for that.
+    </p>
   );
 }
 

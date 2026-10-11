@@ -64,7 +64,7 @@ export async function POST(
     );
   }
 
-  const spot = drawStartLocation(cfg.locations);
+  const spot = drawStartLocation(cfg);
   const drawnAt = new Date().toISOString();
   await db
     .update(events)

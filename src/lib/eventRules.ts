@@ -133,6 +133,13 @@ export interface MissionConfig {
 export type StartProofMissing = 'flag' | 'reject';
 
 /**
+ * How the spot comes out of the pool at the start. 'random' (the default, and what every policy
+ * stored before this field existed parses to) draws one uniformly; 'first' always takes the first
+ * entry, for a host who wants a specific place without deleting the rest of their list.
+ */
+export type StartProofPick = 'random' | 'first';
+
+/**
  * One spot the start location can be drawn from. The label is what everyone reads ("Edgeville
  * bank"); the coordinates are optional and turn the spot from a written instruction into a CHECK —
  * the plugin reports where the player actually stood and the server measures the distance.
@@ -159,6 +166,8 @@ export interface StartProofConfig {
   autoAcceptPlugin: boolean;
   /** Host-supplied location pool to draw the start spot from. Empty = the built-in START_LOCATIONS. */
   locations: StartLocation[];
+  /** Random draw from the pool, or always its first entry. See StartProofPick. */
+  pick: StartProofPick;
   /**
    * How fresh the player's game session has to be when they take the shot, in minutes. 0 = off.
    *
@@ -324,6 +333,7 @@ export const DEFAULT_START_PROOF: StartProofConfig = {
   onMissing: 'flag',
   autoAcceptPlugin: true,
   locations: [],
+  pick: 'random',
   maxSessionMinutes: 15,
 };
 
@@ -343,6 +353,12 @@ const REVEAL_POLICIES: RevealPolicy[] = ['all', 'scheduled', 'interval', 'bounty
 const MISSION_ANNOUNCE_MODES: MissionAnnounceMode[] = ['manual', 'interval', 'scheduled', 'daily'];
 const BALANCE_MODES: BalanceMode[] = ['off', 'advisory', 'tiered-snake', 'dynamic-order', 'spread-cap', 'auto'];
 const START_PROOF_MISSING: StartProofMissing[] = ['flag', 'reject'];
+const START_PROOF_PICKS: StartProofPick[] = ['random', 'first'];
+
+/** What a pinned spot is called when the host never named it — it is still a real place. */
+export function pinnedSpotLabel(x: number, y: number): string {
+  return `Pinned spot (${x}, ${y})`;
+}
 
 /** One coordinate, or null when it's missing/out of the world. Never throws on garbage. */
 function cleanCoord(raw: unknown): number | null {
@@ -366,13 +382,17 @@ function cleanLocations(raw: unknown): StartLocation[] {
       ? { label: entry }
       : (entry && typeof entry === 'object' && !Array.isArray(entry) ? entry as Record<string, unknown> : null);
     if (!obj) continue;
-    const label = typeof obj.label === 'string' ? obj.label.trim().slice(0, MAX_START_LOCATION_LEN) : '';
+    const x = cleanCoord(obj.x);
+    const y = cleanCoord(obj.y);
+    // A pin with no name is still a spot the host chose on the map. Dropping it once sent a whole
+    // event to a random built-in town instead, so it gets a name from its coordinates. Only an entry
+    // with neither a name nor a pin is empty enough to drop.
+    const named = typeof obj.label === 'string' ? obj.label.trim().slice(0, MAX_START_LOCATION_LEN) : '';
+    const label = named || (x != null && y != null ? pinnedSpotLabel(x, y) : '');
     if (!label) continue;
     const key = label.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    const x = cleanCoord(obj.x);
-    const y = cleanCoord(obj.y);
     out.push({
       label,
       // Half a pin is no pin: a spot is only checkable with both coordinates.
@@ -467,7 +487,7 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
   }
   let startProof: EventRules['startProof'] = null;
   const sp = obj.startProof as
-    | { onMissing?: unknown; autoAcceptPlugin?: unknown; locations?: unknown; maxSessionMinutes?: unknown }
+    | { onMissing?: unknown; autoAcceptPlugin?: unknown; locations?: unknown; pick?: unknown; maxSessionMinutes?: unknown }
     | null
     | undefined;
   if (sp && typeof sp === 'object' && !Array.isArray(sp)) {
@@ -478,6 +498,8 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
       // Only an explicit false turns auto-accept off — an older/partial object keeps the default.
       autoAcceptPlugin: sp.autoAcceptPlugin !== false,
       locations: cleanLocations(sp.locations),
+      // Absent = 'random', which is what every policy did before the host could choose.
+      pick: sp.pick === 'first' ? 'first' : 'random',
       // Absent = 0 = off, so a policy stored before this field existed doesn't grow a new demand
       // on its players mid-event. `DEFAULT_START_PROOF` is what a fresh turn-on gets.
       maxSessionMinutes: clampInt(sp.maxSessionMinutes, 0, 720, 0),
@@ -629,7 +651,7 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
   }
   if (o.startProof !== undefined && o.startProof !== null) {
     const s = o.startProof as {
-      onMissing?: unknown; autoAcceptPlugin?: unknown; locations?: unknown; maxSessionMinutes?: unknown;
+      onMissing?: unknown; autoAcceptPlugin?: unknown; locations?: unknown; pick?: unknown; maxSessionMinutes?: unknown;
     };
     if (typeof s !== 'object' || Array.isArray(s)) {
       return { error: 'rules.startProof must be an object or null' };
@@ -639,6 +661,9 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     }
     if (s.autoAcceptPlugin !== undefined && typeof s.autoAcceptPlugin !== 'boolean') {
       return { error: 'rules.startProof.autoAcceptPlugin must be a boolean' };
+    }
+    if (s.pick !== undefined && !START_PROOF_PICKS.includes(s.pick as StartProofPick)) {
+      return { error: "rules.startProof.pick must be 'random' or 'first'" };
     }
     if (s.locations !== undefined && !Array.isArray(s.locations)) {
       return { error: 'rules.startProof.locations must be an array of places' };
@@ -684,6 +709,38 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     // something that null cannot hold — so it has to be asked about like every other key.
     isDefaultSignupFields(canonical.signupFields);
   return { rules: isDefault ? null : JSON.stringify(canonical) };
+}
+
+/**
+ * Fold a PATCH's `rules` object over the stored one, one top-level key at a time: a key in the
+ * request replaces that key, a key it leaves out is kept, and an explicit null removes it (every
+ * key's absent state is its default, so null and "off" read the same).
+ *
+ * The API used to replace the blob wholesale, and each panel on the Overview tab sends the rules it
+ * was rendered with. Save the starting shot, then save the mission panel without a reload, and the
+ * mission panel's stale copy wiped the starting shot. Panels now send only the keys they own, and
+ * this is the half that lets them.
+ *
+ * Merged into the STORED object rather than the parsed one, for the same reason as the sign-up
+ * fields route: writing the parsed shape back would pin every default as an explicit value.
+ * A non-object patch (null included) is returned as-is for validateEventRules to judge — `rules:
+ * null` on the PATCH still means "clear them all".
+ */
+export function mergeEventRulesPatch(storedRaw: string | null | undefined, patch: unknown): unknown {
+  if (patch == null || typeof patch !== 'object' || Array.isArray(patch)) return patch;
+  let stored: Record<string, unknown> = {};
+  try {
+    const parsed = storedRaw ? JSON.parse(storedRaw) : {};
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) stored = parsed;
+  } catch {
+    stored = {};
+  }
+  const merged: Record<string, unknown> = { ...stored };
+  for (const [key, value] of Object.entries(patch as Record<string, unknown>)) {
+    if (value === null) delete merged[key];
+    else if (value !== undefined) merged[key] = value;
+  }
+  return merged;
 }
 
 /** True when the event reveals tiles per-tile (any policy other than classic 'all'). */

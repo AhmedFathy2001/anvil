@@ -86,16 +86,11 @@ export default function BalancePanel({ eventId, rules, teams, ratings, draftStat
     setBusy('mode');
     setNote(null);
     try {
-      let parsed: Record<string, unknown> = {};
-      try {
-        parsed = rules ? (JSON.parse(rules) as Record<string, unknown>) : {};
-      } catch {
-        parsed = {};
-      }
       const res = await clanFetch(`/api/events/${eventId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rules: { ...parsed, balanceMode: value } }),
+        // Only this key; the API merges it over the stored rules.
+        body: JSON.stringify({ rules: { balanceMode: value } }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);

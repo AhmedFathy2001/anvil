@@ -25,7 +25,7 @@ import {
 } from '../src/lib/startProof.ts';
 import type { StartProofConfig, StartLocation } from '../src/lib/eventRules.ts';
 
-const CFG: StartProofConfig = { onMissing: 'flag', autoAcceptPlugin: true, locations: [], maxSessionMinutes: 0 };
+const CFG: StartProofConfig = { onMissing: 'flag', autoAcceptPlugin: true, locations: [], pick: 'random', maxSessionMinutes: 0 };
 const DRAWN = '2026-08-16T18:00:00.000Z';
 // An hour into the event: inside the six-hour window where a starting shot is still asked for.
 const DURING = Date.parse('2026-08-16T19:00:00.000Z');
@@ -83,6 +83,22 @@ test('drawStartLocation: host pool wins, built-ins are the fallback', () => {
   for (let i = 0; i < 50; i++) {
     assert.ok(START_LOCATIONS.includes(drawStartLocation(undefined)));
   }
+});
+
+test("drawStartLocation: pick 'first' always takes the host's first spot", () => {
+  const pool: StartLocation[] = [
+    { label: 'Edgeville bank', x: 3094, y: 3491, radius: null },
+    { label: 'Varrock square', x: 3212, y: 3428, radius: null },
+  ];
+  const first = { ...CFG, locations: pool, pick: 'first' as const };
+  // Whatever the dice say — and a re-draw lands on it again, by design.
+  assert.deepEqual(drawStartLocation(first, () => 1), pool[0]);
+  assert.deepEqual(drawStartLocation(first), pool[0]);
+  // A policy draws at random by default, same as a bare pool.
+  assert.deepEqual(drawStartLocation({ ...CFG, locations: pool }, () => 1), pool[1]);
+  // There's no "first" in a list the host never wrote: an empty pool still draws a built-in.
+  assert.deepEqual(drawStartLocation({ ...CFG, pick: 'first' }, () => 2), START_LOCATIONS[2]);
+  assert.deepEqual(drawStartLocation(null, () => 2), START_LOCATIONS[2]);
 });
 
 test('START_LOCATIONS: every built-in spot is pinned, and pinned inside the world', () => {

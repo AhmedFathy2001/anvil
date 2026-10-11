@@ -14,7 +14,7 @@ import { describeStartBlockers } from '@/lib/eventReadiness';
 import { autoGeneratePayoutsOnEnd } from '@/lib/payouts';
 import { writePlayerEventFacts } from '@/lib/playerEventFacts';
 import { buildDraftBalance, bestBalancingSwap, projectedSpreadPct } from '@/lib/draftBalance';
-import { parseEventRules, hasRevealPolicy, visibleTiles, validateEventRules } from '@/lib/eventRules';
+import { parseEventRules, hasRevealPolicy, visibleTiles, validateEventRules, mergeEventRulesPatch } from '@/lib/eventRules';
 import { announceNextMission } from '@/lib/revealEngine';
 import { clearPreStartEventActivity } from '@/lib/preStartActivity';
 
@@ -463,7 +463,10 @@ export async function PATCH(
   // The reveal POLICY itself shouldn't hop between kinds mid-event; the change-type action (which
   // is pre-start-gated and rebuilds tiles) is the way to switch modes.
   if ('rules' in body) {
-    const rulesResult = validateEventRules(body.rules);
+    // Merged over what's stored, key by key (lib/eventRules#mergeEventRulesPatch): a panel saving
+    // its own keys must never wipe another panel's. Read fresh, not from a client copy.
+    const stored = await db.query.events.findFirst({ where: eq(events.id, id), columns: { rules: true } });
+    const rulesResult = validateEventRules(mergeEventRulesPatch(stored?.rules, body.rules));
     if ('error' in rulesResult) {
       return NextResponse.json({ error: rulesResult.error }, { status: 400 });
     }

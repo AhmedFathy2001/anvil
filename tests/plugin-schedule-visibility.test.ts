@@ -127,3 +127,23 @@ test('a guest is listed public boards and the clan boards they entered — nothi
   await db.update(s.clanMemberships).set({ kind: 'member' });
   assert.equal((await pluginScheduleViewer(openClan, user.id)).member, true);
 });
+
+// NO END DATE IS "RUNS UNTIL ENDED", NOT "NEVER LIVE". The schedule required an end date, so an
+// open-ended board vanished from the plugin the moment it was created — running or not.
+test('an open-ended board is listed as active, with a null end; ending it by hand delists it', async () => {
+  const { db, schema: s } = await loadDb();
+  const { eq } = await import('drizzle-orm');
+  const [open] = await db
+    .insert(s.events)
+    .values({ clanId: shyClan, name: 'open-ended board', boardSize: 5, startDate: day(-2), endDate: null, visibility: 'clan' })
+    .returning();
+
+  const listed = (await buildSchedule(shyClan, { member: true })).bingos.find((b) => b.title === 'open-ended board');
+  assert.ok(listed, 'a running open-ended board is on the schedule');
+  assert.equal(listed.status, 'active');
+  assert.equal(listed.endDate, null);
+
+  await db.update(s.events).set({ forceEndedAt: day(0) }).where(eq(s.events.id, open.id));
+  const after = (await buildSchedule(shyClan, { member: true })).bingos.map((b) => b.title);
+  assert.ok(!after.includes('open-ended board'));
+});

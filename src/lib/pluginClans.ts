@@ -276,9 +276,9 @@ async function liveBoardsBySeat(seatIds: number[]): Promise<Map<number, LiveEnro
       r.teamId != null &&
       !r.forceEndedAt &&
       r.startDate != null &&
-      r.endDate != null &&
       Date.parse(r.startDate) <= now &&
-      now <= Date.parse(r.endDate),
+      // An open-ended event (no end date) is live until it's ended by hand.
+      (r.endDate == null || now <= Date.parse(r.endDate)),
   );
   if (playing.length === 0) return new Map();
 

@@ -17,6 +17,7 @@ import {
   nextRevealAt,
   parseEventRules,
   parseSignupFields,
+  mergeEventRulesPatch,
   rotationExpiries,
   validateEventRules,
   visibleTiles,
@@ -196,6 +197,8 @@ test('parseEventRules: startProof is off by default and tolerant when present', 
     onMissing: 'flag',
     autoAcceptPlugin: true,
     locations: [],
+    // Every policy stored before the host could choose drew at random, and still does.
+    pick: 'random',
     // A policy stored before the session window existed must not grow the demand on read.
     maxSessionMinutes: 0,
   });
@@ -203,7 +206,7 @@ test('parseEventRules: startProof is off by default and tolerant when present', 
   assert.deepEqual(
     parseEventRules(JSON.stringify({ startProof: { onMissing: 'explode', autoAcceptPlugin: 'yes', locations: 'nope', maxSessionMinutes: 'soon' } }))
       .startProof,
-    { onMissing: 'flag', autoAcceptPlugin: true, locations: [], maxSessionMinutes: 0 },
+    { onMissing: 'flag', autoAcceptPlugin: true, locations: [], pick: 'random', maxSessionMinutes: 0 },
   );
   assert.equal(
     parseEventRules(JSON.stringify({ startProof: { autoAcceptPlugin: false } })).startProof?.autoAcceptPlugin,
@@ -250,6 +253,71 @@ test('parseEventRules: pinned locations keep their coordinates, junk pins drop t
     { label: 'Out of the world', x: null, y: null, radius: null },
     { label: 'Radius clamped', x: 3200, y: 3200, radius: 200 },
   ]);
+});
+
+test('parseEventRules: a pinned spot with no name is kept, named after its coordinates', () => {
+  // A host pinned a spot, never typed a name, saved — and the event drew a random built-in town.
+  // A pin is a choice; only an entry with neither a name nor a pin is empty enough to drop.
+  const rules = parseEventRules(
+    JSON.stringify({
+      startProof: {
+        locations: [
+          { label: '', x: 3094, y: 3491, radius: 30 },
+          { label: '   ', x: 3200, y: 3200 },
+          { label: '', x: null, y: null },
+        ],
+      },
+    }),
+  );
+  assert.deepEqual(rules.startProof?.locations, [
+    { label: 'Pinned spot (3094, 3491)', x: 3094, y: 3491, radius: 30 },
+    { label: 'Pinned spot (3200, 3200)', x: 3200, y: 3200, radius: null },
+  ]);
+  // And it survives the write path, not just the read.
+  const stored = validateEventRules({ startProof: { locations: [{ label: '', x: 3094, y: 3491 }] } });
+  assert.ok('rules' in stored && stored.rules);
+  assert.equal(parseEventRules((stored as { rules: string }).rules).startProof?.locations[0]?.label, 'Pinned spot (3094, 3491)');
+});
+
+test('parseEventRules + validateEventRules: startProof.pick is random unless the host says first', () => {
+  assert.equal(parseEventRules(JSON.stringify({ startProof: {} })).startProof?.pick, 'random');
+  assert.equal(parseEventRules(JSON.stringify({ startProof: { pick: 'first' } })).startProof?.pick, 'first');
+  assert.equal(parseEventRules(JSON.stringify({ startProof: { pick: 'chaos' } })).startProof?.pick, 'random');
+  assert.deepEqual(validateEventRules({ startProof: { pick: 'chaos' } }), {
+    error: "rules.startProof.pick must be 'random' or 'first'",
+  });
+  const stored = validateEventRules({ startProof: { pick: 'first' } });
+  assert.equal(parseEventRules((stored as { rules: string }).rules).startProof?.pick, 'first');
+});
+
+test('mergeEventRulesPatch: a key sent replaces, a key left out is kept, null removes', () => {
+  const stored = JSON.stringify({
+    revealPolicy: 'interval',
+    startProof: { onMissing: 'reject', locations: [{ label: 'Edgeville bank', x: 3094, y: 3491 }] },
+    mission: { announceMode: 'manual' },
+  });
+  // The mission panel saving its own key must not touch the starting shot.
+  const merged = mergeEventRulesPatch(stored, { mission: { announceMode: 'interval', intervalMinutes: 30 } });
+  const rules = parseEventRules((validateEventRules(merged) as { rules: string }).rules);
+  assert.equal(rules.startProof?.onMissing, 'reject');
+  assert.equal(rules.startProof?.locations[0]?.label, 'Edgeville bank');
+  assert.equal(rules.mission?.announceMode, 'interval');
+  assert.equal(rules.revealPolicy, 'interval');
+
+  // Explicit null turns one key off and leaves the rest.
+  const off = parseEventRules(
+    (validateEventRules(mergeEventRulesPatch(stored, { startProof: null })) as { rules: string }).rules,
+  );
+  assert.equal(off.startProof, null);
+  assert.equal(off.mission?.announceMode, 'manual');
+
+  // Nothing stored, or garbage stored, is an empty base — never a throw.
+  assert.deepEqual(mergeEventRulesPatch(null, { lockout: true }), { lockout: true });
+  assert.deepEqual(mergeEventRulesPatch('not json', { lockout: true }), { lockout: true });
+  // A non-object patch passes through for validateEventRules to judge: null still clears them all.
+  assert.equal(mergeEventRulesPatch(stored, null), null);
+  assert.deepEqual(validateEventRules(mergeEventRulesPatch(stored, null)), { rules: null });
+  assert.equal(mergeEventRulesPatch(stored, 'nope'), 'nope');
 });
 
 test('parseEventRules: the session window is minutes, 0 = off', () => {

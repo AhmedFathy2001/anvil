@@ -352,7 +352,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
     // here it's the same act: name it, say when it runs, press create.
     if (weeklyType) {
       if (!startDate || !endDate) {
-        setError('A competition needs a start and an end — pick a window on the right.');
+        setError('A weekly competition always needs an end — it scores the gains between its start and end. Pick a window on the right.');
         return;
       }
       setLoading(true);
@@ -1310,7 +1310,8 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                     setStartDate(startIso);
                     setEndDate(endIso);
                   }}
-                  allowOpenEnded
+                  // A weekly competition scores the gains between its two ends, so it can't run open.
+                  allowOpenEnded={!weeklyType}
                 />
               </div>
             )}
@@ -1321,7 +1322,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
             <p className="text-xs text-text-muted mt-2">
               {!startDate ? (
                 weeklyType
-                  ? 'Pick a window — a competition needs one to score against.'
+                  ? 'Pick a window — a weekly competition always has an end, because it scores the gains between the two.'
                   : 'No dates — it starts when you say so.'
               ) : customDates ? null : (
                 <span suppressHydrationWarning>
