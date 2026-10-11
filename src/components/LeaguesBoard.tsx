@@ -180,9 +180,19 @@ export default function LeaguesBoard({
         // Staff see the whole board on a reveal-policy event, which made an armed board look
         // identical to a fully-revealed one. Mark what members can't see yet.
         const staffOnly = staffOnlyTileIds?.has(tile.id) ?? false;
+        // A teammate has called it: the whole row says so, not just a pair of initials beside the
+        // title, so scanning the list for "free" tiles doesn't mean reading every row.
+        const claimers = !done ? claimedBy?.get(tile.id) ?? [] : [];
+        const claimed = claimers.length > 0;
+        const claimedByMe = claimers.some((c) => c.mine);
 
         return (
-          <div key={tile.id} className={`${done ? 'bg-accent-green/5' : ''} ${staffOnly ? 'bg-brown-dark/40' : ''}`}>
+          <div
+            key={tile.id}
+            className={`border-l-4 ${
+              claimed ? (claimedByMe ? 'border-l-gold bg-gold/[0.06]' : 'border-l-sky-400 bg-sky-500/[0.07]') : 'border-l-transparent'
+            } ${done ? 'bg-accent-green/5' : ''} ${staffOnly ? 'bg-brown-dark/40' : ''}`}
+          >
             {bandHeader && (
               <div className="sticky top-0 z-[1] flex items-center gap-2.5 border-b border-card-border bg-brown-dark/95 px-3 py-1.5 backdrop-blur">
                 <span
@@ -223,8 +233,19 @@ export default function LeaguesBoard({
                     {tile.label}
                   </span>
                   {done && <span className="text-accent-green-light text-xs shrink-0">✓</span>}
-                  {!done && claimedBy?.get(tile.id) && (
-                    <ClaimAvatars claims={claimedBy.get(tile.id)!} size="sm" />
+                  {claimed && (
+                    <>
+                      <ClaimAvatars claims={claimers} size="sm" />
+                      <span
+                        className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                          claimedByMe ? 'border border-gold/40 bg-gold/15 text-gold' : 'border border-sky-400/40 bg-sky-500/15 text-sky-200'
+                        }`}
+                      >
+                        {claimedByMe
+                          ? claimers.length > 1 ? `You + ${claimers.length - 1}` : 'You’re on it'
+                          : `Claimed · ${claimers[0].name}${claimers.length > 1 ? ` +${claimers.length - 1}` : ''}`}
+                      </span>
+                    </>
                   )}
                   {staffOnly && (
                     <span
