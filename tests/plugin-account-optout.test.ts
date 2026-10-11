@@ -158,7 +158,7 @@ test('a live event blocks the detach but still records the choice', async () => 
   const marker = await db.query.detectedAccounts.findFirst({
     where: and(eq(s.detectedAccounts.userId, me.userId), eq(s.detectedAccounts.rsnNormalized, 'in a bingo')),
   });
-  assert.equal(marker?.status, 'dismissed');
+  assert.equal(marker?.status, 'released');
 });
 
 test('somebody else’s character played here: recorded once, shown as other, disputable', async () => {
@@ -290,4 +290,35 @@ test('a name-only play of somebody else’s character records nothing for the ow
   const acct = await accountByRsn('Spoof Target');
   const rows = await db.select().from(s.accountSightings).where(eq(s.accountSightings.accountId, acct.id));
   assert.equal(rows.length, 0);
+});
+
+test('Track it again can never lift a staff rejection', async () => {
+  // Staff rejecting a first-use claim leaves a 'dismissed' marker so the plugin can't re-claim it.
+  // "resume" deletes only the login's own 'released' marker — and release never softens a dismissal.
+  const claimant = await login();
+  const id = await rosterMember('Staff Rejected');
+  await db.insert(s.detectedAccounts).values({
+    userId: claimant.userId, rsn: 'Staff Rejected', rsnNormalized: 'staff rejected', status: 'dismissed',
+    detectedAt: new Date().toISOString(), lastSeenAt: new Date().toISOString(),
+  });
+  await act(claimant.token, 'Staff Rejected', 'h-rej', 'release');
+  await act(claimant.token, 'Staff Rejected', 'h-rej', 'resume');
+  const marker = await db.query.detectedAccounts.findFirst({
+    where: and(eq(s.detectedAccounts.userId, claimant.userId), eq(s.detectedAccounts.rsnNormalized, 'staff rejected')),
+  });
+  assert.equal(marker?.status, 'dismissed', 'still the staff decision');
+  await play(claimant.token, 'Staff Rejected', 'h-rej');
+  const acct = (await db.select().from(s.accounts).where(eq(s.accounts.id, id)))[0];
+  assert.equal(acct.claimedAt, null, 'the plugin did not re-claim it');
+});
+
+test('a name-only claim stays provisional when a later play anchors a hash', async () => {
+  // An old plugin (no hash) links a brand-new name provisionally. A later play WITH a hash must not
+  // promote it to verified — that hash is whatever the client sent.
+  const me = await login();
+  await play(me.token, 'Old Plugin Alt', null);
+  await play(me.token, 'Old Plugin Alt', 'any-hash');
+  const acct = await accountByRsn('Old Plugin Alt');
+  assert.equal(acct.provisional, 1);
+  assert.equal(acct.verificationMethod, 'plugin_first_use');
 });

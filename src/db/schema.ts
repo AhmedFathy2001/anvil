@@ -1555,7 +1555,7 @@ export const detectedAccounts = pgTable('detected_accounts', {
   rsn: text('rsn').notNull(),                       // display casing as last reported in-game
   rsnNormalized: text('rsn_normalized').notNull(),  // lowercased for the per-user uniqueness guard
   accountHash: text('account_hash'),                // stable Jagex id when the plugin reports it
-  status: text('status').notNull().default('pending'), // 'pending' | 'dismissed'
+  status: text('status').notNull().default('pending'), // 'pending' | 'dismissed' | 'released' (lib/accountRelease)
   detectedAt: text('detected_at').notNull(),
   lastSeenAt: text('last_seen_at').notNull(),       // bumped each time we see them play it
 }, (table) => [

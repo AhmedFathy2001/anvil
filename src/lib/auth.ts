@@ -15,6 +15,7 @@ import { applyPendingRole } from '@/lib/pending-role';
 import { onCharacterLinked } from '@/lib/identity';
 import { claimAccountForPerson } from '@/lib/accountClaim';
 import { recordForeignSighting } from '@/lib/accountSightings';
+import { IGNORED_STATUSES } from '@/lib/accountRelease';
 import { pickActivePluginEvent } from '@/lib/pluginEventPick';
 
 const ADMIN_SESSION_SECRET = requireSecret('ADMIN_SESSION_SECRET', 'dev-admin-secret');
@@ -992,7 +993,7 @@ async function autoLinkOrSuggestOnPlay(
       where: and(
         eq(detectedAccounts.userId, userId),
         eq(detectedAccounts.rsnNormalized, normalizedRsn),
-        eq(detectedAccounts.status, 'dismissed'),
+        inArray(detectedAccounts.status, [...IGNORED_STATUSES]),
       ),
     });
     if (ignored) {
@@ -1013,7 +1014,9 @@ async function autoLinkOrSuggestOnPlay(
         rsn,
         rsnNormalized: normalizedRsn,
         accountHash,
-        method: weak && accountHash ? 'plugin_first_use' : 'plugin',
+        // plugin_first_use whenever weak: ensurePluginVerifiedOnPlay skips that method, so a later
+        // play can't quietly promote a name-only claim to verified by anchoring whatever hash it sends.
+        method: weak ? 'plugin_first_use' : 'plugin',
         provisional: weak,
         actorUserId: userId,
       });
@@ -1040,7 +1043,7 @@ async function autoLinkOrSuggestOnPlay(
         rsn,
         rsnNormalized: normalizedRsn,
         accountHash,
-        method: accountHash ? 'plugin_first_use' : 'plugin',
+        method: 'plugin_first_use',
         provisional: true,
         actorUserId: userId,
       });
@@ -1152,7 +1155,7 @@ async function maybeAutoClaimEstablishedOnPlay(
       where: and(
         eq(detectedAccounts.userId, userId),
         eq(detectedAccounts.rsnNormalized, existing.rsnNormalized),
-        eq(detectedAccounts.status, 'dismissed'),
+        inArray(detectedAccounts.status, [...IGNORED_STATUSES]),
       ),
       columns: { id: true },
     });

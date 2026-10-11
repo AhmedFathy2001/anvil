@@ -163,7 +163,7 @@ export default async function ProfilePage({
     .filter((d) => d.status === 'pending')
     .map((d) => ({ id: d.id, rsn: d.rsn, lastSeenAt: d.lastSeenAt }));
   const ignored = notOwned
-    .filter((d) => d.status === 'dismissed')
+    .filter((d) => d.status === 'dismissed' || d.status === 'released')
     .map((d) => ({ id: d.id, rsn: d.rsn, lastSeenAt: d.lastSeenAt }));
 
   // CAN THEY TAKE THIS SEAT BACK? Only a seat the in-game roster is not holding open is theirs to

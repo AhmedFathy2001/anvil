@@ -5,12 +5,13 @@
 // pair without claiming, linking or verifying anything — that stays with resolvePluginMember on a
 // normal request — so the "Not my account" button can never itself link the account it is refusing.
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, detectedAccounts } from '@/db/schema';
 import { normalizeRsn } from '@/lib/auth';
 import { personOf } from '@/lib/roster';
+import { IGNORED_STATUSES } from '@/lib/accountRelease';
 
 /**
  * - `yours`: claimed by this login's person.
@@ -52,7 +53,7 @@ export async function accountStanding(userId: number, c: PlayedCharacter): Promi
       where: and(
         eq(detectedAccounts.userId, userId),
         eq(detectedAccounts.rsnNormalized, c.rsnNormalized),
-        eq(detectedAccounts.status, 'dismissed'),
+        inArray(detectedAccounts.status, [...IGNORED_STATUSES]),
       ),
       columns: { id: true },
     }),

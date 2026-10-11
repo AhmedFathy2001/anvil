@@ -14,6 +14,20 @@ import { findRosterSeats } from '@/lib/roster';
 
 export type ReleaseOutcome = { ok: true } | { ok: false; reason: 'not-found' | 'live-event' };
 
+/**
+ * A `detected_accounts` marker that keeps a character from auto-linking to a login.
+ *
+ * - `dismissed`: set FOR them — staff rejecting a claim or detaching a character, or their own
+ *   Ignore on a suggestion. Only an explicit Add (claimAccountForUser, which applies every
+ *   ownership gate) gets past it.
+ * - `released`: set BY them — the plugin's "Not my account" or the profile's Remove. The plugin's
+ *   "Track it again" undoes it.
+ *
+ * Kept apart so that undo can never lift a staff decision: a rejected claimant pressing "Track it
+ * again" would otherwise delete the very marker that stops their plugin re-claiming the character.
+ */
+export const IGNORED_STATUSES = ['dismissed', 'released'] as const;
+
 export const LIVE_EVENT_RELEASE_MESSAGE =
   'This account is in an active event — you can remove it once the event ends.';
 
@@ -53,17 +67,18 @@ export async function markCharacterIgnored(
   if (marker) {
     await db
       .update(detectedAccounts)
-      .set({ status: 'dismissed', rsn, accountHash: accountHash ?? marker.accountHash, lastSeenAt: nowIso })
+      // Never soften a 'dismissed' (possibly staff's) into an undoable 'released'.
+      .set({ status: marker.status === 'dismissed' ? 'dismissed' : 'released', rsn, lastSeenAt: nowIso })
       .where(eq(detectedAccounts.id, marker.id));
     return;
   }
   await db
     .insert(detectedAccounts)
-    .values({ userId, rsn, rsnNormalized, accountHash, status: 'dismissed', detectedAt: nowIso, lastSeenAt: nowIso })
+    .values({ userId, rsn, rsnNormalized, accountHash, status: 'released', detectedAt: nowIso, lastSeenAt: nowIso })
     .onConflictDoNothing();
 }
 
-/** Undo {@link markCharacterIgnored}: the next play links it again, exactly as before. */
+/** Undo {@link markCharacterIgnored}: the next play links it again. Lifts only this login's own 'released'. */
 export async function unmarkCharacterIgnored(userId: number, rsnNormalized: string): Promise<void> {
   await db
     .delete(detectedAccounts)
@@ -71,7 +86,7 @@ export async function unmarkCharacterIgnored(userId: number, rsnNormalized: stri
       and(
         eq(detectedAccounts.userId, userId),
         eq(detectedAccounts.rsnNormalized, rsnNormalized),
-        eq(detectedAccounts.status, 'dismissed'),
+        eq(detectedAccounts.status, 'released'),
       ),
     );
 }
