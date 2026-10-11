@@ -1296,6 +1296,26 @@ export async function claimAccountForUser(
   return { ok: true, clanMemberId };
 }
 
+/**
+ * The character the Jagex Launcher says is about to log in, sent by the plugin at the login screen.
+ *
+ * Separate from X-RSN on purpose. X-RSN is a played name, and a played name claims, links, renames and
+ * verifies (resolvePluginMember). This one is a guess from the launcher with no account hash behind it,
+ * so it may only choose which of the person's OWN characters a read is about — the panel warms up for
+ * the right one before Play, and the real login takes over.
+ */
+export const RSN_HINT_HEADER = 'X-RSN-Hint';
+
+/** True when the request names a character only by the launcher hint, never by a played RSN. */
+export function pluginRsnHintOnly(request: Request): boolean {
+  return !request.headers.get('X-RSN')?.trim() && !!request.headers.get(RSN_HINT_HEADER)?.trim();
+}
+
+/** The character a read may personalise on: the played RSN, else the launcher hint. Never for writes. */
+export function pluginViewerRsn(request: Request): string | null {
+  return request.headers.get('X-RSN')?.trim() || request.headers.get(RSN_HINT_HEADER)?.trim() || null;
+}
+
 // Plugin identity: resolve which of a caller's owned clan_members they're logged into, from an
 // Authorization: Bearer header — WITHOUT requiring a live bingo event. This is the shared identity
 // core: `verifyPluginToken` layers event resolution on top, and the live-stats ingest credits weekly
@@ -1315,8 +1335,13 @@ export async function claimAccountForUser(
 // Returns null when: the token is invalid, the user owns no members, NO RSN hint was sent (we can't
 // tell which of the user's accounts is logged in, so we must not guess), or the reported account
 // isn't on this user's roster.
+//
+// `hintOnly` is the login-screen read (see pluginRsnHintOnly): the name comes from X-RSN-Hint, the
+// hash is ignored, and EVERY side effect above is skipped. It can only pick between seats this
+// token's person already owns, so it personalises a read and never decides who owns an account.
 export async function resolvePluginMember(
-  request: Request
+  request: Request,
+  opts?: { hintOnly?: boolean },
 ): Promise<{ userId: number; clanMemberId: number; accountId: number; rsn: string; clanId: number } | null> {
   const authHeader = request.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) return null;
@@ -1324,16 +1349,18 @@ export async function resolvePluginMember(
   const token = authHeader.slice(7).trim();
   if (!token) return null;
 
+  const hintOnly = opts?.hintOnly === true;
+
   // Pull the RSN hint from header (preferred), then ?rsn= query param.
-  let currentRsn = request.headers.get('X-RSN')?.trim() || null;
-  if (!currentRsn) {
+  let currentRsn = (hintOnly ? request.headers.get(RSN_HINT_HEADER) : request.headers.get('X-RSN'))?.trim() || null;
+  if (!currentRsn && !hintOnly) {
     try { currentRsn = new URL(request.url).searchParams.get('rsn'); } catch { /* not a URL we can parse */ }
   }
   const normalizedRsn = currentRsn ? normalizeRsn(currentRsn) : null;
 
   // Stable Jagex identifier (client.getAccountHash()), captured for auto-verify so
-  // a later in-game rename stays anchored to the same clan_member.
-  const accountHash = request.headers.get('X-Account-Hash')?.trim() || null;
+  // a later in-game rename stays anchored to the same clan_member. There is none before login.
+  const accountHash = hintOnly ? null : request.headers.get('X-Account-Hash')?.trim() || null;
 
   const user = await userByPluginToken(token);
   if (!user) return null;
@@ -1343,7 +1370,7 @@ export async function resolvePluginMember(
   // Do this before clan resolution. A new Discord person has no owned seat yet, so an apex token
   // cannot name a clan until after the first claim — but the profile should still show the account
   // the valid token reported and offer the proof step that completes that claim.
-  if (currentRsn && normalizedRsn) {
+  if (currentRsn && normalizedRsn && !hintOnly) {
     await rememberPluginObservation(user.id, currentRsn.trim(), normalizedRsn, accountHash, nowIso).catch(() => {});
   }
 
@@ -1355,7 +1382,7 @@ export async function resolvePluginMember(
   // an account holds a live member seat in at most one clan, so an UNCLAIMED one being played names
   // its clan unambiguously. A claimed account is someone's, and resolves through them or not at all.
   let clan = await resolvePluginClan(request, user.id);
-  if (!clan && normalizedRsn) {
+  if (!clan && normalizedRsn && !hintOnly) {
     // clan-scope: global -- finding WHICH clan is the question; one live member seat per account.
     const [rosterSeat] = await db
       .select({ clanId: clanRoster.clanId })
@@ -1384,7 +1411,7 @@ export async function resolvePluginMember(
 
   // Auto-add the account they're on (opt-out): safe cases link immediately, the forge-risky
   // established-by-RSN case falls back to an opt-in suggestion. Needs the RSN to know which account.
-  if (currentRsn && normalizedRsn) {
+  if (currentRsn && normalizedRsn && !hintOnly) {
     await autoLinkOrSuggestOnPlay(clan.id, user.id, currentRsn.trim(), normalizedRsn, accountHash, nowIso);
   }
 
@@ -1460,6 +1487,10 @@ export async function resolvePluginMember(
     matchedMember = memberRows.find((m) => memberRsnSets.get(m.id)?.has(normalizedRsn)) ?? null;
   }
   if (!matchedMember) return null; // current account isn't on this user's roster (by hash or name)
+  if (hintOnly) {
+    // Nothing below is a read. The launcher's name has proved nothing yet; the real login will.
+    return { userId: user.id, clanMemberId: matchedMember.id, accountId: matchedMember.accountId, rsn: currentRsn.trim(), clanId: clan.id };
+  }
   if (renamedFrom) {
     await applyRenameOnPlay(matchedMember.id, renamedFrom, currentRsn.trim(), user.id, nowIso, accountHash);
   }
@@ -1484,9 +1515,10 @@ export async function resolvePluginMember(
 // active event enrollment. Callers that need to distinguish "no event" from "bad token" layer
 // `verifyPluginTokenUser` on top.
 export async function verifyPluginToken(
-  request: Request
+  request: Request,
+  opts?: { hintOnly?: boolean },
 ): Promise<{ playerId: number; teamId: number; eventId: number; userId: number | null; rsn: string } | null> {
-  const member = await resolvePluginMember(request);
+  const member = await resolvePluginMember(request, opts);
   if (!member) return null;
 
   const nowIso = new Date().toISOString();

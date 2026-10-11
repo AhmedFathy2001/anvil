@@ -6,7 +6,7 @@ import { seatsOwnedByAnywhere } from '@/lib/roster';
 import { db } from '@/db';
 import { events, tiles, teams, submissions, eventParticipants, completions, clanRoster, eventStartProofs } from '@/db/schema';
 import { eq, and, sql, inArray, isNull } from 'drizzle-orm';
-import { verifyPluginToken, verifyPluginTokenUser, normalizeRsn } from '@/lib/auth';
+import { verifyPluginToken, verifyPluginTokenUser, normalizeRsn, pluginRsnHintOnly, pluginViewerRsn } from '@/lib/auth';
 import { eventTimeState } from '@/lib/eventTime';
 import { requireSecret } from '@/lib/env';
 import {
@@ -243,7 +243,11 @@ export async function GET(request: Request) {
   // RSN to find that unclaimed seat, claims the account and folds the placeholder into the Discord
   // person. Only then can the token name the clan. Resolving the clan first returned 404 here and
   // skipped that work forever, even though /config is the first request the plugin makes on login.
-  const auth = await verifyPluginToken(request);
+  //
+  // At the login screen the plugin may send only the Jagex Launcher's character name (X-RSN-Hint). That
+  // resolves the same entry read-only, so the panel shows the right board before Play — and none of the
+  // claim work above runs until the real login sends X-RSN.
+  const auth = await verifyPluginToken(request, { hintOnly: pluginRsnHintOnly(request) });
 
   // See lib/pluginNoClan for why this is answered rather than thrown.
   const clan = await resolvePluginClan(request);
@@ -259,7 +263,7 @@ export async function GET(request: Request) {
       // panel shows the schedule even when the player isn't enrolled anywhere.
       const [schedule, activeWeekly, weeklyNames, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, dropRarityFloor, facts, unlinkedActiveEvent, homeBoard, switchableClans] =
         await Promise.all([
-          pluginScheduleViewer(clan.id, userOnly.userId).then((v) => buildSchedule(clan.id, { ...v, viewerRsn: request.headers.get('x-rsn'), viewerAccountHash: request.headers.get('x-account-hash') })),
+          pluginScheduleViewer(clan.id, userOnly.userId).then((v) => buildSchedule(clan.id, { ...v, viewerRsn: pluginViewerRsn(request), viewerAccountHash: request.headers.get('x-account-hash') })),
           getActiveWeekly(clan.id),
           weeklyTrackedNames(clan.id),
           getNotificationWebhooks(clan.id),
@@ -272,7 +276,7 @@ export async function GET(request: Request) {
           getDropFacts(clan.id),
           activeEventForUnlinkedRsn(request, clan.id),
           homeBoardForUser(clan.id, userOnly.userId),
-          pluginClansFor(userOnly.userId, request.headers.get('X-RSN')),
+          pluginClansFor(userOnly.userId, pluginViewerRsn(request)),
         ]);
         // Needs the active weekly, so it resolves after it: a boss week makes that boss's collection-log
         // items always-reportable regardless of price. See getAlwaysNotifyItemIds.
@@ -634,7 +638,7 @@ export async function GET(request: Request) {
   // webhooks and fun-death pool the plugin posts with directly.
   const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, dropRarityFloor, tiers, facts] =
     await Promise.all([
-      pluginScheduleViewer(clan.id, auth.userId).then((v) => buildSchedule(clan.id, { ...v, viewerRsn: request.headers.get('x-rsn'), viewerAccountHash: request.headers.get('x-account-hash') })),
+      pluginScheduleViewer(clan.id, auth.userId).then((v) => buildSchedule(clan.id, { ...v, viewerRsn: pluginViewerRsn(request), viewerAccountHash: request.headers.get('x-account-hash') })),
       getActiveWeekly(clan.id),
       getNotificationWebhooks(clan.id),
       getFunDeathMessages(clan.id),
