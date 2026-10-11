@@ -65,8 +65,8 @@ export default function PluginPlayerTokenClient() {
     <div>
       <p className="text-sm text-text-muted mb-3">
         The plugin normally fills this in for you when you click <span className="text-foreground">Sign in with Discord</span> in
-        its sidebar panel. If that doesn&rsquo;t work, paste it into the plugin&rsquo;s{' '}
-        <span className="text-foreground">Account Token</span> setting yourself. It works across every event
+        its sidebar panel. If that doesn&rsquo;t work, copy it and use{' '}
+        <span className="text-foreground">Paste a token instead</span> in that panel. It works across every event
         you&rsquo;re signed up for. Rotate if you ever suspect it&rsquo;s leaked.
       </p>
       <div className="flex flex-wrap gap-2 items-center">

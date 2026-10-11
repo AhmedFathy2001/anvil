@@ -168,8 +168,8 @@ export default function AddCharacterClient({
       {error && <p className="mt-1 text-sm text-red-400">{error}</p>}
 
       <p className="mt-2 text-xs text-text-muted">
-        Sign-in not working? Paste this into the plugin&rsquo;s <b className="text-foreground">Account Token</b>{' '}
-        setting instead — you never re-paste it.{' '}
+        Sign-in not working? Copy this, then use <b className="text-foreground">Paste a token instead</b>{' '}
+        under the sign-in button in the Anvil panel — you never re-paste it.{' '}
         <ClanLink href="/guide/plugin" className="text-gold hover:text-gold-light">
           Setup guide →
         </ClanLink>

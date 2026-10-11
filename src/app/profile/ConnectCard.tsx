@@ -189,8 +189,8 @@ export default function ConnectCard({
               Sign-in not working? Paste your token by hand instead
             </summary>
             <p className="mt-2 text-xs text-text-muted">
-              Copy it into the plugin&rsquo;s <b className="text-foreground">Account Token</b> setting
-              (Configuration → Anvil). It works for every event — you never re-paste it.
+              Copy it, then click <b className="text-foreground">Paste a token instead</b> under the sign-in
+              button in the Anvil panel. It works for every event — you never re-paste it.
             </p>
             <div className="flex flex-wrap gap-2 mt-2">
               <code

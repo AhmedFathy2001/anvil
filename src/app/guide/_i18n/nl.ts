@@ -475,7 +475,7 @@ const nl: PartialGuideDict = {
 
     connect: {
       title: 'Inloggen',
-      intro: 'Open het **Anvil**-paneel in de zijbalk van RuneLite en klik op **Sign in with Discord**. Je browser opent op `anvilosrs.com`; keur daar de code goed en de plugin vult zijn Account Token zelf in — niets te typen, niets te kopiëren.',
+      intro: 'Open het **Anvil**-paneel in de zijbalk van RuneLite en klik op **Sign in with Discord**. Je browser opent op `anvilosrs.com`; keur daar de code goed en de plugin logt zichzelf in — niets te typen, niets te kopiëren en niets in te vullen bij de instellingen.',
       panelFigure: {
         caption: 'RuneLite → de Anvil-knop',
         alt: 'De pictogrammenbalk van RuneLite, met de Anvil-knop onderaan omcirkeld',
@@ -492,18 +492,22 @@ const nl: PartialGuideDict = {
         legend: [
           {
             label: 'Sign in with Discord',
-            body: 'verschijnt alleen zolang het token nog leeg is. Klik erop en de rest gebeurt in je browser.',
+            body: 'verschijnt alleen zolang deze computer is afgemeld. Klik erop en de rest gebeurt in je browser.',
           },
           {
             label: 'Connects to',
             body: 'altijd `anvilosrs.com` — de enige site waar de plugin mee praat, en die waar je token bij hoort.',
+          },
+          {
+            label: 'Paste a token instead',
+            body: 'de noodoplossing, als de stap in de browser bij jou niet werkt — zie het einde van deze stap.',
           },
         ],
       },
       easySteps: [
         'Klik op **Sign in with Discord**. Het paneel toont een korte code en opent je browser op `anvilosrs.com`.',
         'Log daar in met Discord als je dat nog niet bent, controleer of de code op de pagina overeenkomt met die in RuneLite, en klik dan op **Approve**.',
-        'Terug in RuneLite zegt het paneel _Signed in_ en heeft het het Account Token voor je ingevuld. Klaar.',
+        'Terug in RuneLite staat bovenaan het paneel _Signed in_ — en, zodra je inlogt in het spel, welk personage het volgt. Klaar.',
       ],
       linkFigure: {
         caption: 'anvilosrs.com → /link-device',
@@ -522,20 +526,13 @@ const nl: PartialGuideDict = {
           'Deze hele stroom blijft op `anvilosrs.com` — de code wordt daar uitgegeven, je keurt hem daar goed met je eigen Discord-login, en het token gaat rechtstreeks terug naar de plugin. De plugin opent alleen inlogpagina’s op `anvilosrs.com`, dus een inloglink die ergens anders heen wijst, komt niet van hem.',
         ],
       },
-      settingsRefreshNote: {
-        tag: 'Ziet Account Token er nog steeds leeg uit?',
-        body: [
-          'Dat is het niet — het token wordt opgeslagen op het moment dat je goedkeurt. Maar RuneLite tekent de instellingenpagina van een plug-in pas wanneer je hem opent, dus als je tijdens het inloggen al op **Configuration → Anvil** stond, laat dat veld nog zien wat het een minuut geleden liet zien.',
-          'Klik op een andere plug-in in de lijst en daarna weer op **Anvil**. Het token staat er. Het zijpaneel is tijdens het inloggen het eerlijke: het zegt _Signed in_ zodra het gelukt is.',
-        ],
-      },
       federationAside:
         'Niet te verwarren met **Connect clans** in het zijpaneel — dat is de aparte, optionele knop die je met andere Anvil-clans verbindt, en die verschijnt pas als je hier al bent ingelogd.',
       manualFallback:
         'Opent de browser niet vanzelf, dan drukt het paneel het adres en de code af zodat je het handmatig kunt openen. Codes verlopen na tien minuten — druk gewoon opnieuw op de knop.',
       manualHeading: 'Noodoplossing: plak je token met de hand',
       manualIntro:
-        'Werkt inloggen vanuit de plugin bij jou niet, kopieer dan je token hieronder (of via [Profile → plugin token](/profile#plugin-token), waar je het ook kunt roteren) en plak het in **Configuration → Anvil → Account Token**. Dat is de enige instelling die je hoeft aan te raken.',
+        'Werkt inloggen vanuit de plugin bij jou niet, kopieer dan je token hieronder (of via [Profile → plugin token](/profile#plugin-token), waar je het ook kunt roteren), klik vervolgens op **Paste a token instead** onder de aanmeldknop in het Anvil-paneel en plak het daar.',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: 'De kaart RuneLite plugin op de profielpagina, met het tokenveld en de knoppen Reveal, Copy en Rotate omkaderd',
@@ -546,13 +543,13 @@ const nl: PartialGuideDict = {
           },
           {
             label: 'Copy / Rotate',
-            body: 'kopieer hem naar het Account Token-veld van de plugin. Rotate geeft een nieuwe uit en maakt de oude ongeldig — gebruik dat als je ooit vermoedt dat je token is uitgelekt.',
+            body: 'kopieer hem en gebruik dan **Paste a token instead** in het Anvil-paneel. Rotate geeft een nieuwe uit en maakt de oude ongeldig — gebruik dat als je ooit vermoedt dat je token is uitgelekt.',
           },
         ],
       },
       goodToKnow: {
         tag: 'Gebruik dagelijks het zijpaneel',
-        body: ['**Het Anvil-zijpaneel is je belangrijkste werkplek**: meld je daar aan, bekijk je clans en actieve events, volg de voortgang, maak startfoto’s, voer synchronisaties uit en open de supporttools. **Configuration → Anvil**, hieronder afgebeeld, is alleen voor voorkeuren. De Account Token wordt automatisch ingevuld; plak er alleen zelf een als aanmelden via het zijpaneel mislukt. Eén token geldt voor alle events waarvoor je bent ingeschreven — je plakt hem nooit opnieuw per bingo.'],
+        body: ['**Het Anvil-zijpaneel is je belangrijkste werkplek**: meld je daar aan en af, bekijk je clans en actieve events, blader door vakjes en claim ze, volg de voortgang, maak startfoto’s, voer synchronisaties uit en open de supporttools. **Configuration → Anvil**, hieronder afgebeeld, is alleen voor voorkeuren — er staat geen token in. Wil je deze computer afmelden, open dan het **⋯**-menu naast je naam bovenaan het paneel. Eén aanmelding geldt voor alle events waarvoor je bent ingeschreven — je doet het nooit opnieuw per bingo.'],
       },
     },
 
@@ -787,7 +784,7 @@ const nl: PartialGuideDict = {
       rows: [
         {
           term: '`Anvil: your Account Token was rejected — tracking is OFF.`',
-          body: 'Het token is verkeerd of is geroteerd. Kopieer het opnieuw uit [Profile → RuneLite plugin](/profile#plugin-token), of maak het veld leeg en log opnieuw in vanuit de plugin.',
+          body: 'Het token is verkeerd of is geroteerd. Open het **⋯**-menu bovenaan het Anvil-paneel, druk op **Sign out** en daarna opnieuw op **Sign in with Discord** — of gebruik **Paste a token instead** met een vers token uit [Profile → RuneLite plugin](/profile#plugin-token).',
         },
         {
           term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',

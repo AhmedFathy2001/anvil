@@ -479,7 +479,7 @@ const da: PartialGuideDict = {
 
     connect: {
       title: 'Log ind',
-      intro: 'Åbn **Anvil**-panelet fra RuneLites sidebjælke, og klik på **Sign in with Discord**. Din browser åbner på `anvilosrs.com`; godkend koden dér, så udfylder pluginnet selv sin Account Token — intet at skrive, intet at kopiere.',
+      intro: 'Åbn **Anvil**-panelet fra RuneLites sidebjælke, og klik på **Sign in with Discord**. Din browser åbner på `anvilosrs.com`; godkend koden dér, så logger pluginnet selv ind — intet at skrive, intet at kopiere og intet at udfylde under indstillinger.',
       panelFigure: {
         caption: 'RuneLite → Anvil-knappen',
         alt: 'RuneLites sidebjælke med Anvil-knappen nederst i ikonstriben markeret',
@@ -496,18 +496,22 @@ const da: PartialGuideDict = {
         legend: [
           {
             label: 'Sign in with Discord',
-            body: 'vises kun, så længe tokenet stadig er tomt. Klik på den, og resten sker i din browser.',
+            body: 'vises kun, så længe denne computer er logget ud. Klik på den, og resten sker i din browser.',
           },
           {
             label: 'Connects to',
             body: 'altid `anvilosrs.com` — den eneste side, pluginnet taler med, og den, dit token hører til.',
+          },
+          {
+            label: 'Paste a token instead',
+            body: 'nødløsningen, hvis browsertrinnet ikke virker for dig — se slutningen af dette trin.',
           },
         ],
       },
       easySteps: [
         'Klik på **Sign in with Discord**. Panelet viser en kort kode og åbner din browser på `anvilosrs.com`.',
         'Log ind med Discord dér, hvis du ikke allerede er det, tjek at koden på siden matcher den i RuneLite, og klik så på **Approve**.',
-        'Tilbage i RuneLite siger panelet _Signed in_ og har udfyldt Account Token for dig. Det var det.',
+        'Tilbage i RuneLite står der _Signed in_ øverst i panelet — og, når du logger ind i spillet, hvilken karakter det følger. Det var det.',
       ],
       linkFigure: {
         caption: 'anvilosrs.com → /link-device',
@@ -526,20 +530,13 @@ const da: PartialGuideDict = {
           'Hele forløbet bliver på `anvilosrs.com` — koden udstedes dér, du godkender den dér med dit eget Discord-login, og token sendes direkte tilbage til pluginnet. Pluginnet åbner kun login-sider på `anvilosrs.com`, så et login-link, der peger andre steder hen, kommer ikke fra det.',
         ],
       },
-      settingsRefreshNote: {
-        tag: 'Ser Account Token stadig tomt ud?',
-        body: [
-          'Det er det ikke — tokenet gemmes i samme øjeblik, du godkender. Men RuneLite tegner først en plugins indstillingsside, når du åbner den, så hvis du allerede stod på **Configuration → Anvil**, mens du loggede ind, viser feltet stadig det, det viste for et minut siden.',
-          'Klik på et hvilket som helst andet plugin i listen, og klik så på **Anvil** igen. Tokenet er der. Sidepanelet er det ærlige under login: det siger _Signed in_, så snart det virkede.',
-        ],
-      },
       federationAside:
         'Må ikke forveksles med **Connect clans** i sidepanelet — det er den separate, valgfrie knap, der forbinder dig til andre Anvil-klaner, og den dukker først op, når du allerede er logget ind her.',
       manualFallback:
         'Åbner browseren ikke af sig selv, skriver panelet adressen og koden, så du kan åbne den manuelt. Koder udløber efter ti minutter — tryk bare på knappen igen.',
       manualHeading: 'Nødløsning: indsæt dit token i hånden',
       manualIntro:
-        'Hvis login fra pluginnet ikke virker for dig, så kopiér dit token nedenfor (eller fra [Profile → plugin token](/profile#plugin-token), hvor du også kan rotere det), og indsæt det i **Configuration → Anvil → Account Token**. Det er den eneste indstilling, du behøver at røre.',
+        'Hvis login fra pluginnet ikke virker for dig, så kopiér dit token nedenfor (eller fra [Profile → plugin token](/profile#plugin-token), hvor du også kan rotere det), klik derefter på **Paste a token instead** under login-knappen i Anvil-panelet, og indsæt det dér.',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: 'RuneLite plugin-kortet på profilsiden med tokenfeltet og knapperne Reveal, Copy og Rotate markeret',
@@ -550,13 +547,13 @@ const da: PartialGuideDict = {
           },
           {
             label: 'Copy / Rotate',
-            body: 'kopiér den ind i pluginnets Account Token-felt. Rotate udsteder en ny og dræber den gamle — brug den, hvis du overhovedet mistænker, at din token er sluppet ud.',
+            body: 'kopiér den, og brug så **Paste a token instead** i Anvil-panelet. Rotate udsteder en ny og dræber den gamle — brug den, hvis du overhovedet mistænker, at din token er sluppet ud.',
           },
         ],
       },
       goodToKnow: {
         tag: 'Brug sidepanelet til daglig',
-        body: ['**Anvil-sidepanelet er dit primære arbejdssted**: log ind dér, se dine klaner og aktive events, følg fremskridt, tag startbilleder, kør synkroniseringer og åbn supportværktøjer. **Configuration → Anvil**, vist nedenfor, er kun til indstillinger. Account Token udfyldes automatisk; indsæt kun et dér, hvis login via sidepanelet mislykkes. Ét token dækker alle events, du er tilmeldt — du skal aldrig indsætte det igen for hver bingo.'],
+        body: ['**Anvil-sidepanelet er dit primære arbejdssted**: log ind og ud dér, se dine klaner og aktive events, gennemse og gør krav på felter, følg fremskridt, tag startbilleder, kør synkroniseringer og åbn supportværktøjer. **Configuration → Anvil**, vist nedenfor, er kun til indstillinger — der er intet token i det. Vil du logge denne computer ud, så åbn **⋯**-menuen ved siden af dit navn øverst i panelet. Ét login dækker alle events, du er tilmeldt — du skal aldrig gøre det igen for hver bingo.'],
       },
     },
 
@@ -792,7 +789,7 @@ const da: PartialGuideDict = {
       rows: [
         {
           term: '`Anvil: your Account Token was rejected — tracking is OFF.`',
-          body: 'Token er forkert eller er blevet roteret. Kopiér den igen fra [Profile → RuneLite plugin](/profile#plugin-token), eller ryd feltet og log ind fra pluginnet igen.',
+          body: 'Token er forkert eller er blevet roteret. Åbn **⋯**-menuen øverst i Anvil-panelet, tryk på **Sign out** og derefter **Sign in with Discord** igen — eller brug **Paste a token instead** med en frisk token fra [Profile → RuneLite plugin](/profile#plugin-token).',
         },
         {
           term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',

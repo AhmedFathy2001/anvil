@@ -474,7 +474,7 @@ const ja: PartialGuideDict = {
 
     connect: {
       title: 'ログインする',
-      intro: 'RuneLite のサイドバーから **Anvil** パネルを開き、**Sign in with Discord** を押します。ブラウザで `anvilosrs.com` が開くので、そこでコードを承認すれば、プラグインが Account Token を自分で入力します —— 入力もコピーも不要です。',
+      intro: 'RuneLite のサイドバーから **Anvil** パネルを開き、**Sign in with Discord** を押します。ブラウザで `anvilosrs.com` が開くので、そこでコードを承認すれば、プラグインが自分でサインインします —— 入力もコピーも、設定画面での記入も不要です。',
       panelFigure: {
         caption: 'RuneLite → Anvil ボタン',
         alt: 'RuneLite のサイドバーのアイコン列。いちばん下の Anvil ボタンを囲んで示している',
@@ -491,18 +491,22 @@ const ja: PartialGuideDict = {
         legend: [
           {
             label: 'Sign in with Discord',
-            body: 'トークンが空のあいだだけ出ます。押せば、あとはブラウザ側で進みます。',
+            body: 'このパソコンがサインアウトしているあいだだけ出ます。押せば、あとはブラウザ側で進みます。',
           },
           {
             label: 'Connects to',
             body: '常に `anvilosrs.com` です —— プラグインが通信する唯一のサイトで、あなたのトークンが属するサイトです。',
+          },
+          {
+            label: 'Paste a token instead',
+            body: 'ブラウザでの手順がうまくいかないときの代替手段です —— このステップの最後を参照してください。',
           },
         ],
       },
       easySteps: [
         '**Sign in with Discord** を押します。パネルに短いコードが表示され、ブラウザで `anvilosrs.com` が開きます。',
         'まだログインしていなければそこで Discord でログインし、ページ上のコードが RuneLite に出ているものと一致するか確かめてから **Approve** を押します。',
-        'RuneLite に戻ると、パネルに _Signed in_ と表示され、Account Token が自動で入っています。これで完了です。',
+        'RuneLite に戻ると、パネル上部に _Signed in_ と表示され、ゲームにログインすると追跡中のキャラクターも表示されます。これで完了です。',
       ],
       linkFigure: {
         caption: 'anvilosrs.com → /link-device',
@@ -521,20 +525,13 @@ const ja: PartialGuideDict = {
           'この流れはすべて `anvilosrs.com` の中で完結します —— コードはそこで発行され、あなた自身の Discord ログインでそこで承認し、トークンはそのままプラグインに返されます。プラグインは `anvilosrs.com` 上のログインページしか開かないので、ほかの場所を指すログインリンクはプラグインから来たものではありません。',
         ],
       },
-      settingsRefreshNote: {
-        tag: 'Account Token がまだ空に見えますか？',
-        body: [
-          '空ではありません —— 承認した時点でトークンは保存されています。ただし RuneLite はプラグインの設定ページを開いたときにしか描き直さないので、サインイン中に **Configuration → Anvil** を開いたままだった場合、その欄は 1 分前の状態を映したままです。',
-          '設定一覧で別のプラグインをクリックし、もう一度 **Anvil** を開いてください。トークンはちゃんと入っています。サインイン中に正直なのはサイドパネルのほうで、成功すればすぐ _Signed in_ と表示します。',
-        ],
-      },
       federationAside:
         'サイドパネルの **Connect clans** と混同しないでください —— あれは他の Anvil クランとつなぐための、独立した任意のボタンで、ここにログイン済みになって初めて現れます。',
       manualFallback:
         'ブラウザが自動で開かない場合、パネルにアドレスとコードが表示されるので手動で開けます。コードは 10 分で失効します —— もう一度ボタンを押すだけで大丈夫です。',
       manualHeading: '予備の方法：トークンを手で貼り付ける',
       manualIntro:
-        'プラグインからのログインがうまくいかない場合は、下のトークンをコピーし（[Profile → plugin token](/profile#plugin-token) からでもコピーでき、そこでローテーションもできます）、**Configuration → Anvil → Account Token** に貼り付けてください。触る必要がある設定はそれだけです。',
+        'プラグインからのログインがうまくいかない場合は、下のトークンをコピーし（[Profile → plugin token](/profile#plugin-token) からでもコピーでき、そこでローテーションもできます）、Anvil パネルのサインインボタンの下にある **Paste a token instead** を押して、そこに貼り付けてください。',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: 'プロフィールページの RuneLite plugin カード。トークン欄と Reveal・Copy・Rotate ボタンが枠で囲まれている',
@@ -545,13 +542,13 @@ const ja: PartialGuideDict = {
           },
           {
             label: 'Copy / Rotate',
-            body: 'プラグインの Account Token 欄にコピーします。Rotate は新しいものを発行し古いものを無効化します —— 漏れたかもしれないと少しでも思ったら使ってください。',
+            body: 'コピーしたら、Anvil パネルの **Paste a token instead** を使います。Rotate は新しいものを発行し古いものを無効化します —— 漏れたかもしれないと少しでも思ったら使ってください。',
           },
         ],
       },
       goodToKnow: {
         tag: '普段はサイドパネルを使う',
-        body: ['**Anvil サイドパネルがメインの作業場所です**。ここからサインインし、クランや開催中のイベントを確認し、進捗を追い、開始時のスクリーンショットを撮り、同期やサポートツールを使います。下に示す **Configuration → Anvil** は設定変更のためだけに使います。Account Token は自動入力されるので、サイドパネルからのサインインが失敗した場合にだけ手動で貼り付けてください。1 つのトークンで参加登録したすべてのイベントに対応し、ビンゴごとに貼り直す必要はありません。'],
+        body: ['**Anvil サイドパネルがメインの作業場所です**。ここからサインイン・サインアウトし、クランや開催中のイベントを確認し、マスを閲覧・申請し、進捗を追い、開始時のスクリーンショットを撮り、同期やサポートツールを使います。下に示す **Configuration → Anvil** は設定変更のためだけに使い、トークンはありません。このパソコンをサインアウトするには、パネル上部の自分の名前の横にある **⋯** メニューを開いてください。1 回のサインインで参加登録したすべてのイベントに対応し、ビンゴごとにやり直す必要はありません。'],
       },
     },
 
@@ -786,7 +783,7 @@ const ja: PartialGuideDict = {
       rows: [
         {
           term: '`Anvil: your Account Token was rejected — tracking is OFF.`',
-          body: 'トークンが違うか、ローテートされました。[Profile → RuneLite plugin](/profile#plugin-token) からコピーし直すか、欄を空にしてプラグインから再ログインしてください。',
+          body: 'トークンが違うか、ローテートされました。Anvil パネル上部の **⋯** メニューを開いて **Sign out** を押し、もう一度 **Sign in with Discord** してください —— または [Profile → RuneLite plugin](/profile#plugin-token) の新しいトークンで **Paste a token instead** を使ってください。',
         },
         {
           term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',

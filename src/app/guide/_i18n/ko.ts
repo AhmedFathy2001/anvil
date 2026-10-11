@@ -474,7 +474,7 @@ const ko: PartialGuideDict = {
 
     connect: {
       title: '로그인',
-      intro: 'RuneLite 사이드바에서 **Anvil** 패널을 열고 **Sign in with Discord**를 누르세요. 브라우저에서 `anvilosrs.com`이 열리면 거기서 코드를 승인하세요. 그러면 플러그인이 Account Token을 스스로 채웁니다 —— 입력할 것도, 복사할 것도 없습니다.',
+      intro: 'RuneLite 사이드바에서 **Anvil** 패널을 열고 **Sign in with Discord**를 누르세요. 브라우저에서 `anvilosrs.com`이 열리면 거기서 코드를 승인하세요. 그러면 플러그인이 스스로 로그인합니다 —— 입력할 것도, 복사할 것도, 설정에서 채울 것도 없습니다.',
       panelFigure: {
         caption: 'RuneLite → Anvil 버튼',
         alt: 'RuneLite 사이드바 아이콘 줄에서 맨 아래 Anvil 버튼을 표시한 모습',
@@ -491,18 +491,22 @@ const ko: PartialGuideDict = {
         legend: [
           {
             label: 'Sign in with Discord',
-            body: '토큰이 비어 있는 동안에만 보입니다. 누르면 나머지는 브라우저에서 진행됩니다.',
+            body: '이 컴퓨터가 로그아웃된 동안에만 보입니다. 누르면 나머지는 브라우저에서 진행됩니다.',
           },
           {
             label: 'Connects to',
             body: '항상 `anvilosrs.com`입니다 —— 플러그인이 통신하는 유일한 사이트이자, 당신의 토큰이 속한 사이트입니다.',
+          },
+          {
+            label: 'Paste a token instead',
+            body: '브라우저 단계가 되지 않을 때의 대안입니다 —— 이 단계의 끝부분을 보세요.',
           },
         ],
       },
       easySteps: [
         '**Sign in with Discord**를 누릅니다. 패널에 짧은 코드가 나타나고 브라우저에서 `anvilosrs.com`이 열립니다.',
         '아직 로그인하지 않았다면 거기서 Discord로 로그인하고, 페이지의 코드가 RuneLite에 표시된 코드와 같은지 확인한 뒤 **Approve**를 누릅니다.',
-        'RuneLite로 돌아오면 패널에 _Signed in_ 이라고 나오고 Account Token이 채워져 있습니다. 끝입니다.',
+        'RuneLite로 돌아오면 패널 상단에 _Signed in_ 이라고 나오고, 게임에 로그인하면 어떤 캐릭터를 추적 중인지도 표시됩니다. 끝입니다.',
       ],
       linkFigure: {
         caption: 'anvilosrs.com → /link-device',
@@ -521,20 +525,13 @@ const ko: PartialGuideDict = {
           '이 흐름 전체가 `anvilosrs.com` 안에서 끝납니다 —— 코드는 거기서 발급되고, 당신의 Discord 로그인으로 거기서 승인되며, 토큰은 곧바로 플러그인으로 돌아갑니다. 플러그인은 `anvilosrs.com`의 로그인 페이지만 열기 때문에, 다른 곳을 가리키는 로그인 링크는 플러그인이 보낸 것이 아닙니다.',
         ],
       },
-      settingsRefreshNote: {
-        tag: 'Account Token이 여전히 비어 보이나요?',
-        body: [
-          '비어 있지 않습니다 — 승인하는 순간 토큰은 저장됩니다. 다만 RuneLite는 플러그인 설정 페이지를 열 때만 다시 그리기 때문에, 로그인하는 동안 **Configuration → Anvil**을 켜 두었다면 그 칸은 1분 전 모습을 그대로 보여 줍니다.',
-          '설정 목록에서 다른 플러그인을 눌렀다가 **Anvil**을 다시 누르세요. 토큰은 들어 있습니다. 로그인 중에 정직한 쪽은 사이드 패널입니다: 성공하면 곧바로 _Signed in_이라고 알려 줍니다.',
-        ],
-      },
       federationAside:
         '사이드 패널의 **Connect clans**와 혼동하지 마세요 —— 그것은 다른 Anvil 클랜과 연결해 주는 별개의 선택 버튼이며, 여기에 이미 로그인한 뒤에야 나타납니다.',
       manualFallback:
         '브라우저가 저절로 열리지 않으면 패널이 주소와 코드를 표시하니 직접 여시면 됩니다. 코드는 10분 뒤 만료됩니다 —— 버튼을 한 번 더 누르면 됩니다.',
       manualHeading: '대안: 토큰을 직접 붙여넣기',
       manualIntro:
-        '플러그인에서 로그인이 되지 않으면, 아래의 토큰을 복사해(또는 [Profile → plugin token](/profile#plugin-token)에서 — 거기서 교체도 할 수 있습니다) **Configuration → Anvil → Account Token**에 붙여넣으세요. 건드려야 할 설정은 그것뿐입니다.',
+        '플러그인에서 로그인이 되지 않으면, 아래의 토큰을 복사한 뒤(또는 [Profile → plugin token](/profile#plugin-token)에서 — 거기서 교체도 할 수 있습니다) Anvil 패널의 로그인 버튼 아래에 있는 **Paste a token instead**를 눌러 거기에 붙여넣으세요.',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: '프로필 페이지의 RuneLite plugin 카드. 토큰 입력란과 Reveal·Copy·Rotate 버튼이 네모로 표시되어 있음',
@@ -545,13 +542,13 @@ const ko: PartialGuideDict = {
           },
           {
             label: 'Copy / Rotate',
-            body: '플러그인의 Account Token 칸에 복사해 넣으세요. Rotate는 새 토큰을 발급하고 기존 것을 무효화합니다 —— 유출이 의심되면 언제든 쓰세요.',
+            body: '복사한 다음 Anvil 패널에서 **Paste a token instead**를 사용하세요. Rotate는 새 토큰을 발급하고 기존 것을 무효화합니다 —— 유출이 의심되면 언제든 쓰세요.',
           },
         ],
       },
       goodToKnow: {
         tag: '평소에는 사이드 패널 사용',
-        body: ['**Anvil 사이드 패널이 기본 작업 공간입니다**. 여기에서 로그인하고, 클랜과 진행 중인 이벤트를 확인하고, 진행 상황을 추적하고, 시작 스크린샷을 찍고, 동기화와 지원 도구를 실행하세요. 아래의 **Configuration → Anvil**은 환경 설정을 바꿀 때만 사용합니다. Account Token은 자동으로 입력되므로 사이드 패널 로그인이 실패한 경우에만 직접 붙여 넣으세요. 토큰 하나면 신청한 모든 이벤트에 적용되며 빙고마다 다시 붙여 넣을 필요가 없습니다.'],
+        body: ['**Anvil 사이드 패널이 기본 작업 공간입니다**. 여기에서 로그인과 로그아웃을 하고, 클랜과 진행 중인 이벤트를 확인하고, 칸을 둘러보고 신청하고, 진행 상황을 추적하고, 시작 스크린샷을 찍고, 동기화와 지원 도구를 실행하세요. 아래의 **Configuration → Anvil**은 환경 설정을 바꿀 때만 사용하며, 토큰은 없습니다. 이 컴퓨터에서 로그아웃하려면 패널 상단의 이름 옆에 있는 **⋯** 메뉴를 여세요. 한 번 로그인하면 신청한 모든 이벤트에 적용되며 빙고마다 다시 할 필요가 없습니다.'],
       },
     },
 
@@ -786,7 +783,7 @@ const ko: PartialGuideDict = {
       rows: [
         {
           term: '`Anvil: your Account Token was rejected — tracking is OFF.`',
-          body: '토큰이 틀렸거나 교체되었습니다. [Profile → RuneLite plugin](/profile#plugin-token)에서 다시 복사하거나, 칸을 비우고 플러그인에서 다시 로그인하세요.',
+          body: '토큰이 틀렸거나 교체되었습니다. Anvil 패널 상단의 **⋯** 메뉴를 열고 **Sign out**을 누른 뒤 다시 **Sign in with Discord**를 누르세요 —— 또는 [Profile → RuneLite plugin](/profile#plugin-token)의 새 토큰으로 **Paste a token instead**를 사용하세요.',
         },
         {
           term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',

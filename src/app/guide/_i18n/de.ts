@@ -475,7 +475,7 @@ const de: PartialGuideDict = {
 
     connect: {
       title: 'Anmelden',
-      intro: 'Öffne das **Anvil**-Panel in der RuneLite-Seitenleiste und klick auf **Sign in with Discord**. Dein Browser öffnet sich auf `anvilosrs.com`; bestätige dort den Code, und das Plugin trägt sein Account Token selbst ein — nichts zu tippen, nichts zu kopieren.',
+      intro: 'Öffne das **Anvil**-Panel in der RuneLite-Seitenleiste und klick auf **Sign in with Discord**. Dein Browser öffnet sich auf `anvilosrs.com`; bestätige dort den Code, und das Plugin meldet sich selbst an — nichts zu tippen, nichts zu kopieren und nichts in den Einstellungen einzutragen.',
       panelFigure: {
         caption: 'RuneLite → die Anvil-Schaltfläche',
         alt: 'Die Symbolleiste von RuneLite, in der die Anvil-Schaltfläche ganz unten eingerahmt ist',
@@ -492,18 +492,22 @@ const de: PartialGuideDict = {
         legend: [
           {
             label: 'Sign in with Discord',
-            body: 'erscheint nur, solange der Token noch leer ist. Klick darauf, der Rest passiert in deinem Browser.',
+            body: 'erscheint nur, solange dieser Computer abgemeldet ist. Klick darauf, der Rest passiert in deinem Browser.',
           },
           {
             label: 'Connects to',
             body: 'immer `anvilosrs.com` — die einzige Seite, mit der das Plugin spricht, und die, zu der dein Token gehört.',
+          },
+          {
+            label: 'Paste a token instead',
+            body: 'die Notlösung, falls der Schritt im Browser bei dir nicht klappt — siehe das Ende dieses Schritts.',
           },
         ],
       },
       easySteps: [
         'Klick auf **Sign in with Discord**. Das Panel zeigt einen kurzen Code und öffnet deinen Browser auf `anvilosrs.com`.',
         'Melde dich dort mit Discord an, falls du es noch nicht bist, prüfe, ob der Code auf der Seite mit dem in RuneLite übereinstimmt, und klick dann auf **Approve**.',
-        'Zurück in RuneLite zeigt das Panel _Signed in_ und hat das Account Token für dich eingetragen. Das war’s.',
+        'Zurück in RuneLite steht oben im Panel _Signed in_ — und, sobald du dich einloggst, welcher Charakter erfasst wird. Das war’s.',
       ],
       linkFigure: {
         caption: 'anvilosrs.com → /link-device',
@@ -522,20 +526,13 @@ const de: PartialGuideDict = {
           'Dieser ganze Ablauf bleibt auf `anvilosrs.com` — der Code wird dort ausgestellt, du bestätigst ihn dort mit deinem eigenen Discord-Login, und das Token geht direkt zurück ans Plugin. Das Plugin öffnet Anmeldeseiten nur auf `anvilosrs.com`; ein Anmeldelink, der woanders hinführt, stammt also nicht von ihm.',
         ],
       },
-      settingsRefreshNote: {
-        tag: 'Account Token sieht immer noch leer aus?',
-        body: [
-          'Ist er nicht — der Token wird in dem Moment gespeichert, in dem du bestätigst. RuneLite zeichnet die Einstellungsseite eines Plugins aber nur beim Öffnen, also zeigt das Feld noch das von vorhin, wenn du beim Anmelden schon auf **Configuration → Anvil** standest.',
-          'Klick in der Liste auf ein beliebiges anderes Plugin und dann wieder auf **Anvil**. Der Token ist da. Ehrlich ist während der Anmeldung das Seitenpanel: Es sagt _Signed in_, sobald es geklappt hat.',
-        ],
-      },
       federationAside:
         'Nicht zu verwechseln mit **Connect clans** im Seitenpanel — das ist die separate, freiwillige Schaltfläche, die dich mit anderen Anvil-Clans verbindet, und sie erscheint erst, wenn du hier bereits angemeldet bist.',
       manualFallback:
         'Öffnet sich der Browser nicht von selbst, gibt das Panel Adresse und Code aus, damit du sie manuell öffnen kannst. Codes laufen nach zehn Minuten ab — drück einfach noch mal auf die Schaltfläche.',
       manualHeading: 'Notlösung: Token von Hand einfügen',
       manualIntro:
-        'Wenn die Anmeldung aus dem Plugin bei dir nicht klappt, kopiere dein Token unten (oder unter [Profile → plugin token](/profile#plugin-token), wo du es auch rotieren kannst) und füge es in **Configuration → Anvil → Account Token** ein. Das ist die einzige Einstellung, die du anfassen musst.',
+        'Wenn die Anmeldung aus dem Plugin bei dir nicht klappt, kopiere dein Token unten (oder unter [Profile → plugin token](/profile#plugin-token), wo du es auch rotieren kannst), klick dann im Anvil-Panel unter der Anmelde-Schaltfläche auf **Paste a token instead** und füge es dort ein.',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: 'Die Karte RuneLite plugin auf der Profilseite, mit umrahmtem Tokenfeld und den Schaltflächen Reveal, Copy und Rotate',
@@ -546,13 +543,13 @@ const de: PartialGuideDict = {
           },
           {
             label: 'Copy / Rotate',
-            body: 'kopiere ihn in das Account-Token-Feld des Plugins. Rotate stellt einen neuen aus und macht den alten ungültig — nutze das, wenn du je vermutest, dass dein Token abhandengekommen ist.',
+            body: 'kopiere ihn und nutze dann **Paste a token instead** im Anvil-Panel. Rotate stellt einen neuen aus und macht den alten ungültig — nutze das, wenn du je vermutest, dass dein Token abhandengekommen ist.',
           },
         ],
       },
       goodToKnow: {
         tag: 'Nutze im Alltag das Seitenpanel',
-        body: ['**Das Anvil-Seitenpanel ist dein zentraler Arbeitsbereich**: Melde dich dort an, sieh deine Clans und laufenden Events, verfolge den Fortschritt, nimm Startbilder auf, führe Synchronisierungen aus und öffne die Support-Werkzeuge. **Configuration → Anvil**, unten gezeigt, ist nur für Einstellungen gedacht. Der Account Token wird automatisch eingetragen; füge dort nur dann einen ein, wenn die Anmeldung über das Seitenpanel fehlschlägt. Ein Token gilt für alle Events, für die du angemeldet bist — du musst ihn nicht für jedes Bingo neu einfügen.'],
+        body: ['**Das Anvil-Seitenpanel ist dein zentraler Arbeitsbereich**: Melde dich dort an und ab, sieh deine Clans und laufenden Events, durchsuche und beanspruche Felder, verfolge den Fortschritt, nimm Startbilder auf, führe Synchronisierungen aus und öffne die Support-Werkzeuge. **Configuration → Anvil**, unten gezeigt, ist nur für Einstellungen gedacht — dort gibt es keinen Token. Um diesen Computer abzumelden, öffne das **⋯**-Menü neben deinem Namen oben im Panel. Eine Anmeldung gilt für alle Events, für die du angemeldet bist — du musst sie nicht für jedes Bingo wiederholen.'],
       },
     },
 
@@ -787,7 +784,7 @@ const de: PartialGuideDict = {
       rows: [
         {
           term: '`Anvil: your Account Token was rejected — tracking is OFF.`',
-          body: 'Der Token ist falsch oder wurde rotiert. Kopiere ihn erneut aus [Profile → RuneLite plugin](/profile#plugin-token), oder leere das Feld und melde dich aus dem Plugin heraus neu an.',
+          body: 'Der Token ist falsch oder wurde rotiert. Öffne das **⋯**-Menü oben im Anvil-Panel, drück **Sign out** und dann erneut **Sign in with Discord** — oder nutze **Paste a token instead** mit einem frischen Token aus [Profile → RuneLite plugin](/profile#plugin-token).',
         },
         {
           term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',
