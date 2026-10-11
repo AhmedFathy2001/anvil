@@ -16,6 +16,7 @@ let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
 let s: Awaited<ReturnType<typeof loadDb>>['schema'];
 let A: typeof import('../src/lib/auth.ts');
 let mainEntry: number;
+let eventIdLive: number;
 let mainId: number;
 let syncedId: number;
 
@@ -52,6 +53,7 @@ before(async () => {
 
   const day = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString();
   const eventId = (await db.insert(s.events).values({ clanId, name: 'Live', boardSize: 5, startDate: day(-1), endDate: day(5), tilesRevealed: 1 }).returning())[0].id;
+  eventIdLive = eventId;
   const teamId = (await db.insert(s.teams).values({ eventId, name: 'Team', color: '#fff' }).returning())[0].id;
   mainEntry = (await db.insert(s.eventParticipants).values({ eventId, clanMemberId: mainSeat.id, accountId: main.id, name: 'Main Guy', teamId }).returning())[0].id;
 });
@@ -89,4 +91,11 @@ test('a played RSN outranks the hint', () => {
   assert.equal(A.pluginRsnHintOnly(req({ 'X-RSN': 'Main Guy', 'X-RSN-Hint': 'Other' })), false);
   assert.equal(A.pluginViewerRsn(req({ 'X-RSN': 'Main Guy', 'X-RSN-Hint': 'Other' })), 'Main Guy');
   assert.equal(A.pluginViewerRsn(req({ 'X-RSN-Hint': 'Other' })), 'Other');
+});
+
+test('the named-board read takes the hint, and the claim write does not', async () => {
+  const read = await A.verifyPluginTokenForEvent(req({ 'X-RSN-Hint': 'Main Guy' }), eventIdLive, { hintOnly: true });
+  assert.equal(read?.playerId, mainEntry);
+  // Claims call it without opts — a hint alone identifies nobody there.
+  assert.equal(await A.verifyPluginTokenForEvent(req({ 'X-RSN-Hint': 'Main Guy' }), eventIdLive), null);
 });

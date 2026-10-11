@@ -3,7 +3,7 @@ import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { events, tiles, teams, completions, submissions } from '@/db/schema';
 import { eq, inArray, and, sql } from 'drizzle-orm';
-import { verifyPluginToken, verifyPluginTokenForEvent } from '@/lib/auth';
+import { verifyPluginToken, verifyPluginTokenForEvent, pluginRsnHintOnly } from '@/lib/auth';
 import { getTierBands } from '@/lib/pluginConfig';
 import { tileTierKey } from '@/lib/tileFilter';
 import { jsonWithEtag } from '@/lib/httpEtag';
@@ -434,6 +434,9 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null, v
 
 export async function GET(request: Request) {
   const eventIdParam = new URL(request.url).searchParams.get('eventId');
+  // A read: at the login screen the Jagex Launcher's character (X-RSN-Hint) may stand in for the
+  // played name, so the team's plan is on the panel before Play. Claims, the write, never take it.
+  const hint = { hintOnly: pluginRsnHintOnly(request) };
 
   // Preview path. Anonymous/non-participants remain read-only; an authenticated participant is
   // scoped to their exact team on this exact event (including before the start date).
@@ -450,12 +453,12 @@ export async function GET(request: Request) {
     }
     // ETag/304: the clog re-fetches on tab-open but the board rarely changes — an unchanged fetch
     // returns 304 with no body (a 1000-tile board can be tens of KB gzipped). See lib/httpEtag.
-    const auth = await verifyPluginTokenForEvent(request, eventId);
+    const auth = await verifyPluginTokenForEvent(request, eventId, hint);
     return jsonWithEtag(request, await buildBoard(event, auth?.teamId ?? null, auth?.userId ?? null));
   }
 
   // Interactive path — the caller's own active event, scoped to their team.
-  const auth = await verifyPluginToken(request);
+  const auth = await verifyPluginToken(request, hint);
   if (!auth) {
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken>' }, { status: 401 });
   }

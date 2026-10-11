@@ -1601,9 +1601,10 @@ export async function verifyPluginToken(
 export async function verifyPluginTokenForEvent(
   request: Request,
   eventId: number,
+  opts?: { hintOnly?: boolean },
 ): Promise<{ playerId: number; teamId: number; eventId: number; userId: number; rsn: string } | null> {
   if (!Number.isInteger(eventId) || eventId <= 0) return null;
-  const member = await resolvePluginMember(request);
+  const member = await resolvePluginMember(request, opts);
   if (!member) return null;
   const participant = await db.query.eventParticipants.findFirst({
     where: and(
