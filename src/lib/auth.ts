@@ -1125,6 +1125,49 @@ async function rememberPluginObservation(
   });
 }
 
+/**
+ * Link a character to the person whose plugin played it, when no clan is involved at all.
+ *
+ * The clanless half of autoLinkOrSuggestOnPlay's "brand-new account" branch, and only that half: a
+ * character with any history — claimed by anyone, ever seated on a roster, verified, or anchored to
+ * a different hash — is left to rememberPluginObservation's suggestion and the proof step. A prior
+ * Ignore / "Not my account" is honoured. Provisional, exactly like the clan path: usable at once,
+ * undone by "Not my account", and the hash from this play anchors it to this client from here on.
+ */
+async function linkClanlessCharacterOnPlay(
+  userId: number,
+  rsn: string,
+  rsnNormalized: string,
+  accountHash: string,
+): Promise<void> {
+  const byHash = await db.query.accounts.findFirst({ where: eq(accounts.accountHash, accountHash) });
+  const existing = byHash ?? (await db.query.accounts.findFirst({ where: eq(accounts.rsnNormalized, rsnNormalized) }));
+  if (existing) {
+    if (existing.claimedAt != null || existing.verifiedAt != null) return;
+    if (existing.accountHash != null && existing.accountHash !== accountHash) return;
+    // clan-scope: global -- asking whether this character has ANY roster history, which is what makes it established.
+    if (await findRosterSeat(eq(clanRoster.accountId, existing.id))) return;
+  }
+  const ignored = await db.query.detectedAccounts.findFirst({
+    where: and(
+      eq(detectedAccounts.userId, userId),
+      eq(detectedAccounts.rsnNormalized, rsnNormalized),
+      inArray(detectedAccounts.status, [...IGNORED_STATUSES]),
+    ),
+  });
+  if (ignored) return;
+  const claimant = await personOfOrCreate(userId);
+  await claimAccountForPerson({
+    playerId: claimant,
+    rsn,
+    rsnNormalized,
+    accountHash,
+    method: 'plugin_first_use',
+    provisional: true,
+    actorUserId: userId,
+  });
+}
+
 // Re-attach an established account whose play matches its PRE-EXISTING continuity anchor. We match
 // ONLY by the account hash already anchored on the row — never by RSN. A display name is public and the
 // X-Account-Hash header is attacker-controllable from a modified client, so an RSN match is not proof
@@ -1431,7 +1474,17 @@ export async function resolvePluginMember(
       .limit(1);
     if (rosterSeat) clan = await resolveClanById(rosterSeat.clanId);
   }
-  if (!clan) return null;
+  if (!clan) {
+    // No clan anywhere — the ordinary first run now: sign in, play, join a clan later (or never; the
+    // site keeps their log and records regardless). The clan-aware auto-link below is the only thing
+    // that links a character, so returning here meant a newcomer's profile waited on a play it had
+    // in fact already heard. Link the brand-new character to the person instead; no seat, since
+    // there is no clan to seat it in.
+    if (currentRsn && normalizedRsn && accountHash && !hintOnly) {
+      await linkClanlessCharacterOnPlay(user.id, currentRsn.trim(), normalizedRsn, accountHash).catch(() => {});
+    }
+    return null;
+  }
 
   // Re-link an established account whose pre-existing hash matches this play: if the hash is already
   // anchored to an unowned verified/roster row, attach it to them now, so
