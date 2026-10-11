@@ -1,6 +1,6 @@
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, ne } from 'drizzle-orm';
 import { db } from '@/db';
-import { clanRoster, eventParticipants, eventSignups, events, signupFees, teams, players } from '@/db/schema';
+import { clanRoster, eventParticipants, eventSignups, events, signupFees, teams, players, users } from '@/db/schema';
 import { generatePlayerToken } from '@/lib/auth';
 import { seatsOwnedBy } from '@/lib/roster';
 
@@ -27,6 +27,34 @@ import { seatsOwnedBy } from '@/lib/roster';
  * seating a captain that silently does nothing is how you end up with a captain who is told to go
  * and sign up like everyone else. Idempotent.
  */
+/**
+ * Why this person can't captain a team in this event, or null when they're free to.
+ *
+ * One person, one captaincy per event. Two teams with the same captain hand that person both
+ * teams' picks on draft day and both teams' controls after it, and placeCaptainOnTeam can only
+ * seat them on one of the two — the other is left with a captain who isn't playing for it.
+ *
+ * Checked by every route that names a captain (team create, team edit, the admin captain card).
+ * There's deliberately no unique index behind it: events that already carry a duplicate would fail
+ * the migration, and they get fixed by the host re-assigning one of the seats, which this allows.
+ * `exceptTeamId` is the team being edited, so re-saving its own captain isn't a conflict.
+ */
+export async function captainConflict(
+  eventId: number,
+  userId: number,
+  exceptTeamId?: number,
+): Promise<string | null> {
+  const where = and(
+    eq(teams.eventId, eventId),
+    eq(teams.captainUserId, userId),
+    exceptTeamId != null ? ne(teams.id, exceptTeamId) : undefined,
+  );
+  const [other] = await db.select({ name: teams.name }).from(teams).where(where).limit(1);
+  if (!other) return null;
+  const person = await db.query.users.findFirst({ where: eq(users.id, userId), columns: { displayName: true } });
+  return `${person?.displayName ?? 'That person'} already captains ${other.name} in this event.`;
+}
+
 export type CaptainSeatResult =
   | { playerId: number; reason: null }
   | {

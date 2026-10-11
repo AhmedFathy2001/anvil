@@ -26,7 +26,11 @@ const OPTIONS: { value: Placement; label: string; hint: string; needsTeams: bool
 
 // Bulk-enroll every plugin-active clan member into this event. Sits on the Teams tab's pool step.
 export default function AutoEnrollPanel({ eventId, canCreateTeams, draftInProgress, onEnrolled, fixedPlacement }: Props) {
-  const [placement, setPlacement] = useState<Placement>(fixedPlacement ?? 'draft_pool');
+  const [chosenPlacement, setPlacement] = useState<Placement>('draft_pool');
+  // A pinned placement always wins, read on every render rather than copied into state once: the
+  // Teams tab lets the host go Back and pick another format, which re-pins this panel without
+  // remounting it, and a copied initial value kept enrolling under the format they'd left.
+  const placement = fixedPlacement ?? chosenPlacement;
   const [counts, setCounts] = useState<{ eligible: number; notEnrolled: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);

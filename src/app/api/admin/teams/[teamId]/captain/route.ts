@@ -4,7 +4,7 @@ import { db } from '@/db';
 import { teams, users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
-import { captainSeatNotice, placeCaptainOnTeam } from '@/lib/teamCaptain';
+import { captainConflict, captainSeatNotice, placeCaptainOnTeam } from '@/lib/teamCaptain';
 
 // PUT /api/admin/teams/[teamId]/captain { userId: number | null }
 // Admin (or moderator) assigns or clears the Discord-linked captain for a team.
@@ -43,6 +43,9 @@ export async function PUT(
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
     newCaptainUserId = target.id;
+    // One captaincy per person per event — lib/teamCaptain#captainConflict.
+    const conflict = await captainConflict(team.eventId, target.id, id);
+    if (conflict) return NextResponse.json({ error: conflict }, { status: 409 });
   }
 
   await db.update(teams).set({ captainUserId: newCaptainUserId }).where(eq(teams.id, id));

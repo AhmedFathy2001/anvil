@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import ClanMemberPicker, { type PickableMember } from './ClanMemberPicker';
 import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
@@ -23,13 +23,19 @@ interface Props {
   eventId: number;
   // Omit for create mode; pass the team to edit name/color/captain in place.
   team?: EditableTeam;
+  /**
+   * The event's teams, captains included, when the caller has them. People who already captain one
+   * of the OTHER teams are greyed out in the captain picker — the API refuses a second captaincy in
+   * one event (lib/teamCaptain#captainConflict), and finding that out on Save is the slow way.
+   */
+  eventTeams?: ReadonlyArray<{ id: number; name: string; captainUserId?: number | null }>;
   onClose: () => void;
   onSaved: () => void;
 }
 
 // Modal for creating a team or editing an existing one (name, color, captain) — the
 // single edit surface, so admins never have to delete-and-recreate to change a captain.
-export default function TeamEditor({ eventId, team, onClose, onSaved }: Props) {
+export default function TeamEditor({ eventId, team, eventTeams, onClose, onSaved }: Props) {
   const isEdit = !!team;
   const [name, setName] = useState(team?.name ?? '');
   const [color, setColor] = useState(team?.color ?? PRESET_COLORS[0]);
@@ -39,6 +45,14 @@ export default function TeamEditor({ eventId, team, onClose, onSaved }: Props) {
   const [saving, setSaving] = useState(false);
 
   const customColor = !PRESET_COLORS.includes(color);
+
+  const captainsElsewhere = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const t of eventTeams ?? []) {
+      if (t.id !== team?.id && t.captainUserId != null) m.set(t.captainUserId, t.name);
+    }
+    return m;
+  }, [eventTeams, team?.id]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -173,6 +187,7 @@ export default function TeamEditor({ eventId, team, onClose, onSaved }: Props) {
                 setCaptainMember(member);
               }}
               preferLinked
+              captainsElsewhere={captainsElsewhere}
               requireDiscordUser
               requireDiscordUserHint="Captains sign in with Discord — this member needs a linked account first."
               emptyState="No clan members yet — sync the clan from the plugin first."
