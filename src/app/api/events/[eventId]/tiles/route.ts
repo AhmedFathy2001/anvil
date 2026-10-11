@@ -65,7 +65,7 @@ export async function PUT(
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;
-  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, statBasis, trackingMode, optional, autoTrackDisabled, trackedItemIds, itemRequirements, groupMode, perKillCap, coopCredit, coopMinMembers, points, effortConfig, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, pvpMinLootValue, revealAt, revealState, mission, missionRules, baseUpdatedAt, liveOverride } = await request.json();
+  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, statBasis, trackingMode, optional, autoTrackDisabled, trackedItemIds, itemRequirements, groupMode, setsRequired, countMode, perKillCap, coopCredit, coopMinMembers, points, effortConfig, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, pvpMinLootValue, revealAt, revealState, mission, missionRules, baseUpdatedAt, liveOverride } = await request.json();
 
   if (!tileId) {
     return NextResponse.json({ error: 'tileId is required' }, { status: 400 });
@@ -196,6 +196,15 @@ export async function PUT(
   // back to the default rather than storing a value.
   if (groupMode !== undefined && groupMode !== null && groupMode !== 'any' && groupMode !== 'all') {
     return NextResponse.json({ error: "groupMode must be 'any' or 'all'" }, { status: 400 });
+  }
+  // Sets a collection needs in any-set mode (lib/collectionSets setsRequired). Null = one set.
+  if (setsRequired !== undefined && setsRequired !== null) {
+    if (!Number.isInteger(setsRequired) || setsRequired < 1 || setsRequired > 50) {
+      return NextResponse.json({ error: 'setsRequired must be an integer between 1 and 50 (or null for one set)' }, { status: 400 });
+    }
+  }
+  if (countMode !== undefined && countMode !== null && countMode !== 'total' && countMode !== 'distinct') {
+    return NextResponse.json({ error: "countMode must be 'total' or 'distinct'" }, { status: 400 });
   }
 
   // Most credits one kill can give this tile. Small ceiling: this exists to count rolls (1) or the
@@ -415,6 +424,13 @@ export async function PUT(
     // no mode at all.
     updateSet.groupMode = groupMode === 'all' ? 'all' : null;
   }
+  // Both stored as null for the default, like groupMode: one set, every drop counts.
+  if (setsRequired !== undefined) {
+    updateSet.setsRequired = setsRequired != null && setsRequired > 1 ? setsRequired : null;
+  }
+  if (countMode !== undefined) {
+    updateSet.countMode = countMode === 'distinct' ? 'distinct' : null;
+  }
 
   if (perKillCap !== undefined) {
     updateSet.perKillCap = perKillCap ?? null;
@@ -436,6 +452,7 @@ export async function PUT(
       updateSet.requiredAmount = collectionDisplayTotal(
         itemRequirements as CollectionRequirement[],
         groupMode !== undefined ? groupMode : tile.groupMode,
+        setsRequired !== undefined ? setsRequired : tile.setsRequired,
       );
     } else {
       // Cleared. Wipe derived trackedItemIds unless the admin explicitly set a non-empty

@@ -1,4 +1,5 @@
 import { resolvePluginClan } from '@/lib/auth';
+import { howItCounts, parseCountMode, parseSetsRequired } from '@/lib/collectionSets';
 import { noClanForPlugin } from '@/lib/pluginNoClan';
 import { NextResponse } from 'next/server';
 import { seatsOwnedByAnywhere } from '@/lib/roster';
@@ -942,6 +943,13 @@ export async function GET(request: Request) {
           ? JSON.parse(t.itemRequirements) as { itemId: number; name: string; requiredAmount: number; group?: string | null; groupRequire?: number | null }[]
           : null;
         const tileItemTotals = perItemMap.get(t.id);
+        // "Different items only" pool: what counts is how many DIFFERENT items the team has, and the
+        // plugin skips a repeat of one already counted (the site would refuse it anyway).
+        const distinct = !itemReqs && parseCountMode(t.countMode) === 'distinct';
+        const countedItems = distinct
+          ? [...(tileItemTotals ?? new Map<number, number>())].filter(([, n]) => n > 0).map(([id]) => id)
+          : null;
+        const trackedIds = JSON.parse(t.trackedItemIds || '[]') as number[];
 
         let acceptedSources: string[] | null = null;
         if (t.acceptedSources) {
@@ -965,9 +973,20 @@ export async function GET(request: Request) {
           description: t.description ?? null,
           points: t.points ?? 0,
           category: t.category ?? null,
-          itemIds: JSON.parse(t.trackedItemIds || '[]'),
+          itemIds: trackedIds,
           requiredAmount: t.requiredAmount ?? 1,
-          currentAmount: submissionMap[t.id] ?? 0,
+          currentAmount: countedItems ? countedItems.length : submissionMap[t.id] ?? 0,
+          // The one-sentence rule (lib/collectionSets howItCounts) — the sidebar shows it verbatim.
+          howItCounts: howItCounts({
+            tileType: t.tileType,
+            requiredAmount: t.requiredAmount,
+            poolSize: trackedIds.length,
+            countMode: t.countMode,
+            itemRequirements: itemReqs,
+            groupMode: t.groupMode,
+            setsRequired: t.setsRequired,
+          }),
+          ...(countedItems ? { countMode: 'distinct', countedItemIds: countedItems } : {}),
           acceptedSources,
           sourceNpcs,
           // Exact raid party size required ("solo Cursed phalanx"); rides
@@ -990,6 +1009,9 @@ export async function GET(request: Request) {
               currentAmount: tileItemTotals?.get(req.itemId) ?? 0,
             })),
             groupMode: t.groupMode === 'all' ? 'all' : 'any',
+            // Sets needed in 'any' mode. A piece then counts up to this many times (Ahrim's twice);
+            // older plugins cap each piece at one and simply stop tracking after the first set.
+            setsRequired: parseSetsRequired(t.setsRequired),
           } : {}),
         };
       }),

@@ -6,6 +6,7 @@ import { notFound } from 'next/navigation';
 import TeamsDraftClient from './TeamsDraftClient';
 import CoHostPanel from './CoHostPanel';
 import AccessPanel from './AccessPanel';
+import EventWebhooksPanel from './EventWebhooksPanel';
 import EventDiscordServerPanel from '@/components/EventDiscordServerPanel';
 import { cohostsForEvent } from '@/lib/coHost';
 import { settlementForEvent } from '@/lib/coHostSettlement';
@@ -90,6 +91,7 @@ export default async function EventTeamsPage({
       <AccessPanel eventId={id} />
       <CoHostPanel eventId={id} initial={cohosts} cashPolicy={event.cashPolicy} settlement={settlement} />
       <EventDiscordServerPanel eventId={id} />
+      <EventWebhooksPanel eventId={id} teams={eventTeams.map((t) => ({ id: t.id, name: t.name, color: t.color }))} />
       <TeamsDraftClient
         event={event}
         tiles={eventTiles}

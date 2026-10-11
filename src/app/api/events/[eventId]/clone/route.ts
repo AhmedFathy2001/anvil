@@ -57,6 +57,7 @@ export async function POST(
       // an event never deletes its icon or banner.
       iconUrl: source.iconUrl,
       bannerUrl: source.bannerUrl,
+      bannerPosition: source.bannerPosition,
       // Everything run-specific starts fresh: no dates, draft idle, tiles hidden for private authoring.
       startDate: null,
       endDate: null,
@@ -94,6 +95,8 @@ export async function POST(
         trackedItemIds: t.trackedItemIds,
         itemRequirements: t.itemRequirements,
         groupMode: t.groupMode,
+        setsRequired: t.setsRequired,
+        countMode: t.countMode,
         perKillCap: t.perKillCap,
         coopCredit: t.coopCredit,
         coopMinMembers: t.coopMinMembers,

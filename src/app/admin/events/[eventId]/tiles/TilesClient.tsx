@@ -60,6 +60,8 @@ function tileToTrackingInitial(tile: Tile) {
     // Without this the set controls reloaded on 'any' and the next save silently flipped an
     // "every set" collection back to any-one-set.
     groupMode: tile.groupMode ?? null,
+    setsRequired: tile.setsRequired ?? null,
+    countMode: tile.countMode ?? null,
     perKillCap: tile.perKillCap ?? null,
     coopCredit: tile.coopCredit ?? null,
     coopMinMembers: tile.coopMinMembers ?? null,

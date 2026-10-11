@@ -32,7 +32,7 @@ export function useDropProgress(tiles: Tile[], submissions: Submission[]) {
         // Mode-aware (lib/countProgress — the same rule the server completes on): Team Total sums the
         // team, Solo shows the best single member's count, so the bar can't read 10/10 on a tile that
         // needs one member to get there alone.
-        const { current } = countProgress(tileSubs, tile.trackingMode);
+        const { current } = countProgress(tileSubs, tile.trackingMode, tile.itemRequirements ? null : tile.countMode);
         dropProgress.set(tile.id, { current, required: tile.requiredAmount });
 
         if (tile.itemRequirements) {

@@ -20,8 +20,9 @@ export async function countTileProgress(
   tileId: number,
   teamId: number,
   trackingMode: string | null | undefined,
-  // Shared-kill settings, when the tile has any. Omitted → plain per-member counting.
-  coop?: { coopCredit?: string | null; coopMinMembers?: number | null },
+  // Shared-kill settings, when the tile has any, and a drop pool's count mode. Omitted → plain
+  // per-member counting of every drop.
+  coop?: { coopCredit?: string | null; coopMinMembers?: number | null; countMode?: string | null },
 ) {
   const rows = await db
     .select({
@@ -29,6 +30,7 @@ export async function countTileProgress(
       playerId: submissions.playerId,
       creditPlayerId: submissions.creditPlayerId,
       amount: submissions.amount,
+      itemId: submissions.itemId,
       createdAt: submissions.createdAt,
       coopGroup: submissions.coopGroup,
       coopPartySize: submissions.coopPartySize,
@@ -39,7 +41,7 @@ export async function countTileProgress(
   const credit = parseCoopCredit(coop?.coopCredit);
   const minMembers = coop?.coopMinMembers ?? 0;
   if (credit === 'per-member' && minMembers <= 0) {
-    return countProgress(rows.map((r) => ({ ...r, playerId: r.creditPlayerId ?? r.playerId })), trackingMode);
+    return countProgress(rows.map((r) => ({ ...r, playerId: r.creditPlayerId ?? r.playerId })), trackingMode, coop?.countMode);
   }
 
   // The team's roster, so a member NAMED by someone else's client resolves to a player row — that's
@@ -132,6 +134,7 @@ export async function syncDropTileCompletion(
     isComplete = evaluateCollection(
       itemRequirements.map((r) => ({ ...r, currentAmount: itemTotalMap.get(r.itemId) ?? 0 })),
       tile.groupMode,
+      tile.setsRequired,
     ).isComplete;
   } else if (tile.tileType === 'timed') {
     // Barracuda Trials rank tiles ("Gwenith Glide — Marlin"): the plugin only submits an EXACT rank
@@ -242,6 +245,7 @@ export async function syncDropTileCompletion(
             eventName: event.name,
             tileLabel: tile.label,
             teamName: team.name,
+            teamId: team.id,
             teamColor: team.color,
             tileType: tile.tileType,
             trackedStat: tile.trackedStat,
@@ -266,6 +270,7 @@ export async function syncDropTileCompletion(
             clanId: event.clanId,
             eventName: event.name,
             teamName: team.name,
+            teamId: team.id,
             teamColor: team.color,
             totalTiles: eventTiles.length,
             eventId: event.id,

@@ -447,6 +447,14 @@ export async function PATCH(
     if (!cleaned.ok) return NextResponse.json({ error: cleaned.error }, { status: 400 });
     updates[field] = cleaned.value;
   }
+  // Banner focus, 0 (top) – 100 (bottom); null re-centres it.
+  if ('bannerPosition' in body) {
+    const pos = body.bannerPosition;
+    if (pos !== null && (typeof pos !== 'number' || !Number.isFinite(pos) || pos < 0 || pos > 100)) {
+      return NextResponse.json({ error: 'bannerPosition must be a number from 0 to 100, or null' }, { status: 400 });
+    }
+    updates.bannerPosition = pos == null ? null : Math.round(pos);
+  }
   // Admin-controlled member-facing tile reveal. Coerce to 0/1 so a bare boolean works.
   if ('tilesRevealed' in body) updates.tilesRevealed = body.tilesRevealed ? 1 : 0;
   // Optional whole-board reveal before start. Null preserves the normal reveal-at-start fallback.

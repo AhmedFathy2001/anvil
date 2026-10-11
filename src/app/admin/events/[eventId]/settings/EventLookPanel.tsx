@@ -18,20 +18,36 @@ export default function EventLookPanel({
   clanLogoUrl,
   initialIcon,
   initialBanner,
+  initialBannerPosition,
 }: {
   eventId: number;
   eventName: string;
   clanLogoUrl: string | null;
   initialIcon: string | null;
   initialBanner: string | null;
+  initialBannerPosition: number | null;
 }) {
   const router = useRouter();
   const [icon, setIcon] = useState(initialIcon);
   const [banner, setBanner] = useState(initialBanner);
   const [busy, setBusy] = useState<'icon' | 'banner' | null>(null);
+  // Vertical focus, 0 (top) – 100 (bottom). Saved when the slider is let go, not on every tick.
+  const [position, setPosition] = useState(initialBannerPosition ?? 50);
+  const [savedPosition, setSavedPosition] = useState(initialBannerPosition ?? 50);
   const [error, setError] = useState<string | null>(null);
 
-  async function save(field: 'iconUrl' | 'bannerUrl', value: string | null) {
+  async function savePosition() {
+    if (position === savedPosition) return;
+    setError(null);
+    try {
+      await save('bannerPosition', position === 50 ? null : position);
+      setSavedPosition(position);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  async function save(field: 'iconUrl' | 'bannerUrl' | 'bannerPosition', value: string | number | null) {
     const res = await clanFetch(`/api/events/${eventId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -123,12 +139,34 @@ export default function EventLookPanel({
         <div>
           <div className="text-sm font-semibold">Banner</div>
           <p className="text-xs text-text-muted mb-2">
-            Wide, about 3:1 (e.g. 1500×500). Shown across the top of the event page and in link previews.
+            Wide, 3:1 (e.g. 1500×500). Shown across the top of the event page and in link previews. The
+            frame below is exactly what the event page shows — a 3:1 image fits whole; anything taller is
+            cropped, and the slider picks which part stays.
           </p>
-          <div className="mb-2 aspect-[3/1] w-full overflow-hidden rounded-lg border border-card-border bg-gradient-to-r from-gold/15 via-card-bg to-gold/10">
+          <div className="mb-2 flex items-stretch gap-3">
+            <div className="aspect-[3/1] min-w-0 flex-1 overflow-hidden rounded-lg border border-card-border bg-gradient-to-r from-gold/15 via-card-bg to-gold/10">
+              {banner && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={banner} alt="" className="h-full w-full object-cover" style={{ objectPosition: `50% ${position}%` }} />
+              )}
+            </div>
             {banner && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={banner} alt="" className="h-full w-full object-cover" />
+              <div className="flex flex-col items-center gap-1 text-[10px] text-text-muted">
+                <span>Top</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={position}
+                  onChange={(e) => setPosition(Number(e.target.value))}
+                  onPointerUp={() => void savePosition()}
+                  onKeyUp={() => void savePosition()}
+                  onBlur={() => void savePosition()}
+                  aria-label="Which part of the banner shows"
+                  className="flex-1 accent-gold [writing-mode:vertical-lr]"
+                />
+                <span>Bottom</span>
+              </div>
             )}
           </div>
           <div className="flex items-center gap-3">

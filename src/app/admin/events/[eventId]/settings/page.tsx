@@ -43,6 +43,7 @@ export default async function EventSettingsPage({ params }: { params: Promise<{ 
         clanLogoUrl={clan.logoUrl}
         initialIcon={event.iconUrl}
         initialBanner={event.bannerUrl}
+        initialBannerPosition={event.bannerPosition ?? null}
       />
       <SettingsClient event={event} tiles={eventTiles} canManageEditors={isAdmin} />
       {isAdmin && <SaveAsPresetButton eventId={event.id} defaultName={event.name} />}

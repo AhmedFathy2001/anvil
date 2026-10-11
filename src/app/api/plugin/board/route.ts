@@ -12,6 +12,7 @@ import { lapUnitNoun } from '@/lib/constants';
 import { parseEventRules, hasRevealPolicy, visibleTiles, nextRevealAt } from '@/lib/eventRules';
 import { listTeamClaims } from '@/lib/tileClaims';
 import { getItemMapping } from '@/lib/osrsItems';
+import { howItCounts, parseCountMode, parseSetsRequired, type CollectionRequirement } from '@/lib/collectionSets';
 
 // GET /api/plugin/board — the board for an event: every tile with its grid slot, a representative
 // OSRS item icon, and which tiles each team has completed. Backs the Anvil clog tab's classic
@@ -84,6 +85,23 @@ function jsonNames(json: string | null): string[] {
     return [];
   }
 }
+/** The one-line rule for an item tile (lib/collectionSets howItCounts) — the site board says the same. */
+function tileHowItCounts(t: typeof tiles.$inferSelect): string | null {
+  let reqs: CollectionRequirement[] | null = null;
+  try {
+    reqs = t.itemRequirements ? (JSON.parse(t.itemRequirements) as CollectionRequirement[]) : null;
+  } catch { /* malformed — fall through to the pool reading */ }
+  return howItCounts({
+    tileType: t.tileType,
+    requiredAmount: t.requiredAmount,
+    poolSize: allItemIds(t.trackedItemIds, null).length,
+    countMode: t.countMode,
+    itemRequirements: reqs,
+    groupMode: t.groupMode,
+    setsRequired: t.setsRequired,
+  });
+}
+
 function tileRequirement(t: typeof tiles.$inferSelect): string | null {
   const amt = t.requiredAmount && t.requiredAmount > 0 ? t.requiredAmount.toLocaleString() : '';
   const names = (json: string | null): string[] => {
@@ -157,12 +175,9 @@ function tileRequirement(t: typeof tiles.$inferSelect): string | null {
     }
     case 'drop':
     case 'collection': {
+      // The how-it-counts sentence is its own field now (tileHowItCounts); this only adds where.
       const src = names(t.sourceNpcs);
-      const from = src.length ? ` from ${join(src)}` : '';
-      if (t.tileType === 'collection') return `Collect the full set${from}`;
-      // A trivial single-drop tile is fully described by its icon + "need N"; skip the noise.
-      if (!amt || amt === '1') return from ? `Obtain a drop${from}` : null;
-      return `Obtain ${amt} drops${from}`;
+      return src.length ? `Only counts from ${join(src)}` : null;
     }
     default:
       break;
@@ -329,11 +344,11 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null, v
       // Compound tiles carry several distinct items; surface the per-item breakdown so the plugin's
       // detail page can render the whole set like the website (progress is 0 in read-only preview).
       let itemRequirements:
-        | { itemId: number; name: string; requiredAmount: number; currentAmount: number }[]
+        | { itemId: number; name: string; requiredAmount: number; currentAmount: number; group: string | null; groupRequire: number }[]
         | undefined;
       if (t.itemRequirements) {
         try {
-          const reqs = JSON.parse(t.itemRequirements) as { itemId: number; name: string; requiredAmount: number }[];
+          const reqs = JSON.parse(t.itemRequirements) as CollectionRequirement[];
           const totals = perItemMap.get(t.id);
           if (Array.isArray(reqs) && reqs.length > 0) {
             itemRequirements = reqs.map((r) => ({
@@ -341,6 +356,9 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null, v
               name: r.name,
               requiredAmount: r.requiredAmount,
               currentAmount: totals?.get(r.itemId) ?? 0,
+              // Sets, so the sidebar can group the list the way the board does instead of a flat 24.
+              group: r.group?.trim() || null,
+              groupRequire: r.groupRequire ?? 0,
             }));
           }
         } catch { /* ignore malformed JSON */ }
@@ -373,6 +391,14 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null, v
         })),
         requiredAmount: t.requiredAmount ?? 1,
         requirement: tileRequirement(t),
+        howItCounts: tileHowItCounts(t),
+        ...(itemRequirements
+          ? { groupMode: t.groupMode === 'all' ? 'all' : 'any', setsRequired: parseSetsRequired(t.setsRequired) }
+          : {}),
+        // "Different items" pools: which items already count, so the sidebar can tick them off.
+        ...(!itemRequirements && parseCountMode(t.countMode) === 'distinct'
+          ? { countMode: 'distinct', countedItemIds: [...(perItemMap.get(t.id) ?? new Map<number, number>())].filter(([, n]) => n > 0).map(([id]) => id) }
+          : {}),
         // Source restriction ("Only from …") shown structured on the plugin detail page, matching
         // the website's "Only from" chips. Empty for tiles with no source filter.
         sources: jsonNames(t.sourceNpcs),

@@ -56,6 +56,10 @@ interface ImportRow {
   items?: { name?: string; count: number; id?: number; group?: string | null; groupRequire?: number | null }[] | null;
   /** Collection tiles: 'any' (default) | 'all' — how the @Set groups combine. See lib/collectionSets. */
   groupMode?: string | null;
+  /** Collection tiles: how many sets (any-set mode); blank = 1. */
+  setsRequired?: number | null;
+  /** Drop pools: 'distinct' = different items only; blank = every drop counts. */
+  countMode?: string | null;
   /** Drop tiles: most credits one kill can give (1 = count rolls, not items). */
   perKillCap?: number | null;
   /** Kill tiles: 'per-kill' collapses a kill several members were in; min gates on how many. */
@@ -77,6 +81,10 @@ interface DerivedItemFields {
     | null;
   /** 'all' when the row's sets are AND-ed; null for the default any-one-set reading. */
   groupMode?: string | null;
+  /** Sets needed in any-set mode; null = 1. */
+  setsRequired?: number | null;
+  /** Pools only: 'distinct' or null. */
+  countMode?: string | null;
 }
 
 const MAX_TILES = 1000;
@@ -240,17 +248,28 @@ function deriveItemFields(
       ? row.requiredAmount
       : null;
   if (simpleAmount != null) {
-    return { tileType: 'drop', requiredAmount: simpleAmount, trackedItemIds: reqs.map((r) => r.itemId), itemRequirements: null, groupMode: null };
+    return {
+      tileType: 'drop',
+      requiredAmount: simpleAmount,
+      trackedItemIds: reqs.map((r) => r.itemId),
+      itemRequirements: null,
+      groupMode: null,
+      setsRequired: null,
+      countMode: row.countMode === 'distinct' ? 'distinct' : null,
+    };
   }
   // Collections: the display total is the shortest path to completion under the row's group mode
   // (lib/collectionSets) — every ungrouped item, plus one set's cheapest items ('any') or every
   // set's ('all').
   return {
     tileType: 'drop',
-    requiredAmount: collectionDisplayTotal(reqs, row.groupMode),
+    requiredAmount: collectionDisplayTotal(reqs, row.groupMode, row.groupMode === 'all' ? null : row.setsRequired),
     trackedItemIds: null,
     itemRequirements: reqs,
     groupMode: row.groupMode === 'all' ? 'all' : null,
+    // Counting sets only means something when they're alternatives ('any'); 'all' needs each once.
+    setsRequired: row.groupMode !== 'all' && row.setsRequired != null && row.setsRequired > 1 ? Math.min(50, Math.floor(row.setsRequired)) : null,
+    countMode: null,
   };
 }
 
@@ -405,6 +424,8 @@ function tileFieldsFromRow(row: ImportRow, allowPreStart: boolean, derived: Deri
         // Null unless the row asked for AND-ed sets, so re-importing a sheet without the column
         // returns a tile to the default reading instead of silently keeping an old 'all'.
         s.groupMode = derived.groupMode ?? null;
+        s.setsRequired = derived.setsRequired ?? null;
+        s.countMode = derived.countMode ?? null;
       }
     }
   }

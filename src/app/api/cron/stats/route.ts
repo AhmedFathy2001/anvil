@@ -711,6 +711,7 @@ export async function GET(request: Request) {
                 eventName: ctx.event.name,
                 tileLabel: tile.label,
                 teamName: team.name,
+                teamId: team.id,
                 teamColor: team.color,
                 tileType: tile.tileType,
                 trackedStat: tile.trackedStat,
@@ -780,6 +781,7 @@ export async function GET(request: Request) {
                 eventName: ctx.event.name,
                 tileLabel: tile.label,
                 teamName: team.name,
+                teamId: team.id,
                 teamColor: team.color,
                 tileType: tile.tileType,
                 trackedStat: tile.trackedStat,
@@ -802,7 +804,7 @@ export async function GET(request: Request) {
         }).length;
         if (teamCompletionCount >= totalRequiredTiles && totalRequiredTiles > 0) {
           if (ctx.result.tilesCompleted.some((tc) => tc.teamName === team.name)) {
-            notifyTeamWin({ clanId: ctx.event.clanId, eventName: ctx.event.name, teamName: team.name, teamColor: team.color, totalTiles: totalRequiredTiles, eventId: ctx.event.id }).catch(() => {});
+            notifyTeamWin({ clanId: ctx.event.clanId, eventName: ctx.event.name, teamName: team.name, teamId: team.id, teamColor: team.color, totalTiles: totalRequiredTiles, eventId: ctx.event.id }).catch(() => {});
           }
         }
       }

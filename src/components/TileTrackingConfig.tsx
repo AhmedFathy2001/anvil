@@ -10,7 +10,7 @@ import ChipsInput from '@/components/ChipsInput';
 import Textarea from '@/components/Textarea';
 import { splitCategories, tileTierKey, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { statKeys } from '@/lib/tileKinds';
-import { collectionDisplayTotal } from '@/lib/collectionSets';
+import { collectionDisplayTotal, howItCounts } from '@/lib/collectionSets';
 import { ROLL_TABLES } from '@/lib/rollTables';
 import Checkbox from '@/components/Checkbox';
 import { TRIAL_RANK_ACTIVITIES } from '@/lib/barracudaTrials';
@@ -76,8 +76,8 @@ const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'standard', label: 'Standard', blurb: 'Manual tile — a captain marks it done. No auto-tracking.' },
   { key: 'skill', label: 'Skill XP', blurb: 'Auto-completes when a skill reaches an XP goal (hiscores-polled).' },
   { key: 'boss', label: 'Boss KC', blurb: 'Auto-completes when a boss reaches a kill-count goal (hiscores-polled).' },
-  { key: 'drop', label: 'Item drop', blurb: 'N drops of an item (or any of a pool) — players submit evidence.' },
-  { key: 'collection', label: 'Item set (X each)', blurb: 'Multiple items, each with its OWN required count — 1× each for a full Moons set. Name sets on the items for "any one full set" (Barrows).' },
+  { key: 'drop', label: 'Any of these items', blurb: 'N drops from a list of items — repeats count, or switch to "different items only".' },
+  { key: 'collection', label: 'All of these / sets', blurb: 'Every item, each with its OWN count (a full Moons set) — or name sets on the items for "complete N Barrows sets".' },
   { key: 'kill', label: 'Kill count', blurb: 'N kills of an NPC — even ones not on the hiscores (chickens, cows). Plugin-detected, baked screenshot.' },
   { key: 'lap', label: 'Agility laps & floors', blurb: 'N laps of an agility course, or N Hallowed Sepulchre floors / full runs. Counted live off the in-game counter, so only laps run DURING the event count — a maxed Agility cape earns nothing on its own.' },
   { key: 'pvp', label: 'PvP kill', blurb: 'Kill rival team members — or a named bounty — in the Wilderness or on PvP worlds. Plugin credits your kill and bakes a death screenshot. Safe minigames (LMS, Soul Wars, PvP Arena) never count.' },
@@ -402,6 +402,8 @@ const GROUP_MODE_ANY_HELP =
   'Any one set — the sets are alternatives. Satisfying ONE of them (plus any always-required items) finishes the tile, and pieces from different sets never mix. "Collect any one Barrows set."';
 const GROUP_MODE_ALL_HELP =
   'Every set — all of the sets must be satisfied. Combined with "needs 1" per set this is one item from each source: a unique from each DT2 boss, a pet from each GWD boss.';
+const SETS_REQUIRED_HELP =
+  'How many sets the tile needs. Sets are counted, so 2 is two different sets (Ahrim\u2019s + Dharok\u2019s) OR the same set twice (two full Ahrim\u2019s). Each set still needs its own pieces — pieces never mix between sets.';
 const GROUP_REQUIRE_HELP =
   'How many DIFFERENT items from that set count as satisfying it. The default is all of them (a full set); 1 means any single item from it; 3 of 6 means "any three of these".';
 
@@ -714,6 +716,10 @@ export default function TileTrackingConfig({
   // How this collection's sets combine, and how many items each set needs (keyed by the lowercased
   // set name — the same key lib/collectionSets groups on). 'all' + require 1 is "one from each source".
   const [groupMode, setGroupMode] = useState<'any' | 'all'>(initial.groupMode === 'all' ? 'all' : 'any');
+  // 'any' mode: how many sets the tile needs — counted, so 2 is "two different sets, or one twice".
+  const [setsRequired, setSetsRequired] = useState<number>(initial.setsRequired && initial.setsRequired > 1 ? initial.setsRequired : 1);
+  // Drop pools: every drop counts ('total') or only DIFFERENT items ('distinct').
+  const [countMode, setCountMode] = useState<'total' | 'distinct'>(initial.countMode === 'distinct' ? 'distinct' : 'total');
   // "Count once per kill": a kill credits the tile once however many tracked items it dropped. What
   // turns an item tile into a ROLL tile — see the roll-table fill below.
   const [oncePerKill, setOncePerKill] = useState<boolean>((initial.perKillCap ?? 0) === 1);
@@ -1276,6 +1282,8 @@ export default function TileTrackingConfig({
         // Cleared by default so switching a collection to another kind doesn't leave a stale
         // set mode behind; the collection branch sets it.
         groupMode: null,
+        setsRequired: null,
+        countMode: null,
         // Same: only drop-shaped tiles carry a per-kill cap, only kill tiles carry shared-kill rules.
         perKillCap: null,
         coopCredit: null,
@@ -1314,9 +1322,12 @@ export default function TileTrackingConfig({
           };
         });
         payload.groupMode = groupMode;
+        // Only 'any' mode counts sets, and only once there are sets to count.
+        payload.setsRequired = groupMode === 'any' && collectionGroups.length > 0 && setsRequired > 1 ? setsRequired : null;
       } else if (kind === 'drop') {
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
         payload.trackedItemIds = trackedItems.length > 0 ? trackedItems.map((i) => i.id) : null;
+        payload.countMode = countMode === 'distinct' && trackedItems.length > 1 ? 'distinct' : null;
         payload.perKillCap = oncePerKill ? 1 : null;
       } else if (kind === 'kill') {
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
@@ -1701,10 +1712,30 @@ export default function TileTrackingConfig({
       {/* ---- DROP KINDS (drop / collection) ---- */}
       {isDrop && (
         <div className="space-y-3 rounded-lg border border-accent-green/20 bg-accent-green/5 p-3">
+          {/* What members will read — the exact sentence the board and the RuneLite sidebar show. */}
+          {(() => {
+            const rule = trackedItems.length > 0
+              ? howItCounts({
+                  tileType: 'drop',
+                  requiredAmount: kind === 'drop' ? (parseInt(requiredAmount, 10) || 1) : null,
+                  poolSize: trackedItems.length,
+                  countMode,
+                  itemRequirements: isCollection ? collectionRequirements : null,
+                  groupMode,
+                  setsRequired: groupMode === 'any' ? setsRequired : null,
+                })
+              : null;
+            return rule ? (
+              <div className="rounded-md border border-gold/30 bg-gold/10 px-2.5 py-2">
+                <p className="text-[10px] uppercase tracking-wide text-text-muted mb-0.5">Members will read</p>
+                <p className="text-xs font-medium text-gold">{rule}</p>
+              </div>
+            ) : null;
+          })()}
           {kind === 'drop' && (
             <div>
               <label className="block text-xs text-text-muted mb-1">
-                Required Amount <span className="text-text-muted/60">(any tracked item counts)</span>
+                Required Amount <span className="text-text-muted/60">({countMode === 'distinct' ? 'different items' : 'any tracked item counts'})</span>
               </label>
               <Input
                 type="number"
@@ -1718,6 +1749,26 @@ export default function TileTrackingConfig({
               <p className="text-[10px] text-text-muted mt-0.5">
                 Total drops needed across all tracked items combined. E.g. &ldquo;10 uniques from any GWD boss&rdquo;.
               </p>
+              {trackedItems.length > 1 && (
+                <div className="flex gap-2 mt-2">
+                  {([
+                    ['total', 'Repeats count', 'Every drop counts — 3× the same item finishes a "get 3" tile.'],
+                    ['distinct', 'Different items only', 'Only DIFFERENT items count — the same item twice counts once. "Get 3 different uniques."'],
+                  ] as const).map(([value, label, help]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      title={help}
+                      onClick={() => setCountMode(value)}
+                      className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+                        countMode === value ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -1777,12 +1828,12 @@ export default function TileTrackingConfig({
                 {(() => {
                   // Same arithmetic the server stores (lib/collectionSets): the shortest path to
                   // completion under this tile's mode.
-                  const total = collectionDisplayTotal(collectionRequirements, groupMode);
+                  const total = collectionDisplayTotal(collectionRequirements, groupMode, groupMode === 'any' ? setsRequired : null);
                   const setCount = new Set(
                     trackedItems.map((i) => i.group?.trim().toLowerCase()).filter(Boolean),
                   ).size;
                   if (setCount === 0) return total;
-                  return `${total} (${groupMode === 'all' ? `all ${setCount} sets` : `smallest of ${setCount} sets`})`;
+                  return `${total} (${groupMode === 'all' ? `all ${setCount} sets` : setsRequired > 1 ? `${setsRequired} sets` : `smallest of ${setCount} sets`})`;
                 })()}
               </div>
             </div>
@@ -1898,6 +1949,28 @@ export default function TileTrackingConfig({
                       : 'Sets are alternatives: satisfying one finishes the tile, and pieces don\u2019t mix.'}
                   </p>
                 </div>
+                {groupMode === 'any' && (
+                  <div>
+                    <label className="block text-xs text-text-muted mb-1">
+                      How many sets
+                      <FlagHint text={SETS_REQUIRED_HELP} />
+                    </label>
+                    <div className="flex items-center gap-2 text-xs">
+                      <NumberInput
+                        value={setsRequired}
+                        onChange={(val) => setSetsRequired(Math.min(Math.max(1, val), 50))}
+                        min={1}
+                        max={50}
+                        fallback={1}
+                        className="w-14 px-1.5 py-0.5 bg-brown-dark border border-card-border rounded text-xs text-foreground text-center"
+                        aria-label="How many sets the tile needs"
+                      />
+                      <span className="text-text-muted">
+                        {setsRequired > 1 ? 'different sets or the same set again — both count' : 'set finishes the tile'}
+                      </span>
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs text-text-muted mb-1">
                     Items needed per set

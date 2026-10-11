@@ -310,6 +310,7 @@ export async function POST(request: Request) {
             eventName: event.name,
             tileLabel: tile.label,
             teamName: team.name,
+            teamId: team.id,
             teamColor: team.color,
             tileType: tile.tileType,
             trackedStat: tile.trackedStat,

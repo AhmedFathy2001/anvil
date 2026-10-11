@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { countProgress, memberProgress, submissionCreditKey } from '../src/lib/countProgress.ts';
+import { countProgress, itemAlreadyCounted, memberProgress, submissionCreditKey } from '../src/lib/countProgress.ts';
 
 const sub = (playerId: number | null, amount: number, creditPlayerId: number | null = null) => ({
   playerId,
@@ -83,4 +83,23 @@ test('memberProgress reads one member for the over-submission guards', () => {
 test('empty tile is zero in both modes', () => {
   assert.deepEqual(countProgress([], 'team'), { current: 0, teamTotal: 0, finisherPlayerId: null });
   assert.deepEqual(countProgress([], 'individual'), { current: 0, teamTotal: 0, finisherPlayerId: null });
+});
+
+const drop = (playerId: number, itemId: number, amount = 1) => ({ playerId, creditPlayerId: null, amount, itemId });
+
+test("distinct pool: each item counts once for the team, whatever the stack or who got it", () => {
+  const subs = [drop(1, 100, 3), drop(2, 100), drop(2, 200)];
+  assert.equal(countProgress(subs, 'team').current, 5, 'total mode: repeats count');
+  assert.equal(countProgress(subs, 'team', 'distinct').current, 2, 'distinct: two different items');
+});
+
+test('distinct pool on a Solo tile: a teammate already having the item does not stop yours', () => {
+  const subs = [drop(1, 100), drop(1, 100), drop(2, 100), drop(2, 200)];
+  const p = countProgress(subs, 'individual', 'distinct');
+  assert.equal(p.current, 2);
+  assert.equal(p.finisherPlayerId, 2);
+  assert.equal(memberProgress(subs, 1, 'distinct'), 1);
+  assert.equal(itemAlreadyCounted(subs, 100, 'individual', 2), true);
+  assert.equal(itemAlreadyCounted(subs, 200, 'individual', 1), false);
+  assert.equal(itemAlreadyCounted(subs, 200, 'team', 1), true);
 });

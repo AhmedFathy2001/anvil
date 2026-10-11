@@ -41,6 +41,7 @@ export interface Event {
   iconUrl?: string | null;
   /** Wide picture across the top of the event page; null = none. */
   bannerUrl?: string | null;
+  bannerPosition?: number | null;
 }
 
 export interface TileRevealState {
@@ -73,6 +74,10 @@ export interface Tile extends TileRevealState {
   itemRequirements?: string | null;
   /** Collection tiles: 'any' (default/null) | 'all' — how the item groups combine. See collectionSets. */
   groupMode?: string | null;
+  /** Collection tiles in 'any' mode: sets the tile needs (null = 1). See collectionSets. */
+  setsRequired?: number | null;
+  /** Drop pools: 'total' (default/null, repeats count) | 'distinct' (different items only). */
+  countMode?: string | null;
   /** Drop tiles: most credits a single kill can give (null = uncapped). 1 = count rolls, not items. */
   perKillCap?: number | null;
   /** Kill tiles: 'per-kill' collapses a kill several members were in to one credit (lib/coopRuns). */
@@ -203,6 +208,10 @@ export interface TileConfig {
   itemRequirements: ItemRequirement[] | null;
   /** Collection tiles: 'any' (default) | 'all' — how the item sets combine (lib/collectionSets). */
   groupMode?: string | null;
+  /** Collection tiles in 'any' mode: sets the tile needs (null = 1). See collectionSets. */
+  setsRequired?: number | null;
+  /** Drop pools: 'total' (default/null, repeats count) | 'distinct' (different items only). */
+  countMode?: string | null;
   /** Drop tiles: most credits a single kill can give (null = uncapped). 1 = count rolls, not items. */
   perKillCap?: number | null;
   /** Kill tiles: 'per-kill' collapses a kill several members were in to one credit (lib/coopRuns). */

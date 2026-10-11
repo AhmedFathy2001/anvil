@@ -14,6 +14,11 @@
 //     GWD boss — which is an AND of ORs and was previously inexpressible: the engine only did OR-ed
 //     full sets, so one boss's items finished the whole tile.
 //
+//   setsRequired ('any' mode only)
+//     How many sets the tile needs; absent = 1. Sets are COUNTED, across groups and within one: a
+//     group counts once per full batch of its pieces (setTimes), so 2 is "Ahrim's + Dharok's, or
+//     Ahrim's twice". Pieces still never mix between groups.
+//
 //   groupRequire (per group)
 //     How many DISTINCT items in that group satisfy it. Unset = all of them (a full set), which is
 //     why an existing collection is unaffected. `groupRequire: 3` on a six-item group is "any 3 of
@@ -49,10 +54,16 @@ export interface CollectionGroupState<T extends CollectionProgressItem = Collect
   /** How many are met right now. */
   met: number;
   satisfied: boolean;
+  /** How many times over this set is done (setTimes) — what 'any' mode with setsRequired > 1 counts. */
+  times: number;
 }
 
 export interface CollectionState<T extends CollectionProgressItem = CollectionProgressItem> {
   mode: GroupMode;
+  /** Sets the tile needs in 'any' mode (1 unless the tile says otherwise); 'all' mode ignores it. */
+  setsRequired: number;
+  /** Sets done so far in 'any' mode, summed across groups (capped at nothing — display clamps). */
+  setsDone: number;
   /** Always-required items (no group tag). */
   ungrouped: T[];
   groups: CollectionGroupState<T>[];
@@ -61,6 +72,39 @@ export interface CollectionState<T extends CollectionProgressItem = CollectionPr
 
 export function parseGroupMode(raw: string | null | undefined): GroupMode {
   return raw === 'all' ? 'all' : 'any';
+}
+
+/** A tile's sets-required knob, normalised: anything missing or below 1 is the historical one set. */
+export function parseSetsRequired(raw: number | null | undefined): number {
+  return raw != null && Number.isFinite(raw) && raw >= 1 ? Math.floor(raw) : 1;
+}
+
+/**
+ * How many times over a set is complete: the largest k such that `require` of its items each have
+ * k × their own amount. A full set (require = every item) is therefore bounded by its rarest piece —
+ * two Ahrim's hoods and one of everything else is ONE Ahrim's set.
+ */
+export function setTimes(items: CollectionProgressItem[], require: number): number {
+  if (items.length === 0 || require < 1) return 0;
+  const perItem = items
+    .map((i) => Math.floor(i.currentAmount / Math.max(1, i.requiredAmount)))
+    .sort((a, b) => b - a);
+  return perItem[Math.min(require, perItem.length) - 1] ?? 0;
+}
+
+/**
+ * The most of ONE item a tile can use. Each item normally caps at its own amount; in 'any' mode
+ * with N sets, one group may supply all N, so a piece is useful up to N × its amount. The plugin
+ * and the submission guard both cap on this, or the second Ahrim's hood would be refused.
+ */
+export function itemCap(
+  req: Pick<CollectionRequirement, 'requiredAmount' | 'group'>,
+  groupMode: string | null | undefined,
+  setsRequired: number | null | undefined,
+): number {
+  const amount = Math.max(1, req.requiredAmount);
+  if (!req.group?.trim() || parseGroupMode(groupMode) === 'all') return amount;
+  return amount * parseSetsRequired(setsRequired);
 }
 
 /** An item counts once its own required amount is collected. */
@@ -76,8 +120,10 @@ export function itemMet(item: CollectionProgressItem): boolean {
 export function evaluateCollection<T extends CollectionProgressItem>(
   reqs: T[],
   groupMode: string | null | undefined,
+  setsRequiredRaw?: number | null,
 ): CollectionState<T> {
   const mode = parseGroupMode(groupMode);
+  const setsRequired = parseSetsRequired(setsRequiredRaw);
   const ungrouped: T[] = [];
   const order: string[] = [];
   const byKey = new Map<string, { name: string; items: T[]; declared: number[] }>();
@@ -106,14 +152,15 @@ export function evaluateCollection<T extends CollectionProgressItem>(
     const declared = bucket.declared.length > 0 ? Math.max(...bucket.declared) : bucket.items.length;
     const require = Math.min(Math.max(1, declared), bucket.items.length);
     const met = bucket.items.filter(itemMet).length;
-    return { name: bucket.name, items: bucket.items, require, met, satisfied: met >= require };
+    return { name: bucket.name, items: bucket.items, require, met, satisfied: met >= require, times: setTimes(bucket.items, require) };
   });
 
   const ungroupedDone = ungrouped.every(itemMet);
+  const setsDone = groups.reduce((sum, g) => sum + g.times, 0);
   const groupsDone =
-    groups.length === 0 ? true : mode === 'all' ? groups.every((g) => g.satisfied) : groups.some((g) => g.satisfied);
+    groups.length === 0 ? true : mode === 'all' ? groups.every((g) => g.satisfied) : setsDone >= setsRequired;
 
-  return { mode, ungrouped, groups, isComplete: ungroupedDone && groupsDone };
+  return { mode, setsRequired, setsDone, ungrouped, groups, isComplete: ungroupedDone && groupsDone };
 }
 
 /**
@@ -125,6 +172,7 @@ export function evaluateCollection<T extends CollectionProgressItem>(
 export function collectionDisplayTotal(
   reqs: CollectionRequirement[],
   groupMode: string | null | undefined,
+  setsRequired?: number | null,
 ): number {
   // The evaluator resolves grouping + require counts; borrow it with zero progress.
   const state = evaluateCollection(reqs.map((r) => ({ ...r, currentAmount: 0 })), groupMode);
@@ -139,22 +187,95 @@ export function collectionDisplayTotal(
   );
   return ungroupedSum + (state.mode === 'all'
     ? groupCosts.reduce((sum, n) => sum + n, 0)
-    : Math.min(...groupCosts));
+    : Math.min(...groupCosts) * parseSetsRequired(setsRequired));
 }
 
-/**
- * The line that tells a member what the groups mean, so a board never leaves them guessing whether
- * pieces mix. Null when there are no groups (a flat collection needs no explanation).
- */
-export function groupModeHint(state: CollectionState): string | null {
-  if (state.groups.length === 0) return null;
-  const partial = state.groups.some((g) => g.require < g.items.length);
-  if (state.mode === 'all') {
-    return partial
-      ? 'Every set below must be satisfied — each needs the number of items shown.'
-      : 'Every set below must be completed in full.';
+// ── How it counts ───────────────────────────────────────────────────────────────────────────────
+// ONE sentence that tells a member what an item tile wants, written here and nowhere else: the
+// board, the tile detail, the editor's preview and the RuneLite sidebar (sent as text in the plugin
+// payloads) all show this, so the site and the plugin can't explain the same tile two ways again.
+// Written for someone skimming — the number and the catch ("repeats count", "pieces don't mix")
+// up front.
+
+export type CountMode = 'total' | 'distinct';
+
+export function parseCountMode(raw: string | null | undefined): CountMode {
+  return raw === 'distinct' ? 'distinct' : 'total';
+}
+
+export interface HowItCountsTile {
+  tileType: string | null | undefined;
+  requiredAmount: number | null | undefined;
+  /** Drop pools: how many items are in the pool. */
+  poolSize?: number | null;
+  countMode?: string | null;
+  itemRequirements?: CollectionRequirement[] | null;
+  groupMode?: string | null;
+  setsRequired?: number | null;
+}
+
+// "Ahrim's set" and "Ahrim's" both read as "the Ahrim's set", never "the Ahrim's set set".
+const setName = (name: string) => name.replace(/\s+set$/i, '');
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const SPELLED = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+const times = (n: number) => (n === 1 ? 'once' : n === 2 ? 'twice' : `${SPELLED[n] ?? n} times`);
+
+/** The sentence for an item tile, or null for a tile that isn't one. */
+export function howItCounts(tile: HowItCountsTile): string | null {
+  const reqs = tile.itemRequirements ?? [];
+  if (reqs.length > 0) return collectionSentence(reqs, tile.groupMode, tile.setsRequired);
+  if (tile.tileType !== 'drop') return null;
+
+  const need = Math.max(1, tile.requiredAmount ?? 1);
+  const pool = tile.poolSize ?? 0;
+  if (pool <= 1) {
+    return need === 1 ? 'Get the item below.' : `Get ${need} of the item below — every drop adds to the total.`;
   }
-  return partial
-    ? 'Satisfy any ONE set below — each needs the number of items shown, and sets don’t mix.'
-    : 'Complete any ONE set below — pieces from different sets don’t mix.';
+  if (parseCountMode(tile.countMode) === 'distinct') {
+    return need === 1
+      ? 'Get any ONE of the items below.'
+      : `Get ${need} DIFFERENT items from the list below — getting the same item again doesn’t count.`;
+  }
+  return need === 1
+    ? 'Get any ONE of the items below.'
+    : `Get ${need} drops of any items below — mix and match, and repeats count (${need}× the same item is fine).`;
+}
+
+function collectionSentence(reqs: CollectionRequirement[], groupMode: string | null | undefined, setsRequiredRaw: number | null | undefined): string {
+  const state = evaluateCollection(reqs.map((r) => ({ ...r, currentAmount: 0 })), groupMode, setsRequiredRaw);
+  const allOnes = (list: CollectionRequirement[]) => list.every((r) => Math.max(1, r.requiredAmount) === 1);
+  if (state.groups.length === 0) {
+    return allOnes(reqs)
+      ? `Get EVERY item below — one of each (${plural(reqs.length, 'item')}).`
+      : 'Get EVERY item below, in the amount shown next to each.';
+  }
+
+  const always = state.ungrouped.length > 0 ? ' Plus every item under “Always required”.' : '';
+  const partial = state.groups.some((g) => g.require < g.items.length);
+  const pieces = (g: CollectionGroupState) => (g.require < g.items.length ? `any ${g.require} of its ${g.items.length} pieces` : `all ${g.items.length} pieces`);
+
+  if (state.mode === 'all') {
+    return (partial
+      ? 'Complete EVERY set below — each needs the number of pieces shown.'
+      : 'Complete EVERY set below in full.') + always;
+  }
+
+  const n = state.setsRequired;
+  const sameSize = state.groups.every((g) => g.require === state.groups[0].require && g.items.length === state.groups[0].items.length);
+  const what = !sameSize
+    ? ' — each set needs the pieces shown'
+    : n === 1
+      ? ` — ${pieces(state.groups[0])} of the SAME set`
+      : ` — each one needs ${pieces(state.groups[0])} of the same set`;
+  if (state.groups.length === 1) {
+    const g = setName(state.groups[0].name);
+    return (n === 1
+      ? `Complete the ${g} set${what}.`
+      : `Complete the ${g} set ${times(n)}${what}.`) + always;
+  }
+  if (n === 1) {
+    return `Complete ANY ONE set below${what}. Pieces from different sets don’t mix.${always}`;
+  }
+  const [a, b] = state.groups.map((g) => setName(g.name));
+  return `Complete ${n} sets${what}. Any ${n} count — e.g. ${a} + ${b}, or ${a} ${times(n)}. Pieces from different sets don’t mix.${always}`;
 }

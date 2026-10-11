@@ -518,6 +518,7 @@ export default async function EventScoreboardPage({
         name={event.name}
         iconUrl={eventIconUrl(event, hostClan)}
         bannerUrl={event.bannerUrl}
+        bannerPosition={event.bannerPosition}
         hostName={hostClan?.name ?? clan.name}
         shapeBadge={eventShapeBadge(event.format, event.scoringMode, event.tilesRevealed ? event.boardSize : null, event.rules)}
         pointsOnBoard={pointsOnBoard}

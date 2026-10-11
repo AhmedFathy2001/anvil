@@ -101,6 +101,8 @@ export async function toTileConfig(
     itemRequirements: reqs.length ? reqs : null,
     trackedItemIds: reqs.length ? reqs.map((r) => r.itemId) : null,
     groupMode: row.groupMode === 'all' ? 'all' : null,
+    setsRequired: asNumber(row.setsRequired),
+    countMode: row.countMode === 'distinct' ? 'distinct' : null,
     perKillCap: asNumber(row.perKillCap),
     coopCredit: row.coopCredit === 'per-kill' ? 'per-kill' : null,
     coopMinMembers: asNumber(row.coopMinMembers),
@@ -145,6 +147,8 @@ export function payloadToCsvRow(payload: Record<string, unknown>): TileCsvRow {
     items,
     // Only stored when it isn't the default, so a plain collection's library row is unchanged.
     groupMode: payload.groupMode === 'all' ? 'all' : null,
+    setsRequired: typeof payload.setsRequired === 'number' && payload.setsRequired > 1 ? payload.setsRequired : null,
+    countMode: payload.countMode === 'distinct' ? 'distinct' : null,
     perKillCap: (payload.perKillCap as number | null) ?? null,
     coopCredit: payload.coopCredit === 'per-kill' ? 'per-kill' : null,
     coopMinMembers: (payload.coopMinMembers as number | null) ?? null,

@@ -510,6 +510,9 @@ export const events = pgTable('events', {
   // event page and its link preview. Both are our own uploaded media; null = not set.
   iconUrl: text('icon_url'),
   bannerUrl: text('banner_url'),
+  // Which part of the banner shows when the frame crops it: the vertical focus, 0 (top) – 100
+  // (bottom). NULL = centred. Only matters for uploads that aren't 3:1.
+  bannerPosition: integer('banner_position'),
   // Member-facing tile visibility. 0 = tiles are hidden from non-staff: the web board
   // renders a "tiles not revealed yet" placeholder and the plugin returns empty tile
   // lists. 1 = revealed to everyone. Admin-only toggle on the event Overview tab. New
@@ -641,6 +644,14 @@ export const tiles = pgTable('tiles', {
   // pre-existing collection has: satisfy ONE set. 'all' = AND-ed, every set must be satisfied — which
   // with groupRequire=1 per set is "one of many from EACH source" (a unique from each DT2 boss).
   groupMode: text('group_mode'),
+  // Collection tiles in 'any' mode: how many sets the tile needs (NULL = 1, the historical "one set").
+  // Sets are counted across groups and a group can count more than once — 2 is "Ahrim's + Dharok's,
+  // or Ahrim's twice" — but pieces never mix between sets (lib/collectionSets setTimes).
+  setsRequired: integer('sets_required'),
+  // Plain drop pools: how drops count toward requiredAmount. NULL/'total' = every drop counts,
+  // repeats included (the historical behaviour); 'distinct' = only DIFFERENT items count, so
+  // "3 different uniques" can't be finished by one item dropping three times.
+  countMode: text('count_mode'),
   // DROP tiles: the most this tile can be credited from a SINGLE kill, however many tracked items
   // that kill dropped or how big the stack was. NULL = uncapped (every drop counts, the historical
   // behaviour). 1 is "one credit per kill" — what makes a tile count ROLLS of a unique table rather
@@ -2495,6 +2506,25 @@ export const userWebhooks = pgTable('user_webhooks', {
     .default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`)
     .notNull(),
 }, (t) => [index('user_webhooks_user_idx').on(t.userId)]);
+
+// Extra destinations for ONE event's posts (lib/eventWebhooks) — on top of the host's bingo channel
+// and the co-host fan-out, never instead of them. teamId null = the whole event; set = only that
+// team's drops/completions/win (plus any event-wide kinds the hook also asked for).
+export const eventWebhooks = pgTable('event_webhooks', {
+  id: serial('id').primaryKey(),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  teamId: integer('team_id').references(() => teams.id, { onDelete: 'cascade' }),
+  url: text('url').notNull(),
+  label: text('label'),
+  /** JSON array of post kinds (lib/eventWebhooks EVENT_POST_KINDS) this hook receives. */
+  kinds: text('kinds').default('[]').notNull(),
+  createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at')
+    .default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`)
+    .notNull(),
+}, (t) => [index('event_webhooks_event_idx').on(t.eventId)]);
+
+export type EventWebhook = typeof eventWebhooks.$inferSelect;
 
 export type AccountClanEmission = typeof accountClanEmission.$inferSelect;
 export type UserWebhook = typeof userWebhooks.$inferSelect;

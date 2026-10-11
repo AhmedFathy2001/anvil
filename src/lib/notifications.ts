@@ -123,6 +123,7 @@ async function flushBucket(tileId: number, teamId: number): Promise<boolean> {
     eventName: event.name,
     tileLabel: tile.label,
     teamName: team.name,
+    teamId: team.id,
     teamColor: team.color,
     tileType: tile.tileType,
     creditPlayerName: row.latestCreditName,

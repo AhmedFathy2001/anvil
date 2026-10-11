@@ -9,6 +9,8 @@ interface Props {
   /** Already resolved: the event's icon, else the host clan's logo, else null (crest). */
   iconUrl?: string | null;
   bannerUrl?: string | null;
+  /** Vertical focus of the banner, 0–100 (null = centre). */
+  bannerPosition?: number | null;
   /** Names the crest when there's no picture at all. */
   hostName?: string;
   shapeBadge: string;
@@ -60,6 +62,7 @@ export default function EventHero({
   name,
   iconUrl = null,
   bannerUrl = null,
+  bannerPosition = null,
   hostName,
   shapeBadge,
   pointsOnBoard,
@@ -93,9 +96,16 @@ export default function EventHero({
 
       {/* The banner, or without one a thin tinted strip, so the icon always has an edge to sit on. */}
       {bannerUrl ? (
-        <div className="relative aspect-[3/1] max-h-64 w-full overflow-hidden border-b border-gold/20">
+        // Always 3:1 — no height cap, which cropped a 3:1 upload on wide screens and cut off what the
+        // admin's preview showed. Off-shape uploads crop around the admin's chosen focus.
+        <div className="relative aspect-[3/1] w-full overflow-hidden border-b border-gold/20">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={bannerUrl} alt="" className="h-full w-full object-cover" />
+          <img
+            src={bannerUrl}
+            alt=""
+            className="h-full w-full object-cover"
+            style={{ objectPosition: `50% ${bannerPosition ?? 50}%` }}
+          />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-card-bg/80 via-transparent to-transparent" />
         </div>
       ) : (

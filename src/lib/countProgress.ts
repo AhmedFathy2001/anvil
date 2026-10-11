@@ -26,6 +26,8 @@ export interface CountedSubmission {
   playerId?: number | null;
   creditPlayerId?: number | null;
   amount: number;
+  /** Which item it was — only read on a 'distinct' drop pool. */
+  itemId?: number | null;
 }
 
 // Bucket key for submissions we can't attribute to a player. Player ids are positive autoincrement
@@ -51,9 +53,14 @@ export interface CountProgress {
  * get the same answer.
  */
 export function countProgress(
-  subs: CountedSubmission[],
+  subsIn: CountedSubmission[],
   trackingMode: string | null | undefined,
+  // A drop pool's count mode (lib/collectionSets parseCountMode). 'distinct' = only DIFFERENT items
+  // count: each item is worth 1 the first time it shows up and nothing after. "First" is per team on
+  // a Team tile and per member on a Solo one — a teammate's copy is still new to YOU.
+  countMode?: string | null,
 ): CountProgress {
+  const subs = countMode === 'distinct' ? distinctOnly(subsIn, isIndividualMode(trackingMode)) : subsIn;
   const teamTotal = subs.reduce((sum, s) => sum + s.amount, 0);
   if (!isIndividualMode(trackingMode)) {
     return { current: teamTotal, finisherPlayerId: null, teamTotal };
@@ -84,7 +91,34 @@ export function countProgress(
  * over-submission guards and the "3/10" the plugin shows are about YOUR count, not the team's.
  * `playerId` null (unattributed admin/captain upload) reads that shared bucket.
  */
-export function memberProgress(subs: CountedSubmission[], playerId: number | null): number {
+export function memberProgress(subsIn: CountedSubmission[], playerId: number | null, countMode?: string | null): number {
+  const subs = countMode === 'distinct' ? distinctOnly(subsIn, true) : subsIn;
   const key = playerId ?? UNATTRIBUTED_CREDIT;
   return subs.reduce((sum, s) => (submissionCreditKey(s) === key ? sum + s.amount : sum), 0);
+}
+
+/** Re-weigh a pool's submissions so each item counts once (per team, or per member on a Solo tile). */
+function distinctOnly(subs: CountedSubmission[], perMember: boolean): CountedSubmission[] {
+  const seen = new Set<string>();
+  return subs.map((s) => {
+    // A row with no item can't be told apart from any other — count it once, like a new item.
+    if (s.amount <= 0 || s.itemId == null) return { ...s, amount: s.amount > 0 ? 1 : 0 };
+    const key = `${perMember ? submissionCreditKey(s) : ''}:${s.itemId}`;
+    if (seen.has(key)) return { ...s, amount: 0 };
+    seen.add(key);
+    return { ...s, amount: 1 };
+  });
+}
+
+/** Has this team (or, on a Solo tile, this member) already counted this item on a 'distinct' pool? */
+export function itemAlreadyCounted(
+  subs: CountedSubmission[],
+  itemId: number,
+  trackingMode: string | null | undefined,
+  creditKey: number | null,
+): boolean {
+  const solo = isIndividualMode(trackingMode);
+  return subs.some(
+    (s) => s.amount > 0 && s.itemId === itemId && (!solo || submissionCreditKey(s) === (creditKey ?? UNATTRIBUTED_CREDIT)),
+  );
 }

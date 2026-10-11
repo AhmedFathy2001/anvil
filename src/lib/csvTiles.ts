@@ -52,6 +52,10 @@
 //   groupMode           collection tiles — how the @Set groups combine: blank/"any" (default) =
 //                       satisfy ONE set; "all" = satisfy EVERY set. "all" with "@Set/1" groups is
 //                       "one of many from each source" (a unique from each DT2 boss)
+//   setsRequired        collection tiles (any-set mode) — how many sets the tile needs; blank = 1.
+//                       Sets are counted, so "2" is two different sets OR the same set twice
+//   countMode           drop pools — blank/"total" = every drop counts, repeats included;
+//                       "distinct" = only DIFFERENT items count ("3 different uniques")
 //   items               drop tiles — tracked item(s), "Name:count" semicolon-separated;
 //                       append "@Set" for set collections ("Dharok's helm:1@Dharok"), and
 //                       "@Set/N" when only N of that set are needed ("Eye of the duke:1@Duke/1")
@@ -97,6 +101,10 @@ export const TILE_CSV_COLUMNS = [
   'missionPoints',
   'missionMaxClaims',
   'missionExpiryHours',
+  // Appended, not slotted in beside groupMode: the spreadsheet's dropdowns are pinned to column
+  // letters (lib/tileSpreadsheet), and older sheets keep importing by header either way.
+  'setsRequired',
+  'countMode',
 ] as const;
 
 import type { Tile } from '@/lib/types';
@@ -144,6 +152,8 @@ export interface TileCsvRow {
   revealAt?: string | null;
   items?: TileCsvItem[] | null;
   groupMode?: string | null;
+  setsRequired?: number | null;
+  countMode?: string | null;
   perKillCap?: number | null;
   coopCredit?: string | null;
   coopMinMembers?: number | null;
@@ -406,6 +416,8 @@ export function parseTileGrid(grid: string[][]): ParsedTileCsv {
     missionPoints: idx('missionpoints'),
     missionMaxClaims: idx('missionmaxclaims'),
     missionExpiryHours: idx('missionexpiryhours'),
+    setsRequired: idx('setsrequired'),
+    countMode: idx('countmode'),
   };
   if (col.label === -1 && col.description === -1 && col.points === -1) {
     return {
@@ -495,6 +507,13 @@ export function parseTileGrid(grid: string[][]): ParsedTileCsv {
     if (col.groupMode >= 0) {
       // Only 'all' means anything; everything else (including blank) is the default any-one-set.
       row.groupMode = get(cells, col.groupMode).trim().toLowerCase() === 'all' ? 'all' : null;
+    }
+    if (col.setsRequired >= 0) {
+      const n = toNumberLoose(get(cells, col.setsRequired));
+      row.setsRequired = n != null && n >= 2 ? Math.floor(n) : null;
+    }
+    if (col.countMode >= 0) {
+      row.countMode = get(cells, col.countMode).trim().toLowerCase() === 'distinct' ? 'distinct' : null;
     }
     if (col.perKillCap >= 0) {
       const cap = toNumberLoose(get(cells, col.perKillCap));
@@ -718,5 +737,7 @@ export function tileToCsvCells(t: Tile): string[] {
     missionPointsCell(t),
     missionMaxClaimsCell(t),
     missionExpiryCell(t),
+    t.setsRequired != null && t.setsRequired > 1 ? String(t.setsRequired) : '',
+    t.countMode === 'distinct' ? 'distinct' : '',
   ];
 }

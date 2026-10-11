@@ -14,7 +14,7 @@ import TileTargets from './TileTargets';
 import { statLabel, parseJsonArray } from '@/lib/tileKinds';
 import { lapUnitNoun } from '@/lib/constants';
 import { isIndividualMode } from '@/lib/statTracking';
-import { evaluateCollection, groupModeHint } from '@/lib/collectionSets';
+import { evaluateCollection } from '@/lib/collectionSets';
 import { submissionHasProof } from '@/lib/submissionProof';
 import { parseTileMissionRules, missionPrizeSummary, placeLabel } from '@/lib/eventRules';
 import { formatGp } from '@/lib/adminEventsFormat';
@@ -666,13 +666,18 @@ export default function TileDetailModal({
                 // Sets and what they mean come from lib/collectionSets, the same rule the server
                 // completes on \u2014 including 'all' mode ("one from each source"), where a set can need
                 // just some of its items.
-                const state = evaluateCollection(perItemProgress, tile.groupMode);
+                const state = evaluateCollection(perItemProgress, tile.groupMode, tile.setsRequired);
                 if (state.groups.length === 0) {
                   return <div className="mt-3 space-y-1.5">{perItemProgress.map(row)}</div>;
                 }
                 return (
                   <div className="mt-3 space-y-2.5">
-                    <p className="text-[11px] text-text-muted">{groupModeHint(state)}</p>
+                    {/* The rule itself is TileTargets' sentence above; here, just the count. */}
+                    {state.mode === 'any' && state.setsRequired > 1 && (
+                      <p className="text-[11px] font-semibold text-foreground/80">
+                        Sets complete: {Math.min(state.setsDone, state.setsRequired)}/{state.setsRequired}
+                      </p>
+                    )}
                     {state.ungrouped.length > 0 && (
                       <div>
                         <p className="text-[11px] font-semibold text-text-muted mb-1">Always required</p>
@@ -682,7 +687,11 @@ export default function TileDetailModal({
                     {state.groups.map((set) => (
                       <div key={set.name.toLowerCase()} className={`rounded-lg border px-2.5 py-2 ${set.satisfied ? 'border-accent-green/40 bg-accent-green/10' : 'border-card-border/60'}`}>
                         <p className={`text-[11px] font-semibold mb-1 flex justify-between gap-2 ${set.satisfied ? 'text-accent-green-light' : 'text-foreground/80'}`}>
-                          <span>{set.name}{set.satisfied ? ' \u2713' : ''}</span>
+                          <span>
+                            {set.name}
+                            {set.satisfied ? ' \u2713' : ''}
+                            {set.times > 1 ? ` \u00d7${set.times}` : ''}
+                          </span>
                           {/* Only worth saying when the set doesn't need all of its items. */}
                           {set.require < set.items.length && (
                             <span className="text-text-muted font-normal">any {set.require} \u00b7 {set.met}/{set.require}</span>

@@ -533,6 +533,27 @@
       "when": 1790551400000,
       "tag": "0117_tile_claims",
       "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1790551500000,
+      "tag": "0118_tile_sets_and_distinct",
+      "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1790551600000,
+      "tag": "0119_event_banner_position",
+      "breakpoints": true
+    },
+    {
+      "idx": 120,
+      "version": "7",
+      "when": 1790551700000,
+      "tag": "0120_event_webhooks",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,7 @@ import type { ItemRequirement } from '@/lib/types';
 import { parseJsonArray } from '@/lib/tileKinds';
 import { AGILITY_COURSES, SEPULCHRE_TARGETS, lapUnitNoun } from '@/lib/constants';
 import { clanFetch } from '@/lib/clanFetch';
+import { howItCounts } from '@/lib/collectionSets';
 
 // Structural tile shape — the board clients each carry their own narrowed Tile interface.
 export interface TileTargetsLike {
@@ -18,6 +19,9 @@ export interface TileTargetsLike {
   timedActivity?: string | null;
   timeThresholdSeconds?: number | null;
   partySize?: number | null;
+  groupMode?: string | null;
+  setsRequired?: number | null;
+  countMode?: string | null;
 }
 
 // Member-facing, read-only summary of WHAT a tile tracks — the items/NPCs/raid/caps an admin
@@ -97,6 +101,27 @@ export default function TileTargets({ tile, hideItems }: Props) {
 
   const kind = tile.tileType;
 
+  // The rule in plain words, first — always, even when the items themselves are listed elsewhere.
+  // Same sentence the RuneLite sidebar shows (lib/collectionSets howItCounts).
+  if (kind === 'drop') {
+    const rule = howItCounts({
+      tileType: kind,
+      requiredAmount: tile.requiredAmount,
+      poolSize: trackedIds.length,
+      countMode: tile.countMode,
+      itemRequirements: requirements,
+      groupMode: tile.groupMode,
+      setsRequired: tile.setsRequired,
+    });
+    if (rule) {
+      rows.push(
+        <p key="rule" className="text-xs font-medium text-gold/90 rounded-md bg-gold/10 border border-gold/20 px-2 py-1.5">
+          {rule}
+        </p>,
+      );
+    }
+  }
+
   if ((kind === 'drop' || kind === 'gain') && !hideItems) {
     if (requirements.length > 0) {
       // Collection: named per-item requirements, possibly grouped into "any one set" alternatives.
@@ -114,11 +139,13 @@ export default function TileTargets({ tile, hideItems }: Props) {
         rows.push(<Row key="items" label={groups.size > 0 ? 'Always required' : 'Items'}><NameChips names={fmt(ungrouped)} /></Row>);
       }
       for (const [g, list] of groups) {
-        rows.push(<Row key={`set-${g}`} label={`Set — ${g}`}><NameChips names={fmt(list)} /></Row>);
+        const need = Math.max(0, ...list.map((r) => r.groupRequire ?? 0));
+        const label = need > 0 && need < list.length ? `Set — ${g} (any ${need} of ${list.length})` : `Set — ${g}`;
+        rows.push(<Row key={`set-${g}`} label={label}><NameChips names={fmt(list)} /></Row>);
       }
     } else if (trackedIds.length > 0) {
       rows.push(
-        <Row key="items" label={kind === 'gain' ? 'Counts gains of' : 'Any of'}>
+        <Row key="items" label={kind === 'gain' ? 'Counts gains of' : tile.countMode === 'distinct' ? 'Different items from' : 'Any of'}>
           {itemNames ? <NameChips names={itemNames} /> : <span className="text-text-muted">Loading…</span>}
         </Row>,
       );

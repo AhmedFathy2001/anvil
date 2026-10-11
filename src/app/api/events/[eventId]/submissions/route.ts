@@ -8,7 +8,8 @@ import { verifyAdmin, verifyUser, verifyCaptain, verifyPlayer, verifyPluginToken
 import { atLeast } from '@/lib/clanRoles';
 import { resolveTeamManagement } from '@/lib/teamStaff';
 import { syncDropTileCompletion, countTileProgress } from '@/lib/submissions';
-import { countProgress, memberProgress } from '@/lib/countProgress';
+import { countProgress, itemAlreadyCounted, memberProgress } from '@/lib/countProgress';
+import { itemCap, parseCountMode } from '@/lib/collectionSets';
 import { parseCoopCredit } from '@/lib/coopRuns';
 import { isIndividualMode } from '@/lib/statTracking';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
@@ -310,7 +311,7 @@ export async function POST(
   }
 
   // Per-item tracking validation
-  const tileItemRequirements = tile.itemRequirements ? JSON.parse(tile.itemRequirements) as { itemId: number; name: string; requiredAmount: number }[] : null;
+  const tileItemRequirements = tile.itemRequirements ? JSON.parse(tile.itemRequirements) as { itemId: number; name: string; requiredAmount: number; group?: string | null }[] : null;
 
   if (tileItemRequirements) {
     // Per-item mode: require itemId
@@ -328,12 +329,14 @@ export async function POST(
       .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId), eq(submissions.itemId, itemId)));
     const itemTotal = Number(itemSubmissions[0]?.total ?? 0);
     const submitAmount = amount || 1;
+    // A tile needing N sets can use a set's piece N times over (Ahrim's twice) — lib/collectionSets.
+    const cap = itemCap(requirement, tile.groupMode, tile.setsRequired);
 
-    if (itemTotal >= requirement.requiredAmount) {
-      return NextResponse.json({ error: `${requirement.name} already at required amount (${requirement.requiredAmount})` }, { status: 400 });
+    if (itemTotal >= cap) {
+      return NextResponse.json({ error: `${requirement.name} already at required amount (${cap})` }, { status: 400 });
     }
-    if (itemTotal + submitAmount > requirement.requiredAmount && !isAdmin) {
-      const remaining = requirement.requiredAmount - itemTotal;
+    if (itemTotal + submitAmount > cap && !isAdmin) {
+      const remaining = cap - itemTotal;
       return NextResponse.json({ error: `Can only submit ${remaining} more ${requirement.name}` }, { status: 400 });
     }
   } else if (tile.tileType === 'value' && tile.requiredAmount) {
@@ -365,10 +368,20 @@ export async function POST(
         playerId: submissions.playerId,
         creditPlayerId: submissions.creditPlayerId,
         amount: submissions.amount,
+        itemId: submissions.itemId,
       })
       .from(submissions)
       .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId)));
     const soloTile = isIndividualMode(tile.trackingMode);
+    // "Different items only" pool: a repeat adds nothing, so refuse it rather than store a drop
+    // that silently doesn't count. Needs the item to tell; an itemless upload counts as new.
+    const distinctPool = tile.tileType === 'drop' && parseCountMode(tile.countMode) === 'distinct';
+    if (distinctPool && itemId && itemAlreadyCounted(tileSubs, itemId, tile.trackingMode, submitterCreditId ?? null)) {
+      return NextResponse.json(
+        { error: 'That item already counts toward this tile — it needs DIFFERENT items, so a repeat adds nothing.' },
+        { status: 400 },
+      );
+    }
     const coopTile = parseCoopCredit(tile.coopCredit) === 'per-kill' || (tile.coopMinMembers ?? 0) > 0;
     const currentTotal = coopTile
       // Shared-kill tiles count RUNS, not submissions: a teammate reporting the same kill adds
@@ -376,9 +389,10 @@ export async function POST(
       // was shared. Guard on the credited figure (lib/coopRuns) and let the run absorb it.
       ? (await countTileProgress(tileId, teamId, tile.trackingMode, tile)).current
       : soloTile
-        ? memberProgress(tileSubs, submitterCreditId)
-        : countProgress(tileSubs, tile.trackingMode).current;
-    const submitAmount = amount || 1;
+        ? memberProgress(tileSubs, submitterCreditId, distinctPool ? 'distinct' : null)
+        : countProgress(tileSubs, tile.trackingMode, distinctPool ? 'distinct' : null).current;
+    // A new item on a distinct pool is worth exactly 1, whatever the stack.
+    const submitAmount = distinctPool ? 1 : amount || 1;
 
     if (currentTotal >= tile.requiredAmount) {
       return NextResponse.json(
@@ -440,6 +454,7 @@ export async function POST(
       eventName: event?.name || 'Unknown Event',
       tileLabel: tile.label,
       teamName: team.name,
+      teamId: team.id,
       teamColor: team.color,
       creditPlayerName,
       amount: amount || 1,
@@ -618,6 +633,7 @@ export async function DELETE(
       eventName: event.name,
       tileLabel: tile.label,
       teamName: team.name,
+      teamId: team.id,
       teamColor: team.color,
       creditPlayerName,
       amount: submission.amount,

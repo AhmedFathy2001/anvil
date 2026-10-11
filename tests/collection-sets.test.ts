@@ -11,7 +11,9 @@ import assert from 'node:assert/strict';
 import {
   evaluateCollection,
   parseGroupMode,
-  groupModeHint,
+  howItCounts,
+  itemCap,
+  setTimes,
   type CollectionProgressItem,
 } from '../src/lib/collectionSets.ts';
 
@@ -41,7 +43,6 @@ test('flat collection (no groups): every item required, unchanged behaviour', ()
   const partial = evaluateCollection([item('Bandos chestplate', 1), item('Bandos tassets', 0)], null);
   assert.equal(partial.isComplete, false);
   assert.equal(partial.groups.length, 0);
-  assert.equal(groupModeHint(partial), null, 'nothing to explain on a flat collection');
 
   const done = evaluateCollection([item('Bandos chestplate', 1), item('Bandos tassets', 1)], null);
   assert.equal(done.isComplete, true);
@@ -146,11 +147,43 @@ test('disagreeing groupRequire rows resolve to the strictest', () => {
   assert.equal(state.isComplete, false);
 });
 
-test('groupModeHint says which reading is in force', () => {
-  const sets = [
-    item('A', 0, { group: 'One' }),
-    item('B', 0, { group: 'Two' }),
-  ];
-  assert.match(groupModeHint(evaluateCollection(sets, 'any'))!, /any ONE set/);
-  assert.match(groupModeHint(evaluateCollection(sets, 'all'))!, /Every set/);
+const barrows = (have: Record<string, number>) =>
+  ['Ahrim', 'Dharok'].flatMap((set) =>
+    ['helm', 'body', 'legs', 'weapon'].map((p) => item(`${set}'s ${p}`, have[`${set} ${p}`] ?? have[set] ?? 0, { group: set })),
+  );
+
+test('setTimes: a full set is bounded by its rarest piece; a partial one by its Nth best', () => {
+  assert.equal(setTimes([item('a', 2), item('b', 1), item('c', 3)], 3), 1);
+  assert.equal(setTimes([item('a', 2), item('b', 2), item('c', 0)], 2), 2, 'any 2 of 3: two pieces at 2 each');
+  assert.equal(setTimes([item('a', 4, { need: 2 }), item('b', 2)], 2), 2, 'each piece measured in its own amount');
+});
+
+test('N sets: two different sets count, one set twice counts, a mix of pieces does not', () => {
+  assert.equal(evaluateCollection(barrows({ Ahrim: 1, Dharok: 1 }), 'any', 2).isComplete, true, "Ahrim's + Dharok's");
+  assert.equal(evaluateCollection(barrows({ Ahrim: 2 }), 'any', 2).isComplete, true, "Ahrim's twice");
+  const short = evaluateCollection(barrows({ Ahrim: 2, 'Ahrim weapon': 1 }), 'any', 2);
+  assert.equal(short.isComplete, false, 'second Ahrim set is missing its weapon');
+  assert.equal(short.setsDone, 1);
+  assert.equal(evaluateCollection(barrows({ Ahrim: 1, 'Dharok helm': 1 }), 'any', 2).isComplete, false, 'pieces never mix');
+  assert.equal(evaluateCollection(barrows({ Ahrim: 1 }), 'any', null).isComplete, true, 'unset = one set, as before');
+});
+
+test('itemCap lets a piece count once per set the tile needs, only for grouped any-mode items', () => {
+  assert.equal(itemCap({ requiredAmount: 1, group: 'Ahrim' }, 'any', 2), 2);
+  assert.equal(itemCap({ requiredAmount: 1, group: 'Ahrim' }, 'all', 2), 1);
+  assert.equal(itemCap({ requiredAmount: 3, group: null }, 'any', 2), 3, 'always-required items are needed once');
+  assert.equal(itemCap({ requiredAmount: 1, group: 'Ahrim' }, 'any', null), 1);
+});
+
+test('howItCounts spells out each item mode', () => {
+  assert.match(howItCounts({ tileType: 'drop', requiredAmount: 3, poolSize: 5 })!, /3 drops of any items.*repeats count/);
+  assert.match(howItCounts({ tileType: 'drop', requiredAmount: 3, poolSize: 5, countMode: 'distinct' })!, /3 DIFFERENT items.*doesn’t count/);
+  assert.match(howItCounts({ tileType: 'drop', requiredAmount: 2, poolSize: 1 })!, /Get 2 of the item/);
+  const flat = [item('a', 0), item('b', 0)];
+  assert.match(howItCounts({ tileType: 'drop', requiredAmount: 2, itemRequirements: flat })!, /EVERY item below — one of each/);
+  const sets = barrows({});
+  assert.match(howItCounts({ tileType: 'drop', requiredAmount: 4, itemRequirements: sets })!, /ANY ONE set below — all 4 pieces of the SAME set\. Pieces from different sets don’t mix/);
+  assert.match(howItCounts({ tileType: 'drop', requiredAmount: 8, itemRequirements: sets, setsRequired: 2 })!, /Complete 2 sets — each one needs all 4 pieces.*Ahrim \+ Dharok, or Ahrim twice/);
+  assert.match(howItCounts({ tileType: 'drop', requiredAmount: 8, itemRequirements: sets, groupMode: 'all' })!, /EVERY set below in full/);
+  assert.equal(howItCounts({ tileType: 'kill', requiredAmount: 5 }), null);
 });
