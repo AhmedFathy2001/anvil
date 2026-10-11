@@ -22,6 +22,7 @@ import {
 } from '@/lib/hiscoresActivities';
 import { SKILLS, SKILL_LABELS, BOSSES, EFFICIENCY_SCALE } from '@/lib/constants';
 import { progressToLevel } from '@/lib/xp';
+import { snapshotFromLiveStats } from '@/lib/liveSnapshot';
 import { isPlausibleRsn, normalizeRsn } from '@/lib/auth';
 
 export interface MemberListRow {
@@ -240,6 +241,7 @@ export async function getAccountProfile(accountId: number): Promise<AccountProfi
     rsn: account.rsn,
     status: account.status,
     liveStatsAt: account.liveStatsAt,
+    liveStats: account.liveStats,
     statsLastSnapshot: await statSnapshotOf(account.id),
   });
 }
@@ -250,13 +252,18 @@ async function accountProfileFrom(row: {
   rsn: string;
   status: string;
   liveStatsAt: string | null;
+  liveStats?: string | null;
   statsLastSnapshot: string | null;
 }): Promise<AccountProfile> {
-  const { snapshot, at } = await lastSnapshotFor({
+  const last = await lastSnapshotFor({
     id: row.accountId,
     accountId: row.accountId,
     statsLastSnapshot: row.statsLastSnapshot,
   });
+  // No hiscores snapshot yet, but the plugin has pushed this character's XP: build the profile from
+  // that rather than show dashes beside a "Verified" badge. Only until the sweep lands a real one.
+  const snapshot = last.snapshot ?? snapshotFromLiveStats(row.liveStats);
+  const at = last.snapshot ? last.at : snapshot ? row.liveStatsAt : null;
 
   const [mode] = await db
     .select({ accountType: accounts.accountType })
@@ -351,6 +358,7 @@ export async function getMemberProfile(clanId: number, rsn: string): Promise<Mem
     rsn: member.rsn,
     status: member.status,
     liveStatsAt: member.liveStatsAt,
+    liveStats: member.liveStats,
     statsLastSnapshot: member.statsLastSnapshot,
   });
 

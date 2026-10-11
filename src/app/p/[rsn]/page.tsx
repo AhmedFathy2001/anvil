@@ -166,7 +166,13 @@ export default async function CharacterPage({ params }: { params: Promise<{ rsn:
           <Figure label="Combat" value={profile.combatLevel != null ? String(profile.combatLevel) : '—'} />
           <Figure
             label="Total XP"
-            value={character.overallXp != null ? compact(character.overallXp) : '—'}
+            value={
+              character.overallXp != null
+                ? compact(character.overallXp)
+                : profile.skills.length > 0
+                  ? compact(profile.skills.reduce((sum, k) => sum + k.xp, 0))
+                  : '—'
+            }
           />
           <Figure label="EHP" value={ehp != null ? ehp.toFixed(1) : '—'} />
           <Figure label="EHB" value={ehb != null ? ehb.toFixed(1) : '—'} />
