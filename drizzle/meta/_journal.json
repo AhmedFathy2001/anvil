@@ -554,6 +554,13 @@
       "when": 1790551700000,
       "tag": "0120_event_webhooks",
       "breakpoints": true
+    },
+    {
+      "idx": 121,
+      "version": "7",
+      "when": 1790551800000,
+      "tag": "0121_account_sightings",
+      "breakpoints": true
     }
   ]
 }

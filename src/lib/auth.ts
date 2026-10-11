@@ -14,6 +14,7 @@ import { requireSecret } from '@/lib/env';
 import { applyPendingRole } from '@/lib/pending-role';
 import { onCharacterLinked } from '@/lib/identity';
 import { claimAccountForPerson } from '@/lib/accountClaim';
+import { recordForeignSighting } from '@/lib/accountSightings';
 import { pickActivePluginEvent } from '@/lib/pluginEventPick';
 
 const ADMIN_SESSION_SECRET = requireSecret('ADMIN_SESSION_SECRET', 'dev-admin-secret');
@@ -916,6 +917,12 @@ async function autoLinkOrSuggestOnPlay(
       const mine = await personOf(userId);
       if (mine != null && ownedByRsn.playerId === mine) {
         await seatOwnedCharacterAsGuest(clanId, ownedByRsn.id, nowIso);
+      } else {
+        // SOMEBODY ELSE'S, played through this login's plugin — siblings on one RuneLite, a friend at
+        // this PC, or a wrong link. Ownership stays put; the sighting is what lets the owner see it,
+        // the player's plugin say so, and staff weigh a dispute (lib/accountSightings).
+        const hashMatched = !!accountHash && ownedByRsn.accountHash === accountHash;
+        await recordForeignSighting(ownedByRsn.id, userId, hashMatched, nowIso);
       }
       return;
     }
@@ -1017,12 +1024,17 @@ async function autoLinkOrSuggestOnPlay(
       clanMemberId = existing.id;
     } else {
       const claimant = await personOfOrCreate(userId);
+      // A character nobody has ever seen links to whoever's plugin played it first — which, on a
+      // shared RuneLite, is the token's owner and not necessarily the person playing. So it lands
+      // PROVISIONAL, like a first-use roster claim: fully usable, on the staff review queue as
+      // "this Discord ↔ this RSN", and undone in one click by the plugin's "Not my account".
       const claim = await claimAccountForPerson({
         playerId: claimant,
         rsn,
         rsnNormalized: normalizedRsn,
         accountHash,
-        method: 'plugin',
+        method: accountHash ? 'plugin_first_use' : 'plugin',
+        provisional: true,
         actorUserId: userId,
       });
       if (!claim.ok) return;
@@ -1127,6 +1139,17 @@ async function maybeAutoClaimEstablishedOnPlay(
     if (existing.claimedAt != null) return; // already claimed (theirs or someone else's) — never steal
     // Only an ESTABLISHED identity auto-links: a verified account, or a real in-game roster member.
     if (existing.verifiedAt == null && existing.kind !== 'member') return;
+    // This login said it isn't theirs — the plugin's "Not my account", or Remove on the profile.
+    // Without this, the hash path re-claimed a released character on the very next request.
+    const ignored = await db.query.detectedAccounts.findFirst({
+      where: and(
+        eq(detectedAccounts.userId, userId),
+        eq(detectedAccounts.rsnNormalized, existing.rsnNormalized),
+        eq(detectedAccounts.status, 'dismissed'),
+      ),
+      columns: { id: true },
+    });
+    if (ignored) return;
 
     const claimant = await personOfOrCreate(userId);
     const claim = await claimAccountForPerson({

@@ -23,6 +23,7 @@ import OtherAccountsClient from './OtherAccountsClient';
 import DetectedAccountsClient from './DetectedAccountsClient';
 import HomeClanConflicts from './HomeClanConflicts';
 import { membershipConflicts } from '@/lib/homeClan';
+import { alsoPlayedFromByAccount } from '@/lib/accountSightings';
 import SecurityDrawer from './SecurityDrawer';
 import { emissionSettingsView } from '@/lib/emissionSettings';
 import { atLeast } from '@/lib/clanRoles';
@@ -190,6 +191,13 @@ export default async function ProfilePage({
 
   // Two in-game rosters listing one of their characters: theirs to settle (lib/homeClan).
   const homeConflicts = await membershipConflicts(session.playerId);
+
+  // Their characters played through somebody else's plugin (lib/accountSightings) — a shared PC, a
+  // visit, or a character linked to the wrong person. Shown so they can Remove it if it isn't theirs.
+  const alsoPlayedFrom = await alsoPlayedFromByAccount(
+    locker.accounts.map((a) => a.accountId),
+    session.userId,
+  );
 
   const avatar = user.discordId ? avatarUrl(user.discordId, user.discordAvatar) : null;
   // session.role, NOT user.role. `users.role` is the LEGACY GLOBAL column, and lib/auth says what
@@ -361,6 +369,7 @@ export default async function ProfilePage({
                   lastPingAt: a.lastPingAt,
                   shared: a.shared,
                   accountId: a.accountId,
+                  alsoPlayedFrom: alsoPlayedFrom.get(a.accountId),
                 }))}
               />
             )}

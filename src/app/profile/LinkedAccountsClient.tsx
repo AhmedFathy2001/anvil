@@ -21,6 +21,11 @@ export type LinkedAccount = {
   shared: boolean;
   /** Sharing is set on the ACCOUNT; `id` above is the per-clan seat. */
   accountId: number;
+  /**
+   * Other Anvil logins whose plugin has played this character (lib/accountSightings), newest first.
+   * A shared PC or a visit — or a sign it's linked to the wrong person.
+   */
+  alsoPlayedFrom?: { name: string; lastSeenAt: string }[];
 };
 
 // EVERY method that exists in the column, because the fallback used to print the raw value and the
@@ -171,6 +176,14 @@ export default function LinkedAccountsClient({ accounts }: { accounts: LinkedAcc
                 <> · last seen {ago(m.lastPingAt, nowMs)}</>
               ) : null}
             </div>
+            {m.alsoPlayedFrom && m.alsoPlayedFrom.length > 0 && (
+              <div className="text-xs text-yellow-400 mt-0.5">
+                Also played through {m.alsoPlayedFrom[0].name}’s Anvil plugin
+                {m.alsoPlayedFrom.length > 1 && <> and {m.alsoPlayedFrom.length - 1} more</>}
+                {nowMs !== null && <> · {ago(m.alsoPlayedFrom[0].lastSeenAt, nowMs)}</>}
+                {' '}— if it’s theirs, Remove it.
+              </div>
+            )}
           </div>
           <div className="ml-auto shrink-0 flex items-center gap-2">
             {/* The tooltip sits on a wrapper: Checkbox renders its own <label>, and the explanation

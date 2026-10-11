@@ -50,6 +50,7 @@ import { isLadderFormat } from '@/lib/utils';
 import { getLadderBoards, toPluginStandings, type PluginStandings } from '@/lib/ladderStandings';
 import { getCofferBalance } from '@/lib/coffer';
 import crypto from 'crypto';
+import { accountStanding, playedCharacter } from '@/lib/pluginAccount';
 
 const CODEWORD_SECRET = requireSecret('CODEWORD_SECRET', 'dev-codeword-secret');
 
@@ -278,6 +279,10 @@ export async function GET(request: Request) {
           homeBoardForUser(clan.id, userOnly.userId),
           pluginClansFor(userOnly.userId, pluginViewerRsn(request)),
         ]);
+        // Whose character this is, when it isn't resolving as theirs — so the sidebar can say
+        // "linked to another Anvil account" instead of tracking nothing without a word.
+        const character = playedCharacter(request);
+        const standing = character ? await accountStanding(userOnly.userId, character) : null;
         // Needs the active weekly, so it resolves after it: a boss week makes that boss's collection-log
         // items always-reportable regardless of price. See getAlwaysNotifyItemIds.
         const alwaysNotifyItemIds = await getAlwaysNotifyItemIds(
@@ -288,6 +293,9 @@ export async function GET(request: Request) {
         // Version + capability handshake — present on every /config shape (enrolled or not) so the
         // plugin can gate features per-site. Old plugins ignore it (GSON drops unknown fields).
         server: serverInfo(),
+        // 'yours' | 'other' | 'ignored' | 'unclaimed' for the logged-in character (lib/pluginAccount);
+        // null at the login screen. Old plugins ignore it.
+        accountStanding: standing,
         event: null,
         team: null,
         player: null,
@@ -854,6 +862,8 @@ export async function GET(request: Request) {
 
   return jsonWithEtag(request, {
     server: serverInfo(),
+    // Resolved to an entry, so the logged-in character is this login's own (null on a hint-only read).
+    accountStanding: playedCharacter(request) ? 'yours' : null,
     clanName: await getClanDisplayName(clan.id),
     // Same two fields as the not-enrolled shape above: which clan answered, and the rest of this
     // person's clans for the switcher. Present on BOTH shapes so the dropdown does not empty out

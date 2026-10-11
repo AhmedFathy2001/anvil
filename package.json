@@ -130,7 +130,7 @@
     "test:history": "npx tsx --test tests/stat-history.test.ts",
     "test:pluginscope": "npx tsx --test tests/plugin-scope.test.ts",
     "test:apexprivacy": "npx tsx --test tests/apex-privacy.test.ts",
-    "test:autolink": "npx tsx --test tests/plugin-autolink.test.ts tests/plugin-first-use.test.ts",
+    "test:autolink": "npx tsx --test tests/plugin-autolink.test.ts tests/plugin-first-use.test.ts tests/plugin-account-optout.test.ts",
     "test:rsnhint": "npx tsx --test tests/plugin-rsn-hint.test.ts",
     "test:discord-i18n": "node --experimental-strip-types --test tests/discord-i18n.test.ts",
     "test:pluginapex": "npx tsx --test tests/plugin-apex.test.ts tests/plugin-canonical-url.test.ts",

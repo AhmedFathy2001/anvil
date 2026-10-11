@@ -1564,6 +1564,30 @@ export const detectedAccounts = pgTable('detected_accounts', {
   index('detected_accounts_status_idx').on(table.status),
 ]);
 
+/**
+ * A character seen through somebody else's plugin: the account is claimed by one person, and a
+ * different login's Account Token just played it. That happens innocently — siblings on one
+ * RuneLite, a friend logging in at your PC — and it is also exactly what a wrong link looks like
+ * from the other side. Nothing here changes ownership. It lets the owner see "also played from
+ * another Anvil account", lets the player's plugin say the account is linked to somebody else
+ * instead of tracking nothing in silence, and gives staff the evidence when either side disputes.
+ *
+ * One row per (account, login); `lastSeenAt` is refreshed at most every few hours (lib/accountSightings)
+ * so a shared PC never turns the plugin's 30-second poll into a write.
+ */
+export const accountSightings = pgTable('account_sightings', {
+  id: serial('id').primaryKey(),
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // Did the play carry the hash anchored on the account? Yes = really that character, logged in.
+  hashMatched: integer('hash_matched').notNull().default(0),
+  firstSeenAt: text('first_seen_at').notNull(),
+  lastSeenAt: text('last_seen_at').notNull(),
+}, (table) => [
+  uniqueIndex('account_sightings_account_user_unique').on(table.accountId, table.userId),
+  index('account_sightings_user_idx').on(table.userId),
+]);
+
 // Long-lived plugin tokens issued to an admin after they've verified via the link flow.
 // Distinct from per-event `eventParticipants.playerToken` (which scopes a player to one event/team).
 // Used to authenticate admin-only plugin actions (clan-sync, etc). Not RSN-bound — the
