@@ -21,6 +21,10 @@ const no: PartialGuideDict = {
     backToGuides: 'Alle veiledninger',
     unreviewedNotice:
       'Denne oversettelsen til {language} er ennå ikke lest gjennom av noen som har språket som morsmål. Hvis en setning leses feil, er [den engelske siden]({englishHref}) originalen — og [å si fra](/feedback) er det som får den rettet.',
+    support: {
+      lead: 'Står du fast, eller ser noe feil ut?',
+      link: 'Spør i Anvils support-Discord',
+    },
   },
 
   index: {
@@ -836,7 +840,7 @@ const no: PartialGuideDict = {
         },
         {
           term: "Doble pets og champion's scrolls",
-          body: "Når du allerede har peten eller scrollen, sier spillet bare at du har en **«funny feeling»** — det sier aldri hvilken. Pluginen finner det ut fra hva du nettopp drepte eller trente, krediterer ruten og **flagger den for sjekk av staff**. Kan den ikke vite det sikkert — to pets fra samme kilde, eller en pet uten kill eller skill bak (Bloodhound fra en master clue, en gamblet Jad- eller Zuk-pet, Chompy chick) — lagres skjermbildet i **Saved proofs** så du kan sende det inn manuelt.",
+          body: 'Når du allerede har peten eller scrollen, sier spillet bare at du har en **«funny feeling»** — det sier aldri hvilken. Pluginen finner det ut fra hva du nettopp drepte eller trente, krediterer ruten og **flagger den for sjekk av staff**. Kan den ikke vite det sikkert — to pets fra samme kilde, eller en pet uten kill eller skill bak (Bloodhound fra en master clue, en gamblet Jad- eller Zuk-pet, Chompy chick) — lagres skjermbildet i **Saved proofs** så du kan sende det inn manuelt.',
         },
       ],
     },

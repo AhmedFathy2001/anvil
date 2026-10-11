@@ -22,6 +22,10 @@ const de: PartialGuideDict = {
     backToGuides: 'Alle Anleitungen',
     unreviewedNotice:
       'Diese Übersetzung ins {language} wurde noch von keinem Muttersprachler gegengelesen. Wenn sich ein Satz falsch liest, ist [die englische Seite]({englishHref}) das Original — und [uns Bescheid zu geben](/feedback) ist das, was ihn korrigiert.',
+    support: {
+      lead: 'Hängst du fest oder sieht etwas falsch aus?',
+      link: 'Frag im Anvil-Support-Discord',
+    },
   },
 
   index: {
@@ -837,7 +841,7 @@ const de: PartialGuideDict = {
         },
         {
           term: "Doppelte Pets und Champion's Scrolls",
-          body: "Wenn du das Pet oder die Scroll schon hast, sagt das Spiel nur, dass du ein **„funny feeling“** hast — welches, verrät es nie. Das Plugin erschließt es aus dem, was du gerade getötet oder trainiert hast, rechnet das Feld an und **markiert es zur Prüfung durch das Staff**. Kann es das nicht eindeutig sagen — zwei Pets aus derselben Quelle oder ein Pet ohne Kill oder Skill dahinter (Bloodhound aus einem Master-Clue, ein erspieltes Jad- oder Zuk-Pet, Chompy chick) —, landet der Screenshot in **Saved proofs**, damit du ihn manuell einreichst.",
+          body: 'Wenn du das Pet oder die Scroll schon hast, sagt das Spiel nur, dass du ein **„funny feeling“** hast — welches, verrät es nie. Das Plugin erschließt es aus dem, was du gerade getötet oder trainiert hast, rechnet das Feld an und **markiert es zur Prüfung durch das Staff**. Kann es das nicht eindeutig sagen — zwei Pets aus derselben Quelle oder ein Pet ohne Kill oder Skill dahinter (Bloodhound aus einem Master-Clue, ein erspieltes Jad- oder Zuk-Pet, Chompy chick) —, landet der Screenshot in **Saved proofs**, damit du ihn manuell einreichst.',
         },
       ],
     },

@@ -26,6 +26,10 @@ const da: PartialGuideDict = {
     backToGuides: 'Alle vejledninger',
     unreviewedNotice:
       'Denne oversættelse til {language} er endnu ikke læst igennem af en, der har sproget som modersmål. Læser en sætning forkert, er [den engelske side]({englishHref}) originalen — og [at sige til](/feedback) er dét, der får den rettet.',
+    support: {
+      lead: 'Sidder du fast, eller ser noget forkert ud?',
+      link: 'Spørg i Anvils support-Discord',
+    },
   },
 
   index: {

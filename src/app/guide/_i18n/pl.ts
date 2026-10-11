@@ -22,6 +22,10 @@ const pl: PartialGuideDict = {
     backToGuides: 'Wszystkie przewodniki',
     unreviewedNotice:
       'To tłumaczenie na język {language} nie zostało jeszcze sprawdzone przez native speakera. Jeśli jakieś zdanie brzmi źle, [strona angielska]({englishHref}) jest oryginałem —— a [zgłoszenie nam tego](/feedback) jest tym, co doprowadza do poprawki.',
+    support: {
+      lead: 'Utknąłeś albo coś wygląda źle?',
+      link: 'Zapytaj na Discordzie wsparcia Anvil',
+    },
   },
 
   index: {
@@ -826,7 +830,7 @@ const pl: PartialGuideDict = {
         },
         {
           term: "Zduplikowane pety i champion's scrolle",
-          body: "Gdy masz już peta lub scroll, gra mówi tylko, że masz **„funny feeling”** — nigdy nie mówi, który. Plugin wnioskuje to z tego, co właśnie zabiłeś lub trenowałeś, zalicza pole i **oznacza je do sprawdzenia przez staff**. Gdy nie da się tego ustalić — dwa pety z tego samego źródła albo pet bez zabójstwa czy umiejętności (Bloodhound z master clue, pet Jada lub Zuka z hazardu, Chompy chick) — zrzut ekranu trafia do **Saved proofs**, żebyś zgłosił go ręcznie.",
+          body: 'Gdy masz już peta lub scroll, gra mówi tylko, że masz **„funny feeling”** — nigdy nie mówi, który. Plugin wnioskuje to z tego, co właśnie zabiłeś lub trenowałeś, zalicza pole i **oznacza je do sprawdzenia przez staff**. Gdy nie da się tego ustalić — dwa pety z tego samego źródła albo pet bez zabójstwa czy umiejętności (Bloodhound z master clue, pet Jada lub Zuka z hazardu, Chompy chick) — zrzut ekranu trafia do **Saved proofs**, żebyś zgłosił go ręcznie.',
         },
       ],
     },

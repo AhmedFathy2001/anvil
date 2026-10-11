@@ -22,6 +22,10 @@ const ptBr: PartialGuideDict = {
     backToGuides: 'Todos os guias',
     unreviewedNotice:
       'Esta tradução para {language} ainda não foi revisada por um falante nativo. Se alguma frase soar errada, a [página em inglês]({englishHref}) é o original —— e [nos avisar](/feedback) é o que faz a correção acontecer.',
+    support: {
+      lead: 'Travou ou algo parece errado?',
+      link: 'Pergunte no Discord de suporte do Anvil',
+    },
   },
 
   index: {
@@ -826,7 +830,7 @@ const ptBr: PartialGuideDict = {
         },
         {
           term: "Pets e champion's scrolls duplicados",
-          body: "Quando você já tem o pet ou o scroll, o jogo só diz que você tem um **“funny feeling”** — nunca diz qual. O plugin deduz pelo que você acabou de matar ou treinar, credita o quadrado e **sinaliza para a staff conferir**. Quando não dá para saber — dois pets da mesma fonte, ou um pet sem kill ou skill por trás (Bloodhound de master clue, pet de Jad ou Zuk apostado, Chompy chick) — ele salva o print em **Saved proofs** para você enviar manualmente.",
+          body: 'Quando você já tem o pet ou o scroll, o jogo só diz que você tem um **“funny feeling”** — nunca diz qual. O plugin deduz pelo que você acabou de matar ou treinar, credita o quadrado e **sinaliza para a staff conferir**. Quando não dá para saber — dois pets da mesma fonte, ou um pet sem kill ou skill por trás (Bloodhound de master clue, pet de Jad ou Zuk apostado, Chompy chick) — ele salva o print em **Saved proofs** para você enviar manualmente.',
         },
       ],
     },

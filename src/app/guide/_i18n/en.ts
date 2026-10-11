@@ -23,6 +23,10 @@ export const en = {
     backToGuides: 'All guides',
     unreviewedNotice:
       'This {language} translation hasn’t been checked by a native speaker yet. If a sentence reads wrong, the [English page]({englishHref}) is the original — and [telling us](/feedback) is what gets it fixed.',
+    support: {
+      lead: 'Stuck, or something looks wrong?',
+      link: 'Ask in the Anvil support Discord',
+    },
   },
 
   index: {

@@ -20,6 +20,10 @@ const zhHans: PartialGuideDict = {
     backToGuides: '全部指南',
     unreviewedNotice:
       '这份{language}译文还没有母语者校对过。如果某句话读起来不对，[英文页面]({englishHref}) 才是原文 —— 而[告诉我们](/feedback)才能让它被修正。',
+    support: {
+      lead: '卡住了,或者有什么不对?',
+      link: '在 Anvil 支持 Discord 中提问',
+    },
   },
 
   index: {
@@ -835,7 +839,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: "重复的宠物和 Champion's scroll",
-          body: "如果你已经拥有该宠物或卷轴,游戏只会说你有一种 **“funny feeling”**——从不说明是哪一个。插件会根据你刚击杀的怪物或刚练的技能推断出来,完成该格子,并**标记给工作人员审核**。如果无法确定——同一来源有两种宠物,或宠物与击杀或技能无关(大师线索的 Bloodhound、赌来的 Jad 或 Zuk 宠物、Chompy chick)——截图会保存到 **Saved proofs**,由你手动提交。",
+          body: '如果你已经拥有该宠物或卷轴,游戏只会说你有一种 **“funny feeling”**——从不说明是哪一个。插件会根据你刚击杀的怪物或刚练的技能推断出来,完成该格子,并**标记给工作人员审核**。如果无法确定——同一来源有两种宠物,或宠物与击杀或技能无关(大师线索的 Bloodhound、赌来的 Jad 或 Zuk 宠物、Chompy chick)——截图会保存到 **Saved proofs**,由你手动提交。',
         },
       ],
     },

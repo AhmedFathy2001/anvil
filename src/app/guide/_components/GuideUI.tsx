@@ -15,6 +15,7 @@
 // factory that closes over them trips react-hooks/static-components.
 
 import HeadingAnchor from './HeadingAnchor';
+import { SITE } from '@/lib/site';
 
 export interface LegendItem {
   n: number;
@@ -202,7 +203,7 @@ export function GuideShell({
    *  nested route can't reach the document element, and a correct `lang` here is what a screen
    *  reader and the browser's own text shaping actually read. */
   locale?: { code: string; dir: 'ltr' | 'rtl' };
-  labels: { contents: string; minRead: string };
+  labels: { contents: string; minRead: string; support?: { lead: string; link: string } };
   /** The same page in every other language. Rendered above the contents rail. */
   languages?: React.ReactNode;
   /** Shown before the body — used to admit that a translation is incomplete. */
@@ -271,6 +272,14 @@ export function GuideShell({
 
         {footnote && (
           <p className="mt-12 border-t border-card-border pt-5 text-xs text-text-muted">{footnote}</p>
+        )}
+        {labels.support && (
+          <p className={`${footnote ? 'mt-3' : 'mt-12 border-t border-card-border pt-5'} text-xs text-text-muted`}>
+            {labels.support.lead}{' '}
+            <a href={SITE.supportDiscord} target="_blank" rel="noopener noreferrer" className="text-gold hover:underline">
+              {labels.support.link}
+            </a>
+          </p>
         )}
       </article>
     </div>

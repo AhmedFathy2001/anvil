@@ -23,6 +23,10 @@ const fr: PartialGuideDict = {
     backToGuides: 'Tous les guides',
     unreviewedNotice:
       'Cette traduction en {language} n’a encore été relue par aucun locuteur natif. Si une phrase sonne faux, [la page anglaise]({englishHref}) est l’original — et [nous le signaler](/feedback) est ce qui la corrigera.',
+    support: {
+      lead: 'Bloqué, ou quelque chose cloche ?',
+      link: 'Demande sur le Discord de support Anvil',
+    },
   },
 
   index: {

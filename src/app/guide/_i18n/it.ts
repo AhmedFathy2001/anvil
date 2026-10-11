@@ -22,6 +22,10 @@ const it: PartialGuideDict = {
     backToGuides: 'Tutte le guide',
     unreviewedNotice:
       'Questa traduzione in {language} non è ancora stata riletta da un madrelingua. Se una frase suona sbagliata, la [pagina in inglese]({englishHref}) è l’originale —— e [segnalarcelo](/feedback) è ciò che la fa correggere.',
+    support: {
+      lead: 'Bloccato, o qualcosa non torna?',
+      link: 'Chiedi nel Discord di supporto di Anvil',
+    },
   },
 
   index: {

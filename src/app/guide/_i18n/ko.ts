@@ -21,6 +21,10 @@ const ko: PartialGuideDict = {
     backToGuides: '전체 가이드',
     unreviewedNotice:
       '이 {language} 번역은 아직 원어민이 검수하지 않았습니다. 어떤 문장이 이상하게 읽힌다면 [영어 페이지]({englishHref})가 원문이며 —— [알려 주시는 것](/feedback)이 그것을 고치는 방법입니다.',
+    support: {
+      lead: '막히거나 뭔가 이상한가요?',
+      link: 'Anvil 지원 Discord에 문의하기',
+    },
   },
 
   index: {
@@ -836,7 +840,7 @@ const ko: PartialGuideDict = {
         },
         {
           term: "중복 펫과 Champion's scroll",
-          body: "이미 가진 펫이나 스크롤이면 게임은 **“funny feeling”** 이라고만 하고 어떤 것인지 알려주지 않습니다. 플러그인은 방금 잡은 몬스터나 올린 스킬로 추론해 타일을 인정하고, **스태프가 확인하도록 표시합니다**. 알 수 없는 경우 — 같은 출처의 펫이 둘이거나, 킬이나 스킬과 연결되지 않는 펫(마스터 클루의 Bloodhound, 갬블로 얻은 Jad·Zuk 펫, Chompy chick) — 스크린샷을 **Saved proofs** 에 저장하니 직접 제출하세요.",
+          body: '이미 가진 펫이나 스크롤이면 게임은 **“funny feeling”** 이라고만 하고 어떤 것인지 알려주지 않습니다. 플러그인은 방금 잡은 몬스터나 올린 스킬로 추론해 타일을 인정하고, **스태프가 확인하도록 표시합니다**. 알 수 없는 경우 — 같은 출처의 펫이 둘이거나, 킬이나 스킬과 연결되지 않는 펫(마스터 클루의 Bloodhound, 갬블로 얻은 Jad·Zuk 펫, Chompy chick) — 스크린샷을 **Saved proofs** 에 저장하니 직접 제출하세요.',
         },
       ],
     },

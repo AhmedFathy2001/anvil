@@ -22,6 +22,10 @@ const fi: PartialGuideDict = {
     backToGuides: 'Kaikki oppaat',
     unreviewedNotice:
       'Kukaan äidinkielinen puhuja ei ole vielä lukenut tätä {language} käännöstä läpi. Jos jokin lause tuntuu väärältä, [englanninkielinen sivu]({englishHref}) on alkuperäinen — ja [ilmoittaminen](/feedback) on se, mikä saa sen korjatuksi.',
+    support: {
+      lead: 'Jumissa, tai näyttääkö jokin väärältä?',
+      link: 'Kysy Anvilin tuki-Discordissa',
+    },
   },
 
   index: {
@@ -837,7 +841,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: "Tuplapetit ja champion's scrollit",
-          body: "Kun sinulla on jo pet tai scroll, peli sanoo vain, että sinulla on **”funny feeling”** — se ei koskaan kerro mikä. Plugin päättelee sen siitä, mitä juuri tapoit tai treenasit, hyvittää ruudun ja **merkitsee sen staffin tarkistettavaksi**. Jos se ei voi olla varma — kaksi pettiä samasta lähteestä tai pet, jonka takana ei ole tappoa tai skilliä (Bloodhound master cluesta, uhrattu Jad- tai Zuk-pet, Chompy chick) — kuvakaappaus tallentuu **Saved proofs** -kohtaan, jotta voit lähettää sen käsin.",
+          body: 'Kun sinulla on jo pet tai scroll, peli sanoo vain, että sinulla on **”funny feeling”** — se ei koskaan kerro mikä. Plugin päättelee sen siitä, mitä juuri tapoit tai treenasit, hyvittää ruudun ja **merkitsee sen staffin tarkistettavaksi**. Jos se ei voi olla varma — kaksi pettiä samasta lähteestä tai pet, jonka takana ei ole tappoa tai skilliä (Bloodhound master cluesta, uhrattu Jad- tai Zuk-pet, Chompy chick) — kuvakaappaus tallentuu **Saved proofs** -kohtaan, jotta voit lähettää sen käsin.',
         },
       ],
     },

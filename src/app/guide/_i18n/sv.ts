@@ -21,6 +21,10 @@ const sv: PartialGuideDict = {
     backToGuides: 'Alla guider',
     unreviewedNotice:
       'Den här översättningen till {language} har ännu inte lästs igenom av någon som har språket som modersmål. Om en mening känns fel är [den engelska sidan]({englishHref}) originalet — och [att säga till](/feedback) är det som får den rättad.',
+    support: {
+      lead: 'Fastnat, eller ser något fel ut?',
+      link: 'Fråga i Anvils support-Discord',
+    },
   },
 
   index: {
@@ -836,7 +840,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: "Dubbla pets och champion's scrolls",
-          body: "När du redan har peten eller scrollen säger spelet bara att du har en **”funny feeling”** — den säger aldrig vilken. Pluginet räknar ut det från vad du nyss dödade eller tränade, krediterar rutan och **flaggar den för granskning av staff**. Kan det inte avgöra säkert — två pets från samma källa, eller en pet utan kill eller skill bakom (Bloodhound från en master clue, en gamblad Jad- eller Zuk-pet, Chompy chick) — sparas skärmdumpen i **Saved proofs** så att du kan skicka in den manuellt.",
+          body: 'När du redan har peten eller scrollen säger spelet bara att du har en **”funny feeling”** — den säger aldrig vilken. Pluginet räknar ut det från vad du nyss dödade eller tränade, krediterar rutan och **flaggar den för granskning av staff**. Kan det inte avgöra säkert — två pets från samma källa, eller en pet utan kill eller skill bakom (Bloodhound från en master clue, en gamblad Jad- eller Zuk-pet, Chompy chick) — sparas skärmdumpen i **Saved proofs** så att du kan skicka in den manuellt.',
         },
       ],
     },

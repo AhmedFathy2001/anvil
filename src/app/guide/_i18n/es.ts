@@ -22,6 +22,10 @@ const es: PartialGuideDict = {
     backToGuides: 'Todas las guías',
     unreviewedNotice:
       'Ningún hablante nativo ha revisado todavía esta traducción al {language}. Si una frase suena mal, [la página en inglés]({englishHref}) es el original — y [avisarnos](/feedback) es lo que la arregla.',
+    support: {
+      lead: '¿Atascado o algo no cuadra?',
+      link: 'Pregunta en el Discord de soporte de Anvil',
+    },
   },
 
   index: {
@@ -837,7 +841,7 @@ const es: PartialGuideDict = {
         },
         {
           term: "Mascotas y champion's scrolls duplicados",
-          body: "Cuando ya tienes la mascota o el scroll, el juego solo dice que tienes un **“funny feeling”** — nunca dice cuál. El plugin lo deduce de lo que acabas de matar o entrenar, acredita la casilla y **la marca para que el staff la revise**. Si no puede saberlo — dos mascotas de la misma fuente, o una mascota sin una muerte o habilidad detrás (Bloodhound de un master clue, una mascota de Jad o Zuk apostada, Chompy chick) — guarda la captura en **Saved proofs** para que la envíes manualmente.",
+          body: 'Cuando ya tienes la mascota o el scroll, el juego solo dice que tienes un **“funny feeling”** — nunca dice cuál. El plugin lo deduce de lo que acabas de matar o entrenar, acredita la casilla y **la marca para que el staff la revise**. Si no puede saberlo — dos mascotas de la misma fuente, o una mascota sin una muerte o habilidad detrás (Bloodhound de un master clue, una mascota de Jad o Zuk apostada, Chompy chick) — guarda la captura en **Saved proofs** para que la envíes manualmente.',
         },
       ],
     },

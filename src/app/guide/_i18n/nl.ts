@@ -22,6 +22,10 @@ const nl: PartialGuideDict = {
     backToGuides: 'Alle handleidingen',
     unreviewedNotice:
       'Deze vertaling naar het {language} is nog door geen enkele moedertaalspreker nagelezen. Leest een zin verkeerd, dan is [de Engelse pagina]({englishHref}) het origineel — en [het ons laten weten](/feedback) is wat het rechtzet.',
+    support: {
+      lead: 'Vastgelopen, of klopt er iets niet?',
+      link: 'Vraag het in de Anvil-support-Discord',
+    },
   },
 
   index: {
@@ -837,7 +841,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: "Dubbele pets en champion's scrolls",
-          body: "Als je de pet of scroll al hebt, zegt het spel alleen dat je een **“funny feeling”** hebt — welke, zegt het nooit. De plugin leidt het af uit wat je net hebt gedood of getraind, rekent het vakje toe en **markeert het voor controle door de staff**. Kan hij het niet zeker weten — twee pets uit dezelfde bron, of een pet zonder kill of skill erachter (Bloodhound uit een master clue, een gegokte Jad- of Zuk-pet, Chompy chick) — dan komt de screenshot in **Saved proofs** zodat je hem handmatig indient.",
+          body: 'Als je de pet of scroll al hebt, zegt het spel alleen dat je een **“funny feeling”** hebt — welke, zegt het nooit. De plugin leidt het af uit wat je net hebt gedood of getraind, rekent het vakje toe en **markeert het voor controle door de staff**. Kan hij het niet zeker weten — twee pets uit dezelfde bron, of een pet zonder kill of skill erachter (Bloodhound uit een master clue, een gegokte Jad- of Zuk-pet, Chompy chick) — dan komt de screenshot in **Saved proofs** zodat je hem handmatig indient.',
         },
       ],
     },
