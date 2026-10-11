@@ -258,10 +258,10 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
             </ClanLink>
             <a
               href="/api/auth/logout?return=/"
-              className="px-2 py-1 rounded-md text-xs text-text-muted hover:text-foreground hover:bg-brown-light transition-all"
-              title="Sign out"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-card-border text-xs font-medium text-foreground/80 hover:text-accent-red hover:border-accent-red/50 hover:bg-accent-red/10 transition-all"
             >
-              ⎋
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden><path d="M6 14H3.5A1.5 1.5 0 012 12.5v-9A1.5 1.5 0 013.5 2H6M10.5 11L14 8l-3.5-3M14 8H6.5" /></svg>
+              Sign out
             </a>
           </div>
         ) : (
@@ -376,8 +376,9 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
                   </ClanLink>
                   <a
                     href="/api/auth/logout?return=/"
-                    className="px-3 py-2 rounded-md text-sm text-text-muted hover:text-foreground hover:bg-brown-light transition-all shrink-0"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-md border border-card-border text-sm font-medium text-foreground/80 hover:text-accent-red hover:border-accent-red/50 hover:bg-accent-red/10 transition-all shrink-0"
                   >
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden><path d="M6 14H3.5A1.5 1.5 0 012 12.5v-9A1.5 1.5 0 013.5 2H6M10.5 11L14 8l-3.5-3M14 8H6.5" /></svg>
                     Sign out
                   </a>
                 </div>
