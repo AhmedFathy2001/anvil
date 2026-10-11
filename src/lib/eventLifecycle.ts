@@ -48,7 +48,7 @@ export async function drawStartProof(
 
   // Coordinates are copied onto the event, not looked up from the pool later: editing the pool
   // mid-event must never move a spot people have already been sent to.
-  const spot = drawStartLocation(rules.startProof.locations);
+  const spot = drawStartLocation(rules.startProof);
   const drawn = await db
     .update(events)
     .set({

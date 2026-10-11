@@ -69,6 +69,15 @@ export default function OverviewClient({
 }: Props) {
   const router = useRouter();
   const [currentEvent, setCurrentEvent] = useState(event);
+  // Follow the server's copy after every router.refresh(). Seeding once and never again left the
+  // panels below holding the event as first rendered — the starting shot saved, then the mission
+  // panel re-rendered with the pre-save rules. (Adjusting state during render, not in an effect,
+  // so there's no frame showing the stale copy.)
+  const [seenEvent, setSeenEvent] = useState(event);
+  if (event !== seenEvent) {
+    setSeenEvent(event);
+    setCurrentEvent(event);
+  }
   const [localTiles, setLocalTiles] = useState<Tile[]>(tiles);
   const [liveCompletions, setLiveCompletions] = useState<Completion[]>(completions);
   const [submissions, setSubmissions] = useState<Submission[]>([]);

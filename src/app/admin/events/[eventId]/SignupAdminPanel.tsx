@@ -388,7 +388,7 @@ export default function SignupAdminPanel({
           // Only when it actually changed. The rules blob also carries the reveal policy and the
           // scoring modifiers, which are edited on other tabs — sending it every time would let a
           // sign-up save overwrite them with whatever this page happened to load.
-          ...(teamChoice !== storedTeamChoice ? { rules: { ...parseEventRules(event.rules), teamChoice } } : {}),
+          ...(teamChoice !== storedTeamChoice ? { rules: { teamChoice } } : {}),
         }),
       });
       if (!res.ok) {

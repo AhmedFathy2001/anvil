@@ -19,7 +19,8 @@ export interface ScheduleBingo {
   id: number;
   title: string;
   startDate: string;
-  endDate: string;
+  /** Null when the event has no end date — it runs until the host ends it. */
+  endDate: string | null;
   status: 'active' | 'upcoming';
   boardSize: number | null;
   /** Null until the host reveals the board — how big it is is part of what is hidden. */
@@ -55,6 +56,15 @@ export interface PluginSchedule {
 }
 
 const SCHEDULE_CAP = 10;
+
+/**
+ * Not over yet: not force-ended, and either no end date (open-ended — runs until the host ends it)
+ * or an end still ahead. Requiring an end date here used to drop every open-ended event from the
+ * plugin's schedule, live or not.
+ */
+export function runsPast(e: { endDate: string | null; forceEndedAt: string | null }, nowIso: string): boolean {
+  return !e.forceEndedAt && (e.endDate == null || e.endDate > nowIso);
+}
 
 /**
  * Active + upcoming bingo events and weekly competitions for ONE clan, sorted by start, capped so
@@ -125,15 +135,13 @@ export async function buildSchedule(
     !member && opts.viewerPlayerId != null
       ? await boardsWithStanding(
           opts.viewerPlayerId,
-          allEvents.filter((e) => e.visibility === 'clan' && e.endDate && e.endDate > nowIso && !e.forceEndedAt).map((e) => e.id),
+          allEvents.filter((e) => e.visibility === 'clan' && runsPast(e, nowIso)).map((e) => e.id),
         )
       : new Set<number>();
   const bingoCandidates = allEvents.filter(
     (e) =>
       e.startDate &&
-      e.endDate &&
-      e.endDate > nowIso &&
-      !e.forceEndedAt &&
+      runsPast(e, nowIso) &&
       // 'invited' is never advertised — the invite is the only way in, for anyone.
       e.visibility !== 'invited' &&
       // `clan` is the DEFAULT, so this is most boards. A member gets the index; a stranger gets
@@ -165,7 +173,8 @@ export async function buildSchedule(
     id: e.id,
     title: e.name,
     startDate: e.startDate!,
-    endDate: e.endDate!,
+    // Null on an open-ended event: it runs until the host ends it.
+    endDate: e.endDate ?? null,
     status: e.startDate! > nowIso ? 'upcoming' : 'active',
     boardSize: e.tilesRevealed ? e.boardSize : null,
     // Hidden until revealed: the board's size is part of what the host is keeping back.

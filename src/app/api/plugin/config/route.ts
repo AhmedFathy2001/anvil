@@ -142,9 +142,9 @@ async function homeBoardForUser(clanId: number, userId: number): Promise<{
     e.teamId != null &&
     !e.forceEndedAt &&
     e.startDate != null &&
-    e.endDate != null &&
     Date.parse(e.startDate) <= now &&
-    now <= Date.parse(e.endDate);
+    // No end date = runs until someone ends it (forceEndedAt, checked above), not "never live".
+    (e.endDate == null || now <= Date.parse(e.endDate));
   // The token is USER-scoped, so pre-login we can't know which linked account is about to play
   // (Jagex launchers know client-side; legacy logins don't). Deterministic guess: the PRIMARY
   // account's live enrollment first, else any live one; latest start wins within each tier —

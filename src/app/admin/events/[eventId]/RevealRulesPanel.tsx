@@ -135,11 +135,10 @@ export default function RevealRulesPanel({ event, tiles }: { event: Event; tiles
       const res = await clanFetch(`/api/events/${event.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        // Spread the stored rules so the keys this panel doesn't own (mission announce config,
-        // balanceMode) survive — the API replaces the whole rules blob.
+        // Only the keys this panel owns — the API merges them over the stored rules, so mission
+        // config, balanceMode and the starting shot survive without being echoed back stale.
         body: JSON.stringify({
           rules: {
-            ...stored,
             revealPolicy: policy,
             revealIntervalMinutes: intervalMinutes,
             revealBatchSize: batchSize,

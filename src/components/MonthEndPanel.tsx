@@ -40,7 +40,8 @@ export default function MonthEndPanel({
       const res = await clanFetch(`/api/events/${event.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rules: { ...rules, monthlyAward } }),
+        // Only this panel's key; the API merges it over the stored rules.
+        body: JSON.stringify({ rules: { monthlyAward } }),
       });
       if (res.ok) {
         setMsg('Saved.');

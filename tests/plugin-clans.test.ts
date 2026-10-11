@@ -42,7 +42,7 @@ async function board(
   clanId: number,
   seatId: number,
   name: string,
-  opts: { startDays: number; endDays: number; scored: number; done: number; optional?: number; points?: boolean } ,
+  opts: { startDays: number; endDays: number | null; scored: number; done: number; optional?: number; points?: boolean; forceEnded?: boolean } ,
 ) {
   const [ev] = await db
     .insert(s.events)
@@ -50,7 +50,8 @@ async function board(
       clanId,
       name,
       startDate: iso(opts.startDays),
-      endDate: iso(opts.endDays),
+      endDate: opts.endDays == null ? null : iso(opts.endDays),
+      ...(opts.forceEnded ? { forceEndedAt: iso(0) } : {}),
       boardSize: 25,
       ...(opts.points ? { scoringMode: 'points' } : {}),
     })
@@ -237,6 +238,22 @@ test('an event that has not started yet is not what you are playing', async () =
 test('a finished event is not live either', async () => {
   const a = await seat(alpha, 'member');
   await board(alpha, a, 'Last month', { startDays: -30, endDays: -2, scored: 9, done: 9 });
+
+  const [row] = await pluginClansFor(userId);
+  assert.equal(row.live, null);
+});
+
+test('an open-ended event (no end date) is live until someone ends it', async () => {
+  const a = await seat(alpha, 'member');
+  await board(alpha, a, 'Forever ladder', { startDays: -3, endDays: null, scored: 4, done: 1 });
+
+  const [row] = await pluginClansFor(userId);
+  assert.equal(row.live?.eventName, 'Forever ladder', 'no end date means "runs until ended", not "never live"');
+});
+
+test('an open-ended event that was ended by hand is not live', async () => {
+  const a = await seat(alpha, 'member');
+  await board(alpha, a, 'Ended ladder', { startDays: -3, endDays: null, scored: 4, done: 1, forceEnded: true });
 
   const [row] = await pluginClansFor(userId);
   assert.equal(row.live, null);

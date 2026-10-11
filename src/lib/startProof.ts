@@ -95,15 +95,24 @@ export function keywordMatches(claim: string | null | undefined, expected: strin
 }
 
 /**
- * Draw the start location. Called once per event, inside the start transaction. `pick` is injectable
- * so tests are deterministic; production passes nothing and gets a uniform crypto draw.
+ * Draw the start location. Called once per event, inside the start transaction, and again by the
+ * admin's Re-draw. `pick` is injectable so tests are deterministic; production passes nothing and
+ * gets a uniform crypto draw.
+ *
+ * Takes the policy (or a bare pool, which draws at random). Under `pick: 'first'` the host's first
+ * spot is always the one — a Re-draw lands on it again, by design. An empty pool draws from the
+ * built-in list either way: there's no "first" in a list the host never wrote.
  */
 export function drawStartLocation(
-  pool: readonly StartLocation[] | null | undefined,
+  source: readonly StartLocation[] | Pick<StartProofConfig, 'locations' | 'pick'> | null | undefined,
   pick: (max: number) => number = (max) => crypto.randomInt(max),
 ): StartLocation {
-  const options = pool && pool.length > 0 ? pool : START_LOCATIONS;
-  return options[pick(options.length)];
+  const cfg: Partial<Pick<StartProofConfig, 'locations' | 'pick'>> | null | undefined = Array.isArray(source)
+    ? { locations: source as StartLocation[], pick: 'random' }
+    : (source as Pick<StartProofConfig, 'locations' | 'pick'> | null | undefined);
+  const pool = cfg?.locations;
+  if (pool && pool.length > 0) return cfg?.pick === 'first' ? pool[0] : pool[pick(pool.length)];
+  return START_LOCATIONS[pick(START_LOCATIONS.length)];
 }
 
 /** Where the drawn spot is, once the draw has happened. Coordinates are null on a label-only spot. */

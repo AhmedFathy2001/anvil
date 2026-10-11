@@ -118,7 +118,8 @@ export default function TeamInvitePanel({ teamId, captainToggle, bare = false }:
       const res = await clanFetch(`/api/events/${captainToggle.eventId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rules: { ...JSON.parse(captainToggle.rules || '{}'), captainInvites: next } }),
+        // Only this key; the API merges it over the stored rules.
+        body: JSON.stringify({ rules: { captainInvites: next } }),
       });
       if (res.ok) setCaptainInvites(next);
     } finally {

@@ -78,7 +78,9 @@ export default function MissionAdminPanel({
       const res = await clanFetch(`/api/events/${event.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rules: { ...rules, mission } }),
+        // Only the key this panel owns — the API merges it over the stored rules, so a stale copy of
+        // the rest can't wipe what another panel saved since this one rendered.
+        body: JSON.stringify({ rules: { mission } }),
       });
       if (res.ok) {
         setMsg('Saved.');
