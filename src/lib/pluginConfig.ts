@@ -237,11 +237,25 @@ async function entriesForCharacter(
     if (sg.status === 'approved') out.set(sg.eventId, 'entered');
     else if (!out.has(sg.eventId)) out.set(sg.eventId, 'pending');
   }
-  // On the board without a sign-up row (added by the host or a co-host's roster) is entered too.
+  // On the board without a sign-up row (added by the host or a co-host's roster) is entered too. By the
+  // account OR one of its seats: a row written with only `clanMemberId` is still this character, and
+  // verifyPluginTokenForEvent already finds it that way — so the board showed the team's plan while
+  // this line said "Sign up on the site".
+  // clan-scope: global -- this character's own seats, in whichever clan seated it on the board.
+  const seatIds = (
+    await db.select({ id: clanMemberships.id }).from(clanMemberships).where(eq(clanMemberships.accountId, account.id))
+  ).map((r) => r.id);
   const onBoard = await db
     .select({ eventId: eventParticipants.eventId })
     .from(eventParticipants)
-    .where(and(eq(eventParticipants.accountId, account.id), inArray(eventParticipants.eventId, eventIds)));
+    .where(
+      and(
+        inArray(eventParticipants.eventId, eventIds),
+        seatIds.length > 0
+          ? or(eq(eventParticipants.accountId, account.id), inArray(eventParticipants.clanMemberId, seatIds))
+          : eq(eventParticipants.accountId, account.id),
+      ),
+    );
   for (const p of onBoard) out.set(p.eventId, 'entered');
   return out;
 }

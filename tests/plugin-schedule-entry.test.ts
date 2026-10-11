@@ -39,6 +39,12 @@ before(async () => {
   const [seat] = await db.insert(s.clanMemberships).values({ clanId: guestClan, accountId: main.id, kind: 'member' }).returning();
   const login = (await db.insert(s.users).values({ displayName: 'Two', playerId: person }).returning())[0].id;
   await db.insert(s.eventSignups).values({ eventId, userId: login, clanMemberId: seat.id, status: 'approved', profileData: '{}', signedUpAt: start, updatedAt: start });
+
+  // Drafted straight onto a team, with no sign-up and only the SEAT on the row.
+  const [drafted] = await db.insert(s.accounts).values({ playerId: person, rsn: 'Drafty', rsnNormalized: 'drafty' }).returning();
+  const [draftSeat] = await db.insert(s.clanMemberships).values({ clanId: guestClan, accountId: drafted.id, kind: 'member' }).returning();
+  const teamId = (await db.insert(s.teams).values({ eventId, name: 'Team', color: '#fff' }).returning())[0].id;
+  await db.insert(s.eventParticipants).values({ eventId, clanMemberId: draftSeat.id, name: 'Drafty', teamId });
 });
 
 after(async () => {
@@ -64,4 +70,9 @@ test('main entered, alt not — per character, not per person', async () => {
 test('a header naming someone else’s character says nothing about them', async () => {
   const sched = await P.buildSchedule(guestClan, { member: true, viewerPlayerId: person, viewerRsn: 'SomebodyElse', viewerAccountHash: 'zz' });
   assert.equal(sched.bingos.find((x) => x.id === eventId)?.yourEntry, undefined);
+});
+
+test('on the board by seat alone still reads as entered', async () => {
+  const sched = await P.buildSchedule(guestClan, { member: true, viewerPlayerId: person, viewerRsn: 'Drafty' });
+  assert.equal(sched.bingos.find((x) => x.id === eventId)?.yourEntry, 'entered');
 });
