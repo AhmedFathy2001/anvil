@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+
 import { eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
@@ -22,6 +23,9 @@ import { assertEventEditable } from '@/lib/eventLock';
 import { parseEventRules } from '@/lib/eventRules';
 import { startProofGate, NO_START_PROOF_FLAG, START_PROOF_REQUIRED_CODE } from '@/lib/startProof';
 import { eventHasStarted } from '@/lib/completionGate';
+
+/** What the plugin may say it inferred (submissions.flaggedReason). Anything else is ignored. */
+const INFERRED_FLAGS = new Set(['inferred_duplicate_pet', 'inferred_duplicate_scroll']);
 
 export async function GET(
   request: Request,
@@ -100,7 +104,7 @@ export async function POST(
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;
-  const { tileId, teamId, amount, imageUrl, note, creditPlayerId, itemId, durationSeconds, coopGroup, coopPartySize } = await request.json();
+  const { tileId, teamId, amount, imageUrl, note, creditPlayerId, itemId, durationSeconds, coopGroup, coopPartySize, inferred } = await request.json();
 
   if (!tileId || !teamId || !Number.isInteger(tileId) || !Number.isInteger(teamId) || tileId < 1 || teamId < 1) {
     return NextResponse.json({ error: 'tileId and teamId are required and must be positive integers' }, { status: 400 });
@@ -309,6 +313,13 @@ export async function POST(
       }
       if (gate === 'flag') flaggedReason = NO_START_PROOF_FLAG;
     }
+  }
+  // INFERRED ITEM (plugin only). A duplicate pet or champion's scroll gives no item and no name, only
+  // "a funny feeling"; the plugin works out which one from what was just killed or trained. The
+  // credit counts, but staff get a look — the same soft hold as a missing starting shot, which wins
+  // if both apply since it is the stronger reason.
+  if (pluginAuth && !flaggedReason && typeof inferred === 'string' && INFERRED_FLAGS.has(inferred)) {
+    flaggedReason = inferred;
   }
 
   // Per-item tracking validation

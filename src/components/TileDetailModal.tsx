@@ -911,6 +911,14 @@ export default function TileDetailModal({
                         <span className="text-text-muted">
                           <LocalTime date={s.createdAt} format="date" />
                         </span>
+                        {(s.flaggedReason === 'inferred_duplicate_pet' || s.flaggedReason === 'inferred_duplicate_scroll') && (
+                          <span
+                            title="A duplicate — the game names no item, so the plugin worked it out from what was just killed or trained. Check the screenshot."
+                            className="px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-300 font-medium"
+                          >
+                            {s.flaggedReason === 'inferred_duplicate_pet' ? 'duplicate pet · check' : 'duplicate scroll · check'}
+                          </span>
+                        )}
                         {s.flaggedReason === 'no_start_proof' && (
                           <span
                             title="Landed before this player filed their starting shot"
