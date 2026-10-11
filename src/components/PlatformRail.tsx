@@ -181,9 +181,10 @@ export default function PlatformRail({
               href="/api/auth/logout?return=/"
               title="Sign out"
               aria-label="Sign out"
-              className="ml-auto shrink-0 rounded-md p-1.5 text-text-dim transition-colors hover:bg-brown-light hover:text-accent-red"
+              className="ml-auto flex shrink-0 items-center gap-1.5 rounded-md border border-card-border px-2 py-1 text-[12px] font-medium text-foreground/80 transition-colors hover:border-accent-red/50 hover:bg-accent-red/10 hover:text-accent-red"
             >
               <SignOutIcon />
+              <span className="hidden sm:inline">Sign out</span>
             </a>
           </>
         ) : (
