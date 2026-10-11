@@ -191,3 +191,63 @@ test('an XP-verified account can later connect RuneLite and gain its tracking an
   assert.equal(after.provisional, 0);
   assert.ok(after.verifiedAt);
 });
+
+// No clan anywhere — sign in, play, join a clan later (or never). Nothing used to record the play.
+async function clanlessLogin() {
+  n++;
+  const token = `tok-${n}`;
+  const [me] = await db.insert(s.players).values({ displayName: `discord-${n}` }).returning();
+  await db.insert(s.users).values({ displayName: `discord-${n}`, discordId: `d-${n}`, pluginToken: token, playerId: me.id });
+  return { token, person: me.id };
+}
+const accountByRsn = async (rsn: string) =>
+  (await db.select().from(s.accounts).where(eq(s.accounts.rsnNormalized, rsn.toLowerCase())))[0];
+
+test('clanless: a brand-new character links to the person on first play, provisionally, with no seat', async () => {
+  const me = await clanlessLogin();
+  const resolved = await play(me.token, 'Fresh Face', 'hash-fresh', null);
+  assert.equal(resolved, null, 'still no member — there is no clan to resolve against');
+  const acct = await accountByRsn('Fresh Face');
+  assert.equal(acct?.playerId, me.person);
+  assert.ok(acct.claimedAt);
+  assert.equal(acct.provisional, 1);
+  assert.equal(acct.verificationMethod, 'plugin_first_use');
+  assert.equal(acct.accountHash, 'hash-fresh');
+  const seats = await db.select().from(s.clanMemberships).where(eq(s.clanMemberships.accountId, acct.id));
+  assert.equal(seats.length, 0);
+});
+
+test('clanless: no client hash, no link', async () => {
+  const me = await clanlessLogin();
+  await play(me.token, 'Hashless Hal', null, null);
+  assert.equal(await accountByRsn('Hashless Hal'), undefined);
+});
+
+test('clanless: a character someone else owns is left alone', async () => {
+  const owner = await clanlessLogin();
+  await play(owner.token, 'Taken Tom', 'hash-tom', null);
+  const other = await clanlessLogin();
+  await play(other.token, 'Taken Tom', 'hash-other', null);
+  assert.equal((await accountByRsn('Taken Tom')).playerId, owner.person);
+});
+
+test('clanless: a character with roster history is not linked on a name', async () => {
+  // Departed from the AFK roster: the token names no clan and the roster fallback only takes LIVE
+  // unclaimed seats, so this reaches the clanless path — which must still refuse it.
+  const seat = await setup('Old Member', { leftAt: new Date().toISOString() });
+  const me = await clanlessLogin();
+  await play(me.token, 'Old Member', 'hash-old', null);
+  assert.notEqual((await account(seat.accountId)).playerId, me.person);
+  assert.equal((await account(seat.accountId)).claimedAt, null);
+});
+
+test('clanless: a released ("Not my account") character stays released', async () => {
+  const me = await clanlessLogin();
+  const [login] = await db.select().from(s.users).where(eq(s.users.pluginToken, me.token));
+  await db.insert(s.detectedAccounts).values({
+    userId: login.id, rsn: 'Sibling Sam', rsnNormalized: 'sibling sam', status: 'dismissed',
+    detectedAt: new Date().toISOString(), lastSeenAt: new Date().toISOString(),
+  });
+  await play(me.token, 'Sibling Sam', 'hash-sam', null);
+  assert.equal(await accountByRsn('Sibling Sam'), undefined);
+});

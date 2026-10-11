@@ -44,6 +44,11 @@ export default function AddCharacterClient({
   // Both outcomes count. A safe first-use play becomes linked immediately; a protected roster row
   // becomes a detected account that needs the XP/mod check. Watching only `linked` made the latter
   // sit on "Listening…" forever even though the plugin had arrived successfully.
+  //
+  // Compared against the beacon's `characters`/`suggestions`, which count what the page renders
+  // (characters owned, suggestions not already owned). Its `linked` counts clan SEATS — zero for a
+  // clanless person — so comparing that against the character count tripped on the first poll and
+  // parked the card on "loading…" for good.
   const baseline = useRef({ linked: linkedCount, detected: detectedCount });
 
   useEffect(() => {
@@ -86,7 +91,9 @@ export default function AddCharacterClient({
         try {
           const res = await fetch('/api/profile/connection', { cache: 'no-store' });
           if (res.ok) {
-            const next = (await res.json()) as { linked: number; detected: number };
+            const body = (await res.json()) as { characters?: number; suggestions?: number };
+            if (body.characters == null || body.suggestions == null) throw new Error('old beacon');
+            const next = { linked: body.characters, detected: body.suggestions };
             const prev = baseline.current;
             baseline.current = next;
             if (next.linked !== prev.linked || next.detected !== prev.detected) {
