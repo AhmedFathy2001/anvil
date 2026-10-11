@@ -835,6 +835,10 @@ const es: PartialGuideDict = {
           term: 'Barriles de peces, cestas de troncos y otros almacenes',
           body: 'Las casillas de objetos obtenidos solo cuentan lo que llega a tu inventario **directamente de la fuente**: un punto de pesca, una roca, un árbol. Todo lo que sale de un almacén (vaciar un barril de peces, una cesta de troncos, una bolsa de carbón o de gemas, un saco de hierbas), se compra en una tienda, se retira del banco o se recoge del suelo **no cuenta**. Así la casilla es justa: si no, el mismo pez podría meterse en un barril y sacarse una y otra vez. Lo que recoges directamente en un barril o cesta no se cuenta.',
         },
+        {
+          term: "Mascotas y champion's scrolls duplicados",
+          body: "Cuando ya tienes la mascota o el scroll, el juego solo dice que tienes un **“funny feeling”** — nunca dice cuál. El plugin lo deduce de lo que acabas de matar o entrenar, acredita la casilla y **la marca para que el staff la revise**. Si no puede saberlo — dos mascotas de la misma fuente, o una mascota sin una muerte o habilidad detrás (Bloodhound de un master clue, una mascota de Jad o Zuk apostada, Chompy chick) — guarda la captura en **Saved proofs** para que la envíes manualmente.",
+        },
       ],
     },
   },

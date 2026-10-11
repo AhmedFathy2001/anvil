@@ -836,6 +836,10 @@ const fr: PartialGuideDict = {
           term: 'Tonneaux à poissons, paniers à bûches et autres rangements',
           body: 'Les cases de gain d’objets ne comptent que ce qui arrive dans ton inventaire **directement depuis la source** — un coin de pêche, un rocher, un arbre. Tout ce qui sort d’un rangement (vider un tonneau à poissons, un panier à bûches, un sac à charbon ou à gemmes, un sac à herbes), qui est acheté en magasin, retiré de la banque ou ramassé au sol **ne compte pas**. Ça garde la case honnête : sinon le même poisson pourrait être mis dans un tonneau et ressorti à l’infini. Ce que tu récoltes directement dans un tonneau ou un panier n’est pas compté.',
         },
+        {
+          term: "Pets et champion's scrolls en double",
+          body: "Quand tu possèdes déjà le pet ou le scroll, le jeu dit seulement que tu as un **« funny feeling »** — il ne précise jamais lequel. Le plugin le déduit de ce que tu viens de tuer ou d'entraîner, valide la case et **la signale au staff pour vérification**. S'il ne peut pas trancher — deux pets de la même source, ou un pet sans kill ni compétence derrière (Bloodhound d'un master clue, un pet Jad ou Zuk obtenu par sacrifice, Chompy chick) — la capture va dans **Saved proofs** pour que tu la soumettes manuellement.",
+        },
       ],
     },
   },

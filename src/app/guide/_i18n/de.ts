@@ -835,6 +835,10 @@ const de: PartialGuideDict = {
           term: 'Fischfässer, Holzkörbe und anderer Stauraum',
           body: 'Item-Zuwachs-Felder zählen nur, was **direkt von der Quelle** in deinem Inventar landet — einem Fischplatz, einem Felsen, einem Baum. Alles, was aus einem Behälter kommt (Fischfass, Holzkorb, Kohle- oder Edelsteinbeutel, Kräutersack leeren), im Shop gekauft, von der Bank abgehoben oder vom Boden aufgehoben wird, **zählt nicht**. So bleibt ein Feld ehrlich: sonst könnte derselbe Fisch endlos ins Fass gefüllt und wieder herausgeholt werden. Was du direkt in ein Fass oder einen Korb sammelst, wird nicht gezählt.',
         },
+        {
+          term: "Doppelte Pets und Champion's Scrolls",
+          body: "Wenn du das Pet oder die Scroll schon hast, sagt das Spiel nur, dass du ein **„funny feeling“** hast — welches, verrät es nie. Das Plugin erschließt es aus dem, was du gerade getötet oder trainiert hast, rechnet das Feld an und **markiert es zur Prüfung durch das Staff**. Kann es das nicht eindeutig sagen — zwei Pets aus derselben Quelle oder ein Pet ohne Kill oder Skill dahinter (Bloodhound aus einem Master-Clue, ein erspieltes Jad- oder Zuk-Pet, Chompy chick) —, landet der Screenshot in **Saved proofs**, damit du ihn manuell einreichst.",
+        },
       ],
     },
   },

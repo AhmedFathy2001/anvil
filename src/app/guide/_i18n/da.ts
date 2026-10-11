@@ -840,6 +840,10 @@ const da: PartialGuideDict = {
           term: 'Fisketønder, brændekurve og andet opbevaring',
           body: 'Felter for item-gevinst tæller kun det, der lander i din inventory **direkte fra kilden** — et fiskested, en klippe, et træ. Alt, der tages ud af opbevaring (tømning af fisketønde, brændekurv, kul- eller ædelstenspose, urtesæk), købes i en butik, hæves fra banken eller samles op fra jorden, **tæller ikke**. Det holder feltet ærligt: ellers kunne den samme fisk fyldes i en tønde og tømmes ud igen i det uendelige. Fangster, du samler direkte i en tønde eller kurv, tæller ikke.',
         },
+        {
+          term: "Dobbelte pets og champion's scrolls",
+          body: "Når du allerede har pet'en eller scrollen, siger spillet kun, at du har en **“funny feeling”** — den siger aldrig hvilken. Pluginnet regner det ud fra, hvad du lige har dræbt eller trænet, krediterer feltet og **markerer det, så staff kan tjekke det**. Kan det ikke afgøre det — to pets fra samme kilde, eller et pet uden et kill eller en skill bag (Bloodhound fra et master clue, et gamblet Jad- eller Zuk-pet, Chompy chick) — gemmes skærmbilledet i **Saved proofs**, så du kan indsende det manuelt.",
+        },
       ],
     },
   },

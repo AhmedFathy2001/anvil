@@ -835,6 +835,10 @@ const fi: PartialGuideDict = {
           term: 'Kalatynnyrit, tukkikorit ja muu säilytys',
           body: 'Esinekertymäruudut laskevat vain sen, mikä tulee repun sisään **suoraan lähteestä** — kalapaikasta, kivestä, puusta. Mitään, mikä otetaan säilytyksestä (kalatynnyrin, tukkikorin, hiili- tai jalokivipussin tai yrttisäkin tyhjentäminen), ostetaan kaupasta, nostetaan pankista tai poimitaan maasta, **ei lasketa**. Näin ruutu pysyy reiluna: muuten saman kalan voisi täyttää tynnyriin ja tyhjentää loputtomasti. Suoraan tynnyriin tai koriin kerättyjä saaliita ei lasketa.',
         },
+        {
+          term: "Tuplapetit ja champion's scrollit",
+          body: "Kun sinulla on jo pet tai scroll, peli sanoo vain, että sinulla on **”funny feeling”** — se ei koskaan kerro mikä. Plugin päättelee sen siitä, mitä juuri tapoit tai treenasit, hyvittää ruudun ja **merkitsee sen staffin tarkistettavaksi**. Jos se ei voi olla varma — kaksi pettiä samasta lähteestä tai pet, jonka takana ei ole tappoa tai skilliä (Bloodhound master cluesta, uhrattu Jad- tai Zuk-pet, Chompy chick) — kuvakaappaus tallentuu **Saved proofs** -kohtaan, jotta voit lähettää sen käsin.",
+        },
       ],
     },
   },

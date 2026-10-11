@@ -824,6 +824,10 @@ const pl: PartialGuideDict = {
           term: 'Beczki na ryby, kosze na drewno i inne pojemniki',
           body: 'Pola zdobywania przedmiotów liczą tylko to, co trafia do ekwipunku **prosto ze źródła** — z łowiska, skały, drzewa. Wszystko, co wyjmiesz z pojemnika (opróżnienie beczki na ryby, kosza na drewno, worka na węgiel lub klejnoty, worka na zioła), kupisz w sklepie, wypłacisz z banku lub podniesiesz z ziemi, **się nie liczy**. Dzięki temu pole jest uczciwe: inaczej tę samą rybę można by w nieskończoność wkładać do beczki i wyjmować. To, co zbierasz prosto do beczki lub kosza, nie jest liczone.',
         },
+        {
+          term: "Zduplikowane pety i champion's scrolle",
+          body: "Gdy masz już peta lub scroll, gra mówi tylko, że masz **„funny feeling”** — nigdy nie mówi, który. Plugin wnioskuje to z tego, co właśnie zabiłeś lub trenowałeś, zalicza pole i **oznacza je do sprawdzenia przez staff**. Gdy nie da się tego ustalić — dwa pety z tego samego źródła albo pet bez zabójstwa czy umiejętności (Bloodhound z master clue, pet Jada lub Zuka z hazardu, Chompy chick) — zrzut ekranu trafia do **Saved proofs**, żebyś zgłosił go ręcznie.",
+        },
       ],
     },
   },

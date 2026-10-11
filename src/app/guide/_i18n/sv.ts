@@ -834,6 +834,10 @@ const sv: PartialGuideDict = {
           term: 'Fisktunnor, vedkorgar och annan förvaring',
           body: 'Rutor för item-ökning räknar bara det som hamnar i din inventory **direkt från källan** — en fiskeplats, en sten, ett träd. Allt som tas ur förvaring (tömma en fisktunna, vedkorg, kol- eller ädelstenspåse, örtsäck), köps i en butik, tas ut från banken eller plockas upp från marken **räknas inte**. Det håller rutan ärlig: annars kunde samma fisk fyllas i en tunna och tömmas ut igen i all oändlighet. Fångst du samlar direkt i en tunna eller korg räknas inte.',
         },
+        {
+          term: "Dubbla pets och champion's scrolls",
+          body: "När du redan har peten eller scrollen säger spelet bara att du har en **”funny feeling”** — den säger aldrig vilken. Pluginet räknar ut det från vad du nyss dödade eller tränade, krediterar rutan och **flaggar den för granskning av staff**. Kan det inte avgöra säkert — två pets från samma källa, eller en pet utan kill eller skill bakom (Bloodhound från en master clue, en gamblad Jad- eller Zuk-pet, Chompy chick) — sparas skärmdumpen i **Saved proofs** så att du kan skicka in den manuellt.",
+        },
       ],
     },
   },

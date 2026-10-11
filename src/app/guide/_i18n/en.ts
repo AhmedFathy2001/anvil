@@ -832,6 +832,10 @@ export const en = {
           term: 'Fish barrels, log baskets and other storage',
           body: 'Item-gain tiles count only what lands in your inventory **straight from the source** — a fishing spot, a rock, a tree. Anything taken out of storage (emptying a fish barrel, log basket, coal or gem bag, herb sack), bought from a shop, withdrawn from the bank or picked up off the ground **does not count**. That keeps a tile honest: otherwise the same fish could be filled into a barrel and emptied out again forever. If you gather into a barrel or basket, those catches aren’t counted.',
         },
+        {
+          term: 'Duplicate pets and champion’s scrolls',
+          body: 'When you already own the pet or scroll, the game only says you have a **“funny feeling”** — it never names which one. The plugin works it out from what you just killed or trained, credits the tile, and **flags it for staff to check**. When it can’t tell — two pets from the same source, or a pet with no kill or skill behind it (Bloodhound from a master clue, a gambled Jad or Zuk pet, Chompy chick) — it saves the screenshot to **Saved proofs** for you to submit manually.',
+        },
       ],
     },
   },

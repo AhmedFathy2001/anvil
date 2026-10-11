@@ -835,6 +835,10 @@ const nl: PartialGuideDict = {
           term: 'Visvaten, houtmanden en andere opslag',
           body: 'Item-opbrengstvakjes tellen alleen wat **rechtstreeks van de bron** in je inventory belandt — een visplek, een rots, een boom. Alles wat uit opslag komt (een visvat, houtmand, kolen- of edelsteenzak of kruidenzak legen), in een winkel gekocht, van de bank opgenomen of van de grond opgepakt wordt, **telt niet**. Zo blijft het vakje eerlijk: anders kon dezelfde vis eindeloos in een vat gestopt en er weer uit gehaald worden. Wat je rechtstreeks in een vat of mand verzamelt, telt niet.',
         },
+        {
+          term: "Dubbele pets en champion's scrolls",
+          body: "Als je de pet of scroll al hebt, zegt het spel alleen dat je een **“funny feeling”** hebt — welke, zegt het nooit. De plugin leidt het af uit wat je net hebt gedood of getraind, rekent het vakje toe en **markeert het voor controle door de staff**. Kan hij het niet zeker weten — twee pets uit dezelfde bron, of een pet zonder kill of skill erachter (Bloodhound uit een master clue, een gegokte Jad- of Zuk-pet, Chompy chick) — dan komt de screenshot in **Saved proofs** zodat je hem handmatig indient.",
+        },
       ],
     },
   },

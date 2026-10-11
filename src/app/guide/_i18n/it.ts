@@ -824,6 +824,10 @@ const it: PartialGuideDict = {
           term: 'Barili per pesci, cesti per tronchi e altri contenitori',
           body: 'Le caselle di oggetti ottenuti contano solo ciò che arriva nell’inventario **direttamente dalla fonte** — un punto di pesca, una roccia, un albero. Tutto ciò che esce da un contenitore (svuotare un barile per pesci, un cesto per tronchi, una sacca di carbone o di gemme, un sacco di erbe), acquistato in un negozio, prelevato dalla banca o raccolto da terra **non conta**. Così la casella resta onesta: altrimenti lo stesso pesce potrebbe essere messo nel barile e tirato fuori all’infinito. Ciò che raccogli direttamente in un barile o cesto non viene contato.',
         },
+        {
+          term: "Pet e champion's scroll doppi",
+          body: "Quando hai già il pet o lo scroll, il gioco dice solo che hai una **“funny feeling”** — non dice mai quale. Il plugin lo deduce da ciò che hai appena ucciso o allenato, accredita la casella e **la segnala allo staff per un controllo**. Se non può esserne sicuro — due pet dalla stessa fonte, o un pet senza un'uccisione o una skill dietro (Bloodhound da un master clue, un pet di Jad o Zuk ottenuto col sacrificio, Chompy chick) — salva lo screenshot in **Saved proofs** perché tu lo invii manualmente.",
+        },
       ],
     },
   },

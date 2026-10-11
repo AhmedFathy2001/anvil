@@ -824,6 +824,10 @@ const ptBr: PartialGuideDict = {
           term: 'Barris de peixe, cestos de toras e outros armazenamentos',
           body: 'Casas de itens obtidos contam só o que chega ao seu inventário **direto da fonte** — um ponto de pesca, uma rocha, uma árvore. Qualquer coisa tirada de um armazenamento (esvaziar um barril de peixe, cesto de toras, saco de carvão ou de gemas, saco de ervas), comprada em loja, sacada do banco ou pega do chão **não conta**. Isso mantém a casa honesta: senão o mesmo peixe poderia ser posto no barril e tirado de novo para sempre. O que você coleta direto num barril ou cesto não é contado.',
         },
+        {
+          term: "Pets e champion's scrolls duplicados",
+          body: "Quando você já tem o pet ou o scroll, o jogo só diz que você tem um **“funny feeling”** — nunca diz qual. O plugin deduz pelo que você acabou de matar ou treinar, credita o quadrado e **sinaliza para a staff conferir**. Quando não dá para saber — dois pets da mesma fonte, ou um pet sem kill ou skill por trás (Bloodhound de master clue, pet de Jad ou Zuk apostado, Chompy chick) — ele salva o print em **Saved proofs** para você enviar manualmente.",
+        },
       ],
     },
   },
