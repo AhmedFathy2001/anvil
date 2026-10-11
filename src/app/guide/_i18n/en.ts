@@ -828,6 +828,10 @@ export const en = {
           term: 'Implings, fish, ores and other item gains',
           body: 'Catching implings and gathering items (fish, ores and anything else counted by what lands in your inventory) **sometimes doesn’t track correctly, even with the plugin**. Keep screenshots as you go, and if a count looks short, report it and submit the difference manually.',
         },
+        {
+          term: 'Fish barrels, log baskets and other storage',
+          body: 'Item-gain tiles count only what lands in your inventory **straight from the source** — a fishing spot, a rock, a tree. Anything taken out of storage (emptying a fish barrel, log basket, coal or gem bag, herb sack), bought from a shop, withdrawn from the bank or picked up off the ground **does not count**. That keeps a tile honest: otherwise the same fish could be filled into a barrel and emptied out again forever. If you gather into a barrel or basket, those catches aren’t counted.',
+        },
       ],
     },
   },

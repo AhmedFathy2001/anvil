@@ -830,6 +830,10 @@ const no: PartialGuideDict = {
           term: 'Implings, fisk, malm og andre gjenstandsgevinster',
           body: 'Å fange implings og samle gjenstander (fisk, malm og alt annet som telles ut fra det som havner i inventory) **spores noen ganger ikke riktig, selv med pluginet**. Ta vare på skjermbilder underveis, og hvis en telling ser for lav ut, meld fra og send inn differansen manuelt.',
         },
+        {
+          term: 'Fisketønner, vedkurver og annen oppbevaring',
+          body: 'Felt for item-gevinst teller bare det som havner i inventoryen din **rett fra kilden** — en fiskeplass, en stein, et tre. Alt som tas ut av oppbevaring (tømme en fisketønne, vedkurv, kull- eller edelsteinspose, urtesekk), kjøpes i en butikk, tas ut av banken eller plukkes opp fra bakken, **teller ikke**. Det holder feltet ærlig: ellers kunne samme fisk fylles i en tønne og tømmes ut igjen i det uendelige. Fangst du samler rett i en tønne eller kurv, telles ikke.',
+        },
       ],
     },
   },

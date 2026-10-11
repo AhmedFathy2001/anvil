@@ -831,6 +831,10 @@ const nl: PartialGuideDict = {
           term: 'Implings, vis, erts en andere itemwinsten',
           body: 'Het vangen van implings en het verzamelen van items (vis, erts en alles wat wordt geteld op basis van wat in je inventory belandt) **wordt soms niet goed bijgehouden, zelfs met de plugin**. Bewaar onderweg screenshots, en als een telling te laag lijkt, meld het en dien het verschil handmatig in.',
         },
+        {
+          term: 'Visvaten, houtmanden en andere opslag',
+          body: 'Item-opbrengstvakjes tellen alleen wat **rechtstreeks van de bron** in je inventory belandt — een visplek, een rots, een boom. Alles wat uit opslag komt (een visvat, houtmand, kolen- of edelsteenzak of kruidenzak legen), in een winkel gekocht, van de bank opgenomen of van de grond opgepakt wordt, **telt niet**. Zo blijft het vakje eerlijk: anders kon dezelfde vis eindeloos in een vat gestopt en er weer uit gehaald worden. Wat je rechtstreeks in een vat of mand verzamelt, telt niet.',
+        },
       ],
     },
   },

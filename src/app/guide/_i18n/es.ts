@@ -831,6 +831,10 @@ const es: PartialGuideDict = {
           term: 'Implings, peces, minerales y otras ganancias de objetos',
           body: 'Capturar implings y recolectar objetos (peces, minerales y cualquier otra cosa que se cuente por lo que llega a tu inventario) **a veces no se registra bien, incluso con el plugin**. Guarda capturas de pantalla sobre la marcha, y si un recuento parece corto, avísalo y envía la diferencia manualmente.',
         },
+        {
+          term: 'Barriles de peces, cestas de troncos y otros almacenes',
+          body: 'Las casillas de objetos obtenidos solo cuentan lo que llega a tu inventario **directamente de la fuente**: un punto de pesca, una roca, un árbol. Todo lo que sale de un almacén (vaciar un barril de peces, una cesta de troncos, una bolsa de carbón o de gemas, un saco de hierbas), se compra en una tienda, se retira del banco o se recoge del suelo **no cuenta**. Así la casilla es justa: si no, el mismo pez podría meterse en un barril y sacarse una y otra vez. Lo que recoges directamente en un barril o cesta no se cuenta.',
+        },
       ],
     },
   },

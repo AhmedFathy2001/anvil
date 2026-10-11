@@ -820,6 +820,10 @@ const ptBr: PartialGuideDict = {
           term: 'Implings, peixes, minérios e outros ganhos de itens',
           body: 'Capturar implings e coletar itens (peixes, minérios e qualquer outra coisa contada pelo que chega ao seu inventário) **às vezes não é rastreado corretamente, mesmo com o plugin**. Guarde capturas de tela ao longo do caminho, e se uma contagem parecer baixa, avise e envie a diferença manualmente.',
         },
+        {
+          term: 'Barris de peixe, cestos de toras e outros armazenamentos',
+          body: 'Casas de itens obtidos contam só o que chega ao seu inventário **direto da fonte** — um ponto de pesca, uma rocha, uma árvore. Qualquer coisa tirada de um armazenamento (esvaziar um barril de peixe, cesto de toras, saco de carvão ou de gemas, saco de ervas), comprada em loja, sacada do banco ou pega do chão **não conta**. Isso mantém a casa honesta: senão o mesmo peixe poderia ser posto no barril e tirado de novo para sempre. O que você coleta direto num barril ou cesto não é contado.',
+        },
       ],
     },
   },

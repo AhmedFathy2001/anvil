@@ -831,6 +831,10 @@ const de: PartialGuideDict = {
           term: 'Implings, Fisch, Erze und andere Item-Zuwächse',
           body: 'Das Fangen von Implings und das Sammeln von Items (Fisch, Erze und alles andere, das danach gezählt wird, was in deinem Inventar landet) **wird manchmal auch mit dem Plugin nicht korrekt erfasst**. Mach unterwegs Screenshots, und wenn eine Zahl zu niedrig aussieht, melde es und reiche die Differenz manuell ein.',
         },
+        {
+          term: 'Fischfässer, Holzkörbe und anderer Stauraum',
+          body: 'Item-Zuwachs-Felder zählen nur, was **direkt von der Quelle** in deinem Inventar landet — einem Fischplatz, einem Felsen, einem Baum. Alles, was aus einem Behälter kommt (Fischfass, Holzkorb, Kohle- oder Edelsteinbeutel, Kräutersack leeren), im Shop gekauft, von der Bank abgehoben oder vom Boden aufgehoben wird, **zählt nicht**. So bleibt ein Feld ehrlich: sonst könnte derselbe Fisch endlos ins Fass gefüllt und wieder herausgeholt werden. Was du direkt in ein Fass oder einen Korb sammelst, wird nicht gezählt.',
+        },
       ],
     },
   },

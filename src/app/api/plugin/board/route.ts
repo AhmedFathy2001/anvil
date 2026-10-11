@@ -12,6 +12,7 @@ import { lapUnitNoun } from '@/lib/constants';
 import { parseEventRules, hasRevealPolicy, visibleTiles, nextRevealAt } from '@/lib/eventRules';
 import { listTeamClaims } from '@/lib/tileClaims';
 import { getItemMapping } from '@/lib/osrsItems';
+import { isManualOnlyDropTile } from '@/lib/clogManual';
 import { howItCounts, parseCountMode, parseSetsRequired, type CollectionRequirement } from '@/lib/collectionSets';
 
 // GET /api/plugin/board — the board for an event: every tile with its grid slot, a representative
@@ -405,6 +406,9 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null, v
         optional: t.optional ? 1 : 0,
         // 1 = auto-tracking off; the plugin shows a "completed manually" note on the detail page.
         autoTrackDisabled: t.autoTrackDisabled ? 1 : 0,
+        // Items that never arrive as a drop (bought / made / handed over) — the board's "Manual"
+        // badge. The plugin treats these as manual too, instead of claiming it tracks them.
+        ...(isManualOnlyDropTile(t) ? { manualOnly: true } : {}),
         category: t.category ?? null,
         // tileType + statType + statName let the plugin's preview classify the tile's kind and
         // show the skill icon, the same way the enrolled config view does.

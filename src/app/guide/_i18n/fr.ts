@@ -832,6 +832,10 @@ const fr: PartialGuideDict = {
           term: 'Implings, poissons, minerais et autres gains d’objets',
           body: 'Attraper des implings et récolter des objets (poissons, minerais et tout ce qui est compté d’après ce qui arrive dans votre inventaire) **n’est parfois pas suivi correctement, même avec le plugin**. Gardez des captures d’écran au fil de l’eau, et si un compte semble trop bas, signalez-le et soumettez la différence manuellement.',
         },
+        {
+          term: 'Tonneaux à poissons, paniers à bûches et autres rangements',
+          body: 'Les cases de gain d’objets ne comptent que ce qui arrive dans ton inventaire **directement depuis la source** — un coin de pêche, un rocher, un arbre. Tout ce qui sort d’un rangement (vider un tonneau à poissons, un panier à bûches, un sac à charbon ou à gemmes, un sac à herbes), qui est acheté en magasin, retiré de la banque ou ramassé au sol **ne compte pas**. Ça garde la case honnête : sinon le même poisson pourrait être mis dans un tonneau et ressorti à l’infini. Ce que tu récoltes directement dans un tonneau ou un panier n’est pas compté.',
+        },
       ],
     },
   },

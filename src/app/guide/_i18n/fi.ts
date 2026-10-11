@@ -831,6 +831,10 @@ const fi: PartialGuideDict = {
           term: 'Implingit, kalat, malmit ja muut esineiden saannit',
           body: 'Implingien pyydystäminen ja esineiden kerääminen (kalat, malmit ja kaikki muu, mikä lasketaan siitä, mitä inventoryysi päätyy) **ei toisinaan seuraudu oikein edes pluginin kanssa**. Säilytä kuvakaappauksia matkan varrella, ja jos määrä näyttää liian pieneltä, ilmoita siitä ja lähetä erotus käsin.',
         },
+        {
+          term: 'Kalatynnyrit, tukkikorit ja muu säilytys',
+          body: 'Esinekertymäruudut laskevat vain sen, mikä tulee repun sisään **suoraan lähteestä** — kalapaikasta, kivestä, puusta. Mitään, mikä otetaan säilytyksestä (kalatynnyrin, tukkikorin, hiili- tai jalokivipussin tai yrttisäkin tyhjentäminen), ostetaan kaupasta, nostetaan pankista tai poimitaan maasta, **ei lasketa**. Näin ruutu pysyy reiluna: muuten saman kalan voisi täyttää tynnyriin ja tyhjentää loputtomasti. Suoraan tynnyriin tai koriin kerättyjä saaliita ei lasketa.',
+        },
       ],
     },
   },

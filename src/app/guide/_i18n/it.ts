@@ -820,6 +820,10 @@ const it: PartialGuideDict = {
           term: 'Implings, pesci, minerali e altri guadagni di oggetti',
           body: 'Catturare implings e raccogliere oggetti (pesci, minerali e tutto ciò che viene contato in base a ciò che finisce nel tuo inventario) **a volte non viene tracciato correttamente, anche con il plugin**. Conserva gli screenshot man mano, e se un conteggio sembra troppo basso, segnalalo e invia la differenza manualmente.',
         },
+        {
+          term: 'Barili per pesci, cesti per tronchi e altri contenitori',
+          body: 'Le caselle di oggetti ottenuti contano solo ciò che arriva nell’inventario **direttamente dalla fonte** — un punto di pesca, una roccia, un albero. Tutto ciò che esce da un contenitore (svuotare un barile per pesci, un cesto per tronchi, una sacca di carbone o di gemme, un sacco di erbe), acquistato in un negozio, prelevato dalla banca o raccolto da terra **non conta**. Così la casella resta onesta: altrimenti lo stesso pesce potrebbe essere messo nel barile e tirato fuori all’infinito. Ciò che raccogli direttamente in un barile o cesto non viene contato.',
+        },
       ],
     },
   },

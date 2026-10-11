@@ -836,6 +836,10 @@ const da: PartialGuideDict = {
           term: 'Implings, fisk, malme og andre genstandsgevinster',
           body: 'At fange implings og samle genstande (fisk, malme og alt andet, der tælles ud fra det, der lander i dit inventory) **registreres nogle gange ikke korrekt, selv med pluginnet**. Gem skærmbilleder undervejs, og hvis en optælling ser for lav ud, så rapportér det og indsend forskellen manuelt.',
         },
+        {
+          term: 'Fisketønder, brændekurve og andet opbevaring',
+          body: 'Felter for item-gevinst tæller kun det, der lander i din inventory **direkte fra kilden** — et fiskested, en klippe, et træ. Alt, der tages ud af opbevaring (tømning af fisketønde, brændekurv, kul- eller ædelstenspose, urtesæk), købes i en butik, hæves fra banken eller samles op fra jorden, **tæller ikke**. Det holder feltet ærligt: ellers kunne den samme fisk fyldes i en tønde og tømmes ud igen i det uendelige. Fangster, du samler direkte i en tønde eller kurv, tæller ikke.',
+        },
       ],
     },
   },

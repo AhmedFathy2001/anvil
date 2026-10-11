@@ -830,6 +830,10 @@ const sv: PartialGuideDict = {
           term: 'Implings, fisk, malm och andra föremålsvinster',
           body: 'Att fånga implings och samla föremål (fisk, malm och allt annat som räknas utifrån det som landar i ditt inventory) **spåras ibland inte korrekt, även med pluginet**. Spara skärmbilder längs vägen, och om en räkning ser för låg ut, rapportera det och skicka in skillnaden manuellt.',
         },
+        {
+          term: 'Fisktunnor, vedkorgar och annan förvaring',
+          body: 'Rutor för item-ökning räknar bara det som hamnar i din inventory **direkt från källan** — en fiskeplats, en sten, ett träd. Allt som tas ur förvaring (tömma en fisktunna, vedkorg, kol- eller ädelstenspåse, örtsäck), köps i en butik, tas ut från banken eller plockas upp från marken **räknas inte**. Det håller rutan ärlig: annars kunde samma fisk fyllas i en tunna och tömmas ut igen i all oändlighet. Fångst du samlar direkt i en tunna eller korg räknas inte.',
+        },
       ],
     },
   },

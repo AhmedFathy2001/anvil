@@ -820,6 +820,10 @@ const pl: PartialGuideDict = {
           term: 'Implingi, ryby, rudy i inne zdobycze przedmiotów',
           body: 'Łapanie implingów i zbieranie przedmiotów (ryb, rud i wszystkiego, co liczy się na podstawie tego, co ląduje w ekwipunku) **czasem nie jest śledzone poprawnie, nawet z pluginem**. Zachowuj zrzuty ekranu na bieżąco, a jeśli liczba wygląda na zaniżoną, zgłoś to i prześlij różnicę ręcznie.',
         },
+        {
+          term: 'Beczki na ryby, kosze na drewno i inne pojemniki',
+          body: 'Pola zdobywania przedmiotów liczą tylko to, co trafia do ekwipunku **prosto ze źródła** — z łowiska, skały, drzewa. Wszystko, co wyjmiesz z pojemnika (opróżnienie beczki na ryby, kosza na drewno, worka na węgiel lub klejnoty, worka na zioła), kupisz w sklepie, wypłacisz z banku lub podniesiesz z ziemi, **się nie liczy**. Dzięki temu pole jest uczciwe: inaczej tę samą rybę można by w nieskończoność wkładać do beczki i wyjmować. To, co zbierasz prosto do beczki lub kosza, nie jest liczone.',
+        },
       ],
     },
   },
