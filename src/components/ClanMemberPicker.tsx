@@ -41,6 +41,18 @@ interface CommonProps {
   // When true, Discord-linked members get prioritized at the top and grey-out hint for unlinked.
   preferLinked?: boolean;
   emptyState?: string;
+  /**
+   * Re-fetch the roster whenever this changes. The enrolled / on-a-team flags come from the server,
+   * so a parent that enrols or places players while the picker stays mounted passes something that
+   * moves with its player list (a signature of ids + teams) — otherwise the picker keeps offering
+   * people as "in pool" who were just put on a team, or hides ones who were just removed.
+   */
+  refreshKey?: string | number;
+  /**
+   * Captain picking: user id -> the OTHER team in this event they already captain. Those rows are
+   * greyed out — one person captains one team per event, and the API refuses a second with a 409.
+   */
+  captainsElsewhere?: ReadonlyMap<number, string>;
 }
 
 interface SingleProps extends CommonProps {
@@ -94,7 +106,7 @@ export default function ClanMemberPicker(props: Props) {
         setError(e instanceof Error ? e.message : 'Network error');
         setMembers([]);
       });
-  }, [props.eventId, props.teamId]);
+  }, [props.eventId, props.teamId, props.refreshKey]);
 
   const filtered = useMemo(() => {
     if (!members) return [];
@@ -143,6 +155,7 @@ export default function ClanMemberPicker(props: Props) {
   function toggle(id: number) {
     const member = members?.find((m) => m.id === id) ?? null;
     if (props.mode === 'single') {
+      if (member?.user && props.captainsElsewhere?.has(member.user.id)) return;
       if (props.requireDiscordUser && member && !member.user?.discordId) {
         // Captain seats are claimed via Discord login, so picking an unlinked member
         // would leave the seat unclaimable. UI flags those rows; this is the safety net.
@@ -197,11 +210,14 @@ export default function ClanMemberPicker(props: Props) {
             const enrolled = props.mode === 'multi' && props.disableEnrolled && onTeam;
             const linked = Boolean(m.user?.discordId);
             const requiresLink = props.mode === 'single' && props.requireDiscordUser && !linked;
-            const disabled = enrolled || requiresLink;
+            const captainOf = (m.user && props.captainsElsewhere?.get(m.user.id)) || null;
+            const disabled = enrolled || requiresLink || captainOf != null;
             const avatar = m.user?.discordId ? avatarUrl(m.user.discordId, m.user.discordAvatar) : null;
             const disabledReason = enrolled
               ? 'Already on a team in this event'
-              : requiresLink
+              : captainOf
+                ? `Already captains ${captainOf} in this event`
+                : requiresLink
                 ? (props.mode === 'single' && props.requireDiscordUserHint) ||
                   'No Discord login linked — captain access needs a Discord-linked user'
                 : '';
@@ -292,9 +308,11 @@ export default function ClanMemberPicker(props: Props) {
                       in pool
                     </span>
                   )}
-                  {requiresLink && (
+                  {captainOf ? (
+                    <span className="text-[10px] text-text-muted shrink-0">captains another team</span>
+                  ) : requiresLink ? (
                     <span className="text-[10px] text-text-muted shrink-0">no Discord</span>
-                  )}
+                  ) : null}
                 </button>
               </li>
             );

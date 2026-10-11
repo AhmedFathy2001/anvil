@@ -8,7 +8,7 @@ import { eq, and } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain } from '@/lib/auth';
 import { updateTeamDiscordIdentity } from '@/lib/discord-teams';
 import { updateTeamEventDiscordIdentity } from '@/lib/eventDiscord';
-import { captainSeatNotice, placeCaptainOnTeam } from '@/lib/teamCaptain';
+import { captainConflict, captainSeatNotice, placeCaptainOnTeam } from '@/lib/teamCaptain';
 import { assertEventEditable } from '@/lib/eventLock';
 
 export async function GET(
@@ -99,6 +99,9 @@ export async function POST(
   if (!captainUser) {
     return NextResponse.json({ error: 'Captain user not found.' }, { status: 404 });
   }
+  // One captaincy per person per event — lib/teamCaptain#captainConflict.
+  const conflict = await captainConflict(id, captainUserIdInt);
+  if (conflict) return NextResponse.json({ error: conflict }, { status: 409 });
 
   // captain_password is a legacy column we no longer read or hand out — but the live
   // DB may still have it as NOT NULL until migration 0019 lands. Stuff a random byte
@@ -265,6 +268,8 @@ export async function PATCH(
     if (!captainUser) {
       return NextResponse.json({ error: 'Captain user not found.' }, { status: 404 });
     }
+    const conflict = await captainConflict(eId, captainUserId, teamId);
+    if (conflict) return NextResponse.json({ error: conflict }, { status: 409 });
     updateData.captainUserId = captainUserId;
   }
   if (name !== undefined) {

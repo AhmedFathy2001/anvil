@@ -636,6 +636,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   // Pick the event's team format (first wizard screen) and land on the right step for it.
   function chooseFormat(f: TeamFormat) {
     setFormat(f);
+    clearPendingPicks();
     try {
       window.sessionStorage.setItem(formatStorageKey, f);
     } catch {}
@@ -648,9 +649,19 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     }
   }
 
+  // Half-made selections belong to the format they were made under. The pool step stays mounted
+  // across a format change (Back → pick another), so without this a member ticked for "one team
+  // each" was still ticked — and one click from being added — under the draft that replaced it.
+  function clearPendingPicks() {
+    setSelectedClanMemberIds([]);
+    setNameToAdd('');
+    setAddToTeamId(null);
+  }
+
   // Back to the format screen (offered while no draft has started — afterwards the format is fact).
   function resetFormat() {
     setFormat(null);
+    clearPendingPicks();
     try {
       window.sessionStorage.removeItem(formatStorageKey);
     } catch {}
@@ -772,9 +783,11 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     ? !poolDone
       ? 'Add everyone who’s playing — sign-ups add players automatically, or enroll and add members below.'
       : unplacedCount > 0
-        ? format === 'individual'
-          ? 'Give everyone their own team with one click below, then move on to rosters.'
-          : 'Put everyone on the shared team with one click below, then move on to rosters.'
+        ? activeStep === 3
+          ? `${unplacedCount} player${unplacedCount === 1 ? ' isn’t' : 's aren’t'} on a team yet — team them up below before starting.`
+          : format === 'individual'
+            ? 'Give everyone their own team with one click below, then move on to rosters.'
+            : 'Put everyone on the shared team with one click below, then move on to rosters.'
         : 'Everyone has a team — manage rosters, Discord channels and the start on the last step.'
     : draftDone
       ? 'Draft complete — team rosters are locked. Reset the draft to make changes.'
@@ -788,6 +801,35 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               ? 'Set the draft order — every team must be in it — then start the draft.'
               : 'Everything’s ready — start the draft below.';
 
+  // The one-click team-up, shared by the enroll step and the rosters step. It used to live only on
+  // the enroll step, so anyone who reached "Rosters & start" with teamless players (a restored
+  // ?step=3, the step pill, late sign-ups) was told to use a button that wasn't on their screen.
+  const teamUpAction = automaticFormat && draft.status === 'none' && (
+    <>
+      <button
+        onClick={placePool}
+        disabled={placing || unplacedCount === 0 || editLocked}
+        className="w-full text-sm font-bold bg-gold/15 text-gold border border-gold/30 px-4 py-2 rounded-lg hover:bg-gold/25 transition-colors disabled:opacity-50"
+      >
+        {placing
+          ? 'Teaming up…'
+          : unplacedCount === 0
+            ? poolDone
+              ? 'Everyone already has a team'
+              : 'Add players to the pool first'
+            : `Team up ${unplacedCount} player${unplacedCount === 1 ? '' : 's'}`}
+      </button>
+      {placeNotice && (
+        <p className={`text-xs ${placeNotice.type === 'success' ? 'text-accent-green-light' : 'text-red-400'}`}>
+          {placeNotice.text}
+        </p>
+      )}
+    </>
+  );
+  // Non-draft rosters are "ready" only when there are teams and nobody is left off one. A finished
+  // draft is ready by definition — the draft is what put everyone on a team.
+  const rostersReady = draft.status === 'completed' || (draftTeams.length > 0 && unplacedCount === 0);
+
   // Whether the on-screen step is finished, so "Continue" only unlocks when it's safe to move on.
   const stepDone = format === 'preassigned'
     ? activeStep === 0
@@ -797,7 +839,9 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
         : true
     : automaticFormat
     ? activeStep === 1
-      ? poolDone
+      // Enrolled isn't done: "Rosters & start" with half the pool still teamless is a step that
+      // can only be finished by coming back here, so Continue waits for the team-up.
+      ? allPlaced
       : true
     : ([teamsDone, poolDone, orderDone][activeStep] ?? true);
 
@@ -1143,6 +1187,8 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
 
         {activeStep === 1 && draft.status === 'none' && (
           <AutoEnrollPanel
+            // A format change is a fresh step: drop the panel's last result/error with it.
+            key={format ?? 'none'}
             eventId={event.id}
             canCreateTeams={draft.status === 'none'}
             draftInProgress={isDraftInProgress}
@@ -1219,24 +1265,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               )}
             </div>
 
-            <button
-              onClick={placePool}
-              disabled={placing || unplacedCount === 0 || editLocked}
-              className="w-full text-sm font-bold bg-gold/15 text-gold border border-gold/30 px-4 py-2 rounded-lg hover:bg-gold/25 transition-colors disabled:opacity-50"
-            >
-              {placing
-                ? 'Teaming up…'
-                : unplacedCount === 0
-                  ? poolDone
-                    ? 'Everyone already has a team'
-                    : 'Add players to the pool first'
-                  : `Team up ${unplacedCount} player${unplacedCount === 1 ? '' : 's'}`}
-            </button>
-            {placeNotice && (
-              <p className={`text-xs ${placeNotice.type === 'success' ? 'text-accent-green-light' : 'text-red-400'}`}>
-                {placeNotice.text}
-              </p>
-            )}
+            {teamUpAction}
           </div>
         )}
 
@@ -1259,8 +1288,11 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                   RSN typing or Discord-format imports needed.
                 </p>
                 <ClanMemberPicker
+                  key={format ?? 'none'}
                   mode="multi"
                   eventId={event.id}
+                  // Enrolled / on-a-team flags are server facts; refetch when the roster moves.
+                  refreshKey={playersSignature}
                   value={selectedClanMemberIds}
                   onChange={(ids) => setSelectedClanMemberIds(ids)}
                   preferLinked
@@ -1511,11 +1543,48 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                 {draft.status === 'completed'
                   ? `Rosters are set. Start the ${noun}, adjust rosters, or re-send the roster to Discord below.`
                   : draftTeams.length === 0
-                    ? 'No teams yet — go back to Enroll & team up to add players and team them up.'
+                    ? automaticFormat && unplacedCount > 0
+                      ? 'No teams yet — team the pool up below.'
+                      : 'No teams yet — go back to Enroll & team up to add players and team them up.'
                     : `Start the ${noun}, adjust rosters, or send the roster to Discord below.`}
               </p>
             </div>
-            {bingoStartable && (
+            {/* Not ready: somebody is still off a team (or there are no teams). Amber, with the fix
+                on the card, and Start demoted to an explicit override — the green "everyone is on
+                a team" used to show here regardless, beside a pool full of teamless players. */}
+            {!rostersReady && draft.status === 'none' && (
+              <div className="rounded-xl border border-amber-400/30 bg-amber-400/5 p-4 space-y-2">
+                <h3 className="text-sm font-bold text-amber-300 flex items-center gap-2">
+                  <span className="w-1 h-4 bg-amber-400 rounded-full" />
+                  {unplacedCount > 0
+                    ? `${unplacedCount} player${unplacedCount === 1 ? ' isn’t' : 's aren’t'} on a team yet`
+                    : 'No teams yet'}
+                </h3>
+                <p className="text-xs text-text-muted">
+                  {unplacedCount === 0
+                    ? 'Nobody is enrolled yet — go back to Enroll & team up and add the players first.'
+                    : automaticFormat
+                      ? `Team them up before starting — they won’t score until they’re on a team.${format === 'individual' ? ' Account settings for alts are on the Enroll & team up step.' : ''}`
+                      : draftTeams.length === 0
+                        ? 'Create a team on Set up teams, then assign them under Manage rosters below.'
+                        : 'Assign each one under Manage rosters below — they won’t score until they’re on a team.'}
+                </p>
+                {unplacedCount > 0 && teamUpAction}
+                {bingoStartable && draftTeams.length > 0 && (
+                  <div className="pt-1">
+                    <button
+                      onClick={() => startBingoNow()}
+                      disabled={startingBingo || editLocked}
+                      className="text-xs text-text-muted hover:text-foreground underline underline-offset-2 disabled:opacity-50"
+                    >
+                      {startingBingo ? 'Starting…' : `Start the ${noun} anyway`}
+                    </button>
+                    {startBingoError && <p className="text-red-400 text-xs mt-2">{startBingoError}</p>}
+                  </div>
+                )}
+              </div>
+            )}
+            {bingoStartable && rostersReady && (
               <div className="rounded-xl border border-accent-green/30 bg-accent-green/10 p-4">
                 <h3 className="text-sm font-bold text-accent-green-light mb-1 flex items-center gap-2">
                   <span className="w-1 h-4 bg-accent-green rounded-full" />
@@ -1594,14 +1663,21 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               {(() => {
                 const unassigned = draft.players.filter((p) => p.teamId === null);
                 if (unassigned.length === 0) return null;
+                // No teams = nothing to assign to; an empty "Assign to team…" menu on every row read
+                // as broken. Say where the teams come from instead.
+                const noTeams = draftTeams.length === 0;
                 return (
                   <div className="mb-4 border border-amber-400/30 bg-amber-400/5 rounded-lg p-3">
                     <p className="text-sm font-semibold text-amber-300 mb-1">
                       In the pool, not on a team yet ({unassigned.length})
                     </p>
                     <p className="text-xs text-text-muted mb-2.5">
-                      These players are enrolled but aren&apos;t on a team. Assign each one below — or remove
-                      them from the event if they shouldn&apos;t be here (mistaken enrollment, subbed out for good).
+                      {noTeams
+                        ? automaticFormat
+                          ? 'These players are enrolled but there are no teams yet — use Team up above to give them one. '
+                          : 'These players are enrolled but there are no teams to assign them to yet — create one on Set up teams first. '
+                        : 'These players are enrolled but aren’t on a team. Assign each one below — or remove them from the event if they shouldn’t be here (mistaken enrollment, subbed out for good).'}
+                      {noTeams && 'Remove anyone who shouldn’t be here.'}
                     </p>
                     <div className="space-y-1.5">
                       {unassigned.map((p) => (
@@ -1612,6 +1688,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                           </div>
                           {/* An ACTION menu: it assigns and returns to empty, so the value is always
                               '' and the prompt is the placeholder rather than a disabled option. */}
+                          {!noTeams && (
                           <Select
                             value=""
                             disabled={assigningPlayerId === p.id || editLocked}
@@ -1627,6 +1704,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                             ariaLabel="Assign to team"
                             className="w-40"
                           />
+                          )}
                           <button
                             onClick={() => resetPlayer(p.id, p.name, false, false, true)}
                             disabled={busyPlayerId === p.id || assigningPlayerId === p.id || editLocked}
@@ -1803,6 +1881,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                             // The team decides whose roster this is: a co-host's team is filled from
                             // the visiting clan, not from whoever hosts the board.
                             teamId={team.id}
+                            refreshKey={playersSignature}
                             value={selectedClanMemberIds}
                             onChange={(ids) => setSelectedClanMemberIds(ids)}
                             preferLinked
@@ -1956,6 +2035,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
       {showAddTeam && (
         <TeamEditor
           eventId={event.id}
+          eventTeams={teams}
           onClose={() => setShowAddTeam(false)}
           onSaved={() => {
             fetchDraft();
@@ -1967,6 +2047,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
         <TeamEditor
           eventId={event.id}
           team={editingTeam}
+          eventTeams={teams}
           onClose={() => setEditingTeam(null)}
           onSaved={() => {
             fetchDraft();
