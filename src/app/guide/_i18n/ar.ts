@@ -596,6 +596,19 @@ const ar: PartialGuideDict = {
         body: 'إن قالت الدردشة _Tracked as a guest_، فأنت متتبَّع لكنك لست في سجل أعضاء العشيرة بعد. يصلح ذلك مسؤولٌ بمزامنة سجل الأعضاء من داخل اللعبة — اسأل {discordLink}.',
         discordWord: 'في Discord',
       },
+      lookupHeading: 'ابحث عن أي لاعب',
+      lookupBody:
+        'انقر بزر الفأرة الأيمن على لاعب — بجانبك، أو على اسمه في الدردشة أو قائمة الأصدقاء أو لوحة العشيرة — واختر **Anvil** لفتح ملفه الشخصي على Anvil في متصفحك. ولملفك أنت، افتح قائمة **⋯** أعلى اللوحة الجانبية واختر **View my profile on Anvil**.',
+      lookupFigure: {
+        caption: 'نقرة يمنى على اسم ← Anvil',
+        alt: 'قائمة النقر الأيمن على لاعب داخل اللعبة وفيها خيار Anvil أسفل Lookup وRuneProfile',
+      },
+      lookupSettingNote:
+        'لا تريده في قوائمك؟ أزل علامة **Anvil lookup on players** ضمن **General** في إعدادات الإضافة.',
+      lookupSettingFigure: {
+        caption: 'Configuration → Anvil → General',
+        alt: 'قسم General في إعدادات Anvil مع تفعيل «Anvil lookup on players»',
+      },
     },
 
     bingo: {

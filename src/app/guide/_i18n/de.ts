@@ -597,6 +597,19 @@ const de: PartialGuideDict = {
         body: 'Sagt der Chat _Tracked as a guest_, wirst du erfasst, stehst aber noch nicht auf der Clan-Mitgliederliste. Das behebt ein Admin, indem er die Mitgliederliste aus dem Spiel synchronisiert — frag {discordLink}.',
         discordWord: 'in Discord',
       },
+      lookupHeading: 'Jeden nachschlagen',
+      lookupBody:
+        'Rechtsklicke einen Spieler — direkt neben dir oder per Name im Chat, in deiner Freundesliste oder im Clan-Panel — und wähle **Anvil**, um sein Anvil-Profil im Browser zu öffnen. Für dein eigenes öffnest du oben im Seitenpanel das **⋯**-Menü und wählst **View my profile on Anvil**.',
+      lookupFigure: {
+        caption: 'Rechtsklick auf einen Namen → Anvil',
+        alt: 'Das Rechtsklick-Menü eines Spielers im Spiel mit einem Anvil-Eintrag unter Lookup und RuneProfile',
+      },
+      lookupSettingNote:
+        'Willst du es nicht in deinen Menüs? Entferne den Haken bei **Anvil lookup on players** unter **General** in den Plugin-Einstellungen.',
+      lookupSettingFigure: {
+        caption: 'Configuration → Anvil → General',
+        alt: 'Der Abschnitt General der Anvil-Einstellungen mit aktiviertem „Anvil lookup on players“',
+      },
     },
 
     bingo: {

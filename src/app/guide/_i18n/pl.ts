@@ -595,6 +595,19 @@ const pl: PartialGuideDict = {
         body: 'Jeśli czat mówi _Tracked as a guest_, jesteś śledzony, ale nie ma cię jeszcze na składzie klanu. Admin naprawia to, synchronizując skład klanu z gry —— poproś {discordLink}.',
         discordWord: 'na Discordzie',
       },
+      lookupHeading: 'Sprawdź każdego',
+      lookupBody:
+        'Kliknij prawym przyciskiem gracza — obok siebie albo jego nick na czacie, liście znajomych lub w panelu klanu — i wybierz **Anvil**, aby otworzyć jego profil Anvil w przeglądarce. Swój otworzysz z menu **⋯** na górze panelu bocznego, wybierając **View my profile on Anvil**.',
+      lookupFigure: {
+        caption: 'Prawy klik na nicku → Anvil',
+        alt: 'Menu prawego przycisku gracza w grze z pozycją Anvil pod Lookup i RuneProfile',
+      },
+      lookupSettingNote:
+        'Nie chcesz tego w menu? Odznacz **Anvil lookup on players** w sekcji **General** ustawień pluginu.',
+      lookupSettingFigure: {
+        caption: 'Configuration → Anvil → General',
+        alt: 'Sekcja General ustawień Anvil z zaznaczonym „Anvil lookup on players”',
+      },
     },
 
     bingo: {

@@ -603,6 +603,19 @@ export const en = {
         body: 'If chat says _Tracked as a guest_, you’re being tracked but you’re not on the clan roster yet. An admin fixes that by syncing the in-game clan roster — ask {discordLink}.',
         discordWord: 'in Discord',
       },
+      lookupHeading: 'Look anyone up',
+      lookupBody:
+        'Right-click a player — standing next to you, or by name in chat, your friends list or the clan panel — and pick **Anvil** to open their Anvil profile in your browser. For your own, open the **⋯** menu at the top of the side panel and pick **View my profile on Anvil**.',
+      lookupFigure: {
+        caption: 'Right-click a name → Anvil',
+        alt: 'A player’s right-click menu in game with an Anvil entry under Lookup and RuneProfile',
+      },
+      lookupSettingNote:
+        'Don’t want it in your menus? Untick **Anvil lookup on players** under **General** in the plugin’s settings.',
+      lookupSettingFigure: {
+        caption: 'Configuration → Anvil → General',
+        alt: 'The General section of the Anvil settings with Anvil lookup on players ticked',
+      },
     },
 
     bingo: {

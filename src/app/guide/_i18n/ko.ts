@@ -596,6 +596,19 @@ const ko: PartialGuideDict = {
         body: '채팅에 _Tracked as a guest_ 라고 뜨면 기록은 되고 있지만 아직 클랜 멤버 명단에는 없다는 뜻입니다. 관리자가 게임 내 클랜 명단을 동기화하면 해결됩니다 —— {discordLink} 물어보세요.',
         discordWord: 'Discord에서',
       },
+      lookupHeading: '누구든 찾아보기',
+      lookupBody:
+        '플레이어를 우클릭하세요 — 바로 옆에 있는 플레이어든, 채팅·친구 목록·클랜 패널의 이름이든 상관없습니다. **Anvil**을 고르면 그 플레이어의 Anvil 프로필이 브라우저에서 열립니다. 내 프로필은 사이드 패널 맨 위의 **⋯** 메뉴에서 **View my profile on Anvil**을 고르세요.',
+      lookupFigure: {
+        caption: '이름 우클릭 → Anvil',
+        alt: '게임 속 플레이어 우클릭 메뉴. Lookup과 RuneProfile 아래에 Anvil 항목이 있다',
+      },
+      lookupSettingNote:
+        '메뉴에 표시하고 싶지 않다면 플러그인 설정의 **General**에서 **Anvil lookup on players** 체크를 해제하세요.',
+      lookupSettingFigure: {
+        caption: 'Configuration → Anvil → General',
+        alt: 'Anvil 설정의 General 섹션. "Anvil lookup on players"가 체크되어 있다',
+      },
     },
 
     bingo: {

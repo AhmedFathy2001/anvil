@@ -595,6 +595,19 @@ const zhHans: PartialGuideDict = {
         body: '如果聊天里显示 _Tracked as a guest_，说明你已被记录，但还没进入氏族成员名单。管理员同步一次游戏内成员名单即可解决 —— 去{discordLink}问一声。',
         discordWord: 'Discord 里',
       },
+      lookupHeading: '查询任何人',
+      lookupBody:
+        '右键点击一名玩家——无论是在你身边，还是聊天、好友列表或部落面板里的名字——选择 **Anvil**，即可在浏览器中打开其 Anvil 个人资料。查看你自己的资料：打开侧边面板顶部的 **⋯** 菜单，选择 **View my profile on Anvil**。',
+      lookupFigure: {
+        caption: '右键点击名字 → Anvil',
+        alt: '游戏内玩家右键菜单，Lookup 和 RuneProfile 下方有一个 Anvil 选项',
+      },
+      lookupSettingNote:
+        '不想在菜单里看到它？在插件设置的 **General** 中取消勾选 **Anvil lookup on players**。',
+      lookupSettingFigure: {
+        caption: 'Configuration → Anvil → General',
+        alt: 'Anvil 设置中的 General 部分，“Anvil lookup on players”已勾选',
+      },
     },
 
     bingo: {

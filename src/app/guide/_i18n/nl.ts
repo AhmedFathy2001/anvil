@@ -597,6 +597,19 @@ const nl: PartialGuideDict = {
         body: 'Zegt de chat _Tracked as a guest_, dan word je bijgehouden maar sta je nog niet op de ledenlijst van de clan. Dat lost een admin op door de ledenlijst vanuit het spel te synchroniseren — vraag het {discordLink}.',
         discordWord: 'in Discord',
       },
+      lookupHeading: 'Zoek iedereen op',
+      lookupBody:
+        'Klik met rechts op een speler — naast je, of op zijn naam in de chat, je vriendenlijst of het clanpaneel — en kies **Anvil** om zijn Anvil-profiel in je browser te openen. Voor je eigen profiel open je het **⋯**-menu bovenaan het zijpaneel en kies je **View my profile on Anvil**.',
+      lookupFigure: {
+        caption: 'Rechtsklik op een naam → Anvil',
+        alt: 'Het rechtsklikmenu van een speler in het spel met een Anvil-optie onder Lookup en RuneProfile',
+      },
+      lookupSettingNote:
+        'Wil je het niet in je menu’s? Vink **Anvil lookup on players** uit onder **General** in de plugin-instellingen.',
+      lookupSettingFigure: {
+        caption: 'Configuration → Anvil → General',
+        alt: 'Het onderdeel General van de Anvil-instellingen met ‘Anvil lookup on players’ aangevinkt',
+      },
     },
 
     bingo: {

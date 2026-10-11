@@ -597,6 +597,19 @@ const es: PartialGuideDict = {
         body: 'Si el chat dice _Tracked as a guest_, se te está registrando pero aún no estás en la lista de miembros del clan. Un admin lo arregla sincronizando la lista desde el juego — pregunta {discordLink}.',
         discordWord: 'en Discord',
       },
+      lookupHeading: 'Busca a cualquiera',
+      lookupBody:
+        'Haz clic derecho en un jugador — a tu lado, o por su nombre en el chat, tu lista de amigos o el panel del clan — y elige **Anvil** para abrir su perfil de Anvil en el navegador. Para el tuyo, abre el menú **⋯** arriba del panel lateral y elige **View my profile on Anvil**.',
+      lookupFigure: {
+        caption: 'Clic derecho en un nombre → Anvil',
+        alt: 'El menú de clic derecho de un jugador en el juego con una entrada Anvil bajo Lookup y RuneProfile',
+      },
+      lookupSettingNote:
+        '¿No lo quieres en tus menús? Desmarca **Anvil lookup on players** en **General**, en los ajustes del plugin.',
+      lookupSettingFigure: {
+        caption: 'Configuration → Anvil → General',
+        alt: 'La sección General de los ajustes de Anvil con «Anvil lookup on players» marcado',
+      },
     },
 
     bingo: {

@@ -217,6 +217,26 @@ export default async function PluginGuide({ lang }: { lang: string }) {
         <Note tag={p.working.guestNote.tag}>
           <p>{rt(p.working.guestNote.body, { ...v, discordLink })}</p>
         </Note>
+
+        <h3 className="text-lg font-semibold pt-2">{p.working.lookupHeading}</h3>
+        <p className="text-text-muted">{rt(p.working.lookupBody, v)}</p>
+        <Figure
+          src="/guide/plugin-lookup-menu.png"
+          width={425}
+          height={343}
+          alt={p.working.lookupFigure.alt}
+          caption={p.working.lookupFigure.caption}
+          legend={[]}
+        />
+        <p className="text-text-muted text-sm">{rt(p.working.lookupSettingNote, v)}</p>
+        <Figure
+          src="/guide/plugin-settings-general.png"
+          width={240}
+          height={100}
+          alt={p.working.lookupSettingFigure.alt}
+          caption={p.working.lookupSettingFigure.caption}
+          legend={[]}
+        />
       </Section>
 
       {/* ---------------------------------------------------------------- 5 */}

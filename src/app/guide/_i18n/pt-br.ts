@@ -595,6 +595,19 @@ const ptBr: PartialGuideDict = {
         body: 'Se o chat disser _Tracked as a guest_, você está sendo rastreado mas ainda não está no quadro de membros do clã. Um admin resolve isso sincronizando a lista do clã no jogo —— peça {discordLink}.',
         discordWord: 'no Discord',
       },
+      lookupHeading: 'Consulte qualquer pessoa',
+      lookupBody:
+        'Clique com o botão direito em um jogador — do seu lado, ou pelo nome no chat, na lista de amigos ou no painel do clã — e escolha **Anvil** para abrir o perfil dele no Anvil no navegador. Para o seu, abra o menu **⋯** no topo do painel lateral e escolha **View my profile on Anvil**.',
+      lookupFigure: {
+        caption: 'Botão direito em um nome → Anvil',
+        alt: 'O menu de botão direito de um jogador no jogo com uma opção Anvil abaixo de Lookup e RuneProfile',
+      },
+      lookupSettingNote:
+        'Não quer isso nos seus menus? Desmarque **Anvil lookup on players** em **General** nas configurações do plugin.',
+      lookupSettingFigure: {
+        caption: 'Configuration → Anvil → General',
+        alt: 'A seção General das configurações do Anvil com “Anvil lookup on players” marcado',
+      },
     },
 
     bingo: {

@@ -596,6 +596,19 @@ const ja: PartialGuideDict = {
         body: 'チャットに _Tracked as a guest_ と出る場合、記録はされていますがまだクランのメンバー名簿に載っていません。管理者がゲーム内のクラン名簿を同期すれば解決します —— {discordLink}で聞いてみてください。',
         discordWord: 'Discord で',
       },
+      lookupHeading: '誰でも調べる',
+      lookupBody:
+        'プレイヤーを右クリック（すぐ隣にいる相手でも、チャット・フレンドリスト・クランパネルの名前でも OK）して **Anvil** を選ぶと、そのプレイヤーの Anvil プロフィールがブラウザで開きます。自分のプロフィールは、サイドパネル上部の **⋯** メニューから **View my profile on Anvil** を選んでください。',
+      lookupFigure: {
+        caption: '名前を右クリック → Anvil',
+        alt: 'ゲーム内のプレイヤー右クリックメニュー。Lookup と RuneProfile の下に Anvil の項目がある',
+      },
+      lookupSettingNote:
+        'メニューに出したくない場合は、プラグイン設定の **General** にある **Anvil lookup on players** のチェックを外してください。',
+      lookupSettingFigure: {
+        caption: 'Configuration → Anvil → General',
+        alt: 'Anvil 設定の General セクション。「Anvil lookup on players」にチェックが入っている',
+      },
     },
 
     bingo: {

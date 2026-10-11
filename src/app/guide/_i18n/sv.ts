@@ -596,6 +596,19 @@ const sv: PartialGuideDict = {
         body: 'Om chatten säger _Tracked as a guest_ blir du spårad, men du står inte på klanens medlemslista än. Det fixar en admin genom att synka medlemslistan från spelet — fråga {discordLink}.',
         discordWord: 'i Discord',
       },
+      lookupHeading: 'Slå upp vem som helst',
+      lookupBody:
+        'Högerklicka på en spelare — bredvid dig, eller på namnet i chatten, vänlistan eller klanpanelen — och välj **Anvil** för att öppna deras Anvil-profil i webbläsaren. För din egen: öppna **⋯**-menyn högst upp i sidopanelen och välj **View my profile on Anvil**.',
+      lookupFigure: {
+        caption: 'Högerklicka på ett namn → Anvil',
+        alt: 'En spelares högerklicksmeny i spelet med ett Anvil-val under Lookup och RuneProfile',
+      },
+      lookupSettingNote:
+        'Vill du inte ha det i dina menyer? Bocka ur **Anvil lookup on players** under **General** i pluginets inställningar.',
+      lookupSettingFigure: {
+        caption: 'Configuration → Anvil → General',
+        alt: 'Avsnittet General i Anvils inställningar med ”Anvil lookup on players” ibockat',
+      },
     },
 
     bingo: {

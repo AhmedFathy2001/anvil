@@ -597,6 +597,19 @@ const fi: PartialGuideDict = {
         body: 'Jos chat sanoo _Tracked as a guest_, sinua seurataan mutta et ole vielä klaanin jäsenlistalla. Ylläpitäjä korjaa sen synkronoimalla jäsenlistan pelistä — kysy {discordLink}.',
         discordWord: 'Discordissa',
       },
+      lookupHeading: 'Hae kenet tahansa',
+      lookupBody:
+        'Napsauta pelaajaa hiiren oikealla — vieressäsi tai nimeä chatissa, kaverilistassa tai klaanipaneelissa — ja valitse **Anvil** avataksesi hänen Anvil-profiilinsa selaimessa. Omasi löydät avaamalla sivupaneelin yläreunan **⋯**-valikon ja valitsemalla **View my profile on Anvil**.',
+      lookupFigure: {
+        caption: 'Oikea napsautus nimeen → Anvil',
+        alt: 'Pelaajan oikean napsautuksen valikko pelissä, jossa Anvil-kohta Lookupin ja RuneProfilen alla',
+      },
+      lookupSettingNote:
+        'Etkö halua sitä valikkoihisi? Poista valinta **Anvil lookup on players** kohdasta **General** pluginin asetuksissa.',
+      lookupSettingFigure: {
+        caption: 'Configuration → Anvil → General',
+        alt: 'Anvilin asetusten General-osio, jossa ”Anvil lookup on players” on valittuna',
+      },
     },
 
     bingo: {
