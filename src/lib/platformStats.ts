@@ -25,7 +25,31 @@ export interface PlatformStats {
  * here is per-clan, which is the point: these numbers only exist BECAUSE the clans share a platform.
  * Before the port there was nothing an apex could have counted.
  */
-export async function platformStats(): Promise<PlatformStats> {
+export function platformStats(): Promise<PlatformStats> {
+  const now = Date.now();
+  if (cached && now - cached.at < STATS_TTL_MS) return cached.value;
+  const value = loadPlatformStats();
+  cached = { at: now, value };
+  // A failed load must not be served for the next minute; drop it so the next visitor retries.
+  value.catch(() => {
+    if (cached?.value === value) cached = null;
+  });
+  return value;
+}
+
+/**
+ * How long one set of counts serves every signed-out visitor.
+ *
+ * The signed-out apex is the page crawlers and link unfurlers hit, and they arrive in bursts: on
+ * 2026-10-11 about thirty-five landed in the same second, each wanting six aggregates, and the ten
+ * connections in the pool were gone for the ten seconds it takes `pg` to give up waiting. These are
+ * platform-wide totals that move by a handful a minute, so sharing one answer (and one in-flight
+ * query, which is what stops the burst) costs nothing a reader could notice.
+ */
+const STATS_TTL_MS = 60_000;
+let cached: { at: number; value: Promise<PlatformStats> } | null = null;
+
+async function loadPlatformStats(): Promise<PlatformStats> {
   const nowIso = new Date().toISOString();
   const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
 
