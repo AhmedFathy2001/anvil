@@ -93,6 +93,11 @@ test("distinct pool: each item counts once for the team, whatever the stack or w
   assert.equal(countProgress(subs, 'team', 'distinct').current, 2, 'distinct: two different items');
 });
 
+test('distinct pool: an upload with no item counts for nothing — it cannot prove it is different', () => {
+  const subs = [drop(1, 100), { playerId: 1, creditPlayerId: null, amount: 1, itemId: null }, { playerId: 2, creditPlayerId: null, amount: 1 }];
+  assert.equal(countProgress(subs, 'team', 'distinct').current, 1);
+});
+
 test('distinct pool on a Solo tile: a teammate already having the item does not stop yours', () => {
   const subs = [drop(1, 100), drop(1, 100), drop(2, 100), drop(2, 200)];
   const p = countProgress(subs, 'individual', 'distinct');

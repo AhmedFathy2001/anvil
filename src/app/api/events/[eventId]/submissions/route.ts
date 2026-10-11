@@ -10,6 +10,7 @@ import { resolveTeamManagement } from '@/lib/teamStaff';
 import { syncDropTileCompletion, countTileProgress } from '@/lib/submissions';
 import { countProgress, itemAlreadyCounted, memberProgress } from '@/lib/countProgress';
 import { itemCap, parseCountMode } from '@/lib/collectionSets';
+import { parseJsonArray } from '@/lib/tileKinds';
 import { parseCoopCredit } from '@/lib/coopRuns';
 import { isIndividualMode } from '@/lib/statTracking';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
@@ -376,6 +377,17 @@ export async function POST(
     // "Different items only" pool: a repeat adds nothing, so refuse it rather than store a drop
     // that silently doesn't count. Needs the item to tell; an itemless upload counts as new.
     const distinctPool = tile.tileType === 'drop' && parseCountMode(tile.countMode) === 'distinct';
+    // Which item it was is the whole point of a distinct pool, so it must be named — and be one of
+    // the tile's own items, or any id would count as "different".
+    if (distinctPool) {
+      const pool = new Set(parseJsonArray<number>(tile.trackedItemIds));
+      if (!itemId || !pool.has(itemId)) {
+        return NextResponse.json(
+          { error: 'This tile counts DIFFERENT items, so pick which of its items you got.' },
+          { status: 400 },
+        );
+      }
+    }
     if (distinctPool && itemId && itemAlreadyCounted(tileSubs, itemId, tile.trackingMode, submitterCreditId ?? null)) {
       return NextResponse.json(
         { error: 'That item already counts toward this tile — it needs DIFFERENT items, so a repeat adds nothing.' },

@@ -101,8 +101,10 @@ export function memberProgress(subsIn: CountedSubmission[], playerId: number | n
 function distinctOnly(subs: CountedSubmission[], perMember: boolean): CountedSubmission[] {
   const seen = new Set<string>();
   return subs.map((s) => {
-    // A row with no item can't be told apart from any other — count it once, like a new item.
-    if (s.amount <= 0 || s.itemId == null) return { ...s, amount: s.amount > 0 ? 1 : 0 };
+    // A row with no item can't prove it's a DIFFERENT one, so it counts for nothing — otherwise
+    // itemless uploads would be a way round "repeats don't count". The submission route requires an
+    // item on these tiles, so only rows from before the tile was switched to distinct land here.
+    if (s.amount <= 0 || s.itemId == null) return { ...s, amount: 0 };
     const key = `${perMember ? submissionCreditKey(s) : ''}:${s.itemId}`;
     if (seen.has(key)) return { ...s, amount: 0 };
     seen.add(key);

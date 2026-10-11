@@ -21,6 +21,7 @@ import { formatGp } from '@/lib/adminEventsFormat';
 import ProofGallery, { type ProofShot } from './ProofGallery';
 import { isManualOnlyDropTile } from '@/lib/clogManual';
 import { useModalA11y } from '@/hooks/useModalA11y';
+import { clanFetch } from '@/lib/clanFetch';
 
 // mm:ss / h:mm:ss / bare-seconds → seconds. Returns null for unparseable input.
 function clockToSeconds(value: string): number | null {
@@ -222,6 +223,27 @@ export default function TileDetailModal({
     }
   })();
   const isCollection = isDrop && itemReqs.length > 0;
+  // "Different items only" pool: the site needs to know WHICH item, or it can't tell a repeat.
+  const isDistinctPool = isDrop && !isCollection && tile.countMode === 'distinct';
+  const [poolItems, setPoolItems] = useState<{ itemId: number; name: string }[]>([]);
+  useEffect(() => {
+    if (!isDistinctPool) return;
+    const ids = parseJsonArray<number>(tile.trackedItemIds);
+    if (ids.length === 0) return;
+    let cancelled = false;
+    clanFetch(`/api/items/names?ids=${ids.join(',')}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: { id: number; name: string }[]) => {
+        if (!cancelled) setPoolItems(rows.map((r) => ({ itemId: r.id, name: r.name })));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tile.id, isDistinctPool]);
+  const pickerItems = isCollection ? itemReqs : isDistinctPool ? poolItems : [];
+  const needsItem = isCollection || isDistinctPool;
   const isStatTile = !!tile.trackedStat;
   // Noun used in the count-based submission form copy ("drop" vs "kill" vs "completion" vs "item").
   const countNoun = isKill || isPvp ? 'kill' : isLap ? lapUnitNoun(parseJsonArray<string>(tile.targetNpcs)) : isDiary || isCa ? 'completion' : isGain ? 'item' : isDeathless ? 'run' : isLms ? 'game' : 'drop';
@@ -361,11 +383,11 @@ export default function TileDetailModal({
     }
 
     // Collection tiles track each item in the set separately, so a submission must say which one.
-    if (isCollection && !itemId) {
-      setError('Please choose which item in the set this is for');
+    if (needsItem && !itemId) {
+      setError(isCollection ? 'Please choose which item in the set this is for' : 'Please choose which item you got');
       return;
     }
-    const submittedItemId = isCollection ? parseInt(itemId, 10) : undefined;
+    const submittedItemId = needsItem ? parseInt(itemId, 10) : undefined;
 
     setError('');
     setSubmitting(true);
@@ -1049,16 +1071,16 @@ export default function TileDetailModal({
               )}
 
               {/* Collection tiles: which item in the set this submission counts toward (required). */}
-              {isCollection && (
+              {needsItem && (
                 <div>
-                  <label className="block text-xs text-text-muted mb-1">Which item in the set? *</label>
+                  <label className="block text-xs text-text-muted mb-1">{isCollection ? 'Which item in the set? *' : 'Which item? *'}</label>
                   <Select
                     value={itemId}
                     onChange={setItemId}
                     required
                     placeholder="Select the item..."
-                    ariaLabel="Which item in the set"
-                    options={itemReqs.map((it) => ({ value: String(it.itemId), label: it.name }))}
+                    ariaLabel={isCollection ? 'Which item in the set' : 'Which item'}
+                    options={pickerItems.map((it) => ({ value: String(it.itemId), label: it.name }))}
                   />
                 </div>
               )}
