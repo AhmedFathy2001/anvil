@@ -8,7 +8,7 @@ import {
   releaseCharacter,
   unmarkCharacterIgnored,
 } from '@/lib/accountRelease';
-import { accountForCharacter, accountStanding, playedCharacter } from '@/lib/pluginAccount';
+import { accountForCharacter, accountStanding, playedCharacter, type PlayedCharacter } from '@/lib/pluginAccount';
 import { fileCharacterReport } from '@/lib/characterReports';
 import { resolveClanFromRequest } from '@/lib/clanContext';
 
@@ -29,25 +29,27 @@ import { resolveClanFromRequest } from '@/lib/clanContext';
 // None of these run resolvePluginMember — a request whose point is "not mine" must never be the one
 // that links it.
 
-async function authed(request: Request) {
+type Authed = { ok: true; userId: number; character: PlayedCharacter } | { ok: false; response: NextResponse };
+
+async function authed(request: Request): Promise<Authed> {
   const auth = await pluginTokenPerson(request);
-  if (!auth) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) } as const;
+  if (!auth) return { ok: false, response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
   const character = playedCharacter(request);
   if (!character) {
-    return { error: NextResponse.json({ error: 'Log in to the account first (no X-RSN).' }, { status: 400 }) } as const;
+    return { ok: false, response: NextResponse.json({ error: 'Log in to the account first (no X-RSN).' }, { status: 400 }) };
   }
-  return { userId: auth.userId, character } as const;
+  return { ok: true, userId: auth.userId, character };
 }
 
 export async function GET(request: Request) {
   const a = await authed(request);
-  if ('error' in a) return a.error;
+  if (!a.ok) return a.response;
   return NextResponse.json({ standing: await accountStanding(a.userId, a.character) });
 }
 
 export async function POST(request: Request) {
   const a = await authed(request);
-  if ('error' in a) return a.error;
+  if (!a.ok) return a.response;
   const { userId, character } = a;
 
   const rl = await rateLimitByKey('plugin-account', String(userId), { limit: 20, windowMs: 10 * 60 * 1000 });

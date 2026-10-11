@@ -2,9 +2,9 @@
 //
 // The profile's "Remove" (DELETE /api/profile/accounts/[id]) and the plugin's "Not my account"
 // (POST /api/plugin/account 'release') are the same act: this login no longer claims the character.
-// Ownership is detached, not deleted — the seat, its history and the anchored hash all stay, so the
-// real owner's plugin can pick it up (the hash path claims it cleanly), and the person who let go
-// sees it under Ignored on their profile, one click from re-adding it.
+// Ownership is detached, not deleted — the seat and its history stay, so the real owner's plugin can
+// pick it up, and the person who let go sees it under Ignored on their profile, one click from
+// re-adding it. Their proof does not stay (see releaseCharacter).
 
 import { and, desc, eq, gt, inArray, isNull, or } from 'drizzle-orm';
 
@@ -105,12 +105,29 @@ export async function releaseCharacter(input: {
   // Back to a placeholder person of its own, and UNCLAIMED. The profile's Remove used to stop at
   // the person swap (unclaimAccountOfSeat) and leave `claimedAt` set, so the placeholder "owned" it:
   // every later claim — the real owner's plugin included — was refused as owned-by-other, and the
-  // character could never move again. Verification and the anchored hash stay: the hash is the
-  // character's own, and it is what lets the real owner's plugin claim it on their next login.
+  // character could never move again.
+  //
+  // The proof goes with the owner: it was THEIR proof. Left behind, a verified-but-unclaimed account
+  // is "established", and the hash path hands an established account to whoever presents its hash —
+  // non-provisionally. That is a laundering route for a first-use claim, whose hash is whatever the
+  // claiming client sent: claim by name with a made-up hash, release, then claim it verified from a
+  // second login with the same made-up hash. So a first-use hash is dropped too (as staff detach
+  // does). A hash anchored any other way came from a client really logged into the character, and
+  // stays — on a roster member that is what lets the real owner's plugin pick it straight back up,
+  // and what keeps a name-only claimant out.
   const [placeholder] = await db.insert(players).values({ displayName: account.rsn }).returning({ id: players.id });
   await db
     .update(accounts)
-    .set({ playerId: placeholder.id, isPrimary: 0, claimedAt: null, provisional: 0 })
+    .set({
+      playerId: placeholder.id,
+      isPrimary: 0,
+      claimedAt: null,
+      provisional: 0,
+      verifiedAt: null,
+      verificationMethod: null,
+      verifiedByUserId: null,
+      ...(account.verificationMethod === 'plugin_first_use' ? { accountHash: null } : {}),
+    })
     .where(eq(accounts.id, account.id));
 
   await markCharacterIgnored(input.userId, account.rsn, account.rsnNormalized, account.accountHash ?? null, nowIso);

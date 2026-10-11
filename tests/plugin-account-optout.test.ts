@@ -107,7 +107,8 @@ test('Not my account: unlinks, unclaims, and the same token never re-links it', 
   const acct = await accountByRsn('Sibling Main');
   assert.notEqual(acct.playerId, brother.person);
   assert.equal(acct.claimedAt, null, 'really unclaimed — not "owned" by a placeholder');
-  assert.equal(acct.accountHash, 'h-sib', 'the character keeps its own hash');
+  assert.equal(acct.verifiedAt, null, 'the proof was the releaser’s and goes with them');
+  assert.equal(acct.accountHash, null, 'a first-use hash is whatever the client sent — dropped');
 
   // The plugin stops sending, but even if it didn't (old build, another PC), nothing re-links it.
   assert.equal(await play(brother.token, 'Sibling Main', 'h-sib'), null);
@@ -229,4 +230,64 @@ test('the account route needs a logged-in character and never links one itself',
   assert.equal(noRsn.status, 400);
   assert.equal(await standing(me.token, 'Never Played', 'h-np'), 'unclaimed');
   assert.equal(await accountByRsn('Never Played'), undefined, 'a GET created nothing');
+});
+
+/** A roster member (synced by the clan, never linked) — the kind of seat first use claims. */
+async function rosterMember(rsn: string) {
+  const [ghost] = await db.insert(s.players).values({ displayName: rsn }).returning();
+  const [acct] = await db.insert(s.accounts).values({ playerId: ghost.id, rsn, rsnNormalized: rsn.toLowerCase() }).returning();
+  await db.insert(s.clanMemberships).values({ clanId, accountId: acct.id, kind: 'member', source: 'roster', rank: 'general' });
+  return acct.id;
+}
+
+test('release cannot launder a first-use claim into a verified one', async () => {
+  // Claim a member by NAME with a made-up hash, let go, then present the same made-up hash from a
+  // second login. Before the fix the account stayed verified + anchored, and the hash path handed it
+  // over outright.
+  const a = await login();
+  const b = await login();
+  await rosterMember('Launder Target');
+  await play(a.token, 'Launder Target', 'made-up');
+  assert.equal((await accountByRsn('Launder Target')).verificationMethod, 'plugin_first_use');
+  await act(a.token, 'Launder Target', 'made-up', 'release');
+
+  await play(b.token, 'Launder Target', 'made-up');
+  const acct = await accountByRsn('Launder Target');
+  assert.equal(acct.provisional, 1, 'still only a provisional, reviewable claim');
+  assert.equal(acct.verificationMethod, 'plugin_first_use');
+});
+
+test('a hash-proven character keeps its hash on release: name alone can’t take it, the hash can', async () => {
+  const owner = await login();
+  const stranger = await login();
+  const realOwner = await login();
+  const id = await rosterMember('Proven Member');
+  await db.update(s.accounts).set({ accountHash: 'real-hash' }).where(eq(s.accounts.id, id));
+  await play(owner.token, 'Proven Member', 'real-hash');
+  let acct = await accountByRsn('Proven Member');
+  assert.equal(acct.playerId, owner.person);
+  assert.equal(acct.provisional, 0, 'hash-matched: claimed outright');
+
+  await act(owner.token, 'Proven Member', 'real-hash', 'release');
+  acct = await accountByRsn('Proven Member');
+  assert.equal(acct.accountHash, 'real-hash', 'the character’s own hash stays');
+
+  await play(stranger.token, 'Proven Member', 'some-other-hash');
+  assert.equal((await accountByRsn('Proven Member')).claimedAt, null, 'a name is not proof');
+
+  assert.ok(await play(realOwner.token, 'Proven Member', 'real-hash'));
+  assert.equal((await accountByRsn('Proven Member')).playerId, realOwner.person);
+});
+
+test('a name-only play of somebody else’s character records nothing for the owner to see', async () => {
+  // The owner's profile names whoever is in a sighting, and a display name is free — so a bare RSN
+  // must never put "Anvil Staff" in front of a stranger's character.
+  const owner = await login();
+  const spoofer = await login();
+  await play(owner.token, 'Spoof Target', 'h-spoof');
+  await play(spoofer.token, 'Spoof Target', null);
+  await play(spoofer.token, 'Spoof Target', 'wrong-hash');
+  const acct = await accountByRsn('Spoof Target');
+  const rows = await db.select().from(s.accountSightings).where(eq(s.accountSightings.accountId, acct.id));
+  assert.equal(rows.length, 0);
 });

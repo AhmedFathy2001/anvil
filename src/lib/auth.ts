@@ -917,12 +917,15 @@ async function autoLinkOrSuggestOnPlay(
       const mine = await personOf(userId);
       if (mine != null && ownedByRsn.playerId === mine) {
         await seatOwnedCharacterAsGuest(clanId, ownedByRsn.id, nowIso);
-      } else {
-        // SOMEBODY ELSE'S, played through this login's plugin — siblings on one RuneLite, a friend at
-        // this PC, or a wrong link. Ownership stays put; the sighting is what lets the owner see it,
-        // the player's plugin say so, and staff weigh a dispute (lib/accountSightings).
-        const hashMatched = !!accountHash && ownedByRsn.accountHash === accountHash;
-        await recordForeignSighting(ownedByRsn.id, userId, hashMatched, nowIso);
+      } else if (accountHash && ownedByRsn.accountHash === accountHash) {
+        // SOMEBODY ELSE'S, really logged in through this login's plugin — siblings on one RuneLite, a
+        // friend at this PC, or a wrong link. Ownership stays put; the sighting is what lets the owner
+        // see it and staff weigh a dispute (lib/accountSightings).
+        //
+        // Only on a HASH match. The owner's profile names whoever this is, and a name is free: on a
+        // bare RSN anybody could put "Anvil Staff" in front of a stranger's character with a nudge
+        // to remove it. The hash means the character was actually logged in on that client.
+        await recordForeignSighting(ownedByRsn.id, userId, true, nowIso);
       }
       return;
     }
@@ -1001,13 +1004,17 @@ async function autoLinkOrSuggestOnPlay(
     let clanMemberId: number;
     if (existing) {
       const claimant = await personOfOrCreate(userId);
+      // Without a hash match this is a claim on a NAME — first use of a roster member, or an unclaimed
+      // ghost (which includes a character somebody just let go of). Either way it lands provisional
+      // and reviewable; only a matched hash claims outright.
+      const weak = firstUse || !byHash;
       const claim = await claimAccountForPerson({
         playerId: claimant,
         rsn,
         rsnNormalized: normalizedRsn,
         accountHash,
-        method: firstUse ? 'plugin_first_use' : 'plugin',
-        provisional: firstUse,
+        method: weak && accountHash ? 'plugin_first_use' : 'plugin',
+        provisional: weak,
         actorUserId: userId,
       });
       if (!claim.ok) return;

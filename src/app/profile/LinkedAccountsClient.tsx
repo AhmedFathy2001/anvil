@@ -178,10 +178,10 @@ export default function LinkedAccountsClient({ accounts }: { accounts: LinkedAcc
             </div>
             {m.alsoPlayedFrom && m.alsoPlayedFrom.length > 0 && (
               <div className="text-xs text-yellow-400 mt-0.5">
-                Also played through {m.alsoPlayedFrom[0].name}’s Anvil plugin
-                {m.alsoPlayedFrom.length > 1 && <> and {m.alsoPlayedFrom.length - 1} more</>}
-                {nowMs !== null && <> · {ago(m.alsoPlayedFrom[0].lastSeenAt, nowMs)}</>}
-                {' '}— if it’s theirs, Remove it.
+                Also logged in through the Anvil plugin of another account ({m.alsoPlayedFrom[0].name}
+                {m.alsoPlayedFrom.length > 1 && <> and {m.alsoPlayedFrom.length - 1} more</>})
+                {nowMs !== null && <> · {ago(m.alsoPlayedFrom[0].lastSeenAt, nowMs)}</>}. A shared computer is
+                normal; if the character isn’t yours, you can Remove it.
               </div>
             )}
           </div>
