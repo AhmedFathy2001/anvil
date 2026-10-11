@@ -67,6 +67,10 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
         // A completed line is the thing a classic board is played for — say so on the board itself.
         inLine && 'ring-2 ring-inset ring-gold-light shadow-[0_0_14px_rgba(212,175,55,0.28)]',
         needed && !isCompleted && 'border-dashed !border-gold-light',
+        // Claimed by a teammate: tint and edge the whole cell so free tiles stand out at a glance.
+        // Yours is gold, anyone else's sky — the same split as the plan panel and the list rows.
+        claimedBy && claimedBy.length > 0 && !isCompleted &&
+          (claimedBy.some((c) => c.mine) ? '!border-gold !bg-gold/10 ring-1 ring-inset ring-gold/60' : '!border-sky-400 !bg-sky-500/10 ring-1 ring-inset ring-sky-400/60'),
       )}
       style={
         isCompleted
@@ -77,7 +81,13 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
             }
           : undefined
       }
-      title={anyCompleted ? `Completed by: ${completedBy.map((c) => c.teamName).join(', ')}` : label}
+      title={
+        anyCompleted
+          ? `Completed by: ${completedBy.map((c) => c.teamName).join(', ')}`
+          : claimedBy && claimedBy.length > 0
+            ? `${label} — claimed by ${claimedBy.map((c) => (c.mine ? 'you' : c.name)).join(', ')}`
+            : label
+      }
     >
       {/* Point value badge (points-scoring events) — top-left so it clears the checkmark */}
       {points !== undefined && (
