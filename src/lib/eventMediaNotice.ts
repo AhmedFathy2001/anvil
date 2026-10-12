@@ -8,6 +8,7 @@ import { eventMediaUrls } from '@/lib/eventMediaRetention';
 import { effectivePurgeAt, purgeNoticeDue, type RetentionState } from '@/lib/eventMediaRetentionRules';
 import { purgeNoticeText } from '@/lib/eventMediaNoticeText';
 import { log } from '@/lib/logger';
+import { renderEmail } from '@/lib/emailTemplates';
 import { escapeHtml, isMailConfigured, sendMail } from '@/lib/mailer';
 import { absoluteUrl, clanCanonicalPath } from '@/lib/seo';
 
@@ -146,11 +147,14 @@ export async function sendPurgeNotice(
     }
   }
   if (isMailConfigured()) {
-    const html =
-      lines.map((l) => `<p>${escapeHtml(l)}</p>`).join('') +
-      `<p><a href="${escapeHtml(archiveUrl)}">Download the archive</a></p>` +
-      '<p style="color:#888;font-size:12px">You get this because you are an owner or admin of this clan on Anvil.</p>';
-    const text = `${lines.join('\n\n')}\n\nDownload the archive: ${archiveUrl}\n\nYou get this because you are an owner or admin of this clan on Anvil.`;
+    // The layout takes HTML; everything here is text, and the event name is admin-typed.
+    const { html, text } = renderEmail({
+      preheader: escapeHtml(lines[0]),
+      heading: escapeHtml(subject),
+      lines: lines.map(escapeHtml),
+      cta: { label: 'Download the archive', url: archiveUrl },
+      footnote: 'You get this because you are an owner or admin of this clan on Anvil.',
+    });
     for (const to of new Set(admins.map((a) => a.email?.trim().toLowerCase()).filter((m): m is string => !!m))) {
       if (await sendMail({ to, subject, text, html })) result.emails++;
     }

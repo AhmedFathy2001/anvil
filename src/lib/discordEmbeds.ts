@@ -16,8 +16,9 @@
 /** Public brand host. The footer mark links nowhere (Discord renders no markdown in footers), so
  *  this is only used where a URL can actually be clicked — an embed/author link. */
 export const ANVIL_SITE_URL = 'https://anvilosrs.com';
-/** Footer icon. Served by the Admin control plane's public site, so it's stable for every clan. */
-export const ANVIL_LOGO_URL = 'https://anvilosrs.com/logo.png';
+/** Footer icon. Was /logo.png, which only the retired Admin control plane served — the Site 404s
+ *  it, so every footer showed a broken icon. The Site's own app icon is the same mark. */
+export const ANVIL_LOGO_URL = 'https://anvilosrs.com/icon-192.png';
 export const POWERED_BY = 'Powered by Anvil';
 
 // Semantic palette (Anvil's site tokens). A team colour overrides these when a team owns the post.
