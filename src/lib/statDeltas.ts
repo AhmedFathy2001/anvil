@@ -11,6 +11,12 @@ import type { HiscoresSnapshot } from '@/lib/hiscores';
 export interface StatDeltas {
   skills?: Record<string, number>;
   bosses?: Record<string, number>;
+  /**
+   * The level a skill ENDED on, for skills whose level went up — never one that stayed put. A day's
+   * XP gain can't be turned back into a level (that needs the absolute XP, which the row doesn't
+   * keep per skill), so without this a level-up was only visible at 99.
+   */
+  levels?: Record<string, number>;
 }
 
 /**
@@ -24,6 +30,8 @@ export function computeDeltas(before: HiscoresSnapshot | null, after: HiscoresSn
     const now = Math.max(0, entry?.xp ?? 0);
     const then = Math.max(0, before?.skills?.[key]?.xp ?? 0);
     if (before && now > then) (deltas.skills ??= {})[key] = now - then;
+    const level = entry?.level ?? 0;
+    if (before && level > (before.skills?.[key]?.level ?? 0)) (deltas.levels ??= {})[key] = level;
   }
   for (const [key, entry] of Object.entries(after.bosses ?? {})) {
     const now = Math.max(0, entry?.score ?? 0);
@@ -54,5 +62,8 @@ export function mergeDeltas(before: StatDeltas | null, add: StatDeltas): StatDel
     }
     if (Object.keys(merged).length > 0) out[group] = merged;
   }
+  // Levels are absolutes, not gains: a later tick's level replaces the earlier one.
+  const levels = { ...(before?.levels ?? {}), ...(add.levels ?? {}) };
+  if (Object.keys(levels).length > 0) out.levels = levels;
   return out;
 }

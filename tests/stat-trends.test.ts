@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { statTrends, trendLabel } from '../src/lib/statTrends';
+import { levelUps, statTrends, trendLabel } from '../src/lib/statTrends';
+import type { StatDeltas } from '../src/lib/statDeltas';
 
 function days(n: number, fill: (i: number) => { skills?: Record<string, number>; bosses?: Record<string, number> } | undefined) {
   return Array.from({ length: n }, (_, i) => ({ day: `d${i}`, deltas: fill(i) }));
@@ -30,4 +31,19 @@ test('labels', () => {
   assert.deepEqual(trendLabel({ week: 50, prev: 100, weeks: [] }), { text: '▼ 50%', tone: 'down' });
   assert.deepEqual(trendLabel({ week: 5, prev: 0, weeks: [] }), { text: 'new', tone: 'up' });
   assert.equal(trendLabel(undefined).tone, 'none');
+});
+
+test('level-ups list only the days a level moved, each remembering the one before', () => {
+  const series: { day: string; deltas?: StatDeltas }[] = [
+    { day: '2026-10-01', deltas: { skills: { hunter: 9_000 }, levels: { hunter: 83 } } },
+    { day: '2026-10-02', deltas: { skills: { hunter: 1_000 } } },
+    { day: '2026-10-03' },
+    { day: '2026-10-04', deltas: { skills: { hunter: 30_000, mining: 5 }, levels: { hunter: 85 } } },
+  ];
+  assert.deepEqual(levelUps(series), {
+    hunter: [
+      { day: '2026-10-01', level: 83, from: null },
+      { day: '2026-10-04', level: 85, from: 83 },
+    ],
+  });
 });

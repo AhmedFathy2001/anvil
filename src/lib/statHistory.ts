@@ -90,7 +90,7 @@ export async function recordDailyStats(input: DailyRollupInput): Promise<DailyRo
   }
 
   const nothingMoved = xpGained === 0 && ehbMilliGained === 0 && ehpMilliGained === 0;
-  const hasDeltas = !!(deltas.skills || deltas.bosses);
+  const hasDeltas = !!(deltas.skills || deltas.bosses || deltas.levels);
 
   // The day's row is read when there's per-metric detail to merge into, and when nothing moved (to
   // decide whether a first row is still owed). An idle tick with no gains reads nothing.

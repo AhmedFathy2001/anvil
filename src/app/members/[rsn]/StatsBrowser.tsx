@@ -8,7 +8,7 @@ import Select from '@/components/Select';
 import { BOSSES, SKILL_LABELS } from '@/lib/constants';
 import { CLUE_TIER_KEYS } from '@/lib/hiscoresActivities';
 import type { AccountProfile, ActivityStanding } from '@/lib/memberProfile';
-import { trendLabel, type StatTrend, type Trends } from '@/lib/statTrends';
+import { trendLabel, type LevelUp, type StatTrend, type Trends } from '@/lib/statTrends';
 import { activityIconUrl, bossImageForStatKey, skillIconUrl } from '@/lib/tileIcons';
 import { setUrlParams } from '@/lib/urlState';
 import type { ProfileStatKind } from '@/lib/profileLink';
@@ -43,6 +43,8 @@ interface Row {
   hours: number | null;
   sortValue: number;
   trend?: StatTrend;
+  /** Days a skill's level went up, oldest first — skills only. */
+  levels?: LevelUp[];
   /** Gains are XP for skills, kills for bosses. */
   unit: 'xp' | 'kc' | null;
   standing?: ActivityStanding;
@@ -60,6 +62,7 @@ function compact(n: number): string {
 export default function StatsBrowser({
   profile,
   trends,
+  levels = {},
   standings,
   initial,
   bossPages = {},
@@ -67,6 +70,8 @@ export default function StatsBrowser({
 }: {
   profile: AccountProfile;
   trends: Trends;
+  /** Skill key → the days its level went up (lib/statTrends levelUps). */
+  levels?: Record<string, LevelUp[]>;
   standings: Record<string, ActivityStanding>;
   initial?: StatKind;
   /** Boss key → its collection log page (computed on the server; the catalogue is too big to ship). */
@@ -106,6 +111,7 @@ export default function StatsBrowser({
         hours: s.ehp,
         sortValue: sort === 'level' ? s.xp : sort === 'week' ? trends.skills[s.key]?.week ?? 0 : s.ehp * 1e9 + s.xp,
         trend: trends.skills[s.key],
+        levels: levels[s.key],
         unit: 'xp',
       }));
     }
@@ -136,7 +142,7 @@ export default function StatsBrowser({
       unit: null,
       standing: standings[a.key],
     }));
-  }, [kind, sort, profile, trends, clueRows, minigameRows, standings]);
+  }, [kind, sort, profile, trends, levels, clueRows, minigameRows, standings]);
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -217,7 +223,7 @@ export default function StatsBrowser({
 
         {shown.map((r, i) => {
           const t = trendLabel(r.trend);
-          const expandable = !!r.trend && r.trend.weeks.some((w) => w > 0);
+          const expandable = (!!r.trend && r.trend.weeks.some((w) => w > 0)) || !!r.levels?.length;
           const isOpen = open === r.key;
           return (
             <div key={r.key} className={i % 2 ? 'bg-brown-dark/30' : ''}>
@@ -297,6 +303,7 @@ export default function StatsBrowser({
                 </span>
               </div>
               {isOpen && r.trend && <WeekBars trend={r.trend} unit={r.unit} />}
+              {isOpen && !!r.levels?.length && <LevelTrail levels={r.levels} />}
             </div>
           );
         })}
@@ -334,6 +341,31 @@ function WeekBars({ trend, unit }: { trend: StatTrend; unit: 'xp' | 'kc' | null 
         <span>8 weeks ago</span>
         <span>this week</span>
       </div>
+    </div>
+  );
+}
+
+const trailDay = (day: string) => `${day.slice(8, 10)}/${day.slice(5, 7)}`;
+
+/** The days this skill's level went up — only the levels that changed, never a day it stood still. */
+function LevelTrail({ levels }: { levels: LevelUp[] }) {
+  // The most recent dozen; a year of a fast skill can level fifty times.
+  const shown = levels.slice(-12);
+  return (
+    <div className="px-4 pb-4 pt-1 sm:pl-16">
+      <p className="mb-1.5 text-[10px] uppercase tracking-wide text-text-dim">Level-ups</p>
+      <ol className="flex flex-wrap gap-1.5">
+        {levels.length > shown.length && <li className="px-1 text-xs text-text-dim">…</li>}
+        {shown.map((l) => (
+          <li
+            key={l.day}
+            title={l.from != null ? `${l.from} → ${l.level} on ${l.day}` : `${l.level} on ${l.day}`}
+            className="rounded-md border border-card-border bg-brown-dark/40 px-2 py-0.5 text-xs tabular-nums"
+          >
+            <span className="text-gold">{l.level}</span> <span className="text-text-muted">{trailDay(l.day)}</span>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }
