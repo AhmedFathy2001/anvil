@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { eventForRequest } from '@/lib/eventScope';
+import { eventForPluginRequest, eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { submissions, tiles, teams, eventParticipants, events, users, eventStartProofs } from '@/db/schema';
@@ -97,10 +97,14 @@ export async function POST(
   // ever looked at the event, and the plugin's main job (filing a drop) simply did not work there.
   // The event is scoped for us either way, and an event knows which clan owns it, so asking the
   // address a second time was never adding a check — only a way to fail.
-  const scopedEvent = await eventForRequest(request, eId);
-  if (!scopedEvent) {
+  //
+  // A co-host's address answers too, for its members' plugins only (lib/eventScope): the roles a
+  // cookie session carries there are the co-host's, and mean nothing on the host's event.
+  const scoped = await eventForPluginRequest(request, eId);
+  if (!scoped) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
+  const { event: scopedEvent, viaCohost } = scoped;
   const clan = { id: scopedEvent.clanId };
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
@@ -128,12 +132,12 @@ export async function POST(
   // Check auth. Legacy captain/player cookies + plugin bearer token still work; the
   // unified My Team page authenticates via the Discord web session (membership), which is
   // already scoped to this team so it can't be used to submit for another team.
-  const isAdmin = await verifyAdmin();
-  const captain = await verifyCaptain();
-  const player = await verifyPlayer();
+  const isAdmin = viaCohost ? false : await verifyAdmin();
+  const captain = viaCohost ? null : await verifyCaptain();
+  const player = viaCohost ? null : await verifyPlayer();
   const pluginAuth = await verifyPluginToken(request);
   const membership =
-    !isAdmin && !captain && !player && !pluginAuth ? await resolveTeamMembership(eId, teamId) : null;
+    !viaCohost && !isAdmin && !captain && !player && !pluginAuth ? await resolveTeamMembership(eId, teamId) : null;
 
   if (!isAdmin && !captain && !player && !pluginAuth && !membership) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { eventForRequest } from '@/lib/eventScope';
+import { eventForPluginRequest } from '@/lib/eventScope';
 import { personOf, seatsOwnedBy } from '@/lib/roster';
 import { db } from '@/db';
 import { events, eventParticipants, clanRoster, eventStartProofs, accountStatSnapshots } from '@/db/schema';
@@ -37,12 +37,14 @@ export async function GET(
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.
-  if (!(await eventForRequest(request, eId))) {
+  // A co-host's address answers for its members' plugins, and for nothing else (lib/eventScope).
+  const scoped = await eventForPluginRequest(request, eId);
+  if (!scoped) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   if (!Number.isInteger(eId)) return NextResponse.json({ error: 'Bad event id' }, { status: 400 });
 
-  const resolved = await resolveCaller(request, eId, null);
+  const resolved = await resolveCaller(request, eId, null, scoped.viaCohost);
   if ('error' in resolved) return resolved.error;
   const { event, player } = resolved;
 
@@ -73,7 +75,9 @@ export async function POST(
   const { eventId } = await params;
   const eId = parseInt(eventId, 10);
   // Whose event is this? Ids are global and this one came from the URL.
-  if (!(await eventForRequest(request, eId))) {
+  // A co-host's address answers for its members' plugins, and for nothing else (lib/eventScope).
+  const scoped = await eventForPluginRequest(request, eId);
+  if (!scoped) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   if (!Number.isInteger(eId)) return NextResponse.json({ error: 'Bad event id' }, { status: 400 });
@@ -92,7 +96,12 @@ export async function POST(
     x?: unknown; y?: unknown; loginAt?: unknown;
   };
 
-  const resolved = await resolveCaller(request, eId, typeof bodyPlayerId === 'number' ? bodyPlayerId : null);
+  const resolved = await resolveCaller(
+    request,
+    eId,
+    typeof bodyPlayerId === 'number' ? bodyPlayerId : null,
+    scoped.viaCohost,
+  );
   if ('error' in resolved) return resolved.error;
   const { event, player, source } = resolved;
 
@@ -215,6 +224,8 @@ async function resolveCaller(
   request: Request,
   eventId: number,
   requestedPlayerId: number | null,
+  /** Reached through a co-host's address: the plugin token is the only door (lib/eventScope). */
+  pluginOnly = false,
 ): Promise<
   | { event: typeof events.$inferSelect; player: { id: number; teamId: number | null; name: string }; source: StartProofSource }
   | { error: NextResponse }
@@ -229,6 +240,7 @@ async function resolveCaller(
     if (!row) return { error: NextResponse.json({ error: 'Player not found' }, { status: 404 }) };
     return { event, player: { id: row.id, teamId: row.teamId, name: row.name }, source: 'plugin' };
   }
+  if (pluginOnly) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
 
   const user = await verifyUser();
   if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };

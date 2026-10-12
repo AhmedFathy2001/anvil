@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { eventForRequest } from '@/lib/eventScope';
+import { eventForPluginRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { events, tiles } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -23,7 +23,8 @@ export async function GET(
 
   // Anonymous by design — which is exactly why the clan has to come from the host rather than from
   // whoever is asking. Without it this previews any clan's board to anyone who guesses an id.
-  const event = await eventForRequest(request, id);
+  // A co-host's address answers too: its members' plugins ask there (lib/eventScope).
+  const event = (await eventForPluginRequest(request, id))?.event;
   if (!event) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }

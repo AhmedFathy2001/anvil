@@ -53,6 +53,38 @@ export async function eventForRequest(request: Request, eventId: number): Promis
   return eventInClan(clan.id, eventId);
 }
 
+/**
+ * `eventForRequest`, also answering at an accepted CO-HOST's address — for the plugin's player calls.
+ *
+ * A co-host's members connect the plugin to their own clan, so every call it makes for the shared
+ * event arrives at `/c/<co-host>/…`: the board, the event preview, a starting shot, a drop. Only the
+ * host's address answered, so on a co-hosted board the co-host's half of the players got "Couldn't
+ * load the board" and their submissions 404'd. The participant PAGES already answer there
+ * (requireEventForParticipantPage); this is the same for the plugin.
+ *
+ * `viaCohost` tells the route the address is not the host's. A clan role read off this address is
+ * the co-host's, never the host's — so a route must not let a cookie session's admin/captain
+ * standing act on the event through it. The plugin token (verifyPluginToken) is already co-host
+ * aware and scoped to one enrolment, and is the only identity such a route should take.
+ */
+export async function eventForPluginRequest(
+  request: Request,
+  eventId: number,
+): Promise<{ event: ScopedEvent; viaCohost: boolean } | null> {
+  const clan = await resolvePluginClan(request);
+  if (!clan) return null;
+  const own = await eventInClan(clan.id, eventId);
+  if (own) return { event: own, viaCohost: false };
+  if (!Number.isInteger(eventId)) return null;
+  const [row] = await db
+    .select({ event: events })
+    .from(eventCohosts)
+    .innerJoin(events, eq(events.id, eventCohosts.eventId))
+    .where(and(eq(eventCohosts.eventId, eventId), eq(eventCohosts.clanId, clan.id), eq(eventCohosts.status, 'accepted')))
+    .limit(1);
+  return row ? { event: row.event, viaCohost: true } : null;
+}
+
 /** The same, for a server page: renders the not-found page rather than returning null. */
 export async function requireEventForPage(eventId: number): Promise<ScopedEvent> {
   const clan = await requireClan();

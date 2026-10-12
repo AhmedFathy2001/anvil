@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { eventForRequest } from '@/lib/eventScope';
+import { eventForPluginRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { events, tiles, teams, completions, submissions } from '@/db/schema';
 import { eq, inArray, and, sql } from 'drizzle-orm';
@@ -446,8 +446,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Invalid eventId' }, { status: 400 });
     }
     // Whose event is this? The id came from the query string, so it names any clan's board until
-    // something asks — and this endpoint is deliberately anonymous, so nothing else will.
-    const event = await eventForRequest(request, eventId);
+    // something asks — and this endpoint is deliberately anonymous, so nothing else will. A co-host's
+    // address answers too: its members' plugins ask there (lib/eventScope eventForPluginRequest).
+    const event = (await eventForPluginRequest(request, eventId))?.event;
     if (!event) {
       return NextResponse.json({ error: 'Event not found' }, { status: 404 });
     }

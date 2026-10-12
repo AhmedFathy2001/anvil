@@ -16,6 +16,8 @@ const DB = useTestDatabase('event-scope');
 
 let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
 let eventInClan: typeof import('../src/lib/eventScope.ts')['eventInClan'];
+let eventForPluginRequest: typeof import('../src/lib/eventScope.ts')['eventForPluginRequest'];
+let charlie: number;
 
 let alpha: number;
 let bravo: number;
@@ -26,7 +28,7 @@ before(async () => {
   await resetDatabase(DB);
   const { db, pool: p, schema: s } = await loadDb();
   pool = p;
-  ({ eventInClan } = await import('../src/lib/eventScope.ts'));
+  ({ eventInClan, eventForPluginRequest } = await import('../src/lib/eventScope.ts'));
 
   const clans = await db
     .insert(s.clans)
@@ -47,6 +49,13 @@ before(async () => {
     .returning();
   alphaEvent = events.find((e) => e.clanId === alpha)!.id;
   bravoEvent = events.find((e) => e.clanId === bravo)!.id;
+
+  // Bravo co-hosts Alpha's board; Charlie was invited and has not accepted.
+  [{ id: charlie }] = await db.insert(s.clans).values({ slug: 'charlie', name: 'Charlie Clan' }).returning();
+  await db.insert(s.eventCohosts).values([
+    { eventId: alphaEvent, clanId: bravo, status: 'accepted' },
+    { eventId: alphaEvent, clanId: charlie, status: 'pending' },
+  ]);
 });
 
 after(async () => {
@@ -74,4 +83,21 @@ test('a missing event and another clan\'s event are indistinguishable', async ()
 
 test('a nonsense id is refused rather than queried', async () => {
   assert.equal(await eventInClan(alpha, Number.NaN), null);
+});
+
+// The plugin connects a co-host's members to THEIR clan, so its calls for the shared board arrive at
+// the co-host's address. Those answer; nothing else widens.
+const at = (slug: string) => new Request('https://example.test/api/plugin/board', { headers: { 'x-anvil-clan-slug': slug } });
+
+test("the plugin reaches a co-hosted board from the co-host's address, marked as such", async () => {
+  const own = await eventForPluginRequest(at('alpha'), alphaEvent);
+  assert.deepEqual([own?.event.id, own?.viaCohost], [alphaEvent, false]);
+  const cohost = await eventForPluginRequest(at('bravo'), alphaEvent);
+  assert.deepEqual([cohost?.event.id, cohost?.viaCohost], [alphaEvent, true]);
+});
+
+test('an invitation not yet accepted reaches nothing, and the host cannot reach the co-host\'s own board', async () => {
+  assert.equal(await eventForPluginRequest(at('charlie'), alphaEvent), null);
+  assert.equal(await eventForPluginRequest(at('alpha'), bravoEvent), null);
+  assert.equal(await eventForPluginRequest(at('charlie'), Number.NaN), null);
 });
