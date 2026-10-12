@@ -91,27 +91,50 @@ export async function clanMark(name: string, logoUrl: string | null | undefined)
   return crestImage(name);
 }
 
+/** Re-encoded uploads, kept an hour: a clan's logo is drawn on every card of that clan. */
+const OURS_TTL = 60 * 60_000;
+const OURS_CAP = 200;
+const oursCache = new Map<string, { at: number; value: Promise<string | null> }>();
+
 /**
  * One of OUR uploaded images, re-encoded by sharp for a `next/og` card (which can't draw WebP, the
  * format uploads are stored in) and inlined as a data URL. Null on anything unexpected — the card is
  * then simply drawn without it.
+ *
+ * Cached by url and size for an hour. A re-upload gets a new url, so the cache never shows an old
+ * logo for longer than the card it's on is cached anyway; a failure is not kept.
  */
-export async function ourImageAsDataUrl(
+export function ourImageAsDataUrl(
   url: string | null | undefined,
   size: { width: number; height: number },
   format: 'png' | 'jpeg' = 'jpeg',
 ): Promise<string | null> {
   const target = url ? logoFetchUrl(url) : null;
-  if (!target) return null;
-  try {
-    const res = await fetch(target, { signal: AbortSignal.timeout(8_000), redirect: 'error' });
-    if (!res.ok) return null;
-    const { default: sharp } = await import('sharp');
-    const img = sharp(Buffer.from(await res.arrayBuffer())).resize(size.width, size.height, { fit: 'cover' });
-    const buf = format === 'png' ? await img.png().toBuffer() : await img.jpeg({ quality: 82 }).toBuffer();
-    return `data:image/${format};base64,${buf.toString('base64')}`;
-  } catch {
-    return null;
+  if (!target) return Promise.resolve(null);
+  const key = `${format}|${size.width}x${size.height}|${target.href}`;
+  const hit = oursCache.get(key);
+  if (hit && Date.now() - hit.at < OURS_TTL) return hit.value;
+
+  const value = (async () => {
+    try {
+      const res = await fetch(target, { signal: AbortSignal.timeout(8_000), redirect: 'error' });
+      if (!res.ok) return null;
+      const { default: sharp } = await import('sharp');
+      const img = sharp(Buffer.from(await res.arrayBuffer())).resize(size.width, size.height, { fit: 'cover' });
+      const buf = format === 'png' ? await img.png().toBuffer() : await img.jpeg({ quality: 82 }).toBuffer();
+      return `data:image/${format};base64,${buf.toString('base64')}`;
+    } catch {
+      return null;
+    }
+  })();
+  value.then((v) => {
+    if (v === null) oursCache.delete(key);
+  });
+  if (oursCache.size >= OURS_CAP) {
+    const oldest = oursCache.keys().next().value;
+    if (oldest !== undefined) oursCache.delete(oldest);
   }
+  oursCache.set(key, { at: Date.now(), value });
+  return value;
 }
 

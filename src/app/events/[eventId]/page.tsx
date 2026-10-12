@@ -5,6 +5,7 @@ import { clanPrefix, currentClan, requireClan, resolveClanById } from '@/lib/cla
 import { canSeeEvent } from '@/lib/eventAccess';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { canonicalPathFor, socialMetadata } from '@/lib/seo';
+import { eventLinkDescription } from '@/lib/linkText';
 import { JsonLd, breadcrumbLd, eventLd } from '@/lib/jsonLd';
 import { clanTrail } from '@/lib/seoPages';
 import { clanHref } from '@/lib/clanPath';
@@ -46,7 +47,7 @@ import { loadRulesFacts } from '@/lib/eventRulebook';
 import { getTierBands } from '@/lib/pluginConfig';
 import { computeEventMvp, computeMemberBreakdown, topMember, rollupByOwner, type StatGainMap, type TeamMvp } from '@/lib/memberBreakdown';
 import { loadPlayerOwners } from '@/lib/draftProfiles';
-import { getStatStandings } from '@/lib/statStandings';
+import { getStatStandings, getTeamStandings } from '@/lib/statStandings';
 import { parseContributionSnapshot, type StatContributionSnapshot } from '@/lib/statTracking';
 import { isEventEnded } from '@/lib/survey';
 import { atLeast } from '@/lib/clanRoles';
@@ -82,11 +83,14 @@ export async function generateMetadata({
   const session = await verifyUser();
   if (!event || !(await canSeeEvent({ eventId: id, playerId: session?.playerId ?? null }))) return {};
 
-  const clanName = await getClanDisplayName(clan.id, clan.name);
-  const prefix = await clanPrefix();
+  const [clanName, prefix, standings] = await Promise.all([
+    getClanDisplayName(clan.id, clan.name),
+    clanPrefix(),
+    getTeamStandings(id, event.scoringMode),
+  ]);
   return socialMetadata({
     title: `${event.name} — ${clanName || clan.name}`,
-    description: `${event.name}: the board, the teams and the standings.`,
+    description: eventLinkDescription(event, standings),
     canonical: canonicalPathFor({ prefix, pathname: `/events/${id}`, clanSlug: clan.slug }),
     image: `/api/og/event/${id}`,
   });

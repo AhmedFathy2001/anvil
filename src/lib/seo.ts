@@ -18,7 +18,7 @@ export const SITE_NAME = 'Anvil';
 
 /** The one-line pitch, used wherever a page has nothing more specific to say about itself. */
 export const DEFAULT_DESCRIPTION =
-  "Where your clan's bingos, SotW/BotW, and roster all come together. Built for Old School RuneScape clans.";
+  'Run clan bingos, Skill and Boss of the Week, and your whole roster from one place. Built for Old School RuneScape clans.';
 
 /** `https://anvilosrs.com` — or `http://localhost` in development, per `originForHost`. */
 export function apexOrigin(): string {

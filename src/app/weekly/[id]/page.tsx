@@ -17,6 +17,9 @@ import { Board, Podium, SidePanels, YouStrip } from '@/components/weekly/Competi
 import CompetitionAwards from '@/components/weekly/CompetitionAwards';
 import ClanLink from '@/components/ClanLink';
 import { idOrNull, idParam } from '@/lib/routeIds';
+import { weeklyLinkDescription } from '@/lib/linkText';
+import { clanVisibilityOf } from '@/lib/clanVisibility';
+import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,16 +47,33 @@ export async function generateMetadata({
   const compId = idOrNull((await params).id);
   if (compId == null) return {};
   const clan = await requireClan();
+  const clanName = (await getClanDisplayName(clan.id, clan.name)) || clan.name;
+  // A private clan's page shows strangers the "this clan is private" card, and its link preview
+  // must say no more than that card does — not the competition's name, and not (by answering
+  // differently for a real id than a made-up one) whether it exists. So this is decided before the
+  // competition is even looked up.
+  if (clanVisibilityOf(clan.visibility) !== 'public') {
+    return clanSectionMetadata({ title: `Competition — ${clanName}`, description: `A competition in ${clanName}.` });
+  }
   const [competition] = await db
-    .select({ title: weeklyCompetitions.title, metric: weeklyCompetitions.metric })
+    .select({
+      title: weeklyCompetitions.title,
+      type: weeklyCompetitions.type,
+      status: weeklyCompetitions.status,
+      startDate: weeklyCompetitions.startDate,
+      endDate: weeklyCompetitions.endDate,
+    })
     .from(weeklyCompetitions)
     .where(and(eq(weeklyCompetitions.clanId, clan.id), eq(weeklyCompetitions.id, compId)));
   if (!competition) return {};
 
-  const clanName = (await getClanDisplayName(clan.id, clan.name)) || clan.name;
+  const participants = await getEffectiveParticipants(compId);
+  const board = computeLeaderboard(participants).filter((e) => e.gained > 0);
   return clanSectionMetadata({
     title: `${competition.title} — ${clanName}`,
-    description: `${competition.title}: the week's leaderboard, who gained the most and how it finished, for ${clanName}.`,
+    // Who's winning, said the way the card shows it, so the line and the picture agree.
+    description: weeklyLinkDescription(competition, participants.length, board),
+    image: `/api/og/weekly/${compId}`,
   });
 }
 

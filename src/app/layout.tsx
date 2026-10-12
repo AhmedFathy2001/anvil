@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { headers } from 'next/headers';
 import { clanPrefix, currentClan } from '@/lib/clanContext';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
@@ -61,6 +61,12 @@ const fraunces = Fraunces({
 const ICONS = {
   icon: [{ url: "/favicon-32.png", sizes: "32x32" }, { url: "/icon-192.png", sizes: "192x192" }],
 };
+
+/**
+ * The forge gold, as the page's theme colour. Discord paints it down the left edge of every embed a
+ * link to this site unfurls as, which is the one place the colour is seen most.
+ */
+export const viewport: Viewport = { themeColor: "#e0aa1e" };
 
 /**
  * The browser tab, and it belongs to whoever's page this is.
