@@ -55,5 +55,11 @@ export function trendLabel(t: StatTrend | undefined): { text: string; tone: 'up'
   if (t.prev === 0) return { text: 'new', tone: 'up' };
   const pct = Math.round(((t.week - t.prev) / t.prev) * 100);
   if (pct === 0) return { text: '±0%', tone: 'flat' };
-  return pct > 0 ? { text: `▲ ${pct}%`, tone: 'up' } : { text: `▼ ${Math.abs(pct)}%`, tone: 'down' };
+  if (pct < 0) return { text: `▼ ${Math.abs(pct)}%`, tone: 'down' };
+  // Past tripling a percentage stops reading as a number ("▲ 11785%"); say how many times as much.
+  if (pct >= 200) {
+    const times = t.week / t.prev;
+    return { text: `▲ ${times >= 10 ? Math.round(times) : times.toFixed(1)}×`, tone: 'up' };
+  }
+  return { text: `▲ ${pct}%`, tone: 'up' };
 }

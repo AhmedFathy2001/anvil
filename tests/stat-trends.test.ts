@@ -24,7 +24,9 @@ test('bosses count kills the same way, and days with no detail are skipped', () 
 });
 
 test('labels', () => {
-  assert.deepEqual(trendLabel({ week: 2100, prev: 700, weeks: [] }), { text: '▲ 200%', tone: 'up' });
+  assert.deepEqual(trendLabel({ week: 2100, prev: 700, weeks: [] }), { text: '▲ 3.0×', tone: 'up' });
+  assert.deepEqual(trendLabel({ week: 1200, prev: 1000, weeks: [] }), { text: '▲ 20%', tone: 'up' });
+  assert.deepEqual(trendLabel({ week: 118_500, prev: 1000, weeks: [] }), { text: '▲ 119×', tone: 'up' });
   assert.deepEqual(trendLabel({ week: 50, prev: 100, weeks: [] }), { text: '▼ 50%', tone: 'down' });
   assert.deepEqual(trendLabel({ week: 5, prev: 0, weeks: [] }), { text: 'new', tone: 'up' });
   assert.equal(trendLabel(undefined).tone, 'none');

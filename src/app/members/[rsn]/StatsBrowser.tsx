@@ -3,6 +3,8 @@
 import { useMemo, useState } from 'react';
 
 import { Bar } from '@/components/stats/Charts';
+import Input from '@/components/Input';
+import Select from '@/components/Select';
 import { BOSSES, SKILL_LABELS } from '@/lib/constants';
 import { CLUE_TIER_KEYS } from '@/lib/hiscoresActivities';
 import type { AccountProfile, ActivityStanding } from '@/lib/memberProfile';
@@ -172,24 +174,25 @@ export default function StatsBrowser({
         </div>
         <div className="ml-auto flex items-center gap-2">
           {(kind === 'skills' || kind === 'bosses') && (
-            <select
+            <Select
               value={sort}
-              onChange={(e) => setSort(e.target.value as Sort)}
-              aria-label="Sort by"
-              className="rounded-lg border border-card-border bg-card-bg px-2 py-1.5 text-xs text-text-muted"
-            >
-              <option value="hours">Most hours</option>
-              <option value="level">{kind === 'skills' ? 'Highest XP' : 'Most kills'}</option>
-              {comparable && <option value="week">Most this week</option>}
-            </select>
+              onChange={(v) => setSort(v as Sort)}
+              ariaLabel="Sort by"
+              className="w-40"
+              options={[
+                { value: 'hours', label: 'Most hours' },
+                { value: 'level', label: kind === 'skills' ? 'Highest XP' : 'Most kills' },
+                ...(comparable ? [{ value: 'week', label: 'Most this week' }] : []),
+              ]}
+            />
           )}
-          <input
+          <Input
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={`Find a ${kind === 'skills' ? 'skill' : kind === 'bosses' ? 'boss' : kind === 'clues' ? 'tier' : 'minigame'}`}
             aria-label="Search"
-            className="w-40 rounded-lg border border-card-border bg-card-bg px-3 py-1.5 text-sm placeholder:text-text-dim focus:border-gold/60 focus:outline-none"
+            className="w-44"
           />
         </div>
       </div>
