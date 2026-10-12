@@ -61,6 +61,9 @@ export const CLAN_SCOPED_API_ROOTS = [
 export const PLATFORM_ROOTS = [
   '/clans',
   '/leaderboard',
+  // Side-by-side characters and clans. Apex only, like /p/ — a comparison crosses clans by nature, so
+  // a link to it from inside one must lose the prefix rather than 404 under it.
+  '/compare',
   '/c/',
   '/u/',
   '/p/',

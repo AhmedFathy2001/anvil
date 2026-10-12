@@ -191,6 +191,14 @@ export default async function CharacterPage({
               </ClanLink>
             </span>
           )}
+
+          {/* Side by side with somebody else — the compare page asks for the other name. */}
+          <ClanLink
+            href={`/compare?a=${encodeURIComponent(character.rsn)}`}
+            className="text-gold hover:underline"
+          >
+            Compare ↗
+          </ClanLink>
         </div>
 
         <div className="mt-5 flex flex-wrap gap-x-8 gap-y-4">

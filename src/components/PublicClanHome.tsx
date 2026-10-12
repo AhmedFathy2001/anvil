@@ -245,6 +245,15 @@ export default function PublicClanHome({ view, signedIn }: { view: View; signedI
             <ClanLink href="/leaderboard" className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] font-medium hover:bg-brown-light">
               📊 Leaderboard
             </ClanLink>
+            {/* The apex's side-by-side page, with this clan already filled in as one side. ClanLink
+                leaves /compare unprefixed (it is a platform path), so this lands on the apex from a
+                clan's subdomain or /c/ address alike. */}
+            <ClanLink
+              href={`/compare/clans?a=${encodeURIComponent(view.slug)}`}
+              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] font-medium hover:bg-brown-light"
+            >
+              ⚖️ Compare
+            </ClanLink>
           </div>
         </div>
       </div>
