@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" role="img" aria-label="Proof deleted: images are kept for 90 days after the event ends">
+  <rect width="640" height="360" fill="#1c1612"/>
+  <rect x="12" y="12" width="616" height="336" rx="14" fill="none" stroke="#3b3028" stroke-width="2" stroke-dasharray="8 8"/>
+  <g transform="translate(320 140)" fill="none" stroke="#a8956f" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="-42" y="-30" width="84" height="62" rx="8"/>
+    <circle cx="-14" cy="-8" r="8"/>
+    <path d="M-42 22 L-10 -4 L14 16 L28 4 L42 16"/>
+    <path d="M-56 -46 L56 48" stroke="#e0aa1e"/>
+  </g>
+  <text x="320" y="238" text-anchor="middle" font-family="system-ui, sans-serif" font-size="26" font-weight="600" fill="#f5efe6">Proof deleted</text>
+  <text x="320" y="272" text-anchor="middle" font-family="system-ui, sans-serif" font-size="17" fill="#a8956f">Images are kept for 90 days after the event ends.</text>
+  <text x="320" y="298" text-anchor="middle" font-family="system-ui, sans-serif" font-size="17" fill="#a8956f">The submission and its credit are unchanged.</text>
+</svg>

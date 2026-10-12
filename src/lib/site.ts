@@ -41,5 +41,5 @@ export const SITE = {
   jurisdiction: '[your jurisdiction]', // TODO: e.g. "England and Wales", "Egypt", your country/state
 
   // Shown as "Last updated" on the legal pages. Bump when you change the text.
-  lastUpdated: 'August 29, 2026',
+  lastUpdated: 'October 12, 2026',
 } as const;

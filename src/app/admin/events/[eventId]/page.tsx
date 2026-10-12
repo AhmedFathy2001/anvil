@@ -5,6 +5,7 @@ import { events, tiles, teams, completions } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import OverviewClient from './OverviewClient';
+import EventArchiveCard from './EventArchiveCard';
 import { getTierBands } from '@/lib/pluginConfig';
 import { parseContributionSnapshot } from '@/lib/statTracking';
 import { eventStage } from '@/lib/eventStage';
@@ -48,6 +49,7 @@ export default async function EventOverviewPage({
     : [];
 
   const counts = await getStageCounts(id);
+  const renderedAt = new Date().getTime();
   const stage = eventStage(event);
   // A finished event shows what was BANKED, not what recomputes today — the same rows a member's
   // trophies read from, so the two can never disagree about who won.
@@ -95,6 +97,8 @@ export default async function EventOverviewPage({
         awards={awards}
         tierBands={tierBands}
       />
+      {/* Once it's over: the zip, and when its proof images leave storage (lib/eventMediaRetention). */}
+      {stage === 'wrap' && <EventArchiveCard event={event} now={renderedAt} />}
     </>
   );
 }

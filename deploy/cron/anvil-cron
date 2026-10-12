@@ -13,6 +13,7 @@
 #   leads-digest         daily          — clans that signed up and never got going, to the ops channel
 #   backup               daily          — pg_dump to object storage (R2 anvil-backups)
 #   backup-local         daily          — pg_dump kept on the box, newest 14 (backup-local.sh)
+#   media-retention      daily          — delete event proof images 90 days after the event ends
 #   discord-commands     daily          — reconcile the shared bot's slash commands with the code
 */15 * * * * root /opt/anvil/cron-anvil.sh stats
 */15 * * * * root /opt/anvil/cron-anvil.sh weekly
@@ -28,4 +29,6 @@
 17 4 * * *   root /opt/anvil/cron-anvil.sh backup
 # Daily on-box pg_dump of production, newest 14 kept in /opt/anvil/backups/daily (see the script).
 30 3 * * * root /opt/anvil/backup-local.sh
+# After both backups. Deletes files: run `/api/cron/media-retention?dryRun=1` and read it before enabling.
+5 5 * * *   root /opt/anvil/cron-anvil.sh media-retention
 40 4 * * *   root /opt/anvil/cron-anvil.sh discord-commands

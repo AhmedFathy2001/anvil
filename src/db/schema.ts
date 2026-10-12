@@ -471,6 +471,11 @@ export const events = pgTable('events', {
   // retried request or a start-from-paused can't double-post it. Cleared by a draft reset.
   draftStartNotified: integer('draft_start_notified').default(0),
   forceEndedAt: text('force_ended_at'),
+  /**
+   * When this event's proof images were deleted under the 90-day retention (lib/eventMediaRetention).
+   * Everything else about the event is kept; the image URLs now point at /proof-expired.svg.
+   */
+  mediaPurgedAt: text('media_purged_at'),
   originalEndDate: text('original_end_date'),
   // Sign-up flow. signupFee is in gp; null = free event. Deadlines are ISO UTC strings;
   // null = signups open as soon as the event exists / no captain-selection cutoff.

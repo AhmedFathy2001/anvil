@@ -110,6 +110,14 @@ export default function PrivacyPage() {
         to allow export, then delete it along with associated backups. Ending a paid subscription
         does not delete your clan&rsquo;s data — it returns to the free tier.
       </p>
+      <p>
+        Images attached to an event — drop and completion screenshots, starting shots, and sign-up fee
+        and payout payment proofs — are deleted 90 days after the event ends. The event&rsquo;s records
+        (its results, and who submitted or completed what and when) are kept. Before then, a clan&rsquo;s
+        organisers can download the whole event, images included, as an archive. Payment-proof
+        screenshots may be removed sooner, once the payment they show has been confirmed. Daily database
+        backups are kept for 14 days.
+      </p>
 
       <h2>7. Your rights</h2>
       <p>
