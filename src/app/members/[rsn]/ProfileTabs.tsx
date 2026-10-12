@@ -9,6 +9,7 @@ import PersonalLuck from './PersonalLuck';
 import StatsBrowser from './StatsBrowser';
 import { statTrends } from '@/lib/statTrends';
 import { setUrlParams } from '@/lib/urlState';
+import { useMediaQuery } from '@/lib/useMediaQuery';
 import { TAB_SLUG, type ProfileLinkState, type ProfileTab } from '@/lib/profileLink';
 import LocalTime from '@/components/LocalTime';
 import Input from '@/components/Input';
@@ -34,6 +35,8 @@ type Window = 7 | 30 | 90;
 
 /** Days in the activity grid — a year, the way a contribution graph is normally read. */
 const HEATMAP_DAYS = 365;
+/** Beside the tabs there's room for ~20 weeks of squares, not 52. */
+const SIDE_HEAT_DAYS = 140;
 
 /**
  * Four tabs, one question each.
@@ -226,6 +229,8 @@ export default function ProfileTabs({
     setUrlParams({ tab: next === 'stats' ? null : TAB_SLUG[next], stat: null, ...(next === 'collection' ? {} : { page: null }) });
   };
   const trends = useMemo(() => statTrends(series), [series]);
+  // Whether the side column is beside the tabs (lg+) — it only has room for part of the year there.
+  const wide = useMediaQuery('(min-width: 1024px)');
   const [bestFilter, setBestFilter] = useState('');
   const [metric, setMetric] = useState<Metric>('ehp');
   const [days, setDays] = useState<Window>(30);
@@ -416,68 +421,75 @@ export default function ProfileTabs({
             )}
           </div>
 
-          <StatsBrowser profile={profile} trends={trends} standings={activityStandings} initial={initial?.stat} />
-
-          <Section title="Activity" aside="efficient hours gained, last 12 months">
-            <div className="border border-card-border rounded-xl bg-card-bg p-4">
-              <ActivityHeatmap days={heatDays} ariaLabel={`${profile.rsn}'s activity over the last 90 days`} />
-              {trackedFor <= 14 && (
-                // Say why most of the grid is empty, so it isn't mistaken for a very quiet player.
-                <p className="text-xs text-text-muted mt-3">
-                  Daily tracking started {trackedFor <= 1 ? 'today' : `${trackedFor} days ago`} — earlier
-                  squares are empty because nothing was recorded yet, not because nothing happened.
-                </p>
-              )}
+          {/* The numbers on the left change with the tab; the two pictures on the right are the whole
+              account and don't — so they sit beside the tabs rather than under them, and stay in view
+              while the list scrolls. Stacked again below lg, where there's no room beside anything. */}
+          <div className="grid items-start gap-x-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="min-w-0">
+              <StatsBrowser profile={profile} trends={trends} standings={activityStandings} initial={initial?.stat} />
             </div>
-          </Section>
+            <aside className="min-w-0 lg:sticky lg:top-4">
+              <Section title="Gained over time">
+                <div className="border border-card-border rounded-xl bg-card-bg p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                    <div className="flex gap-1.5">
+                      {(['ehp', 'ehb', 'xp'] as Metric[]).map((m) => (
+                        <button key={m} type="button" onClick={() => setMetric(m)} className={chip(metric === m)}>
+                          {m.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex gap-1.5">
+                      {([7, 30, 90] as Window[]).map((d) => (
+                        <button key={d} type="button" onClick={() => setDays(d)} className={chip(days === d)}>
+                          {d}d
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {activeDays > 0 ? (
+                    <>
+                      <LineChart
+                        points={chartPoints}
+                        format={(n) => (metric === 'xp' ? fmtXp(n) : `${n.toFixed(2)}h`)}
+                        ariaLabel={`${metric.toUpperCase()} gained per day over the last ${days} days`}
+                      />
+                      <div className="mt-3 pt-3 border-t border-card-border text-sm text-text-muted">
+                        <span className="text-foreground font-medium">
+                          {metric === 'xp' ? fmtXp(windowTotal) : `${windowTotal.toFixed(2)}h`}
+                        </span>{' '}
+                        gained in the last {days} days
+                      </div>
+                    </>
+                  ) : (
+                    // An empty axis with "0.00h gained" reads as "this player does nothing", when the truth
+                    // is that we only started recording. Say which it is.
+                    <p className="text-sm text-text-muted py-10 text-center">
+                      Daily tracking started {trackedFor <= 1 ? 'today' : `${trackedFor} days ago`} — the chart
+                      fills in from here as they play.
+                    </p>
+                  )}
+                </div>
+              </Section>
+              <Section title="Activity" aside={wide ? "last 20 weeks" : "efficient hours gained, last 12 months"}>
+                <div className="border border-card-border rounded-xl bg-card-bg p-4">
+                  <ActivityHeatmap days={wide ? heatDays.slice(-SIDE_HEAT_DAYS) : heatDays} ariaLabel={`${profile.rsn}'s activity over the last 90 days`} />
+                  {trackedFor <= 14 && (
+                    // Say why most of the grid is empty, so it isn't mistaken for a very quiet player.
+                    <p className="text-xs text-text-muted mt-3">
+                      Daily tracking started {trackedFor <= 1 ? 'today' : `${trackedFor} days ago`} — earlier
+                      squares are empty because nothing was recorded yet, not because nothing happened.
+                    </p>
+                  )}
+                </div>
+              </Section>
+            </aside>
+          </div>
+
 
         </>
       )}
 
-      {tab === 'stats' && (
-        <Section title="Gained over time">
-          <div className="border border-card-border rounded-xl bg-card-bg p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-              <div className="flex gap-1.5">
-                {(['ehp', 'ehb', 'xp'] as Metric[]).map((m) => (
-                  <button key={m} type="button" onClick={() => setMetric(m)} className={chip(metric === m)}>
-                    {m.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-              <div className="flex gap-1.5">
-                {([7, 30, 90] as Window[]).map((d) => (
-                  <button key={d} type="button" onClick={() => setDays(d)} className={chip(days === d)}>
-                    {d}d
-                  </button>
-                ))}
-              </div>
-            </div>
-            {activeDays > 0 ? (
-              <>
-                <LineChart
-                  points={chartPoints}
-                  format={(n) => (metric === 'xp' ? fmtXp(n) : `${n.toFixed(2)}h`)}
-                  ariaLabel={`${metric.toUpperCase()} gained per day over the last ${days} days`}
-                />
-                <div className="mt-3 pt-3 border-t border-card-border text-sm text-text-muted">
-                  <span className="text-foreground font-medium">
-                    {metric === 'xp' ? fmtXp(windowTotal) : `${windowTotal.toFixed(2)}h`}
-                  </span>{' '}
-                  gained in the last {days} days
-                </div>
-              </>
-            ) : (
-              // An empty axis with "0.00h gained" reads as "this player does nothing", when the truth
-              // is that we only started recording. Say which it is.
-              <p className="text-sm text-text-muted py-10 text-center">
-                Daily tracking started {trackedFor <= 1 ? 'today' : `${trackedFor} days ago`} — the chart
-                fills in from here as they play.
-              </p>
-            )}
-          </div>
-        </Section>
-      )}
 
       {tab === 'trophies' && (
         <>
