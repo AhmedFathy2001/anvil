@@ -13,7 +13,7 @@ import { bossImageForStatKey, itemIconUrl, skillIconUrl } from '@/lib/tileIcons'
 import ClanLink from '@/components/ClanLink';
 import ClanCrest from '@/components/ClanCrest';
 import { accountTypeLabel } from '@/lib/accountType';
-import { CompareForm, HeadlineTable, SectionTitle, Sprite, leadClass } from './CompareParts';
+import { CompareForm, HeadlineTable, SectionTitle, Sprite, leadClass, MirrorRow, Scoreboard, SIDE } from './CompareParts';
 
 export const dynamic = 'force-dynamic';
 
@@ -118,9 +118,19 @@ export default async function ComparePlayersPage({
     <div className="mx-auto w-full max-w-4xl">
       <header className="mb-6 grid grid-cols-[1fr_auto_1fr] items-start gap-4">
         <Side card={cardA} align="right" />
-        <span className="pt-2 font-mono text-xs uppercase tracking-[0.2em] text-text-dim">vs</span>
+        <span className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-card-border bg-card-bg font-mono text-[11px] uppercase tracking-widest text-text-muted">
+          vs
+        </span>
         <Side card={cardB} align="left" />
       </header>
+
+      <Scoreboard
+        items={[
+          { label: 'skills', a: cmp.skillsAhead.a, b: cmp.skillsAhead.b },
+          { label: 'bosses', a: cmp.bosses.filter((x) => x.leader === 'a').length, b: cmp.bosses.filter((x) => x.leader === 'b').length },
+          { label: 'log pages', a: cmp.logPages.filter((x) => x.leader === 'a').length, b: cmp.logPages.filter((x) => x.leader === 'b').length },
+        ]}
+      />
 
       <HeadlineTable rows={cmp.headline} />
 
@@ -136,26 +146,28 @@ export default async function ComparePlayersPage({
           >
             Skills
           </SectionTitle>
-          <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border-soft">
-            {cmp.skills.map((s) => (
-              <div key={s.key} className="grid grid-cols-[1.5rem_minmax(0,7rem)_3rem_1fr_3rem] items-center gap-3 px-4 py-2">
-                <Sprite src={skillIconUrl(s.key)} />
-                <span className="truncate text-sm">{SKILL_LABELS[s.key] ?? s.key}</span>
-                <span
-                  className={`text-right font-mono tabular-nums ${leadClass('a', s.leader)}`}
-                  title={s.xpA != null ? `${s.xpA.toLocaleString('en-US')} xp` : undefined}
+          {/* The game's own skill tab, both levels on each tile and the tile tinted toward whoever
+              leads it — the grid every player's eye already knows, not a 24-row table. */}
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+            {SKILL_TAB_ORDER.map((key) => cmp.skills.find((x) => x.key === key))
+              .filter((x): x is NonNullable<typeof x> => !!x)
+              .map((x) => (
+                <div
+                  key={x.key}
+                  title={`${SKILL_LABELS[x.key] ?? x.key} — ${x.xpA != null ? x.xpA.toLocaleString('en-US') : '?'} vs ${
+                    x.xpB != null ? x.xpB.toLocaleString('en-US') : '?'
+                  } xp`}
+                  className={`flex items-center gap-2.5 rounded-lg border border-card-border px-3 py-2 ${
+                    x.leader === 'a' ? SIDE.a.soft : x.leader === 'b' ? SIDE.b.soft : 'bg-card-bg'
+                  }`}
                 >
-                  {s.levelA ?? '—'}
-                </span>
-                <AheadBar a={s.levelA} b={s.levelB} leader={s.leader} />
-                <span
-                  className={`font-mono tabular-nums ${leadClass('b', s.leader)}`}
-                  title={s.xpB != null ? `${s.xpB.toLocaleString('en-US')} xp` : undefined}
-                >
-                  {s.levelB ?? '—'}
-                </span>
-              </div>
-            ))}
+                  <Sprite src={skillIconUrl(x.key)} />
+                  <span className="min-w-0 flex-1 truncate text-xs text-text-muted">{SKILL_LABELS[x.key] ?? x.key}</span>
+                  <span className={`font-mono text-sm tabular-nums ${leadClass('a', x.leader)}`}>{x.levelA ?? '—'}</span>
+                  <span className="text-[10px] text-text-dim">·</span>
+                  <span className={`font-mono text-sm tabular-nums ${leadClass('b', x.leader)}`}>{x.levelB ?? '—'}</span>
+                </div>
+              ))}
           </div>
         </section>
       )}
@@ -163,18 +175,18 @@ export default async function ComparePlayersPage({
       {cmp.bosses.length > 0 && (
         <section className="mt-8">
           <SectionTitle aside={`${cmp.bosses.length} bosses either has killed`}>Bosses</SectionTitle>
-          <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border-soft">
+          <div className="rounded-xl border border-card-border bg-card-bg py-2">
             {cmp.bosses.map((x) => (
-              <div key={x.key} className="grid grid-cols-[1.5rem_minmax(0,1fr)_5rem_5rem] items-center gap-3 px-4 py-2">
-                <Sprite src={bossImageForStatKey(x.key)} />
-                <span className="truncate text-sm">{x.label}</span>
-                <span className={`text-right font-mono tabular-nums ${leadClass('a', x.leader)}`}>
-                  {x.kcA != null ? x.kcA.toLocaleString('en-US') : '—'}
-                </span>
-                <span className={`text-right font-mono tabular-nums ${leadClass('b', x.leader)}`}>
-                  {x.kcB != null ? x.kcB.toLocaleString('en-US') : '—'}
-                </span>
-              </div>
+              <MirrorRow
+                key={x.key}
+                icon={<Sprite src={bossImageForStatKey(x.key)} />}
+                label={x.label}
+                a={x.kcA}
+                b={x.kcB}
+                leader={x.leader}
+                scale={bossScale}
+                format={(n) => (n != null ? n.toLocaleString('en-US') : '—')}
+              />
             ))}
           </div>
         </section>
@@ -195,18 +207,18 @@ export default async function ComparePlayersPage({
             Every page matches, slot for slot.
           </p>
         ) : (
-          <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border-soft">
+          <div className="rounded-xl border border-card-border bg-card-bg py-2">
             {cmp.logPages.map((p) => (
-              <div key={p.name} className="grid grid-cols-[1.5rem_minmax(0,1fr)_5rem_5rem] items-center gap-3 px-4 py-2">
-                <Sprite src={p.iconItemId != null ? itemIconUrl(p.iconItemId) : null} />
-                <span className="truncate text-sm">{p.name}</span>
-                <span className={`text-right font-mono tabular-nums ${leadClass('a', p.leader)}`}>
-                  {p.a}/{p.total}
-                </span>
-                <span className={`text-right font-mono tabular-nums ${leadClass('b', p.leader)}`}>
-                  {p.b}/{p.total}
-                </span>
-              </div>
+              <MirrorRow
+                key={p.name}
+                icon={<Sprite src={p.iconItemId != null ? itemIconUrl(p.iconItemId) : null} />}
+                label={p.name}
+                a={p.a}
+                b={p.b}
+                leader={p.leader}
+                scale={(n) => (p.total > 0 ? (n / p.total) * 100 : 0)}
+                format={(n) => `${n ?? 0}/${p.total}`}
+              />
             ))}
           </div>
         )}
@@ -220,6 +232,18 @@ export default async function ComparePlayersPage({
       </p>
     </div>
   );
+}
+
+/** The in-game skill tab, read left to right. */
+const SKILL_TAB_ORDER = [
+  'attack', 'hitpoints', 'mining', 'strength', 'agility', 'smithing', 'defence', 'herblore', 'fishing',
+  'ranged', 'thieving', 'cooking', 'prayer', 'crafting', 'firemaking', 'magic', 'fletching', 'woodcutting',
+  'runecraft', 'slayer', 'farming', 'construction', 'hunter', 'sailing',
+];
+
+/** Kill counts on a log scale against 2,000 — a 1,369 next to a 6 still both read. */
+function bossScale(n: number): number {
+  return Math.min(100, (Math.log10(n + 1) / Math.log10(2001)) * 100);
 }
 
 function PageHeading() {
@@ -237,7 +261,9 @@ function Side({ card, align }: { card: PlayerCard; align: 'left' | 'right' }) {
     <div className={`min-w-0 ${right ? 'text-right' : ''}`}>
       <ClanLink
         href={`/p/${encodeURIComponent(card.rsn)}`}
-        className="display block truncate text-[clamp(1.25rem,3.5vw,1.9rem)] font-semibold hover:text-gold"
+        className={`display block truncate text-[clamp(1.25rem,3.5vw,1.9rem)] font-semibold hover:underline ${
+          right ? SIDE.a.text : SIDE.b.text
+        }`}
       >
         {card.rsn}
       </ClanLink>
@@ -251,26 +277,6 @@ function Side({ card, align }: { card: PlayerCard; align: 'left' | 'right' }) {
           <span className="text-text-dim">No clan</span>
         )}
         {accountTypeLabel(card.accountType) ? <span>{accountTypeLabel(card.accountType)}</span> : null}
-      </div>
-    </div>
-  );
-}
-
-/**
- * A centre-out bar: it grows toward whoever is ahead, by how far ahead they are out of the 98 levels
- * a skill spans. Empty for a tie or a side with no level — the colour is the verdict, so it only
- * appears when there is one.
- */
-function AheadBar({ a, b, leader }: { a: number | null; b: number | null; leader: Leader | null }) {
-  const gap = a != null && b != null ? Math.abs(a - b) : 0;
-  const pct = leader === 'a' || leader === 'b' ? Math.max(4, Math.min(100, (gap / 98) * 100)) : 0;
-  return (
-    <div className="grid grid-cols-2 gap-px" aria-hidden>
-      <div className="flex h-1.5 justify-end overflow-hidden rounded-l-full bg-brown-light/60">
-        {leader === 'a' && <div className="h-full bg-gold" style={{ width: `${pct}%` }} />}
-      </div>
-      <div className="flex h-1.5 overflow-hidden rounded-r-full bg-brown-light/60">
-        {leader === 'b' && <div className="h-full bg-gold" style={{ width: `${pct}%` }} />}
       </div>
     </div>
   );
