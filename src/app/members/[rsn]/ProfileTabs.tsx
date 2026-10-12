@@ -35,8 +35,8 @@ type Window = 7 | 30 | 90;
 
 /** Days in the activity grid — a year, the way a contribution graph is normally read. */
 const HEATMAP_DAYS = 365;
-/** Beside the tabs there's room for ~20 weeks of squares, not 52. */
-const SIDE_HEAT_DAYS = 140;
+/** Beside the tabs: six months, drawn fluid so it fits the column with no scrollbar. */
+const SIDE_HEAT_DAYS = 182;
 
 /**
  * Four tabs, one question each.
@@ -471,9 +471,9 @@ export default function ProfileTabs({
                   )}
                 </div>
               </Section>
-              <Section title="Activity" aside={wide ? "last 20 weeks" : "efficient hours gained, last 12 months"}>
+              <Section title="Activity" aside={wide ? "last 6 months" : "efficient hours gained, last 12 months"}>
                 <div className="border border-card-border rounded-xl bg-card-bg p-4">
-                  <ActivityHeatmap days={wide ? heatDays.slice(-SIDE_HEAT_DAYS) : heatDays} ariaLabel={`${profile.rsn}'s activity over the last 90 days`} />
+                  <ActivityHeatmap fluid={wide} days={wide ? heatDays.slice(-SIDE_HEAT_DAYS) : heatDays} ariaLabel={`${profile.rsn}'s activity over the last 90 days`} />
                   {trackedFor <= 14 && (
                     // Say why most of the grid is empty, so it isn't mistaken for a very quiet player.
                     <p className="text-xs text-text-muted mt-3">

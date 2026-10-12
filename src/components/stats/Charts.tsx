@@ -120,7 +120,12 @@ export interface HeatmapDay {
  * day rather than an absolute scale: the question it answers is "when were they playing", and a
  * fixed scale would render a casual player's whole year as blank.
  */
-export function ActivityHeatmap({ days, ariaLabel }: { days: HeatmapDay[]; ariaLabel: string }) {
+/**
+ * `fluid`: columns share the available width and the squares grow or shrink to fit, instead of fixed
+ * 12px squares in a scrolling strip — for a narrow column, where a scrollbar on a chart reads as broken.
+ * Weekday labels are dropped there; at that size the month row is enough to orient by.
+ */
+export function ActivityHeatmap({ days, ariaLabel, fluid = false }: { days: HeatmapDay[]; ariaLabel: string; fluid?: boolean }) {
   if (days.length === 0) {
     return <div className="text-sm text-text-muted">No activity recorded yet.</div>;
   }
@@ -179,6 +184,39 @@ export function ActivityHeatmap({ days, ariaLabel }: { days: HeatmapDay[]; ariaL
   // Sunday-first, labelling alternate rows the way GitHub does — seven labels would be unreadable at
   // this size, and three is enough to orient a column.
   const weekdays = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
+
+  if (fluid) {
+    const cols = { gridTemplateColumns: `repeat(${weeks.length}, minmax(0, 1fr))` };
+    return (
+      <div>
+        <div className="grid gap-[3px] mb-1 text-[9px] leading-3 text-text-muted" style={cols}>
+          {monthLabels.map((label, i) => (
+            <span key={i} className="whitespace-nowrap overflow-visible">
+              {label}
+            </span>
+          ))}
+        </div>
+        <div className="grid grid-rows-7 grid-flow-col gap-[3px]" style={cols} role="img" aria-label={ariaLabel}>
+          {weeks.flat().map((cell) => (
+            <span
+              key={cell.day}
+              title={
+                cell.inRange ? `${cell.day} — ${cell.value > 0 ? `${cell.value.toFixed(2)}h` : 'nothing'}` : cell.day
+              }
+              className={`aspect-square w-full rounded-[2px] border ${shades[level(cell.value)]}`}
+            />
+          ))}
+        </div>
+        <div className="flex items-center justify-end gap-1.5 mt-2 text-[10px] text-text-muted">
+          <span>Less</span>
+          {shades.map((shade, i) => (
+            <span key={i} className={`w-3 h-3 rounded-[2px] border ${shade}`} />
+          ))}
+          <span>More</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
