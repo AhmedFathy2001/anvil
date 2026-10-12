@@ -8,7 +8,7 @@
 // What is written, and why it is safe to keep, is set out on the table (db/schema analyticsEvents)
 // and in lib/analyticsPattern.
 
-import { eq, inArray, lt, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { analyticsEvents, users } from '@/db/schema';
@@ -68,6 +68,21 @@ export async function isPlatformStaff(userId: number | null | undefined): Promis
   if (staffCache.size > 10_000) staffCache.clear();
   staffCache.set(userId, { staff, at: Date.now() });
   return staff;
+}
+
+/**
+ * A tab that just turned out to be an operator's: forget what it recorded while still signed out.
+ * The home page and /login views from before the sign-in carried no user, so the door check above
+ * let them through — and they are the same person's visit.
+ */
+export function forgetSession(sessionId: string): void {
+  void db
+    .delete(analyticsEvents)
+    .where(and(eq(analyticsEvents.sessionId, sessionId), isNull(analyticsEvents.userId)))
+    .then(
+      () => undefined,
+      (err: unknown) => log.warn('analytics.forget-failed', {}, err),
+    );
 }
 
 /** Operator surfaces aren't the product; a visit to one says nothing about how clans use Anvil. */

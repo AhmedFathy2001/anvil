@@ -1,4 +1,4 @@
-import { isOperatorPattern, isPlatformStaff, trackPage } from '@/lib/analytics';
+import { forgetSession, isOperatorPattern, isPlatformStaff, trackPage } from '@/lib/analytics';
 import { clanSlugOf, isBotUserAgent, isSessionId, scrubPattern } from '@/lib/analyticsPattern';
 import { sessionUserIdForAnalytics } from '@/lib/auth';
 import { resolveClanByHost, resolveClanBySlug } from '@/lib/clanContext';
@@ -47,9 +47,13 @@ export async function POST(request: Request) {
     const body = JSON.parse(raw) as { p?: unknown; s?: unknown; c?: unknown };
 
     const pattern = scrubPattern(body.p);
-    if (!pattern || !isSessionId(body.s) || isOperatorPattern(pattern)) return done();
+    if (!pattern || !isSessionId(body.s)) return done();
     const userId = await sessionUserIdForAnalytics();
-    if (await isPlatformStaff(userId)) return done();
+    if (await isPlatformStaff(userId)) {
+      forgetSession(body.s);
+      return done();
+    }
+    if (isOperatorPattern(pattern)) return done();
 
     // The page's own path names the clan; the host is the fallback for a custom domain, where pages
     // carry no prefix.
