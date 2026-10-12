@@ -43,6 +43,7 @@ function clan(over: Partial<ClanCard> = {}): ClanCard {
     name: 'X',
     logoUrl: null,
     members: 50,
+    weekHours: 0,
     activeThisWeek: 20,
     totalEhp: 1000,
     totalEhb: 500,
