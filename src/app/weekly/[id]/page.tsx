@@ -18,6 +18,7 @@ import CompetitionAwards from '@/components/weekly/CompetitionAwards';
 import ClanLink from '@/components/ClanLink';
 import { idOrNull, idParam } from '@/lib/routeIds';
 import { weeklyLinkDescription } from '@/lib/linkText';
+import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
 
 export const dynamic = 'force-dynamic';
@@ -58,8 +59,16 @@ export async function generateMetadata({
     .where(and(eq(weeklyCompetitions.clanId, clan.id), eq(weeklyCompetitions.id, compId)));
   if (!competition) return {};
 
-  const [name, participants] = await Promise.all([getClanDisplayName(clan.id, clan.name), getEffectiveParticipants(compId)]);
-  const clanName = name || clan.name;
+  const clanName = (await getClanDisplayName(clan.id, clan.name)) || clan.name;
+  // The standings only for a public clan. A private clan's page shows strangers the "this clan is
+  // private" card, and its link preview must say no more than that card does.
+  if (clanVisibilityOf(clan.visibility) !== 'public') {
+    return clanSectionMetadata({
+      title: `${competition.title} — ${clanName}`,
+      description: `${competition.title}: the week's leaderboard, who gained the most and how it finished, for ${clanName}.`,
+    });
+  }
+  const participants = await getEffectiveParticipants(compId);
   const board = computeLeaderboard(participants).filter((e) => e.gained > 0);
   return clanSectionMetadata({
     title: `${competition.title} — ${clanName}`,

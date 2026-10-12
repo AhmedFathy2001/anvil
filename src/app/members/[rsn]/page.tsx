@@ -28,6 +28,7 @@ import AccountProgressCard from '@/components/AccountProgressCard';
 import { SKILLS } from '@/lib/constants';
 import { verifyUser } from '@/lib/auth';
 import { memberLinkDescription } from '@/lib/linkText';
+import { clanVisibilityOf } from '@/lib/clanVisibility';
 import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
@@ -44,7 +45,9 @@ export async function generateMetadata({ params }: { params: Promise<{ rsn: stri
   const name = decodeURIComponent(rsn);
   const clan = await requireClan();
   const clanName = (await getClanDisplayName(clan.id, clan.name)) || clan.name;
-  const profile = await getMemberProfile(clan.id, name);
+  // Live numbers only for a public clan. A private clan's page shows strangers the "this clan is
+  // private" card, and its link preview must say no more than that card does.
+  const profile = clanVisibilityOf(clan.visibility) === 'public' ? await getMemberProfile(clan.id, name) : null;
   return clanSectionMetadata({
     title: `${profile?.rsn ?? name} — ${clanName}`,
     description: profile ? memberLinkDescription(profile, clanName) : `Skills, bosses, efficient hours and competition history for ${name} of ${clanName}.`,
