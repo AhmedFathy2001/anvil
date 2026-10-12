@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { timingSafeStrEqual } from '@/lib/auth';
 import { eventsDueForPurge, purgeEventMedia } from '@/lib/eventMediaRetention';
+import { eventsNeedingNotice, sendPurgeNotice } from '@/lib/eventMediaNotice';
 import { log } from '@/lib/logger';
 
-// Daily: delete the proof images of events that ended more than 90 days ago (lib/eventMediaRetention).
-// `?dryRun=1` lists what it WOULD delete — run that first on a fresh deployment, because the first
-// real run clears every event that is already past the window.
+// Daily: remind clans ahead of deletion (lib/eventMediaNotice), then delete the proof images of
+// events past their date (lib/eventMediaRetention) — 90 days after the end, and never sooner than a
+// week after the first reminder. `?dryRun=1` lists the reminders and deletions it WOULD make.
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
@@ -23,13 +24,18 @@ export async function GET(request: Request) {
   }
 
   const dryRun = new URL(request.url).searchParams.get('dryRun') === '1';
-  const due = await eventsDueForPurge(new Date());
+  const now = new Date();
+  const notices = [];
+  for (const e of await eventsNeedingNotice(now)) {
+    notices.push(await sendPurgeNotice(e, now, { dryRun }));
+  }
+  const due = await eventsDueForPurge(now);
   const results = [];
   for (const e of due) {
     const r = await purgeEventMedia(e.id, { dryRun });
     if (r) results.push({ ...r, purgeAt: e.purgeAt.toISOString() });
   }
   const files = results.reduce((t, r) => t + r.files, 0);
-  log.info('media-retention.tick', { dryRun, events: results.length, files });
-  return NextResponse.json({ success: true, dryRun, events: results.length, files, results });
+  log.info('media-retention.tick', { dryRun, notices: notices.length, events: results.length, files });
+  return NextResponse.json({ success: true, dryRun, notices, events: results.length, files, results });
 }

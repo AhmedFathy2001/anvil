@@ -65,3 +65,66 @@ test('the offline index escapes names and says when a proof was deleted', () => 
   assert.ok(html.includes('Deleted after 90 days'));
   assert.ok(html.includes('✓ completed'));
 });
+
+// ── Reminders before deletion ──────────────────────────────────────────────────────────────────────
+
+import { effectivePurgeAt, isPurgeDue, purgeNoticeDue } from '../src/lib/eventMediaRetentionRules.ts';
+import { cleanName, daysUntil, purgeNoticeText } from '../src/lib/eventMediaNoticeText.ts';
+
+const ended = (endIso: string, notice: string | null = null, final: string | null = null) => ({
+  endDate: endIso,
+  forceEndedAt: null,
+  mediaPurgeNoticeAt: notice,
+  mediaPurgeFinalNoticeAt: final,
+});
+const at = (iso: string) => new Date(iso);
+
+test('no reminder until 14 days before; then the first one', () => {
+  const e = ended('2026-07-01T00:00:00Z'); // base purge 2026-09-29
+  assert.equal(purgeNoticeDue(e, at('2026-09-14T00:00:00Z')), null);
+  assert.equal(purgeNoticeDue(e, at('2026-09-15T00:00:00Z')), 'first');
+});
+
+test('nothing is deleted without a reminder, however overdue', () => {
+  const e = ended('2026-01-01T00:00:00Z');
+  const now = at('2026-10-12T00:00:00Z');
+  assert.equal(isPurgeDue(e, now), false);
+  assert.equal(purgeNoticeDue(e, now), 'first');
+  // Before any reminder the promised date is a week out from now.
+  assert.equal(effectivePurgeAt(e, now)!.toISOString(), '2026-10-19T00:00:00.000Z');
+});
+
+test('an overdue event gets a full week after its first reminder, and a last one before', () => {
+  const e = ended('2026-01-01T00:00:00Z', '2026-10-12T05:05:00Z');
+  assert.equal(effectivePurgeAt(e, at('2026-10-13T00:00:00Z'))!.toISOString(), '2026-10-19T05:05:00.000Z');
+  assert.equal(purgeNoticeDue(e, at('2026-10-13T05:05:00Z')), null, 'not the next day');
+  assert.equal(purgeNoticeDue(e, at('2026-10-16T05:05:00Z')), 'final', '3 days before');
+  assert.equal(isPurgeDue(e, at('2026-10-19T05:04:00Z')), false);
+  assert.equal(isPurgeDue(e, at('2026-10-19T05:05:00Z')), true);
+});
+
+test('on time: reminded at 14 days, last at 3, deleted on the 90th day', () => {
+  const e = ended('2026-07-01T00:00:00Z', '2026-09-15T05:05:00Z');
+  assert.equal(effectivePurgeAt(e, at('2026-09-20T00:00:00Z'))!.toISOString(), '2026-09-29T00:00:00.000Z');
+  assert.equal(purgeNoticeDue(e, at('2026-09-25T23:00:00Z')), null);
+  assert.equal(purgeNoticeDue(e, at('2026-09-26T05:05:00Z')), 'final');
+  const done = { ...e, mediaPurgeFinalNoticeAt: '2026-09-26T05:05:00Z' };
+  assert.equal(purgeNoticeDue(done, at('2026-09-28T00:00:00Z')), null, 'one last reminder only');
+  assert.equal(isPurgeDue(done, at('2026-09-29T00:00:00Z')), true);
+});
+
+test('the reminder names the date, the count, and keeps admin text clean', () => {
+  const { subject, lines } = purgeNoticeText({
+    stage: 'final',
+    eventName: 'Summer **Bingo** @everyone https://evil.example/x',
+    clanName: 'The AFK Spot',
+    purgeAt: at('2026-10-19T05:05:00Z'),
+    files: 173,
+    archiveUrl: 'https://anvilosrs.com/c/theafkspot/admin/events/1',
+    now: at('2026-10-16T05:05:00Z'),
+  });
+  assert.equal(subject, 'Last reminder: Summer Bingo everyone proof images are deleted in 3 days');
+  assert.match(lines[0], /^The 173 proof images from Summer Bingo everyone \(The AFK Spot\) will be deleted on Monday, 19 October 2026 \(3 days\)\.$/);
+  assert.equal(cleanName('   '), 'your event');
+  assert.equal(daysUntil(at('2026-10-16T05:00:00Z'), at('2026-10-16T05:05:00Z')), 1);
+});

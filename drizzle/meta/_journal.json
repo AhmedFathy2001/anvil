@@ -610,6 +610,13 @@
       "when": 1791156600000,
       "tag": "0128_event_media_purged",
       "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1791160200000,
+      "tag": "0129_event_media_purge_notice",
+      "breakpoints": true
     }
   ]
 }

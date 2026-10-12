@@ -1,5 +1,5 @@
 import ClanLink from '@/components/ClanLink';
-import { MEDIA_RETENTION_DAYS, eventMediaPurgeAt } from '@/lib/eventMediaRetentionRules';
+import { MEDIA_RETENTION_DAYS, effectivePurgeAt } from '@/lib/eventMediaRetentionRules';
 
 // The finished event's archive: a zip of every record and proof image (api/admin/events/[id]/archive),
 // and the date the proof images leave Anvil's storage (lib/eventMediaRetention). Said here, on the
@@ -11,11 +11,20 @@ export default function EventArchiveCard({
   event,
   now,
 }: {
-  event: { id: number; endDate: string | null; forceEndedAt: string | null; mediaPurgedAt: string | null };
+  event: {
+    id: number;
+    endDate: string | null;
+    forceEndedAt: string | null;
+    mediaPurgedAt: string | null;
+    mediaPurgeNoticeAt: string | null;
+    mediaPurgeFinalNoticeAt: string | null;
+  };
   /** Render time, passed in so the countdown is a value the page chose rather than a clock read mid-render. */
   now: number;
 }) {
-  const purgeAt = eventMediaPurgeAt(event);
+  // The date the job will act on: 90 days after the end, but never sooner than a week after the
+  // owner and admins were first reminded (lib/eventMediaRetentionRules).
+  const purgeAt = effectivePurgeAt(event, new Date(now));
   const purged = event.mediaPurgedAt ? new Date(event.mediaPurgedAt) : null;
   const daysLeft = purgeAt ? Math.ceil((purgeAt.getTime() - now) / 86_400_000) : null;
 
@@ -37,7 +46,7 @@ export default function EventArchiveCard({
               : purgeAt
                 ? `Proof images are kept for ${MEDIA_RETENTION_DAYS} days after the event ends, until ${fmt(purgeAt)}${
                     daysLeft != null && daysLeft > 0 ? ` (${daysLeft} day${daysLeft === 1 ? '' : 's'} left)` : ''
-                  }. Results and who did what are kept for good.`
+                  }. Owners and admins get a reminder on Discord 14 and 3 days before. Results and who did what are kept for good.`
                 : `Proof images are kept for ${MEDIA_RETENTION_DAYS} days after the event ends. Results and who did what are kept for good.`}
           </p>
         </div>

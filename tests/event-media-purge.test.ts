@@ -61,10 +61,27 @@ after(async () => {
   await dropDatabase(DB);
 });
 
-test('only events past their 90 days are due', async () => {
+test('nothing is due before the clan was reminded; the reminder goes to the overdue event only', async () => {
+  assert.deepEqual(await lib.eventsDueForPurge(new Date()), [], 'past 90 days, but nobody was told yet');
+  const notice = await import('../src/lib/eventMediaNotice.ts');
+  const now = new Date();
+  const pending = await notice.eventsNeedingNotice(now);
+  assert.deepEqual(pending.map((e) => [e.id, e.stage]), [[oldEvent, 'first']], 'ended ten days ago: not yet');
+  const r = await notice.sendPurgeNotice(pending[0], now);
+  assert.equal(r.files, 4);
+  // No bot, no email, no webhook in a test clan: nothing delivered, but the event is still stamped.
+  assert.deepEqual([r.dms, r.emails, r.channel], [0, 0, false]);
+  assert.equal(r.purgeAt, new Date(now.getTime() + 7 * 86_400_000).toISOString(), 'a full week from the reminder');
+  const [ev] = await db.select().from(s.events).where(eq(s.events.id, oldEvent));
+  assert.equal(ev.mediaPurgeNoticeAt, now.toISOString());
+  assert.deepEqual(await notice.eventsNeedingNotice(now), [], 'not reminded twice the same day');
+  assert.deepEqual(await lib.eventsDueForPurge(now), [], 'and not deleted inside the week');
+});
+
+test('a week after the reminder, only the old event is due', async () => {
+  await db.update(s.events).set({ mediaPurgeNoticeAt: daysAgo(8) }).where(eq(s.events.id, oldEvent));
   const due = await lib.eventsDueForPurge(new Date());
   assert.deepEqual(due.map((d) => d.id), [oldEvent]);
-  assert.ok(!due.some((d) => d.id === recentEvent), 'ended ten days ago: not yet');
 });
 
 test('a dry run counts every kind of proof and changes nothing', async () => {

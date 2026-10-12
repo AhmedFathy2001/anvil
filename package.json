@@ -155,6 +155,7 @@
     "exceljs": "^4.4.0",
     "jose": "^6.2.3",
     "next": "16.1.6",
+    "nodemailer": "10.0.10",
     "osrs-json-hiscores": "^2.25.0",
     "pg": "^8.23.0",
     "react": "19.2.3",

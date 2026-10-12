@@ -476,6 +476,10 @@ export const events = pgTable('events', {
    * Everything else about the event is kept; the image URLs now point at /proof-expired.svg.
    */
   mediaPurgedAt: text('media_purged_at'),
+  /** When the owner and admins were first reminded the images will be deleted (lib/eventMediaNotice). */
+  mediaPurgeNoticeAt: text('media_purge_notice_at'),
+  /** When the last reminder went out, a few days before. */
+  mediaPurgeFinalNoticeAt: text('media_purge_final_notice_at'),
   originalEndDate: text('original_end_date'),
   // Sign-up flow. signupFee is in gp; null = free event. Deadlines are ISO UTC strings;
   // null = signups open as soon as the event exists / no captain-selection cutoff.

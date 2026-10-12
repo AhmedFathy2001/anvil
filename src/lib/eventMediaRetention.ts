@@ -1,9 +1,9 @@
-import { and, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { eventSignups, eventStartProofs, events, payouts, signupFees, submissions, tiles } from '@/db/schema';
 import { del, isManagedMediaUrl } from '@/lib/storage';
 import { log } from '@/lib/logger';
-import { EXPIRED_PROOF_URL, eventMediaPurgeAt } from '@/lib/eventMediaRetentionRules';
+import { EXPIRED_PROOF_URL, effectivePurgeAt, isPurgeDue } from '@/lib/eventMediaRetentionRules';
 
 // Event media retention: 90 days after an event ends, its stored images are deleted.
 //
@@ -11,13 +11,15 @@ import { EXPIRED_PROOF_URL, eventMediaPurgeAt } from '@/lib/eventMediaRetentionR
 // shots. What stays: everything they were evidence FOR. The event, tiles, teams, completions, every
 // submission row with who, when and for what, fee and payout records — the history a clan looks back
 // on, the Hall of Records and recaps all read rows, never pictures. A clan that wants the pictures
-// downloads the event archive first (/api/admin/events/[id]/archive); the event admin page says when.
+// downloads the event archive first (/api/admin/events/[id]/archive); the event admin page says when,
+// and the owner and admins are reminded 14 and 3 days ahead (lib/eventMediaNotice). Nothing is
+// deleted sooner than a week after the first reminder.
 //
 // Each deleted URL is replaced with EXPIRED_PROOF_URL, a site image that SAYS the proof was deleted
 // after 90 days. Every page that shows a proof therefore explains itself instead of drawing a broken
 // image, with no per-page special case.
 
-export { EXPIRED_PROOF_URL, eventMediaPurgeAt, MEDIA_RETENTION_DAYS } from '@/lib/eventMediaRetentionRules';
+export { EXPIRED_PROOF_URL, eventMediaPurgeAt, effectivePurgeAt, MEDIA_RETENTION_DAYS } from '@/lib/eventMediaRetentionRules';
 
 export interface EventMediaUrls {
   submissions: { id: number; url: string }[];
@@ -116,18 +118,26 @@ export async function purgeEventMedia(eventId: number, opts: { dryRun?: boolean 
 }
 
 /**
- * Events whose media is due for deletion: ended (or force-ended) more than the retention window ago
- * and not purged yet. Oldest first, capped so one run stays bounded.
+ * Events whose media is due for deletion: past the retention date AND the clan was reminded at least
+ * a week before (lib/eventMediaRetentionRules isPurgeDue), not purged yet. Oldest first, capped so
+ * one run stays bounded.
  */
 export async function eventsDueForPurge(now: Date, limit = 20): Promise<{ id: number; name: string; purgeAt: Date }[]> {
   // clan-scope: global -- retention applies to every clan's events alike.
   const rows = await db
-    .select({ id: events.id, name: events.name, endDate: events.endDate, forceEndedAt: events.forceEndedAt })
+    .select({
+      id: events.id,
+      name: events.name,
+      endDate: events.endDate,
+      forceEndedAt: events.forceEndedAt,
+      mediaPurgeNoticeAt: events.mediaPurgeNoticeAt,
+      mediaPurgeFinalNoticeAt: events.mediaPurgeFinalNoticeAt,
+    })
     .from(events)
-    .where(and(isNull(events.mediaPurgedAt), or(isNotNull(events.endDate), isNotNull(events.forceEndedAt))));
+    .where(and(isNull(events.mediaPurgedAt), isNotNull(events.mediaPurgeNoticeAt)));
   return rows
-    .map((r) => ({ id: r.id, name: r.name, purgeAt: eventMediaPurgeAt(r) }))
-    .filter((r): r is { id: number; name: string; purgeAt: Date } => r.purgeAt != null && r.purgeAt.getTime() <= now.getTime())
+    .filter((r) => isPurgeDue(r, now))
+    .map((r) => ({ id: r.id, name: r.name, purgeAt: effectivePurgeAt(r, now)! }))
     .sort((a, b) => a.purgeAt.getTime() - b.purgeAt.getTime())
     .slice(0, limit);
 }
