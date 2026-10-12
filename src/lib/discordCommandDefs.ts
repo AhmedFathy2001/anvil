@@ -76,6 +76,18 @@ const MEMBER_OPTION = {
   required: false,
 } as const;
 
+/**
+ * A clan member by RSN, as a type-ahead over the roster. Faster than `member` — Discord's own user
+ * picker searches the whole server itself — and it names the account, not the person.
+ */
+const PLAYER_OPTION = {
+  name: 'player',
+  description: 'A clan member by RSN — type to search (leave blank for yourself)',
+  type: OPTION_TYPE.STRING,
+  required: false,
+  autocomplete: true,
+} as const;
+
 const AMOUNT_OPTION = {
   name: 'amount',
   description: 'Amount, e.g. 5m or 2500000',
@@ -199,12 +211,12 @@ const CLAN_DEFINITIONS = [
     description: "A player's stats — levels, efficiency, collection log, PBs, luck",
     contexts: [0],
     options: [
-      { name: 'profile', description: 'Overview — levels, EHP/EHB, collection log, PBs', type: OPTION_TYPE.SUB_COMMAND, options: [MEMBER_OPTION, ACCOUNT_OPTION, LANGUAGE_OPTION] },
-      { name: 'levels', description: 'Skill levels and XP', type: OPTION_TYPE.SUB_COMMAND, options: [MEMBER_OPTION, ACCOUNT_OPTION, LANGUAGE_OPTION] },
-      { name: 'efficiency', description: 'EHP and EHB, and where each comes from', type: OPTION_TYPE.SUB_COMMAND, options: [MEMBER_OPTION, ACCOUNT_OPTION, LANGUAGE_OPTION] },
-      { name: 'clog', description: "Collection log — overall, or one boss's page", type: OPTION_TYPE.SUB_COMMAND, options: [PAGE_OPTION, ACCOUNT_OPTION, MEMBER_OPTION, LANGUAGE_OPTION] },
-      { name: 'pbs', description: 'Personal bests — all, or one activity', type: OPTION_TYPE.SUB_COMMAND, options: [PAGE_OPTION, PB_MODE_OPTION, PB_SIZE_OPTION, ACCOUNT_OPTION, MEMBER_OPTION, LANGUAGE_OPTION] },
-      { name: 'luck', description: 'Drop luck across tracked drops', type: OPTION_TYPE.SUB_COMMAND, options: [MEMBER_OPTION, ACCOUNT_OPTION, LANGUAGE_OPTION] },
+      { name: 'profile', description: 'Overview — levels, EHP/EHB, collection log, PBs', type: OPTION_TYPE.SUB_COMMAND, options: [PLAYER_OPTION, MEMBER_OPTION, ACCOUNT_OPTION, LANGUAGE_OPTION] },
+      { name: 'levels', description: 'Skill levels and XP', type: OPTION_TYPE.SUB_COMMAND, options: [PLAYER_OPTION, MEMBER_OPTION, ACCOUNT_OPTION, LANGUAGE_OPTION] },
+      { name: 'efficiency', description: 'EHP and EHB, and where each comes from', type: OPTION_TYPE.SUB_COMMAND, options: [PLAYER_OPTION, MEMBER_OPTION, ACCOUNT_OPTION, LANGUAGE_OPTION] },
+      { name: 'clog', description: "Collection log — overall, or one boss's page", type: OPTION_TYPE.SUB_COMMAND, options: [PAGE_OPTION, ACCOUNT_OPTION, PLAYER_OPTION, MEMBER_OPTION, LANGUAGE_OPTION] },
+      { name: 'pbs', description: 'Personal bests — all, or one activity', type: OPTION_TYPE.SUB_COMMAND, options: [PAGE_OPTION, PB_MODE_OPTION, PB_SIZE_OPTION, ACCOUNT_OPTION, PLAYER_OPTION, MEMBER_OPTION, LANGUAGE_OPTION] },
+      { name: 'luck', description: 'Drop luck across tracked drops', type: OPTION_TYPE.SUB_COMMAND, options: [PLAYER_OPTION, MEMBER_OPTION, ACCOUNT_OPTION, LANGUAGE_OPTION] },
       { name: 'collectors', description: 'Clan leaderboard — the top collection logs', type: OPTION_TYPE.SUB_COMMAND, options: [LANGUAGE_OPTION] },
       { name: 'luckboard', description: 'Clan leaderboard — the driest and the luckiest', type: OPTION_TYPE.SUB_COMMAND, options: [LANGUAGE_OPTION] },
     ],

@@ -23,7 +23,8 @@
 
 import { db } from '@/db';
 import { clanRoster, clans, eventCohosts, eventParticipants, events, settings, teams, users } from '@/db/schema';
-import { eq, and, isNull, inArray, or, ne, desc } from 'drizzle-orm';
+import { eq, and, isNull, inArray, or, ne, desc, ilike, asc } from 'drizzle-orm';
+import { normalizeRsn } from '@/lib/auth';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { configuredOrigin } from '@/lib/request-origin';
@@ -389,5 +390,72 @@ export async function resolveInvoker(discordId: string, clanId: number): Promise
     accounts,
     primaryAccountId: primary?.accountId ?? null,
     rsn: primary?.rsn ?? null,
+  };
+}
+
+// ── The `player` option: a clan member named by RSN ──────────────────────────────────────────────
+//
+// The `member` option is Discord's own user picker, and Discord searches a big server's member list
+// itself — slow, and it finds people by their Discord name, not their RSN. `player` is a type-ahead
+// over this clan's roster instead, answered from one indexed query, and it names the ACCOUNT the
+// asker meant rather than whichever account the person marked primary.
+
+/** Roster members whose RSN contains `query`, prefix matches first. Up to 25 (Discord's cap). */
+export async function searchRosterPlayers(query: string, clanId: number): Promise<{ rsn: string }[]> {
+  const q = normalizeRsn(query);
+  if (!q) {
+    return db
+      .select({ rsn: clanRoster.rsn })
+      .from(clanRoster)
+      .where(and(eq(clanRoster.clanId, clanId), isNull(clanRoster.leftAt), eq(clanRoster.kind, 'member')))
+      .orderBy(asc(clanRoster.rsnNormalized))
+      .limit(25);
+  }
+  const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  const rows = await db
+    .select({ rsn: clanRoster.rsn, key: clanRoster.rsnNormalized })
+    .from(clanRoster)
+    .where(and(eq(clanRoster.clanId, clanId), isNull(clanRoster.leftAt), ilike(clanRoster.rsnNormalized, like)))
+    .limit(100);
+  return rows
+    .sort((a, b) => Number(!a.key.startsWith(q)) - Number(!b.key.startsWith(q)) || a.key.localeCompare(b.key))
+    .slice(0, 25)
+    .map((r) => ({ rsn: r.rsn }));
+}
+
+/**
+ * A clan member named by RSN → the same identity {@link resolveInvoker} builds, with the NAMED
+ * account as the one answered for. Their other accounts in this clan ride along for the `account:`
+ * picker. Null when nobody on this clan's roster has that name.
+ */
+export async function resolveRosterPlayer(rsn: string, clanId: number): Promise<InvokerIdentity | null> {
+  const key = normalizeRsn(rsn);
+  if (!key) return null;
+  const cols = { id: clanRoster.id, accountId: clanRoster.accountId, rsn: clanRoster.rsn, playerId: clanRoster.playerId };
+  const [named] = await db
+    .select(cols)
+    .from(clanRoster)
+    .where(and(eq(clanRoster.clanId, clanId), isNull(clanRoster.leftAt), eq(clanRoster.rsnNormalized, key)))
+    .limit(1);
+  if (!named) return null;
+  const rows =
+    named.playerId != null
+      ? await db
+          .select(cols)
+          .from(clanRoster)
+          .where(and(eq(clanRoster.clanId, clanId), isNull(clanRoster.leftAt), eq(clanRoster.playerId, named.playerId)))
+      : [named];
+  const seen = new Set<number>();
+  const accounts = rows
+    .filter((m) => !seen.has(m.accountId) && seen.add(m.accountId))
+    .map((m) => ({ accountId: m.accountId, rsn: m.rsn }));
+  return {
+    userId: null,
+    displayName: null,
+    memberIds: rows.map((m) => m.id),
+    accountIds: accounts.map((a) => a.accountId),
+    accounts,
+    primaryAccountId: named.accountId,
+    rsn: named.rsn,
   };
 }

@@ -55,6 +55,8 @@ import {
   getCrossClanContext,
   contextLine,
   resolveInvoker,
+  resolveRosterPlayer,
+  searchRosterPlayers,
   checkGuild,
   type ClanContext,
   type EventContext,
@@ -1200,7 +1202,8 @@ export async function handleComponent(interaction: Interaction): Promise<Interac
  * most 25 choices — falling back to an empty list for anything it doesn't recognise.
  *
  *   page    → collection-log pages matching what's typed (there are ~125, too many for static choices)
- *   account → the target's own account RSNs (the `member` sibling option picks whose, else the invoker)
+ *   player  → clan roster RSNs matching what's typed (the fast alternative to Discord's member picker)
+ *   account → the target's own account RSNs (the `player` or `member` sibling picks whose, else the invoker)
  */
 export async function handleAutocomplete(interaction: Interaction): Promise<InteractionResponse> {
   const focused = readFocusedOption(interaction);
@@ -1208,15 +1211,25 @@ export async function handleAutocomplete(interaction: Interaction): Promise<Inte
 
   if (focused.name === 'page') return autocompleteReply(suggestClogPages(focused.value));
 
-  if (focused.name === 'account') {
+  if (focused.name === 'player' || focused.name === 'account') {
     const clan =
       (await getClanContext(interaction.guild_id ?? null)) ??
       (interaction.guild_id ? await resolveForeignClan(interaction.guild_id, invokerId(interaction)) : null);
     if (!clan) return autocompleteReply([]);
+    if (focused.name === 'player') {
+      const found = await searchRosterPlayers(focused.value, clan.clanId);
+      return autocompleteReply(found.map((p) => ({ name: p.rsn, value: p.rsn })));
+    }
+    // Whose accounts: the `player` sibling, else the `member` sibling, else the invoker.
+    const playerOpt = typeof focused.siblings.player === 'string' ? focused.siblings.player.trim() : '';
     const memberOpt = typeof focused.siblings.member === 'string' ? focused.siblings.member : '';
     const discordId = memberOpt || invokerId(interaction) || '';
-    if (!discordId) return autocompleteReply([]);
-    const identity = await resolveInvoker(discordId, clan.clanId);
+    const identity = playerOpt
+      ? await resolveRosterPlayer(playerOpt, clan.clanId)
+      : discordId
+        ? await resolveInvoker(discordId, clan.clanId)
+        : null;
+    if (!identity) return autocompleteReply([]);
     const q = focused.value.trim().toLowerCase();
     return autocompleteReply(
       identity.accounts

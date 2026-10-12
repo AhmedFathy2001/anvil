@@ -26,7 +26,7 @@ import {
   type DiscordEmbed,
 } from '@/lib/discordEmbeds';
 import { fmt, type DiscordDict } from '@/lib/discordI18n';
-import { resolveInvoker, type ClanContext, type InvokerIdentity } from '@/lib/discordContext';
+import { resolveInvoker, resolveRosterPlayer, type ClanContext, type InvokerIdentity } from '@/lib/discordContext';
 import { clanMarkUrl } from '@/lib/clanMarkUrl';
 
 import { competitionImageUrl, itemIconUrl, bossImageUrl } from '@/lib/tileIcons';
@@ -160,6 +160,15 @@ interface Target {
 }
 
 async function resolveTarget(ctx: ClanCommandCtx): Promise<Target> {
+  // `player` (an RSN from the roster type-ahead) names an ACCOUNT, so it is answered for that account
+  // even when it isn't the person's primary.
+  const player = typeof ctx.options.player === 'string' ? ctx.options.player.trim() : '';
+  if (player) {
+    const found = await resolveRosterPlayer(player, ctx.clan.clanId);
+    return found
+      ? { accounts: found.accounts, primaryAccountId: found.primaryAccountId, rsn: found.rsn, who: found.rsn ?? player }
+      : { accounts: [], primaryAccountId: null, rsn: null, who: player };
+  }
   const named = typeof ctx.options.member === 'string' ? ctx.options.member.trim() : '';
   if (named) {
     const other = await resolveInvoker(named, ctx.clan.clanId);
