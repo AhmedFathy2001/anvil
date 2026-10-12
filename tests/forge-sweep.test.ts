@@ -42,11 +42,16 @@ async function pendingFor(rsnKey: string) {
   return db.select().from(s.hiscoresFetches).where(eq(s.hiscoresFetches.rsnKey, rsnKey));
 }
 
+/** Main-table requests only — type probes ride the same queue under other modes. */
+async function mainFor(rsnKey: string) {
+  return (await pendingFor(rsnKey)).filter((x) => x.mode === 'main');
+}
+
 /** What Forge does with a claimed row. */
 async function forgeFetched(rsnKey: string, outcome: 'ok' | 'unranked', raw: string | null, fetchedAt = new Date()) {
   await pool.query(
     `UPDATE hiscores_fetches SET fetched_at = $2, outcome = $3, body = $4, claimed_at = $2
-     WHERE rsn_key = $1 AND fetched_at IS NULL`,
+     WHERE rsn_key = $1 AND mode = 'main' AND fetched_at IS NULL`,
     [rsnKey, fetchedAt, outcome, raw],
   );
 }
@@ -141,7 +146,7 @@ test('a fetched read is applied like an in-app fetch; a 404 parks the account', 
   const [idler] = await db.select().from(s.accounts).where(eq(s.accounts.id, fillerAccount));
   assert.equal(idler.status, 'unranked');
 
-  const rows = await pendingFor('racer');
+  const rows = await mainFor('racer');
   assert.ok(rows.every((x) => x.consumedAt != null), 'the result is marked consumed');
   assert.equal(rows.length, 1, 'and the racer, just polled, was not queued again');
 });
@@ -160,6 +165,60 @@ test('a read older than the trust window is dropped, not applied', async () => {
   const [racer] = await db.select().from(s.accounts).where(eq(s.accounts.id, racerAccount));
   assert.equal(racer.status, 'active', 'not mistaken for a name takeover');
   assert.equal(Number(racer.statsOverallXp), 2500, 'the old read changed nothing');
-  const waiting = (await pendingFor('racer')).filter((x) => x.fetchedAt == null);
+  const waiting = (await mainFor('racer')).filter((x) => x.fetchedAt == null);
   assert.equal(waiting.length, 1, 'and the racer is queued for a fresh read');
+});
+
+test('type probe: walks ironman → ultimate → hardcore at the lowest priority and settles the mode', async () => {
+  // The racer got a main-table reading (2,500 xp) and has no mode, so the drain that applied it also
+  // started a probe — exactly one, however many drains have run since.
+  let r = await runStatsSweep('forge');
+  const ironmanSteps = (await pendingFor('racer')).filter((x) => x.mode === 'ironman');
+  assert.equal(ironmanSteps.length, 1);
+  let [probe] = ironmanSteps;
+  assert.equal(probe.priority, 2, 'probes only ever use budget the sweep left idle');
+  assert.equal(probe.accountId, racerAccount);
+
+  // On the ironman table and keeping up with the main table → try ultimate next.
+  await pool.query(
+    `UPDATE hiscores_fetches SET fetched_at = now(), outcome = 'ok', body = $1 WHERE id = $2`,
+    [body(2500), probe.id],
+  );
+  r = await runStatsSweep('forge');
+  assert.equal(r.forge?.probes.started, 0, 'no second probe while one is in flight');
+  [probe] = (await pendingFor('racer')).filter((x) => x.mode === 'ultimate' && x.fetchedAt == null);
+  assert.ok(probe, 'ultimate queued');
+
+  // Not ultimate → hardcore; not hardcore → a plain ironman.
+  await pool.query(`UPDATE hiscores_fetches SET fetched_at = now(), outcome = 'unranked' WHERE id = $1`, [probe.id]);
+  await runStatsSweep('forge');
+  [probe] = (await pendingFor('racer')).filter((x) => x.mode === 'hardcore' && x.fetchedAt == null);
+  assert.ok(probe, 'hardcore queued');
+  await pool.query(`UPDATE hiscores_fetches SET fetched_at = now(), outcome = 'unranked' WHERE id = $1`, [probe.id]);
+  r = await runStatsSweep('forge');
+  assert.deepEqual(r.forge?.probes, { started: 0, settled: 1, typed: 1 });
+
+  const [acc] = await db.select().from(s.accounts).where(eq(s.accounts.id, racerAccount));
+  assert.equal(acc.accountType, 'ironman');
+  assert.ok(acc.accountTypeProbedAt);
+  assert.ok(acc.accountTypeAt);
+});
+
+test("type probe: never overwrites a mode the plugin reported while it ran", async () => {
+  await db
+    .update(s.accounts)
+    .set({ accountType: null, accountTypeAt: null, accountTypeProbedAt: null })
+    .where(eq(s.accounts.id, racerAccount));
+  await runStatsSweep('forge');
+  const [probe] = (await pendingFor('racer')).filter((x) => x.mode === 'ironman' && x.fetchedAt == null);
+  // The plugin reports Group Ironman mid-probe; the hiscores then say "not on the ironman table".
+  await db.update(s.accounts).set({ accountType: 'group' }).where(eq(s.accounts.id, racerAccount));
+  await pool.query(`UPDATE hiscores_fetches SET fetched_at = now(), outcome = 'ok', body = $1 WHERE id = $2`, [
+    body(1000),
+    probe.id,
+  ]);
+  await runStatsSweep('forge');
+  const [acc] = await db.select().from(s.accounts).where(eq(s.accounts.id, racerAccount));
+  assert.equal(acc.accountType, 'group', 'a de-ironed reading must not replace the plugin’s report');
+  assert.ok(acc.accountTypeProbedAt);
 });

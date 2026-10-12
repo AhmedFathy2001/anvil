@@ -314,6 +314,11 @@ export const accounts = pgTable('accounts', {
   // hardcore death), so the latest report wins. Null until a plugin has said.
   accountType: text('account_type'),
   accountTypeAt: text('account_type_at'),
+  /**
+   * When Forge last walked the hiscores mode tables for this account (lib/forgeFetchQueue). Set even
+   * when the walk settles on "regular or group — can't tell", which leaves accountType null.
+   */
+  accountTypeProbedAt: text('account_type_probed_at'),
 
   // ── Hiscores state ───────────────────────────────────────────────────────────────────────
   // Here rather than on the roster seat because Jagex tracks accounts, not memberships. One row per

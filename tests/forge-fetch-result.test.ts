@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { MAX_RESULT_AGE_MS, planForgeApply, toFetchResult, type FetchedRow } from '../src/lib/forgeFetchResult.ts';
+import { MAX_RESULT_AGE_MS, nextProbeStep, planForgeApply, toFetchResult, type FetchedRow } from '../src/lib/forgeFetchResult.ts';
 
 const key = (rsn: string) => rsn.toLowerCase().replace(/[_\s]+/g, ' ').trim();
 const now = new Date('2026-10-12T12:00:00Z');
@@ -61,4 +61,32 @@ test('planForgeApply: an old read is dropped, a result nobody wants is orphaned'
   assert.equal(plan.stale, 1);
   assert.equal(plan.orphaned, 1);
   assert.equal(plan.appliedKeys.size, 0, 'a dropped read leaves the name free to be queued again');
+});
+
+test('type probe: not on the ironman table settles with NO type — regular and group look the same there', () => {
+  assert.deepEqual(nextProbeStep('ironman', 'unranked', null, 5_000_000), { kind: 'done', type: null });
+});
+
+test('type probe: on the ironman table but behind the main table is a de-ironed account', () => {
+  assert.deepEqual(nextProbeStep('ironman', 'ok', 3_000_000, 5_000_000), { kind: 'done', type: 'normal' });
+});
+
+test('type probe: a current ironman goes on to ultimate, then hardcore', () => {
+  assert.deepEqual(nextProbeStep('ironman', 'ok', 5_000_000, 5_000_000), { kind: 'next', mode: 'ultimate' });
+  assert.deepEqual(nextProbeStep('ironman', 'ok', 5_000_100, 5_000_000), { kind: 'next', mode: 'ultimate' }, 'read later, ahead is fine');
+  assert.deepEqual(nextProbeStep('ultimate', 'ok', 5_000_000, 5_000_000), { kind: 'done', type: 'ultimate' });
+  assert.deepEqual(nextProbeStep('ultimate', 'unranked', null, 5_000_000), { kind: 'next', mode: 'hardcore' });
+  assert.deepEqual(nextProbeStep('hardcore', 'ok', 5_000_000, 5_000_000), { kind: 'done', type: 'hardcore' });
+  assert.deepEqual(nextProbeStep('hardcore', 'unranked', null, 5_000_000), { kind: 'done', type: 'ironman' });
+});
+
+test('type probe: a frozen ultimate or dead hardcore entry falls through to plain ironman', () => {
+  assert.deepEqual(nextProbeStep('ultimate', 'ok', 4_000_000, 5_000_000), { kind: 'next', mode: 'hardcore' });
+  assert.deepEqual(nextProbeStep('hardcore', 'ok', 4_000_000, 5_000_000), { kind: 'done', type: 'ironman' });
+});
+
+test('type probe: a failed read, or no main-table XP to compare against, retries later', () => {
+  assert.deepEqual(nextProbeStep('ironman', 'transient', null, 5_000_000), { kind: 'retry' });
+  assert.deepEqual(nextProbeStep('ironman', 'ok', 5_000_000, null), { kind: 'retry' });
+  assert.deepEqual(nextProbeStep('ultimate', 'ok', -1, 0), { kind: 'retry' });
 });

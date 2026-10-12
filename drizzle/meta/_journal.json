@@ -589,6 +589,13 @@
       "when": 1790897400000,
       "tag": "0125_hiscores_fetches",
       "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1790983800000,
+      "tag": "0126_account_type_probe",
+      "breakpoints": true
     }
   ]
 }

@@ -89,3 +89,55 @@ export function planForgeApply<E extends { fetchRsn: string }>(
   }
   return { applies, appliedKeys, stale, orphaned };
 }
+
+// ── Account-type probe ───────────────────────────────────────────────────────────────────────────
+//
+// For an account the plugin has never reported a game mode for, walk the hiscores' mode tables:
+// ironman, then ultimate, then hardcore. Each is its own table, so a step is one queued fetch.
+//
+// Membership alone is not enough: a de-ironed account stays on the ironman table, frozen at the
+// moment it de-ironed, and a dead hardcore's hardcore entry stops moving. So a table counts only
+// when its overall XP has kept up with the main table's — the account is still playing that mode.
+//
+// What the hiscores cannot say: an account missing from the ironman table is a regular account OR
+// a group ironman (group modes have no individual tables). That case is recorded as "probed" with
+// no type, rather than guessing "Regular" for somebody's GIM. The plugin's report always wins.
+
+export type ProbeMode = 'ironman' | 'ultimate' | 'hardcore';
+export type ProbedType = 'normal' | 'ironman' | 'ultimate' | 'hardcore';
+
+export type ProbeStep =
+  /** Settled. `type` null = "not a solo ironman, mode unknown" (regular or group). */
+  | { kind: 'done'; type: ProbedType | null }
+  /** Fetch the next table. */
+  | { kind: 'next'; mode: ProbeMode }
+  /** Could not read this step; try the whole probe again later. */
+  | { kind: 'retry' };
+
+/**
+ * One probe step. `tableXp` is the overall XP on the fetched mode table (null when the account is
+ * not on it), `mainXp` the account's overall XP from the main table. Both null-safe.
+ */
+export function nextProbeStep(
+  mode: ProbeMode,
+  outcome: 'ok' | 'unranked' | 'transient',
+  tableXp: number | null,
+  mainXp: number | null,
+): ProbeStep {
+  if (outcome === 'transient') return { kind: 'retry' };
+  if (mainXp == null || mainXp <= 0) return { kind: 'retry' };
+  const listed = outcome === 'ok' && tableXp != null && tableXp > 0;
+  // Kept up: the mode table has at least what the main table had when we last read it. (Read a
+  // little later, it can be ahead; never legitimately behind while the mode is still held.)
+  const current = listed && tableXp >= mainXp;
+
+  switch (mode) {
+    case 'ironman':
+      if (!listed) return { kind: 'done', type: null };
+      return current ? { kind: 'next', mode: 'ultimate' } : { kind: 'done', type: 'normal' };
+    case 'ultimate':
+      return current ? { kind: 'done', type: 'ultimate' } : { kind: 'next', mode: 'hardcore' };
+    case 'hardcore':
+      return { kind: 'done', type: current ? 'hardcore' : 'ironman' };
+  }
+}
