@@ -10,6 +10,7 @@ import { apexClan } from '@/lib/apexProfiles';
 import { isApexHost } from '@/lib/clanContext';
 import { loadClanCard, type ClanCard } from '@/lib/clanCard';
 import { compactNumber, compareClans, queryName } from '@/lib/compare';
+import { headToHeadDescription } from '@/lib/linkText';
 import { itemIconUrl } from '@/lib/tileIcons';
 import ClanLink from '@/components/ClanLink';
 import ClanCrest from '@/components/ClanCrest';
@@ -70,12 +71,19 @@ export async function generateMetadata({
   const { a, b } = await resolve(await searchParams);
   if (!a || !b) return { title: 'Compare clans — Anvil' };
   const title = `${a.name} vs ${b.name} — Anvil`;
-  const description = `${a.name} and ${b.name} side by side: members, activity, efficient hours and collection logs, on Anvil.`;
+  const [cardA, cardB] = await Promise.all([loadClanCard(a), loadClanCard(b)]);
+  const description = headToHeadDescription(
+    a.name,
+    b.name,
+    compareClans(cardA, cardB).headline,
+    'Members, activity, efficient hours and collection logs, side by side on Anvil.',
+  );
+  const image = `/api/og/compare-clans/${encodeURIComponent(a.slug)}/${encodeURIComponent(b.slug)}`;
   return {
     title,
     description,
-    openGraph: { title, description, type: 'website', siteName: 'Anvil' },
-    twitter: { card: 'summary', title, description },
+    openGraph: { title, description, type: 'website', siteName: 'Anvil', images: [{ url: image, width: 1200, height: 630, alt: title }] },
+    twitter: { card: 'summary_large_image', title, description, images: [image] },
   };
 }
 

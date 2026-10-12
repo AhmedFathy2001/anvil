@@ -8,6 +8,7 @@ import { verifyUser } from '@/lib/auth';
 import { loadPlayerCard } from '@/lib/playerCard';
 import type { PlayerCard } from '@/lib/playerCardShape';
 import { comparePlayers, queryName } from '@/lib/compare';
+import { headToHeadDescription } from '@/lib/linkText';
 import { ChangeSide, SwapSides } from './CompareSwitch';
 import { compareInsights } from '@/lib/compareInsights';
 import { getDailySeries } from '@/lib/memberProfile';
@@ -72,14 +73,20 @@ export async function generateMetadata({
   const { a, b } = await resolve(await searchParams);
   if (!a || !b) return { title: 'Compare players — Anvil' };
   const title = `${a.rsn} vs ${b.rsn} — Anvil`;
-  const description = `${a.rsn} and ${b.rsn} side by side: levels, XP, efficiency, boss kills and collection log, on Anvil.`;
+  const tail = 'Levels, XP, efficiency, boss kills and collection log, side by side on Anvil.';
+  // A private character is in this comparison only because its owner is the one looking — and the
+  // preview Discord fetches is for everybody else, so it says nothing past the names.
+  const shared = !a.privateToViewer && !b.privateToViewer;
+  const description = shared
+    ? headToHeadDescription(a.rsn, b.rsn, comparePlayers(...(await Promise.all([loadPlayerCard(a), loadPlayerCard(b)]))).headline, tail)
+    : `${a.rsn} and ${b.rsn}: ${tail.charAt(0).toLowerCase()}${tail.slice(1)}`;
+  const image = `/api/og/compare/${encodeURIComponent(a.rsn)}/${encodeURIComponent(b.rsn)}`;
   return {
     title,
     description,
-    // A private character is in this comparison only because its owner is the one looking.
-    ...(a.privateToViewer || b.privateToViewer ? { robots: { index: false, follow: false } } : {}),
-    openGraph: { title, description, type: 'website', siteName: 'Anvil' },
-    twitter: { card: 'summary', title, description },
+    ...(shared ? {} : { robots: { index: false, follow: false } }),
+    openGraph: { title, description, type: 'website', siteName: 'Anvil', images: [{ url: image, width: 1200, height: 630, alt: title }] },
+    twitter: { card: 'summary_large_image', title, description, images: [image] },
   };
 }
 

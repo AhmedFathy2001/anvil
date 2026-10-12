@@ -80,13 +80,22 @@ export async function generateMetadata({ params }: { params: Promise<{ rsn: stri
   const title = `${c.rsn} — Anvil`;
   const origin = configuredOrigin();
   const url = origin ? `${origin}/p/${encodeURIComponent(c.rsn)}` : undefined;
+  // Drawn as a stranger sees it: an unshared character's card is the plain Anvil one.
+  const image = `/api/og/player/${encodeURIComponent(c.rsn)}`;
 
   return {
     title,
     description,
     ...(c.privateToViewer ? { robots: { index: false, follow: false } } : {}),
-    openGraph: { title, description, type: 'profile', ...(url ? { url } : {}), siteName: 'Anvil' },
-    twitter: { card: 'summary', title, description },
+    openGraph: {
+      title,
+      description,
+      type: 'profile',
+      ...(url ? { url } : {}),
+      siteName: 'Anvil',
+      images: [{ url: image, width: 1200, height: 630, alt: title }],
+    },
+    twitter: { card: 'summary_large_image', title, description, images: [image] },
   };
 }
 

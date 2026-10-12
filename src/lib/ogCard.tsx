@@ -620,8 +620,11 @@ export async function clanCard(d: ClanCardData): Promise<Response> {
 
 export interface MemberCardData {
   rsn: string;
-  clanName: string;
+  /** Null for a character page (/p/<rsn>) whose account is in no listed clan. */
+  clanName: string | null;
   clanLogo: Pic;
+  /** Defaults to "Member · <clan>". */
+  eyebrow?: string;
   /** "Ironman · Maxed · Captain". */
   line: string | null;
   stats: { value: string; label: string; icon: Pic }[];
@@ -657,14 +660,14 @@ export async function memberCard(d: MemberCardData): Promise<Response> {
         </div>
       ) : (
         <FaceArt>
-          <ClanFace name={d.clanName} logo={d.clanLogo} size={260} />
+          {d.clanName ? <ClanFace name={d.clanName} logo={d.clanLogo} size={260} /> : <Mark size={240} />}
         </FaceArt>
       )}
       <div style={{ ...PANE, left: 76, top: 66, width: 640, height: 500, flexDirection: 'column', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <ClanFace name={d.clanName} logo={d.clanLogo} size={44} />
-            <Eyebrow>{`Member · ${clip(d.clanName, 26)}`}</Eyebrow>
+            {d.clanName ? <ClanFace name={d.clanName} logo={d.clanLogo} size={44} /> : null}
+            <Eyebrow>{d.eyebrow ?? `Member · ${clip(d.clanName ?? '', 26)}`}</Eyebrow>
           </div>
           <div style={{ display: 'flex', marginTop: 20 }}>
             <Title size={size} maxLines={1}>{d.rsn}</Title>
@@ -698,6 +701,116 @@ export async function memberCard(d: MemberCardData): Promise<Response> {
         </div>
       </div>
       <div style={{ ...PANE, right: 48, bottom: 40 }}>
+        <Brand size={40} />
+      </div>
+    </Frame>
+  ));
+}
+
+// ── Head to head ───────────────────────────────────────────────────────────────────────────────
+
+/** The two sides' colours, as the /compare page draws them. */
+const SIDE_COLOR = { a: C.goldLight, b: '#8fb4d4' } as const;
+
+export interface HeadToHeadSide {
+  name: string;
+  /** "Ironman · Theafkspot" under the name. */
+  line: string | null;
+  /** A clan's logo; players have none and get no face. */
+  face?: { logo: Pic } | null;
+}
+
+export interface HeadToHeadCardData {
+  eyebrow: string;
+  a: HeadToHeadSide;
+  b: HeadToHeadSide;
+  rows: { label: string; a: string; b: string; leader: 'a' | 'b' | 'tie' | null }[];
+  verdict: string | null;
+  /** Which side the verdict favours, for its colour. */
+  verdictSide: 'a' | 'b' | null;
+}
+
+function SideHead({ side, align, d }: { side: 'a' | 'b'; align: 'left' | 'right'; d: HeadToHeadSide }) {
+  const size = titleSize(d.name, [[10, 64], [14, 54], [20, 44]], 38);
+  const end = align === 'right';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexDirection: end ? 'row-reverse' : 'row', width: 470 }}>
+      {d.face ? <ClanFace name={d.name} logo={d.face.logo} size={96} /> : null}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: end ? 'flex-end' : 'flex-start', minWidth: 0, flex: 1 }}>
+        <div style={{ display: 'flex', width: 5 * 12, height: 5, borderRadius: 5, background: SIDE_COLOR[side], marginBottom: 14 }} />
+        <Title size={size} maxLines={1}>{clip(d.name, 24)}</Title>
+        {d.line ? <div style={{ display: 'flex', fontSize: 22, color: C.muted, marginTop: 8 }}>{clip(d.line, 34)}</div> : null}
+      </div>
+    </div>
+  );
+}
+
+/** Two characters or two clans: the names facing off, then each headline number with the leader lit. */
+export async function headToHeadCard(d: HeadToHeadCardData): Promise<Response> {
+  const rows = d.rows.slice(0, 6);
+  const rowH = rows.length > 5 ? 50 : 58;
+  const cell = (side: 'a' | 'b', r: (typeof rows)[number]) => ({
+    display: 'flex',
+    width: 300,
+    justifyContent: side === 'a' ? 'flex-end' : 'flex-start',
+    fontFamily: DISPLAY,
+    fontWeight: 700,
+    fontSize: r.leader === side ? 40 : 34,
+    color: r.leader === side ? SIDE_COLOR[side] : r.leader === 'tie' ? C.text : C.muted,
+    opacity: r.leader === side || r.leader === 'tie' ? 1 : 0.75,
+  });
+  return renderCard(['h2h', d], async () => (
+    <Frame backdrop={await backdrop({ glow: '50% 18%', seed: seedOf(d.a.name + d.b.name), sparkCount: 12 })}>
+      <div style={{ ...PANE, left: 0, top: 44, width: 1200, justifyContent: 'center' }}>
+        <Eyebrow>{d.eyebrow}</Eyebrow>
+      </div>
+      <div style={{ ...PANE, left: 60, top: 92, width: 1080, alignItems: 'center', justifyContent: 'space-between' }}>
+        <SideHead side="a" align="left" d={d.a} />
+        <div
+          style={{
+            display: 'flex',
+            width: 84,
+            height: 84,
+            borderRadius: 84,
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(28,23,20,0.95)',
+            border: `3px solid ${C.gold}`,
+            color: C.goldLight,
+            fontFamily: DISPLAY,
+            fontWeight: 700,
+            fontSize: 34,
+          }}
+        >
+          vs
+        </div>
+        <SideHead side="b" align="right" d={d.b} />
+      </div>
+      <div style={{ ...PANE, left: 60, top: 236, width: 1080, flexDirection: 'column', borderTop: `2px solid ${C.border}` }}>
+        {rows.map((r) => (
+          <div key={r.label} style={{ display: 'flex', height: rowH, alignItems: 'center', justifyContent: 'center', gap: 28, borderBottom: `2px solid ${C.border}` }}>
+            <div style={cell('a', r)}>{r.a}</div>
+            <div
+              style={{
+                display: 'flex',
+                width: 220,
+                justifyContent: 'center',
+                fontSize: 19,
+                letterSpacing: 2.5,
+                textTransform: 'uppercase',
+                color: C.muted,
+              }}
+            >
+              {r.label}
+            </div>
+            <div style={cell('b', r)}>{r.b}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ ...PANE, left: 60, right: 48, bottom: 40, alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', fontSize: 30, fontWeight: 700, color: d.verdictSide ? SIDE_COLOR[d.verdictSide] : C.text }}>
+          {d.verdict ?? ''}
+        </div>
         <Brand size={40} />
       </div>
     </Frame>
