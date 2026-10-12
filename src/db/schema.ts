@@ -2363,6 +2363,24 @@ export const memberClogKc = pgTable('member_clog_kc', {
  * erasing somebody's account.
  */
 /**
+ * A player's own goals — "99 Slayer", "500 Vorkath", "Barrows log complete" — set from the plugin's
+ * You tab. On the ACCOUNT, so they follow the character to any machine and any clan.
+ *
+ * Only the target is stored. Progress is read at display time from stats the account already has
+ * (the player card), so a goal costs no polling and can never drift from the numbers beside it.
+ */
+export const playerGoals = pgTable('player_goals', {
+  id: serial('id').primaryKey(),
+  accountId: integer('account_id').notNull().references(() => accounts.id, { onDelete: 'cascade' }),
+  // 'skill' (target = level) | 'boss' (target = kill count) | 'clog' (target unused: the page complete)
+  kind: text('kind').notNull(),
+  // Skill key ('slayer'), boss key ('vorkath'), or collection-log page name ('Barrows Chests').
+  metric: text('metric').notNull(),
+  target: integer('target').notNull(),
+  createdAt: text('created_at').notNull(),
+}, (t) => [uniqueIndex('player_goals_unique').on(t.accountId, t.kind, t.metric)]);
+
+/**
  * The item-by-item half of a member's progress: which quests, and later which combat tasks — the
  * list a player browses, as opposed to the counters in `member_progress`.
  *

@@ -75,6 +75,9 @@ export const PLUGIN_CAPABILITIES = [
   // Player card: GET /api/players/<rsn>/card — the plugin's Lookup and You tabs. Read-only; a plugin
   // against a site without it opens the profile in the browser instead.
   'player-card',
+  // Goals: GET/POST/DELETE /api/plugin/goals — the You tab's own targets (99 Slayer, 500 Vorkath, a
+  // finished log page). Progress is read from the player card, so nothing new is polled.
+  'goals',
   // Collection log, personal bests and (later) quests/diaries/CAs pushed from the plugin to a
   // member's profile. Advertised only once the endpoints and tables exist, because the plugin gates
   // ALL of its reading on this: an older site is never polled, and a newer plugin against it does

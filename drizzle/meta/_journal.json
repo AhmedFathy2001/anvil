@@ -568,6 +568,13 @@
       "when": 1790638200000,
       "tag": "0122_stats_polled_at",
       "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1790724600000,
+      "tag": "0123_player_goals",
+      "breakpoints": true
     }
   ]
 }

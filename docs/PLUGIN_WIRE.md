@@ -79,7 +79,9 @@ competition week or a running board); `drop-facts` (a `dropFacts` block on
 below); `coffer-sync` (absolute in-game Clan Coffer observations posted to
 `/api/plugin/coffer`, below); `tile-claims` (team-private "I'm going for this" on board tiles —
 below); `player-card` (`GET /api/players/<rsn>/card` — the side panel's
-Lookup and You tabs, below).
+Lookup and You tabs, below); `goals` (`GET/POST/DELETE /api/plugin/goals` — the You tab's
+own targets: `{kind: 'skill'|'boss'|'clog', metric, target}`, for a character the token owns;
+progress comes from the player card).
 
 ### `tile-claims`
 
