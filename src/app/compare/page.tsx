@@ -7,7 +7,7 @@ import { isApexHost } from '@/lib/clanContext';
 import { verifyUser } from '@/lib/auth';
 import { loadPlayerCard } from '@/lib/playerCard';
 import type { PlayerCard } from '@/lib/playerCardShape';
-import { comparePlayers, queryName, type Leader } from '@/lib/compare';
+import { comparePlayers, queryName } from '@/lib/compare';
 import { SKILL_LABELS } from '@/lib/constants';
 import { bossImageForStatKey, itemIconUrl, skillIconUrl } from '@/lib/tileIcons';
 import ClanLink from '@/components/ClanLink';
