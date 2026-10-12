@@ -131,3 +131,19 @@ test('the in-panel profile: skills without overall, every boss with kills, score
 test('no synced log means no pages', () => {
   assert.deepEqual(shapePlayerCard({ ...base, clogPages: [{ name: 'Zulrah', obtained: 1, total: 6 }] }).clogPages, []);
 });
+
+test('raid pages are drawn by their megarare', () => {
+  const card = shapePlayerCard({
+    ...base,
+    clogHeader: { obtained: 3, total: 20 },
+    clogPages: [
+      { name: 'Chambers of Xeric', obtained: 2, total: 20 },
+      { name: 'Theatre of Blood', obtained: 1, total: 10 },
+      { name: 'Tombs of Amascut', obtained: 0, total: 10 },
+    ],
+  });
+  const icon = Object.fromEntries(card.clogPages.map((p) => [p.name, p.iconItemId]));
+  assert.equal(icon['Chambers of Xeric'], 20997);
+  assert.equal(icon['Theatre of Blood'], 22486);
+  assert.equal(icon['Tombs of Amascut'], 27277);
+});

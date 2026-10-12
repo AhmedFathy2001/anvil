@@ -109,6 +109,16 @@ export interface PlayerCardInput {
   milestones: { kind: string; metric: string | null; threshold: number; noticedAt: string }[];
 }
 
+/**
+ * Pages whose first slot isn't the picture anyone thinks of. A raid is its megarare — the Twisted bow,
+ * the Scythe, Tumeken's shadow — not whichever item the log happens to list first.
+ */
+const PAGE_ICON: Record<string, number> = {
+  'Chambers of Xeric': 20997, // Twisted bow
+  'Theatre of Blood': 22486, // Scythe of vitur (uncharged)
+  'Tombs of Amascut': 27277, // Tumeken's shadow (uncharged)
+};
+
 const GROUP_ORDER: PageGroup[] = ['Bosses', 'Raids', 'Clues', 'Minigames', 'Skilling', 'Other'];
 const TOP_BOSSES = 6;
 const LATEST = 3;
@@ -197,7 +207,7 @@ export function shapePlayerCard(input: PlayerCardInput): PlayerCard {
           group: groupOf(p.name, bossLabels),
           obtained: p.obtained,
           total: p.total,
-          iconItemId: clogPageItems(p.name)[0]?.id ?? null,
+          iconItemId: PAGE_ICON[p.name] ?? clogPageItems(p.name)[0]?.id ?? null,
         }))
         .filter((p) => p.total > 0)
         .sort((a, b) => GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group) || a.name.localeCompare(b.name))
