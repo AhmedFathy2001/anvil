@@ -78,7 +78,14 @@ export async function clanMark(name: string, logoUrl: string | null | undefined)
       const res = await fetch(target, { signal: AbortSignal.timeout(8_000), redirect: 'error' });
       if (res.ok) {
         const { default: sharp } = await import('sharp');
-        const png = await sharp(Buffer.from(await res.arrayBuffer()))
+        const input = Buffer.from(await res.arrayBuffer());
+        // An animated logo stays animated in Discord, which plays a GIF thumbnail (not reliably a
+        // WebP one) — every frame, at the same 128px. A still logo stays a PNG.
+        if (((await sharp(input).metadata()).pages ?? 1) > 1) {
+          const gif = await sharp(input, { animated: true }).resize(128, 128, { fit: 'cover' }).gif().toBuffer();
+          return new Response(new Uint8Array(gif), { headers: { 'Content-Type': 'image/gif', 'Cache-Control': OG_CACHE_CONTROL } });
+        }
+        const png = await sharp(input)
           .resize(128, 128, { fit: 'cover' })
           .png()
           .toBuffer();

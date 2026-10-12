@@ -141,6 +141,7 @@
     "test:errors": "npx tsx --test tests/error-events.test.ts",
     "test:jsonld": "npx tsx --test tests/json-ld.test.ts",
     "test:seo": "npx tsx --test tests/seo.test.ts",
+    "test:imageanimation": "npx tsx --test tests/image-animation.test.ts",
     "test:linktext": "npx tsx --test tests/link-text.test.ts",
     "test:apexhome": "npx tsx --test tests/apex-home.test.ts tests/apex-home-signals.test.ts",
     "test:rulebook": "npx tsx --test tests/event-rulebook.test.ts tests/event-rules-post-migration.test.ts",

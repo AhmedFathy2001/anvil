@@ -542,6 +542,8 @@ export async function leaderboardCard(d: LeaderboardCardData): Promise<Response>
 export interface ClanCardData {
   name: string;
   logo: Pic;
+  /** The clan's own wide banner (its first frame, when animated), full-bleed behind everything. */
+  banner: Pic;
   /** The clan's own words — its tagline, else the start of its description. */
   tagline: string | null;
   /** "#3 of 47", only for a clan that agreed to be ranked. */
@@ -554,7 +556,10 @@ export interface ClanCardData {
 export async function clanCard(d: ClanCardData): Promise<Response> {
   const size = titleSize(d.name, [[9, 96], [15, 80], [22, 66], [32, 56]], 48);
   return renderCard(['clan', d], async () => (
-    <Frame backdrop={await backdrop({ glow: '78% 45%', seed: seedOf(d.name), sparkCount: 14 })}>
+    <Frame
+      backdrop={await backdrop({ glow: '78% 45%', seed: seedOf(d.name), sparkCount: 14, overBanner: !!d.banner })}
+      background={d.banner}
+    >
       <FaceArt>
         <ClanFace name={d.name} logo={d.logo} size={300} />
       </FaceArt>

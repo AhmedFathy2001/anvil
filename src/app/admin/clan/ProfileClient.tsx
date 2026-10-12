@@ -18,6 +18,8 @@ const FOCUS: { value: ClanFocus; label: string }[] = [
 
 interface Form {
   logoUrl: string | null;
+  bannerUrl: string | null;
+  bannerPosition: number | null;
   tagline: string;
   description: string;
   focus: ClanFocus[];
@@ -43,6 +45,8 @@ export default function ProfileClient({ clanName = 'Clan' }: { clanName?: string
       .then((d) =>
         setForm({
           logoUrl: d.logoUrl ?? null,
+          bannerUrl: d.bannerUrl ?? null,
+          bannerPosition: d.bannerPosition ?? null,
           tagline: d.tagline ?? '',
           description: d.description ?? '',
           focus: Array.isArray(d.focus) ? d.focus : [],
@@ -101,12 +105,28 @@ export default function ProfileClient({ clanName = 'Clan' }: { clanName?: string
     <div className="flex max-w-[62ch] flex-col gap-8">
       <Group
         title="Your clan's image"
-        lede="Shown wherever your clan appears — your page, the directory, the switcher. Square works best; every clan has a generated crest until it has one of these."
+        lede="Shown wherever your clan appears — your page, the directory, the switcher. Square works best, and an animated GIF or WebP stays animated; every clan has a generated crest until it has one of these."
       >
         <LogoField
           value={form.logoUrl}
           name={clanName}
           onChange={(url) => set('logoUrl', url)}
+        />
+      </Group>
+
+      <Group
+        title="Banner"
+        lede="Optional. Wide, 3:1 (e.g. 1500×500), across the top of your clan's page and behind its link previews. It can be animated, too."
+      >
+        <BannerField
+          value={form.bannerUrl}
+          position={form.bannerPosition ?? 50}
+          onChange={(url) => {
+            set('bannerUrl', url);
+            // A new picture starts centred; the old one's focus meant nothing to it.
+            set('bannerPosition', null);
+          }}
+          onPosition={(pos) => set('bannerPosition', pos === 50 ? null : pos)}
         />
       </Group>
 
@@ -225,19 +245,8 @@ function Group({ title, lede, children }: { title: string; lede: string; childre
  * The upload happens on choose rather than on Save, because a file input that appears to do nothing
  * until a separate button is pressed is the shape people press twice. What Save writes is the URL
  * the upload returned — so a half-finished edit leaves an orphan in the bucket and nothing worse.
- *
- * The preview is the real crest component, so what is shown here is exactly what the rest of the
- * site will render, fallback included.
  */
-function LogoField({
-  value,
-  name,
-  onChange,
-}: {
-  value: string | null;
-  name: string;
-  onChange: (url: string | null) => void;
-}) {
+function useImageUpload(onChange: (url: string | null) => void) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -259,27 +268,52 @@ function LogoField({
     }
   }
 
+  return { busy, error, upload };
+}
+
+/** The hidden file input behind a "Choose an image" button. */
+function ImagePicker({ busy, has, upload }: { busy: boolean; has: boolean; upload: (file: File) => Promise<void> }) {
+  return (
+    <label className="inline-flex cursor-pointer items-center rounded-lg border border-card-border px-3 py-1.5 text-sm transition-colors hover:border-gold/45">
+      <input
+        type="file"
+        accept="image/*"
+        className="hidden"
+        disabled={busy}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          // Cleared so choosing the same file twice still fires a change — the ordinary way
+          // somebody retries after a failed upload.
+          e.target.value = '';
+          if (file) void upload(file);
+        }}
+      />
+      {busy ? 'Uploading…' : has ? 'Replace image' : 'Choose an image'}
+    </label>
+  );
+}
+
+/**
+ * The preview is the real crest component, so what is shown here is exactly what the rest of the
+ * site will render, fallback included.
+ */
+function LogoField({
+  value,
+  name,
+  onChange,
+}: {
+  value: string | null;
+  name: string;
+  onChange: (url: string | null) => void;
+}) {
+  const { busy, error, upload } = useImageUpload(onChange);
+
   return (
     <div>
       <div className="flex items-center gap-4">
         <ClanCrest name={name} logoUrl={value} size={64} rounded="rounded-2xl" className="text-xl" />
         <div className="flex flex-col gap-2">
-          <label className="inline-flex cursor-pointer items-center rounded-lg border border-card-border px-3 py-1.5 text-sm transition-colors hover:border-gold/45">
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              disabled={busy}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                // Cleared so choosing the same file twice still fires a change — the ordinary way
-                // somebody retries after a failed upload.
-                e.target.value = '';
-                if (file) void upload(file);
-              }}
-            />
-            {busy ? 'Uploading…' : value ? 'Replace image' : 'Choose an image'}
-          </label>
+          <ImagePicker busy={busy} has={!!value} upload={upload} />
           {value && (
             <button
               type="button"
@@ -290,6 +324,66 @@ function LogoField({
             </button>
           )}
         </div>
+      </div>
+      {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+      <p className="mt-2 text-[12.5px] text-text-dim">Saved with the rest of this page.</p>
+    </div>
+  );
+}
+
+/**
+ * The banner, previewed in the exact 3:1 frame the clan page uses — a 3:1 image fits whole; anything
+ * taller is cropped, and the slider picks which part stays. Saved with the rest of the page.
+ */
+function BannerField({
+  value,
+  position,
+  onChange,
+  onPosition,
+}: {
+  value: string | null;
+  position: number;
+  onChange: (url: string | null) => void;
+  onPosition: (pos: number) => void;
+}) {
+  const { busy, error, upload } = useImageUpload(onChange);
+
+  return (
+    <div>
+      <div className="mb-2 flex items-stretch gap-3">
+        <div className="aspect-[3/1] min-w-0 flex-1 overflow-hidden rounded-lg border border-card-border bg-gradient-to-r from-gold/15 via-card-bg to-gold/10">
+          {value && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={value} alt="" className="h-full w-full object-cover" style={{ objectPosition: `50% ${position}%` }} />
+          )}
+        </div>
+        {value && (
+          <div className="flex flex-col items-center gap-1 text-[10px] text-text-muted">
+            <span>Top</span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={position}
+              onChange={(e) => onPosition(Number(e.target.value))}
+              aria-label="Which part of the banner shows"
+              className="flex-1 accent-gold [writing-mode:vertical-lr]"
+            />
+            <span>Bottom</span>
+          </div>
+        )}
+      </div>
+      <div className="flex items-center gap-3">
+        <ImagePicker busy={busy} has={!!value} upload={upload} />
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            className="text-[13px] text-text-dim underline-offset-4 hover:text-gold hover:underline"
+          >
+            Remove
+          </button>
+        )}
       </div>
       {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
       <p className="mt-2 text-[12.5px] text-text-dim">Saved with the rest of this page.</p>

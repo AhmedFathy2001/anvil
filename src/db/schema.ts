@@ -58,6 +58,13 @@ export const clans = pgTable('clans', {
   // `clans` directly: as a setting it would be a second left join on every listing, for a value that
   // belongs to the clan as plainly as its name does.
   logoUrl: text('logo_url'),
+  // The clan's wide banner (3:1, e.g. 1500×500), across the top of its public page and behind its
+  // link card. Optional with no fallback image: a clan without one gets the tinted strip it always
+  // had. Like the logo it may be animated (the upload route keeps every frame). bannerPosition is the
+  // vertical focus, 0 (top) – 100 (bottom), for an off-shape upload; null centres it — the same pair
+  // events carry.
+  bannerUrl: text('banner_url'),
+  bannerPosition: integer('banner_position'),
   // The account that proved it, so a dispute has something to point at besides a timestamp.
   ingameNameClaimedByAccountId: integer('ingame_name_claimed_by_account_id').references(() => accounts.id, {
     onDelete: 'set null',

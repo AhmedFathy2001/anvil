@@ -55,7 +55,7 @@ export async function GET() {
     where: eq(clans.id, clan.id),
     columns: {
       tagline: true, description: true, focus: true, recruiting: true, openToChallenges: true,
-      requirements: true, logoUrl: true,
+      requirements: true, logoUrl: true, bannerUrl: true, bannerPosition: true,
     },
   });
 
@@ -67,6 +67,8 @@ export async function GET() {
     openToChallenges: row?.openToChallenges ?? false,
     requirements: cleanRequirements(row?.requirements),
     logoUrl: row?.logoUrl ?? null,
+    bannerUrl: row?.bannerUrl ?? null,
+    bannerPosition: row?.bannerPosition ?? null,
   });
 }
 
@@ -92,20 +94,30 @@ export async function PATCH(request: Request) {
       : [];
     patch.focus = focus;
   }
-  if ('logoUrl' in body) {
+  // The logo and the banner (3:1). Both may be animated; the upload route keeps every frame.
+  for (const field of ['logoUrl', 'bannerUrl'] as const) {
+    if (!(field in body)) continue;
     // The URL comes back from /api/upload, which is the only thing that writes to the media bucket —
-    // so it is ours by construction. Checked anyway: this column is rendered as an <img> src on the
+    // so it is ours by construction. Checked anyway: these are rendered as an <img> src on the
     // clan's public front door, and a field that accepts any string there is a way to point every
     // visitor's browser at somebody else's server. Empty clears it, which is how a clan goes back to
-    // the generated crest.
-    const raw = typeof body.logoUrl === 'string' ? body.logoUrl.trim() : '';
+    // the generated crest (logo) or the plain header (banner).
+    const raw = typeof body[field] === 'string' ? body[field].trim() : '';
     if (!raw) {
-      patch.logoUrl = null;
+      patch[field] = null;
     } else if (isOurMediaUrl(raw)) {
-      patch.logoUrl = raw;
+      patch[field] = raw;
     } else {
       return NextResponse.json({ error: 'That image did not come from an upload here.' }, { status: 400 });
     }
+  }
+  // Banner focus, 0 (top) – 100 (bottom); null re-centres it.
+  if ('bannerPosition' in body) {
+    const pos = body.bannerPosition;
+    if (pos !== null && (typeof pos !== 'number' || !Number.isFinite(pos) || pos < 0 || pos > 100)) {
+      return NextResponse.json({ error: 'bannerPosition must be a number from 0 to 100, or null' }, { status: 400 });
+    }
+    patch.bannerPosition = pos == null ? null : Math.round(pos);
   }
   if ('recruiting' in body) patch.recruiting = !!body.recruiting;
   if ('openToChallenges' in body) patch.openToChallenges = !!body.openToChallenges;

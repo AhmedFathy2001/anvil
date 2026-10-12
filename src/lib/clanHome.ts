@@ -30,6 +30,9 @@ export interface PublicClanHome {
   verified: boolean;
   /** The clan's own image, or null for the generated crest. */
   logoUrl: string | null;
+  /** The clan's wide 3:1 banner (may be animated) and its vertical focus, 0–100; null = none / centred. */
+  bannerUrl: string | null;
+  bannerPosition: number | null;
   recruiting: boolean;
   openToChallenges: boolean;
   guestPolicy: string;
@@ -92,6 +95,8 @@ export async function publicClanHomeView(clanId: number, discordInvite: string |
     requirements: asRequirements(clan.requirements),
     verified: clan.ingameNameVerifiedAt != null,
     logoUrl: clan.logoUrl ?? null,
+    bannerUrl: clan.bannerUrl ?? null,
+    bannerPosition: clan.bannerPosition ?? null,
     recruiting: clan.recruiting,
     openToChallenges: clan.openToChallenges,
     guestPolicy: clan.guestPolicy,

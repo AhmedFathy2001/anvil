@@ -30,7 +30,21 @@ export default function PublicClanHome({ view, signedIn }: { view: View; signedI
 
   return (
     <div className="mx-auto max-w-4xl">
-      {/* Banner */}
+      {/* The clan's own banner, when it has one — the same always-3:1 frame as an event's (EventHero),
+          so what the admin previewed is what shows. Animated uploads stay animated: a plain <img>. */}
+      {view.bannerUrl && (
+        <div className="relative mb-4 aspect-[3/1] w-full overflow-hidden rounded-2xl border border-card-border">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={view.bannerUrl}
+            alt=""
+            className="h-full w-full object-cover"
+            style={{ objectPosition: `50% ${view.bannerPosition ?? 50}%` }}
+          />
+        </div>
+      )}
+
+      {/* Header */}
       <div className="flex flex-col gap-5 rounded-2xl border border-card-border bg-gradient-to-br from-card-bg to-background p-6 sm:flex-row sm:items-center">
         {/* The clan's front door, and the place its own image matters most. */}
         <ClanCrest

@@ -617,6 +617,13 @@
       "when": 1791160200000,
       "tag": "0129_event_media_purge_notice",
       "breakpoints": true
+    },
+    {
+      "idx": 130,
+      "version": "7",
+      "when": 1791163800000,
+      "tag": "0130_clan_banner",
+      "breakpoints": true
     }
   ]
 }

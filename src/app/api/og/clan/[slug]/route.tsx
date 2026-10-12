@@ -36,13 +36,16 @@ async function load(_request: Request, { params }: { params: Promise<{ slug: str
   const clan = await resolveClanBySlug(slug);
   if (!clan || clanVisibilityOf(clan.visibility) !== 'public') return siteCard();
 
-  const [view, name, rank, logo] = await Promise.all([
-    publicClanHomeView(clan.id),
+  const viewP = publicClanHomeView(clan.id);
+  const [view, name, rank, logo, banner] = await Promise.all([
+    viewP,
     getClanDisplayName(clan.id, clan.name),
     // Null for a clan that is not on the table — unverified, unlisted, or private — so a card can
     // never publish a standing the clan did not agree to be ranked in.
     clanRankFor(clan.id),
     ourImageAsDataUrl(clan.logoUrl, { width: 300, height: 300 }, 'png'),
+    // The banner lives on the clan row the view reads, not on the slim context.
+    viewP.then((v) => ourImageAsDataUrl(v?.bannerUrl, { width: 1200, height: 630 }, 'jpeg')),
   ]);
   if (!view) return siteCard();
 
@@ -60,6 +63,7 @@ async function load(_request: Request, { params }: { params: Promise<{ slug: str
   return clanCard({
     name: name || clan.name,
     logo,
+    banner,
     tagline: (view.tagline || view.description || '').trim() || null,
     rank: rank ? `#${rank.rank} of ${rank.field}` : null,
     chips,
