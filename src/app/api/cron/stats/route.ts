@@ -22,6 +22,7 @@ import { readAllActivities } from '@/lib/hiscoresActivities';
 const STALE_OVERLAY_MS = 6.5 * 60 * 60 * 1000;
 import { applyWeeklyValue, readMetricFromSnapshot, writePlayerSnapshot, type CompetitionType } from '@/lib/weekly';
 import { detectMilestones, computeDeltas, isDue, nextDueAt, recordDailyStats, recordMilestones } from '@/lib/statHistory';
+import { sweepDue } from '@/lib/pollLadder';
 import { mergeSeatsByAccount } from '@/lib/sweepWork';
 import { timingSafeStrEqual } from '@/lib/auth';
 import { shouldSiteSweep } from '@/lib/sweepOwner';
@@ -125,6 +126,9 @@ interface MemberWork {
   hasActivities: boolean;
   /** True while no competition has claimed them: swept only on leftover budget. */
   rosterOnly: boolean;
+  /** Last plugin push and last hiscores poll — the plugin-first rule (lib/pollLadder sweepDue). */
+  liveStatsAt?: string | null;
+  polledAt?: string | null;
 }
 
 // A bingo player fetched this tick, held for the single-threaded completion pass.
@@ -396,9 +400,10 @@ export async function GET(request: Request) {
         entry.nextDueAt = m.statsNextDueAt;
         entry.lastSnapshot = m.statsLastSnapshot;
         entry.hasActivities = m.statsActivities != null;
-        // A plugin push means they're logged in RIGHT NOW, which is the strongest "worth fetching"
-        // signal we get — it overrides any backoff the ladder had built up while they were away.
-        if (Object.keys(entry.liveMap).length > 0) entry.nextDueAt = null;
+        // A push used to force a fetch here ("logged in right now, worth fetching"). That spent the
+        // Jagex budget re-reading exactly what the client had just told us. Plugin-first now: a
+        // pushing account is reconciled every few hours and polled once when the pushes stop
+        // (sweepDue, below).
       }
     }
   }
@@ -428,10 +433,35 @@ export async function GET(request: Request) {
   // merged seats stands for all of them. The per-seat work rides along in `bingo` and `weekly`,
   // which carry their own ids and still fan out.
   const allWork = mergeSeatsByAccount(work.values(), normalizeRsn);
+  // The plugin-first inputs live on the ACCOUNT, so they're read once per merged entry.
+  const workAccountIds = allWork.map((e) => e.accountId).filter((id): id is number => id != null);
+  if (workAccountIds.length > 0) {
+    // clan-scope: global -- account rows the work list already holds; a cron tick IS every clan.
+    const pushState = await db
+      .select({ id: accounts.id, liveStatsAt: accounts.liveStatsAt, polledAt: accounts.statsPolledAt })
+      .from(accounts)
+      .where(inArray(accounts.id, workAccountIds));
+    const byId = new Map(pushState.map((r) => [r.id, r]));
+    for (const entry of allWork) {
+      const r = entry.accountId != null ? byId.get(entry.accountId) : undefined;
+      if (r) {
+        entry.liveStatsAt = r.liveStatsAt;
+        entry.polledAt = r.polledAt;
+      }
+    }
+  }
+  let pluginSkipped = 0;
   const due = allWork.filter((entry) => {
     const needsBaseline =
       entry.bingo.some((b) => b.needsSnapshot) || entry.weekly.some((w) => w.participant.baselineValue === null);
-    return needsBaseline || isDue(entry.nextDueAt, nowDate);
+    // Accounts we couldn't read push state for (no account yet) keep the old rule exactly.
+    if (entry.accountId == null || entry.polledAt === undefined) return needsBaseline || isDue(entry.nextDueAt, nowDate);
+    const isDueNow = sweepDue(
+      { needsBaseline, nextDueAt: entry.nextDueAt, liveStatsAt: entry.liveStatsAt, polledAt: entry.polledAt },
+      nowDate,
+    );
+    if (!isDueNow && isDue(entry.nextDueAt, nowDate)) pluginSkipped++;
+    return isDueNow;
   });
   // TWO QUEUES, ONE BUDGET. Competition work goes first and roster filler takes whatever is left of
   // the tick — never the other way round, and never interleaved. Both are oldest-fetched-first
@@ -569,6 +599,7 @@ export async function GET(request: Request) {
                 statsOverallXp: overallXp,
                 statsMissStreak: missStreak,
                 statsNextDueAt: nextDueAt(missStreak, new Date(), racing),
+                statsPolledAt: new Date().toISOString(),
                 ...(writeActivities ? { statsActivities: JSON.stringify(readAllActivities(snapshot)) } : {}),
               });
         // The snapshot, only when it would differ. Its own table (schema accountStatSnapshots) so an
@@ -860,6 +891,8 @@ export async function GET(request: Request) {
     rosterFetched: fillerFetched,
     // How many the backoff ladder held back this tick — the number to watch when tuning it.
     membersDeferred: deferred,
+    // Due on the old ladder but skipped because the plugin is pushing them (lib/pollLadder sweepDue).
+    pluginSkipped,
     membersFetched,
     historyWrites,
     milestonesRecorded,

@@ -561,6 +561,13 @@
       "when": 1790551800000,
       "tag": "0121_account_sightings",
       "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1790638200000,
+      "tag": "0122_stats_polled_at",
+      "breakpoints": true
     }
   ]
 }

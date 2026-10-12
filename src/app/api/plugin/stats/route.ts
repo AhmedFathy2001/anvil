@@ -151,12 +151,10 @@ export async function POST(request: Request) {
         liveStats: JSON.stringify(live),
         liveStatsAt: nowIso,
         liveStatKeyTimes: JSON.stringify(keyTimes),
-        // A push proves they're logged in and gaining right now, so clear any backoff the sweep had
-        // built up while they were away: the next tick fetches them, and their hiscores reconcile
-        // stays prompt. This is what lets idle members be deferred aggressively without an active
-        // player ever going stale (lib/statHistory.ts).
-      statsMissStreak: 0,
-      statsNextDueAt: null,
+        // No longer clears the sweep's backoff. A push used to make the next tick fetch this account,
+        // which spent Jagex budget re-reading what the client had just sent. Plugin-first: while the
+        // pushes keep coming the sweep only reconciles every few hours, and it polls once as soon as
+        // they stop (lib/pollLadder sweepDue, keyed on liveStatsAt above).
     });
   }
 

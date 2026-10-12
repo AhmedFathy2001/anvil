@@ -48,3 +48,55 @@ export function isDue(nextDueAtIso: string | null | undefined, now: Date = new D
   return Number.isNaN(due) || due <= now.getTime();
 }
 
+
+// ── Plugin-first ─────────────────────────────────────────────────────────────────────────────────
+//
+// A running plugin pushes every skill and KC the moment it moves (api/plugin/stats → the account's
+// live overlay), which is fresher than anything the hiscores can say. So while it is pushing, the sweep
+// stops spending Jagex budget re-reading what the client already told us, and only RECONCILES every
+// few hours — the overlay is max(hiscores, pushed), and a reconcile is what lets a bad push heal.
+//
+// The moment pushes stop — logout, mobile play, a client that crashed mid-race — the account gets one
+// poll straight away (the logout flush lands on the hiscores and the overlay reconciles), and from
+// then on rides the ordinary ladder until the plugin comes back.
+
+/** A push this recent means the client is running right now. */
+export const PLUGIN_ACTIVE_MS = 20 * MINUTE;
+/** How often a pushing account is still reconciled against the hiscores. */
+export const PLUGIN_RECONCILE_MS = 6 * 60 * MINUTE;
+
+export interface SweepDueInput {
+  /** A competition row or stat tile still waiting on its first reading. Always due. */
+  needsBaseline: boolean;
+  /** The ladder's own schedule (statsNextDueAt). */
+  nextDueAt: string | null | undefined;
+  /** The last plugin push (accounts.live_stats_at). */
+  liveStatsAt: string | null | undefined;
+  /** The last hiscores poll (accounts.stats_polled_at). Null = never polled. */
+  polledAt: string | null | undefined;
+}
+
+function ms(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const t = Date.parse(iso.includes('T') ? iso : iso.replace(' ', 'T') + 'Z');
+  return Number.isNaN(t) ? null : t;
+}
+
+/** Whether the sweep should ask the hiscores about this account this tick. */
+export function sweepDue(input: SweepDueInput, now: Date = new Date()): boolean {
+  if (input.needsBaseline) return true;
+  const nowMs = now.getTime();
+  const pushed = ms(input.liveStatsAt);
+  const polled = ms(input.polledAt);
+
+  // Never polled: one reading is what the overlay sits on top of, whatever the plugin is doing.
+  if (polled === null) return true;
+
+  if (pushed !== null && nowMs - pushed < PLUGIN_ACTIVE_MS) {
+    return nowMs - polled >= PLUGIN_RECONCILE_MS;
+  }
+  // Pushes have stopped since our last look — read the hiscores once, now.
+  if (pushed !== null && pushed > polled) return true;
+
+  return isDue(input.nextDueAt, now);
+}

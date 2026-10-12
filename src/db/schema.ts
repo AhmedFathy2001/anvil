@@ -329,6 +329,10 @@ export const accounts = pgTable('accounts', {
   statsOverallXp: bigint('stats_overall_xp', { mode: 'number' }), // last observed total XP — the change detector
   statsMissStreak: integer('stats_miss_streak').notNull().default(0),
   statsNextDueAt: text('stats_next_due_at'),   // null = due now
+  // When the sweep last asked the hiscores about this account. Lets a plugin-pushing account be
+  // reconciled every ~6h instead of every tick (lib/pollLadder sweepDue), and polled once as soon as
+  // its pushes stop — logout, mobile play, a client that died mid-race.
+  statsPolledAt: text('stats_polled_at'),
   // The compact activity map derived from the last snapshot — a few hundred bytes, read by the member
   // directory. The snapshot ITSELF is not here: see accountStatSnapshots.
   statsActivities: text('stats_activities'),
