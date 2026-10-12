@@ -11,6 +11,7 @@ import { sendTestWebhook } from '@/lib/discord';
 import { WEBHOOK_PAGE_SETTING_KEYS } from '@/lib/webhookFields';
 import { fetchGuildRoles } from '@/lib/discord-roles';
 import { isSafeAutomatedRole } from '@/lib/discordRoleSafety';
+import { forgetLinkCards } from '@/lib/ogKit';
 
 const EXPOSED_KEYS = [
   // Every destination and switch the Integrations → Webhooks page renders: the announcements
@@ -155,6 +156,8 @@ export async function PUT(request: Request) {
     const value = typeof raw === 'string' ? raw.trim() : raw;
     await setSetting(clan.id, key, value ? value : null);
   }
+  // The showcase switch also gates /compare/clans and its cards — see admin/clan/policy.
+  if (body.public_showcase !== undefined) forgetLinkCards();
 
   // Keep the row in step with the mirror. Everything reads clans.name now, so a rename that only
   // touched the setting would appear to save and change nothing — which is how the two came to

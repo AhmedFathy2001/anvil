@@ -4,6 +4,7 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { accounts } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
+import { forgetLinkCards } from '@/lib/ogKit';
 
 // PATCH /api/profile/accounts/[id]/share — { shared: boolean }
 //
@@ -49,6 +50,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     .returning({ id: accounts.id, rsn: accounts.rsn, shared: accounts.shared });
 
   if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  // Its /p and /compare cards were drawn while it was shared; none of them may be served again.
+  if (!body.shared) forgetLinkCards();
 
   return NextResponse.json({ ok: true, account: updated });
 }
