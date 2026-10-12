@@ -105,6 +105,13 @@ const MAX_RENDERING = 2;
 const MAX_QUEUED = 24;
 
 const rendered = new Map<string, { at: number; body: Buffer }>();
+
+/**
+ * Bumped by forgetLinkCards. Work that STARTED before a visibility change may finish after it, so a
+ * render or a load only writes to a cache, or is shared with a newcomer, if the generation it began
+ * in is still the current one.
+ */
+let generation = 0;
 const rendering = new Map<string, Promise<Buffer>>();
 let active = 0;
 const renderQueue: (() => void)[] = [];
@@ -165,8 +172,10 @@ export async function renderCard(
   if (!pending) {
     // Over the queue limit: turn it away now rather than queue more CPU behind it.
     if (renderQueue.length >= MAX_QUEUED) return overflowResponse();
+    const started = generation;
     pending = draw(build)
       .then((body) => {
+        if (started !== generation) return body;
         if (rendered.size >= RENDER_CAP) {
           const oldest = rendered.keys().next().value;
           if (oldest !== undefined) rendered.delete(oldest);
@@ -175,7 +184,11 @@ export async function renderCard(
         if (opts.isOverflowCard) overflowCard = { body, etag: hash };
         return body;
       })
-      .finally(() => rendering.delete(hash));
+      .finally(() => {
+        // Only our own entry: after a forget, a newer render may hold this key.
+        if (rendering.get(hash) === mine) rendering.delete(hash);
+      });
+    const mine = pending;
     rendering.set(hash, pending);
   }
   return cardResponse(await pending, hash, cacheControl);
@@ -761,10 +774,11 @@ export async function cachedCard(path: string, load: () => Promise<Response>): P
   if (!pending) {
     if (loading >= MAX_LOADING) return busy();
     loading++;
+    const started = generation;
     pending = (async () => {
       const res = await load();
       const v = { body: Buffer.from(await res.arrayBuffer()), headers: [...res.headers.entries()] as [string, string][] };
-      if (res.ok && !res.headers.has(OVERFLOW_HEADER)) {
+      if (res.ok && !res.headers.has(OVERFLOW_HEADER) && started === generation) {
         if (routeCache.size >= ROUTE_CAP) {
           const oldest = routeCache.keys().next().value;
           if (oldest !== undefined) routeCache.delete(oldest);
@@ -774,8 +788,9 @@ export async function cachedCard(path: string, load: () => Promise<Response>): P
       return v;
     })().finally(() => {
       loading--;
-      routeInFlight.delete(path);
+      if (routeInFlight.get(path) === mine) routeInFlight.delete(path);
     });
+    const mine = pending;
     routeInFlight.set(path, pending);
   }
   const v = await pending;
@@ -790,6 +805,11 @@ export async function cachedCard(path: string, load: () => Promise<Response>): P
  * The pinned site card stays: it shows nothing about anyone.
  */
 export function forgetLinkCards(): void {
+  generation++;
   routeCache.clear();
   rendered.clear();
+  // In-flight work began under the old rule: nobody new may join it. It still finishes (and answers
+  // whoever was already waiting), but the generation check above keeps it out of every cache.
+  routeInFlight.clear();
+  rendering.clear();
 }
