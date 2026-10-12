@@ -109,13 +109,25 @@ const rendering = new Map<string, Promise<Buffer>>();
 let active = 0;
 const renderQueue: (() => void)[] = [];
 
-/** The key of the plain site card, which the overflow is answered with. */
-let overflowKey: string | null = null;
+/**
+ * The plain site card, kept OUTSIDE the evicting cache so it is always there to answer an overflow
+ * with once it has been drawn. Until then an overflow gets a fast 503 — never a place in a queue.
+ */
+let overflowCard: { body: Buffer; etag: string } | null = null;
 
-function cardResponse(body: Buffer, etag: string, cacheControl: string): Response {
-  return new Response(new Uint8Array(body), {
-    headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': cacheControl, ETag: `"${etag}"` },
-  });
+/** What a request turned away by the limits gets: the site card if drawn, else a quick 503. */
+export function overflowResponse(): Response {
+  if (overflowCard) return cardResponse(overflowCard.body, overflowCard.etag, 'no-store', true);
+  return new Response('Busy', { status: 503, headers: { 'Retry-After': '5', 'Cache-Control': 'no-store', [OVERFLOW_HEADER]: '1' } });
+}
+
+/** Marks an answer the limits gave instead of the real card, so no cache keeps it as the card. */
+const OVERFLOW_HEADER = 'X-Anvil-Overflow';
+
+function cardResponse(body: Buffer, etag: string, cacheControl: string, overflow = false): Response {
+  const headers: Record<string, string> = { 'Content-Type': 'image/jpeg', 'Cache-Control': cacheControl, ETag: `"${etag}"` };
+  if (overflow) headers[OVERFLOW_HEADER] = '1';
+  return new Response(new Uint8Array(body), { headers });
 }
 
 async function draw(build: () => Promise<ReactElement> | ReactElement): Promise<Buffer> {
@@ -145,18 +157,14 @@ export async function renderCard(
 ): Promise<Response> {
   const cacheControl = opts.cacheControl ?? OG_CACHE_CONTROL;
   const hash = createHash('sha256').update(JSON.stringify(key)).digest('hex').slice(0, 32);
-  if (opts.isOverflowCard) overflowKey = hash;
 
   const hit = rendered.get(hash);
   if (hit && Date.now() - hit.at < RENDER_TTL) return cardResponse(hit.body, hash, cacheControl);
 
   let pending = rendering.get(hash);
   if (!pending) {
-    // Over the queue limit: answer with the site card if it's been drawn, rather than queue more.
-    const fallback = overflowKey ? rendered.get(overflowKey) : undefined;
-    if (renderQueue.length >= MAX_QUEUED && fallback && overflowKey) {
-      return cardResponse(fallback.body, overflowKey, 'public, max-age=60');
-    }
+    // Over the queue limit: turn it away now rather than queue more CPU behind it.
+    if (renderQueue.length >= MAX_QUEUED) return overflowResponse();
     pending = draw(build)
       .then((body) => {
         if (rendered.size >= RENDER_CAP) {
@@ -164,6 +172,7 @@ export async function renderCard(
           if (oldest !== undefined) rendered.delete(oldest);
         }
         rendered.set(hash, { at: Date.now(), body });
+        if (opts.isOverflowCard) overflowCard = { body, etag: hash };
         return body;
       })
       .finally(() => rendering.delete(hash));
@@ -719,6 +728,14 @@ const routeCache = new Map<string, { at: number; body: Buffer; headers: [string,
 const routeInFlight = new Map<string, Promise<{ body: Buffer; headers: [string, string][] }>>();
 
 /**
+ * A miss reads the database before it ever reaches the render limit, so loads get their own: six at
+ * once, and anything beyond that (a scrape walking made-up ids or names, each a distinct miss) is
+ * turned away with the overflow answer instead of stacking queries.
+ */
+const MAX_LOADING = 6;
+let loading = 0;
+
+/**
  * A card route's whole answer, kept two minutes per path — so a link pasted into five channels, or
  * a scraper walking every id, costs the database once per card rather than once per request. The
  * render cache inside renderCard still covers anything older. Concurrent requests share one load.
@@ -733,10 +750,12 @@ export async function cachedCard(path: string, load: () => Promise<Response>): P
 
   let pending = routeInFlight.get(path);
   if (!pending) {
+    if (loading >= MAX_LOADING) return overflowResponse();
+    loading++;
     pending = (async () => {
       const res = await load();
       const v = { body: Buffer.from(await res.arrayBuffer()), headers: [...res.headers.entries()] as [string, string][] };
-      if (res.ok) {
+      if (res.ok && !res.headers.has(OVERFLOW_HEADER)) {
         if (routeCache.size >= ROUTE_CAP) {
           const oldest = routeCache.keys().next().value;
           if (oldest !== undefined) routeCache.delete(oldest);
@@ -744,7 +763,10 @@ export async function cachedCard(path: string, load: () => Promise<Response>): P
         routeCache.set(path, { at: Date.now(), ...v });
       }
       return v;
-    })().finally(() => routeInFlight.delete(path));
+    })().finally(() => {
+      loading--;
+      routeInFlight.delete(path);
+    });
     routeInFlight.set(path, pending);
   }
   return answer(await pending);
