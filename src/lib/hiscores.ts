@@ -5,6 +5,13 @@ import { log } from '@/lib/logger';
 export interface HiscoresSnapshot {
   skills: Record<string, { rank: number; level: number; xp: number }>;
   bosses: Record<string, { rank: number; score: number }>;
+  /**
+   * Set on an event baseline taken from the plugin's starting-shot push (lib/liveSnapshot) rather
+   * than the hiscores: it has every skill but only the boss counts the plugin had seen. A key it
+   * lacks is UNKNOWN, not zero — lib/statTracking scores nothing for it until the sweep fills it in
+   * (completePartialBaseline).
+   */
+  partial?: boolean;
 }
 
 // Bosses that are LIVE on the official hiscores but missing from the pinned

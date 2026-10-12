@@ -11,7 +11,7 @@ import { handleBountyClaim } from '@/lib/revealEngine';
 import { log } from '@/lib/logger';
 import { statKeys } from '@/lib/tileKinds';
 import { parsePluginStats } from '@/lib/pluginStats';
-import { computeGain, computeGainFromJson, effectiveValue, reconcileLive, pruneStaleOverlay, isIndividualMode, isMilestoneBasis, milestoneState, buildContributionSnapshot, needsBaselineRecapture, baselineWithOverlay } from '@/lib/statTracking';
+import { computeGain, computeGainFromJson, effectiveValue, reconcileLive, pruneStaleOverlay, isIndividualMode, isMilestoneBasis, milestoneState, buildContributionSnapshot, needsBaselineRecapture, baselineWithOverlay, completePartialBaseline } from '@/lib/statTracking';
 import { parseStatKeyTimes } from '@/lib/liveStats';
 import { readAllActivities } from '@/lib/hiscoresActivities';
 
@@ -612,6 +612,15 @@ export async function GET(request: Request) {
           } catch {
             b.ctx.result.errors.push(`Invalid snapshot for ${b.player.name}`);
             continue;
+          }
+          // A starting-shot baseline (lib/liveSnapshot) knows the skills but few bosses; fill the
+          // rest from this read so those keys start scoring from here.
+          if (baseline.partial) {
+            baseline = completePartialBaseline(baseline, snapshot);
+            await db
+              .update(eventParticipants)
+              .set({ statsSnapshot: JSON.stringify(baseline) })
+              .where(eq(eventParticipants.id, b.player.id));
           }
           fetchedBingo.push({ ctx: b.ctx, player: b.player, baseline, current: snapshot, liveMap });
         }

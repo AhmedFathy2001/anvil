@@ -9,6 +9,8 @@ import { assertEventEditable } from '@/lib/eventLock';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { isManagedMediaUrl } from '@/lib/storage';
 import { parseEventRules } from '@/lib/eventRules';
+import { startBaselineFromLiveStats } from '@/lib/liveSnapshot';
+import { needsBaselineRecapture } from '@/lib/statTracking';
 import {
   autoAcceptDecision,
   drawnSpot,
@@ -184,6 +186,10 @@ export async function POST(
     await db.insert(eventStartProofs).values(row);
   }
 
+  if (source === 'plugin' && status !== 'rejected' && checks.sessionOk !== false) {
+    await baselineFromStartingShot(player.id, event.startDate);
+  }
+
   // The client is told what we made of it, so the plugin can say "filed, but you were 300 squares
   // out — staff will look at it" instead of a bare success.
   return NextResponse.json({
@@ -269,4 +275,30 @@ async function myPlayerRows(clanId: number, userId: number, eventId: number) {
     .select({ id: eventParticipants.id, teamId: eventParticipants.teamId, name: eventParticipants.name })
     .from(eventParticipants)
     .where(and(eq(eventParticipants.eventId, eventId), inArray(eventParticipants.clanMemberId, members.map((m) => m.id))));
+}
+
+/**
+ * The starting shot doubles as the player's starting line for skill tiles.
+ *
+ * It is taken on a fresh login, and the plugin pushes every skill's absolute XP at that login, so
+ * what the seat holds now is where they started. Only when no starting line exists yet: on a box
+ * without the hiscores sweep (beta) this is the only one they get, and on production it simply gets
+ * there first. Never over one the sweep already took, and never for a stale session (sessionOk
+ * false) — those numbers could be hours into the event. The baseline is partial (no boss counts
+ * the plugin hasn't seen); the sweep fills the rest (lib/statTracking completePartialBaseline).
+ */
+async function baselineFromStartingShot(participantId: number, eventStartDate: string | null) {
+  const part = await db.query.eventParticipants.findFirst({ where: eq(eventParticipants.id, participantId) });
+  if (!part?.clanMemberId || !part.teamId || part.frozenAt) return;
+  if (!needsBaselineRecapture(part.statsSnapshot, part.snapshotAt, eventStartDate)) return;
+  const [seat] = await db
+    .select({ liveStats: clanRoster.liveStats })
+    .from(clanRoster)
+    .where(eq(clanRoster.id, part.clanMemberId));
+  const baseline = startBaselineFromLiveStats(seat?.liveStats);
+  if (!baseline) return; // the plugin hasn't pushed XP for this character — the sweep will baseline it
+  await db
+    .update(eventParticipants)
+    .set({ statsSnapshot: JSON.stringify(baseline), snapshotAt: new Date().toISOString() })
+    .where(eq(eventParticipants.id, participantId));
 }

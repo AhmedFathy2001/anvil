@@ -36,7 +36,7 @@ import {
   weeklyParticipants,
 } from '@/db/schema';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
-import { reconcileLive, pruneStaleOverlay, effectiveValue, needsBaselineRecapture, baselineWithOverlay } from '@/lib/statTracking';
+import { reconcileLive, pruneStaleOverlay, effectiveValue, needsBaselineRecapture, baselineWithOverlay, completePartialBaseline } from '@/lib/statTracking';
 import { evaluateBingoEvent } from '@/lib/bingoEval';
 import { parsePluginStats } from '@/lib/pluginStats';
 import { parseStatKeyTimes } from '@/lib/liveStats';
@@ -265,9 +265,16 @@ async function applySnapshotChanged(
         .set({ statsSnapshot: baselineWithOverlay(snapshotJson, liveMap), snapshotAt: nowIso, cachedStats: snapshotJson, lastStatsFetch: nowIso })
         .where(eq(eventParticipants.id, p.id));
     } else {
+      // A starting-shot baseline (lib/liveSnapshot) knows the skills but few bosses; fill the rest
+      // from this read so those keys start scoring from here.
+      const base = parsePartialBaseline(p.statsSnapshot);
       await db
         .update(eventParticipants)
-        .set({ cachedStats: snapshotJson, lastStatsFetch: nowIso })
+        .set({
+          cachedStats: snapshotJson,
+          lastStatsFetch: nowIso,
+          ...(base ? { statsSnapshot: JSON.stringify(completePartialBaseline(base, snapshot)) } : {}),
+        })
         .where(eq(eventParticipants.id, p.id));
     }
     touched.add(p.eventId);
@@ -416,4 +423,15 @@ export async function consumeForgeEvents({ limit = 500 }: { limit?: number } = {
   }
 
   return result;
+}
+
+/** The stored baseline when it is a partial (starting-shot) one, else null. */
+function parsePartialBaseline(json: string | null): HiscoresSnapshot | null {
+  if (!json) return null;
+  try {
+    const parsed = JSON.parse(json) as HiscoresSnapshot;
+    return parsed?.partial ? parsed : null;
+  } catch {
+    return null;
+  }
 }

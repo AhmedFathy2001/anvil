@@ -33,3 +33,17 @@ export function snapshotFromLiveStats(json: string | null | undefined): Hiscores
   }
   return { skills, bosses };
 }
+
+/**
+ * An event starting line from the plugin's push at the starting shot's fresh login.
+ *
+ * The shot is taken right after logging in, and the plugin sends every skill's absolute XP at that
+ * login, so those numbers ARE the player's start — on a box with no hiscores sweep (beta), or before
+ * the sweep reaches them, it is the only starting line there is. Boss kill counts only reach the
+ * plugin from the game's kill-count line, so it holds the few it has seen: the result is marked
+ * `partial`, and a key it lacks scores nothing until the sweep fills it (lib/statTracking).
+ */
+export function startBaselineFromLiveStats(json: string | null | undefined): HiscoresSnapshot | null {
+  const snap = snapshotFromLiveStats(json);
+  return snap ? { ...snap, partial: true } : null;
+}

@@ -137,6 +137,9 @@ export function computeGain(
   if (!baseline) return 0;
   let gained = 0;
   for (const key of keys) {
+    // Same rule one level down: a partial baseline that never saw this key has no starting point
+    // for it, and 0 would count the whole account.
+    if (!baselineKnows(baseline, statType, key)) continue;
     const base = snapshotValue(baseline, statType, key);
     const cur = effectiveValue(snapshotValue(current, statType, key), liveMap, key);
     gained += Math.max(0, cur - base);
@@ -195,12 +198,40 @@ export function milestoneState(
   }
   let lifetime = 0;
   let baselineTotal = 0;
+  // Unknown starting point for any key = can't prove they didn't already have it (see above).
+  const known = keys.every((key) => baselineKnows(baseline, statType, key));
   for (const key of keys) {
     baselineTotal += snapshotValue(baseline, statType, key);
     lifetime += effectiveValue(snapshotValue(current, statType, key), liveMap, key);
   }
-  const eligible = baselineTotal < goal;
+  const eligible = known && baselineTotal < goal;
   return { lifetime, eligible, reached: eligible && lifetime >= goal };
+}
+
+/**
+ * Does this baseline have a starting value for the key? Always yes for a hiscores baseline (a key
+ * missing there means unranked at the start, i.e. 0). A PARTIAL one (the starting-shot push) only
+ * knows the skills and bosses it carries.
+ */
+export function baselineKnows(baseline: HiscoresSnapshot, statType: string, key: string): boolean {
+  if (!baseline.partial) return true;
+  return statType === 'skill' ? baseline.skills?.[key] != null : baseline.bosses?.[key] != null;
+}
+
+/**
+ * Fill a partial (starting-shot) baseline's gaps from a hiscores read: what the plugin pushed at the
+ * fresh login stays the starting line, and everything it never saw takes the hiscores value from
+ * now — late, but a real starting point instead of an unscored key. The result is a full baseline.
+ */
+export function completePartialBaseline(partial: HiscoresSnapshot, hiscores: HiscoresSnapshot): HiscoresSnapshot {
+  const { partial: _flag, ...own } = partial;
+  void _flag;
+  return {
+    ...hiscores,
+    ...own,
+    skills: { ...(hiscores.skills ?? {}), ...(own.skills ?? {}) },
+    bosses: { ...(hiscores.bosses ?? {}), ...(own.bosses ?? {}) },
+  };
 }
 
 /** Milestone state from stored JSON blobs — the sibling of computeGainFromJson. */
