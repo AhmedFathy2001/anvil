@@ -34,6 +34,7 @@ import { clogPageItems, clogPageIndex, clogPageNames } from '@/lib/clogDataset';
 import { matchBestsToPages, titleCaseActivity } from '@/lib/clogProfile';
 import { clogImageQuery } from '@/lib/clogImage';
 import { killcountsForPage } from '@/lib/clogKillcounts';
+import { resolveClogPage, searchClogPages } from '@/lib/clogPageSearch';
 import { statSnapshotOf } from '@/lib/roster';
 import { getEffectiveParticipants } from '@/lib/weekly';
 import { weeklyMetricLabel } from '@/lib/weeklyLabels';
@@ -197,22 +198,12 @@ function chooseAccount(target: Target, accountOpt: unknown): { accountId: number
   return { accountId: acc?.accountId ?? null, rsn: acc?.rsn ?? target.who };
 }
 
-/** Autocomplete source for the boss/page picker: pages that start with, then contain, the query. */
+/**
+ * Autocomplete for the `page` option. Searches bosses and their nicknames as well as page names
+ * (lib/clogPageSearch) — "zuk" finds The Inferno — and says which boss matched.
+ */
 export function suggestClogPages(query: string): { name: string; value: string }[] {
-  const names = clogPageNames();
-  const low = query.trim().toLowerCase();
-  if (!low) return names.slice(0, 25).map((n) => ({ name: n, value: n }));
-  const starts = names.filter((n) => n.toLowerCase().startsWith(low));
-  const contains = names.filter((n) => !n.toLowerCase().startsWith(low) && n.toLowerCase().includes(low));
-  return [...starts, ...contains].slice(0, 25).map((n) => ({ name: n, value: n }));
-}
-
-/** Free-typed page → the catalogue's canonical page name (exact, then substring), or null. */
-function resolveClogPage(query: string): string | null {
-  const names = clogPageNames();
-  const low = query.trim().toLowerCase();
-  if (!low) return null;
-  return names.find((n) => n.toLowerCase() === low) ?? names.find((n) => n.toLowerCase().includes(low)) ?? null;
+  return searchClogPages(query, 25).map((m) => ({ name: m.via ? `${m.page} (${m.via})` : m.page, value: m.page }));
 }
 
 // ── /sotw + /botw ─────────────────────────────────────────────────────────────────────────────────

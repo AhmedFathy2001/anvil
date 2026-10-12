@@ -1,4 +1,5 @@
 import npcDrops from '@/data/npcDrops.json';
+import { clogPageForBoss } from '@/lib/clogKillcounts';
 import skillPets from '@/data/skillPets.json';
 import combatAchievements from '@/data/combatAchievements.json';
 import { BOSSES } from '@/lib/constants';
@@ -207,12 +208,9 @@ const pageCache = new Map<string, string | null>();
  */
 export function bossClogPage(metric: string): string | null {
   if (pageCache.has(metric)) return pageCache.get(metric)!;
-  const boss = BOSSES.find((b) => b.key === metric);
-  let found: string | null = null;
-  if (boss) {
-    const target = norm(boss.label);
-    found = clogPageNames().find((page) => norm(page) === target) ?? null;
-  }
+  // The shared boss → page map (lib/clogKillcounts), not a name match: the game files TzKal-Zuk under
+  // "The Inferno", Sol Heredit under "Fortis Colosseum", a raid's modes under one page.
+  const found = clogPageForBoss(metric, clogPageNames());
   pageCache.set(metric, found);
   return found;
 }
