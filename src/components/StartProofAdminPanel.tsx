@@ -59,6 +59,10 @@ interface PanelData {
   spot: { x: number; y: number; radius: number } | null;
   maxSessionMinutes: number;
   drawnAt: string | null;
+  windowEndsAt: string | null;
+  windowOpen: boolean;
+  /** lib/startProof's START_PROOF_WINDOW_HOURS — sent by the API, since that module is server-only. */
+  windowHours: number;
   counts: { total: number; accepted: number; pending: number; rejected: number; missing: number };
   rows: ProofRow[];
 }
@@ -437,6 +441,31 @@ export default function StartProofAdminPanel({
 
         {data?.drawnAt && counts && (
           <div className="border-t border-card-border pt-3 space-y-3">
+            {data.windowEndsAt && (
+              <div
+                className={`rounded-lg border px-3 py-2 text-xs ${
+                  data.windowOpen
+                    ? 'border-sky-400/30 bg-sky-500/5 text-sky-200'
+                    : 'border-card-border bg-brown-dark/40 text-text-muted'
+                }`}
+              >
+                {data.windowOpen ? (
+                  <>
+                    Shots are being asked for until{' '}
+                    <strong className="text-foreground">{new Date(data.windowEndsAt).toLocaleString()}</strong> —{' '}
+                    {data.windowHours}h after the draw. After that the game has logged everyone out at least
+                    once, so the requirement lapses on its own.
+                  </>
+                ) : (
+                  <>
+                    <strong className="text-foreground">No longer required.</strong> The {data.windowHours}h
+                    window closed {new Date(data.windowEndsAt).toLocaleString()}: the game has logged everyone out
+                    since, so nobody is still on a pre-event session. Players who never filed aren&apos;t asked any more
+                    and their credits aren&apos;t flagged; credits flagged inside the window stay flagged.
+                  </>
+                )}
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
               <span>
                 Everyone is at <strong className="text-gold">{data.location}</strong>
@@ -453,7 +482,7 @@ export default function StartProofAdminPanel({
               <span className="text-text-muted">
                 {counts.accepted}/{counts.total} accepted
                 {counts.pending > 0 && <> · {counts.pending} to review</>}
-                {counts.missing > 0 && <> · {counts.missing} missing</>}
+                {counts.missing > 0 && <> · {counts.missing} {data.windowOpen ? 'missing' : 'never filed'}</>}
                 {counts.rejected > 0 && <> · {counts.rejected} rejected</>}
               </span>
               {counts.accepted + counts.pending + counts.rejected === 0 && (
@@ -514,7 +543,11 @@ export default function StartProofAdminPanel({
                         </>
                       ) : (
                         <>
-                          Nothing filed{r.expectedKeyword && <> · expects {r.expectedKeyword}</>}
+                          {data.windowOpen ? (
+                            <>Nothing filed{r.expectedKeyword && <> · expects {r.expectedKeyword}</>}</>
+                          ) : (
+                            <>Never filed · no longer required</>
+                          )}
                         </>
                       )}
                     </div>

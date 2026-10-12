@@ -5,7 +5,7 @@ import { events, eventParticipants, teams, eventStartProofs } from '@/db/schema'
 import { eq } from 'drizzle-orm';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { parseEventRules } from '@/lib/eventRules';
-import { startKeyword, drawStartLocation, drawnSpot } from '@/lib/startProof';
+import { startKeyword, drawStartLocation, drawnSpot, startProofWindowEndsAt, startProofWindowOpen, START_PROOF_WINDOW_HOURS } from '@/lib/startProof';
 
 // The starting-shot review panel's payload: every enrolled player, with their shot if they've filed
 // one. Driven off the ROSTER rather than the proofs table, because the interesting question at the
@@ -160,6 +160,11 @@ export async function GET(
     spot: event.startProofDrawnAt ? drawnSpot(event) : null,
     maxSessionMinutes: cfg?.maxSessionMinutes ?? 0,
     drawnAt: event.startProofDrawnAt,
+    // Past this the requirement has lapsed (lib/startProof): the panel says so instead of listing
+    // people as "missing" a shot nobody is asking them for any more.
+    windowEndsAt: startProofWindowEndsAt(event),
+    windowOpen: startProofWindowOpen(event),
+    windowHours: START_PROOF_WINDOW_HOURS,
     counts,
     rows,
   });
