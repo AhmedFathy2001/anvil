@@ -21,6 +21,7 @@ import { db } from '@/db';
 import { accounts, clanAuditLog, clanMemberships, eventParticipants } from '@/db/schema';
 import { normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { mergeSeats } from '@/lib/mergeSeats';
+import { carryAccountStats } from '@/lib/accountStatsMerge';
 import { memberSeatElsewhere } from '@/lib/guestAdmission';
 
 export type RenameVia = 'plugin' | 'roster' | 'staff';
@@ -221,6 +222,9 @@ export async function renameCharacter(
     const stillThere = await db.query.accounts.findFirst({ where: eq(accounts.id, holder.id), columns: { id: true } });
     if (stillThere) {
       await db.update(eventParticipants).set({ accountId }).where(eq(eventParticipants.accountId, holder.id));
+      // Its hiscores, history, log, bests and progress are this character's too — often the newer
+      // half, polled under the new name. Deleting it used to cascade all of that away.
+      await carryAccountStats(holder.id, accountId);
       await db.delete(accounts).where(eq(accounts.id, holder.id));
     }
   }
