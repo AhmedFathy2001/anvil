@@ -126,6 +126,27 @@ export interface UserPayload {
   actingAs: { clanId: number; expiresAt: string } | null;
 }
 
+/**
+ * Whose session cookie this is — for ATTRIBUTING a page view, never for authorising anything.
+ *
+ * Signature and age only; no database read. `verifyUser` re-reads the user, their bans and their
+ * clan grant, which is right for a request that acts and is several queries too many for a beacon
+ * fired on every navigation. The cost of skipping it: a page view by a user banned in the last 30
+ * days still counts as theirs, which harms nothing.
+ */
+export async function sessionUserIdForAnalytics(): Promise<number | null> {
+  try {
+    const token = (await cookies()).get('admin_session')?.value;
+    if (!token) return null;
+    const payload = verify(token, ADMIN_SESSION_SECRET);
+    if (!payload) return null;
+    const data = JSON.parse(payload);
+    return Number.isInteger(data.userId) && isFreshIat(data.iat) ? data.userId : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function verifyUser(): Promise<UserPayload | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get('admin_session')?.value;

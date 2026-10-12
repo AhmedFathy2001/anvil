@@ -98,6 +98,7 @@
     "test:weeklyprizes": "npx tsx --test tests/weekly-prizes.test.ts",
     "test:cofferfeed": "npx tsx --test tests/coffer-feed.test.ts",
     "test:pureimports": "npx tsx --test tests/pure-module-imports.test.ts",
+    "test:analytics": "npx tsx --test tests/analytics.test.ts",
     "test:webhooks": "npx tsx --test tests/webhook-fields.test.ts",
     "test:cofferpool": "npx tsx --test tests/coffer-pool.test.ts",
     "test:weeklyhold": "npx tsx --test tests/weekly-prize-hold.test.ts",
@@ -147,7 +148,6 @@
     "test:withdrawnroster": "npx tsx --test tests/withdrawn-roster-migration.test.ts"
   },
   "dependencies": {
-    "@vercel/analytics": "^2.0.1",
     "@vercel/blob": "^2.0.1",
     "aws4fetch": "^1.0.20",
     "drizzle-orm": "^0.45.1",
