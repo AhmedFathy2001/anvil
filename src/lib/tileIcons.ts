@@ -265,3 +265,19 @@ export function competitionImageUrl(type: string, metric: string): string | null
   if (type === 'efficiency') return 'https://oldschool.runescape.wiki/images/Stats_icon.png';
   return bossImageForStatKey(metric);
 }
+
+/**
+ * A picture for a personal-best activity. The game names them by team and mode — "Chambers of Xeric
+ * Challenge Mode 5 Players", "Tombs of Amascut Expert Mode Solo" — which no boss table knows, so the
+ * team size, then the mode, come off until a boss is recognised.
+ */
+export function activityImageUrl(activity: string | null | undefined): string | null {
+  if (!activity) return null;
+  const direct = bossImageUrl(activity);
+  if (direct) return direct;
+  const noTeam = activity.replace(/\s+(solo|\d+(?:-\d+)?\s+players?)$/i, '').trim();
+  const byTeam = noTeam !== activity ? bossImageUrl(noTeam) : null;
+  if (byTeam) return byTeam;
+  const base = noTeam.replace(/:?\s+(challenge|expert|hard|entry)\s+mode$/i, '').trim();
+  return base !== noTeam ? bossImageUrl(base) : null;
+}

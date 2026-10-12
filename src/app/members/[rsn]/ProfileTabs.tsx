@@ -9,7 +9,7 @@ import PersonalLuck from './PersonalLuck';
 import StatsBrowser from './StatsBrowser';
 import { statTrends } from '@/lib/statTrends';
 import { setUrlParams } from '@/lib/urlState';
-import { bossImageForStatKey, bossImageUrl, itemIconUrl, skillIconUrl } from '@/lib/tileIcons';
+import { activityImageUrl, bossImageForStatKey, itemIconUrl, skillIconUrl } from '@/lib/tileIcons';
 import { useMediaQuery } from '@/lib/useMediaQuery';
 import { TAB_SLUG, type ProfileLinkState, type ProfileTab } from '@/lib/profileLink';
 import LocalTime from '@/components/LocalTime';
@@ -268,7 +268,7 @@ export default function ProfileTabs({
     }[] = [];
     for (const b of collection.bests) {
       if (b.at) {
-        entries.push({ key: `pb-${b.activity}`, kind: 'time', label: b.activity, value: b.time, at: b.at, icon: bossImageUrl(b.activity) });
+        entries.push({ key: `pb-${b.activity}`, kind: 'time', label: b.activity, value: b.time, at: b.at, icon: activityImageUrl(b.activity) });
       }
     }
     for (const m of milestones) {
@@ -775,9 +775,9 @@ export default function ProfileTabs({
                 {shownTimes.map((b) => (
                   <div key={b.activity} className="flex items-center gap-3 px-3 py-1.5 text-xs">
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center">
-                      {bossImageUrl(b.activity) && (
+                      {activityImageUrl(b.activity) && (
                         // eslint-disable-next-line @next/next/no-img-element -- remote game sprites, tiny and cached
-                        <img src={bossImageUrl(b.activity)!} alt="" loading="lazy" className="max-h-5 max-w-5 object-contain [image-rendering:pixelated]" />
+                        <img src={activityImageUrl(b.activity)!} alt="" loading="lazy" className="max-h-5 max-w-5 object-contain [image-rendering:pixelated]" />
                       )}
                     </span>
                     <span className="min-w-0 flex-1 truncate">{b.activity}</span>
