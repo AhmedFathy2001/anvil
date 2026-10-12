@@ -8,6 +8,7 @@ import crypto from 'node:crypto';
 import { ImageResponse } from 'next/og';
 
 import { requireSecret } from '@/lib/env';
+import { Mark } from '@/lib/ogKit';
 import { deriveTileIcon } from '@/lib/tileIcons';
 
 const PURPOSE = 'board-reveal-image:v1';
@@ -129,7 +130,7 @@ export function boardRevealImage(opts: {
               >
                 <div style={{ width: square ? 48 : 58, height: square ? 48 : 58, display: 'flex', flexShrink: 0, alignItems: 'center', justifyContent: 'center' }}>
                   {/* eslint-disable-next-line @next/next/no-img-element -- ImageResponse renders plain img */}
-                  {icon ? <img src={icon} width={square ? 46 : 56} height={square ? 46 : 56} alt="" style={{ objectFit: 'contain' }} /> : <div style={{ display: 'flex', color: C.gold, fontSize: 34 }}>◆</div>}
+                  {icon ? <img src={icon} width={square ? 46 : 56} height={square ? 46 : 56} alt="" style={{ objectFit: 'contain' }} /> : <div style={{ display: 'flex', width: 18, height: 18, background: C.gold, transform: 'rotate(45deg)' }} />}
                 </div>
                 <div style={{ minWidth: 0, display: 'flex', flex: 1, flexDirection: 'column' }}>
                   <div style={{ display: 'flex', color: C.text, fontWeight: 700, fontSize: square ? 17 : 22, lineHeight: 1.2, maxHeight: square ? 62 : 56, overflow: 'hidden' }}>{tile.label}</div>
@@ -146,7 +147,10 @@ export function boardRevealImage(opts: {
 
         <div style={{ height: footer, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', color: C.muted, fontSize: 17 }}>
           <div style={{ display: 'flex' }}>{ordered.length > shown.length ? `+${ordered.length - shown.length} more on the interactive board` : 'Open the interactive board for tile details'}</div>
-          <div style={{ display: 'flex', color: C.gold, fontWeight: 700 }}>Anvil</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: C.gold, fontWeight: 700, fontSize: 20 }}>
+            <Mark size={26} />
+            Anvil
+          </div>
         </div>
       </div>
     ),
