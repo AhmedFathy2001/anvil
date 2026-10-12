@@ -21,6 +21,10 @@ const no: PartialGuideDict = {
     backToGuides: 'Alle veiledninger',
     unreviewedNotice:
       'Denne oversettelsen til {language} er ennå ikke lest gjennom av noen som har språket som morsmål. Hvis en setning leses feil, er [den engelske siden]({englishHref}) originalen — og [å si fra](/feedback) er det som får den rettet.',
+    support: {
+      lead: 'Står du fast, eller ser noe feil ut?',
+      link: 'Spør i Anvils support-Discord',
+    },
   },
 
   index: {
@@ -470,7 +474,7 @@ const no: PartialGuideDict = {
 
     connect: {
       title: 'Logg inn',
-      intro: 'Åpne **Anvil**-panelet fra RuneLites sidefelt og klikk **Sign in with Discord**. Nettleseren åpnes på `anvilosrs.com`; godkjenn koden der, så fyller pluginet selv inn sin Account Token — ingenting å skrive, ingenting å kopiere.',
+      intro: 'Åpne **Anvil**-panelet fra RuneLites sidefelt og klikk **Sign in with Discord**. Nettleseren åpnes på `anvilosrs.com`; godkjenn koden der, så logger pluginet seg inn selv — ingenting å skrive, ingenting å kopiere og ingenting å fylle inn under innstillinger.',
       panelFigure: {
         caption: 'RuneLite → Anvil-knappen',
         alt: 'RuneLites sidepanel med Anvil-knappen nederst i ikonraden ringet inn',
@@ -487,18 +491,22 @@ const no: PartialGuideDict = {
         legend: [
           {
             label: 'Sign in with Discord',
-            body: 'vises bare så lenge tokenet fortsatt er tomt. Klikk på den, så skjer resten i nettleseren din.',
+            body: 'vises bare så lenge denne datamaskinen er logget ut. Klikk på den, så skjer resten i nettleseren din.',
           },
           {
             label: 'Connects to',
             body: 'alltid `anvilosrs.com` — det eneste nettstedet pluginet snakker med, og det tokenet ditt hører til.',
+          },
+          {
+            label: 'Paste a token instead',
+            body: 'reserveløsningen, hvis nettlesertrinnet ikke fungerer for deg — se slutten av dette trinnet.',
           },
         ],
       },
       easySteps: [
         'Klikk **Sign in with Discord**. Panelet viser en kort kode og åpner nettleseren på `anvilosrs.com`.',
         'Logg inn med Discord der hvis du ikke allerede er det, sjekk at koden på siden stemmer med den i RuneLite, og klikk så **Approve**.',
-        'Tilbake i RuneLite sier panelet _Signed in_ og har fylt inn Account Token for deg. Ferdig.',
+        'Tilbake i RuneLite står det _Signed in_ øverst i panelet — og, når du logger inn i spillet, hvilken karakter det følger. Ferdig.',
       ],
       linkFigure: {
         caption: 'anvilosrs.com → /link-device',
@@ -517,20 +525,13 @@ const no: PartialGuideDict = {
           'Hele flyten blir på `anvilosrs.com` — koden utstedes der, du godkjenner den der med din egen Discord-innlogging, og tokenet går rett tilbake til pluginet. Pluginet åpner bare innloggingssider på `anvilosrs.com`, så en innloggingslenke som peker et annet sted, kommer ikke fra det.',
         ],
       },
-      settingsRefreshNote: {
-        tag: 'Ser Account Token fortsatt tomt ut?',
-        body: [
-          'Det gjør det ikke — tokenet lagres i samme øyeblikk som du godkjenner. Men RuneLite tegner først et plugins innstillingsside når du åpner den, så hvis du allerede sto på **Configuration → Anvil** da du logget inn, viser feltet fortsatt det det viste for et minutt siden.',
-          'Klikk på et hvilket som helst annet plugin i listen, og klikk så på **Anvil** igjen. Tokenet er der. Sidepanelet er det ærlige under innloggingen: det sier _Signed in_ så snart det virket.',
-        ],
-      },
       federationAside:
         'Må ikke forveksles med **Connect clans** i sidepanelet — det er den separate, valgfrie knappen som kobler deg til andre Anvil-klaner, og den dukker først opp når du allerede er logget inn her.',
       manualFallback:
         'Hvis nettleseren ikke åpner seg selv, skriver panelet ut adressen og koden slik at du kan åpne den manuelt. Koder utløper etter ti minutter — trykk bare på knappen igjen.',
       manualHeading: 'Reserveløsning: lim inn tokenet for hånd',
       manualIntro:
-        'Hvis innlogging fra pluginet ikke fungerer for deg, kopier tokenet ditt nedenfor (eller fra [Profile → plugin token](/profile#plugin-token), der du også kan rotere det) og lim det inn i **Configuration → Anvil → Account Token**. Det er den eneste innstillingen du trenger å røre.',
+        'Hvis innlogging fra pluginet ikke fungerer for deg, kopier tokenet ditt nedenfor (eller fra [Profile → plugin token](/profile#plugin-token), der du også kan rotere det), klikk deretter **Paste a token instead** under innloggingsknappen i Anvil-panelet og lim det inn der.',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: 'RuneLite plugin-kortet på profilsiden, med tokenfeltet og knappene Reveal, Copy og Rotate rammet inn',
@@ -541,13 +542,13 @@ const no: PartialGuideDict = {
           },
           {
             label: 'Copy / Rotate',
-            body: 'kopier det inn i pluginets Account Token-felt. Rotate utsteder et nytt og dreper det gamle — bruk det hvis du noen gang mistenker at tokenet ditt har lekket.',
+            body: 'kopier det, og bruk så **Paste a token instead** i Anvil-panelet. Rotate utsteder et nytt og dreper det gamle — bruk det hvis du noen gang mistenker at tokenet ditt har lekket.',
           },
         ],
       },
       goodToKnow: {
         tag: 'Bruk sidepanelet til daglig',
-        body: ['**Anvil-sidepanelet er hovedarbeidsområdet ditt**: logg inn der, se klanene og aktive eventer, følg fremdriften, ta startbilder, kjør synkroniseringer og åpne støtteverktøy. **Configuration → Anvil**, vist nedenfor, er bare for innstillinger. Account Token fylles ut automatisk; lim bare inn et der hvis innlogging via sidepanelet mislykkes. Ett token dekker alle eventene du er påmeldt — du limer det aldri inn på nytt per bingo.'],
+        body: ['**Anvil-sidepanelet er hovedarbeidsområdet ditt**: logg inn og ut der, se klanene og aktive eventer, bla gjennom og gjør krav på ruter, følg fremdriften, ta startbilder, kjør synkroniseringer og åpne støtteverktøy. **Configuration → Anvil**, vist nedenfor, er bare for innstillinger — det finnes ikke noe token der. For å logge denne datamaskinen ut, åpne **⋯**-menyen ved siden av navnet ditt øverst i panelet. Én innlogging dekker alle eventene du er påmeldt — du gjør det aldri på nytt per bingo.'],
       },
     },
 
@@ -795,7 +796,7 @@ const no: PartialGuideDict = {
       rows: [
         {
           term: '`Anvil: your Account Token was rejected — tracking is OFF.`',
-          body: 'Tokenet er feil eller har blitt rotert. Kopier det på nytt fra [Profile → RuneLite plugin](/profile#plugin-token), eller tøm feltet og logg inn fra pluginet igjen.',
+          body: 'Tokenet er feil eller har blitt rotert. Åpne **⋯**-menyen øverst i Anvil-panelet, trykk **Sign out**, og deretter **Sign in with Discord** igjen — eller bruk **Paste a token instead** med et ferskt token fra [Profile → RuneLite plugin](/profile#plugin-token).',
         },
         {
           term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',
@@ -849,7 +850,7 @@ const no: PartialGuideDict = {
         },
         {
           term: "Doble pets og champion's scrolls",
-          body: "Når du allerede har peten eller scrollen, sier spillet bare at du har en **«funny feeling»** — det sier aldri hvilken. Pluginen finner det ut fra hva du nettopp drepte eller trente, krediterer ruten og **flagger den for sjekk av staff**. Kan den ikke vite det sikkert — to pets fra samme kilde, eller en pet uten kill eller skill bak (Bloodhound fra en master clue, en gamblet Jad- eller Zuk-pet, Chompy chick) — lagres skjermbildet i **Saved proofs** så du kan sende det inn manuelt.",
+          body: 'Når du allerede har peten eller scrollen, sier spillet bare at du har en **«funny feeling»** — det sier aldri hvilken. Pluginen finner det ut fra hva du nettopp drepte eller trente, krediterer ruten og **flagger den for sjekk av staff**. Kan den ikke vite det sikkert — to pets fra samme kilde, eller en pet uten kill eller skill bak (Bloodhound fra en master clue, en gamblet Jad- eller Zuk-pet, Chompy chick) — lagres skjermbildet i **Saved proofs** så du kan sende det inn manuelt.',
         },
       ],
     },

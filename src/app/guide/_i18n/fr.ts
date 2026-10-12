@@ -23,6 +23,10 @@ const fr: PartialGuideDict = {
     backToGuides: 'Tous les guides',
     unreviewedNotice:
       'Cette traduction en {language} n’a encore été relue par aucun locuteur natif. Si une phrase sonne faux, [la page anglaise]({englishHref}) est l’original — et [nous le signaler](/feedback) est ce qui la corrigera.',
+    support: {
+      lead: 'Bloqué, ou quelque chose cloche ?',
+      link: 'Demande sur le Discord de support Anvil',
+    },
   },
 
   index: {
@@ -472,7 +476,7 @@ const fr: PartialGuideDict = {
 
     connect: {
       title: 'Se connecter',
-      intro: 'Ouvrez le panneau **Anvil** depuis la barre latérale de RuneLite et cliquez sur **Sign in with Discord**. Votre navigateur s’ouvre sur `anvilosrs.com` ; validez le code là-bas et le plugin remplit lui-même son Account Token — rien à taper, rien à copier.',
+      intro: 'Ouvrez le panneau **Anvil** depuis la barre latérale de RuneLite et cliquez sur **Sign in with Discord**. Votre navigateur s’ouvre sur `anvilosrs.com` ; validez le code là-bas et le plugin se connecte tout seul — rien à taper, rien à copier, et rien à remplir dans les réglages.',
       panelFigure: {
         caption: 'RuneLite → le bouton Anvil',
         alt: 'La barre d’icônes de RuneLite, avec le bouton Anvil entouré tout en bas',
@@ -489,18 +493,22 @@ const fr: PartialGuideDict = {
         legend: [
           {
             label: 'Sign in with Discord',
-            body: 'ne s’affiche que tant que le jeton est encore vide. Cliquez dessus : le reste se passe dans votre navigateur.',
+            body: 'ne s’affiche que tant que cet ordinateur est déconnecté. Cliquez dessus : le reste se passe dans votre navigateur.',
           },
           {
             label: 'Connects to',
             body: 'toujours `anvilosrs.com` — le seul site auquel le plugin parle, et celui auquel votre jeton appartient.',
+          },
+          {
+            label: 'Paste a token instead',
+            body: 'la solution de secours, si l’étape dans le navigateur ne fonctionne pas chez vous — voir la fin de cette étape.',
           },
         ],
       },
       easySteps: [
         'Cliquez sur **Sign in with Discord**. Le panneau affiche un code court et ouvre votre navigateur sur `anvilosrs.com`.',
         'Connectez-vous avec Discord là-bas si ce n’est pas déjà fait, vérifiez que le code de la page correspond à celui de RuneLite, puis cliquez sur **Approve**.',
-        'De retour dans RuneLite, le panneau indique _Signed in_ et a rempli l’Account Token pour vous. C’est tout.',
+        'De retour dans RuneLite, le haut du panneau indique _Signed in_ — et, une fois en jeu, quel personnage est suivi. C’est tout.',
       ],
       linkFigure: {
         caption: 'anvilosrs.com → /link-device',
@@ -519,20 +527,13 @@ const fr: PartialGuideDict = {
           'Tout ce parcours reste sur `anvilosrs.com` — le code y est émis, vous l’y approuvez avec votre propre connexion Discord, et le jeton repart directement vers le plugin. Le plugin n’ouvre que des pages de connexion sur `anvilosrs.com` : un lien de connexion qui pointe ailleurs ne vient donc pas de lui.',
         ],
       },
-      settingsRefreshNote: {
-        tag: 'Account Token semble toujours vide ?',
-        body: [
-          'Il ne l’est pas — le jeton est enregistré au moment même où vous approuvez. Mais RuneLite ne dessine la page de réglages d’un plugin qu’à son ouverture : si vous étiez déjà sur **Configuration → Anvil** pendant la connexion, ce champ continue d’afficher ce qu’il affichait il y a une minute.',
-          'Cliquez sur n’importe quel autre plugin dans la liste, puis de nouveau sur **Anvil**. Le jeton y est. Pendant la connexion, c’est le panneau latéral qui dit vrai : il affiche _Signed in_ dès que ça a marché.',
-        ],
-      },
       federationAside:
         'À ne pas confondre avec **Connect clans** dans le panneau latéral — c’est le bouton distinct et facultatif qui vous relie à d’autres clans Anvil, et il n’apparaît qu’une fois que vous êtes déjà connecté ici.',
       manualFallback:
         'Si le navigateur ne s’ouvre pas tout seul, le panneau affiche l’adresse et le code pour que vous puissiez l’ouvrir à la main. Les codes expirent au bout de dix minutes — appuyez simplement de nouveau sur le bouton.',
       manualHeading: 'En secours : collez votre jeton à la main',
       manualIntro:
-        'Si la connexion depuis le plugin ne fonctionne pas chez vous, copiez votre jeton ci-dessous (ou depuis [Profile → plugin token](/profile#plugin-token), où vous pouvez aussi le renouveler) et collez-le dans **Configuration → Anvil → Account Token**. C’est le seul réglage à toucher.',
+        'Si la connexion depuis le plugin ne fonctionne pas chez vous, copiez votre jeton ci-dessous (ou depuis [Profile → plugin token](/profile#plugin-token), où vous pouvez aussi le renouveler), puis cliquez sur **Paste a token instead** sous le bouton de connexion du panneau Anvil et collez-le là.',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: 'La carte RuneLite plugin sur la page de profil, avec le champ de jeton et les boutons Reveal, Copy et Rotate encadrés',
@@ -543,13 +544,13 @@ const fr: PartialGuideDict = {
           },
           {
             label: 'Copy / Rotate',
-            body: 'copiez-le dans le champ Account Token du plugin. Rotate en émet un nouveau et tue l’ancien — servez-vous-en si vous soupçonnez une fuite de votre jeton.',
+            body: 'copiez-le, puis utilisez **Paste a token instead** dans le panneau Anvil. Rotate en émet un nouveau et tue l’ancien — servez-vous-en si vous soupçonnez une fuite de votre jeton.',
           },
         ],
       },
       goodToKnow: {
         tag: 'Utilisez le panneau latéral au quotidien',
-        body: ['**Le panneau latéral Anvil est votre espace de travail principal** : connectez-vous depuis celui-ci, consultez vos clans et événements actifs, suivez votre progression, prenez les captures de départ, lancez les synchronisations et ouvrez les outils d’assistance. **Configuration → Anvil**, illustré ci-dessous, sert uniquement aux préférences. L’Account Token est rempli automatiquement ; ne le collez vous-même que si la connexion depuis le panneau latéral échoue. Un seul jeton couvre tous les événements auxquels vous êtes inscrit — inutile de le recoller pour chaque bingo.'],
+        body: ['**Le panneau latéral Anvil est votre espace de travail principal** : connectez-vous et déconnectez-vous depuis celui-ci, consultez vos clans et événements actifs, parcourez et réclamez des cases, suivez votre progression, prenez les captures de départ, lancez les synchronisations et ouvrez les outils d’assistance. **Configuration → Anvil**, illustré ci-dessous, sert uniquement aux préférences — il n’y a aucun jeton dedans. Pour déconnecter cet ordinateur, ouvrez le menu **⋯** à côté de votre nom en haut du panneau. Une seule connexion couvre tous les événements auxquels vous êtes inscrit — inutile de la refaire pour chaque bingo.'],
       },
     },
 
@@ -797,7 +798,7 @@ const fr: PartialGuideDict = {
       rows: [
         {
           term: '`Anvil: your Account Token was rejected — tracking is OFF.`',
-          body: 'Le jeton est faux ou a été renouvelé. Recopiez-le depuis [Profile → RuneLite plugin](/profile#plugin-token), ou videz le champ et reconnectez-vous depuis le plugin.',
+          body: 'Le jeton est faux ou a été renouvelé. Ouvrez le menu **⋯** en haut du panneau Anvil, appuyez sur **Sign out**, puis à nouveau sur **Sign in with Discord** — ou utilisez **Paste a token instead** avec un jeton neuf depuis [Profile → RuneLite plugin](/profile#plugin-token).',
         },
         {
           term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',

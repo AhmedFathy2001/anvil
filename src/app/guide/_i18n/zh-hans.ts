@@ -20,6 +20,10 @@ const zhHans: PartialGuideDict = {
     backToGuides: '全部指南',
     unreviewedNotice:
       '这份{language}译文还没有母语者校对过。如果某句话读起来不对，[英文页面]({englishHref}) 才是原文 —— 而[告诉我们](/feedback)才能让它被修正。',
+    support: {
+      lead: '卡住了,或者有什么不对?',
+      link: '在 Anvil 支持 Discord 中提问',
+    },
   },
 
   index: {
@@ -469,7 +473,7 @@ const zhHans: PartialGuideDict = {
 
     connect: {
       title: '登录',
-      intro: '从 RuneLite 侧边栏打开 **Anvil** 面板，点击 **Sign in with Discord**。浏览器会打开 `anvilosrs.com`；在那里批准验证码，插件就会自己填好 Account Token —— 不用输入，也不用复制。',
+      intro: '从 RuneLite 侧边栏打开 **Anvil** 面板，点击 **Sign in with Discord**。浏览器会打开 `anvilosrs.com`；在那里批准验证码，插件就会自己完成登录 —— 不用输入，不用复制，也不用在设置里填写任何东西。',
       panelFigure: {
         caption: 'RuneLite → Anvil 按钮',
         alt: 'RuneLite 的侧边图标栏，最下方的 Anvil 按钮被圈出',
@@ -486,18 +490,22 @@ const zhHans: PartialGuideDict = {
         legend: [
           {
             label: 'Sign in with Discord',
-            body: '只在令牌仍为空时显示。点它，剩下的都在浏览器里完成。',
+            body: '只在这台电脑处于登出状态时显示。点它，剩下的都在浏览器里完成。',
           },
           {
             label: 'Connects to',
             body: '始终是 `anvilosrs.com` —— 插件唯一会通信的站点，也是你的令牌所属的站点。',
+          },
+          {
+            label: 'Paste a token instead',
+            body: '备用方案，适用于浏览器这一步对你行不通的情况 —— 见本步骤末尾。',
           },
         ],
       },
       easySteps: [
         '点击 **Sign in with Discord**。面板会显示一个短验证码，并在浏览器中打开 `anvilosrs.com`。',
         '如果还没登录，先在那里用 Discord 登录，核对页面上的验证码与 RuneLite 里的一致，然后点击 **Approve**。',
-        '回到 RuneLite，面板会显示 _Signed in_，Account Token 也已替你填好。就这样。',
+        '回到 RuneLite，面板顶部会显示 _Signed in_ —— 进入游戏后，还会显示它正在追踪哪个角色。就这样。',
       ],
       linkFigure: {
         caption: 'anvilosrs.com → /link-device',
@@ -516,20 +524,13 @@ const zhHans: PartialGuideDict = {
           '整个流程都留在 `anvilosrs.com` —— 验证码在那里签发，你在那里用自己的 Discord 登录批准，令牌直接交回插件。插件只会打开 `anvilosrs.com` 上的登录页面，所以指向其他任何地方的登录链接都不是它发出的。',
         ],
       },
-      settingsRefreshNote: {
-        tag: 'Account Token 看起来还是空的？',
-        body: [
-          '其实不空——你一点批准，令牌就已经存好了。但 RuneLite 只在你打开插件设置页时才会重画它，所以如果登录时你正停在 **Configuration → Anvil**，那个框里显示的还是一分钟前的样子。',
-          '在设置列表里点任意另一个插件，再点回 **Anvil**，令牌就在那里。登录过程中诚实的是侧边面板：一旦成功，它立刻显示 _Signed in_。',
-        ],
-      },
       federationAside:
         '别把它和侧边栏里的 **Connect clans** 弄混 —— 那是另一个可选按钮，用来把你连到其他 Anvil 氏族，而且只有在你已经登录之后才会出现。',
       manualFallback:
         '如果浏览器没有自动打开，面板会把网址和代码打印出来，你可以手动打开。代码十分钟后失效 —— 再按一次按钮即可。',
       manualHeading: '备用办法：手动粘贴令牌',
       manualIntro:
-        '如果从插件登录对你不起作用，就复制下面的令牌（或到 [Profile → plugin token](/profile#plugin-token) 复制，那里也可以轮换它），粘贴到 **Configuration → Anvil → Account Token**。这是你唯一需要动的设置。',
+        '如果从插件登录对你不起作用，就复制下面的令牌（或到 [Profile → plugin token](/profile#plugin-token) 复制，那里也可以轮换它），然后在 Anvil 面板中点击登录按钮下方的 **Paste a token instead**，粘贴到那里。',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: '个人资料页上的 RuneLite plugin 卡片，令牌字段与 Reveal、Copy、Rotate 按钮被方框标出',
@@ -540,13 +541,13 @@ const zhHans: PartialGuideDict = {
           },
           {
             label: 'Copy / Rotate',
-            body: '把它复制到插件的 Account Token 字段。Rotate 会签发一个新的并作废旧的 —— 只要你怀疑令牌外泄就用它。',
+            body: '复制它，然后在 Anvil 面板中使用 **Paste a token instead**。Rotate 会签发一个新的并作废旧的 —— 只要你怀疑令牌外泄就用它。',
           },
         ],
       },
       goodToKnow: {
         tag: '日常使用侧边栏',
-        body: ['**Anvil 侧边栏是你的主要工作区**：在这里登录、查看氏族和进行中的活动、跟踪进度、拍摄起始截图、运行同步并打开支持工具。下方的 **Configuration → Anvil** 仅用于调整偏好设置。Account Token 会自动填入；只有侧边栏登录失败时才需要手动粘贴。一个令牌适用于你报名的所有活动 — 无需为每场宾果重新粘贴。'],
+        body: ['**Anvil 侧边栏是你的主要工作区**：在这里登录和登出、查看氏族和进行中的活动、浏览并认领格子、跟踪进度、拍摄起始截图、运行同步并打开支持工具。下方的 **Configuration → Anvil** 仅用于调整偏好设置 —— 里面没有令牌。要让这台电脑登出，请打开面板顶部你名字旁边的 **⋯** 菜单。一次登录适用于你报名的所有活动 — 无需为每场宾果重新登录。'],
       },
     },
 
@@ -794,7 +795,7 @@ const zhHans: PartialGuideDict = {
       rows: [
         {
           term: '`Anvil: your Account Token was rejected — tracking is OFF.`',
-          body: '令牌不对或已被轮换。从 [Profile → RuneLite plugin](/profile#plugin-token) 重新复制，或者清空该字段再从插件里重新登录。',
+          body: '令牌不对或已被轮换。打开 Anvil 面板顶部的 **⋯** 菜单，点击 **Sign out**，然后再点 **Sign in with Discord** —— 或者用 [Profile → RuneLite plugin](/profile#plugin-token) 里的新令牌，通过 **Paste a token instead** 粘贴。',
         },
         {
           term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',
@@ -848,7 +849,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: "重复的宠物和 Champion's scroll",
-          body: "如果你已经拥有该宠物或卷轴,游戏只会说你有一种 **“funny feeling”**——从不说明是哪一个。插件会根据你刚击杀的怪物或刚练的技能推断出来,完成该格子,并**标记给工作人员审核**。如果无法确定——同一来源有两种宠物,或宠物与击杀或技能无关(大师线索的 Bloodhound、赌来的 Jad 或 Zuk 宠物、Chompy chick)——截图会保存到 **Saved proofs**,由你手动提交。",
+          body: '如果你已经拥有该宠物或卷轴,游戏只会说你有一种 **“funny feeling”**——从不说明是哪一个。插件会根据你刚击杀的怪物或刚练的技能推断出来,完成该格子,并**标记给工作人员审核**。如果无法确定——同一来源有两种宠物,或宠物与击杀或技能无关(大师线索的 Bloodhound、赌来的 Jad 或 Zuk 宠物、Chompy chick)——截图会保存到 **Saved proofs**,由你手动提交。',
         },
       ],
     },

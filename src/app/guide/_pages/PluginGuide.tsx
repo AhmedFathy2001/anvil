@@ -125,8 +125,8 @@ export default async function PluginGuide({ lang }: { lang: string }) {
 
             <Figure
               src="/guide/plugin-signin.png"
-              width={548}
-              height={698}
+              width={538}
+              height={545}
               alt={p.connect.signInFigure.alt}
               caption={p.connect.signInFigure.caption}
               legend={legend(p.connect.signInFigure.legend, v)}
@@ -148,10 +148,6 @@ export default async function PluginGuide({ lang }: { lang: string }) {
             {/* Where the browser actually goes to authenticate you. */}
             <Note tag={p.connect.directNote.tag}>{paragraphs(p.connect.directNote.body, v, '')}</Note>
 
-            <Note tag={p.connect.settingsRefreshNote.tag}>
-              {paragraphs(p.connect.settingsRefreshNote.body, v, '')}
-            </Note>
-
             {federationEnabled && (
               <p className="text-sm text-text-muted">{rt(p.connect.federationAside, v)}</p>
             )}
@@ -164,8 +160,8 @@ export default async function PluginGuide({ lang }: { lang: string }) {
 
         <Figure
           src="/guide/plugin-settings.png"
-          width={237}
-          height={754}
+          width={238}
+          height={550}
           alt=""
           caption={p.connect.goodToKnow.tag}
           legend={[]}

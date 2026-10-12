@@ -22,6 +22,10 @@ const fi: PartialGuideDict = {
     backToGuides: 'Kaikki oppaat',
     unreviewedNotice:
       'Kukaan äidinkielinen puhuja ei ole vielä lukenut tätä {language} käännöstä läpi. Jos jokin lause tuntuu väärältä, [englanninkielinen sivu]({englishHref}) on alkuperäinen — ja [ilmoittaminen](/feedback) on se, mikä saa sen korjatuksi.',
+    support: {
+      lead: 'Jumissa, tai näyttääkö jokin väärältä?',
+      link: 'Kysy Anvilin tuki-Discordissa',
+    },
   },
 
   index: {
@@ -471,7 +475,7 @@ const fi: PartialGuideDict = {
 
     connect: {
       title: 'Kirjaudu sisään',
-      intro: 'Avaa **Anvil**-paneeli RuneLiten sivupalkista ja klikkaa **Sign in with Discord**. Selain avautuu osoitteeseen `anvilosrs.com`; hyväksy koodi siellä, niin plugin täyttää Account Tokeninsa itse — ei mitään kirjoitettavaa, ei mitään kopioitavaa.',
+      intro: 'Avaa **Anvil**-paneeli RuneLiten sivupalkista ja klikkaa **Sign in with Discord**. Selain avautuu osoitteeseen `anvilosrs.com`; hyväksy koodi siellä, niin plugin kirjautuu itse sisään — ei mitään kirjoitettavaa, ei mitään kopioitavaa eikä mitään täytettävää asetuksissa.',
       panelFigure: {
         caption: 'RuneLite → Anvil-painike',
         alt: 'RuneLiten sivupalkin kuvakkeet, joissa Anvil-painike rivin alalaidassa on ympyröity',
@@ -488,18 +492,22 @@ const fi: PartialGuideDict = {
         legend: [
           {
             label: 'Sign in with Discord',
-            body: 'näkyy vain niin kauan kuin token on vielä tyhjä. Napsauta sitä, ja loput tapahtuu selaimessasi.',
+            body: 'näkyy vain niin kauan kuin tämä tietokone on kirjautunut ulos. Napsauta sitä, ja loput tapahtuu selaimessasi.',
           },
           {
             label: 'Connects to',
             body: 'aina `anvilosrs.com` — ainoa sivusto, jonka kanssa plugin keskustelee, ja se, johon tokenisi kuuluu.',
+          },
+          {
+            label: 'Paste a token instead',
+            body: 'varakeino, jos selainvaihe ei toimi sinulla — katso tämän vaiheen loppu.',
           },
         ],
       },
       easySteps: [
         'Klikkaa **Sign in with Discord**. Paneeli näyttää lyhyen koodin ja avaa selaimen osoitteeseen `anvilosrs.com`.',
         'Kirjaudu siellä Discordilla, jos et ole jo kirjautunut, tarkista että sivun koodi vastaa RuneLitessa näkyvää ja klikkaa sitten **Approve**.',
-        'Takaisin RuneLitessa paneeli sanoo _Signed in_ ja on täyttänyt Account Tokenin puolestasi. Siinä kaikki.',
+        'Takaisin RuneLitessa paneelin yläosassa lukee _Signed in_ — ja peliin kirjauduttuasi myös se, mitä hahmoa seurataan. Siinä kaikki.',
       ],
       linkFigure: {
         caption: 'anvilosrs.com → /link-device',
@@ -518,20 +526,13 @@ const fi: PartialGuideDict = {
           'Koko tämä kulku pysyy osoitteessa `anvilosrs.com` — koodi myönnetään siellä, hyväksyt sen siellä omalla Discord-kirjautumisellasi, ja token palautetaan suoraan pluginille. Plugin avaa kirjautumissivuja vain osoitteessa `anvilosrs.com`, joten muualle osoittava kirjautumislinkki ei ole peräisin siltä.',
         ],
       },
-      settingsRefreshNote: {
-        tag: 'Näyttääkö Account Token yhä tyhjältä?',
-        body: [
-          'Ei se ole — token tallentuu heti kun hyväksyt. Mutta RuneLite piirtää lisäosan asetussivun vasta kun avaat sen, joten jos olit jo **Configuration → Anvil** -sivulla kirjautuessasi, kenttä näyttää yhä sen mitä se näytti minuutti sitten.',
-          'Napsauta listasta mitä tahansa toista lisäosaa ja sitten **Anvil** uudelleen. Token on siellä. Sivupaneeli on kirjautumisen aikana rehellinen: se sanoo _Signed in_ heti kun se onnistui.',
-        ],
-      },
       federationAside:
         'Ei pidä sekoittaa sivupaneelin **Connect clans** -painikkeeseen — se on erillinen, vapaaehtoinen painike joka yhdistää sinut muihin Anvil-klaaneihin, ja se ilmestyy vasta kun olet jo kirjautunut täällä.',
       manualFallback:
         'Jos selain ei aukea itsestään, paneeli tulostaa osoitteen ja koodin, jotta voit avata sen käsin. Koodit vanhenevat kymmenessä minuutissa — paina vain painiketta uudelleen.',
       manualHeading: 'Varakeino: liitä token käsin',
       manualIntro:
-        'Jos kirjautuminen pluginista ei toimi sinulla, kopioi tokenisi alta (tai kohdasta [Profile → plugin token](/profile#plugin-token), jossa voit myös vaihtaa sen) ja liitä se kohtaan **Configuration → Anvil → Account Token**. Se on ainoa asetus, johon sinun tarvitsee koskea.',
+        'Jos kirjautuminen pluginista ei toimi sinulla, kopioi tokenisi alta (tai kohdasta [Profile → plugin token](/profile#plugin-token), jossa voit myös vaihtaa sen), klikkaa sitten Anvil-paneelissa kirjautumispainikkeen alla olevaa **Paste a token instead** -linkkiä ja liitä se sinne.',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: 'Profiilisivun RuneLite plugin -kortti, jossa token-kenttä sekä Reveal-, Copy- ja Rotate-painikkeet on kehystetty',
@@ -542,13 +543,13 @@ const fi: PartialGuideDict = {
           },
           {
             label: 'Copy / Rotate',
-            body: 'kopioi se pluginin Account Token -kenttään. Rotate myöntää uuden ja tappaa vanhan — käytä sitä jos epäilet tokenisi vuotaneen.',
+            body: 'kopioi se ja käytä sitten **Paste a token instead** -toimintoa Anvil-paneelissa. Rotate myöntää uuden ja tappaa vanhan — käytä sitä jos epäilet tokenisi vuotaneen.',
           },
         ],
       },
       goodToKnow: {
         tag: 'Käytä sivupaneelia päivittäin',
-        body: ['**Anvilin sivupaneeli on pääasiallinen työtilasi**: kirjaudu siellä sisään, katso klaanisi ja aktiiviset tapahtumat, seuraa edistymistä, ota aloituskuvia, suorita synkronointeja ja avaa tukityökalut. Alla näkyvä **Configuration → Anvil** on vain asetuksia varten. Account Token täytetään automaattisesti; liitä se sinne vain, jos kirjautuminen sivupaneelista epäonnistuu. Yksi token kattaa kaikki tapahtumat, joihin olet ilmoittautunut — sitä ei tarvitse liittää uudelleen jokaista bingoa varten.'],
+        body: ['**Anvilin sivupaneeli on pääasiallinen työtilasi**: kirjaudu siellä sisään ja ulos, katso klaanisi ja aktiiviset tapahtumat, selaa ja lunasta ruutuja, seuraa edistymistä, ota aloituskuvia, suorita synkronointeja ja avaa tukityökalut. Alla näkyvä **Configuration → Anvil** on vain asetuksia varten — siinä ei ole tokenia. Kirjataksesi tämän tietokoneen ulos avaa **⋯**-valikko nimesi vierestä paneelin yläosassa. Yksi kirjautuminen kattaa kaikki tapahtumat, joihin olet ilmoittautunut — sitä ei tarvitse tehdä uudelleen jokaista bingoa varten.'],
       },
     },
 
@@ -796,7 +797,7 @@ const fi: PartialGuideDict = {
       rows: [
         {
           term: '`Anvil: your Account Token was rejected — tracking is OFF.`',
-          body: 'Token on väärä tai se on kierrätetty. Kopioi se uudelleen kohdasta [Profile → RuneLite plugin](/profile#plugin-token), tai tyhjennä kenttä ja kirjaudu pluginista uudelleen.',
+          body: 'Token on väärä tai se on kierrätetty. Avaa **⋯**-valikko Anvil-paneelin yläosassa, paina **Sign out** ja sitten uudelleen **Sign in with Discord** — tai käytä **Paste a token instead** -toimintoa tuoreella tokenilla kohdasta [Profile → RuneLite plugin](/profile#plugin-token).',
         },
         {
           term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',
@@ -850,7 +851,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: "Tuplapetit ja champion's scrollit",
-          body: "Kun sinulla on jo pet tai scroll, peli sanoo vain, että sinulla on **”funny feeling”** — se ei koskaan kerro mikä. Plugin päättelee sen siitä, mitä juuri tapoit tai treenasit, hyvittää ruudun ja **merkitsee sen staffin tarkistettavaksi**. Jos se ei voi olla varma — kaksi pettiä samasta lähteestä tai pet, jonka takana ei ole tappoa tai skilliä (Bloodhound master cluesta, uhrattu Jad- tai Zuk-pet, Chompy chick) — kuvakaappaus tallentuu **Saved proofs** -kohtaan, jotta voit lähettää sen käsin.",
+          body: 'Kun sinulla on jo pet tai scroll, peli sanoo vain, että sinulla on **”funny feeling”** — se ei koskaan kerro mikä. Plugin päättelee sen siitä, mitä juuri tapoit tai treenasit, hyvittää ruudun ja **merkitsee sen staffin tarkistettavaksi**. Jos se ei voi olla varma — kaksi pettiä samasta lähteestä tai pet, jonka takana ei ole tappoa tai skilliä (Bloodhound master cluesta, uhrattu Jad- tai Zuk-pet, Chompy chick) — kuvakaappaus tallentuu **Saved proofs** -kohtaan, jotta voit lähettää sen käsin.',
         },
       ],
     },

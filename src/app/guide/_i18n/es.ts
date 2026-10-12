@@ -22,6 +22,10 @@ const es: PartialGuideDict = {
     backToGuides: 'Todas las guías',
     unreviewedNotice:
       'Ningún hablante nativo ha revisado todavía esta traducción al {language}. Si una frase suena mal, [la página en inglés]({englishHref}) es el original — y [avisarnos](/feedback) es lo que la arregla.',
+    support: {
+      lead: '¿Atascado o algo no cuadra?',
+      link: 'Pregunta en el Discord de soporte de Anvil',
+    },
   },
 
   index: {
@@ -471,7 +475,7 @@ const es: PartialGuideDict = {
 
     connect: {
       title: 'Inicia sesión',
-      intro: 'Abre el panel **Anvil** desde la barra lateral de RuneLite y pulsa **Sign in with Discord**. El navegador se abre en `anvilosrs.com`; aprueba allí el código y el plugin rellena su Account Token por sí solo — nada que escribir, nada que copiar.',
+      intro: 'Abre el panel **Anvil** desde la barra lateral de RuneLite y pulsa **Sign in with Discord**. El navegador se abre en `anvilosrs.com`; aprueba allí el código y el plugin inicia sesión por sí solo — nada que escribir, nada que copiar y nada que rellenar en los ajustes.',
       panelFigure: {
         caption: 'RuneLite → el botón Anvil',
         alt: 'La barra de iconos de RuneLite, con el botón Anvil del final resaltado',
@@ -488,18 +492,22 @@ const es: PartialGuideDict = {
         legend: [
           {
             label: 'Sign in with Discord',
-            body: 'solo aparece mientras el token sigue vacío. Haz clic y el resto ocurre en tu navegador.',
+            body: 'solo aparece mientras este ordenador tiene la sesión cerrada. Haz clic y el resto ocurre en tu navegador.',
           },
           {
             label: 'Connects to',
             body: 'siempre `anvilosrs.com` — el único sitio con el que habla el plugin, y al que pertenece tu token.',
+          },
+          {
+            label: 'Paste a token instead',
+            body: 'la alternativa, si el paso del navegador no te funciona — mira el final de este paso.',
           },
         ],
       },
       easySteps: [
         'Pulsa **Sign in with Discord**. El panel muestra un código corto y abre el navegador en `anvilosrs.com`.',
         'Inicia sesión allí con Discord si aún no lo has hecho, comprueba que el código de la página coincide con el de RuneLite y pulsa **Approve**.',
-        'De vuelta en RuneLite, el panel dice _Signed in_ y ya ha rellenado el Account Token por ti. Listo.',
+        'De vuelta en RuneLite, la parte superior del panel dice _Signed in_ — y, en cuanto entras al juego, qué personaje está siguiendo. Listo.',
       ],
       linkFigure: {
         caption: 'anvilosrs.com → /link-device',
@@ -518,20 +526,13 @@ const es: PartialGuideDict = {
           'Todo el flujo se queda en `anvilosrs.com` — el código se emite allí, lo apruebas allí con tu propio inicio de sesión de Discord, y el token vuelve directamente al plugin. El plugin solo abre páginas de inicio de sesión en `anvilosrs.com`, así que un enlace de inicio de sesión que apunte a otro sitio no viene de él.',
         ],
       },
-      settingsRefreshNote: {
-        tag: '¿Account Token sigue pareciendo vacío?',
-        body: [
-          'No lo está: el token se guarda en el momento en que apruebas. Pero RuneLite solo dibuja la página de ajustes de un plugin al abrirla, así que si ya estabas en **Configuration → Anvil** mientras iniciabas sesión, ese campo sigue mostrando lo de hace un minuto.',
-          'Haz clic en cualquier otro plugin de la lista y vuelve a **Anvil**. El token está ahí. Durante el inicio de sesión el sincero es el panel lateral: dice _Signed in_ en cuanto ha funcionado.',
-        ],
-      },
       federationAside:
         'No lo confundas con **Connect clans** del panel lateral — ese es el botón aparte y opcional que te conecta con otros clanes de Anvil, y solo aparece cuando ya has iniciado sesión aquí.',
       manualFallback:
         'Si el navegador no se abre solo, el panel imprime la dirección y el código para que lo abras a mano. Los códigos caducan a los diez minutos — simplemente vuelve a pulsar el botón.',
       manualHeading: 'Plan B: pega tu token a mano',
       manualIntro:
-        'Si iniciar sesión desde el plugin no te funciona, copia tu token aquí abajo (o desde [Profile → plugin token](/profile#plugin-token), donde también puedes rotarlo) y pégalo en **Configuration → Anvil → Account Token**. Es el único ajuste que tienes que tocar.',
+        'Si iniciar sesión desde el plugin no te funciona, copia tu token aquí abajo (o desde [Profile → plugin token](/profile#plugin-token), donde también puedes rotarlo), luego pulsa **Paste a token instead** debajo del botón de inicio de sesión en el panel de Anvil y pégalo ahí.',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: 'La tarjeta RuneLite plugin en la página de perfil, con el campo del token y los botones Reveal, Copy y Rotate recuadrados',
@@ -542,13 +543,13 @@ const es: PartialGuideDict = {
           },
           {
             label: 'Copy / Rotate',
-            body: 'cópialo al campo Account Token del plugin. Rotate emite uno nuevo y mata el antiguo — úsalo si alguna vez sospechas que tu token se ha filtrado.',
+            body: 'cópialo y luego usa **Paste a token instead** en el panel de Anvil. Rotate emite uno nuevo y mata el antiguo — úsalo si alguna vez sospechas que tu token se ha filtrado.',
           },
         ],
       },
       goodToKnow: {
         tag: 'Usa el panel lateral a diario',
-        body: ['**El panel lateral de Anvil es tu espacio de trabajo principal**: inicia sesión allí, consulta tus clanes y eventos activos, sigue el progreso, toma capturas iniciales, ejecuta sincronizaciones y abre las herramientas de soporte. **Configuration → Anvil**, que se muestra abajo, es solo para preferencias. El Account Token se rellena automáticamente; pégalo allí únicamente si falla el inicio de sesión desde el panel lateral. Un solo token cubre todos los eventos en los que estás inscrito — no tienes que volver a pegarlo para cada bingo.'],
+        body: ['**El panel lateral de Anvil es tu espacio de trabajo principal**: inicia y cierra sesión allí, consulta tus clanes y eventos activos, explora y reclama casillas, sigue el progreso, toma capturas iniciales, ejecuta sincronizaciones y abre las herramientas de soporte. **Configuration → Anvil**, que se muestra abajo, es solo para preferencias — no hay ningún token ahí. Para cerrar la sesión en este ordenador, abre el menú **⋯** junto a tu nombre en la parte superior del panel. Un solo inicio de sesión cubre todos los eventos en los que estás inscrito — no tienes que repetirlo para cada bingo.'],
       },
     },
 
@@ -796,7 +797,7 @@ const es: PartialGuideDict = {
       rows: [
         {
           term: '`Anvil: your Account Token was rejected — tracking is OFF.`',
-          body: 'El token es incorrecto o se ha rotado. Vuelve a copiarlo desde [Profile → RuneLite plugin](/profile#plugin-token), o vacía el campo e inicia sesión de nuevo desde el plugin.',
+          body: 'El token es incorrecto o se ha rotado. Abre el menú **⋯** en la parte superior del panel de Anvil, pulsa **Sign out** y después **Sign in with Discord** de nuevo — o usa **Paste a token instead** con un token nuevo desde [Profile → RuneLite plugin](/profile#plugin-token).',
         },
         {
           term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',
@@ -850,7 +851,7 @@ const es: PartialGuideDict = {
         },
         {
           term: "Mascotas y champion's scrolls duplicados",
-          body: "Cuando ya tienes la mascota o el scroll, el juego solo dice que tienes un **“funny feeling”** — nunca dice cuál. El plugin lo deduce de lo que acabas de matar o entrenar, acredita la casilla y **la marca para que el staff la revise**. Si no puede saberlo — dos mascotas de la misma fuente, o una mascota sin una muerte o habilidad detrás (Bloodhound de un master clue, una mascota de Jad o Zuk apostada, Chompy chick) — guarda la captura en **Saved proofs** para que la envíes manualmente.",
+          body: 'Cuando ya tienes la mascota o el scroll, el juego solo dice que tienes un **“funny feeling”** — nunca dice cuál. El plugin lo deduce de lo que acabas de matar o entrenar, acredita la casilla y **la marca para que el staff la revise**. Si no puede saberlo — dos mascotas de la misma fuente, o una mascota sin una muerte o habilidad detrás (Bloodhound de un master clue, una mascota de Jad o Zuk apostada, Chompy chick) — guarda la captura en **Saved proofs** para que la envíes manualmente.',
         },
       ],
     },

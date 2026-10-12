@@ -22,6 +22,10 @@ const pl: PartialGuideDict = {
     backToGuides: 'Wszystkie przewodniki',
     unreviewedNotice:
       'To tłumaczenie na język {language} nie zostało jeszcze sprawdzone przez native speakera. Jeśli jakieś zdanie brzmi źle, [strona angielska]({englishHref}) jest oryginałem —— a [zgłoszenie nam tego](/feedback) jest tym, co doprowadza do poprawki.',
+    support: {
+      lead: 'Utknąłeś albo coś wygląda źle?',
+      link: 'Zapytaj na Discordzie wsparcia Anvil',
+    },
   },
 
   index: {
@@ -471,7 +475,7 @@ const pl: PartialGuideDict = {
 
     connect: {
       title: 'Zaloguj się',
-      intro: 'Otwórz panel **Anvil** z paska bocznego RuneLite i kliknij **Sign in with Discord**. Przeglądarka otworzy się na `anvilosrs.com`; zatwierdź tam kod, a plugin sam uzupełni swój Account Token —— nic do wpisywania, nic do kopiowania.',
+      intro: 'Otwórz panel **Anvil** z paska bocznego RuneLite i kliknij **Sign in with Discord**. Przeglądarka otworzy się na `anvilosrs.com`; zatwierdź tam kod, a plugin sam się zaloguje —— nic do wpisywania, nic do kopiowania i nic do uzupełniania w ustawieniach.',
       panelFigure: {
         caption: 'RuneLite → przycisk Anvil',
         alt: 'Pasek ikon RuneLite z zaznaczonym przyciskiem Anvil na samym dole',
@@ -488,18 +492,22 @@ const pl: PartialGuideDict = {
         legend: [
           {
             label: 'Sign in with Discord',
-            body: 'pokazuje się tylko dopóki token jest pusty. Kliknij, a reszta dzieje się w przeglądarce.',
+            body: 'pokazuje się tylko dopóki ten komputer jest wylogowany. Kliknij, a reszta dzieje się w przeglądarce.',
           },
           {
             label: 'Connects to',
             body: 'zawsze `anvilosrs.com` —— jedyna strona, z którą plugin rozmawia, i ta, do której należy twój token.',
+          },
+          {
+            label: 'Paste a token instead',
+            body: 'rozwiązanie awaryjne, jeśli krok w przeglądarce u ciebie nie działa —— zobacz koniec tego kroku.',
           },
         ],
       },
       easySteps: [
         'Kliknij **Sign in with Discord**. Panel pokaże krótki kod i otworzy przeglądarkę na `anvilosrs.com`.',
         'Zaloguj się tam Discordem, jeśli jeszcze nie jesteś, sprawdź, czy kod na stronie zgadza się z tym w RuneLite, i kliknij **Approve**.',
-        'Po powrocie do RuneLite panel napisze _Signed in_ i będzie miał już wypełniony Account Token. To wszystko.',
+        'Po powrocie do RuneLite u góry panelu pojawi się _Signed in_ —— a po zalogowaniu do gry także to, którą postać śledzi. To wszystko.',
       ],
       linkFigure: {
         caption: 'anvilosrs.com → /link-device',
@@ -518,20 +526,13 @@ const pl: PartialGuideDict = {
           'Cały ten przepływ zostaje na `anvilosrs.com` —— kod jest tam wydawany, zatwierdzasz go tam własnym logowaniem Discordem, a token wraca prosto do pluginu. Plugin otwiera strony logowania wyłącznie na `anvilosrs.com`, więc link do logowania prowadzący gdziekolwiek indziej nie pochodzi od niego.',
         ],
       },
-      settingsRefreshNote: {
-        tag: 'Account Token nadal wygląda na pusty?',
-        body: [
-          'Nie jest — token zapisuje się w chwili zatwierdzenia. Ale RuneLite rysuje stronę ustawień wtyczki dopiero przy jej otwarciu, więc jeśli podczas logowania byłeś już na **Configuration → Anvil**, to pole wciąż pokazuje to, co minutę temu.',
-          'Kliknij dowolną inną wtyczkę na liście, a potem znowu **Anvil**. Token tam jest. W trakcie logowania uczciwy jest panel boczny: mówi _Signed in_, gdy tylko się uda.',
-        ],
-      },
       federationAside:
         'Nie mylić z **Connect clans** w panelu bocznym —— to osobny, opcjonalny przycisk, który łączy cię z innymi klanami Anvil, i pojawia się dopiero, gdy jesteś już tutaj zalogowany.',
       manualFallback:
         'Jeśli przeglądarka nie otworzy się sama, panel wypisze adres i kod, żebyś mógł otworzyć go ręcznie. Kody wygasają po dziesięciu minutach —— po prostu naciśnij przycisk jeszcze raz.',
       manualHeading: 'Awaryjnie: wklej token ręcznie',
       manualIntro:
-        'Jeśli logowanie z pluginu u ciebie nie działa, skopiuj swój token poniżej (albo z [Profile → plugin token](/profile#plugin-token), gdzie możesz go też wymienić) i wklej go w **Configuration → Anvil → Account Token**. To jedyne ustawienie, którego musisz dotknąć.',
+        'Jeśli logowanie z pluginu u ciebie nie działa, skopiuj swój token poniżej (albo z [Profile → plugin token](/profile#plugin-token), gdzie możesz go też wymienić), a potem kliknij **Paste a token instead** pod przyciskiem logowania w panelu Anvil i wklej go tam.',
       tokenFigure: {
         caption: 'Profil → RuneLite plugin',
         alt: 'Karta RuneLite plugin na stronie profilu z zaznaczonym polem tokenu i przyciskami Reveal, Copy i Rotate',
@@ -542,13 +543,13 @@ const pl: PartialGuideDict = {
           },
           {
             label: 'Copy / Rotate',
-            body: 'skopiuj go do pola Account Token w pluginie. Rotate wydaje nowy i unieważnia stary —— użyj go, jeśli podejrzewasz, że token wyciekł.',
+            body: 'skopiuj go, a potem użyj **Paste a token instead** w panelu Anvil. Rotate wydaje nowy i unieważnia stary —— użyj go, jeśli podejrzewasz, że token wyciekł.',
           },
         ],
       },
       goodToKnow: {
         tag: 'Na co dzień używaj panelu bocznego',
-        body: ['**Panel boczny Anvil jest Twoim głównym miejscem pracy**: zaloguj się w nim, przeglądaj klany i aktywne wydarzenia, śledź postępy, rób zdjęcia startowe, uruchamiaj synchronizację i otwieraj narzędzia pomocy. **Configuration → Anvil**, pokazane poniżej, służy wyłącznie do ustawień. Account Token jest uzupełniany automatycznie; wklej go tam ręcznie tylko wtedy, gdy logowanie z panelu bocznego nie zadziała. Jeden token obejmuje wszystkie wydarzenia, na które jesteś zapisany — nie musisz wklejać go ponownie dla każdego bingo.'],
+        body: ['**Panel boczny Anvil jest Twoim głównym miejscem pracy**: loguj się i wylogowuj w nim, przeglądaj klany i aktywne wydarzenia, przeglądaj i zajmuj pola, śledź postępy, rób zdjęcia startowe, uruchamiaj synchronizację i otwieraj narzędzia pomocy. **Configuration → Anvil**, pokazane poniżej, służy wyłącznie do ustawień —— nie ma tam żadnego tokenu. Aby wylogować ten komputer, otwórz menu **⋯** obok swojej nazwy u góry panelu. Jedno logowanie obejmuje wszystkie wydarzenia, na które jesteś zapisany — nie musisz go powtarzać dla każdego bingo.'],
       },
     },
 
@@ -785,7 +786,7 @@ const pl: PartialGuideDict = {
       rows: [
         {
           term: '`Anvil: your Account Token was rejected — tracking is OFF.`',
-          body: 'Token jest błędny albo został zrotowany. Skopiuj go ponownie z [Profil → RuneLite plugin](/profile#plugin-token) albo wyczyść pole i zaloguj się z pluginu jeszcze raz.',
+          body: 'Token jest błędny albo został zrotowany. Otwórz menu **⋯** u góry panelu Anvil, naciśnij **Sign out**, a potem ponownie **Sign in with Discord** —— albo użyj **Paste a token instead** ze świeżym tokenem z [Profil → RuneLite plugin](/profile#plugin-token).',
         },
         {
           term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',
@@ -839,7 +840,7 @@ const pl: PartialGuideDict = {
         },
         {
           term: "Zduplikowane pety i champion's scrolle",
-          body: "Gdy masz już peta lub scroll, gra mówi tylko, że masz **„funny feeling”** — nigdy nie mówi, który. Plugin wnioskuje to z tego, co właśnie zabiłeś lub trenowałeś, zalicza pole i **oznacza je do sprawdzenia przez staff**. Gdy nie da się tego ustalić — dwa pety z tego samego źródła albo pet bez zabójstwa czy umiejętności (Bloodhound z master clue, pet Jada lub Zuka z hazardu, Chompy chick) — zrzut ekranu trafia do **Saved proofs**, żebyś zgłosił go ręcznie.",
+          body: 'Gdy masz już peta lub scroll, gra mówi tylko, że masz **„funny feeling”** — nigdy nie mówi, który. Plugin wnioskuje to z tego, co właśnie zabiłeś lub trenowałeś, zalicza pole i **oznacza je do sprawdzenia przez staff**. Gdy nie da się tego ustalić — dwa pety z tego samego źródła albo pet bez zabójstwa czy umiejętności (Bloodhound z master clue, pet Jada lub Zuka z hazardu, Chompy chick) — zrzut ekranu trafia do **Saved proofs**, żebyś zgłosił go ręcznie.',
         },
       ],
     },

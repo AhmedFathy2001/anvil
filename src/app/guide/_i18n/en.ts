@@ -23,6 +23,10 @@ export const en = {
     backToGuides: 'All guides',
     unreviewedNotice:
       'This {language} translation hasn’t been checked by a native speaker yet. If a sentence reads wrong, the [English page]({englishHref}) is the original — and [telling us](/feedback) is what gets it fixed.',
+    support: {
+      lead: 'Stuck, or something looks wrong?',
+      link: 'Ask in the Anvil support Discord',
+    },
   },
 
   index: {
@@ -477,7 +481,7 @@ export const en = {
 
     connect: {
       title: 'Sign in',
-      intro: 'Open the **Anvil** panel from the RuneLite sidebar and click **Sign in with Discord**. Your browser opens on `anvilosrs.com`; approve the code there and the plugin fills in its Account Token by itself — nothing to type, nothing to copy.',
+      intro: 'Open the **Anvil** panel from the RuneLite sidebar and click **Sign in with Discord**. Your browser opens on `anvilosrs.com`; approve the code there and the plugin signs itself in — nothing to type, nothing to copy, and nothing to fill in under settings.',
       panelFigure: {
         caption: 'RuneLite → the Anvil button',
         alt: "RuneLite's sidebar icons, with the Anvil button at the foot of the strip ringed",
@@ -494,18 +498,22 @@ export const en = {
         legend: [
           {
             label: 'Sign in with Discord',
-            body: 'only shows while the token is still empty. Click it and the rest happens in your browser.',
+            body: 'only shows while this computer is signed out. Click it and the rest happens in your browser.',
           },
           {
             label: 'Connects to',
             body: 'always `anvilosrs.com` — the only site the plugin talks to, and the one your token belongs to.',
+          },
+          {
+            label: 'Paste a token instead',
+            body: 'the fallback, if the browser step won’t work for you — see the end of this step.',
           },
         ],
       },
       easySteps: [
         'Click **Sign in with Discord**. The panel shows a short code and opens your browser on `anvilosrs.com`.',
         'Log in with Discord there if you aren’t already, check the code on the page matches the one in RuneLite, then click **Approve**.',
-        'Back in RuneLite, the panel says _Signed in_ and has filled in the Account Token for you. That’s it.',
+        'Back in RuneLite, the top of the panel says _Signed in_ — and, once you log in, which character it’s tracking. That’s it.',
       ],
       linkFigure: {
         caption: 'anvilosrs.com → /link-device',
@@ -524,20 +532,13 @@ export const en = {
           'Everything in this flow stays on `anvilosrs.com` — the code is issued there, you approve it there with your own Discord login, and the token goes straight back to the plugin. The plugin only ever opens sign-in pages on `anvilosrs.com`, so a sign-in link that points anywhere else did not come from it.',
         ],
       },
-      settingsRefreshNote: {
-        tag: 'Account Token still looks empty?',
-        body: [
-          'It isn’t — signing in saves the token the moment you approve. But RuneLite only draws a plugin’s settings page when you open it, so if you were already sitting on **Configuration → Anvil** while you signed in, that box carries on showing you what it showed a minute ago.',
-          'Click any other plugin in the settings list, then click **Anvil** again. The token is there. The side panel is the honest one during sign-in: it says _Signed in_ as soon as it worked.',
-        ],
-      },
       federationAside:
         'Not to be confused with **Connect clans** in the side panel — that’s the separate, optional button that links you to other Anvil clans, and it only appears once you’re already signed in here.',
       manualFallback:
         'If the browser doesn’t open on its own, the panel prints the address and the code so you can open it manually. Codes expire after ten minutes — just press the button again.',
       manualHeading: 'Fallback: paste your token by hand',
       manualIntro:
-        'If signing in from the plugin won’t work for you, copy your token below (or from [Profile → plugin token](/profile#plugin-token), where you can also rotate it) and paste it into **Configuration → Anvil → Account Token**. That’s the only setting you need to touch.',
+        'If signing in from the plugin won’t work for you, copy your token below (or from [Profile → plugin token](/profile#plugin-token), where you can also rotate it), then click **Paste a token instead** under the sign-in button in the Anvil panel and paste it there.',
       tokenFigure: {
         caption: 'Profile → RuneLite plugin',
         alt: 'The RuneLite plugin card on the profile page, with the token field and the Reveal, Copy and Rotate buttons boxed',
@@ -548,14 +549,14 @@ export const en = {
           },
           {
             label: 'Copy / Rotate',
-            body: 'copy it into the plugin’s Account Token field. Rotate issues a new one and kills the old — use it if you ever think your token leaked.',
+            body: 'copy it, then use **Paste a token instead** in the Anvil panel. Rotate issues a new one and kills the old — use it if you ever think your token leaked.',
           },
         ],
       },
       goodToKnow: {
         tag: 'Use the sidebar day to day',
         body: [
-          'The **Anvil sidebar is your main workspace**: sign in there, see your clans and live events, follow progress, take starting shots, run syncs and open support tools. **Configuration → Anvil**, shown below, is only for preferences. Its Account Token is filled automatically; paste one there only if sidebar sign-in fails. One token covers every event you’re signed up for — you never re-paste it per bingo.',
+          'The **Anvil sidebar is your main workspace**: sign in and out there, see your clans and live events, browse and claim tiles, follow progress, take starting shots, run syncs and open support tools. **Configuration → Anvil**, shown below, is only for preferences — there’s no token in it. To sign this computer out, open the **⋯** menu next to your name at the top of the panel. One sign-in covers every event you’re signed up for — you never redo it per bingo.',
         ],
       },
     },
@@ -793,7 +794,7 @@ export const en = {
       rows: [
         {
           term: '`Anvil: your Account Token was rejected — tracking is OFF.`',
-          body: 'The token is wrong or was rotated. Clear **Configuration → Anvil → Account Token**, then press **Sign in with Discord** in the Anvil panel again — or paste a fresh token from [Profile → RuneLite plugin](/profile#plugin-token).',
+          body: 'The token is wrong or was rotated. Open the **⋯** menu at the top of the Anvil panel, press **Sign out**, then **Sign in with Discord** again — or use **Paste a token instead** with a fresh token from [Profile → RuneLite plugin](/profile#plugin-token).',
         },
         {
           term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',

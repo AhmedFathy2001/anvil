@@ -22,6 +22,10 @@ const it: PartialGuideDict = {
     backToGuides: 'Tutte le guide',
     unreviewedNotice:
       'Questa traduzione in {language} non è ancora stata riletta da un madrelingua. Se una frase suona sbagliata, la [pagina in inglese]({englishHref}) è l’originale —— e [segnalarcelo](/feedback) è ciò che la fa correggere.',
+    support: {
+      lead: 'Bloccato, o qualcosa non torna?',
+      link: 'Chiedi nel Discord di supporto di Anvil',
+    },
   },
 
   index: {
@@ -471,7 +475,7 @@ const it: PartialGuideDict = {
 
     connect: {
       title: 'Accedi',
-      intro: 'Apri il pannello **Anvil** dalla barra laterale di RuneLite e clicca **Sign in with Discord**. Il browser si apre su `anvilosrs.com`; approva lì il codice e il plugin compila da solo il suo Account Token —— niente da scrivere, niente da copiare.',
+      intro: 'Apri il pannello **Anvil** dalla barra laterale di RuneLite e clicca **Sign in with Discord**. Il browser si apre su `anvilosrs.com`; approva lì il codice e il plugin accede da solo —— niente da scrivere, niente da copiare e niente da compilare nelle impostazioni.',
       panelFigure: {
         caption: 'RuneLite → il pulsante Anvil',
         alt: 'La barra delle icone di RuneLite, con il pulsante Anvil in fondo evidenziato',
@@ -488,18 +492,22 @@ const it: PartialGuideDict = {
         legend: [
           {
             label: 'Sign in with Discord',
-            body: 'appare solo finché il token è ancora vuoto. Cliccalo e il resto avviene nel tuo browser.',
+            body: 'appare solo finché questo computer è disconnesso. Cliccalo e il resto avviene nel tuo browser.',
           },
           {
             label: 'Connects to',
             body: 'sempre `anvilosrs.com` —— l’unico sito con cui il plugin parla, e quello a cui appartiene il tuo token.',
+          },
+          {
+            label: 'Paste a token instead',
+            body: 'il ripiego, se il passaggio nel browser non funziona per te —— vedi la fine di questo passaggio.',
           },
         ],
       },
       easySteps: [
         'Clicca **Sign in with Discord**. Il pannello mostra un codice breve e apre il browser su `anvilosrs.com`.',
         'Accedi lì con Discord se non l’hai già fatto, controlla che il codice sulla pagina corrisponda a quello in RuneLite, poi clicca **Approve**.',
-        'Tornato in RuneLite, il pannello dice _Signed in_ e ha compilato l’Account Token al posto tuo. Fatto.',
+        'Tornato in RuneLite, in cima al pannello c’è scritto _Signed in_ —— e, una volta entrato in gioco, quale personaggio sta tracciando. Fatto.',
       ],
       linkFigure: {
         caption: 'anvilosrs.com → /link-device',
@@ -518,20 +526,13 @@ const it: PartialGuideDict = {
           'Tutto questo flusso resta su `anvilosrs.com` —— il codice viene emesso lì, lo approvi lì con il tuo login Discord, e il token torna direttamente al plugin. Il plugin apre pagine di accesso solo su `anvilosrs.com`, quindi un link di accesso che punta altrove non viene da lui.',
         ],
       },
-      settingsRefreshNote: {
-        tag: 'Account Token sembra ancora vuoto?',
-        body: [
-          'Non lo è — il token viene salvato nel momento stesso in cui approvi. Ma RuneLite disegna la pagina delle impostazioni di un plugin solo quando la apri: se durante l’accesso eri già su **Configuration → Anvil**, quel campo continua a mostrarti quello che mostrava un minuto fa.',
-          'Clicca su un altro plugin qualsiasi nell’elenco, poi di nuovo su **Anvil**. Il token è lì. Durante l’accesso quello sincero è il pannello laterale: dice _Signed in_ appena ha funzionato.',
-        ],
-      },
       federationAside:
         'Da non confondere con **Connect clans** nel pannello laterale —— quello è il pulsante separato e facoltativo che ti collega ad altri clan Anvil, e compare solo quando hai già effettuato l’accesso qui.',
       manualFallback:
         'Se il browser non si apre da solo, il pannello stampa l’indirizzo e il codice così puoi aprirlo a mano. I codici scadono dopo dieci minuti —— basta premere di nuovo il pulsante.',
       manualHeading: 'Ripiego: incolla il token a mano',
       manualIntro:
-        'Se l’accesso dal plugin non funziona per te, copia il tuo token qui sotto (o da [Profile → plugin token](/profile#plugin-token), dove puoi anche ruotarlo) e incollalo in **Configuration → Anvil → Account Token**. È l’unica impostazione da toccare.',
+        'Se l’accesso dal plugin non funziona per te, copia il tuo token qui sotto (o da [Profile → plugin token](/profile#plugin-token), dove puoi anche ruotarlo), poi clicca **Paste a token instead** sotto il pulsante di accesso nel pannello Anvil e incollalo lì.',
       tokenFigure: {
         caption: 'Profilo → RuneLite plugin',
         alt: 'La scheda RuneLite plugin sulla pagina del profilo, con il campo del token e i pulsanti Reveal, Copy e Rotate evidenziati',
@@ -542,13 +543,13 @@ const it: PartialGuideDict = {
           },
           {
             label: 'Copy / Rotate',
-            body: 'copialo nel campo Account Token del plugin. Rotate ne emette uno nuovo e annulla il vecchio —— usalo se sospetti che il tuo token sia trapelato.',
+            body: 'copialo, poi usa **Paste a token instead** nel pannello Anvil. Rotate ne emette uno nuovo e annulla il vecchio —— usalo se sospetti che il tuo token sia trapelato.',
           },
         ],
       },
       goodToKnow: {
         tag: 'Usa il pannello laterale ogni giorno',
-        body: ['**Il pannello laterale di Anvil è il tuo spazio di lavoro principale**: accedi da lì, guarda i tuoi clan e gli eventi attivi, segui i progressi, scatta le immagini iniziali, avvia le sincronizzazioni e apri gli strumenti di supporto. **Configuration → Anvil**, mostrato qui sotto, serve solo per le preferenze. L’Account Token viene compilato automaticamente; incollane uno lì solo se l’accesso dal pannello laterale non funziona. Un solo token copre tutti gli eventi a cui sei iscritto — non devi reincollarlo per ogni bingo.'],
+        body: ['**Il pannello laterale di Anvil è il tuo spazio di lavoro principale**: accedi ed esci da lì, guarda i tuoi clan e gli eventi attivi, sfoglia e rivendica le caselle, segui i progressi, scatta le immagini iniziali, avvia le sincronizzazioni e apri gli strumenti di supporto. **Configuration → Anvil**, mostrato qui sotto, serve solo per le preferenze —— lì non c’è nessun token. Per disconnettere questo computer, apri il menu **⋯** accanto al tuo nome in cima al pannello. Un solo accesso copre tutti gli eventi a cui sei iscritto — non devi rifarlo per ogni bingo.'],
       },
     },
 
@@ -785,7 +786,7 @@ const it: PartialGuideDict = {
       rows: [
         {
           term: '`Anvil: your Account Token was rejected — tracking is OFF.`',
-          body: 'Il token è sbagliato o è stato rigenerato. Ricopialo da [Profilo → RuneLite plugin](/profile#plugin-token), oppure svuota il campo e accedi di nuovo dal plugin.',
+          body: 'Il token è sbagliato o è stato rigenerato. Apri il menu **⋯** in cima al pannello Anvil, premi **Sign out**, poi di nuovo **Sign in with Discord** —— oppure usa **Paste a token instead** con un token nuovo da [Profilo → RuneLite plugin](/profile#plugin-token).',
         },
         {
           term: '`Anvil: can’t reach the site (anvilosrs.com) — tracking is OFF.`',
