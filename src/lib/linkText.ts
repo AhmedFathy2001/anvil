@@ -195,3 +195,43 @@ export function memberLinkDescription(
     .filter(Boolean)
     .join(' · ');
 }
+
+// ── Head to head ────────────────────────────────────────────────────────────────────────────────
+
+/** The slice of a /compare headline row the card and the description need (lib/compare's CompareRow). */
+export interface HeadToHeadRow {
+  label: string;
+  a: number | null;
+  b: number | null;
+  leader: 'a' | 'b' | 'tie' | null;
+  format: 'int' | 'xp' | 'hours';
+}
+
+/** A headline number as the card writes it: "2,277", "4.82M", "1,204h". */
+export function headToHeadValue(n: number | null, format: HeadToHeadRow['format']): string {
+  if (n == null) return '—';
+  if (format === 'xp') return compact(n);
+  if (format === 'hours') return `${compact(Math.round(n))}h`;
+  return Math.round(n).toLocaleString('en-US');
+}
+
+/**
+ * Who's ahead, in one line: "Drenvox leads 4 of 6", "Even, 3 apiece". Only rows with a known number
+ * on both sides count — an unknown is not a loss (see lib/compare).
+ */
+export function headToHeadVerdict(nameA: string, nameB: string, rows: HeadToHeadRow[]): string | null {
+  const scored = rows.filter((r) => r.leader != null);
+  if (scored.length === 0) return null;
+  const a = scored.filter((r) => r.leader === 'a').length;
+  const b = scored.filter((r) => r.leader === 'b').length;
+  if (a === b) return a === 0 ? 'Dead level on every number' : `Even, ${a} apiece`;
+  return `${a > b ? nameA : nameB} leads ${Math.max(a, b)} of ${scored.length}`;
+}
+
+/** "Drenvox leads 4 of 6. Total level 2,277 vs 1,980 · EHP 1,204h vs 880h · …" */
+export function headToHeadDescription(nameA: string, nameB: string, rows: HeadToHeadRow[], tail: string): string {
+  const known = rows.filter((r) => r.a != null && r.b != null).slice(0, 3);
+  const verdict = headToHeadVerdict(nameA, nameB, rows);
+  const numbers = known.map((r) => `${r.label} ${headToHeadValue(r.a, r.format)} vs ${headToHeadValue(r.b, r.format)}`).join(' · ');
+  return [verdict ? `${verdict}.` : null, numbers ? `${numbers}.` : null, tail].filter(Boolean).join(' ');
+}
