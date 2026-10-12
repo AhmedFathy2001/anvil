@@ -14,6 +14,7 @@ import {
   getMemberProfile,
   listMembers,
   getMilestones,
+  getTrackingSince,
   getRecords,
   getStandings,
   type Standing,
@@ -160,7 +161,7 @@ export default async function MemberProfilePage({
   // alt; the open internet and search engines can't.
   const viewer = await verifyUser();
 
-  const [milestones, records, series, standings, history, persona, collection, activityStandings, progress, questItems, caItems, moments, roster] = await Promise.all([
+  const [milestones, records, series, standings, history, persona, collection, activityStandings, progress, questItems, caItems, moments, roster, trackingSince] = await Promise.all([
     // TWO IDS, AND WHICH ONE EACH CALL WANTS IS THE WHOLE POINT. `profile.accountId` is the OSRS
     // character, which is what every stats table is keyed by; `profile.id` is the seat, which is
     // what "their place in THIS clan" is keyed by. Passing the seat to the account-keyed ones drew
@@ -186,6 +187,7 @@ export default async function MemberProfilePage({
     // Everyone's totals, for the shape's percentiles. One query for the whole roster (the same one
     // the directory runs), not a snapshot parse per member.
     listMembers(clan.id),
+    getTrackingSince(profile.accountId),
   ]);
   // The character behind the seat: who owns it (goals are theirs to edit) and whether its public
   // profile is open (the link to it only makes sense if it is).
@@ -302,6 +304,14 @@ export default async function MemberProfilePage({
               {profile.statsAt
                 ? `Stats as at ${new Date(profile.statsAt).toLocaleString()}`
                 : 'Stats from the last hiscores sweep'}
+              {trackingSince && (
+                <>
+                  {' · '}
+                  <span title="History before this day was never recorded">
+                    Tracked since {new Date(`${trackingSince}T12:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                </>
+              )}
               {(acct?.shared || viewerOwns) && (
                 <>
                   {' · '}

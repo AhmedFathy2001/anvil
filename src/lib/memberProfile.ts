@@ -440,6 +440,19 @@ export async function getDailySeries(accountId: number, days = 90): Promise<Dail
   return out;
 }
 
+/**
+ * The first day we have history for this account — "tracked since". TAKES AN ACCOUNT ID, like the
+ * reads above. It's the day we first saw them, not the day they started playing: everything before
+ * it was never recorded, so a chart that starts here starts where the truth does.
+ */
+export async function getTrackingSince(accountId: number): Promise<string | null> {
+  const [row] = await db
+    .select({ first: sql<string | null>`min(${memberDailyStats.day})` })
+    .from(memberDailyStats)
+    .where(eq(memberDailyStats.accountId, accountId));
+  return row?.first ?? null;
+}
+
 export interface MilestoneRow {
   kind: string;
   metric: string | null;

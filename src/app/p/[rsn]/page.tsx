@@ -23,6 +23,7 @@ import {
   getDailySeries,
   getMilestones,
   getRecords,
+  getTrackingSince,
   getUpcomingMilestones,
 } from '@/lib/memberProfile';
 
@@ -120,7 +121,7 @@ export default async function CharacterPage({
   const profile = await getAccountProfile(character.accountId);
   if (!profile) notFound();
 
-  const [series, records, milestones, collection, progress, questItems, caItems] = await Promise.all([
+  const [series, records, milestones, collection, progress, questItems, caItems, trackingSince] = await Promise.all([
     getDailySeries(character.accountId, 365),
     getRecords(character.accountId),
     getMilestones(character.accountId, 50),
@@ -128,6 +129,7 @@ export default async function CharacterPage({
     getMemberProgress(character.accountId),
     getMemberItems(character.accountId, 'quest'),
     getMemberItems(character.accountId, 'ca'),
+    getTrackingSince(character.accountId),
   ]);
 
   const goals = await goalsForProfile(
@@ -189,6 +191,12 @@ export default async function CharacterPage({
               <ClanLink href={`/u/${character.owner.playerId}`} className="text-gold hover:underline">
                 {character.owner.label}
               </ClanLink>
+            </span>
+          )}
+
+          {trackingSince && (
+            <span title="History before this day was never recorded">
+              Tracked since {new Date(`${trackingSince}T12:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
             </span>
           )}
 

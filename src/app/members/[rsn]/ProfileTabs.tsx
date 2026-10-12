@@ -7,7 +7,7 @@ import { progressToLevel } from '@/lib/xp';
 import CollectionLog, { type CollectionLogProps } from './CollectionLog';
 import PersonalLuck from './PersonalLuck';
 import StatsBrowser from './StatsBrowser';
-import { statTrends } from '@/lib/statTrends';
+import { levelUps, statTrends } from '@/lib/statTrends';
 import { setUrlParams } from '@/lib/urlState';
 import { activityImageUrl, bossImageForStatKey, itemIconUrl, skillIconUrl } from '@/lib/tileIcons';
 import { personalBestEntries } from '@/lib/pbGroups';
@@ -235,6 +235,7 @@ export default function ProfileTabs({
     setUrlParams({ tab: next === 'stats' ? null : TAB_SLUG[next], stat: null, ...(next === 'collection' ? {} : { page: null }) });
   };
   const trends = useMemo(() => statTrends(series), [series]);
+  const levels = useMemo(() => levelUps(series), [series]);
   // The log page the Collection tab opens on: the link's, or one a boss in the stats asked for.
   const [logPage, setLogPage] = useState<string | undefined>(initial?.page);
   const openLogPage = (page: string) => {
@@ -282,6 +283,21 @@ export default function ProfileTabs({
         icon: m.metric ? (skillIconUrl(m.metric) ?? bossImageForStatKey(m.metric)) : skillIconUrl('overall'),
       });
     }
+    // Level-ups, from the daily rows. 99 is left to the milestone above, which says it already.
+    for (const [skill, ups] of Object.entries(levels)) {
+      for (const l of ups) {
+        if (l.level >= 99) continue;
+        entries.push({
+          key: `lvl-${skill}-${l.level}`,
+          kind: 'milestone',
+          label: `${l.level} ${SKILL_LABELS[skill] ?? skill}`,
+          value: l.from != null && l.level - l.from > 1 ? `+${l.level - l.from} levels` : null,
+          // Noon UTC: the row is a UTC day, and midnight would render as the day before west of Greenwich.
+          at: `${l.day}T12:00:00Z`,
+          icon: skillIconUrl(skill),
+        });
+      }
+    }
     // Collection-log unlocks. This list read as "records only" while the Collection tab, one click
     // away, knew the exact day someone got their Ancestral bottom — the drop is the thing a player
     // actually wants dated, and it was the one thing missing. Only unlocks we WITNESSED carry a date
@@ -322,7 +338,7 @@ export default function ProfileTabs({
     // Everything we have, newest first; the list shows a page at a time. It stopped at twelve, and the
     // plugin's "See all" lands here — on twelve.
     return entries.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 200);
-  }, [collection.bests, collection.recent, milestones, moments]);
+  }, [collection.bests, collection.recent, milestones, moments, levels]);
 
   const [latelyFilter, setLatelyFilter] = useState<'all' | 'drops' | 'bests' | 'milestones'>('all');
   const [latelyShown, setLatelyShown] = useState(12);
@@ -471,7 +487,7 @@ export default function ProfileTabs({
               while the list scrolls. Stacked again below lg, where there's no room beside anything. */}
           <div className="grid items-start gap-x-6 lg:grid-cols-[minmax(0,1fr)_340px]">
             <div className="min-w-0">
-              <StatsBrowser profile={profile} trends={trends} standings={activityStandings} initial={initial?.stat} bossPages={bossPages} onOpenLogPage={openLogPage} />
+              <StatsBrowser profile={profile} trends={trends} levels={levels} standings={activityStandings} initial={initial?.stat} bossPages={bossPages} onOpenLogPage={openLogPage} />
             </div>
             <aside className="min-w-0 lg:sticky lg:top-4">
               <Section title="Gained over time">

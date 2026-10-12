@@ -73,3 +73,29 @@ export function goalRatesFrom(series: { day: string; deltas?: StatDeltas }[]): {
   const perDay = (m: Record<string, StatTrend>) => Object.fromEntries(Object.entries(m).map(([k, v]) => [k, v.week / 7]));
   return { skills: perDay(t.skills), bosses: perDay(t.bosses) };
 }
+
+export interface LevelUp {
+  day: string;
+  /** The level the skill ended that day on. */
+  level: number;
+  /** The level it last ended a day on before that, when the series still remembers one. */
+  from: number | null;
+}
+
+/**
+ * Every day a skill's level went up, per skill, oldest first. Read from `deltas.levels`, which only
+ * names skills whose level moved — rows written before that existed simply contribute nothing.
+ */
+export function levelUps(series: { day: string; deltas?: StatDeltas }[]): Record<string, LevelUp[]> {
+  const out: Record<string, LevelUp[]> = {};
+  for (const point of series) {
+    for (const [skill, level] of Object.entries(point.deltas?.levels ?? {})) {
+      if (typeof level !== 'number' || level <= 0) continue;
+      const list = (out[skill] ??= []);
+      const from = list.length > 0 ? list[list.length - 1].level : null;
+      if (from !== null && level <= from) continue;
+      list.push({ day: point.day, level, from });
+    }
+  }
+  return out;
+}

@@ -108,3 +108,26 @@ test('the enrolled cap is applied to the timestamp the sweep actually writes', (
   assert.equal(nextDueAt(3, from), '2026-09-21T02:00:00.000Z');
   assert.equal(nextDueAt(3, from, true), '2026-09-21T00:30:00.000Z');
 });
+
+// Levels: only a skill whose level went up is named, and a day keeps the level it ended on.
+const lvl = (skills: Record<string, [number, number]>) => ({
+  skills: Object.fromEntries(Object.entries(skills).map(([k, [xp, level]]) => [k, { xp, level }])),
+  bosses: {},
+}) as never;
+
+test('a level-up records the new level; a skill that gained XP without levelling records none', () => {
+  const d = computeDeltas(lvl({ hunter: [2_900_000, 82], mining: [100, 1] }), lvl({ hunter: [3_000_000, 83], mining: [150, 1] }));
+  assert.deepEqual(d.levels, { hunter: 83 });
+  assert.deepEqual(d.skills, { hunter: 100_000, mining: 50 });
+});
+
+test('a first-ever snapshot records no levels', () => {
+  assert.equal(computeDeltas(null, lvl({ hunter: [3_000_000, 83] })).levels, undefined);
+});
+
+test('the day keeps the last level a skill reached, alongside earlier skills', () => {
+  let day = mergeDeltas(null, { skills: { hunter: 10 }, levels: { hunter: 83 } });
+  day = mergeDeltas(day, { skills: { hunter: 10, mining: 5 }, levels: { hunter: 84, mining: 40 } });
+  assert.deepEqual(day.levels, { hunter: 84, mining: 40 });
+  assert.equal(day.skills?.hunter, 20);
+});
