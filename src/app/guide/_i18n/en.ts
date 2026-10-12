@@ -2265,11 +2265,11 @@ export const en = {
         tip: 'Treasurers, admins and owners only. Refuses to take the coffer below zero; record that on the coffer page if you mean it.',
       },
       'stats profile': {
-        examples: ['/stats profile', '/stats profile member:@Zezima'],
+        examples: ['/stats profile', '/stats profile player:Zezima'],
         tip: 'One account at a glance: combat and total level, EHP and EHB, collection log count and personal bests.',
       },
       'stats levels': {
-        examples: ['/stats levels', '/stats levels account:My Iron'],
+        examples: ['/stats levels', '/stats levels player:My Iron'],
         tip: 'Every skill’s level and XP.',
       },
       'stats efficiency': {
@@ -2285,7 +2285,7 @@ export const en = {
         tip: 'Personal bests. Raids keep a time per mode and team size, so use `mode` and `size` to find the run you mean.',
       },
       'stats luck': {
-        examples: ['/stats luck', '/stats luck member:@Zezima'],
+        examples: ['/stats luck', '/stats luck player:Zezima'],
         tip: 'How lucky the account has been across the drops Anvil tracks.',
       },
       'stats collectors': {

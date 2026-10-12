@@ -2138,11 +2138,11 @@ const es: PartialGuideDict = {
         tip: 'Solo tesoreros, admins y propietarios. Se niega a dejar la caja por debajo de cero; regístralo en la página de la caja si de verdad es lo que quieres.',
       },
       'stats profile': {
-        examples: ['/stats profile', '/stats profile member:@Zezima'],
+        examples: ['/stats profile', '/stats profile player:Zezima'],
         tip: 'Una cuenta de un vistazo: nivel de combate y total, EHP y EHB, número de entradas del collection log y récords personales.',
       },
       'stats levels': {
-        examples: ['/stats levels', '/stats levels account:My Iron'],
+        examples: ['/stats levels', '/stats levels player:My Iron'],
         tip: 'El nivel y la XP de cada habilidad.',
       },
       'stats efficiency': {
@@ -2158,7 +2158,7 @@ const es: PartialGuideDict = {
         tip: 'Récords personales. Las raids guardan un tiempo por modo y tamaño de equipo, así que usa `mode` y `size` para encontrar la run que buscas.',
       },
       'stats luck': {
-        examples: ['/stats luck', '/stats luck member:@Zezima'],
+        examples: ['/stats luck', '/stats luck player:Zezima'],
         tip: 'Cuánta suerte ha tenido la cuenta con los drops que sigue Anvil.',
       },
       'stats collectors': {

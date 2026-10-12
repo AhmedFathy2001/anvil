@@ -1202,8 +1202,8 @@ export async function handleComponent(interaction: Interaction): Promise<Interac
  * most 25 choices — falling back to an empty list for anything it doesn't recognise.
  *
  *   page    → collection-log pages matching what's typed (there are ~125, too many for static choices)
- *   player  → clan roster RSNs matching what's typed (the fast alternative to Discord's member picker)
- *   account → the target's own account RSNs (the `player` or `member` sibling picks whose, else the invoker)
+ *   player  → RSNs matching what's typed: the invoker's own accounts first, then the clan roster
+ *   account → (retired from /stats; kept answering until Discord drops the old registration)
  */
 export async function handleAutocomplete(interaction: Interaction): Promise<InteractionResponse> {
   const focused = readFocusedOption(interaction);
@@ -1217,8 +1217,21 @@ export async function handleAutocomplete(interaction: Interaction): Promise<Inte
       (interaction.guild_id ? await resolveForeignClan(interaction.guild_id, invokerId(interaction)) : null);
     if (!clan) return autocompleteReply([]);
     if (focused.name === 'player') {
-      const found = await searchRosterPlayers(focused.value, clan.clanId);
-      return autocompleteReply(found.map((p) => ({ name: p.rsn, value: p.rsn })));
+      // Your own accounts first — the common case is "my alt" — then anyone on the roster.
+      const q = focused.value.trim().toLowerCase();
+      const me = invokerId(interaction);
+      const [mine, roster] = await Promise.all([
+        me ? resolveInvoker(me, clan.clanId) : Promise.resolve(null),
+        searchRosterPlayers(focused.value, clan.clanId),
+      ]);
+      const own = (mine?.accounts ?? []).filter((a) => !q || a.rsn.toLowerCase().includes(q));
+      const ownKeys = new Set(own.map((a) => a.rsn.toLowerCase()));
+      return autocompleteReply(
+        [
+          ...own.map((a) => ({ name: `${a.rsn} (you)`, value: a.rsn })),
+          ...roster.filter((p) => !ownKeys.has(p.rsn.toLowerCase())).map((p) => ({ name: p.rsn, value: p.rsn })),
+        ].slice(0, 25),
+      );
     }
     // Whose accounts: the `player` sibling, else the `member` sibling, else the invoker.
     const playerOpt = typeof focused.siblings.player === 'string' ? focused.siblings.player.trim() : '';

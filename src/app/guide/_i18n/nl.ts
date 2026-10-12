@@ -2271,11 +2271,11 @@ const nl: PartialGuideDict = {
         tip: 'Alleen voor penningmeesters, admins en eigenaren. Weigert de kas onder nul te brengen; leg dat vast op de kaspagina als je het echt meent.',
       },
       'stats profile': {
-        examples: ['/stats profile', '/stats profile member:@Zezima'],
+        examples: ['/stats profile', '/stats profile player:Zezima'],
         tip: 'Eén account in één oogopslag: combat- en totaallevel, EHP en EHB, aantal in het collection log en persoonlijke records.',
       },
       'stats levels': {
-        examples: ['/stats levels', '/stats levels account:My Iron'],
+        examples: ['/stats levels', '/stats levels player:My Iron'],
         tip: 'Het level en de XP van elke skill.',
       },
       'stats efficiency': {
@@ -2291,7 +2291,7 @@ const nl: PartialGuideDict = {
         tip: 'Persoonlijke records. Raids houden een tijd bij per modus en teamgrootte, dus gebruik `mode` en `size` om de run te vinden die je bedoelt.',
       },
       'stats luck': {
-        examples: ['/stats luck', '/stats luck member:@Zezima'],
+        examples: ['/stats luck', '/stats luck player:Zezima'],
         tip: 'Hoeveel geluk het account heeft gehad met de drops die Anvil bijhoudt.',
       },
       'stats collectors': {

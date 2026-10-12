@@ -2270,11 +2270,11 @@ const ko: PartialGuideDict = {
         tip: '회계 담당, 관리자, 소유자 전용. 금고를 0 아래로 내리는 것은 거부합니다. 정말 그럴 생각이라면 금고 페이지에서 기록하세요.',
       },
       'stats profile': {
-        examples: ['/stats profile', '/stats profile member:@Zezima'],
+        examples: ['/stats profile', '/stats profile player:Zezima'],
         tip: '계정 하나를 한눈에: 전투 레벨과 총 레벨, EHP와 EHB, 컬렉션 로그 수, 개인 최고 기록.',
       },
       'stats levels': {
-        examples: ['/stats levels', '/stats levels account:My Iron'],
+        examples: ['/stats levels', '/stats levels player:My Iron'],
         tip: '모든 스킬의 레벨과 XP.',
       },
       'stats efficiency': {
@@ -2290,7 +2290,7 @@ const ko: PartialGuideDict = {
         tip: '개인 최고 기록. 레이드는 모드와 팀 인원별로 기록이 따로 있으니, `mode`와 `size`로 원하는 기록을 찾으세요.',
       },
       'stats luck': {
-        examples: ['/stats luck', '/stats luck member:@Zezima'],
+        examples: ['/stats luck', '/stats luck player:Zezima'],
         tip: 'Anvil이 추적하는 드롭 전반에서 그 계정이 얼마나 운이 좋았는지.',
       },
       'stats collectors': {

@@ -2137,11 +2137,11 @@ const ar: PartialGuideDict = {
         tip: 'لأمناء الصندوق والمدراء والمالكين فقط. يرفض إنزال الصندوق تحت الصفر؛ سجّل ذلك في صفحة الصندوق إن كنت تقصده فعلاً.',
       },
       'stats profile': {
-        examples: ['/stats profile', '/stats profile member:@Zezima'],
+        examples: ['/stats profile', '/stats profile player:Zezima'],
         tip: 'حساب واحد بلمحة: مستوى القتال والمستوى الكلي، وEHP وEHB، وعدد خانات الـ collection log، والأرقام الشخصية.',
       },
       'stats levels': {
-        examples: ['/stats levels', '/stats levels account:My Iron'],
+        examples: ['/stats levels', '/stats levels player:My Iron'],
         tip: 'مستوى كل مهارة وXP الخاص بها.',
       },
       'stats efficiency': {
@@ -2157,7 +2157,7 @@ const ar: PartialGuideDict = {
         tip: 'الأرقام الشخصية. تحفظ الغارات زمناً لكل نمط وحجم فريق، فاستخدم `mode` و`size` لتجد الجولة التي تقصدها.',
       },
       'stats luck': {
-        examples: ['/stats luck', '/stats luck member:@Zezima'],
+        examples: ['/stats luck', '/stats luck player:Zezima'],
         tip: 'كم كان الحساب محظوظاً في الغنائم التي يتتبعها Anvil.',
       },
       'stats collectors': {

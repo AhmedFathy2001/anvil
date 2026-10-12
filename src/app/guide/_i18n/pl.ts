@@ -2116,11 +2116,11 @@ const pl: PartialGuideDict = {
         tip: 'Tylko skarbnicy, admini i właściciele. Nie pozwoli zejść skarbcowi poniżej zera; jeśli naprawdę o to chodzi, zapisz to na stronie skarbca.',
       },
       'stats profile': {
-        examples: ['/stats profile', '/stats profile member:@Zezima'],
+        examples: ['/stats profile', '/stats profile player:Zezima'],
         tip: 'Jedno konto w skrócie: poziom bojowy i całkowity, EHP i EHB, liczba wpisów w collection logu i rekordy osobiste.',
       },
       'stats levels': {
-        examples: ['/stats levels', '/stats levels account:My Iron'],
+        examples: ['/stats levels', '/stats levels player:My Iron'],
         tip: 'Poziom i XP każdej umiejętności.',
       },
       'stats efficiency': {
@@ -2136,7 +2136,7 @@ const pl: PartialGuideDict = {
         tip: 'Rekordy osobiste. Raidy trzymają czas osobno dla każdego trybu i rozmiaru drużyny, więc użyj `mode` i `size`, żeby znaleźć ten run, o który ci chodzi.',
       },
       'stats luck': {
-        examples: ['/stats luck', '/stats luck member:@Zezima'],
+        examples: ['/stats luck', '/stats luck player:Zezima'],
         tip: 'Ile szczęścia miało konto przy dropach, które śledzi Anvil.',
       },
       'stats collectors': {

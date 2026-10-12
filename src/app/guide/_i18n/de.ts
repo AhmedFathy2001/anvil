@@ -2271,11 +2271,11 @@ const de: PartialGuideDict = {
         tip: 'Nur für Kassenwarte, Admins und Besitzer. Bringt die Kasse nie unter null; erfasse das auf der Kassenseite, wenn du es wirklich so meinst.',
       },
       'stats profile': {
-        examples: ['/stats profile', '/stats profile member:@Zezima'],
+        examples: ['/stats profile', '/stats profile player:Zezima'],
         tip: 'Ein Account auf einen Blick: Kampf- und Gesamtlevel, EHP und EHB, Einträge im Collection Log und persönliche Bestzeiten.',
       },
       'stats levels': {
-        examples: ['/stats levels', '/stats levels account:My Iron'],
+        examples: ['/stats levels', '/stats levels player:My Iron'],
         tip: 'Level und XP jedes Skills.',
       },
       'stats efficiency': {
@@ -2291,7 +2291,7 @@ const de: PartialGuideDict = {
         tip: 'Persönliche Bestzeiten. Raids speichern eine Zeit pro Modus und Teamgröße, nimm also `mode` und `size`, um den Run zu finden, den du meinst.',
       },
       'stats luck': {
-        examples: ['/stats luck', '/stats luck member:@Zezima'],
+        examples: ['/stats luck', '/stats luck player:Zezima'],
         tip: 'Wie viel Glück der Account bei den Drops hatte, die Anvil verfolgt.',
       },
       'stats collectors': {

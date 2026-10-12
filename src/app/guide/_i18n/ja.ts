@@ -2270,11 +2270,11 @@ const ja: PartialGuideDict = {
         tip: '会計担当、管理者、オーナー専用。金庫をゼロ未満にすることは拒否します。本当にそうするつもりなら金庫ページで記録してください。',
       },
       'stats profile': {
-        examples: ['/stats profile', '/stats profile member:@Zezima'],
+        examples: ['/stats profile', '/stats profile player:Zezima'],
         tip: 'ひとつのアカウントをひと目で：戦闘レベルと合計レベル、EHP と EHB、コレクションログの数、自己ベスト。',
       },
       'stats levels': {
-        examples: ['/stats levels', '/stats levels account:My Iron'],
+        examples: ['/stats levels', '/stats levels player:My Iron'],
         tip: '全スキルのレベルと XP。',
       },
       'stats efficiency': {
@@ -2290,7 +2290,7 @@ const ja: PartialGuideDict = {
         tip: '自己ベスト。レイドはモードとチーム人数ごとにタイムを持つので、`mode` と `size` で目当ての記録を探してください。',
       },
       'stats luck': {
-        examples: ['/stats luck', '/stats luck member:@Zezima'],
+        examples: ['/stats luck', '/stats luck player:Zezima'],
         tip: 'Anvil が追跡しているドロップ全体で、そのアカウントがどれだけ運に恵まれてきたか。',
       },
       'stats collectors': {

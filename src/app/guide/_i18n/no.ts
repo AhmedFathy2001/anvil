@@ -2137,11 +2137,11 @@ const no: PartialGuideDict = {
         tip: 'Bare kasserere, admins og eiere. Nekter å ta kassa under null; registrer det på kassesiden hvis du mener det.',
       },
       'stats profile': {
-        examples: ['/stats profile', '/stats profile member:@Zezima'],
+        examples: ['/stats profile', '/stats profile player:Zezima'],
         tip: 'Én konto i et blikk: combat- og totalnivå, EHP og EHB, antall i collection log og personlige rekorder.',
       },
       'stats levels': {
-        examples: ['/stats levels', '/stats levels account:My Iron'],
+        examples: ['/stats levels', '/stats levels player:My Iron'],
         tip: 'Hver skills nivå og XP.',
       },
       'stats efficiency': {
@@ -2157,7 +2157,7 @@ const no: PartialGuideDict = {
         tip: 'Personlige rekorder. Raids lagrer en tid per mode og lagstørrelse, så bruk `mode` og `size` for å finne runden du mener.',
       },
       'stats luck': {
-        examples: ['/stats luck', '/stats luck member:@Zezima'],
+        examples: ['/stats luck', '/stats luck player:Zezima'],
         tip: 'Hvor heldig kontoen har vært på tvers av dropsene Anvil følger med på.',
       },
       'stats collectors': {

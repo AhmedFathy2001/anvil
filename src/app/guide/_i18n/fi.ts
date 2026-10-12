@@ -2271,11 +2271,11 @@ const fi: PartialGuideDict = {
         tip: 'Vain rahastonhoitajille, admineille ja omistajille. Kieltäytyy viemästä kassaa alle nollan; kirjaa se kassasivulla, jos todella tarkoitat sitä.',
       },
       'stats profile': {
-        examples: ['/stats profile', '/stats profile member:@Zezima'],
+        examples: ['/stats profile', '/stats profile player:Zezima'],
         tip: 'Yksi tili yhdellä silmäyksellä: combat- ja kokonaistaso, EHP ja EHB, collection login määrä ja ennätykset.',
       },
       'stats levels': {
-        examples: ['/stats levels', '/stats levels account:My Iron'],
+        examples: ['/stats levels', '/stats levels player:My Iron'],
         tip: 'Jokaisen skillin taso ja XP.',
       },
       'stats efficiency': {
@@ -2291,7 +2291,7 @@ const fi: PartialGuideDict = {
         tip: 'Henkilökohtaiset ennätykset. Raideilla on oma aika kullekin moodille ja joukkuekoolle, joten käytä valintoja `mode` ja `size` löytääksesi tarkoittamasi runin.',
       },
       'stats luck': {
-        examples: ['/stats luck', '/stats luck member:@Zezima'],
+        examples: ['/stats luck', '/stats luck player:Zezima'],
         tip: 'Kuinka onnekas tili on ollut Anvilin seuraamissa dropeissa.',
       },
       'stats collectors': {

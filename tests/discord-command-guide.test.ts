@@ -50,8 +50,10 @@ test('usage lines read the way Discord shows them', () => {
   assert.equal(byPath.get('coffer add')?.usage, '/coffer add <amount> [note]');
   assert.equal(byPath.get('bingo board')?.usage, '/bingo board');
   assert.equal(byPath.get('guide')?.usage, '/guide <topic> [step] [language]');
-  const member = byPath.get('stats luck')!.options.find((o) => o.name === 'member')!;
-  assert.equal(member.kind, 'member');
+  // Whose stats is one RSN type-ahead (`player`), not Discord's member picker plus an account option.
+  const player = byPath.get('stats luck')!.options.find((o) => o.name === 'player')!;
+  assert.equal(player.kind, 'search');
+  assert.equal(byPath.get('stats luck')!.options.some((o) => o.name === 'member' || o.name === 'account'), false);
   assert.equal(byPath.get('stats pbs')!.options.find((o) => o.name === 'page')!.kind, 'search');
   const size = byPath.get('stats pbs')!.options.find((o) => o.name === 'size')!;
   assert.deepEqual([size.kind, size.min, size.max], ['number', 1, 100]);

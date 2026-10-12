@@ -2116,11 +2116,11 @@ const ptBr: PartialGuideDict = {
         tip: 'Só tesoureiros, admins e donos. Recusa deixar o caixa abaixo de zero; registre isso na página do caixa se for mesmo a intenção.',
       },
       'stats profile': {
-        examples: ['/stats profile', '/stats profile member:@Zezima'],
+        examples: ['/stats profile', '/stats profile player:Zezima'],
         tip: 'Uma conta num relance: nível de combate e total, EHP e EHB, contagem do collection log e recordes pessoais.',
       },
       'stats levels': {
-        examples: ['/stats levels', '/stats levels account:My Iron'],
+        examples: ['/stats levels', '/stats levels player:My Iron'],
         tip: 'O nível e o XP de cada skill.',
       },
       'stats efficiency': {
@@ -2136,7 +2136,7 @@ const ptBr: PartialGuideDict = {
         tip: 'Recordes pessoais. Raids guardam um tempo por modo e tamanho de time, então use `mode` e `size` para achar a run que você quer.',
       },
       'stats luck': {
-        examples: ['/stats luck', '/stats luck member:@Zezima'],
+        examples: ['/stats luck', '/stats luck player:Zezima'],
         tip: 'Quanta sorte a conta teve nos drops que o Anvil acompanha.',
       },
       'stats collectors': {

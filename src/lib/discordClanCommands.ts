@@ -160,8 +160,9 @@ interface Target {
 }
 
 async function resolveTarget(ctx: ClanCommandCtx): Promise<Target> {
-  // `player` (an RSN from the roster type-ahead) names an ACCOUNT, so it is answered for that account
-  // even when it isn't the person's primary.
+  // `player` (an RSN from the type-ahead) names an ACCOUNT, so it is answered for that account even
+  // when it isn't the person's primary. Blank = the asker. (`member` is no longer registered; it is
+  // still honoured for Share buttons on answers sent before it was retired.)
   const player = typeof ctx.options.player === 'string' ? ctx.options.player.trim() : '';
   if (player) {
     const found = await resolveRosterPlayer(player, ctx.clan.clanId);

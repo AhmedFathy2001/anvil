@@ -2269,11 +2269,11 @@ const zhHans: PartialGuideDict = {
         tip: '仅限财务、管理员和所有者。拒绝让金库低于零；如果你确实要这么做，请在金库页面登记。',
       },
       'stats profile': {
-        examples: ['/stats profile', '/stats profile member:@Zezima'],
+        examples: ['/stats profile', '/stats profile player:Zezima'],
         tip: '一眼看清一个账号：战斗等级与总等级、EHP 与 EHB、收藏日志数量和个人最佳。',
       },
       'stats levels': {
-        examples: ['/stats levels', '/stats levels account:My Iron'],
+        examples: ['/stats levels', '/stats levels player:My Iron'],
         tip: '每项技能的等级和经验值。',
       },
       'stats efficiency': {
@@ -2289,7 +2289,7 @@ const zhHans: PartialGuideDict = {
         tip: '个人最佳。团队副本按模式和队伍人数分别记录时间，所以用 `mode` 和 `size` 找到你要的那一场。',
       },
       'stats luck': {
-        examples: ['/stats luck', '/stats luck member:@Zezima'],
+        examples: ['/stats luck', '/stats luck player:Zezima'],
         tip: '在 Anvil 追踪的掉落中，这个账号的运气如何。',
       },
       'stats collectors': {
