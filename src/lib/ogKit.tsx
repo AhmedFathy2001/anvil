@@ -5,7 +5,7 @@
 // makes a card look like Anvil has to be handed to it here. The cards themselves live in lib/ogCard.
 
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rename, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -410,7 +410,7 @@ async function fetchAllowed(raw: string): Promise<Response | null> {
 // So a source image is fetched ONCE and kept:
 //
 //   memory  the fitted data URL, per (url, size) — the hot path, no disk or network at all
-//   disk    the source bytes, per url, under /data (the volume that survives redeploys), so a fresh
+//   disk    the source bytes, per url, under /data/og-sprites (survives redeploys), so a fresh
 //           process or a new deploy doesn't re-download a board's worth of icons
 //   misses  a 404 is remembered for a day and any other failure for ten minutes, so a tile whose
 //           icon doesn't exist isn't re-requested on every single render
@@ -428,25 +428,32 @@ const MEMORY_CAP = 400;
 
 let cacheDirPromise: Promise<string | null> | null = null;
 
-/** Where source sprites live: OG_SPRITE_CACHE_DIR, else /data, else the OS temp dir, else nowhere. */
+/**
+ * Where source sprites live: OG_SPRITE_CACHE_DIR, else /data/og-sprites (the volume that survives
+ * redeploys), else a fresh PRIVATE temp dir for this process, else nowhere (memory only).
+ *
+ * Never a fixed name under the shared temp dir: anyone else on the machine could create it first
+ * and plant files the cards would then draw. mkdtemp makes a new 0700 dir with a random name, so
+ * the fallback can't be pre-seeded — at the cost of not surviving a restart, which only the
+ * dedicated dirs need to.
+ */
 function cacheDir(): Promise<string | null> {
   cacheDirPromise ??= (async () => {
-    const candidates = [
-      process.env.OG_SPRITE_CACHE_DIR,
-      path.join('/data', 'og-sprites'),
-      path.join(os.tmpdir(), 'anvil-og-sprites'),
-    ].filter((d): d is string => !!d);
-    for (const dir of candidates) {
+    const dedicated = [process.env.OG_SPRITE_CACHE_DIR, path.join('/data', 'og-sprites')].filter((d): d is string => !!d);
+    for (const dir of dedicated) {
       try {
-        await mkdir(dir, { recursive: true });
-        const probe = path.join(dir, '.probe');
-        await writeFile(probe, '');
+        await mkdir(dir, { recursive: true, mode: 0o700 });
+        await writeFile(path.join(dir, '.probe'), '');
         return dir;
       } catch {
         // Not writable here; try the next one.
       }
     }
-    return null;
+    try {
+      return await mkdtemp(path.join(os.tmpdir(), 'anvil-og-sprites-'));
+    } catch {
+      return null;
+    }
   })();
   return cacheDirPromise;
 }
@@ -465,7 +472,9 @@ async function readDisk(url: string): Promise<DiskEntry | null> {
   if (!dir) return null;
   const base = path.join(dir, hashOf(url));
   try {
-    const meta = JSON.parse(await readFile(`${base}.json`, 'utf8')) as { expires: number; miss?: boolean };
+    const meta = JSON.parse(await readFile(`${base}.json`, 'utf8')) as { expires: number; miss?: boolean; url?: string };
+    // The entry must be for this exact url — anything else is not ours to serve.
+    if (meta.url !== url || typeof meta.expires !== 'number') return null;
     if (meta.miss) return { bytes: null, expires: meta.expires };
     return { bytes: await readFile(`${base}.bin`), expires: meta.expires };
   } catch {
