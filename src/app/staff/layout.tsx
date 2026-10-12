@@ -70,6 +70,8 @@ export default async function StaffLayout({ children }: { children: React.ReactN
         { href: '/staff', label: 'Overview', icon: '◎' },
         { href: '/staff/clans', label: 'Clans', icon: '🏰', matchPrefix: true },
         { href: '/staff/people', label: 'People', icon: '👤', matchPrefix: true },
+        // Visits, feature use and where onboarding stalls (lib/analytics). Read-only, so support too.
+        { href: '/staff/analytics', label: 'Analytics', icon: '📈', matchPrefix: true },
         // Read-only, and shown to support too: seeing what was done is the least dangerous thing an
         // operator can do, and the one most often needed when somebody asks why.
         // Reports about the product, from every clan. Was a triage queue in each clan's own admin
