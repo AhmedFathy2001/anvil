@@ -53,6 +53,20 @@ money-making guides).
 - **Source:** Old School RuneScape Wiki — <https://oldschool.runescape.wiki>
 - **Licence:** CC BY-SA 3.0
 
+The item sprites in `public/og/sprites/` (the art on the platform's link card) come from the same
+wiki, enlarged without smoothing.
+
+---
+
+## Fonts on the link cards
+
+`public/og/fonts/` holds the Latin subsets of Fraunces and Geist / Geist Mono, the faces the site
+already loads from Google Fonts, bundled so the server can draw them onto link cards.
+
+- **Fraunces:** © The Fraunces Project Authors — <https://github.com/undercasetype/Fraunces>
+- **Geist, Geist Mono:** © Vercel — <https://github.com/vercel/geist-font>
+- **Licence:** SIL Open Font License 1.1 — <https://openfontlicense.org>
+
 ---
 
 Old School RuneScape is a trademark of Jagex Ltd. Anvil is not affiliated with or endorsed by Jagex.

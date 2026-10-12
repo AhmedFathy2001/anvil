@@ -27,6 +27,7 @@ import { getMemberItems, getMemberProgress } from '@/lib/memberProgressRead';
 import AccountProgressCard from '@/components/AccountProgressCard';
 import { SKILLS } from '@/lib/constants';
 import { verifyUser } from '@/lib/auth';
+import { memberLinkDescription } from '@/lib/linkText';
 import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
@@ -43,9 +44,11 @@ export async function generateMetadata({ params }: { params: Promise<{ rsn: stri
   const name = decodeURIComponent(rsn);
   const clan = await requireClan();
   const clanName = (await getClanDisplayName(clan.id, clan.name)) || clan.name;
+  const profile = await getMemberProfile(clan.id, name);
   return clanSectionMetadata({
-    title: `${name} — ${clanName}`,
-    description: `Skills, bosses, efficient hours and competition history for ${name} of ${clanName}.`,
+    title: `${profile?.rsn ?? name} — ${clanName}`,
+    description: profile ? memberLinkDescription(profile, clanName) : `Skills, bosses, efficient hours and competition history for ${name} of ${clanName}.`,
+    image: `/api/og/member/${clan.slug}/${encodeURIComponent(profile?.rsn ?? name)}`,
   });
 }
 

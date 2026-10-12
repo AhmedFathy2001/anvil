@@ -1,19 +1,28 @@
-import { and, count, eq, isNull } from 'drizzle-orm';
-
-import { db } from '@/db';
-import { clanRoster, events as eventsTable } from '@/db/schema';
+import { publicClanHomeView } from '@/lib/clanHome';
 import { resolveClanBySlug } from '@/lib/clanContext';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { clanRankFor } from '@/lib/clanLeaderboard';
-import { ordinal } from '@/lib/utils';
-import { ogCard } from '@/lib/ogCard';
+import { ourImageAsDataUrl } from '@/lib/crestImage';
+import { clanCard, siteCard } from '@/lib/ogCard';
 import { getClanDisplayName } from '@/lib/pluginConfig';
-import { DEFAULT_DESCRIPTION } from '@/lib/seo';
+import { isLiveWindow } from '@/lib/linkText';
 
 export const dynamic = 'force-dynamic';
 
+const FOCUS_LABEL: Record<string, string> = {
+  pvm: 'PvM',
+  skilling: 'Skilling',
+  pvp: 'PvP',
+  social: 'Social',
+  ironman: 'Ironman',
+};
+
 /**
  * A clan's social card.
+ *
+ * THE CLAN'S OWN FACE AND WORDS FIRST: its uploaded logo (else the crest every clan has), its
+ * tagline (else the opening of its description), and the focus tags it picked. Then the facts —
+ * its standing, its size, what is running now.
  *
  * A CLAN THAT KEEPS TO ITSELF GETS THE GENERIC CARD, not a 404 — the same rule the rest of the app
  * follows for a private clan. An image endpoint that 404s for exactly the private clans would answer
@@ -23,40 +32,35 @@ export const dynamic = 'force-dynamic';
 export async function GET(_request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const clan = await resolveClanBySlug(slug);
+  if (!clan || clanVisibilityOf(clan.visibility) !== 'public') return siteCard();
 
-  if (!clan || clanVisibilityOf(clan.visibility) !== 'public') {
-    return ogCard({ eyebrow: 'OSRS Clan Events', title: 'Anvil', subtitle: DEFAULT_DESCRIPTION });
-  }
-
-  const [[members], [eventRows], name, rank] = await Promise.all([
-    db
-      .select({ n: count() })
-      .from(clanRoster)
-      .where(and(eq(clanRoster.clanId, clan.id), isNull(clanRoster.leftAt), eq(clanRoster.kind, 'member'))),
-    db.select({ n: count() }).from(eventsTable).where(eq(eventsTable.clanId, clan.id)),
+  const [view, name, rank, logo] = await Promise.all([
+    publicClanHomeView(clan.id),
     getClanDisplayName(clan.id, clan.name),
     // Null for a clan that is not on the table — unverified, unlisted, or private — so a card can
     // never publish a standing the clan did not agree to be ranked in.
     clanRankFor(clan.id),
+    ourImageAsDataUrl(clan.logoUrl, { width: 300, height: 300 }, 'png'),
   ]);
+  if (!view) return siteCard();
 
-  const memberCount = Number(members?.n ?? 0);
-  const eventCount = Number(eventRows?.n ?? 0);
+  const live = view.recentEvents.find((e) => isLiveWindow(e.startDate, e.endDate));
+  const chips = [...view.focus.map((f) => FOCUS_LABEL[f]).filter(Boolean), ...(view.recruiting ? ['Recruiting'] : [])].slice(0, 3);
 
-  return ogCard({
-    eyebrow: 'Clan on Anvil',
-    title: name || clan.name,
-    // THE STANDING IS THE INTERESTING SENTENCE. "Bingos, competitions and the roster" describes the
-    // software; "3rd of 47 clans this week" is a claim about this clan, and it is the half somebody
-    // pastes into a Discord to argue with.
-    subtitle: rank
-      ? `${ordinal(rank.rank)} of ${rank.field} clans this week`
-      : 'Bingos, competitions and the roster.',
-    // A brand-new clan has zeroes for both, and "0 EVENTS" on a card reads as a dead site. Show a
-    // counter only once it counts something.
-    stats: [
-      ...(memberCount > 0 ? [{ label: 'Members', value: memberCount.toLocaleString() }] : []),
-      ...(eventCount > 0 ? [{ label: 'Events', value: eventCount.toLocaleString() }] : []),
-    ],
+  // A brand-new clan has zeroes for both, and "0 EVENTS" on a card reads as a dead site. Show a
+  // counter only once it counts something.
+  const stats = [
+    ...(view.memberCount > 0 ? [{ value: view.memberCount.toLocaleString('en-US'), label: 'Members' }] : []),
+    ...(view.eventsRun > 0 ? [{ value: view.eventsRun.toLocaleString('en-US'), label: 'Events run' }] : []),
+    ...(live ? [{ value: 'Live', label: live.name, live: true }] : []),
+  ];
+
+  return clanCard({
+    name: name || clan.name,
+    logo,
+    tagline: (view.tagline || view.description || '').trim() || null,
+    rank: rank ? `#${rank.rank} of ${rank.field}` : null,
+    chips,
+    stats,
   });
 }

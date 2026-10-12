@@ -17,6 +17,8 @@ import { Board, Podium, SidePanels, YouStrip } from '@/components/weekly/Competi
 import CompetitionAwards from '@/components/weekly/CompetitionAwards';
 import ClanLink from '@/components/ClanLink';
 import { idOrNull, idParam } from '@/lib/routeIds';
+import { weeklyLinkDescription } from '@/lib/linkText';
+import { computeLeaderboard, getEffectiveParticipants } from '@/lib/weekly';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,15 +47,25 @@ export async function generateMetadata({
   if (compId == null) return {};
   const clan = await requireClan();
   const [competition] = await db
-    .select({ title: weeklyCompetitions.title, metric: weeklyCompetitions.metric })
+    .select({
+      title: weeklyCompetitions.title,
+      type: weeklyCompetitions.type,
+      status: weeklyCompetitions.status,
+      startDate: weeklyCompetitions.startDate,
+      endDate: weeklyCompetitions.endDate,
+    })
     .from(weeklyCompetitions)
     .where(and(eq(weeklyCompetitions.clanId, clan.id), eq(weeklyCompetitions.id, compId)));
   if (!competition) return {};
 
-  const clanName = (await getClanDisplayName(clan.id, clan.name)) || clan.name;
+  const [name, participants] = await Promise.all([getClanDisplayName(clan.id, clan.name), getEffectiveParticipants(compId)]);
+  const clanName = name || clan.name;
+  const board = computeLeaderboard(participants).filter((e) => e.gained > 0);
   return clanSectionMetadata({
     title: `${competition.title} — ${clanName}`,
-    description: `${competition.title}: the week's leaderboard, who gained the most and how it finished, for ${clanName}.`,
+    // Who's winning, said the way the card shows it, so the line and the picture agree.
+    description: weeklyLinkDescription(competition, participants.length, board),
+    image: `/api/og/weekly/${compId}`,
   });
 }
 
