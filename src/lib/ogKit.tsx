@@ -748,9 +748,14 @@ export async function cachedCard(path: string, load: () => Promise<Response>): P
     new Response(new Uint8Array(v.body), { headers: v.headers });
   if (hit && Date.now() - hit.at < ROUTE_TTL) return answer(hit);
 
+  // Turned away by the limits? This card's own last good answer beats the generic one: it has the
+  // clan's logo and its real numbers, just a few minutes old. Expired entries are kept for exactly
+  // this (they only leave the cache by eviction).
+  const busy = () => (hit ? answer(hit) : overflowResponse());
+
   let pending = routeInFlight.get(path);
   if (!pending) {
-    if (loading >= MAX_LOADING) return overflowResponse();
+    if (loading >= MAX_LOADING) return busy();
     loading++;
     pending = (async () => {
       const res = await load();
@@ -769,5 +774,8 @@ export async function cachedCard(path: string, load: () => Promise<Response>): P
     });
     routeInFlight.set(path, pending);
   }
-  return answer(await pending);
+  const v = await pending;
+  // The render queue turned it away inside the load: same preference.
+  if (hit && v.headers.some(([k]) => k.toLowerCase() === OVERFLOW_HEADER.toLowerCase())) return answer(hit);
+  return answer(v);
 }
