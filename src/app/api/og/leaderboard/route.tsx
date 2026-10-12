@@ -7,6 +7,8 @@ import { ourImageAsDataUrl } from '@/lib/crestImage';
 import { compact } from '@/lib/linkText';
 import { leaderboardCard } from '@/lib/ogCard';
 
+import { cachedCard } from '@/lib/ogKit';
+
 export const dynamic = 'force-dynamic';
 
 /**
@@ -21,7 +23,7 @@ export const dynamic = 'force-dynamic';
  * One query for both numbers: the whole ranked field, sliced for the podium and counted for the
  * field size. Asking twice would be two aggregates to draw one picture.
  */
-export async function GET() {
+async function load(): Promise<Response> {
   const all = await clanStandings('7d', 500);
   const top = all.slice(0, 3);
 
@@ -36,4 +38,8 @@ export async function GET() {
     field: all.length,
     podium: top.map((c, i) => ({ name: c.name, logo: logos[i], stat: `${compact(c.xpGained)} xp` })),
   });
+}
+
+export function GET() {
+  return cachedCard('leaderboard', load);
 }

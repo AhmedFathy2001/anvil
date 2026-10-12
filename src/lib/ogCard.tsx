@@ -13,7 +13,6 @@
 // These are pure renderers: plain data in, an ImageResponse out. Fetching, gating and the fallback
 // to the site card when something is private all live in the routes.
 
-import type { ImageResponse } from 'next/og';
 import type { ReactNode } from 'react';
 
 import {
@@ -27,6 +26,7 @@ import {
   Mark,
   PLACE_COLOR,
   Title,
+  backdrop,
   clip,
   localSprite,
   renderCard,
@@ -58,10 +58,10 @@ export const SITE_PITCH = 'Bingos, Skill & Boss of the Week, and your whole rost
  * The platform's own card, and the card anything private falls back to. A tilted board of real drops
  * with a few tiles "claimed", because a bingo board is the one picture every OSRS clan recognises.
  */
-export async function siteCard(): Promise<ImageResponse> {
+export async function siteCard(): Promise<Response> {
   const sprites = await Promise.all(SITE_SPRITES.map(localSprite));
-  return renderCard(
-    <Frame glow="78% 40%" seed={3} sparkCount={18}>
+  return renderCard(['site'], async () => (
+    <Frame backdrop={await backdrop({ glow: '78% 40%', seed: 3, sparkCount: 18 })}>
       <div style={{ ...PANE, left: 660, top: 78, width: 520, flexWrap: 'wrap', gap: 10, transform: 'rotate(-8deg)' }}>
         {sprites.map((src, i) => {
           const done = SITE_DONE.has(i);
@@ -77,7 +77,6 @@ export async function siteCard(): Promise<ImageResponse> {
                 justifyContent: 'center',
                 background: done ? 'rgba(224,170,30,0.22)' : 'rgba(28,23,20,0.9)',
                 border: `2px solid ${done ? C.gold : C.border}`,
-                boxShadow: done ? '0 0 24px rgba(224,170,30,0.35)' : 'none',
               }}
             >
               {src ? (
@@ -91,11 +90,12 @@ export async function siteCard(): Promise<ImageResponse> {
       <div
         style={{
           ...PANE,
-          left: 600,
+          left: 420,
           top: 0,
-          width: 600,
+          width: 780,
           height: 630,
-          backgroundImage: 'linear-gradient(90deg, rgba(20,16,16,0.85) 0%, rgba(20,16,16,0.4) 35%, rgba(20,16,16,0) 70%)',
+          // Fades in from nothing so there's no edge where it starts, darkest over the board's near side.
+          backgroundImage: 'linear-gradient(90deg, rgba(20,16,16,0) 0%, rgba(20,16,16,0.85) 28%, rgba(20,16,16,0.35) 55%, rgba(20,16,16,0) 85%)',
         }}
       />
       <div style={{ ...PANE, left: 76, top: 72, width: 640, height: 500, flexDirection: 'column', justifyContent: 'space-between' }}>
@@ -112,8 +112,8 @@ export async function siteCard(): Promise<ImageResponse> {
           anvilosrs.com
         </div>
       </div>
-    </Frame>,
-  );
+    </Frame>
+  ), { isOverflowCard: true });
 }
 
 // ── A board ────────────────────────────────────────────────────────────────────────────────────
@@ -171,7 +171,6 @@ function MiniBoard({ cols, cells }: { cols: number; cells: BoardCell[] }) {
         borderRadius: 20,
         background: 'rgba(28,23,20,0.92)',
         border: `2px solid ${C.borderHi}`,
-        boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
       }}
     >
       {cells.map((c, i) => (
@@ -218,7 +217,7 @@ function FaceArt({ children }: { children: ReactNode }) {
   );
 }
 
-export async function eventCard(d: EventCardData): Promise<ImageResponse> {
+export async function eventCard(d: EventCardData): Promise<Response> {
   const size = titleSize(d.title, [[16, 84], [28, 74], [40, 62]], 54);
   // A long name gets a third line when there are no standings below it to collide with.
   const top = d.standings.slice(0, 3);
@@ -240,8 +239,11 @@ export async function eventCard(d: EventCardData): Promise<ImageResponse> {
     </FaceArt>
   );
 
-  return renderCard(
-    <Frame glow="85% 95%" seed={seedOf(d.title)} sparkCount={14} sparkArea={{ x: 660, y: 0, w: 540, h: 630 }} background={d.banner}>
+  return renderCard(['event', d], async () => (
+    <Frame
+      backdrop={await backdrop({ glow: '85% 95%', seed: seedOf(d.title), sparkCount: 14, sparkArea: { x: 660, y: 0, w: 540, h: 630 }, overBanner: !!d.banner })}
+      background={d.banner}
+    >
       {art}
       <div style={{ ...PANE, left: 76, top: 66, width: d.board ? 580 : 640, height: 500, flexDirection: 'column', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -285,7 +287,6 @@ export async function eventCard(d: EventCardData): Promise<ImageResponse> {
                     height: 14,
                     borderRadius: 8,
                     background: s.color,
-                    boxShadow: i === 0 && s.value > 0 ? `0 0 16px ${s.color}` : 'none',
                   }}
                 />
               </div>
@@ -302,8 +303,8 @@ export async function eventCard(d: EventCardData): Promise<ImageResponse> {
           </div>
         </div>
       </div>
-    </Frame>,
-  );
+    </Frame>
+  ));
 }
 
 // ── Skill / Boss of the Week ───────────────────────────────────────────────────────────────────
@@ -326,7 +327,7 @@ export interface WeeklyCardData {
   winner: { rsn: string; gain: string; highlight: string | null; sprite: Pic } | null;
 }
 
-export async function weeklyCard(d: WeeklyCardData): Promise<ImageResponse> {
+export async function weeklyCard(d: WeeklyCardData): Promise<Response> {
   const size = titleSize(d.title, [[12, 100], [18, 84], [26, 68]], 56);
   const boss = d.kind === 'boss';
 
@@ -421,8 +422,8 @@ export async function weeklyCard(d: WeeklyCardData): Promise<ImageResponse> {
     </div>
   ) : null;
 
-  return renderCard(
-    <Frame glow={boss ? '75% 60%' : '80% 100%'} seed={seedOf(d.title)} sparkCount={boss ? 16 : 10}>
+  return renderCard(['weekly', d], async () => (
+    <Frame backdrop={await backdrop({ glow: boss ? '75% 60%' : '80% 100%', seed: seedOf(d.title), sparkCount: boss ? 16 : 10 })}>
       {art}
       {boss && d.art ? (
         <div
@@ -450,8 +451,8 @@ export async function weeklyCard(d: WeeklyCardData): Promise<ImageResponse> {
       <div style={{ ...PANE, right: 48, ...(winner ? { bottom: 40 } : { top: 40 }) }}>
         <Brand size={40} />
       </div>
-    </Frame>,
-  );
+    </Frame>
+  ));
 }
 
 // ── The clan table ─────────────────────────────────────────────────────────────────────────────
@@ -462,12 +463,12 @@ export interface LeaderboardCardData {
   podium: { name: string; logo: Pic; stat: string }[];
 }
 
-export async function leaderboardCard(d: LeaderboardCardData): Promise<ImageResponse> {
+export async function leaderboardCard(d: LeaderboardCardData): Promise<Response> {
   // Drawn second-first-third, the way a podium stands.
   const order = [1, 0, 2].filter((i) => d.podium[i]);
   const heights = [290, 210, 160];
-  return renderCard(
-    <Frame glow="72% 100%" seed={21} sparkCount={18}>
+  return renderCard(['leaderboard', d], async () => (
+    <Frame backdrop={await backdrop({ glow: '72% 100%', seed: 21, sparkCount: 18 })}>
       <div style={{ ...PANE, left: 76, top: 66, flexDirection: 'column' }}>
         <Eyebrow>Hall of Records · This week</Eyebrow>
         <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 70, lineHeight: 1.02, letterSpacing: -1.5, marginTop: 16, width: 470 }}>
@@ -522,7 +523,6 @@ export async function leaderboardCard(d: LeaderboardCardData): Promise<ImageResp
                   paddingTop: 18,
                   backgroundImage: first ? `linear-gradient(180deg, ${C.gold}, #7a5a10)` : 'linear-gradient(180deg, #3a2e24, #221b16)',
                   border: `2px solid ${first ? C.goldLight : C.borderHi}`,
-                  boxShadow: first ? '0 0 60px rgba(224,170,30,0.35)' : 'none',
                 }}
               >
                 <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 64, color: first ? '#2a1d06' : PLACE_COLOR[i] }}>
@@ -533,8 +533,8 @@ export async function leaderboardCard(d: LeaderboardCardData): Promise<ImageResp
           );
         })}
       </div>
-    </Frame>,
-  );
+    </Frame>
+  ));
 }
 
 // ── A clan ─────────────────────────────────────────────────────────────────────────────────────
@@ -551,10 +551,10 @@ export interface ClanCardData {
   stats: { value: string; label: string; live?: boolean }[];
 }
 
-export async function clanCard(d: ClanCardData): Promise<ImageResponse> {
+export async function clanCard(d: ClanCardData): Promise<Response> {
   const size = titleSize(d.name, [[9, 96], [15, 80], [22, 66], [32, 56]], 48);
-  return renderCard(
-    <Frame glow="78% 45%" seed={seedOf(d.name)} sparkCount={14}>
+  return renderCard(['clan', d], async () => (
+    <Frame backdrop={await backdrop({ glow: '78% 45%', seed: seedOf(d.name), sparkCount: 14 })}>
       <FaceArt>
         <ClanFace name={d.name} logo={d.logo} size={300} />
       </FaceArt>
@@ -612,8 +612,8 @@ export async function clanCard(d: ClanCardData): Promise<ImageResponse> {
       <div style={{ ...PANE, right: 48, bottom: 40 }}>
         <Brand size={40} />
       </div>
-    </Frame>,
-  );
+    </Frame>
+  ));
 }
 
 // ── A member ───────────────────────────────────────────────────────────────────────────────────
@@ -629,11 +629,11 @@ export interface MemberCardData {
   loot: Pic[];
 }
 
-export async function memberCard(d: MemberCardData): Promise<ImageResponse> {
+export async function memberCard(d: MemberCardData): Promise<Response> {
   const size = titleSize(d.rsn, [[8, 104], [12, 92]], 76);
   const loot = d.loot.filter((x): x is string => !!x).slice(0, 9);
-  return renderCard(
-    <Frame glow="85% 70%" seed={seedOf(d.rsn)} sparkCount={12}>
+  return renderCard(['member', d], async () => (
+    <Frame backdrop={await backdrop({ glow: '85% 70%', seed: seedOf(d.rsn), sparkCount: 12 })}>
       {loot.length ? (
         <div style={{ ...PANE, left: 730, top: loot.length > 6 ? 120 : 180, width: 400, flexWrap: 'wrap', gap: 14, transform: 'rotate(6deg)' }}>
           {loot.map((src, i) => (
@@ -700,6 +700,6 @@ export async function memberCard(d: MemberCardData): Promise<ImageResponse> {
       <div style={{ ...PANE, right: 48, bottom: 40 }}>
         <Brand size={40} />
       </div>
-    </Frame>,
-  );
+    </Frame>
+  ));
 }

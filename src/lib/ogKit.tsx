@@ -85,14 +85,91 @@ export const DISPLAY = 'Fraunces';
 export const BODY = 'Geist';
 export const MONO = 'GeistMono';
 
-/** Draw a card at the standard 1200×630 with the brand fonts and the card cache headers. */
-export async function renderCard(node: ReactElement, cacheControl = OG_CACHE_CONTROL): Promise<ImageResponse> {
-  return new ImageResponse(node, {
-    width: OG_WIDTH,
-    height: OG_HEIGHT,
-    fonts: await ogFonts(),
-    headers: { 'Cache-Control': cacheControl },
+// ── Rendering ──
+//
+// A render is ~350ms of CPU, so it is the thing to protect:
+//
+//   cached     the finished card is kept for ten minutes, keyed by a hash of EVERYTHING drawn on
+//              it (the data, the pictures). Same data → same bytes, no render; data changes → new
+//              key, so a cached card is never stale.
+//   shared     two requests for the same card at once share one render.
+//   limited    at most two renders run at a time, and if a burst queues more than a couple of
+//              dozen behind them, the overflow gets the site card at once rather than waiting —
+//              a scrape of every event id can't take the server's CPU with it.
+//   JPEG       re-encoded from the renderer's PNG: about a third of the bytes over the wire, which
+//              is most of what a first-time unfurl waits for.
+
+const RENDER_TTL = 10 * 60_000;
+const RENDER_CAP = 150;
+const MAX_RENDERING = 2;
+const MAX_QUEUED = 24;
+
+const rendered = new Map<string, { at: number; body: Buffer }>();
+const rendering = new Map<string, Promise<Buffer>>();
+let active = 0;
+const renderQueue: (() => void)[] = [];
+
+/** The key of the plain site card, which the overflow is answered with. */
+let overflowKey: string | null = null;
+
+function cardResponse(body: Buffer, etag: string, cacheControl: string): Response {
+  return new Response(new Uint8Array(body), {
+    headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': cacheControl, ETag: `"${etag}"` },
   });
+}
+
+async function draw(build: () => Promise<ReactElement> | ReactElement): Promise<Buffer> {
+  if (active >= MAX_RENDERING) await new Promise<void>((resolve) => renderQueue.push(resolve));
+  active++;
+  try {
+    const image = new ImageResponse(await build(), { width: OG_WIDTH, height: OG_HEIGHT, fonts: await ogFonts() });
+    const png = Buffer.from(await image.arrayBuffer());
+    const { default: sharp } = await import('sharp');
+    return await sharp(png).jpeg({ quality: 88, mozjpeg: true }).toBuffer();
+  } finally {
+    active--;
+    renderQueue.shift()?.();
+  }
+}
+
+/**
+ * Draw a card at 1200×630 with the brand fonts, through the cache above.
+ *
+ * `key` must describe everything the card shows — pass the card's kind and its full data. `build`
+ * makes the element and runs only on a miss.
+ */
+export async function renderCard(
+  key: unknown,
+  build: () => Promise<ReactElement> | ReactElement,
+  opts: { cacheControl?: string; isOverflowCard?: boolean } = {},
+): Promise<Response> {
+  const cacheControl = opts.cacheControl ?? OG_CACHE_CONTROL;
+  const hash = createHash('sha256').update(JSON.stringify(key)).digest('hex').slice(0, 32);
+  if (opts.isOverflowCard) overflowKey = hash;
+
+  const hit = rendered.get(hash);
+  if (hit && Date.now() - hit.at < RENDER_TTL) return cardResponse(hit.body, hash, cacheControl);
+
+  let pending = rendering.get(hash);
+  if (!pending) {
+    // Over the queue limit: answer with the site card if it's been drawn, rather than queue more.
+    const fallback = overflowKey ? rendered.get(overflowKey) : undefined;
+    if (renderQueue.length >= MAX_QUEUED && fallback && overflowKey) {
+      return cardResponse(fallback.body, overflowKey, 'public, max-age=60');
+    }
+    pending = draw(build)
+      .then((body) => {
+        if (rendered.size >= RENDER_CAP) {
+          const oldest = rendered.keys().next().value;
+          if (oldest !== undefined) rendered.delete(oldest);
+        }
+        rendered.set(hash, { at: Date.now(), body });
+        return body;
+      })
+      .finally(() => rendering.delete(hash));
+    rendering.set(hash, pending);
+  }
+  return cardResponse(await pending, hash, cacheControl);
 }
 
 // ── The mark ───────────────────────────────────────────────────────────────────────────────────
@@ -145,7 +222,7 @@ export function Eyebrow({ children, dot }: { children: ReactNode; dot?: string |
         color: C.gold,
       }}
     >
-      {dot ? <div style={{ display: 'flex', width: 14, height: 14, borderRadius: 14, background: dot, boxShadow: `0 0 14px ${dot}` }} /> : null}
+      {dot ? <div style={{ display: 'flex', width: 14, height: 14, borderRadius: 14, background: dot,}} /> : null}
       {children}
     </div>
   );
@@ -191,36 +268,6 @@ export function clip(text: string, max: number): string {
 
 // ── The backdrop ───────────────────────────────────────────────────────────────────────────────
 
-/** Deterministic sparks: the same card always has the same embers, so a re-render isn't a change. */
-function sparks(seed: number, n: number, area: { x: number; y: number; w: number; h: number }) {
-  let s = seed;
-  const r = () => (s = (s * 9301 + 49297) % 233280) / 233280;
-  return Array.from({ length: n }, (_, i) => {
-    const size = 2 + Math.floor(r() * 4);
-    const left = area.x + r() * area.w;
-    const top = area.y + r() * area.h;
-    const color = r() > 0.5 ? C.goldLight : C.ember;
-    const opacity = 0.25 + r() * 0.6;
-    return (
-      <div
-        key={i}
-        style={{
-          display: 'flex',
-          position: 'absolute',
-          left,
-          top,
-          width: size,
-          height: size,
-          borderRadius: size,
-          background: color,
-          opacity,
-          boxShadow: `0 0 ${size * 3}px ${C.ember}`,
-        }}
-      />
-    );
-  });
-}
-
 /** A string's seed, so each clan or event gets its own scatter of sparks. */
 export function seedOf(text: string): number {
   let h = 7;
@@ -228,25 +275,87 @@ export function seedOf(text: string): number {
   return h || 7;
 }
 
-/**
- * The forge: near-black with an ember glow, a scatter of sparks and a gold rule along the top.
- *
- * `background` is a picture the card's owner chose (an event banner). It goes full-bleed and the
- * glow gives way to a heavy left-to-right shade, so the words stay legible on whatever was uploaded.
- */
-export function Frame({
-  children,
-  glow = '80% 100%',
-  seed = 7,
-  sparkCount = 16,
-  sparkArea = { x: 620, y: 0, w: 580, h: 630 },
-  background,
-}: {
-  children: ReactNode;
+export interface BackdropOpts {
+  /** Where the ember glow sits, as "x% y%". */
   glow?: string;
   seed?: number;
   sparkCount?: number;
   sparkArea?: { x: number; y: number; w: number; h: number };
+  /** Drawn over an uploaded banner: a left-to-right shade instead of the glow, transparent elsewhere. */
+  overBanner?: boolean;
+}
+
+/**
+ * The forge backdrop as ONE pre-rendered image: the ember glow, the bottom shade and the sparks.
+ *
+ * Drawn as layers in the card it cost most of the render: every spark's soft glow is a blurred box
+ * shadow, and the renderer blurs each one over the whole canvas — a dozen sparks were ~850ms of a
+ * ~1.2s card. Rasterised here once (sharp/librsvg does the blur in a few ms) and cached per style, the
+ * card just pastes a picture. Deterministic, so the same seed is always the same sparks.
+ */
+const backdropCache = new Map<string, Promise<string>>();
+
+export function backdrop(opts: BackdropOpts = {}): Promise<string> {
+  const { glow = '80% 100%', seed = 7, sparkCount = 16, sparkArea = { x: 620, y: 0, w: 580, h: 630 }, overBanner = false } = opts;
+  const key = JSON.stringify([glow, seed, sparkCount, sparkArea, overBanner]);
+  let hit = backdropCache.get(key);
+  if (hit) return hit;
+
+  let s = seed;
+  const r = () => (s = (s * 9301 + 49297) % 233280) / 233280;
+  const dots = Array.from({ length: sparkCount }, () => {
+    const size = 2 + Math.floor(r() * 4);
+    const cx = (sparkArea.x + r() * sparkArea.w).toFixed(1);
+    const cy = (sparkArea.y + r() * sparkArea.h).toFixed(1);
+    const color = r() > 0.5 ? C.goldLight : C.ember;
+    const opacity = (0.25 + r() * 0.6).toFixed(2);
+    // The halo first (blurred, ember), the spark itself on top — what the box shadow used to draw.
+    return `<g opacity="${opacity}"><circle cx="${cx}" cy="${cy}" r="${size * 1.5}" fill="${C.ember}" filter="url(#halo)"/><circle cx="${cx}" cy="${cy}" r="${size / 2}" fill="${color}"/></g>`;
+  }).join('');
+
+  const [gx, gy] = glow.split(' ').map((v) => parseFloat(v) / 100);
+  const base = overBanner
+    ? `<linearGradient id="shade" x1="0" y1="0" x2="1" y2="0">
+         <stop offset="0" stop-color="${C.bg}" stop-opacity="0.96"/><stop offset="0.45" stop-color="${C.bg}" stop-opacity="0.86"/><stop offset="1" stop-color="${C.bg}" stop-opacity="0.55"/>
+       </linearGradient>`
+    : `<radialGradient id="glow" gradientUnits="userSpaceOnUse" cx="${gx * OG_WIDTH}" cy="${gy * OG_HEIGHT}" r="${Math.hypot(OG_WIDTH, OG_HEIGHT) * 0.65}">
+         <stop offset="0" stop-color="#ff7a1a" stop-opacity="0.30"/><stop offset="0.54" stop-color="#e0aa1e" stop-opacity="0.10"/><stop offset="1" stop-color="${C.bg}" stop-opacity="0"/>
+       </radialGradient>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${OG_WIDTH}" height="${OG_HEIGHT}">
+  <defs>${base}
+    <linearGradient id="foot" x1="0" y1="0" x2="0" y2="1"><stop offset="0.6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.35"/></linearGradient>
+    <filter id="halo" x="-300%" y="-300%" width="700%" height="700%"><feGaussianBlur stdDeviation="4"/></filter>
+  </defs>
+  ${overBanner ? '<rect width="100%" height="100%" fill="url(#shade)"/>' : `<rect width="100%" height="100%" fill="${C.bg}"/><rect width="100%" height="100%" fill="url(#glow)"/>`}
+  <rect width="100%" height="100%" fill="url(#foot)"/>
+  ${dots}
+</svg>`;
+
+  hit = (async () => {
+    const { default: sharp } = await import('sharp');
+    const png = await sharp(Buffer.from(svg)).png({ compressionLevel: 6 }).toBuffer();
+    return `data:image/png;base64,${png.toString('base64')}`;
+  })();
+  if (backdropCache.size > 200) backdropCache.clear();
+  backdropCache.set(key, hit);
+  return hit;
+}
+
+/**
+ * The card's frame: the pre-rendered backdrop (lib/ogKit backdrop) and the gold rule along the top.
+ *
+ * `background` is a picture the card's owner chose (an event banner). It goes full-bleed under the
+ * backdrop, which for a banner is a heavy left-to-right shade so the words stay legible on whatever
+ * was uploaded.
+ */
+export function Frame({
+  children,
+  backdrop: layer,
+  background,
+}: {
+  children: ReactNode;
+  /** From `backdrop()`, with `overBanner` matching whether `background` is set. */
+  backdrop: string;
   background?: string | null;
 }) {
   const full = { display: 'flex', position: 'absolute' as const, left: 0, top: 0, width: OG_WIDTH, height: OG_HEIGHT };
@@ -267,16 +376,8 @@ export function Frame({
         // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
         <img src={background} width={OG_WIDTH} height={OG_HEIGHT} style={{ ...full, objectFit: 'cover' }} />
       ) : null}
-      <div
-        style={{
-          ...full,
-          backgroundImage: background
-            ? 'linear-gradient(90deg, rgba(20,16,16,0.96) 0%, rgba(20,16,16,0.86) 45%, rgba(20,16,16,0.55) 100%)'
-            : `radial-gradient(circle at ${glow}, rgba(255,122,26,0.30), rgba(224,170,30,0.10) 35%, rgba(20,16,16,0) 65%)`,
-        }}
-      />
-      <div style={{ ...full, backgroundImage: 'linear-gradient(180deg, rgba(0,0,0,0) 60%, rgba(0,0,0,0.35) 100%)' }} />
-      {sparks(seed, sparkCount, sparkArea)}
+      {/* eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text */}
+      <img src={layer} width={OG_WIDTH} height={OG_HEIGHT} style={full} />
       {children}
       {/* Last, so no layer of the art can shade it. */}
       <div
@@ -608,4 +709,43 @@ export function remoteSprite(url: string | null | undefined, box: number): Promi
   }
   fitted.set(key, p);
   return p;
+}
+
+// ── Whole responses ──
+
+const ROUTE_TTL = 2 * 60_000;
+const ROUTE_CAP = 300;
+const routeCache = new Map<string, { at: number; body: Buffer; headers: [string, string][] }>();
+const routeInFlight = new Map<string, Promise<{ body: Buffer; headers: [string, string][] }>>();
+
+/**
+ * A card route's whole answer, kept two minutes per path — so a link pasted into five channels, or
+ * a scraper walking every id, costs the database once per card rather than once per request. The
+ * render cache inside renderCard still covers anything older. Concurrent requests share one load.
+ *
+ * Only for the anonymous card routes: what they return depends on the path alone, never on who asks.
+ */
+export async function cachedCard(path: string, load: () => Promise<Response>): Promise<Response> {
+  const hit = routeCache.get(path);
+  const answer = (v: { body: Buffer; headers: [string, string][] }) =>
+    new Response(new Uint8Array(v.body), { headers: v.headers });
+  if (hit && Date.now() - hit.at < ROUTE_TTL) return answer(hit);
+
+  let pending = routeInFlight.get(path);
+  if (!pending) {
+    pending = (async () => {
+      const res = await load();
+      const v = { body: Buffer.from(await res.arrayBuffer()), headers: [...res.headers.entries()] as [string, string][] };
+      if (res.ok) {
+        if (routeCache.size >= ROUTE_CAP) {
+          const oldest = routeCache.keys().next().value;
+          if (oldest !== undefined) routeCache.delete(oldest);
+        }
+        routeCache.set(path, { at: Date.now(), ...v });
+      }
+      return v;
+    })().finally(() => routeInFlight.delete(path));
+    routeInFlight.set(path, pending);
+  }
+  return answer(await pending);
 }

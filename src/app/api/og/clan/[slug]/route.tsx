@@ -7,6 +7,8 @@ import { clanCard, siteCard } from '@/lib/ogCard';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { isLiveWindow } from '@/lib/linkText';
 
+import { cachedCard } from '@/lib/ogKit';
+
 export const dynamic = 'force-dynamic';
 
 const FOCUS_LABEL: Record<string, string> = {
@@ -29,7 +31,7 @@ const FOCUS_LABEL: Record<string, string> = {
  * "does this clan exist and is it private?" to anybody who can spell a slug, which is the question
  * the setting exists to refuse. A plain Anvil card answers nothing.
  */
-export async function GET(_request: Request, { params }: { params: Promise<{ slug: string }> }) {
+async function load(_request: Request, { params }: { params: Promise<{ slug: string }> }): Promise<Response> {
   const { slug } = await params;
   const clan = await resolveClanBySlug(slug);
   if (!clan || clanVisibilityOf(clan.visibility) !== 'public') return siteCard();
@@ -63,4 +65,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
     chips,
     stats,
   });
+}
+
+export function GET(request: Request, ctx: { params: Promise<{ slug: string }> }) {
+  // Keyed by path alone: the card never depends on who is asking.
+  return cachedCard(new URL(request.url).pathname, () => load(request, ctx));
 }

@@ -7,7 +7,7 @@ import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { weeklyMetricLabel } from '@/lib/constants';
 import { momentsForCompetition } from '@/lib/momentsStore';
 import { siteCard, weeklyCard } from '@/lib/ogCard';
-import { remoteSprite } from '@/lib/ogKit';
+import { cachedCard, remoteSprite } from '@/lib/ogKit';
 import { WEEKLY_KIND_LABEL as KIND_LABEL, WEEKLY_VERB as VERB, timeLeft, weeklyGain, weeklyKind, weeklyTotal } from '@/lib/linkText';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { idOrNull } from '@/lib/routeIds';
@@ -28,7 +28,7 @@ export const dynamic = 'force-dynamic';
  * best thing that happened to them along the way (a pet or a unique off Moments), because "won it
  * and got a Vorki on the way" is the line somebody pastes the link to brag about.
  */
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+async function load(_request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
   const compId = idOrNull((await params).id);
   if (compId == null) return siteCard();
 
@@ -97,4 +97,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     top: board.slice(0, 3).map((e) => ({ rsn: e.rsn, gain: weeklyGain(kind, e.gained) })),
     winner,
   });
+}
+
+export function GET(request: Request, ctx: { params: Promise<{ id: string }> }) {
+  // Keyed by path alone: the card never depends on who is asking.
+  return cachedCard(new URL(request.url).pathname, () => load(request, ctx));
 }

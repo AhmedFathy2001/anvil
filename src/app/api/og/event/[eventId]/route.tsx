@@ -7,7 +7,7 @@ import { clanVisibilityOf } from '@/lib/clanVisibility';
 import { eventStage } from '@/lib/eventStage';
 import { visibilityOf } from '@/lib/eventVisibility';
 import { eventCard, siteCard, type BoardCell } from '@/lib/ogCard';
-import { remoteSprite } from '@/lib/ogKit';
+import { cachedCard, remoteSprite } from '@/lib/ogKit';
 import { compact, timeLeft } from '@/lib/linkText';
 import { ourImageAsDataUrl } from '@/lib/crestImage';
 import { getClanDisplayName } from '@/lib/pluginConfig';
@@ -50,7 +50,7 @@ const LIST_CELLS = 25;
  * the icons are exactly what it is holding back); on a staged-reveal board only the tiles drawn so
  * far, through the same `visibleTiles` the page uses; and never a mission.
  */
-export async function GET(_request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+async function load(_request: Request, { params }: { params: Promise<{ eventId: string }> }): Promise<Response> {
   const id = Number((await params).eventId);
   if (!Number.isInteger(id) || id <= 0) return siteCard();
 
@@ -152,4 +152,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
     clock,
     facts: facts || null,
   });
+}
+
+export function GET(request: Request, ctx: { params: Promise<{ eventId: string }> }) {
+  // Keyed by path alone: the card never depends on who is asking.
+  return cachedCard(new URL(request.url).pathname, () => load(request, ctx));
 }

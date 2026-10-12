@@ -7,7 +7,7 @@ import { compact } from '@/lib/linkText';
 import { getMemberProfile } from '@/lib/memberProfile';
 import { momentsForMembers } from '@/lib/momentsStore';
 import { memberCard, siteCard } from '@/lib/ogCard';
-import { remoteSprite } from '@/lib/ogKit';
+import { cachedCard, remoteSprite } from '@/lib/ogKit';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { bossItemForStatKey, itemIconUrl } from '@/lib/tileIcons';
 
@@ -25,7 +25,7 @@ const WIKI = 'https://oldschool.runescape.wiki/images';
  * itself keeps behind sign-in. A clan that keeps to itself, or an RSN that isn't on its roster, gets
  * the plain Anvil card rather than a 404 that would answer "is this person in that clan?".
  */
-export async function GET(_request: Request, { params }: { params: Promise<{ slug: string; rsn: string }> }) {
+async function load(_request: Request, { params }: { params: Promise<{ slug: string; rsn: string }> }): Promise<Response> {
   const { slug, rsn } = await params;
   const clan = await resolveClanBySlug(slug);
   if (!clan || clanVisibilityOf(clan.visibility) !== 'public') return siteCard();
@@ -83,4 +83,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
     stats,
     loot,
   });
+}
+
+export function GET(request: Request, ctx: { params: Promise<{ slug: string; rsn: string }> }) {
+  // Keyed by path alone: the card never depends on who is asking.
+  return cachedCard(new URL(request.url).pathname, () => load(request, ctx));
 }
