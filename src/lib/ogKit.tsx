@@ -723,6 +723,8 @@ export function remoteSprite(url: string | null | undefined, box: number): Promi
 // ── Whole responses ──
 
 const ROUTE_TTL = 2 * 60_000;
+/** How old a card may be and still stand in for a fresh one when the server is busy. */
+const STALE_LIMIT = 10 * 60_000;
 const ROUTE_CAP = 300;
 const routeCache = new Map<string, { at: number; body: Buffer; headers: [string, string][] }>();
 const routeInFlight = new Map<string, Promise<{ body: Buffer; headers: [string, string][] }>>();
@@ -749,9 +751,11 @@ export async function cachedCard(path: string, load: () => Promise<Response>): P
   if (hit && Date.now() - hit.at < ROUTE_TTL) return answer(hit);
 
   // Turned away by the limits? This card's own last good answer beats the generic one: it has the
-  // clan's logo and its real numbers, just a few minutes old. Expired entries are kept for exactly
-  // this (they only leave the cache by eviction).
-  const busy = () => (hit ? answer(hit) : overflowResponse());
+  // clan's logo and its real numbers, just a few minutes old. Only while it is recent, though: an old
+  // answer may predate the clan or event going private, so past STALE_LIMIT it is the generic card.
+  // (A visibility change also clears these at once — forgetLinkCards.)
+  const recent = hit && Date.now() - hit.at < STALE_LIMIT ? hit : undefined;
+  const busy = () => (recent ? answer(recent) : overflowResponse());
 
   let pending = routeInFlight.get(path);
   if (!pending) {
@@ -776,6 +780,16 @@ export async function cachedCard(path: string, load: () => Promise<Response>): P
   }
   const v = await pending;
   // The render queue turned it away inside the load: same preference.
-  if (hit && v.headers.some(([k]) => k.toLowerCase() === OVERFLOW_HEADER.toLowerCase())) return answer(hit);
+  if (recent && v.headers.some(([k]) => k.toLowerCase() === OVERFLOW_HEADER.toLowerCase())) return answer(recent);
   return answer(v);
+}
+
+/**
+ * Drop every cached card and route answer. Called when a clan or event changes who may see it, so a
+ * card drawn while it was public is never served (fresh or as a busy-server stand-in) once it isn't.
+ * The pinned site card stays: it shows nothing about anyone.
+ */
+export function forgetLinkCards(): void {
+  routeCache.clear();
+  rendered.clear();
 }
