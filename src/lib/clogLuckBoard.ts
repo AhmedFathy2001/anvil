@@ -7,6 +7,7 @@ import { BOSSES } from '@/lib/constants';
 import { clogItemNames, clogPageItems, clogPageNames } from '@/lib/clogDataset';
 import { aggregateLuck, assessLuckAt, bundleSize, dropsFromQuantity, type LuckTotal } from '@/lib/clogLuck';
 import { raidSourcesByItem, RAID_LUCK_SETTING_KEY } from '@/lib/raidLuck';
+import { statSnapshotOf } from '@/lib/roster';
 import { buildLuckBoards, expectationFor, type LuckEntry, type LuckRateSource, type LuckSource } from '@/lib/clogProfile';
 import { parsePluginStats } from '@/lib/pluginStats';
 
@@ -289,20 +290,28 @@ export async function bossKillsFor(accountId: number): Promise<Record<string, nu
     .where(eq(clanRoster.accountId, accountId));
   const kills = parsePluginStats(member?.liveStats);
 
-  const snaps = await db
-    .select({ payload: playerSnapshots.payload, capturedAt: playerSnapshots.capturedAt })
-    .from(playerSnapshots)
-    .where(and(eq(playerSnapshots.accountId, accountId), eq(playerSnapshots.kind, 'current')));
+  // The hiscores half. The account's own last sweep (account_stat_snapshots) is the one every account
+  // has; competition snapshots (player_snapshots) only exist for someone in a weekly, so reading only
+  // those left luck empty for everybody else — a synced log, 70 bosses on the hiscores, and "no luck
+  // to read". Both are read and the higher count per boss wins.
+  const [snaps, sweep] = await Promise.all([
+    db
+      .select({ payload: playerSnapshots.payload, capturedAt: playerSnapshots.capturedAt })
+      .from(playerSnapshots)
+      .where(and(eq(playerSnapshots.accountId, accountId), eq(playerSnapshots.kind, 'current'))),
+    statSnapshotOf(accountId),
+  ]);
   const newest = snaps.sort((a, b) => b.capturedAt.localeCompare(a.capturedAt))[0];
-  if (newest) {
+  for (const payload of [newest?.payload, sweep]) {
+    if (!payload) continue;
     try {
-      const parsed = JSON.parse(newest.payload) as { bosses?: Record<string, { score?: number }> };
+      const parsed = JSON.parse(payload) as { bosses?: Record<string, { score?: number }> };
       for (const [key, value] of Object.entries(parsed.bosses ?? {})) {
         const score = typeof value?.score === 'number' ? value.score : 0;
         if (score > (kills[key] ?? 0)) kills[key] = score;
       }
     } catch {
-      /* no hiscores half for this member */
+      /* no hiscores half from this source */
     }
   }
   return kills;

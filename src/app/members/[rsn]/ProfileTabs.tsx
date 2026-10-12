@@ -9,6 +9,7 @@ import PersonalLuck from './PersonalLuck';
 import StatsBrowser from './StatsBrowser';
 import { statTrends } from '@/lib/statTrends';
 import { setUrlParams } from '@/lib/urlState';
+import { bossImageForStatKey, bossImageUrl, itemIconUrl, skillIconUrl } from '@/lib/tileIcons';
 import { useMediaQuery } from '@/lib/useMediaQuery';
 import { TAB_SLUG, type ProfileLinkState, type ProfileTab } from '@/lib/profileLink';
 import LocalTime from '@/components/LocalTime';
@@ -56,6 +57,7 @@ const TABS: { key: Tab; label: string }[] = [
 ];
 
 const bossLabel = (key: string) => BOSSES.find((b) => b.key === key)?.label ?? key;
+const SKULL_ICON = 'https://oldschool.runescape.wiki/images/Skull_(status)_icon.png';
 
 function fmtXp(xp: number): string {
   if (xp >= 1_000_000_000) return `${(xp / 1_000_000_000).toFixed(2)}B`;
@@ -261,9 +263,13 @@ export default function ProfileTabs({
       label: string;
       value: string | null;
       at: string;
+      /** The game picture for the row: the item, the boss, the skill. */
+      icon: string | null;
     }[] = [];
     for (const b of collection.bests) {
-      if (b.at) entries.push({ key: `pb-${b.activity}`, kind: 'time', label: b.activity, value: b.time, at: b.at });
+      if (b.at) {
+        entries.push({ key: `pb-${b.activity}`, kind: 'time', label: b.activity, value: b.time, at: b.at, icon: bossImageUrl(b.activity) });
+      }
     }
     for (const m of milestones) {
       entries.push({
@@ -272,6 +278,7 @@ export default function ProfileTabs({
         label: milestoneText(m),
         value: null,
         at: m.noticedAt,
+        icon: m.metric ? (skillIconUrl(m.metric) ?? bossImageForStatKey(m.metric)) : skillIconUrl('overall'),
       });
     }
     // Collection-log unlocks. This list read as "records only" while the Collection tab, one click
@@ -288,6 +295,7 @@ export default function ProfileTabs({
         // arrived in a bulk sync and the log can't say which kill produced it.
         value: u.kcAtUnlock != null ? `${u.kcAtUnlock.toLocaleString()} KC` : null,
         at: u.at,
+        icon: itemIconUrl(u.itemId),
       });
     }
     // Drops, pets and combat tasks. The other three sources are all things the player WORKED
@@ -302,10 +310,30 @@ export default function ProfileTabs({
         // The KC is the story on a drop, the same as it is on a log unlock above.
         value: m.kc != null && m.kc > 0 ? `${m.kc.toLocaleString()} KC` : null,
         at: m.occurredAt,
+        icon:
+          m.kind === 'death'
+            ? SKULL_ICON
+            : m.itemId != null
+              ? itemIconUrl(m.itemId)
+              : null,
       });
     }
-    return entries.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 12);
+    // Everything we have, newest first; the list shows a page at a time. It stopped at twelve, and the
+    // plugin's "See all" lands here — on twelve.
+    return entries.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 200);
   }, [collection.bests, collection.recent, milestones, moments]);
+
+  const [latelyFilter, setLatelyFilter] = useState<'all' | 'drops' | 'bests' | 'milestones'>('all');
+  const [latelyShown, setLatelyShown] = useState(12);
+  const latelyRows = useMemo(() => {
+    const keep: Record<typeof latelyFilter, (k: string) => boolean> = {
+      all: () => true,
+      drops: (k) => k === 'unlock' || k === 'drop',
+      bests: (k) => k === 'time',
+      milestones: (k) => k === 'milestone' || k === 'task',
+    };
+    return recentFeed.filter((e) => keep[latelyFilter](e.kind));
+  }, [recentFeed, latelyFilter]);
 
   const shownTimes = useMemo(() => {
     const q = bestFilter.trim().toLowerCase();
@@ -394,7 +422,9 @@ export default function ProfileTabs({
       </div>
 
       {tab === 'luck' &&
-        (collection.luck ? (
+        // PersonalLuck draws nothing when no item has a rate to compare against, so the empty state
+        // has to cover that case too — a blank tab looked like a broken page.
+        (collection.luck && collection.luck.total.items > 0 && collection.luck.total.expected > 0 ? (
           <PersonalLuck {...collection.luck} full />
         ) : (
           <div className="border border-dashed border-card-border rounded-xl p-8 text-center text-sm text-text-muted">
@@ -504,6 +534,9 @@ export default function ProfileTabs({
 
       {tab === 'trophies' && (
         <>
+          {/* Four zeros above "nothing here yet" said the same thing five times. The counters only
+              appear once there's something to count. */}
+          {(history.events.length > 0 || history.weeklies.length > 0) && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
             <div className="border border-card-border rounded-xl bg-card-bg px-4 py-3">
               <div className="text-[11px] uppercase tracking-widest text-text-muted">Events played</div>
@@ -531,10 +564,12 @@ export default function ProfileTabs({
               <div className="text-[11px] text-text-muted mt-0.5">across all bingos</div>
             </div>
           </div>
+          )}
 
           {history.events.length === 0 && history.weeklies.length === 0 ? (
             <p className="text-sm text-text-muted border border-card-border rounded-xl bg-card-bg p-6 text-center">
-              Nothing here yet — this fills in when they finish a bingo or a weekly competition.
+              No trophies yet — finished bingos and weekly competitions land here, with placings and the
+              points they scored.
             </p>
           ) : (
             <>
@@ -604,22 +639,62 @@ export default function ProfileTabs({
             static lists said what this player has ever managed and nothing about this week. */}
         {recentFeed.length > 0 && (
           <Section title="Lately" aside="newest first">
+            <div className="flex flex-wrap gap-1.5 mb-2" role="tablist" aria-label="Show">
+              {(
+                [
+                  ['all', 'Everything'],
+                  ['drops', 'Drops'],
+                  ['bests', 'Best times'],
+                  ['milestones', 'Milestones'],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={latelyFilter === key}
+                  onClick={() => {
+                    setLatelyFilter(key);
+                    setLatelyShown(12);
+                  }}
+                  className={chip(latelyFilter === key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border">
-              {recentFeed.map((entry) => (
-                <div key={entry.key} className="flex items-center gap-3 px-4 py-2.5">
-                  <span
-                    className={`text-[10px] uppercase tracking-widest shrink-0 w-16 ${LATELY_KIND[entry.kind].tone}`}
-                  >
-                    {LATELY_KIND[entry.kind].label}
+              {latelyRows.slice(0, latelyShown).map((entry) => (
+                <div key={entry.key} className="flex items-center gap-3 px-4 py-2">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-brown-dark/60">
+                    {entry.icon && (
+                      // eslint-disable-next-line @next/next/no-img-element -- remote game sprites, tiny and cached
+                      <img src={entry.icon} alt="" loading="lazy" className="max-h-6 max-w-6 object-contain [image-rendering:pixelated]" />
+                    )}
                   </span>
-                  <span className="text-sm flex-1 truncate">{entry.label}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm">{entry.label}</span>
+                    <span className={`block text-[11px] ${LATELY_KIND[entry.kind].tone}`}>{LATELY_KIND[entry.kind].label}</span>
+                  </span>
                   {entry.value && <span className="text-sm font-mono text-gold shrink-0">{entry.value}</span>}
-                  <span className="text-[11px] text-text-muted shrink-0 w-24 text-right">
+                  <span className="text-[11px] text-text-muted shrink-0 w-20 text-right">
                     <LocalTime date={entry.at} format="date" />
                   </span>
                 </div>
               ))}
+              {latelyRows.length === 0 && (
+                <p className="px-4 py-6 text-center text-sm text-text-muted">Nothing of that kind yet.</p>
+              )}
             </div>
+            {latelyRows.length > latelyShown && (
+              <button
+                type="button"
+                onClick={() => setLatelyShown((n) => n + 24)}
+                className="mt-2 w-full rounded-lg border border-card-border py-2 text-sm text-text-muted hover:border-gold/50 hover:text-foreground"
+              >
+                Show more ({latelyRows.length - latelyShown} older)
+              </button>
+            )}
           </Section>
         )}
 
@@ -630,35 +705,50 @@ export default function ProfileTabs({
               few days with tracking on.
             </p>
           ) : (
-            // One card per record rather than three cards of stacked rows: a personal best is a
-            // headline number, and burying it as the right-hand side of a label/value pair made the
-            // biggest day this player has ever had look like a table cell.
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              {(['day', 'week', 'month'] as const).flatMap((period) =>
-                records
-                  .filter((r) => r.period === period)
-                  .map((r) => (
-                    <div key={`${period}-${r.metric}`} className="border border-card-border rounded-xl bg-card-bg p-4">
-                      <div className="text-[11px] uppercase tracking-widest text-text-muted">
-                        Best {period} · {r.metric}
-                      </div>
-                      <div className="text-2xl font-bold text-gold tabular-nums mt-1">
-                        {r.metric === 'xp' ? fmtXp(r.value) : `${r.value.toFixed(1)}h`}
-                      </div>
-                      <div className="text-xs text-text-muted mt-1">ending {r.endedOn}</div>
-                    </div>
-                  )),
-              )}
+            // One small table: periods down, measures across. Nine identical cards made the reader do
+            // the grid in their head; this IS the grid, and the best of each reads at a glance.
+            <div className="overflow-hidden rounded-xl border border-card-border bg-card-bg">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-tile-bg text-xs text-text-muted">
+                    <th className="px-4 py-2 text-left font-normal">Best</th>
+                    {(['xp', 'ehp', 'ehb'] as const).map((m) => (
+                      <th key={m} className="px-4 py-2 text-right font-normal">
+                        {m === 'xp' ? 'XP' : m.toUpperCase()}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-card-border">
+                  {(['day', 'week', 'month'] as const).map((period) => (
+                    <tr key={period}>
+                      <td className="px-4 py-3 capitalize text-text-muted">{period}</td>
+                      {(['xp', 'ehp', 'ehb'] as const).map((metric) => {
+                        const r = records.find((x) => x.period === period && x.metric === metric);
+                        return (
+                          <td key={metric} className="px-4 py-3 text-right">
+                            {r ? (
+                              <>
+                                <span className="block font-semibold tabular-nums text-gold">
+                                  {r.metric === 'xp' ? fmtXp(r.value) : `${r.value.toFixed(1)}h`}
+                                </span>
+                                <span className="block text-[11px] text-text-dim">ending {r.endedOn}</span>
+                              </>
+                            ) : (
+                              <span className="text-text-dim">—</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
               {history.totalPoints > 0 && (
-                <div className="border border-card-border rounded-xl bg-card-bg p-4">
-                  <div className="text-[11px] uppercase tracking-widest text-text-muted">Event points</div>
-                  <div className="text-2xl font-bold text-gold tabular-nums mt-1">
-                    {history.totalPoints.toLocaleString()}
-                  </div>
-                  <div className="text-xs text-text-muted mt-1">
-                    across {history.events.length} {history.events.length === 1 ? 'event' : 'events'}
-                  </div>
-                </div>
+                <p className="border-t border-card-border px-4 py-2.5 text-sm text-text-muted">
+                  <span className="font-semibold tabular-nums text-gold">{history.totalPoints.toLocaleString()}</span> event
+                  points across {history.events.length} {history.events.length === 1 ? 'event' : 'events'}
+                </p>
               )}
             </div>
           )}
@@ -683,8 +773,14 @@ export default function ProfileTabs({
               </div>
               <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border max-h-96 overflow-y-auto">
                 {shownTimes.map((b) => (
-                  <div key={b.activity} className="flex items-center justify-between gap-3 px-3 py-1.5 text-xs">
-                    <span className="truncate">{b.activity}</span>
+                  <div key={b.activity} className="flex items-center gap-3 px-3 py-1.5 text-xs">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center">
+                      {bossImageUrl(b.activity) && (
+                        // eslint-disable-next-line @next/next/no-img-element -- remote game sprites, tiny and cached
+                        <img src={bossImageUrl(b.activity)!} alt="" loading="lazy" className="max-h-5 max-w-5 object-contain [image-rendering:pixelated]" />
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">{b.activity}</span>
                     <span className="font-mono text-gold shrink-0">{b.time}</span>
                   </div>
                 ))}
