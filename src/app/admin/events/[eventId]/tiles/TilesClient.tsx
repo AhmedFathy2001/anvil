@@ -1,5 +1,6 @@
 'use client';
 
+import DateTimePicker from '@/components/DateTimePicker';
 import type { Event, Tile, ItemRequirement } from '@/lib/types';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -1927,7 +1928,7 @@ const VIEW_LABELS: Record<AuthoringView, (shape: 'grid' | 'track' | 'list') => {
 // answers about the same tile, and a second copy here would be a second copy to drift.
 type KindFilter = 'all' | TileKindKey;
 
-// ISO → the local wall-clock string a <input type="datetime-local"> wants.
+// ISO → a local wall-clock string (YYYY-MM-DDTHH:MM), the form the reveal field keeps its state in.
 function toLocalInputValue(iso: string | null | undefined): string {
   if (!iso) return '';
   const d = new Date(iso);
@@ -2042,12 +2043,13 @@ function RevealAtEditor({
       {scheduled && !tile.revealedAt && (
         <>
           <div className="flex items-center gap-2 flex-wrap">
-            <input
-              type="datetime-local"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              className="bg-brown-dark border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:border-gold/50 focus:outline-none"
-            />
+            <div className="w-56">
+              <DateTimePicker
+                value={value ? new Date(value).toISOString() : ''}
+                onChange={(iso) => setValue(toLocalInputValue(iso))}
+                ariaLabel="Reveal time"
+              />
+            </div>
             <button
               onClick={() => save(value ? new Date(value).toISOString() : null)}
               disabled={saving || !value}

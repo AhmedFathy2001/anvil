@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { clanFetch } from '@/lib/clanFetch';
+import Select from '@/components/Select';
+import DateTimePicker from '@/components/DateTimePicker';
 import type { GoalView } from '@/lib/goalProgress';
 
 /**
@@ -141,31 +143,30 @@ export default function GoalsCard({
 
       {editable && adding && (
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-card-border pt-4">
-          <select className={input} value={kind} onChange={(e) => pickKind(e.target.value as 'skill' | 'boss' | 'clog')}>
-            <option value="skill">Skill level</option>
-            <option value="boss">Boss kills</option>
-            {options.pages.length > 0 && <option value="clog">Log page</option>}
-          </select>
-          <select className={input} value={metric} onChange={(e) => setMetric(e.target.value)}>
-            {kind === 'skill' &&
-              options.skills.map((s) => (
-                <option key={s} value={s}>
-                  {s[0].toUpperCase() + s.slice(1)}
-                </option>
-              ))}
-            {kind === 'boss' &&
-              options.bosses.map((b) => (
-                <option key={b.key} value={b.key}>
-                  {b.label}
-                </option>
-              ))}
-            {kind === 'clog' &&
-              options.pages.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-          </select>
+          <Select
+            className="w-36"
+            ariaLabel="Goal kind"
+            value={kind}
+            onChange={(v) => pickKind(v as 'skill' | 'boss' | 'clog')}
+            options={[
+              { value: 'skill', label: 'Skill level' },
+              { value: 'boss', label: 'Boss kills' },
+              ...(options.pages.length > 0 ? [{ value: 'clog', label: 'Log page' }] : []),
+            ]}
+          />
+          <Select
+            className="w-52"
+            ariaLabel={kind === 'skill' ? 'Skill' : kind === 'boss' ? 'Boss' : 'Log page'}
+            value={metric}
+            onChange={setMetric}
+            options={
+              kind === 'skill'
+                ? options.skills.map((s) => ({ value: s, label: s[0].toUpperCase() + s.slice(1) }))
+                : kind === 'boss'
+                  ? options.bosses.map((b) => ({ value: b.key, label: b.label }))
+                  : options.pages.map((p) => ({ value: p, label: p }))
+            }
+          />
           {kind !== 'clog' && (
             <input
               type="number"
@@ -176,17 +177,19 @@ export default function GoalsCard({
               onChange={(e) => setTarget(Number(e.target.value))}
             />
           )}
-          <label className="flex items-center gap-2 text-sm text-text-muted">
+          <div className="flex items-center gap-2 text-sm text-text-muted">
             by
-            <input
-              type="date"
-              value={dueOn}
-              min={new Date().toISOString().slice(0, 10)}
-              onChange={(e) => setDueOn(e.target.value)}
-              aria-label="Deadline (optional)"
-              className={input}
-            />
-          </label>
+            <div className="w-40">
+              <DateTimePicker
+                dateOnly
+                value={dueOn}
+                min={new Date().toISOString().slice(0, 10)}
+                onChange={setDueOn}
+                placeholder="No deadline"
+                ariaLabel="Deadline (optional)"
+              />
+            </div>
+          </div>
           <button
             type="button"
             disabled={busy || !metric}

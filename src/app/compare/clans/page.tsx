@@ -1,4 +1,5 @@
 import { headers } from 'next/headers';
+import { ChangeSide, SwapSides } from '../CompareSwitch';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { eq } from 'drizzle-orm';
@@ -127,9 +128,20 @@ export default async function CompareClansPage({
   return (
     <div className="mx-auto w-full max-w-4xl">
       <header className="mb-6 grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-        <ClanSide card={cardA} align="right" />
-        <span className="font-mono text-xs uppercase tracking-[0.2em] text-text-dim">vs</span>
-        <ClanSide card={cardB} align="left" />
+        <div className="min-w-0 text-right">
+          <ClanSide card={cardA} align="right" />
+          <ChangeSide basePath="/compare/clans" side="a" current={cardA.slug} other={cardB.slug} noun="clan" maxLength={64} align="right" />
+        </div>
+        <SwapSides
+          basePath="/compare/clans"
+          a={cardA.slug}
+          b={cardB.slug}
+          className="flex h-10 w-10 items-center justify-center rounded-full border border-card-border bg-card-bg font-mono text-[11px] uppercase tracking-widest text-text-muted"
+        />
+        <div className="min-w-0">
+          <ClanSide card={cardB} align="left" />
+          <ChangeSide basePath="/compare/clans" side="b" current={cardB.slug} other={cardA.slug} noun="clan" maxLength={64} align="left" />
+        </div>
       </header>
 
       <HeadlineTable rows={cmp.headline} />

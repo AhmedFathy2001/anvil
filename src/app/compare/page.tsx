@@ -8,6 +8,7 @@ import { verifyUser } from '@/lib/auth';
 import { loadPlayerCard } from '@/lib/playerCard';
 import type { PlayerCard } from '@/lib/playerCardShape';
 import { comparePlayers, queryName } from '@/lib/compare';
+import { ChangeSide, SwapSides } from './CompareSwitch';
 import { compareInsights } from '@/lib/compareInsights';
 import { getDailySeries } from '@/lib/memberProfile';
 import { clogPageItems } from '@/lib/clogDataset';
@@ -139,11 +140,20 @@ export default async function ComparePlayersPage({
   return (
     <div className="mx-auto w-full max-w-4xl">
       <header className="mb-6 grid grid-cols-[1fr_auto_1fr] items-start gap-4">
-        <Side card={cardA} align="right" />
-        <span className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-card-border bg-card-bg font-mono text-[11px] uppercase tracking-widest text-text-muted">
-          vs
-        </span>
-        <Side card={cardB} align="left" />
+        <div className="min-w-0 text-right">
+          <Side card={cardA} align="right" />
+          <ChangeSide basePath="/compare" side="a" current={cardA.rsn} other={cardB.rsn} noun="player" maxLength={12} align="right" />
+        </div>
+        <SwapSides
+          basePath="/compare"
+          a={cardA.rsn}
+          b={cardB.rsn}
+          className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-card-border bg-card-bg font-mono text-[11px] uppercase tracking-widest text-text-muted"
+        />
+        <div className="min-w-0">
+          <Side card={cardB} align="left" />
+          <ChangeSide basePath="/compare" side="b" current={cardB.rsn} other={cardA.rsn} noun="player" maxLength={12} align="left" />
+        </div>
       </header>
 
       <Scoreboard

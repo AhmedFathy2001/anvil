@@ -9,13 +9,9 @@ import NumberInput from '@/components/NumberInput';
 //   - "range":  pick a start datetime + an end datetime explicitly
 //   - "duration": pick a start datetime + a duration shortcut (1d/3d/1w/2w/1mo) or a custom day count
 //
-// Native <input type="datetime-local"> stays — it's familiar, accessible, and respects
-// the OS locale. We theme it with `color-scheme: dark` plus a CSS filter on the picker
-// indicator so the calendar icon matches the gold accent.
+// Both ends use the shared DateTimePicker, so every date on the site is picked the same way.
 //
 // Values are emitted as ISO 8601 UTC strings (what the API expects) via onChange.
-// The local input itself uses datetime-local format ("YYYY-MM-DDTHH:mm"), so we
-// convert at the boundary.
 
 const DURATION_OPTIONS: { label: string; days: number }[] = [
   { label: '1 day', days: 1 },

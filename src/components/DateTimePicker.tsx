@@ -10,6 +10,9 @@ import { formatLocalDateTime, formatUtcHint } from '@/lib/eventTime';
 // `value` is an ISO 8601 string in UTC (matches API expectations). The popover uses
 // the user's local timezone for display + interaction; the conversion happens at the
 // boundary in this component so consumers can stay in ISO/UTC.
+//
+// `dateOnly` drops the time row and works in a plain calendar date ('YYYY-MM-DD') instead — no
+// timezone conversion at all, since a date like a goal's deadline names a day, not an instant.
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const MONTH_NAMES = [
@@ -23,6 +26,27 @@ interface Props {
   placeholder?: string;
   ariaLabel?: string;
   required?: boolean;
+  /** Calendar date only: value and onChange use 'YYYY-MM-DD', and there is no time row. */
+  dateOnly?: boolean;
+  /** dateOnly: the earliest pickable day, 'YYYY-MM-DD'. Earlier days are shown but disabled. */
+  min?: string;
+  /** Called when the popover closes — the moment to save, for a field that saves itself. */
+  onClose?: () => void;
+  disabled?: boolean;
+}
+
+function parseDateOnly(value: string): { y: number; m: number; d: number; hh: number; mm: number } | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  return m ? { y: +m[1], m: +m[2] - 1, d: +m[3], hh: 0, mm: 0 } : null;
+}
+
+function dateOnlyValue(y: number, m: number, d: number): string {
+  return `${y}-${pad2(m + 1)}-${pad2(d)}`;
+}
+
+function formatDateOnly(value: string): string {
+  const p = parseDateOnly(value);
+  return p ? `${p.d} ${MONTH_NAMES[p.m].slice(0, 3)} ${p.y}` : value;
 }
 
 function pad2(n: number): string { return String(n).padStart(2, '0'); }
@@ -86,8 +110,9 @@ function sameDay(a: { y: number; m: number; d: number }, b: { y: number; m: numb
   return Boolean(b && a.y === b.y && a.m === b.m && a.d === b.d);
 }
 
-export default function DateTimePicker({ value, onChange, placeholder, ariaLabel, required }: Props) {
-  const parsed = toLocalParts(value);
+export default function DateTimePicker({ value, onChange, placeholder, ariaLabel, required, dateOnly, min, onClose, disabled }: Props) {
+  const parsed = dateOnly ? parseDateOnly(value) : toLocalParts(value);
+  const minParts = dateOnly && min ? parseDateOnly(min) : null;
   const today = useMemo(() => {
     const d = new Date();
     return { y: d.getFullYear(), m: d.getMonth(), d: d.getDate() };
@@ -97,16 +122,25 @@ export default function DateTimePicker({ value, onChange, placeholder, ariaLabel
   const [viewYear, setViewYear] = useState(parsed?.y ?? today.y);
   const [viewMonth, setViewMonth] = useState(parsed?.m ?? today.m);
   const containerRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+  useEffect(() => {
+    if (wasOpen.current && !open) onCloseRef.current?.();
+    wasOpen.current = open;
+  }, [open]);
 
   // Re-anchor the calendar view to the current value whenever the popover opens, so
   // the user always sees the month their selection lives in (or the current month if unset).
   useEffect(() => {
     if (!open) return;
-    const p = toLocalParts(value);
+    const p = dateOnly ? parseDateOnly(value) : toLocalParts(value);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing view to opened state
     setViewYear(p?.y ?? today.y);
     setViewMonth(p?.m ?? today.m);
-  }, [open, value, today.y, today.m]);
+  }, [open, value, today.y, today.m, dateOnly]);
 
   // Close on outside click + Escape.
   useEffect(() => {
@@ -130,6 +164,11 @@ export default function DateTimePicker({ value, onChange, placeholder, ariaLabel
   const grid = useMemo(() => buildGrid(viewYear, viewMonth), [viewYear, viewMonth]);
 
   function pickDay(day: { y: number; m: number; d: number; outside: boolean }) {
+    if (dateOnly) {
+      onChange(dateOnlyValue(day.y, day.m, day.d));
+      setOpen(false);
+      return;
+    }
     const hh = parsed?.hh ?? 0;
     const mm = parsed?.mm ?? 0;
     onChange(partsToIso(day.y, day.m, day.d, hh, mm));
@@ -156,6 +195,11 @@ export default function DateTimePicker({ value, onChange, placeholder, ariaLabel
   }
 
   function setNow() {
+    if (dateOnly) {
+      onChange(dateOnlyValue(today.y, today.m, today.d));
+      setOpen(false);
+      return;
+    }
     const d = new Date();
     d.setSeconds(0, 0);
     onChange(d.toISOString());
@@ -175,14 +219,15 @@ export default function DateTimePicker({ value, onChange, placeholder, ariaLabel
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        disabled={disabled}
         aria-label={ariaLabel}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className={`w-full flex items-center justify-between gap-2 px-3 py-2 bg-brown-dark border border-card-border rounded text-sm transition-colors hover:border-gold/50 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/30 ${
+        className={`w-full flex items-center justify-between gap-2 px-3 py-2 bg-brown-dark border border-card-border rounded text-sm transition-colors hover:border-gold/50 disabled:opacity-50 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/30 ${
           open ? 'border-gold/60 ring-1 ring-gold/30' : ''
         } ${value ? 'text-foreground' : 'text-text-muted'}`}
       >
-        <span className="truncate text-left">{value ? formatDisplay(value) : placeholder ?? 'Pick a date…'}</span>
+        <span className="truncate text-left">{value ? (dateOnly ? formatDateOnly(value) : formatDisplay(value)) : placeholder ?? 'Pick a date…'}</span>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="opacity-70 shrink-0" aria-hidden>
           <rect x="3" y="4" width="18" height="18" rx="2" />
           <line x1="16" y1="2" x2="16" y2="6" />
@@ -205,7 +250,7 @@ export default function DateTimePicker({ value, onChange, placeholder, ariaLabel
         />
       )}
 
-      {value && (
+      {value && !dateOnly && (
         // The button shows local time; this spells out the UTC equivalent that
         // actually gets stored, so admins don't mistake their local midnight for
         // UTC midnight.
@@ -215,7 +260,7 @@ export default function DateTimePicker({ value, onChange, placeholder, ariaLabel
       {open && (
         <div
           role="dialog"
-          aria-label="Date and time picker"
+          aria-label={dateOnly ? 'Date picker' : 'Date and time picker'}
           className="absolute z-50 mt-2 w-72 max-w-[calc(100vw-1.5rem)] rounded-xl border border-gold/30 bg-card-bg shadow-2xl shadow-black/50 p-3"
         >
           <div className="flex items-center justify-between mb-3">
@@ -248,13 +293,19 @@ export default function DateTimePicker({ value, onChange, placeholder, ariaLabel
             {grid.flat().map((day, i) => {
               const isSelected = parsed && sameDay(day, parsed);
               const isToday = sameDay(day, today);
+              const beforeMin =
+                minParts != null &&
+                (day.y !== minParts.y ? day.y < minParts.y : day.m !== minParts.m ? day.m < minParts.m : day.d < minParts.d);
               return (
                 <button
                   key={i}
                   type="button"
+                  disabled={beforeMin}
                   onClick={() => pickDay(day)}
                   className={`h-8 text-xs rounded transition-colors ${
-                    isSelected
+                    beforeMin
+                      ? 'text-text-muted/25 cursor-not-allowed'
+                      : isSelected
                       ? 'bg-gold text-brown-dark font-bold'
                       : day.outside
                         ? 'text-text-muted/40 hover:bg-brown-light/40'
@@ -269,6 +320,17 @@ export default function DateTimePicker({ value, onChange, placeholder, ariaLabel
             })}
           </div>
 
+          {dateOnly ? (
+            <div className="flex items-center border-t border-card-border pt-3">
+              <button
+                type="button"
+                onClick={setNow}
+                className="ml-auto text-[11px] text-gold hover:text-gold-light underline-offset-2 hover:underline"
+              >
+                Today
+              </button>
+            </div>
+          ) : (
           <div className="flex items-center gap-2 border-t border-card-border pt-3">
             <span className="text-[11px] uppercase tracking-wider text-text-muted">Time</span>
             <input
@@ -298,6 +360,7 @@ export default function DateTimePicker({ value, onChange, placeholder, ariaLabel
               Now
             </button>
           </div>
+          )}
 
           <div className="flex items-center justify-between border-t border-card-border mt-3 pt-2">
             <button

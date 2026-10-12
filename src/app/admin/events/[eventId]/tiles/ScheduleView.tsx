@@ -1,5 +1,6 @@
 'use client';
 
+import DateTimePicker from '@/components/DateTimePicker';
 import { useEffect, useMemo, useState } from 'react';
 import type { Tile } from '@/lib/types';
 import Input from '@/components/Input';
@@ -22,7 +23,7 @@ import { clanFetch } from '@/lib/clanFetch';
 
 const HOUR = 60 * 60 * 1000;
 
-/** ISO → the local wall-clock string a <input type="datetime-local"> wants. */
+/** ISO → a local wall-clock string (YYYY-MM-DDTHH:MM), the form these fields keep their state in. */
 function toLocalInputValue(iso: string | null | undefined): string {
   if (!iso) return '';
   const d = new Date(iso);
@@ -207,12 +208,13 @@ export default function ScheduleView({
         <div className="flex flex-wrap items-end gap-3">
           <label className="text-xs text-text-muted">
             <span className="block mb-1">First reveal</span>
-            <input
-              type="datetime-local"
-              value={startAt}
-              onChange={(e) => setStartAt(e.target.value)}
-              className="bg-brown-dark border border-card-border rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:border-gold/50 focus:outline-none"
-            />
+            <div className="w-56">
+              <DateTimePicker
+                value={startAt ? new Date(startAt).toISOString() : ''}
+                onChange={(iso) => setStartAt(toLocalInputValue(iso))}
+                ariaLabel="First reveal"
+              />
+            </div>
           </label>
           <label className="text-xs text-text-muted">
             <span className="block mb-1">Then one every</span>
@@ -386,18 +388,17 @@ function ScheduleRow({
           </span>
         ) : (
           <span className="flex items-center gap-1.5">
-            <input
-              type="datetime-local"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              onBlur={() => {
-                if (dirty && value) onSave(tile.id, new Date(value).toISOString());
-              }}
-              disabled={busy}
-              className={`bg-brown-dark border rounded-lg px-2 py-1 text-xs text-foreground focus:outline-none focus:border-gold/50 disabled:opacity-50 ${
-                dirty ? 'border-gold/60' : 'border-card-border'
-              }`}
-            />
+            <span className={`block w-52 rounded ${dirty ? 'ring-1 ring-gold/60' : ''}`}>
+              <DateTimePicker
+                value={value ? new Date(value).toISOString() : ''}
+                onChange={(iso) => setValue(toLocalInputValue(iso))}
+                onClose={() => {
+                  if (dirty && value) onSave(tile.id, new Date(value).toISOString());
+                }}
+                disabled={busy}
+                ariaLabel={`Reveal time for ${tile.label}`}
+              />
+            </span>
             {tile.revealAt && (
               <button
                 type="button"
