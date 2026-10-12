@@ -3,14 +3,14 @@ import { noClanForPlugin } from '@/lib/pluginNoClan';
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { eventParticipants, tiles, teams, events, completions, clanRoster, weeklyParticipants } from '@/db/schema';
-import { findRosterSeat, updateAccountOfSeat } from '@/lib/roster';
+import { findRosterSeat } from '@/lib/roster';
 import { eq, and, inArray } from 'drizzle-orm';
-import { resolvePluginMember } from '@/lib/auth';
+import { resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
+import { applyAccountPush, isEmptyPush, readPushed, type PushBody } from '@/lib/accountPush';
+import { accountForCharacter, accountStanding, playedCharacter } from '@/lib/pluginAccount';
 import { statKeys } from '@/lib/tileKinds';
-import { bossKeyForName, skillKeyForName, parsePluginStats } from '@/lib/pluginStats';
-import { isActivityKey } from '@/lib/hiscoresActivities';
 import { computeGainFromJson, isIndividualMode, isMilestoneBasis, milestoneStateFromJson, buildContributionSnapshot } from '@/lib/statTracking';
-import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
+import { liveStatsForMembers } from '@/lib/liveStats';
 import { getActiveWeeklyMetrics } from '@/lib/pluginConfig';
 import { applyWeeklyValue } from '@/lib/weekly';
 import { notifyTileCompletion } from '@/lib/discord';
@@ -28,28 +28,17 @@ import { log } from '@/lib/logger';
 // lands before the 15-min hiscores sweep. The sweep is source of truth: it prunes a live entry once
 // hiscores catches up. See lib/liveStats + lib/statTracking + the cron/stats sweep.
 
-// Absolute sanity ceilings — reject obviously bogus pushes. No legit boss KC / skill XP approaches these.
-const MAX_KC = 1_000_000;
-const MAX_XP = 200_000_000;
-// Activity counters (clue tiers, Soul Wars zeal, Colosseum glory, collection-log slots) are all
-// small next to boss KC — the largest real value is a five-figure clue count — so MAX_KC is a
-// generous ceiling that still rejects a garbage varbit read.
-const MAX_ACTIVITY = MAX_KC;
-
-// How long a per-key "rose just now" stamp is retained. Must outlast the stats sweep's stale-overlay
-// window (~6h, the OSRS logout backstop) so that check can tell a still-active grind from a stuck push;
-// "Active now" reads its own 5-min window and is unaffected by the longer retention. 7h > 6.5h sweep
-// threshold so a legit entry's stamp is still present when the sweep decides whether to keep it.
-const KEY_TIME_TTL_MS = 7 * 60 * 60_000;
-
 export async function POST(request: Request) {
-  // See lib/pluginNoClan: a person in no clan has nothing to credit, which is an answer.
   const clan = await resolvePluginClan(request);
-  if (!clan) return noClanForPlugin();
+  // No clan is not "nowhere to put it": the stats are the PERSON's, and their profile keeps them
+  // with or without a clan. The account-only path takes the push when the token owns the character.
+  if (!clan) return (await accountOnlyPush(request)) ?? noClanForPlugin();
   // Member-level auth: unlike verifyPluginToken this does NOT require a live bingo event, so a member
   // who's only in a weekly comp can still push live stats.
   const member = await resolvePluginMember(request);
   if (!member) {
+    const own = await accountOnlyPush(request);
+    if (own) return own;
     // LOGGED, because the symptom of this is silence. A client that is running, authenticated for
     // everything else, and refused here simply stops moving somebody's competition row — and with
     // no record of the refusal, the only evidence left is a leaderboard that looks frozen. That is
@@ -73,90 +62,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
   }
 
-  let body: {
-    stats?: Array<{ name?: string; kc?: number }>;
-    skills?: Array<{ name?: string; xp?: number }>;
-    activities?: Array<{ key?: string; value?: number }>;
-  };
+  let body: PushBody;
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
-  const incoming = Array.isArray(body?.stats) ? body.stats : [];
-  const incomingSkills = Array.isArray(body?.skills) ? body.skills : [];
-  const incomingActivities = Array.isArray(body?.activities) ? body.activities : [];
-  if (incoming.length === 0 && incomingSkills.length === 0 && incomingActivities.length === 0) {
+  if (isEmptyPush(body)) {
     // Same reason: a client sending empty bodies looks exactly like a client sending nothing.
     log.warn('plugin-stats.refused', { clan: clan.slug, clanMemberId: member.clanMemberId, reason: 'empty' });
     return NextResponse.json({ ok: true, updated: 0 });
   }
-
-  // Map each pushed in-game name -> hiscores/skill key, keeping the max absolute value per key. Boss
-  // KC and skill XP share the flat live_stats map (boss keys and skill names never collide).
-  const pushed: Record<string, number> = {};
-  for (const s of incoming) {
-    if (!s || typeof s.name !== 'string' || typeof s.kc !== 'number') continue;
-    if (!Number.isFinite(s.kc) || s.kc < 0 || s.kc > MAX_KC) continue;
-    const key = bossKeyForName(s.name);
-    if (!key) continue;
-    pushed[key] = Math.max(pushed[key] ?? 0, Math.floor(s.kc));
-  }
-  for (const s of incomingSkills) {
-    if (!s || typeof s.name !== 'string' || typeof s.xp !== 'number') continue;
-    if (!Number.isFinite(s.xp) || s.xp < 0 || s.xp > MAX_XP) continue;
-    const key = skillKeyForName(s.name);
-    if (!key) continue;
-    pushed[key] = Math.max(pushed[key] ?? 0, Math.floor(s.xp));
-  }
-  // Activities arrive already keyed — the plugin reads them from named varbits, so it knows exactly
-  // which counter it holds and there's no in-game name to map. Unknown keys are dropped rather than
-  // stored: live_stats is read by key, so a typo'd entry would sit there forever matching nothing.
-  for (const a of incomingActivities) {
-    if (!a || typeof a.key !== 'string' || typeof a.value !== 'number') continue;
-    if (!Number.isFinite(a.value) || a.value < 0 || a.value > MAX_ACTIVITY) continue;
-    if (!isActivityKey(a.key)) continue;
-    const key = a.key.trim();
-    pushed[key] = Math.max(pushed[key] ?? 0, Math.floor(a.value));
-  }
+  const pushed = readPushed(body);
   if (Object.keys(pushed).length === 0) {
     return NextResponse.json({ ok: true, updated: 0 });
   }
 
   const nowIso = new Date().toISOString();
 
-  // Merge into the member's live overlay — absolute counts only ever rise, so keep the max per key.
+  // The account half — overlay + history — is shared with the no-clan path (lib/accountPush).
   // clan-scope: global -- the id came from a row this request already established, so the clan is settled upstream.
   const memberRow = await findRosterSeat(eq(clanRoster.id, member.clanMemberId));
-  const live = parsePluginStats(memberRow?.liveStats);
-  const keyTimes = parseStatKeyTimes(memberRow?.liveStatKeyTimes);
-  let changed = false;
-  for (const [key, val] of Object.entries(pushed)) {
-    if (val > (live[key] ?? 0)) {
-      live[key] = val;
-      // Stamp per-key recency ONLY on a real increase — this is the "grinding THIS stat right now"
-      // signal "Active now" reads, so one fishing push no longer lights up every tile they've touched.
-      keyTimes[key] = nowIso;
-      changed = true;
-    }
-  }
-  if (changed) {
-    // Drop stale stamps so the map stays small and an old grind doesn't linger as "active".
-    const nowMs = Date.parse(nowIso);
-    for (const [k, iso] of Object.entries(keyTimes)) {
-      const at = Date.parse(iso);
-      if (!Number.isFinite(at) || nowMs - at > KEY_TIME_TTL_MS) delete keyTimes[k];
-    }
-    await updateAccountOfSeat(member.clanMemberId, {
-        liveStats: JSON.stringify(live),
-        liveStatsAt: nowIso,
-        liveStatKeyTimes: JSON.stringify(keyTimes),
-        // No longer clears the sweep's backoff. A push used to make the next tick fetch this account,
-        // which spent Jagex budget re-reading what the client had just sent. Plugin-first: while the
-        // pushes keep coming the sweep only reconciles every few hours, and it polls once as soon as
-        // they stop (lib/pollLadder sweepDue, keyed on liveStatsAt above).
-    });
-  }
+  const accountId = memberRow?.accountId ?? member.accountId;
+  const { live } = await applyAccountPush(accountId, pushed, nowIso);
 
   const updatedKeys = new Set(Object.keys(pushed));
   const completed: string[] = [];
@@ -351,4 +279,37 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ ok: true, updated: Object.keys(pushed).length, completed });
+}
+
+/**
+ * A push from somebody with no seat to credit — no clan at all, or a character that's theirs but on no
+ * roster. Only the account half runs (overlay + history): there is no competition row or tile to
+ * credit without a seat.
+ *
+ * Only a character the token OWNS (accountStanding 'yours'). Unclaimed or somebody else's character
+ * gets nothing — claiming happens on the config path, which knows how; a stat push is not the place
+ * to decide who an account belongs to. Null ⇒ not ours to take; the caller answers as before.
+ */
+async function accountOnlyPush(request: Request): Promise<NextResponse | null> {
+  const viewer = await verifyPluginTokenUser(request);
+  const character = playedCharacter(request);
+  if (!viewer || !character) return null;
+  if ((await accountStanding(viewer.userId, character)) !== 'yours') return null;
+  const account = await accountForCharacter(character);
+  if (!account) return null;
+
+  const rl = await rateLimit(request, `plugin-stats:${viewer.userId}`, { limit: 120, windowMs: 60_000 });
+  if (!rl.ok) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: rateLimitHeaders(rl) });
+  }
+  let body: PushBody;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+  }
+  const pushed = readPushed(body);
+  if (Object.keys(pushed).length === 0) return NextResponse.json({ ok: true, updated: 0 });
+  await applyAccountPush(account.id, pushed, new Date().toISOString());
+  return NextResponse.json({ ok: true, updated: Object.keys(pushed).length, completed: [] });
 }

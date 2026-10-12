@@ -23,6 +23,7 @@ const STALE_OVERLAY_MS = 6.5 * 60 * 60 * 1000;
 import { applyWeeklyValue, readMetricFromSnapshot, writePlayerSnapshot, type CompetitionType } from '@/lib/weekly';
 import { detectMilestones, computeDeltas, isDue, nextDueAt, recordDailyStats, recordMilestones } from '@/lib/statHistory';
 import { sweepDue } from '@/lib/pollLadder';
+import { overlaySnapshot } from '@/lib/liveHistory';
 import { mergeSeatsByAccount } from '@/lib/sweepWork';
 import { timingSafeStrEqual } from '@/lib/auth';
 import { shouldSiteSweep } from '@/lib/sweepOwner';
@@ -611,8 +612,13 @@ export async function GET(request: Request) {
           const accountId = entry.accountId;
           historyWrites++;
           try {
-            await recordDailyStats({ accountId, snapshot, previous });
-            const found = detectMilestones(previous, snapshot, computeDeltas(previous, snapshot));
+            // Effective on both sides, with the overlay as it stood BEFORE this poll: gains the
+            // plugin already pushed were recorded then (api/plugin/stats) and net to zero here, so
+            // only what it never saw — mobile play, a client that was off — is new (lib/liveHistory).
+            const prevEff = previous ? overlaySnapshot(previous, entry.liveMap) : null;
+            const curEff = overlaySnapshot(snapshot, entry.liveMap);
+            await recordDailyStats({ accountId, snapshot: curEff, previous: prevEff });
+            const found = detectMilestones(prevEff, curEff, computeDeltas(prevEff, curEff));
             if (found.length > 0) milestonesRecorded += await recordMilestones(accountId, found);
           } catch (e) {
             // History is a reporting nicety; a failure here must never cost the tick its scoring work.
