@@ -5,9 +5,12 @@
 # bucket; until it has one this is the only daily copy. Same box as the database, so it covers a bad
 # migration or a wrong DELETE, not a lost machine.
 set -euo pipefail
+# Full dumps hold every user's data: owner-only from the moment the file exists, not after a chmod.
+umask 077
 DIR=/opt/anvil/backups/daily
 KEEP=14
-mkdir -p "$DIR"
+mkdir -p -m 700 "$DIR"
+chmod 700 "$DIR"
 ts=$(date -u +%Y%m%dT%H%M%SZ)
 out="$DIR/anvil-$ts.sql.gz"
 docker exec anvil-postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner' | gzip > "$out.tmp"
@@ -19,6 +22,5 @@ if [ "$size" -lt 100000 ]; then
   exit 1
 fi
 mv "$out.tmp" "$out"
-chmod 600 "$out"
 ls -1t "$DIR"/anvil-*.sql.gz | tail -n +$((KEEP + 1)) | xargs -r rm -f
 echo "$(date -u +%FT%TZ) job=backup-local status=ok file=$(basename "$out") size=$size" >> /opt/anvil/cron.log
