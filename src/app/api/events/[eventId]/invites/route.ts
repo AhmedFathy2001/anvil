@@ -7,6 +7,7 @@ import { verifyUser } from '@/lib/auth';
 import { atLeast } from '@/lib/clanRoles';
 import { eventForRequest } from '@/lib/eventScope';
 import { isEntry, isVisibility } from '@/lib/eventAccess';
+import { forgetLinkCards } from '@/lib/ogKit';
 
 /**
  * Inviting another clan — or one person — to an event, and setting who may see it.
@@ -88,6 +89,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
       patch.advertised = body.advertised;
     }
     await db.update(events).set(patch).where(eq(events.id, eventId));
+    // Who may see it just changed: no link card drawn under the old rule may be served again.
+    if ('visibility' in patch) forgetLinkCards();
     return NextResponse.json({ ok: true, ...patch });
   }
 

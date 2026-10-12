@@ -8,6 +8,7 @@ import { verifyAdmin, verifyUser } from '@/lib/auth';
 import { isClanVisibility } from '@/lib/clanVisibility';
 import { isGuestPolicy } from '@/lib/guestAdmission';
 import { getSettingMap, setSetting } from '@/lib/settings';
+import { forgetLinkCards } from '@/lib/ogKit';
 
 /**
  * Who may see this clan, and how somebody gets in.
@@ -78,6 +79,8 @@ export async function PATCH(request: Request) {
 
   if (Object.keys(patch).length > 0) {
     await db.update(clans).set(patch).where(eq(clans.id, clan.id));
+    // Who may see it just changed: no link card drawn under the old rule may be served again.
+    if ('visibility' in patch) forgetLinkCards();
   }
 
   if ('listed' in body) {

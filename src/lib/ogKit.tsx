@@ -105,6 +105,13 @@ const MAX_RENDERING = 2;
 const MAX_QUEUED = 24;
 
 const rendered = new Map<string, { at: number; body: Buffer }>();
+
+/**
+ * Bumped by forgetLinkCards. Work that STARTED before a visibility change may finish after it, so a
+ * render or a load only writes to a cache, or is shared with a newcomer, if the generation it began
+ * in is still the current one.
+ */
+let generation = 0;
 const rendering = new Map<string, Promise<Buffer>>();
 let active = 0;
 const renderQueue: (() => void)[] = [];
@@ -165,8 +172,10 @@ export async function renderCard(
   if (!pending) {
     // Over the queue limit: turn it away now rather than queue more CPU behind it.
     if (renderQueue.length >= MAX_QUEUED) return overflowResponse();
+    const started = generation;
     pending = draw(build)
       .then((body) => {
+        if (started !== generation) return body;
         if (rendered.size >= RENDER_CAP) {
           const oldest = rendered.keys().next().value;
           if (oldest !== undefined) rendered.delete(oldest);
@@ -175,7 +184,11 @@ export async function renderCard(
         if (opts.isOverflowCard) overflowCard = { body, etag: hash };
         return body;
       })
-      .finally(() => rendering.delete(hash));
+      .finally(() => {
+        // Only our own entry: after a forget, a newer render may hold this key.
+        if (rendering.get(hash) === mine) rendering.delete(hash);
+      });
+    const mine = pending;
     rendering.set(hash, pending);
   }
   return cardResponse(await pending, hash, cacheControl);
@@ -723,6 +736,8 @@ export function remoteSprite(url: string | null | undefined, box: number): Promi
 // ── Whole responses ──
 
 const ROUTE_TTL = 2 * 60_000;
+/** How old a card may be and still stand in for a fresh one when the server is busy. */
+const STALE_LIMIT = 10 * 60_000;
 const ROUTE_CAP = 300;
 const routeCache = new Map<string, { at: number; body: Buffer; headers: [string, string][] }>();
 const routeInFlight = new Map<string, Promise<{ body: Buffer; headers: [string, string][] }>>();
@@ -748,14 +763,22 @@ export async function cachedCard(path: string, load: () => Promise<Response>): P
     new Response(new Uint8Array(v.body), { headers: v.headers });
   if (hit && Date.now() - hit.at < ROUTE_TTL) return answer(hit);
 
+  // Turned away by the limits? This card's own last good answer beats the generic one: it has the
+  // clan's logo and its real numbers, just a few minutes old. Only while it is recent, though: an old
+  // answer may predate the clan or event going private, so past STALE_LIMIT it is the generic card.
+  // (A visibility change also clears these at once — forgetLinkCards.)
+  const recent = hit && Date.now() - hit.at < STALE_LIMIT ? hit : undefined;
+  const busy = () => (recent ? answer(recent) : overflowResponse());
+
   let pending = routeInFlight.get(path);
   if (!pending) {
-    if (loading >= MAX_LOADING) return overflowResponse();
+    if (loading >= MAX_LOADING) return busy();
     loading++;
+    const started = generation;
     pending = (async () => {
       const res = await load();
       const v = { body: Buffer.from(await res.arrayBuffer()), headers: [...res.headers.entries()] as [string, string][] };
-      if (res.ok && !res.headers.has(OVERFLOW_HEADER)) {
+      if (res.ok && !res.headers.has(OVERFLOW_HEADER) && started === generation) {
         if (routeCache.size >= ROUTE_CAP) {
           const oldest = routeCache.keys().next().value;
           if (oldest !== undefined) routeCache.delete(oldest);
@@ -765,9 +788,28 @@ export async function cachedCard(path: string, load: () => Promise<Response>): P
       return v;
     })().finally(() => {
       loading--;
-      routeInFlight.delete(path);
+      if (routeInFlight.get(path) === mine) routeInFlight.delete(path);
     });
+    const mine = pending;
     routeInFlight.set(path, pending);
   }
-  return answer(await pending);
+  const v = await pending;
+  // The render queue turned it away inside the load: same preference.
+  if (recent && v.headers.some(([k]) => k.toLowerCase() === OVERFLOW_HEADER.toLowerCase())) return answer(recent);
+  return answer(v);
+}
+
+/**
+ * Drop every cached card and route answer. Called when a clan or event changes who may see it, so a
+ * card drawn while it was public is never served (fresh or as a busy-server stand-in) once it isn't.
+ * The pinned site card stays: it shows nothing about anyone.
+ */
+export function forgetLinkCards(): void {
+  generation++;
+  routeCache.clear();
+  rendered.clear();
+  // In-flight work began under the old rule: nobody new may join it. It still finishes (and answers
+  // whoever was already waiting), but the generation check above keeps it out of every cache.
+  routeInFlight.clear();
+  rendering.clear();
 }
