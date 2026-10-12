@@ -17,8 +17,32 @@ export type GoalCheck =
   | { ok: true; kind: GoalKind; metric: string; target: number }
   | { ok: false; error: string };
 
-const bossByKey = new Map(BOSSES.map((b) => [b.key.toLowerCase(), b.key]));
-const bossByLabel = new Map(BOSSES.map((b) => [b.label.toLowerCase(), b.key]));
+const fold = (v: string) => v.toLowerCase().replace(/[^a-z0-9]/g, '');
+const bossByFold = new Map<string, string>();
+for (const b of BOSSES) {
+  bossByFold.set(fold(b.key), b.key);
+  bossByFold.set(fold(b.label), b.key);
+}
+
+/**
+ * The plugin offers RuneLite's boss names, which mostly fold to ours ("Alchemical Hydra" ↔
+ * alchemicalHydra) and occasionally say more ("Barrows Chests" for our "Barrows") — so an exact fold
+ * first, then the longest of ours that the name starts with.
+ */
+function bossKey(name: string): string | undefined {
+  const f = fold(name);
+  const exact = bossByFold.get(f);
+  if (exact) return exact;
+  let best: string | undefined;
+  let bestLen = 0;
+  for (const [k, key] of bossByFold) {
+    if (k.length >= 4 && f.startsWith(k) && k.length > bestLen) {
+      best = key;
+      bestLen = k.length;
+    }
+  }
+  return best;
+}
 
 /** Validate and normalise a goal. Bosses may be named by key or by the game's label. */
 export function checkGoal(input: GoalInput): GoalCheck {
@@ -34,7 +58,7 @@ export function checkGoal(input: GoalInput): GoalCheck {
     return { ok: true, kind, metric: key, target };
   }
   if (kind === 'boss') {
-    const key = bossByKey.get(metric.toLowerCase()) ?? bossByLabel.get(metric.toLowerCase());
+    const key = bossKey(metric);
     if (!key) return { ok: false, error: 'Unknown boss.' };
     if (!(target >= 1 && target <= 100_000)) return { ok: false, error: 'A kill count between 1 and 100,000.' };
     return { ok: true, kind, metric: key, target };

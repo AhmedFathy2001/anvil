@@ -14,6 +14,10 @@ test('bosses: by key or by label, stored as the key', () => {
   assert.deepEqual(checkGoal({ kind: 'boss', metric: 'Alchemical Hydra', target: 500 }), { ok: true, kind: 'boss', metric: 'alchemicalHydra', target: 500 });
   assert.deepEqual(checkGoal({ kind: 'boss', metric: 'vorkath', target: 1 }), { ok: true, kind: 'boss', metric: 'vorkath', target: 1 });
   assert.equal(checkGoal({ kind: 'boss', metric: 'vorkath', target: 0 }).ok, false);
+  // RuneLite's names: folded, and the longest prefix for the ones that say more than ours.
+  assert.deepEqual(checkGoal({ kind: 'boss', metric: 'Barrows Chests', target: 50 }), { ok: true, kind: 'boss', metric: 'barrows', target: 50 });
+  assert.equal(checkGoal({ kind: 'boss', metric: 'Chambers of Xeric: Challenge Mode', target: 5 }).ok, true);
+  assert.equal(checkGoal({ kind: 'boss', metric: 'Nonsense Beast', target: 5 }).ok, false);
 });
 
 test('log pages: a real page, target ignored', () => {
