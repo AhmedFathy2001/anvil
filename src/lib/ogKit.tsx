@@ -4,7 +4,9 @@
 // ImageResponse has no stylesheet and no font of its own beyond a fallback sans, so everything that
 // makes a card look like Anvil has to be handed to it here. The cards themselves live in lib/ogCard.
 
-import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 
 import { ImageResponse } from 'next/og';
@@ -402,30 +404,179 @@ async function fetchAllowed(raw: string): Promise<Response | null> {
   return null;
 }
 
-const REMOTE_CAP = 400;
-const remoteCache = new Map<string, Promise<string | null>>();
+// ── The sprite cache ──
+//
+// RuneLite and the wiki are other people's servers, and a card render can want a hundred sprites.
+// So a source image is fetched ONCE and kept:
+//
+//   memory  the fitted data URL, per (url, size) — the hot path, no disk or network at all
+//   disk    the source bytes, per url, under /data (the volume that survives redeploys), so a fresh
+//           process or a new deploy doesn't re-download a board's worth of icons
+//   misses  a 404 is remembered for a day and any other failure for ten minutes, so a tile whose
+//           icon doesn't exist isn't re-requested on every single render
+//
+// Item sprites essentially never change, so a cached source is good for 30 days; after that it is
+// refetched, and if the refetch fails the old copy is still served. At most four fetches are in
+// flight at once, and two renders wanting the same url share one fetch.
+
+const DAY = 86_400_000;
+const FRESH_FOR = 30 * DAY;
+const MISS_NOT_FOUND = DAY;
+const MISS_TRANSIENT = 10 * 60_000;
+const MAX_IN_FLIGHT = 4;
+const MEMORY_CAP = 400;
+
+let cacheDirPromise: Promise<string | null> | null = null;
+
+/** Where source sprites live: OG_SPRITE_CACHE_DIR, else /data, else the OS temp dir, else nowhere. */
+function cacheDir(): Promise<string | null> {
+  cacheDirPromise ??= (async () => {
+    const candidates = [
+      process.env.OG_SPRITE_CACHE_DIR,
+      path.join('/data', 'og-sprites'),
+      path.join(os.tmpdir(), 'anvil-og-sprites'),
+    ].filter((d): d is string => !!d);
+    for (const dir of candidates) {
+      try {
+        await mkdir(dir, { recursive: true });
+        const probe = path.join(dir, '.probe');
+        await writeFile(probe, '');
+        return dir;
+      } catch {
+        // Not writable here; try the next one.
+      }
+    }
+    return null;
+  })();
+  return cacheDirPromise;
+}
+
+const hashOf = (url: string) => createHash('sha256').update(url).digest('hex').slice(0, 32);
+
+interface DiskEntry {
+  /** Source bytes, or null for a remembered miss. */
+  bytes: Buffer | null;
+  /** When this entry stops being trusted (a fresh copy is wanted / the miss may be retried). */
+  expires: number;
+}
+
+async function readDisk(url: string): Promise<DiskEntry | null> {
+  const dir = await cacheDir();
+  if (!dir) return null;
+  const base = path.join(dir, hashOf(url));
+  try {
+    const meta = JSON.parse(await readFile(`${base}.json`, 'utf8')) as { expires: number; miss?: boolean };
+    if (meta.miss) return { bytes: null, expires: meta.expires };
+    return { bytes: await readFile(`${base}.bin`), expires: meta.expires };
+  } catch {
+    return null;
+  }
+}
+
+/** Written to a temp name and renamed, so a reader never sees half a file. */
+async function writeDisk(url: string, entry: DiskEntry): Promise<void> {
+  const dir = await cacheDir();
+  if (!dir) return;
+  const base = path.join(dir, hashOf(url));
+  const tmp = `${base}.${process.pid}.${Date.now()}`;
+  try {
+    if (entry.bytes) {
+      await writeFile(`${tmp}.bin`, entry.bytes);
+      await rename(`${tmp}.bin`, `${base}.bin`);
+    }
+    await writeFile(`${tmp}.json`, JSON.stringify({ expires: entry.expires, miss: entry.bytes ? undefined : true, url }));
+    await rename(`${tmp}.json`, `${base}.json`);
+  } catch {
+    // A cache that can't write is just a slower cache.
+  }
+}
+
+let inFlight = 0;
+const waiting: (() => void)[] = [];
+
+async function limited<T>(fn: () => Promise<T>): Promise<T> {
+  if (inFlight >= MAX_IN_FLIGHT) await new Promise<void>((resolve) => waiting.push(resolve));
+  inFlight++;
+  try {
+    return await fn();
+  } finally {
+    inFlight--;
+    waiting.shift()?.();
+  }
+}
+
+/** Misses remembered in memory too, so a miss costs no disk read on the next render either. */
+const memoryMiss = new Map<string, number>();
+const sourceInFlight = new Map<string, Promise<Buffer | null>>();
+
+/** The source image's bytes: memory-remembered miss → disk → network (limited), in that order. */
+function sourceBytes(url: string): Promise<Buffer | null> {
+  const missUntil = memoryMiss.get(url);
+  if (missUntil && missUntil > Date.now()) return Promise.resolve(null);
+
+  const pending = sourceInFlight.get(url);
+  if (pending) return pending;
+
+  const p = (async () => {
+    const now = Date.now();
+    const disk = await readDisk(url);
+    if (disk && disk.expires > now) {
+      if (!disk.bytes) memoryMiss.set(url, disk.expires);
+      return disk.bytes;
+    }
+    const stale = disk?.bytes ?? null;
+
+    let status = 0;
+    try {
+      const res = await limited(() => fetchAllowed(url));
+      status = res?.status ?? 0;
+      if (res?.ok) {
+        const bytes = Buffer.from(await res.arrayBuffer());
+        await writeDisk(url, { bytes, expires: now + FRESH_FOR });
+        return bytes;
+      }
+    } catch {
+      // Network trouble: treated as transient below.
+    }
+    // Couldn't refresh. An old copy beats an empty cell; otherwise remember the miss.
+    if (stale) return stale;
+    const expires = now + (status === 404 || status === 410 ? MISS_NOT_FOUND : MISS_TRANSIENT);
+    if (memoryMiss.size >= MEMORY_CAP) memoryMiss.clear();
+    memoryMiss.set(url, expires);
+    await writeDisk(url, { bytes: null, expires });
+    return null;
+  })().finally(() => sourceInFlight.delete(url));
+
+  sourceInFlight.set(url, p);
+  return p;
+}
+
+const fitted = new Map<string, Promise<string | null>>();
 
 /**
- * A game sprite fetched and fitted into a `box`-pixel square, as a PNG data URL. Null on any failure;
- * a card just leaves that cell empty.
+ * A game sprite fitted into a `box`-pixel square, as a PNG data URL. Null on any failure; a card
+ * just leaves that cell empty.
  *
  * Item sprites are ~32px pixel art, so a small source is enlarged with nearest-neighbour: smoothing
  * it to 3× turns a crisp Twisted bow into a smear. Big pictures (a boss render) are shrunk normally.
- *
- * Cached per process with a small cap: a board's 25 icons are the same 25 on every paste of it.
  */
 export function remoteSprite(url: string | null | undefined, box: number): Promise<string | null> {
   if (!url) return Promise.resolve(null);
   const key = `${box}|${url}`;
-  const hit = remoteCache.get(key);
-  if (hit) return hit;
+  const hit = fitted.get(key);
+  if (hit) {
+    // Most recently used goes to the back, so the cap evicts what boards stopped asking for.
+    fitted.delete(key);
+    fitted.set(key, hit);
+    return hit;
+  }
 
   const p = (async () => {
+    const bytes = await sourceBytes(url);
+    if (!bytes) return null;
     try {
-      const res = await fetchAllowed(url);
-      if (!res?.ok) return null;
       const { default: sharp } = await import('sharp');
-      const src = sharp(Buffer.from(await res.arrayBuffer()));
+      const src = sharp(bytes);
       const meta = await src.metadata();
       const small = Math.max(meta.width ?? 0, meta.height ?? 0) <= 64;
       const png = await src
@@ -438,14 +589,14 @@ export function remoteSprite(url: string | null | undefined, box: number): Promi
     }
   })();
 
-  // A failure is not cached: the wiki having a bad second shouldn't blank a sprite for the process.
+  // A null is not kept here: the miss is already remembered (with its own expiry) in sourceBytes.
   p.then((v) => {
-    if (v === null) remoteCache.delete(key);
+    if (v === null) fitted.delete(key);
   });
-  if (remoteCache.size >= REMOTE_CAP) {
-    const oldest = remoteCache.keys().next().value;
-    if (oldest !== undefined) remoteCache.delete(oldest);
+  if (fitted.size >= MEMORY_CAP) {
+    const oldest = fitted.keys().next().value;
+    if (oldest !== undefined) fitted.delete(oldest);
   }
-  remoteCache.set(key, p);
+  fitted.set(key, p);
   return p;
 }
