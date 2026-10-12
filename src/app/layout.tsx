@@ -23,7 +23,7 @@ import SiteNav from "@/components/SiteNav";
 import ShellGuard from "@/components/ShellGuard";
 import { countLiveTeamInvolvements } from "@/lib/myTeamNav";
 import { clanHasCoffer } from "@/lib/coffer";
-import { characterCount, clansOfPerson } from "@/lib/myClans";
+import { characterCount, clansOfPerson, myProfileHref } from "@/lib/myClans";
 import { clansWithSomethingLive } from "@/lib/apexHome";
 import PlatformRail, { type RailClan } from "@/components/PlatformRail";
 import SiteFooter from "@/components/SiteFooter";
@@ -220,13 +220,14 @@ export default async function RootLayout({
   // Only for someone signed in — a stranger has none, and asking costs two queries.
   const myClans = session ? await clansOfPerson(session.playerId, session.userId) : [];
   // Only the apex rail shows these, so only the apex pays for the queries.
-  const [myCharacters, liveIn] =
+  const [myCharacters, liveIn, profileHref] =
     session && !clan
       ? await Promise.all([
           characterCount(session.playerId),
           clansWithSomethingLive(myClans.map((c) => c.id)),
+          myProfileHref(session.playerId),
         ])
-      : [0, new Set<number>()];
+      : [0, new Set<number>(), null];
   // The switcher wants the whole set (including the current clan) with each one's relationship, so it
   // can show a role chip and mark where you are.
   const navClans = myClans.map((c) => ({
@@ -269,6 +270,7 @@ export default async function RootLayout({
               signedIn={!!session}
               displayName={userRow?.displayName ?? null}
               characterCount={session ? myCharacters : undefined}
+              myProfileHref={profileHref}
               platformStaff={isPlatformStaff}
               // A library guide editor holds no platform role, so the Platform link would 404 for
               // them; they get a link to the one /staff page that is theirs.

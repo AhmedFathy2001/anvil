@@ -3,10 +3,13 @@
 import React, { useMemo, useState } from 'react';
 import { ActivityHeatmap, Bar, LineChart, ProgressRing } from '@/components/stats/Charts';
 import { SKILL_LABELS, BOSSES } from '@/lib/constants';
-import { CLUE_TIER_KEYS } from '@/lib/hiscoresActivities';
 import { progressToLevel } from '@/lib/xp';
 import CollectionLog, { type CollectionLogProps } from './CollectionLog';
 import PersonalLuck from './PersonalLuck';
+import StatsBrowser from './StatsBrowser';
+import { statTrends } from '@/lib/statTrends';
+import { setUrlParams } from '@/lib/urlState';
+import { TAB_SLUG, type ProfileLinkState, type ProfileTab } from '@/lib/profileLink';
 import LocalTime from '@/components/LocalTime';
 import Input from '@/components/Input';
 import { momentSentence } from '@/lib/moments';
@@ -25,7 +28,7 @@ import type {
 // The whole payload is one member's snapshot plus at most a year of ~50-byte daily rows — smaller
 // than the images on the page — which is what makes fetching it all up front the cheap option.
 
-type Tab = 'stats' | 'records' | 'collection' | 'luck' | 'trophies';
+type Tab = ProfileTab;
 type Metric = 'ehp' | 'ehb' | 'xp';
 type Window = 7 | 30 | 90;
 
@@ -82,18 +85,6 @@ function milestoneText(m: MilestoneRow): string {
  * Where a member sits in the clan for one activity. Renders a dash rather than "#1 of 1" when
  * they're the only person with any — a placing among one is a fact about the clan, not about them.
  */
-function Placing({ standing }: { standing?: ActivityStanding }) {
-  if (!standing || standing.of < 2) {
-    return <span className="text-right tabular-nums text-text-muted/50">—</span>;
-  }
-  return (
-    <span className="text-right tabular-nums text-text-muted">
-      #{standing.position}
-      <span className="text-text-muted/60"> of {standing.of}</span>
-    </span>
-  );
-}
-
 /**
  * The last fortnight as bars — the "are they still playing" answer, before any number is read.
  *
@@ -204,6 +195,7 @@ export default function ProfileTabs({
   collection,
   moments,
   accountProgress,
+  initial,
 }: {
   /**
    * ACCOUNT-level, not seat-level. Everything drawn here — skills, bosses, activities, efficiency —
@@ -223,8 +215,17 @@ export default function ProfileTabs({
   moments: MomentRow[];
   /** Quests / diaries / combat achievements, drawn game-style. Rendered above the log. */
   accountProgress?: React.ReactNode;
+  /** Where to open — from the URL (`?tab=&stat=&page=`), so a tab, a stat view or a log page links. */
+  initial?: ProfileLinkState;
 }) {
-  const [tab, setTab] = useState<Tab>('stats');
+  const [tab, setTabState] = useState<Tab>(initial?.tab ?? 'stats');
+  // The tab is part of the address: copy the URL and the person you send it to lands here too.
+  const setTab = (next: Tab) => {
+    setTabState(next);
+    // A log page only means something on the Collection tab; leaving it, the link stops naming one.
+    setUrlParams({ tab: next === 'stats' ? null : TAB_SLUG[next], stat: null, ...(next === 'collection' ? {} : { page: null }) });
+  };
+  const trends = useMemo(() => statTrends(series), [series]);
   const [bestFilter, setBestFilter] = useState('');
   const [metric, setMetric] = useState<Metric>('ehp');
   const [days, setDays] = useState<Window>(30);
@@ -307,34 +308,6 @@ export default function ProfileTabs({
       .slice(0, 3);
   }, [profile.skills]);
 
-  // Clues, split the way a player thinks about them: the tiers they actually grind, the total, and
-  // how much of that total is the hard end. `cluesAll` is its own hiscores entry rather than the sum
-  // of the tiers, and the two can disagree on an account whose tiers are individually unranked — so
-  // the total falls back to adding them up rather than showing a zero next to six non-zero rows.
-  const clues = useMemo(() => {
-    const byKey = new Map(profile.activities.map((a) => [a.key, a]));
-    const tiers = CLUE_TIER_KEYS.map((key) => byKey.get(key)).filter((a) => a != null);
-    const summed = tiers.reduce((total, a) => total + a.score, 0);
-    const total = Math.max(byKey.get('cluesAll')?.score ?? 0, summed);
-    const highEnd = (byKey.get('cluesElite')?.score ?? 0) + (byKey.get('cluesMaster')?.score ?? 0);
-    return {
-      tiers,
-      total,
-      max: Math.max(...tiers.map((t) => t.score), 1),
-      hardest: [...tiers].reverse().find((t) => t.score > 0) ?? null,
-      highEndShare: total > 0 ? highEnd / total : 0,
-    };
-  }, [profile.activities]);
-
-  const minigames = useMemo(
-    () => profile.activities.filter((a) => a.group === 'minigames' && (a.score > 0 || a.rank != null)),
-    [profile.activities],
-  );
-  const clog = useMemo(
-    () => profile.activities.find((a) => a.key === 'collectionsLogged') ?? null,
-    [profile.activities],
-  );
-  const hasActivities = clues.total > 0 || minigames.length > 0 || (clog?.score ?? 0) > 0;
 
   const windowed = useMemo(() => series.slice(-days), [series, days]);
   const chartPoints = useMemo(
@@ -370,9 +343,6 @@ export default function ProfileTabs({
   const totalWins = history.eventWins + history.weeklyWins;
   const medal = (rank: number) => (rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`);
 
-  const maxSkillEhp = Math.max(...profile.skills.map((s) => s.ehp), 0.01);
-  const maxBossEhb = Math.max(...profile.bosses.map((b) => b.ehb), 0.01);
-  const skillsByHours = [...profile.skills].sort((a, b) => b.ehp - a.ehp || b.xp - a.xp);
 
   const chip = (active: boolean) =>
     `px-2.5 py-1 text-xs rounded-md border transition-colors ${
@@ -446,6 +416,8 @@ export default function ProfileTabs({
             )}
           </div>
 
+          <StatsBrowser profile={profile} trends={trends} standings={activityStandings} initial={initial?.stat} />
+
           <Section title="Activity" aside="efficient hours gained, last 12 months">
             <div className="border border-card-border rounded-xl bg-card-bg p-4">
               <ActivityHeatmap days={heatDays} ariaLabel={`${profile.rsn}'s activity over the last 90 days`} />
@@ -459,176 +431,6 @@ export default function ProfileTabs({
             </div>
           </Section>
 
-          <Section title="Skills" aside="by hours invested">
-            <div className="border border-card-border rounded-xl overflow-hidden">
-              <div className="grid grid-cols-[minmax(0,1fr)_3rem_5rem_4rem] sm:grid-cols-[minmax(0,1fr)_8rem_3rem_6rem_4.5rem] gap-2 px-4 py-2 bg-tile-bg text-xs text-text-muted">
-                <span>Skill</span>
-                <span className="hidden sm:block">Share</span>
-                <span className="text-right">Lvl</span>
-                <span className="text-right">XP</span>
-                <span className="text-right">EHP</span>
-              </div>
-              <Rows cap={12}>
-              {skillsByHours.map((s, i) => (
-                <div
-                  key={s.key}
-                  className={`grid grid-cols-[minmax(0,1fr)_3rem_5rem_4rem] sm:grid-cols-[minmax(0,1fr)_8rem_3rem_6rem_4.5rem] gap-2 px-4 py-2 text-sm items-center ${i % 2 ? 'bg-card-bg' : ''}`}
-                >
-                  <span className="truncate">{SKILL_LABELS[s.key] ?? s.key}</span>
-                  <span className="hidden sm:block">
-                    <Bar value={s.ehp} max={maxSkillEhp} muted={s.ehp === 0} />
-                  </span>
-                  <span className="text-right tabular-nums text-text-muted">{s.level || '—'}</span>
-                  <span className="text-right tabular-nums text-text-muted">{fmtXp(s.xp)}</span>
-                  <span className={`text-right tabular-nums ${s.ehp > 0 ? '' : 'text-text-muted/50'}`}>
-                    {s.ehp.toFixed(2)}
-                  </span>
-                </div>
-              ))}
-              </Rows>
-            </div>
-            <p className="mt-2 text-xs text-text-muted">
-              A skill can read 0.00 with millions of XP — Attack and Strength arrive as bonus XP from
-              Slayer in the efficiency tables, so they cost no time of their own.
-            </p>
-          </Section>
-
-          {profile.bosses.length > 0 && (
-            <Section title="Bosses" aside="by hours invested">
-              <div className="border border-card-border rounded-xl overflow-hidden">
-                <div className="grid grid-cols-[minmax(0,1fr)_5rem_4.5rem] sm:grid-cols-[minmax(0,1fr)_8rem_5rem_4.5rem] gap-2 px-4 py-2 bg-tile-bg text-xs text-text-muted">
-                  <span>Boss</span>
-                  <span className="hidden sm:block">Share</span>
-                  <span className="text-right">KC</span>
-                  <span className="text-right">EHB</span>
-                </div>
-                <Rows cap={12}>
-                {profile.bosses.map((b, i) => (
-                  <div
-                    key={b.key}
-                    className={`grid grid-cols-[minmax(0,1fr)_5rem_4.5rem] sm:grid-cols-[minmax(0,1fr)_8rem_5rem_4.5rem] gap-2 px-4 py-2 text-sm items-center ${i % 2 ? 'bg-card-bg' : ''}`}
-                  >
-                    <span className="truncate">{bossLabel(b.key)}</span>
-                    <span className="hidden sm:block">
-                      <Bar value={b.ehb} max={maxBossEhb} muted={b.ehb === 0} />
-                    </span>
-                    <span className="text-right tabular-nums text-text-muted">{b.kc.toLocaleString()}</span>
-                    <span className={`text-right tabular-nums ${b.ehb > 0 ? '' : 'text-text-muted/50'}`}>
-                      {b.ehb.toFixed(2)}
-                    </span>
-                  </div>
-                ))}
-                </Rows>
-              </div>
-            </Section>
-          )}
-        </>
-      )}
-
-      {tab === 'stats' && (
-        <>
-          {!hasActivities && (
-            <p className="text-sm text-text-muted border border-card-border rounded-xl bg-card-bg p-6 text-center">
-              Nothing on the hiscores for clues, minigames or the collection log yet.
-            </p>
-          )}
-
-          {clues.total > 0 && (
-            <Section title="Clue scrolls" aside={`${clues.total.toLocaleString()} caskets opened`}>
-              <div className="border border-card-border rounded-xl overflow-hidden">
-                <div className="grid grid-cols-[minmax(0,1fr)_5rem_5rem] sm:grid-cols-[minmax(0,1fr)_8rem_5rem_6rem] gap-2 px-4 py-2 bg-tile-bg text-xs text-text-muted">
-                  <span>Tier</span>
-                  <span className="hidden sm:block">Share</span>
-                  <span className="text-right">Opened</span>
-                  <span className="text-right">In clan</span>
-                </div>
-                {clues.tiers.map((tier, i) => (
-                  <div
-                    key={tier.key}
-                    className={`grid grid-cols-[minmax(0,1fr)_5rem_5rem] sm:grid-cols-[minmax(0,1fr)_8rem_5rem_6rem] gap-2 px-4 py-2 text-sm items-center ${i % 2 ? 'bg-card-bg' : ''}`}
-                  >
-                    <span className="truncate">{tier.shortLabel}</span>
-                    <span className="hidden sm:block">
-                      <Bar value={tier.score} max={clues.max} muted={tier.score === 0} />
-                    </span>
-                    <span className={`text-right tabular-nums ${tier.score > 0 ? '' : 'text-text-muted/50'}`}>
-                      {tier.score.toLocaleString()}
-                    </span>
-                    <Placing standing={activityStandings[tier.key]} />
-                  </div>
-                ))}
-              </div>
-              {clues.hardest && (
-                <p className="mt-2 text-xs text-text-muted">
-                  Hardest tier opened: <span className="text-foreground">{clues.hardest.shortLabel}</span>
-                  {clues.highEndShare > 0 && (
-                    <> · elite and master are {Math.round(clues.highEndShare * 100)}% of their caskets</>
-                  )}
-                </p>
-              )}
-            </Section>
-          )}
-
-          {clog && clog.score > 0 && (
-            <Section title="Collection log">
-              <div className="border border-card-border rounded-xl bg-card-bg p-4 flex flex-wrap items-baseline gap-x-6 gap-y-2">
-                <div>
-                  <div className="text-2xl font-bold text-gold tabular-nums">
-                    {clog.score.toLocaleString()}
-                  </div>
-                  <div className="text-[11px] uppercase tracking-widest text-text-muted">slots filled</div>
-                </div>
-                {activityStandings.collectionsLogged && (
-                  <div className="text-sm text-text-muted">
-                    #{activityStandings.collectionsLogged.position} of{' '}
-                    {activityStandings.collectionsLogged.of} in the clan
-                  </div>
-                )}
-                {clog.rank != null && (
-                  <div className="text-sm text-text-muted">
-                    world rank #{clog.rank.toLocaleString()}
-                  </div>
-                )}
-              </div>
-            </Section>
-          )}
-
-          {minigames.length > 0 && (
-            <Section title="Minigames" aside="ranks are a hiscores position — lower is better">
-              <div className="border border-card-border rounded-xl overflow-hidden">
-                <div className="grid grid-cols-[minmax(0,1fr)_6rem_5rem] sm:grid-cols-[minmax(0,1fr)_7rem_6rem_6rem] gap-2 px-4 py-2 bg-tile-bg text-xs text-text-muted">
-                  <span>Activity</span>
-                  <span className="text-right">Score</span>
-                  <span className="hidden sm:block text-right">World</span>
-                  <span className="text-right">In clan</span>
-                </div>
-                {minigames.map((a, i) => (
-                  <div
-                    key={a.key}
-                    className={`grid grid-cols-[minmax(0,1fr)_6rem_5rem] sm:grid-cols-[minmax(0,1fr)_7rem_6rem_6rem] gap-2 px-4 py-2 text-sm items-center ${i % 2 ? 'bg-card-bg' : ''}`}
-                  >
-                    <span className="truncate">{a.label}</span>
-                    <span className="text-right tabular-nums">
-                      {/* A rank-scaled entry's score is a rating nobody quotes; the position is the
-                          number that means something, so it stands in for the score there. */}
-                      {a.scale === 'rank'
-                        ? a.rank != null
-                          ? `#${a.rank.toLocaleString()}`
-                          : '—'
-                        : a.score.toLocaleString()}
-                      {a.scale === 'count' && a.unit && (
-                        <span className="text-text-muted text-xs"> {a.unit}</span>
-                      )}
-                    </span>
-                    <span className="hidden sm:block text-right tabular-nums text-text-muted">
-                      {a.scale === 'rank' || a.rank == null ? '—' : `#${a.rank.toLocaleString()}`}
-                    </span>
-                    <Placing standing={activityStandings[a.key]} />
-                  </div>
-                ))}
-              </div>
-            </Section>
-          )}
         </>
       )}
 
@@ -879,7 +681,7 @@ export default function ProfileTabs({
           {/* The log and the three progress interfaces are one question — "what has this account
               actually done" — so they live on one tab rather than in a card floating above it. */}
           {accountProgress}
-          <CollectionLog {...collection} />
+          <CollectionLog {...collection} initialPage={initial?.page} />
         </div>
       )}
 

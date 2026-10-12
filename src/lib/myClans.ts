@@ -1,4 +1,4 @@
-import { and, count, eq, isNull } from 'drizzle-orm';
+import { and, asc, count, desc, eq, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanMemberships, clanStaff, clans } from '@/db/schema';
@@ -99,4 +99,20 @@ export async function characterCount(playerId: number | null | undefined): Promi
   // clan-scope: global -- a person's characters are theirs, not a clan's. That is the whole model.
   const [row] = await db.select({ n: count() }).from(accounts).where(eq(accounts.playerId, playerId));
   return Number(row?.n ?? 0);
+}
+
+/**
+ * Where "My profile" goes: the person's main character page (/p/<rsn>), or their locker when they
+ * have no character yet. Main = the one marked primary, else the first linked.
+ */
+export async function myProfileHref(playerId: number | null | undefined): Promise<string> {
+  if (playerId == null) return '/profile';
+  // clan-scope: global -- a person's characters are theirs, not a clan's.
+  const [main] = await db
+    .select({ rsn: accounts.rsn })
+    .from(accounts)
+    .where(eq(accounts.playerId, playerId))
+    .orderBy(desc(accounts.isPrimary), asc(accounts.id))
+    .limit(1);
+  return main ? `/p/${encodeURIComponent(main.rsn)}` : '/profile';
 }

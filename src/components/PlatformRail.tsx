@@ -41,6 +41,7 @@ export default function PlatformRail({
   signedIn,
   displayName,
   characterCount,
+  myProfileHref,
   platformStaff,
   guideLibrary,
 }: {
@@ -48,6 +49,8 @@ export default function PlatformRail({
   signedIn: boolean;
   displayName: string | null;
   characterCount?: number;
+  /** The signed-in person's own profile — their main character's page, or their locker. */
+  myProfileHref?: string | null;
   /** Holds a platform role. A separate axis from any clan grant — see lib/clanRoles. */
   platformStaff?: boolean;
   /** Writes the Anvil guide library without holding a platform role. */
@@ -96,6 +99,8 @@ export default function PlatformRail({
           Platform
         </div>
         {item('/', 'Home', <HomeIcon />)}
+        {/* Your own page, one click from anywhere — it used to take a search of the Hall of Records. */}
+        {myProfileHref && item(myProfileHref, 'My profile', <ProfileIcon />)}
         {item('/clans', 'Clan Hall', <SearchIcon />)}
         {item('/leaderboard', 'Hall of Records', <ChartIcon />)}
         {item('/guide', 'Guides', <BookIcon />)}
@@ -205,6 +210,7 @@ const s = {
 } as const;
 
 const HomeIcon = () => <svg {...s}><path d="M2 7l6-4.5L14 7v6.5a1 1 0 01-1 1H3a1 1 0 01-1-1V7z" /></svg>;
+const ProfileIcon = () => <svg {...s}><circle cx="8" cy="5.5" r="2.75" /><path d="M2.75 14c.6-2.9 2.7-4.5 5.25-4.5s4.65 1.6 5.25 4.5" /></svg>;
 const SearchIcon = () => <svg {...s}><circle cx="7" cy="7" r="4.4" /><path d="M10.4 10.4L14 14" /></svg>;
 const ChartIcon = () => <svg {...s}><path d="M3 13V8.5M8 13V3.5M13 13V6" /></svg>;
 const BookIcon = () => <svg {...s}><path d="M3 2.8h7a2 2 0 012 2v8.4H5a2 2 0 01-2-2V2.8z" /><path d="M6 6h5M6 8.6h5" /></svg>;

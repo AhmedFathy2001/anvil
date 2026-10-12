@@ -9,6 +9,7 @@ import ClanLink from '@/components/ClanLink';
 import ClanCrest from '@/components/ClanCrest';
 import AccountProgressCard from '@/components/AccountProgressCard';
 import ProfileTabs from '@/app/members/[rsn]/ProfileTabs';
+import { profileLinkState } from '@/lib/profileLink';
 import { getCollectionLog } from '@/lib/clogRead';
 import { configuredOrigin } from '@/lib/request-origin';
 import ProfileShare from './ProfileShare';
@@ -97,7 +98,17 @@ const NO_COMPETITIONS = {
   totalPoints: 0,
 };
 
-export default async function CharacterPage({ params }: { params: Promise<{ rsn: string }> }) {
+export default async function CharacterPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ rsn: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  // Deep links: ?tab=, ?stat=, ?page= (a log page) and ?progress= (quests / diaries / combat).
+  const sp = await searchParams;
+  const link = profileLinkState(sp);
+  const progressTab = typeof sp.progress === 'string' ? sp.progress : undefined;
   if (!isApexHost((await headers()).get('host'))) notFound();
 
   const session = await verifyUser();
@@ -213,6 +224,7 @@ export default async function CharacterPage({ params }: { params: Promise<{ rsn:
         options={goals.options}
       />
       <ProfileTabs
+        initial={progressTab && !link.tab ? { ...link, tab: 'collection' } : link}
           profile={profile}
           series={series}
           records={records}
@@ -230,7 +242,7 @@ export default async function CharacterPage({ params }: { params: Promise<{ rsn:
           activityStandings={{}}
           collection={collection}
           accountProgress={
-            <AccountProgressCard summary={progress} quests={questItems} combat={caItems} />
+            <AccountProgressCard summary={progress} quests={questItems} combat={caItems} initialTab={progressTab} />
           }
         />
 

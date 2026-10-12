@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { setUrlParams } from '@/lib/urlState';
 import { itemIconUrl } from '@/lib/tileIcons';
 import LocalTime from '@/components/LocalTime';
 import type { BestTime, RecentUnlock } from '@/lib/clogProfile';
@@ -82,13 +83,22 @@ export default function CollectionLog({
   groups,
   killcounts,
   closest,
-}: CollectionLogProps) {
-  // Open on the fullest page — someone's log is most interesting where they've actually played.
+  initialPage,
+}: CollectionLogProps & { initialPage?: string }) {
+  // Open on the page the link names (`?page=`), else the fullest — someone's log is most interesting
+  // where they've actually played.
   const initial = useMemo(() => {
+    const linked = initialPage ? pages.find((p) => p.name.toLowerCase() === initialPage.toLowerCase()) : undefined;
+    if (linked) return linked.name;
     const withItems = [...pages].sort((a, b) => b.obtained - a.obtained || a.name.localeCompare(b.name));
     return withItems[0]?.name ?? pages[0]?.name ?? '';
-  }, [pages]);
-  const [selected, setSelected] = useState(initial);
+  }, [pages, initialPage]);
+  const [selected, setSelectedState] = useState(initial);
+  // Each page is a link of its own (`?tab=collection&page=Zulrah`) — the plugin's log pages open here.
+  const setSelected = (name: string) => {
+    setSelectedState(name);
+    setUrlParams({ tab: 'collection', page: name });
+  };
   const [filter, setFilter] = useState('');
   const [bestFilter, setBestFilter] = useState('');
   const [show, setShow] = useState<'all' | 'owned' | 'missing'>('all');

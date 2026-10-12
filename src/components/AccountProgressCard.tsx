@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { setUrlParams } from '@/lib/urlState';
 import type { ProgressSummary } from '@/lib/memberProgress';
 import { filterItems, itemGroups, type ItemFilter, type ProgressItem } from '@/lib/memberProgressItems';
 import {
@@ -368,9 +369,12 @@ export default function AccountProgressCard({
   title = 'Account progress',
   quests = null,
   combat = null,
+  initialTab,
 }: {
   summary: ProgressSummary;
   title?: string;
+  /** From `?progress=quests|diaries|combat` — so a link can open straight onto the diaries. */
+  initialTab?: string;
   quests?: { items: ProgressItem[]; done: number; total: number } | null;
   /** Completed combat tasks as the plugin read them; the catalogue is joined on the site. */
   combat?: { items: ProgressItem[] } | null;
@@ -382,7 +386,13 @@ export default function AccountProgressCard({
     ...(hasDiaries ? [{ key: 'diaries' as Tab, label: 'Diaries' }] : []),
     ...(hasCombat ? [{ key: 'combat' as Tab, label: 'Combat' }] : []),
   ];
-  const [tab, setTab] = useState<Tab>(tabs[0]?.key ?? 'quests');
+  const [tab, setTabState] = useState<Tab>(
+    tabs.find((t) => t.key === initialTab)?.key ?? tabs[0]?.key ?? 'quests',
+  );
+  const setTab = (next: Tab) => {
+    setTabState(next);
+    setUrlParams({ tab: 'collection', progress: next });
+  };
 
   if (summary.empty && !quests && !combat) return null;
   if (tabs.length === 0) return null;

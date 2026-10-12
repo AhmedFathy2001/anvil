@@ -21,6 +21,7 @@ import {
 import { buildPlayerShape } from '@/lib/playerShape';
 import PlayerShapeRadar from '@/components/PlayerShapeRadar';
 import ProfileTabs from './ProfileTabs';
+import { profileLinkState } from '@/lib/profileLink';
 import { momentsForMembers } from '@/lib/momentsStore';
 import { getCollectionLog } from '@/lib/clogRead';
 import { getMemberItems, getMemberProgress } from '@/lib/memberProgressRead';
@@ -132,7 +133,17 @@ function TotalLevelDial({ level }: { level: number }) {
   );
 }
 
-export default async function MemberProfilePage({ params }: { params: Promise<{ rsn: string }> }) {
+export default async function MemberProfilePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ rsn: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  // Deep links: ?tab=, ?stat=, ?page= (a log page) and ?progress= (quests / diaries / combat).
+  const sp = await searchParams;
+  const link = profileLinkState(sp);
+  const progressTab = typeof sp.progress === 'string' ? sp.progress : undefined;
   const { rsn } = await params;
   const clan = await requireClan();
   const profile = await getMemberProfile(clan.id, decodeURIComponent(rsn));
@@ -338,6 +349,7 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
       <GoalsCard accountId={profile.accountId} goals={goals.goals} editable={viewerOwns} options={goals.options} />
 
       <ProfileTabs
+        initial={progressTab && !link.tab ? { ...link, tab: 'collection' } : link}
         profile={profile}
         series={series}
         records={records}
@@ -348,7 +360,7 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
         collection={collection}
         moments={moments}
         accountProgress={
-          <AccountProgressCard summary={progress} quests={questItems} combat={caItems} />
+          <AccountProgressCard summary={progress} quests={questItems} combat={caItems} initialTab={progressTab} />
         }
       />
     </main>

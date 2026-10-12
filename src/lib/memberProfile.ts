@@ -4,6 +4,7 @@
 // rows, the milestone log. Opening a profile never triggers a hiscores fetch, which is what keeps a
 // page anyone can link to from becoming a way to hammer Jagex on our behalf.
 
+import type { StatDeltas } from '@/lib/statDeltas';
 import { db } from '@/db';
 import { clanAuditLog, clanRoster, events, eventParticipants, users, memberDailyStats, memberMilestones, playerEventFacts, playerSnapshots, weeklyCompetitions, weeklyParticipants, accounts, players } from '@/db/schema';
 import { findRosterSeat, statSnapshotOf } from '@/lib/roster';
@@ -381,6 +382,8 @@ export interface DailyPoint {
   ehpGained: number;
   ehbGained: number;
   overallXp: number;
+  /** What moved that day per skill (XP) and boss (KC) — the per-stat trends read these. */
+  deltas?: StatDeltas;
 }
 
 /** The member's daily rows for the last N days, oldest first — the gained chart's series. */
@@ -397,6 +400,15 @@ export interface DailyPoint {
  * sequences, so the wrong one is always a plausible answer — which is exactly why the name has to be
  * the true one.
  */
+function parseDeltas(raw: string): StatDeltas | undefined {
+  try {
+    const d = JSON.parse(raw) as StatDeltas;
+    return d && typeof d === 'object' ? d : undefined;
+  } catch {
+    return undefined; // a corrupt row costs that day's detail, not the chart
+  }
+}
+
 export async function getDailySeries(accountId: number, days = 90): Promise<DailyPoint[]> {
   const from = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
   const rows = await db
@@ -422,6 +434,7 @@ export async function getDailySeries(accountId: number, days = 90): Promise<Dail
       // Totals carry forward across idle days — a chart of absolute XP shouldn't drop to zero
       // because somebody took a Tuesday off.
       overallXp: row?.overallXp ?? out[out.length - 1]?.overallXp ?? 0,
+      ...(row?.deltas ? { deltas: parseDeltas(row.deltas) } : {}),
     });
   }
   return out;
