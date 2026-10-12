@@ -3,7 +3,7 @@ import { apexCharacter } from '@/lib/apexProfiles';
 import { comparePlayers } from '@/lib/compare';
 import { headToHeadValue, headToHeadVerdict } from '@/lib/linkText';
 import { headToHeadCard, siteCard } from '@/lib/ogCard';
-import { cachedCard } from '@/lib/ogKit';
+import { cachedCard, showingAccounts } from '@/lib/ogKit';
 import { loadPlayerCard } from '@/lib/playerCard';
 
 export const dynamic = 'force-dynamic';
@@ -25,7 +25,7 @@ async function load(_request: Request, { params }: { params: Promise<{ a: string
     [accountTypeLabel(type), clan?.name ?? null].filter((x): x is string => !!x && x.toLowerCase() !== 'regular').join(' · ') || null;
   const leads = (s: 'a' | 'b') => headline.filter((r) => r.leader === s).length;
 
-  return headToHeadCard({
+  const res = await headToHeadCard({
     eyebrow: 'Head to head · Old School RuneScape',
     a: { name: cardA.rsn, line: sideLine(cardA.accountType, a.clan) },
     b: { name: cardB.rsn, line: sideLine(cardB.accountType, b.clan) },
@@ -33,6 +33,7 @@ async function load(_request: Request, { params }: { params: Promise<{ a: string
     verdict: headToHeadVerdict(cardA.rsn, cardB.rsn, headline),
     verdictSide: leads('a') === leads('b') ? null : leads('a') > leads('b') ? 'a' : 'b',
   });
+  return showingAccounts(res, [a.accountId, b.accountId]);
 }
 
 export function GET(request: Request, ctx: { params: Promise<{ a: string; b: string }> }) {

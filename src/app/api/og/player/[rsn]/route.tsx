@@ -5,7 +5,7 @@ import { SKILLS } from '@/lib/constants';
 import { ourImageAsDataUrl } from '@/lib/crestImage';
 import { compact } from '@/lib/linkText';
 import { memberCard, siteCard } from '@/lib/ogCard';
-import { cachedCard, remoteSprite } from '@/lib/ogKit';
+import { cachedCard, remoteSprite, showingAccounts } from '@/lib/ogKit';
 import { loadPlayerCard } from '@/lib/playerCard';
 import { bossItemForStatKey, itemIconUrl } from '@/lib/tileIcons';
 
@@ -54,7 +54,7 @@ async function load(_request: Request, { params }: { params: Promise<{ rsn: stri
     card.ehb && card.ehb > 0 ? { value: compact(Math.round(card.ehb)), label: 'EHB', icon: null } : null,
   ].filter((s): s is NonNullable<typeof s> => s !== null);
 
-  return memberCard({
+  const res = await memberCard({
     rsn: card.rsn,
     clanName: c.clan?.name ?? null,
     clanLogo,
@@ -63,6 +63,7 @@ async function load(_request: Request, { params }: { params: Promise<{ rsn: stri
     stats,
     loot,
   });
+  return showingAccounts(res, [c.accountId]);
 }
 
 export function GET(request: Request, ctx: { params: Promise<{ rsn: string }> }) {

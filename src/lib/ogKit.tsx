@@ -739,8 +739,28 @@ const ROUTE_TTL = 2 * 60_000;
 /** How old a card may be and still stand in for a fresh one when the server is busy. */
 const STALE_LIMIT = 10 * 60_000;
 const ROUTE_CAP = 300;
-const routeCache = new Map<string, { at: number; body: Buffer; headers: [string, string][] }>();
-const routeInFlight = new Map<string, Promise<{ body: Buffer; headers: [string, string][] }>>();
+const routeCache = new Map<string, { at: number; body: Buffer; headers: [string, string][]; accounts: number[] }>();
+const routeInFlight = new Map<string, { since: number; done: Promise<{ body: Buffer; headers: [string, string][]; accounts: number[] }> }>();
+
+/**
+ * The header a card route sets to say which characters its answer shows (comma-separated account
+ * ids), so un-sharing one can drop exactly those answers — by ACCOUNT, never by name: a name has many
+ * spellings that resolve to one character, and matching one of them would miss the rest. Stripped
+ * before the answer leaves the server.
+ */
+export const CARD_ACCOUNTS_HEADER = 'X-Anvil-Card-Accounts';
+
+/** Mark a card route's answer with the characters it shows. See CARD_ACCOUNTS_HEADER. */
+export function showingAccounts(res: Response, accountIds: number[]): Response {
+  const headers = new Headers(res.headers);
+  headers.set(CARD_ACCOUNTS_HEADER, accountIds.join(','));
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
+
+/** Bumped by every forget, targeted or not; a load or a join compares against it. */
+let forgetTick = 0;
+/** Account id → the tick it was last forgotten at. Emptied whenever no load is running. */
+const accountForgotAt = new Map<number, number>();
 
 /**
  * A miss reads the database before it ever reaches the render limit, so loads get their own: six at
@@ -770,15 +790,25 @@ export async function cachedCard(path: string, load: () => Promise<Response>): P
   const recent = hit && Date.now() - hit.at < STALE_LIMIT ? hit : undefined;
   const busy = () => (recent ? answer(recent) : overflowResponse());
 
-  let pending = routeInFlight.get(path);
+  // Join a load already running for this path — unless something was forgotten since it began, in
+  // which case its answer may be the very thing that was forgotten.
+  const running = routeInFlight.get(path);
+  let pending = running && running.since === forgetTick ? running.done : undefined;
   if (!pending) {
     if (loading >= MAX_LOADING) return busy();
     loading++;
     const started = generation;
+    const since = forgetTick;
     pending = (async () => {
       const res = await load();
-      const v = { body: Buffer.from(await res.arrayBuffer()), headers: [...res.headers.entries()] as [string, string][] };
-      if (res.ok && !res.headers.has(OVERFLOW_HEADER) && started === generation) {
+      const accounts = (res.headers.get(CARD_ACCOUNTS_HEADER) ?? '')
+        .split(',')
+        .map(Number)
+        .filter((n) => Number.isInteger(n) && n > 0);
+      const headers = [...res.headers.entries()].filter(([k]) => k.toLowerCase() !== CARD_ACCOUNTS_HEADER.toLowerCase()) as [string, string][];
+      const v = { body: Buffer.from(await res.arrayBuffer()), headers, accounts };
+      const forgottenSince = accounts.some((id) => (accountForgotAt.get(id) ?? -1) > since);
+      if (res.ok && !res.headers.has(OVERFLOW_HEADER) && started === generation && !forgottenSince) {
         if (routeCache.size >= ROUTE_CAP) {
           const oldest = routeCache.keys().next().value;
           if (oldest !== undefined) routeCache.delete(oldest);
@@ -788,15 +818,30 @@ export async function cachedCard(path: string, load: () => Promise<Response>): P
       return v;
     })().finally(() => {
       loading--;
-      if (routeInFlight.get(path) === mine) routeInFlight.delete(path);
+      if (routeInFlight.get(path)?.done === mine) routeInFlight.delete(path);
+      // Nothing running began before any forget still on record, so the record can go.
+      if (loading === 0) accountForgotAt.clear();
     });
     const mine = pending;
-    routeInFlight.set(path, pending);
+    routeInFlight.set(path, { since, done: pending });
   }
   const v = await pending;
   // The render queue turned it away inside the load: same preference.
   if (recent && v.headers.some(([k]) => k.toLowerCase() === OVERFLOW_HEADER.toLowerCase())) return answer(recent);
   return answer(v);
+}
+
+/**
+ * Drop every cached answer that shows this character — its /p card and each /compare it is in.
+ *
+ * Sharing is a switch any signed-in player flips on their own account, as often as they like, so this
+ * must not empty the cache for everybody (that would let one person keep every card cold). Rendered
+ * images can stay: they are keyed by what was drawn, and an unshared character now loads as the plain
+ * card instead.
+ */
+export function forgetLinkCardsForAccount(accountId: number): void {
+  accountForgotAt.set(accountId, ++forgetTick);
+  for (const [path, v] of routeCache) if (v.accounts.includes(accountId)) routeCache.delete(path);
 }
 
 /**
@@ -806,6 +851,7 @@ export async function cachedCard(path: string, load: () => Promise<Response>): P
  */
 export function forgetLinkCards(): void {
   generation++;
+  forgetTick++;
   routeCache.clear();
   rendered.clear();
   // In-flight work began under the old rule: nobody new may join it. It still finishes (and answers
