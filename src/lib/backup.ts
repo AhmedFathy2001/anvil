@@ -42,8 +42,12 @@ interface BackupConfig {
 function backupConfig(): BackupConfig | null {
   const bucket = process.env.S3_BACKUP_BUCKET;
   const endpoint = process.env.S3_ENDPOINT?.replace(/\/+$/, '');
-  const accessKeyId = process.env.S3_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY;
+  // A backup-only key when one is set (S3_BACKUP_ACCESS_KEY_ID / _SECRET_ACCESS_KEY): least privilege
+  // both ways — the media key, which every upload uses, cannot read or delete the database dumps, and
+  // the backup key cannot touch member media. Falls back to the shared key when unset.
+  const ownKey = process.env.S3_BACKUP_ACCESS_KEY_ID && process.env.S3_BACKUP_SECRET_ACCESS_KEY;
+  const accessKeyId = ownKey ? process.env.S3_BACKUP_ACCESS_KEY_ID : process.env.S3_ACCESS_KEY_ID;
+  const secretAccessKey = ownKey ? process.env.S3_BACKUP_SECRET_ACCESS_KEY : process.env.S3_SECRET_ACCESS_KEY;
   // Backups require a DEDICATED private bucket + creds. If any is missing we do NOT fall back to the
   // public media bucket (S3_BUCKET) — that would expose the whole database. Missing config = off.
   if (!bucket || !endpoint || !accessKeyId || !secretAccessKey) return null;
