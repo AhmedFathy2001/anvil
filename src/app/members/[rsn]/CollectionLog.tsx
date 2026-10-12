@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { setUrlParams } from '@/lib/urlState';
 import { itemIconUrl } from '@/lib/tileIcons';
 import LocalTime from '@/components/LocalTime';
@@ -94,6 +94,20 @@ export default function CollectionLog({
     return withItems[0]?.name ?? pages[0]?.name ?? '';
   }, [pages, initialPage]);
   const [selected, setSelectedState] = useState(initial);
+  // A link that names a page (`?page=Chambers of Xeric`, from the plugin or a shared URL) is about
+  // that page, not the summary above it: bring the log into view and its entry into the list's view.
+  const logRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const linkedOnLoad = useRef(!!initialPage && initial.toLowerCase() === initialPage.toLowerCase());
+  useEffect(() => {
+    if (!linkedOnLoad.current) return;
+    linkedOnLoad.current = false;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    logRef.current?.scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
+    const list = listRef.current;
+    const active = list?.querySelector<HTMLElement>('[data-active="true"]');
+    if (list && active) list.scrollTop = active.offsetTop - list.clientHeight / 2;
+  }, []);
   // Each page is a link of its own (`?tab=collection&page=Zulrah`) — the plugin's log pages open here.
   const setSelected = (name: string) => {
     setSelectedState(name);
@@ -327,7 +341,7 @@ export default function CollectionLog({
           so picking it stretched the row and left the page list sitting in a gap, and picking a
           six-item boss snapped everything back up. The page list must not move when you're reading
           down it. */}
-      <div className="grid gap-4 md:grid-cols-[16rem_1fr] md:h-[32rem]">
+      <div ref={logRef} className="grid gap-4 md:grid-cols-[16rem_1fr] md:h-[32rem] scroll-mt-20">
         {/* Pages */}
         <div className="border border-card-border rounded-xl bg-card-bg overflow-hidden flex flex-col min-h-0">
           <div className="p-2 border-b border-card-border">
@@ -338,7 +352,7 @@ export default function CollectionLog({
               className="px-2 py-1.5 text-xs"
             />
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto">
+          <div ref={listRef} className="relative flex-1 min-h-0 overflow-y-auto">
             {grouped.map(({ group, pages: groupPages, done }) => (
               <div key={group}>
                 <div className="sticky top-0 z-10 flex items-center justify-between gap-2 px-3 py-1 bg-brown-dark/95 border-y border-card-border text-[10px] uppercase tracking-widest text-text-muted">
@@ -353,6 +367,7 @@ export default function CollectionLog({
                 <button
                   key={p.name}
                   type="button"
+                  data-active={active}
                   onClick={() => setSelected(p.name)}
                   className={`w-full text-left px-3 py-1.5 flex items-center justify-between gap-2 text-xs transition-colors ${
                     active ? 'bg-gold/15' : 'hover:bg-card-bg-hover'
