@@ -43,7 +43,30 @@ export function snapshotFromLiveStats(json: string | null | undefined): Hiscores
  * plugin from the game's kill-count line, so it holds the few it has seen: the result is marked
  * `partial`, and a key it lacks scores nothing until the sweep fills it (lib/statTracking).
  */
-export function startBaselineFromLiveStats(json: string | null | undefined): HiscoresSnapshot | null {
+export function startBaselineFromLiveStats(
+  json: string | null | undefined,
+  floors: Array<HiscoresSnapshot | null | undefined> = [],
+): HiscoresSnapshot | null {
   const snap = snapshotFromLiveStats(json);
-  return snap ? { ...snap, partial: true } : null;
+  if (!snap) return null;
+  // No overall: it is the sum of whichever skills were pushed, so a push missing any would make an
+  // overall-XP tile count those skills' whole totals as event gains. Left unknown, the sweep fills it.
+  const { overall: _overall, ...skills } = snap.skills;
+  void _overall;
+  const bosses = { ...snap.bosses };
+  // The pushed numbers come from the player's own client. XP and kill counts never go down, so no
+  // honest starting value is below a reading we already hold — raise each key to it. That stops a
+  // doctored push from setting a low start and banking the difference as gains.
+  for (const floor of floors) {
+    if (!floor) continue;
+    for (const [key, v] of Object.entries(skills)) {
+      const f = floor.skills?.[key]?.xp ?? 0;
+      if (f > v.xp) skills[key] = { ...v, xp: f, level: levelFromXp(f) };
+    }
+    for (const [key, v] of Object.entries(bosses)) {
+      const f = floor.bosses?.[key]?.score ?? 0;
+      if (f > v.score) bosses[key] = { ...v, score: f };
+    }
+  }
+  return { skills, bosses, partial: true };
 }

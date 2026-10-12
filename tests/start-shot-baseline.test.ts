@@ -53,3 +53,22 @@ test('the sweep fills the gaps and keeps the shot as the starting line', () => {
   assert.equal(done.bosses.zulrah.score, 12);
   assert.equal(computeGain(done, null, { vorkath: 905 }, ['vorkath'], 'boss'), 5);
 });
+
+test('no overall in a partial baseline: a short push must not inflate overall-XP tiles', () => {
+  const base = startBaselineFromLiveStats(JSON.stringify({ attack: 1_000_000, cooking: 50_000 }))!;
+  assert.equal(base.skills.overall, undefined);
+  assert.equal(computeGain(base, null, { overall: 300_000_000 }, ['overall'], 'skill'), 0);
+});
+
+test('a doctored low push is raised to readings we already hold', () => {
+  const hiscores: HiscoresSnapshot = {
+    skills: { woodcutting: { rank: 1, level: 99, xp: 13_000_000 } },
+    bosses: { zulrah: { rank: 1, score: 500 } },
+  };
+  const base = startBaselineFromLiveStats(JSON.stringify({ woodcutting: 5, zulrah: 1, attack: 100 }), [hiscores, null])!;
+  assert.equal(base.skills.woodcutting.xp, 13_000_000);
+  assert.equal(base.skills.woodcutting.level, 98); // 99 starts at 13,034,431
+  assert.equal(base.bosses.zulrah.score, 500);
+  assert.equal(base.skills.attack.xp, 100); // nothing to floor it with
+  assert.equal(computeGain(base, null, { woodcutting: 13_000_100 }, ['woodcutting'], 'skill'), 100);
+});

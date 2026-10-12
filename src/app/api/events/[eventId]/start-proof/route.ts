@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { personOf, seatsOwnedBy } from '@/lib/roster';
 import { db } from '@/db';
-import { events, eventParticipants, clanRoster, eventStartProofs } from '@/db/schema';
+import { events, eventParticipants, clanRoster, eventStartProofs, accountStatSnapshots } from '@/db/schema';
+import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { and, eq, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyUser, verifyPluginToken } from '@/lib/auth';
 import { assertEventEditable } from '@/lib/eventLock';
@@ -292,13 +293,29 @@ async function baselineFromStartingShot(participantId: number, eventStartDate: s
   if (!part?.clanMemberId || !part.teamId || part.frozenAt) return;
   if (!needsBaselineRecapture(part.statsSnapshot, part.snapshotAt, eventStartDate)) return;
   const [seat] = await db
-    .select({ liveStats: clanRoster.liveStats })
+    .select({ liveStats: clanRoster.liveStats, accountId: clanRoster.accountId })
     .from(clanRoster)
     .where(eq(clanRoster.id, part.clanMemberId));
-  const baseline = startBaselineFromLiveStats(seat?.liveStats);
+  if (!seat) return;
+  // Floors for the client-reported numbers: the account's last hiscores read and whatever this
+  // enrolment already holds. A real starting line is never below either (see startBaselineFromLiveStats).
+  const [last] = await db
+    .select({ snapshot: accountStatSnapshots.snapshot })
+    .from(accountStatSnapshots)
+    .where(eq(accountStatSnapshots.accountId, seat.accountId));
+  const baseline = startBaselineFromLiveStats(seat.liveStats, [parseSnap(last?.snapshot), parseSnap(part.cachedStats)]);
   if (!baseline) return; // the plugin hasn't pushed XP for this character — the sweep will baseline it
   await db
     .update(eventParticipants)
     .set({ statsSnapshot: JSON.stringify(baseline), snapshotAt: new Date().toISOString() })
     .where(eq(eventParticipants.id, participantId));
+}
+
+function parseSnap(json: string | null | undefined): HiscoresSnapshot | null {
+  if (!json) return null;
+  try {
+    return JSON.parse(json) as HiscoresSnapshot;
+  } catch {
+    return null;
+  }
 }
