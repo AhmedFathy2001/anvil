@@ -310,7 +310,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
               <div className="mb-2 pb-2 border-b border-card-border flex flex-col gap-0.5">
                 {current && (
                   <div className="flex items-center gap-2.5 px-3 py-1.5">
-                    <Crest slug={current.slug} name={current.name} size={22} />
+                    <Crest slug={current.slug} name={current.name} logoUrl={current.logoUrl ?? clan?.logoUrl} size={22} />
                     <span className="text-sm font-semibold text-foreground truncate">{current.name}</span>
                     <span className="ml-auto text-[10px] text-text-muted">here</span>
                   </div>
@@ -322,7 +322,7 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
                     onClick={() => setOpen(false)}
                     className="flex items-center gap-2.5 px-3 py-2 rounded-md hover:bg-brown-light transition-all"
                   >
-                    <Crest slug={o.slug} name={o.name} />
+                    <Crest slug={o.slug} name={o.name} logoUrl={o.logoUrl} />
                     <span className="text-sm text-foreground/90 truncate flex-1">{o.name}</span>
                     {roleLabel(o) && <span className="text-[10px] text-text-muted">{roleLabel(o)}</span>}
                   </ClanLink>

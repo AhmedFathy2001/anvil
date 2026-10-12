@@ -172,7 +172,7 @@ export default async function CharacterPage({
               href={`/c/${character.clan.slug}`}
               className="flex items-center gap-2 transition-colors hover:text-gold"
             >
-              <ClanCrest name={character.clan.name} size={18} />
+              <ClanCrest name={character.clan.name} logoUrl={character.clan.logoUrl} size={18} />
               {character.clan.name}
             </ClanLink>
           ) : null}

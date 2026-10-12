@@ -65,7 +65,8 @@ export interface PlayerCardPage {
 export interface PlayerCard {
   rsn: string;
   accountType: string | null;
-  clan: { slug: string; name: string } | null;
+  /** `logoUrl` is the clan's own image; absent/null = the crest. */
+  clan: { slug: string; name: string; logoUrl?: string | null } | null;
   totalLevel: number;
   combatLevel: number | null;
   overallXp: number | null;
@@ -92,7 +93,8 @@ export interface PlayerCard {
 export interface PlayerCardInput {
   rsn: string;
   accountType: string | null;
-  clan: { slug: string; name: string } | null;
+  /** `logoUrl` is the clan's own image; absent/null = the crest. */
+  clan: { slug: string; name: string; logoUrl?: string | null } | null;
   totalLevel: number;
   combatLevel: number | null;
   overallXp: number | null;

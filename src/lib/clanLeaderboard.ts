@@ -32,6 +32,8 @@ export interface ClanStanding {
   clanId: number;
   slug: string;
   name: string;
+  /** The clan's own image; null = the crest. */
+  logoUrl: string | null;
   host: string;
   /** Members who gained anything in the window — a clan's activity, not its size. */
   actives: number;
@@ -77,6 +79,7 @@ export async function clanStandings(
       clanId: clans.id,
       slug: clans.slug,
       name: clans.name,
+      logoUrl: clans.logoUrl,
       customDomain: clans.customDomain,
       actives: sql<number>`count(distinct ${memberDailyStats.accountId})`,
       xpGained: sql<number>`coalesce(sum(${memberDailyStats.xpGained}), 0)`,
@@ -113,7 +116,7 @@ export async function clanStandings(
         sql`${clans.ingameNameVerifiedAt} is not null`,
       ),
     )
-    .groupBy(clans.id, clans.slug, clans.name, clans.customDomain)
+    .groupBy(clans.id, clans.slug, clans.name, clans.logoUrl, clans.customDomain)
     // Tie-broken on the clan id for the same reason the player table is: a page boundary that falls
     // inside a run of equal totals must land in the same place on both queries.
     .orderBy(desc(sql`coalesce(sum(${memberDailyStats.xpGained}), 0)`), clans.id)
@@ -133,6 +136,7 @@ export async function clanStandings(
     clanId: r.clanId,
     slug: r.slug,
     name: r.name,
+    logoUrl: r.logoUrl ?? null,
     host: r.customDomain || `${r.slug}.${apexDomain()}`,
     actives: Number(r.actives ?? 0),
     members: sizeByClan.get(r.clanId) ?? 0,

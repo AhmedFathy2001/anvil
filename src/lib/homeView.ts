@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { clanRoster, completions, events, memberClogItems, memberDailyStats, memberMilestones, settings, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { clanRoster, clans, completions, events, memberClogItems, memberDailyStats, memberMilestones, settings, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, count, desc, eq, gte, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { weeklyMetricLabel as metricLabel } from '@/lib/constants';
 import { getClanDisplayName, getDiscordInviteUrl } from '@/lib/pluginConfig';
@@ -68,6 +68,10 @@ export interface HomeYou {
 
 export interface HomeView {
   clanName: string;
+  /** The clan's own image (null = the crest) and its 3:1 banner + vertical focus (null = none / centred). */
+  logoUrl: string | null;
+  bannerUrl: string | null;
+  bannerPosition: number | null;
   discordInvite: string | null;
   memberCount: number;
   liveEventCount: number;
@@ -89,6 +93,11 @@ const dayKey = (d: Date) => d.toISOString().slice(0, 10);
 export async function buildHomeView(clanId: number, viewerMemberIds: number[] = [], now: Date = new Date()): Promise<HomeView> {
   const nowIso = now.toISOString();
   const clanName = await getClanDisplayName(clanId);
+  const look = await db
+    .select({ logoUrl: clans.logoUrl, bannerUrl: clans.bannerUrl, bannerPosition: clans.bannerPosition })
+    .from(clans)
+    .where(eq(clans.id, clanId))
+    .then((r) => r[0]);
   const discordInvite = await getDiscordInviteUrl(clanId);
 
   const memberCount = await db
@@ -486,6 +495,9 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
 
   return {
     clanName,
+    logoUrl: look?.logoUrl ?? null,
+    bannerUrl: look?.bannerUrl ?? null,
+    bannerPosition: look?.bannerPosition ?? null,
     discordInvite,
     memberCount,
     liveEventCount: liveEvents.length,

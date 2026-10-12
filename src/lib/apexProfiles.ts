@@ -115,7 +115,7 @@ export interface ApexCharacter {
   overallXp: number | null;
   lastSeenAt: string | null;
   /** The clan this character is a MEMBER of — at most one, and only if that clan is listed. */
-  clan: { slug: string; name: string } | null;
+  clan: { slug: string; name: string; logoUrl: string | null } | null;
   /**
    * The person, ONLY if they have agreed to be shown as one — and named by another of their shared
    * RSNs, never by anything from Discord.
@@ -165,7 +165,7 @@ export async function apexCharacter(rsn: string, viewerPlayerId?: number | null)
   // page whose entire audience is people with no seat in it. The shared predicate is the same one
   // the directory and the leaderboard use; see lib/clanListing.
   const seat = await db
-    .select({ slug: clans.slug, name: clans.name, clanId: clans.id })
+    .select({ slug: clans.slug, name: clans.name, logoUrl: clans.logoUrl, clanId: clans.id })
     .from(clanMemberships)
     .innerJoin(clans, eq(clans.id, clanMemberships.clanId))
     .leftJoin(settings, showcaseJoinOn())
@@ -218,7 +218,7 @@ export async function apexCharacter(rsn: string, viewerPlayerId?: number | null)
     verified: acct.verifiedAt != null,
     overallXp: acct.statsOverallXp,
     lastSeenAt: acct.liveStatsAt,
-    clan: seat && (await getPublicShowcase(seat.clanId)) ? { slug: seat.slug, name: seat.name } : null,
+    clan: seat && (await getPublicShowcase(seat.clanId)) ? { slug: seat.slug, name: seat.name, logoUrl: seat.logoUrl ?? null } : null,
     owner: ownerOut,
     privateToViewer: !acct.shared && ownedByViewer,
     viewerOwns: ownedByViewer,

@@ -185,7 +185,7 @@ export default function ApexHome({
                     href={`/c/${s.clanSlug}/events/${s.eventId}`}
                     className="flex items-center gap-3.5 rounded-xl border border-card-border bg-card-bg px-4 py-3.5 transition-colors hover:border-gold/40 hover:bg-card-bg-hover sm:px-5"
                   >
-                    <ClanCrest name={s.clanName} size={26} />
+                    <ClanCrest name={s.clanName} logoUrl={s.clanLogoUrl} size={26} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[15px] font-medium">{s.name}</span>
                       <span className="mt-0.5 block truncate text-[12.5px] text-text-muted">
@@ -243,7 +243,7 @@ export default function ApexHome({
                     href={`/c/${c.slug}/admin/dashboard`}
                     className="flex items-center gap-3.5 rounded-xl border border-gold-dark bg-gold/[0.06] px-4 py-3.5 transition-colors hover:bg-gold/[0.1] sm:px-5"
                   >
-                    <ClanCrest name={c.name} size={26} />
+                    <ClanCrest name={c.name} logoUrl={c.logoUrl} size={26} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[15px] font-medium">{c.name}</span>
                       <span className="mt-0.5 block text-[12.5px] text-text-muted">

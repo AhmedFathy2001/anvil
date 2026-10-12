@@ -376,7 +376,7 @@ function Side({ card, align }: { card: PlayerCard; align: 'left' | 'right' }) {
       <div className={`mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-text-muted ${right ? 'justify-end' : ''}`}>
         {card.clan ? (
           <ClanLink href={`/c/${card.clan.slug}`} className="flex items-center gap-1.5 hover:text-gold">
-            <ClanCrest name={card.clan.name} size={16} />
+            <ClanCrest name={card.clan.name} logoUrl={card.clan.logoUrl ?? null} size={16} />
             {card.clan.name}
           </ClanLink>
         ) : (

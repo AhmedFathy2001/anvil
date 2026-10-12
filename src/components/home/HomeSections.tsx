@@ -4,6 +4,7 @@ import { totalDays } from '@/lib/competitionInsights';
 import type { HubKind } from '@/lib/eventsHub';
 import type { HomeEvent, HomeView, HomeWeekly, HomeYou } from '@/lib/homeView';
 import AnvilMark from '@/components/AnvilMark';
+import ClanCrest from '@/components/ClanCrest';
 import ClanLink from '@/components/ClanLink';
 
 /**
@@ -78,13 +79,37 @@ export function Hero({ view }: { view: HomeView }) {
     // THE SAME GROUND AS THE APEX. A clan's page and the platform's page were visibly two products
     // — one wearing a hammered ground, forge heat and a cut serif, the other a flat panel and a bold
     // grotesk — and a person crossing between them several times an hour saw the seam every time.
-    <section className="forge-ground forge-heat relative mb-4 overflow-hidden rounded-2xl border border-gold/25 bg-card-bg p-7 sm:p-8">
+    <section className="forge-ground forge-heat relative mb-4 overflow-hidden rounded-2xl border border-gold/25 bg-card-bg">
+      {/* The clan's own banner across the top, in the same always-3:1 frame as its public page and
+          an event's header, so what the admin previewed is what shows. A plain <img>, so an
+          animated banner stays animated. */}
+      {view.bannerUrl && (
+        <div className="relative aspect-[3/1] w-full overflow-hidden border-b border-gold/20">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={view.bannerUrl}
+            alt=""
+            className="h-full w-full object-cover"
+            style={{ objectPosition: `50% ${view.bannerPosition ?? 50}%` }}
+          />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-card-bg/80 via-transparent to-transparent" />
+        </div>
+      )}
       <AnvilMark
         size={300}
-        className="pointer-events-none absolute -right-10 -top-10 hidden text-gold/[0.045] sm:block"
+        className={`pointer-events-none absolute -right-10 hidden text-gold/[0.045] sm:block ${view.bannerUrl ? 'bottom-[-40px]' : '-top-10'}`}
       />
-      <div className="relative">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold-dark">OSRS clan events</span>
+      <div className="relative p-7 sm:p-8">
+        {view.logoUrl && (
+          <ClanCrest
+            name={view.clanName}
+            logoUrl={view.logoUrl}
+            size={64}
+            rounded="rounded-2xl"
+            className={`mb-4 border-2 border-card-bg shadow-lg shadow-black/30 ${view.bannerUrl ? '-mt-16 sm:-mt-20' : ''}`}
+          />
+        )}
+        <span className="block font-mono text-[10px] uppercase tracking-[0.2em] text-gold-dark">OSRS clan events</span>
         <h1 className="display display-lg mt-2 bg-gradient-to-b from-[#ffe9a8] via-[#f2c14e] to-[#c8962c] bg-clip-text text-[clamp(2.2rem,5vw,3.4rem)] font-semibold leading-[1.03] text-transparent">
           {view.clanName}
         </h1>

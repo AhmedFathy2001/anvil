@@ -85,7 +85,7 @@ export default function ClanShapes({ rows }: { rows: ClanStanding[] }) {
             >
               <p className="font-mono text-[0.56rem] uppercase tracking-[0.14em] text-text-dim">{l.label}</p>
               <p className="mt-1.5 flex items-center gap-2">
-                <ClanCrest name={l.clan!.name} size={20} />
+                <ClanCrest name={l.clan!.name} logoUrl={l.clan!.logoUrl} size={20} />
                 <span className="truncate text-sm font-semibold group-hover:text-gold">{l.clan!.name}</span>
               </p>
               <p className="mt-1 font-mono text-[0.7rem] text-gold-dark">{l.read(l.clan!)}</p>
@@ -119,7 +119,7 @@ export default function ClanShapes({ rows }: { rows: ClanStanding[] }) {
               <span className="text-right font-mono text-xs text-text-dim tabular-nums">{i + 1}</span>
 
               <span className="flex min-w-0 items-center gap-2.5">
-                <ClanCrest name={c.name} size={24} />
+                <ClanCrest name={c.name} logoUrl={c.logoUrl} size={24} />
                 <span className="min-w-0">
                   <span className="block truncate text-sm font-medium">{c.name}</span>
                   <span className="block font-mono text-[0.62rem] text-text-dim">

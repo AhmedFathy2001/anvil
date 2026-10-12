@@ -32,6 +32,8 @@ export interface OpenSignup {
   format: string;
   clanSlug: string;
   clanName: string;
+  /** The clan's own image; null = the crest. */
+  clanLogoUrl: string | null;
   /** ISO, or null for "no deadline". */
   deadline: string | null;
   startDate: string | null;
@@ -162,8 +164,8 @@ export async function apexHomeView(
   return {
     discover,
     clans: clans.map((c) => ({ ...c, live: byClan.get(c.id) ?? [] })),
-    openSignups: signups.map(({ eventId, name, format, clanSlug, clanName, deadline, startDate }) => ({
-      eventId, name, format, clanSlug, clanName, deadline, startDate,
+    openSignups: signups.map(({ eventId, name, format, clanSlug, clanName, clanLogoUrl, deadline, startDate }) => ({
+      eventId, name, format, clanSlug, clanName, clanLogoUrl, deadline, startDate,
     })),
     characters: chars,
   };
@@ -313,6 +315,7 @@ export async function openSignups(
       format: events.format,
       clanSlug: clans.slug,
       clanName: clans.name,
+      clanLogoUrl: clans.logoUrl,
       deadline: events.signupDeadline,
       startDate: events.startDate,
       clanId: events.clanId,

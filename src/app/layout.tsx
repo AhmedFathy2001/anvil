@@ -322,6 +322,7 @@ export default async function RootLayout({
             <ClanPrivate
               name={clan!.name}
               slug={clan!.slug}
+              logoUrl={clan!.logoUrl}
               signedIn={!!session}
               hasCharacter={hasCharacter}
               guestPolicy={clan!.guestPolicy}

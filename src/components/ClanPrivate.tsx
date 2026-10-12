@@ -25,12 +25,15 @@ import ClanLink from '@/components/ClanLink';
 export default function ClanPrivate({
   name,
   slug,
+  logoUrl = null,
   signedIn,
   hasCharacter,
   guestPolicy,
 }: {
   name: string;
   slug: string;
+  /** The clan's own image; null = the crest. Its name is already on this page, so its face may be too. */
+  logoUrl?: string | null;
   signedIn: boolean;
   /** Whether they have proved ANY character is theirs. See below for why it changes the message. */
   hasCharacter: boolean;
@@ -46,7 +49,7 @@ export default function ClanPrivate({
           size={220}
           className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-gold/[0.05]"
         />
-        <ClanCrest name={name} size={56} />
+        <ClanCrest name={name} logoUrl={logoUrl} size={56} />
       </div>
 
       <h1 className="display display-lg text-[26px] font-semibold">{name}</h1>
