@@ -101,6 +101,8 @@ export const PLATFORM_ROOTS = [
   '/api/webhooks',
   '/api/tls-check',
   '/api/version',
+  // Page-view beacons: the clan is named in the body (lib/analyticsPattern), never by a prefix.
+  '/api/analytics',
 ] as const;
 
 /**

@@ -11,6 +11,7 @@ import { applyPendingRole } from '@/lib/pending-role';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 import { log } from '@/lib/logger';
 import { claimAccountForPerson } from '@/lib/accountClaim';
+import { track } from '@/lib/analytics';
 
 const SESSION_COOKIE = 'admin_session';
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
@@ -181,6 +182,9 @@ export async function completeDiscordLogin(
   }
 
   if (!user) throw new Error('Could not load or create user.');
+  // Every sign-in, with the first one flagged: "new people per week" and "people coming back" are
+  // both read off this one action.
+  track('auth.login', { clanId: loginClan?.id ?? null, userId: user.id, props: { newUser: isNewUser } });
 
   // The bootstrap grant, on every sign-in rather than only the first. This is the escape hatch that
   // keeps a deployment administrable, so it has to survive a grant being removed by hand, and a clan

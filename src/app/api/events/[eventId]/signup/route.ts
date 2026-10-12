@@ -10,6 +10,7 @@ import { parseProfile, sanitizeProfile, serializeProfile, signupWindowState, sig
 import { checkInvite, isWellFormedToken } from '@/lib/teamInvites';
 import { parseEventRules } from '@/lib/eventRules';
 import { enrolParticipant, participantForSeat, removeParticipantForWithdrawnSeat } from '@/lib/participants';
+import { track } from '@/lib/analytics';
 
 export async function GET(
   request: Request,
@@ -371,6 +372,10 @@ export async function POST(
       .update(teamInvites)
       .set({ uses: invite.uses + 1 })
       .where(eq(teamInvites.id, invite.id));
+  }
+
+  if (!isEditingActive) {
+    track('signup.submitted', { clanId: event.clanId, userId: session.userId, props: { accounts: rows.length, invited: !!invite } });
   }
 
   const primaryRow = rows.find((r) => r.account.id === primaryId)?.row ?? rows[0].row;

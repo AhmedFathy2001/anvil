@@ -10,6 +10,7 @@ import { assertEventEditable } from '@/lib/eventLock';
 import { collectionDisplayTotal, type CollectionRequirement } from '@/lib/collectionSets';
 import { atLeast } from '@/lib/clanRoles';
 import { isRaidEffortMode, parseTileEffortConfig } from '@/lib/tileEffortConfig';
+import { track } from '@/lib/analytics';
 
 export async function GET(
   request: Request,
@@ -732,6 +733,8 @@ export async function POST(
     newValue: snapshotTile(created),
     actorUserId: editor.userId,
   });
+
+  track('tile.created', { clanId: event.clanId, userId: editor.userId, props: { duplicate: !!source, mission: !!asMission } });
 
   return NextResponse.json(created, { status: 201 });
 }

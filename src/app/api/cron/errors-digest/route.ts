@@ -6,6 +6,7 @@ import { clans, errorEvents } from '@/db/schema';
 import { timingSafeStrEqual } from '@/lib/auth';
 import { buildDigest, type DigestRow } from '@/lib/errorDigest';
 import { pruneErrorEvents } from '@/lib/errorEvents';
+import { pruneAnalyticsEvents } from '@/lib/analytics';
 import { sendOpsWebhook } from '@/lib/opsWebhook';
 import { log } from '@/lib/logger';
 
@@ -88,7 +89,13 @@ export async function GET(request: Request) {
   }
 
   const pruned = await pruneErrorEvents();
-  log.info('errors-digest.tick', { failures: rows.length, posted, pruned });
+  // Analytics retention rides along: same cadence, same "platform housekeeping" owner, and an hourly
+  // bounded batch keeps it from ever being one big delete. Its failure must not cost the digest.
+  const prunedAnalytics = await pruneAnalyticsEvents().catch((err: unknown) => {
+    log.warn('analytics.prune-failed', {}, err);
+    return 0;
+  });
+  log.info('errors-digest.tick', { failures: rows.length, posted, pruned, prunedAnalytics });
 
-  return NextResponse.json({ ok: true, failures: rows.length, posted, pruned });
+  return NextResponse.json({ ok: true, failures: rows.length, posted, pruned, prunedAnalytics });
 }

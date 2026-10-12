@@ -11,6 +11,7 @@ import { assertEventEditable } from '@/lib/eventLock';
 import { serializeTileMissionRules, type MissionRules } from '@/lib/eventRules';
 import { collectionDisplayTotal } from '@/lib/collectionSets';
 import { isRaidEffortMode, parseTileEffortConfig, type TileEffortConfig } from '@/lib/tileEffortConfig';
+import { track } from '@/lib/analytics';
 
 // Bulk tile import — maps CSV/JSON rows onto an event's tiles by position (row order).
 // Built for Leagues-style boards where configuring hundreds of tiles one at a time is
@@ -705,6 +706,12 @@ export async function POST(
       actorUserId: editor.userId,
     });
   }
+
+  track('tiles.imported', {
+    clanId: event.clanId,
+    userId: editor.userId,
+    props: { applied, created: creates, xlsx: contentType.includes('multipart/form-data') },
+  });
 
   return NextResponse.json({
     applied,

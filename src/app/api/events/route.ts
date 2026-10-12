@@ -7,6 +7,7 @@ import { verifyAdmin } from '@/lib/auth';
 import { validateEventRules } from '@/lib/eventRules';
 import { isTeamFormation } from '@/lib/teamFormation';
 import { isVisibility } from '@/lib/eventVisibility';
+import { track } from '@/lib/analytics';
 
 const CASH_POLICIES = ['host-holds', 'each-settles', 'clans-collect-host-pays'] as const;
 
@@ -190,5 +191,6 @@ export async function POST(request: Request) {
     return created;
   });
 
+  track('event.created', { clanId: clan.id, props: { format: resolvedFormat, formation: resolvedFormation, tiles: resolvedLabels.length } });
   return NextResponse.json(event, { status: 201 });
 }

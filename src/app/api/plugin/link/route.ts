@@ -14,6 +14,7 @@ import { atLeast } from '@/lib/clanRoles';
 import { admit } from '@/lib/guestAdmission';
 import { autoClaimAllowed } from '@/lib/auth';
 import { claimAccountForPerson } from '@/lib/accountClaim';
+import { track } from '@/lib/analytics';
 
 // Plugin exchanges {code, rsn, accountHash} for a confirmed account link.
 // The RSN comes from Client.getLocalPlayer().getName() inside RuneLite — we trust that value
@@ -275,6 +276,8 @@ export async function POST(request: Request) {
   // a high-confidence Discord id for role sync. Fire-and-forget — the response to
   // the plugin should not block on Discord round-trips.
   syncRolesForClanMemberFireAndForget(clanMemberId);
+
+  track('plugin.linked', { clanId: clan.id, userId: issuingUser.id, props: { via: 'code' } });
 
   return NextResponse.json({
     success: true,

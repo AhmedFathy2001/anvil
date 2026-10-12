@@ -2784,8 +2784,8 @@ export type ClanCofferSyncEvent = typeof clanCofferSyncEvents.$inferSelect;
 //
 // The platform had no way to learn it was broken. A board that 500s at two in the morning, mid-event,
 // was discovered when somebody posted in Discord — the app writes a line to stdout and the line goes
-// into a container log nobody reads. `@vercel/analytics` is the only observability dependency here
-// and it does nothing at all on a self-hosted box.
+// into a container log nobody reads. (`@vercel/analytics` was the only observability dependency, and
+// did nothing at all on a self-hosted box; usage is now first-party — see analyticsEvents.)
 //
 // AGGREGATED, NOT A LOG. One row per distinct failure (see lib/errorFingerprint), with a count and a
 // last-seen. A raw event table would be a second, worse container log: the same broken tile handler
@@ -3149,3 +3149,40 @@ export const tileClaims = pgTable('tile_claims', {
   index('tile_claims_team_idx').on(t.teamId),
 ]);
 export type TileClaim = typeof tileClaims.$inferSelect;
+
+// ── Platform analytics ──────────────────────────────────────────────────────────────────────────
+//
+// What people do on Anvil, for /staff/analytics: page views, the handful of actions that say a
+// feature is in use, and one plugin row per (account, day). First-party and in this database, so the
+// rows join to clans and users without an identity bridge to some third-party tool.
+//
+// NOTHING IDENTIFYING BEYOND OUR OWN IDS. `name`/`path` hold the ROUTE PATTERN
+// (`/c/[clan]/events/[eventId]`), never the URL — a raw path carries RSNs and ids, and a table of
+// those is a browsing history. No IP, no user agent, no cookie: `session_id` is a random id the tab
+// keeps in sessionStorage.
+//
+// `ts` is the space-separated UTC stamp the SQL defaults write (lib/dbTime), so range filters compare
+// like with like. Retention is the prune in lib/analytics (~400 days, so a year-on-year comparison
+// still has its year), run from the hourly errors-digest cron.
+export const analyticsEvents = pgTable('analytics_events', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  ts: text('ts').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  /** 'page' | 'action' | 'plugin' — the writers accept nothing else. */
+  kind: text('kind').notNull(),
+  /** The route pattern for a page; the dotted action name (`event.created`) otherwise. */
+  name: text('name').notNull(),
+  // Which clan it happened in. Null on the apex. Kept so a clan-scoped view is a WHERE away.
+  clanId: integer('clan_id').references(() => clans.id, { onDelete: 'set null' }),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  /** Random per browser tab; ties a visit's page views together without a cookie. Null server-side. */
+  sessionId: text('session_id'),
+  /** The account a 'plugin' row is about — the per-(account, day) dedup key. */
+  accountId: integer('account_id').references(() => accounts.id, { onDelete: 'cascade' }),
+  /** Small and bounded by the writer — counts and flags, never free text a person typed. */
+  props: jsonb('props').$type<Record<string, string | number | boolean | null>>(),
+}, (t) => [
+  index('analytics_events_ts_idx').on(t.ts),
+  index('analytics_events_kind_name_ts_idx').on(t.kind, t.name, t.ts),
+  index('analytics_events_clan_ts_idx').on(t.clanId, t.ts),
+]);
+export type AnalyticsEvent = typeof analyticsEvents.$inferSelect;

@@ -10,6 +10,7 @@ import { EFFICIENCY_METRICS } from '@/lib/constants';
 import { verifyFeeCollector } from '@/lib/auth';
 import { parseWeeklyPrizes, serializeWeeklyPrizes, totalPrizeGp } from '@/lib/weeklyPrizes';
 import { setWeeklyPool } from '@/lib/coffer';
+import { track } from '@/lib/analytics';
 
 export async function GET() {
   const user = await verifyAdminOrModerator();
@@ -141,5 +142,6 @@ export async function POST(request: Request) {
     notifyWeeklyStart({ clanId: clan.id, type: comp.type, title: comp.title, metric: comp.metric, endDate: comp.endDate }).catch(() => {});
   }
 
+  track('weekly.created', { clanId: clan.id, userId: user.userId, props: { type: comp.type } });
   return NextResponse.json({ ...comp, enrolled, prizesHeld });
 }

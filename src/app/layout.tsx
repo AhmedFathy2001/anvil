@@ -18,7 +18,7 @@ import { eq } from "drizzle-orm";
 import { avatarUrl } from "@/lib/discord-oauth";
 import { getClanDisplayName, getDiscordInviteUrl } from "@/lib/pluginConfig";
 
-import { Analytics } from "@vercel/analytics/next";
+import AnalyticsBeacon from "@/components/AnalyticsBeacon";
 import SiteNav from "@/components/SiteNav";
 import ShellGuard from "@/components/ShellGuard";
 import { countLiveTeamInvolvements } from "@/lib/myTeamNav";
@@ -331,7 +331,7 @@ export default async function RootLayout({
         </>
         )}
         {clan && <SiteFooter />}
-        <Analytics />
+        <AnalyticsBeacon />
         </DialogProvider>
         </NavProgressProvider>
         </ClanPrefixProvider>

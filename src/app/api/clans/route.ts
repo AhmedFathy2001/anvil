@@ -9,6 +9,7 @@ import { isApexHost } from '@/lib/clanContext';
 import { checkDomain, checkInGameName, checkSlug, availabilityMessage, createClan } from '@/lib/clanCreate';
 import { notifyClanCreated } from '@/lib/opsEvents';
 import { rateLimitByKey } from '@/lib/rate-limit';
+import { track } from '@/lib/analytics';
 
 /**
  * Creating a clan, and checking whether a name is free.
@@ -130,6 +131,8 @@ export async function POST(request: Request) {
       email: owner?.email ?? null,
     },
   });
+
+  track('clan.created', { clanId: result.clanId, userId: session.userId });
 
   return NextResponse.json({ ok: true, clan: row });
 }
