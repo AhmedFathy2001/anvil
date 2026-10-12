@@ -31,9 +31,19 @@ const EXTRA_HISCORE_BOSSES: Record<string, string> = {
  * a new boss is one EXTRA_HISCORE_BOSSES line away from tracking.
  */
 export async function getHiscoresStats(rsn: string): Promise<HiscoresSnapshot> {
-  const raw = await getOfficialStats(rsn);
-  const parsed = parseJsonStats(raw) as unknown as HiscoresSnapshot;
-  const activities = (raw as unknown as { activities?: { name: string; rank: number; score: number }[] }).activities ?? [];
+  return parseHiscoresBody(await getOfficialStats(rsn));
+}
+
+/**
+ * The official endpoint's JSON body → a snapshot: the lib's parser plus the by-name merge of
+ * activities it doesn't map yet. Split out so a body fetched elsewhere — Anvil.Forge stores the raw
+ * response in hiscores_fetches — is read by exactly the same parser as an in-app fetch. Throws on a
+ * body that isn't the endpoint's shape.
+ */
+export function parseHiscoresBody(raw: unknown): HiscoresSnapshot {
+  const body = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  const parsed = parseJsonStats(body as Parameters<typeof parseJsonStats>[0]) as unknown as HiscoresSnapshot;
+  const activities = (body as { activities?: { name: string; rank: number; score: number }[] }).activities ?? [];
   for (const act of activities) {
     const key = EXTRA_HISCORE_BOSSES[act?.name ?? ''];
     if (key && parsed.bosses && !(key in parsed.bosses)) {

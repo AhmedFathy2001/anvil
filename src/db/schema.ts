@@ -6,6 +6,7 @@ import {
   bigint,
   bigserial,
   serial,
+  smallint,
   boolean,
   real,
   jsonb,
@@ -2578,22 +2579,14 @@ export type AccountClanEmission = typeof accountClanEmission.$inferSelect;
 export type UserWebhook = typeof userWebhooks.$inferSelect;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
-// Forge's outbox — the seam between the Go data plane and this app
+// Forge's old outbox — UNUSED, kept so the table's shape stays on record
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 //
-// There is ONE Postgres. Anvil.Forge is a second process that fetches hiscores, stores the result in
-// the `accounts` columns the Site already reads, and — when a snapshot MOVES — appends a line here.
-// Forge INGESTS; it never EVALUATES. Whether that gain completed a tile, crossed a milestone, moved a
-// weekly value, is a domain question with one answer, and it lives in this app. `lib/forgeConsume`
-// drains the unconsumed tail, evaluates each line against the same scoring code the TS sweep uses, and
-// stamps `consumedAt`. A durable table rather than LISTEN/NOTIFY on purpose: a fixed scoring rule can
-// reset `consumedAt` over a range and re-consume, where a fire-and-forget channel has thrown the
-// evidence away.
-//
-// The Site only ever READS this and writes `consumedAt`; Forge owns the inserts and the `id` sequence.
-// Defined here so the Site's queries are typed and the test DB (built from these migrations) carries
-// the table. In production the table is created by whichever of Forge's or the Site's migration runs
-// first — both use CREATE TABLE IF NOT EXISTS, so they coexist without a wall between them.
+// Forge used to run its own copy of the sweep and append a line here when a snapshot moved, for
+// this app to score. That design is retired: Forge now only fetches what this app queues in
+// `hiscores_fetches` (below), and this app applies every result through lib/statsSweep. Nothing
+// reads or writes this table any more. Kept in the schema so a generate does not emit a DROP
+// for a table that may still hold rows on older databases; drop it deliberately in a later migration.
 export type ForgeEventKind = 'snapshot.changed' | 'account.unranked' | 'rsn.changed';
 export const forgePlayerEvents = pgTable(
   'forge_player_events',
@@ -2612,6 +2605,47 @@ export const forgePlayerEvents = pgTable(
   (t) => [index('forge_player_events_unconsumed_idx').on(t.id).where(sql`${t.consumedAt} IS NULL`)],
 );
 export type ForgePlayerEvent = typeof forgePlayerEvents.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// The hiscores fetch queue — this app decides, Anvil.Forge fetches (drizzle/0125)
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+//
+// With STATS_SWEEP_OWNER=forge the sweep (lib/statsSweep) still builds its due list exactly as it
+// always has, but instead of calling Jagex it queues a row here. Forge fetches under one global rate
+// limit and stores the raw JSON body; the next drain parses it with lib/hiscores and applies it
+// through the same code the in-app fetch uses. Forge holds no copy of the sweep's rules, so there is
+// nothing for the two to drift apart on.
+export type HiscoresFetchMode = 'main' | 'ironman' | 'hardcore' | 'ultimate';
+export type HiscoresFetchOutcome = 'ok' | 'unranked' | 'transient';
+export const hiscoresFetches = pgTable(
+  'hiscores_fetches',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    rsn: text('rsn').notNull(),
+    /** normalizeRsn(rsn): dedupes a request and matches a result back to its work entry. */
+    rsnKey: text('rsn_key').notNull(),
+    mode: text('mode').$type<HiscoresFetchMode>().notNull().default('main'),
+    accountId: integer('account_id'),
+    /** 0 = a competition is waiting, 1 = roster filler, 2 = background probes. Lower goes first. */
+    priority: smallint('priority').notNull().default(1),
+    requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
+    claimedAt: timestamp('claimed_at', { withTimezone: true }),
+    fetchedAt: timestamp('fetched_at', { withTimezone: true }),
+    outcome: text('outcome').$type<HiscoresFetchOutcome>(),
+    /** The raw index_lite.json body; only when outcome = 'ok'. */
+    body: text('body'),
+    error: text('error'),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('hiscores_fetches_pending_uq').on(t.rsnKey, t.mode).where(sql`${t.fetchedAt} IS NULL`),
+    index('hiscores_fetches_claim_idx').on(t.priority, t.requestedAt).where(sql`${t.fetchedAt} IS NULL`),
+    index('hiscores_fetches_ready_idx')
+      .on(t.fetchedAt)
+      .where(sql`${t.fetchedAt} IS NOT NULL AND ${t.consumedAt} IS NULL`),
+  ],
+);
+export type HiscoresFetch = typeof hiscoresFetches.$inferSelect;
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 // The clan coffer — one gp ledger per clan

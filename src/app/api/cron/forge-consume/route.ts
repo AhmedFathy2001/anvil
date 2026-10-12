@@ -1,22 +1,17 @@
 import { NextResponse } from 'next/server';
 
-import { consumeForgeEvents } from '@/lib/forgeConsume';
 import { timingSafeStrEqual } from '@/lib/auth';
-import { log } from '@/lib/logger';
+import { declaredSweepOwner } from '@/lib/sweepOwner';
+import { runStatsSweep } from '@/lib/statsSweep';
 
-// Drain the Forge outbox and score it. Runs on the control-plane cron dispatcher, same as the TS
-// hiscores sweep — but where /api/cron/stats FETCHES and scores, this only scores, because Forge did
-// the fetching. The two are mutually exclusive: with the Go sweep enabled the TS sweep is off, so this
-// is the scoring half and nothing double-counts. See lib/forgeConsume for the at-least-once design.
+// The hiscores sweep with Anvil.Forge fetching (STATS_SWEEP_OWNER=forge). Every 5 min from the box
+// cron: apply what Forge fetched since the last run, queue what is still due (lib/forgeFetchQueue).
+// No hiscores traffic leaves this app, so running it more often than /api/cron/stats costs only
+// database work — and keeps the gap between Forge's read and its effect short.
 
 export const maxDuration = 300;
 
 const CRON_SECRET = process.env.CRON_SECRET;
-
-// A drain caps how many outbox rows one tick claims — big enough to keep up with the sweep, bounded so
-// a backlog spike can't run the request past its wall-clock budget. Overridable via ?limit= for a
-// manual catch-up after a replay (resetting consumed_at over a range).
-const DEFAULT_LIMIT = 1000;
 
 export async function GET(request: Request) {
   if (process.env.NODE_ENV === 'production' && !CRON_SECRET) {
@@ -29,14 +24,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const url = new URL(request.url);
-  const limitParam = Number(url.searchParams.get('limit'));
-  const limit = Number.isInteger(limitParam) && limitParam > 0 ? Math.min(limitParam, 10000) : DEFAULT_LIMIT;
+  if (declaredSweepOwner() !== 'forge') {
+    return NextResponse.json({ success: true, skipped: 'site-owns', timestamp: new Date().toISOString() });
+  }
 
-  const start = Date.now();
-  const result = await consumeForgeEvents({ limit });
-  const durationMs = Date.now() - start;
-  log.info('forge-consume.tick', { ...result, durationMs });
-
-  return NextResponse.json({ success: true, timestamp: new Date().toISOString(), durationMs, ...result });
+  const { skipped, durationMs, results, forge } = await runStatsSweep('forge');
+  return NextResponse.json({ success: true, timestamp: new Date().toISOString(), skipped, durationMs, forge, results });
 }

@@ -1,0 +1,923 @@
+import { saveStatSnapshot, updateAccount } from '@/lib/roster';
+import { db } from '@/db';
+import { accounts, clanMemberships, clanRoster, completions, eventParticipants, events, teams, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
+import { eq, and, or, inArray, isNull, isNotNull, notExists, sql, asc } from 'drizzle-orm';
+import { fetchSnapshotWithRetry, type HiscoresSnapshot, type SnapshotFetch } from '@/lib/hiscores';
+import { drainForgeFetches, type ForgeDrainStats } from '@/lib/forgeFetchQueue';
+import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
+import { processEventLifecycleNotifications } from '@/lib/eventLifecycle';
+import { evaluateCompletionGate } from '@/lib/completionGate';
+import { handleBountyClaim } from '@/lib/revealEngine';
+import { log } from '@/lib/logger';
+import { statKeys } from '@/lib/tileKinds';
+import { parsePluginStats } from '@/lib/pluginStats';
+import { computeGain, computeGainFromJson, effectiveValue, reconcileLive, pruneStaleOverlay, isIndividualMode, isMilestoneBasis, milestoneState, buildContributionSnapshot, needsBaselineRecapture, baselineWithOverlay, completePartialBaseline } from '@/lib/statTracking';
+import { parseStatKeyTimes } from '@/lib/liveStats';
+import { readAllActivities } from '@/lib/hiscoresActivities';
+
+// A live-overlay entry not refreshed within this window is stale: OSRS force-logs-out at ~6h, so
+// hiscores must reflect real XP/KC by then. Anything the overlay still holds above hiscores past this
+// is a bogus/doubled push — drop it and trust hiscores. Slightly over 6h so a full-length session's
+// last push isn't clipped early.
+const STALE_OVERLAY_MS = 6.5 * 60 * 60 * 1000;
+import { applyWeeklyValue, readMetricFromSnapshot, writePlayerSnapshot, type CompetitionType } from '@/lib/weekly';
+import { detectMilestones, computeDeltas, isDue, nextDueAt, recordDailyStats, recordMilestones } from '@/lib/statHistory';
+import { sweepDue } from '@/lib/pollLadder';
+import { overlaySnapshot } from '@/lib/liveHistory';
+import { mergeSeatsByAccount } from '@/lib/sweepWork';
+import { normalizeRsn } from '@/lib/auth';
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// The unified hiscores sweep. Runs every 15 min (control-plane dispatcher). It builds ONE work list
+// keyed by clan member — so a member who's in a bingo event AND SOTW+BOTW is fetched from OSRS
+// Hiscores exactly ONCE — then fans the single snapshot out to that member's bingo stat tiles AND
+// every weekly participant row. Hiscores is the source of truth: it reconciles (prunes) the member's
+// live plugin overlay as it catches up. The competition LIFECYCLE (status flips, announcements,
+// enrollment, re-probe, rename review) stays in /api/cron/weekly.
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+// Hiscores polling budget: CONCURRENCY workers behind a shared token bucket (~1 request /
+// PER_REQUEST_GAP_MS ≈ 2.5 rps, safely under Jagex's limit), the whole run bounded by a wall-clock
+// budget. Members are polled oldest-fetched-first, so when the union roster exceeds one tick's budget
+// the remainder rolls to the next tick instead of the run being killed mid-loop.
+const CONCURRENCY = 3;
+const PER_REQUEST_GAP_MS = 400;
+const TIME_BUDGET_MS = 240_000;
+// How many ROSTER members one tick may sweep, on top of whatever competitions needed.
+//
+// The wall-clock budget alone would already stop a tick running away, but it caps the wrong thing:
+// it would happily let filler use the entire 240s, which at ~2.5 rps is ~600 requests every 15
+// minutes — a large, permanent increase in what Jagex sees from this one IP, spent on players who
+// are not racing anybody.
+//
+// The ladder tops out at a 2h recheck (lib/statHistory nextDueAfterMiss), so ~500 seats need about
+// 60 fetches a tick to stay current. 120 is roughly double that: enough that a clan's directory
+// fills in and stays warm, small enough that the sweep cannot become the thing that gets the box
+// rate-limited. Anything over the cap simply waits for the next tick.
+const ROSTER_FILLER_PER_TICK = 120;
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+type EventRow = typeof events.$inferSelect;
+type PlayerRow = typeof eventParticipants.$inferSelect;
+type TileRow = typeof tiles.$inferSelect;
+type TeamRow = typeof teams.$inferSelect;
+
+// Per-event working context, assembled once up front. completionSet / teamGains mutate during eval.
+interface EventCtx {
+  event: EventRow;
+  eventTiles: TileRow[];
+  statTiles: TileRow[];
+  teams: TeamRow[];
+  teamMap: Map<number, TeamRow>;
+  completionSet: Set<string>;
+  teamGains: Map<string, number>;
+  // Per-member team-mode gains, keyed `${teamId}-${tileId}` → the raw contributors. Kept alongside
+  // teamGains (the running sum) so that when a team-mode stat tile crosses its goal we can freeze the
+  // exact per-member split onto completions.statContributions instead of only the total.
+  teamMemberGains: Map<string, { playerId: number; gained: number }[]>;
+  // Benched (sub-out) players on a team: their gain is pinned to frozenStats and never re-fetched, but
+  // it still counts toward team-mode tiles, so we seed it into teamGains/teamMemberGains each run.
+  frozenPlayers: { id: number; teamId: number; baselineJson: string | null; frozenStats: string | null }[];
+  hasStatTiles: boolean;
+  result: {
+    eventId: number;
+    eventName: string;
+    playersChecked: number;
+    playersSnapshotted: number;
+    tilesCompleted: { tileLabel: string; teamName: string; playerName: string }[];
+    errors: string[];
+  };
+}
+
+interface BingoTask { ctx: EventCtx; player: PlayerRow; needsSnapshot: boolean; }
+interface WeeklyTask {
+  comp: { id: number; type: CompetitionType; metric: string; startDate: string };
+  participant: { id: number; baselineValue: number | null; currentValue: number | null; lastUpdated: string | null; clanMemberId: number | null };
+}
+
+// One clan member's whole workload for this sweep — a single hiscores fetch, fanned out.
+interface MemberWork {
+  key: string;
+  clanMemberId: number | null;
+  /** The ACCOUNT being fetched. History hangs off this; the seat is only where it is displayed. */
+  accountId: number | null;
+  fetchRsn: string;
+  liveMap: Record<string, number>;
+  liveKeyTimes: Record<string, string>; // key -> last-rose ISO, for the stale-overlay prune
+  bingo: BingoTask[];
+  weekly: WeeklyTask[];
+  staleKey: string; // oldest task timestamp — drives oldest-first ordering
+  // Adaptive polling state (lib/statHistory.ts). A member who keeps coming back unchanged is fetched
+  // less and less often, up to a two-hour floor; anything that proves they're playing resets it.
+  missStreak: number;
+  nextDueAt: string | null;
+  lastSnapshot: string | null;
+  /** Whether the member already has a derived activity blob — false means backfill it this tick. */
+  hasActivities: boolean;
+  /** True while no competition has claimed them: swept only on leftover budget. */
+  rosterOnly: boolean;
+  /** Last plugin push and last hiscores poll — the plugin-first rule (lib/pollLadder sweepDue). */
+  liveStatsAt?: string | null;
+  polledAt?: string | null;
+}
+
+// A bingo player fetched this tick, held for the single-threaded completion pass.
+interface FetchedBingo {
+  ctx: EventCtx;
+  player: PlayerRow;
+  baseline: HiscoresSnapshot;
+  current: HiscoresSnapshot;
+  liveMap: Record<string, number>;
+}
+/**
+ * Where this sweep's hiscores reads come from.
+ *
+ *   'site'  — fetch them here, under the token bucket below. The original sweep, unchanged.
+ *   'forge' — Anvil.Forge fetches. This tick applies whatever Forge has fetched since the last one,
+ *             then queues everything still due (lib/forgeFetchQueue). Same work list, same apply
+ *             code; only who talks to Jagex differs, so the two cannot disagree about a result.
+ */
+export type SweepSource = 'site' | 'forge';
+
+export interface StatsSweepResult {
+  skipped: number;
+  durationMs: number;
+  results: EventCtx['result'][];
+  forge?: ForgeDrainStats;
+}
+
+/**
+ * One sweep tick: build the work list, read the hiscores (here or via Forge), apply, evaluate bingo.
+ * The caller has already decided this process may run it (lib/sweepOwner).
+ */
+export async function runStatsSweep(source: SweepSource = 'site'): Promise<StatsSweepResult> {
+  const start = Date.now();
+  const now = new Date().toISOString();
+
+  // Fire scheduled event start/end Discord posts (idempotent via atomic flags). The per-minute
+  // flush-notifications cron runs the same check; this is a backstop so posts don't lag.
+  await processEventLifecycleNotifications();
+
+  // ── Phase 1: assemble the member-keyed work list ──────────────────────────────────────────────
+  const work = new Map<string, MemberWork>();
+  const clanMemberIds = new Set<number>();
+  const keyFor = (clanMemberId: number | null, rsn: string) =>
+    clanMemberId != null ? `cm:${clanMemberId}` : `rsn:${normalizeRsn(rsn)}`;
+  const olderOf = (a: string, b: string | null) => {
+    const bn = b ?? '';
+    return a === '' ? a : bn === '' ? bn : a < bn ? a : bn;
+  };
+  function ensureEntry(clanMemberId: number | null, provisionalRsn: string, accountId: number | null = null): MemberWork {
+    const key = keyFor(clanMemberId, provisionalRsn);
+    let entry = work.get(key);
+    if (!entry) {
+      entry = {
+        key,
+        clanMemberId,
+        accountId,
+        fetchRsn: provisionalRsn,
+        liveMap: {},
+        liveKeyTimes: {},
+        bingo: [],
+        weekly: [],
+        staleKey: 'zzzz',
+        missStreak: 0,
+        nextDueAt: null,
+        lastSnapshot: null,
+        hasActivities: false,
+        // Flipped to false the moment a competition claims this member (see ensureEntry callers).
+        rosterOnly: true,
+      };
+      work.set(key, entry);
+    }
+    if (clanMemberId != null) clanMemberIds.add(clanMemberId);
+    if (accountId != null && entry.accountId == null) entry.accountId = accountId;
+    return entry;
+  }
+  /** A competition wants this member, so they are priority work rather than filler. */
+  const claim = (entry: MemberWork) => { entry.rosterOnly = false; return entry; };
+
+  // Bingo events → per-event ctx + per-player bingo tasks.
+  // clan-scope: global -- the stats sweep runs across every clan; that is what a cron tick IS.
+  // Each event carries its own clanId, which is what the per-event work below scopes on.
+  const allEvents = await db.select().from(events);
+  const activeEvents = allEvents.filter((e) => {
+    if (e.forceEndedAt) return false;
+    if (e.startDate && e.startDate > now) return false;
+    if (e.endDate && e.endDate < now) return false;
+    return true;
+  });
+
+  const ctxList: EventCtx[] = [];
+  for (const event of activeEvents) {
+    const eventPlayers = await db.query.eventParticipants.findMany({ where: eq(eventParticipants.eventId, event.id) });
+    const eventTiles = await db.query.tiles.findMany({ where: eq(tiles.eventId, event.id) });
+    // Skip tiles an admin flipped to manual (autoTrackDisabled) — never auto-credit those.
+    const statTiles = eventTiles.filter((t) => t.trackedStat && t.statType && t.statGoal && !t.autoTrackDisabled);
+    const hasStatTiles = statTiles.length > 0;
+    const eventTeams = await db.query.teams.findMany({ where: eq(teams.eventId, event.id) });
+    const eventTileIds = eventTiles.map((t) => t.id);
+    const existingCompletions = eventTileIds.length
+      ? await db.select().from(completions).where(inArray(completions.tileId, eventTileIds))
+      : [];
+
+    const ctx: EventCtx = {
+      event,
+      eventTiles,
+      statTiles,
+      teams: eventTeams,
+      teamMap: new Map(eventTeams.map((t) => [t.id, t])),
+      completionSet: new Set(existingCompletions.map((c) => `${c.teamId}-${c.tileId}`)),
+      teamGains: new Map(),
+      teamMemberGains: new Map(),
+      frozenPlayers: eventPlayers
+        .filter((p) => p.teamId != null && p.frozenAt)
+        .map((p) => ({ id: p.id, teamId: p.teamId!, baselineJson: p.statsSnapshot, frozenStats: p.frozenStats })),
+      hasStatTiles,
+      result: { eventId: event.id, eventName: event.name, playersChecked: 0, playersSnapshotted: 0, tilesCompleted: [], errors: [] },
+    };
+    ctxList.push(ctx);
+
+    for (const player of eventPlayers) {
+      if (!player.teamId) continue;
+      // Benched players are pinned to frozenStats — don't re-fetch them (that would unfreeze the gain).
+      // Their contribution is seeded into team-mode sums from ctx.frozenPlayers in the finalize loop.
+      if (player.frozenAt) continue;
+      // Recapture when there's no baseline yet OR the one we have was taken before the event started
+      // (an early admin pull, a moved-up start) — that keeps a pre-event baseline from counting the
+      // gains between its capture and the whistle. See lib/statTracking#needsBaselineRecapture.
+      const needsSnapshot = needsBaselineRecapture(player.statsSnapshot, player.snapshotAt, event.startDate);
+      // Fetch when the event has stat tiles (need current stats for gains) or the player still needs
+      // a baseline. Events without stat tiles only snapshot missing baselines.
+      if (!hasStatTiles && !needsSnapshot) continue;
+      const entry = claim(ensureEntry(player.clanMemberId, player.name));
+      entry.bingo.push({ ctx, player, needsSnapshot });
+      entry.staleKey = olderOf(entry.staleKey, player.lastStatsFetch);
+    }
+  }
+
+  // Weekly comps → per-participant weekly tasks. Mirror the weekly cron's participant filter: skip
+  // any whose clan_members.status isn't 'active' (renamed / banned), but keep null-clanMemberId rows.
+  // clan-scope: global -- the sweep runs across every clan by design; that is what a platform-wide cron is.
+  const activeComps = await db.query.weeklyCompetitions.findMany({ where: eq(weeklyCompetitions.status, 'active') });
+  for (const comp of activeComps) {
+    // clan-scope: global -- the sweep runs across every clan by design; that is what a platform-wide cron is.
+    const participants = await db
+      .select({
+        id: weeklyParticipants.id,
+        rsn: weeklyParticipants.rsn,
+        baselineValue: weeklyParticipants.baselineValue,
+        currentValue: weeklyParticipants.currentValue,
+        lastUpdated: weeklyParticipants.lastUpdated,
+        clanMemberId: weeklyParticipants.clanMemberId,
+      })
+      .from(weeklyParticipants)
+      .leftJoin(clanRoster, eq(weeklyParticipants.clanMemberId, clanRoster.id))
+      .where(
+        and(
+          eq(weeklyParticipants.competitionId, comp.id),
+          or(isNull(weeklyParticipants.clanMemberId), eq(clanRoster.status, 'active')),
+        ),
+      )
+      .orderBy(asc(weeklyParticipants.lastUpdated));
+
+    for (const p of participants) {
+      const entry = claim(ensureEntry(p.clanMemberId, p.rsn));
+      entry.weekly.push({ comp: { id: comp.id, type: comp.type as CompetitionType, metric: comp.metric, startDate: comp.startDate }, participant: p });
+      entry.staleKey = olderOf(entry.staleKey, p.lastUpdated);
+    }
+  }
+
+  // ── Third source: the roster itself ──────────────────────────────────────────────────────────
+  //
+  // Competitions were the only two sources, so a clan not currently running one was never swept at
+  // all: LFL had 275 members, an entirely empty stats table on /members, and a footnote blaming
+  // "we haven't seen that account yet" — which named the wrong cause. Nobody there was in a
+  // competition, so nobody was ever queued.
+  //
+  // These are FILLER, not equal work. They are appended after the competition queue and only get
+  // fetched if that queue drains inside the tick's budget, so a busy board never loses a request to
+  // a roster nobody is racing on. The Jagex budget is shared by every clan on this box, and the
+  // failure mode of spending it badly is the IP blocked and tracking dead for all of them.
+  //
+  // They ride the same backoff ladder as everyone else (statsNextDueAt / statsMissStreak), so an
+  // idle account settles to an occasional check rather than being polled every tick forever.
+  //
+  // clan-scope: global -- same reason as the events query above: a cron tick IS every clan.
+  const rosterSeats = await db
+    .select({ id: clanRoster.id, rsn: clanRoster.rsn, accountId: clanRoster.accountId })
+    .from(clanRoster)
+    .where(and(isNull(clanRoster.leftAt), eq(clanRoster.kind, 'member'), eq(clanRoster.status, 'active')));
+  for (const seat of rosterSeats) ensureEntry(seat.id, seat.rsn, seat.accountId);
+
+  // CLAIMED ACCOUNTS NO ROSTER PASS COVERS. The fourth source, and the smallest.
+  //
+  // Every source above reaches an account through a clan, so somebody who signed in, linked their
+  // character and joined nothing was polled by nothing — and their profile, which is the same page a
+  // clan member gets, had no numbers in it. That is the wrong answer for a platform whose front door
+  // is now a person rather than a clan.
+  //
+  // Bounded by CLAIMED: a login proved it owns this account. That is a few per person rather than a
+  // roster per clan, and it cannot be grown by anyone but a real signed-in human. They arrive as
+  // filler like any other unclaimed work and settle onto the same backoff ladder, so an account
+  // nobody plays costs one poll every couple of hours and then less.
+  const clanlessAccounts = await db
+    .select({ id: accounts.id, rsn: accounts.rsn })
+    .from(accounts)
+    .where(
+      and(
+        isNotNull(accounts.claimedAt),
+        eq(accounts.status, 'active'),
+        // NOT COVERED ABOVE, which means no live MEMBER seat — a guest seat does not count.
+        //
+        // This asked for no seat of any kind, and a guest holds one, so the two passes left a hole
+        // exactly where somebody new lands: verifying by XP links the account and then `admit` seats
+        // them as a guest under the default policy, since a roster is the clan's to write. That
+        // person came out claimed, verified, owned — and polled by nothing, because the roster pass
+        // takes members only and this one took their guest seat as proof they were somebody else's
+        // problem. Being a guest somewhere should not cost you the tracking you would have had in no
+        // clan at all.
+        //
+        // clan-scope: global -- identity is global; which rosters name this account is the question.
+        notExists(
+          db
+            .select({ n: sql`1` })
+            .from(clanMemberships)
+            .where(
+              and(
+                eq(clanMemberships.accountId, accounts.id),
+                eq(clanMemberships.kind, 'member'),
+                isNull(clanMemberships.leftAt),
+              ),
+            ),
+        ),
+      ),
+    );
+  for (const acc of clanlessAccounts) ensureEntry(null, acc.rsn, acc.id);
+
+  // Resolve the canonical fetch RSN + live overlay per linked member. Fetching by clan_members.rsn
+  // (rename-synced) instead of eventParticipants.name (a per-event display override) is what stops a mid-event
+  // rename from 404-parking tracking.
+  if (clanMemberIds.size > 0) {
+    // clan-scope: global -- the sweep runs across every clan by design; that is what a platform-wide cron is.
+    const members = await db
+      .select({
+        id: clanRoster.id,
+        accountId: clanRoster.accountId,
+        rsn: clanRoster.rsn,
+        liveStats: clanRoster.liveStats,
+        liveStatKeyTimes: clanRoster.liveStatKeyTimes,
+        statsMissStreak: clanRoster.statsMissStreak,
+        statsNextDueAt: clanRoster.statsNextDueAt,
+        statsLastSnapshot: clanRoster.statsLastSnapshot,
+        statsActivities: clanRoster.statsActivities,
+      })
+      .from(clanRoster)
+      .where(inArray(clanRoster.id, Array.from(clanMemberIds)));
+    const memberById = new Map(members.map((m) => [m.id, m]));
+    for (const entry of work.values()) {
+      if (entry.clanMemberId == null) continue;
+      const m = memberById.get(entry.clanMemberId);
+      if (m) {
+        entry.accountId = entry.accountId ?? m.accountId;
+        entry.fetchRsn = m.rsn;
+        entry.liveMap = parsePluginStats(m.liveStats);
+        entry.liveKeyTimes = parseStatKeyTimes(m.liveStatKeyTimes);
+        entry.missStreak = m.statsMissStreak ?? 0;
+        entry.nextDueAt = m.statsNextDueAt;
+        entry.lastSnapshot = m.statsLastSnapshot;
+        entry.hasActivities = m.statsActivities != null;
+        // A push used to force a fetch here ("logged in right now, worth fetching"). That spent the
+        // Jagex budget re-reading exactly what the client had just told us. Plugin-first now: a
+        // pushing account is reconciled every few hours and polled once when the pushes stop
+        // (sweepDue, below).
+      }
+    }
+  }
+
+  // ── Phase 2: fetch each member once, under a shared token bucket + wall-clock budget ────────────
+  // Only fetch members who could plausibly have changed. A member still missing a baseline is always
+  // due — their tile or comp row can't score without one — but an idle member who has come back
+  // unchanged several ticks running is deferred (lib/statHistory.ts). This is the difference between
+  // polling a 200-member clan ~19k times a day and ~4k, and it compounds with every clan on the box,
+  // since all of them share one IP as far as Jagex is concerned.
+  const nowDate = new Date();
+
+  // ONE FETCH PER ACCOUNT, not per seat.
+  //
+  // The work list is keyed by seat, because that is what a competition row points at. But a person
+  // in ten clans holds ten seats for one character, and Jagex has one page for it — so the same RSN
+  // was requested ten times a tick, and the same account row written ten times. The header above
+  // promises a member is fetched "exactly ONCE"; that only ever deduped across COMPETITIONS, and
+  // adding the roster as a source made the gap matter.
+  //
+  // Merged here rather than at `ensureEntry` because the key is only knowable afterwards: a bingo
+  // row carries a per-event display name that a rename can leave stale, and the canonical RSN and
+  // account arrive with the enrichment above.
+  //
+  // Safe to collapse because every write downstream is account-level: `updateAccount` and the
+  // unranked quarantine both resolve a seat id to its account before writing, so any one of the
+  // merged seats stands for all of them. The per-seat work rides along in `bingo` and `weekly`,
+  // which carry their own ids and still fan out.
+  const allWork = mergeSeatsByAccount(work.values(), normalizeRsn);
+  // The plugin-first inputs live on the ACCOUNT, so they're read once per merged entry.
+  const workAccountIds = allWork.map((e) => e.accountId).filter((id): id is number => id != null);
+  if (workAccountIds.length > 0) {
+    // clan-scope: global -- account rows the work list already holds; a cron tick IS every clan.
+    const pushState = await db
+      .select({ id: accounts.id, liveStatsAt: accounts.liveStatsAt, polledAt: accounts.statsPolledAt })
+      .from(accounts)
+      .where(inArray(accounts.id, workAccountIds));
+    const byId = new Map(pushState.map((r) => [r.id, r]));
+    for (const entry of allWork) {
+      const r = entry.accountId != null ? byId.get(entry.accountId) : undefined;
+      if (r) {
+        entry.liveStatsAt = r.liveStatsAt;
+        entry.polledAt = r.polledAt;
+      }
+    }
+  }
+  let pluginSkipped = 0;
+  const due = allWork.filter((entry) => {
+    const needsBaseline =
+      entry.bingo.some((b) => b.needsSnapshot) || entry.weekly.some((w) => w.participant.baselineValue === null);
+    // Accounts we couldn't read push state for (no account yet) keep the old rule exactly.
+    if (entry.accountId == null || entry.polledAt === undefined) return needsBaseline || isDue(entry.nextDueAt, nowDate);
+    const isDueNow = sweepDue(
+      { needsBaseline, nextDueAt: entry.nextDueAt, liveStatsAt: entry.liveStatsAt, polledAt: entry.polledAt },
+      nowDate,
+    );
+    if (!isDueNow && isDue(entry.nextDueAt, nowDate)) pluginSkipped++;
+    return isDueNow;
+  });
+  // TWO QUEUES, ONE BUDGET. Competition work goes first and roster filler takes whatever is left of
+  // the tick — never the other way round, and never interleaved. Both are oldest-fetched-first
+  // within themselves, so whatever does not fit rolls into the next tick rather than starving.
+  const queue = due.filter((e) => !e.rosterOnly).sort((a, b) => a.staleKey.localeCompare(b.staleKey));
+  // NEVER-SWEPT FIRST, then least-recently-due. Not `staleKey`: that is only ever written by a
+  // competition, so every roster entry carries the same default and sorting on it is a no-op —
+  // the cap then took the same 120 rows every tick, in insertion order, while anyone who had gained
+  // XP reset to "due now" and kept their slot. The observed effect was a tick fetching 119 members
+  // for 7 history writes and a backlog of 152 moving by 8.
+  //
+  // A member with no snapshot has never been seen at all, so they go ahead of anyone we already
+  // have a reading for, however stale. That drains the backlog in a few ticks and only then settles
+  // into the backoff rhythm.
+  const fillerDue = due
+    .filter((e) => e.rosterOnly)
+    .sort((a, b) => {
+      const seen = (e: MemberWork) => (e.lastSnapshot ? 1 : 0);
+      return seen(a) - seen(b) || (a.nextDueAt ?? '').localeCompare(b.nextDueAt ?? '');
+    });
+  const filler = fillerDue.slice(0, ROSTER_FILLER_PER_TICK);
+  const deferred = allWork.length - due.length;
+  const fetchedBingo: FetchedBingo[] = [];
+  const unrankedMemberIds = new Set<number>();
+  let membersFetched = 0;
+  let fillerFetched = 0;
+  let weeklyUpdated = 0;
+  let fetchErrors = 0;
+  let historyWrites = 0;
+  let milestonesRecorded = 0;
+
+  // Everything one hiscores read means for one work entry: overlay reconcile, the account's
+  // bookkeeping and history, bingo baselines and caches, weekly values. Shared by both sources —
+  // the whole point of the Forge split is that this function exists once.
+  async function applyFetch(entry: MemberWork, result: SnapshotFetch, ts: string): Promise<void> {
+    if (result.kind !== 'value') {
+      fetchErrors++;
+      // Terminal 404 → quarantine the member so the weekly cron's re-probe lifts them back later.
+      if (result.kind === 'unranked' && entry.clanMemberId != null) unrankedMemberIds.add(entry.clanMemberId);
+      // Advance weekly rows out of the queue head; leave their values untouched.
+      for (const w of entry.weekly) {
+        await db.update(weeklyParticipants).set({ lastUpdated: ts }).where(eq(weeklyParticipants.id, w.participant.id));
+      }
+      for (const b of entry.bingo) b.ctx.result.errors.push(`Failed to fetch stats for ${entry.fetchRsn}`);
+      return;
+    }
+
+    // SOMEBODY ELSE'S HISCORES. Overall XP never goes down, so a name answering with LESS than this
+    // account last had is not this account: its player renamed and a stranger took the old name.
+    // Storing it would feed the stranger's stats into this character's event baseline and gains
+    // (false tile completions, polluted history). Quarantine it like a 404 instead; the rename is
+    // healed by the plugin, the roster-split detector or Anvil staff (lib/characterRename).
+    if (entry.accountId != null && entry.lastSnapshot) {
+      let lastXp = 0;
+      try {
+        lastXp = Math.max(0, (JSON.parse(entry.lastSnapshot) as HiscoresSnapshot).skills?.overall?.xp ?? 0);
+      } catch {
+        lastXp = 0;
+      }
+      const nowXp = Math.max(0, result.snapshot.skills?.overall?.xp ?? 0);
+      if (lastXp > 0 && nowXp > 0 && nowXp < lastXp) {
+        fetchErrors++;
+        if (entry.clanMemberId != null) unrankedMemberIds.add(entry.clanMemberId);
+        log.warn('stats-cron.name-taken', { accountId: entry.accountId, rsn: entry.fetchRsn, lastXp, nowXp });
+        for (const w of entry.weekly) {
+          await db.update(weeklyParticipants).set({ lastUpdated: ts }).where(eq(weeklyParticipants.id, w.participant.id));
+        }
+        for (const b of entry.bingo) b.ctx.result.errors.push(`${entry.fetchRsn} now belongs to a different account — waiting for the rename`);
+        return;
+      }
+    }
+
+    membersFetched++;
+    if (entry.rosterOnly) fillerFetched++;
+    const snapshot = result.snapshot;
+    const snapshotJson = JSON.stringify(snapshot);
+
+    // Reconcile the live overlay against fresh hiscores: drop keys hiscores caught up to. The kept
+    // (still-ahead) map is BOTH what we persist and the live overlay for this tick's gains.
+    let liveMap = entry.liveMap;
+    if (entry.accountId != null) {
+      // 1) Drop keys hiscores has caught up to (h >= v). 2) Drop keys not refreshed within ~6h —
+      // the OSRS-logout backstop that heals a bogus push stuck ABOVE hiscores (which step 1 can't).
+      const rec = reconcileLive(entry.liveMap, snapshot);
+      const stale = pruneStaleOverlay(rec.pruned, entry.liveKeyTimes, Date.parse(ts), STALE_OVERLAY_MS);
+      liveMap = stale.pruned;
+      if (rec.changed || stale.changed) {
+        await updateAccount(entry.accountId, { liveStats: Object.keys(liveMap).length ? JSON.stringify(liveMap) : null });
+      }
+    }
+
+    // ── History + adaptive polling ────────────────────────────────────────────────────────────
+    // Everything below is derived from the snapshot we already have — no extra hiscores traffic.
+    //
+    // Keyed on the ACCOUNT, not the seat. It used to require a seat, which was the same thing back
+    // when only rostered members were polled; a claimed account with no clan has stats to keep and
+    // no seat to keep them under.
+    if (entry.accountId != null) {
+      let previous: HiscoresSnapshot | null = null;
+      if (entry.lastSnapshot) {
+        try {
+          previous = JSON.parse(entry.lastSnapshot) as HiscoresSnapshot;
+        } catch {
+          previous = null; // corrupt blob — treat as a first sighting rather than failing the tick
+        }
+      }
+      const overallXp = Math.max(0, snapshot.skills?.overall?.xp ?? 0);
+      const changed = previous === null || overallXp !== Math.max(0, previous.skills?.overall?.xp ?? 0);
+      const missStreak = changed ? 0 : entry.missStreak + 1;
+
+      // The compact activity map the member directory reads instead of parsing full snapshots.
+      // Written whenever the snapshot is, plus once for a member who predates the column — without
+      // that backfill an idle account would sit missing from the clan leaderboards until the day
+      // it happened to gain XP, which for some members is never.
+      const writeActivities = changed || !entry.hasActivities;
+
+      // The bookkeeping, every poll — a narrow row now that the snapshot lives elsewhere.
+      // Enrolled in something live — a competition row or a stat tile — so the backoff tail is
+      // capped (lib/statHistory). Their board is the one a person refreshes while they train.
+      const racing = entry.weekly.length > 0 || entry.bingo.length > 0;
+      await updateAccount(entry.accountId, {
+              statsOverallXp: overallXp,
+              statsMissStreak: missStreak,
+              statsNextDueAt: nextDueAt(missStreak, new Date(), racing),
+              statsPolledAt: new Date().toISOString(),
+              ...(writeActivities ? { statsActivities: JSON.stringify(readAllActivities(snapshot)) } : {}),
+            });
+      // The snapshot, only when it would differ. Its own table (schema accountStatSnapshots) so an
+      // idle member's poll no longer copies 1.6 KB of unchanged JSON to say "still nothing".
+      if (changed) await saveStatSnapshot(entry.accountId, snapshotJson);
+      if (writeActivities) entry.hasActivities = true;
+
+      if (changed) {
+        const accountId = entry.accountId;
+        historyWrites++;
+        try {
+          // Effective on both sides, with the overlay as it stood BEFORE this poll: gains the
+          // plugin already pushed were recorded then (api/plugin/stats) and net to zero here, so
+          // only what it never saw — mobile play, a client that was off — is new (lib/liveHistory).
+          const prevEff = previous ? overlaySnapshot(previous, entry.liveMap) : null;
+          const curEff = overlaySnapshot(snapshot, entry.liveMap);
+          await recordDailyStats({ accountId, snapshot: curEff, previous: prevEff });
+          const found = detectMilestones(prevEff, curEff, computeDeltas(prevEff, curEff));
+          if (found.length > 0) milestonesRecorded += await recordMilestones(accountId, found);
+        } catch (e) {
+          // History is a reporting nicety; a failure here must never cost the tick its scoring work.
+          log.warn('stats-cron.history-failed', { clanMemberId: entry.clanMemberId, error: (e as Error).message });
+        }
+      }
+    }
+
+    // Bingo: write each player's cached (and, on first fetch, baseline) snapshot; hold for eval.
+    for (const b of entry.bingo) {
+      if (b.needsSnapshot) {
+        // Baseline absorbs the live overlay so a session already in progress at the start doesn't
+        // leak its pre-start gains (hiscores lag). This tick's eval must use the SAME absorbed
+        // baseline, else current(with overlay) − raw baseline credits the session immediately.
+        const baselineJson = baselineWithOverlay(snapshotJson, liveMap);
+        await db
+          .update(eventParticipants)
+          .set({ statsSnapshot: baselineJson, snapshotAt: ts, cachedStats: snapshotJson, lastStatsFetch: ts })
+          .where(eq(eventParticipants.id, b.player.id));
+        b.ctx.result.playersSnapshotted++;
+        fetchedBingo.push({ ctx: b.ctx, player: b.player, baseline: JSON.parse(baselineJson), current: snapshot, liveMap });
+      } else {
+        await db.update(eventParticipants).set({ cachedStats: snapshotJson, lastStatsFetch: ts }).where(eq(eventParticipants.id, b.player.id));
+        b.ctx.result.playersChecked++;
+        let baseline: HiscoresSnapshot;
+        try {
+          baseline = JSON.parse(b.player.statsSnapshot!);
+        } catch {
+          b.ctx.result.errors.push(`Invalid snapshot for ${b.player.name}`);
+          continue;
+        }
+        // A starting-shot baseline (lib/liveSnapshot) knows the skills but few bosses; fill the
+        // rest from this read so those keys start scoring from here.
+        if (baseline.partial) {
+          baseline = completePartialBaseline(baseline, snapshot);
+          await db
+            .update(eventParticipants)
+            .set({ statsSnapshot: JSON.stringify(baseline) })
+            .where(eq(eventParticipants.id, b.player.id));
+        }
+        fetchedBingo.push({ ctx: b.ctx, player: b.player, baseline, current: snapshot, liveMap });
+      }
+    }
+
+    // Weekly: extract each comp's metric from the one snapshot, fold in the live overlay, apply.
+    for (const w of entry.weekly) {
+      const m = readMetricFromSnapshot(snapshot, w.comp.type, w.comp.metric);
+      if (m.kind !== 'value') {
+        // Unknown boss key / bad read — leave the value, just advance the queue position.
+        await db.update(weeklyParticipants).set({ lastUpdated: ts }).where(eq(weeklyParticipants.id, w.participant.id));
+        continue;
+      }
+      // Effective = max(hiscores, live). On first capture this becomes the baseline, absorbing a
+      // mid-session logout flush so the gain starts at 0.
+      const value = effectiveValue(m.value, liveMap, w.comp.metric);
+      const outcome = await applyWeeklyValue({
+        participantId: w.participant.id,
+        type: w.comp.type,
+        metric: w.comp.metric,
+        value,
+        baselineValue: w.participant.baselineValue,
+        currentValue: w.participant.currentValue,
+        lastUpdated: w.participant.lastUpdated,
+        allowFirstCapture: true,
+        competitionStartIso: w.comp.startDate,
+        now: ts,
+      });
+      if (outcome.outcome === 'updated' || outcome.outcome === 'first-captured') weeklyUpdated++;
+      // Competition-scoped snapshot (frozen baseline + per-tick current), bounded at 2 rows/member/comp.
+      //
+      // entry.accountId, NOT participant.clanMemberId. This passed a SEAT id into a column that
+      // means ACCOUNT, and the two id spaces overlap: on the migrated database 535 of 561 seats
+      // share an id with some other real account, so the write mostly SUCCEEDED and filed the
+      // snapshot under a stranger. Only the seats numbered above the highest account failed loudly
+      // enough to notice. The field's own comment three declarations up says which one this is:
+      // "History hangs off this; the seat is only where it is displayed."
+      if (entry.accountId != null) {
+        await writePlayerSnapshot(entry.accountId, w.comp.id, snapshot);
+      }
+    }
+  }
+
+  let skipped = 0;
+  let forgeStats: ForgeDrainStats | undefined;
+  if (source === 'site') {
+    let lastDispatch = 0;
+    async function takeToken() {
+      const wait = Math.max(0, PER_REQUEST_GAP_MS - (Date.now() - lastDispatch));
+      if (wait > 0) await delay(wait);
+      lastDispatch = Date.now();
+    }
+
+
+    const pending = [...queue, ...filler];
+    const workers = Array.from({ length: CONCURRENCY }, async () => {
+      while (pending.length > 0) {
+        if (Date.now() - start > TIME_BUDGET_MS) break; // budget hit — leave the rest for next tick
+        const entry = pending.shift();
+        if (!entry) break;
+        await takeToken();
+        const ts = new Date().toISOString();
+        await applyFetch(entry, await fetchSnapshotWithRetry(entry.fetchRsn), ts);
+      }
+    });
+    await Promise.all(workers);
+    skipped = pending.length;
+  } else {
+    // Apply what Forge fetched since the last drain, then queue what is still due. Applied first so
+    // an entry whose result just landed is not queued again for a read we already have.
+    forgeStats = await drainForgeFetches({ work: allWork, due: [...queue, ...filler], apply: applyFetch });
+    skipped = forgeStats.queued;
+  }
+
+
+  // ── Phase 3: evaluate bingo completions in-memory (single-threaded — safe shared-state mutation) ─
+  for (const f of fetchedBingo) {
+    const ctx = f.ctx;
+    if (!ctx.hasStatTiles || !f.player.teamId) continue;
+    for (const tile of ctx.statTiles) {
+      const key = `${f.player.teamId}-${tile.id}`;
+      if (ctx.completionSet.has(key)) continue;
+      // MILESTONE tiles measure a lifetime total crossed during the event rather than an in-event
+      // gain, and are always evaluated PER MEMBER — summing lifetime totals across a team is
+      // meaningless (0 + 5 + 200 clears a goal of 1 for the wrong reason). See lib/statTracking.
+      const milestone = isMilestoneBasis(tile.statBasis);
+      const ms = milestone
+        ? milestoneState(f.baseline, f.current, f.liveMap, statKeys(tile.trackedStat), tile.statType!, tile.statGoal!)
+        : null;
+      // What this member has to their name for the tile — their lifetime for a milestone, their
+      // in-event gain otherwise. Used for the frozen contribution split either way.
+      const gained = ms ? ms.lifetime : computeGain(f.baseline, f.current, f.liveMap, statKeys(tile.trackedStat), tile.statType!);
+      const meetsGoal = ms ? ms.reached : gained >= tile.statGoal!;
+
+      if (milestone || isIndividualMode(tile.trackingMode)) {
+        if (meetsGoal) {
+          // Event-rules gate: unrevealed/claimed tiles and lockout losses never auto-credit from
+          // the sweep; the gain keeps accruing and credits if/when the tile opens up.
+          const gate = await evaluateCompletionGate({ event: ctx.event, tile, teamId: f.player.teamId });
+          if (!gate.allowed) continue;
+          // Notify only on a genuine insert (a live push may have completed it already).
+          const inserted = await db
+            .insert(completions)
+            // Individual stat tile → attribute to the player who reached the goal (no submission exists
+            // for a hiscores-driven completion, so this is how the activity feed says who finished it).
+            // The finisher hit the goal alone, so the frozen split is 100% theirs.
+            .values({
+              teamId: f.player.teamId,
+              tileId: tile.id,
+              creditPlayerId: f.player.id,
+              statContributions: JSON.stringify(
+                buildContributionSnapshot(tile.statGoal!, [{ playerId: f.player.id, gained }]),
+              ),
+              awardedPoints: gate.awardedPoints,
+            })
+            .onConflictDoNothing()
+            .returning({ id: completions.id });
+          ctx.completionSet.add(key);
+          if (inserted.length > 0) {
+            if (gate.bounty) handleBountyClaim(ctx.event.id, tile.id).catch(() => {});
+            const team = ctx.teamMap.get(f.player.teamId);
+            ctx.result.tilesCompleted.push({ tileLabel: tile.label, teamName: team?.name || 'Unknown', playerName: f.player.name });
+            if (team) {
+              notifyTileCompletion({
+                clanId: ctx.event.clanId,
+                eventName: ctx.event.name,
+                tileLabel: tile.label,
+                teamName: team.name,
+                teamId: team.id,
+                teamColor: team.color,
+                tileType: tile.tileType,
+                trackedStat: tile.trackedStat,
+                statType: tile.statType,
+                eventId: ctx.event.id,
+                tile,
+              }).catch(() => {});
+            }
+          }
+        }
+      } else {
+        ctx.teamGains.set(key, (ctx.teamGains.get(key) || 0) + gained);
+        if (gained > 0) {
+          const members = ctx.teamMemberGains.get(key) ?? [];
+          members.push({ playerId: f.player.id, gained });
+          ctx.teamMemberGains.set(key, members);
+        }
+      }
+    }
+  }
+
+  // Team-mode completions + blackout win, from the accumulated gains.
+  for (const ctx of ctxList) {
+    if (ctx.hasStatTiles) {
+      for (const tile of ctx.statTiles) {
+        // Milestones were already settled per member above; they never accumulate a team total.
+        if (isIndividualMode(tile.trackingMode) || isMilestoneBasis(tile.statBasis)) continue;
+        const keys = statKeys(tile.trackedStat);
+        // Seed benched players' frozen gains into this run's team sums (they aren't fetched, so phase 3
+        // never counted them). Their locked contribution keeps counting toward the goal + the split.
+        for (const fp of ctx.frozenPlayers) {
+          const gained = computeGainFromJson(fp.baselineJson, fp.frozenStats, {}, keys, tile.statType!);
+          if (gained <= 0) continue;
+          const key = `${fp.teamId}-${tile.id}`;
+          ctx.teamGains.set(key, (ctx.teamGains.get(key) || 0) + gained);
+          const members = ctx.teamMemberGains.get(key) ?? [];
+          members.push({ playerId: fp.id, gained });
+          ctx.teamMemberGains.set(key, members);
+        }
+        for (const team of ctx.teams) {
+          const key = `${team.id}-${tile.id}`;
+          if (ctx.completionSet.has(key)) continue;
+          if ((ctx.teamGains.get(key) || 0) >= tile.statGoal!) {
+            // Event-rules gate: same as the individual path above.
+            const gate = await evaluateCompletionGate({ event: ctx.event, tile, teamId: team.id });
+            if (!gate.allowed) continue;
+            const inserted = await db
+              .insert(completions)
+              // Freeze the per-member split as of this tick so the "who got what %" can't drift as the
+              // team's underlying KC/XP keeps climbing after the tile is done.
+              .values({
+                teamId: team.id,
+                tileId: tile.id,
+                statContributions: JSON.stringify(
+                  buildContributionSnapshot(tile.statGoal!, ctx.teamMemberGains.get(key) ?? []),
+                ),
+                awardedPoints: gate.awardedPoints,
+              })
+              .onConflictDoNothing()
+              .returning({ id: completions.id });
+            ctx.completionSet.add(key);
+            if (inserted.length > 0) {
+              if (gate.bounty) handleBountyClaim(ctx.event.id, tile.id).catch(() => {});
+              ctx.result.tilesCompleted.push({ tileLabel: tile.label, teamName: team.name, playerName: '(team total)' });
+              notifyTileCompletion({
+                clanId: ctx.event.clanId,
+                eventName: ctx.event.name,
+                tileLabel: tile.label,
+                teamName: team.name,
+                teamId: team.id,
+                teamColor: team.color,
+                tileType: tile.tileType,
+                trackedStat: tile.trackedStat,
+                statType: tile.statType,
+                eventId: ctx.event.id,
+                tile,
+              }).catch(() => {});
+            }
+          }
+        }
+      }
+
+      // Blackout: a team completing ALL required (non-optional) tiles.
+      const requiredTileIds = new Set(ctx.eventTiles.filter((t) => !t.optional).map((t) => t.id));
+      const totalRequiredTiles = requiredTileIds.size;
+      for (const team of ctx.teams) {
+        const teamCompletionCount = Array.from(ctx.completionSet).filter((key) => {
+          if (!key.startsWith(`${team.id}-`)) return false;
+          return requiredTileIds.has(parseInt(key.split('-')[1], 10));
+        }).length;
+        if (teamCompletionCount >= totalRequiredTiles && totalRequiredTiles > 0) {
+          if (ctx.result.tilesCompleted.some((tc) => tc.teamName === team.name)) {
+            notifyTeamWin({ clanId: ctx.event.clanId, eventName: ctx.event.name, teamName: team.name, teamId: team.id, teamColor: team.color, totalTiles: totalRequiredTiles, eventId: ctx.event.id }).catch(() => {});
+          }
+        }
+      }
+    }
+  }
+
+  // Apply unranked flips in one statement (don't churn status_last_checked mid-loop).
+  //
+  // The ids collected above are SEATS; the status belongs to the ACCOUNT sitting in each, so the
+  // hop is made in the statement rather than by naming the view — a view cannot appear in an
+  // UPDATE's WHERE, and Postgres rejects the whole statement when it does.
+  if (unrankedMemberIds.size > 0) {
+    await db
+      .update(accounts)
+      .set({ status: 'unranked', statusLastChecked: new Date().toISOString() })
+      .where(
+        inArray(
+          accounts.id,
+          // clan-scope: global -- the sweep runs across every clan by design; that is what a platform-wide cron is.
+          db
+            .select({ id: clanMemberships.accountId })
+            .from(clanMemberships)
+            .where(inArray(clanMemberships.id, Array.from(unrankedMemberIds))),
+        ),
+      );
+  }
+
+  const durationMs = Date.now() - start;
+  const results = ctxList.map((c) => c.result);
+  log.info('stats-cron.tick', {
+    source,
+    ...(forgeStats ? { forge: forgeStats } : {}),
+    activeEvents: activeEvents.length,
+    activeComps: activeComps.length,
+    membersQueued: queue.length,
+    // Seats collapsed into one fetch because they are the same character in different clans. This
+    // is requests NOT sent to Jagex, so it should grow as cross-clan guesting does.
+    seatsCollapsed: work.size - allWork.length,
+    // Roster filler: how many were eligible this tick, and how many the budget actually reached.
+    // `rosterQueued` high with `rosterFetched` at zero every tick means competitions are using the
+    // whole budget and a quiet clan's directory will stay empty — that is the number to watch.
+    rosterQueued: filler.length,
+    // How many were eligible but over the per-tick cap. Persistently large means the roster is
+    // bigger than the cap can keep warm, not that anything is broken.
+    rosterHeld: fillerDue.length - filler.length,
+    rosterFetched: fillerFetched,
+    // How many the backoff ladder held back this tick — the number to watch when tuning it.
+    membersDeferred: deferred,
+    // Due on the old ladder but skipped because the plugin is pushing them (lib/pollLadder sweepDue).
+    pluginSkipped,
+    membersFetched,
+    historyWrites,
+    milestonesRecorded,
+    skipped,
+    snapshotted: results.reduce((s, r) => s + r.playersSnapshotted, 0),
+    checked: results.reduce((s, r) => s + r.playersChecked, 0),
+    tilesCompleted: results.reduce((s, r) => s + r.tilesCompleted.length, 0),
+    weeklyUpdated,
+    markedUnranked: unrankedMemberIds.size,
+    fetchErrors,
+    durationMs,
+  });
+
+  return { skipped, durationMs, results, forge: forgeStats };
+}

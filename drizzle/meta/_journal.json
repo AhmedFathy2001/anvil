@@ -582,6 +582,13 @@
       "when": 1790811000000,
       "tag": "0124_goal_due_on",
       "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1790897400000,
+      "tag": "0125_hiscores_fetches",
+      "breakpoints": true
     }
   ]
 }
