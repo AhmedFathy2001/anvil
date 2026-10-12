@@ -6,6 +6,7 @@ import { resolvePluginMember } from '@/lib/auth';
 import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
 import { clogPageIndex, clogTotalSlots, groupObtainedItems } from '@/lib/clogDataset';
 import { bossKeyForPage, bossKillsFor } from '@/lib/clogLuckBoard';
+import { track } from '@/lib/analytics';
 
 // Collection-log ingest. The plugin sends pages the player has actually OPENED — the game only hands
 // the client a page once it has drawn one — so a log arrives in pieces over days rather than whole.
@@ -76,6 +77,9 @@ export async function POST(request: Request) {
         { status: 429, headers: rateLimitHeaders(rl) },
       );
     }
+    // The one-button profile sync (whole log). Counted on arrival: a push that then fails to store
+    // still says the button was pressed, which is the feature-use question this answers.
+    track('profile.synced', { userId: null, props: { kind: 'clog', items: (body.items as unknown[]).length } });
     return ingestWholeLog(body.items as IncomingItem[], member, {
       // Kill counters, when the client sends them. The whole-log transmit hands us every obtained
       // item but historically no counts, which left the unlock stamp guessing — see ingestWholeLog.

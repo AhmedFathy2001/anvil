@@ -23,6 +23,7 @@ import { assertEventEditable } from '@/lib/eventLock';
 import { parseEventRules } from '@/lib/eventRules';
 import { startProofGate, NO_START_PROOF_FLAG, START_PROOF_REQUIRED_CODE } from '@/lib/startProof';
 import { eventHasStarted } from '@/lib/completionGate';
+import { track } from '@/lib/analytics';
 
 /** What the plugin may say it inferred (submissions.flaggedReason). Anything else is ignored. */
 const INFERRED_FLAGS = new Set(['inferred_duplicate_pet', 'inferred_duplicate_scroll']);
@@ -510,6 +511,12 @@ export async function POST(
     flushPendingNotifications().catch(() => {});
   }
 
+  // How it arrived says which surface people actually use to submit: the plugin, the team page, or staff.
+  track('submission.created', {
+    clanId: clan.id,
+    props: { via: pluginAuth ? 'plugin' : membership ? 'team-page' : isAdmin ? 'staff' : captain ? 'captain' : 'player', proof: !!imageUrlValue },
+  });
+
   return NextResponse.json({ submission }, { status: 201 });
 }
 
@@ -667,6 +674,8 @@ export async function DELETE(
       tile,
     }).catch(() => {}); // Silently ignore errors
   }
+
+  track('submission.removed', { clanId: clan.id, props: { by: deletedByRole } });
 
   return NextResponse.json({ success: true, sync: syncResult });
 }

@@ -14,6 +14,7 @@ import { loadEventProfiles, attachProfiles } from '@/lib/draftProfiles';
 import { notifyDraftComplete, notifyDraftCompleteForClan, notifyDraftStart } from '@/lib/discord';
 import { syncTeamDiscordOnDraftCompleteFireAndForget } from '@/lib/discord-teams';
 import { assertEventEditable } from '@/lib/eventLock';
+import { track } from '@/lib/analytics';
 
 export async function GET(
   request: Request,
@@ -270,6 +271,7 @@ export async function POST(
         }).catch(() => {}); // Silently ignore errors
       }
 
+      track('draft.started', { clanId: clan.id, props: { teams: draftTeamOrder.length, pool: unpicked.length } });
       return NextResponse.json({ success: true, status: 'active' });
     }
 

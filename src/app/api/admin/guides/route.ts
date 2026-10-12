@@ -14,6 +14,7 @@ import {
 } from '@/lib/guides';
 import { setSetting } from '@/lib/settings';
 import { listCategories } from '@/lib/guideCategoryStore';
+import { track } from '@/lib/analytics';
 
 // GET — this clan's guides, the library beside them (with what the clan already copied), and the
 // library updates waiting on an answer.
@@ -52,13 +53,16 @@ export async function POST(request: Request) {
       const ids = Array.isArray(body.sourceIds) ? body.sourceIds.map(Number).filter(Number.isInteger).slice(0, 100) : [];
       const copies = [];
       for (const id of ids) copies.push(guideCard(await copyFromLibrary(clan.id, id, user.userId)));
+      track('guide.copied', { clanId: clan.id, userId: user.userId, props: { count: copies.length } });
       return NextResponse.json({ guides: copies });
     }
     if (body.action === 'copy') {
       const guide = await copyFromLibrary(clan.id, Number(body.sourceId), user.userId);
+      track('guide.copied', { clanId: clan.id, userId: user.userId, props: { count: 1 } });
       return NextResponse.json({ guide: guideCard(guide) });
     }
     const guide = await createGuide(clan.id, body, user.userId);
+    track('guide.created', { clanId: clan.id, userId: user.userId });
     return NextResponse.json({ guide: guideCard(guide) });
   } catch (err) {
     if (err instanceof GuideInputError) return NextResponse.json({ error: err.message }, { status: 400 });

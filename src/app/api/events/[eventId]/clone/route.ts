@@ -5,6 +5,7 @@ import { requireClan } from '@/lib/clanContext';
 import { events, tiles, surveyQuestions } from '@/db/schema';
 import { eq, asc } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
+import { track } from '@/lib/analytics';
 
 // Clone an event: copy its configuration, full tile board, and survey questions into a brand-new
 // event, resetting everything run-specific — no teams/players/completions/submissions/sign-ups, no
@@ -141,5 +142,6 @@ export async function POST(
     );
   }
 
+  track('event.cloned', { clanId: clan.id, props: { tiles: sourceTiles.length } });
   return NextResponse.json({ id: created.id, tiles: sourceTiles.length, surveyQuestions: sourceQuestions.length });
 }

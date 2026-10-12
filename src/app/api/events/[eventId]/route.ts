@@ -17,6 +17,7 @@ import { buildDraftBalance, bestBalancingSwap, projectedSpreadPct } from '@/lib/
 import { parseEventRules, hasRevealPolicy, visibleTiles, validateEventRules, mergeEventRulesPatch } from '@/lib/eventRules';
 import { announceNextMission } from '@/lib/revealEngine';
 import { clearPreStartEventActivity } from '@/lib/preStartActivity';
+import { track } from '@/lib/analytics';
 
 export async function GET(
   request: Request,
@@ -296,6 +297,7 @@ export async function PATCH(
       .returning();
 
     if (flipped.length > 0) {
+      track('event.started', { clanId: updated.clanId, props: { via: 'start-now', format: updated.format } });
       // Starting shot (lib/startProof): draw the location now, before the announcement that carries it.
       const startProof = await drawStartProof(updated).catch(() => null);
       notifyEventStart({

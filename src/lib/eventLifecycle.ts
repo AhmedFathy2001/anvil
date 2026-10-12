@@ -16,6 +16,7 @@ import { drawStartLocation } from '@/lib/startProof';
 import { log } from '@/lib/logger';
 import { postEventRules } from '@/lib/eventRulesPost';
 import { clearPreStartEventActivity } from '@/lib/preStartActivity';
+import { track } from '@/lib/analytics';
 
 // The awards worth celebrating in the Discord end post, most-fun-first — we take the first few of
 // these that actually have a winner so the embed stays punchy.
@@ -260,6 +261,8 @@ export async function processEventLifecycleNotifications(): Promise<void> {
       .returning({ id: events.id });
     if (flipped.length > 0) {
       log.info('event-lifecycle.start', { eventId: event.id });
+      // No session here — the cron starts it — so the user is recorded as nobody, on purpose.
+      track('event.started', { clanId: event.clanId, userId: null, props: { via: 'schedule', format: event.format } });
       // Draw BEFORE announcing so the embed can carry the location players have to be at.
       const startProof = await drawStartProof(event).catch(() => null);
       await notifyEventStart({

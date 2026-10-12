@@ -5,6 +5,7 @@ import { db } from '@/db';
 import { pluginDeviceCodes, users } from '@/db/schema';
 import { hashDeviceCode } from '@/lib/pluginDeviceAuth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
+import { track } from '@/lib/analytics';
 
 export const dynamic = 'force-dynamic';
 
@@ -76,6 +77,7 @@ export async function POST(request: Request) {
         await db.update(users).set({ pluginToken: token }).where(eq(users.id, user.id));
       }
       await db.update(pluginDeviceCodes).set({ status: 'redeemed' }).where(eq(pluginDeviceCodes.id, row.id));
+      track('plugin.linked', { userId: user.id, props: { via: 'device' } });
       return NextResponse.json({ status: 'complete', token });
     }
     default:

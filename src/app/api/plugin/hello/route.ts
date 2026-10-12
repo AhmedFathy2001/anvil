@@ -8,6 +8,7 @@ import { normalizeRsn } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { weeklyMetricLabel } from '@/lib/constants';
 import { admit } from '@/lib/guestAdmission';
+import { trackPluginDay } from '@/lib/analytics';
 
 // What's running right now — surfaced to the plugin so it can greet the player in-game with the
 // live SOTW/BOTW and bingos. Public info (same as the site board), so safe on this no-auth route —
@@ -81,6 +82,8 @@ export async function POST(request: Request) {
     // Now it asks. Under the default policy that means a request for staff, and no seat.
     const account = await findOrCreateAccount({ rsn, rsnNormalized });
     const result = await admit({ clanId: clan.id, accountId: account.id, source: 'plugin' });
+    // A login ping is the plugin being used today — counted once per (clan, account, day).
+    trackPluginDay(clan.id, account.id);
 
     if (result.outcome === 'seated') {
       await db
@@ -104,6 +107,8 @@ export async function POST(request: Request) {
       ...(await activeNow(clan)),
     });
   }
+
+  trackPluginDay(clan.id, existing.accountId);
 
   // A login ping is NOT roster evidence — never resurrect a departed row here.
   // Someone logging into the game hasn't rejoined the clan; only clan-sync (the in-game

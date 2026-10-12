@@ -12,6 +12,7 @@ import { buildDraftBalance, dynamicNextTeam, picksTakenByTeam, spreadCapBlockRea
 import { notifyDraftComplete } from '@/lib/discord';
 import { syncTeamDiscordOnDraftCompleteFireAndForget } from '@/lib/discord-teams';
 import { assertEventEditable } from '@/lib/eventLock';
+import { track } from '@/lib/analytics';
 
 export async function POST(
   request: Request,
@@ -273,6 +274,8 @@ export async function POST(
       nextTeamId = getTeamForPick(teamOrder, nextPickNumber);
     }
   }
+
+  track('draft.pick', { clanId: clan.id, props: { pickNumber: pickedCount, last: remainingPool === 0 } });
 
   return NextResponse.json({
     success: true,
