@@ -4,6 +4,7 @@
 // (the exact sprites the plugin renders in-game); skill icons come from the OSRS wiki.
 
 import { BOSSES, SKILLS } from './constants';
+import { parsePbActivity } from '@/lib/pbGroups';
 import bossIcons from '@/data/bossIcons.json';
 import bossImages from '@/data/bossImages.json';
 
@@ -268,16 +269,27 @@ export function competitionImageUrl(type: string, metric: string): string | null
 
 /**
  * A picture for a personal-best activity. The game names them by team and mode — "Chambers of Xeric
- * Challenge Mode 5 Players", "Tombs of Amascut Expert Mode Solo" — which no boss table knows, so the
- * team size, then the mode, come off until a boss is recognised.
+ * Challenge Mode 5 Players", "Duke Sucellus (awakened)" — which no boss table knows, so the boss is
+ * parsed out first (lib/pbGroups); then a boss whose name it contains ("Demonic Brutus" → Brutus); then
+ * a skill it names (agility courses). Null only when nothing fits — callers draw a plain clock.
  */
 export function activityImageUrl(activity: string | null | undefined): string | null {
   if (!activity) return null;
   const direct = bossImageUrl(activity);
   if (direct) return direct;
-  const noTeam = activity.replace(/\s+(solo|\d+(?:-\d+)?\s+players?)$/i, '').trim();
-  const byTeam = noTeam !== activity ? bossImageUrl(noTeam) : null;
-  if (byTeam) return byTeam;
-  const base = noTeam.replace(/:?\s+(challenge|expert|hard|entry)\s+mode$/i, '').trim();
-  return base !== noTeam ? bossImageUrl(base) : null;
+  const { base } = parsePbActivity(activity);
+  const byBase = base !== activity ? bossImageUrl(base) : null;
+  if (byBase) return byBase;
+  const lower = base.toLowerCase();
+  let best: { label: string; len: number } | null = null;
+  for (const b of BOSSES) {
+    const l = b.label.toLowerCase();
+    if (l.length >= 4 && lower.includes(l) && (!best || l.length > best.len)) best = { label: b.label, len: l.length };
+  }
+  if (best) {
+    const img = bossImageUrl(best.label);
+    if (img) return img;
+  }
+  const skill = (SKILLS as readonly string[]).find((k) => k !== 'overall' && lower.includes(k));
+  return skill ? skillIconUrl(skill) : null;
 }

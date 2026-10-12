@@ -1,16 +1,17 @@
 import { and, desc, eq, isNotNull } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { memberClog, memberClogItems } from '@/db/schema';
+import { memberClog, memberClogItems, memberPersonalBests } from '@/db/schema';
 import type { ApexCharacter } from '@/lib/apexProfiles';
 import { clogItemNames } from '@/lib/clogDataset';
-import { buildClogProfile } from '@/lib/clogProfile';
+import { buildClogProfile, titleCaseActivity } from '@/lib/clogProfile';
+import { formatPersonalBest } from '@/lib/clogRead';
 import { getAccountProfile, getMilestones } from '@/lib/memberProfile';
 import { shapePlayerCard, type PlayerCard } from '@/lib/playerCardShape';
 
 /** Load everything the plugin's player card shows for one (already visibility-checked) character. */
 export async function loadPlayerCard(c: ApexCharacter): Promise<PlayerCard> {
-  const [profile, header, items, recent, milestones] = await Promise.all([
+  const [profile, header, items, recent, milestones, bests] = await Promise.all([
     getAccountProfile(c.accountId),
     db.query.memberClog.findFirst({ where: eq(memberClog.accountId, c.accountId) }),
     db
@@ -32,6 +33,10 @@ export async function loadPlayerCard(c: ApexCharacter): Promise<PlayerCard> {
       .orderBy(desc(memberClogItems.firstSeenAt))
       .limit(3),
     getMilestones(c.accountId, 3),
+    db
+      .select({ activity: memberPersonalBests.activity, teamSize: memberPersonalBests.teamSize, centis: memberPersonalBests.centis })
+      .from(memberPersonalBests)
+      .where(eq(memberPersonalBests.accountId, c.accountId)),
   ]);
 
   const view = buildClogProfile({
@@ -74,5 +79,10 @@ export async function loadPlayerCard(c: ApexCharacter): Promise<PlayerCard> {
       r.at ? [{ itemId: r.itemId, name: names.get(r.itemId) ?? `Item ${r.itemId}`, at: r.at }] : [],
     ),
     milestones,
+    // Labelled exactly as the profile page labels them (lib/clogRead), team size and all.
+    bests: bests.map((b) => ({
+      activity: titleCaseActivity(b.activity) + (b.teamSize > 0 ? ` (${b.teamSize})` : ''),
+      time: formatPersonalBest(b.centis),
+    })),
   });
 }

@@ -449,7 +449,9 @@ that isn't on Anvil. Answers with an `ETag`; send it back as `If-None-Match` for
 Behind the summary, the in-panel profile: `skills` (`{key, level, xp}`, overall left out),
 `bosses` (every boss with a kill, `{key, label, kc}`, highest first), `activities` (clues, minigames…
 with a score: `{key, label, shortLabel, group, score}`) and `clogPages` (`{name, group, obtained,
-total}`, in group order, empty until the log is synced). All additive — older plugins ignore them.
+total, iconItemId}`, in group order, empty until the log is synced), bosses carry `clogPage`, and
+`times` holds uploaded personal bests grouped per boss (`{base, modes: [{mode, variants: [{team, time,
+activity}]}]}`). All additive — older plugins ignore them.
 
 `clog` is `null` until the player has synced their log. `latest` is newest first (max 3), `topBosses`
 the highest KC first (max 6, zero-KC bosses never appear). `groups` come in a fixed order — Bosses,

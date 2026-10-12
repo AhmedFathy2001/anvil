@@ -2,6 +2,7 @@ import { BOSSES } from '@/lib/constants';
 import { groupOf, type PageGroup } from '@/lib/clogRarity';
 import { clogPageItems, clogPageNames } from '@/lib/clogDataset';
 import { clogPageForBoss } from '@/lib/clogKillcounts';
+import { groupPersonalBests, type PbGroup } from '@/lib/pbGroups';
 
 // The plugin's player card: one character, told as a story rather than a hiscores table.
 //
@@ -84,6 +85,8 @@ export interface PlayerCard {
   activities: PlayerCardActivity[];
   /** Every log page, grouped and in group order; empty until the log is synced. */
   clogPages: PlayerCardPage[];
+  /** Personal bests the plugin uploaded, one group per boss (a raid's modes and team sizes folded in). */
+  times: PbGroup[];
 }
 
 export interface PlayerCardInput {
@@ -99,6 +102,7 @@ export interface PlayerCardInput {
   bosses: { key: string; kc: number }[];
   skills?: { key: string; level: number; xp: number }[];
   activities?: { key: string; label: string; shortLabel: string; group: string; score: number }[];
+  bests?: { activity: string; time: string }[];
   clogHeader: { obtained: number; total: number } | null;
   clogPages: { name: string; obtained: number; total: number }[];
   recentItems: { itemId: number; name: string; at: string }[];
@@ -216,5 +220,6 @@ export function shapePlayerCard(input: PlayerCardInput): PlayerCard {
     bosses,
     activities: (input.activities ?? []).filter((a) => a.score > 0),
     clogPages,
+    times: groupPersonalBests(input.bests ?? []),
   };
 }
