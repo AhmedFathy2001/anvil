@@ -1,5 +1,7 @@
 import { BOSSES } from '@/lib/constants';
 import { groupOf, type PageGroup } from '@/lib/clogRarity';
+import { clogPageItems, clogPageNames } from '@/lib/clogDataset';
+import { clogPageForBoss } from '@/lib/clogKillcounts';
 
 // The plugin's player card: one character, told as a story rather than a hiscores table.
 //
@@ -30,6 +32,8 @@ export interface PlayerCardBoss {
   /** The game's name for it — the plugin matches this to RuneLite's hiscore sprites. */
   label: string;
   kc: number;
+  /** The log page its kills fill (a raid's modes share one), or null — clicking the boss opens it. */
+  clogPage?: string | null;
 }
 
 export interface PlayerCardSkill {
@@ -53,6 +57,8 @@ export interface PlayerCardPage {
   group: PageGroup;
   obtained: number;
   total: number;
+  /** An item to draw the page by — its first slot, usually the pet or the signature drop. */
+  iconItemId: number | null;
 }
 
 export interface PlayerCard {
@@ -145,6 +151,7 @@ function sortKey(at: string): string {
 
 export function shapePlayerCard(input: PlayerCardInput): PlayerCard {
   const bossLabels = new Set(BOSSES.map((b) => b.label.toLowerCase()));
+  const pageNames = clogPageNames();
 
   let clog: PlayerCard['clog'] = null;
   if (input.clogHeader) {
@@ -176,12 +183,18 @@ export function shapePlayerCard(input: PlayerCardInput): PlayerCard {
   const bosses = input.bosses
     .filter((b) => b.kc > 0 && bossLabel.has(b.key))
     .sort((a, b) => b.kc - a.kc)
-    .map((b) => ({ key: b.key, label: bossLabel.get(b.key)!, kc: b.kc }));
+    .map((b) => ({ key: b.key, label: bossLabel.get(b.key)!, kc: b.kc, clogPage: clogPageForBoss(b.key, pageNames) }));
   const topBosses = bosses.slice(0, TOP_BOSSES);
 
   const clogPages: PlayerCardPage[] = input.clogHeader
     ? input.clogPages
-        .map((p) => ({ name: p.name, group: groupOf(p.name, bossLabels), obtained: p.obtained, total: p.total }))
+        .map((p) => ({
+          name: p.name,
+          group: groupOf(p.name, bossLabels),
+          obtained: p.obtained,
+          total: p.total,
+          iconItemId: clogPageItems(p.name)[0]?.id ?? null,
+        }))
         .filter((p) => p.total > 0)
         .sort((a, b) => GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group) || a.name.localeCompare(b.name))
     : [];

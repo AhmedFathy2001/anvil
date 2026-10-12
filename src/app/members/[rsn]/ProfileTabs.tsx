@@ -199,6 +199,7 @@ export default function ProfileTabs({
   moments,
   accountProgress,
   initial,
+  bossPages,
 }: {
   /**
    * ACCOUNT-level, not seat-level. Everything drawn here — skills, bosses, activities, efficiency —
@@ -220,6 +221,8 @@ export default function ProfileTabs({
   accountProgress?: React.ReactNode;
   /** Where to open — from the URL (`?tab=&stat=&page=`), so a tab, a stat view or a log page links. */
   initial?: ProfileLinkState;
+  /** Boss key → its collection log page, so a boss in the stats links to its log. */
+  bossPages?: Record<string, string>;
 }) {
   const [tab, setTabState] = useState<Tab>(initial?.tab ?? 'stats');
   // The tab is part of the address: copy the URL and the person you send it to lands here too.
@@ -229,6 +232,14 @@ export default function ProfileTabs({
     setUrlParams({ tab: next === 'stats' ? null : TAB_SLUG[next], stat: null, ...(next === 'collection' ? {} : { page: null }) });
   };
   const trends = useMemo(() => statTrends(series), [series]);
+  // The log page the Collection tab opens on: the link's, or one a boss in the stats asked for.
+  const [logPage, setLogPage] = useState<string | undefined>(initial?.page);
+  const openLogPage = (page: string) => {
+    setLogPage(page);
+    setTabState('collection');
+    setUrlParams({ tab: 'collection', stat: null, page });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
   // Whether the side column is beside the tabs (lg+) — it only has room for part of the year there.
   const wide = useMediaQuery('(min-width: 1024px)');
   const [bestFilter, setBestFilter] = useState('');
@@ -426,7 +437,7 @@ export default function ProfileTabs({
               while the list scrolls. Stacked again below lg, where there's no room beside anything. */}
           <div className="grid items-start gap-x-6 lg:grid-cols-[minmax(0,1fr)_340px]">
             <div className="min-w-0">
-              <StatsBrowser profile={profile} trends={trends} standings={activityStandings} initial={initial?.stat} />
+              <StatsBrowser profile={profile} trends={trends} standings={activityStandings} initial={initial?.stat} bossPages={bossPages} onOpenLogPage={openLogPage} />
             </div>
             <aside className="min-w-0 lg:sticky lg:top-4">
               <Section title="Gained over time">
@@ -693,7 +704,7 @@ export default function ProfileTabs({
           {/* The log and the three progress interfaces are one question — "what has this account
               actually done" — so they live on one tab rather than in a card floating above it. */}
           {accountProgress}
-          <CollectionLog {...collection} initialPage={initial?.page} />
+          <CollectionLog key={logPage ?? ''} {...collection} initialPage={logPage} />
         </div>
       )}
 

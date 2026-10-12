@@ -22,6 +22,7 @@ import { buildPlayerShape } from '@/lib/playerShape';
 import PlayerShapeRadar from '@/components/PlayerShapeRadar';
 import ProfileTabs from './ProfileTabs';
 import { profileLinkState } from '@/lib/profileLink';
+import { bossPagesFor } from '@/lib/clogKillcounts';
 import { momentsForMembers } from '@/lib/momentsStore';
 import { getCollectionLog } from '@/lib/clogRead';
 import { getMemberItems, getMemberProgress } from '@/lib/memberProgressRead';
@@ -350,6 +351,7 @@ export default async function MemberProfilePage({
       <GoalsCard accountId={profile.accountId} goals={goals.goals} editable={viewerOwns} options={goals.options} />
 
       <ProfileTabs
+        bossPages={bossPagesFor(profile.bosses)}
         initial={progressTab && !link.tab ? { ...link, tab: 'collection' } : link}
         profile={profile}
         series={series}

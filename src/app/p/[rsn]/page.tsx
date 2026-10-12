@@ -10,6 +10,7 @@ import ClanCrest from '@/components/ClanCrest';
 import AccountProgressCard from '@/components/AccountProgressCard';
 import ProfileTabs from '@/app/members/[rsn]/ProfileTabs';
 import { profileLinkState } from '@/lib/profileLink';
+import { bossPagesFor } from '@/lib/clogKillcounts';
 import { getCollectionLog } from '@/lib/clogRead';
 import { configuredOrigin } from '@/lib/request-origin';
 import ProfileShare from './ProfileShare';
@@ -226,6 +227,7 @@ export default async function CharacterPage({
         options={goals.options}
       />
       <ProfileTabs
+        bossPages={bossPagesFor(profile.bosses)}
         initial={progressTab && !link.tab ? { ...link, tab: 'collection' } : link}
           profile={profile}
           series={series}

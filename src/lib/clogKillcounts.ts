@@ -1,4 +1,5 @@
 import { BOSSES } from '@/lib/constants';
+import { clogPageNames } from '@/lib/clogDataset';
 
 // What a collection log page counts, and where that number comes from.
 //
@@ -97,6 +98,32 @@ export function killcountsForPage(
     const count = bossKills[key];
     if (typeof count !== 'number' || count <= 0) continue;
     out.push({ label: BY_KEY.get(key) ?? key, count, exact: false });
+  }
+  return out;
+}
+
+/**
+ * The collection log page a boss's kills belong to — so clicking a boss can open its log. Shared
+ * pages first (a raid's modes, the Dagannoth Kings, the wilderness pairs all land on one page), then
+ * the page named like the boss, with or without "The". Null for a boss with no page of its own.
+ */
+export function clogPageForBoss(key: string, pageNames: string[]): string | null {
+  for (const [page, keys] of Object.entries(PAGE_BOSS_KEYS)) {
+    if (keys.includes(key)) return pageNames.includes(page) ? page : null;
+  }
+  const label = BY_KEY.get(key);
+  if (!label) return null;
+  const want = stripArticle(label);
+  return pageNames.find((p) => stripArticle(p) === want) ?? null;
+}
+
+/** Boss key → log page for every boss on a profile, for the stats' boss links. */
+export function bossPagesFor(bosses: { key: string }[]): Record<string, string> {
+  const pages = clogPageNames();
+  const out: Record<string, string> = {};
+  for (const b of bosses) {
+    const page = clogPageForBoss(b.key, pages);
+    if (page) out[b.key] = page;
   }
   return out;
 }

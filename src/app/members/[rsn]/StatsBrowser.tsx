@@ -62,11 +62,17 @@ export default function StatsBrowser({
   trends,
   standings,
   initial,
+  bossPages = {},
+  onOpenLogPage,
 }: {
   profile: AccountProfile;
   trends: Trends;
   standings: Record<string, ActivityStanding>;
   initial?: StatKind;
+  /** Boss key → its collection log page (computed on the server; the catalogue is too big to ship). */
+  bossPages?: Record<string, string>;
+  /** Open a log page in the Collection tab — a boss's name links to the page its kills fill. */
+  onOpenLogPage?: (page: string) => void;
 }) {
   const clueRows = useMemo(
     () => profile.activities.filter((a) => (CLUE_TIER_KEYS as readonly string[]).includes(a.key) || a.key === 'cluesAll'),
@@ -215,12 +221,27 @@ export default function StatsBrowser({
           const isOpen = open === r.key;
           return (
             <div key={r.key} className={i % 2 ? 'bg-brown-dark/30' : ''}>
-              <button
-                type="button"
-                disabled={!expandable}
-                onClick={() => setOpen(isOpen ? null : r.key)}
+              {/* The row opens the eight-week chart; a boss's name is its own link, to its log page —
+                  two actions, so the row is a div with a keyboard handler rather than one big button
+                  (a button can't hold another). */}
+              <div
+                role={expandable ? 'button' : undefined}
+                tabIndex={expandable ? 0 : undefined}
                 aria-expanded={expandable ? isOpen : undefined}
-                className="grid w-full grid-cols-[2rem_minmax(0,1fr)_4.5rem_5rem] sm:grid-cols-[2rem_minmax(0,1fr)_7rem_4.5rem_6rem_7rem] items-center gap-3 px-4 py-2 text-left text-sm enabled:hover:bg-gold/5 disabled:cursor-default"
+                onClick={expandable ? () => setOpen(isOpen ? null : r.key) : undefined}
+                onKeyDown={
+                  expandable
+                    ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setOpen(isOpen ? null : r.key);
+                        }
+                      }
+                    : undefined
+                }
+                className={`grid w-full grid-cols-[2rem_minmax(0,1fr)_4.5rem_5rem] sm:grid-cols-[2rem_minmax(0,1fr)_7rem_4.5rem_6rem_7rem] items-center gap-3 px-4 py-2 text-left text-sm ${
+                  expandable ? 'cursor-pointer hover:bg-gold/5 focus-visible:outline focus-visible:outline-1 focus-visible:outline-gold/60' : ''
+                }`}
               >
                 <span className="flex h-7 w-7 items-center justify-center">
                   {r.icon ? (
@@ -228,7 +249,21 @@ export default function StatsBrowser({
                     <img src={r.icon} alt="" className="max-h-7 max-w-7 object-contain [image-rendering:pixelated]" loading="lazy" />
                   ) : null}
                 </span>
-                <span className="truncate">{r.label}</span>
+                {kind === 'bosses' && bossPages[r.key] && onOpenLogPage ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenLogPage(bossPages[r.key]);
+                    }}
+                    title={`Open the ${bossPages[r.key]} collection log page`}
+                    className="truncate text-left hover:text-gold hover:underline"
+                  >
+                    {r.label}
+                  </button>
+                ) : (
+                  <span className="truncate">{r.label}</span>
+                )}
                 <span className="hidden sm:block">
                   {r.hours != null && <Bar value={r.hours} max={maxHours} muted={r.hours === 0} />}
                 </span>
@@ -260,7 +295,7 @@ export default function StatsBrowser({
                     <span className="text-text-dim">—</span>
                   )}
                 </span>
-              </button>
+              </div>
               {isOpen && r.trend && <WeekBars trend={r.trend} unit={r.unit} />}
             </div>
           );
