@@ -10,7 +10,7 @@ import StatsBrowser from './StatsBrowser';
 import { statTrends } from '@/lib/statTrends';
 import { setUrlParams } from '@/lib/urlState';
 import { activityImageUrl, bossImageForStatKey, itemIconUrl, skillIconUrl } from '@/lib/tileIcons';
-import { groupPersonalBests } from '@/lib/pbGroups';
+import { personalBestEntries } from '@/lib/pbGroups';
 import { useMediaQuery } from '@/lib/useMediaQuery';
 import { TAB_SLUG, type ProfileLinkState, type ProfileTab } from '@/lib/profileLink';
 import LocalTime from '@/components/LocalTime';
@@ -340,8 +340,9 @@ export default function ProfileTabs({
     const q = bestFilter.trim().toLowerCase();
     return q ? collection.bests.filter((b) => b.activity.toLowerCase().includes(q)) : collection.bests;
   }, [collection.bests, bestFilter]);
-  // One entry per boss: a raid's dozen team-size and mode times read as one row with chips.
-  const timeGroups = useMemo(() => groupPersonalBests(shownTimes), [shownTimes]);
+  // One row per boss and mode, best time showing; a raid's team sizes open from the row.
+  const timeEntries = useMemo(() => personalBestEntries(shownTimes), [shownTimes]);
+  const [openTime, setOpenTime] = useState<string | null>(null);
 
   const eff = profile.efficiency;
 
@@ -775,48 +776,43 @@ export default function ProfileTabs({
                 />
               </div>
               <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border max-h-[32rem] overflow-y-auto">
-                {timeGroups.map((g) => {
-                  const icon = activityImageUrl(g.base);
-                  const single = g.modes.length === 1 && g.modes[0].variants.length === 1 && g.modes[0].variants[0].team === '';
+                {timeEntries.map((e) => {
+                  const icon = activityImageUrl(e.base);
+                  const expandable = e.variants.length > 0;
+                  const isOpen = openTime === e.name;
                   return (
-                    <div key={g.base} className="flex gap-3 px-3 py-2.5">
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brown-dark/60">
-                        {icon ? (
-                          // eslint-disable-next-line @next/next/no-img-element -- remote game sprites, tiny and cached
-                          <img src={icon} alt="" loading="lazy" className="max-h-6 max-w-6 object-contain [image-rendering:pixelated]" />
-                        ) : (
-                          <ClockGlyph />
-                        )}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        {single ? (
-                          <div className="flex items-center justify-between gap-3 text-sm">
-                            <span className="truncate">{g.base}</span>
-                            <span className="font-mono text-gold shrink-0">{g.modes[0].variants[0].time}</span>
-                          </div>
-                        ) : (
-                          <>
-                            <div className="text-sm">{g.base}</div>
-                            {g.modes.map((m) => (
-                              <div key={m.mode} className="mt-1 flex flex-wrap items-baseline gap-x-1.5 gap-y-1">
-                                {(g.modes.length > 1 || m.mode) && (
-                                  <span className="mr-1 text-[11px] text-text-muted">{m.mode || 'Normal'}</span>
-                                )}
-                                {m.variants.map((v) => (
-                                  <span
-                                    key={v.activity}
-                                    title={v.activity}
-                                    className="inline-flex items-baseline gap-1.5 rounded-md border border-card-border bg-brown-dark/40 px-2 py-0.5 text-xs"
-                                  >
-                                    {v.team && <span className="text-text-muted">{v.team === 'Solo' ? 'Solo' : `${v.team}p`}</span>}
-                                    <span className="font-mono text-gold">{v.time}</span>
-                                  </span>
-                                ))}
-                              </div>
-                            ))}
-                          </>
-                        )}
-                      </div>
+                    <div key={e.name}>
+                      <button
+                        type="button"
+                        disabled={!expandable}
+                        onClick={() => setOpenTime(isOpen ? null : e.name)}
+                        aria-expanded={expandable ? isOpen : undefined}
+                        className="flex w-full items-center gap-3 px-3 py-2 text-left enabled:hover:bg-gold/5 disabled:cursor-default"
+                      >
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brown-dark/60">
+                          {icon ? (
+                            // eslint-disable-next-line @next/next/no-img-element -- remote game sprites, tiny and cached
+                            <img src={icon} alt="" loading="lazy" className="max-h-6 max-w-6 object-contain [image-rendering:pixelated]" />
+                          ) : (
+                            <ClockGlyph />
+                          )}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-sm">{e.name}</span>
+                        <span className="font-mono text-sm text-gold shrink-0">{e.best}</span>
+                        <span className={`w-3 shrink-0 text-xs text-text-dim transition-transform ${isOpen ? 'rotate-90' : ''}`} aria-hidden>
+                          {expandable ? '›' : ''}
+                        </span>
+                      </button>
+                      {isOpen && (
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-1 px-3 pb-3 pl-[3.25rem] text-xs sm:grid-cols-3">
+                          {e.variants.map((v) => (
+                            <div key={v.activity} className="flex justify-between gap-2" title={v.activity}>
+                              <span className="text-text-muted">{v.team === 'Solo' ? 'Solo' : `${v.team} players`}</span>
+                              <span className="font-mono text-gold">{v.time}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

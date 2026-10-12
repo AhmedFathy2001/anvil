@@ -62,6 +62,55 @@ function teamOrder(team: string): number {
   return parseInt(team, 10) || 99;
 }
 
+/** "16:43.00" / "1:03:43.00" → seconds, for picking the fastest. */
+export function timeSeconds(time: string): number {
+  const parts = time.split(':').map(Number);
+  if (parts.some((n) => Number.isNaN(n))) return Number.POSITIVE_INFINITY;
+  return parts.reduce((total, n) => total * 60 + n, 0);
+}
+
+/** One row in the list: a boss in one mode ("Chambers of Xeric: Challenge Mode"), its best time first. */
+export interface PbEntry {
+  /** What the row says: the boss, with its mode when it has one. */
+  name: string;
+  /** The boss alone — what the icon is looked up by. */
+  base: string;
+  mode: string;
+  /** The headline time: the overall best when the game keeps one, else the fastest team size. */
+  best: string;
+  /** Every team size, Solo first; empty when there's only the one time to show. */
+  variants: PbVariant[];
+}
+
+function entryName(base: string, mode: string): string {
+  if (!mode) return base;
+  // "Awakened" reads as a version of the boss; the raid modes read as a mode of it.
+  return /mode$/i.test(mode) ? `${base}: ${mode}` : `${base} (${mode})`;
+}
+
+/**
+ * One entry per boss AND mode — a raid's Challenge Mode is its own row, an awakened boss its own row —
+ * each showing its best time, with the team sizes behind it for whoever opens the row.
+ */
+export function personalBestEntries(bests: { activity: string; time: string }[]): PbEntry[] {
+  const out: PbEntry[] = [];
+  for (const group of groupPersonalBests(bests)) {
+    for (const m of group.modes) {
+      const overall = m.variants.find((v) => v.team === '');
+      const fastest = [...m.variants].sort((a, b) => timeSeconds(a.time) - timeSeconds(b.time))[0];
+      const teams = m.variants.filter((v) => v.team !== '');
+      out.push({
+        name: entryName(group.base, m.mode),
+        base: group.base,
+        mode: m.mode,
+        best: (overall ?? fastest).time,
+        variants: teams.length > 1 || (teams.length === 1 && overall) ? teams : [],
+      });
+    }
+  }
+  return out;
+}
+
 export function groupPersonalBests(bests: { activity: string; time: string }[]): PbGroup[] {
   const groups = new Map<string, Map<string, PbVariant[]>>();
   for (const b of bests) {
