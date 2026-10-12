@@ -112,6 +112,10 @@ export const PROGRESS_KEYS: ProgressKey[] = [
     max: DIARY_EASY | DIARY_MEDIUM | DIARY_HARD | DIARY_ELITE,
     ceiling: 15,
   })),
+  // Sent (as 1) by a plugin that reads Karamja's easy/medium/hard flags (ATJUN_*_DONE) — which do
+  // exist; they were once believed not to. Its own key so an older site simply drops it, and so a
+  // report from an older plugin (elite only) still reads the lower three as unknown, not as undone.
+  { key: 'diaryKaramjaFull', label: 'Karamja fully read', group: 'diaries', max: 1, ceiling: 1 },
 ];
 
 const byKey = new Map(PROGRESS_KEYS.map((k) => [k.key, k]));
@@ -249,7 +253,9 @@ export function progressSummary(rows: { key: string; value: number; updatedAt?: 
   const regions: DiaryRegionView[] = [];
   let diariesDone = 0;
   let diariesKnowable = 0;
-  for (const region of DIARY_REGIONS) {
+  const karamjaFull = value('diaryKaramjaFull') === 1;
+  for (const r of DIARY_REGIONS) {
+    const region = r.key === 'diaryKaramja' && karamjaFull ? { ...r, unreadable: 0 } : r;
     const mask = value(region.key);
     if (mask == null) continue;
     regions.push({
@@ -280,7 +286,7 @@ export function progressSummary(rows: { key: string; value: number; updatedAt?: 
     ];
     if (counts.some((c) => c != null)) {
       diariesDone = counts.reduce<number>((sum, c) => sum + (c ?? 0), 0);
-      diariesKnowable = DIARY_REGIONS_READABLE * 3 + DIARY_REGIONS_ELITE;
+      diariesKnowable = karamjaFull ? DIARY_REGIONS_ELITE * 4 : DIARY_REGIONS_READABLE * 3 + DIARY_REGIONS_ELITE;
     }
   }
 

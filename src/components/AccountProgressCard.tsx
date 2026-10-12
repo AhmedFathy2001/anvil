@@ -182,8 +182,8 @@ function DiaryTab({ summary }: { summary: ProgressSummary }) {
 
       {anyUnknown && (
         <p className="mt-2 text-[11px] opacity-70" style={{ color: RS_TEXT }}>
-          Karamja&apos;s easy, medium and hard tiers have no completion flag in the game, so they read
-          as unknown rather than as unfinished.
+          Karamja&apos;s easy, medium and hard tiers show once this account syncs with a current
+          RuneLite plugin — until then they read as unknown rather than as unfinished.
         </p>
       )}
     </div>

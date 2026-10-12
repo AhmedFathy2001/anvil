@@ -133,3 +133,19 @@ test('progressSummary: nothing pushed is empty, not a row of zeroes', () => {
   assert.equal(s.caPoints, null);
   assert.deepEqual(s.regions, []);
 });
+
+test('Karamja: lower tiers unknown from an older plugin, read once the plugin says it reads them', () => {
+  const older = progressSummary([{ key: 'diaryKaramja', value: 8 }]);
+  const kOld = older.regions.find((r) => r.key === 'diaryKaramja')!;
+  assert.deepEqual(kOld.tiers.map((t) => t.state), ['unknown', 'unknown', 'unknown', 'done']);
+  assert.equal(older.diariesKnowable, 1);
+
+  const current = progressSummary([
+    { key: 'diaryKaramja', value: 15 },
+    { key: 'diaryKaramjaFull', value: 1 },
+  ]);
+  const kNew = current.regions.find((r) => r.key === 'diaryKaramja')!;
+  assert.deepEqual(kNew.tiers.map((t) => t.state), ['done', 'done', 'done', 'done']);
+  assert.equal(current.diariesDone, 4);
+  assert.equal(current.diariesKnowable, 4);
+});
