@@ -8,6 +8,12 @@ import { verifyUser } from '@/lib/auth';
 import { loadPlayerCard } from '@/lib/playerCard';
 import type { PlayerCard } from '@/lib/playerCardShape';
 import { comparePlayers, queryName } from '@/lib/compare';
+import { compareInsights } from '@/lib/compareInsights';
+import { getDailySeries } from '@/lib/memberProfile';
+import { clogPageItems } from '@/lib/clogDataset';
+import { db } from '@/db';
+import { memberClogItems } from '@/db/schema';
+import { inArray } from 'drizzle-orm';
 import { SKILL_LABELS } from '@/lib/constants';
 import { bossImageForStatKey, itemIconUrl, skillIconUrl } from '@/lib/tileIcons';
 import ClanLink from '@/components/ClanLink';
@@ -111,8 +117,24 @@ export default async function ComparePlayersPage({
     );
   }
 
-  const [cardA, cardB] = await Promise.all([loadPlayerCard(a), loadPlayerCard(b)]);
+  const [cardA, cardB, seriesA, seriesB, ownedRows] = await Promise.all([
+    loadPlayerCard(a),
+    loadPlayerCard(b),
+    getDailySeries(a.accountId, 8),
+    getDailySeries(b.accountId, 8),
+    // Both logs' items, for the page-by-page itemized view.
+    // clan-scope: global -- two characters' own collection logs, already visibility-checked above.
+    db
+      .select({ accountId: memberClogItems.accountId, itemId: memberClogItems.itemId })
+      .from(memberClogItems)
+      .where(inArray(memberClogItems.accountId, [a.accountId, b.accountId])),
+  ]);
   const cmp = comparePlayers(cardA, cardB);
+  const weekOf = (series: { ehpGained: number; ehbGained: number }[]) =>
+    series.length >= 7 ? series.slice(-7).reduce((t, d) => t + d.ehpGained + d.ehbGained, 0) : null;
+  const insights = compareInsights(cardA, cardB, cmp, { a: weekOf(seriesA), b: weekOf(seriesB) });
+  const ownedA = new Set(ownedRows.filter((r) => r.accountId === a.accountId).map((r) => r.itemId));
+  const ownedB = new Set(ownedRows.filter((r) => r.accountId === b.accountId).map((r) => r.itemId));
 
   return (
     <div className="mx-auto w-full max-w-4xl">
@@ -133,6 +155,34 @@ export default async function ComparePlayersPage({
       />
 
       <HeadlineTable rows={cmp.headline} />
+
+      {insights.length > 0 && (
+        <section className="mt-8">
+          <SectionTitle>Analysis</SectionTitle>
+          {/* What the tables say read together — each point marked with whose point it is. */}
+          <ul className="space-y-2 rounded-xl border border-card-border bg-card-bg px-5 py-4">
+            {insights.map((i) => (
+              <li key={i.key} className="flex gap-3 text-sm leading-relaxed">
+                <span
+                  className={`mt-2 h-1.5 w-1.5 shrink-0 rounded-full ${i.lead ? SIDE[i.lead].bg : 'bg-text-dim'}`}
+                  aria-hidden
+                />
+                <span>
+                  {i.parts.map((p, n) =>
+                    typeof p === 'string' ? (
+                      <span key={n}>{p}</span>
+                    ) : (
+                      <span key={n} className={`font-semibold ${SIDE[p.side].text}`}>
+                        {p.side === 'a' ? cardA.rsn : cardB.rsn}
+                      </span>
+                    ),
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {cmp.skills.length > 0 && (
         <section className="mt-8">
@@ -193,7 +243,17 @@ export default async function ComparePlayersPage({
       )}
 
       <section className="mt-8">
-        <SectionTitle aside={cmp.logPages.length > 0 ? `${cmp.logPages.length} pages differ` : undefined}>
+        <SectionTitle
+          aside={
+            cmp.logPages.length > 0 ? (
+              <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span>{cmp.logPages.length} pages differ — open one to see it item by item</span>
+                <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border-2 border-gold" />only {cardA.rsn}</span>
+                <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm border-2 border-[#8fb4d4]" />only {cardB.rsn}</span>
+              </span>
+            ) : undefined
+          }
+        >
           Collection log
         </SectionTitle>
         {!cardA.clog || !cardB.clog ? (
@@ -209,16 +269,45 @@ export default async function ComparePlayersPage({
         ) : (
           <div className="rounded-xl border border-card-border bg-card-bg py-2">
             {cmp.logPages.map((p) => (
-              <MirrorRow
-                key={p.name}
-                icon={<Sprite src={p.iconItemId != null ? itemIconUrl(p.iconItemId) : null} />}
-                label={p.name}
-                a={p.a}
-                b={p.b}
-                leader={p.leader}
-                scale={(n) => (p.total > 0 ? (n / p.total) * 100 : 0)}
-                format={(n) => `${n ?? 0}/${p.total}`}
-              />
+              // Each page opens to its slots: both have it, only one does, or neither — item by item.
+              <details key={p.name} className="group">
+                <summary className="cursor-pointer list-none hover:bg-gold/5 [&::-webkit-details-marker]:hidden">
+                  <MirrorRow
+                    icon={<Sprite src={p.iconItemId != null ? itemIconUrl(p.iconItemId) : null} />}
+                    label={<>{p.name} <span className="text-text-dim group-open:rotate-90 inline-block transition-transform">›</span></>}
+                    a={p.a}
+                    b={p.b}
+                    leader={p.leader}
+                    scale={(n) => (p.total > 0 ? (n / p.total) * 100 : 0)}
+                    format={(n) => `${n ?? 0}/${p.total}`}
+                  />
+                </summary>
+                <div className="flex flex-wrap justify-center gap-1.5 px-4 pb-4 pt-2">
+                  {clogPageItems(p.name).map((item) => {
+                    const hasA = ownedA.has(item.id);
+                    const hasB = ownedB.has(item.id);
+                    const who = hasA && hasB ? 'both' : hasA ? cardA.rsn : hasB ? cardB.rsn : 'neither';
+                    return (
+                      <span
+                        key={item.id}
+                        title={`${item.name} — ${who === 'both' ? 'both have it' : who === 'neither' ? 'neither has it' : `only ${who}`}`}
+                        className={`flex h-10 w-10 items-center justify-center rounded-md border-2 ${
+                          hasA && hasB
+                            ? 'border-card-border bg-brown-light/40'
+                            : hasA
+                              ? 'border-gold bg-gold/10'
+                              : hasB
+                                ? 'border-[#8fb4d4] bg-[#8fb4d4]/10'
+                                : 'border-transparent bg-brown-dark/40 opacity-30'
+                        }`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element -- remote game sprites, tiny and cached */}
+                        <img src={itemIconUrl(item.id)} alt="" loading="lazy" className="max-h-8 max-w-8 object-contain [image-rendering:pixelated]" />
+                      </span>
+                    );
+                  })}
+                </div>
+              </details>
             ))}
           </div>
         )}
