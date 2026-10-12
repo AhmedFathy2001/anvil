@@ -32,6 +32,29 @@ export interface PlayerCardBoss {
   kc: number;
 }
 
+export interface PlayerCardSkill {
+  key: string;
+  level: number;
+  xp: number;
+}
+
+export interface PlayerCardActivity {
+  key: string;
+  label: string;
+  /** "Elite" where the row already sits under a Clues heading. */
+  shortLabel: string;
+  /** 'clues' | 'minigames' | 'collection'. */
+  group: string;
+  score: number;
+}
+
+export interface PlayerCardPage {
+  name: string;
+  group: PageGroup;
+  obtained: number;
+  total: number;
+}
+
 export interface PlayerCard {
   rsn: string;
   accountType: string | null;
@@ -46,6 +69,15 @@ export interface PlayerCard {
   clog: { obtained: number; total: number; groups: PlayerCardGroup[] } | null;
   latest: PlayerCardLatest[];
   topBosses: PlayerCardBoss[];
+  // ---- The in-panel profile: the detail behind the summary above. ----
+  /** Every skill but overall, in the order the site knows them. Empty until stats are tracked. */
+  skills: PlayerCardSkill[];
+  /** Every boss with a kill, highest first. */
+  bosses: PlayerCardBoss[];
+  /** Clues, minigames and the like — only those with a score. */
+  activities: PlayerCardActivity[];
+  /** Every log page, grouped and in group order; empty until the log is synced. */
+  clogPages: PlayerCardPage[];
 }
 
 export interface PlayerCardInput {
@@ -59,6 +91,8 @@ export interface PlayerCardInput {
   ehb: number | null;
   statsAt: string | null;
   bosses: { key: string; kc: number }[];
+  skills?: { key: string; level: number; xp: number }[];
+  activities?: { key: string; label: string; shortLabel: string; group: string; score: number }[];
   clogHeader: { obtained: number; total: number } | null;
   clogPages: { name: string; obtained: number; total: number }[];
   recentItems: { itemId: number; name: string; at: string }[];
@@ -139,11 +173,18 @@ export function shapePlayerCard(input: PlayerCardInput): PlayerCard {
     .sort((a, b) => sortKey(b.at).localeCompare(sortKey(a.at)))
     .slice(0, LATEST);
 
-  const topBosses = input.bosses
+  const bosses = input.bosses
     .filter((b) => b.kc > 0 && bossLabel.has(b.key))
     .sort((a, b) => b.kc - a.kc)
-    .slice(0, TOP_BOSSES)
     .map((b) => ({ key: b.key, label: bossLabel.get(b.key)!, kc: b.kc }));
+  const topBosses = bosses.slice(0, TOP_BOSSES);
+
+  const clogPages: PlayerCardPage[] = input.clogHeader
+    ? input.clogPages
+        .map((p) => ({ name: p.name, group: groupOf(p.name, bossLabels), obtained: p.obtained, total: p.total }))
+        .filter((p) => p.total > 0)
+        .sort((a, b) => GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group) || a.name.localeCompare(b.name))
+    : [];
 
   return {
     rsn: input.rsn,
@@ -158,5 +199,9 @@ export function shapePlayerCard(input: PlayerCardInput): PlayerCard {
     clog,
     latest,
     topBosses,
+    skills: (input.skills ?? []).filter((sk) => sk.key !== 'overall' && sk.level > 0),
+    bosses,
+    activities: (input.activities ?? []).filter((a) => a.score > 0),
+    clogPages,
   };
 }

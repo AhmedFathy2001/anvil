@@ -60,6 +60,14 @@ export async function loadPlayerCard(c: ApexCharacter): Promise<PlayerCard> {
     ehb: profile?.efficiency?.ehb ?? null,
     statsAt: profile?.statsAt ?? null,
     bosses: (profile?.bosses ?? []).map((b) => ({ key: b.key, kc: b.kc })),
+    skills: (profile?.skills ?? []).map((sk) => ({ key: sk.key, level: sk.level, xp: sk.xp })),
+    activities: (profile?.activities ?? []).map((a) => ({
+      key: a.key,
+      label: a.label,
+      shortLabel: a.shortLabel,
+      group: a.group,
+      score: a.score,
+    })),
     clogHeader: header ? { obtained: header.obtained, total: header.total } : null,
     clogPages: view.pages.map((p) => ({ name: p.name, obtained: p.obtained, total: p.total })),
     recentItems: recent.flatMap((r) =>

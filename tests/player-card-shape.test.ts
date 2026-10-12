@@ -87,3 +87,47 @@ test('milestone wording', () => {
   assert.equal(milestoneLabel({ kind: 'total', metric: null, threshold: 2000 }), '2,000 total');
   assert.equal(milestoneLabel({ kind: 'mystery', metric: null, threshold: 1 }), null);
 });
+
+test('the in-panel profile: skills without overall, every boss with kills, scored activities, grouped pages', () => {
+  const card = shapePlayerCard({
+    ...base,
+    skills: [
+      { key: 'overall', level: 2277, xp: 1 },
+      { key: 'slayer', level: 99, xp: 13_034_431 },
+      { key: 'sailing', level: 0, xp: 0 },
+    ],
+    bosses: [
+      { key: 'zulrah', kc: 812 },
+      { key: 'vorkath', kc: 1240 },
+      { key: 'barrows', kc: 0 },
+      { key: 'abyssalSire', kc: 1 },
+      { key: 'alchemicalHydra', kc: 2 },
+      { key: 'araxxor', kc: 3 },
+      { key: 'artio', kc: 4 },
+      { key: 'bryophyta', kc: 5 },
+    ],
+    activities: [
+      { key: 'clueScrollsElite', label: 'Clue Scrolls (elite)', shortLabel: 'Elite', group: 'clues', score: 20 },
+      { key: 'lastManStanding', label: 'LMS', shortLabel: 'LMS', group: 'minigames', score: 0 },
+    ],
+    clogHeader: { obtained: 9, total: 35 },
+    clogPages: [
+      { name: 'Theatre of Blood', obtained: 1, total: 10 },
+      { name: 'Zulrah', obtained: 4, total: 6 },
+      { name: 'Vorkath', obtained: 3, total: 5 },
+    ],
+  });
+  assert.deepEqual(card.skills.map((s) => s.key), ['slayer']);
+  assert.equal(card.bosses.length, 7);
+  assert.equal(card.topBosses.length, 6);
+  assert.deepEqual(card.activities.map((a) => a.key), ['clueScrollsElite']);
+  assert.deepEqual(card.clogPages.map((p) => [p.group, p.name]), [
+    ['Bosses', 'Vorkath'],
+    ['Bosses', 'Zulrah'],
+    ['Raids', 'Theatre of Blood'],
+  ]);
+});
+
+test('no synced log means no pages', () => {
+  assert.deepEqual(shapePlayerCard({ ...base, clogPages: [{ name: 'Zulrah', obtained: 1, total: 6 }] }).clogPages, []);
+});
