@@ -119,7 +119,7 @@ const PAGE_ICON: Record<string, number> = {
   'Tombs of Amascut': 27277, // Tumeken's shadow (uncharged)
 };
 
-const GROUP_ORDER: PageGroup[] = ['Bosses', 'Raids', 'Clues', 'Minigames', 'Skilling', 'Other'];
+const GROUP_ORDER: PageGroup[] = ['Bosses', 'Raids', 'Clues', 'Minigames', 'Other'];
 const TOP_BOSSES = 6;
 const LATEST = 3;
 

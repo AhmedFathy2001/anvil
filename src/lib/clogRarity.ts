@@ -1,5 +1,6 @@
 import npcDrops from '@/data/npcDrops.json'; // regenerate with `npm run data:drops`
 import efficiencyRates from '@/data/efficiencyRates.json'; // third-party EHB rates, kills per hour (THIRD_PARTY_NOTICES.md)
+import clogTabs from '@/data/clogTabs.json'; // the game's own log tabs; regenerate with `npm run data:clog`
 import { BOSSES } from '@/lib/constants';
 import { clogItemNames, clogPageNames, clogPageOfItem } from '@/lib/clogDataset';
 
@@ -210,33 +211,38 @@ export function buildShowcase(
 
 // ── Page grouping ────────────────────────────────────────────────────────────────────────────────
 
-export type PageGroup = 'Raids' | 'Bosses' | 'Clues' | 'Minigames' | 'Skilling' | 'Other';
+/** The collection log's own tabs, as the game names and orders them. */
+export type PageGroup = 'Bosses' | 'Raids' | 'Clues' | 'Minigames' | 'Other';
+
+const GAME_TABS = clogTabs as Record<string, PageGroup>;
 
 const RAID_PAGES = new Set(['Chambers of Xeric', 'Theatre of Blood', 'Tombs of Amascut']);
 
-const GROUP_PATTERNS: [PageGroup, RegExp][] = [
-  ['Clues', /treasure trails|clue|shared/i],
-  ['Minigames', /barbarian assault|castle wars|last man|soul wars|trouble brewing|pest control|mage arena|inferno|fight cave|colosseum|tzhaar|emir|rogue|brimhaven|hallowed|guardians of the rift|temple trekking|mahogany|magic training|shades of mort|volcanic mine|giants foundry|tithe|gnome restaurant|barrows/i],
-  ['Skilling', /fishing|farming|hunter|mining|woodcut|thieving|agility|firemaking|smithing|crafting|runecraft|construction|cooking|slayer|motherlode|tempoross|wintertodt|zalcano|sepulchre|camdozaal|forestry|birdhouse|aerial|drift|blast/i],
+// Only for a page the tab map doesn't know yet (a new page before `npm run data:clog` reruns).
+const FALLBACK_PATTERNS: [PageGroup, RegExp][] = [
+  ['Clues', /treasure trail|clue|scroll case/i],
+  ['Minigames', /barbarian assault|castle wars|last man|soul wars|trouble brewing|pest control|rogue|brimhaven|hallowed|guardians of the rift|temple trekking|mahogany|magic training|shades of mort|volcanic mine|giants' foundry|tithe|gnome restaurant|trawler|mixology/i],
 ];
 
 /**
- * Which shelf a log page belongs on.
+ * Which tab of the collection log a page is on — the game's own, so Barrows Chests, The Fight
+ * Caves, Fortis Colosseum, Tempoross and Wintertodt are Bosses here because they are Bosses there.
  *
- * The dataset ships no categories — the game's own tabs aren't in the wiki module — so this derives
- * them from the page's own name, with the boss list as the authority for anything that has a
- * hiscores counter. It is a navigation aid over 125 flat pages, not a taxonomy: a page landing in
- * "Other" costs a member one extra glance, which is why the fallback is a real group rather than a
- * guess.
+ * The item dataset ships no tabs, and this used to guess them from page names — "barrows" read as
+ * a minigame, and a Skilling shelf the game doesn't have. The tabs now come from the wiki's
+ * Collection log article (src/data/clogTabs.json, rebuilt by `npm run data:clog`); the guesses
+ * below only place a page that map hasn't caught up with.
  */
 export function groupOf(page: string, bossLabels: Set<string>): PageGroup {
+  const known = GAME_TABS[page];
+  if (known) return known;
   if (RAID_PAGES.has(page)) return 'Raids';
-  for (const [group, pattern] of GROUP_PATTERNS) {
+  for (const [group, pattern] of FALLBACK_PATTERNS) {
     if (pattern.test(page)) return group;
   }
   if (bossLabels.has(page.toLowerCase())) return 'Bosses';
   return 'Other';
 }
 
-/** Display order: the content people brag about first, the miscellany last. */
-export const GROUP_ORDER: PageGroup[] = ['Raids', 'Bosses', 'Minigames', 'Clues', 'Skilling', 'Other'];
+/** The game's tab order. */
+export const GROUP_ORDER: PageGroup[] = ['Bosses', 'Raids', 'Clues', 'Minigames', 'Other'];

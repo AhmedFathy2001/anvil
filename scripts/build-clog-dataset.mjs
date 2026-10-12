@@ -12,9 +12,10 @@
 // the game changes. Emits manualOnlyIds into clog.json + the small clogManualIds.json.
 //
 // Run:  node scripts/build-clog-dataset.mjs        (or: npm run data:clog)
+//       node scripts/build-clog-dataset.mjs --tabs-only   (just the page → in-game tab map)
 // Wire it into CI / a cron to keep the bundle fresh without manual edits.
 
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -131,7 +132,46 @@ async function computeManualOnlyIds(items) {
   return manual;
 }
 
+// THE GAME'S OWN TABS. The data module above names each item's page but not which tab of the
+// collection log the page sits in, so the profile used to guess from page names — and guessed
+// wrong wherever a name looks like something else: Barrows Chests, The Fight Caves, Fortis
+// Colosseum, Tempoross and Wintertodt are all on the game's Bosses tab. The wiki's Collection log
+// article lists every page under its tab (`==Bosses==` then `===Barrows Chests===`), so that is
+// read instead. Written to src/data/clogTabs.json; lib/clogRarity groupOf reads it.
+const TABS_URL = 'https://oldschool.runescape.wiki/w/Collection_log?action=raw';
+const TABS_PATH = resolve(dirname(fileURLToPath(import.meta.url)), '../src/data/clogTabs.json');
+const GAME_TABS = new Set(['Bosses', 'Raids', 'Clues', 'Minigames', 'Other']);
+
+async function buildTabs(activityNames) {
+  console.log(`Fetching ${TABS_URL} …`);
+  const res = await fetch(TABS_URL, { headers: { 'User-Agent': USER_AGENT } });
+  if (!res.ok) throw new Error(`Wiki fetch failed: HTTP ${res.status} ${res.statusText}`);
+  const byLower = new Map();
+  let tab = null;
+  for (const line of (await res.text()).split('\n')) {
+    const h2 = /^==([^=].*?)==\s*$/.exec(line);
+    const h3 = /^===([^=].*?)===\s*$/.exec(line);
+    if (h2) tab = GAME_TABS.has(h2[1].trim()) ? h2[1].trim() : null;
+    else if (h3 && tab) byLower.set(h3[1].trim().toLowerCase(), tab);
+  }
+  const tabs = {};
+  const unplaced = [];
+  for (const name of activityNames) {
+    // "Elite Treasure Trails (Rare)" is the data module's split of one in-game page.
+    const found = byLower.get(name.toLowerCase()) ?? byLower.get(name.replace(/\s*\(rare\)$/i, '').toLowerCase());
+    if (found) tabs[name] = found;
+    else unplaced.push(name);
+  }
+  writeFileSync(TABS_PATH, JSON.stringify(tabs, null, 2) + '\n');
+  console.log(`Wrote ${TABS_PATH}: ${Object.keys(tabs).length} pages placed.`, unplaced.length ? { unplaced } : '');
+}
+
 async function main() {
+  // `--tabs-only`: refresh the page → tab map against the activities already in clog.json.
+  if (process.argv.includes('--tabs-only')) {
+    await buildTabs(Object.keys(JSON.parse(readFileSync(OUT_PATH, 'utf8')).activities));
+    return;
+  }
   console.log(`Fetching ${SOURCE_URL} …`);
   const res = await fetch(SOURCE_URL, {
     headers: { 'User-Agent': 'anvil-bingo clog dataset builder (contact: clan admin)' },
@@ -183,6 +223,7 @@ async function main() {
   mkdirSync(dirname(OUT_PATH), { recursive: true });
   writeFileSync(OUT_PATH, JSON.stringify(payload, null, 2) + '\n');
   writeFileSync(MANUAL_IDS_PATH, JSON.stringify(manualOnlyIds) + '\n');
+  await buildTabs(Object.keys(activities));
 
   // Small activity-name → representative-item map (first clog item, lowest id) for tile
   // icons — bundleable client-side without dragging the whole clog dataset along. Keys are
