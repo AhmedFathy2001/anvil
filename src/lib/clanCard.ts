@@ -18,6 +18,8 @@ export interface ClanCard {
   members: number;
   /** Members who gained anything in the last 7 days. */
   activeThisWeek: number;
+  /** EHP + EHB the members gained over the last 7 days — the week's number. */
+  weekHours: number;
   /** Efficient hours, all members, all time. */
   totalEhp: number;
   totalEhb: number;
@@ -57,6 +59,7 @@ export async function loadClanCard(clan: { id: number; slug: string; name: strin
     logoUrl: clan.logoUrl,
     members: analytics.memberCount,
     activeThisWeek: analytics.activeThisWeek,
+    weekHours: Math.round(analytics.activity.slice(-7).reduce((t, d) => t + d.value, 0) * 10) / 10,
     totalEhp: Math.round(analytics.totalEhp * 10) / 10,
     totalEhb: Math.round(analytics.totalEhb * 10) / 10,
     topWeek: analytics.topWeek.slice(0, 3).map((t) => ({ rsn: t.rsn, hours: Math.round(t.hours * 10) / 10 })),
