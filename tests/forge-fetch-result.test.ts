@@ -8,7 +8,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { MAX_RESULT_AGE_MS, nextProbeStep, planForgeApply, toFetchResult, type FetchedRow } from '../src/lib/forgeFetchResult.ts';
+import {
+  MAX_RESULT_AGE_MS,
+  nextProbeStep,
+  planForgeApply,
+  probeStartMode,
+  toFetchResult,
+  type FetchedRow,
+} from '../src/lib/forgeFetchResult.ts';
 
 const key = (rsn: string) => rsn.toLowerCase().replace(/[_\s]+/g, ' ').trim();
 const now = new Date('2026-10-12T12:00:00Z');
@@ -89,4 +96,40 @@ test('type probe: a failed read, or no main-table XP to compare against, retries
   assert.deepEqual(nextProbeStep('ironman', 'transient', null, 5_000_000), { kind: 'retry' });
   assert.deepEqual(nextProbeStep('ironman', 'ok', 5_000_000, null), { kind: 'retry' });
   assert.deepEqual(nextProbeStep('ultimate', 'ok', -1, 0), { kind: 'retry' });
+});
+
+test('re-check: starts at the held mode’s own table; a first walk starts at ironman', () => {
+  assert.equal(probeStartMode('hardcore'), 'hardcore');
+  assert.equal(probeStartMode('ultimate'), 'ultimate');
+  assert.equal(probeStartMode('ironman'), 'ironman');
+  assert.equal(probeStartMode(null), 'ironman');
+});
+
+test('re-check: a hardcore who is still current stays hardcore', () => {
+  assert.deepEqual(nextProbeStep('hardcore', 'ok', 9_000_000, 9_000_000, 'hardcore'), { kind: 'done', type: 'hardcore' });
+});
+
+test('re-check: a hardcore death — the hardcore entry freezes, the ironman one keeps up → ironman', () => {
+  assert.deepEqual(nextProbeStep('hardcore', 'ok', 7_000_000, 9_000_000, 'hardcore'), { kind: 'next', mode: 'ironman' });
+  assert.deepEqual(nextProbeStep('ironman', 'ok', 9_000_000, 9_000_000, 'hardcore'), { kind: 'done', type: 'ironman' });
+});
+
+test('re-check: an ultimate who dropped the restriction becomes ironman', () => {
+  assert.deepEqual(nextProbeStep('ultimate', 'ok', 4_000_000, 9_000_000, 'ultimate'), { kind: 'next', mode: 'ironman' });
+  assert.deepEqual(nextProbeStep('ironman', 'ok', 9_000_000, 9_000_000, 'ultimate'), { kind: 'done', type: 'ironman' });
+});
+
+test('re-check: de-ironing — the ironman entry falls behind → regular, from any iron mode', () => {
+  assert.deepEqual(nextProbeStep('ironman', 'ok', 2_000_000, 9_000_000, 'ironman'), { kind: 'done', type: 'normal' });
+  assert.deepEqual(nextProbeStep('ironman', 'ok', 2_000_000, 9_000_000, 'hardcore'), { kind: 'done', type: 'normal' });
+});
+
+test('re-check: missing from a table is not evidence — the held mode is kept', () => {
+  assert.deepEqual(nextProbeStep('ironman', 'unranked', null, 9_000_000, 'ironman'), { kind: 'done', type: 'ironman' });
+  assert.deepEqual(nextProbeStep('ironman', 'unranked', null, 9_000_000, 'hardcore'), { kind: 'done', type: 'hardcore' });
+});
+
+test('a mode the hiscores cannot confirm, reported mid-walk, stops the walk without a change', () => {
+  assert.deepEqual(nextProbeStep('ironman', 'ok', 9_000_000, 9_000_000, 'group'), { kind: 'done', type: null });
+  assert.deepEqual(nextProbeStep('ultimate', 'ok', 9_000_000, 9_000_000, 'normal'), { kind: 'done', type: null });
 });

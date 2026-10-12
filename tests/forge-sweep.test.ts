@@ -222,3 +222,27 @@ test("type probe: never overwrites a mode the plugin reported while it ran", asy
   assert.equal(acc.accountType, 'group', 'a de-ironed reading must not replace the plugin’s report');
   assert.ok(acc.accountTypeProbedAt);
 });
+
+test('re-check: a week-old hardcore whose hardcore entry froze is re-checked down to ironman', async () => {
+  const old = new Date(Date.now() - 10 * 86_400_000).toISOString();
+  await db
+    .update(s.accounts)
+    .set({ accountType: 'hardcore', accountTypeAt: old, accountTypeProbedAt: old })
+    .where(eq(s.accounts.id, racerAccount));
+  let r = await runStatsSweep('forge');
+  assert.ok((r.forge?.probes.started ?? 0) >= 1);
+  let [probe] = (await pendingFor('racer')).filter((x) => x.mode === 'hardcore' && x.fetchedAt == null);
+  assert.ok(probe, 'the re-check starts at the held mode’s own table');
+
+  // The hardcore entry is frozen below the main table (a death); the ironman entry keeps up.
+  await pool.query(`UPDATE hiscores_fetches SET fetched_at = now(), outcome = 'ok', body = $1 WHERE id = $2`, [body(1000), probe.id]);
+  await runStatsSweep('forge');
+  [probe] = (await pendingFor('racer')).filter((x) => x.mode === 'ironman' && x.fetchedAt == null);
+  assert.ok(probe, 'falls back to the ironman table');
+  await pool.query(`UPDATE hiscores_fetches SET fetched_at = now(), outcome = 'ok', body = $1 WHERE id = $2`, [body(2500), probe.id]);
+  r = await runStatsSweep('forge');
+
+  const [acc] = await db.select().from(s.accounts).where(eq(s.accounts.id, racerAccount));
+  assert.equal(acc.accountType, 'ironman');
+  assert.ok(acc.accountTypeProbedAt! > old, 'stamped, so it waits a week before the next re-check');
+});

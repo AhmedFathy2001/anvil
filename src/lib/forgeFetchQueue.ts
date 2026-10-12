@@ -1,10 +1,18 @@
-import { and, eq, gt, inArray, isNotNull, isNull, lt, ne, notExists, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNotNull, isNull, lt, ne, notExists, or, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { accounts, hiscoresFetches } from '@/db/schema';
 import { normalizeRsn } from '@/lib/auth';
 import { parseHiscoresBody, type HiscoresSnapshot, type SnapshotFetch } from '@/lib/hiscores';
 import { log } from '@/lib/logger';
-import { MAX_RESULT_AGE_MS, nextProbeStep, planForgeApply, toFetchResult, type ProbeMode } from '@/lib/forgeFetchResult';
+import {
+  MAX_RESULT_AGE_MS,
+  RECHECK_AFTER_MS,
+  nextProbeStep,
+  planForgeApply,
+  probeStartMode,
+  toFetchResult,
+  type ProbeMode,
+} from '@/lib/forgeFetchResult';
 
 // The Site's side of the hiscores fetch queue (drizzle/0125, schema hiscoresFetches).
 //
@@ -47,7 +55,7 @@ export interface ForgeDrainStats {
   pending: number;
   /** Age of the oldest waiting request, in seconds. */
   oldestPendingSec: number | null;
-  /** Account-type probes: new ones started, steps settled, and of those how many found a mode. */
+  /** Account-type probes: new ones started (first walks + re-checks), settled, and modes written. */
   probes: { started: number; settled: number; typed: number };
 }
 
@@ -183,8 +191,9 @@ export async function drainForgeFetches<E extends ForgeWorkEntry>(opts: {
 
 /**
  * The account-type probe (lib/forgeFetchResult nextProbeStep): settle or advance every probe step
- * Forge has fetched, then start a few new ones. Only for accounts no plugin has reported a mode for,
- * and a settled probe never overwrites a mode the plugin reported in the meantime.
+ * Forge has fetched, then start a few new ones — first walks for accounts with no mode, and weekly
+ * re-checks of solo-iron modes, since a mode goes down (de-ironing, a hardcore death). A settled
+ * probe never overwrites a mode the plugin reported while it ran.
  */
 async function advanceTypeProbes(now: Date): Promise<ForgeDrainStats['probes']> {
   let settled = 0;
@@ -207,14 +216,14 @@ async function advanceTypeProbes(now: Date): Promise<ForgeDrainStats['probes']> 
     });
 
   const ids = [...new Set(rows.map((r) => r.accountId).filter((id): id is number => id != null))];
-  const mainXp = new Map<number, number | null>();
+  const held = new Map<number, { xp: number | null; type: string | null }>();
   if (ids.length > 0) {
     // clan-scope: global -- account rows the probe queue already names; identity is global.
     const xs = await db
-      .select({ id: accounts.id, xp: accounts.statsOverallXp })
+      .select({ id: accounts.id, xp: accounts.statsOverallXp, type: accounts.accountType })
       .from(accounts)
       .where(inArray(accounts.id, ids));
-    for (const x of xs) mainXp.set(x.id, x.xp);
+    for (const x of xs) held.set(x.id, { xp: x.xp, type: x.type });
   }
 
   for (const row of rows) {
@@ -225,7 +234,8 @@ async function advanceTypeProbes(now: Date): Promise<ForgeDrainStats['probes']> 
     const parsed = toFetchResult<HiscoresSnapshot>(row, parseHiscoresBody);
     const outcome = parsed.kind === 'value' ? 'ok' : parsed.kind;
     const tableXp = parsed.kind === 'value' ? (parsed.snapshot.skills?.overall?.xp ?? null) : null;
-    const step = nextProbeStep(row.mode as ProbeMode, outcome, tableXp, mainXp.get(row.accountId) ?? null);
+    const acc = held.get(row.accountId);
+    const step = nextProbeStep(row.mode as ProbeMode, outcome, tableXp, acc?.xp ?? null, acc?.type ?? null);
 
     if (step.kind === 'next') {
       await db
@@ -235,35 +245,46 @@ async function advanceTypeProbes(now: Date): Promise<ForgeDrainStats['probes']> 
     } else if (step.kind === 'done') {
       settled++;
       const stamp = now.toISOString();
-      // The plugin's report wins: a mode is only written where none is held, and probed_at is stamped
-      // either way so the account is not walked again.
+      const was = acc?.type ?? null;
       const type = step.type;
-      await db
-        .update(accounts)
-        .set({
-          accountTypeProbedAt: stamp,
-          ...(type
-            ? {
-                accountType: sql`COALESCE(${accounts.accountType}, ${type})`,
-                accountTypeAt: sql`CASE WHEN ${accounts.accountType} IS NULL THEN ${stamp} ELSE ${accounts.accountTypeAt} END`,
-              }
-            : {}),
-        })
-        .where(eq(accounts.id, row.accountId));
-      if (type) typed++;
+      if (type && was == null) {
+        // A first walk: write only where no mode is held, so a plugin report that landed meanwhile wins.
+        await db
+          .update(accounts)
+          .set({ accountType: type, accountTypeAt: stamp, accountTypeProbedAt: stamp })
+          .where(and(eq(accounts.id, row.accountId), isNull(accounts.accountType)));
+        typed++;
+      } else if (type && type !== was) {
+        // A re-check found the mode went down. Conditional on it still being what we checked, so a
+        // plugin report that landed meanwhile is never replaced.
+        await db
+          .update(accounts)
+          .set({ accountType: type, accountTypeAt: stamp, accountTypeProbedAt: stamp })
+          .where(and(eq(accounts.id, row.accountId), eq(accounts.accountType, was!)));
+        typed++;
+      }
+      // Stamped either way, so a settled account waits for its next re-check (or, untyped, is done).
+      await db.update(accounts).set({ accountTypeProbedAt: stamp }).where(eq(accounts.id, row.accountId));
     }
   }
 
-  // Start new probes: active accounts with a main-table reading, no mode, never probed, and no probe
-  // step already in flight.
+  // Start new probes: active accounts with a main-table reading and no probe step in flight that
+  // either have no mode and were never probed, or hold a solo-iron mode not checked for a week.
+  const recheckBefore = new Date(now.getTime() - RECHECK_AFTER_MS).toISOString();
   // clan-scope: global -- game mode belongs to the account, whichever clans hold seats for it.
   const candidates = await db
-    .select({ id: accounts.id, rsn: accounts.rsn })
+    .select({ id: accounts.id, rsn: accounts.rsn, type: accounts.accountType })
     .from(accounts)
     .where(
       and(
-        isNull(accounts.accountType),
-        isNull(accounts.accountTypeProbedAt),
+        or(
+          and(isNull(accounts.accountType), isNull(accounts.accountTypeProbedAt)),
+          and(
+            inArray(accounts.accountType, ['ironman', 'ultimate', 'hardcore']),
+            // Whichever is newer — the last report or the last check — must be a week old.
+            sql`GREATEST(COALESCE(${accounts.accountTypeProbedAt}, ''), COALESCE(${accounts.accountTypeAt}, '')) < ${recheckBefore}`,
+          ),
+        ),
         eq(accounts.status, 'active'),
         gt(accounts.statsOverallXp, 0),
         notExists(
@@ -290,7 +311,7 @@ async function advanceTypeProbes(now: Date): Promise<ForgeDrainStats['probes']> 
         candidates.map((c) => ({
           rsn: c.rsn,
           rsnKey: normalizeRsn(c.rsn),
-          mode: 'ironman' as const,
+          mode: probeStartMode(c.type),
           accountId: c.id,
           priority: PROBE_PRIORITY,
         })),

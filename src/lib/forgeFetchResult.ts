@@ -102,6 +102,16 @@ export function planForgeApply<E extends { fetchRsn: string }>(
 // What the hiscores cannot say: an account missing from the ironman table is a regular account OR
 // a group ironman (group modes have no individual tables). That case is recorded as "probed" with
 // no type, rather than guessing "Regular" for somebody's GIM. The plugin's report always wins.
+//
+// A MODE ONLY EVER GOES DOWN — de-ironing, a hardcore death, an ultimate dropping the restriction —
+// so a solo-iron mode, whoever set it, is RE-CHECKED now and then (RECHECK_AFTER_MS): start at the
+// held mode's own table; still current keeps it, otherwise fall back to the ironman table, and an
+// ironman table left behind means the account de-ironed. Missing from a table is never evidence of
+// a change on a re-check (the mode is kept); only a frozen entry is. Regular and the group modes are
+// never re-checked: regular cannot re-iron, and the hiscores cannot see group modes.
+
+/** How long a solo-iron mode stands before the hiscores are asked again. */
+export const RECHECK_AFTER_MS = 7 * 24 * 60 * 60_000;
 
 export type ProbeMode = 'ironman' | 'ultimate' | 'hardcore';
 export type ProbedType = 'normal' | 'ironman' | 'ultimate' | 'hardcore';
@@ -114,15 +124,29 @@ export type ProbeStep =
   /** Could not read this step; try the whole probe again later. */
   | { kind: 'retry' };
 
+/** The modes the hiscores can confirm — and so the only ones worth re-checking. */
+const SOLO_IRON = ['ironman', 'ultimate', 'hardcore'] as const;
+
+export function isSoloIron(type: string | null | undefined): type is ProbeMode {
+  return (SOLO_IRON as readonly string[]).includes(type ?? '');
+}
+
+/** The table a probe starts at: the held mode's own for a re-check, ironman for a first walk. */
+export function probeStartMode(held: string | null | undefined): ProbeMode {
+  return isSoloIron(held) ? held : 'ironman';
+}
+
 /**
  * One probe step. `tableXp` is the overall XP on the fetched mode table (null when the account is
- * not on it), `mainXp` the account's overall XP from the main table. Both null-safe.
+ * not on it), `mainXp` the account's overall XP from the main table, `held` the mode the account has
+ * right now (null = never typed: a first walk; a solo-iron mode = a re-check).
  */
 export function nextProbeStep(
   mode: ProbeMode,
   outcome: 'ok' | 'unranked' | 'transient',
   tableXp: number | null,
   mainXp: number | null,
+  held: string | null = null,
 ): ProbeStep {
   if (outcome === 'transient') return { kind: 'retry' };
   if (mainXp == null || mainXp <= 0) return { kind: 'retry' };
@@ -130,6 +154,19 @@ export function nextProbeStep(
   // Kept up: the mode table has at least what the main table had when we last read it. (Read a
   // little later, it can be ahead; never legitimately behind while the mode is still held.)
   const current = listed && tableXp >= mainXp;
+
+  if (held != null) {
+    // Typed by someone else (the plugin) mid-walk, as a mode the hiscores can't confirm: stop.
+    if (!isSoloIron(held)) return { kind: 'done', type: null };
+    // A re-check. Its own table first; the ironman table is the fallback.
+    if (mode !== 'ironman') {
+      if (current) return { kind: 'done', type: held };
+      return { kind: 'next', mode: 'ironman' };
+    }
+    if (current) return { kind: 'done', type: 'ironman' };
+    // Behind on the ironman table: de-ironed. Simply missing: no evidence either way — keep it.
+    return { kind: 'done', type: listed ? 'normal' : held };
+  }
 
   switch (mode) {
     case 'ironman':
