@@ -78,7 +78,8 @@ competition week or a running board); `drop-facts` (a `dropFacts` block on
 `/api/plugin/config`, below); `mission-prizes` (what a mission pays, place by place —
 below); `coffer-sync` (absolute in-game Clan Coffer observations posted to
 `/api/plugin/coffer`, below); `tile-claims` (team-private "I'm going for this" on board tiles —
-below).
+below); `player-card` (`GET /api/players/<rsn>/card` — the side panel's
+Lookup and You tabs, below).
 
 ### `tile-claims`
 
@@ -423,6 +424,29 @@ rather than a plugin release.
 Diary counts are regions completed at that tier. Karamja's easy, medium and hard have no completion
 varbit — the game tracks them as task counts whose totals would have to be hardcoded — so eleven
 regions are counted at those three tiers and twelve at elite. The site says so where it shows them.
+
+### `player-card`
+
+`GET /api/players/<rsn>/card` — one character as the side panel shows it: what's notable, nothing
+that's zero. Same visibility as `/p/<rsn>`: shared characters are public, an unshared one is visible
+only to its owner (send the Account Token as `Authorization: Bearer …`; it is optional and only ever
+widens what you see to your own characters). Anything else is `404`, indistinguishable from a name
+that isn't on Anvil. Answers with an `ETag`; send it back as `If-None-Match` for a `304`.
+
+```json
+{ "rsn": "Drenvox mdps", "accountType": "main", "clan": { "slug": "theafkspot", "name": "The AFK Spot" },
+  "totalLevel": 2277, "combatLevel": 126, "overallXp": 512000000, "ehp": 1210.4, "ehb": 830.2,
+  "statsAt": "2026-10-12T09:00:00.000Z",
+  "clog": { "obtained": 812, "total": 1568,
+            "groups": [ { "name": "Bosses", "obtained": 400, "total": 640 } ] },
+  "latest": [ { "kind": "item", "label": "Twisted bow", "itemId": 20997, "at": "..." },
+              { "kind": "milestone", "label": "99 Slayer", "itemId": null, "at": "..." } ],
+  "topBosses": [ { "key": "vorkath", "label": "Vorkath", "kc": 1240 } ] }
+```
+
+`clog` is `null` until the player has synced their log. `latest` is newest first (max 3), `topBosses`
+the highest KC first (max 6, zero-KC bosses never appear). `groups` come in a fixed order — Bosses,
+Raids, Clues, Minigames, Skilling, Other — and empty ones are left out.
 
 ### `moments`
 

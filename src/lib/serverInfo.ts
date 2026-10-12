@@ -72,6 +72,9 @@ export const PLUGIN_CAPABILITIES = [
   // Server-relayed OBS clips: POST /api/plugin/clip uploads the video and the server posts it to the
   // clan's clips channel, so members don't each paste a webhook into their plugin config.
   'clip-relay',
+  // Player card: GET /api/players/<rsn>/card — the plugin's Lookup and You tabs. Read-only; a plugin
+  // against a site without it opens the profile in the browser instead.
+  'player-card',
   // Collection log, personal bests and (later) quests/diaries/CAs pushed from the plugin to a
   // member's profile. Advertised only once the endpoints and tables exist, because the plugin gates
   // ALL of its reading on this: an older site is never polled, and a newer plugin against it does
