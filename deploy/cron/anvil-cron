@@ -11,7 +11,8 @@
 #   forge-consume        every 5 min    — drain the Forge data-plane queue
 #   errors-digest        hourly         — what broke since the last one, to the ops channel
 #   leads-digest         daily          — clans that signed up and never got going, to the ops channel
-#   backup               daily          — pg_dump to object storage
+#   backup               daily          — pg_dump to object storage (R2 anvil-backups)
+#   backup-local         daily          — pg_dump kept on the box, newest 14 (backup-local.sh)
 #   discord-commands     daily          — reconcile the shared bot's slash commands with the code
 */15 * * * * root /opt/anvil/cron-anvil.sh stats
 */15 * * * * root /opt/anvil/cron-anvil.sh weekly
@@ -25,4 +26,6 @@
 # a no-op when ANVIL_OPS_WEBHOOK_URL is unset — safe to schedule everywhere.
 25 10 * * *  root /opt/anvil/cron-anvil.sh leads-digest
 17 4 * * *   root /opt/anvil/cron-anvil.sh backup
+# Daily on-box pg_dump of production, newest 14 kept in /opt/anvil/backups/daily (see the script).
+30 3 * * * root /opt/anvil/backup-local.sh
 40 4 * * *   root /opt/anvil/cron-anvil.sh discord-commands
