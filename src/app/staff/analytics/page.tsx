@@ -101,6 +101,20 @@ export default async function StaffAnalyticsPage({
         </Section>
       </div>
 
+      <Section title="Plugin features">
+        <Card>
+          {a.pluginRoutes.length === 0 ? (
+            <Empty />
+          ) : (
+            <RankTable
+              head={['Plugin path', 'Account-days', 'Accounts', 'Clans']}
+              rows={a.pluginRoutes.map((r) => [r.name, r.accountDays, r.accounts, r.clans])}
+              max={Math.max(...a.pluginRoutes.map((r) => r.accountDays))}
+            />
+          )}
+        </Card>
+      </Section>
+
       <div className="grid gap-6 xl:grid-cols-2">
         <Section title="Clan onboarding">
           <Funnel rows={a.clanFunnel} actor={`clans created in the last ${days} days`} />

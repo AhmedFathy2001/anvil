@@ -45,6 +45,14 @@ export interface RouteRow {
   sessions: number;
 }
 
+/** One plugin endpoint: how many account-days used it, by how many accounts, in how many clans. */
+export interface PluginRouteRow {
+  name: string;
+  accountDays: number;
+  accounts: number;
+  clans: number;
+}
+
 export interface ActionRow {
   name: string;
   count: number;
@@ -79,6 +87,7 @@ export interface AnalyticsOverview {
   visitorsByDay: DailyPoint[];
   topRoutes: RouteRow[];
   topActions: ActionRow[];
+  pluginRoutes: PluginRouteRow[];
   conversion: Conversion;
   clanFunnel: FunnelRow[];
   memberFunnel: FunnelRow[];
@@ -150,6 +159,23 @@ async function topActions(from: string): Promise<ActionRow[]> {
      order by n desc
   `);
   return r.map((x) => ({ name: x.name, count: num(x.n), users: num(x.users), clans: num(x.clans) }));
+}
+
+/**
+ * The plugin's own paths. Rows are one per (account, route, day), so the count is account-days, not
+ * requests — a board polled every 30 seconds by one player all day is one, the same as a single
+ * goal edit. That's the question: which features people use, not which endpoints are chatty.
+ */
+async function pluginRoutes(from: string): Promise<PluginRouteRow[]> {
+  const r = await rows<{ name: string; n: number; accounts: number; clans: number }>(sql`
+    select name, count(*) as n, count(distinct account_id) as accounts, count(distinct clan_id) as clans
+      from analytics_events
+     where kind = 'plugin' and name <> 'plugin.active' and ts >= ${from}
+     group by name
+     order by accounts desc, n desc
+     limit 40
+  `);
+  return r.map((x) => ({ name: x.name.replace(/^\/api\/plugin/, ''), accountDays: num(x.n), accounts: num(x.accounts), clans: num(x.clans) }));
 }
 
 async function conversion(from: string): Promise<Conversion> {
@@ -256,11 +282,12 @@ async function clanActivity(): Promise<ClanActivityRow[]> {
 
 export async function analyticsOverview(days: number): Promise<AnalyticsOverview> {
   const from = windowStart(days);
-  const [head, series, routes, actions, conv, cf, mf, clans] = await Promise.all([
+  const [head, series, routes, actions, plugin, conv, cf, mf, clans] = await Promise.all([
     headline(),
     daily(from, days),
     topRoutes(from),
     topActions(from),
+    pluginRoutes(from),
     conversion(from),
     clanFunnel(days),
     memberFunnel(days),
@@ -272,6 +299,7 @@ export async function analyticsOverview(days: number): Promise<AnalyticsOverview
     ...series,
     topRoutes: routes,
     topActions: actions,
+    pluginRoutes: plugin,
     conversion: conv,
     clanFunnel: cf,
     memberFunnel: mf,

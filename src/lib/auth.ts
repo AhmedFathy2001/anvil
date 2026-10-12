@@ -17,6 +17,7 @@ import { claimAccountForPerson } from '@/lib/accountClaim';
 import { recordForeignSighting } from '@/lib/accountSightings';
 import { IGNORED_STATUSES } from '@/lib/accountRelease';
 import { pickActivePluginEvent } from '@/lib/pluginEventPick';
+import { trackPluginRoute } from '@/lib/analytics';
 
 const ADMIN_SESSION_SECRET = requireSecret('ADMIN_SESSION_SECRET', 'dev-admin-secret');
 const CAPTAIN_SESSION_SECRET = requireSecret('CAPTAIN_SESSION_SECRET', 'dev-captain-secret');
@@ -1604,6 +1605,8 @@ export async function resolvePluginMember(
   // A confirmed RSN match means the caller is logged into an account they own — proof enough to
   // verify it, enrolled anywhere or not. Best-effort: never blocks, no-ops once verified + anchored.
   await ensurePluginVerifiedOnPlay(matchedMember, user.id, accountHash, nowIso);
+  // Which plugin endpoint this account used today — once per (account, route, day), never per poll.
+  trackPluginRoute(clan.id, matchedMember.accountId, user.id, request.url);
 
   // Both, deliberately: the SEAT is this clan's roster row, the ACCOUNT is what Jagex tracks and
   // what every stat, best and collection-log row hangs off — one history per account, not per clan.
