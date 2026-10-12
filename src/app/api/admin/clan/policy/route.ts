@@ -85,6 +85,8 @@ export async function PATCH(request: Request) {
 
   if ('listed' in body) {
     await setSetting(clan.id, SHOWCASE, body.listed ? 'on' : 'off');
+    // An unlisted clan drops out of /compare/clans, so its head-to-head cards go too.
+    if (!body.listed) forgetLinkCards();
   }
 
   // WORTH RECORDING. Turning a clan private, or shutting the door on guests, changes what everybody
