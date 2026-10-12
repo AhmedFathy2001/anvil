@@ -12,6 +12,8 @@ import ProfileTabs from '@/app/members/[rsn]/ProfileTabs';
 import { getCollectionLog } from '@/lib/clogRead';
 import { configuredOrigin } from '@/lib/request-origin';
 import ProfileShare from './ProfileShare';
+import GoalsCard from '@/components/GoalsCard';
+import { goalsForProfile } from '@/lib/goals';
 import { getMemberItems, getMemberProgress } from '@/lib/memberProgressRead';
 import {
   getAccountProfile,
@@ -115,6 +117,12 @@ export default async function CharacterPage({ params }: { params: Promise<{ rsn:
     getMemberItems(character.accountId, 'ca'),
   ]);
 
+  const goals = await goalsForProfile(
+    character.accountId,
+    profile,
+    collection.synced ? collection.pages : null,
+  );
+
   const upcoming = getUpcomingMilestones(profile);
   const ehp = profile.efficiency?.ehp ?? null;
   const ehb = profile.efficiency?.ehb ?? null;
@@ -141,6 +149,16 @@ export default async function CharacterPage({ params }: { params: Promise<{ rsn:
             >
               <ClanCrest name={character.clan.name} size={18} />
               {character.clan.name}
+            </ClanLink>
+          ) : null}
+          {character.clan ? (
+            // The same character, seen by its clan: standings, competition history, the moments
+            // feed. Two pages about one account used to have no way between them.
+            <ClanLink
+              href={`/c/${character.clan.slug}/members/${encodeURIComponent(character.rsn)}`}
+              className="text-gold hover:underline"
+            >
+              Clan profile →
             </ClanLink>
           ) : (
             <span className="text-text-dim">No clan</span>
@@ -188,6 +206,12 @@ export default async function CharacterPage({ params }: { params: Promise<{ rsn:
           as soon as the RuneLite plugin pushes.
         </div>
       )}
+      <GoalsCard
+        accountId={character.accountId}
+        goals={goals.goals}
+        editable={character.viewerOwns}
+        options={goals.options}
+      />
       <ProfileTabs
           profile={profile}
           series={series}

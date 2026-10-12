@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server';
-import { and, asc, count, eq } from 'drizzle-orm';
-
-import { db } from '@/db';
-import { playerGoals } from '@/db/schema';
 import { verifyPluginTokenUser } from '@/lib/auth';
-import { checkGoal, MAX_GOALS } from '@/lib/goalRules';
+import { deleteGoal, listGoals, saveGoal } from '@/lib/goals';
 import { accountForCharacter, accountStanding, playedCharacter } from '@/lib/pluginAccount';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 
@@ -27,22 +23,13 @@ async function ownedAccount(request: Request) {
   return account ? { userId: viewer.userId, accountId: account.id } : null;
 }
 
-function list(accountId: number) {
-  // clan-scope: global -- goals belong to an account, not a clan.
-  return db
-    .select({ id: playerGoals.id, kind: playerGoals.kind, metric: playerGoals.metric, target: playerGoals.target })
-    .from(playerGoals)
-    .where(eq(playerGoals.accountId, accountId))
-    .orderBy(asc(playerGoals.id));
-}
-
 const notYours = () =>
   NextResponse.json({ error: 'Log in to a character that is yours on Anvil to keep goals.' }, { status: 403 });
 
 export async function GET(request: Request) {
   const owner = await ownedAccount(request);
   if (!owner) return notYours();
-  return NextResponse.json({ goals: await list(owner.accountId) });
+  return NextResponse.json({ goals: await listGoals(owner.accountId) });
 }
 
 export async function POST(request: Request) {
@@ -57,29 +44,9 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
-  const goal = checkGoal((body ?? {}) as Record<string, unknown>);
-  if (!goal.ok) return NextResponse.json({ error: goal.error }, { status: 400 });
-
-  // clan-scope: global -- goals belong to an account, not a clan.
-  const existing = await db.query.playerGoals.findFirst({
-    where: and(eq(playerGoals.accountId, owner.accountId), eq(playerGoals.kind, goal.kind), eq(playerGoals.metric, goal.metric)),
-    columns: { id: true },
-  });
-  if (existing) {
-    // Same goal again = a new target for it, not a duplicate.
-    await db.update(playerGoals).set({ target: goal.target }).where(eq(playerGoals.id, existing.id));
-  } else {
-    const [{ n }] = await db.select({ n: count() }).from(playerGoals).where(eq(playerGoals.accountId, owner.accountId));
-    if (n >= MAX_GOALS) return NextResponse.json({ error: `Up to ${MAX_GOALS} goals — remove one first.` }, { status: 400 });
-    await db.insert(playerGoals).values({
-      accountId: owner.accountId,
-      kind: goal.kind,
-      metric: goal.metric,
-      target: goal.target,
-      createdAt: new Date().toISOString(),
-    }).onConflictDoNothing();
-  }
-  return NextResponse.json({ goals: await list(owner.accountId) });
+  const refused = await saveGoal(owner.accountId, (body ?? {}) as Record<string, unknown>);
+  if (refused) return NextResponse.json({ error: refused }, { status: 400 });
+  return NextResponse.json({ goals: await listGoals(owner.accountId) });
 }
 
 export async function DELETE(request: Request) {
@@ -87,7 +54,6 @@ export async function DELETE(request: Request) {
   if (!owner) return notYours();
   const id = Number(new URL(request.url).searchParams.get('id'));
   if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: 'Which goal?' }, { status: 400 });
-  // clan-scope: global -- scoped to the caller's own account by the WHERE.
-  await db.delete(playerGoals).where(and(eq(playerGoals.id, id), eq(playerGoals.accountId, owner.accountId)));
-  return NextResponse.json({ goals: await list(owner.accountId) });
+  await deleteGoal(owner.accountId, id);
+  return NextResponse.json({ goals: await listGoals(owner.accountId) });
 }

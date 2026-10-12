@@ -25,6 +25,11 @@ import { momentsForMembers } from '@/lib/momentsStore';
 import { getCollectionLog } from '@/lib/clogRead';
 import { getMemberItems, getMemberProgress } from '@/lib/memberProgressRead';
 import AccountProgressCard from '@/components/AccountProgressCard';
+import GoalsCard from '@/components/GoalsCard';
+import { goalsForProfile } from '@/lib/goals';
+import { db } from '@/db';
+import { accounts } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 import { SKILLS } from '@/lib/constants';
 import { verifyUser } from '@/lib/auth';
 import { memberLinkDescription } from '@/lib/linkText';
@@ -169,6 +174,16 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
     // the directory runs), not a snapshot parse per member.
     listMembers(clan.id),
   ]);
+  // The character behind the seat: who owns it (goals are theirs to edit) and whether its public
+  // profile is open (the link to it only makes sense if it is).
+  // clan-scope: global -- an OSRS account is one account however many clans roster it.
+  const acct = await db.query.accounts.findFirst({
+    where: eq(accounts.id, profile.accountId),
+    columns: { playerId: true, shared: true },
+  });
+  const viewerOwns = !!viewer && acct?.playerId === viewer.playerId;
+  const goals = await goalsForProfile(profile.accountId, profile, collection.synced ? collection.pages : null);
+
   const upcoming = getUpcomingMilestones(profile);
   const shape = buildPlayerShape({
     members: roster.map((m) => ({
@@ -274,6 +289,16 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
               {profile.statsAt
                 ? `Stats as at ${new Date(profile.statsAt).toLocaleString()}`
                 : 'Stats from the last hiscores sweep'}
+              {(acct?.shared || viewerOwns) && (
+                <>
+                  {' · '}
+                  {/* The same character on the platform — records, log and goals that follow it
+                      to any clan. The two pages used to have no way between them. */}
+                  <ClanLink href={`/p/${encodeURIComponent(profile.rsn)}`} className="text-gold hover:underline">
+                    Public profile ↗
+                  </ClanLink>
+                </>
+              )}
             </p>
 
             {eff && (
@@ -309,6 +334,8 @@ export default async function MemberProfilePage({ params }: { params: Promise<{ 
           <PlayerShapeRadar shape={shape} rsn={profile.rsn} />
         </div>
       )}
+
+      <GoalsCard accountId={profile.accountId} goals={goals.goals} editable={viewerOwns} options={goals.options} />
 
       <ProfileTabs
         profile={profile}
