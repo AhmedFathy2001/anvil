@@ -365,10 +365,42 @@ export function localSprite(name: string): Promise<string | null> {
 
 /**
  * The hosts game art comes from: RuneLite's static cache export (item sprites, the same ones the
- * plugin draws) and the wiki (skill icons, boss pictures). The URLs are always ones lib/tileIcons
- * derived, never a caller's; the allowlist is so a bad derivation can't turn the server into a fetcher.
+ * plugin draws) and the wiki (skill icons, boss pictures). The URLs are ones lib/tileIcons derived,
+ * but a tile's legacy `icon` column is passed through as typed, so this allowlist (checked on every
+ * redirect hop too) is what keeps a card render from becoming a fetch of anywhere.
  */
 const SPRITE_HOSTS = new Set(['static.runelite.net', 'oldschool.runescape.wiki']);
+
+/** An https URL on one of the sprite hosts, or null. */
+function allowedSpriteUrl(raw: string, base?: URL): URL | null {
+  try {
+    const u = base ? new URL(raw, base) : new URL(raw);
+    return u.protocol === 'https:' && SPRITE_HOSTS.has(u.hostname) ? u : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * GET a sprite, following at most two redirects BY HAND so every hop is checked against the
+ * allowlist. The wiki does redirect image URLs (renamed files), but a redirect followed
+ * automatically could land anywhere — an internal address included — with only the first URL ever
+ * checked.
+ */
+async function fetchAllowed(raw: string): Promise<Response | null> {
+  let target = allowedSpriteUrl(raw);
+  for (let hop = 0; target && hop <= 2; hop++) {
+    const res = await fetch(target, {
+      signal: AbortSignal.timeout(4_000),
+      redirect: 'manual',
+      headers: { 'User-Agent': 'AnvilLinkCards/1.0 (+https://anvilosrs.com)' },
+    });
+    if (res.status < 300 || res.status >= 400) return res;
+    const next = res.headers.get('location');
+    target = next ? allowedSpriteUrl(next, target) : null;
+  }
+  return null;
+}
 
 const REMOTE_CAP = 400;
 const remoteCache = new Map<string, Promise<string | null>>();
@@ -389,20 +421,9 @@ export function remoteSprite(url: string | null | undefined, box: number): Promi
   if (hit) return hit;
 
   const p = (async () => {
-    let target: URL;
     try {
-      target = new URL(url);
-    } catch {
-      return null;
-    }
-    if (target.protocol !== 'https:' || !SPRITE_HOSTS.has(target.hostname)) return null;
-    try {
-      const res = await fetch(target, {
-        signal: AbortSignal.timeout(4_000),
-        redirect: 'follow',
-        headers: { 'User-Agent': 'AnvilLinkCards/1.0 (+https://anvilosrs.com)' },
-      });
-      if (!res.ok) return null;
+      const res = await fetchAllowed(url);
+      if (!res?.ok) return null;
       const { default: sharp } = await import('sharp');
       const src = sharp(Buffer.from(await res.arrayBuffer()));
       const meta = await src.metadata();
