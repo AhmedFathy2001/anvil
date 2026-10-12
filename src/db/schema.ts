@@ -2377,6 +2377,8 @@ export const playerGoals = pgTable('player_goals', {
   // Skill key ('slayer'), boss key ('vorkath'), or collection-log page name ('Barrows Chests').
   metric: text('metric').notNull(),
   target: integer('target').notNull(),
+  // Optional deadline, 'YYYY-MM-DD' (UTC calendar day). Null = no deadline.
+  dueOn: text('due_on'),
   createdAt: text('created_at').notNull(),
 }, (t) => [uniqueIndex('player_goals_unique').on(t.accountId, t.kind, t.metric)]);
 

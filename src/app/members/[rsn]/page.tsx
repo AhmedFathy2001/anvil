@@ -28,6 +28,7 @@ import { getMemberItems, getMemberProgress } from '@/lib/memberProgressRead';
 import AccountProgressCard from '@/components/AccountProgressCard';
 import GoalsCard from '@/components/GoalsCard';
 import { goalsForProfile } from '@/lib/goals';
+import { goalRatesFrom } from '@/lib/statTrends';
 import { db } from '@/db';
 import { accounts } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -193,7 +194,7 @@ export default async function MemberProfilePage({
     columns: { playerId: true, shared: true },
   });
   const viewerOwns = !!viewer && acct?.playerId === viewer.playerId;
-  const goals = await goalsForProfile(profile.accountId, profile, collection.synced ? collection.pages : null);
+  const goals = await goalsForProfile(profile.accountId, profile, collection.synced ? collection.pages : null, goalRatesFrom(series));
 
   const upcoming = getUpcomingMilestones(profile);
   const shape = buildPlayerShape({

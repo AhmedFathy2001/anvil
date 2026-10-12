@@ -63,3 +63,13 @@ export function trendLabel(t: StatTrend | undefined): { text: string; tone: 'up'
   }
   return { text: `▲ ${pct}%`, tone: 'up' };
 }
+
+/** Gains per day over the last week, per skill and boss — the pace a goal's deadline is judged by. */
+export function goalRatesFrom(series: { day: string; deltas?: StatDeltas }[]): {
+  skills: Record<string, number>;
+  bosses: Record<string, number>;
+} {
+  const t = statTrends(series);
+  const perDay = (m: Record<string, StatTrend>) => Object.fromEntries(Object.entries(m).map(([k, v]) => [k, v.week / 7]));
+  return { skills: perDay(t.skills), bosses: perDay(t.bosses) };
+}

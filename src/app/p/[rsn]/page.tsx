@@ -15,6 +15,7 @@ import { configuredOrigin } from '@/lib/request-origin';
 import ProfileShare from './ProfileShare';
 import GoalsCard from '@/components/GoalsCard';
 import { goalsForProfile } from '@/lib/goals';
+import { goalRatesFrom } from '@/lib/statTrends';
 import { getMemberItems, getMemberProgress } from '@/lib/memberProgressRead';
 import {
   getAccountProfile,
@@ -132,6 +133,7 @@ export default async function CharacterPage({
     character.accountId,
     profile,
     collection.synced ? collection.pages : null,
+    goalRatesFrom(series),
   );
 
   const upcoming = getUpcomingMilestones(profile);

@@ -11,10 +11,12 @@ export interface GoalInput {
   kind?: unknown;
   metric?: unknown;
   target?: unknown;
+  /** Optional deadline, 'YYYY-MM-DD'. Empty or absent = none. */
+  dueOn?: unknown;
 }
 
 export type GoalCheck =
-  | { ok: true; kind: GoalKind; metric: string; target: number }
+  | { ok: true; kind: GoalKind; metric: string; target: number; dueOn: string | null }
   | { ok: false; error: string };
 
 const fold = (v: string) => v.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -44,8 +46,32 @@ function bossKey(name: string): string | undefined {
   return best;
 }
 
+const DAY = 86_400_000;
+
+/**
+ * A deadline: a real calendar day, not already past, and within ten years. Yesterday is let through so
+ * a deadline set late at night in one timezone isn't refused by another.
+ */
+export function checkDueOn(raw: unknown, now: Date = new Date()): { ok: true; dueOn: string | null } | { ok: false; error: string } {
+  if (raw == null || raw === '') return { ok: true, dueOn: null };
+  if (typeof raw !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return { ok: false, error: 'A date like 2026-12-01.' };
+  const t = Date.parse(`${raw}T00:00:00Z`);
+  if (Number.isNaN(t) || new Date(t).toISOString().slice(0, 10) !== raw) return { ok: false, error: 'That date doesn’t exist.' };
+  const today = Date.parse(`${now.toISOString().slice(0, 10)}T00:00:00Z`);
+  if (t < today - DAY) return { ok: false, error: 'Pick a date that hasn’t passed.' };
+  if (t > today + 3653 * DAY) return { ok: false, error: 'Within the next ten years.' };
+  return { ok: true, dueOn: raw };
+}
+
 /** Validate and normalise a goal. Bosses may be named by key or by the game's label. */
-export function checkGoal(input: GoalInput): GoalCheck {
+export function checkGoal(input: GoalInput, now: Date = new Date()): GoalCheck {
+  const due = checkDueOn(input.dueOn, now);
+  if (!due.ok) return due;
+  const goal = checkGoalBody(input);
+  return goal.ok ? { ...goal, dueOn: due.dueOn } : goal;
+}
+
+function checkGoalBody(input: GoalInput): { ok: true; kind: GoalKind; metric: string; target: number } | { ok: false; error: string } {
   const kind = input.kind;
   const metric = typeof input.metric === 'string' ? input.metric.trim() : '';
   const target = typeof input.target === 'number' && Number.isFinite(input.target) ? Math.floor(input.target) : NaN;

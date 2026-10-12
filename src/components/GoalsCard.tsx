@@ -36,6 +36,7 @@ export default function GoalsCard({
   const [kind, setKind] = useState<'skill' | 'boss' | 'clog'>('skill');
   const [metric, setMetric] = useState(options.skills[0] ?? '');
   const [target, setTarget] = useState(99);
+  const [dueOn, setDueOn] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -56,7 +57,7 @@ export default function GoalsCard({
           ? await clanFetch('/api/profile/goals', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ accountId, kind, metric, target }),
+              body: JSON.stringify({ accountId, kind, metric, target, dueOn: dueOn || null }),
             })
           : await clanFetch(`/api/profile/goals?accountId=${accountId}&id=${id}`, { method: 'DELETE' });
       const json = (await res.json().catch(() => ({}))) as { error?: string };
@@ -65,6 +66,7 @@ export default function GoalsCard({
         return;
       }
       setAdding(false);
+      setDueOn('');
       router.refresh();
     } finally {
       setBusy(false);
@@ -115,6 +117,14 @@ export default function GoalsCard({
                     )}
                   </span>
                 </div>
+                {g.due && (
+                  <p className="mt-1 text-xs">
+                    <span className={g.due.tone === 'overdue' ? 'text-accent-red' : 'text-text-muted'}>{g.due.text}</span>
+                    {g.due.pace && (
+                      <span className={g.due.tone === 'behind' ? 'text-gold' : 'text-accent-green-light'}> · {g.due.pace}</span>
+                    )}
+                  </p>
+                )}
                 {g.current != null && (
                   <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-brown-dark">
                     <div
@@ -166,6 +176,17 @@ export default function GoalsCard({
               onChange={(e) => setTarget(Number(e.target.value))}
             />
           )}
+          <label className="flex items-center gap-2 text-sm text-text-muted">
+            by
+            <input
+              type="date"
+              value={dueOn}
+              min={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => setDueOn(e.target.value)}
+              aria-label="Deadline (optional)"
+              className={input}
+            />
+          </label>
           <button
             type="button"
             disabled={busy || !metric}

@@ -30,3 +30,21 @@ test('boss and log goals', () => {
   assert.equal(goalProgress(g('clog', 'barrows chests', 0), stats).text, '20 / 25');
   assert.equal(goalProgress(g('clog', 'Zulrah', 0), stats).text, 'log not synced');
 });
+
+test('deadlines: days left, overdue, and pace from recent play', () => {
+  const now = new Date('2026-10-12T12:00:00Z');
+  const rates = { skills: { agility: 100_000 }, bosses: { vorkath: 2 } };
+  // 99 Agility: 13,034,431 − 1,210,421 ≈ 11.8M XP left in 50 days ≈ 236K/day; doing 100K → behind.
+  const a = goalProgress({ ...g('skill', 'agility', 99), dueOn: '2026-12-01' }, stats, { rates, now });
+  assert.equal(a.due?.text, 'by 1 Dec · 50 days left');
+  assert.equal(a.due?.tone, 'behind');
+  assert.equal(a.due?.pace, 'needs 236K XP/day · doing 100K');
+  // 1,000 Vorkath: 188 left in 50 days ≈ 3.8/day; doing 2 → behind. 900 is on pace.
+  assert.equal(goalProgress({ ...g('boss', 'vorkath', 1000), dueOn: '2026-12-01' }, stats, { rates, now }).due?.tone, 'behind');
+  assert.equal(goalProgress({ ...g('boss', 'vorkath', 900), dueOn: '2026-12-01' }, stats, { rates, now }).due?.pace, 'on pace');
+  // Past the date and not done.
+  assert.equal(goalProgress({ ...g('boss', 'vorkath', 1000), dueOn: '2026-10-09' }, stats, { now }).due?.text, 'overdue by 3 days');
+  // Done goals and goals without a date have no deadline line.
+  assert.equal(goalProgress({ ...g('skill', 'slayer', 99), dueOn: '2026-12-01' }, stats, { now }).due, null);
+  assert.equal(goalProgress(g('boss', 'vorkath', 1000), stats, { now }).due, null);
+});
