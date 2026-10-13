@@ -118,6 +118,10 @@ export const PLUGIN_CAPABILITIES = [
   // tile the caller's team has called, and POST/DELETE /api/plugin/claims makes or drops your own.
   // Gated so a plugin shows the claim menu only where a click can actually land.
   'tile-claims',
+  // Site-built embeds (lib/pluginEmbeds): /api/plugin/notify accepts `{kind, facts}` and composes the
+  // Discord embed itself, so a plugin can stop shipping embed wording. A plugin only sends facts where
+  // this is advertised; the old `embed` passthrough stays for released plugins.
+  'site-embeds',
 ] as const;
 
 /** The `server` block returned to the plugin (and /api/version). */

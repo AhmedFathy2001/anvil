@@ -8,6 +8,7 @@ import {
 } from '@/lib/pluginConfig';
 import { forwardPluginNotification, pickWebhookUrl } from '@/lib/discord';
 import { playerEventEmbed } from '@/lib/discordEmbeds';
+import { buildPluginEmbed } from '@/lib/pluginEmbeds';
 import { leaguesIconUrl, markSeasonal } from '@/lib/leagues';
 import { stripChatTags, stripChatTagsDeep } from '@/lib/chatTags';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
@@ -34,6 +35,16 @@ const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 // resolves it exactly as it always did, so a plugin that predates the split keeps working.
 const CHANNELS = NOTIFY_CHANNELS.filter((c) => c !== 'clips');
 type Channel = Exclude<NotifyChannel, 'clips'>;
+
+/** The notify body. `kind` + `facts` (site-embeds) or a plugin-built `embed` (older plugins). */
+type NotifyBody = {
+  channel?: unknown;
+  content?: string;
+  embed?: Record<string, unknown>;
+  kind?: unknown;
+  facts?: unknown;
+  seasonal?: unknown;
+};
 
 function isChannel(value: unknown): value is Channel {
   return typeof value === 'string' && (CHANNELS as readonly string[]).includes(value);
@@ -109,6 +120,10 @@ export async function POST(request: Request) {
   let content: string | undefined;
   let embed: Record<string, unknown> | undefined;
   let image: { bytes: ArrayBuffer; filename: string } | null = null;
+  // Site-built embeds (capability 'site-embeds', lib/pluginEmbeds): the plugin sends what happened
+  // and this route composes the post. Older plugins keep sending a finished `embed`, passed through.
+  let kind: unknown;
+  let facts: unknown;
   // Player is on a Leagues world — the plugin reports the fact, this route decides what it means.
   let seasonal = false;
 
@@ -118,10 +133,12 @@ export async function POST(request: Request) {
       const form = await request.formData();
       const raw = form.get('payload_json');
       if (typeof raw === 'string') {
-        const parsed = JSON.parse(raw) as { channel?: unknown; content?: string; embed?: Record<string, unknown>; seasonal?: unknown };
+        const parsed = JSON.parse(raw) as NotifyBody;
         channel = parsed.channel;
         content = parsed.content;
         embed = parsed.embed;
+        kind = parsed.kind;
+        facts = parsed.facts;
         seasonal = parsed.seasonal === true;
       }
       const file = form.get('file');
@@ -132,10 +149,12 @@ export async function POST(request: Request) {
         image = { bytes: await file.arrayBuffer(), filename: file.name || 'image.png' };
       }
     } else {
-      const parsed = (await request.json()) as { channel?: unknown; content?: string; embed?: Record<string, unknown>; seasonal?: unknown };
+      const parsed = (await request.json()) as NotifyBody;
       channel = parsed.channel;
       content = parsed.content;
       embed = parsed.embed;
+      kind = parsed.kind;
+      facts = parsed.facts;
       seasonal = parsed.seasonal === true;
     }
   } catch {
@@ -157,6 +176,13 @@ export async function POST(request: Request) {
   // plugin-hub's schedule; on a client that already strips them this is a no-op.
   let finalEmbed: Record<string, unknown> | null = embed ? stripChatTagsDeep(embed) : null;
   let finalContent = stripChatTags(content);
+  if (kind !== undefined) {
+    const built = buildPluginEmbed(kind, facts, { imageFilename: image?.filename ?? null });
+    if (!built.ok) {
+      return NextResponse.json({ error: built.error }, { status: 400 });
+    }
+    finalEmbed = built.embed as unknown as Record<string, unknown>;
+  }
   if (!finalEmbed && content && (channel === 'deaths' || channel === 'pvpKills')) {
     finalEmbed = playerEventEmbed({
       kind: channel === 'deaths' ? 'death' : 'pvp_kill',
