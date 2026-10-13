@@ -81,6 +81,9 @@ export const PLUGIN_CAPABILITIES = [
   // Clan card + lookup: GET /api/clans/<slug>/card and /api/clans/lookup?q= — the Clan tab's own-clan
   // card, clan lookup, and clan compare in the plugin.
   'clan-card',
+  // Event rosters: GET /api/plugin/event/<id>/roster — the plugin's Teams page, paged (lib/eventRoster).
+  // Without it the plugin shows no Teams row at all.
+  'event-roster',
   // Collection log, personal bests and (later) quests/diaries/CAs pushed from the plugin to a
   // member's profile. Advertised only once the endpoints and tables exist, because the plugin gates
   // ALL of its reading on this: an older site is never polled, and a newer plugin against it does
