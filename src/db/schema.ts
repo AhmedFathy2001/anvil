@@ -1192,6 +1192,13 @@ export const users = pgTable('users', {
   // The old default was quiet, but the guest-social feature never actually emitted under it, so the
   // migration reset every existing row to false as well — nobody was relying on it as a real mute.
   blockGuestEmissions: boolean('block_guest_emissions').notNull().default(false),
+  // Level / XP milestone posts (lib/levelRules). On the LOGIN, like the guest toggle above and the
+  // personal webhooks, so the choice follows the person into every clan.
+  //   level_posts_clan  'clan' | 'ninetyNinesAndMax' | 'off' — what of the clan's level rules this
+  //                     person's clan-channel posts follow. Stricter only; 'clan' is the default.
+  //   level_rules       JSON MilestoneRules for their OWN webhooks; NULL = the defaults.
+  levelPostsClan: text('level_posts_clan').notNull().default('clan'),
+  levelRules: text('level_rules'),
 }, (table) => [
   uniqueIndex('users_plugin_token_unique').on(table.pluginToken),
   index('users_player_idx').on(table.playerId),

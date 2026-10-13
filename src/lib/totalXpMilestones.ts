@@ -1,4 +1,5 @@
-// Total-XP milestones: every 50M of overall XP, announced to the clan's levels channel.
+// Total-XP milestones: every 50M of overall XP by default (a clan or person can pick their own step,
+// lib/levelRules), announced to the clan's levels channel.
 //
 // Pure (no database) so it can be tested on its own; lib/statHistory folds it into detectMilestones.
 //
@@ -17,13 +18,15 @@ export function totalXpOf(snapshot: HiscoresSnapshot | null | undefined): number
 }
 
 /**
- * The 50M steps crossed going from `before` to `after`, in millions. An unknown `before` crosses
+ * The steps (default 50M) crossed going from `before` to `after`, in millions. Detection asks at the
+ * fine grain (lib/levelRules TOTAL_XP_GRAIN_M) so a clan's custom step can be honoured; recording
+ * then keeps only the usual 50M ladder plus whatever a destination of the account asked for. An unknown `before` crosses
  * nothing: an unranked-overall snapshot reads 0, and treating that as a real 0 would announce every
  * step of a 2B account the first time its overall showed up.
  */
-export function crossedTotalXpMillions(before: number, after: number): number[] {
-  if (before <= 0 || after <= before) return [];
-  const step = TOTAL_XP_STEP_MILLIONS * 1_000_000;
+export function crossedTotalXpMillions(before: number, after: number, stepMillions = TOTAL_XP_STEP_MILLIONS): number[] {
+  if (before <= 0 || after <= before || stepMillions <= 0) return [];
+  const step = stepMillions * 1_000_000;
   const out: number[] = [];
   for (let t = (Math.floor(before / step) + 1) * step; t <= after; t += step) {
     out.push(t / 1_000_000);

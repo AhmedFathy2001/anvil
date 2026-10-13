@@ -652,6 +652,13 @@
       "when": 1791166000000,
       "tag": "0134_event_hour_snapshots",
       "breakpoints": true
+    },
+    {
+      "idx": 135,
+      "version": "7",
+      "when": 1791167000000,
+      "tag": "0135_level_milestone_rules",
+      "breakpoints": true
     }
   ]
 }
