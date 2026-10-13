@@ -19,7 +19,7 @@
 
 import { cache } from 'react';
 
-import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, clanMemberships, clans, memberDailyStats, settings } from '@/db/schema';
@@ -147,8 +147,40 @@ export async function clanStandings(
   }));
 }
 
+/**
+ * Which game modes the player table shows. Ironman is every SOLO iron (the hiscores' own ironman
+ * table counts hardcores and ultimates too); group irons are their own bucket. Regular includes
+ * accounts whose mode the plugin has not reported yet — overwhelmingly regular accounts, and
+ * leaving them out would empty the default view of anybody on an old plugin.
+ */
+export const PLAYER_MODES = ['all', 'regular', 'iron', 'hcim', 'uim', 'gim'] as const;
+export type PlayerMode = (typeof PLAYER_MODES)[number];
+
+export function isPlayerMode(v: unknown): v is PlayerMode {
+  return typeof v === 'string' && (PLAYER_MODES as readonly string[]).includes(v);
+}
+
+function modeWhere(mode: PlayerMode) {
+  switch (mode) {
+    case 'regular':
+      return or(isNull(accounts.accountType), eq(accounts.accountType, 'normal'));
+    case 'iron':
+      return inArray(accounts.accountType, ['ironman', 'hardcore', 'ultimate']);
+    case 'hcim':
+      return eq(accounts.accountType, 'hardcore');
+    case 'uim':
+      return eq(accounts.accountType, 'ultimate');
+    case 'gim':
+      return inArray(accounts.accountType, ['group', 'hardcore_group', 'unranked_group']);
+    default:
+      return sql`true`;
+  }
+}
+
 export interface LeaderboardPlayer {
   rsn: string;
+  /** lib/accountType's name for the mode, or null when the plugin has not said. */
+  accountType: string | null;
   clanName: string | null;
   clanSlug: string | null;
   xpGained: number;
@@ -176,6 +208,7 @@ export async function topPlayers(
   limit = 25,
   clanSlug?: string | null,
   offset = 0,
+  mode: PlayerMode = 'all',
 ): Promise<LeaderboardPlayer[]> {
   const since = sinceFor(window);
 
@@ -183,6 +216,7 @@ export async function topPlayers(
   const rows = await db
     .select({
       rsn: accounts.rsn,
+      accountType: accounts.accountType,
       clanName: clans.name,
       clanSlug: clans.slug,
       // Read alongside the name so the row can be stripped below. THE PLAYER OPTED IN, THE CLAN DID
@@ -210,9 +244,10 @@ export async function topPlayers(
         eq(accounts.shared, true),
         since ? gte(memberDailyStats.day, since) : sql`true`,
         clanSlug ? eq(clans.slug, clanSlug) : sql`true`,
+        modeWhere(mode),
       ),
     )
-    .groupBy(accounts.id, accounts.rsn, clans.name, clans.slug, clans.status, clans.visibility, settings.value)
+    .groupBy(accounts.id, accounts.rsn, accounts.accountType, clans.name, clans.slug, clans.status, clans.visibility, settings.value)
     // A STABLE SECOND KEY, because paging without one is how a row appears on two pages and another
     // on neither. Equal totals are common at the quiet end of a long table — every account with no
     // gains in the window sums to the same zero — and Postgres is free to order those differently
@@ -230,11 +265,23 @@ export async function topPlayers(
     );
     return {
       rsn: r.rsn,
+      accountType: r.accountType ?? null,
       clanName: listed ? r.clanName : null,
       clanSlug: listed ? r.clanSlug : null,
       xpGained: Number(r.xpGained ?? 0),
     };
   });
+}
+
+/**
+ * The first day anything was recorded — where "all time" actually starts. Without it a 63M total
+ * reads as a lifetime figure when it is two months of gains. Read, not hardcoded, because every
+ * self-hosted install began on its own day. An index lookup on `member_daily_stats_day_idx`.
+ */
+export async function trackingSince(): Promise<string | null> {
+  // clan-scope: global -- the platform's first tracked day, not any clan's.
+  const [row] = await db.select({ day: sql<string | null>`min(${memberDailyStats.day})` }).from(memberDailyStats);
+  return row?.day ?? null;
 }
 
 // ── Where one person stands ──────────────────────────────────────────────────────────────────────

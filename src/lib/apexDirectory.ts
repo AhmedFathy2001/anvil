@@ -10,6 +10,7 @@ import { db } from '@/db';
 import { accounts, clanMemberships, clans, events as eventsTable, memberDailyStats, settings } from '@/db/schema';
 import { listedClanWhere, showcaseJoinOn } from '@/lib/clanListing';
 import { apexDomain } from '@/lib/clanContext';
+import { asFocus } from '@/lib/clanHome';
 import type { DirectoryClan } from '@/components/ApexDirectory';
 
 /**
@@ -26,6 +27,13 @@ export async function directoryClans(): Promise<DirectoryClan[]> {
       slug: clans.slug,
       name: clans.name,
       logoUrl: clans.logoUrl,
+      bannerUrl: clans.bannerUrl,
+      bannerPosition: clans.bannerPosition,
+      tagline: clans.tagline,
+      focus: clans.focus,
+      recruiting: clans.recruiting,
+      openToChallenges: clans.openToChallenges,
+      createdAt: clans.createdAt,
       customDomain: clans.customDomain,
       verified: clans.ingameNameVerifiedAt,
       guestPolicy: clans.guestPolicy,
@@ -47,7 +55,22 @@ export async function directoryClans(): Promise<DirectoryClan[]> {
     // switches.
     .leftJoin(settings, showcaseJoinOn())
     .where(listedClanWhere())
-    .groupBy(clans.id, clans.slug, clans.name, clans.logoUrl, clans.customDomain, clans.ingameNameVerifiedAt, clans.guestPolicy)
+    .groupBy(
+      clans.id,
+      clans.slug,
+      clans.name,
+      clans.logoUrl,
+      clans.bannerUrl,
+      clans.bannerPosition,
+      clans.tagline,
+      clans.focus,
+      clans.recruiting,
+      clans.openToChallenges,
+      clans.createdAt,
+      clans.customDomain,
+      clans.ingameNameVerifiedAt,
+      clans.guestPolicy,
+    )
     .orderBy(clans.name);
 
   const eventCounts = await db
@@ -85,6 +108,13 @@ export async function directoryClans(): Promise<DirectoryClan[]> {
     slug: r.slug,
     name: r.name,
     logoUrl: r.logoUrl ?? null,
+    bannerUrl: r.bannerUrl ?? null,
+    bannerPosition: r.bannerPosition ?? null,
+    tagline: r.tagline?.trim() || null,
+    focus: asFocus(r.focus),
+    recruiting: r.recruiting,
+    openToChallenges: r.openToChallenges,
+    createdAt: r.createdAt,
     // The path form, not the retired subdomain — `<slug>.<apex>` only 301s now.
     host: r.customDomain || `${apexDomain()}/c/${r.slug}`,
     members: Number(r.members ?? 0),

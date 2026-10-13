@@ -1,5 +1,7 @@
 
 import ClanLink from '@/components/ClanLink';
+import type { ClanFocus } from '@/lib/clanHome';
+
 export interface DirectoryClan {
   slug: string;
   /** The clan's own image, or null for the generated crest. */
@@ -15,6 +17,14 @@ export interface DirectoryClan {
   /** Members who gained anything in seven days. A clan's pulse, not its size. */
   activeThisWeek: number;
   xpThisWeek: number;
+  /** The clan's public-profile dressing — what a stranger reads before the numbers. */
+  bannerUrl?: string | null;
+  bannerPosition?: number | null;
+  tagline?: string | null;
+  focus?: ClanFocus[];
+  recruiting?: boolean;
+  openToChallenges?: boolean;
+  createdAt?: string;
 }
 
 /**

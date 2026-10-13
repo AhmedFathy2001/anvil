@@ -42,7 +42,7 @@ export interface PublicClanHome {
   discordInvite: string | null;
 }
 
-function asFocus(raw: unknown): ClanFocus[] {
+export function asFocus(raw: unknown): ClanFocus[] {
   const ok: ClanFocus[] = ['pvm', 'skilling', 'pvp', 'social', 'ironman'];
   if (!Array.isArray(raw)) return [];
   return raw.filter((x): x is ClanFocus => typeof x === 'string' && (ok as string[]).includes(x));

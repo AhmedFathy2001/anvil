@@ -66,6 +66,16 @@ export default async function ClansPage() {
   const clans: LookupClan[] = rows.map((r) => ({
     slug: r.slug,
     name: r.name,
+    // The clan's own icon and banner. Left out before, so every card fell back to the generated
+    // crest even for clans that had uploaded one.
+    logoUrl: r.logoUrl ?? null,
+    bannerUrl: r.bannerUrl ?? null,
+    bannerPosition: r.bannerPosition ?? null,
+    tagline: r.tagline ?? null,
+    focus: r.focus ?? [],
+    recruiting: r.recruiting ?? false,
+    openToChallenges: r.openToChallenges ?? false,
+    events: r.events,
     members: r.members,
     doing: doing.get(r.slug) ?? null,
     seat: seatBySlug.get(r.slug) ?? null,

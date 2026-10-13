@@ -5,7 +5,15 @@ import type { Metadata } from 'next';
 import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
 import { isApexHost } from '@/lib/clanContext';
-import { clanStandings, topPlayers, type LeaderboardWindow } from '@/lib/clanLeaderboard';
+import {
+  clanStandings,
+  isPlayerMode,
+  topPlayers,
+  trackingSince,
+  type LeaderboardWindow,
+  type PlayerMode,
+} from '@/lib/clanLeaderboard';
+import { accountTypeBadge, accountTypeLabel } from '@/lib/accountType';
 import ClanShapes from '@/components/leaderboard/ClanShapes';
 import PlayerSearch from '@/components/PlayerSearch';
 import { JsonLd, leaderboardLd } from '@/lib/jsonLd';
@@ -48,6 +56,16 @@ const WINDOWS: { key: LeaderboardWindow; label: string }[] = [
   { key: '7d', label: 'This week' },
   { key: '30d', label: '30 days' },
   { key: 'all', label: 'All time' },
+];
+
+/** The game-mode filter on the player table. Clans are not split by it — a clan is all of its modes. */
+const MODES: { key: PlayerMode; label: string }[] = [
+  { key: 'all', label: 'All accounts' },
+  { key: 'regular', label: 'Regular' },
+  { key: 'iron', label: 'Ironman' },
+  { key: 'hcim', label: 'Hardcore' },
+  { key: 'uim', label: 'Ultimate' },
+  { key: 'gim', label: 'Group' },
 ];
 
 /**
@@ -96,12 +114,13 @@ const CLANS_SHOWN = 10;
 export default async function LeaderboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ w?: string; m?: string; p?: string }>;
+  searchParams: Promise<{ w?: string; m?: string; p?: string; mode?: string }>;
 }) {
   if (!isApexHost((await headers()).get('host'))) notFound();
 
   const params = await searchParams;
   const window: LeaderboardWindow = params.w === '30d' || params.w === 'all' ? params.w : '7d';
+  const mode: PlayerMode = isPlayerMode(params.mode) ? params.mode : 'all';
 
   // THE PAGE NUMBER IS SOMEBODY ELSE'S STRING. Clamped hard: a hand-typed `?p=99999` must not turn
   // into an offset the database walks a million rows to satisfy.
@@ -111,9 +130,10 @@ export default async function LeaderboardPage({
   // One row past the page, which is how the next link knows whether there is a next page without a
   // COUNT over an aggregate — the count would be the most expensive query on the page and would only
   // ever be used to decide whether to draw an arrow.
-  const [clanRows, playerRows] = await Promise.all([
+  const [clanRows, playerRows, since] = await Promise.all([
     clanStandings(window, CLANS_SHOWN),
-    topPlayers(window, PER_PAGE + 1, null, offset),
+    topPlayers(window, PER_PAGE + 1, null, offset, mode),
+    window === 'all' ? trackingSince() : Promise.resolve(null),
   ]);
 
   const hasNext = playerRows.length > PER_PAGE;
@@ -125,7 +145,8 @@ export default async function LeaderboardPage({
   // The bar is drawn against the leader OF THIS PAGE, not of the table: on page 4 every row would
   // otherwise be a sliver against a first place nobody can see.
   const playerLeader = players.length > 0 ? players[0].xpGained : 0;
-  const href = (p: number) => `/leaderboard?w=${window}${p > 1 ? `&p=${p}` : ''}`;
+  const modeQs = mode === 'all' ? '' : `&mode=${mode}`;
+  const href = (p: number) => `/leaderboard?w=${window}${modeQs}${p > 1 ? `&p=${p}` : ''}`;
 
   return (
     <div className="mx-auto w-full max-w-5xl">
@@ -153,7 +174,7 @@ export default async function LeaderboardPage({
             label: w.label,
             // Changing the window starts the ranking again: page 4 of the week is not page 4 of
             // all time, and carrying the number across lands somebody in an unrelated middle.
-            href: `/leaderboard?w=${w.key}`,
+            href: `/leaderboard?w=${w.key}${modeQs}`,
           }))}
           active={window}
         />
@@ -168,9 +189,31 @@ export default async function LeaderboardPage({
           <div className="ml-auto"><PlayerSearch /></div>
         </div>
         <p className="mb-4 ml-4 max-w-[62ch] text-[13px] text-text-muted">
-          Only accounts their owner has shared. Everyone else still counts towards their clan&rsquo;s
+          {/* The number is XP GAINED, never total XP — and on "all time" that is only as far back as
+              tracking goes, which is easy to misread as a lifetime figure. */}
+          Ranked by XP gained{' '}
+          {window === '7d'
+            ? 'this week'
+            : window === '30d'
+              ? 'in the last 30 days'
+              : since
+                ? `since Anvil began tracking (${formatDay(since)})`
+                : 'since Anvil began tracking'}
+          . Only accounts their owner has shared. Everyone else still counts towards their clan&rsquo;s
           total — a cross-clan table isn&rsquo;t a way around a privacy setting.
         </p>
+
+        {/* Changing the mode starts the ranking again, for the same reason the window does. */}
+        <div className="mb-4 ml-4">
+          <Switch
+            options={MODES.map((m) => ({
+              key: m.key,
+              label: m.label,
+              href: `/leaderboard?w=${window}${m.key === 'all' ? '' : `&mode=${m.key}`}`,
+            }))}
+            active={mode}
+          />
+        </div>
 
         {/* THE CHIP-PER-CLAN FILTER IS GONE. It rendered one chip for every clan on the platform,
             which reads fine at three and is a wall at a thousand — and it was answering a question
@@ -182,6 +225,8 @@ export default async function LeaderboardPage({
           <p className="rounded-xl border border-dashed border-card-border px-5 py-8 text-center text-sm text-text-muted">
             {page > 1
               ? 'Nothing on this page — the table ends before here.'
+              : mode !== 'all'
+                ? 'Nobody in this mode has shared an account yet.'
               : 'Nobody has shared an account yet.'}
           </p>
         ) : (
@@ -208,6 +253,14 @@ export default async function LeaderboardPage({
                 >
                   {p.rsn}
                 </ClanLink>
+                {accountTypeBadge(p.accountType) && (
+                  <span
+                    title={accountTypeLabel(p.accountType) ?? undefined}
+                    className="relative shrink-0 rounded-full bg-brown-light px-1.5 py-px font-mono text-[9.5px] text-foreground/80"
+                  >
+                    {accountTypeBadge(p.accountType)}
+                  </span>
+                )}
                 {p.clanSlug && (
                   <ClanLink
                     href={`/c/${p.clanSlug}`}
@@ -316,6 +369,16 @@ function Switch({
 
 
 
+
+// 'YYYY-MM-DD' → 'Aug 11, 2026'. Pinned to UTC: the day column is a UTC day, and a viewer west of
+// Greenwich would otherwise see it a day early.
+const formatDay = (day: string) =>
+  new Date(`${day}T00:00:00Z`).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
 
 const pct = (value: number, of: number) => (of > 0 ? Math.max(1, Math.round((value / of) * 100)) : 0);
 
