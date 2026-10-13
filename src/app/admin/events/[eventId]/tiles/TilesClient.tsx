@@ -201,12 +201,17 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   const eventRules = useMemo(() => parseEventRules(event.rules), [event.rules]);
   const revealMode = hasRevealPolicy(eventRules);
   const scheduledMode = eventRules.revealPolicy === 'scheduled';
+  // Missions dropping "at set times" are planned the same way on ANY board — a classic bingo has no
+  // reveal policy, and gating the editor on one left those missions with nowhere to set their time.
+  const missionTimes = eventRules.mission?.announceMode === 'scheduled';
+  const timedTile = (tile: Tile) => scheduledMode || (missionTimes && !!tile.mission);
+  const showsReveal = (tile: Tile) => revealMode || (missionTimes && !!tile.mission);
 
   function revealChip(tile: Tile): { label: string; cls: string; title?: string } | null {
-    if (!revealMode) return null;
+    if (!showsReveal(tile)) return null;
     if (tile.closedAt) return { label: '🎯 Claimed', cls: 'bg-red-500/20 text-red-300', title: `Claimed ${new Date(tile.closedAt).toLocaleString()}` };
     if (tile.revealedAt) return { label: '🔓 Live', cls: 'bg-accent-green/20 text-accent-green-light', title: `Revealed ${new Date(tile.revealedAt).toLocaleString()}` };
-    if (scheduledMode && tile.revealAt) {
+    if (timedTile(tile) && tile.revealAt) {
       return {
         label: `📅 ${new Date(tile.revealAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`,
         cls: 'bg-blue-500/20 text-blue-300',
@@ -216,7 +221,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     return {
       label: '🙈 Hidden',
       cls: 'bg-gray-500/20 text-gray-300',
-      title: scheduledMode ? 'No reveal time set — this tile stays hidden until one is' : 'Waiting to be drawn',
+      title: timedTile(tile) ? 'No reveal time set — this tile stays hidden until one is' : 'Waiting to be drawn',
     };
   }
 
@@ -956,11 +961,11 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     cofferAvailable={cofferAvailable}
     canDelete={canEditTileSet}
     revealEditor={
-      revealMode ? (
+      showsReveal(editingTile) ? (
         <RevealAtEditor
           tile={editingTile}
           eventId={event.id}
-          scheduled={scheduledMode}
+          scheduled={timedTile(editingTile)}
           isAdmin={isAdmin}
           onSaved={(revealAt) => handleRevealAtSaved(editingTile.id, revealAt)}
           onStateChanged={handleRevealStateChanged}
@@ -1357,12 +1362,12 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                       save, the second save is rejected instead of overwriting.
                     </p>
                   )}
-                  {revealMode && (
+                  {showsReveal(editingTile) && (
                     <RevealAtEditor
                       key={`reveal-${editingTile.id}`}
                       tile={editingTile}
                       eventId={event.id}
-                      scheduled={scheduledMode}
+                      scheduled={timedTile(editingTile)}
                       isAdmin={isAdmin}
                       onSaved={(revealAt) => handleRevealAtSaved(editingTile.id, revealAt)}
                       onStateChanged={handleRevealStateChanged}
