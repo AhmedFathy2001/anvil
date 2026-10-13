@@ -11,6 +11,7 @@ import { log } from '@/lib/logger';
 import {
   DAY_MS,
   biggestComeback,
+  daysWonLine,
   dueDigestDay,
   rankTeams,
   stampMs,
@@ -318,10 +319,15 @@ async function digestEvent(event: typeof events.$inferSelect, nowMs: number): Pr
         t.tiles += person.tilesFinished;
         totals.set(clanId, t);
       }
-      const lines = [...sides.entries()].map(([clanId, name]) => {
+      // Best day first, so a 3- or 4-clan board reads as a mini leaderboard.
+      const gainOf = (clanId: number) => scoreGainByClan.get(clanId) ?? 0;
+      const order = [...sides.entries()].sort((a, b) => gainOf(b[0]) - gainOf(a[0]));
+      const many = sides.size > 2;
+      const lines = order.map(([clanId, name], i) => {
         const t = totals.get(clanId);
         const crown = clanOfDay?.clanId === clanId ? ' 👑' : '';
-        if (!t) return `**${name}**${crown} — quiet day`;
+        const head = many ? `${medal(i + 1)} **${name}**${crown} _(+${gainOf(clanId).toLocaleString()})_` : `**${name}**${crown}`;
+        if (!t) return `${head} — quiet day`;
         const bits = [
           `${t.xp.toLocaleString()} XP`,
           `${t.kc.toLocaleString()} KC`,
@@ -329,12 +335,10 @@ async function digestEvent(event: typeof events.$inferSelect, nowMs: number): Pr
           t.minutes > 0 ? `${hours(t.minutes)} played` : null,
           `${t.deaths} ${t.deaths === 1 ? 'death' : 'deaths'}`,
         ].filter(Boolean);
-        return `**${name}**${crown} — ${bits.join(' · ')}`;
+        return `${head} — ${bits.join(' · ')}`;
       });
-      const tally = Object.keys(clanDayWins).length
-        ? `\nDays won: ${[...sides.entries()].map(([id, name]) => `${name} ${clanDayWins[String(id)] ?? 0}`).join(' – ')}`
-        : '';
-      fields.push(field('⚔️ Clan v clan today', lines.join('\n') + tally, false));
+      const tally = Object.keys(clanDayWins).length ? `\nDays won: ${daysWonLine(sides, clanDayWins)}` : '';
+      fields.push(field(many ? `⚔️ Clan war today (${sides.size} clans)` : '⚔️ Clan v clan today', lines.join('\n') + tally, false));
     }
   }
 
@@ -450,7 +454,7 @@ export async function endOfEventFacts(event: typeof events.$inferSelect): Promis
     const last = parsed[parsed.length - 1];
     const sides = await clanSides(eventTeams);
     if (last?.clanDayWins && sides.size >= 2) {
-      facts.push(`👑 **Days won:** ${[...sides.entries()].map(([id, name]) => `${name} ${last.clanDayWins?.[String(id)] ?? 0}`).join(' – ')}`);
+      facts.push(`👑 **Days won:** ${daysWonLine(sides, last.clanDayWins)}`);
     }
     const m = await momentTally(event.id, null, null);
     if (m.nemesis) facts.push(`⚰️ **Nemesis:** ${m.nemesis.name} — ${m.nemesis.count} kills on us`);

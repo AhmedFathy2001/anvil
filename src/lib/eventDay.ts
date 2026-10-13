@@ -163,3 +163,16 @@ export function biggestComeback(
   }
   return best;
 }
+
+/**
+ * The running clan-of-the-day tally as one line. Two clans read as a scoreline ("A 2 – B 1"); three
+ * or more as a table, most days won first ("A 3 · C 1 · B 0").
+ */
+export function daysWonLine(sides: Map<number, string>, wins: Record<string, number> | undefined): string {
+  const rows = [...sides.entries()].map(([id, name]) => ({ name, n: wins?.[String(id)] ?? 0 }));
+  if (rows.length <= 2) return rows.map((r) => `${r.name} ${r.n}`).join(' – ');
+  return rows
+    .sort((a, b) => b.n - a.n)
+    .map((r) => `${r.name} ${r.n}`)
+    .join(' · ');
+}

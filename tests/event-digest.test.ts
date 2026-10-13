@@ -188,3 +188,41 @@ test('the final day is never digested — the end post covers it', async () => {
   await runDailyDigests(END + 1000);
   assert.equal(posts.length, 0);
 });
+
+test('a 4-clan board: every clan gets the post, clans ranked by points gained that day', async () => {
+  const { runDailyDigests } = await import('../src/lib/eventDigest.ts');
+  const START2 = END + DAY; // the first event is over by now, so only this one is due
+  const mk = async (slug: string, name: string) => (await db.insert(s.clans).values({ slug, name }).returning())[0].id;
+  const [a, b, c, d] = [await mk('wa', 'Alpha'), await mk('wb', 'Bravo'), await mk('wc', 'Charlie'), await mk('wd', 'Delta')];
+  const [ev] = await db
+    .insert(s.events)
+    .values({ clanId: a, name: 'Clan War', boardSize: 5, scoringMode: 'points', startDate: new Date(START2).toISOString(), endDate: new Date(START2 + 3 * DAY).toISOString(), startNotified: 1 })
+    .returning();
+  await db.insert(s.eventCohosts).values([b, c, d].map((clanId) => ({ eventId: ev.id, clanId, status: 'accepted' })));
+  const team = async (name: string, clanId: number) => (await db.insert(s.teams).values({ eventId: ev.id, name, color: '#fff', clanId }).returning())[0].id;
+  const [tA, tB, tC] = [await team('A1', a), await team('B1', b), await team('C1', c)];
+  await team('D1', d);
+  const tile = async (pos: number, points: number) =>
+    (await db.insert(s.tiles).values({ eventId: ev.id, position: pos, label: `T${pos}`, tileType: 'drop', points }).returning())[0].id;
+  const [x, y, z] = [await tile(0, 10), await tile(1, 15), await tile(2, 20)];
+  const done = (tileId: number, teamId: number) => ({ tileId, teamId, completedAt: new Date(START2 + DAY / 2).toISOString() });
+  // Day 1: Bravo 10+15 = 25, Charlie 20, Alpha 10, Delta nothing.
+  await db.insert(s.completions).values([done(x, tB), done(y, tB), done(z, tC), done(x, tA)]);
+  await db.insert(s.settings).values([a, b, c, d].map((clanId, i) => ({ clanId, key: 'discord_webhook_bingo', value: `https://discord.test/war${i}` })));
+
+  posts.length = 0;
+  await runDailyDigests(START2 + DAY + 1000);
+  assert.deepEqual(posts.map((p) => p.url).sort(), ['https://discord.test/war0', 'https://discord.test/war1', 'https://discord.test/war2', 'https://discord.test/war3']);
+  const f = fieldsOf(posts[0]);
+  const section = f['⚔️ Clan war today (4 clans)'];
+  assert.ok(section, `no clan war field in ${Object.keys(f).join(', ')}`);
+  const order = section.split('\n');
+  assert.match(order[0], /Bravo\*\* 👑 _\(\+25\)_/);
+  assert.match(order[1], /Charlie\*\* _\(\+20\)_/);
+  assert.match(order[2], /Alpha\*\* _\(\+10\)_/);
+  assert.match(order[3], /Delta\*\* _\(\+0\)_ — quiet day/);
+  assert.match(order[0], /^🥇/);
+  assert.match(order[3], /^4\. /);
+  assert.match(order[4], /^Days won: Bravo 1 · /);
+  assert.match(posts[0].body.embeds![0].description!, /Bravo\*\* took the day \(\+25/);
+});

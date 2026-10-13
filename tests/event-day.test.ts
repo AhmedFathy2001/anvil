@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { DAY_MS, biggestComeback, dueDigestDay, eventDayCount, eventDayOf, rankTeams, totalGains, trimStats } from '../src/lib/eventDay.ts';
+import { DAY_MS, biggestComeback, daysWonLine, dueDigestDay, eventDayCount, eventDayOf, rankTeams, totalGains, trimStats } from '../src/lib/eventDay.ts';
 import { countTurnIns, turnInsOnTile } from '../src/lib/turnIns.ts';
 
 const START = Date.parse('2026-10-14T18:00:00Z');
@@ -82,4 +82,11 @@ test('turn-ins: a kill tile is one submission per person, drops count each', () 
   assert.equal(turnInsOnTile('kill', 500), 1);
   assert.equal(turnInsOnTile('drop', 3), 3);
   assert.equal(turnInsOnTile('kill', 0), 0);
+});
+
+test('daysWonLine: scoreline for two clans, table (most wins first) for more', () => {
+  const two = new Map([[1, 'A'], [2, 'B']]);
+  assert.equal(daysWonLine(two, { 1: 2 }), 'A 2 – B 0');
+  const four = new Map([[1, 'A'], [2, 'B'], [3, 'C'], [4, 'D']]);
+  assert.equal(daysWonLine(four, { 3: 3, 1: 1, 4: 2 }), 'C 3 · D 2 · A 1 · B 0');
 });
