@@ -21,6 +21,8 @@ import { computeEhpEhb } from '@/lib/efficiency';
 import { EFFICIENCY_SCALE } from '@/lib/constants';
 import { crossedTotalXpMillions, totalXpOf } from '@/lib/totalXpMilestones';
 import { announceMilestones } from '@/lib/milestoneAnnounce';
+import { keepTotalXpStep, TOTAL_XP_GRAIN_M, TOTAL_XP_RECORD_STEP_M } from '@/lib/levelRules';
+import { wantedTotalXpStepsM } from '@/lib/levelRulesStore';
 import { log } from '@/lib/logger';
 
 // ── Adaptive polling ─────────────────────────────────────────────────────────────────────────────
@@ -203,7 +205,9 @@ export function detectMilestones(
   }
 
   // Overall XP isn't in the deltas (lib/statDeltas skips 'overall'), so read it off the snapshots.
-  for (const threshold of crossedTotalXpMillions(totalXpOf(before), totalXpOf(after))) {
+  // At the fine grain: a clan may announce every 10M (lib/levelRules). recordMilestones drops the
+  // off-ladder steps nobody asked for, so a profile still reads in 50M steps by default.
+  for (const threshold of crossedTotalXpMillions(totalXpOf(before), totalXpOf(after), TOTAL_XP_GRAIN_M)) {
     found.push({ kind: 'totalxp', metric: null, threshold });
   }
 
@@ -225,6 +229,13 @@ export function detectMilestones(
  * inserted are announced, so Discord hears about each one once. Returns how many were new.
  */
 export async function recordMilestones(accountId: number, milestones: Milestone[]): Promise<number> {
+  // Total-XP steps off the usual 50M ladder are kept only when a destination of this account wants
+  // that step (a clan's or the person's own `totalXpStepM`). The lookup only runs when such a step
+  // was actually crossed — once per few million XP — never on an ordinary tick.
+  if (milestones.some((m) => m.kind === 'totalxp' && m.threshold % TOTAL_XP_RECORD_STEP_M !== 0)) {
+    const wanted = await wantedTotalXpStepsM(accountId);
+    milestones = milestones.filter((m) => m.kind !== 'totalxp' || keepTotalXpStep(m.threshold, wanted));
+  }
   if (milestones.length === 0) return 0;
   const rows = milestones.map((m) => ({
     accountId,
