@@ -555,3 +555,13 @@ test('the real raid uniques survive both rules', () => {
     assert.ok(board().has(item), `${item} is a genuine unique and must stay on the board`);
   }
 });
+
+test('a shared table (the rare drop table) leaves the board, a drop several bosses share stays', () => {
+  // Shield left half is on ~330 untracked monsters' tables. None comes within 10x of a boss's rate,
+  // so the ratio test passed it — but the routes add, and a slayer task's worth of them is a bigger
+  // source than every boss together. Nobody can be called lucky over it.
+  assert.equal(board().has('shield left half'), false);
+  // Several BOSSES sharing a drop is fine: their kills are all counted, and their expectations add.
+  const pick = sourcesOf('dragon pickaxe');
+  assert.ok(pick.length >= 5, `dragon pickaxe should sum its boss sources, got ${JSON.stringify(pick)}`);
+});

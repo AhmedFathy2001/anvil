@@ -109,8 +109,15 @@ export function luckCandidates(raidOverrides?: unknown): LuckCandidate[] {
   // Dragon knives (1-in-2,001 tracked against 1-in-2,001 untracked) fail it; Bandos (42x apart)
   // passes.
   const UNACCOUNTED_RATIO = 10;
+  // SHARED TABLES break the ratio test. The rare drop table hangs off hundreds of monsters — the
+  // dataset copies it onto each — and no single one comes within 10x of a boss's rate, so a Shield
+  // left half passed as a boss drop. But the routes ADD: three hundred slayer creatures at 1-in-8,000
+  // are a bigger source than any boss, and none has a killcount. An item on that many untracked
+  // tables is one we cannot account for, whatever each rate says.
+  const SHARED_TABLE_SOURCES = 20;
   const bestTracked = new Map<number, number>();
   const bestUntracked = new Map<number, number>();
+  const untrackedRoutes = new Map<number, number>();
   for (const [source, table] of Object.entries(drops)) {
     const key = trackedKey(source);
     for (const drop of table) {
@@ -118,6 +125,7 @@ export function luckCandidates(raidOverrides?: unknown): LuckCandidate[] {
       const into = key ? bestTracked : bestUntracked;
       const cur = into.get(drop.i);
       if (cur === undefined || drop.d < cur) into.set(drop.i, drop.d);
+      if (!key) untrackedRoutes.set(drop.i, (untrackedRoutes.get(drop.i) ?? 0) + 1);
     }
   }
 
@@ -156,6 +164,9 @@ export function luckCandidates(raidOverrides?: unknown): LuckCandidate[] {
     const tracked = bestTracked.get(itemId);
     // No tracked source at all is handled by the `sources.length > 0` test below, not here.
     if (tracked !== undefined && untracked < tracked * UNACCOUNTED_RATIO) unaccounted.add(itemId);
+  }
+  for (const [itemId, routes] of untrackedRoutes) {
+    if (routes >= SHARED_TABLE_SOURCES) unaccounted.add(itemId);
   }
 
   for (const [source, table] of Object.entries(drops)) {
