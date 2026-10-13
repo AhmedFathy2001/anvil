@@ -2,9 +2,10 @@ import { notFound } from 'next/navigation';
 
 import { clanDetail, platformActions } from '@/lib/platformView';
 import { billingStatus, liveness } from '@/lib/clanBilling';
-import { requirePlatformPage } from '@/lib/platformAccess';
+import { CAN_DELETE_CLAN, requirePlatformPage } from '@/lib/platformAccess';
 import { hasPlatformRole } from '@/lib/clanRoles';
 import ClanLink from '@/components/ClanLink';
+import ClanEditor from './ClanEditor';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,10 +18,10 @@ export const dynamic = 'force-dynamic';
  * nothing outside the customer's own /portal read them at all. None of those four agreed to be
  * about the same clan, so the operator did the joining in their head.
  *
- * NOTHING HERE IS EDITABLE, deliberately. The lifecycle controls live in the directory because that
+ * PLAN, CAP AND STATUS ARE NOT EDITABLE HERE, deliberately. They live in the directory because that
  * is where clans are compared and a plan is decided between them; duplicating them here would mean
- * two places that set a plan and one of them would drift. This page is for reading, and every
- * control it points at is somewhere that already owned it.
+ * two places that set a plan and one of them would drift. What this page does own is the clan's
+ * identity — its name and address — and, for root, deleting it outright (ClanEditor).
  */
 export default async function StaffClanPage({ params }: { params: Promise<{ id: string }> }) {
   const actor = await requirePlatformPage('support');
@@ -38,6 +39,7 @@ export default async function StaffClanPage({ params }: { params: Promise<{ id: 
   // The query already took a clan filter; nothing had ever passed it one.
   const actions = await platformActions(20, { clanId: clan.id });
   const canWrite = hasPlatformRole(actor.role, 'staff');
+  const canDelete = hasPlatformRole(actor.role, CAN_DELETE_CLAN);
 
   return (
     <div>
@@ -184,6 +186,15 @@ export default async function StaffClanPage({ params }: { params: Promise<{ id: 
               Every clan’s errors →
             </ClanLink>
           </p>
+        </Section>
+      )}
+
+      {canWrite && (
+        <Section title="Edit clan">
+          <ClanEditor
+            clan={{ id: clan.id, name: clan.name, slug: clan.slug, events: clan.events, members: clan.members + clan.guests }}
+            canDelete={canDelete}
+          />
         </Section>
       )}
 

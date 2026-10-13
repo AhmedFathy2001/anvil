@@ -24,12 +24,13 @@ const WHAT: Record<string, string> = {
   platform_role_changed: 'Platform role changed',
   platform_owner_appointed: 'Clan owner appointed',
   platform_clan_updated: 'Clan updated',
+  platform_clan_deleted: 'Clan deleted',
   platform_act_as_granted: 'Borrowed a grant in this clan',
   platform_act_as_revoked: 'Handed back a borrowed grant',
 };
 
-/** The two that change who can sign in. Worth spotting in a long list. */
-const SEVERE = new Set(['platform_banned', 'platform_role_changed']);
+/** The ones that change who can sign in, or cannot be undone. Worth spotting in a long list. */
+const SEVERE = new Set(['platform_banned', 'platform_role_changed', 'platform_clan_deleted']);
 
 export default async function StaffAuditPage({
   searchParams,

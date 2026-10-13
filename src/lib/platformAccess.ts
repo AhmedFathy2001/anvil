@@ -89,3 +89,5 @@ export async function requirePlatformApi(
 export const CAN_WRITE: PlatformRole = 'staff';
 /** Granting platform roles is root's alone — otherwise 'staff' is self-promoting. */
 export const CAN_GRANT: PlatformRole = 'root';
+/** Deleting a clan outright cannot be undone, so it is root's too; staff can archive. */
+export const CAN_DELETE_CLAN: PlatformRole = 'root';
