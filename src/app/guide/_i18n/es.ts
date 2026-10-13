@@ -68,7 +68,7 @@ const es: PartialGuideDict = {
         eyebrow: 'Para jugadores',
         title: 'Configurar el plugin de RuneLite',
         blurb:
-          'Instala el plugin, inicia sesión desde su panel lateral y deja que envíe tus drops. Cubre también las notificaciones de Discord y los clips de OBS.',
+          'Instala el plugin, inicia sesión desde su panel lateral y deja que envíe tus drops. Cubre también las notificaciones de Discord y la búsqueda de jugadores.',
         minutes: '~3 min de configuración',
       },
       board: {
@@ -453,17 +453,17 @@ const es: PartialGuideDict = {
   plugin: {
     metaTitle: 'Configurar el plugin de RuneLite — Anvil',
     metaDescription:
-      'Instala el plugin de RuneLite de Anvil, inicia sesión desde su panel lateral y configura las notificaciones de Discord y los clips de OBS.',
+      'Instala el plugin de RuneLite de Anvil, inicia sesión desde su panel lateral y configura las notificaciones de Discord.',
     eyebrow: 'Anvil · plugin de RuneLite',
     title: 'Guía de configuración para jugadores',
-    dek: 'Instálalo, inicia sesión y juega. El plugin envía tus drops de bingo, publica en Discord tus drops raros y tus muertes y —si usas OBS— guarda y publica clips de los momentos que merece la pena volver a ver.',
+    dek: 'Instálalo, inicia sesión y juega. El plugin envía tus drops de bingo, publica en Discord tus drops raros, tus muertes y tus hitos, y te deja buscar a cualquiera con un clic derecho.',
     facts: [
       { strong: '1 botón', rest: 'y el registro está en marcha' },
       { strong: '~3 min', rest: 'para la configuración básica' },
-      { strong: 'Los clips', rest: 'necesitan OBS + 5 minutos más' },
+      { strong: 'Clic derecho', rest: 'para buscar a cualquiera' },
     ],
     footnote:
-      'Las capturas son de una instalación real — el token de cuenta, la dirección de OBS y el webhook de Discord están tapados a propósito. Los tuyos deberían seguir siendo igual de privados.',
+      'Las capturas son de una instalación real — el token de cuenta está tapado a propósito. El tuyo debería seguir siendo igual de privado.',
 
     install: {
       title: 'Instala el plugin',
@@ -606,10 +606,28 @@ const es: PartialGuideDict = {
         alt: 'El menú de clic derecho de un jugador en el juego con una entrada Anvil bajo Lookup y RuneProfile',
       },
       lookupSettingNote:
-        '¿No lo quieres en tus menús? Desmarca **Anvil lookup on players** en **General**, en los ajustes del plugin.',
+        'Elige dónde aparece la entrada **Anvil** en **Player lookup**, en los ajustes del plugin. Sobre un nombre en el chat nunca es la opción del clic izquierdo, así que hacer clic en un nombre sigue haciendo lo que hace el juego.',
       lookupSettingFigure: {
-        caption: 'Configuration → Anvil → General',
-        alt: 'La sección General de los ajustes de Anvil con «Anvil lookup on players» marcado',
+        caption: 'Configuration → Anvil → Player lookup',
+        alt: 'La sección Player lookup de los ajustes de Anvil, con cada ajuste recuadrado y numerado',
+        legend: [
+          {
+            label: 'Anvil lookup on players',
+            body: 'el interruptor general. Desactivado, oculta la entrada en todas partes.',
+          },
+          {
+            label: 'Players in the world',
+            body: 'al hacer clic derecho sobre un jugador que está cerca de ti.',
+          },
+          {
+            label: 'Chatbox and private messages',
+            body: 'los nombres en el chat y en los mensajes privados.',
+          },
+          {
+            label: 'Clan panels / Friends chat / Friends, ignore and party lists',
+            body: 'las listas de nombres: los miembros de tu clan y del clan invitado, el canal de friends chat, tus listas de amigos e ignorados y el panel del grupo de raid.',
+          },
+        ],
       },
     },
 
@@ -630,8 +648,16 @@ const es: PartialGuideDict = {
             body: 'un cartel cuando alguien de tu equipo completa una casilla. Varias a la vez: la más difícil se lleva el cartel, el resto va al chat.',
           },
           {
+            label: 'My tile popups',
+            body: 'un aviso cuando un drop tuyo hace avanzar una casilla o la completa. Desactivado, sigue registrando — solo que en silencio.',
+          },
+          {
             label: 'Banner sound + volume',
             body: 'reproduce un sonido con el banner. No suena nada hasta que añadas al menos un .wav tú mismo, con **Add clip** bajo “Banner sounds” en el panel lateral de Anvil. Las misiones tienen su propia carpeta: añade un clip en **Mission sounds** y sonará en lugar del tono integrado que evita que se confundan con una casilla completada.',
+          },
+          {
+            label: 'Auto starting shot',
+            body: 'toma por ti la foto de salida de un evento en cuanto te pones en su punto fijado. Desactivado, pulsas tú **Take starting shot** en el panel lateral.',
           },
         ],
       },
@@ -674,120 +700,31 @@ const es: PartialGuideDict = {
         ],
       },
       caFigure: {
-        caption: 'Combat achievements · levels · diaries · quests',
+        caption: 'Combat achievements · collection log · levels · diaries · quests',
         alt: 'La sección de notificación Combat achievements, con cada ajuste recuadrado y numerado',
         legend: [
-          { label: 'Notify on combat achievements', body: 'los niveles completados se publican siempre mientras esto esté activado.' },
           {
-            label: 'CA task min tier',
-            body: 'cuánto ruido hacen las tareas sueltas. Aquí Elite; por defecto es Master. Ponlo en Grandmaster para dejar solo las más raras.',
+            label: 'CA post tier',
+            body: 'el nivel de tarea más bajo que se publica; los niveles completados también se publican. Por defecto es Master; Grandmaster publica solo las más raras, **Off** no publica ninguna. Las casillas de CA del bingo cuentan igualmente.',
           },
           {
-            label: 'Notify on 99s & high totals',
-            body: 'los 99, cada 100 niveles totales desde 1800 en adelante, y el máximo.',
-          },
-          { label: 'Notify on diary completions', body: 'niveles de achievement diary.' },
-          {
-            label: 'Announce quest completions',
-            body: 'desde la dificultad que elijas hacia arriba. Aquí «All quests»; por defecto es Master en adelante.',
-          },
-        ],
-      },
-    },
-
-    clips: {
-      title: 'Clips con OBS',
-      intro: [
-        'Pulsas una tecla y los últimos 30 segundos se guardan y caen en el canal de clips del clan. Está desactivado por defecto y necesita OBS en marcha — pero es lo más parecido a un vídeo de mejores momentos que va a tener tu clan.',
-        'Cómo funciona: OBS mantiene un **replay buffer** continuo de los últimos X segundos. Tu atajo le dice a OBS que vuelque ese búfer a un archivo, y el plugin recoge el archivo y lo sube a un webhook de Discord que tú pegas.',
-      ],
-      privacyNote: {
-        tag: 'Adónde va tu vídeo',
-        body: 'Los clips se suben **directamente de tu PC a Discord**. Nunca pasan por este sitio, y no se sube absolutamente nada si dejas el campo del webhook vacío — los clips se quedan en tu máquina.',
-      },
-      obsHeading: 'A. Configura OBS (una vez)',
-      obsSteps: [
-        'Necesitas **OBS Studio 28 o más nuevo** — el servidor WebSocket viene integrado desde la 28, sin descargas extra.',
-        'Asegúrate de que OBS está capturando el juego de verdad: una fuente Game / Window / Display Capture que muestre RuneLite. Si OBS no ve tu cliente, tus clips serán un rectángulo negro.',
-        '**Settings → Output** → marca **Enable Replay Buffer**. (En modo Simple output está en la página Recording; en Advanced tiene su propia pestaña.) Aprovecha para comprobar que hay espacio en tu ruta de grabación.',
-        '**Tools → WebSocket Server Settings** → marca **Enable WebSocket server**. Apunta el **Server Port** (4455 por defecto) y pulsa **Show Connect Info** para la contraseña.',
-      ],
-      obsAside:
-        '_No_ necesitas pulsar «Start Replay Buffer» — el plugin lo arranca por ti al conectarse, y lo reinicia cada vez que cambias la duración del clip.',
-      fillHeading: 'B. Rellena el plugin',
-      figure: {
-        caption: 'Configuration → Anvil → Clips',
-        alt: 'La sección Clips de los ajustes del plugin, con cada ajuste recuadrado y numerado; el host de OBS y la URL del webhook están ocultos',
-        legend: [
-          { label: 'Enable clip capture', body: 'el interruptor principal. Apagado, el plugin no habla con OBS en absoluto.' },
-          {
-            label: 'Capture clip hotkey',
-            body: 'configúralo o no pasará nunca nada. Elige algo que no vayas a pulsar sin querer en mitad de una raid.',
+            label: 'Notify on collection log slots',
+            body: 'cada hueco nuevo del collection log.',
           },
           {
-            label: 'OBS host / port / password',
-            body: '`localhost` cuando OBS corre en el mismo PC que RuneLite. Si OBS está en otra máquina, pon aquí la IP local de esa máquina — oculta en esta captura — y abre el puerto en su cortafuegos. El puerto y la contraseña salen de _Show Connect Info_; deja la contraseña vacía si desactivaste la autenticación de OBS.',
+            label: 'Notify on level milestones',
+            body: 'las subidas de nivel que tu clan ha decidido anunciar — por defecto los 99, cada 100 niveles totales desde 1800, y el máximo. Los admins de tu clan ponen las reglas; tú puedes publicar menos (o poner tus propias reglas para tus webhooks personales) desde Announcements en tu perfil.',
           },
           {
-            label: 'Max auto-post size (MB)',
-            body: 'todo lo que pase de ahí se guarda en local y se menciona discretamente en el chat en vez de publicarse. Ajústalo a lo que tu servidor de Discord acepte de verdad; el plugin viene en 25.',
+            label: 'Notify on diary completions',
+            body: 'niveles de achievement diary, con una captura.',
           },
           {
-            label: 'Clip length (seconds)',
-            body: 'cuánto hacia atrás alcanza cada clip. Esto escribe la duración del búfer en tu perfil de OBS, así que OBS necesita esos segundos de margen antes de que exista siquiera un clip de duración completa. Clips más largos = archivos más grandes; 30 es un buen término medio.',
-          },
-          {
-            label: 'Save clips as MP4',
-            body: 'el MP4 se previsualiza y reproduce dentro de Discord; el MKV hay que descargarlo antes. Ojo: esto cambia el formato de grabación de OBS, lo que afecta también a tus grabaciones normales. Desactívalo para dejar OBS en paz.',
-          },
-          {
-            label: 'Clips Discord webhook URL',
-            body: 'dónde se publican los clips — pide a un admin el webhook del canal de clips. Vacío = los clips se quedan en tu PC. Aquí está oculto, y con razón: cualquiera con esta URL puede publicar en ese canal.',
-          },
-          {
-            label: 'Post OBS-triggered clips too',
-            body: 'también gestiona los guardados que dispara el propio OBS o el plugin «Save Replay Buffer for OBS». Déjalo apagado si usas dos clientes de RuneLite contra un solo OBS, o cada clip se publicará dos veces.',
-          },
-          {
-            label: "Let Anvil manage OBS's recording folder",
-            body: 'apunta la carpeta de grabación de OBS a la carpeta de clips de Anvil mientras RuneLite está abierto, que es lo que permite que un clip se publique solo: el plugin solo puede leer su propia carpeta. Tus grabaciones normales de OBS también irán ahí mientras esté activo, y tu ajuste se restaura al desactivarlo o cerrar RuneLite.',
+            label: 'Quest post tier',
+            body: 'misiones desde la dificultad que elijas hacia arriba, de All (todas) hasta Grandmaster; **Off** no publica ninguna. Por defecto es Master. Las casillas de misiones del bingo cuentan igualmente.',
           },
         ],
       },
-      useHeading: 'C. Úsalo',
-      useIntro: 'Pasa algo gracioso → pulsa tu atajo → el chat te guía:',
-      useChat: [
-        { text: 'Saving clip...', tone: 'plain' },
-        { text: 'Uploading clip to the clan Discord...', tone: 'plain' },
-        { text: 'Clip posted to the clan Discord.', tone: 'green' },
-      ],
-      reminder: {
-        tag: 'Recuerda',
-        body: 'El clip cubre los segundos _anteriores_ a pulsar la tecla — así que púlsala después del momento, no durante. Tienes toda la duración del búfer para reaccionar.',
-      },
-      decodedHeading: 'Mensajes de clips, descifrados',
-      decoded: [
-        {
-          term: '`Clip capture: OBS isn’t connected.`',
-          body: 'OBS no está en marcha, el servidor WebSocket está apagado, o el host/puerto/contraseña no coinciden. Arréglalo y vuelve a pulsar — el plugin reintenta la conexión por su cuenta cada 30 segundos.',
-        },
-        {
-          term: '`OBS could not save the clip — is the Replay Buffer started?`',
-          body: 'El búfer no está corriendo. Comprueba Enable Replay Buffer en los ajustes de salida de OBS, y luego apaga y vuelve a encender Enable clip capture.',
-        },
-        {
-          term: '`Clip saved locally — paste a Clips Discord webhook URL…`',
-          body: 'Funciona como debe, simplemente no tienes webhook configurado. El archivo está en tu carpeta de grabación de OBS.',
-        },
-        {
-          term: '`Clip saved locally (48MB) — too big to auto-post.`',
-          body: 'Acorta la duración del clip, baja la calidad de tu grabación de OBS, o sube el tamaño máximo si tu servidor acepta archivos más grandes.',
-        },
-        {
-          term: '`…but Discord didn’t accept the upload.`',
-          body: 'Demasiado grande, limitado por tasa, o la subida agotó el tiempo. El archivo sigue en tu PC — publícalo a mano si merece la pena.',
-        },
-      ],
     },
 
     trouble: {
@@ -814,7 +751,7 @@ const es: PartialGuideDict = {
       ],
       logHeading: '¿Sigues atascado? Manda un registro a un admin',
       logBody:
-        'Escribe `::anvillog` en el chat del juego (o configura **Export debug log hotkey** en la sección Support del plugin). Escribe un archivo de registro en tu carpeta `.runelite/anvil-debug`, abre la carpeta, y copia la ruta al portapapeles — envía ese archivo a un admin y verá exactamente qué falló.',
+        'Envía a un admin tu log de RuneLite: `client.log`, en la carpeta `.runelite/logs` de tu carpeta de usuario (en Windows, pega `%USERPROFILE%\\.runelite\\logs` en la barra de direcciones del Explorador). El plugin escribe ahí lo que vio y por qué, así que podrá ver exactamente qué falló.',
       missingNote: {
         tag: '¿Faltan pruebas?',
         body: 'Las mascotas y los Champion’s scrolls repetidos necesitan una captura manual. El plugin la hace por ti y la guarda en `.runelite/osrs-bingo-pending/` — **Copy folder path** en el panel lateral de Anvil abre la carpeta — así la adjuntas en la web en vez de buscar una imagen después.',

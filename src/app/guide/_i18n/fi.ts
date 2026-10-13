@@ -68,7 +68,7 @@ const fi: PartialGuideDict = {
         eyebrow: 'Pelaajille',
         title: 'RuneLite-pluginin käyttöönotto',
         blurb:
-          'Asenna plugin, kirjaudu sisään sen sivupaneelista ja anna sen lähettää dropit puolestasi. Kattaa myös Discord-ilmoitukset ja OBS-leikkeet.',
+          'Asenna plugin, kirjaudu sisään sen sivupaneelista ja anna sen lähettää dropit puolestasi. Kattaa myös Discord-ilmoitukset ja pelaajahaun.',
         minutes: '~3 min käyttöönotto',
       },
       board: {
@@ -453,17 +453,17 @@ const fi: PartialGuideDict = {
   plugin: {
     metaTitle: 'RuneLite-pluginin käyttöönotto — Anvil',
     metaDescription:
-      'Asenna Anvilin RuneLite-plugin, kirjaudu sisään sen sivupaneelista ja ota käyttöön Discord-ilmoitukset ja OBS-leikkeet.',
+      'Asenna Anvilin RuneLite-plugin, kirjaudu sisään sen sivupaneelista ja ota käyttöön Discord-ilmoitukset.',
     eyebrow: 'Anvil · RuneLite-plugin',
     title: 'Käyttöönotto-opas pelaajille',
-    dek: 'Asenna se, kirjaudu sisään ja pelaa. Plugin lähettää bingo-droppisi, postaa harvinaiset dropit ja kuolemat Discordiin ja — jos käytät OBS:ää — tallentaa ja postaa leikkeitä hetkistä, jotka kannattaa katsoa uudelleen.',
+    dek: 'Asenna se, kirjaudu sisään ja pelaa. Plugin lähettää bingo-droppisi, postaa harvinaiset dropit, kuolemat ja virstanpylväät Discordiin ja antaa sinun hakea kenet tahansa hiiren oikealla.',
     facts: [
       { strong: '1 painike', rest: 'ja seuranta on käynnissä' },
       { strong: '~3 min', rest: 'perusasetuksiin' },
-      { strong: 'Leikkeet', rest: 'vaativat OBS:n + 5 minuuttia lisää' },
+      { strong: 'Oikea klikkaus', rest: 'hakee kenet tahansa' },
     ],
     footnote:
-      'Kuvakaappaukset ovat oikeasta asennuksesta — tilin token, OBS-osoite ja Discord-webhook on peitetty tarkoituksella. Omiesi kuuluu pysyä yhtä yksityisinä.',
+      'Kuvakaappaukset ovat oikeasta asennuksesta — tilin token on peitetty tarkoituksella. Omasi kuuluu pysyä yhtä yksityisenä.',
 
     install: {
       title: 'Asenna plugin',
@@ -606,10 +606,28 @@ const fi: PartialGuideDict = {
         alt: 'Pelaajan oikean napsautuksen valikko pelissä, jossa Anvil-kohta Lookupin ja RuneProfilen alla',
       },
       lookupSettingNote:
-        'Etkö halua sitä valikkoihisi? Poista valinta **Anvil lookup on players** kohdasta **General** pluginin asetuksissa.',
+        'Valitse pluginin asetusten kohdasta **Player lookup**, missä **Anvil**-valinta näkyy. Chatissa nimen kohdalla se ei ole koskaan vasemman klikkauksen toiminto, joten nimen klikkaaminen tekee yhä sen, mitä peli tekee.',
       lookupSettingFigure: {
-        caption: 'Configuration → Anvil → General',
-        alt: 'Anvilin asetusten General-osio, jossa ”Anvil lookup on players” on valittuna',
+        caption: 'Configuration → Anvil → Player lookup',
+        alt: 'Anvilin asetusten Player lookup -osio, jossa jokainen asetus on kehystetty ja numeroitu',
+        legend: [
+          {
+            label: 'Anvil lookup on players',
+            body: 'pääkytkin. Pois päältä se piilottaa valinnan kaikkialta.',
+          },
+          {
+            label: 'Players in the world',
+            body: 'oikea klikkaus lähelläsi seisovaan pelaajaan.',
+          },
+          {
+            label: 'Chatbox and private messages',
+            body: 'nimet chatboxissa ja yksityisviesteissä.',
+          },
+          {
+            label: 'Clan panels / Friends chat / Friends, ignore and party lists',
+            body: 'nimilistat: klaanisi ja vierasklaanin jäsenet, friends chat -kanava, kaveri- ja estolistasi sekä raidiporukan paneeli.',
+          },
+        ],
       },
     },
 
@@ -630,8 +648,16 @@ const fi: PartialGuideDict = {
             body: 'banneri kun kuka tahansa joukkueestasi saa ruudun valmiiksi. Useita kerralla: vaikein saa bannerin, loput menevät chattiin.',
           },
           {
+            label: 'My tile popups',
+            body: 'ponnahdusikkuna, kun oma droppisi vie ruutua eteenpäin tai saa sen valmiiksi. Pois päältä seuranta jatkuu — vain hiljaa.',
+          },
+          {
             label: 'Banner sound + volume',
             body: 'soittaa äänen bannerin kanssa. Mitään ei kuulu, ennen kuin lisäät itse vähintään yhden .wav-tiedoston kohdasta **Add clip** “Banner sounds” -otsikon alla Anvilin sivupaneelissa. Tehtävillä on oma kansionsa — lisää klippi kohtaan **Mission sounds**, niin ne soittavat sen sisäänrakennetun äänen sijaan, joka erottaa ne valmiista ruudusta.',
+          },
+          {
+            label: 'Auto starting shot',
+            body: 'ottaa tapahtuman aloituskuvan puolestasi heti, kun seisot sen kiinnitetyssä paikassa. Pois päältä painat itse **Take starting shot** sivupaneelissa.',
           },
         ],
       },
@@ -674,120 +700,31 @@ const fi: PartialGuideDict = {
         ],
       },
       caFigure: {
-        caption: 'Combat achievements · levels · diaries · quests',
+        caption: 'Combat achievements · collection log · levels · diaries · quests',
         alt: 'Ilmoitusosio Combat achievements, jossa jokainen asetus on kehystetty ja numeroitu',
         legend: [
-          { label: 'Notify on combat achievements', body: 'suoritetut tasot julkaistaan aina kun tämä on päällä.' },
           {
-            label: 'CA task min tier',
-            body: 'kuinka äänekkäitä yksittäiset tehtävät ovat. Elite tässä; oletus on Master. Aseta Grandmasteriin jos haluat vain kaikkein harvinaisimmat.',
+            label: 'CA post tier',
+            body: 'alin tehtävätaso, joka julkaistaan; suoritetut tasot julkaistaan myös. Oletus on Master; Grandmaster julkaisee vain harvinaisimmat, **Off** ei mitään. Bingon CA-ruudut lasketaan joka tapauksessa.',
           },
           {
-            label: 'Notify on 99s & high totals',
-            body: '99:t, joka 100. kokonaistaso 1800:sta ylöspäin, sekä max.',
-          },
-          { label: 'Notify on diary completions', body: 'achievement diary -tasot.' },
-          {
-            label: 'Announce quest completions',
-            body: 'valitsemastasi vaikeustasosta ylöspäin. “All quests” tässä; oletus on Master ja ylöspäin.',
-          },
-        ],
-      },
-    },
-
-    clips: {
-      title: 'Leikkeet OBS:llä',
-      intro: [
-        'Paina yhtä näppäintä, niin viimeiset 30 sekuntia tallentuvat ja päätyvät klaanin leikekanavaan. Se on pois päältä oletuksena ja vaatii OBS:n käynnissä — mutta se on lähinnä kooste-videota mitä klaanisi saa.',
-        'Näin se toimii: OBS pitää yllä liukuvaa **replay bufferia** viimeisistä X sekunnista. Pikanäppäimesi käskee OBS:ää kirjoittamaan bufferin tiedostoon, ja plugin poimii tiedoston ja lataa sen liittämääsi Discord-webhookiin.',
-      ],
-      privacyNote: {
-        tag: 'Minne videosi päätyy',
-        body: 'Leikkeet ladataan **suoraan koneeltasi Discordiin**. Ne eivät koskaan kulje tämän sivuston kautta, eikä mitään ladata lainkaan jos jätät webhook-kentän tyhjäksi — silloin leikkeet jäävät koneellesi.',
-      },
-      obsHeading: 'A. Aseta OBS (kerran)',
-      obsSteps: [
-        'Tarvitset **OBS Studio 28:n tai uudemman** — WebSocket-palvelin on sisäänrakennettu versiosta 28 alkaen, ei erillistä latausta.',
-        'Varmista että OBS todella kaappaa pelin: Game / Window / Display Capture -lähde joka näyttää RuneLiten. Jos OBS ei näe asiakasohjelmaasi, leikkeistäsi tulee musta suorakulmio.',
-        '**Settings → Output** → rastita **Enable Replay Buffer**. (Simple output -tilassa se on Recording-sivulla; Advanced-tilassa sillä on oma välilehtensä.) Tarkista samalla että tallennuspolulla on tilaa.',
-        '**Tools → WebSocket Server Settings** → rastita **Enable WebSocket server**. Merkitse muistiin **Server Port** (oletuksena 4455) ja klikkaa **Show Connect Info** saadaksesi salasanan.',
-      ],
-      obsAside:
-        'Sinun _ei_ tarvitse painaa “Start Replay Buffer” — plugin käynnistää sen puolestasi kun se yhdistää, ja käynnistää uudelleen aina kun muutat leikkeen pituutta.',
-      fillHeading: 'B. Täytä pluginin asetukset',
-      figure: {
-        caption: 'Configuration → Anvil → Clips',
-        alt: 'Pluginin asetusten Clips-osio, jossa jokainen asetus on kehystetty ja numeroitu; OBS-isäntä ja webhook-osoite on piilotettu',
-        legend: [
-          { label: 'Enable clip capture', body: 'pääkytkin. Pois päältä plugin ei puhu OBS:n kanssa lainkaan.' },
-          {
-            label: 'Capture clip hotkey',
-            body: 'aseta se, tai mitään ei koskaan tapahdu. Valitse jotain jota et osu vahingossa kesken raidin.',
+            label: 'Notify on collection log slots',
+            body: 'jokainen uusi paikka collection logissa.',
           },
           {
-            label: 'OBS host / port / password',
-            body: '`localhost` kun OBS pyörii samalla koneella kuin RuneLite. Jos OBS on toisella koneella, laita sen koneen paikallinen IP tähän — piilotettu tässä kuvassa — ja avaa portti sen palomuurissa. Portti ja salasana löytyvät kohdasta _Show Connect Info_; jätä salasana tyhjäksi jos otit OBS:n tunnistautumisen pois.',
+            label: 'Notify on level milestones',
+            body: 'tasonnousut, jotka klaanisi on päättänyt ilmoittaa — oletuksena 99:t, joka 100. kokonaistaso 1800:sta alkaen sekä max. Klaanisi ylläpitäjät asettavat säännöt; voit julkaista vähemmän (tai tehdä omat sääntösi henkilökohtaisille webhookeillesi) profiilisi Announcements-kohdasta.',
           },
           {
-            label: 'Max auto-post size (MB)',
-            body: 'kaikki sitä suurempi tallennetaan paikallisesti ja mainitaan hillitysti chatissa julkaisemisen sijaan. Aseta se sen mukaan mitä Discord-palvelimesi oikeasti hyväksyy; plugin tulee arvolla 25.',
+            label: 'Notify on diary completions',
+            body: 'achievement diary -tasot, kuvakaappauksen kera.',
           },
           {
-            label: 'Clip length (seconds)',
-            body: 'kuinka kauas taaksepäin kukin leike ulottuu. Tämä kirjoittaa bufferin pituuden OBS-profiiliisi, joten OBS tarvitsee sen verran sekunteja etumatkaa ennen kuin täysipituinen leike on edes olemassa. Pidemmät leikkeet = isommat tiedostot; 30 on hyvä keskitie.',
-          },
-          {
-            label: 'Save clips as MP4',
-            body: 'MP4 näkyy esikatseluna ja soi suoraan Discordissa; MKV on ladattava ensin. Huomaa että tämä muuttaa OBS:n tallennusmuotoa, mikä vaikuttaa myös tavallisiin tallenteisiisi. Ota pois päältä jättääksesi OBS:n rauhaan.',
-          },
-          {
-            label: 'Clips Discord webhook URL',
-            body: 'minne leikkeet julkaistaan — pyydä ylläpitäjältä leikekanavan webhook. Tyhjä = leikkeet pysyvät koneellasi. Piilotettu tässä, ja syystäkin: kuka tahansa jolla on tämä osoite voi julkaista siihen kanavaan.',
-          },
-          {
-            label: 'Post OBS-triggered clips too',
-            body: 'käsittelee myös tallennukset jotka OBS itse tai “Save Replay Buffer for OBS” -plugin käynnistää. Jätä pois päältä jos ajat kahta RuneLite-asiakasta yhtä OBS:ää vasten, tai jokainen leike julkaistaan kahdesti.',
-          },
-          {
-            label: "Let Anvil manage OBS's recording folder",
-            body: 'osoittaa OBS:n tallennuskansion Anvilin omaan clips-kansioon RuneLiten ollessa käynnissä — vain siten klippi voi lähettää itsensä, sillä lisäosa saa lukea vain omaa kansiotaan. Myös tavalliset OBS-tallenteesi menevät sinne sen ollessa päällä, ja oma asetuksesi palautetaan kun suljet sen tai RuneLiten.',
+            label: 'Quest post tier',
+            body: 'questit valitsemastasi vaikeustasosta ylöspäin, All (jokainen quest) -tasosta Grandmasteriin; **Off** ei julkaise mitään. Oletus on Master. Bingon quest-ruudut lasketaan joka tapauksessa.',
           },
         ],
       },
-      useHeading: 'C. Käytä sitä',
-      useIntro: 'Jotain hauskaa tapahtuu → paina pikanäppäintäsi → chat opastaa sinut läpi:',
-      useChat: [
-        { text: 'Saving clip...', tone: 'plain' },
-        { text: 'Uploading clip to the clan Discord...', tone: 'plain' },
-        { text: 'Clip posted to the clan Discord.', tone: 'green' },
-      ],
-      reminder: {
-        tag: 'Muista',
-        body: 'Leike kattaa sekunnit _ennen_ näppäimen painamista — joten paina hetken jälkeen, älä sen aikana. Sinulla on koko bufferin pituus aikaa reagoida.',
-      },
-      decodedHeading: 'Leikeviestit, selitettyinä',
-      decoded: [
-        {
-          term: '`Clip capture: OBS isn’t connected.`',
-          body: 'OBS ei ole käynnissä, WebSocket-palvelin on pois päältä, tai isäntä/portti/salasana eivät täsmää. Korjaa ja paina uudelleen — plugin yrittää yhteyttä itse 30 sekunnin välein.',
-        },
-        {
-          term: '`OBS could not save the clip — is the Replay Buffer started?`',
-          body: 'Buffer ei ole käynnissä. Tarkista Enable Replay Buffer OBS:n output-asetuksista, ja käännä sitten Enable clip capture pois ja takaisin päälle.',
-        },
-        {
-          term: '`Clip saved locally — paste a Clips Discord webhook URL…`',
-          body: 'Toimii kuten pitääkin, sinulla ei vain ole webhookia asetettuna. Tiedosto on OBS:n tallennuskansiossasi.',
-        },
-        {
-          term: '`Clip saved locally (48MB) — too big to auto-post.`',
-          body: 'Lyhennä leikkeen pituutta, laske OBS-tallenteen laatua, tai nosta maksimikokoa jos palvelimesi hyväksyy isompia tiedostoja.',
-        },
-        {
-          term: '`…but Discord didn’t accept the upload.`',
-          body: 'Liian iso, rate-limitattu, tai lataus aikakatkaistiin. Tiedosto on yhä koneellasi — julkaise se käsin jos se on sen arvoinen.',
-        },
-      ],
     },
 
     trouble: {
@@ -814,7 +751,7 @@ const fi: PartialGuideDict = {
       ],
       logHeading: 'Yhä jumissa? Lähetä ylläpitäjälle loki',
       logBody:
-        'Kirjoita `::anvillog` pelin chattiin (tai aseta **Export debug log hotkey** pluginin Support-osiossa). Se kirjoittaa lokitiedoston `.runelite/anvil-debug`-kansioosi, avaa kansion ja kopioi polun leikepöydälle — lähetä se tiedosto ylläpitäjälle, niin he näkevät tarkalleen mikä meni pieleen.',
+        'Lähetä ylläpitäjälle RuneLite-lokisi: `client.log` käyttäjäkansiosi `.runelite/logs`-kansiossa (Windowsissa liitä `%USERPROFILE%\\.runelite\\logs` Resurssienhallinnan osoiteriville). Plugin kirjoittaa siihen, mitä se näki ja miksi, joten he näkevät tarkalleen mikä meni pieleen.',
       missingNote: {
         tag: 'Puuttuuko todisteita?',
         body: 'Lemmikit ja toistuvat Champion’s scrollit vaativat käsin otetun kuvakaappauksen. Plugin ottaa sen puolestasi ja tallentaa kansioon `.runelite/osrs-bingo-pending/` — **Copy folder path** Anvilin sivupaneelissa avaa sen — joten liität sen sivustolle sen sijaan että etsisit kuvaa jälkikäteen.',

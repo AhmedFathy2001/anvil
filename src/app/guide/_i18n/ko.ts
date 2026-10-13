@@ -67,7 +67,7 @@ const ko: PartialGuideDict = {
         eyebrow: '플레이어용',
         title: 'RuneLite 플러그인 설정',
         blurb:
-          '플러그인을 설치하고, 사이드 패널에서 로그인한 뒤, 드롭 제출을 맡기세요. Discord 알림과 OBS 클립도 다룹니다.',
+          '플러그인을 설치하고, 사이드 패널에서 로그인한 뒤, 드롭 제출을 맡기세요. Discord 알림과 플레이어 조회도 다룹니다.',
         minutes: '설정 약 3분',
       },
       board: {
@@ -452,17 +452,17 @@ const ko: PartialGuideDict = {
   plugin: {
     metaTitle: 'RuneLite 플러그인 설정 — Anvil',
     metaDescription:
-      'Anvil RuneLite 플러그인을 설치하고, 사이드 패널에서 로그인한 뒤, Discord 알림과 OBS 클립을 설정합니다.',
+      'Anvil RuneLite 플러그인을 설치하고, 사이드 패널에서 로그인한 뒤, Discord 알림을 설정합니다.',
     eyebrow: 'Anvil · RuneLite 플러그인',
     title: '플레이어용 설정 가이드',
-    dek: '설치하고, 로그인하고, 플레이하세요. 플러그인이 빙고 드롭을 제출하고, 희귀 드롭과 사망을 Discord에 올리며 —— OBS를 쓴다면 —— 다시 볼 만한 순간을 클립으로 저장해 올립니다.',
+    dek: '설치하고, 로그인하고, 플레이하세요. 플러그인이 빙고 드롭을 제출하고, 희귀 드롭과 사망, 주요 달성을 Discord에 올리며, 우클릭 한 번으로 누구든 조회할 수 있게 해 줍니다.',
     facts: [
       { strong: '버튼 1개', rest: '면 기록이 시작됩니다' },
       { strong: '약 3분', rest: '기본 설정에 걸리는 시간' },
-      { strong: '클립', rest: '은 OBS와 5분이 더 필요합니다' },
+      { strong: '우클릭', rest: '한 번으로 누구든 조회' },
     ],
     footnote:
-      '스크린샷은 실제 설정 환경에서 찍은 것입니다 —— 계정 토큰, OBS 주소, Discord 웹훅은 의도적으로 가렸습니다. 여러분의 것도 그만큼 비공개로 두셔야 합니다.',
+      '스크린샷은 실제 설정 환경에서 찍은 것입니다 —— 계정 토큰은 의도적으로 가렸습니다. 여러분의 것도 그만큼 비공개로 두셔야 합니다.',
 
     install: {
       title: '플러그인 설치하기',
@@ -605,10 +605,28 @@ const ko: PartialGuideDict = {
         alt: '게임 속 플레이어 우클릭 메뉴. Lookup과 RuneProfile 아래에 Anvil 항목이 있다',
       },
       lookupSettingNote:
-        '메뉴에 표시하고 싶지 않다면 플러그인 설정의 **General**에서 **Anvil lookup on players** 체크를 해제하세요.',
+        '플러그인 설정의 **Player lookup**에서 **Anvil** 항목이 어디에 나타날지 고르세요. 채팅 속 이름에서는 절대 좌클릭 기본 동작이 되지 않으므로, 이름을 클릭하면 여전히 게임 본래의 동작이 실행됩니다.',
       lookupSettingFigure: {
-        caption: 'Configuration → Anvil → General',
-        alt: 'Anvil 설정의 General 섹션. "Anvil lookup on players"가 체크되어 있다',
+        caption: 'Configuration → Anvil → Player lookup',
+        alt: 'Anvil 설정의 Player lookup 영역. 각 설정이 네모로 표시되고 번호가 매겨져 있음',
+        legend: [
+          {
+            label: 'Anvil lookup on players',
+            body: '마스터 스위치. 끄면 어디에서도 항목이 보이지 않습니다.',
+          },
+          {
+            label: 'Players in the world',
+            body: '근처에 서 있는 플레이어를 우클릭할 때.',
+          },
+          {
+            label: 'Chatbox and private messages',
+            body: '채팅창과 개인 채팅에 나오는 이름.',
+          },
+          {
+            label: 'Clan panels / Friends chat / Friends, ignore and party lists',
+            body: '이름 목록: 내 클랜과 게스트 클랜 멤버, 프렌즈 채팅 채널, 친구 목록과 차단 목록, 레이드 파티 패널.',
+          },
+        ],
       },
     },
 
@@ -629,8 +647,16 @@ const ko: PartialGuideDict = {
             body: '팀원 중 누군가가 칸을 완료하면 배너를 띄웁니다. 여러 개가 동시에 나오면 가장 어려운 것이 배너를 차지하고 나머지는 채팅으로 갑니다.',
           },
           {
+            label: 'My tile popups',
+            body: '내 드롭이 칸을 진행시키거나 완료하면 팝업을 띄웁니다. 꺼도 기록은 계속됩니다 —— 조용히 할 뿐입니다.',
+          },
+          {
             label: 'Banner sound + volume',
             body: '배너와 함께 소리를 재생합니다. Anvil 사이드 패널의 “Banner sounds”에 있는 **Add clip**으로 .wav를 직접 하나 이상 추가하기 전에는 아무 소리도 나지 않습니다. 미션에는 전용 폴더가 있습니다. **Mission sounds** 에서 클립을 추가하면 완료된 타일과 구분해 주는 기본 효과음 대신 그 클립이 재생됩니다.',
+          },
+          {
+            label: 'Auto starting shot',
+            body: '이벤트의 핀으로 고정된 지점에 서는 순간 시작 인증샷을 대신 찍어 줍니다. 끄면 사이드 패널의 **Take starting shot**을 직접 누르면 됩니다.',
           },
         ],
       },
@@ -673,120 +699,31 @@ const ko: PartialGuideDict = {
         ],
       },
       caFigure: {
-        caption: 'Combat achievements · levels · diaries · quests',
+        caption: 'Combat achievements · collection log · levels · diaries · quests',
         alt: 'Combat achievements 알림 영역. 각 설정이 네모로 표시되고 번호가 매겨져 있음',
         legend: [
-          { label: 'Notify on combat achievements', body: '이 항목이 켜져 있으면 등급 달성은 항상 올라갑니다.' },
           {
-            label: 'CA task min tier',
-            body: '개별 과제 완료가 얼마나 시끄러울지. 여기서는 Elite이고 기본값은 Master입니다. 가장 희귀한 것만 원하면 Grandmaster로 두세요.',
+            label: 'CA post tier',
+            body: '올라가는 가장 낮은 과제 등급. 등급 달성도 함께 올라갑니다. 기본값은 Master이고, Grandmaster는 가장 희귀한 것만, **Off**는 아무것도 올리지 않습니다. 빙고 CA 칸은 어느 쪽이든 집계됩니다.',
           },
           {
-            label: 'Notify on 99s & high totals',
-            body: '99 달성, 1800부터 총 레벨 100 단위, 그리고 만렙.',
-          },
-          { label: 'Notify on diary completions', body: 'achievement diary 등급.' },
-          {
-            label: 'Announce quest completions',
-            body: '고른 난이도 이상만 알립니다. 여기서는 “All quests”이고 기본값은 Master 이상입니다.',
-          },
-        ],
-      },
-    },
-
-    clips: {
-      title: 'OBS로 클립 만들기',
-      intro: [
-        '키 하나를 누르면 최근 30초가 저장되어 클랜의 클립 채널에 올라갑니다. 기본값은 꺼짐이고 OBS가 돌고 있어야 하지만 —— 클랜이 가질 수 있는 하이라이트 영상에 가장 가까운 물건입니다.',
-        '원리는 이렇습니다: OBS가 최근 X초의 **리플레이 버퍼**를 계속 굴립니다. 당신의 단축키가 OBS에게 그 버퍼를 파일로 쓰라고 시키고, 플러그인이 그 파일을 집어 당신이 붙여 넣은 Discord 웹훅으로 올립니다.',
-      ],
-      privacyNote: {
-        tag: '영상이 어디로 가는가',
-        body: '클립은 **당신의 PC에서 Discord로 바로** 올라갑니다. 이 사이트를 거치는 일은 전혀 없고, 웹훅 칸을 비워 두면 아무것도 업로드되지 않습니다 —— 클립은 그냥 당신 컴퓨터에 남습니다.',
-      },
-      obsHeading: 'A. OBS 설정하기 (한 번만)',
-      obsSteps: [
-        '**OBS Studio 28 이상**이 필요합니다 —— 28부터 WebSocket 서버가 내장되어 있어 따로 받을 것이 없습니다.',
-        'OBS가 실제로 게임을 잡고 있는지 확인하세요: RuneLite가 보이는 Game / Window / Display Capture 소스가 필요합니다. OBS가 클라이언트를 보지 못하면 클립은 검은 사각형이 됩니다.',
-        '**Settings → Output** → **Enable Replay Buffer** 체크. (Simple 출력 모드에서는 Recording 페이지에, Advanced에서는 별도 탭에 있습니다.) 겸사겸사 녹화 경로에 여유 공간이 있는지도 확인하세요.',
-        '**Tools → WebSocket Server Settings** → **Enable WebSocket server** 체크. **Server Port**(기본 4455)를 적어 두고 **Show Connect Info**에서 비밀번호를 확인하세요.',
-      ],
-      obsAside:
-        '“Start Replay Buffer”를 직접 누를 필요는 _없습니다_ —— 연결될 때 플러그인이 대신 켜 주고, 클립 길이를 바꿀 때마다 다시 시작해 줍니다.',
-      fillHeading: 'B. 플러그인 쪽 채우기',
-      figure: {
-        caption: 'Configuration → Anvil → Clips',
-        alt: '플러그인 설정의 Clips 영역. 각 설정이 네모로 표시되고 번호가 매겨져 있으며, OBS 호스트와 웹훅 주소는 가려져 있음',
-        legend: [
-          { label: 'Enable clip capture', body: '대문 스위치. 꺼져 있으면 플러그인은 OBS와 아예 통신하지 않습니다.' },
-          {
-            label: 'Capture clip hotkey',
-            body: '반드시 지정하세요. 그러지 않으면 영영 아무 일도 일어나지 않습니다. 레이드 도중 실수로 누르지 않을 키를 고르세요.',
+            label: 'Notify on collection log slots',
+            body: '새 컬렉션 로그 슬롯이 채워질 때마다.',
           },
           {
-            label: 'OBS host / port / password',
-            body: 'OBS가 RuneLite와 같은 PC에서 돌면 `localhost`. 다른 기기에서 돌고 있다면 그 기기의 내부 IP를 여기에 적고(이 스크린샷에서는 가렸습니다) 방화벽에서 포트를 열어 주세요. 포트와 비밀번호는 _Show Connect Info_에서 나옵니다. OBS 인증을 껐다면 비밀번호는 비워 두세요.',
+            label: 'Notify on level milestones',
+            body: '클랜이 알리기로 정한 레벨업 —— 기본값은 99 달성, 1800부터 총 레벨 100 단위, 그리고 만렙. 규칙은 클랜 관리자가 정하지만, 프로필의 Announcements에서 더 적게 올리도록 바꾸거나 개인 웹훅용 규칙을 직접 정할 수 있습니다.',
           },
           {
-            label: 'Max auto-post size (MB)',
-            body: '이보다 큰 것은 게시 대신 로컬에 저장되고 채팅에 조용히 언급됩니다. Discord 서버가 실제로 받아 주는 크기에 맞추세요. 플러그인 기본값은 25입니다.',
+            label: 'Notify on diary completions',
+            body: 'achievement diary 등급. 스크린샷 포함.',
           },
           {
-            label: 'Clip length (seconds)',
-            body: '각 클립이 얼마나 거슬러 올라가는지. 이 값은 OBS 프로필에 버퍼 길이로 기록되므로, 전체 길이의 클립이 존재하려면 OBS 쪽에 그만큼의 준비 시간이 필요합니다. 길수록 파일이 커집니다. 30초쯤이 무난합니다.',
-          },
-          {
-            label: 'Save clips as MP4',
-            body: 'MP4는 Discord 안에서 바로 미리보기와 재생이 되고, MKV는 먼저 내려받아야 합니다. 다만 이 설정은 OBS의 녹화 형식을 바꾸므로 평소 녹화에도 영향을 줍니다. OBS를 그대로 두고 싶다면 끄세요.',
-          },
-          {
-            label: 'Clips Discord webhook URL',
-            body: '클립이 올라갈 곳 —— 클립 채널의 웹훅을 관리자에게 받으세요. 비워 두면 클립은 PC에 남습니다. 여기서는 가려 두었고, 가릴 만합니다: 이 주소를 가진 사람은 누구나 그 채널에 글을 올릴 수 있습니다.',
-          },
-          {
-            label: 'Post OBS-triggered clips too',
-            body: 'OBS 자체나 “Save Replay Buffer for OBS” 플러그인이 일으킨 저장도 처리합니다. OBS 하나에 RuneLite 두 개를 물려 돌린다면 꺼 두세요. 그러지 않으면 모든 클립이 두 번 올라갑니다.',
-          },
-          {
-            label: "Let Anvil manage OBS's recording folder",
-            body: 'RuneLite 가 실행되는 동안 OBS 의 녹화 폴더를 Anvil 의 클립 폴더로 돌립니다. 플러그인은 자기 폴더만 읽을 수 있으므로, 클립이 스스로 올라가려면 이 방법뿐입니다. 켜져 있는 동안에는 평소 OBS 녹화도 그곳에 저장되며, 끄거나 RuneLite 를 닫으면 원래 설정으로 되돌립니다.',
+            label: 'Quest post tier',
+            body: '고른 난이도 이상의 퀘스트. All(모든 퀘스트)부터 Grandmaster까지 고를 수 있고, **Off**는 아무것도 올리지 않습니다. 기본값은 Master입니다. 빙고 퀘스트 칸은 어느 쪽이든 집계됩니다.',
           },
         ],
       },
-      useHeading: 'C. 사용하기',
-      useIntro: '재미있는 일이 생겼다 → 단축키를 누른다 → 채팅이 순서대로 안내합니다:',
-      useChat: [
-        { text: 'Saving clip...', tone: 'plain' },
-        { text: 'Uploading clip to the clan Discord...', tone: 'plain' },
-        { text: 'Clip posted to the clan Discord.', tone: 'green' },
-      ],
-      reminder: {
-        tag: '기억하세요',
-        body: '클립이 담는 것은 키를 누르기 _전_ 몇 초입니다 —— 그러니 그 순간이 지난 뒤에 누르세요, 도중이 아니라. 버퍼 길이만큼 반응할 여유가 있습니다.',
-      },
-      decodedHeading: '클립 관련 메시지 해설',
-      decoded: [
-        {
-          term: '`Clip capture: OBS isn’t connected.`',
-          body: 'OBS가 안 돌고 있거나, WebSocket 서버가 꺼져 있거나, 호스트/포트/비밀번호가 맞지 않습니다. 고친 뒤 다시 누르세요 —— 플러그인은 30초마다 스스로 재접속을 시도합니다.',
-        },
-        {
-          term: '`OBS could not save the clip — is the Replay Buffer started?`',
-          body: '버퍼가 돌고 있지 않습니다. OBS 출력 설정에서 Enable Replay Buffer를 확인한 뒤, Enable clip capture를 껐다 켜세요.',
-        },
-        {
-          term: '`Clip saved locally — paste a Clips Discord webhook URL…`',
-          body: '의도대로 동작하고 있습니다. 단지 웹훅을 설정하지 않았을 뿐입니다. 파일은 OBS 녹화 폴더에 있습니다.',
-        },
-        {
-          term: '`Clip saved locally (48MB) — too big to auto-post.`',
-          body: '클립 길이를 줄이거나, OBS 녹화 품질을 낮추거나, 서버가 더 큰 파일을 받아 준다면 상한을 올리세요.',
-        },
-        {
-          term: '`…but Discord didn’t accept the upload.`',
-          body: '너무 크거나, 속도 제한에 걸렸거나, 업로드가 시간 초과되었습니다. 파일은 PC에 그대로 있으니 값어치가 있다면 직접 올리세요.',
-        },
-      ],
     },
 
     trouble: {
@@ -813,7 +750,7 @@ const ko: PartialGuideDict = {
       ],
       logHeading: '그래도 막혔다면 관리자에게 로그를 보내세요',
       logBody:
-        '게임 채팅에 `::anvillog`를 입력하세요(또는 플러그인 Support 영역에서 **Export debug log hotkey**를 지정하세요). `.runelite/anvil-debug` 폴더에 로그 파일을 쓰고, 폴더를 열고, 경로를 클립보드에 복사합니다 —— 그 파일을 관리자에게 보내면 무엇이 잘못됐는지 정확히 볼 수 있습니다.',
+        'RuneLite 로그를 관리자에게 보내세요: 사용자 폴더 안 `.runelite/logs` 폴더에 있는 `client.log`입니다(Windows에서는 파일 탐색기 주소 표시줄에 `%USERPROFILE%\\.runelite\\logs`를 붙여넣으세요). 플러그인이 무엇을 봤고 왜 그렇게 판단했는지를 거기에 기록하므로, 무엇이 잘못됐는지 정확히 볼 수 있습니다.',
       missingNote: {
         tag: '증빙이 안 보인다면?',
         body: '펫과 중복 Champion’s scroll은 수동 스크린샷이 필요합니다. 플러그인이 대신 찍어 `.runelite/osrs-bingo-pending/`에 저장하며(Anvil 사이드 패널의 **Copy folder path**로 폴더가 열립니다), 나중에 사진을 찾는 대신 사이트에서 첨부하면 됩니다.',

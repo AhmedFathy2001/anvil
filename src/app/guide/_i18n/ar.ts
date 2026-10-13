@@ -67,7 +67,7 @@ const ar: PartialGuideDict = {
         eyebrow: 'للاعبين',
         title: 'إعداد إضافة RuneLite',
         blurb:
-          'ثبّت الإضافة، وسجّل الدخول من لوحتها الجانبية، ودعها ترسل الـ drops الخاصة بك. يشمل أيضًا إشعارات Discord ومقاطع OBS.',
+          'ثبّت الإضافة، وسجّل الدخول من لوحتها الجانبية، ودعها ترسل الـ drops الخاصة بك. يشمل أيضًا إشعارات Discord والبحث عن اللاعبين.',
         minutes: 'إعداد في ~3 دقائق',
       },
       board: {
@@ -452,17 +452,17 @@ const ar: PartialGuideDict = {
   plugin: {
     metaTitle: 'إعداد إضافة RuneLite — Anvil',
     metaDescription:
-      'ثبّت إضافة Anvil لـ RuneLite، وسجّل الدخول من لوحتها الجانبية، واضبط إشعارات Discord ومقاطع OBS.',
+      'ثبّت إضافة Anvil لـ RuneLite، وسجّل الدخول من لوحتها الجانبية، واضبط إشعارات Discord.',
     eyebrow: 'Anvil · إضافة RuneLite',
     title: 'دليل الإعداد للاعبين',
-    dek: 'ثبّتها، وسجّل الدخول، والعب. ترسل الإضافة الـ drops الخاصة بك في البينغو، وتنشر الـ drops النادرة وحالات الموت على Discord، و— إن كنت تشغّل OBS — تحفظ وتنشر مقاطع اللحظات التي تستحق المشاهدة مجددًا.',
+    dek: 'ثبّتها، وسجّل الدخول، والعب. ترسل الإضافة الـ drops الخاصة بك في البينغو، وتنشر الـ drops النادرة وحالات الموت والإنجازات على Discord، وتتيح لك البحث عن أي لاعب بنقرة يمنى.',
     facts: [
       { strong: 'زر واحد', rest: 'ويبدأ التتبّع' },
       { strong: '~3 دقائق', rest: 'للإعداد الأساسي' },
-      { strong: 'المقاطع', rest: 'تحتاج OBS و5 دقائق إضافية' },
+      { strong: 'نقرة يمنى', rest: 'للبحث عن أي لاعب' },
     ],
     footnote:
-      'لقطات الشاشة من إعداد حقيقي — رمز الحساب وعنوان OBS وويبهوك Discord مموّهة عمدًا. ويجب أن تبقى نسختك بالسرّية نفسها.',
+      'لقطات الشاشة من إعداد حقيقي — رمز الحساب مموّه عمدًا. ويجب أن يبقى رمزك بالسرّية نفسها.',
 
     install: {
       title: 'ثبّت الإضافة',
@@ -605,10 +605,28 @@ const ar: PartialGuideDict = {
         alt: 'قائمة النقر الأيمن على لاعب داخل اللعبة وفيها خيار Anvil أسفل Lookup وRuneProfile',
       },
       lookupSettingNote:
-        'لا تريده في قوائمك؟ أزل علامة **Anvil lookup on players** ضمن **General** في إعدادات الإضافة.',
+        'اختر أين يظهر خيار **Anvil** من قسم **Player lookup** في إعدادات الإضافة. وعلى اسم في الدردشة لا يكون أبدًا خيار النقرة اليسرى، فيبقى النقر على الاسم يفعل ما تفعله اللعبة عادةً.',
       lookupSettingFigure: {
-        caption: 'Configuration → Anvil → General',
-        alt: 'قسم General في إعدادات Anvil مع تفعيل «Anvil lookup on players»',
+        caption: 'Configuration → Anvil → Player lookup',
+        alt: 'قسم Player lookup في إعدادات Anvil مع إحاطة كل خيار وترقيمه',
+        legend: [
+          {
+            label: 'Anvil lookup on players',
+            body: 'المفتاح الرئيسي. إطفاؤه يخفي الخيار في كل مكان.',
+          },
+          {
+            label: 'Players in the world',
+            body: 'النقر بزر الفأرة الأيمن على لاعب يقف بقربك.',
+          },
+          {
+            label: 'Chatbox and private messages',
+            body: 'الأسماء في صندوق الدردشة وفي الرسائل الخاصة.',
+          },
+          {
+            label: 'Clan panels / Friends chat / Friends, ignore and party lists',
+            body: 'قوائم الأسماء: أعضاء عشيرتك وعشيرة الضيوف، وقناة friends chat، وقائمتا الأصدقاء والتجاهل، ولوحة فريق الغارة.',
+          },
+        ],
       },
     },
 
@@ -629,8 +647,16 @@ const ar: PartialGuideDict = {
             body: 'لافتة حين ينهي أي فرد من فريقك مربعًا. وإن اجتمعت عدة إنجازات: الأصعب يأخذ اللافتة والبقية إلى الدردشة.',
           },
           {
+            label: 'My tile popups',
+            body: 'نافذة منبثقة حين يدفع drop خاص بك مربعًا إلى الأمام أو ينهيه. وإن أطفأته يبقى التتبّع قائمًا — لكن بصمت.',
+          },
+          {
             label: 'Banner sound + volume',
             body: 'يشغّل صوتًا مع اللافتة. لن يصدر أي صوت حتى تضيف بنفسك ملف ‎.wav‎ واحدًا على الأقل عبر **Add clip** ضمن “Banner sounds” في لوحة Anvil الجانبية. للمهمات مجلد خاص بها — أضف مقطعاً من **Mission sounds** فتشغّله بدل النغمة المدمجة التي تميّزها عن مربع مكتمل.',
+          },
+          {
+            label: 'Auto starting shot',
+            body: 'يلتقط لقطة البداية للفعالية نيابةً عنك لحظة وقوفك في موقعها المثبّت. وإن أطفأته، تضغط أنت **Take starting shot** في اللوحة الجانبية.',
           },
         ],
       },
@@ -673,120 +699,31 @@ const ar: PartialGuideDict = {
         ],
       },
       caFigure: {
-        caption: 'Combat achievements · levels · diaries · quests',
+        caption: 'Combat achievements · collection log · levels · diaries · quests',
         alt: 'قسم إشعارات Combat achievements مع إحاطة كل خيار وترقيمه',
         legend: [
-          { label: 'Notify on combat achievements', body: 'إنجاز المستويات يُنشر دائمًا ما دام هذا مفعّلًا.' },
           {
-            label: 'CA task min tier',
-            body: 'مدى ضجيج المهام المفردة. Elite هنا؛ والافتراضي Master. اضبطه على Grandmaster لأندرها فقط.',
+            label: 'CA post tier',
+            body: 'أدنى مستوى مهام يُنشر؛ وإنجاز المستويات الكاملة يُنشر أيضًا. الافتراضي Master؛ وGrandmaster ينشر الأندر فقط، و**Off** لا ينشر شيئًا. مربعات CA في البينغو تُحتسب في الحالتين.',
           },
           {
-            label: 'Notify on 99s & high totals',
-            body: 'مستويات 99، وكل 100 مستوى إجمالي بدءًا من 1800، والحد الأقصى.',
-          },
-          { label: 'Notify on diary completions', body: 'مستويات الـ achievement diary.' },
-          {
-            label: 'Announce quest completions',
-            body: 'من درجة الصعوبة التي تختارها فما فوق. “All quests” هنا؛ والافتراضي Master فأعلى.',
-          },
-        ],
-      },
-    },
-
-    clips: {
-      title: 'المقاطع عبر OBS',
-      intro: [
-        'اضغط زرًا واحدًا فتُحفظ آخر 30 ثانية وتُلقى في قناة مقاطع العشيرة. مطفأ افتراضيًا ويحتاج OBS يعمل — لكنه أقرب ما ستحصل عليه عشيرتك من شريط لأفضل اللحظات.',
-        'كيف يعمل: يحتفظ OBS بـ **replay buffer** متجدد لآخر X ثانية. مفتاحك المختصر يطلب من OBS تفريغ ذلك المخزون في ملف، فتلتقط الإضافة الملف وترفعه إلى ويبهوك Discord تلصقه أنت.',
-      ],
-      privacyNote: {
-        tag: 'إلى أين يذهب مقطعك',
-        body: 'تُرفع المقاطع **من جهازك مباشرةً إلى Discord**. لا تمرّ بهذا الموقع أبدًا، ولا يُرفع شيء إطلاقًا إن تركت حقل الويبهوك فارغًا — تبقى المقاطع على جهازك.',
-      },
-      obsHeading: 'أ. أعدّ OBS (مرة واحدة)',
-      obsSteps: [
-        'تحتاج **OBS Studio 28 أو أحدث** — خادم WebSocket مدمج منذ الإصدار 28، دون تنزيل إضافي.',
-        'تأكّد أن OBS يلتقط اللعبة فعلًا: مصدر Game / Window / Display Capture يعرض RuneLite. فإن لم يرَ OBS عميلك، ستكون مقاطعك مستطيلًا أسود.',
-        '**Settings → Output** ← فعّل **Enable Replay Buffer**. (في وضع Simple يكون في صفحة Recording؛ وفي Advanced له تبويبة خاصة.) وتحقق أثناء وجودك من وجود مساحة في مسار التسجيل.',
-        '**Tools → WebSocket Server Settings** ← فعّل **Enable WebSocket server**. دوّن **Server Port** (4455 افتراضيًا) واضغط **Show Connect Info** للحصول على كلمة المرور.',
-      ],
-      obsAside:
-        'لا تحتاج _أبدًا_ إلى ضغط “Start Replay Buffer” — تشغّله الإضافة لك عند الاتصال، وتعيد تشغيله كلما غيّرت طول المقطع.',
-      fillHeading: 'ب. املأ إعدادات الإضافة',
-      figure: {
-        caption: 'Configuration → Anvil → Clips',
-        alt: 'قسم Clips في إعدادات الإضافة مع إحاطة كل خيار وترقيمه؛ مضيف OBS ورابط الويبهوك مخفيان',
-        legend: [
-          { label: 'Enable clip capture', body: 'المفتاح الرئيسي. وهو مطفأ، لا تتحدث الإضافة مع OBS إطلاقًا.' },
-          {
-            label: 'Capture clip hotkey',
-            body: 'اضبطه وإلا لن يحدث شيء أبدًا. اختر مفتاحًا لن تضغطه سهوًا في منتصف raid.',
+            label: 'Notify on collection log slots',
+            body: 'كل خانة جديدة في الـ collection log.',
           },
           {
-            label: 'OBS host / port / password',
-            body: '`localhost` حين يعمل OBS على الجهاز نفسه مع RuneLite. وإن كان OBS على جهاز آخر، ضع عنوان IP المحلي لذلك الجهاز هنا — وهو مخفي في هذه اللقطة — وافتح المنفذ في جداره الناري. المنفذ وكلمة المرور من _Show Connect Info_؛ واترك كلمة المرور فارغة إن أطفأت مصادقة OBS.',
+            label: 'Notify on level milestones',
+            body: 'الترقيات التي اختارت عشيرتك الإعلان عنها — افتراضيًا مستويات 99، وكل 100 مستوى إجمالي بدءًا من 1800، والحد الأقصى. يضع مسؤولو عشيرتك القواعد؛ ويمكنك أن تنشر أقل (أو تضع قواعدك الخاصة لويبهوكاتك الشخصية) من قسم Announcements في ملفك الشخصي.',
           },
           {
-            label: 'Max auto-post size (MB)',
-            body: 'ما زاد عن ذلك يُحفظ محليًا ويُذكر بهدوء في الدردشة بدل نشره. اضبطه على ما يقبله خادم Discord لديك فعلًا؛ وتأتي الإضافة على 25.',
+            label: 'Notify on diary completions',
+            body: 'مستويات الـ achievement diary، مع لقطة شاشة.',
           },
           {
-            label: 'Clip length (seconds)',
-            body: 'إلى أي مدى يعود كل مقطع. يكتب هذا طول المخزون في ملف OBS الشخصي، فيحتاج OBS ذلك العدد من الثواني قبل أن يوجد مقطع بطول كامل. المقاطع الأطول = ملفات أكبر؛ و30 حدّ وسط جيد.',
-          },
-          {
-            label: 'Save clips as MP4',
-            body: 'يُعرَض MP4 ويُشغَّل داخل Discord مباشرة؛ أما MKV فيجب تنزيله أولًا. لاحظ أن هذا يغيّر صيغة تسجيل OBS، فيؤثر في تسجيلاتك العادية أيضًا. أطفئه لتترك OBS وشأنه.',
-          },
-          {
-            label: 'Clips Discord webhook URL',
-            body: 'حيث تُنشر المقاطع — اطلب من مسؤول ويبهوك قناة المقاطع. فارغ = تبقى المقاطع على جهازك. وهو مخفي هنا، ويستحق الإخفاء: كل من يملك هذا الرابط يستطيع النشر في تلك القناة.',
-          },
-          {
-            label: 'Post OBS-triggered clips too',
-            body: 'يتعامل أيضًا مع الحفظ الذي يبدأه OBS نفسه أو إضافة “Save Replay Buffer for OBS”. اتركه مطفأً إن كنت تشغّل عميلَي RuneLite مقابل OBS واحد، وإلا نُشر كل مقطع مرتين.',
-          },
-          {
-            label: "Let Anvil manage OBS's recording folder",
-            body: 'يوجّه مجلد تسجيل OBS إلى مجلد المقاطع الخاص بـ Anvil أثناء تشغيل RuneLite، وهذا ما يتيح للمقطع أن يُنشر من تلقاء نفسه، إذ لا يجوز للإضافة أن تقرأ سوى مجلدها. تُحفظ تسجيلات OBS العادية هناك أيضاً أثناء تفعيله، وتُعاد إعداداتك كما كانت عند إيقافه أو إغلاق RuneLite.',
+            label: 'Quest post tier',
+            body: 'المهام (quests) من درجة الصعوبة التي تختارها فما فوق، من All (كل مهمة) حتى Grandmaster؛ و**Off** لا ينشر شيئًا. الافتراضي Master. مربعات المهام في البينغو تُحتسب في الحالتين.',
           },
         ],
       },
-      useHeading: 'ج. استخدمها',
-      useIntro: 'يحدث شيء طريف ← اضغط مفتاحك المختصر ← تقودك الدردشة عبر الخطوات:',
-      useChat: [
-        { text: 'Saving clip...', tone: 'plain' },
-        { text: 'Uploading clip to the clan Discord...', tone: 'plain' },
-        { text: 'Clip posted to the clan Discord.', tone: 'green' },
-      ],
-      reminder: {
-        tag: 'تذكير',
-        body: 'يغطي المقطع الثواني التي _سبقت_ ضغطك للمفتاح — فاضغط بعد اللحظة لا أثناءها. ولديك طول المخزون كله لتتفاعل.',
-      },
-      decodedHeading: 'رسائل المقاطع، مشروحة',
-      decoded: [
-        {
-          term: '`Clip capture: OBS isn’t connected.`',
-          body: 'OBS لا يعمل، أو خادم WebSocket مطفأ، أو المضيف/المنفذ/كلمة المرور غير مطابقة. أصلحها واضغط مجددًا — تعيد الإضافة محاولة الاتصال وحدها كل 30 ثانية.',
-        },
-        {
-          term: '`OBS could not save the clip — is the Replay Buffer started?`',
-          body: 'المخزون لا يعمل. تحقق من Enable Replay Buffer في إعدادات مخرجات OBS، ثم أطفئ Enable clip capture وأعد تفعيله.',
-        },
-        {
-          term: '`Clip saved locally — paste a Clips Discord webhook URL…`',
-          body: 'كل شيء يعمل كما ينبغي، أنت فقط لم تضبط ويبهوك. والملف في مجلد تسجيلات OBS لديك.',
-        },
-        {
-          term: '`Clip saved locally (48MB) — too big to auto-post.`',
-          body: 'قصّر طول المقطع، أو اخفض جودة تسجيل OBS، أو ارفع الحد الأقصى إن كان خادمك يقبل ملفات أكبر.',
-        },
-        {
-          term: '`…but Discord didn’t accept the upload.`',
-          body: 'كبير جدًا، أو تجاوز حد المعدل، أو انتهت مهلة الرفع. الملف ما زال على جهازك — انشره يدويًا إن كان يستحق.',
-        },
-      ],
     },
 
     trouble: {
@@ -813,7 +750,7 @@ const ar: PartialGuideDict = {
       ],
       logHeading: 'ما زلت عالقًا؟ أرسل لمسؤول سجلًا',
       logBody:
-        'اكتب `::anvillog` في دردشة اللعبة (أو اضبط **Export debug log hotkey** في قسم Support بالإضافة). يكتب ملف سجل في مجلد `.runelite/anvil-debug`، ويفتح المجلد، وينسخ المسار إلى حافظتك — أرسل ذلك الملف إلى مسؤول ليرى بالضبط ما الذي حدث.',
+        'أرسل لمسؤول سجلّ RuneLite الخاص بك: `client.log` في مجلد `.runelite/logs` داخل مجلد المستخدم (على Windows، الصق `%USERPROFILE%\\.runelite\\logs` في شريط العنوان في Explorer). تكتب الإضافة فيه ما رأته ولماذا، فيرى المسؤول بالضبط ما الذي حدث.',
       missingNote: {
         tag: 'إثباتات ناقصة؟',
         body: 'الحيوانات الأليفة وتكرار الـ Champion’s scroll تحتاج لقطة شاشة يدوية. يلتقطها الملحق نيابةً عنك ويحفظها في `.runelite/osrs-bingo-pending/` — و**Copy folder path** في لوحة Anvil الجانبية يفتح المجلد — فترفقها في الموقع بدلًا من البحث عن صورة لاحقًا.',

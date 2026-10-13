@@ -66,7 +66,7 @@ const zhHans: PartialGuideDict = {
         eyebrow: '面向玩家',
         title: 'RuneLite 插件设置',
         blurb:
-          '安装插件，在它的侧边栏面板里登录，然后让它替你提交掉落。也涵盖 Discord 通知与 OBS 片段。',
+          '安装插件，在它的侧边栏面板里登录，然后让它替你提交掉落。也涵盖 Discord 通知与玩家查询。',
         minutes: '约 3 分钟完成设置',
       },
       board: {
@@ -451,17 +451,17 @@ const zhHans: PartialGuideDict = {
   plugin: {
     metaTitle: 'RuneLite 插件设置 — Anvil',
     metaDescription:
-      '安装 Anvil 的 RuneLite 插件，在它的侧边栏面板里登录，并设置 Discord 通知与 OBS 片段。',
+      '安装 Anvil 的 RuneLite 插件，在它的侧边栏面板里登录，并设置 Discord 通知。',
     eyebrow: 'Anvil · RuneLite 插件',
     title: '玩家设置指南',
-    dek: '装上、登录、开玩。插件会提交你的宾果掉落，把稀有掉落和死亡发到 Discord，而且 —— 如果你开着 OBS —— 还会保存并发布值得回看的精彩片段。',
+    dek: '装上、登录、开玩。插件会提交你的宾果掉落，把稀有掉落、死亡和里程碑发到 Discord，还能让你右键一下就查到任何人。',
     facts: [
       { strong: '一个按钮', rest: '就能开始记录' },
       { strong: '约 3 分钟', rest: '完成基础设置' },
-      { strong: '片段功能', rest: '需要 OBS 再加 5 分钟' },
+      { strong: '右键', rest: '即可查询任何人' },
     ],
     footnote:
-      '截图取自真实的设置环境 —— 账号令牌、OBS 地址和 Discord webhook 都是刻意打码的。你自己的这些也应当同样保密。',
+      '截图取自真实的设置环境 —— 账号令牌是刻意打码的。你自己的令牌也应当同样保密。',
 
     install: {
       title: '安装插件',
@@ -604,10 +604,28 @@ const zhHans: PartialGuideDict = {
         alt: '游戏内玩家右键菜单，Lookup 和 RuneProfile 下方有一个 Anvil 选项',
       },
       lookupSettingNote:
-        '不想在菜单里看到它？在插件设置的 **General** 中取消勾选 **Anvil lookup on players**。',
+        '在插件设置的 **Player lookup** 中选择 **Anvil** 选项出现在哪些地方。在聊天里的名字上，它永远不会成为左键默认选项，所以点击名字仍然执行游戏原本的操作。',
       lookupSettingFigure: {
-        caption: 'Configuration → Anvil → General',
-        alt: 'Anvil 设置中的 General 部分，“Anvil lookup on players”已勾选',
+        caption: 'Configuration → Anvil → Player lookup',
+        alt: 'Anvil 设置中的 Player lookup 区块，每一项设置都被方框标出并编号',
+        legend: [
+          {
+            label: 'Anvil lookup on players',
+            body: '总开关。关闭后所有地方都不再显示该选项。',
+          },
+          {
+            label: 'Players in the world',
+            body: '右键点击站在你附近的玩家。',
+          },
+          {
+            label: 'Chatbox and private messages',
+            body: '聊天框和私聊中的名字。',
+          },
+          {
+            label: 'Clan panels / Friends chat / Friends, ignore and party lists',
+            body: '各类名单：你的氏族和访客氏族成员、好友聊天频道、你的好友与屏蔽列表，以及团队副本的队伍面板。',
+          },
+        ],
       },
     },
 
@@ -628,8 +646,16 @@ const zhHans: PartialGuideDict = {
             body: '队里任何人完成一个格子时弹出横幅。若同时完成多个：最难的那个用横幅，其余进聊天框。',
           },
           {
+            label: 'My tile popups',
+            body: '你自己的掉落推进或完成一个格子时弹出提示。关闭后仍会照常记录 —— 只是不再提示。',
+          },
+          {
             label: 'Banner sound + volume',
             body: '在横幅出现时播放声音。在你自己通过 Anvil 侧边栏“Banner sounds”下的 **Add clip** 添加至少一个 .wav 之前，不会有任何声音。 任务有自己的文件夹：在 **Mission sounds** 下添加一个音频，任务就会播放它，而不是用来和完成格子区分开的内置提示音。',
+          },
+          {
+            label: 'Auto starting shot',
+            body: '你一站到活动固定的地点，就自动替你拍下开赛照。关闭后需要你自己在侧边栏按 **Take starting shot**。',
           },
         ],
       },
@@ -672,120 +698,31 @@ const zhHans: PartialGuideDict = {
         ],
       },
       caFigure: {
-        caption: 'Combat achievements · levels · diaries · quests',
+        caption: 'Combat achievements · collection log · levels · diaries · quests',
         alt: 'Combat achievements 通知区块，每一项设置都被方框标出并编号',
         legend: [
-          { label: 'Notify on combat achievements', body: '只要此项开启，完成整个层级时一定会播报。' },
           {
-            label: 'CA task min tier',
-            body: '单个任务完成的播报有多吵。这里选的是 Elite；默认是 Master。想只留最稀有的就设成 Grandmaster。',
+            label: 'CA post tier',
+            body: '会播报的最低任务层级；完成整个层级时也会播报。默认是 Master；Grandmaster 只播报最稀有的，**Off** 则一条都不发。无论如何，宾果的 CA 格子都照常计数。',
           },
           {
-            label: 'Notify on 99s & high totals',
-            body: '99 级、从 1800 起每 100 总等级，以及满级。',
-          },
-          { label: 'Notify on diary completions', body: '成就日记的各个层级。' },
-          {
-            label: 'Announce quest completions',
-            body: '从你选定的难度往上播报。这里是 “All quests”；默认是 Master 及以上。',
-          },
-        ],
-      },
-    },
-
-    clips: {
-      title: '用 OBS 录制片段',
-      intro: [
-        '按一个键，最近 30 秒就会被保存并丢进氏族的片段频道。默认关闭，并且需要 OBS 在运行 —— 但这是你的氏族能拥有的、最接近精彩集锦的东西。',
-        '原理是这样的：OBS 会持续保留最近 X 秒的**回放缓冲（replay buffer）**。你的快捷键让 OBS 把这段缓冲写成文件，插件再取走该文件，上传到你粘贴进来的 Discord webhook。',
-      ],
-      privacyNote: {
-        tag: '你的视频去了哪里',
-        body: '片段是**从你的电脑直接上传到 Discord** 的。它们从不经过本站；如果你把 webhook 字段留空，就完全不会有任何上传 —— 片段只会留在你自己的机器上。',
-      },
-      obsHeading: 'A. 配置 OBS（只需一次）',
-      obsSteps: [
-        '你需要 **OBS Studio 28 或更新版本** —— 从 28 起 WebSocket 服务器已内置，无需额外下载。',
-        '确认 OBS 确实在捕获游戏画面：需要一个显示 RuneLite 的 Game / Window / Display Capture 源。如果 OBS 看不到你的客户端，你的片段就会是一块黑色矩形。',
-        '**Settings → Output** → 勾选 **Enable Replay Buffer**。（Simple 输出模式下它在 Recording 页；Advanced 模式下它有自己的标签页。）顺手确认录制路径还有空间。',
-        '**Tools → WebSocket Server Settings** → 勾选 **Enable WebSocket server**。记下 **Server Port**（默认 4455），并点 **Show Connect Info** 获取密码。',
-      ],
-      obsAside:
-        '你_不需要_去按 “Start Replay Buffer” —— 插件连接成功时会替你启动它，并在你更改片段时长时自动重启。',
-      fillHeading: 'B. 填写插件设置',
-      figure: {
-        caption: 'Configuration → Anvil → Clips',
-        alt: '插件设置中的 Clips 区块，每一项设置都被方框标出并编号；OBS 主机与 webhook 网址已隐藏',
-        legend: [
-          { label: 'Enable clip capture', body: '总开关。关闭时插件根本不会和 OBS 通信。' },
-          {
-            label: 'Capture clip hotkey',
-            body: '一定要设，否则永远不会有任何反应。挑一个你在团本中途不会误按的键。',
+            label: 'Notify on collection log slots',
+            body: '每个新解锁的 collection log 格位。',
           },
           {
-            label: 'OBS host / port / password',
-            body: 'OBS 与 RuneLite 在同一台电脑上时填 `localhost`。若 OBS 在另一台机器上，这里填那台机器的局域网 IP —— 本截图中已隐藏 —— 并在它的防火墙上放行该端口。端口和密码来自 _Show Connect Info_；如果你关掉了 OBS 的身份验证，密码留空即可。',
+            label: 'Notify on level milestones',
+            body: '你的氏族选择播报的升级 —— 默认是 99 级、从 1800 起每 100 总等级，以及满级。规则由氏族管理员设定；你可以在个人资料的 Announcements 中少发一些（或为你的个人 webhook 设定自己的规则）。',
           },
           {
-            label: 'Max auto-post size (MB)',
-            body: '超过这个大小的片段只会本地保存，并在聊天里低调提一句，而不会发出去。请按你的 Discord 服务器实际能接受的大小来设；插件出厂值是 25。',
+            label: 'Notify on diary completions',
+            body: '成就日记的各个层级，附带截图。',
           },
           {
-            label: 'Clip length (seconds)',
-            body: '每个片段往回覆盖多久。这会把缓冲时长写进你的 OBS 配置，因此 OBS 需要积累这么多秒之后，完整长度的片段才存在。片段越长文件越大；30 是个不错的折中。',
-          },
-          {
-            label: 'Save clips as MP4',
-            body: 'MP4 在 Discord 中可直接预览和播放；MKV 必须先下载。注意这会改变 OBS 的录制格式，也会影响你平时的录像。想让 OBS 保持原样就关掉它。',
-          },
-          {
-            label: 'Clips Discord webhook URL',
-            body: '片段发到哪里 —— 向管理员索取片段频道的 webhook。留空 = 片段留在你的电脑上。这里隐藏了，而且确实值得隐藏：任何拿到这个网址的人都能往那个频道发东西。',
-          },
-          {
-            label: 'Post OBS-triggered clips too',
-            body: '同时处理由 OBS 自身或 “Save Replay Buffer for OBS” 插件触发的保存。如果你用两个 RuneLite 客户端连同一个 OBS，请保持关闭，否则每个片段都会被发两次。',
-          },
-          {
-            label: "Let Anvil manage OBS's recording folder",
-            body: '在 RuneLite 运行期间把 OBS 的录制文件夹指向 Anvil 自己的剪辑文件夹——插件只能读取自己的文件夹，这是剪辑能自动发布的唯一办法。开启期间你平常的 OBS 录制也会存到那里，关闭它或退出 RuneLite 时会把你的设置放回去。',
+            label: 'Quest post tier',
+            body: '你选定难度及以上的任务，从 All（所有任务）到 Grandmaster；**Off** 则一条都不发。默认是 Master。无论如何，宾果的任务格子都照常计数。',
           },
         ],
       },
-      useHeading: 'C. 使用',
-      useIntro: '发生了有趣的事 → 按下你的快捷键 → 聊天框会一路提示你：',
-      useChat: [
-        { text: 'Saving clip...', tone: 'plain' },
-        { text: 'Uploading clip to the clan Discord...', tone: 'plain' },
-        { text: 'Clip posted to the clan Discord.', tone: 'green' },
-      ],
-      reminder: {
-        tag: '提醒',
-        body: '片段覆盖的是你按键_之前_的那几秒 —— 所以要在事情发生之后按，而不是发生当时。你有整段缓冲的时长可以反应。',
-      },
-      decodedHeading: '片段相关提示，逐条解释',
-      decoded: [
-        {
-          term: '`Clip capture: OBS isn’t connected.`',
-          body: 'OBS 没在运行、WebSocket 服务器没开，或者主机/端口/密码对不上。修好后再按一次 —— 插件每 30 秒会自己重试一次连接。',
-        },
-        {
-          term: '`OBS could not save the clip — is the Replay Buffer started?`',
-          body: '缓冲没在跑。到 OBS 的输出设置里确认 Enable Replay Buffer，然后把 Enable clip capture 关掉再打开。',
-        },
-        {
-          term: '`Clip saved locally — paste a Clips Discord webhook URL…`',
-          body: '一切正常，只是你还没设置 webhook。文件就在你的 OBS 录制文件夹里。',
-        },
-        {
-          term: '`Clip saved locally (48MB) — too big to auto-post.`',
-          body: '缩短片段时长、降低 OBS 录制质量，或者在你的服务器接受更大文件的前提下调高上限。',
-        },
-        {
-          term: '`…but Discord didn’t accept the upload.`',
-          body: '太大、被限流，或者上传超时了。文件还在你电脑上 —— 值得的话手动发出去。',
-        },
-      ],
     },
 
     trouble: {
@@ -812,7 +749,7 @@ const zhHans: PartialGuideDict = {
       ],
       logHeading: '还是不行？给管理员发一份日志',
       logBody:
-        '在游戏聊天框里输入 `::anvillog`（或在插件的 Support 区块里设置 **Export debug log hotkey**）。它会往你的 `.runelite/anvil-debug` 文件夹写一份日志文件、打开该文件夹，并把路径复制到剪贴板 —— 把那个文件发给管理员，他们就能看到究竟哪里出了问题。',
+        '把你的 RuneLite 日志发给管理员：就是你用户文件夹下 `.runelite/logs` 文件夹里的 `client.log`（在 Windows 上，把 `%USERPROFILE%\\.runelite\\logs` 粘贴到文件资源管理器的地址栏）。插件会把它看到了什么、为什么这么做写进去，这样他们就能看到究竟哪里出了问题。',
       missingNote: {
         tag: '凭证不见了？',
         body: '宠物和重复的 Champion’s scroll 需要手动截图。插件会替你截好并保存到 `.runelite/osrs-bingo-pending/`（Anvil 侧边栏的 **Copy folder path** 可以打开该文件夹），你在网站上直接附加即可，不必事后再去翻找图片。',

@@ -67,7 +67,7 @@ const ja: PartialGuideDict = {
         eyebrow: 'プレイヤー向け',
         title: 'RuneLite プラグインの設定',
         blurb:
-          'プラグインを入れ、サイドパネルからログインし、ドロップの提出を任せる。Discord 通知と OBS クリップも扱います。',
+          'プラグインを入れ、サイドパネルからログインし、ドロップの提出を任せる。Discord 通知とプレイヤー検索も扱います。',
         minutes: '設定は約 3 分',
       },
       board: {
@@ -452,17 +452,17 @@ const ja: PartialGuideDict = {
   plugin: {
     metaTitle: 'RuneLite プラグインの設定 — Anvil',
     metaDescription:
-      'Anvil の RuneLite プラグインを導入し、サイドパネルからログインして、Discord 通知と OBS クリップを設定する。',
+      'Anvil の RuneLite プラグインを導入し、サイドパネルからログインして、Discord 通知を設定する。',
     eyebrow: 'Anvil · RuneLite プラグイン',
     title: 'プレイヤー向け設定ガイド',
-    dek: '入れて、ログインして、あとは普通に遊ぶだけ。プラグインがビンゴのドロップを提出し、レアドロップと死亡を Discord に投稿し —— OBS を動かしているなら —— 見返す価値のある瞬間をクリップとして保存・投稿します。',
+    dek: '入れて、ログインして、あとは普通に遊ぶだけ。プラグインがビンゴのドロップを提出し、レアドロップ・死亡・節目の達成を Discord に投稿し、右クリックひとつで誰でも調べられるようにします。',
     facts: [
       { strong: 'ボタン 1 つ', rest: 'で記録が始まる' },
       { strong: '約 3 分', rest: '基本設定に必要な時間' },
-      { strong: 'クリップ', rest: 'は OBS ともう 5 分が必要' },
+      { strong: '右クリック', rest: 'で誰でも調べられる' },
     ],
     footnote:
-      'スクリーンショットは実際の設定環境のものです —— アカウントトークン、OBS のアドレス、Discord webhook は意図的に伏せてあります。あなたのものも同じように伏せておいてください。',
+      'スクリーンショットは実際の設定環境のものです —— アカウントトークンは意図的に伏せてあります。あなたのものも同じように伏せておいてください。',
 
     install: {
       title: 'プラグインを入れる',
@@ -605,10 +605,28 @@ const ja: PartialGuideDict = {
         alt: 'ゲーム内のプレイヤー右クリックメニュー。Lookup と RuneProfile の下に Anvil の項目がある',
       },
       lookupSettingNote:
-        'メニューに出したくない場合は、プラグイン設定の **General** にある **Anvil lookup on players** のチェックを外してください。',
+        'プラグイン設定の **Player lookup** で、**Anvil** の項目をどこに出すかを選べます。チャット上の名前では左クリックの動作には決してならないので、名前をクリックすればこれまでどおりゲーム本来の動作になります。',
       lookupSettingFigure: {
-        caption: 'Configuration → Anvil → General',
-        alt: 'Anvil 設定の General セクション。「Anvil lookup on players」にチェックが入っている',
+        caption: 'Configuration → Anvil → Player lookup',
+        alt: 'Anvil 設定の Player lookup セクション。各設定が枠で囲まれ番号が振られている',
+        legend: [
+          {
+            label: 'Anvil lookup on players',
+            body: 'マスタースイッチ。オフにすると、どこにも項目が出なくなります。',
+          },
+          {
+            label: 'Players in the world',
+            body: '近くに立っているプレイヤーを右クリックしたとき。',
+          },
+          {
+            label: 'Chatbox and private messages',
+            body: 'チャットボックスとプライベートチャットに出る名前。',
+          },
+          {
+            label: 'Clan panels / Friends chat / Friends, ignore and party lists',
+            body: '名前の一覧：自分のクランとゲストクランのメンバー、フレンズチャットのチャンネル、フレンドリストと無視リスト、レイドのパーティーパネル。',
+          },
+        ],
       },
     },
 
@@ -629,8 +647,16 @@ const ja: PartialGuideDict = {
             body: 'チームの誰かがマスを達成したときにバナーを出します。同時に複数なら、いちばん難しいものがバナーになり、残りはチャットに流れます。',
           },
           {
+            label: 'My tile popups',
+            body: '自分のドロップでマスが進んだり達成されたりしたときにポップアップを出します。オフでも記録は続きます —— 静かになるだけです。',
+          },
+          {
             label: 'Banner sound + volume',
             body: 'バナーと一緒に音を鳴らします。Anvil サイドパネルの「Banner sounds」にある **Add clip** から .wav を自分で 1 つ以上追加するまでは、何も鳴りません。 ミッションには専用フォルダがあります。**Mission sounds** からクリップを追加すると、完了タイルと区別するための内蔵音の代わりにそれが鳴ります。',
+          },
+          {
+            label: 'Auto starting shot',
+            body: 'イベントのピン留めされた地点に立った瞬間、スタートショットを代わりに撮ります。オフなら、サイドパネルの **Take starting shot** を自分で押します。',
           },
         ],
       },
@@ -673,120 +699,31 @@ const ja: PartialGuideDict = {
         ],
       },
       caFigure: {
-        caption: 'Combat achievements · levels · diaries · quests',
+        caption: 'Combat achievements · collection log · levels · diaries · quests',
         alt: 'Combat achievements の通知セクション。各設定が枠で囲まれ番号が振られている',
         legend: [
-          { label: 'Notify on combat achievements', body: 'これがオンなら、ティア達成は必ず投稿されます。' },
           {
-            label: 'CA task min tier',
-            body: '個々のタスク達成をどれだけ賑やかにするか。ここでは Elite、既定は Master。最も稀なものだけにしたければ Grandmaster に。',
+            label: 'CA post tier',
+            body: '投稿するタスクの最低ティア。ティア達成も投稿されます。既定は Master。Grandmaster なら最も稀なものだけ、**Off** なら何も投稿しません。ビンゴの CA マスはどちらでもカウントされます。',
           },
           {
-            label: 'Notify on 99s & high totals',
-            body: '99 到達、1800 から 100 ごとの合計レベル、そしてマックス。',
-          },
-          { label: 'Notify on diary completions', body: 'achievement diary の各ティア。' },
-          {
-            label: 'Announce quest completions',
-            body: '選んだ難易度以上を告知します。ここでは「All quests」、既定は Master 以上。',
-          },
-        ],
-      },
-    },
-
-    clips: {
-      title: 'OBS でクリップを撮る',
-      intro: [
-        'キーを 1 つ押すと直近 30 秒が保存され、クランのクリップチャンネルに投げ込まれます。既定ではオフで、OBS が動いている必要があります —— ですがクランが手にできる、いちばんハイライト映像に近いものです。',
-        '仕組みはこうです：OBS は直近 X 秒の**リプレイバッファ**を回し続けています。あなたのショートカットが OBS にそのバッファをファイルへ書き出させ、プラグインがそのファイルを拾って、あなたが貼り付けた Discord webhook へアップロードします。',
-      ],
-      privacyNote: {
-        tag: '動画がどこへ行くか',
-        body: 'クリップは**あなたの PC から Discord へ直接**アップロードされます。このサイトを経由することは一切なく、webhook 欄を空のままにすれば何もアップロードされません —— クリップは手元に残るだけです。',
-      },
-      obsHeading: 'A. OBS を設定する（一度だけ）',
-      obsSteps: [
-        '**OBS Studio 28 以降**が必要です —— 28 から WebSocket サーバーが内蔵されており、追加のダウンロードは要りません。',
-        'OBS が実際にゲームを取り込んでいることを確認してください：RuneLite が映る Game / Window / Display Capture のソースが必要です。OBS からクライアントが見えていないと、クリップは真っ黒な長方形になります。',
-        '**Settings → Output** → **Enable Replay Buffer** にチェック。（Simple 出力モードでは Recording ページに、Advanced では専用タブにあります。）ついでに録画先の空き容量も確認しておきましょう。',
-        '**Tools → WebSocket Server Settings** → **Enable WebSocket server** にチェック。**Server Port**（既定 4455）を控え、**Show Connect Info** からパスワードを取得します。',
-      ],
-      obsAside:
-        '「Start Replay Buffer」を自分で押す必要は_ありません_ —— 接続時にプラグインが起動してくれますし、クリップ長を変えるたびに再起動もしてくれます。',
-      fillHeading: 'B. プラグイン側を埋める',
-      figure: {
-        caption: 'Configuration → Anvil → Clips',
-        alt: 'プラグイン設定の Clips セクション。各設定が枠で囲まれ番号が振られ、OBS ホストと webhook URL は伏せてある',
-        legend: [
-          { label: 'Enable clip capture', body: '大元のスイッチ。オフのあいだプラグインは OBS と一切通信しません。' },
-          {
-            label: 'Capture clip hotkey',
-            body: '必ず設定してください。さもないと永遠に何も起きません。レイド中にうっかり押さないキーを選びましょう。',
+            label: 'Notify on collection log slots',
+            body: 'コレクションログの新しい枠が埋まるたびに。',
           },
           {
-            label: 'OBS host / port / password',
-            body: 'OBS が RuneLite と同じ PC で動いているなら `localhost`。別のマシンなら、そのマシンのローカル IP をここに入れ（この画像では伏せてあります）、ファイアウォールでポートを開けてください。ポートとパスワードは _Show Connect Info_ から。OBS の認証を切っているならパスワードは空のままで。',
+            label: 'Notify on level milestones',
+            body: 'クランが告知すると決めたレベルアップ —— 既定では 99 到達、1800 から 100 ごとの合計レベル、そしてマックス。ルールを決めるのはクランの管理者ですが、プロフィールの Announcements から投稿を減らす（または個人用 webhook に自分のルールを設定する）ことができます。',
           },
           {
-            label: 'Max auto-post size (MB)',
-            body: 'これより大きいものはローカルに保存され、投稿の代わりにチャットでそっと知らされます。あなたの Discord サーバーが実際に受け付ける値に合わせてください。プラグインの出荷値は 25 です。',
+            label: 'Notify on diary completions',
+            body: 'achievement diary の各ティア。スクリーンショット付き。',
           },
           {
-            label: 'Clip length (seconds)',
-            body: '各クリップがどれだけ遡るか。これは OBS のプロファイルにバッファ長を書き込むので、フル長のクリップが存在するには OBS 側にその秒数の助走が必要です。長いほどファイルは大きくなります。30 あたりが手頃です。',
-          },
-          {
-            label: 'Save clips as MP4',
-            body: 'MP4 は Discord 内でそのままプレビュー・再生できますが、MKV は先にダウンロードが要ります。なおこれは OBS の録画形式を変えるので、普段の録画にも影響します。OBS をいじりたくなければオフに。',
-          },
-          {
-            label: 'Clips Discord webhook URL',
-            body: 'クリップの投稿先 —— クリップチャンネルの webhook を管理者にもらってください。空 = クリップは PC に残ります。ここでは伏せてありますし、伏せるだけの価値があります：この URL を持つ人は誰でもそのチャンネルに投稿できます。',
-          },
-          {
-            label: 'Post OBS-triggered clips too',
-            body: 'OBS 自身や「Save Replay Buffer for OBS」プラグインが起動した保存も扱います。1 つの OBS に対して RuneLite を 2 つ動かしているならオフのままに。さもないとクリップが二重投稿されます。',
-          },
-          {
-            label: "Let Anvil manage OBS's recording folder",
-            body: 'RuneLite の起動中だけ OBS の録画フォルダを Anvil のクリップフォルダに向けます。プラグインは自分のフォルダしか読めないため、これがクリップを自動投稿できる唯一の方法です。オンの間は通常の OBS 録画もそこに保存され、オフにするか RuneLite を閉じると元の設定に戻ります。',
+            label: 'Quest post tier',
+            body: '選んだ難易度以上のクエスト。All（すべてのクエスト）から Grandmaster まで選べ、**Off** なら何も投稿しません。既定は Master。ビンゴのクエストマスはどちらでもカウントされます。',
           },
         ],
       },
-      useHeading: 'C. 使う',
-      useIntro: '面白いことが起きた → ショートカットを押す → チャットが順に案内します：',
-      useChat: [
-        { text: 'Saving clip...', tone: 'plain' },
-        { text: 'Uploading clip to the clan Discord...', tone: 'plain' },
-        { text: 'Clip posted to the clan Discord.', tone: 'green' },
-      ],
-      reminder: {
-        tag: '注意',
-        body: 'クリップが収めるのはキーを押す_前_の数秒です —— つまり、その瞬間の最中ではなく、あとで押してください。バッファの長さぶんだけ反応する余裕があります。',
-      },
-      decodedHeading: 'クリップ関連メッセージの読み方',
-      decoded: [
-        {
-          term: '`Clip capture: OBS isn’t connected.`',
-          body: 'OBS が動いていない、WebSocket サーバーがオフ、あるいはホスト／ポート／パスワードが合っていません。直してもう一度押してください —— プラグインは 30 秒ごとに自分で再接続を試みます。',
-        },
-        {
-          term: '`OBS could not save the clip — is the Replay Buffer started?`',
-          body: 'バッファが動いていません。OBS の出力設定で Enable Replay Buffer を確認し、そのあと Enable clip capture をオフ→オンしてください。',
-        },
-        {
-          term: '`Clip saved locally — paste a Clips Discord webhook URL…`',
-          body: '想定どおりに動いています。単に webhook を設定していないだけです。ファイルは OBS の録画フォルダにあります。',
-        },
-        {
-          term: '`Clip saved locally (48MB) — too big to auto-post.`',
-          body: 'クリップ長を短くする、OBS の録画品質を下げる、あるいはサーバーがより大きいファイルを受け付けるなら上限を上げてください。',
-        },
-        {
-          term: '`…but Discord didn’t accept the upload.`',
-          body: '大きすぎたか、レート制限にかかったか、アップロードがタイムアウトしました。ファイルは PC に残っています —— 価値があるなら手で投稿してください。',
-        },
-      ],
     },
 
     trouble: {
@@ -813,7 +750,7 @@ const ja: PartialGuideDict = {
       ],
       logHeading: 'それでも詰まったら、管理者にログを送る',
       logBody:
-        'ゲーム内チャットで `::anvillog` と入力します（またはプラグインの Support セクションで **Export debug log hotkey** を設定）。`.runelite/anvil-debug` フォルダにログを書き出し、フォルダを開き、パスをクリップボードにコピーします —— そのファイルを管理者に送れば、何が起きたのかを正確に見てもらえます。',
+        'RuneLite のログを管理者に送ってください：ユーザーフォルダ内の `.runelite/logs` フォルダにある `client.log` です（Windows ではエクスプローラーのアドレスバーに `%USERPROFILE%\\.runelite\\logs` を貼り付けます）。プラグインは見たこととその理由をそこに書き込むので、何が起きたのかを正確に見てもらえます。',
       missingNote: {
         tag: '証跡が見当たらない？',
         body: 'ペットと重複した Champion’s scroll は手動のスクリーンショットが必要です。プラグインが代わりに撮って `.runelite/osrs-bingo-pending/` に保存します（Anvil サイドパネルの **Copy folder path** でフォルダが開きます）。後から画像を探すのではなく、サイト側で添付してください。',

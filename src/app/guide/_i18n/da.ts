@@ -72,7 +72,7 @@ const da: PartialGuideDict = {
         eyebrow: 'Til spillere',
         title: 'Opsætning af RuneLite-pluginnet',
         blurb:
-          'Installér pluginnet, log ind fra dets sidepanel, og lad det indsende dine drops. Dækker også Discord-beskeder og klip via OBS.',
+          'Installér pluginnet, log ind fra dets sidepanel, og lad det indsende dine drops. Dækker også Discord-beskeder og opslag af spillere.',
         minutes: '~3 min opsætning',
       },
       admin: {
@@ -457,17 +457,17 @@ const da: PartialGuideDict = {
   plugin: {
     metaTitle: 'Opsætning af RuneLite-pluginnet — Anvil',
     metaDescription:
-      'Installér Anvils RuneLite-plugin, log ind fra dets sidepanel, og sæt Discord-beskeder og OBS-klip op.',
+      'Installér Anvils RuneLite-plugin, log ind fra dets sidepanel, og sæt Discord-beskeder op.',
     eyebrow: 'Anvil · RuneLite-plugin',
     title: 'Opsætningsguide til spillere',
-    dek: 'Installér det, log ind, og spil. Pluginnet indsender dine bingo-drops, poster dine sjældne drops og dødsfald på Discord, og — hvis du kører OBS — gemmer og poster klip af de øjeblikke, der er værd at se igen.',
+    dek: 'Installér det, log ind, og spil. Pluginnet indsender dine bingo-drops, poster dine sjældne drops, dødsfald og milepæle på Discord, og lader dig slå hvem som helst op med et højreklik.',
     facts: [
       { strong: '1 knap', rest: 'og du bliver tracket' },
       { strong: '~3 min', rest: 'til den basale opsætning' },
-      { strong: 'Klip', rest: 'kræver OBS + 5 minutter mere' },
+      { strong: 'Højreklik', rest: 'for at slå hvem som helst op' },
     ],
     footnote:
-      'Skærmbillederne er fra en rigtig opsætning — kontotoken, OBS-adresse og Discord-webhook er sløret med vilje. Dine bør blive lige så private.',
+      'Skærmbillederne er fra en rigtig opsætning — kontotokenet er sløret med vilje. Dit bør blive lige så privat.',
 
     install: {
       title: 'Installér pluginnet',
@@ -611,10 +611,28 @@ const da: PartialGuideDict = {
         alt: 'En spillers højreklikmenu i spillet med et Anvil-punkt under Lookup og RuneProfile',
       },
       lookupSettingNote:
-        'Vil du ikke have det i dine menuer? Fjern fluebenet ved **Anvil lookup on players** under **General** i pluginets indstillinger.',
+        'Vælg, hvor **Anvil**-punktet vises, under **Player lookup** i pluginets indstillinger. På et navn i chatten er det aldrig venstreklik-valget, så et klik på et navn gør stadig det, spillet plejer.',
       lookupSettingFigure: {
-        caption: 'Configuration → Anvil → General',
-        alt: 'Afsnittet General i Anvils indstillinger med “Anvil lookup on players” slået til',
+        caption: 'Configuration → Anvil → Player lookup',
+        alt: 'Afsnittet Player lookup i Anvils indstillinger med hver indstilling markeret og nummereret',
+        legend: [
+          {
+            label: 'Anvil lookup on players',
+            body: 'hovedafbryderen. Slået fra skjuler den punktet overalt.',
+          },
+          {
+            label: 'Players in the world',
+            body: 'når du højreklikker på en spiller, der står i nærheden.',
+          },
+          {
+            label: 'Chatbox and private messages',
+            body: 'navne i chatboksen og i private beskeder.',
+          },
+          {
+            label: 'Clan panels / Friends chat / Friends, ignore and party lists',
+            body: 'navnelisterne: medlemmer af din klan og gæsteklanen, friends chat-kanalen, din venne- og ignoreliste samt raid-partypanelet.',
+          },
+        ],
       },
     },
 
@@ -635,8 +653,16 @@ const da: PartialGuideDict = {
             body: 'et banner, når nogen på dit hold gør et felt færdigt. Flere på én gang: det sværeste får banneret, resten går i chatten.',
           },
           {
+            label: 'My tile popups',
+            body: 'en popup, når dit eget drop rykker et felt frem eller gør det færdigt. Slået fra tracker den stadig — bare stille.',
+          },
+          {
             label: 'Banner sound + volume',
             body: 'afspiller en lyd sammen med banneret. Der sker ingenting, før du selv tilføjer mindst én .wav-fil via **Add clip** under “Banner sounds” i Anvil-sidepanelet. Missioner har deres egen mappe — tilføj et klip under **Mission sounds**, så spiller de det i stedet for den indbyggede lyd, der holder dem fra at lyde som et fuldført felt.',
+          },
+          {
+            label: 'Auto starting shot',
+            body: 'tager et events startbillede for dig i det øjeblik, du står på det fastlagte sted. Slået fra trykker du selv på **Take starting shot** i sidepanelet.',
           },
         ],
       },
@@ -679,120 +705,31 @@ const da: PartialGuideDict = {
         ],
       },
       caFigure: {
-        caption: 'Combat achievements · levels · diaries · quests',
+        caption: 'Combat achievements · collection log · levels · diaries · quests',
         alt: 'Beskedafsnittet Combat achievements med hver indstilling markeret og nummereret',
         legend: [
-          { label: 'Notify on combat achievements', body: 'gennemførte tiers posteres altid, når denne er tændt.' },
           {
-            label: 'CA task min tier',
-            body: 'hvor larmende de enkelte opgaver er. Elite her; standarden er Master. Sæt den til Grandmaster, hvis du kun vil have de allersjældneste.',
+            label: 'CA post tier',
+            body: 'det laveste opgave-tier, der posteres; gennemførte tiers posteres også. Standarden er Master; Grandmaster poster kun de allersjældneste, **Off** poster ingen. Bingoens CA-felter tæller uanset hvad.',
           },
           {
-            label: 'Notify on 99s & high totals',
-            body: '99’ere, hver 100 total levels fra 1800 og op, samt max.',
-          },
-          { label: 'Notify on diary completions', body: 'gennemførte achievement diary-tiers.' },
-          {
-            label: 'Announce quest completions',
-            body: 'fra den sværhedsgrad, du vælger, og opefter. “All quests” her; standarden er Master og op.',
-          },
-        ],
-      },
-    },
-
-    clips: {
-      title: 'Klip med OBS',
-      intro: [
-        'Tryk på én tast, og de sidste 30 sekunder bliver gemt og lagt i klanens klipkanal. Det er slukket som standard og kræver, at OBS kører — men det er det tætteste, din klan kommer på en highlight-reel.',
-        'Sådan virker det: OBS holder en rullende **replay buffer** med de sidste X sekunder. Din genvejstast beder OBS om at skrive den buffer til en fil, og pluginnet samler filen op og uploader den til en Discord-webhook, du har indsat.',
-      ],
-      privacyNote: {
-        tag: 'Hvor din video havner',
-        body: 'Klip uploades **direkte fra din PC til Discord**. De passerer aldrig denne side, og der uploades intet som helst, hvis du lader webhook-feltet stå tomt — så bliver klippene liggende på din maskine.',
-      },
-      obsHeading: 'A. Sæt OBS op (én gang)',
-      obsSteps: [
-        'Du skal bruge **OBS Studio 28 eller nyere** — WebSocket-serveren er indbygget fra 28 og frem, ingen ekstra download.',
-        'Sørg for, at OBS faktisk optager spillet: en Game / Window / Display Capture-kilde, der viser RuneLite. Kan OBS ikke se din klient, bliver dine klip et sort rektangel.',
-        '**Settings → Output** → sæt flueben i **Enable Replay Buffer**. (I Simple output-tilstand ligger den på Recording-siden; i Advanced har den sin egen fane.) Tjek samtidig, at der er plads på den sti, du optager til.',
-        '**Tools → WebSocket Server Settings** → sæt flueben i **Enable WebSocket server**. Notér **Server Port** (4455 som standard), og klik **Show Connect Info** for at få adgangskoden.',
-      ],
-      obsAside:
-        'Du behøver _ikke_ trykke på “Start Replay Buffer” — pluginnet starter den for dig, når det forbinder, og genstarter den, hver gang du ændrer kliplængden.',
-      fillHeading: 'B. Udfyld pluginnet',
-      figure: {
-        caption: 'Configuration → Anvil → Clips',
-        alt: 'Clips-afsnittet i pluginnets indstillinger med hver indstilling markeret og nummereret; OBS-værten og webhook-URL’en er skjult',
-        legend: [
-          { label: 'Enable clip capture', body: 'hovedafbryderen. Er den slukket, taler pluginnet slet ikke med OBS.' },
-          {
-            label: 'Capture clip hotkey',
-            body: 'sæt den, ellers sker der aldrig noget. Vælg noget, du ikke rammer ved et uheld midt i et raid.',
+            label: 'Notify on collection log slots',
+            body: 'hver ny plads i collection loggen.',
           },
           {
-            label: 'OBS host / port / password',
-            body: '`localhost`, når OBS kører på samme PC som RuneLite. Kører OBS på en anden maskine, skriver du dens lokale IP her — skjult på dette skærmbillede — og lukker porten igennem dens firewall. Port og adgangskode kommer fra _Show Connect Info_; lad adgangskoden stå tom, hvis du har slået OBS-godkendelse fra.',
+            label: 'Notify on level milestones',
+            body: 'level-ups, din klan har valgt at annoncere — som standard 99’ere, hver 100 total levels fra 1800, samt max. Klanens admins sætter reglerne; du kan poste mindre (eller lave dine egne regler til dine personlige webhooks) under Announcements på din profil.',
           },
           {
-            label: 'Max auto-post size (MB)',
-            body: 'alt større bliver gemt lokalt og nævnt diskret i chatten i stedet for at blive postet. Sæt den til det, din Discord-server faktisk accepterer; pluginnet leveres med 25.',
+            label: 'Notify on diary completions',
+            body: 'gennemførte achievement diary-tiers, med et screenshot.',
           },
           {
-            label: 'Clip length (seconds)',
-            body: 'hvor langt tilbage hvert klip rækker. Den skriver bufferlængden ind i din OBS-profil, så OBS skal bruge det antal sekunders tilløb, før et klip i fuld længde overhovedet findes. Længere klip = større filer; 30 er et godt sted at lande.',
-          },
-          {
-            label: 'Save clips as MP4',
-            body: 'MP4 kan forhåndsvises og afspilles direkte i Discord; MKV skal hentes ned først. Bemærk at den ændrer OBS’ optageformat, hvilket også påvirker dine almindelige optagelser. Slå den fra for at lade OBS være i fred.',
-          },
-          {
-            label: 'Clips Discord webhook URL',
-            body: 'hvor klip bliver postet — spørg en admin om webhooken til klipkanalen. Tom = klippene bliver på din PC. Skjult her, og værd at skjule: alle med denne URL kan poste i den kanal.',
-          },
-          {
-            label: 'Post OBS-triggered clips too',
-            body: 'håndterer også gemte klip udløst af OBS selv eller af pluginnet “Save Replay Buffer for OBS”. Lad den være slukket, hvis du kører to RuneLite-klienter mod én OBS — ellers bliver hvert klip postet to gange.',
-          },
-          {
-            label: "Let Anvil manage OBS's recording folder",
-            body: 'peger OBS\' optagemappe mod Anvils egen clips-mappe, mens RuneLite kører — det er dét, der lader et klip sende sig selv, for pluginet må kun læse sin egen mappe. Dine almindelige OBS-optagelser havner også der imens, og din egen indstilling sættes tilbage, når du slår det fra eller lukker RuneLite.',
+            label: 'Quest post tier',
+            body: 'quests fra den sværhedsgrad, du vælger, og opefter, fra All (hver quest) op til Grandmaster; **Off** poster ingen. Standarden er Master. Bingoens quest-felter tæller uanset hvad.',
           },
         ],
       },
-      useHeading: 'C. Brug det',
-      useIntro: 'Der sker noget sjovt → tryk på din genvejstast → chatten fører dig igennem:',
-      useChat: [
-        { text: 'Saving clip...', tone: 'plain' },
-        { text: 'Uploading clip to the clan Discord...', tone: 'plain' },
-        { text: 'Clip posted to the clan Discord.', tone: 'green' },
-      ],
-      reminder: {
-        tag: 'Husk',
-        body: 'Klippet dækker sekunderne _før_, du trykkede — så tryk efter øjeblikket, ikke under. Du har hele bufferens længde til at reagere.',
-      },
-      decodedHeading: 'Klip-beskeder, oversat',
-      decoded: [
-        {
-          term: '`Clip capture: OBS isn’t connected.`',
-          body: 'OBS kører ikke, WebSocket-serveren er slukket, eller host/port/adgangskode passer ikke. Ret det og tryk igen — pluginnet prøver selv at forbinde igen hvert 30. sekund.',
-        },
-        {
-          term: '`OBS could not save the clip — is the Replay Buffer started?`',
-          body: 'Bufferen kører ikke. Tjek Enable Replay Buffer i OBS’ output-indstillinger, og slå så Enable clip capture fra og til igen.',
-        },
-        {
-          term: '`Clip saved locally — paste a Clips Discord webhook URL…`',
-          body: 'Det virker, som det skal — du har bare ingen webhook sat. Filen ligger i din OBS-optagemappe.',
-        },
-        {
-          term: '`Clip saved locally (48MB) — too big to auto-post.`',
-          body: 'Gør kliplængden kortere, sænk kvaliteten på din OBS-optagelse, eller hæv maksstørrelsen, hvis din server accepterer større filer.',
-        },
-        {
-          term: '`…but Discord didn’t accept the upload.`',
-          body: 'For stor, rate-limited, eller uploaden løb tør for tid. Filen ligger stadig på din PC — post den i hånden, hvis den er det værd.',
-        },
-      ],
     },
 
     trouble: {
@@ -819,7 +756,7 @@ const da: PartialGuideDict = {
       ],
       logHeading: 'Stadig i vanskeligheder? Send en admin en log',
       logBody:
-        'Skriv `::anvillog` i spillets chat (eller sæt **Export debug log hotkey** i pluginnets Support-afsnit). Den skriver en logfil til din `.runelite/anvil-debug`-mappe, åbner mappen og kopierer stien til din udklipsholder — send filen til en admin, så kan de se præcis, hvad der gik galt.',
+        'Send en admin din RuneLite-log: `client.log` i mappen `.runelite/logs` i din brugermappe (på Windows: indsæt `%USERPROFILE%\\.runelite\\logs` i adresselinjen i Stifinder). Pluginnet skriver, hvad det så og hvorfor, ind i den, så de kan se præcis, hvad der gik galt.',
       missingNote: {
         tag: 'Mangler der beviser?',
         body: 'Pets og ekstra Champion’s scrolls kræver et manuelt screenshot. Pluginnet tager det for dig og gemmer det i `.runelite/osrs-bingo-pending/` — **Copy folder path** i Anvil-sidepanelet åbner mappen — så du vedhæfter det på siden i stedet for at lede efter et billede bagefter.',
