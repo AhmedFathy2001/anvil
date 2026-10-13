@@ -181,7 +181,8 @@ export async function POST(request: Request) {
     if (!built.ok) {
       return NextResponse.json({ error: built.error }, { status: 400 });
     }
-    finalEmbed = built.embed as unknown as Record<string, unknown>;
+    // Same tag scrub as a passed-through embed: names in facts come straight off game text.
+    finalEmbed = stripChatTagsDeep(built.embed as unknown as Record<string, unknown>);
   }
   if (!finalEmbed && content && (channel === 'deaths' || channel === 'pvpKills')) {
     finalEmbed = playerEventEmbed({
