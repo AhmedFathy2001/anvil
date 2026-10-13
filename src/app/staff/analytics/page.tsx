@@ -101,6 +101,20 @@ export default async function StaffAnalyticsPage({
         </Section>
       </div>
 
+      <Section title="Discord joins">
+        <Card>
+          {a.discordJoins.length === 0 ? (
+            <Empty />
+          ) : (
+            <RankTable
+              head={['Clan · where', 'Clicks', 'Signed in']}
+              rows={a.discordJoins.map((r) => [`${r.clan} · ${r.src}`, r.clicks, r.people])}
+              max={a.discordJoins[0].clicks}
+            />
+          )}
+        </Card>
+      </Section>
+
       <Section title="Plugin features">
         <Card>
           {a.pluginRoutes.length === 0 ? (

@@ -38,7 +38,9 @@ export type ActionName =
   | 'guide.copied'
   | 'auth.login'
   | 'plugin.linked'
-  | 'profile.synced';
+  | 'profile.synced'
+  // A Join button pressed on a Discord card (props.src: which surface — api/discord/join).
+  | 'discord.join';
 
 interface Who {
   clanId?: number | null;

@@ -29,11 +29,13 @@ export async function GET(request: Request) {
   if (!hall) return new Response('Not found', { status: 404 });
 
   const origin = configuredOrigin() ?? new URL(request.url).origin;
+  const clanUrl = `${origin}/c/${encodeURIComponent(clan.slug)}`;
   const html = renderEmbedHtml({
     clan: { name: clan.name, slug: clan.slug, logoUrl: clan.logoUrl, bannerUrl: row?.bannerUrl ?? null, bannerPosition: row?.bannerPosition ?? null },
     counts: hall.counts,
-    clanUrl: `${origin}/c/${encodeURIComponent(clan.slug)}`,
-    inviteUrl: hall.guild?.inviteUrl ?? null,
+    clanUrl,
+    // Through the counting redirect (api/discord/join), only when there is an invite behind it.
+    inviteUrl: hall.guild?.inviteUrl ? `${clanUrl}/api/discord/join?src=embed` : null,
   });
   return new Response(html, {
     headers: {

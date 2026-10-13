@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { isSnowflake, parseWidget, type GuildWidget } from '../src/lib/discordWidget';
+import { inviteCode, isSnowflake, parseWidget, type GuildWidget } from '../src/lib/discordWidget';
 import { mergeClanHall, nameCandidates, IN_GAME_WINDOW_MS, type HallRosterEntry } from '../src/lib/clanHallMerge';
 import { escapeHtml, renderBadgeSvg, renderEmbedHtml } from '../src/lib/discordEmbedRender';
 
@@ -147,4 +147,12 @@ test('embed and badge escape everything they print', () => {
   const svg = renderBadgeSvg('A & B <clan>', '37 on Discord');
   assert.ok(svg.includes('A &amp; B &lt;clan&gt;'));
   assert.ok(svg.startsWith('<svg'));
+});
+
+test('invite codes come only out of real Discord invite links', () => {
+  assert.equal(inviteCode('https://discord.gg/p9NkrTQmxN'), 'p9NkrTQmxN');
+  assert.equal(inviteCode('https://discord.com/invite/afkspot'), 'afkspot');
+  assert.equal(inviteCode('https://evil.example/discord.gg/x'), null);
+  assert.equal(inviteCode('http://discord.gg/abc'), null);
+  assert.equal(inviteCode(null), null);
 });

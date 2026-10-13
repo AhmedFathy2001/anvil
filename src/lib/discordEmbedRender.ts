@@ -26,22 +26,11 @@ function safeUrl(u: string | null | undefined): string | null {
   return u && /^https:\/\//.test(u) ? escapeHtml(u) : null;
 }
 
-function initials(name: string): string {
-  return (
-    name
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((w) => w[0])
-      .join('')
-      .toUpperCase() || '?'
-  );
-}
-
-function hue(name: string): number {
+/** components/ClanCrest's `letter` variant — the clan's public page shows this one — in plain CSS. */
+function letterCrestStyle(slug: string): string {
   let h = 0;
-  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) % 360;
-  return h;
+  for (let i = 0; i < slug.length; i++) h = (h * 31 + slug.charCodeAt(i)) % 360;
+  return `background:linear-gradient(135deg,hsl(${h} 42% 40%),hsl(${(h + 34) % 360} 52% 54%))`;
 }
 
 /**
@@ -63,7 +52,7 @@ export function renderEmbedHtml(opts: {
   const pos = Math.min(100, Math.max(0, clan.bannerPosition ?? 50));
   const crest = logo
     ? `<img class="crest" src="${logo}" alt="">`
-    : `<span class="crest gen" style="background:hsl(${hue(clan.name)} 34% 44%)">${escapeHtml(initials(clan.name))}</span>`;
+    : `<span class="crest" style="${letterCrestStyle(clan.slug)}">${escapeHtml(clan.name.charAt(0).toUpperCase() || '?')}</span>`;
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${name} · Discord</title>
@@ -76,7 +65,7 @@ body{font:14px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
 .banner img{width:100%;height:100%;object-fit:cover;display:block}
 .banner:after{content:"";position:absolute;inset:0;background:linear-gradient(to top,#1c1714,transparent 75%)}
 .body{position:relative;margin-top:-30px;padding:0 18px 16px;display:flex;flex-direction:column;gap:12px}
-.crest{width:54px;height:54px;border-radius:15px;border:3px solid #1c1714;object-fit:cover;display:grid;place-items:center;font:600 18px ui-monospace,monospace;color:#100d0c}
+.crest{width:54px;height:54px;border-radius:15px;border:3px solid #1c1714;object-fit:cover;display:grid;place-items:center;font:700 26px ui-sans-serif,system-ui,sans-serif;color:#fff}
 .row{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .name{font:600 18px Georgia,"Times New Roman",serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#f0e7d6;text-decoration:none}
 .join{background:#e0aa1e;color:#100d0c;border-radius:9px;padding:7px 12px;font-weight:600;font-size:12.5px;text-decoration:none;white-space:nowrap}

@@ -2,7 +2,13 @@ import { NextResponse } from 'next/server';
 
 import { requireClan } from '@/lib/clanContext';
 import { verifyAdmin } from '@/lib/auth';
+import { and, eq, gte, sql } from 'drizzle-orm';
+
+import { db } from '@/db';
+import { analyticsEvents } from '@/db/schema';
 import { clanHallView, hallStatus } from '@/lib/clanHall';
+import { inviteJoinCounts } from '@/lib/discordWidgetInvite';
+import { getDiscordInviteUrl } from '@/lib/pluginConfig';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +24,23 @@ export async function GET() {
   if (!config.guildId) return NextResponse.json({ state: 'no-server' });
   if (!widget || !widget.ok) return NextResponse.json({ state: widget?.reason ?? 'unreachable', guildId: config.guildId });
 
-  const hall = await clanHallView(clan.id, { includeNames: true, respectEnabled: false });
+  const since = new Date(Date.now() - 30 * 86_400_000).toISOString().replace('T', ' ').slice(0, 19);
+  const [hall, clicks, joins] = await Promise.all([
+    clanHallView(clan.id, { includeNames: true, respectEnabled: false }),
+    db
+      .select({ src: sql<string>`coalesce(${analyticsEvents.props}->>'src', 'other')`, n: sql<number>`count(*)::int` })
+      .from(analyticsEvents)
+      .where(
+        and(
+          eq(analyticsEvents.clanId, clan.id),
+          eq(analyticsEvents.kind, 'action'),
+          eq(analyticsEvents.name, 'discord.join'),
+          gte(analyticsEvents.ts, since),
+        ),
+      )
+      .groupBy(sql`coalesce(${analyticsEvents.props}->>'src', 'other')`),
+    getDiscordInviteUrl(clan.id).then((own) => inviteJoinCounts(clan.id, own)).catch(() => []),
+  ]);
   const onDiscord = hall?.people?.filter((p) => p.status) ?? [];
   return NextResponse.json({
     state: 'ok',
@@ -30,5 +52,8 @@ export async function GET() {
     listed: onDiscord.length,
     hasDiscordInvite: !!widget.widget.instantInvite,
     hasInvite: !!hall?.guild?.inviteUrl,
+    // Join-button clicks in the last 30 days, by surface, and Discord's count of joins per invite.
+    clicks: Object.fromEntries(clicks.map((c) => [c.src, Number(c.n)])),
+    joins,
   });
 }

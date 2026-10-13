@@ -18,7 +18,16 @@ type Status =
       listed: number;
       hasDiscordInvite: boolean;
       hasInvite: boolean;
+      clicks: Record<string, number>;
+      joins: { code: string; uses: number; madeByAnvil: boolean }[];
     };
+
+const SRC_LABEL: Record<string, string> = {
+  home: 'Clan home (members)',
+  public: 'Clan page (visitors)',
+  embed: 'Embed on other sites',
+  badge: 'Badge on other sites',
+};
 
 function Line({ tone, title, children }: { tone: 'ok' | 'warn'; title: string; children?: React.ReactNode }) {
   return (
@@ -115,12 +124,42 @@ export default function DiscordWidgetSettings() {
         />
       </div>
 
+      {status?.state === 'ok' && (
+        <div className="flex flex-col gap-2 border-t border-card-border pt-4">
+          <div className="text-sm font-semibold">Joins, last 30 days</div>
+          {Object.keys(status.clicks).length === 0 && status.joins.length === 0 ? (
+            <p className="text-[13px] text-text-muted">No Join clicks yet. They show here once people use the card.</p>
+          ) : (
+            <div className="grid gap-x-6 gap-y-1 text-[13px] sm:grid-cols-2">
+              {Object.entries(status.clicks)
+                .sort((a, b) => b[1] - a[1])
+                .map(([src, n]) => (
+                  <div key={src} className="flex justify-between gap-3 border-b border-card-border-soft py-1">
+                    <span className="text-text-muted">{SRC_LABEL[src] ?? src}</span>
+                    <span className="tabular-nums">{n} click{n === 1 ? '' : 's'}</span>
+                  </div>
+                ))}
+              {status.joins.map((j) => (
+                <div key={j.code} className="flex justify-between gap-3 border-b border-card-border-soft py-1">
+                  <span className="text-text-muted">{j.madeByAnvil ? 'Joined through Anvil’s invite' : 'Joined through your invite'}</span>
+                  <span className="tabular-nums">{j.uses} all time</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-xs text-text-dim">
+            Clicks are counted by Anvil. Joins are Discord&apos;s own count for the invite, which needs the bot to have
+            Manage Server (or Manage Channels, for the invite Anvil made).
+          </p>
+        </div>
+      )}
+
       {status?.state === 'ok' && origin && (
         <div className="flex flex-col gap-2 border-t border-card-border pt-4">
           <div className="text-sm font-semibold">Embed it elsewhere</div>
-          <CodeLine label="Card (iframe)" code={`<iframe src="${base}/embed" width="380" height="330" frameborder="0"></iframe>`} />
-          <CodeLine label="Badge (forums, READMEs)" code={`![Discord](${base}/badge)`} />
-          <CodeLine label="Badge, in-game count" code={`![In game](${base}/badge?show=game)`} />
+          <CodeLine label="Card (iframe)" code={`<iframe src="${base}/embed" width="380" height="290" frameborder="0"></iframe>`} />
+          <CodeLine label="Badge (forums, READMEs)" code={`[![Discord](${base}/badge)](${base}/join?src=badge)`} />
+          <CodeLine label="Badge, in-game count" code={`[![In game](${base}/badge?show=game)](${base}/join?src=badge)`} />
         </div>
       )}
     </div>

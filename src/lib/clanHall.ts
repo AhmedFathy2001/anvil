@@ -10,6 +10,7 @@ import { viewerMemberIds } from '@/lib/competitionView';
 import { fetchGuildWidget, isSnowflake, type WidgetResult } from '@/lib/discordWidget';
 import { mergeClanHall, type ClanHallView, type HallTeam } from '@/lib/clanHallMerge';
 import { getDiscordInviteUrl } from '@/lib/pluginConfig';
+import { botMadeInviteUrl } from '@/lib/discordWidgetInvite';
 import { getSettingMap } from '@/lib/settings';
 
 export const HALL_ENABLED_KEY = 'discord_widget_enabled';
@@ -39,6 +40,22 @@ export async function hallConfig(clanId: number): Promise<HallConfig> {
 export async function hallStatus(clanId: number): Promise<{ config: HallConfig; widget: WidgetResult | null }> {
   const config = await hallConfig(clanId);
   return { config, widget: config.guildId ? await fetchGuildWidget(config.guildId) : null };
+}
+
+/**
+ * Where a Join button really goes: the clan's own invite (an admin chose it), else the one Discord's
+ * widget offers, else one the bot makes so the card always has a way in (lib/discordWidgetInvite).
+ */
+async function pickJoinUrl(clanId: number, setting: string | null, widgetInvite: string | null): Promise<string | null> {
+  return setting ?? widgetInvite ?? (await botMadeInviteUrl(clanId).catch(() => null));
+}
+
+/** The Join destination on its own, for the click-counting redirect (api/discord/join). */
+export async function hallJoinUrl(clanId: number): Promise<string | null> {
+  const config = await hallConfig(clanId);
+  if (!config.guildId) return null;
+  const [setting, result] = await Promise.all([getDiscordInviteUrl(clanId), fetchGuildWidget(config.guildId)]);
+  return pickJoinUrl(clanId, setting, result.ok ? result.widget.instantInvite : null);
 }
 
 /**
@@ -117,6 +134,8 @@ export async function clanHallView(
     getDiscordInviteUrl(clanId),
   ]);
 
+  const joinUrl = await pickJoinUrl(clanId, inviteUrl, result.widget.instantInvite);
+
   const weekXp = new Map(xpRows.map((r) => [r.accountId, Number(r.xp) || 0]));
   const teamByAccount = new Map<number, HallTeam>();
   for (const t of teamRows) {
@@ -130,7 +149,7 @@ export async function clanHallView(
     roster,
     weekXp,
     teamByAccount,
-    inviteUrl,
+    inviteUrl: joinUrl,
     includeNames: opts.includeNames,
     now: now.getTime(),
   });

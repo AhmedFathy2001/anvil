@@ -3,7 +3,7 @@ import { headers } from 'next/headers';
 import ClanLink from '@/components/ClanLink';
 import PlatformDiscordStrip from '@/components/PlatformDiscordStrip';
 import { APP_VERSION, GIT_SHA } from '@/lib/serverInfo';
-import { isApexHost } from '@/lib/clanContext';
+import { currentClan, isApexHost } from '@/lib/clanContext';
 
 /**
  * The footer, and the licence's attribution.
@@ -23,9 +23,12 @@ export default async function SiteFooter() {
   // where they resolve. /guide and /feedback are instance-aware and work on every host, so they
   // always show.
   const onApex = isApexHost((await headers()).get('host'));
+  // Anvil's own Discord belongs on the platform's pages, not under a clan's: `/c/<slug>` is served
+  // from the apex host too, and there the clan's own card is the Discord that matters.
+  const platformPage = onApex && !(await currentClan());
   return (
     <footer className="mt-16 border-t border-card-border">
-      {onApex && <PlatformDiscordStrip />}
+      {platformPage && <PlatformDiscordStrip />}
       {/* Centred and stacked on a phone, spread on a desktop — and the type steps down, because the
           footer is the one block on the page that is never what somebody came for. */}
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 py-6 text-center text-[12.5px] text-text-muted sm:flex-row sm:px-6 sm:text-left sm:text-sm">

@@ -203,7 +203,7 @@ export default async function HomePage() {
           <PublicClanHome
             view={publicView}
             signedIn={!!session?.userId}
-            hall={hall ? <ClanHall initial={hall} /> : null}
+            hall={hall ? <ClanHall initial={hall} src="public" /> : null}
           />
         </>
       );
@@ -217,7 +217,7 @@ export default async function HomePage() {
   return (
     <div>
       <Hero view={view} />
-      {hall && <ClanHall initial={hall} />}
+      {hall && <ClanHall initial={hall} src="home" />}
       <YouStrip you={view.you} signedIn={!!session?.userId} discordInvite={view.discordInvite} />
       <LiveNow view={view} />
       <Competitions view={view} />

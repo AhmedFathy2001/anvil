@@ -32,7 +32,8 @@ export default async function PlatformDiscordStrip() {
         {counts.inGame > 0 && <span className="text-gold-light">{counts.inGame} in game</span>}
       </span>
       <a
-        href={SITE.supportDiscord}
+        // Counted, then on to the invite (api/discord/join).
+        href="/api/discord/join?src=footer"
         target="_blank"
         rel="noopener noreferrer"
         className="rounded-lg border border-card-border px-3 py-1.5 text-[12.5px] text-text-muted transition-colors hover:border-gold/45 hover:text-foreground"

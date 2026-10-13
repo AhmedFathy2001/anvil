@@ -106,7 +106,7 @@ export function mergeClanHall(input: {
   roster: HallRosterEntry[];
   weekXp: Map<number, number>;
   teamByAccount: Map<number, HallTeam>;
-  /** The clan's own invite setting — Discord only sends one when the server picked an invite channel. */
+  /** The clan's own invite (its setting, else one the bot made) — Discord only sends one when the server picked an invite channel. */
   inviteUrl: string | null;
   includeNames: boolean;
   now?: number;
@@ -199,7 +199,8 @@ export function mergeClanHall(input: {
 
   const members = widget?.members ?? [];
   return {
-    guild: widget ? { name: widget.name, inviteUrl: widget.instantInvite ?? input.inviteUrl } : null,
+    // The clan's own invite first (an admin chose it), then Discord's widget invite.
+    guild: widget ? { name: widget.name, inviteUrl: input.inviteUrl ?? widget.instantInvite } : null,
     counts: {
       discord: widget ? Math.max(widget.presenceCount, members.length) : 0,
       online: members.filter((m) => m.status === 'online').length,

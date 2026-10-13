@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-import ClanLink from '@/components/ClanLink';
+import ClanLink, { useClanPrefixValue } from '@/components/ClanLink';
 import { usePageActive } from '@/hooks/usePageActive';
 import { clanFetch } from '@/lib/clanFetch';
 import type { ClanHallView, HallPerson } from '@/lib/clanHallMerge';
@@ -97,7 +97,8 @@ function Bar({ parts }: { parts: { n: number; color: string }[] }) {
  * Re-reads every minute only while somebody is looking (hooks/usePageActive) — a tab left open does
  * not keep asking.
  */
-export default function ClanHall({ initial }: { initial: View }) {
+export default function ClanHall({ initial, src }: { initial: View; /** Which surface, for join counting. */ src: 'home' | 'public' }) {
+  const prefix = useClanPrefixValue();
   const [view, setView] = useState<View>(initial);
   const [filter, setFilter] = useState<'all' | 'game' | 'team'>('all');
   const [updatedAt, setUpdatedAt] = useState(() => Date.now());
@@ -204,7 +205,8 @@ export default function ClanHall({ initial }: { initial: View }) {
   const join = view.guild?.inviteUrl && (
     <div className="mt-5 flex flex-wrap items-center gap-3">
       <a
-        href={view.guild.inviteUrl}
+        // Through our redirect, so the click is counted (api/discord/join), then on to the invite.
+        href={`${prefix}/api/discord/join?src=${src}`}
         target="_blank"
         rel="noopener noreferrer"
         className="rounded-lg bg-gold px-4 py-2 text-[13px] font-semibold text-brown-dark transition-colors hover:bg-gold-light"

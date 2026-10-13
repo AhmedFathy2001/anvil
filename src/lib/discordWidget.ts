@@ -152,3 +152,9 @@ export function platformGuildId(): string | null {
   if (env !== undefined) return isSnowflake(env.trim()) ? env.trim() : null;
   return '1324522160315961365';
 }
+
+/** The invite code out of a discord.gg / discord.com/invite link, or null. */
+export function inviteCode(link: string | null | undefined): string | null {
+  const m = link?.match(/^https:\/\/(?:www\.)?(?:discord\.gg|discord(?:app)?\.com\/invite)\/([A-Za-z0-9-]{2,32})\/?$/);
+  return m ? m[1] : null;
+}

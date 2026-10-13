@@ -80,6 +80,15 @@ export interface Conversion {
   signedInSessions: number;
 }
 
+/** Join-button clicks on Discord cards (lib/discordJoin), per clan and per surface. */
+export interface DiscordJoinRow {
+  clan: string;
+  src: string;
+  clicks: number;
+  /** Distinct signed-in clickers. */
+  people: number;
+}
+
 export interface AnalyticsOverview {
   days: number;
   headline: Headline;
@@ -92,6 +101,7 @@ export interface AnalyticsOverview {
   clanFunnel: FunnelRow[];
   memberFunnel: FunnelRow[];
   clanActivity: ClanActivityRow[];
+  discordJoins: DiscordJoinRow[];
 }
 
 const num = (v: unknown) => Number(v ?? 0);
@@ -148,6 +158,22 @@ async function topRoutes(from: string): Promise<RouteRow[]> {
      limit 25
   `);
   return r.map((x) => ({ name: x.name, views: num(x.views), sessions: num(x.sessions) }));
+}
+
+async function discordJoins(from: string): Promise<DiscordJoinRow[]> {
+  // Clicks, and how many distinct signed-in people made them. Signed-out clicks carry no identity at
+  // all (nothing is fingerprinted to count them), so most of the column is the first one.
+  const r = await rows<{ clan: string | null; src: string | null; n: number; people: number }>(sql`
+    select c.name as clan, e.props->>'src' as src, count(*) as n,
+           count(distinct e.user_id) as people
+      from analytics_events e
+      left join clans c on c.id = e.clan_id
+     where e.kind = 'action' and e.name = 'discord.join' and e.ts >= ${from}
+     group by c.name, e.props->>'src'
+     order by n desc
+     limit 50
+  `);
+  return r.map((x) => ({ clan: x.clan ?? 'Anvil', src: x.src ?? '?', clicks: num(x.n), people: num(x.people) }));
 }
 
 async function topActions(from: string): Promise<ActionRow[]> {
@@ -282,7 +308,7 @@ async function clanActivity(): Promise<ClanActivityRow[]> {
 
 export async function analyticsOverview(days: number): Promise<AnalyticsOverview> {
   const from = windowStart(days);
-  const [head, series, routes, actions, plugin, conv, cf, mf, clans] = await Promise.all([
+  const [head, series, routes, actions, plugin, conv, cf, mf, clans, joins] = await Promise.all([
     headline(),
     daily(from, days),
     topRoutes(from),
@@ -292,6 +318,7 @@ export async function analyticsOverview(days: number): Promise<AnalyticsOverview
     clanFunnel(days),
     memberFunnel(days),
     clanActivity(),
+    discordJoins(from),
   ]);
   return {
     days,
@@ -304,5 +331,6 @@ export async function analyticsOverview(days: number): Promise<AnalyticsOverview
     clanFunnel: cf,
     memberFunnel: mf,
     clanActivity: clans,
+    discordJoins: joins,
   };
 }
