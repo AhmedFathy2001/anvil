@@ -3,7 +3,8 @@ import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { currentClan, isApexHost } from '@/lib/clanContext';
 import { clanRankFor } from '@/lib/clanLeaderboard';
-import { JsonLd, clanLd, websiteLd } from '@/lib/jsonLd';
+import { JsonLd, clanLd, faqLd, softwareLd, websiteLd } from '@/lib/jsonLd';
+import { ANVIL_DEFINITION, GENERAL_FAQ } from '@/lib/answers';
 import { clanSectionMetadata } from '@/lib/seoPages';
 import { ordinal } from '@/lib/utils';
 import ApexLanding from '@/components/landing/ApexLanding';
@@ -116,6 +117,9 @@ async function ApexRoot() {
         {/* The signed-out apex is the only page a crawler indexes as "the platform", so it is the
             one place the platform describes itself as a thing rather than as a set of clan pages. */}
         <JsonLd data={websiteLd()} />
+        <JsonLd data={softwareLd({ description: ANVIL_DEFINITION })} />
+        {/* Matches the FAQ ApexLanding renders, item for item. */}
+        <JsonLd data={faqLd(GENERAL_FAQ)} />
         <ApexLanding stats={await platformStats()} />
       </>
     );

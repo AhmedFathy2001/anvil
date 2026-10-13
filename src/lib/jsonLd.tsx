@@ -195,3 +195,43 @@ export function leaderboardLd(rows: { name: string; slug: string }[]): object {
     })),
   };
 }
+
+/**
+ * Questions and answers, as a FAQPage.
+ *
+ * Only for a page that SHOWS these exact questions and answers — the markup restating text the
+ * reader cannot see is the one thing the guidelines forbid outright. lib/answers is the single
+ * source both the visible <Faq> and this block read.
+ */
+export function faqLd(faqs: { q: string; a: string }[]): object {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs.map((f) => ({
+      '@type': 'Question',
+      name: f.q,
+      acceptedAnswer: { '@type': 'Answer', text: f.a },
+    })),
+  };
+}
+
+/**
+ * The product, as software — which is what someone asking for "a plugin" is looking for, and what
+ * an answer engine needs to call it one. The offer is the free tier, stated as free, because that is
+ * the price of trying it; paid tiers are on /pricing.
+ */
+export function softwareLd(opts: { description: string }): object {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: SITE_NAME,
+    alternateName: 'Anvil OSRS',
+    applicationCategory: 'GameApplication',
+    applicationSubCategory: 'RuneLite plugin',
+    operatingSystem: 'Windows, macOS, Linux',
+    url: absoluteUrl('/'),
+    description: opts.description,
+    offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+    publisher: { '@id': absoluteUrl('/#organization') },
+  };
+}

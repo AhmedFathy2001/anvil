@@ -5,6 +5,7 @@ import { db } from '@/db';
 import { clans, events as eventsTable, settings, weeklyCompetitions } from '@/db/schema';
 import { DEFAULT_LOCALE } from '@/app/guide/_i18n';
 import { allGuideHrefs } from '@/app/guide/_i18n/meta';
+import { FEATURE_PAGES } from '@/lib/answers';
 import { listedClanWhere, showcaseJoinOn } from '@/lib/clanListing';
 import { absoluteUrl, clanCanonicalPath } from '@/lib/seo';
 
@@ -44,6 +45,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: absoluteUrl('/leaderboard'), lastModified: now, changeFrequency: 'daily', priority: 0.7 },
     { url: absoluteUrl('/about'), changeFrequency: 'monthly', priority: 0.5 },
     { url: absoluteUrl('/pricing'), changeFrequency: 'monthly', priority: 0.6 },
+    { url: absoluteUrl('/features'), changeFrequency: 'monthly', priority: 0.7 },
+    // One page per search worth answering (lib/answers). Ranked just under the home.
+    ...FEATURE_PAGES.map((p) => ({
+      url: absoluteUrl(`/features/${p.slug}`),
+      changeFrequency: 'monthly' as const,
+      priority: 0.8,
+    })),
     { url: absoluteUrl('/legal/terms'), changeFrequency: 'yearly', priority: 0.2 },
     { url: absoluteUrl('/legal/privacy'), changeFrequency: 'yearly', priority: 0.2 },
     { url: absoluteUrl('/legal/refunds'), changeFrequency: 'yearly', priority: 0.2 },

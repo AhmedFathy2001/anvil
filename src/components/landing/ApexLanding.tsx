@@ -2,6 +2,8 @@ import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
 import HeroShowcase from '@/components/landing/HeroShowcase';
 import TileKinds, { TILE_KIND_COUNT } from '@/components/landing/TileKinds';
+import Faq from '@/components/landing/Faq';
+import { FEATURE_PAGES, GENERAL_FAQ } from '@/lib/answers';
 import { EVENT_MODES } from '@/lib/eventModes';
 import { DISCORD_LOCALES } from '@/lib/discordI18n';
 import type { PlatformStats } from '@/lib/platformStats';
@@ -238,6 +240,25 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
               body="Clans looking for members, players looking for clans. Applications arrive in the same queue as everything else, with the person’s account and stats already attached."
             />
           </div>
+        </Section>
+
+        {/* The plain-words half of the page. Everything above argues; this states — what it is,
+            what it costs, what it needs — in sentences a search engine or an AI answer can quote
+            whole. The FAQPage markup on this page (app/page.tsx) is these exact items. */}
+        <Section
+          title="Questions organisers ask."
+          lede="What it is, what it costs, and what your members need to install."
+        >
+          <Faq items={GENERAL_FAQ} />
+          <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-[13.5px]">
+            {FEATURE_PAGES.map((p) => (
+              <li key={p.slug}>
+                <ClanLink href={`/features/${p.slug}`} className="text-gold hover:text-gold-light">
+                  {p.h1}
+                </ClanLink>
+              </li>
+            ))}
+          </ul>
         </Section>
       </div>
 

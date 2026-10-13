@@ -7,7 +7,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { breadcrumbLd, clanLd, eventLd, leaderboardLd, websiteLd } from '../src/lib/jsonLd.tsx';
+import { breadcrumbLd, clanLd, eventLd, faqLd, leaderboardLd, softwareLd, websiteLd } from '../src/lib/jsonLd.tsx';
+import { ANVIL_DEFINITION, FEATURE_PAGES, GENERAL_FAQ, featurePage } from '../src/lib/answers.ts';
 import { ordinal } from '../src/lib/utils.ts';
 
 const APEX = 'https://anvilosrs.com';
@@ -156,4 +157,41 @@ test('a placing reads the way a person says it', () => {
   assert.equal(ordinal(22), '22nd');
   assert.equal(ordinal(111), '111th');
   assert.equal(ordinal(101), '101st');
+});
+
+test('the FAQ markup is exactly the visible questions, in order', () => {
+  const ld = faqLd(GENERAL_FAQ) as { '@type': string; mainEntity: { name: string; acceptedAnswer: { text: string } }[] };
+  assert.equal(ld['@type'], 'FAQPage');
+  assert.deepEqual(
+    ld.mainEntity.map((m) => [m.name, m.acceptedAnswer.text]),
+    GENERAL_FAQ.map((f) => [f.q, f.a]),
+  );
+});
+
+test('answers are fully rendered: no empty prices, no undefined, no unfilled template', () => {
+  const all = [
+    ANVIL_DEFINITION,
+    ...GENERAL_FAQ.flatMap((f) => [f.q, f.a]),
+    ...FEATURE_PAGES.flatMap((p) => [p.title, p.h1, p.summary, ...p.sections.flatMap((x) => [x.heading, x.body]), ...p.faq.flatMap((f) => [f.q, f.a])]),
+  ];
+  for (const text of all) {
+    assert.ok(text && text.trim(), 'empty answer text');
+    assert.doesNotMatch(text, /undefined|null|\$\s|\$\.|\{\w+\}/, text);
+  }
+  // The pricing answer quotes real figures.
+  assert.match(GENERAL_FAQ.find((f) => f.q === 'Is Anvil free?')!.a, /\$\d+\.\d\d a month/);
+});
+
+test('feature pages have unique slugs and every one resolves', () => {
+  const slugs = FEATURE_PAGES.map((p) => p.slug);
+  assert.equal(new Set(slugs).size, slugs.length);
+  for (const s of slugs) assert.ok(featurePage(s));
+  assert.equal(featurePage('nope'), undefined);
+  for (const p of FEATURE_PAGES) assert.ok(p.faq.length > 0, `${p.slug} has no FAQ`);
+});
+
+test('the app markup says free, and names its publisher', () => {
+  const ld = softwareLd({ description: 'd' }) as { offers: { price: string }; publisher: { '@id': string } };
+  assert.equal(ld.offers.price, '0');
+  assert.match(ld.publisher['@id'], /#organization$/);
 });

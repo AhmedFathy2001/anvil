@@ -89,6 +89,7 @@ export const PLATFORM_ROOTS = [
   '/api/onboarding',
   // Marketing / front door, apex only (each page 404s on a clan host).
   '/about',
+  '/features',
   '/pricing',
   '/portal',
   '/legal',
