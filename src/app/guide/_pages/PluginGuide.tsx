@@ -82,9 +82,8 @@ export default async function PluginGuide({ lang }: { lang: string }) {
     { id: 'working', n: 4, title: p.working.title },
     { id: 'bingo', n: 5, title: p.bingo.title },
     { id: 'notifications', n: 6, title: p.notifications.title },
-    { id: 'clips', n: 7, title: p.clips.title },
-    { id: 'trouble', n: 8, title: p.trouble.title },
-    { id: 'limits', n: 9, title: p.limits.title },
+    { id: 'trouble', n: 7, title: p.trouble.title },
+    { id: 'limits', n: 8, title: p.limits.title },
   ];
 
   return (
@@ -160,8 +159,8 @@ export default async function PluginGuide({ lang }: { lang: string }) {
 
         <Figure
           src="/guide/plugin-settings.png"
-          width={238}
-          height={550}
+          width={242}
+          height={476}
           alt=""
           caption={p.connect.goodToKnow.tag}
           legend={[]}
@@ -226,12 +225,12 @@ export default async function PluginGuide({ lang }: { lang: string }) {
         />
         <p className="text-text-muted text-sm">{rt(p.working.lookupSettingNote, v)}</p>
         <Figure
-          src="/guide/plugin-settings-general.png"
-          width={240}
-          height={100}
+          src="/guide/plugin-settings-lookup.png"
+          width={542}
+          height={452}
           alt={p.working.lookupSettingFigure.alt}
           caption={p.working.lookupSettingFigure.caption}
-          legend={[]}
+          legend={legend(p.working.lookupSettingFigure.legend, v)}
         />
       </Section>
 
@@ -240,8 +239,8 @@ export default async function PluginGuide({ lang }: { lang: string }) {
         <p className="text-text-muted">{rt(p.bingo.intro, v)}</p>
         <Figure
           src="/guide/plugin-bingo.png"
-          width={516}
-          height={488}
+          width={542}
+          height={442}
           alt={p.bingo.figure.alt}
           caption={p.bingo.figure.caption}
           legend={legend(p.bingo.figure.legend, v)}
@@ -257,8 +256,8 @@ export default async function PluginGuide({ lang }: { lang: string }) {
 
         <Figure
           src="/guide/plugin-notify-drops.png"
-          width={534}
-          height={772}
+          width={542}
+          height={680}
           alt={p.notifications.dropsFigure.alt}
           caption={p.notifications.dropsFigure.caption}
           legend={legend(p.notifications.dropsFigure.legend, v)}
@@ -266,8 +265,8 @@ export default async function PluginGuide({ lang }: { lang: string }) {
 
         <Figure
           src="/guide/plugin-notify-ca.png"
-          width={534}
-          height={364}
+          width={542}
+          height={372}
           alt={p.notifications.caFigure.alt}
           caption={p.notifications.caFigure.caption}
           legend={legend(p.notifications.caFigure.legend, v)}
@@ -275,40 +274,7 @@ export default async function PluginGuide({ lang }: { lang: string }) {
       </Section>
 
       {/* ---------------------------------------------------------------- 7 */}
-      <Section id="clips" n={7} title={p.clips.title} optional labels={t.common}>
-        {paragraphs(p.clips.intro, v)}
-
-        <Note tag={p.clips.privacyNote.tag}>
-          <p>{rt(p.clips.privacyNote.body, v)}</p>
-        </Note>
-
-        <h3 className="text-lg font-semibold pt-2">{p.clips.obsHeading}</h3>
-        <ol className="list-decimal pl-5 text-text-muted space-y-2 text-sm">{items(p.clips.obsSteps, v)}</ol>
-        <p className="text-text-muted text-sm">{rt(p.clips.obsAside, v)}</p>
-
-        <h3 className="text-lg font-semibold pt-2">{p.clips.fillHeading}</h3>
-        <Figure
-          src="/guide/plugin-clips.png"
-          width={522}
-          height={884}
-          alt={p.clips.figure.alt}
-          caption={p.clips.figure.caption}
-          legend={legend(p.clips.figure.legend, v)}
-        />
-
-        <h3 className="text-lg font-semibold pt-2">{p.clips.useHeading}</h3>
-        <p className="text-text-muted">{rt(p.clips.useIntro, v)}</p>
-        <Chat lines={chat(p.clips.useChat)} />
-        <Note tag={p.clips.reminder.tag} tone="green">
-          <p>{rt(p.clips.reminder.body, v)}</p>
-        </Note>
-
-        <h3 className="text-lg font-semibold pt-2">{p.clips.decodedHeading}</h3>
-        <Rows rows={rows(p.clips.decoded, v)} />
-      </Section>
-
-      {/* ---------------------------------------------------------------- 8 */}
-      <Section id="trouble" n={8} title={p.trouble.title} labels={t.common}>
+      <Section id="trouble" n={7} title={p.trouble.title} labels={t.common}>
         <p className="text-text-muted">{rt(p.trouble.intro, v)}</p>
         <Rows rows={rows(p.trouble.rows, v)} />
 
@@ -319,10 +285,10 @@ export default async function PluginGuide({ lang }: { lang: string }) {
         </Note>
       </Section>
 
-      {/* ---------------------------------------------------------------- 9 */}
+      {/* ---------------------------------------------------------------- 8 */}
       {/* Things the GAME doesn't report, so nothing can track them. A list meant to grow: add a row
           to `plugin.limits.rows` (every locale) as new ones turn up. */}
-      <Section id="limits" n={9} title={p.limits.title} labels={t.common}>
+      <Section id="limits" n={8} title={p.limits.title} labels={t.common}>
         <p className="text-text-muted">{rt(p.limits.intro, v)}</p>
         <Rows rows={rows(p.limits.rows, v)} />
       </Section>
