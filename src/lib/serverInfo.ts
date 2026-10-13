@@ -108,6 +108,9 @@ export const PLUGIN_CAPABILITIES = [
   // the plugin's fallbacks differ — without it, a pet is attributed to the last loot event it saw
   // and nothing is known to be guaranteed.
   'drop-facts',
+  // /api/plugin/config carries `luckItemIds` on a board: drops the plugin reports as moments whatever
+  // their price, so event luck sees untradeable uniques (lib/eventLuck).
+  'luck-drops',
   // Physical OSRS Clan Coffer observations. A plugin only reads/posts these when the endpoint is
   // advertised, so older self-hosted sites do not receive a stream of 404s.
   'coffer-sync',

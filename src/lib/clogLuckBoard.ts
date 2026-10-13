@@ -407,7 +407,20 @@ export async function getLuckBoards(clanId: number, limit = 15): Promise<LuckBoa
     // Members only: a guest's luck is their own clan's story, not this one's.
     .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.kind, 'member'), isNull(clanRoster.leftAt)));
   if (synced.length === 0) return { dry: [], spooned: [], membersConsidered: 0, itemsConsidered: candidates.length };
+  return lifetimeBoardsFor(candidates, synced, limit);
+}
 
+/**
+ * Lifetime luck boards (collection log against total kills) for a given set of synced accounts —
+ * a clan's members, or one event's participants (lib/eventLuck). `liveStats` is the roster's live
+ * push, the fresher half of the kill counts.
+ */
+export async function lifetimeBoardsFor(
+  candidates: LuckCandidate[],
+  synced: { id: number; rsn: string; liveStats: string | null }[],
+  limit: number,
+): Promise<LuckBoards> {
+  if (synced.length === 0) return { dry: [], spooned: [], membersConsidered: 0, itemsConsidered: candidates.length };
   const memberIds = synced.map((m) => m.id);
   const itemIds = [...new Set(candidates.map((c) => c.itemId))];
 

@@ -75,6 +75,11 @@ export interface EventScope {
   itemIds: number[];
   /** Hauls worth at least this much are kept whatever they came from. */
   minLootGp: number;
+  /**
+   * Items that count toward luck (lib/luckWorth via clogLuckBoard): kept whatever the board wants or
+   * they sell for, so event luck sees every one — an untradeable vestige clears no price floor.
+   */
+  luckItemIds?: number[];
 }
 
 /**
@@ -702,6 +707,8 @@ function eventKindFor(obs: Observation, event: EventScope, info: DropInfo | null
   const onBoardSource = !!obs.source && event.sources.some((s) => norm(s) === norm(obs.source!));
   const onBoardItem = obs.itemId != null && event.itemIds.includes(obs.itemId);
   const richEnough = (obs.valueGp ?? 0) >= event.minLootGp;
+  // Event luck (lib/eventLuck) counts these, so every one is kept and reads as a unique.
+  if (obs.itemId != null && event.luckItemIds?.includes(obs.itemId)) return 'unique';
   if (!onBoardSource && !onBoardItem && !richEnough) return null;
   // Genuinely rare reads as a unique; anything kept for its price alone is loot.
   return isRareSingle(info) ? 'unique' : 'loot';

@@ -1,6 +1,7 @@
 import { resolvePluginClan } from '@/lib/auth';
 import { howItCounts, parseCountMode, parseSetsRequired } from '@/lib/collectionSets';
 import { noClanForPlugin } from '@/lib/pluginNoClan';
+import { countedLuckCandidates } from '@/lib/clogLuckBoard';
 import { NextResponse } from 'next/server';
 import { seatsOwnedByAnywhere } from '@/lib/roster';
 import { db } from '@/db';
@@ -644,7 +645,7 @@ export async function GET(request: Request) {
   // Read-bootstrap extras merged in so the plugin's login flow is a single GET:
   // schedule + active weekly (was two separate endpoints) plus the notification
   // webhooks and fun-death pool the plugin posts with directly.
-  const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, dropRarityFloor, tiers, facts] =
+  const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, dropRarityFloor, tiers, facts, luckItems] =
     await Promise.all([
       pluginScheduleViewer(clan.id, auth.userId).then((v) => buildSchedule(clan.id, { ...v, viewerRsn: pluginViewerRsn(request), viewerAccountHash: request.headers.get('x-account-hash') })),
       getActiveWeekly(clan.id),
@@ -657,6 +658,7 @@ export async function GET(request: Request) {
       getDropRarityFloor(clan.id),
       getTierBands(clan.id),
           getDropFacts(clan.id),
+      countedLuckCandidates(clan.id),
     ]);
 
   // As above: a boss week makes that boss's collection-log items always-reportable, price aside.
@@ -945,6 +947,10 @@ export async function GET(request: Request) {
     // See the unenrolled branch above — the drop channel posts with or without a live board, so the
     // facts behind those posts ship on both shapes.
     dropFacts: facts,
+    // Drops that count toward luck (lib/luckWorth): reported as moments whatever they sell for, so
+    // an untradeable vestige reaches event luck (lib/eventLuck) and not only its first-ever unlock.
+    // Board-only: event luck is the one reader. Capability 'luck-drops'.
+    luckItemIds: [...new Set(luckItems.map((c) => c.itemId))].sort((a, b) => a - b),
     completedTiles,
     trackedStats,
     trackedKcNames,

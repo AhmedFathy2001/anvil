@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { countedLuckCandidates } from '@/lib/clogLuckBoard';
 import { getSetting, getSettingMap } from '@/lib/settings';
 import { clanMemberships, events, moments, eventParticipants, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, desc, eq, inArray } from 'drizzle-orm';
@@ -138,6 +139,7 @@ async function eventScope(eventId: number, teamId: number | null, clanId: number
     sources: [...sources],
     itemIds: [...itemIds],
     minLootGp: await minLootGp(clanId),
+    luckItemIds: [...new Set((await countedLuckCandidates(clanId)).map((c) => c.itemId))],
   };
 }
 

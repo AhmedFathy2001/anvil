@@ -27,6 +27,8 @@ import { startProofState } from '@/lib/startProof';
 import EventFirsts from '@/components/events/EventFirsts';
 import { loadEventFirsts } from '@/lib/eventFirsts';
 import MomentsFeed from '@/components/MomentsFeed';
+import { getEventLuck } from '@/lib/eventLuck';
+import EventLuck from './EventLuck';
 import { momentsForEvent } from '@/lib/momentsStore';
 import { isPointsMode, eventShapeBadge } from '@/lib/utils';
 import { eventAxes } from '@/lib/eventAxes';
@@ -326,6 +328,9 @@ export default async function EventScoreboardPage({
   const eventMoments = (await momentsForEvent(event.id, 12)).filter((moment) =>
     eventActivityIsValid(event, moment.occurredAt),
   );
+  // Who the game was kind to this event, and who it wasn't (lib/eventLuck) — once it has started.
+  const luck =
+    event.startDate && Date.parse(event.startDate) <= Date.now() ? await getEventLuck(event.id).catch(() => null) : null;
   const boardTiles = visibleTiles(rules, eventTiles);
   const hiddenTileCount = hasRevealPolicy(rules) ? eventTiles.length - visibleTiles(rules, eventTiles).length : 0;
   // Nothing here is staff-only any more: this page shows one board, the member's. The "which tiles
@@ -652,6 +657,7 @@ export default async function EventScoreboardPage({
           boardPointsTotal={pointsOnBoard}
           initialTileId={Number.isInteger(initialTileId) && initialTileId > 0 ? initialTileId : null}
         />
+        {luck && <EventLuck luck={luck} />}
         </>
       )}
     </>

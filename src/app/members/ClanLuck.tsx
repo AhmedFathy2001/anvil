@@ -81,75 +81,95 @@ export default function ClanLuck({ dry, spooned, membersConsidered, itemsConside
         appear here. Bosses only, since a clue item has no kill count to measure against.
       </p>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section>
-          <h3 className="font-semibold flex items-center gap-2 mb-2">
-            <span className="w-1 h-5 bg-red-500 rounded-full" />
-            Dry
-            <span className="text-xs text-text-muted font-normal">fewest drops for the kills</span>
-          </h3>
-          {dry.length === 0 ? (
-            <div className="border border-dashed border-card-border rounded-xl p-6 text-center text-xs text-text-muted">
-              Everyone is inside the ordinary range. Enjoy it while it lasts.
-            </div>
-          ) : (
-            <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border">
-              {dry.map((e) => (
-                <Row
-                  key={`${e.accountId}-${e.itemId}`}
-                  rsn={e.rsn}
-                  itemId={e.itemId}
-                  itemName={e.itemName}
-                  source={e.source}
-                  tone="dry"
-                  headline={formatCount(e.assessment.obtained, e.assessment.expected, e.assessment.expectedLow)}
-                  detail={[
-                    `${e.assessment.kills.toLocaleString()} KC`,
-                    formatSources(e.sources),
-                    formatOdds(e.assessment.tail) ? `${formatOdds(e.assessment.tail)} end up here` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
-                />
-              ))}
-            </div>
-          )}
-        </section>
+      <LuckColumns dry={dry} spooned={spooned} />
+    </div>
+  );
+}
 
-        <section>
-          <h3 className="font-semibold flex items-center gap-2 mb-2">
-            <span className="w-1 h-5 bg-accent-green rounded-full" />
-            Spooned
-            <span className="text-xs text-text-muted font-normal">most drops for the kills</span>
-          </h3>
-          {spooned.length === 0 ? (
-            <div className="border border-dashed border-card-border rounded-xl p-6 text-center text-xs text-text-muted">
-              Nobody is far enough ahead of their kill count to call it. Yet.
-            </div>
-          ) : (
-            <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border">
-              {spooned.map((e) => (
-                <Row
-                  key={`${e.accountId}-${e.itemId}`}
-                  rsn={e.rsn}
-                  itemId={e.itemId}
-                  itemName={e.itemName}
-                  source={e.source}
-                  tone="spoon"
-                  headline={formatCount(e.assessment.obtained, e.assessment.expected, e.assessment.expectedLow)}
-                  detail={[
-                    `${e.assessment.kills.toLocaleString()} KC`,
-                    formatSources(e.sources),
-                    formatOdds(e.assessment.tail) ? `${formatOdds(e.assessment.tail)} end up here` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
-                />
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
+/** The two columns, shared by the clan boards and an event's (app/events/[eventId]/EventLuck). */
+export function LuckColumns({
+  dry,
+  spooned,
+  kcLabel = 'KC',
+  emptyDry = 'Everyone is inside the ordinary range. Enjoy it while it lasts.',
+  emptySpooned = 'Nobody is far enough ahead of their kill count to call it. Yet.',
+}: {
+  dry: LuckEntry[];
+  spooned: LuckEntry[];
+  /** "KC", or "KC this event" when the kills are an event's gains. */
+  kcLabel?: string;
+  emptyDry?: string;
+  emptySpooned?: string;
+}) {
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      <section>
+        <h3 className="font-semibold flex items-center gap-2 mb-2">
+          <span className="w-1 h-5 bg-red-500 rounded-full" />
+          Dry
+          <span className="text-xs text-text-muted font-normal">fewest drops for the kills</span>
+        </h3>
+        {dry.length === 0 ? (
+          <div className="border border-dashed border-card-border rounded-xl p-6 text-center text-xs text-text-muted">
+            {emptyDry}
+          </div>
+        ) : (
+          <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border">
+            {dry.map((e) => (
+              <Row
+                key={`${e.accountId}-${e.itemId}`}
+                rsn={e.rsn}
+                itemId={e.itemId}
+                itemName={e.itemName}
+                source={e.source}
+                tone="dry"
+                headline={formatCount(e.assessment.obtained, e.assessment.expected, e.assessment.expectedLow)}
+                detail={[
+                  `${e.assessment.kills.toLocaleString()} ${kcLabel}`,
+                  formatSources(e.sources),
+                  formatOdds(e.assessment.tail) ? `${formatOdds(e.assessment.tail)} end up here` : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h3 className="font-semibold flex items-center gap-2 mb-2">
+          <span className="w-1 h-5 bg-accent-green rounded-full" />
+          Spooned
+          <span className="text-xs text-text-muted font-normal">most drops for the kills</span>
+        </h3>
+        {spooned.length === 0 ? (
+          <div className="border border-dashed border-card-border rounded-xl p-6 text-center text-xs text-text-muted">
+            {emptySpooned}
+          </div>
+        ) : (
+          <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border">
+            {spooned.map((e) => (
+              <Row
+                key={`${e.accountId}-${e.itemId}`}
+                rsn={e.rsn}
+                itemId={e.itemId}
+                itemName={e.itemName}
+                source={e.source}
+                tone="spoon"
+                headline={formatCount(e.assessment.obtained, e.assessment.expected, e.assessment.expectedLow)}
+                detail={[
+                  `${e.assessment.kills.toLocaleString()} ${kcLabel}`,
+                  formatSources(e.sources),
+                  formatOdds(e.assessment.tail) ? `${formatOdds(e.assessment.tail)} end up here` : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              />
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
