@@ -391,7 +391,8 @@ export async function getLuckBoards(clanId: number, limit = 15): Promise<LuckBoa
     // Everyone who has synced, and is still in THIS clan. The clanId filter is what keeps it this
     // clan's board rather than the platform's.
     .innerJoin(clanRoster, eq(memberClog.accountId, clanRoster.accountId))
-    .where(and(eq(clanRoster.clanId, clanId), isNull(clanRoster.leftAt)));
+    // Members only: a guest's luck is their own clan's story, not this one's.
+    .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.kind, 'member'), isNull(clanRoster.leftAt)));
   if (synced.length === 0) return { dry: [], spooned: [], membersConsidered: 0, itemsConsidered: candidates.length };
 
   const memberIds = synced.map((m) => m.id);
