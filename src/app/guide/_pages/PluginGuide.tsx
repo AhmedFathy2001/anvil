@@ -213,12 +213,23 @@ export default async function PluginGuide({ lang }: { lang: string }) {
           <p>{rt(p.working.guestNote.body, { ...v, discordLink })}</p>
         </Note>
 
+        <h3 className="text-lg font-semibold pt-2">{p.working.panelHeading}</h3>
+        {paragraphs(p.working.panelBody, v)}
+        <Figure
+          src="/guide/plugin-panel-tabs.png"
+          width={745}
+          height={530}
+          alt={p.working.panelFigure.alt}
+          caption={p.working.panelFigure.caption}
+          legend={[]}
+        />
+
         <h3 className="text-lg font-semibold pt-2">{p.working.lookupHeading}</h3>
         <p className="text-text-muted">{rt(p.working.lookupBody, v)}</p>
         <Figure
           src="/guide/plugin-lookup-menu.png"
-          width={425}
-          height={343}
+          width={402}
+          height={183}
           alt={p.working.lookupFigure.alt}
           caption={p.working.lookupFigure.caption}
           legend={[]}
@@ -246,6 +257,17 @@ export default async function PluginGuide({ lang }: { lang: string }) {
           legend={legend(p.bingo.figure.legend, v)}
         />
 
+        <h3 className="text-foreground font-medium mt-6">{p.bingo.teamsHeading}</h3>
+        <p className="text-text-muted">{rt(p.bingo.teamsBody, v)}</p>
+        <Figure
+          src="/guide/plugin-teams.png"
+          width={493}
+          height={480}
+          alt={p.bingo.teamsFigure.alt}
+          caption={p.bingo.teamsFigure.caption}
+          legend={[]}
+        />
+
         <h3 className="text-foreground font-medium mt-6">{p.bingo.startHeading}</h3>
         {paragraphs(p.bingo.startBody, v)}
       </Section>
@@ -253,6 +275,15 @@ export default async function PluginGuide({ lang }: { lang: string }) {
       {/* ---------------------------------------------------------------- 6 */}
       <Section id="notifications" n={6} title={p.notifications.title} labels={t.common}>
         <p className="text-text-muted">{rt(p.notifications.intro, v)}</p>
+
+        <Figure
+          src="/guide/plugin-discord-posts.png"
+          width={1103}
+          height={498}
+          alt={p.notifications.examplesFigure.alt}
+          caption={p.notifications.examplesFigure.caption}
+          legend={[]}
+        />
 
         <Figure
           src="/guide/plugin-notify-drops.png"

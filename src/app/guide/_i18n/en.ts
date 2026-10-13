@@ -604,9 +604,18 @@ export const en = {
         body: 'If chat says _Tracked as a guest_, you’re being tracked but you’re not on the clan roster yet. An admin fixes that by syncing the in-game clan roster — ask {discordLink}.',
         discordWord: 'in Discord',
       },
+      panelHeading: 'The side panel',
+      panelBody: [
+        'Three tabs. **Clan** is your events and your clan: every live and upcoming bingo and weekly competition with where you stand, your clan’s week, and its biggest accounts. **You** is your own profile — your collection log down to each page’s items, latest unlocks, skills, bosses, clues, best times and the goals you set on the site. **Lookup** finds anyone else’s, player or clan.',
+        'On someone’s card, **Compare with me** lines the two of you up skill by skill, boss by boss and page by page. The gear opens the panel’s own controls: syncing your profile and the clan roster, and your banner and mission sounds.',
+      ],
+      panelFigure: {
+        caption: 'Clan · You · Lookup',
+        alt: 'The Anvil side panel’s three tabs side by side: the Clan tab with events and the clan’s week, the You tab with your collection log, and the Lookup tab showing another player’s card',
+      },
       lookupHeading: 'Look anyone up',
       lookupBody:
-        'Right-click a player — standing next to you, or by name in chat, your friends list or the clan panel — and pick **Anvil** to open their Anvil profile in your browser. For your own, open the **⋯** menu at the top of the side panel and pick **View my profile on Anvil**.',
+        'Right-click a player — standing next to you, or by name in chat, your friends list or the clan panel — and pick **Anvil** to open their card in the side panel’s **Lookup** tab. Your own is the **You** tab.',
       lookupFigure: {
         caption: 'Right-click a name → Anvil',
         alt: 'A player’s right-click menu in game with an Anvil entry under Lookup and RuneProfile',
@@ -658,6 +667,13 @@ export const en = {
           },
         ],
       },
+      teamsHeading: 'Teams',
+      teamsBody:
+        'The **Teams** button on an event lists its teams ranked, with yours on top. Open one for its roster, captain first, or search for a player across every team — click a name to look them up.',
+      teamsFigure: {
+        caption: 'Event → Teams',
+        alt: 'The Teams page listing an event’s teams with points and member counts, next to one team’s roster with its captain first',
+      },
       startHeading: 'Starting shot',
       startBody: [
         'Some events ask everyone for a **starting shot**: one screenshot taken after the event goes live, at a location drawn at the start moment. It stops anyone from spending the week before the event stockpiling clues, caskets and kills to dump on the first day.',
@@ -671,6 +687,10 @@ export const en = {
       title: 'Discord notifications',
       intro:
         'These fire whether or not a bingo is running, and they post to the clan’s channels. Which channel is set up here by the admins — you only choose _what_ you post.',
+      examplesFigure: {
+        caption: 'What a post looks like',
+        alt: 'Two Discord posts from Anvil: a Grandmaster combat task with points and progress to the next unlock, and a death with its message, each with a screenshot of the moment',
+      },
       dropsFigure: {
         caption: 'Deaths & kills · Drops & pets',
         alt: 'The Deaths and kills and Drops and pets notification sections with each setting boxed and numbered',
