@@ -3,6 +3,7 @@ import { groupOf, type PageGroup } from '@/lib/clogRarity';
 import { clogPageItems, clogPageNames } from '@/lib/clogDataset';
 import { clogPageForBoss } from '@/lib/clogKillcounts';
 import { personalBestEntries, type PbEntry } from '@/lib/pbGroups';
+import { totalXpLabel } from '@/lib/totalXpMilestones';
 
 // The plugin's player card: one character, told as a story rather than a hiscores table.
 //
@@ -151,6 +152,8 @@ export function milestoneLabel(m: { kind: string; metric: string | null; thresho
       return `${m.threshold.toLocaleString('en-US')} ${bossLabel.get(metric) ?? metric} KC`;
     case 'total':
       return `${m.threshold.toLocaleString('en-US')} total`;
+    case 'totalxp':
+      return `${totalXpLabel(m.threshold)} total XP`;
     case 'ehp':
       return `${m.threshold.toLocaleString('en-US')} EHP`;
     case 'ehb':

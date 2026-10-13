@@ -4,6 +4,7 @@ import type { PlayerStanding } from '@/lib/clanLeaderboard';
 import { compactXp } from '@/lib/apexHomeSignals';
 import { milestoneMetricLabel } from '@/lib/constants';
 import { activityFor } from '@/lib/hiscoresActivities';
+import { totalXpLabel } from '@/lib/totalXpMilestones';
 
 /**
  * The apex home's "how am I doing" half.
@@ -381,6 +382,8 @@ function milestoneLine(m: RecentMilestone): { badge: string; text: string } {
       return { badge: 'EHP', text: `${m.threshold.toLocaleString()} efficient hours` };
     case 'ehb':
       return { badge: 'EHB', text: `${m.threshold.toLocaleString()} efficient boss hours` };
+    case 'totalxp':
+      return { badge: totalXpLabel(m.threshold), text: `${totalXpLabel(m.threshold)} total XP` };
     default:
       return { badge: compactXp(m.threshold), text: `${compactXp(m.threshold)} ${metric || 'XP'}` };
   }

@@ -18,6 +18,7 @@ import { loadPlayerOwners } from '@/lib/draftProfiles';
 import { ladderLifecycle } from '@/lib/ladderView';
 import { monthWindow } from '@/lib/ladderInsights';
 import { eventParticipants as playersTable, submissions as submissionsTable } from '@/db/schema';
+import { totalXpLabel } from '@/lib/totalXpMilestones';
 
 /**
  * Everything the home page shows, assembled once.
@@ -538,6 +539,8 @@ function milestoneSentence(kind: string, metric: string | null, threshold: numbe
       return `passed ${threshold.toLocaleString()} ${label ?? ''} KC`.replace(/\s+/g, ' ');
     case 'total':
       return `reached ${threshold.toLocaleString()} total level`;
+    case 'totalxp':
+      return `passed ${totalXpLabel(threshold)} total XP`;
     case 'ehp':
       return `passed ${threshold.toLocaleString()} EHP`;
     case 'ehb':

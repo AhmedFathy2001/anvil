@@ -21,6 +21,7 @@ import {
   type CompetitionType,
   type DailyRow,
 } from '@/lib/competitionInsights';
+import { totalXpLabel } from '@/lib/totalXpMilestones';
 
 /**
  * Everything the competition page renders, assembled once on the server.
@@ -161,6 +162,8 @@ function milestoneText(
       return { emoji: '💀', action: 'passed', highlight: `${threshold.toLocaleString()} ${label ?? ''} KC`.replace(/\s+/g, ' ') };
     case 'total':
       return { emoji: '🎯', action: 'reached', highlight: `${threshold.toLocaleString()} total level` };
+    case 'totalxp':
+      return { emoji: '📈', action: 'passed', highlight: `${totalXpLabel(threshold)} total XP` };
     case 'ehp':
       return { emoji: '⏱️', action: 'passed', highlight: `${threshold.toLocaleString()} EHP` };
     case 'ehb':

@@ -19,6 +19,9 @@ import { and, eq, sql } from 'drizzle-orm';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { computeEhpEhb } from '@/lib/efficiency';
 import { EFFICIENCY_SCALE } from '@/lib/constants';
+import { crossedTotalXpMillions, totalXpOf } from '@/lib/totalXpMilestones';
+import { announceMilestones } from '@/lib/milestoneAnnounce';
+import { log } from '@/lib/logger';
 
 // ── Adaptive polling ─────────────────────────────────────────────────────────────────────────────
 //
@@ -157,7 +160,8 @@ const KC_THRESHOLDS = [100, 500, 1_000, 2_500, 5_000, 10_000, 25_000];
 const EFFICIENCY_THRESHOLDS = [100, 250, 500, 1_000, 2_000, 5_000];
 
 export interface Milestone {
-  kind: 'level' | 'xp' | 'kc' | 'ehp' | 'ehb';
+  /** 'totalxp' thresholds are in MILLIONS of overall XP (lib/totalXpMilestones), the rest raw. */
+  kind: 'level' | 'xp' | 'kc' | 'ehp' | 'ehb' | 'totalxp';
   metric: string | null;
   threshold: number;
 }
@@ -198,6 +202,11 @@ export function detectMilestones(
     }
   }
 
+  // Overall XP isn't in the deltas (lib/statDeltas skips 'overall'), so read it off the snapshots.
+  for (const threshold of crossedTotalXpMillions(totalXpOf(before), totalXpOf(after))) {
+    found.push({ kind: 'totalxp', metric: null, threshold });
+  }
+
   const was = computeEhpEhb(before);
   const now = computeEhpEhb(after);
   for (const threshold of crossed(EFFICIENCY_THRESHOLDS, was.ehp, now.ehp)) {
@@ -210,7 +219,11 @@ export function detectMilestones(
   return found;
 }
 
-/** Insert newly crossed milestones. The unique index makes a re-detection a no-op, not a duplicate. */
+/**
+ * Insert newly crossed milestones. The unique index makes a re-detection a no-op, not a duplicate —
+ * and since the push and the sweep can both detect the same crossing, only the rows THIS call
+ * inserted are announced, so Discord hears about each one once. Returns how many were new.
+ */
 export async function recordMilestones(accountId: number, milestones: Milestone[]): Promise<number> {
   if (milestones.length === 0) return 0;
   const rows = milestones.map((m) => ({
@@ -220,8 +233,18 @@ export async function recordMilestones(accountId: number, milestones: Milestone[
     threshold: m.threshold,
     noticedAt: new Date().toISOString(),
   }));
-  await db.insert(memberMilestones).values(rows).onConflictDoNothing();
-  return rows.length;
+  const inserted = await db
+    .insert(memberMilestones)
+    .values(rows)
+    .onConflictDoNothing()
+    .returning({ kind: memberMilestones.kind, metric: memberMilestones.metric, threshold: memberMilestones.threshold });
+  if (inserted.length > 0) {
+    // Fire-and-forget: a slow or failing webhook must never hold up the push or the sweep.
+    void announceMilestones(accountId, inserted as Milestone[]).catch((e) =>
+      log.warn('milestones.announce-failed', { accountId, error: (e as Error).message }),
+    );
+  }
+  return inserted.length;
 }
 
 // Re-exported so existing importers keep working; the definitions live in lib/statDeltas.

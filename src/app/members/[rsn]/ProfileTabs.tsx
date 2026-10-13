@@ -26,6 +26,7 @@ import type {
   MilestoneRow,
   PeriodRecord,
 } from '@/lib/memberProfile';
+import { totalXpLabel } from '@/lib/totalXpMilestones';
 
 // Every tab renders from data the server already sent, so switching is instant and costs nothing.
 // The whole payload is one member's snapshot plus at most a year of ~50-byte daily rows — smaller
@@ -82,6 +83,8 @@ function milestoneText(m: MilestoneRow): string {
       return `${m.threshold.toLocaleString()} efficient hours played`;
     case 'ehb':
       return `${m.threshold.toLocaleString()} efficient hours bossed`;
+    case 'totalxp':
+      return `${totalXpLabel(m.threshold)} total XP`;
     default:
       return `${m.kind} ${m.threshold}`;
   }
