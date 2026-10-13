@@ -242,6 +242,18 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
               />
             </div>
           </Card>
+          <Card>
+            <FieldHeader title="Luck boards">
+              Which drops the <b>Luck</b> tab and profiles call somebody dry or spooned over. Pets and jars always count;
+              cosmetics like the keris jewels never do.
+            </FieldHeader>
+            <PlainSetting
+              settingKey="luck_value_floor"
+              label="Count tradeable drops worth at least (gp)"
+              placeholder="1000000"
+              helpText="A rare drop under this is alch money, not a story. Blank = 1,000,000. Set 0 to judge on rarity alone."
+            />
+          </Card>
         </div>
       )}
 

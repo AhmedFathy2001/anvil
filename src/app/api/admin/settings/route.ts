@@ -39,6 +39,8 @@ const EXPOSED_KEYS = [
   'moments_clan_min_loot_gp',
   'moments_clan_min_ca_tier',
   'moments_clan_deaths',
+  // The luck boards' value floor (lib/luckWorth): tradeable drops under it don't count toward luck.
+  'luck_value_floor',
   // Drops the wiki can't be asked about, one per line as `item` or `item | source, source`. They
   // suppress the lucky-drop reaction on a post: a kit the boss hands over every kill was nobody's
   // spoon. See lib/dropFacts — most guarantees come from the drop dataset without being typed here.

@@ -4,7 +4,9 @@ import { getSetting } from '@/lib/settings';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import npcDrops from '@/data/npcDrops.json'; // regenerate with `npm run data:drops`
 import { BOSSES } from '@/lib/constants';
-import { clogItemNames, clogPageItems, clogPageNames } from '@/lib/clogDataset';
+import { clogItemNames, clogPageIndex, clogPageItems, clogPageNames } from '@/lib/clogDataset';
+import { getItemPrices } from '@/lib/itemPrices';
+import { LUCK_VALUE_FLOOR_SETTING_KEY, luckValueFloor, worthCounting } from '@/lib/luckWorth';
 import { aggregateLuck, assessLuckAt, bundleSize, dropsFromQuantity, type LuckTotal } from '@/lib/clogLuck';
 import { raidSourcesByItem, RAID_LUCK_SETTING_KEY } from '@/lib/raidLuck';
 import { statSnapshotOf } from '@/lib/roster';
@@ -251,6 +253,21 @@ export function luckCandidates(raidOverrides?: unknown): LuckCandidate[] {
 }
 
 /**
+ * The candidates a clan's boards actually use: rare (luckCandidates) AND worth talking about
+ * (lib/luckWorth) — pets and jars, drops over the clan's value floor, and unpriced uniques that are
+ * not on the junk list. Null clan (the apex profile) gets the default floor.
+ */
+export async function countedLuckCandidates(clanId: number | null): Promise<LuckCandidate[]> {
+  const [raid, prices, floorRaw] = await Promise.all([
+    raidOverrides(clanId),
+    getItemPrices(),
+    clanId == null ? Promise.resolve(null) : getSetting(clanId, LUCK_VALUE_FLOOR_SETTING_KEY),
+  ]);
+  const ctx = { prices, floor: luckValueFloor(floorRaw), petIds: clogPageIndex().get('All Pets') ?? new Set<number>() };
+  return luckCandidates(raid).filter((c) => worthCounting(c, ctx));
+}
+
+/**
  * The clan's raid assumption, if they've set one. Parse failures fall back to the defaults rather
  * than to nothing: a malformed setting should not silently delete every raid from the boards.
  */
@@ -333,7 +350,7 @@ export interface LuckBoards {
  * "hasn't told us", and putting the second on a dry board would be a lie about a real person.
  */
 export async function getLuckBoards(clanId: number, limit = 15): Promise<LuckBoards> {
-  const candidates = luckCandidates(await raidOverrides(clanId));
+  const candidates = await countedLuckCandidates(clanId);
   if (candidates.length === 0) return { dry: [], spooned: [], membersConsidered: 0, itemsConsidered: 0 };
 
   // Everyone who has synced, and is still in the clan.
@@ -460,7 +477,7 @@ export async function getMemberLuck(accountId: number, clanId: number | null, li
   if (!synced) return null;
 
   // The raid assumption is the clan's, so personal luck is read on behalf of one.
-  const candidates = luckCandidates(await raidOverrides(clanId));
+  const candidates = await countedLuckCandidates(clanId);
   const kills = await bossKillsFor(accountId);
 
   const itemIds = [...new Set(candidates.map((c) => c.itemId))];
