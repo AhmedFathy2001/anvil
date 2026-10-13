@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { memberPersonalBests } from '@/db/schema';
-import { resolvePluginMember } from '@/lib/auth';
+import { resolvePluginCharacter } from '@/lib/pluginAccount';
 import { MAX_BESTS_PER_PUSH, normalizeBests, savePersonalBests, type IncomingBest } from '@/lib/personalBests';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 
@@ -13,7 +13,8 @@ import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 // only auth + request shape. Profile data only — never scoring.
 
 export async function POST(request: Request) {
-  const member = await resolvePluginMember(request);
+  // The seat when there is one, else a character the token owns: bests are the person's, clan or not.
+  const member = await resolvePluginCharacter(request);
   if (!member) {
     return NextResponse.json(
       { error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' },
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-  const member = await resolvePluginMember(request);
+  const member = await resolvePluginCharacter(request);
   if (!member) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const rows = await db
     .select({

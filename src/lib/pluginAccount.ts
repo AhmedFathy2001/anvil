@@ -9,7 +9,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, detectedAccounts } from '@/db/schema';
-import { normalizeRsn } from '@/lib/auth';
+import { normalizeRsn, resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
 import { personOf } from '@/lib/roster';
 import { IGNORED_STATUSES } from '@/lib/accountRelease';
 
@@ -62,4 +62,22 @@ export async function accountStanding(userId: number, c: PlayedCharacter): Promi
     return me != null && account.playerId === me ? 'yours' : 'other';
   }
   return ignored ? 'ignored' : 'unclaimed';
+}
+
+/**
+ * Who a profile-data push (collection log, personal bests) is about: the clan seat when there is one,
+ * else a character this token owns outright. Those tables are keyed by the CHARACTER, not the seat,
+ * and the site keeps a person's log and records with no clan anywhere — so requiring a seat here
+ * meant a solo player's log never reached their profile (and their luck tab stayed empty). Same rule
+ * the stats push already falls back to: the character must be `yours`, never merely unclaimed.
+ */
+export async function resolvePluginCharacter(request: Request): Promise<{ userId: number; accountId: number } | null> {
+  const member = await resolvePluginMember(request);
+  if (member) return { userId: member.userId, accountId: member.accountId };
+  const viewer = await verifyPluginTokenUser(request);
+  const character = playedCharacter(request);
+  if (!viewer || !character) return null;
+  if ((await accountStanding(viewer.userId, character)) !== 'yours') return null;
+  const account = await accountForCharacter(character);
+  return account ? { userId: viewer.userId, accountId: account.id } : null;
 }

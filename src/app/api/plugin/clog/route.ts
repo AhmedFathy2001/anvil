@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { memberClog, memberClogItems, memberClogKc } from '@/db/schema';
-import { resolvePluginMember } from '@/lib/auth';
+import { resolvePluginCharacter } from '@/lib/pluginAccount';
 import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
 import { clogPageIndex, clogTotalSlots, groupObtainedItems } from '@/lib/clogDataset';
 import { bossKeyForPage, bossKillsFor } from '@/lib/clogLuckBoard';
@@ -46,7 +46,8 @@ const int = (v: unknown, max: number): number | null => {
 };
 
 export async function POST(request: Request) {
-  const member = await resolvePluginMember(request);
+  // The seat when there is one, else a character the token owns: a log is the person's, clan or not.
+  const member = await resolvePluginCharacter(request);
   if (!member) {
     return NextResponse.json(
       { error: 'Unauthorized. Provide Authorization: Bearer <accountToken> + X-RSN' },
@@ -504,7 +505,7 @@ async function pagesTotalFor(accountId: number, index: Map<string, Set<number>>)
 // A page with nothing obtained still counts as synced. It has no item rows, so the distinct-page
 // count above can't see it — this is the one case the client's own tally is the better source.
 export async function GET(request: Request) {
-  const member = await resolvePluginMember(request);
+  const member = await resolvePluginCharacter(request);
   if (!member) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const row = await db.query.memberClog.findFirst({
     where: eq(memberClog.accountId, member.accountId),
