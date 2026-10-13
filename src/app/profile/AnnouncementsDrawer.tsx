@@ -5,7 +5,9 @@ import { useState } from 'react';
 import Checkbox from '@/components/Checkbox';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
+import LevelRulesEditor from '@/components/LevelRulesEditor';
 import type { EmissionSettingsView, EmissionState } from '@/lib/emissionSettings';
+import type { LevelPostsChoice, MilestoneRules } from '@/lib/levelRules';
 
 const KIND_LABELS: Record<string, string> = {
   rareDrops: 'Rare drops',
@@ -19,6 +21,12 @@ const KIND_LABELS: Record<string, string> = {
   pvpKills: 'PvP kills',
 };
 const KINDS = Object.keys(KIND_LABELS);
+
+const LEVEL_POSTS_OPTIONS: { value: LevelPostsChoice; label: string }[] = [
+  { value: 'clan', label: 'Clan rules' },
+  { value: 'ninetyNinesAndMax', label: 'Only 99s & max' },
+  { value: 'off', label: 'Off' },
+];
 
 const STATE_OPTIONS = [
   { value: 'default', label: 'Default' },
@@ -97,6 +105,24 @@ export default function AnnouncementsDrawer({
           description="Your own clan and your bingo boards are unaffected. Allow specific clans below."
         />
 
+        {/* Level posts in clan channels — stricter-only on top of each clan's own rules. */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Level posts in clan channels</p>
+            <p className="text-[12px] text-text-muted">
+              Your clans decide which level-ups and XP milestones get posted; you can turn yours down, not up.
+            </p>
+          </div>
+          <Select
+            value={view.levelPostsClan}
+            onChange={(v) => patch({ levelPostsClan: v })}
+            options={LEVEL_POSTS_OPTIONS}
+            disabled={busy}
+            ariaLabel="Level posts in clan channels"
+            className="w-48 shrink-0"
+          />
+        </div>
+
         {/* Per-account, per-clan controls. */}
         {hasClanControls && (
           <div className="grid gap-4">
@@ -164,6 +190,13 @@ export default function AnnouncementsDrawer({
 
         {/* Personal webhooks. */}
         <WebhookSection view={view} onChange={setView} />
+
+        <PersonalLevelRules
+          initial={view.personalLevelRules}
+          hasLevelHook={view.webhooks.some((h) => h.kinds.includes('levels'))}
+          busy={busy}
+          onSave={(rules) => patch({ personalLevelRules: rules })}
+        />
       </div>
     </details>
   );
@@ -296,6 +329,50 @@ function WebhookSection({
         {error && <p className="text-[12px] text-red-400">{error}</p>}
       </div>
     </div>
+  );
+}
+
+/** "Level posts on my webhooks" — the same controls as a clan's, free to be looser than any clan's. */
+function PersonalLevelRules({
+  initial,
+  hasLevelHook,
+  busy,
+  onSave,
+}: {
+  initial: MilestoneRules;
+  hasLevelHook: boolean;
+  busy: boolean;
+  onSave: (rules: MilestoneRules) => void;
+}) {
+  const [rules, setRules] = useState(initial);
+  const dirty = JSON.stringify(rules) !== JSON.stringify(initial);
+  return (
+    <details className="group/lvl rounded-lg border border-card-border/60 bg-brown-dark/30">
+      <summary className="flex cursor-pointer list-none select-none items-center gap-2 px-3.5 py-2.5 text-sm font-medium">
+        <span className="text-text-muted transition-transform group-open/lvl:rotate-90" aria-hidden>
+          ▸
+        </span>
+        Level posts on my webhooks
+      </summary>
+      <div className="grid gap-4 px-3.5 pb-3.5">
+        <p className="max-w-[70ch] text-[12px] text-text-muted">
+          {hasLevelHook
+            ? 'Which level-ups and XP milestones go to your own webhooks that take “Levels & milestones”. Independent of your clans.'
+            : 'None of your webhooks takes “Levels & milestones” yet — these apply once one does.'}
+        </p>
+        <LevelRulesEditor value={rules} onChange={setRules} disabled={busy} />
+        <div>
+          <button
+            type="button"
+            onClick={() => onSave(rules)}
+            disabled={busy || !dirty}
+            className="rounded-lg bg-gold px-3.5 py-1.5 text-[13px] font-semibold text-brown-dark transition-colors hover:bg-gold-light disabled:opacity-50"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </details>
   );
 }
 

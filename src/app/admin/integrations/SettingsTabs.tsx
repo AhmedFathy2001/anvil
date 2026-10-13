@@ -17,6 +17,7 @@ import AlwaysNotifyItems from '@/components/AlwaysNotifyItems';
 import KillCountToggle from '@/components/KillCountToggle';
 import LineListSetting from '@/components/LineListSetting';
 import TierBandsSetting from '@/components/TierBandsSetting';
+import LevelMilestonesSetting from '@/components/LevelMilestonesSetting';
 import BalanceRatesSetting from '@/components/BalanceRatesSetting';
 import PlainSetting from '@/components/PlainSetting';
 import ToggleSetting from '@/components/ToggleSetting';
@@ -158,6 +159,13 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
 
       {tab === 'notifications' && (
         <div className="space-y-4">
+          <Card>
+            <FieldHeader title="Level milestones">
+              Which level-ups and XP milestones post to your levels channel. Members can turn their own
+              posts down (only 99s &amp; max, or off) but never up.
+            </FieldHeader>
+            <LevelMilestonesSetting />
+          </Card>
           <Card>
             <FieldHeader title="Notification lines">
               Your clan&apos;s flavour text for plugin death / drop posts. Blank uses the built-in defaults.

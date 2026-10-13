@@ -11,6 +11,7 @@ import {
   setAccountClanEmission,
   type EmissionState,
 } from '@/lib/emissionSettings';
+import { isLevelPostsChoice, normalizeMilestoneRules } from '@/lib/levelRules';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,6 +46,23 @@ export async function PATCH(request: Request) {
       .update(users)
       .set({ blockGuestEmissions: Boolean(body.blockGuestEmissions) })
       .where(eq(users.id, session.userId));
+    return NextResponse.json(await emissionSettingsView(session.userId, session.playerId));
+  }
+
+  // Level posts in clan channels (lib/levelRules): clan | ninetyNinesAndMax | off. Stricter only —
+  // the effective rules are computed from the clan's, so no value here can add a post.
+  if ('levelPostsClan' in body) {
+    if (!isLevelPostsChoice(body.levelPostsClan)) {
+      return NextResponse.json({ error: 'levelPostsClan must be clan | ninetyNinesAndMax | off' }, { status: 400 });
+    }
+    await db.update(users).set({ levelPostsClan: body.levelPostsClan }).where(eq(users.id, session.userId));
+    return NextResponse.json(await emissionSettingsView(session.userId, session.playerId));
+  }
+
+  // Level / XP rules for the person's own webhooks. Normalised (clamped, defaults for missing fields).
+  if ('personalLevelRules' in body) {
+    const rules = body.personalLevelRules == null ? null : JSON.stringify(normalizeMilestoneRules(body.personalLevelRules));
+    await db.update(users).set({ levelRules: rules }).where(eq(users.id, session.userId));
     return NextResponse.json(await emissionSettingsView(session.userId, session.playerId));
   }
 

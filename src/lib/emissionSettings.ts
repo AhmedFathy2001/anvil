@@ -2,6 +2,7 @@ import { and, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accountClanEmission, accounts, clanMemberships, clans, userWebhooks, users } from '@/db/schema';
+import { isLevelPostsChoice, parseMilestoneRules, type LevelPostsChoice, type MilestoneRules } from '@/lib/levelRules';
 
 /**
  * The read + write side of a PERSON's emission settings — the /profile surface behind
@@ -47,11 +48,15 @@ export interface EmissionSettingsView {
   /** Clans the person is a member of — the valid targets for pointing an alt at (the seatless case). */
   memberClans: { clanId: number; name: string }[];
   webhooks: UserWebhookView[];
+  /** Level posts in clan channels: the clan's rules, only 99s & max, or none (lib/levelRules). */
+  levelPostsClan: LevelPostsChoice;
+  /** The rules for level / XP posts on the person's own webhooks. */
+  personalLevelRules: MilestoneRules;
 }
 
 export async function emissionSettingsView(userId: number, playerId: number): Promise<EmissionSettingsView> {
   const [user] = await db
-    .select({ block: users.blockGuestEmissions })
+    .select({ block: users.blockGuestEmissions, levelPostsClan: users.levelPostsClan, levelRules: users.levelRules })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
@@ -156,6 +161,8 @@ export async function emissionSettingsView(userId: number, playerId: number): Pr
       kinds: safeKinds(h.kinds),
       minRarity: h.minRarity,
     })),
+    levelPostsClan: isLevelPostsChoice(user?.levelPostsClan) ? user.levelPostsClan : 'clan',
+    personalLevelRules: parseMilestoneRules(user?.levelRules),
   };
 }
 
