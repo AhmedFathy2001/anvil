@@ -22,7 +22,7 @@ const OFF_SITE = new Set(['embed', 'badge']);
  *
  * THE SAME GATES AS THE CARD THAT SHOWED THE BUTTON. This hands out an invite — and may have the bot
  * mint one — so it answers only where that card would render: a clan the visitor may read, with the
- * card switched on; for the off-site surfaces, a public clan with its embed allowed.
+ * card switched on; for the off-site surfaces, also a public clan with its embed allowed.
  */
 export async function GET(request: Request) {
   const raw = new URL(request.url).searchParams.get('src') ?? '';
@@ -36,10 +36,13 @@ export async function GET(request: Request) {
     const config = await hallConfig(clan.id);
     const offSite = OFF_SITE.has(src);
     const session = await verifyUser();
-    const allowed = offSite
-      ? clanVisibilityOf(clan.visibility) === 'public' && config.embed
-      : config.enabled &&
-        (await canSeeClan({ clanId: clan.id, visibility: clan.visibility, playerId: session?.playerId, userId: session?.userId }));
+    // The card's own switch gates every surface — the embed and badge render nothing while it is
+    // off (clanHallView), so their join link must not outlive them.
+    const allowed =
+      config.enabled &&
+      (offSite
+        ? clanVisibilityOf(clan.visibility) === 'public' && config.embed
+        : await canSeeClan({ clanId: clan.id, visibility: clan.visibility, playerId: session?.playerId, userId: session?.userId }));
     dest = allowed ? await hallJoinUrl(clan.id) : null;
   }
 
