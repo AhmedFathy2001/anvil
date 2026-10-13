@@ -291,14 +291,6 @@ export interface LuckRateSource {
    * size, so the personal rate is a range: the wiki's rate solo, a 1/partyMax share in a big team.
    */
   partyMax?: number;
-  /**
-   * Successes of the underlying roll per item, when the item is the LAST step of a progression. A
-   * DT2 vestige is the third success of that boss's ring roll (~1 in 363 at Vardorvis): the mean is
-   * the same as a single 1-in-1,088 roll, but three steps make the count far more regular — off-rate
-   * results are rarer than one roll suggests — so the tails are judged in steps (assessLuckAt).
-   * Omitted = 1.
-   */
-  steps?: number;
 }
 
 /**
@@ -315,7 +307,7 @@ export interface LuckRateSource {
 export function expectationFor(
   sources: LuckRateSource[],
   kills: Record<string, number>,
-): { expected: number; expectedLow: number; bundle: number; kills: number; steps: number } {
+): { expected: number; expectedLow: number; bundle: number; kills: number } {
   let expected = 0;
   let expectedLow = 0;
   let weighted = 0;
@@ -330,8 +322,7 @@ export function expectationFor(
     weighted += share * rate.bundle;
   }
   const flat = sources.length > 0 ? sources.reduce((a, r) => a + r.bundle, 0) / sources.length : 1;
-  const steps = Math.max(1, ...sources.map((r) => r.steps ?? 1));
-  return { expected, expectedLow, bundle: expected > 0 ? weighted / expected : flat, kills: totalKills, steps };
+  return { expected, expectedLow, bundle: expected > 0 ? weighted / expected : flat, kills: totalKills };
 }
 
 /**
@@ -362,8 +353,6 @@ export interface LuckSource {
   expected: number;
   /** The low end for team bosses (`expectationFor`); omitted = `expected`. */
   expectedLow?: number;
-  /** Progression steps per item (`LuckRateSource.steps`); omitted = 1. */
-  steps?: number;
   /**
    * How many they have. The collection log counts what you've obtained, not just whether you have
    * it, and that count is the whole metric: presence alone can't tell one seed in 30,000 Gauntlet
@@ -407,7 +396,7 @@ export function buildLuckBoards(
   for (const candidate of candidates) {
     for (const member of candidate.members) {
       if (member.kills <= 0 || member.expected <= 0) continue;
-      const assessment = assessLuckAt(member.expected, member.kills, member.obtained, member.expectedLow, member.steps);
+      const assessment = assessLuckAt(member.expected, member.kills, member.obtained, member.expectedLow);
       if (!assessment.notable) continue;
       const entry: LuckEntry = {
         accountId: member.accountId,

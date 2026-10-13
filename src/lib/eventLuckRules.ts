@@ -122,14 +122,13 @@ export function shapeEventLuck(
     source: c.page,
     sources: c.sources,
     members: people.map((p): LuckSource => {
-      const { expected, expectedLow, steps, kills } = expectationFor(c.sources, p.gains);
+      const { expected, expectedLow, kills } = expectationFor(c.sources, p.gains);
       return {
         accountId: p.accountId,
         rsn: p.name,
         kills,
         expected,
         expectedLow,
-        steps,
         obtained: drops.get(p.accountId)?.get(c.itemId) ?? 0,
       };
     }),
