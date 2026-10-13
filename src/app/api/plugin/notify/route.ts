@@ -18,6 +18,8 @@ import { findRosterSeat, seatsOwnedBy } from '@/lib/roster';
 import { clanTagsGuestEmissions, markGuestPost, personalWebhookTargets, socialEmissionClans } from '@/lib/emissionRouting';
 import { and, eq, isNull } from 'drizzle-orm';
 import { log } from '@/lib/logger';
+import { effectiveClanRules, levelPostMatches, levelPostOf } from '@/lib/levelRules';
+import { getClanMilestoneRules, getMemberLevelPrefs } from '@/lib/levelRulesStore';
 
 // The plugin POSTs clan notifications (death / kill / rare drop / CA) here instead of straight to
 // Discord, so it never receives or calls a webhook URL itself — the server owns those (RuneLite
@@ -216,11 +218,27 @@ export async function POST(request: Request) {
   // server owns the webhooks. See lib/emissionRouting for the model (and its privacy gate).
   const emissionClans = member ? await socialEmissionClans(member.accountId) : [];
 
+  // LEVEL POSTS ARE RE-CHECKED PER DESTINATION (lib/levelRules). The plugin sends a level-up when it
+  // matches EITHER the member's clan rules or their personal rules, so each destination asks its own
+  // question: a clan channel takes it under that clan's rules after the member's choice, a personal
+  // webhook under the member's own rules. A destination that declines is skipped, never an error.
+  // Released plugins' `level99` / `totalLevel` posts go through the same check.
+  const levelPost = kind !== undefined ? levelPostOf(kind, facts) : null;
+  const levelPrefs = levelPost ? await getMemberLevelPrefs(auth.userId) : null;
+  let declined = 0;
+
   // Destination → the clan it belongs to (for that clan's bot name and icon); personal webhooks have none.
   const urls = new Map<string, number | undefined>();
   // Destinations where this account only GUESTS and the clan asked for guests' posts to be marked.
   const markAsGuest = new Set<string>();
   for (const ec of emissionClans) {
+    if (levelPost && levelPrefs) {
+      const rules = effectiveClanRules(await getClanMilestoneRules(ec.clanId), levelPrefs.clanChoice);
+      if (!levelPostMatches(levelPost, rules)) {
+        declined++;
+        continue;
+      }
+    }
     const webhooks = await getNotificationWebhooks(ec.clanId);
     const url = seasonal ? seasonalWebhookFor(webhooks, channel) : webhookFor(webhooks, channel);
     if (url && !urls.has(url)) {
@@ -249,7 +267,17 @@ export async function POST(request: Request) {
   // addressed one anyway, straight past the gate.
 
   // The person's own destinations, independent of every clan.
-  for (const t of await personalWebhookTargets(auth.userId, channel)) if (!urls.has(t.url)) urls.set(t.url, undefined);
+  const personalTargets = await personalWebhookTargets(auth.userId, channel);
+  if (levelPost && levelPrefs && personalTargets.length > 0 && !levelPostMatches(levelPost, levelPrefs.personal)) {
+    declined += personalTargets.length;
+  } else {
+    for (const t of personalTargets) if (!urls.has(t.url)) urls.set(t.url, undefined);
+  }
+
+  if (urls.size === 0 && declined > 0) {
+    // Every destination's rules said no. That is the rules working, not a failure.
+    return NextResponse.json({ ok: true, declined });
+  }
 
   if (urls.size === 0) {
     // No destination anywhere. Not an error; a webhook can be cleared on the site between the

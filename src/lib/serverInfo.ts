@@ -122,6 +122,11 @@ export const PLUGIN_CAPABILITIES = [
   // Discord embed itself, so a plugin can stop shipping embed wording. A plugin only sends facts where
   // this is advertised; the old `embed` passthrough stays for released plugins.
   'site-embeds',
+  // Level milestone rules (lib/levelRules): /api/plugin/config carries `levelRules` {clan, personal}
+  // for a signed-in member, and /api/plugin/notify accepts kind `level` (any skill level) and
+  // `totalLevel.milestone`, re-checking each destination's rules before posting. Without it the
+  // plugin keeps its built-in 99s / every-100-from-1800 / max behaviour.
+  'level-rules',
 ] as const;
 
 /** The `server` block returned to the plugin (and /api/version). */

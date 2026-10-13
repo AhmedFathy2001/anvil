@@ -18,7 +18,7 @@
 // Pure: no database, no network — the route validates and calls `buildPluginEmbed`.
 
 import { clamp, code, LIMIT, type DiscordEmbed, type DiscordEmbedField } from './discordEmbeds';
-import { itemIconUrl } from './tileIcons';
+import { itemIconUrl, skillIconUrl } from './tileIcons';
 
 export const PLUGIN_EMBED_KINDS = [
   'drop',
@@ -29,6 +29,8 @@ export const PLUGIN_EMBED_KINDS = [
   'diary',
   'quest',
   'level99',
+  // Any skill level the member's rules post (capability 'level-rules'); 99 reads exactly like level99.
+  'level',
   'totalLevel',
 ] as const;
 export type PluginEmbedKind = (typeof PLUGIN_EMBED_KINDS)[number];
@@ -127,6 +129,16 @@ export interface Level99Facts {
   skills: number;
 }
 
+export interface LevelFacts {
+  rsn?: string | null;
+  skill: string;
+  /** The level reached — the highest crossed that one of the member's rule sets posts. */
+  level: number;
+  /** Skills at 99 now, and how many skills there are. */
+  at99: number;
+  skills: number;
+}
+
 export interface TotalLevelFacts {
   rsn?: string | null;
   /** The milestone announced (a round number, or the max total when `maxed`). */
@@ -135,6 +147,8 @@ export interface TotalLevelFacts {
   /** Live total and the max total, for the "to go" line. Omitted by a build not chasing max. */
   current?: number | null;
   max?: number | null;
+  /** The round milestone that matched the rules (e.g. 1900); absent on a max. The route re-checks it. */
+  milestone?: number | null;
 }
 
 export type PluginEmbedFacts =
@@ -146,6 +160,7 @@ export type PluginEmbedFacts =
   | { kind: 'diary'; facts: DiaryFacts }
   | { kind: 'quest'; facts: QuestFacts }
   | { kind: 'level99'; facts: Level99Facts }
+  | { kind: 'level'; facts: LevelFacts }
   | { kind: 'totalLevel'; facts: TotalLevelFacts };
 
 // ── Presentation constants (moved from the plugin) ──────────────────────────────────────────────
@@ -429,6 +444,25 @@ function totalLevelEmbed(f: TotalLevelFacts): DiscordEmbed {
   return e;
 }
 
+/** A 99 — the post the plugin has always made, kept byte-for-byte (tests pin it to the legacy fixture). */
+function level99Embed(f: Level99Facts): DiscordEmbed {
+  const e = textEmbed('🎉 Level 99!', `${who(f.rsn)} just reached **level 99 ${f.skill}**!`);
+  e.fields = [plain('Progress', `${f.at99} of ${f.skills} skills at 99`, true)];
+  return e;
+}
+
+/** Any other level a clan or member chose to post: same voice as the 99, plus the skill's wiki page and icon. */
+function levelEmbed(f: LevelFacts): DiscordEmbed {
+  if (f.level === 99) return level99Embed({ rsn: f.rsn, skill: f.skill, at99: f.at99, skills: f.skills });
+  const e = textEmbed('⬆️ Level up!', `${who(f.rsn)} just reached **level ${f.level} ${f.skill}**!`);
+  e.url = wikiUrl(f.skill);
+  const icon = skillIconUrl(f.skill);
+  if (icon) e.thumbnail = { url: icon };
+  // The same progress line as a 99, when there is any progress to speak of.
+  if (f.at99 > 0 && f.skills > 0) e.fields = [plain('Progress', `${f.at99} of ${f.skills} skills at 99`, true)];
+  return e;
+}
+
 /** Compose the embed for already-validated facts. */
 export function pluginEmbed(input: PluginEmbedFacts, opts: BuildOptions = {}): DiscordEmbed {
   const random = opts.random ?? Math.random;
@@ -454,12 +488,8 @@ export function pluginEmbed(input: PluginEmbedFacts, opts: BuildOptions = {}): D
       e = textEmbed('🗺️ Quest complete!', `${who(f.rsn)} just completed **${f.quest}**${tag}!`);
       break;
     }
-    case 'level99': {
-      const f = input.facts;
-      e = textEmbed('🎉 Level 99!', `${who(f.rsn)} just reached **level 99 ${f.skill}**!`);
-      e.fields = [plain('Progress', `${f.at99} of ${f.skills} skills at 99`, true)];
-      break;
-    }
+    case 'level99': e = level99Embed(input.facts); break;
+    case 'level': e = levelEmbed(input.facts); break;
     case 'totalLevel': e = totalLevelEmbed(input.facts); break;
   }
   if (opts.imageFilename) e.image = { url: `attachment://${opts.imageFilename}` };
@@ -583,12 +613,20 @@ function parseFacts(kind: PluginEmbedKind, raw: unknown): PluginEmbedFacts {
         kind,
         facts: { rsn: rsnOf(o), skill: str(o, 'skill', 32), at99: int(o, 'at99'), skills: int(o, 'skills') },
       };
+    case 'level': {
+      const level = int(o, 'level');
+      if (level < 1 || level > 99) throw new BadFacts('level must be 1..99');
+      return {
+        kind,
+        facts: { rsn: rsnOf(o), skill: str(o, 'skill', 32), level, at99: int(o, 'at99'), skills: int(o, 'skills') },
+      };
+    }
     case 'totalLevel':
       return {
         kind,
         facts: {
           rsn: rsnOf(o), total: int(o, 'total'), maxed: flag(o, 'maxed'), current: optInt(o, 'current'),
-          max: optInt(o, 'max'),
+          max: optInt(o, 'max'), milestone: optInt(o, 'milestone'),
         },
       };
   }

@@ -295,3 +295,59 @@ test('collection-log ranks (ported from the plugin ClogRank)', () => {
   assert.equal(clogRank(1600, 0), 'Dragon');
   assert.equal(clogRank(0, 1712), null);
 });
+
+// ── `level` (capability 'level-rules') ──────────────────────────────────────────────────────────
+
+test('a level-99 `level` post is exactly the legacy level99 post', () => {
+  const out = buildPluginEmbed('level', { rsn: 'Zezima', skill: 'Slayer', level: 99, at99: 12, skills: 23 }, {
+    imageFilename: 'anvil-achievement.png',
+  });
+  assert.ok(out.ok, out.ok ? '' : out.error);
+  assert.deepEqual(JSON.parse(JSON.stringify(out.embed)), legacy['level99.slayer']);
+});
+
+test('a level below 99 reads in the same voice, with the skill wiki page and icon', () => {
+  const out = buildPluginEmbed('level', { rsn: 'Zezima', skill: 'Slayer', level: 85, at99: 12, skills: 23 }, {
+    imageFilename: 'anvil-achievement.png',
+  });
+  assert.ok(out.ok, out.ok ? '' : out.error);
+  // No author line, like the 99 it sits beside (the message-only achievement posts never had one).
+  assert.deepEqual(JSON.parse(JSON.stringify(out.embed)), {
+    title: '⬆️ Level up!',
+    description: 'Zezima just reached **level 85 Slayer**!',
+    color: 4886745,
+    url: 'https://oldschool.runescape.wiki/w/Slayer',
+    thumbnail: { url: 'https://oldschool.runescape.wiki/images/Slayer_icon.png' },
+    fields: [{ name: 'Progress', value: '12 of 23 skills at 99', inline: true }],
+    image: { url: 'attachment://anvil-achievement.png' },
+  });
+});
+
+test('a level post with no 99s yet and no rsn drops the progress line', () => {
+  const out = buildPluginEmbed('level', { skill: 'Runecraft', level: 50, at99: 0, skills: 23 });
+  assert.ok(out.ok);
+  assert.equal(out.embed.author, undefined);
+  assert.equal(out.embed.fields, undefined);
+  assert.equal(out.embed.description, 'A clan member just reached **level 50 Runecraft**!');
+});
+
+test('bad level facts are refused', () => {
+  for (const facts of [
+    { skill: 'Slayer', level: 0, at99: 1, skills: 23 },
+    { skill: 'Slayer', level: 100, at99: 1, skills: 23 },
+    { skill: 'Slayer', level: 50.5, at99: 1, skills: 23 },
+    { skill: '', level: 50, at99: 1, skills: 23 },
+    { skill: 'Slayer', level: 50, skills: 23 },
+  ]) {
+    assert.equal(buildPluginEmbed('level', facts).ok, false, JSON.stringify(facts));
+  }
+});
+
+test('totalLevel accepts `milestone` and still renders the legacy post', () => {
+  const out = buildPluginEmbed('totalLevel', { rsn: 'Zezima', total: 1800, milestone: 1800, current: 1803, max: 2277 }, {
+    imageFilename: 'anvil-achievement.png',
+  });
+  assert.ok(out.ok);
+  assert.deepEqual(JSON.parse(JSON.stringify(out.embed)), legacy['totalLevel.milestone']);
+  assert.equal(buildPluginEmbed('totalLevel', { total: 1800, milestone: 'x' }).ok, false);
+});

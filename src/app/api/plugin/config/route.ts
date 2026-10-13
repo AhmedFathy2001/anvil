@@ -1,3 +1,4 @@
+import { pluginLevelRules } from '@/lib/levelRulesStore';
 import { resolvePluginClan } from '@/lib/auth';
 import { howItCounts, parseCountMode, parseSetsRequired } from '@/lib/collectionSets';
 import { noClanForPlugin } from '@/lib/pluginNoClan';
@@ -352,6 +353,9 @@ export async function GET(request: Request) {
         alwaysNotifyItemIds,
         showKillCount,
         dropRarityFloor,
+        // Which level-ups / total-level steps this member's posts announce (lib/levelRules,
+        // capability 'level-rules'): the clan channel's effective rules and their personal webhooks'.
+        levelRules: await pluginLevelRules(clan.id, userOnly.userId),
         // What only the server can know about a drop (lib/dropFacts): which monster a pet really
         // comes from, and which items a source hands over every kill. Posted drops read from these
         // instead of guessing from the last loot event.
@@ -944,6 +948,9 @@ export async function GET(request: Request) {
     alwaysNotifyItemIds,
     showKillCount,
     dropRarityFloor,
+    // See the unenrolled branch above (capability 'level-rules'). Only for a signed-in member: an
+    // event token with no login behind it gets no field, and the plugin keeps its built-in rules.
+    ...(auth.userId != null ? { levelRules: await pluginLevelRules(clan.id, auth.userId) } : {}),
     // See the unenrolled branch above — the drop channel posts with or without a live board, so the
     // facts behind those posts ship on both shapes.
     dropFacts: facts,
