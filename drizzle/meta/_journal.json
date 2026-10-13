@@ -631,6 +631,13 @@
       "when": 1791163900000,
       "tag": "0131_retired_clan_slugs",
       "breakpoints": true
+    },
+    {
+      "idx": 132,
+      "version": "7",
+      "when": 1791164000000,
+      "tag": "0132_users_discord_global_name",
+      "breakpoints": true
     }
   ]
 }

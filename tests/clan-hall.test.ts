@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { inviteCode, isSnowflake, parseWidget, type GuildWidget } from '../src/lib/discordWidget';
-import { hallSwitches, mergeClanHall, nameCandidates, IN_GAME_WINDOW_MS, type HallRosterEntry } from '../src/lib/clanHallMerge';
+import { hallSwitches, indexDiscordNames, mergeClanHall, nameCandidates, IN_GAME_WINDOW_MS, type HallRosterEntry } from '../src/lib/clanHallMerge';
 import { escapeHtml, renderBadgeSvg, renderEmbedHtml } from '../src/lib/discordEmbedRender';
 
 const NOW = Date.parse('2026-10-13T12:00:00.000Z');
@@ -71,6 +71,8 @@ test('name candidates: nickname-sync "A / B", tags and underscores', () => {
   assert.deepEqual(nameCandidates('Mossy_Rocks / Mossy Alt').slice(0, 2), ['mossy rocks', 'mossy alt']);
   assert.ok(nameCandidates('[AFK] Lil Tbow').includes('lil tbow'));
   assert.ok(nameCandidates('Name | PvM').includes('name'));
+  const both = nameCandidates('Preduces (Predu)');
+  assert.ok(both.includes('preduces') && both.includes('predu'), 'either half of "A (B)" may be the RSN');
 });
 
 test('merge: matches, counts in game once, and adds plugin-only players', () => {
@@ -164,4 +166,47 @@ test('every card switch is off until an admin turns it on', () => {
   assert.deepEqual(hallSwitches((k) => set[k]), { enabled: true, publicNames: false, embed: true });
   // Anything but an explicit 'true' stays off.
   assert.equal(hallSwitches(() => '1').enabled, false);
+});
+
+test('discord names: a known Discord id carries its accounts to the widget name, whatever the RSN', () => {
+  const members = [
+    { user: { id: '111', username: 'predu', global_name: 'Predu' }, nick: 'Preduces (Predu)', roles: [] },
+    { user: { id: '222', username: 'alex1' }, nick: 'Alex', roles: [] },
+    // Somebody else in the server also goes by "Alex": that name can no longer pick one of them.
+    { user: { id: '333', username: 'alex2' }, nick: 'Alex', roles: [] },
+    { user: { id: '444', username: 'stranger' }, nick: 'Stranger', roles: [] },
+  ];
+  const index = indexDiscordNames(members, new Map([['111', [7, 8]], ['222', [9]]]));
+  assert.deepEqual(index.get('preduces (predu)'), [7, 8]);
+  assert.deepEqual(index.get('predu'), [7, 8]);
+  assert.equal(index.get('alex'), undefined, 'a shared name is dropped');
+  assert.deepEqual(index.get('alex1'), [9]);
+  assert.equal(index.get('stranger'), undefined, 'only ids we know own accounts');
+
+  // Names saved at login, before the bot has read the server: username + display name, no nickname.
+  const saved = indexDiscordNames([{ user: { id: '111', username: 'predu', global_name: 'Predu the Great' }, nick: null, roles: [] }], new Map([['111', [7, 8]]]));
+  assert.deepEqual(saved.get('predu the great'), [7, 8]);
+  // ...and the same id read from the server too is one person, not a clash.
+  assert.deepEqual(indexDiscordNames([...members, { user: { id: '111', username: 'predu' }, nick: null, roles: [] }], new Map([['111', [7]]])).get('predu'), [7]);
+
+  const roster: HallRosterEntry[] = [
+    { accountId: 7, rsn: 'Zezima', rank: 'General', liveStatsAt: null },
+    { accountId: 8, rsn: 'Zezima Alt', rank: null, liveStatsAt: ago(60_000) },
+  ];
+  const hall = mergeClanHall({
+    widget: { guildId: '1', name: 'X', instantInvite: null, presenceCount: 1, channels: [],
+      members: [{ id: '0', username: 'Preduces (Predu)', status: 'online', avatarUrl: null, game: null, channelId: null }] },
+    roster,
+    weekXp: new Map(),
+    teamByAccount: new Map(),
+    inviteUrl: null,
+    includeNames: true,
+    discordNames: index,
+    now: NOW,
+  });
+  assert.equal(hall.people!.length, 1, 'their alt is the same person, not a second row');
+  const p = hall.people![0];
+  assert.equal(p.name, 'Preduces (Predu)');
+  assert.equal(p.rsn, 'Zezima Alt', 'the account they are playing stands for them');
+  assert.equal(p.inGame, true);
 });

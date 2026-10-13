@@ -9,6 +9,7 @@ import { verifyUser } from '@/lib/auth';
 import { viewerMemberIds } from '@/lib/competitionView';
 import { fetchGuildWidget, isSnowflake, type WidgetResult } from '@/lib/discordWidget';
 import { HALL_EMBED_KEY, HALL_ENABLED_KEY, HALL_PUBLIC_NAMES_KEY, hallSwitches, mergeClanHall, type ClanHallView, type HallTeam } from '@/lib/clanHallMerge';
+import { hallDiscordNames } from '@/lib/clanHallDiscordNames';
 import { getDiscordInviteUrl } from '@/lib/pluginConfig';
 import { botMadeInviteUrl } from '@/lib/discordWidgetInvite';
 import { getSettingMap } from '@/lib/settings';
@@ -106,7 +107,7 @@ export async function clanHallView(
     .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.kind, 'member'), isNull(clanRoster.leftAt)));
   const accountIds = roster.map((r) => r.accountId);
 
-  const [xpRows, teamRows, inviteUrl] = await Promise.all([
+  const [xpRows, teamRows, inviteUrl, discordNames] = await Promise.all([
     accountIds.length
       ? db
           .select({ accountId: memberDailyStats.accountId, xp: sql<number>`coalesce(sum(${memberDailyStats.xpGained}), 0)` })
@@ -134,6 +135,7 @@ export async function clanHallView(
           .orderBy(desc(events.startDate))
       : Promise.resolve([]),
     getDiscordInviteUrl(clanId),
+    hallDiscordNames(clanId),
   ]);
 
   const joinUrl = await pickJoinUrl(clanId, inviteUrl, result.widget.instantInvite, config.enabled);
@@ -153,6 +155,7 @@ export async function clanHallView(
     teamByAccount,
     inviteUrl: joinUrl,
     includeNames: opts.includeNames,
+    discordNames,
     now: now.getTime(),
   });
   return { ...view, viewerTeamId: opts.includeNames ? viewerTeamId : null };

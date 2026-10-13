@@ -141,6 +141,7 @@ export async function completeDiscordLogin(
         displayName,
         discordId: discordUser.id,
         discordUsername: discordUser.username,
+        discordGlobalName: discordUser.globalName,
         discordAvatar: discordUser.avatar,
         email: discordUser.email,
         role,
@@ -172,6 +173,7 @@ export async function completeDiscordLogin(
       .update(users)
       .set({
         discordUsername: discordUser.username,
+        discordGlobalName: discordUser.globalName,
         discordAvatar: discordUser.avatar,
         email: discordUser.email ?? user.email,
         displayName: user.displayName || displayName,

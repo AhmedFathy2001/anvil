@@ -1128,6 +1128,9 @@ export const users = pgTable('users', {
   // Discord OAuth identity (the primary login path for non-staff users)
   discordId: text('discord_id').unique(),
   discordUsername: text('discord_username'),
+  // Discord's display name as of the last login (users.displayName is ours and editable). The clan
+  // hall matches Discord's widget names against this and the username.
+  discordGlobalName: text('discord_global_name'),
   discordAvatar: text('discord_avatar'),
   email: text('email'),
   lastLoginAt: text('last_login_at'),

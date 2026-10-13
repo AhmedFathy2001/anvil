@@ -449,7 +449,7 @@ export async function createGuildRole(
   return (await res.json()) as DiscordRole;
 }
 
-interface DiscordGuildMember {
+export interface DiscordGuildMember {
   user?: { id: string; username: string; global_name?: string };
   nick?: string | null;
   roles: string[];
@@ -482,11 +482,11 @@ export interface SweepContext {
 
 // Paginate the full guild member list. Requires the privileged "Server Members Intent" on the bot;
 // without it Discord returns 403 → we return null and the caller falls back to per-member lookups.
-async function fetchAllGuildMembers(cfg: RoleSyncConfig): Promise<DiscordGuildMember[] | null> {
+export async function fetchAllGuildMembers(cfg: { botToken: string; guildId: string }): Promise<DiscordGuildMember[] | null> {
   const all: DiscordGuildMember[] = [];
   let after = '0';
   for (let page = 0; page < 30; page++) {
-    const res = await discordFetch(cfg, `/guilds/${cfg.guildId}/members?limit=1000&after=${after}`);
+    const res = await discordRest(cfg.botToken, `/guilds/${cfg.guildId}/members?limit=1000&after=${after}`);
     if (res.status === 403) {
       log.warn('discord-roles.list-members-forbidden', { note: 'enable Server Members Intent for bulk sync' });
       return null;
