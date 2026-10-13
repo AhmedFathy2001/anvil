@@ -27,6 +27,7 @@ import {
 import {
   buildClogProfile,
   buildLuckBoards,
+  pickBoard,
   buildPageItems,
   expectationFor,
   formatSources,
@@ -36,7 +37,7 @@ import {
   type LuckSource,
 } from '../src/lib/clogProfile.ts';
 import { clogPageItems, clogPageNames } from '../src/lib/clogDataset.ts';
-import { raidSourcesByItem, raidUniqueChances } from '../src/lib/raidLuck.ts';
+import { DIRECT_RAID_REWARDS, raidSourcesByItem, raidUniqueChances } from '../src/lib/raidLuck.ts';
 
 test('chancePerKill: rolls combine as independent chances, never as a sum', () => {
   assert.equal(chancePerKill(100), 0.01, 'a single roll is exact, not 0.010000000000000009');
@@ -156,8 +157,15 @@ test('buildLuckBoards: sorted by how unlikely, not by the raw multiple', () => {
 });
 
 test('boards respect their limit', () => {
-  const many = Array.from({ length: 40 }, (_, i) => member(i + 1, `M${i}`, 5_000, 0));
-  assert.equal(buildLuckBoards([{ itemId: 1, itemName: 'Pet', source: 'Z', sources: [RATE], members: many }], 5).dry.length, 5);
+  // Distinct items: one item is capped at two entries (pickBoard), which is its own test below.
+  const boards = Array.from({ length: 40 }, (_, i) => ({
+    itemId: i + 1,
+    itemName: `Item ${i}`,
+    source: 'Z',
+    sources: [RATE],
+    members: [member(i + 1, `M${i}`, 5_000, 0)],
+  }));
+  assert.equal(buildLuckBoards(boards, 5).dry.length, 5);
 });
 
 // ── profile assembly ─────────────────────────────────────────────────────────────────────────────
@@ -417,8 +425,12 @@ test('raidSourcesByItem: the two halves multiply, and the assumption is the over
   const found = [...halved.values()].flat().find((s) => s.bossKey === 'chambersOfXeric' && Math.abs(s.denominator - 450) < 1);
   assert.ok(found, 'halving the assumed unique chance halves every rate under it');
 
-  // Every raid rate is flagged, because the UI has to be able to say so.
-  assert.ok([...base.values()].flat().every((s) => s.assumed === true));
+  // Every rate resting on the unique-chance assumption is flagged, because the UI has to be able to
+  // say so. The per-raid rewards (DIRECT_RAID_REWARDS) are measured rates and are not.
+  for (const [itemId, sources] of base) {
+    if (DIRECT_RAID_REWARDS[itemId]) continue;
+    assert.ok(sources.every((s) => s.assumed === true), `item ${itemId}`);
+  }
 });
 
 test('raidUniqueChances: a bad override is ignored rather than trusted', () => {
@@ -564,4 +576,49 @@ test('a shared table (the rare drop table) leaves the board, a drop several boss
   // Several BOSSES sharing a drop is fine: their kills are all counted, and their expectations add.
   const pick = sourcesOf('dragon pickaxe');
   assert.ok(pick.length >= 5, `dragon pickaxe should sum its boss sources, got ${JSON.stringify(pick)}`);
+});
+
+test('a team boss is judged against a range: dry only in a big team, spooned only against solo', () => {
+  const nex: LuckRateSource = { source: 'Nex', bossKey: 'nex', denominator: 258, rolls: 1, bundle: 1, partyMax: 5 };
+  const e = expectationFor([nex], { nex: 2_832 });
+  assert.ok(Math.abs(e.expected - 2_832 / 258) < 1e-9);
+  assert.ok(Math.abs(e.expectedLow - 2_832 / 258 / 5) < 1e-9);
+  // 1 of ~11 solo is dry on one number; against a five-man's ~2.2 it is ordinary.
+  assert.equal(assessLuckAt(e.expected, 2_832, 1).verdict, 'dry');
+  assert.equal(assessLuckAt(e.expected, 2_832, 1, e.expectedLow).verdict, 'on-rate');
+  // Ahead even of a solo player is still spooned.
+  assert.equal(assessLuckAt(e.expected, 2_832, 30, e.expectedLow).verdict, 'spooned');
+  assert.equal(formatCount(1, e.expected, e.expectedLow), '1 of 2.2–11 expected');
+  assert.equal(formatCount(1, 4, 4), '1 of 4.0 expected');
+});
+
+test('per-raid rewards use their own rate and only the mode that drops them', () => {
+  const kit = raidSourcesByItem().get(24670) ?? [];
+  assert.deepEqual(kit.map((s) => [s.bossKey, s.denominator]), [['chambersOfXericChallengeMode', 75]]);
+  // ~300 CM raids at 1 in 75 owe 4 kits; normal raids owe nothing.
+  assert.equal(expectationFor(kit, { chambersOfXeric: 1_100, chambersOfXericChallengeMode: 300 }).expected, 4);
+  const zik = raidSourcesByItem().get(22473) ?? [];
+  assert.deepEqual(zik.map((s) => s.denominator).sort((a, b) => a - b), [500, 650]);
+});
+
+const entry = (accountId: number, itemId: number, tail: number) =>
+  ({ accountId, rsn: `P${accountId}`, itemId, itemName: `I${itemId}`, source: 'x', sources: [], assessment: { tail } }) as unknown as Parameters<typeof pickBoard>[0][number];
+
+test('pickBoard: one entry per person, two per item, most remarkable first', () => {
+  const picked = pickBoard([entry(1, 10, 0.001), entry(1, 11, 0.002), entry(2, 10, 0.003), entry(3, 10, 0.004), entry(4, 12, 0.01)], 10);
+  assert.deepEqual(picked.map((e) => [e.accountId, e.itemId]), [[1, 10], [2, 10], [4, 12]]);
+});
+
+test('pickBoard: headliners stay put, the rest rotate with the day', () => {
+  const pool = Array.from({ length: 40 }, (_, i) => entry(i + 1, i + 1, (i + 1) / 1000));
+  const a = pickBoard(pool, 15, '2026-10-13');
+  const b = pickBoard(pool, 15, '2026-10-14');
+  assert.equal(a.length, 15);
+  assert.deepEqual(a.slice(0, 5).map((e) => e.accountId), [1, 2, 3, 4, 5]);
+  assert.deepEqual(b.slice(0, 5).map((e) => e.accountId), [1, 2, 3, 4, 5]);
+  assert.notDeepEqual(a.map((e) => e.accountId), b.map((e) => e.accountId));
+  assert.deepEqual(pickBoard(pool, 15, '2026-10-13'), a, 'the same day is the same board');
+  // Still read top to bottom by how remarkable each is.
+  const tails = a.map((e) => e.assessment.tail);
+  assert.deepEqual(tails, [...tails].sort((x, y) => x - y));
 });

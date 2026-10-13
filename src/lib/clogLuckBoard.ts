@@ -34,6 +34,25 @@ interface DropEntry {
   r?: number; // rolls per kill
 }
 
+/**
+ * Bosses where ONE drop per kill goes to one member of the team, and the largest team they are
+ * usually done in. The hiscores count kills, not party size, so these are judged against a range
+ * (LuckRateSource.partyMax): dry only if dry even in a team this big, spooned only if ahead even of
+ * a solo player. Bosses that roll loot for every player (Royal Titans, the Hueycoatl) are not here.
+ */
+export const GROUP_BOSS_PARTY_MAX: Record<string, number> = {
+  nex: 5,
+  nightmare: 5,
+  corporealBeast: 3,
+  generalGraardor: 3,
+  commanderZilyana: 3,
+  kreeArra: 3,
+  krilTsutsaroth: 3,
+  callisto: 3,
+  venenatis: 3,
+  vetion: 3,
+};
+
 /** Rarer than this isn't worth a board entry — a 1-in-30 seed isn't a dry streak, it's a Tuesday. */
 const MIN_DENOMINATOR = 100;
 
@@ -190,6 +209,7 @@ export function luckCandidates(raidOverrides?: unknown): LuckCandidate[] {
         denominator: rate,
         rolls: drop.r && drop.r > 0 ? drop.r : 1,
         bundle: bundleSize(drop),
+        partyMax: GROUP_BOSS_PARTY_MAX[bossKey],
       });
       byItem.set(drop.i, list);
     }
@@ -429,12 +449,13 @@ export async function getLuckBoards(clanId: number, limit = 15): Promise<LuckBoa
     sources: c.sources,
     members: synced.map((m): LuckSource => {
       const memberKills = kills.get(m.id) ?? {};
-      const { expected, bundle, kills: totalKills } = expectationFor(c.sources, memberKills);
+      const { expected, expectedLow, bundle, kills: totalKills } = expectationFor(c.sources, memberKills);
       return {
         accountId: m.id,
         rsn: m.rsn,
         kills: totalKills,
         expected,
+        expectedLow,
         // The stack collapses to the number of times the table actually hit. Without this a single
         // 750-axe drop reads as 750 drops against an expectation of two.
         obtained: dropsFromQuantity(owned.get(`${m.id}:${c.itemId}`) ?? 0, bundle),
@@ -442,7 +463,8 @@ export async function getLuckBoards(clanId: number, limit = 15): Promise<LuckBoa
     }),
   }));
 
-  const boards = buildLuckBoards(shaped, limit);
+  // The day (UTC) as the rotation key: past the headliners, the board changes daily (pickBoard).
+  const boards = buildLuckBoards(shaped, limit, new Date().toISOString().slice(0, 10));
   return {
     ...boards,
     membersConsidered: synced.length,
@@ -459,6 +481,7 @@ export interface MemberLuckItem {
   sources: LuckRateSource[];
   kills: number;
   expected: number;
+  expectedLow: number;
   obtained: number;
   assessment: ReturnType<typeof assessLuckAt>;
 }
@@ -500,7 +523,7 @@ export async function getMemberLuck(accountId: number, clanId: number | null, li
 
   const items: MemberLuckItem[] = [];
   for (const candidate of candidates) {
-    const { expected, bundle, kills: kc } = expectationFor(candidate.sources, kills);
+    const { expected, expectedLow, bundle, kills: kc } = expectationFor(candidate.sources, kills);
     if (expected <= 0) continue;
     const obtained = dropsFromQuantity(owned.get(candidate.itemId) ?? 0, bundle);
     items.push({
@@ -510,8 +533,9 @@ export async function getMemberLuck(accountId: number, clanId: number | null, li
       sources: candidate.sources,
       kills: kc,
       expected,
+      expectedLow,
       obtained,
-      assessment: assessLuckAt(expected, kc, obtained),
+      assessment: assessLuckAt(expected, kc, obtained, expectedLow),
     });
   }
 

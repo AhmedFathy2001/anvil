@@ -102,7 +102,7 @@ export default function ClanLuck({ dry, spooned, membersConsidered, itemsConside
                   itemName={e.itemName}
                   source={e.source}
                   tone="dry"
-                  headline={formatCount(e.assessment.obtained, e.assessment.expected)}
+                  headline={formatCount(e.assessment.obtained, e.assessment.expected, e.assessment.expectedLow)}
                   detail={[
                     `${e.assessment.kills.toLocaleString()} KC`,
                     formatSources(e.sources),
@@ -136,7 +136,7 @@ export default function ClanLuck({ dry, spooned, membersConsidered, itemsConside
                   itemName={e.itemName}
                   source={e.source}
                   tone="spoon"
-                  headline={formatCount(e.assessment.obtained, e.assessment.expected)}
+                  headline={formatCount(e.assessment.obtained, e.assessment.expected, e.assessment.expectedLow)}
                   detail={[
                     `${e.assessment.kills.toLocaleString()} KC`,
                     formatSources(e.sources),

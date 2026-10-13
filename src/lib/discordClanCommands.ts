@@ -912,9 +912,9 @@ async function clogPageResult(
 
 // ── /luck ───────────────────────────────────────────────────────────────────────────────────────
 
-function luckItemLine(itemName: string, obtained: number, expected: number, tail: number): string {
+function luckItemLine(itemName: string, obtained: number, expected: number, tail: number, expectedLow = expected): string {
   const odds = formatOdds(tail);
-  const count = formatCount(obtained, expected);
+  const count = formatCount(obtained, expected, expectedLow);
   return `• **${clamp(itemName, 40)}** — ${count}${odds ? ` (${odds})` : ''}`;
 }
 
@@ -936,14 +936,14 @@ async function memberLuckResult(ctx: ClanCommandCtx): Promise<ClanResult> {
     body.push(
       '',
       t.luck.dryHeading,
-      ...luck.dry.map((d) => luckItemLine(d.itemName, d.obtained, d.expected, d.assessment.tail)),
+      ...luck.dry.map((d) => luckItemLine(d.itemName, d.obtained, d.expected, d.assessment.tail, d.expectedLow)),
     );
   }
   if (luck.spooned.length) {
     body.push(
       '',
       t.luck.spoonedHeading,
-      ...luck.spooned.map((d) => luckItemLine(d.itemName, d.obtained, d.expected, d.assessment.tail)),
+      ...luck.spooned.map((d) => luckItemLine(d.itemName, d.obtained, d.expected, d.assessment.tail, d.expectedLow)),
     );
   }
   body.push('', clanLine(clan, syncedFrag(t, clogRow?.syncedAt)));
@@ -974,7 +974,7 @@ async function clanLuckResult(ctx: ClanCommandCtx): Promise<ClanResult> {
     body.push(
       t.luck.dryHeading,
       ...boards.dry.map(
-        (e) => `• **${clamp(e.rsn, 32)}** — ${clamp(e.itemName, 32)} ${formatCount(e.assessment.obtained, e.assessment.expected)}`,
+        (e) => `• **${clamp(e.rsn, 32)}** — ${clamp(e.itemName, 32)} ${formatCount(e.assessment.obtained, e.assessment.expected, e.assessment.expectedLow)}`,
       ),
     );
   }
@@ -983,7 +983,7 @@ async function clanLuckResult(ctx: ClanCommandCtx): Promise<ClanResult> {
       '',
       t.luck.spoonedHeading,
       ...boards.spooned.map(
-        (e) => `• **${clamp(e.rsn, 32)}** — ${clamp(e.itemName, 32)} ${formatCount(e.assessment.obtained, e.assessment.expected)}`,
+        (e) => `• **${clamp(e.rsn, 32)}** — ${clamp(e.itemName, 32)} ${formatCount(e.assessment.obtained, e.assessment.expected, e.assessment.expectedLow)}`,
       ),
     );
   }

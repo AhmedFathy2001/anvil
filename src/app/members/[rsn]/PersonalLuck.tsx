@@ -15,6 +15,8 @@ export interface LuckItemView {
   sources: LuckRateSource[];
   kills: number;
   expected: number;
+  /** The low end for team bosses; equal to `expected` otherwise. */
+  expectedLow: number;
   obtained: number;
   tail: number;
 }
@@ -44,7 +46,7 @@ function ItemRow({ item, tone }: { item: LuckItemView; tone: 'dry' | 'spoon' }) 
         </div>
       </div>
       <div className={`text-[11px] shrink-0 tabular-nums ${tone === 'dry' ? 'text-red-400' : 'text-accent-green'}`}>
-        {formatCount(item.obtained, item.expected)}
+        {formatCount(item.obtained, item.expected, item.expectedLow)}
       </div>
     </li>
   );

@@ -100,6 +100,26 @@ const STACKED_RAID_REWARDS = new Set<number>([
   22446, // Vial of blood — Theatre of Blood pays these in a stack
 ]);
 
+/**
+ * Raid rewards rolled ONCE PER RAID at their own rate, outside the unique table — and some only in
+ * one mode. The dataset files them in the chest's table at that rate, which read them as a share of
+ * the purple table (multiplied by the unique chance) and counted every mode's KC: the CM colour kit
+ * came out at 1 in 1,725 from any Chambers raid instead of 1 in 75 from Challenge Mode only, and
+ * Lil' zik at 1 in 29,250 instead of 1 in 650.
+ *
+ * Rolled for the team and handed to one member, so they carry the same party range as a team boss
+ * (LuckRateSource.partyMax).
+ */
+export const DIRECT_RAID_REWARDS: Record<number, Record<string, number>> = {
+  24670: { chambersOfXericChallengeMode: 75 }, // Twisted ancestral colour kit
+  22386: { chambersOfXericChallengeMode: 400 }, // Metamorphic dust
+  25742: { theatreOfBloodHardMode: 100 }, // Holy ornament kit
+  25744: { theatreOfBloodHardMode: 150 }, // Sanguine ornament kit
+  25746: { theatreOfBloodHardMode: 275 }, // Sanguine dust
+  22473: { theatreOfBlood: 650, theatreOfBloodHardMode: 500 }, // Lil' zik
+};
+const RAID_PARTY_MAX = 5;
+
 /** A tier is bulk supply when it is a crowd the collection log almost entirely ignores. */
 function supplyTierItems(table: RaidTable, isLogged: (id: number) => boolean): Set<number> {
   const byShare = new Map<number, number[]>();
@@ -135,7 +155,7 @@ export function raidSourcesByItem(overrides?: unknown): Map<number, LuckRateSour
     const supply = supplyTierItems(table, isLogged);
     for (const item of table.items) {
       if (!Number.isFinite(item.d) || item.d <= 0) continue;
-      if (supply.has(item.i) || STACKED_RAID_REWARDS.has(item.i)) continue;
+      if (supply.has(item.i) || STACKED_RAID_REWARDS.has(item.i) || DIRECT_RAID_REWARDS[item.i]) continue;
       const list = out.get(item.i) ?? [];
       list.push({
         source: table.label,
@@ -148,6 +168,23 @@ export function raidSourcesByItem(overrides?: unknown): Map<number, LuckRateSour
       });
       out.set(item.i, list);
     }
+  }
+
+  for (const [id, modes] of Object.entries(DIRECT_RAID_REWARDS)) {
+    const itemId = Number(id);
+    out.set(
+      itemId,
+      Object.entries(modes)
+        .filter(([bossKey]) => tables[bossKey])
+        .map(([bossKey, denominator]) => ({
+          source: tables[bossKey].label,
+          bossKey,
+          denominator,
+          rolls: 1,
+          bundle: 1,
+          partyMax: RAID_PARTY_MAX,
+        })),
+    );
   }
   return out;
 }

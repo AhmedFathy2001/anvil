@@ -206,6 +206,7 @@ function shapeLuckItem(item: {
   sources: { source: string; bossKey: string; denominator: number; rolls: number; bundle: number }[];
   kills: number;
   expected: number;
+  expectedLow: number;
   obtained: number;
   assessment: { tail: number };
 }) {
@@ -216,6 +217,7 @@ function shapeLuckItem(item: {
     sources: item.sources,
     kills: item.kills,
     expected: item.expected,
+    expectedLow: item.expectedLow,
     obtained: item.obtained,
     tail: item.assessment.tail,
   };

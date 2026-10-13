@@ -115,6 +115,8 @@ export interface LuckAssessment {
   /** How many they actually have — the collection log's own count, not a presence flag. */
   obtained: number;
   expected: number;
+  /** The low end when the rate depends on party size (a big team's share); equal to `expected` otherwise. */
+  expectedLow: number;
   /** obtained ÷ expected. 1 is on rate; 0.07 is the enhanced seed at 30k. */
   ratio: number;
   /** dry / on-rate / spooned. Most people are on rate, and the model should say so. */
@@ -144,9 +146,13 @@ export function assessLuck(chance: number, kills: number, obtained: number): Luc
  * and crediting only the page's own boss counts a Drake farmer's stack against zero Drake kills. Sum
  * the expectations first, then judge the total against the count once.
  */
-export function assessLuckAt(expected: number, kills: number, obtained: number): LuckAssessment {
+export function assessLuckAt(expected: number, kills: number, obtained: number, expectedLow = expected): LuckAssessment {
   const got = Math.max(0, obtained);
-  const dryTail = poissonAtMost(got, expected);
+  // A RANGE when the rate depends on a party size the hiscores don't record (lib/clogProfile
+  // expectationFor): dry is judged against the low end — dry even if they always ran in a big team —
+  // and spooned against the high end — ahead even of a solo player. One number when there is none.
+  const low = Math.min(expectedLow, expected);
+  const dryTail = poissonAtMost(got, low);
   const spoonTail = poissonAtLeast(got, expected);
 
   let verdict: LuckVerdict = 'on-rate';
@@ -159,12 +165,13 @@ export function assessLuckAt(expected: number, kills: number, obtained: number):
     kills,
     obtained: got,
     expected,
+    expectedLow: low,
     ratio: expected > 0 ? got / expected : 0,
     verdict,
     tail: verdict === 'dry' ? dryTail : verdict === 'spooned' ? spoonTail : Math.min(dryTail, spoonTail),
     // Nothing to say about somebody who has barely started: at fewer than half an expected drop,
-    // every result is the same result.
-    notable: verdict !== 'on-rate' && expected >= 0.5,
+    // every result is the same result. A dry call needs that much even at the low end of a range.
+    notable: verdict !== 'on-rate' && (verdict === 'dry' ? low : expected) >= 0.5,
   };
 }
 
@@ -181,8 +188,10 @@ export function formatMultiple(value: number): string | null {
 }
 
 /** "got 1 of 15" — the plain sentence under a board entry, before any statistics. */
-export function formatCount(obtained: number, expected: number): string {
-  const owed = expected >= 10 ? Math.round(expected).toLocaleString() : expected.toFixed(1);
+export function formatCount(obtained: number, expected: number, expectedLow = expected): string {
+  const say = (n: number) => (n >= 10 ? Math.round(n).toLocaleString() : n.toFixed(1));
+  // A team boss: "1 of 3.3–16 expected", a big team's share to a solo player's.
+  const owed = say(expectedLow) === say(expected) ? say(expected) : `${say(expectedLow)}–${say(expected)}`;
   return `${obtained.toLocaleString()} of ${owed} expected`;
 }
 
@@ -226,19 +235,24 @@ export interface LuckTotal {
  * Items with no expectation are skipped, not counted as zero — never having fought something is not
  * bad luck.
  */
-export function aggregateLuck(parts: { expected: number; obtained: number }[]): LuckTotal {
-  let expected = 0;
+export function aggregateLuck(parts: { expected: number; obtained: number; expectedLow?: number }[]): LuckTotal {
+  let high = 0;
+  let low = 0;
   let obtained = 0;
   let items = 0;
   for (const part of parts) {
     if (!Number.isFinite(part.expected) || part.expected <= 0) continue;
-    expected += part.expected;
+    high += part.expected;
+    low += Math.min(part.expectedLow ?? part.expected, part.expected);
     obtained += Math.max(0, part.obtained);
     items++;
   }
+  // The same range as one item (assessLuckAt): dry against the low end, spooned against the high,
+  // and the midpoint for the figures people read.
+  const expected = (low + high) / 2;
 
-  const dryTail = poissonAtMost(obtained, expected);
-  const spoonTail = poissonAtLeast(obtained, expected);
+  const dryTail = poissonAtMost(obtained, low);
+  const spoonTail = poissonAtLeast(obtained, high);
   let verdict: LuckVerdict = 'on-rate';
   if (expected > 0) {
     if (dryTail < TAIL_THRESHOLD) verdict = 'dry';

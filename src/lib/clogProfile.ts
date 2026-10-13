@@ -285,6 +285,12 @@ export interface LuckRateSource {
    * hiscores record completions but not the points, invocation or party size the odds turn on.
    */
   assumed?: boolean;
+  /**
+   * The largest team this is usually done in, when ONE drop per kill goes to one member (Nex, the
+   * Nightmare, Corp, the GWD generals, wilderness bosses). The hiscores record kills, not party
+   * size, so the personal rate is a range: the wiki's rate solo, a 1/partyMax share in a big team.
+   */
+  partyMax?: number;
 }
 
 /**
@@ -301,8 +307,9 @@ export interface LuckRateSource {
 export function expectationFor(
   sources: LuckRateSource[],
   kills: Record<string, number>,
-): { expected: number; bundle: number; kills: number } {
+): { expected: number; expectedLow: number; bundle: number; kills: number } {
   let expected = 0;
+  let expectedLow = 0;
   let weighted = 0;
   let totalKills = 0;
   for (const rate of sources) {
@@ -310,10 +317,12 @@ export function expectationFor(
     totalKills += count;
     const share = chancePerKill(rate.denominator, rate.rolls) * count;
     expected += share;
+    // A team boss's drop goes to one member: in a big team, a share of it (LuckRateSource.partyMax).
+    expectedLow += rate.partyMax && rate.partyMax > 1 ? share / rate.partyMax : share;
     weighted += share * rate.bundle;
   }
   const flat = sources.length > 0 ? sources.reduce((a, r) => a + r.bundle, 0) / sources.length : 1;
-  return { expected, bundle: expected > 0 ? weighted / expected : flat, kills: totalKills };
+  return { expected, expectedLow, bundle: expected > 0 ? weighted / expected : flat, kills: totalKills };
 }
 
 /**
@@ -342,6 +351,8 @@ export interface LuckSource {
   kills: number;
   /** What the rates owed them, already summed across sources by `expectationFor`. */
   expected: number;
+  /** The low end for team bosses (`expectationFor`); omitted = `expected`. */
+  expectedLow?: number;
   /**
    * How many they have. The collection log counts what you've obtained, not just whether you have
    * it, and that count is the whole metric: presence alone can't tell one seed in 30,000 Gauntlet
@@ -377,6 +388,7 @@ export interface LuckEntry {
 export function buildLuckBoards(
   candidates: { itemId: number; itemName: string; source: string; sources: LuckRateSource[]; members: LuckSource[] }[],
   limit = 15,
+  rotation?: string,
 ): { dry: LuckEntry[]; spooned: LuckEntry[] } {
   const dry: LuckEntry[] = [];
   const spooned: LuckEntry[] = [];
@@ -384,7 +396,7 @@ export function buildLuckBoards(
   for (const candidate of candidates) {
     for (const member of candidate.members) {
       if (member.kills <= 0 || member.expected <= 0) continue;
-      const assessment = assessLuckAt(member.expected, member.kills, member.obtained);
+      const assessment = assessLuckAt(member.expected, member.kills, member.obtained, member.expectedLow);
       if (!assessment.notable) continue;
       const entry: LuckEntry = {
         accountId: member.accountId,
@@ -399,7 +411,57 @@ export function buildLuckBoards(
     }
   }
 
-  const byTail = (a: LuckEntry, b: LuckEntry) => a.assessment.tail - b.assessment.tail;
-  return { dry: dry.sort(byTail).slice(0, limit), spooned: spooned.sort(byTail).slice(0, limit) };
+  return { dry: pickBoard(dry, limit, rotation), spooned: pickBoard(spooned, limit, rotation) };
+}
+
+/** The headliners: the most remarkable results, shown every day. */
+export const LUCK_HEADLINERS = 5;
+/** So one very dry account, or one item everybody chases, cannot fill a board on its own. */
+const MAX_PER_PERSON = 1;
+const MAX_PER_ITEM = 2;
+
+/**
+ * One board from its notable entries.
+ *
+ * Most remarkable first, with each person at most once and each item at most twice — a board that is
+ * one account's five Nex pieces says less than five people's stories. The top LUCK_HEADLINERS always
+ * show; with a `rotation` key (the day), the rest are drawn from everyone else who qualifies in an
+ * order that changes with it, so the board is worth opening again tomorrow. Everything shown is still
+ * a genuine tail result; the rotation only chooses among them.
+ */
+export function pickBoard(entries: LuckEntry[], limit: number, rotation?: string): LuckEntry[] {
+  const sorted = [...entries].sort((a, b) => a.assessment.tail - b.assessment.tail);
+  const perPerson = new Map<number, number>();
+  const perItem = new Map<number, number>();
+  const eligible: LuckEntry[] = [];
+  for (const e of sorted) {
+    if ((perPerson.get(e.accountId) ?? 0) >= MAX_PER_PERSON) continue;
+    if ((perItem.get(e.itemId) ?? 0) >= MAX_PER_ITEM) continue;
+    perPerson.set(e.accountId, (perPerson.get(e.accountId) ?? 0) + 1);
+    perItem.set(e.itemId, (perItem.get(e.itemId) ?? 0) + 1);
+    eligible.push(e);
+  }
+  if (!rotation || eligible.length <= limit) return eligible.slice(0, limit);
+
+  const head = eligible.slice(0, Math.min(LUCK_HEADLINERS, limit));
+  const rest = eligible
+    .slice(head.length)
+    .map((e) => ({ e, k: rotationKey(`${rotation}:${e.accountId}:${e.itemId}`) }))
+    .sort((a, b) => a.k - b.k)
+    .slice(0, limit - head.length)
+    .map((x) => x.e)
+    // Back in order of how remarkable they are, so the board still reads top to bottom.
+    .sort((a, b) => a.assessment.tail - b.assessment.tail);
+  return [...head, ...rest];
+}
+
+/** A stable 32-bit hash (FNV-1a): the same day and entry always land in the same place. */
+function rotationKey(s: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
 }
 
