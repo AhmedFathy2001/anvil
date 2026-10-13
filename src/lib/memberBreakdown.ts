@@ -1,5 +1,6 @@
 import { tileWeight } from './utils';
 import type { StatContributionSnapshot } from './statTracking';
+import { turnInsOnTile } from './turnIns';
 
 // One tile a member contributed to, with their amount on it (kills / drops / items / gp, or — for
 // skill/boss tiles — their XP or KC gain).
@@ -27,8 +28,8 @@ export interface MemberContribution {
   tasks: number;
   // Distinct not-yet-completed tiles they've put work into — effort that hasn't scored yet.
   inProgress: number;
-  // Total credited submissions (kept for sort tiebreaks; the raw count is noisy for kill-count
-  // tiles — one submission per kill — so it's not surfaced as a headline number).
+  // Credited turn-ins (lib/turnIns): an auto-ping tile (one row per kill) counts once, discrete
+  // turn-ins count one each. Kept for sort tiebreaks and the per-person facts.
   submissions: number;
   // Per-tile detail, so a member row can drill down into exactly what they did.
   contributions: MemberTileContribution[];
@@ -301,7 +302,8 @@ export function computeMemberBreakdown(params: {
         for (const [tileId, e] of byTile) {
           const tile = tileById.get(tileId);
           const completed = completedTileIds.has(tileId);
-          if (!e.stat) subCount += e.count;
+          // Turn-ins, not rows: a kill tile's 500 per-kill rows are one submission (lib/turnIns).
+          if (!e.stat) subCount += turnInsOnTile(tile?.tileType, e.count);
           if (completed && tile && !tile.optional) tasks += 1;
           contributions.push({
             tileId,

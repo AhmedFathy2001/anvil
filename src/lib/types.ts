@@ -67,6 +67,8 @@ export interface Tile extends TileRevealState {
   statBasis?: string | null;
   trackingMode?: string | null;
   optional?: number | null;
+  /** Hand-marked lottery-ticket tile (recap's Lottery Winner). Cosmetic — never feeds scoring. */
+  lottery?: boolean | null;
   // 1 = auto-crediting suppressed for this tile (stats cron / plugin-stats / submission
   // thresholds all skip it); completed manually instead. See tiles.autoTrackDisabled.
   autoTrackDisabled?: number | null;
@@ -203,6 +205,8 @@ export interface TileConfig {
   statBasis?: string | null;
   trackingMode: string;
   optional: boolean;
+  /** Hand-marked lottery-ticket tile — see tiles.lottery. Optional so older callers needn't pass it. */
+  lottery?: boolean;
   // Admin flag: when true, the site won't auto-credit this tile — it's completed manually.
   autoTrackDisabled: boolean;
   trackedItemIds: number[] | null;

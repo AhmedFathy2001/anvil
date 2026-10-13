@@ -1451,6 +1451,8 @@ interface EventEndNotifyParams {
   // Optional fun end-of-event "superlatives" (MVP, biggest drop, most kills, …) to celebrate in the
   // end post. Each is one pre-formatted line: emoji, award title, the winner, and their number.
   superlatives?: { emoji: string; title: string; winner: string; valueLabel: string }[];
+  // One-line event facts from lib/eventDigest (the comeback, the nemesis, clan-of-the-day tally).
+  facts?: string[];
 }
 
 export async function notifyEventForceEnd(params: EventEndNotifyParams): Promise<boolean> {
@@ -1477,7 +1479,7 @@ export async function notifyEventForceEnd(params: EventEndNotifyParams): Promise
 }
 
 export async function notifyEventEnd(params: EventEndNotifyParams): Promise<boolean> {
-  const { eventId, eventName, standings, totalTiles, unit = 'tiles', superlatives } = params;
+  const { eventId, eventName, standings, totalTiles, unit = 'tiles', superlatives, facts } = params;
 
   const standingsText = standings
     .sort((a, b) => b.tilesCompleted - a.tilesCompleted)
@@ -1494,6 +1496,7 @@ export async function notifyEventEnd(params: EventEndNotifyParams): Promise<bool
       .join('\n');
     fields.push(field('🏅 Superlatives', awardsText, false));
   }
+  if (facts && facts.length > 0) fields.push(field('📌 Event facts', facts.join('\n'), false));
 
   const embed: DiscordEmbed = {
     ...eventAuthor(eventId, eventName),
@@ -1515,6 +1518,34 @@ interface PayoutNotifyParams {
   totalPaid: number;
   // Paid recipients, grouped for display. `place` orders them (1 = winner); `amount` is gp.
   recipients: { rsn: string; teamName: string | null; place: number | null; amount: number }[];
+}
+
+interface EventStatsPostParams {
+  clanId: number;
+  eventId: number;
+  eventName: string;
+  title: string;
+  description: string;
+  fields: DiscordEmbedField[];
+}
+
+// The daily digest and the halfway report (lib/eventDigest composes them). Reaches the host AND
+// every co-host clan through the same fan-out as the start/end posts, never pinging — a stats post
+// once a day is something to read, not something to be woken for.
+export async function notifyEventStatsPost(params: EventStatsPostParams): Promise<boolean> {
+  const embed: DiscordEmbed = {
+    ...eventAuthor(params.eventId, params.eventName),
+    title: clamp(params.title, LIMIT.title),
+    description: clamp(`${params.description}${boardLinkLine(params.eventId)}`, LIMIT.description),
+    color: EMBED_COLOR.gold,
+    fields: params.fields.slice(0, 25),
+  };
+  return sendEventBingoWebhook(
+    params.clanId,
+    params.eventId,
+    { embeds: [await withClanCrest(params.clanId, embed, params.eventId)] },
+    { kind: 'lifecycle' },
+  );
 }
 
 // Announce the prize payouts to the bingo channel once the winners have been paid. Fired

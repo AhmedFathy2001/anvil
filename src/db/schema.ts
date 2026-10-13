@@ -482,6 +482,8 @@ export const events = pgTable('events', {
   // cron keeps nudging startDate forward while blocked, but warns exactly once. Cleared whenever
   // an admin edits startDate so a rescheduled start can warn again.
   startHoldNotified: integer('start_hold_notified').default(0),
+  // Latch for the one-off "halfway report" post (awards so far), so concurrent ticks post it once.
+  halfwayNotified: boolean('halfway_notified').notNull().default(false),
   // Set once when the draft-complete roster is posted to Discord, so the pick auto-complete
   // and the manual "End draft" action can't both fire the same embed (idempotency). Cleared
   // by a draft reset. `resend-roster` intentionally bypasses it.
@@ -666,6 +668,10 @@ export const tiles = pgTable('tiles', {
   // the Team/Solo control ever store anything but 'team'.
   trackingMode: text('tracking_mode').default('team').notNull(),
   optional: integer('optional').default(0),
+  // Hand-marked "lottery ticket" tile — a pure-RNG jackpot the host wants celebrated on its own (the
+  // recap's Lottery Winner award). Set by an admin, never inferred: the balance engine's computed
+  // lottery class leans on drop-rate data that is shaky for raids and slayer-shared drops.
+  lottery: boolean('lottery').notNull().default(false),
   // Admin kill-switch for a single tile's automatic crediting. When set (1), the site stops
   // auto-completing this tile: the hiscores stats cron, the plugin-pushed stat route, and the
   // submission threshold check all skip it — a captain/admin completes it manually instead.
@@ -1536,6 +1542,21 @@ export const eventCohosts = pgTable('event_cohosts', {
   index('event_cohosts_clan_status_idx').on(table.clanId, table.status),
 ]);
 export type EventCohost = typeof eventCohosts.$inferSelect;
+
+// One row per event per elapsed 24h "event day", written when that day's digest posts. `data` is the
+// JSON snapshot of every participant's running counters (plugin deaths/loot/playtime, overall XP,
+// per-boss KC) and each team's score + rank at that moment — the next day's digest diffs against
+// it, and the end post reads the rank history for the comeback line. The row's existence is also the
+// digest's idempotency latch (unique on event + day).
+export const eventDaySnapshots = pgTable('event_day_snapshots', {
+  id: serial('id').primaryKey(),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  dayIndex: integer('day_index').notNull(),
+  takenAt: text('taken_at').notNull(),
+  data: text('data').notNull(),
+}, (table) => [
+  uniqueIndex('event_day_snapshots_event_day_unique').on(table.eventId, table.dayIndex),
+]);
 
 export const clanAuditLog = pgTable('clan_audit_log', {
   id: serial('id').primaryKey(),

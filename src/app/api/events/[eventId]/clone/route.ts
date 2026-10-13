@@ -92,6 +92,7 @@ export async function POST(
         statGoal: t.statGoal,
         trackingMode: t.trackingMode,
         optional: t.optional,
+        lottery: t.lottery,
         autoTrackDisabled: t.autoTrackDisabled,
         trackedItemIds: t.trackedItemIds,
         itemRequirements: t.itemRequirements,

@@ -17,11 +17,12 @@ import { log } from '@/lib/logger';
 import { postEventRules } from '@/lib/eventRulesPost';
 import { clearPreStartEventActivity } from '@/lib/preStartActivity';
 import { track } from '@/lib/analytics';
+import { endOfEventFacts, runDailyDigests, runHalfwayReports } from '@/lib/eventDigest';
 
 // The awards worth celebrating in the Discord end post, most-fun-first — we take the first few of
 // these that actually have a winner so the embed stays punchy.
-const RECAP_HIGHLIGHT_ORDER = ['mvp', 'big-baller', 'warmonger', 'speed-demon', 'boss-slayer', 'clue-hunter', 'loot-goblin', 'pker', 'untouchable'];
-const RECAP_HIGHLIGHT_COUNT = 5;
+const RECAP_HIGHLIGHT_ORDER = ['mvp', 'big-baller', 'lottery-winner', 'warmonger', 'speed-demon', 'boss-slayer', 'first-blood', 'photo-finish', 'clue-hunter', 'loot-goblin', 'pker', 'untouchable', 'iron-will'];
+const RECAP_HIGHLIGHT_COUNT = 7;
 
 // While an event's scheduled start is HELD (start time reached but the event isn't startable —
 // lib/eventReadiness), each cron tick nudges startDate this far ahead of now. Every start-gated
@@ -339,6 +340,8 @@ export async function processEventLifecycleNotifications(): Promise<void> {
         log.warn('event-lifecycle.recap-failed', { eventId: event.id, err: String(err) });
       }
 
+      const facts = await endOfEventFacts(event).catch(() => [] as string[]);
+
       log.info('event-lifecycle.end', { eventId: event.id });
       await notifyEventEnd({
           clanId: event.clanId,
@@ -350,6 +353,7 @@ export async function processEventLifecycleNotifications(): Promise<void> {
         totalTiles: totalScore,
         unit: scored[0]?.unit ?? (event.scoringMode === 'points' ? 'pts' : 'tiles'),
         superlatives,
+        facts,
       });
 
       // Close out fees the treasurer already collected, when the clan opted into that. Off by
@@ -377,6 +381,11 @@ export async function processEventLifecycleNotifications(): Promise<void> {
       );
     }
   }
+
+  // Mid-event stats posts — the daily digest (every 24h from the start) and the one-off halfway
+  // report. After the end loop, so an event that just ended never also gets a digest this tick.
+  await runHalfwayReports().catch((err) => log.warn('event-lifecycle.halfway-failed', { err: String(err) }));
+  await runDailyDigests().catch((err) => log.warn('event-lifecycle.digest-failed', { err: String(err) }));
 
   // Reveal-policy events: flip due tiles live (scheduled/interval draws) and reconcile the bounty
   // rotation. After the start loop above, so on the tick an event begins the "event started" post

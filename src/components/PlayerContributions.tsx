@@ -4,6 +4,7 @@ import { useState } from 'react';
 import LocalTime from '@/components/LocalTime';
 import { formatTileAmount, formatContributionAmount } from '@/lib/tileKinds';
 import { submissionHasProof } from '@/lib/submissionProof';
+import { countTurnIns, turnInsOnTile } from '@/lib/turnIns';
 
 interface Submission {
   id: number;
@@ -80,6 +81,8 @@ export default function PlayerContributions({ submissions, tiles, playerName, st
   }
 
   const tileCount = grouped.size + stats.length;
+  // A kill tile writes a row per kill — count turn-ins, not rows (lib/turnIns).
+  const turnIns = countTurnIns(submissions, (id) => tileMap.get(id)?.tileType);
 
   return (
     <div className="space-y-3">
@@ -87,7 +90,7 @@ export default function PlayerContributions({ submissions, tiles, playerName, st
         {playerName}&apos;s Contributions{' '}
         <span className="text-text-muted font-normal">
           ({tileCount} tile{tileCount !== 1 ? 's' : ''}
-          {submissions.length > 0 && `, ${submissions.length} submission${submissions.length !== 1 ? 's' : ''}`})
+          {turnIns > 0 && `, ${turnIns} submission${turnIns !== 1 ? 's' : ''}`})
         </span>
       </h3>
 
@@ -148,7 +151,9 @@ export default function PlayerContributions({ submissions, tiles, playerName, st
               <img src={tile.icon} alt="" className="w-5 h-5 object-contain" />
             )}
             <span className="text-sm font-medium">{tile?.label || `Tile #${tileId}`}</span>
-            <span className="text-xs text-text-muted flex-shrink-0">({subs.length})</span>
+            {turnInsOnTile(tile?.tileType, subs.length) > 1 && (
+              <span className="text-xs text-text-muted flex-shrink-0">({subs.length})</span>
+            )}
             <span className="text-xs text-accent-green-light ml-auto flex-shrink-0">
               {tile ? formatTileAmount(tile, tileTotal) : `x${tileTotal}`}
             </span>

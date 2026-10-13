@@ -81,7 +81,7 @@
     "test:scoring": "npx tsx --test tests/board-scoring.test.ts",
     "test:milestone": "npx tsx --test tests/stat-milestone.test.ts",
     "test:baseline": "npx tsx --test tests/stat-baseline.test.ts",
-    "test:recap": "node --experimental-strip-types --test tests/recap-derive.test.ts",
+    "test:recap": "node --experimental-strip-types --test tests/recap-derive.test.ts tests/event-day.test.ts",
     "test:schedule": "node --experimental-strip-types --test tests/schedule-lanes.test.ts",
     "test:admin": "node --experimental-strip-types --test tests/admin-attention.test.ts tests/library-shape.test.ts tests/db-time.test.ts",
     "test:billingstate": "node --experimental-strip-types --test tests/clan-billing.test.ts",
@@ -149,6 +149,7 @@
     "test:apexhome": "npx tsx --test tests/apex-home.test.ts tests/apex-home-signals.test.ts",
     "test:rulebook": "npx tsx --test tests/event-rulebook.test.ts tests/event-rules-post-migration.test.ts",
     "test:cohostdiscord": "npx tsx --test tests/cohost-discord.test.ts",
+    "test:digest": "npx tsx --test tests/event-digest.test.ts",
     "test:withdrawnroster": "npx tsx --test tests/withdrawn-roster-migration.test.ts"
   },
   "dependencies": {

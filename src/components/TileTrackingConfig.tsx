@@ -561,6 +561,7 @@ export default function TileTrackingConfig({
     initial.trackingMode === "solo" ? "individual" : initial.trackingMode || "team",
   );
   const [optional, setOptional] = useState<boolean>(initial.optional || false);
+  const [lottery, setLottery] = useState<boolean>(initial.lottery || false);
   // Admin kill-switch: when on, the site won't auto-credit this tile — it's completed manually.
   const [autoTrackDisabled, setAutoTrackDisabled] = useState<boolean>(initial.autoTrackDisabled || false);
   const [points, setPoints] = useState<string>(initial.points != null ? initial.points.toString() : "1");
@@ -1250,6 +1251,7 @@ export default function TileTrackingConfig({
         label: label || undefined,
         description: description || null,
         optional,
+        lottery,
         autoTrackDisabled,
         points: points ? Math.max(0, parseInt(points, 10) || 0) : 1,
         effortConfig: {
@@ -1434,6 +1436,7 @@ export default function TileTrackingConfig({
           statBasis: updated.statBasis,
           trackingMode: updated.trackingMode,
           optional: !!updated.optional,
+          lottery: !!updated.lottery,
           autoTrackDisabled: !!updated.autoTrackDisabled,
           trackedItemIds: updated.trackedItemIds ? JSON.parse(updated.trackedItemIds) : null,
           itemRequirements: updated.itemRequirements ? JSON.parse(updated.itemRequirements) : null,
@@ -3210,12 +3213,12 @@ export default function TileTrackingConfig({
       {/* Everything below is per-tile fine print: it applies to a minority of tiles, and shown open
           on every tile it triples the length of the form for no one's benefit. Opens by default when
           any of it is actually in use, so an existing tile never hides its own configuration. */}
-      <details open={optional || mission || autoTrackDisabled} className="group rounded-lg border border-card-border/60">
+      <details open={optional || lottery || mission || autoTrackDisabled} className="group rounded-lg border border-card-border/60">
         <summary className="cursor-pointer select-none list-none px-3 py-2 flex items-center gap-2 text-xs font-medium text-text-muted hover:text-foreground">
           <span className="transition-transform group-open:rotate-90">▸</span>
           Advanced
           <span className="text-[10px] text-text-muted/70 font-normal">
-            optional tile · mission · manual completion
+            optional tile · lottery · mission · manual completion
           </span>
         </summary>
         <div className="px-3 pb-3 space-y-3">
@@ -3232,6 +3235,26 @@ export default function TileTrackingConfig({
           />
         </button>
         <span className="text-xs text-text-muted">Optional tile (doesn&apos;t count towards total)</span>
+      </div>
+
+      {/* Lottery toggle — hand-marked jackpot tile for the recap's Lottery Winner award */}
+      <div className="flex items-start gap-2">
+        <button
+          type="button"
+          onClick={() => setLottery(!lottery)}
+          aria-pressed={lottery}
+          className={`relative mt-px w-10 h-5 shrink-0 rounded-full transition-colors ${lottery ? 'bg-gold' : 'bg-card-border'}`}
+        >
+          <span
+            className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${lottery ? 'translate-x-5' : ''}`}
+          />
+        </button>
+        <span className="text-xs text-text-muted">
+          🎰 Lottery tile
+          <span className="block text-[11px] text-text-muted/70">
+            Pure-luck jackpot — whoever lands it wins the Lottery Winner award in the recap. Doesn&apos;t change scoring.
+          </span>
+        </span>
       </div>
 
       {/* ---- MISSION — a hidden tile announced mid-event with its own scoring ----

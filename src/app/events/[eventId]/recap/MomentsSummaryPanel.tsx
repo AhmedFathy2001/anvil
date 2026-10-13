@@ -69,7 +69,10 @@ export default function MomentsSummaryPanel({
    */
   sides?: { teamId: number; name: string; color: string; summary: MomentsSummary }[];
 }) {
-  const { counts, deathBoard, killers, members, biggestHaul, rarestDrop, hardestTask } = summary;
+  // No "Rarest" card: its 1-in-N is the wiki's per-NPC rate, which is wrong for raid purples (rates
+  // move with points) and for drops shared between a boss and slayer mobs. Back when the drop-rate
+  // data can be trusted per source, `summary.rarestDrop` is still computed and can come back.
+  const { counts, deathBoard, killers, members, biggestHaul, hardestTask } = summary;
   if (counts.total === 0) return null;
 
   const topLooters = members.filter((m) => m.lootGp > 0).slice(0, 8);
@@ -124,7 +127,7 @@ export default function MomentsSummaryPanel({
         </div>
       )}
 
-      {(biggestHaul || rarestDrop || hardestTask) && (
+      {(biggestHaul || hardestTask) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
           {biggestHaul && (
             <Standout
@@ -133,15 +136,6 @@ export default function MomentsSummaryPanel({
               what={`${biggestHaul.itemName ?? 'Something'} · ${gp(biggestHaul.valueGp ?? 0)} gp`}
               who={biggestHaul.rsn}
               detail={biggestHaul.source}
-            />
-          )}
-          {rarestDrop && (
-            <Standout
-              emoji="✨"
-              title="Rarest"
-              what={`${rarestDrop.itemName ?? 'Something'} · 1 in ${(rarestDrop.rarityDenominator ?? 0).toLocaleString()}`}
-              who={rarestDrop.rsn}
-              detail={rarestDrop.source}
             />
           )}
           {hardestTask && (

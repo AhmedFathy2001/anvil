@@ -638,6 +638,13 @@
       "when": 1791164000000,
       "tag": "0132_users_discord_global_name",
       "breakpoints": true
+    },
+    {
+      "idx": 133,
+      "version": "7",
+      "when": 1791165000000,
+      "tag": "0133_event_day_digest",
+      "breakpoints": true
     }
   ]
 }

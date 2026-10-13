@@ -11,6 +11,20 @@ import { biggestGain, clueGain, isEarlyHour, isNightHour, localHour } from '@/li
 import { statKeys } from '@/lib/tileKinds';
 import { activityFor } from '@/lib/hiscoresActivities';
 import { BOSSES } from '@/lib/constants';
+import { isAutoPingTileType } from '@/lib/turnIns';
+import { eventDayCount, eventDayOf, stampMs, totalGains, type PlayerDayCounters } from '@/lib/eventDay';
+
+/**
+ * A recap over ONE slice of the event instead of all of it — the daily digest's "awards of the day".
+ * Submissions and completions are filtered to the window; the running counters (plugin deaths, loot,
+ * playtime; hiscores XP/KC) are diffed against `baseline`, the snapshot taken when the slice began.
+ * A player with no baseline row (subbed in since) diffs against their enrollment snapshot and zero.
+ */
+export interface RecapWindow {
+  fromIso: string;
+  toIso: string;
+  baseline: Map<number, PlayerDayCounters>;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 // Event "recap" — the fun end-of-event superlatives ("Warmonger", "Big Baller", "Speed Demon", …).
@@ -112,6 +126,12 @@ interface PersonStat {
   /** Same, for a single skill's XP. */
   topSkillXp: number;
   topSkillName: string | null;
+  /** Distinct tiles this person put work into (a turn-in, or a stat gain) — Jack of All Trades. */
+  tilesTouched: Set<number>;
+  /** Distinct 1-based event days with a timestamped action — Iron Will. */
+  activeDays: Set<number>;
+  /** Lottery-marked tiles this person finished, by label — Lottery Winner. */
+  lotteryWins: string[];
 }
 
 function emptyStat(personKey: string): PersonStat {
@@ -152,6 +172,9 @@ function emptyStat(personKey: string): PersonStat {
     topClueTier: null,
     topSkillXp: 0,
     topSkillName: null,
+    tilesTouched: new Set(),
+    activeDays: new Set(),
+    lotteryWins: [],
   };
 }
 
@@ -191,7 +214,7 @@ function formatDuration(seconds: number): string {
 
 // Internal builder shared by getEventRecap + getPlayerRecap: loads everything once and returns the
 // per-person tallies (keyed by personKey) plus the finished catalogue of awards.
-async function computeRecap(eventId: number): Promise<{
+async function computeRecap(eventId: number, window?: RecapWindow): Promise<{
   event: { id: number; name: string; forceEndedAt: string | null; endDate: string | null };
   awards: RecapAward[];
   totals: EventRecap['totals'];
@@ -249,6 +272,24 @@ async function computeRecap(eventId: number): Promise<{
         .where(inArray(submissions.tileId, tileIds))
     : [];
 
+  // A windowed (daily) recap only sees the slice's own actions.
+  const fromMs = window ? stampMs(window.fromIso) ?? 0 : null;
+  const toMs = window ? stampMs(window.toIso) ?? Date.now() : null;
+  const inWindow = (stamp: string | null | undefined) => {
+    if (fromMs == null || toMs == null) return true;
+    const ms = stampMs(stamp);
+    return ms != null && ms >= fromMs && ms < toMs;
+  };
+  if (window) {
+    const keepSubs = eventSubmissions.filter((sub) => inWindow(sub.createdAt));
+    eventSubmissions.length = 0;
+    eventSubmissions.push(...keepSubs);
+    const keepComps = eventCompletions.filter((c) => inWindow(c.completedAt));
+    eventCompletions.length = 0;
+    eventCompletions.push(...keepComps);
+  }
+  const eventStartMs = stampMs(event.startDate);
+
   // Per-person key: on a 'per-person' event, merge a player's accounts by their owner; otherwise
   // (and for guests) each account stands alone.
   const ownerByPlayerId = await loadPlayerOwners(eventPlayers);
@@ -282,26 +323,41 @@ async function computeRecap(eventId: number): Promise<{
       s.accounts += 1;
       seededAccounts.add(p.id);
       // Plugin-pushed per-event counters live on the player row — sum them across a person's accounts.
-      s.deaths += p.deaths ?? 0;
-      s.lootGpTotal += p.lootGpGained ?? 0;
-      s.pvpKillCounter += p.pvpKills ?? 0;
+      // In a window, every running counter is diffed against the slice's opening snapshot.
+      const base: PlayerDayCounters | null = window
+        ? window.baseline.get(p.id) ?? { deaths: 0, lootGp: 0, pvpKills: 0, minutes: 0, caTasks: 0, biggestHit: 0, stats: p.statsSnapshot }
+        : null;
+      const since = (now: number | null | undefined, then: number) => Math.max(0, (now ?? 0) - (base ? then : 0));
+      s.deaths += since(p.deaths, base?.deaths ?? 0);
+      s.lootGpTotal += since(p.lootGpGained, base?.lootGp ?? 0);
+      s.pvpKillCounter += since(p.pvpKills, base?.pvpKills ?? 0);
       // Hardest hit is a record, so take the best across a person's accounts; play time is a
-      // duration, so it sums (two accounts can't be played at once in any meaningful sense).
-      s.biggestHit = Math.max(s.biggestHit, p.biggestHit ?? 0);
-      s.minutesPlayed += p.minutesPlayed ?? 0;
+      // duration, so it sums (two accounts can't be played at once in any meaningful sense). In a
+      // window the record only counts if it was SET inside the slice.
+      const hit = p.biggestHit ?? 0;
+      if (!base || hit > base.biggestHit) s.biggestHit = Math.max(s.biggestHit, hit);
+      s.minutesPlayed += since(p.minutesPlayed, base?.minutes ?? 0);
       // Tasks are per-account achievements, so a two-account person really did clear both sets.
-      s.caTasks += p.caTasks ?? 0;
+      s.caTasks += since(p.caTasks, base?.caTasks ?? 0);
 
       // Biggest single-boss and single-skill grind, diffed out of the hiscores snapshots already on
       // the row. Covers EVERY boss and skill, not just the ones a tile tracks — so the person who
       // spent the whole event at a boss nobody scored still gets their due. Keep the best across a
       // person's accounts rather than summing: "1,204 Zulrah" is the story, not a merged total.
-      const boss = biggestGain(p.statsSnapshot, p.cachedStats ?? p.frozenStats, 'bosses');
+      const statsBase = base ? base.stats : p.statsSnapshot;
+      const statsNow = p.cachedStats ?? p.frozenStats;
+      // A window has no per-tile standings to lean on, so its XP/KC are the account-wide gains.
+      if (base) {
+        const gains = totalGains(statsBase, statsNow);
+        s.xpGained += gains.xp;
+        s.kcGained += gains.kc;
+      }
+      const boss = biggestGain(statsBase, statsNow, 'bosses');
       if (boss && boss.gained > s.topBossKc) {
         s.topBossKc = boss.gained;
         s.topBossName = boss.name;
       }
-      const skill = biggestGain(p.statsSnapshot, p.cachedStats ?? p.frozenStats, 'skills');
+      const skill = biggestGain(statsBase, statsNow, 'skills');
       if (skill && skill.gained > s.topSkillXp) {
         s.topSkillXp = skill.gained;
         s.topSkillName = skill.name;
@@ -310,7 +366,7 @@ async function computeRecap(eventId: number): Promise<{
       // ran clues on two accounts opened both piles. Only read at all on a board that asked
       // for clues — see clueBoard below.
       if (clueBoard) {
-        const clues = clueGain(p.statsSnapshot, p.cachedStats ?? p.frozenStats);
+        const clues = clueGain(statsBase, statsNow);
         if (clues) {
           s.cluesOpened += clues.total;
           if (!s.topClueTier || clues.topTierGained > 0) s.topClueTier = clues.topTier;
@@ -334,7 +390,6 @@ async function computeRecap(eventId: number): Promise<{
   // Busy Bee / the personal card, an auto-ping type counts once per DISTINCT tile the person fed;
   // discrete turn-ins (drops, timed clears, diaries, CAs, value hauls) stay one each. The
   // event-wide totals.submissions stays the raw row count on purpose (fun activity number).
-  const AUTO_PING_TYPES = new Set(['kill', 'lap', 'pvp', 'gain', 'deathless', 'lms']);
   const autoPingTilesSeen = new Set<string>(); // `${personKey}:${tileId}`
   let totalGpLooted = 0;
   for (const sub of eventSubmissions) {
@@ -342,7 +397,8 @@ async function computeRecap(eventId: number): Promise<{
     if (!s) continue;
     const tile = tileById.get(sub.tileId);
     const type = tile?.tileType ?? null;
-    if (type != null && AUTO_PING_TYPES.has(type)) {
+    s.tilesTouched.add(sub.tileId);
+    if (isAutoPingTileType(type)) {
       const seenKey = `${s.personKey}:${sub.tileId}`;
       if (!autoPingTilesSeen.has(seenKey)) {
         autoPingTilesSeen.add(seenKey);
@@ -376,6 +432,10 @@ async function computeRecap(eventId: number): Promise<{
   const bucketAction = (playerId: number | null | undefined, iso: string | null | undefined) => {
     const s = stat(playerId);
     if (!s || !iso) return;
+    if (eventStartMs != null) {
+      const day = eventDayOf(iso, eventStartMs);
+      if (day != null) s.activeDays.add(day);
+    }
     const hour = localHour(iso, playerId != null ? timezoneByPlayerId.get(playerId) : null);
     if (hour == null) return;
     s.timedActions += 1;
@@ -405,6 +465,8 @@ async function computeRecap(eventId: number): Promise<{
   for (const c of eventCompletions) {
     const s = stat(c.creditPlayerId);
     if (s) s.tilesFinished += 1;
+    const doneTile = tileById.get(c.tileId);
+    if (s && doneTile?.lottery) s.lotteryWins.push(doneTile.label);
     bucketAction(c.creditPlayerId, c.completedAt);
 
     // Per-person shares of this tile. Merge by personKey first, so a multi-account person doesn't
@@ -434,7 +496,7 @@ async function computeRecap(eventId: number): Promise<{
   }
 
   // Stat-tile XP / KC gained (frozen split ∪ live overlay, already reconciled by getStatStandings).
-  const statStandings = await getStatStandings(eventId);
+  const statStandings = window ? [] : await getStatStandings(eventId);
   const statGains: StatGainMap = {};
   for (const st of statStandings) {
     statGains[st.tileId] = st.players.map((pl) => ({ playerId: pl.playerId, gained: pl.gained }));
@@ -442,6 +504,7 @@ async function computeRecap(eventId: number): Promise<{
       if (pl.gained <= 0) continue;
       const s = stat(pl.playerId);
       if (!s) continue;
+      s.tilesTouched.add(st.tileId);
       if (st.statType === 'skill') s.xpGained += pl.gained;
       else s.kcGained += pl.gained;
     }
@@ -596,8 +659,13 @@ async function computeRecap(eventId: number): Promise<{
     ),
   );
   pushAward(
-    award('busy-bee', '🐝', 'Busy Bee', 'Most submissions of all', (s) =>
-      s.submissions > 0 ? toEntry(s, s.submissions, `${s.submissions.toLocaleString()} submissions`) : null,
+    // Breadth, not volume. A raw submission count crowned whoever farmed a kill tile (a row per
+    // kill), and even de-duplicated it weighed a slayer task the same as a Colosseum clear — so the
+    // award counts how many DIFFERENT tiles someone put work into instead.
+    award('jack-of-all-trades', '🧩', 'Jack of All Trades', 'Put work into the most different tiles', (s) =>
+      s.tilesTouched.size >= 2
+        ? toEntry(s, s.tilesTouched.size, `${s.tilesTouched.size} different tiles`)
+        : null,
     ),
   );
   // Plugin-only awards — populated once the plugin ships the deaths + total-loot-value capture.
@@ -699,10 +767,88 @@ async function computeRecap(eventId: number): Promise<{
     ),
   );
 
+  // ── Moments on the timeline ─────────────────────────────────────────────────────────────────
+  // First Blood / Photo Finish are single facts, not rankings: the earliest (and, once the event is
+  // over, the latest) completion with a credited person. Ties go to whoever's row came first.
+  const credited = eventCompletions
+    .map((c) => ({ c, ms: stampMs(c.completedAt), s: stat(c.creditPlayerId) }))
+    .filter((x): x is { c: typeof x.c; ms: number; s: PersonStat } => x.ms != null && x.s != null)
+    .sort((a, b) => a.ms - b.ms);
+  const sinceStart = (ms: number) => {
+    const start = eventStartMs ?? ms;
+    const mins = Math.max(0, Math.round((ms - start) / 60000));
+    return mins < 60 ? `${mins}m in` : `${formatPlaytime(mins)} in`;
+  };
+  if (!window && credited.length > 0) {
+    const first = credited[0];
+    awards.push({
+      key: 'first-blood',
+      emoji: '🩸',
+      title: 'First Blood',
+      blurb: 'First tile on the board',
+      winner: toEntry(first.s, first.ms, sinceStart(first.ms), tileById.get(first.c.tileId)?.label),
+      runnersUp: [],
+    });
+    const endMs = stampMs(event.forceEndedAt ?? event.endDate);
+    if (isEventEnded(event) && endMs != null && credited.length > 1) {
+      const last = credited[credited.length - 1];
+      const minsLeft = Math.max(0, Math.round((endMs - last.ms) / 60000));
+      awards.push({
+        key: 'photo-finish',
+        emoji: '📸',
+        title: 'Photo Finish',
+        blurb: 'Last tile in before the whistle',
+        winner: toEntry(
+          last.s,
+          last.ms,
+          minsLeft < 60 ? `${minsLeft}m to spare` : `${formatPlaytime(minsLeft)} to spare`,
+          tileById.get(last.c.tileId)?.label,
+        ),
+        runnersUp: [],
+      });
+    }
+  }
+
+  pushAward(
+    // Hand-marked jackpot tiles (tiles.lottery) — the host's call, never inferred from drop rates,
+    // which are shaky for raids and slayer-shared drops.
+    award('lottery-winner', '🎰', 'Lottery Winner', 'Hit a lottery-ticket tile', (s) =>
+      s.lotteryWins.length > 0
+        ? toEntry(
+            s,
+            s.lotteryWins.length,
+            s.lotteryWins.length === 1 ? 'hit the jackpot' : `${s.lotteryWins.length} jackpots`,
+            s.lotteryWins.join(', '),
+          )
+        : null,
+    ),
+  );
+
+  if (!window && eventStartMs != null) {
+    // Showing up, every day. Only meaningful once there have been a few days to show up for.
+    const endMs = stampMs(event.forceEndedAt ?? event.endDate);
+    const elapsedEnd = Math.min(Date.now(), endMs ?? Date.now());
+    const daysSoFar = eventDayCount(eventStartMs, Math.max(eventStartMs + 1, elapsedEnd));
+    if (daysSoFar >= 3) {
+      pushAward(
+        award('iron-will', '📅', 'Iron Will', 'Active on the most days', (s) =>
+          s.activeDays.size >= Math.max(2, daysSoFar - 1)
+            ? toEntry(
+                s,
+                s.activeDays.size,
+                s.activeDays.size >= daysSoFar ? `every day (${daysSoFar}/${daysSoFar})` : `${s.activeDays.size}/${daysSoFar} days`,
+              )
+            : null,
+        ),
+      );
+    }
+  }
+
   const totals: EventRecap['totals'] = {
     contenders: contenders.filter((s) => s.submissions > 0 || s.tilesFinished > 0 || s.xpGained > 0 || s.kcGained > 0).length,
     tilesCompleted: eventCompletions.length,
-    submissions: eventSubmissions.length,
+    // Turn-ins, not rows (lib/turnIns): a kill tile's per-kill rows count once per person.
+    submissions: contenders.reduce((sum, s) => sum + s.submissions, 0),
     gpLooted: totalGpLooted,
   };
 
@@ -726,6 +872,48 @@ export async function getEventRecap(eventId: number): Promise<EventRecap | null>
     awards: r.awards,
     totals: r.totals,
   };
+}
+
+/** One person's raw numbers over a recap's span — what the digest's clan-v-clan totals add up. */
+export interface RecapPersonTotals {
+  personKey: string;
+  name: string;
+  teamId: number | null;
+  playerIds: number[];
+  xpGained: number;
+  kcGained: number;
+  deaths: number;
+  lootGp: number;
+  minutesPlayed: number;
+  tilesFinished: number;
+}
+
+/** The recap over one slice of the event (the daily digest), plus each person's raw totals. */
+export async function getWindowRecap(
+  eventId: number,
+  window: RecapWindow,
+): Promise<{ awards: RecapAward[]; totals: EventRecap['totals']; people: RecapPersonTotals[] } | null> {
+  const r = await computeRecap(eventId, window);
+  if (!r) return null;
+  const playerIdsByKey = new Map<string, number[]>();
+  for (const [playerId, key] of r.personKeyByPlayerId) {
+    const list = playerIdsByKey.get(key) ?? [];
+    list.push(playerId);
+    playerIdsByKey.set(key, list);
+  }
+  const people = [...r.byPerson.values()].map((s) => ({
+    personKey: s.personKey,
+    name: s.name,
+    teamId: s.teamId,
+    playerIds: playerIdsByKey.get(s.personKey) ?? [],
+    xpGained: s.xpGained,
+    kcGained: s.kcGained,
+    deaths: s.deaths,
+    lootGp: s.lootGpTotal,
+    minutesPlayed: s.minutesPlayed,
+    tilesFinished: s.tilesFinished,
+  }));
+  return { awards: r.awards, totals: r.totals, people };
 }
 
 // One player's personal slice — their headline numbers plus any awards they took home. Powers the
