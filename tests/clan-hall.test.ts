@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { inviteCode, isSnowflake, parseWidget, type GuildWidget } from '../src/lib/discordWidget';
-import { mergeClanHall, nameCandidates, IN_GAME_WINDOW_MS, type HallRosterEntry } from '../src/lib/clanHallMerge';
+import { hallSwitches, mergeClanHall, nameCandidates, IN_GAME_WINDOW_MS, type HallRosterEntry } from '../src/lib/clanHallMerge';
 import { escapeHtml, renderBadgeSvg, renderEmbedHtml } from '../src/lib/discordEmbedRender';
 
 const NOW = Date.parse('2026-10-13T12:00:00.000Z');
@@ -155,4 +155,13 @@ test('invite codes come only out of real Discord invite links', () => {
   assert.equal(inviteCode('https://evil.example/discord.gg/x'), null);
   assert.equal(inviteCode('http://discord.gg/abc'), null);
   assert.equal(inviteCode(null), null);
+});
+
+test('every card switch is off until an admin turns it on', () => {
+  const none = hallSwitches(() => undefined);
+  assert.deepEqual(none, { enabled: false, publicNames: false, embed: false });
+  const set: Record<string, string> = { discord_widget_enabled: 'true', discord_widget_public_names: 'false', discord_widget_embed: 'true' };
+  assert.deepEqual(hallSwitches((k) => set[k]), { enabled: true, publicNames: false, embed: true });
+  // Anything but an explicit 'true' stays off.
+  assert.equal(hallSwitches(() => '1').enabled, false);
 });

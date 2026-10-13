@@ -110,7 +110,11 @@ export default function DiscordWidgetSettings() {
       )}
 
       <div className="flex flex-col gap-4 border-t border-card-border pt-4">
-        <ToggleSetting settingKey="discord_widget_enabled" label="Show the card on your clan's home page" defaultOn />
+        <ToggleSetting
+          settingKey="discord_widget_enabled"
+          label="Show the card on your clan's home page"
+          helpText="Off until you turn it on. Without an invite link above, the bot makes one into your welcome channel for the Join button."
+        />
         <ToggleSetting
           settingKey="discord_widget_public_names"
           label="Show names to visitors too"
@@ -119,8 +123,7 @@ export default function DiscordWidgetSettings() {
         <ToggleSetting
           settingKey="discord_widget_embed"
           label="Allow the embed and badge on other sites"
-          helpText="Counts only, never names. Only works while your clan is public."
-          defaultOn
+          helpText="Counts only, never names. Only works while your clan is public and the card is on."
         />
       </div>
 

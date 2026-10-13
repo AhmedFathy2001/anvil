@@ -8,18 +8,16 @@ import { clanRoster, clanStaff, eventParticipants, events, memberDailyStats, tea
 import { verifyUser } from '@/lib/auth';
 import { viewerMemberIds } from '@/lib/competitionView';
 import { fetchGuildWidget, isSnowflake, type WidgetResult } from '@/lib/discordWidget';
-import { mergeClanHall, type ClanHallView, type HallTeam } from '@/lib/clanHallMerge';
+import { HALL_EMBED_KEY, HALL_ENABLED_KEY, HALL_PUBLIC_NAMES_KEY, hallSwitches, mergeClanHall, type ClanHallView, type HallTeam } from '@/lib/clanHallMerge';
 import { getDiscordInviteUrl } from '@/lib/pluginConfig';
 import { botMadeInviteUrl } from '@/lib/discordWidgetInvite';
 import { getSettingMap } from '@/lib/settings';
 
-export const HALL_ENABLED_KEY = 'discord_widget_enabled';
-export const HALL_PUBLIC_NAMES_KEY = 'discord_widget_public_names';
-export const HALL_EMBED_KEY = 'discord_widget_embed';
+export { HALL_EMBED_KEY, HALL_ENABLED_KEY, HALL_PUBLIC_NAMES_KEY } from '@/lib/clanHallMerge';
 
 export interface HallConfig {
   guildId: string | null;
-  /** On unless an admin switched it off — a clan with the bot in its server gets the card for free. */
+  /** Off until an admin turns it on (hallSwitches) — the bot being in the server is not consent. */
   enabled: boolean;
   publicNames: boolean;
   embed: boolean;
@@ -30,9 +28,7 @@ export async function hallConfig(clanId: number): Promise<HallConfig> {
   const guildId = map.get('discord_guild_id')?.trim() || null;
   return {
     guildId: isSnowflake(guildId) ? guildId : null,
-    enabled: map.get(HALL_ENABLED_KEY) !== 'false',
-    publicNames: map.get(HALL_PUBLIC_NAMES_KEY) === 'true',
-    embed: map.get(HALL_EMBED_KEY) !== 'false',
+    ...hallSwitches((k) => map.get(k)),
   };
 }
 
@@ -44,18 +40,24 @@ export async function hallStatus(clanId: number): Promise<{ config: HallConfig; 
 
 /**
  * Where a Join button really goes: the clan's own invite (an admin chose it), else the one Discord's
- * widget offers, else one the bot makes so the card always has a way in (lib/discordWidgetInvite).
+ * widget offers, else one the bot makes so the card always has a way in (lib/discordWidgetInvite) —
+ * that last only once the clan has switched the card on, never for the admin's preview of it.
  */
-async function pickJoinUrl(clanId: number, setting: string | null, widgetInvite: string | null): Promise<string | null> {
-  return setting ?? widgetInvite ?? (await botMadeInviteUrl(clanId).catch(() => null));
+async function pickJoinUrl(
+  clanId: number,
+  setting: string | null,
+  widgetInvite: string | null,
+  enabled: boolean,
+): Promise<string | null> {
+  return setting ?? widgetInvite ?? (enabled ? await botMadeInviteUrl(clanId).catch(() => null) : null);
 }
 
 /** The Join destination on its own, for the click-counting redirect (api/discord/join). */
 export async function hallJoinUrl(clanId: number): Promise<string | null> {
   const config = await hallConfig(clanId);
-  if (!config.guildId) return null;
+  if (!config.guildId || !config.enabled) return null;
   const [setting, result] = await Promise.all([getDiscordInviteUrl(clanId), fetchGuildWidget(config.guildId)]);
-  return pickJoinUrl(clanId, setting, result.ok ? result.widget.instantInvite : null);
+  return pickJoinUrl(clanId, setting, result.ok ? result.widget.instantInvite : null, config.enabled);
 }
 
 /**
@@ -134,7 +136,7 @@ export async function clanHallView(
     getDiscordInviteUrl(clanId),
   ]);
 
-  const joinUrl = await pickJoinUrl(clanId, inviteUrl, result.widget.instantInvite);
+  const joinUrl = await pickJoinUrl(clanId, inviteUrl, result.widget.instantInvite, config.enabled);
 
   const weekXp = new Map(xpRows.map((r) => [r.accountId, Number(r.xp) || 0]));
   const teamByAccount = new Map<number, HallTeam>();

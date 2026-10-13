@@ -14,6 +14,23 @@
 
 import type { GuildWidget, WidgetMember } from '@/lib/discordWidget';
 
+export const HALL_ENABLED_KEY = 'discord_widget_enabled';
+export const HALL_PUBLIC_NAMES_KEY = 'discord_widget_public_names';
+export const HALL_EMBED_KEY = 'discord_widget_embed';
+
+/**
+ * The clan's switches for the card, read from settings. Every one is OFF until an admin turns it on:
+ * putting a server's presence on a public page (and having the bot mint an invite into it) is the
+ * clan's call, so the bot merely being in the server is not consent.
+ */
+export function hallSwitches(get: (key: string) => string | null | undefined): { enabled: boolean; publicNames: boolean; embed: boolean } {
+  return {
+    enabled: get(HALL_ENABLED_KEY) === 'true',
+    publicNames: get(HALL_PUBLIC_NAMES_KEY) === 'true',
+    embed: get(HALL_EMBED_KEY) === 'true',
+  };
+}
+
 /** A push this recent means the plugin is running, i.e. the person is logged in. */
 export const IN_GAME_WINDOW_MS = 10 * 60_000;
 
