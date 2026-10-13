@@ -9,6 +9,7 @@ import WebhooksPanel from './WebhooksPanel';
 import DiscordBotSettings from '@/components/DiscordBotSettings';
 import BotIdentitySettings from '@/components/BotIdentitySettings';
 import DiscordLanguageSetting from '@/components/DiscordLanguageSetting';
+import DiscordWidgetSettings from '@/components/DiscordWidgetSettings';
 import DiscordRoleSyncSettings from '@/components/DiscordRoleSyncSettings';
 import DiscordAssignedRoles from '@/components/DiscordAssignedRoles';
 import DiscordTeamChannelSettings from '@/components/DiscordTeamChannelSettings';
@@ -113,6 +114,9 @@ export default function SettingsTabs({ channels, botEnabled }: SettingsTabsProps
           </div>
           <div className="border-t border-card-border pt-5">
             <DiscordLanguageSetting />
+          </div>
+          <div className="border-t border-card-border pt-5">
+            <DiscordWidgetSettings />
           </div>
         </Card>
       )}

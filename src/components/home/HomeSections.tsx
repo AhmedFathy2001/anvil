@@ -1,3 +1,5 @@
+import MotionImg from '@/components/MotionImg';
+
 import CompetitionCard, { WeekGlyph, boardGlyphFor } from '@/components/events/CompetitionCard';
 import { hubKind } from '@/lib/hubKinds';
 import { totalDays } from '@/lib/competitionInsights';
@@ -85,10 +87,8 @@ export function Hero({ view }: { view: HomeView }) {
           animated banner stays animated. */}
       {view.bannerUrl && (
         <div className="relative aspect-[3/1] w-full overflow-hidden border-b border-gold/20">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <MotionImg
             src={view.bannerUrl}
-            alt=""
             className="h-full w-full object-cover"
             style={{ objectPosition: `50% ${view.bannerPosition ?? 50}%` }}
           />

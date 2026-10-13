@@ -1,3 +1,6 @@
+import type { ReactNode } from 'react';
+import MotionImg from '@/components/MotionImg';
+
 import ClanLink from '@/components/ClanLink';
 import ClanCrest from '@/components/ClanCrest';
 import type { PublicClanHome as View, ClanFocus } from '@/lib/clanHome';
@@ -24,7 +27,16 @@ function eventWhen(e: { startDate: string | null; endDate: string | null }): str
  * The public face of a clan for someone who isn't in it — what the clan is, what it wants, that it's
  * alive. Members get the week view instead (app/page.tsx branches on the relationship).
  */
-export default function PublicClanHome({ view, signedIn }: { view: View; signedIn: boolean }) {
+export default function PublicClanHome({
+  view,
+  signedIn,
+  hall = null,
+}: {
+  view: View;
+  signedIn: boolean;
+  /** Who's around right now (components/ClanHall), when the clan's Discord is connected. */
+  hall?: ReactNode;
+}) {
   const reqs = view.requirements;
   const hasReqs = reqs.minTotal != null || reqs.minEhp != null || reqs.region != null || reqs.timezone != null;
 
@@ -34,10 +46,8 @@ export default function PublicClanHome({ view, signedIn }: { view: View; signedI
           so what the admin previewed is what shows. Animated uploads stay animated: a plain <img>. */}
       {view.bannerUrl && (
         <div className="relative mb-4 aspect-[3/1] w-full overflow-hidden rounded-2xl border border-card-border">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <MotionImg
             src={view.bannerUrl}
-            alt=""
             className="h-full w-full object-cover"
             style={{ objectPosition: `50% ${view.bannerPosition ?? 50}%` }}
           />
@@ -87,6 +97,8 @@ export default function PublicClanHome({ view, signedIn }: { view: View; signedI
           </div>
         </div>
       </div>
+
+      {hall && <div className="mt-4">{hall}</div>}
 
       {/* Recruiting */}
       {view.recruiting && (

@@ -1,6 +1,7 @@
 import { headers } from 'next/headers';
 
 import ClanLink from '@/components/ClanLink';
+import PlatformDiscordStrip from '@/components/PlatformDiscordStrip';
 import { APP_VERSION, GIT_SHA } from '@/lib/serverInfo';
 import { isApexHost } from '@/lib/clanContext';
 
@@ -24,6 +25,7 @@ export default async function SiteFooter() {
   const onApex = isApexHost((await headers()).get('host'));
   return (
     <footer className="mt-16 border-t border-card-border">
+      {onApex && <PlatformDiscordStrip />}
       {/* Centred and stacked on a phone, spread on a desktop — and the type steps down, because the
           footer is the one block on the page that is never what somebody came for. */}
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 py-6 text-center text-[12.5px] text-text-muted sm:flex-row sm:px-6 sm:text-left sm:text-sm">

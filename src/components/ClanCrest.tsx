@@ -1,3 +1,5 @@
+import MotionImg from '@/components/MotionImg';
+
 /**
  * A clan's mark: its initials on a colour derived from its name.
  *
@@ -45,12 +47,12 @@ export default function ClanCrest({
 
   if (logoUrl) {
     return (
-      // A plain <img>: these are object-storage URLs on a bucket next/image is not configured for,
-      // and a crest is 18-48px, so the loader would cost more than it saves. `alt` is empty because
-      // the clan's name is rendered beside it everywhere this appears — announcing it twice is noise.
-      <img
+      // A plain <img> (MotionImg), not next/image: these are object-storage URLs on a bucket the
+      // loader is not configured for, a crest is 18-48px, and an animated logo has to stop animating
+      // while nobody is looking (hooks/usePageActive). `alt` is empty because the clan's name is
+      // rendered beside it everywhere this appears — announcing it twice is noise.
+      <MotionImg
         src={logoUrl}
-        alt=""
         width={size}
         height={size}
         style={{ width: size, height: size }}

@@ -1,5 +1,6 @@
 'use client';
 
+import MotionImg from '@/components/MotionImg';
 import { useEffect, useState } from 'react';
 import { eventTimeState, formatExactTime, type EventPhase } from '@/lib/eventTime';
 import ClanCrest from '@/components/ClanCrest';
@@ -99,10 +100,8 @@ export default function EventHero({
         // Always 3:1 — no height cap, which cropped a 3:1 upload on wide screens and cut off what the
         // admin's preview showed. Off-shape uploads crop around the admin's chosen focus.
         <div className="relative aspect-[3/1] w-full overflow-hidden border-b border-gold/20">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <MotionImg
             src={bannerUrl}
-            alt=""
             className="h-full w-full object-cover"
             style={{ objectPosition: `50% ${bannerPosition ?? 50}%` }}
           />

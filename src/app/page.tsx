@@ -13,14 +13,16 @@ import { apexHomeView } from '@/lib/apexHome';
 import { apexSignals } from '@/lib/apexHomeSignals';
 import { seatsWaitingFor } from '@/lib/foundYou';
 import { db } from '@/db';
-import { users, clanStaff } from '@/db/schema';
-import { and, eq } from 'drizzle-orm';
+import { users, clanStaff, clanRoster } from '@/db/schema';
+import { and, eq, inArray } from 'drizzle-orm';
 import PublicClanHome from '@/components/PublicClanHome';
 import { publicClanHomeView } from '@/lib/clanHome';
 import { getDiscordInviteUrl } from '@/lib/pluginConfig';
 import { verifyUser } from '@/lib/auth';
 import { buildHomeView } from '@/lib/homeView';
 import { viewerMemberIds } from '@/lib/competitionView';
+import { clanHallView, hallConfig } from '@/lib/clanHall';
+import ClanHall from '@/components/ClanHall';
 import { countLiveTeamInvolvements } from '@/lib/myTeamNav';
 import { ClanWeek, Competitions, Hero, LiveNow, YouStrip } from '@/components/home/HomeSections';
 import ClanLink from '@/components/ClanLink';
@@ -165,8 +167,22 @@ export default async function HomePage() {
     : false;
   const insider = !!session && (myMemberIds.length > 0 || staffHere);
 
+  // Who's around (lib/clanHall). Names for insiders; for everyone else only when the clan chose that.
+  // A Discord that is off, unreachable or switched off for the server is simply no card.
+  const hallPromise = (async () => {
+    const config = await hallConfig(clan.id);
+    // The viewer's own accounts, so the card can offer "My team" during an event.
+    const viewerAccountIds = myMemberIds.length
+      ? (await db.select({ accountId: clanRoster.accountId }).from(clanRoster).where(and(eq(clanRoster.clanId, clan.id), inArray(clanRoster.id, myMemberIds)))).map((r) => r.accountId)
+      : [];
+    return clanHallView(clan.id, { includeNames: insider || config.publicNames, viewerAccountIds });
+  })().catch(() => null);
+
   if (!insider) {
-    const publicView = await publicClanHomeView(clan.id, await getDiscordInviteUrl(clan.id));
+    const [publicView, hall] = await Promise.all([
+      publicClanHomeView(clan.id, await getDiscordInviteUrl(clan.id)),
+      hallPromise,
+    ]);
     if (publicView) {
       return (
         <>
@@ -184,19 +200,24 @@ export default async function HomePage() {
               discordInvite: publicView.discordInvite,
             })}
           />
-          <PublicClanHome view={publicView} signedIn={!!session?.userId} />
+          <PublicClanHome
+            view={publicView}
+            signedIn={!!session?.userId}
+            hall={hall ? <ClanHall initial={hall} /> : null}
+          />
         </>
       );
     }
   }
 
-  const view = await buildHomeView(clan.id, myMemberIds);
+  const [view, hall] = await Promise.all([buildHomeView(clan.id, myMemberIds), hallPromise]);
   // Same rule as the nav: the shortcut only exists when there's something of theirs behind it.
   const myTeams = session?.userId ? await countLiveTeamInvolvements(session.userId) : 0;
 
   return (
     <div>
       <Hero view={view} />
+      {hall && <ClanHall initial={hall} />}
       <YouStrip you={view.you} signedIn={!!session?.userId} discordInvite={view.discordInvite} />
       <LiveNow view={view} />
       <Competitions view={view} />

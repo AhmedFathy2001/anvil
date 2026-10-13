@@ -25,6 +25,10 @@ const EXPOSED_KEYS = [
   'clan_ingame_name',
   // Public Discord invite shown in the nav + home quick links. Hidden when blank.
   'discord_invite_url',
+  // The "who's around" card (lib/clanHall): on/off, names for non-members, and the off-site embed.
+  'discord_widget_enabled',
+  'discord_widget_public_names',
+  'discord_widget_embed',
   // Role pinged on bingo event start/finish posts. Blank = no ping.
   'discord_member_ping_role_id',
   'always_notify_items',
