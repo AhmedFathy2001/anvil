@@ -215,7 +215,16 @@ export function Mark({ size }: { size: number }) {
   return <img src={MARK_DATA_URL} width={size} height={size} style={{ width: size, height: size }} />;
 }
 
-/** The mark and the wordmark, for a corner of the card that doesn't compete with the subject. */
+/** Where Frame pins the brand plate, from the card's bottom-right corner. */
+export const BRAND_INSET = { right: 40, bottom: 36 };
+
+/**
+ * The box (from the bottom-right corner) the brand plate occupies, plus a margin. Card layouts keep
+ * text out of it; art may run under it, since the plate has its own background.
+ */
+export const BRAND_CLEARANCE = { width: 230, height: 110 };
+
+/** The mark and the wordmark. Placed by Frame; cards don't draw it themselves. */
 export function Brand({ size = 40 }: { size?: number }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -374,11 +383,19 @@ export function Frame({
   children,
   backdrop: layer,
   background,
+  brand = true,
 }: {
   children: ReactNode;
   /** From `backdrop()`, with `overBanner` matching whether `background` is set. */
   backdrop: string;
   background?: string | null;
+  /**
+   * The corner mark. On by default and drawn HERE rather than by each card, because each card used
+   * to place its own — bottom-left on one, inline after the facts on another, top-right on a third —
+   * and a set of cards pasted down one Discord channel read as five different products. Off only for
+   * the platform's own card, where the mark is already the subject.
+   */
+  brand?: boolean;
 }) {
   const full = { display: 'flex', position: 'absolute' as const, left: 0, top: 0, width: OG_WIDTH, height: OG_HEIGHT };
   return (
@@ -401,6 +418,25 @@ export function Frame({
       {/* eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text */}
       <img src={layer} width={OG_WIDTH} height={OG_HEIGHT} style={full} />
       {children}
+      {brand ? (
+        // Always the bottom-right corner, always the same size, on its own dark plate so it reads
+        // over whatever a card puts there — a board, a banner, a podium. Cards keep that corner
+        // (BRAND_CLEARANCE) free of anything that matters.
+        <div
+          style={{
+            display: 'flex',
+            position: 'absolute',
+            right: BRAND_INSET.right,
+            bottom: BRAND_INSET.bottom,
+            padding: '8px 16px 8px 8px',
+            borderRadius: 14,
+            background: 'rgba(20,16,16,0.78)',
+            border: `2px solid ${C.border}`,
+          }}
+        >
+          <Brand size={40} />
+        </div>
+      ) : null}
       {/* Last, so no layer of the art can shade it. */}
       <div
         style={{

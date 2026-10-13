@@ -16,7 +16,7 @@
 import type { ReactNode } from 'react';
 
 import {
-  Brand,
+  BRAND_CLEARANCE,
   C,
   ClanFace,
   DISPLAY,
@@ -61,7 +61,7 @@ export const SITE_PITCH = 'Bingos, Skill & Boss of the Week, and your whole rost
 export async function siteCard(): Promise<Response> {
   const sprites = await Promise.all(SITE_SPRITES.map(localSprite));
   return renderCard(['site'], async () => (
-    <Frame backdrop={await backdrop({ glow: '78% 40%', seed: 3, sparkCount: 18 })}>
+    <Frame brand={false} backdrop={await backdrop({ glow: '78% 40%', seed: 3, sparkCount: 18 })}>
       <div style={{ ...PANE, left: 660, top: 78, width: 520, flexWrap: 'wrap', gap: 10, transform: 'rotate(-8deg)' }}>
         {sprites.map((src, i) => {
           const done = SITE_DONE.has(i);
@@ -225,7 +225,8 @@ export async function eventCard(d: EventCardData): Promise<Response> {
   // The right half: the board when it can be shown; else the event's own banner, which is already
   // behind everything and needs nothing drawn over it; else its icon or the clan's face.
   const art = d.board ? (
-    <div style={{ ...PANE, right: 44, top: 0, height: 630, alignItems: 'center' }}>
+    // Centred in the height ABOVE the brand plate, so the board's last row never sits under it.
+    <div style={{ ...PANE, right: 44, top: 0, height: 630 - BRAND_CLEARANCE.height + 30, alignItems: 'center' }}>
       <MiniBoard cols={d.board.cols} cells={d.board.cells} />
     </div>
   ) : d.banner ? null : (
@@ -299,7 +300,6 @@ export async function eventCard(d: EventCardData): Promise<Response> {
               {d.clock && d.facts ? <div style={{ display: 'flex', width: 6, height: 6, borderRadius: 6, background: C.gold }} /> : null}
               {d.facts ? <div style={{ display: 'flex' }}>{d.facts}</div> : null}
             </div>
-            <Brand size={40} />
           </div>
         </div>
       </div>
@@ -448,9 +448,6 @@ export async function weeklyCard(d: WeeklyCardData): Promise<Response> {
         </div>
         {winner ?? (d.top.length ? list : <div style={{ display: 'flex' }} />)}
       </div>
-      <div style={{ ...PANE, right: 48, ...(winner ? { bottom: 40 } : { top: 40 }) }}>
-        <Brand size={40} />
-      </div>
     </Frame>
   ));
 }
@@ -474,14 +471,11 @@ export async function leaderboardCard(d: LeaderboardCardData): Promise<Response>
         <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 70, lineHeight: 1.02, letterSpacing: -1.5, marginTop: 16, width: 470 }}>
           OSRS Clan Leaderboard
         </div>
-        <div style={{ display: 'flex', fontSize: 26, color: C.muted, marginTop: 18, width: 440, lineHeight: 1.35 }}>
+        <div style={{ display: 'flex', fontSize: 26, color: C.muted, marginTop: 18, width: 340, lineHeight: 1.35 }}>
           {d.field > 0
             ? `${d.field.toLocaleString('en-US')} clan${d.field === 1 ? '' : 's'} ranked by XP, efficient hours and bossing.`
             : 'Clans ranked by XP, efficient hours and bossing.'}
         </div>
-      </div>
-      <div style={{ ...PANE, left: 76, bottom: 46 }}>
-        <Brand size={40} />
       </div>
       {order.length === 0 ? (
         // Nobody ranked yet (a fresh platform, or a quiet week): the mark on the empty podium.
@@ -489,12 +483,13 @@ export async function leaderboardCard(d: LeaderboardCardData): Promise<Response>
           <Mark size={260} />
         </FaceArt>
       ) : null}
-      <div style={{ ...PANE, left: 556, bottom: 0, alignItems: 'flex-end', gap: 14 }}>
+      {/* Ends left of the brand plate's corner, so third place never stands under it. */}
+      <div style={{ ...PANE, right: BRAND_CLEARANCE.width, bottom: 0, alignItems: 'flex-end', gap: 12 }}>
         {order.map((i) => {
           const p = d.podium[i];
           const first = i === 0;
           return (
-            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 200 }}>
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 180 }}>
               <ClanFace name={p.name} logo={p.logo} size={first ? 104 : 84} />
               <div
                 style={{
@@ -502,7 +497,7 @@ export async function leaderboardCard(d: LeaderboardCardData): Promise<Response>
                   fontSize: first ? 28 : 24,
                   fontWeight: 700,
                   marginTop: 14,
-                  maxWidth: 200,
+                  maxWidth: 180,
                   textAlign: 'center',
                   justifyContent: 'center',
                   maxHeight: first ? 70 : 60,
@@ -515,7 +510,7 @@ export async function leaderboardCard(d: LeaderboardCardData): Promise<Response>
               <div
                 style={{
                   display: 'flex',
-                  width: 200,
+                  width: 180,
                   height: heights[i],
                   borderTopLeftRadius: 14,
                   borderTopRightRadius: 14,
@@ -614,9 +609,6 @@ export async function clanCard(d: ClanCardData): Promise<Response> {
           ))}
         </div>
       </div>
-      <div style={{ ...PANE, right: 48, bottom: 40 }}>
-        <Brand size={40} />
-      </div>
     </Frame>
   ));
 }
@@ -704,9 +696,6 @@ export async function memberCard(d: MemberCardData): Promise<Response> {
             </div>
           ))}
         </div>
-      </div>
-      <div style={{ ...PANE, right: 48, bottom: 40 }}>
-        <Brand size={40} />
       </div>
     </Frame>
   ));
@@ -812,11 +801,10 @@ export async function headToHeadCard(d: HeadToHeadCardData): Promise<Response> {
           </div>
         ))}
       </div>
-      <div style={{ ...PANE, left: 60, right: 48, bottom: 40, alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ ...PANE, left: 60, right: BRAND_CLEARANCE.width, bottom: 44, alignItems: 'center' }}>
         <div style={{ display: 'flex', fontSize: 30, fontWeight: 700, color: d.verdictSide ? SIDE_COLOR[d.verdictSide] : C.text }}>
           {d.verdict ?? ''}
         </div>
-        <Brand size={40} />
       </div>
     </Frame>
   ));
