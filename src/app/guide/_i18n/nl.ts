@@ -598,9 +598,18 @@ const nl: PartialGuideDict = {
         body: 'Zegt de chat _Tracked as a guest_, dan word je bijgehouden maar sta je nog niet op de ledenlijst van de clan. Dat lost een admin op door de ledenlijst vanuit het spel te synchroniseren — vraag het {discordLink}.',
         discordWord: 'in Discord',
       },
+      panelHeading: 'Het zijpaneel',
+      panelBody: [
+        'Drie tabbladen. **Clan** zijn je events en je clan: elke lopende en komende bingo en wekelijkse competitie met waar je staat, de week van je clan en zijn grootste accounts. **You** is je eigen profiel — je collection log tot op de items van elke pagina, je laatste unlocks, skills, bosses, clues, beste tijden en de doelen die je op de site hebt gezet. **Lookup** vindt dat van iedereen anders, speler of clan.',
+        'Op iemands kaart zet **Compare with me** jullie twee naast elkaar, skill voor skill, boss voor boss en pagina voor pagina. Het tandwiel opent de eigen instellingen van het paneel: je profiel en de ledenlijst van de clan synchroniseren, en je banner en missiegeluiden.',
+      ],
+      panelFigure: {
+        caption: 'Clan · You · Lookup',
+        alt: 'De drie tabbladen van het Anvil-zijpaneel naast elkaar: het Clan-tabblad met events en de week van de clan, het You-tabblad met je collection log, en het Lookup-tabblad met de kaart van een andere speler',
+      },
       lookupHeading: 'Zoek iedereen op',
       lookupBody:
-        'Klik met rechts op een speler — naast je, of op zijn naam in de chat, je vriendenlijst of het clanpaneel — en kies **Anvil** om zijn Anvil-profiel in je browser te openen. Voor je eigen profiel open je het **⋯**-menu bovenaan het zijpaneel en kies je **View my profile on Anvil**.',
+        'Klik met rechts op een speler — naast je, of op zijn naam in de chat, je vriendenlijst of het clanpaneel — en kies **Anvil** om zijn kaart te openen in het **Lookup**-tabblad van het zijpaneel. Je eigen kaart is het **You**-tabblad.',
       lookupFigure: {
         caption: 'Rechtsklik op een naam → Anvil',
         alt: 'Het rechtsklikmenu van een speler in het spel met een Anvil-optie onder Lookup en RuneProfile',
@@ -661,6 +670,13 @@ const nl: PartialGuideDict = {
           },
         ],
       },
+      teamsHeading: 'Teams',
+      teamsBody:
+        'De knop **Teams** bij een event toont de teams op volgorde van stand, met het jouwe bovenaan. Open er een voor de selectie, aanvoerder eerst, of zoek een speler in alle teams — klik op een naam om die op te zoeken.',
+      teamsFigure: {
+        caption: 'Event → Teams',
+        alt: 'De Teams-pagina met de teams van een event, hun punten en aantal leden, naast de selectie van één team met de aanvoerder bovenaan',
+      },
       startHeading: 'Startfoto',
       startBody: [
         'Sommige events vragen van iedereen een **startfoto**: één schermafbeelding gemaakt nadat het event live is gegaan, op een locatie die op het startmoment wordt geloot. Het voorkomt dat iemand de week voor het event besteedt aan het hamsteren van clues, kisten en kills om die op dag één te dumpen.',
@@ -674,6 +690,10 @@ const nl: PartialGuideDict = {
       title: 'Discord-meldingen',
       intro:
         'Die gaan af of er nu een bingo loopt of niet, en ze verschijnen in de kanalen van de clan. Welk kanaal, bepalen de admins hier — jij kiest alleen _wat_ je post.',
+      examplesFigure: {
+        caption: 'Zo ziet een post eruit',
+        alt: 'Twee Discord-posts van Anvil: een Grandmaster-combat task met punten en de voortgang naar de volgende unlock, en een dood met het bijbehorende bericht, elk met een screenshot van het moment',
+      },
       dropsFigure: {
         caption: 'Deaths & kills · Drops & pets',
         alt: 'De meldingsonderdelen Deaths and kills en Drops and pets met elke instelling omkaderd en genummerd',

@@ -598,9 +598,18 @@ const fi: PartialGuideDict = {
         body: 'Jos chat sanoo _Tracked as a guest_, sinua seurataan mutta et ole vielä klaanin jäsenlistalla. Ylläpitäjä korjaa sen synkronoimalla jäsenlistan pelistä — kysy {discordLink}.',
         discordWord: 'Discordissa',
       },
+      panelHeading: 'Sivupaneeli',
+      panelBody: [
+        'Kolme välilehteä. **Clan** on tapahtumasi ja klaanisi: jokainen käynnissä oleva ja tuleva bingo ja viikkokilpailu sijoituksinesi, klaanisi viikko ja sen suurimmat tilit. **You** on oma profiilisi — Collection Logisi jokaisen sivun esineisiin asti, uusimmat avaukset, taidot, bossit, cluet, parhaat ajat ja sivustolla asettamasi tavoitteet. **Lookup** löytää kenen tahansa muun, pelaajan tai klaanin.',
+        'Jonkun kortilla **Compare with me** asettaa teidät rinnakkain — taito taidolta, bossi bossilta ja sivu sivulta. Ratas avaa paneelin omat asetukset: profiilisi ja klaanin jäsenlistan synkronoinnin sekä bannerisi ja tehtävä-äänet.',
+      ],
+      panelFigure: {
+        caption: 'Clan · You · Lookup',
+        alt: 'Anvilin sivupaneelin kolme välilehteä rinnakkain: Clan-välilehti tapahtumineen ja klaanin viikkoineen, You-välilehti, jossa on Collection Logisi, ja Lookup-välilehti, jossa näkyy toisen pelaajan kortti',
+      },
       lookupHeading: 'Hae kenet tahansa',
       lookupBody:
-        'Napsauta pelaajaa hiiren oikealla — vieressäsi tai nimeä chatissa, kaverilistassa tai klaanipaneelissa — ja valitse **Anvil** avataksesi hänen Anvil-profiilinsa selaimessa. Omasi löydät avaamalla sivupaneelin yläreunan **⋯**-valikon ja valitsemalla **View my profile on Anvil**.',
+        'Napsauta pelaajaa hiiren oikealla — vieressäsi tai nimeä chatissa, kaverilistassa tai klaanipaneelissa — ja valitse **Anvil** avataksesi hänen korttinsa sivupaneelin **Lookup**-välilehdellä. Omasi on **You**-välilehti.',
       lookupFigure: {
         caption: 'Oikea napsautus nimeen → Anvil',
         alt: 'Pelaajan oikean napsautuksen valikko pelissä, jossa Anvil-kohta Lookupin ja RuneProfilen alla',
@@ -661,6 +670,13 @@ const fi: PartialGuideDict = {
           },
         ],
       },
+      teamsHeading: 'Joukkueet',
+      teamsBody:
+        'Tapahtuman **Teams**-painike listaa sen joukkueet sijoitusjärjestyksessä, omasi ylimpänä. Avaa joukkue nähdäksesi sen kokoonpanon, kapteeni ensimmäisenä, tai hae pelaajaa kaikista joukkueista — napsauta nimeä hakeaksesi hänet.',
+      teamsFigure: {
+        caption: 'Event → Teams',
+        alt: 'Teams-sivu, jossa tapahtuman joukkueet pisteineen ja jäsenmäärineen, vieressä yhden joukkueen kokoonpano kapteeni ensimmäisenä',
+      },
       startHeading: 'Aloituskuva',
       startBody: [
         'Jotkin tapahtumat vaativat kaikilta **aloituskuvan**: yhden kuvakaappauksen otettuna sen jälkeen kun tapahtuma on alkanut, paikassa joka arvotaan aloitushetkellä. Se estää ketään käyttämästä tapahtumaa edeltävää viikkoa cluejen, arkkujen ja tappojen varastointiin ensimmäisenä päivänä kaadettavaksi.',
@@ -674,6 +690,10 @@ const fi: PartialGuideDict = {
       title: 'Discord-ilmoitukset',
       intro:
         'Nämä lähtevät riippumatta siitä onko bingo käynnissä, ja ne julkaistaan klaanin kanaviin. Minkä kanavan ylläpitäjät määrittävät täällä — sinä valitset vain _mitä_ julkaiset.',
+      examplesFigure: {
+        caption: 'Tältä julkaisu näyttää',
+        alt: 'Kaksi Anvilin Discord-julkaisua: Grandmaster-taistelutehtävä pisteineen ja edistyminen seuraavaan avaukseen sekä kuolema viesteineen, kummassakin kuvakaappaus hetkestä',
+      },
       dropsFigure: {
         caption: 'Deaths & kills · Drops & pets',
         alt: 'Ilmoitusosiot Deaths and kills ja Drops and pets, joissa jokainen asetus on kehystetty ja numeroitu',

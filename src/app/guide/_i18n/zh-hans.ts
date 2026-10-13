@@ -596,9 +596,18 @@ const zhHans: PartialGuideDict = {
         body: '如果聊天里显示 _Tracked as a guest_，说明你已被记录，但还没进入氏族成员名单。管理员同步一次游戏内成员名单即可解决 —— 去{discordLink}问一声。',
         discordWord: 'Discord 里',
       },
+      panelHeading: '侧边面板',
+      panelBody: [
+        '三个标签页。**Clan** 是你的活动和你的氏族：每一场进行中和即将开始的宾果与每周竞赛，以及你所处的位置、氏族本周的情况和最大的几个账号。**You** 是你自己的资料 —— 细到每一页物品的 collection log、最新解锁、技能、Boss、线索、最佳用时，以及你在网站上设定的目标。**Lookup** 用来查找其他任何人，玩家或氏族都可以。',
+        '在某人的卡片上，**Compare with me** 会把你们两人按技能、按 Boss、按页面逐项对比。齿轮图标打开面板自己的设置：同步你的资料和氏族成员名单，以及你的横幅和任务提示音。',
+      ],
+      panelFigure: {
+        caption: 'Clan · You · Lookup',
+        alt: 'Anvil 侧边面板的三个标签页并排展示：Clan 标签页显示活动和氏族本周情况，You 标签页显示你的 collection log，Lookup 标签页显示另一名玩家的卡片',
+      },
       lookupHeading: '查询任何人',
       lookupBody:
-        '右键点击一名玩家——无论是在你身边，还是聊天、好友列表或部落面板里的名字——选择 **Anvil**，即可在浏览器中打开其 Anvil 个人资料。查看你自己的资料：打开侧边面板顶部的 **⋯** 菜单，选择 **View my profile on Anvil**。',
+        '右键点击一名玩家 —— 无论是在你身边，还是聊天、好友列表或氏族面板里的名字 —— 选择 **Anvil**，即可在侧边面板的 **Lookup** 标签页中打开其卡片。你自己的就在 **You** 标签页。',
       lookupFigure: {
         caption: '右键点击名字 → Anvil',
         alt: '游戏内玩家右键菜单，Lookup 和 RuneProfile 下方有一个 Anvil 选项',
@@ -659,6 +668,13 @@ const zhHans: PartialGuideDict = {
           },
         ],
       },
+      teamsHeading: '队伍',
+      teamsBody:
+        '活动上的 **Teams** 按钮会按排名列出它的所有队伍，你的队伍置顶。打开一支队伍可查看其成员名单，队长排在最前；也可以在所有队伍中搜索某名玩家 —— 点击名字即可查询。',
+      teamsFigure: {
+        caption: '活动 → Teams',
+        alt: 'Teams 页面列出一场活动的各支队伍及其积分和成员数，旁边是一支队伍的成员名单，队长排在最前',
+      },
       startHeading: '开赛照',
       startBody: [
         '有些活动要求所有人交一张**开赛照**：在活动正式开始之后拍摄的一张截图，地点在开赛那一刻随机抽取。这能阻止有人在赛前一周囤积线索卷、宝箱和击杀，然后在第一天一次性倾倒出来。',
@@ -672,6 +688,10 @@ const zhHans: PartialGuideDict = {
       title: 'Discord 通知',
       intro:
         '无论是否有宾果在进行，这些都会发出，并且发到氏族的频道里。发到哪个频道由管理员在这里决定 —— 你只选择_发什么_。',
+      examplesFigure: {
+        caption: '一条帖子的样子',
+        alt: 'Anvil 发出的两条 Discord 帖子：一条是 Grandmaster 战斗任务，附有积分和距下一次解锁的进度；一条是死亡记录及其消息，各自附有当时的截图',
+      },
       dropsFigure: {
         caption: 'Deaths & kills · Drops & pets',
         alt: 'Deaths and kills 与 Drops and pets 两个通知区块，每一项设置都被方框标出并编号',

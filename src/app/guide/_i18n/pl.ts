@@ -596,9 +596,18 @@ const pl: PartialGuideDict = {
         body: 'Jeśli czat mówi _Tracked as a guest_, jesteś śledzony, ale nie ma cię jeszcze na składzie klanu. Admin naprawia to, synchronizując skład klanu z gry —— poproś {discordLink}.',
         discordWord: 'na Discordzie',
       },
+      panelHeading: 'Panel boczny',
+      panelBody: [
+        'Trzy zakładki. **Clan** to twoje wydarzenia i twój klan: każde trwające i nadchodzące bingo oraz cotygodniowa rywalizacja z twoją pozycją, tydzień klanu i jego największe konta. **You** to twój własny profil —— collection log aż po przedmioty z każdej strony, ostatnie odblokowania, umiejętności, bossowie, clue, najlepsze czasy i cele ustawione na stronie. **Lookup** znajdzie każdego innego, gracza albo klan.',
+        'Na czyjejś karcie **Compare with me** zestawia was obu umiejętność po umiejętności, boss po bossie i strona po stronie. Zębatka otwiera własne ustawienia panelu: synchronizację twojego profilu i składu klanu oraz twój baner i dźwięki misji.',
+      ],
+      panelFigure: {
+        caption: 'Clan · You · Lookup',
+        alt: 'Trzy zakładki panelu bocznego Anvil obok siebie: zakładka Clan z wydarzeniami i tygodniem klanu, zakładka You z twoim collection logiem i zakładka Lookup z kartą innego gracza',
+      },
       lookupHeading: 'Sprawdź każdego',
       lookupBody:
-        'Kliknij prawym przyciskiem gracza — obok siebie albo jego nick na czacie, liście znajomych lub w panelu klanu — i wybierz **Anvil**, aby otworzyć jego profil Anvil w przeglądarce. Swój otworzysz z menu **⋯** na górze panelu bocznego, wybierając **View my profile on Anvil**.',
+        'Kliknij prawym przyciskiem gracza —— obok siebie albo jego nick na czacie, liście znajomych lub w panelu klanu —— i wybierz **Anvil**, aby otworzyć jego kartę w zakładce **Lookup** panelu bocznego. Twoja własna to zakładka **You**.',
       lookupFigure: {
         caption: 'Prawy klik na nicku → Anvil',
         alt: 'Menu prawego przycisku gracza w grze z pozycją Anvil pod Lookup i RuneProfile',
@@ -659,6 +668,13 @@ const pl: PartialGuideDict = {
           },
         ],
       },
+      teamsHeading: 'Drużyny',
+      teamsBody:
+        'Przycisk **Teams** przy wydarzeniu pokazuje jego drużyny w rankingu, z twoją na górze. Otwórz którąś, żeby zobaczyć skład z kapitanem na początku, albo wyszukaj gracza we wszystkich drużynach naraz —— kliknij nick, żeby go sprawdzić.',
+      teamsFigure: {
+        caption: 'Wydarzenie → Teams',
+        alt: 'Strona Teams z drużynami wydarzenia, punktami i liczbą członków, obok składu jednej drużyny z kapitanem na początku',
+      },
       startHeading: 'Zdjęcie startowe',
       startBody: [
         'Niektóre wydarzenia proszą wszystkich o **zdjęcie startowe**: jeden zrzut zrobiony po starcie wydarzenia, w miejscu wylosowanym w momencie startu. To powstrzymuje kogokolwiek od spędzenia poprzedniego tygodnia na gromadzeniu clue, skrzynek i killi, żeby zrzucić je pierwszego dnia.',
@@ -672,6 +688,10 @@ const pl: PartialGuideDict = {
       title: 'Powiadomienia na Discordzie',
       intro:
         'Działają niezależnie od tego, czy trwa bingo, i trafiają na kanały klanu. Który kanał, ustawiają adminowie —— ty wybierasz tylko _co_ publikujesz.',
+      examplesFigure: {
+        caption: 'Jak wygląda post',
+        alt: 'Dwa posty Anvil na Discordzie: zadanie Grandmaster z combat achievements z punktami i postępem do następnego odblokowania oraz śmierć z wiadomością, każdy ze zrzutem ekranu z tej chwili',
+      },
       dropsFigure: {
         caption: 'Śmierci i kille · Dropy i pety',
         alt: 'Sekcje powiadomień „Deaths and kills” oraz „Drops and pets” z każdym ustawieniem zaznaczonym i ponumerowanym',

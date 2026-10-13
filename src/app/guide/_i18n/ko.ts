@@ -597,9 +597,18 @@ const ko: PartialGuideDict = {
         body: '채팅에 _Tracked as a guest_ 라고 뜨면 기록은 되고 있지만 아직 클랜 멤버 명단에는 없다는 뜻입니다. 관리자가 게임 내 클랜 명단을 동기화하면 해결됩니다 —— {discordLink} 물어보세요.',
         discordWord: 'Discord에서',
       },
+      panelHeading: '사이드 패널',
+      panelBody: [
+        '탭은 세 개입니다. **Clan**은 내 이벤트와 클랜입니다: 진행 중이거나 예정된 모든 빙고와 주간 대회에서의 내 순위, 클랜의 이번 주, 그리고 클랜의 큰 계정들. **You**는 내 프로필입니다 —— 각 페이지의 아이템까지 보이는 컬렉션 로그, 최근 해금, 스킬, 보스, 클루, 최고 기록, 그리고 사이트에서 정한 목표. **Lookup**에서는 다른 누구든, 플레이어든 클랜이든 찾을 수 있습니다.',
+        '누군가의 카드에서 **Compare with me**를 누르면 두 사람을 스킬별, 보스별, 페이지별로 나란히 비교합니다. 톱니바퀴는 패널 자체의 설정을 엽니다: 프로필과 클랜 명단 동기화, 그리고 배너와 미션 사운드.',
+      ],
+      panelFigure: {
+        caption: 'Clan · You · Lookup',
+        alt: 'Anvil 사이드 패널의 세 탭을 나란히 놓은 모습. 이벤트와 클랜의 이번 주가 보이는 Clan 탭, 내 컬렉션 로그가 보이는 You 탭, 다른 플레이어의 카드를 보여 주는 Lookup 탭',
+      },
       lookupHeading: '누구든 찾아보기',
       lookupBody:
-        '플레이어를 우클릭하세요 — 바로 옆에 있는 플레이어든, 채팅·친구 목록·클랜 패널의 이름이든 상관없습니다. **Anvil**을 고르면 그 플레이어의 Anvil 프로필이 브라우저에서 열립니다. 내 프로필은 사이드 패널 맨 위의 **⋯** 메뉴에서 **View my profile on Anvil**을 고르세요.',
+        '플레이어를 우클릭하세요 — 바로 옆에 있는 플레이어든, 채팅·친구 목록·클랜 패널의 이름이든 상관없습니다. **Anvil**을 고르면 그 플레이어의 카드가 사이드 패널의 **Lookup** 탭에서 열립니다. 내 것은 **You** 탭입니다.',
       lookupFigure: {
         caption: '이름 우클릭 → Anvil',
         alt: '게임 속 플레이어 우클릭 메뉴. Lookup과 RuneProfile 아래에 Anvil 항목이 있다',
@@ -660,6 +669,13 @@ const ko: PartialGuideDict = {
           },
         ],
       },
+      teamsHeading: '팀',
+      teamsBody:
+        '이벤트의 **Teams** 버튼을 누르면 팀들이 순위대로 나오고, 내 팀이 맨 위에 옵니다. 팀을 열면 주장을 맨 앞으로 한 명단이 보이고, 모든 팀에서 플레이어를 검색할 수도 있습니다 —— 이름을 클릭하면 그 플레이어를 찾아볼 수 있습니다.',
+      teamsFigure: {
+        caption: '이벤트 → Teams',
+        alt: '이벤트의 팀들을 점수와 인원수와 함께 보여 주는 Teams 페이지, 그리고 주장이 맨 앞에 있는 한 팀의 명단',
+      },
       startHeading: '시작 인증샷',
       startBody: [
         '어떤 이벤트는 모두에게 **시작 인증샷**을 요구합니다: 이벤트가 시작된 뒤, 시작 순간에 추첨된 장소에서 찍은 스크린샷 한 장입니다. 이것이 있으면 아무도 이벤트 전 일주일 동안 단서와 상자와 처치를 쌓아 두었다가 첫날에 쏟아붓지 못합니다.',
@@ -673,6 +689,10 @@ const ko: PartialGuideDict = {
       title: 'Discord 알림',
       intro:
         '이 알림들은 빙고가 진행 중이든 아니든 나가며, 클랜 채널에 올라갑니다. 어느 채널인지는 관리자가 여기서 정합니다 —— 당신은 _무엇을_ 올릴지만 고릅니다.',
+      examplesFigure: {
+        caption: '게시물은 이렇게 보입니다',
+        alt: 'Anvil이 올린 Discord 게시물 두 개. 점수와 다음 해금까지의 진행도가 표시된 Grandmaster 전투 과제, 그리고 메시지가 담긴 사망 알림. 둘 다 그 순간의 스크린샷이 붙어 있음',
+      },
       dropsFigure: {
         caption: 'Deaths & kills · Drops & pets',
         alt: 'Deaths and kills와 Drops and pets 알림 영역. 각 설정이 네모로 표시되고 번호가 매겨져 있음',

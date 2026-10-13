@@ -598,9 +598,18 @@ const es: PartialGuideDict = {
         body: 'Si el chat dice _Tracked as a guest_, se te está registrando pero aún no estás en la lista de miembros del clan. Un admin lo arregla sincronizando la lista desde el juego — pregunta {discordLink}.',
         discordWord: 'en Discord',
       },
+      panelHeading: 'El panel lateral',
+      panelBody: [
+        'Tres pestañas. **Clan** son tus eventos y tu clan: cada bingo y competición semanal en curso o próxima con tu posición, la semana de tu clan y sus cuentas más grandes. **You** es tu propio perfil — tu Collection Log hasta los objetos de cada página, los últimos desbloqueos, habilidades, jefes, pistas, mejores tiempos y los objetivos que te marcaste en la web. **Lookup** encuentra el de cualquier otro, jugador o clan.',
+        'En la tarjeta de alguien, **Compare with me** pone a los dos lado a lado — habilidad por habilidad, jefe por jefe y página por página. El engranaje abre los controles propios del panel: sincronizar tu perfil y la lista del clan, y tu banner y los sonidos de misión.',
+      ],
+      panelFigure: {
+        caption: 'Clan · You · Lookup',
+        alt: 'Las tres pestañas del panel lateral de Anvil una junto a otra: la pestaña Clan con eventos y la semana del clan, la pestaña You con tu Collection Log y la pestaña Lookup con la tarjeta de otro jugador',
+      },
       lookupHeading: 'Busca a cualquiera',
       lookupBody:
-        'Haz clic derecho en un jugador — a tu lado, o por su nombre en el chat, tu lista de amigos o el panel del clan — y elige **Anvil** para abrir su perfil de Anvil en el navegador. Para el tuyo, abre el menú **⋯** arriba del panel lateral y elige **View my profile on Anvil**.',
+        'Haz clic derecho en un jugador — a tu lado, o por su nombre en el chat, tu lista de amigos o el panel del clan — y elige **Anvil** para abrir su tarjeta en la pestaña **Lookup** del panel lateral. La tuya es la pestaña **You**.',
       lookupFigure: {
         caption: 'Clic derecho en un nombre → Anvil',
         alt: 'El menú de clic derecho de un jugador en el juego con una entrada Anvil bajo Lookup y RuneProfile',
@@ -661,6 +670,13 @@ const es: PartialGuideDict = {
           },
         ],
       },
+      teamsHeading: 'Equipos',
+      teamsBody:
+        'El botón **Teams** de un evento lista sus equipos por clasificación, con el tuyo arriba. Abre uno para ver su plantilla, con el capitán primero, o busca a un jugador en todos los equipos — haz clic en un nombre para buscarlo.',
+      teamsFigure: {
+        caption: 'Event → Teams',
+        alt: 'La página Teams con los equipos de un evento, sus puntos y su número de miembros, junto a la plantilla de un equipo con su capitán primero',
+      },
       startHeading: 'Foto de salida',
       startBody: [
         'Algunos eventos piden a todo el mundo una **foto de salida**: una captura tomada después de que el evento arranque, en un lugar sorteado en el instante del inicio. Impide que nadie se pase la semana previa acumulando clues, cofres y kills para soltarlos el primer día.',
@@ -674,6 +690,10 @@ const es: PartialGuideDict = {
       title: 'Notificaciones de Discord',
       intro:
         'Estas se envían haya bingo en marcha o no, y se publican en los canales del clan. En qué canal lo deciden aquí los administradores — tú solo eliges _qué_ publicas.',
+      examplesFigure: {
+        caption: 'Así se ve una publicación',
+        alt: 'Dos publicaciones de Discord de Anvil: una tarea de combate Grandmaster con sus puntos y el progreso hasta el siguiente desbloqueo, y una muerte con su mensaje, cada una con una captura del momento',
+      },
       dropsFigure: {
         caption: 'Deaths & kills · Drops & pets',
         alt: 'Las secciones de notificación Deaths and kills y Drops and pets, con cada ajuste recuadrado y numerado',

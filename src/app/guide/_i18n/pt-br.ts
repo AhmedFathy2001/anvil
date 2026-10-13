@@ -596,9 +596,18 @@ const ptBr: PartialGuideDict = {
         body: 'Se o chat disser _Tracked as a guest_, você está sendo rastreado mas ainda não está no quadro de membros do clã. Um admin resolve isso sincronizando a lista do clã no jogo —— peça {discordLink}.',
         discordWord: 'no Discord',
       },
+      panelHeading: 'O painel lateral',
+      panelBody: [
+        'Três abas. **Clan** são seus eventos e seu clã: cada bingo e competição semanal ao vivo ou por vir, com a sua posição, a semana do clã e as maiores contas dele. **You** é o seu próprio perfil —— o seu collection log até os itens de cada página, os desbloqueios mais recentes, skills, bosses, clues, melhores tempos e as metas que você definiu no site. **Lookup** encontra o de qualquer outra pessoa, jogador ou clã.',
+        'No card de alguém, **Compare with me** coloca vocês dois lado a lado skill por skill, boss por boss e página por página. A engrenagem abre os controles do próprio painel: sincronizar seu perfil e a lista do clã, e o seu banner e os sons de missão.',
+      ],
+      panelFigure: {
+        caption: 'Clan · You · Lookup',
+        alt: 'As três abas do painel lateral do Anvil lado a lado: a aba Clan com eventos e a semana do clã, a aba You com o seu collection log e a aba Lookup mostrando o card de outro jogador',
+      },
       lookupHeading: 'Consulte qualquer pessoa',
       lookupBody:
-        'Clique com o botão direito em um jogador — do seu lado, ou pelo nome no chat, na lista de amigos ou no painel do clã — e escolha **Anvil** para abrir o perfil dele no Anvil no navegador. Para o seu, abra o menu **⋯** no topo do painel lateral e escolha **View my profile on Anvil**.',
+        'Clique com o botão direito em um jogador —— do seu lado, ou pelo nome no chat, na lista de amigos ou no painel do clã —— e escolha **Anvil** para abrir o card dele na aba **Lookup** do painel lateral. O seu é a aba **You**.',
       lookupFigure: {
         caption: 'Botão direito em um nome → Anvil',
         alt: 'O menu de botão direito de um jogador no jogo com uma opção Anvil abaixo de Lookup e RuneProfile',
@@ -659,6 +668,13 @@ const ptBr: PartialGuideDict = {
           },
         ],
       },
+      teamsHeading: 'Times',
+      teamsBody:
+        'O botão **Teams** de um evento lista os times em ordem de classificação, com o seu no topo. Abra um para ver o elenco, capitão primeiro, ou procure um jogador em todos os times —— clique em um nome para consultá-lo.',
+      teamsFigure: {
+        caption: 'Evento → Teams',
+        alt: 'A página Teams listando os times de um evento com pontos e número de membros, ao lado do elenco de um time com o capitão primeiro',
+      },
       startHeading: 'Foto de largada',
       startBody: [
         'Alguns eventos pedem a todos uma **foto de largada**: uma captura tirada depois de o evento começar, num local sorteado no instante da largada. Isso impede que alguém passe a semana anterior estocando clues, baús e kills para despejar no primeiro dia.',
@@ -672,6 +688,10 @@ const ptBr: PartialGuideDict = {
       title: 'Notificações no Discord',
       intro:
         'Elas disparam havendo ou não um bingo rolando, e publicam nos canais do clã. Qual canal é decisão dos admins —— você só escolhe _o que_ publica.',
+      examplesFigure: {
+        caption: 'Como fica uma publicação',
+        alt: 'Duas publicações do Anvil no Discord: uma combat task Grandmaster com pontos e o progresso até o próximo desbloqueio, e uma morte com a sua mensagem, cada uma com uma captura de tela do momento',
+      },
       dropsFigure: {
         caption: 'Mortes e kills · Drops e pets',
         alt: 'As seções de notificação “Deaths and kills” e “Drops and pets” com cada opção destacada e numerada',

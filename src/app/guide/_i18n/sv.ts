@@ -597,9 +597,18 @@ const sv: PartialGuideDict = {
         body: 'Om chatten säger _Tracked as a guest_ blir du spårad, men du står inte på klanens medlemslista än. Det fixar en admin genom att synka medlemslistan från spelet — fråga {discordLink}.',
         discordWord: 'i Discord',
       },
+      panelHeading: 'Sidopanelen',
+      panelBody: [
+        'Tre flikar. **Clan** är dina event och din klan: varje pågående och kommande bingo och veckotävling med var du står, klanens vecka och dess största konton. **You** är din egen profil — din collection log ner till varje sidas föremål, senaste upplåsningar, färdigheter, bossar, clues, bästa tider och målen du satt på webbplatsen. **Lookup** hittar alla andras, spelare eller klan.',
+        'På någons kort ställer **Compare with me** upp er två färdighet för färdighet, boss för boss och sida för sida. Kugghjulet öppnar panelens egna inställningar: synka din profil och klanens medlemslista, och din banner och dina uppdragsljud.',
+      ],
+      panelFigure: {
+        caption: 'Clan · You · Lookup',
+        alt: 'Anvil-sidopanelens tre flikar sida vid sida: Clan-fliken med event och klanens vecka, You-fliken med din collection log, och Lookup-fliken med en annan spelares kort',
+      },
       lookupHeading: 'Slå upp vem som helst',
       lookupBody:
-        'Högerklicka på en spelare — bredvid dig, eller på namnet i chatten, vänlistan eller klanpanelen — och välj **Anvil** för att öppna deras Anvil-profil i webbläsaren. För din egen: öppna **⋯**-menyn högst upp i sidopanelen och välj **View my profile on Anvil**.',
+        'Högerklicka på en spelare — bredvid dig, eller på namnet i chatten, vänlistan eller klanpanelen — och välj **Anvil** för att öppna deras kort i sidopanelens **Lookup**-flik. Ditt eget är **You**-fliken.',
       lookupFigure: {
         caption: 'Högerklicka på ett namn → Anvil',
         alt: 'En spelares högerklicksmeny i spelet med ett Anvil-val under Lookup och RuneProfile',
@@ -660,6 +669,13 @@ const sv: PartialGuideDict = {
           },
         ],
       },
+      teamsHeading: 'Lag',
+      teamsBody:
+        '**Teams**-knappen på ett event listar dess lag rangordnade, med ditt överst. Öppna ett lag för dess medlemslista, kaptenen först, eller sök efter en spelare i alla lag — klicka på ett namn för att slå upp personen.',
+      teamsFigure: {
+        caption: 'Eventet → Teams',
+        alt: 'Teams-sidan med ett events lag, poäng och antal medlemmar, bredvid ett lags medlemslista med kaptenen först',
+      },
       startHeading: 'Startbild',
       startBody: [
         'Vissa event kräver en **startbild** av alla: en skärmbild tagen efter att eventet gått igång, på en plats som lottas i startögonblicket. Det hindrar folk från att ägna veckan före eventet åt att samla på sig clues, kistor och kills att dumpa första dagen.',
@@ -673,6 +689,10 @@ const sv: PartialGuideDict = {
       title: 'Discord-notiser',
       intro:
         'De skickas oavsett om en bingo pågår eller inte, och de postas i klanens kanaler. Vilken kanal bestämmer administratörerna här — du väljer bara _vad_ du postar.',
+      examplesFigure: {
+        caption: 'Så ser en post ut',
+        alt: 'Två Discord-poster från Anvil: en Grandmaster combat task med poäng och framsteg mot nästa upplåsning, och en död med sitt meddelande, båda med en skärmbild av ögonblicket',
+      },
       dropsFigure: {
         caption: 'Deaths & kills · Drops & pets',
         alt: 'Notisavsnitten Deaths and kills och Drops and pets med varje inställning inramad och numrerad',
