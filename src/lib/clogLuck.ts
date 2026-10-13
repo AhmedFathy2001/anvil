@@ -146,14 +146,26 @@ export function assessLuck(chance: number, kills: number, obtained: number): Luc
  * and crediting only the page's own boss counts a Drake farmer's stack against zero Drake kills. Sum
  * the expectations first, then judge the total against the count once.
  */
-export function assessLuckAt(expected: number, kills: number, obtained: number, expectedLow = expected): LuckAssessment {
+export function assessLuckAt(
+  expected: number,
+  kills: number,
+  obtained: number,
+  expectedLow = expected,
+  steps = 1,
+): LuckAssessment {
   const got = Math.max(0, obtained);
   // A RANGE when the rate depends on a party size the hiscores don't record (lib/clogProfile
   // expectationFor): dry is judged against the low end — dry even if they always ran in a big team —
   // and spooned against the high end — ahead even of a solo player. One number when there is none.
   const low = Math.min(expectedLow, expected);
-  const dryTail = poissonAtMost(got, low);
-  const spoonTail = poissonAtLeast(got, expected);
+  // A PROGRESSION (LuckRateSource.steps): the item is every n-th success of a roll, so the count is
+  // judged in successes. Holding `got` items means somewhere from n·got to n·got + n − 1 successes
+  // (the part-progress is unseen). Three steps make the count far more regular than one roll with the
+  // same mean, so landing well off the rate is RARER: 0 vestiges at 4,000 Vardorvis kills is a 2.5%
+  // result as one roll and a 0.1% result as three.
+  const n = Number.isInteger(steps) && steps > 1 ? steps : 1;
+  const dryTail = poissonAtMost(got * n + n - 1, low * n);
+  const spoonTail = poissonAtLeast(got * n, expected * n);
 
   let verdict: LuckVerdict = 'on-rate';
   if (expected > 0) {

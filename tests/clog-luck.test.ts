@@ -622,3 +622,17 @@ test('pickBoard: headliners stay put, the rest rotate with the day', () => {
   const tails = a.map((e) => e.assessment.tail);
   assert.deepEqual(tails, [...tails].sort((x, y) => x - y));
 });
+
+test('a vestige is the third step of its ring roll: same mean, thinner tails', () => {
+  const vard = (luckCandidates().find((c) => c.itemName.toLowerCase() === 'ultor vestige')?.sources ?? []);
+  assert.ok(vard.length > 0 && vard.every((s) => s.steps === 3), 'Ultor vestige is a 3-step progression');
+  const e = expectationFor(vard, { vardorvis: 4_000 });
+  assert.equal(e.steps, 3);
+  // As one roll, 0 at 4,000 kills is a ~2.5% result; as three steps it is ~0.1%.
+  const single = assessLuckAt(e.expected, 4_000, 0);
+  const stepped = assessLuckAt(e.expected, 4_000, 0, e.expected, e.steps);
+  assert.ok(single.tail > 0.02 && single.tail < 0.03, `single ${single.tail}`);
+  assert.ok(stepped.tail < 0.002, `stepped ${stepped.tail}`);
+  // Exactly on rate stays on rate.
+  assert.equal(assessLuckAt(3, 3_264, 3, 3, 3).verdict, 'on-rate');
+});

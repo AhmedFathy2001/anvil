@@ -53,6 +53,18 @@ export const GROUP_BOSS_PARTY_MAX: Record<string, number> = {
   vetion: 3,
 };
 
+/**
+ * Items that are the last step of a progression rather than one roll, and how many successes each
+ * takes (LuckRateSource.steps). The DT2 vestiges: a boss's ring roll succeeds, succeeds again, and
+ * the third success is the vestige — the wiki's 1-in-1,088 is that roll's 1-in-363 times three.
+ */
+const PROGRESSION_STEPS: Record<string, number> = {
+  'ultor vestige': 3,
+  'magus vestige': 3,
+  'venator vestige': 3,
+  'bellator vestige': 3,
+};
+
 /** Rarer than this isn't worth a board entry — a 1-in-30 seed isn't a dry streak, it's a Tuesday. */
 const MIN_DENOMINATOR = 100;
 
@@ -210,6 +222,7 @@ export function luckCandidates(raidOverrides?: unknown): LuckCandidate[] {
         rolls: drop.r && drop.r > 0 ? drop.r : 1,
         bundle: bundleSize(drop),
         partyMax: GROUP_BOSS_PARTY_MAX[bossKey],
+        steps: PROGRESSION_STEPS[(names.get(drop.i) ?? '').toLowerCase()],
       });
       byItem.set(drop.i, list);
     }
@@ -450,13 +463,14 @@ export async function getLuckBoards(clanId: number, limit = 15): Promise<LuckBoa
     sources: c.sources,
     members: synced.map((m): LuckSource => {
       const memberKills = kills.get(m.id) ?? {};
-      const { expected, expectedLow, bundle, kills: totalKills } = expectationFor(c.sources, memberKills);
+      const { expected, expectedLow, steps, bundle, kills: totalKills } = expectationFor(c.sources, memberKills);
       return {
         accountId: m.id,
         rsn: m.rsn,
         kills: totalKills,
         expected,
         expectedLow,
+        steps,
         // The stack collapses to the number of times the table actually hit. Without this a single
         // 750-axe drop reads as 750 drops against an expectation of two.
         obtained: dropsFromQuantity(owned.get(`${m.id}:${c.itemId}`) ?? 0, bundle),
@@ -524,7 +538,7 @@ export async function getMemberLuck(accountId: number, clanId: number | null, li
 
   const items: MemberLuckItem[] = [];
   for (const candidate of candidates) {
-    const { expected, expectedLow, bundle, kills: kc } = expectationFor(candidate.sources, kills);
+    const { expected, expectedLow, steps, bundle, kills: kc } = expectationFor(candidate.sources, kills);
     if (expected <= 0) continue;
     const obtained = dropsFromQuantity(owned.get(candidate.itemId) ?? 0, bundle);
     items.push({
@@ -536,7 +550,7 @@ export async function getMemberLuck(accountId: number, clanId: number | null, li
       expected,
       expectedLow,
       obtained,
-      assessment: assessLuckAt(expected, kc, obtained, expectedLow),
+      assessment: assessLuckAt(expected, kc, obtained, expectedLow, steps),
     });
   }
 
