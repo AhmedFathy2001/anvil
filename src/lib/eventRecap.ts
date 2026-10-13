@@ -13,6 +13,7 @@ import { activityFor } from '@/lib/hiscoresActivities';
 import { BOSSES } from '@/lib/constants';
 import { isAutoPingTileType } from '@/lib/turnIns';
 import { eventDayCount, eventDayOf, stampMs, totalGains, type PlayerDayCounters } from '@/lib/eventDay';
+import { effectiveStatsForPlayers } from '@/lib/liveStats';
 
 /**
  * A recap over ONE slice of the event instead of all of it — the daily digest's "awards of the day".
@@ -230,6 +231,8 @@ async function computeRecap(eventId: number, window?: RecapWindow): Promise<{
     db.select().from(tiles).where(eq(tiles.eventId, eventId)),
     db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eventId)),
   ]);
+  // Current stats = hiscores raised by the live plugin overlay (a plugin user's hiscores copy lags hours).
+  const statsNowById = await effectiveStatsForPlayers(eventPlayers);
 
   // Does this board ask about clues at all? A "most caskets" award on a board with no clue tile is
   // a fact about who happened to be doing clues that fortnight, not about the event — so the award
@@ -345,7 +348,7 @@ async function computeRecap(eventId: number, window?: RecapWindow): Promise<{
       // spent the whole event at a boss nobody scored still gets their due. Keep the best across a
       // person's accounts rather than summing: "1,204 Zulrah" is the story, not a merged total.
       const statsBase = base ? base.stats : p.statsSnapshot;
-      const statsNow = p.cachedStats ?? p.frozenStats;
+      const statsNow = statsNowById.get(p.id) ?? p.cachedStats ?? p.frozenStats;
       // A window has no per-tile standings to lean on, so its XP/KC are the account-wide gains.
       if (base) {
         const gains = totalGains(statsBase, statsNow);
@@ -388,8 +391,8 @@ async function computeRecap(eventId: number, window?: RecapWindow): Promise<{
   // every kill, a gain tick, …), while hiscores-KC tiles write no rows at all — so raw row counts
   // just measure who ground chat-line tiles (memberBreakdown already treats them as noise). For
   // Busy Bee / the personal card, an auto-ping type counts once per DISTINCT tile the person fed;
-  // discrete turn-ins (drops, timed clears, diaries, CAs, value hauls) stay one each. The
-  // event-wide totals.submissions stays the raw row count on purpose (fun activity number).
+  // discrete turn-ins (drops, timed clears, diaries, CAs, value hauls) stay one each. The event-wide
+  // totals.submissions counts the same way (lib/turnIns).
   const autoPingTilesSeen = new Set<string>(); // `${personKey}:${tileId}`
   let totalGpLooted = 0;
   for (const sub of eventSubmissions) {

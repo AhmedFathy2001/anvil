@@ -42,7 +42,10 @@ export default async function EventRecapPage({
     <div className="mb-6">
       <EventApiHost eventId={id} prefix={apiPrefix} />
       <ClanLink href={`/events/${id}`} className="text-sm text-text-muted hover:text-gold transition-colors">← {event.name}</ClanLink>
-      <h1 className="text-2xl font-bold text-gold mt-1">Event recap</h1>
+      <div className="flex items-center justify-between gap-3 flex-wrap mt-1">
+        <h1 className="text-2xl font-bold text-gold">Event recap</h1>
+        <ClanLink href={`/events/${id}/stats`} className="text-sm text-text-muted hover:text-gold transition-colors">📊 Full stats →</ClanLink>
+      </div>
     </div>
   );
 

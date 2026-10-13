@@ -18,6 +18,7 @@ import { postEventRules } from '@/lib/eventRulesPost';
 import { clearPreStartEventActivity } from '@/lib/preStartActivity';
 import { track } from '@/lib/analytics';
 import { endOfEventFacts, runDailyDigests, runHalfwayReports } from '@/lib/eventDigest';
+import { runHourlySnapshots } from '@/lib/eventHourly';
 
 // The awards worth celebrating in the Discord end post, most-fun-first — we take the first few of
 // these that actually have a winner so the embed stays punchy.
@@ -384,6 +385,7 @@ export async function processEventLifecycleNotifications(): Promise<void> {
 
   // Mid-event stats posts — the daily digest (every 24h from the start) and the one-off halfway
   // report. After the end loop, so an event that just ended never also gets a digest this tick.
+  await runHourlySnapshots().catch((err) => log.warn('event-lifecycle.hourly-failed', { err: String(err) }));
   await runHalfwayReports().catch((err) => log.warn('event-lifecycle.halfway-failed', { err: String(err) }));
   await runDailyDigests().catch((err) => log.warn('event-lifecycle.digest-failed', { err: String(err) }));
 

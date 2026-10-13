@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { clanRoster, eventParticipants } from '@/db/schema';
 import { inArray } from 'drizzle-orm';
 import { parsePluginStats } from '@/lib/pluginStats';
+import { effectiveSnapshotJson } from '@/lib/statTracking';
 
 /**
  * The member-scoped real-time overlay — the plugin's absolute boss-KC / skill-XP pushes, stored on
@@ -50,4 +51,27 @@ export function parseStatKeyTimes(json: string | null | undefined): Record<strin
   } catch {
     return {};
   }
+}
+
+/**
+ * Each event player's CURRENT stats as one hiscores-shaped JSON: the stored hiscores read raised by
+ * the member's live plugin overlay (statTracking.effectiveSnapshotJson), or the pinned `frozenStats`
+ * for a benched player. Stats posts and the stats page diff against this rather than `cachedStats`
+ * alone — a plugin user's hiscores copy is only reconciled every few hours, so reading it directly
+ * would leave their XP and KC flat between sweeps while their tiles moved.
+ */
+export async function effectiveStatsForPlayers(
+  players: Array<Pick<typeof eventParticipants.$inferSelect, 'id' | 'clanMemberId' | 'statsSnapshot' | 'cachedStats' | 'frozenAt' | 'frozenStats'>>,
+): Promise<Map<number, string | null>> {
+  const live = await liveStatsForMembers(players.map((p) => p.clanMemberId));
+  const out = new Map<number, string | null>();
+  for (const p of players) {
+    if (p.frozenAt) {
+      out.set(p.id, p.frozenStats ?? p.cachedStats);
+      continue;
+    }
+    const overlay = (p.clanMemberId != null && live.get(p.clanMemberId)) || {};
+    out.set(p.id, effectiveSnapshotJson(p.cachedStats, p.statsSnapshot, overlay) ?? p.cachedStats);
+  }
+  return out;
 }

@@ -52,6 +52,7 @@ import { loadPlayerOwners } from '@/lib/draftProfiles';
 import { getStatStandings, getTeamStandings } from '@/lib/statStandings';
 import { parseContributionSnapshot, type StatContributionSnapshot } from '@/lib/statTracking';
 import { isEventEnded } from '@/lib/survey';
+import { eventHasStarted as boardHasStarted } from '@/lib/completionGate';
 import { atLeast } from '@/lib/clanRoles';
 import ClanLink from '@/components/ClanLink';
 import { canEnterEvent } from '@/lib/eventAccess';
@@ -369,6 +370,8 @@ export default async function EventScoreboardPage({
   // when there's actually something to show. `mvp` is non-null exactly when someone scored/completed a
   // task, which guarantees the recap has at least the MVP award, so we never link to an empty page.
   const showRecapCta = isEventEnded(event) && !!mvp;
+  // The stats page counts from the start; before it there's nothing to show.
+  const showStatsLink = boardHasStarted(event);
 
   const [approvedCount, cofferFunded] = await Promise.all([countApprovedSignups(id), eventPoolGp(id)]);
   const prizePool = computePrizePool({
@@ -584,6 +587,19 @@ export default async function EventScoreboardPage({
       />
       )}
       {rulesFacts && <EventRulesCard facts={rulesFacts} defaultOpen={showRules} />}
+      {showStatsLink && !isEventEnded(event) && (
+        <ClanLink
+          href={`/events/${id}/stats`}
+          className="mb-6 flex items-center gap-3 rounded-xl border border-card-border bg-card-bg p-4 hover:border-gold/40 transition-colors"
+        >
+          <span className="text-xl leading-none" aria-hidden>📊</span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold">Live event stats</span>
+            <span className="block text-sm text-text-muted">Drops, deaths, XP and tiles per player — by day and hour by hour.</span>
+          </span>
+          <span className="text-sm text-gold shrink-0">Open →</span>
+        </ClanLink>
+      )}
       {/* Post-event actions — one quiet card that folds in whichever of the recap / survey CTAs apply,
           rather than two stacked gold banners shouting the same "event ended" note twice. */}
       {(showRecapCta || showSurveyCta) && (
@@ -608,6 +624,14 @@ export default async function EventScoreboardPage({
                 className="text-sm font-semibold bg-gold/20 text-gold border border-gold/30 px-4 py-2 rounded-lg hover:bg-gold/30 transition-colors"
               >
                 🏆 See the recap →
+              </ClanLink>
+            )}
+            {showStatsLink && (
+              <ClanLink
+                href={`/events/${id}/stats`}
+                className="text-sm font-medium text-text-muted border border-card-border px-4 py-2 rounded-lg hover:text-gold hover:border-gold/30 transition-colors"
+              >
+                📊 Event stats →
               </ClanLink>
             )}
             {showSurveyCta && (

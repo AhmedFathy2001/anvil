@@ -90,3 +90,24 @@ test('daysWonLine: scoreline for two clans, table (most wins first) for more', (
   const four = new Map([[1, 'A'], [2, 'B'], [3, 'C'], [4, 'D']]);
   assert.equal(daysWonLine(four, { 3: 3, 1: 1, 4: 2 }), 'C 3 · D 2 · A 1 · B 0');
 });
+
+test('dueHour: none in the first hour, whole hours after, never past the end', async () => {
+  const { dueHour, HOUR_MS } = await import('../src/lib/eventDay.ts');
+  assert.equal(dueHour(START + HOUR_MS - 1, START, END), null);
+  assert.equal(dueHour(START + HOUR_MS, START, END), 1);
+  assert.equal(dueHour(START + 5.5 * HOUR_MS, START, END), 5);
+  assert.equal(dueHour(END + 10 * HOUR_MS, START, END), 7 * 24);
+});
+
+test('hourTuple + tupleDiff: gains since the start, live skills summed (not the stale overall)', async () => {
+  const { hourTuple, tupleDiff, statTotals } = await import('../src/lib/eventDay.ts');
+  const base = JSON.stringify({ skills: { overall: { xp: 1000 }, attack: { xp: 600 }, defence: { xp: 400 } }, bosses: { zulrah: { score: 3 } } });
+  // overall still says 1000 (hiscores), but attack moved via a live push.
+  const now = JSON.stringify({ skills: { overall: { xp: 1000 }, attack: { xp: 900 }, defence: { xp: 400 } }, bosses: { zulrah: { score: 5 } } });
+  assert.deepEqual(hourTuple({ statsSnapshot: base, deaths: 1, lootGpGained: 50, minutesPlayed: 9 }, now), [300, 2, 1, 50, 9]);
+  // No baseline yet → no gain, whatever the account holds.
+  assert.deepEqual(hourTuple({ statsSnapshot: null, deaths: null, lootGpGained: null, minutesPlayed: null }, now), [0, 0, 0, 0, 0]);
+  assert.deepEqual(tupleDiff([10, 1, 1, 5, 3], [15, 1, 0, 9, 4]), [5, 0, 0, 4, 1]);
+  assert.deepEqual(tupleDiff(undefined, [1, 2, 3, 4, 5]), [1, 2, 3, 4, 5]);
+  assert.deepEqual(statTotals({ skills: { overall: { xp: 77 } } }), { xp: 77, kc: 0 });
+});

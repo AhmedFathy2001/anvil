@@ -8,6 +8,7 @@ import { notifyEventStatsPost } from '@/lib/discord';
 import { field, type DiscordEmbedField } from '@/lib/discordEmbeds';
 import { formatGp } from '@/lib/adminEventsFormat';
 import { log } from '@/lib/logger';
+import { effectiveStatsForPlayers } from '@/lib/liveStats';
 import {
   DAY_MS,
   biggestComeback,
@@ -91,7 +92,7 @@ function hours(minutes: number): string {
   return h >= 10 ? `${Math.round(h)}h` : `${h.toFixed(1)}h`;
 }
 
-function counters(p: typeof eventParticipants.$inferSelect): PlayerDayCounters {
+function counters(p: typeof eventParticipants.$inferSelect, statsNow: string | null | undefined): PlayerDayCounters {
   return {
     deaths: p.deaths ?? 0,
     lootGp: p.lootGpGained ?? 0,
@@ -99,7 +100,7 @@ function counters(p: typeof eventParticipants.$inferSelect): PlayerDayCounters {
     minutes: p.minutesPlayed ?? 0,
     caTasks: p.caTasks ?? 0,
     biggestHit: p.biggestHit ?? 0,
-    stats: trimStats(p.cachedStats ?? p.frozenStats),
+    stats: trimStats(statsNow ?? p.cachedStats ?? p.frozenStats),
   };
 }
 
@@ -107,7 +108,7 @@ function counters(p: typeof eventParticipants.$inferSelect): PlayerDayCounters {
  * Teams, roster and standings. `asOfMs` scores only completions landed before that moment, so a
  * digest for "day 3" ranks the board as it stood at the day-3 boundary even when the tick runs late.
  */
-async function loadBoard(event: typeof events.$inferSelect, asOfMs?: number) {
+export async function loadBoard(event: typeof events.$inferSelect, asOfMs?: number) {
   const [eventTeams, eventTiles, eventPlayers] = await Promise.all([
     db.select().from(teams).where(eq(teams.eventId, event.id)),
     db.select().from(tiles).where(eq(tiles.eventId, event.id)),
@@ -258,8 +259,9 @@ async function digestEvent(event: typeof events.$inferSelect, nowMs: number): Pr
     }
   }
 
+  const statsNow = await effectiveStatsForPlayers(eventPlayers);
   const data: DaySnapshotData = {
-    players: Object.fromEntries(eventPlayers.map((p) => [String(p.id), counters(p)])),
+    players: Object.fromEntries(eventPlayers.map((p) => [String(p.id), counters(p, statsNow.get(p.id))])),
     teams: Object.fromEntries(scored.map((s) => [String(s.teamId), { score: s.score, rank: ranks.get(s.teamId) ?? 0 }])),
     clanDayWins,
   };

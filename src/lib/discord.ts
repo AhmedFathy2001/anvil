@@ -1309,6 +1309,12 @@ function boardLinkLine(eventId: number): string {
   return url ? `\n\n[View live standings →](${url})` : '';
 }
 
+// The stats posts link both the board and the per-player stats page (events/<id>/stats).
+function statsLinkLine(eventId: number): string {
+  const url = eventLeaderboardUrl(eventId);
+  return url ? `\n\n[Live standings →](${url}) · [Full stats →](${url}/stats)` : '';
+}
+
 // Ping the member role: explicit allowed_mentions so it notifies reliably and nothing else pings.
 // Returns no content when no role is configured, so the post simply goes out without a ping.
 const memberPing = async (clanId: number): Promise<Pick<DiscordWebhookPayload, 'content' | 'allowed_mentions'>> => {
@@ -1536,7 +1542,7 @@ export async function notifyEventStatsPost(params: EventStatsPostParams): Promis
   const embed: DiscordEmbed = {
     ...eventAuthor(params.eventId, params.eventName),
     title: clamp(params.title, LIMIT.title),
-    description: clamp(`${params.description}${boardLinkLine(params.eventId)}`, LIMIT.description),
+    description: clamp(`${params.description}${statsLinkLine(params.eventId)}`, LIMIT.description),
     color: EMBED_COLOR.gold,
     fields: params.fields.slice(0, 25),
   };

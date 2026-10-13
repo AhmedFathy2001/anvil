@@ -1558,6 +1558,19 @@ export const eventDaySnapshots = pgTable('event_day_snapshots', {
   uniqueIndex('event_day_snapshots_event_day_unique').on(table.eventId, table.dayIndex),
 ]);
 
+// One row per event per HOUR (lib/eventHourly): each player's gains-so-far as five numbers plus each
+// team's score, so the stats page can draw progress through the day. Kept tiny on purpose — see
+// lib/eventDay HourSnapshotData. Hour 0 (the start) is all zeroes and never stored.
+export const eventHourSnapshots = pgTable('event_hour_snapshots', {
+  id: serial('id').primaryKey(),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  hourIndex: integer('hour_index').notNull(),
+  takenAt: text('taken_at').notNull(),
+  data: text('data').notNull(),
+}, (table) => [
+  uniqueIndex('event_hour_snapshots_event_hour_unique').on(table.eventId, table.hourIndex),
+]);
+
 export const clanAuditLog = pgTable('clan_audit_log', {
   id: serial('id').primaryKey(),
   // The clan whose log this entry belongs in. Nullable only so the column could be added to existing

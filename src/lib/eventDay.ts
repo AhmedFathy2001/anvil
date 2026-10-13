@@ -111,20 +111,25 @@ export function totalGains(
   } catch {
     return { xp: 0, kc: 0 };
   }
+  const a = statTotals(after);
+  const b = statTotals(before);
+  return { xp: Math.max(0, a.xp - b.xp), kc: Math.max(0, a.kc - b.kc) };
+}
+
+/**
+ * Total XP and summed boss KC of one parsed hiscores read.
+ *
+ * XP is the SUM OF SKILLS, not `overall`: the plugin's live pushes raise individual skills (see
+ * statTracking.effectiveSnapshotJson) but never `overall`, so overall would sit still until the next
+ * hiscores read while every skill moved. Overall is the fallback for a read that carries no skills.
+ */
+export function statTotals(s: Record<string, Record<string, { xp?: number; score?: number }>> | null | undefined): { xp: number; kc: number } {
   const num = (v: unknown) => Math.max(0, Number(v ?? 0) || 0);
-  // Overall when both sides have it; otherwise the sum of skills (a trimmed read may lack overall
-  // when the account is unranked overall).
-  const xpOf = (s: typeof before) => {
-    const skills = s?.skills ?? {};
-    if (skills.overall?.xp != null) return num(skills.overall.xp);
-    return Object.entries(skills).reduce((sum, [k, v]) => (k === 'overall' ? sum : sum + num(v?.xp)), 0);
-  };
-  const kcOf = (s: typeof before) =>
-    Object.values(s?.bosses ?? {}).reduce((sum, v) => sum + num(v?.score), 0);
-  return {
-    xp: Math.max(0, xpOf(after) - xpOf(before)),
-    kc: Math.max(0, kcOf(after) - kcOf(before)),
-  };
+  const skills = s?.skills ?? {};
+  const skillSum = Object.entries(skills).reduce((sum, [k, v]) => (k === 'overall' ? sum : sum + num(v?.xp)), 0);
+  const xp = skillSum > 0 ? skillSum : num(skills.overall?.xp);
+  const kc = Object.values(s?.bosses ?? {}).reduce((sum, v) => sum + num(v?.score), 0);
+  return { xp, kc };
 }
 
 /** Rank teams by score, ties sharing a rank (1, 2, 2, 4). */
@@ -175,4 +180,68 @@ export function daysWonLine(sides: Map<number, string>, wins: Record<string, num
     .sort((a, b) => b.n - a.n)
     .map((r) => `${r.name} ${r.n}`)
     .join(' · ');
+}
+
+// ── Hourly progress ──────────────────────────────────────────────────────────────────────────────
+//
+// One small row per event per hour, so the stats page can draw the day as a curve instead of a
+// single daily chunk. Deliberately NOT a full hiscores copy (that is what bloated player_snapshots
+// once): five running numbers per player — gains so far, not absolutes, so hour 0 is all zeroes and
+// needs no row — plus each team's score. ~50 bytes a player; a 100-player week is ~1 MB.
+
+export const HOUR_MS = 60 * 60 * 1000;
+
+/** [xpGained, kcGained, deaths, lootGp, minutesPlayed] — everything since the event's start. */
+export type HourPlayerTuple = [number, number, number, number, number];
+
+export interface HourSnapshotData {
+  p: Record<string, HourPlayerTuple>;
+  /** teamId → score at the boundary. */
+  t: Record<string, number>;
+}
+
+/**
+ * The latest whole hour since the start that is due a snapshot at `nowMs`, or null. Never one past
+ * the end — the final stretch is read live off the player rows, which stop moving when the event does.
+ */
+export function dueHour(nowMs: number, startMs: number, endMs: number): number | null {
+  if (nowMs < startMs + HOUR_MS) return null;
+  const lastHour = Math.floor((endMs - startMs) / HOUR_MS);
+  const hour = Math.min(Math.floor((nowMs - startMs) / HOUR_MS), lastHour);
+  return hour >= 1 ? hour : null;
+}
+
+/** statTotals over a JSON string; zeroes for null or garbage. */
+export function statTotalsJson(json: string | null | undefined): { xp: number; kc: number } {
+  if (!json) return { xp: 0, kc: 0 };
+  try {
+    return statTotals(JSON.parse(json));
+  } catch {
+    return { xp: 0, kc: 0 };
+  }
+}
+
+/** A player's running numbers since the start, as the hourly row stores them. */
+export function hourTuple(
+  p: { statsSnapshot: string | null; deaths: number | null; lootGpGained: number | null; minutesPlayed: number | null },
+  statsNow: string | null | undefined,
+): HourPlayerTuple {
+  const base = statTotalsJson(p.statsSnapshot);
+  // No baseline yet → no gain yet (the same rule stat tiles follow), never the whole account.
+  const now = p.statsSnapshot ? statTotalsJson(statsNow) : base;
+  return [
+    Math.max(0, now.xp - base.xp),
+    Math.max(0, now.kc - base.kc),
+    p.deaths ?? 0,
+    p.lootGpGained ?? 0,
+    p.minutesPlayed ?? 0,
+  ];
+}
+
+/** Subtract two tuples (b − a), never negative (a counter can be corrected down; a gain can't be). */
+export function tupleDiff(a: HourPlayerTuple | undefined, b: HourPlayerTuple | undefined): HourPlayerTuple {
+  const z: HourPlayerTuple = [0, 0, 0, 0, 0];
+  if (!b) return z;
+  const base = a ?? z;
+  return b.map((v, i) => Math.max(0, v - base[i])) as HourPlayerTuple;
 }

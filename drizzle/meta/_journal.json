@@ -645,6 +645,13 @@
       "when": 1791165000000,
       "tag": "0133_event_day_digest",
       "breakpoints": true
+    },
+    {
+      "idx": 134,
+      "version": "7",
+      "when": 1791166000000,
+      "tag": "0134_event_hour_snapshots",
+      "breakpoints": true
     }
   ]
 }
