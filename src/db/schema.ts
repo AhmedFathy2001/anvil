@@ -179,6 +179,18 @@ export const clans = pgTable('clans', {
  *   - nobody may modify someone at or above their own grade
  * Without those, a moderator who can edit staff is one request away from being an admin.
  */
+/**
+ * Addresses a clan has given up — by moving to a new slug, or by being deleted. Never handed to
+ * another clan: old links, shared Discord posts and plugins still configured with /c/<old> would
+ * otherwise land on whoever claimed it next. A renamed clan's old slug keeps resolving to it
+ * (clanId set); a deleted clan's stays reserved with clanId null.
+ */
+export const retiredClanSlugs = pgTable('retired_clan_slugs', {
+  slug: text('slug').primaryKey(),
+  clanId: integer('clan_id').references(() => clans.id, { onDelete: 'set null' }),
+  retiredAt: text('retired_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+});
+
 export const clanStaff = pgTable('clan_staff', {
   id: serial('id').primaryKey(),
   clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),

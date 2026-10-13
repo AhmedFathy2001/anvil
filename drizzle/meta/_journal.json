@@ -624,6 +624,13 @@
       "when": 1791163800000,
       "tag": "0130_clan_banner",
       "breakpoints": true
+    },
+    {
+      "idx": 131,
+      "version": "7",
+      "when": 1791163900000,
+      "tag": "0131_retired_clan_slugs",
+      "breakpoints": true
     }
   ]
 }

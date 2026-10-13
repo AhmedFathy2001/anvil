@@ -17,7 +17,7 @@
 import { and, count, eq, ne, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanAuditLog, clanStaff, clans } from '@/db/schema';
+import { clanAuditLog, clanStaff, clans, retiredClanSlugs } from '@/db/schema';
 import { PLANS } from '@/lib/plans';
 import { newCheckoutRef } from '@/lib/billing';
 import { setSetting } from '@/lib/settings';
@@ -43,7 +43,12 @@ export async function checkSlug(slug: string, exceptClanId?: number): Promise<Av
   });
   // No "reclaimable reservation" case any more: there are no unpaid placeholder rows to reclaim,
   // because a clan is never created pending a payment. A slug that exists is taken.
-  return existing ? { ok: false, reason: 'taken' } : { ok: true };
+  if (existing) return { ok: false, reason: 'taken' };
+  // So is one a clan gave up (renamed away from, or deleted): old links still point at it. Only the
+  // clan that gave it up may take it back.
+  const retired = await db.query.retiredClanSlugs.findFirst({ where: eq(retiredClanSlugs.slug, s) });
+  if (retired && (exceptClanId == null || retired.clanId !== exceptClanId)) return { ok: false, reason: 'taken' };
+  return { ok: true };
 }
 
 /** The same for a custom domain. */

@@ -3,7 +3,7 @@ import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { eq, or } from 'drizzle-orm';
 import { db } from '@/db';
-import { clans } from '@/db/schema';
+import { clans, retiredClanSlugs } from '@/db/schema';
 import { apexDomain, normalizeHost, slugFromHost } from '@/lib/apexHost';
 
 // Which clan is this request for?
@@ -90,8 +90,18 @@ export const resolveClanByHost = cache(async (rawHost: string | null | undefined
   const row = await db.query.clans.findFirst({
     where: slug ? or(eq(clans.customDomain, host), eq(clans.slug, slug)) : eq(clans.customDomain, host),
   });
-  return row ? toContext(row) : null;
+  if (row) return toContext(row);
+  return slug ? resolveRetiredSlug(slug) : null;
 });
+
+/**
+ * An address the clan has moved away from still reaches it — plugins and old Discord posts carry it
+ * for years. A deleted clan's address reaches nothing (and is never reissued; retiredClanSlugs).
+ */
+async function resolveRetiredSlug(slug: string): Promise<ClanContext | null> {
+  const retired = await db.query.retiredClanSlugs.findFirst({ where: eq(retiredClanSlugs.slug, slug) });
+  return retired?.clanId != null ? resolveClanById(retired.clanId) : null;
+}
 
 /**
  * Look a clan up by id — the answer to "which clan is this row in?".
@@ -111,7 +121,7 @@ export const resolveClanBySlug = cache(async (slug: string | null | undefined): 
   const s = slug?.trim().toLowerCase();
   if (!s) return null;
   const row = await db.query.clans.findFirst({ where: eq(clans.slug, s) });
-  return row ? toContext(row) : null;
+  return row ? toContext(row) : resolveRetiredSlug(s);
 });
 
 /**

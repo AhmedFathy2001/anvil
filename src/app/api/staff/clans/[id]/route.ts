@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clans, clanAuditLog } from '@/db/schema';
+import { clans, clanAuditLog, retiredClanSlugs } from '@/db/schema';
 import { requirePlatformApi, CAN_WRITE, CAN_DELETE_CLAN } from '@/lib/platformAccess';
 import { PLANS, isPlanId } from '@/lib/plans';
-import { availabilityMessage, normalizeSlug, slugRuleFailure } from '@/lib/clanNames';
+import { availabilityMessage, normalizeSlug } from '@/lib/clanNames';
+import { checkSlug } from '@/lib/clanCreate';
 import { ClanDeleteBlocked, deleteClan } from '@/lib/clanDelete';
 import { log } from '@/lib/logger';
 
@@ -65,12 +66,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if ('slug' in body) {
     // The clan's address. Every old link — /c/<slug>, <slug>.<apex>, shared Discord posts — stops
     // working, which the page says before it sends this.
+    // The old one is retired, not freed: it keeps reaching this clan and is never given to another.
     const slug = normalizeSlug(String(body.slug ?? ''));
-    const rule = slugRuleFailure(slug);
-    if (rule) return NextResponse.json({ error: availabilityMessage('Slug', rule) }, { status: 400 });
     if (slug !== before.slug) {
-      const taken = await db.query.clans.findFirst({ where: eq(clans.slug, slug), columns: { id: true } });
-      if (taken) return NextResponse.json({ error: availabilityMessage('Slug', { ok: false, reason: 'taken' }) }, { status: 409 });
+      const avail = await checkSlug(slug, clanId);
+      if (!avail.ok) {
+        return NextResponse.json({ error: availabilityMessage('Slug', avail) }, { status: avail.reason === 'taken' ? 409 : 400 });
+      }
       patch.slug = slug;
     }
   }
@@ -90,7 +92,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Nothing to change' }, { status: 400 });
   }
 
-  const [after] = await db.update(clans).set(patch).where(eq(clans.id, clanId)).returning();
+  const after = await db.transaction(async (tx) => {
+    if (patch.slug) {
+      await tx
+        .insert(retiredClanSlugs)
+        .values({ slug: before.slug, clanId })
+        .onConflictDoUpdate({ target: retiredClanSlugs.slug, set: { clanId } });
+      // Moving back to an address it gave up earlier: it is the clan's live one again.
+      await tx.delete(retiredClanSlugs).where(eq(retiredClanSlugs.slug, patch.slug));
+    }
+    const [row] = await tx.update(clans).set(patch).where(eq(clans.id, clanId)).returning();
+    return row;
+  });
 
   // Logged into the CLAN's own audit log, not a separate operator log the clan cannot see. A
   // platform action on a clan is something that clan's owner is entitled to find out about.

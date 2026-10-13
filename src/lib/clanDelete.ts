@@ -1,8 +1,9 @@
 // Deleting a clan outright — the platform's last resort, past archiving.
 //
 // One DELETE on `clans`; the schema's cascades take the rest (events and everything under them,
-// seats, staff, settings, weeklies, guides, the clan's own audit log). Characters are NOT the clan's
-// (the clan/character boundary): accounts and players stay, and only this clan's seats on them go.
+// staff, settings, weeklies, guides, the clan's own audit log). Members are UNLINKED, not deleted:
+// characters are not the clan's (the clan/character boundary), so people, logins, accounts and their
+// stats stay, and only this clan's seats on them go. Its address is retired, never reissued.
 //
 // It runs in a transaction so a delete that something blocks leaves nothing half-gone. The blocker
 // in practice is event_signups.clan_member_id (ON DELETE RESTRICT): a seat signed up to ANOTHER
@@ -14,7 +15,7 @@
 import { eq, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanAuditLog, clans } from '@/db/schema';
+import { clanAuditLog, clans, retiredClanSlugs } from '@/db/schema';
 
 export interface DeletedClan {
   id: number;
@@ -56,6 +57,12 @@ export async function deleteClan(clanId: number, actorUserId: number | null, rea
       ).rows as { seats: number; events: number; weeklies: number }[];
       const counts = { seats: Number(c?.seats ?? 0), events: Number(c?.events ?? 0), weeklies: Number(c?.weeklies ?? 0) };
 
+      // Its address is never reissued: plugins and old posts still carry it. The row's clan_id goes
+      // null with the clan (ON DELETE SET NULL), as do those of any addresses it had moved away from.
+      await tx
+        .insert(retiredClanSlugs)
+        .values({ slug: clan.slug, clanId })
+        .onConflictDoUpdate({ target: retiredClanSlugs.slug, set: { clanId } });
       await tx.delete(clans).where(eq(clans.id, clanId));
 
       await tx.insert(clanAuditLog).values({

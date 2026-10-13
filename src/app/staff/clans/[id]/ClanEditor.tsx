@@ -33,7 +33,7 @@ export default function ClanEditor({
     if (slugChanged) {
       const ok = await confirm({
         title: `Move ${clan.name} to /c/${slug.trim().toLowerCase()}?`,
-        body: `Every link to /c/${clan.slug} stops working: bookmarks, shared Discord posts, and the address members use. Nothing redirects from the old one.`,
+        body: `The clan's address becomes /c/${slug.trim().toLowerCase()}. Old links to /c/${clan.slug} keep reaching it, and no other clan can take that address.`,
         confirmLabel: 'Change address',
         tone: 'danger',
       });
@@ -64,7 +64,7 @@ export default function ClanEditor({
   async function remove() {
     const ok = await confirm({
       title: `Delete ${clan.name} for good?`,
-      body: `This removes the clan and everything in it: ${clan.events} event(s) with their boards, proofs and teams, ${clan.members} member seat(s), staff, settings, weeklies and guides. Characters stay on Anvil. It cannot be undone; archiving is the reversible option.`,
+      body: `This removes the clan and what it ran: ${clan.events} event(s) with their boards, proofs and teams, its staff, settings, weeklies and guides. Its ${clan.members} member(s) are unlinked, not deleted: their accounts, characters and stats stay on Anvil. The address /c/${clan.slug} is retired for good. It cannot be undone; archiving is the reversible option.`,
       confirmLabel: 'Delete clan',
       tone: 'danger',
     });
@@ -103,7 +103,7 @@ export default function ClanEditor({
           </label>
         </div>
         {slugChanged && (
-          <p className="mt-2 text-xs text-yellow-400">Changing the address breaks every existing link to this clan.</p>
+          <p className="mt-2 text-xs text-yellow-400">The old address keeps working for this clan and is never given to another.</p>
         )}
         <div className="mt-3 flex items-center gap-3">
           <button
@@ -132,7 +132,7 @@ export default function ClanEditor({
         <div className="rounded-xl border border-accent-red/40 bg-card-bg p-4">
           <div className="text-sm font-semibold text-accent-red">Delete this clan</div>
           <p className="mt-1 text-xs text-text-muted">
-            Removes the clan and everything in it. Characters and their stats stay on Anvil. To take a clan offline
+            Removes the clan and what it ran. Members are unlinked, not deleted: their accounts, characters and stats stay on Anvil. To take a clan offline
             and keep its data, set its status to archived in the directory instead.
           </p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">

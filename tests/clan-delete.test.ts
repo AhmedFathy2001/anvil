@@ -94,6 +94,25 @@ test('deletes the clan and everything under it, and nothing else', async () => {
   assert.equal(logRow.notes, 'test cleanup');
 
   assert.equal(await mod.deleteClan(gone.clan.id, null, 'again'), null);
+
+  // Its address is retired: nobody can take it, and it resolves to nothing.
+  const retired = (await pool.query(`select clan_id from retired_clan_slugs where slug = 'gone'`)).rows[0] as { clan_id: number | null };
+  assert.equal(retired.clan_id, null);
+  const { checkSlug } = await import('../src/lib/clanCreate.ts');
+  assert.deepEqual(await checkSlug('gone'), { ok: false, reason: 'taken' });
+});
+
+test('a renamed clan keeps its old address, which no other clan can claim', async () => {
+  const moved = await seedClan('oldname');
+  const other = await seedClan('bystander');
+  await db.insert(s.retiredClanSlugs).values({ slug: 'oldname', clanId: moved.clan.id });
+  await pool.query(`update clans set slug = 'newname' where id = ${moved.clan.id}`);
+
+  const { checkSlug } = await import('../src/lib/clanCreate.ts');
+  assert.deepEqual(await checkSlug('oldname'), { ok: false, reason: 'taken' });
+  assert.deepEqual(await checkSlug('oldname', other.clan.id), { ok: false, reason: 'taken' });
+  // The clan that gave it up may move back.
+  assert.deepEqual(await checkSlug('oldname', moved.clan.id), { ok: true });
 });
 
 test("a seat signed up to another clan's event blocks the delete, and nothing is half-gone", async () => {
