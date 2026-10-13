@@ -64,6 +64,14 @@ function StatTile({ emoji, value, label }: { emoji: string; value: string; label
   );
 }
 
+/** Round a chart's top up to 2/4/5/10 × 10ⁿ, so the halfway gridline is a whole, readable number. */
+function niceMax(v: number): number {
+  if (v <= 2) return 2;
+  const mag = 10 ** Math.floor(Math.log10(v));
+  for (const m of [2, 4, 5, 10]) if (v <= m * mag) return m * mag;
+  return 10 * mag;
+}
+
 // ── Chart ────────────────────────────────────────────────────────────────────────────────────────
 
 const SERIES: { key: SeriesKey; label: string; format: (n: number) => string }[] = [
@@ -81,13 +89,14 @@ function ProgressChart({ data }: { data: EventStatsData }) {
   const { at, series } = data.hourly;
   const spec = SERIES.find((s) => s.key === key)!;
   const lines = data.sides.map((side) => ({ side, values: series[key][side.teamId] ?? [] }));
-  const max = Math.max(1, ...lines.flatMap((l) => l.values.filter((v): v is number => v != null)));
+  const max = niceMax(Math.max(0, ...lines.flatMap((l) => l.values.filter((v): v is number => v != null))));
   const counterSeries = key === 'xp' || key === 'kc' || key === 'deaths' || key === 'loot';
   const empty = counterSeries && lines.every((l) => l.values.every((v) => v == null));
 
-  const W = 640;
-  const H = 220;
-  const PAD = { l: 44, r: 12, t: 10, b: 26 };
+  // Wide and short: the page is wide, and a curve's story is its shape over time, not its height.
+  const W = 1000;
+  const H = 260;
+  const PAD = { l: 52, r: 12, t: 12, b: 28 };
   const x0 = at[0] ?? 0;
   const x1 = Math.max(x0 + 1, at[at.length - 1] ?? x0 + 1);
   const sx = (ms: number) => PAD.l + ((ms - x0) / (x1 - x0)) * (W - PAD.l - PAD.r);
@@ -152,11 +161,11 @@ function ProgressChart({ data }: { data: EventStatsData }) {
             {[0, 0.5, 1].map((f) => (
               <g key={f}>
                 <line x1={PAD.l} x2={W - PAD.r} y1={sy(max * f)} y2={sy(max * f)} stroke="currentColor" className="text-card-border" strokeDasharray={f ? '3 4' : undefined} />
-                <text x={PAD.l - 6} y={sy(max * f) + 4} textAnchor="end" className="fill-text-muted" fontSize="10">{spec.format(Math.round(max * f))}</text>
+                <text x={PAD.l - 6} y={sy(max * f) + 4} textAnchor="end" className="fill-text-muted" fontSize="12">{spec.format(max * f)}</text>
               </g>
             ))}
             {ticks.map((t) => (
-              <text key={t} x={sx(t)} y={H - 8} textAnchor="middle" className="fill-text-muted" fontSize="10">{tickLabel(t)}</text>
+              <text key={t} x={sx(t)} y={H - 8} textAnchor="middle" className="fill-text-muted" fontSize="12">{tickLabel(t)}</text>
             ))}
             {lines.map(({ side, values }) => (
               <path key={side.teamId} d={path(values)} fill="none" stroke={side.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
