@@ -123,9 +123,24 @@ test('every block names its vocabulary', () => {
     leaderboardLd([]),
     breadcrumbLd([]),
   ]) {
-    assert.equal((ld as Record<string, string>)['@context'], 'https://schema.org');
-    assert.ok((ld as Record<string, string>)['@type']);
+    const block = ld as Record<string, unknown>;
+    assert.equal(block['@context'], 'https://schema.org');
+    // A block is either one typed node or a @graph of them; every node must be typed either way.
+    const nodes = (block['@graph'] as Record<string, unknown>[] | undefined) ?? [block];
+    for (const node of nodes) assert.ok(node['@type']);
   }
+});
+
+test('the apex names its brand: site name, alternate name and a square logo', () => {
+  const graph = (websiteLd() as { '@graph': Record<string, unknown>[] })['@graph'];
+  const site = graph.find((n) => n['@type'] === 'WebSite')!;
+  const org = graph.find((n) => n['@type'] === 'Organization')!;
+  assert.equal(site.name, 'Anvil');
+  assert.ok((site.alternateName as string[]).includes('Anvil OSRS'));
+  assert.deepEqual(site.publisher, { '@id': org['@id'] });
+  const logo = org.logo as { url: string; width: number; height: number };
+  assert.match(logo.url, /^https?:\/\/.+\/icon-192\.png$/);
+  assert.equal(logo.width, logo.height);
 });
 
 test('a placing reads the way a person says it', () => {

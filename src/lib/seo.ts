@@ -12,9 +12,16 @@
 
 import type { Metadata } from 'next';
 
-import { apexDomain, originForHost } from '@/lib/apexHost';
+import { apexDomain, isApexHost, originForHost, slugFromHost } from '@/lib/apexHost';
 
 export const SITE_NAME = 'Anvil';
+
+/**
+ * The apex's own title. "Anvil" alone is a smithing amenity to every search engine — the OSRS Wiki's
+ * anvil pages own that word — so the brand is written the way people search for it ("anvil osrs"),
+ * followed by the three things it is for.
+ */
+export const APEX_TITLE = 'Anvil OSRS — Clan Bingo, SOTW & BOTW Events';
 
 /** The one-line pitch, used wherever a page has nothing more specific to say about itself. */
 export const DEFAULT_DESCRIPTION =
@@ -91,6 +98,45 @@ export const NOINDEX_ROOTS = [
 
 export function isNoIndexPath(pathname: string): boolean {
   return NOINDEX_ROOTS.some((r) => pathname === r || pathname.startsWith(`${r}/`));
+}
+
+/**
+ * Noindex roots robots.txt must NOT block.
+ *
+ * `Disallow` and `noindex` cancel each other out: a crawler that may not fetch a page never reads the
+ * noindex on it, so a URL it indexed before the rule existed stays in the results forever, shown as
+ * a bare title with whatever snippet it remembered. That is exactly how `theafkspot.anvilosrs.com/login`
+ * kept outranking the apex in Bing long after the page itself said noindex. These pages are cheap to
+ * crawl (no redirect chain, no per-clan fan-out), so letting a crawler in is what lets it drop them.
+ */
+const CRAWLABLE_NOINDEX = new Set(['/login', '/logout', '/welcome', '/link-device']);
+
+/** The roots robots.txt disallows — the noindex set minus what must stay crawlable to be dropped. */
+export function robotsDisallowRoots(): string[] {
+  return NOINDEX_ROOTS.filter((r) => !CRAWLABLE_NOINDEX.has(r));
+}
+
+/**
+ * Is this whole deployment one that must never be indexed?
+ *
+ * Beta and preview are full copies of the product on their own apex, each declaring ITSELF canonical
+ * — to a search engine they are a second and third anvilosrs.com competing with the first. Explicit
+ * `ANVIL_NOINDEX=1` wins either way; otherwise an apex whose first label names a staging channel is
+ * read as one, so the existing beta and preview stacks are covered without an env change.
+ */
+export function isNoIndexDeployment(): boolean {
+  const flag = (process.env.ANVIL_NOINDEX || '').trim().toLowerCase();
+  if (flag) return flag !== '0' && flag !== 'false';
+  return /^(beta|preview|staging|dev)\./.test(apexDomain());
+}
+
+/**
+ * A legacy per-clan hostname (`theafkspot.anvilosrs.com`) — as opposed to the apex, an apex alias,
+ * or a custom domain. Every page on one 301s to `/c/<slug>`, so its robots.txt must let a crawler
+ * reach those redirects; blocking any of them pins the old URL in the index.
+ */
+export function isLegacyClanHost(rawHost: string | null | undefined): boolean {
+  return !isApexHost(rawHost) && slugFromHost(rawHost) != null;
 }
 
 /**

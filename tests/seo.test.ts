@@ -21,7 +21,10 @@ import {
   apexOrigin,
   canonicalPathFor,
   clanCanonicalPath,
+  isLegacyClanHost,
+  isNoIndexDeployment,
   isNoIndexPath,
+  robotsDisallowRoots,
 } from '../src/lib/seo.ts';
 
 test('the apex origin comes from the env, so a self-hoster is not told they are anvilosrs.com', () => {
@@ -132,5 +135,63 @@ test('an unrecognised visibility hides a clan rather than exposing one', () => {
       false,
       `visibility ${JSON.stringify(v)} should not be listed`,
     );
+  }
+});
+
+test('robots.txt leaves noindex pages crawlable when blocking them would pin them in the index', () => {
+  const disallow = robotsDisallowRoots();
+  // A disallowed URL's noindex is never read — the stale /login result Bing kept for months.
+  for (const crawlable of ['/login', '/logout', '/welcome', '/link-device']) {
+    assert.ok(!disallow.includes(crawlable), `${crawlable} must stay crawlable`);
+    assert.ok(isNoIndexPath(crawlable), `${crawlable} must still be noindex`);
+  }
+  for (const gated of ['/admin', '/team', '/captain', '/api', '/profile']) {
+    assert.ok(disallow.includes(gated), `${gated} should be disallowed`);
+  }
+});
+
+test('a legacy clan hostname is told apart from the apex, its aliases and custom domains', () => {
+  const before = { apex: process.env.ANVIL_APEX_DOMAIN, aliases: process.env.ANVIL_APEX_ALIASES };
+  try {
+    process.env.ANVIL_APEX_DOMAIN = 'anvilosrs.com';
+    process.env.ANVIL_APEX_ALIASES = 'beta.anvilosrs.com';
+    assert.ok(isLegacyClanHost('theafkspot.anvilosrs.com'));
+    assert.ok(isLegacyClanHost('TheAFKSpot.anvilosrs.com:443'));
+    assert.ok(!isLegacyClanHost('anvilosrs.com'));
+    assert.ok(!isLegacyClanHost('www.anvilosrs.com'));
+    assert.ok(!isLegacyClanHost('beta.anvilosrs.com'));
+    assert.ok(!isLegacyClanHost('events.myclan.gg'));
+    assert.ok(!isLegacyClanHost(null));
+  } finally {
+    for (const [k, v] of [['ANVIL_APEX_DOMAIN', before.apex], ['ANVIL_APEX_ALIASES', before.aliases]] as const) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});
+
+test('beta and preview never get indexed; production and self-hosters do', () => {
+  const before = { apex: process.env.ANVIL_APEX_DOMAIN, flag: process.env.ANVIL_NOINDEX };
+  try {
+    delete process.env.ANVIL_NOINDEX;
+    for (const staging of ['beta.anvilosrs.com', 'preview.anvilosrs.com', 'staging.myclan.gg']) {
+      process.env.ANVIL_APEX_DOMAIN = staging;
+      assert.ok(isNoIndexDeployment(), staging);
+    }
+    for (const prod of ['anvilosrs.com', 'events.myclan.gg', 'betaclan.gg']) {
+      process.env.ANVIL_APEX_DOMAIN = prod;
+      assert.ok(!isNoIndexDeployment(), prod);
+    }
+    // The explicit flag wins in both directions.
+    process.env.ANVIL_NOINDEX = '1';
+    assert.ok(isNoIndexDeployment());
+    process.env.ANVIL_APEX_DOMAIN = 'beta.anvilosrs.com';
+    process.env.ANVIL_NOINDEX = 'false';
+    assert.ok(!isNoIndexDeployment());
+  } finally {
+    for (const [k, v] of [['ANVIL_APEX_DOMAIN', before.apex], ['ANVIL_NOINDEX', before.flag]] as const) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
   }
 });

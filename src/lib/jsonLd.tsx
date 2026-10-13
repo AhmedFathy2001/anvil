@@ -44,15 +44,41 @@ export function JsonLd({ data }: { data: object }) {
   );
 }
 
-/** The platform itself. Emitted once, on the apex home. */
+/**
+ * The platform itself. Emitted once, on the apex home.
+ *
+ * A WebSite AND an Organization, linked by @id. The WebSite's `name`/`alternateName` is what Google
+ * prints as the site name above a result (otherwise it guesses from the domain, "anvilosrs.com");
+ * the Organization's `logo` is the only place a search engine is told which image IS the brand,
+ * rather than inferring one from whatever square picture it found on the page.
+ */
 export function websiteLd(): object {
+  const orgId = absoluteUrl('/#organization');
   return {
     '@context': 'https://schema.org',
-    '@type': 'WebSite',
-    name: SITE_NAME,
-    url: absoluteUrl('/'),
-    description:
-      'Competitive events for Old School RuneScape clans — bingo boards, Skill and Boss of the Week, and a cross-clan leaderboard.',
+    '@graph': [
+      {
+        '@type': 'WebSite',
+        '@id': absoluteUrl('/#website'),
+        name: SITE_NAME,
+        alternateName: ['Anvil OSRS', 'anvilosrs'],
+        url: absoluteUrl('/'),
+        description:
+          'Competitive events for Old School RuneScape clans — bingo boards, Skill and Boss of the Week, and a cross-clan leaderboard.',
+        publisher: { '@id': orgId },
+        inLanguage: 'en',
+      },
+      {
+        '@type': 'Organization',
+        '@id': orgId,
+        name: SITE_NAME,
+        alternateName: 'Anvil OSRS',
+        url: absoluteUrl('/'),
+        // Square, at least 112px, on a URL that does not move — Google's three requirements.
+        logo: { '@type': 'ImageObject', url: absoluteUrl('/icon-192.png'), width: 192, height: 192 },
+        sameAs: ['https://github.com/AhmedFathy2001/anvil-plugin', 'https://anvilosrs.gumroad.com'],
+      },
+    ],
   };
 }
 

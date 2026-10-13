@@ -1,6 +1,13 @@
 import type { MetadataRoute } from 'next';
+import { headers } from 'next/headers';
 
-import { NOINDEX_ROOTS, absoluteUrl, apexOrigin } from '@/lib/seo';
+import {
+  absoluteUrl,
+  apexOrigin,
+  isLegacyClanHost,
+  isNoIndexDeployment,
+  robotsDisallowRoots,
+} from '@/lib/seo';
 
 /**
  * There was no robots.txt at all, which is not the neutral state it sounds like: a crawler with no
@@ -16,8 +23,22 @@ import { NOINDEX_ROOTS, absoluteUrl, apexOrigin } from '@/lib/seo';
 // robots.txt would name anvilosrs.com on every one of them.
 export const dynamic = 'force-dynamic';
 
-export default function robots(): MetadataRoute.Robots {
-  const disallow = NOINDEX_ROOTS.flatMap((root) => [root, `/c/*${root}`]);
+export default async function robots(): Promise<MetadataRoute.Robots> {
+  // Beta and preview: nothing at all. See isNoIndexDeployment.
+  if (isNoIndexDeployment()) {
+    return { rules: [{ userAgent: '*', disallow: '/' }] };
+  }
+
+  // A legacy clan hostname answers every page with a 301 to the apex, and a crawler that is not
+  // allowed to fetch a URL never sees its redirect. The old rules were served here verbatim, so
+  // `theafkspot.anvilosrs.com/login` — indexed before any of this existed — could never be
+  // re-crawled and kept outranking the apex. Open everything; the redirects do the rest.
+  const host = (await headers()).get('host');
+  if (isLegacyClanHost(host)) {
+    return { rules: [{ userAgent: '*', allow: '/' }], sitemap: absoluteUrl('/sitemap.xml'), host: apexOrigin() };
+  }
+
+  const disallow = robotsDisallowRoots().flatMap((root) => [root, `/c/*${root}`]);
 
   return {
     rules: [{ userAgent: '*', allow: '/', disallow }],

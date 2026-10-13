@@ -3,10 +3,12 @@ import { headers } from 'next/headers';
 import { clanPrefix, currentClan } from '@/lib/clanContext';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
 import {
+  APEX_TITLE,
   DEFAULT_DESCRIPTION,
   SITE_NAME,
   apexOrigin,
   canonicalPathFor,
+  isNoIndexDeployment,
   isNoIndexPath,
   socialMetadata,
 } from '@/lib/seo';
@@ -58,8 +60,15 @@ const fraunces = Fraunces({
   axes: ["SOFT", "WONK", "opsz"],
 });
 
+// 48px is listed because it is the size Bing and Google actually render beside a result, and both
+// prefer a declared multiple of 48 over scaling the 32 up or the 192 down.
 const ICONS = {
-  icon: [{ url: "/favicon-32.png", sizes: "32x32" }, { url: "/icon-192.png", sizes: "192x192" }],
+  icon: [
+    { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+    { url: "/icon-48.png", sizes: "48x48", type: "image/png" },
+    { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+  ],
+  apple: [{ url: "/icon-192.png", sizes: "192x192" }],
 };
 
 /**
@@ -91,7 +100,10 @@ export async function generateMetadata(): Promise<Metadata> {
   // WHAT MAY BE INDEXED. Two separate refusals, and they fail in the same safe direction:
   // a gated or personal path is never indexed anywhere, and a clan that is not `public` is not
   // indexed at all — its name, its roster and the fact that it exists are its own.
-  const indexable = !isNoIndexPath(pathname) && (!clan || clanVisibilityOf(clan.visibility) === 'public');
+  const indexable =
+    !isNoIndexDeployment() &&
+    !isNoIndexPath(pathname) &&
+    (!clan || clanVisibilityOf(clan.visibility) === 'public');
 
   const name = clan ? await getClanDisplayName(clan.id, clan.name || SITE_NAME) : null;
 
@@ -101,7 +113,7 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase: new URL(apexOrigin()),
     icons: ICONS,
     ...socialMetadata({
-      title: name ? `${name} — ${SITE_NAME}` : `${SITE_NAME} — OSRS Clan Events`,
+      title: name ? `${name} — ${SITE_NAME}` : APEX_TITLE,
       description: name ? `Bingos, competitions and the roster for ${name}.` : DEFAULT_DESCRIPTION,
       canonical,
       // The card a link becomes when it is pasted into Discord, which is where nearly every link to
