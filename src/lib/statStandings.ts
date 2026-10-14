@@ -36,14 +36,15 @@ const readStat = (json: string | null | undefined, statType: string, keys: strin
 // Per stat-tracked tile, every drafted player's baseline (event-start snapshot) vs their current
 // stat, so admins can confirm the starting line actually loaded and watch gains accrue. Read-only;
 // derived from the same statsSnapshot / cachedStats the scoring uses. Non-stat tiles are omitted.
-export async function getStatStandings(eventId: number): Promise<StatTileStanding[]> {
+// `tileIds` narrows it to those tiles (the plugin's tile tracker reads one at a time).
+export async function getStatStandings(eventId: number, tileIds?: number[]): Promise<StatTileStanding[]> {
   const [eventTiles, eventPlayers] = await Promise.all([
     db.select().from(tiles).where(eq(tiles.eventId, eventId)),
     db.select().from(eventParticipants).where(eq(eventParticipants.eventId, eventId)),
   ]);
 
   const statTiles = eventTiles
-    .filter((t) => t.trackedStat && t.statType && t.statGoal)
+    .filter((t) => t.trackedStat && t.statType && t.statGoal && (!tileIds || tileIds.includes(t.id)))
     .sort((a, b) => a.position - b.position);
 
   // Only drafted players (on a team) are tracked for stat gains.

@@ -84,6 +84,9 @@ export const PLUGIN_CAPABILITIES = [
   // Event rosters: GET /api/plugin/event/<id>/roster — the plugin's Teams page, paged (lib/eventRoster).
   // Without it the plugin shows no Teams row at all.
   'event-roster',
+  // Tile tracker: GET /api/plugin/event/<id>/tile/<tileId>/progress — every team's progress on one
+  // tile with its top contributors, for the plugin's pinned in-game widget (lib/tileTracker).
+  'tile-tracker',
   // Collection log, personal bests and (later) quests/diaries/CAs pushed from the plugin to a
   // member's profile. Advertised only once the endpoints and tables exist, because the plugin gates
   // ALL of its reading on this: an older site is never polled, and a newer plugin against it does
