@@ -614,7 +614,7 @@ interface SubmissionNotifyParams {
   // Links the author line to the live board. Optional: older callers just get an unlinked line.
   eventId?: number | null;
   // The tile row, for its icon (the thumbnail). Optional — no icon, no thumbnail.
-  tile?: IconableTile | null;
+  tile?: LinkedTile | null;
 }
 
 function formatClearTime(totalSeconds: number): string {
@@ -686,7 +686,7 @@ export async function notifySubmission(params: SubmissionNotifyParams): Promise<
     ...(fields.length ? { fields } : {}),
   };
 
-  const boardUrl = eventId != null ? eventLeaderboardUrl(eventId) : null;
+  const boardUrl = eventId != null ? tileBoardUrl(eventId, tile) : null;
   if (boardUrl) embed.url = boardUrl;
   if (imageUrl) embed.image = { url: imageUrl };
 
@@ -716,7 +716,7 @@ interface MergedSubmissionParams {
   imageUrl: string | null;
   completed: boolean;
   eventId?: number | null;
-  tile?: IconableTile | null;
+  tile?: LinkedTile | null;
 }
 
 export async function notifyMergedSubmission(params: MergedSubmissionParams): Promise<boolean> {
@@ -754,7 +754,7 @@ export async function notifyMergedSubmission(params: MergedSubmissionParams): Pr
     fields,
   };
 
-  const boardUrl = eventId != null ? eventLeaderboardUrl(eventId) : null;
+  const boardUrl = eventId != null ? tileBoardUrl(eventId, tile) : null;
   if (boardUrl) embed.url = boardUrl;
   if (imageUrl) embed.image = { url: imageUrl };
 
@@ -776,7 +776,7 @@ interface SubmissionDeletedParams {
   deletedByRole: string;
   reason: string;
   eventId?: number | null;
-  tile?: IconableTile | null;
+  tile?: LinkedTile | null;
 }
 
 export async function notifySubmissionDeleted(params: SubmissionDeletedParams): Promise<boolean> {
@@ -828,7 +828,7 @@ interface TileCompletionNotifyParams {
   trackedStat?: string | null;
   statType?: string | null;
   eventId?: number | null;
-  tile?: IconableTile | null;
+  tile?: LinkedTile | null;
 }
 
 export async function notifyTileCompletion(params: TileCompletionNotifyParams): Promise<boolean> {
@@ -866,7 +866,7 @@ export async function notifyTileCompletion(params: TileCompletionNotifyParams): 
     fields: [statField('Type', typeDescription)],
   };
 
-  const boardUrl = eventId != null ? eventLeaderboardUrl(eventId) : null;
+  const boardUrl = eventId != null ? tileBoardUrl(eventId, tile) : null;
   if (boardUrl) embed.url = boardUrl;
 
   return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { kind: 'completions', teamId: params.teamId });
@@ -1299,6 +1299,15 @@ async function withClanCrest(clanId: number, embed: DiscordEmbed, eventId?: numb
 function eventLeaderboardUrl(eventId: number): string | null {
   const base = siteBaseUrl();
   return base ? `${base}/events/${eventId}` : null;
+}
+
+/** A tile as the notifiers receive it: icon facts, plus the id when the caller has the row. */
+type LinkedTile = IconableTile & { id?: number | null };
+
+// A tile post links to that tile opened on the board (the event page reads ?tile=), not just the board.
+function tileBoardUrl(eventId: number, tile: LinkedTile | null | undefined): string | null {
+  const url = eventLeaderboardUrl(eventId);
+  return url && tile?.id ? `${url}?tile=${tile.id}` : url;
 }
 
 // The "go look at the board" call to action, as a trailing description line rather than the old
