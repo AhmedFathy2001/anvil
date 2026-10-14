@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { eventForPluginRequest } from '@/lib/eventScope';
-import { personOf, seatsOwnedBy } from '@/lib/roster';
+import { personOf, seatsOwnedByAnywhere } from '@/lib/roster';
 import { db } from '@/db';
 import { events, eventParticipants, clanRoster, eventStartProofs, accountStatSnapshots } from '@/db/schema';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
@@ -254,7 +254,7 @@ async function resolveCaller(
     if (!row) return { error: NextResponse.json({ error: 'Player not found on this event' }, { status: 404 }) };
     if (!admin) {
       // Not staff — the named enrolment still has to be one of theirs.
-      const mine = await myPlayerRows(event.clanId, user.userId, eventId);
+      const mine = await myPlayerRows(user.userId, eventId);
       if (!mine.some((p) => p.id === row.id)) {
         return { error: NextResponse.json({ error: 'Not your enrolment' }, { status: 403 }) };
       }
@@ -262,7 +262,7 @@ async function resolveCaller(
     return { event, player: { id: row.id, teamId: row.teamId, name: row.name }, source: 'web' };
   }
 
-  const mine = await myPlayerRows(event.clanId, user.userId, eventId);
+  const mine = await myPlayerRows(user.userId, eventId);
   if (mine.length === 0) {
     return { error: NextResponse.json({ error: "You're not enrolled in this event" }, { status: 403 }) };
   }
@@ -277,12 +277,16 @@ async function resolveCaller(
   return { event, player: mine[0], source: 'web' };
 }
 
-/** This user's enrolments in one event, across every roster identity they own IN THAT CLAN. */
-async function myPlayerRows(clanId: number, userId: number, eventId: number) {
+/** This user's enrolments in one event, across every roster identity they own in any clan. */
+async function myPlayerRows(userId: number, eventId: number) {
+  // Every seat the person holds, in ANY clan: a co-hosted event enrols the co-host's members through
+  // their own clan's seats, so a host-clan-only lookup told them "You're not enrolled" and the site
+  // upload was a dead end for half the field. Still only rows on THIS event, owned by THIS person.
+  // clan-scope: global -- the subject is the person's own enrolments, narrowed to one event below.
   const members = await db
     .select({ id: clanRoster.id })
     .from(clanRoster)
-    .where(await seatsOwnedBy(clanId, userId));
+    .where(await seatsOwnedByAnywhere(userId));
   if (members.length === 0) return [];
   return db
     .select({ id: eventParticipants.id, teamId: eventParticipants.teamId, name: eventParticipants.name })
