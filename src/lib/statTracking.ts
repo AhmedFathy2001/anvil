@@ -1,6 +1,7 @@
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { isActivityKey, readActivityScore } from '@/lib/hiscoresActivities';
 import { parseStamp } from '@/lib/dbTime';
+import { SKILLS } from '@/lib/constants';
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 // The single definition of a hiscores-backed stat gain, shared by every consumer: the unified stat
@@ -137,6 +138,10 @@ export function computeGain(
   if (!baseline) return 0;
   let gained = 0;
   for (const key of keys) {
+    if (statType === 'skill' && key === 'overall') {
+      gained += overallXpGain(baseline, current, liveMap);
+      continue;
+    }
     // Same rule one level down: a partial baseline that never saw this key has no starting point
     // for it, and 0 would count the whole account.
     if (!baselineKnows(baseline, statType, key)) continue;
@@ -145,6 +150,34 @@ export function computeGain(
     gained += Math.max(0, cur - base);
   }
   return gained;
+}
+
+/**
+ * TOTAL XP GAINED. The hiscores `overall` only moves when a player logs out, and the live overlay
+ * never carries `overall` (lib/pluginStats), so overall − overall alone sat at a fraction of what the
+ * team had actually earned mid-session while every single-skill tile read live. The per-skill gains
+ * are live, so they are summed — each against its own starting XP. A skill unranked at the start
+ * (xp −1) has no starting line and sits out of that sum; the hiscores overall delta still counts it
+ * once the hiscores catch up, so the larger of the two is the answer. Neither can overcount: both
+ * measure only XP earned since the baseline.
+ */
+function overallXpGain(
+  baseline: HiscoresSnapshot,
+  current: HiscoresSnapshot | null | undefined,
+  liveMap: Record<string, number>,
+): number {
+  let fromSkills = 0;
+  for (const skill of SKILLS) {
+    if (skill === 'overall') continue;
+    const base = baseline.skills?.[skill]?.xp;
+    if (base == null || base < 0) continue;
+    const cur = effectiveValue(snapshotValue(current, 'skill', skill), liveMap, skill);
+    fromSkills += Math.max(0, cur - base);
+  }
+  const fromTotal = baselineKnows(baseline, 'skill', 'overall')
+    ? Math.max(0, snapshotValue(current, 'skill', 'overall') - snapshotValue(baseline, 'skill', 'overall'))
+    : 0;
+  return Math.max(fromSkills, fromTotal);
 }
 
 /**

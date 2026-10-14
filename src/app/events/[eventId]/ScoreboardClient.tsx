@@ -11,6 +11,7 @@ import { formatNumber, isPointsMode } from '@/lib/utils';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { boardTiles, missionTiles, parseEventRules } from '@/lib/eventRules';
 import { scoreTeams } from '@/lib/boardScoring';
+import { statKeys } from '@/lib/tileKinds';
 import { eventAxes, taskNoun } from '@/lib/eventAxes';
 import LiveDropBoard from '@/components/LiveDropBoard';
 import TeamLens from '@/components/board/TeamLens';
@@ -125,6 +126,26 @@ interface Props {
   initialTileId?: number | null;
 }
 
+/**
+ * The team's XP gained, for the "XP gained" panel. Summing every stat tile counted the same XP once
+ * per tile that tracks it (a 5M and a 2M Herblore tile = Herblore twice, plus the total-XP tile on
+ * top) and added boss kill counts to it as "XP". A total-XP tile already IS the answer; without one,
+ * each tracked skill counts once and kill counts stay out.
+ */
+function teamXpGained(
+  statTiles: Array<{ id: number; trackedStat?: string | null; statType?: string | null; statBasis?: string | null }>,
+  tileGains: Record<number, number>,
+): number {
+  const xpTiles = statTiles.filter((t) => t.statType === 'skill' && t.statBasis !== 'milestone');
+  const overall = xpTiles.find((t) => statKeys(t.trackedStat).includes('overall'));
+  if (overall) return tileGains[overall.id] ?? 0;
+  const byStat = new Map<string, number>();
+  for (const t of xpTiles) byStat.set(t.trackedStat!, tileGains[t.id] ?? 0);
+  let total = 0;
+  for (const v of byStat.values()) total += v;
+  return total;
+}
+
 interface TeamGains {
   teamId: number;
   totalGained: number;
@@ -206,7 +227,6 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
         if (!res.ok) return null;
         const data = await res.json();
         const tileGains: Record<number, number> = {};
-        let totalGained = 0;
         for (const tile of statTiles) {
           let tileTotal = 0;
           if (tile.statBasis === 'milestone') {
@@ -227,9 +247,8 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
             }
           }
           tileGains[tile.id] = tileTotal;
-          totalGained += tileTotal;
         }
-        return { teamId: team.id, totalGained, tileGains };
+        return { teamId: team.id, totalGained: teamXpGained(statTiles, tileGains), tileGains };
       })
     ).then((results) => {
       setTeamGains(results.filter((r): r is TeamGains => r !== null));
@@ -517,11 +536,11 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
             />
 
             {/* XP/Stat Gains */}
-            {statTiles.length > 0 && teamGains.length > 0 && (
+            {statTiles.some((t) => t.statType === 'skill' && t.statBasis !== 'milestone') && teamGains.length > 0 && (
               <div className="mt-6">
                 <h3 className="text-md font-bold mb-3 text-foreground flex items-center gap-2">
                   <span className="w-1 h-4 bg-blue-400 rounded-full" />
-                  XP/Stat Gains
+                  XP gained
                 </h3>
                 <div className="space-y-2">
                   {[...teamGains]
