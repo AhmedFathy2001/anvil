@@ -541,6 +541,7 @@ export default async function EventScoreboardPage({
         endDate={event.endDate}
         forceEndedAt={event.forceEndedAt}
         placementPrizes={placementPrizes}
+        startProof={!!parseEventRules(event.rules).startProof}
       />
       {myStartProofs.length > 0 && (
         <section id="starting-shot" className="mb-6 scroll-mt-20">

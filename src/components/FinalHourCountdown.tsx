@@ -22,17 +22,26 @@ interface Props {
   hostName?: string;
   prizePool: number;
   teamsCount: number;
+  /** The board needs a starting shot — the copy walks through it. */
+  startProof?: boolean;
   /** Start time and current time, ms. */
   target: number;
   now: number;
 }
 
-function stepCopy(secs: number): { phase: string; sub: string } {
+function stepCopy(secs: number, startProof: boolean): { phase: string; sub: string } {
+  if (!startProof) {
+    if (secs > 900) return { phase: 'The final hour', sub: 'Get set. The board opens at zero.' };
+    if (secs > 300) return { phase: 'Get ready', sub: 'Log out and back in before the start so your starting totals are fresh.' };
+    if (secs > 60) return { phase: 'Take your positions', sub: 'The board opens at zero.' };
+    if (secs > 10) return { phase: 'Final minute', sub: '' };
+    return { phase: 'Brace', sub: '' };
+  }
   if (secs > 900)
-    return { phase: 'The final hour', sub: 'Log out and back in before the start — your starting totals are set at logout.' };
-  if (secs > 300) return { phase: 'Relog now', sub: 'Hiscores only save when you log out. That is what sets your starting totals.' };
-  if (secs > 60) return { phase: 'Take your positions', sub: 'Your starting spot is drawn the moment the clock hits zero.' };
-  if (secs > 10) return { phase: 'Final minute', sub: 'Plugin users: the arrow points you to the spot at zero.' };
+    return { phase: 'The final hour', sub: 'Starting shot needed. At zero: relog, go to the drawn spot, take your shot (plugin button, or keyword + screenshot here).' };
+  if (secs > 300) return { phase: 'Relog soon', sub: 'Log out and back in just before the start. Hiscores only save on logout; that sets your starting totals.' };
+  if (secs > 60) return { phase: 'Take your positions', sub: 'Your starting spot is drawn at zero and shows up right here, with your keyword and the upload.' };
+  if (secs > 10) return { phase: 'Final minute', sub: 'Plugin: press Take starting shot once you are on the spot. Mobile: keyword in the chatbox, screenshot, upload.' };
   return { phase: 'Brace', sub: '' };
 }
 
@@ -51,6 +60,7 @@ export default function FinalHourCountdown({
   hostName,
   prizePool,
   teamsCount,
+  startProof = false,
   target,
   now,
 }: Props) {
@@ -112,7 +122,7 @@ export default function FinalHourCountdown({
   const rem = Math.min(secs, 3600) % 60;
   const final10 = !live && secs <= 10;
   const pulse = !live && secs <= 60 && secs > 10;
-  const copy = stepCopy(secs);
+  const copy = stepCopy(secs, startProof);
   const glow = `drop-shadow(0 0 ${6 + heat * 28}px rgba(255,${Math.round(140 - heat * 100)},40,${0.3 + heat * 0.6}))`;
 
   return (
@@ -187,7 +197,7 @@ export default function FinalHourCountdown({
           <div className="h-full bg-gradient-to-r from-gold via-[#ff6a1a] to-[#d7262b] transition-[width] duration-1000 ease-linear" style={{ width: `${heat * 100}%` }} />
         </div>
         {!live && copy.sub && <p className="mx-auto mt-3 max-w-md text-sm text-text-muted">{copy.sub}</p>}
-        {live && <p className="mx-auto mt-3 max-w-md text-sm text-text-muted">Drawing your starting spot…</p>}
+        {live && startProof && <p className="mx-auto mt-3 max-w-md text-sm text-text-muted">Drawing your starting spot…</p>}
         <div className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-text-muted">
           {prizePool > 0 && (
             <span>

@@ -32,7 +32,10 @@ export async function sendFinalHour(eventId: number): Promise<FinalHourResult | 
     eventId,
     eventName: event.name,
     startDate: event.startDate,
-    startProof: !!parseEventRules(event.rules).startProof,
+    startProof: (() => {
+      const sp = parseEventRules(event.rules).startProof;
+      return sp ? { maxSessionMinutes: sp.maxSessionMinutes ?? 0 } : null;
+    })(),
   };
   const clansOk = await notifyFinalHour(params);
 

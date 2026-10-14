@@ -1383,8 +1383,8 @@ interface FinalHourNotifyParams {
   eventId: number;
   eventName: string;
   startDate: string;
-  /** True when the board needs a starting shot — the post says to relog and where the spot appears. */
-  startProof: boolean;
+  /** Set when the board needs a starting shot; the post then walks through the steps. */
+  startProof: { maxSessionMinutes: number } | null;
 }
 
 /**
@@ -1397,12 +1397,22 @@ export function finalHourEmbed(params: FinalHourNotifyParams): DiscordEmbed {
   const url = eventLeaderboardUrl(eventId);
   const shotUrl = url ? `${url}#starting-shot` : null;
   const lines = [`**${eventName}** starts ${discordTime(startDate, 'R')} (${discordTime(startDate)}).`];
+  const fields: DiscordEmbedField[] = [];
   if (startProof) {
-    lines.push(
-      '',
-      '**Log out and back in before the start** — hiscores only save on logout, and that sets your starting totals.',
-      'The starting spot is drawn at zero.' + (shotUrl ? ` Your spot, keyword and upload will be **[here](${shotUrl})** — open it now and keep it open.` : ''),
-      'Plugin users: the Anvil panel points you there.',
+    const relog = startProof.maxSessionMinutes > 0
+      ? `**Log out and back in** right before you take it — the shot must be within ${startProof.maxSessionMinutes} min of logging in. Hiscores only save on logout, and that sets your starting totals.`
+      : '**Log out and back in** before the start — hiscores only save on logout, and that sets your starting totals.';
+    lines.push('', 'This event needs a **starting shot** before your drops count.');
+    fields.push(
+      field(
+        '📸 Starting shot — the steps',
+        [
+          `1. ${relog}`,
+          '2. At the start, the spot is drawn. Go there.',
+          '3. **Plugin:** press **Take starting shot** in the Anvil panel (the arrow points you to the spot). Done.',
+          `4. **Mobile / no plugin:** open ${shotUrl ? `**[your starting shot](${shotUrl})**` : 'the event page'}, type your keyword in the chatbox (don\u2019t send it), screenshot with your character in view, and upload it there.`,
+        ].join('\n'),
+      ),
     );
   } else if (url) {
     lines.push('', `[Open the board →](${url})`);
@@ -1412,7 +1422,8 @@ export function finalHourEmbed(params: FinalHourNotifyParams): DiscordEmbed {
     title: '🔥 Final hour',
     description: clamp(lines.join('\n'), LIMIT.description),
     color: EMBED_COLOR.amber,
-    ...(shotUrl ? { url: shotUrl } : {}),
+    ...(fields.length ? { fields } : {}),
+    ...(shotUrl && startProof ? { url: shotUrl } : url ? { url } : {}),
   };
 }
 

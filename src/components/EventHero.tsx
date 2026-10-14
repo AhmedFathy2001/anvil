@@ -26,6 +26,8 @@ interface Props {
   forceEndedAt?: string | null;
   // Prize per placement (gp by place, index 0 = 1st), shown as the reward breakdown. Empty = not set.
   placementPrizes: number[];
+  /** The board needs a starting shot — the final-hour countdown walks through the steps. */
+  startProof?: boolean;
 }
 
 function countParts(ms: number) {
@@ -76,6 +78,7 @@ export default function EventHero({
   endDate,
   forceEndedAt,
   placementPrizes,
+  startProof = false,
 }: Props) {
   // Client-only clock — null until mounted so SSR and first render agree (no hydration mismatch).
   const [now, setNow] = useState<number | null>(null);
@@ -127,6 +130,7 @@ export default function EventHero({
         hostName={hostName}
         prizePool={prizePool}
         teamsCount={teamsCount}
+        startProof={startProof}
         target={fhTarget}
         now={now}
       />
