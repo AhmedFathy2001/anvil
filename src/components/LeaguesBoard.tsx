@@ -4,7 +4,7 @@ import ClaimAvatars from '@/components/ClaimAvatars';
 
 import { useState, useEffect, useRef } from 'react';
 import ManualOnlyBadge from './ManualOnlyBadge';
-import { isManualOnlyDropTile } from '@/lib/clogManual';
+import { isManualTile } from '@/lib/clogManual';
 import { tileTierKey, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import type { TileStatus } from './BoardStatusTabs';
 
@@ -21,6 +21,8 @@ interface Tile {
   statType?: string | null;
   optional?: number | null;
   points?: number | null;
+  trackedItemIds?: string | null;
+  autoTrackDisabled?: number | null;
 }
 
 interface Completion {
@@ -255,7 +257,7 @@ export default function LeaguesBoard({
                       Staff only
                     </span>
                   )}
-                  {isManualOnlyDropTile(tile) && <ManualOnlyBadge compact className="shrink-0" />}
+                  {isManualTile(tile) && <ManualOnlyBadge compact byStaff={!!tile.autoTrackDisabled} className="shrink-0" />}
                 </div>
                 {pct !== null && (
                   <div className="mt-1 flex items-center gap-2">

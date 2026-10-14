@@ -19,7 +19,7 @@ import { submissionHasProof } from '@/lib/submissionProof';
 import { parseTileMissionRules, missionPrizeSummary, placeLabel } from '@/lib/eventRules';
 import { formatGp } from '@/lib/adminEventsFormat';
 import ProofGallery, { type ProofShot } from './ProofGallery';
-import { isManualOnlyDropTile } from '@/lib/clogManual';
+import { isManualTile } from '@/lib/clogManual';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { clanFetch } from '@/lib/clanFetch';
 
@@ -202,7 +202,7 @@ export default function TileDetailModal({
   const isDeathless = tile.tileType === 'deathless';
   const isLms = tile.tileType === 'lms';
   const isValue = tile.tileType === 'value' || tile.tileType === 'valuetotal';
-  const manualOnly = isManualOnlyDropTile(tile);
+  const manualOnly = isManualTile(tile);
   // Count-based tiles share the amount+proof "Add Submission" form. Value tiles use a gp-value form
   // (below); timed uses its own clear-time form; stat/standard have no manual submit.
   const isCount = isDrop || isKill || isLap || isPvp || isGain || isDiary || isCa || isDeathless || isLms;
@@ -559,7 +559,7 @@ export default function TileDetailModal({
                 }`}>
                   {kindLabel}
                 </span>
-                {manualOnly && <ManualOnlyBadge />}
+                {manualOnly && <ManualOnlyBadge byStaff={!!tile.autoTrackDisabled} />}
                 {isStatTile && tile.statGoal && (
                   <span className="text-xs text-text-muted">
                     Goal: {tile.statGoal.toLocaleString()} {tile.statType === 'boss' ? 'KC' : 'XP'}

@@ -1,7 +1,7 @@
 'use client';
 
 import TileCell from './TileCell';
-import { isManualOnlyDropTile } from '@/lib/clogManual';
+import { isManualTile } from '@/lib/clogManual';
 
 interface Tile {
   id: number;
@@ -120,7 +120,7 @@ export default function BingoBoard({
             expanded={expanded}
             points={pointsMode && !tile.optional ? (tile.points ?? 1) : undefined}
             dimmed={matchedTileIds ? !matchedTileIds.has(tile.id) : false}
-            manualOnly={isManualOnlyDropTile(tile)}
+            manualOnly={isManualTile(tile)}
             staffOnly={staffOnlyTileIds?.has(tile.id) ?? false}
             claimedBy={claimedBy?.get(tile.id)}
             markersOnly={!activeTeamId}

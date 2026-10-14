@@ -2,7 +2,7 @@
 
 import { Fragment } from 'react';
 import { cn, formatNumber } from '@/lib/utils';
-import { isManualOnlyDropTile } from '@/lib/clogManual';
+import { isManualTile } from '@/lib/clogManual';
 
 interface Tile {
   id: number;
@@ -294,7 +294,7 @@ function TrackTile({
         </span>
       ) : isLocked ? (
         <span className="absolute top-0.5 right-1 text-[8px] sm:text-[10px] text-text-muted/50 leading-none">🔒</span>
-      ) : isManualOnlyDropTile(tile) ? (
+      ) : isManualTile(tile) ? (
         <span
           className="absolute top-0.5 right-1 text-[8px] sm:text-[10px] leading-none"
           title="Not auto-tracked by the plugin — submit manually"

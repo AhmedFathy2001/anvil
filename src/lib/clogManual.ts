@@ -36,3 +36,13 @@ export function isManualOnlyDropTile(tile: {
   const ids = parseTrackedIds(tile.trackedItemIds);
   return ids.length > 0 && ids.every((id) => MANUAL_ONLY_CLOG_IDS.has(id));
 }
+
+// True when the board should mark a tile as not auto-tracked: an admin switched it to complete-by-hand
+// (autoTrackDisabled), or it's a drop tile the plugin can't detect at all.
+export function isManualTile(tile: {
+  tileType?: string | null;
+  trackedItemIds?: string | number[] | null;
+  autoTrackDisabled?: number | boolean | null;
+}): boolean {
+  return !!tile.autoTrackDisabled || isManualOnlyDropTile(tile);
+}

@@ -440,13 +440,17 @@ export async function GET(request: Request) {
     if (isMissionTile(t)) return t.revealedAt != null && t.closedAt == null;
     return !revealMode || (t.revealedAt != null && t.closedAt == null);
   });
+  // What the plugin may WATCH: the same, minus tiles an admin switched to complete-by-hand. The site
+  // already refuses to auto-complete those, but the plugin kept submitting to them, so they filled
+  // progress and posted tile messages as if tracked.
+  const trackedTiles = allEventTiles.filter((t) => !t.autoTrackDisabled);
 
   // Get drop tiles with tracked item IDs
-  const dropTiles = allEventTiles.filter((t) => t.tileType === 'drop');
+  const dropTiles = trackedTiles.filter((t) => t.tileType === 'drop');
 
   // Stat-tracked tiles (skill XP / boss KC). The DB sometimes stores tile_type='standard'
   // for these — match on the presence of a trackedStat field instead.
-  const statTilesRaw = allEventTiles.filter((t) => t.trackedStat && t.trackedStat.length > 0);
+  const statTilesRaw = trackedTiles.filter((t) => t.trackedStat && t.trackedStat.length > 0);
 
   // Get current submission totals per tile for this team
   const teamSubmissions = await db
@@ -832,11 +836,11 @@ export async function GET(request: Request) {
   // PvP-kill tiles need the event roster so the plugin can tell whether a victim is on a
   // rival team ('team:other' selectors match RSN → teamId). Only shipped while a pvp tile
   // exists — otherwise it's payload (and roster) for nothing.
-  const hasPvpTiles = allEventTiles.some((t) => t.tileType === 'pvp');
+  const hasPvpTiles = trackedTiles.some((t) => t.tileType === 'pvp');
   // Shared-kill tiles need the same RSN→team map: naming the teammates in your instance is how a
   // kill gets correlated (and how a minimum-teammates tile counts people who aren't running the
   // plugin). Sent for those tiles too, not just PvP ones.
-  const hasCoopTiles = allEventTiles.some(
+  const hasCoopTiles = trackedTiles.some(
     (t) => t.tileType === 'kill' && (t.coopCredit === 'per-kill' || (t.coopMinMembers ?? 0) > 0),
   );
   const pvpRoster = hasPvpTiles || hasCoopTiles
@@ -1085,7 +1089,7 @@ export async function GET(request: Request) {
     // word — so a lap tile is exactly a kill tile whose target names are course names, and it
     // credits on every client build, including ones released before laps existed. Only the SITE
     // needs to know the difference (it says "laps", not "kills").
-    trackedKills: allEventTiles
+    trackedKills: trackedTiles
       .filter((t) => t.tileType === 'kill' || t.tileType === 'lap')
       .map((t) => {
         let targetNpcs: string[] = [];
@@ -1126,7 +1130,7 @@ export async function GET(request: Request) {
     // 'team:other' = any member of a rival team (resolved against pvpRoster), 'rsn:<name>'
     // = a named bounty.
     // Selectors live in the targetNpcs column (reused per-tileType, like diary/CA).
-    trackedPvp: allEventTiles
+    trackedPvp: trackedTiles
       .filter((t) => t.tileType === 'pvp')
       .map((t) => {
         let targets: string[] = [];
@@ -1159,7 +1163,7 @@ export async function GET(request: Request) {
     // Achievement-diary tiles — the plugin credits a completion when the in-game diary
     // completion line matches one of the tile's selectors ("Ardougne Elite", "Any Elite",
     // "Wilderness Any"). Selectors live in the targetNpcs column (reused per-tileType).
-    trackedDiaries: allEventTiles
+    trackedDiaries: trackedTiles
       .filter((t) => t.tileType === 'diary')
       .map((t) => {
         let diaries: string[] = [];
@@ -1190,7 +1194,7 @@ export async function GET(request: Request) {
     // column (reused per-tileType, like diary). Players who already own a task re-fire the
     // line via the in-game "Repeat completion" setting. Consumed by a future plugin release —
     // current plugins simply ignore the field.
-    trackedCombatTasks: allEventTiles
+    trackedCombatTasks: trackedTiles
       .filter((t) => t.tileType === 'ca')
       .map((t) => {
         let tasks: string[] = [];
@@ -1217,7 +1221,7 @@ export async function GET(request: Request) {
 
     // Timed-clear tiles — the plugin times the named activity and bakes the duration onto a
     // screenshot; the tile completes when a submitted time is at or under `thresholdSeconds`.
-    trackedTimed: allEventTiles
+    trackedTimed: trackedTiles
       .filter((t) => t.tileType === 'timed')
       .map((t) => ({
         tileId: t.id,
@@ -1241,7 +1245,7 @@ export async function GET(request: Request) {
     // screenshot each time the player places at or under `placementCap` (1 = win). The cap
     // rides in the timeThresholdSeconds column; `requiredAmount` qualifying games complete
     // the tile (summed like kill tiles).
-    trackedLms: allEventTiles
+    trackedLms: trackedTiles
       .filter((t) => t.tileType === 'lms')
       .map((t) => ({
         tileId: t.id,
@@ -1261,7 +1265,7 @@ export async function GET(request: Request) {
     // submits a baked screenshot when one meets `thresholdGp` (stored in requiredAmount).
     // `sources` optionally restricts where the haul may come from: NPC/chest names, or the
     // special "PvP" for player kills. Empty = any source.
-    trackedValues: allEventTiles
+    trackedValues: trackedTiles
       .filter((t) => t.tileType === 'value' || t.tileType === 'valuetotal')
       .map((t) => {
         let sources: string[] = [];
@@ -1291,7 +1295,7 @@ export async function GET(request: Request) {
     // Item-gain tiles — the plugin counts tracked items appearing in the inventory
     // (fishing catches, cooked food, jarred implings) and submits a baked running total,
     // exactly like kill tiles. Bank/GE/trade gains are ignored plugin-side.
-    trackedGains: allEventTiles
+    trackedGains: trackedTiles
       .filter((t) => t.tileType === 'gain')
       .map((t) => ({
         tileId: t.id,
@@ -1316,7 +1320,7 @@ export async function GET(request: Request) {
     // Deathless-raid tiles — the plugin counts player deaths inside the raid instance and
     // credits a run off the completion message only when that count is zero. The raid name
     // rides timedActivity; requiredAmount = deathless runs needed.
-    trackedDeathless: allEventTiles
+    trackedDeathless: trackedTiles
       .filter((t) => t.tileType === 'deathless')
       .map((t) => ({
         tileId: t.id,
