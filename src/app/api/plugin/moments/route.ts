@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { resolvePluginClan } from '@/lib/auth';
 import { noClanForPlugin } from '@/lib/pluginNoClan';
-import { resolvePluginMember } from '@/lib/auth';
+import { pluginParticipantScope, resolvePluginMember } from '@/lib/auth';
 import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
 import { activeScopesFor, recordMoments } from '@/lib/momentsStore';
 import { caTierRank, type Observation } from '@/lib/moments';
@@ -143,7 +143,7 @@ export async function POST(request: Request) {
   // See lib/pluginNoClan: a moment with no clan to tell has nobody to tell.
   const clan = await resolvePluginClan(request);
   if (!clan) return noClanForPlugin();
-  const scopes = await activeScopesFor(member.clanMemberId, clan.id, new Date(now));
+  const scopes = await activeScopesFor(member.clanMemberId, clan.id, new Date(now), await pluginParticipantScope(member));
   // Nothing was running, so nothing is looking. Told apart from "kept none of them" in the reply so
   // a client's log can say which it was.
   if (scopes.weeklies.length === 0 && !scopes.event) {

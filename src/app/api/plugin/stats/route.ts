@@ -5,7 +5,7 @@ import { db } from '@/db';
 import { eventParticipants, tiles, teams, events, completions, clanRoster, weeklyParticipants } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
 import { eq, and, inArray } from 'drizzle-orm';
-import { resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
+import { pluginParticipantScope, resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
 import { applyAccountPush, isEmptyPush, readPushed, type PushBody } from '@/lib/accountPush';
 import { accountForCharacter, accountStanding, playedCharacter } from '@/lib/pluginAccount';
 import { statKeys } from '@/lib/tileKinds';
@@ -90,7 +90,9 @@ export async function POST(request: Request) {
   const completed: string[] = [];
 
   // ── Bingo credit: re-evaluate the member's active-event stat tiles so a real-time clear completes now.
-  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
+  // Any seat this character holds, on a board the connected clan hosts or co-hosts — a co-host's
+  // members sit on a HOST-clan seat, so the connected seat alone never found their board.
+  // clan-scope: this clan -- boards the connected clan hosts or co-hosts (lib/auth pluginParticipantScope).
   const playerRows = await db
     .select({
       id: eventParticipants.id,
@@ -102,7 +104,7 @@ export async function POST(request: Request) {
     })
     .from(eventParticipants)
     .innerJoin(events, eq(eventParticipants.eventId, events.id))
-    .where(eq(eventParticipants.clanMemberId, member.clanMemberId));
+    .where(await pluginParticipantScope(member));
   // Pick the same way lib/auth does, and for the same reason: a member can be on a team for a board
   // that's running AND pre-drafted into one that starts in two months, and row order decides nothing.
   // This used to take the first row that merely hadn't ENDED, which let an event months away win —

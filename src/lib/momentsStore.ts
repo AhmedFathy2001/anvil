@@ -2,7 +2,7 @@ import { db } from '@/db';
 import { countedLuckCandidates } from '@/lib/clogLuckBoard';
 import { getSetting, getSettingMap } from '@/lib/settings';
 import { clanMemberships, events, moments, eventParticipants, tiles, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { type SQL, and, desc, eq, inArray } from 'drizzle-orm';
 import { eventHasStarted } from '@/lib/completionGate';
 import { parseStamp } from '@/lib/dbTime';
 import {
@@ -48,7 +48,14 @@ export interface ActiveScopes {
  * removed from one shouldn't appear on its board through a side door. The event is resolved exactly
  * as the counters ingest resolves it — drafted onto a team, event neither force-ended nor past.
  */
-export async function activeScopesFor(clanMemberId: number, clanId: number, now: Date = new Date()): Promise<ActiveScopes> {
+export async function activeScopesFor(
+  clanMemberId: number,
+  clanId: number,
+  now: Date = new Date(),
+  /** Which participant rows count as this member's — lib/auth pluginParticipantScope for plugin
+   *  pushes, so a co-host's members (seated in the HOST clan) find their board. Defaults to the seat. */
+  participantScope?: SQL,
+): Promise<ActiveScopes> {
   // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
   const weeklyRows = await db
     .select({
@@ -80,7 +87,7 @@ export async function activeScopesFor(clanMemberId: number, clanId: number, now:
     })
     .from(eventParticipants)
     .innerJoin(events, eq(eventParticipants.eventId, events.id))
-    .where(eq(eventParticipants.clanMemberId, clanMemberId));
+    .where(participantScope ?? eq(eventParticipants.clanMemberId, clanMemberId));
   // STARTED, not merely un-ended. A revealed board is still only a preview until the whistle. Use
   // the shared parser rather than comparing timestamp strings: Postgres defaults use a space while
   // browser-authored dates use ISO `T`, and lexicographic comparisons disagree on same-day times.

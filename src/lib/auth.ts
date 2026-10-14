@@ -9,7 +9,7 @@ import { db } from '@/db';
 import { resolveClanById, resolveClanFromRequest, type ClanContext } from '@/lib/clanContext';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, clanStaff, clans, detectedAccounts, eventCohosts, eventEditors, eventParticipants, events, players, pluginLinks, teams, users, weeklyCompetitions } from '@/db/schema';
 import { findOrCreateSeat, findRosterSeat, findRosterSeats, personOf, personOfOrCreate, seatsOwnedBy, seatsOwnedByAnywhere, updateAccountOfSeat } from '@/lib/roster';
-import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
+import { type SQL, and, desc, eq, gte, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 import { requireSecret } from '@/lib/env';
 import { applyPendingRole } from '@/lib/pending-role';
 import { onCharacterLinked } from '@/lib/identity';
@@ -1432,6 +1432,34 @@ export function pluginRsnHintOnly(request: Request): boolean {
   return !request.headers.get('X-RSN')?.trim() && !!request.headers.get(RSN_HINT_HEADER)?.trim();
 }
 
+/**
+ * The participant rows a plugin request may act on: any seat THIS CHARACTER holds (its own clan's
+ * roster and, on a co-hosted board, the host's), on a board the connected clan hosts or co-hosts.
+ * See verifyPluginToken for why both halves are needed. Every plugin route that looks up "my
+ * active event row" goes through this, so a co-host's members resolve exactly as far as config does.
+ */
+export async function pluginParticipantScope(member: { clanMemberId: number; accountId: number; clanId: number }): Promise<SQL> {
+  const [cohosted, ownSeats] = await Promise.all([
+    db
+      .select({ eventId: eventCohosts.eventId })
+      .from(eventCohosts)
+      .where(and(eq(eventCohosts.clanId, member.clanId), eq(eventCohosts.status, 'accepted'))),
+    // clan-scope: global -- one character's own seats in every clan; the event side below is scoped.
+    db
+      .select({ id: clanRoster.id })
+      .from(clanRoster)
+      .where(and(eq(clanRoster.accountId, member.accountId), isNull(clanRoster.leftAt))),
+  ]);
+  const seatIds = [...new Set([member.clanMemberId, ...ownSeats.map((s) => s.id)])];
+  const cohostedIds = cohosted.map((c) => c.eventId);
+  return and(
+    inArray(eventParticipants.clanMemberId, seatIds),
+    cohostedIds.length > 0
+      ? or(eq(events.clanId, member.clanId), inArray(events.id, cohostedIds))
+      : eq(events.clanId, member.clanId),
+  )!;
+}
+
 /** The character a read may personalise on: the played RSN, else the launcher hint. Never for writes. */
 export function pluginViewerRsn(request: Request): string | null {
   return request.headers.get('X-RSN')?.trim() || request.headers.get(RSN_HINT_HEADER)?.trim() || null;
@@ -1673,20 +1701,6 @@ export async function verifyPluginToken(
   // ALT resolved to their MAIN's entry whenever the main was on a live board — and the alt's drops,
   // kills and XP were filed against the main's team. The co-host case this exists for is one
   // character seated twice (its own clan's roster and the host's), which is the same account.
-  const [cohosted, ownSeats] = await Promise.all([
-    db
-      .select({ eventId: eventCohosts.eventId })
-      .from(eventCohosts)
-      .where(and(eq(eventCohosts.clanId, member.clanId), eq(eventCohosts.status, 'accepted'))),
-    // clan-scope: global -- one character's own seats in every clan; the event side below is scoped.
-    db
-      .select({ id: clanRoster.id })
-      .from(clanRoster)
-      .where(and(eq(clanRoster.accountId, member.accountId), isNull(clanRoster.leftAt))),
-  ]);
-  const seatIds = [...new Set([member.clanMemberId, ...ownSeats.map((s) => s.id)])];
-  const cohostedIds = cohosted.map((c) => c.eventId);
-
   // clan-scope: this clan -- events this clan hosts, plus the ones it co-hosts; seats are the
   // person's own.
   const playerRows = await db
@@ -1701,14 +1715,7 @@ export async function verifyPluginToken(
     })
     .from(eventParticipants)
     .innerJoin(events, eq(eventParticipants.eventId, events.id))
-    .where(
-      and(
-        inArray(eventParticipants.clanMemberId, seatIds),
-        cohostedIds.length > 0
-          ? or(eq(events.clanId, member.clanId), inArray(events.id, cohostedIds))
-          : eq(events.clanId, member.clanId),
-      ),
-    );
+    .where(await pluginParticipantScope(member));
 
   // A member in two concurrent events resolves to ONE — the plugin scopes to a single active event
   // (until the multi-enrollment rework lands). Upcoming enrollments belong in /plugin/schedule, not

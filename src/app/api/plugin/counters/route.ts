@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { eventParticipants, events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { resolvePluginMember } from '@/lib/auth';
+import { pluginParticipantScope, resolvePluginMember } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { eventHasStarted } from '@/lib/completionGate';
 import { parseStamp } from '@/lib/dbTime';
@@ -81,7 +81,9 @@ export async function POST(request: Request) {
 
   // Resolve the member's active-event player row (same rule the stats ingest uses): drafted onto a team,
   // event not force-ended and not past its end date. Counters are per-event, so they land on that row.
-  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
+  // Any seat this character holds, on a board the connected clan hosts or co-hosts: a co-host's members
+  // are enrolled on a seat in the HOST clan, and a connected-seat-only lookup dropped every push.
+  // clan-scope: this clan -- boards the connected clan hosts or co-hosts (lib/auth pluginParticipantScope).
   const playerRows = await db
     .select({
       id: eventParticipants.id,
@@ -98,7 +100,7 @@ export async function POST(request: Request) {
     })
     .from(eventParticipants)
     .innerJoin(events, eq(eventParticipants.eventId, events.id))
-    .where(eq(eventParticipants.clanMemberId, member.clanMemberId));
+    .where(await pluginParticipantScope(member));
   const active = playerRows.find(
     (p) =>
       p.teamId &&
