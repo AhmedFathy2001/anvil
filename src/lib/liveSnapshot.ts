@@ -5,6 +5,7 @@ import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { SKILLS, BOSSES } from '@/lib/constants';
 import { levelFromXp } from '@/lib/xp';
 import { parsePluginStats } from '@/lib/pluginStats';
+import { completePartialBaseline } from '@/lib/statTracking';
 
 /**
  * A hiscores-shaped snapshot from the plugin's live overlay (absolute XP per skill, KC per boss), or
@@ -42,10 +43,17 @@ export function snapshotFromLiveStats(json: string | null | undefined): Hiscores
  * the sweep reaches them, it is the only starting line there is. Boss kill counts only reach the
  * plugin from the game's kill-count line, so it holds the few it has seen: the result is marked
  * `partial`, and a key it lacks scores nothing until the sweep fills it (lib/statTracking).
+ *
+ * `fill` is a hiscores read taken AT OR AFTER the event start. When there is one, the gaps are filled
+ * from it right here and the baseline comes back complete. Waiting for the sweep is not good enough:
+ * a pushing account is only re-polled every ~6h (lib/pollLadder sweepDue), every kill in that window
+ * scores nothing, and the late fill then takes the hiscores from THEN as the start — the kills are
+ * lost for good. Never pass a read from before the start: that would count pre-event activity.
  */
 export function startBaselineFromLiveStats(
   json: string | null | undefined,
   floors: Array<HiscoresSnapshot | null | undefined> = [],
+  fill?: HiscoresSnapshot | null,
 ): HiscoresSnapshot | null {
   const snap = snapshotFromLiveStats(json);
   if (!snap) return null;
@@ -68,5 +76,6 @@ export function startBaselineFromLiveStats(
       if (f > v.score) bosses[key] = { ...v, score: f };
     }
   }
-  return { skills, bosses, partial: true };
+  const partial: HiscoresSnapshot = { skills, bosses, partial: true };
+  return fill ? completePartialBaseline(partial, fill) : partial;
 }

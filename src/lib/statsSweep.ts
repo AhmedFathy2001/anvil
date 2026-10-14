@@ -11,7 +11,7 @@ import { handleBountyClaim } from '@/lib/revealEngine';
 import { log } from '@/lib/logger';
 import { statKeys } from '@/lib/tileKinds';
 import { parsePluginStats } from '@/lib/pluginStats';
-import { computeGain, computeGainFromJson, effectiveValue, reconcileLive, pruneStaleOverlay, isIndividualMode, isMilestoneBasis, milestoneState, buildContributionSnapshot, needsBaselineRecapture, baselineWithOverlay, completePartialBaseline } from '@/lib/statTracking';
+import { computeGain, computeGainFromJson, effectiveValue, reconcileLive, pruneStaleOverlay, isIndividualMode, isMilestoneBasis, milestoneState, buildContributionSnapshot, needsBaselineRecapture, baselineWithOverlay, completePartialBaseline, isPartialBaselineJson } from '@/lib/statTracking';
 import { parseStatKeyTimes } from '@/lib/liveStats';
 import { readAllActivities } from '@/lib/hiscoresActivities';
 
@@ -442,8 +442,11 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
   }
   let pluginSkipped = 0;
   const due = allWork.filter((entry) => {
+    // A partial (starting-shot) baseline counts as missing: its unseen keys score nothing until a
+    // hiscores read fills them, so a pushing account can't wait out the ~6h reconcile for it.
     const needsBaseline =
-      entry.bingo.some((b) => b.needsSnapshot) || entry.weekly.some((w) => w.participant.baselineValue === null);
+      entry.bingo.some((b) => b.needsSnapshot || isPartialBaselineJson(b.player.statsSnapshot)) ||
+      entry.weekly.some((w) => w.participant.baselineValue === null);
     // Accounts we couldn't read push state for (no account yet) keep the old rule exactly.
     if (entry.accountId == null || entry.polledAt === undefined) return needsBaseline || isDue(entry.nextDueAt, nowDate);
     const isDueNow = sweepDue(

@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { startBaselineFromLiveStats } from '../src/lib/liveSnapshot.ts';
-import { computeGain, milestoneState, completePartialBaseline } from '../src/lib/statTracking.ts';
+import { computeGain, milestoneState, completePartialBaseline, isPartialBaselineJson } from '../src/lib/statTracking.ts';
 import type { HiscoresSnapshot } from '../src/lib/hiscores.ts';
 
 const live = JSON.stringify({ woodcutting: 4_859_841, attack: 13_034_431, hitpoints: 1_154, zulrah: 12 });
@@ -71,4 +71,27 @@ test('a doctored low push is raised to readings we already hold', () => {
   assert.equal(base.bosses.zulrah.score, 500);
   assert.equal(base.skills.attack.xp, 100); // nothing to floor it with
   assert.equal(computeGain(base, null, { woodcutting: 13_000_100 }, ['woodcutting'], 'skill'), 100);
+});
+
+test('a post-start hiscores read fills the gaps at the shot, so unseen bosses score from the start', () => {
+  // Live miss (2026-10-14): a push with one skill and no bosses left Scurrius/Doom unscored for the
+  // ~6h a pushing account waits for the sweep, then the late fill swallowed the 50 kills.
+  const read: HiscoresSnapshot = {
+    skills: { fletching: { rank: 1, level: 99, xp: 13_000_000 }, mining: { rank: 1, level: 70, xp: 800_000 } },
+    bosses: { scurrius: { rank: 1, score: 244 }, doomOfMokhaiotl: { rank: 1, score: 891 } },
+  };
+  const base = startBaselineFromLiveStats(JSON.stringify({ fletching: 13_403_512 }), [read], read)!;
+  assert.equal(base.partial, undefined);
+  assert.equal(base.skills.fletching.xp, 13_403_512); // the shot's value wins
+  assert.equal(base.skills.mining.xp, 800_000);
+  assert.equal(computeGain(base, null, { scurrius: 294 }, ['scurrius'], 'boss'), 50);
+  assert.equal(computeGain(base, null, { doomOfMokhaiotl: 893 }, ['doomOfMokhaiotl'], 'boss'), 2);
+});
+
+test('isPartialBaselineJson flags only an unfilled starting-shot baseline', () => {
+  const base = startBaselineFromLiveStats(live)!;
+  assert.equal(isPartialBaselineJson(JSON.stringify(base)), true);
+  assert.equal(isPartialBaselineJson(JSON.stringify(completePartialBaseline(base, { skills: {}, bosses: {} }))), false);
+  assert.equal(isPartialBaselineJson(null), false);
+  assert.equal(isPartialBaselineJson('not json'), false);
 });

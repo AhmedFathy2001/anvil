@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { eventForPluginRequest } from '@/lib/eventScope';
 import { personOf, seatsOwnedByAnywhere } from '@/lib/roster';
 import { db } from '@/db';
-import { events, eventParticipants, clanRoster, eventStartProofs, accountStatSnapshots } from '@/db/schema';
+import { events, eventParticipants, clanRoster, eventStartProofs, accountStatSnapshots, accounts } from '@/db/schema';
+import { parseStamp } from '@/lib/dbTime';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { and, eq, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyUser, verifyPluginToken } from '@/lib/auth';
@@ -316,10 +317,17 @@ async function baselineFromStartingShot(participantId: number, eventStartDate: s
   // Floors for the client-reported numbers: the account's last hiscores read and whatever this
   // enrolment already holds. A real starting line is never below either (see startBaselineFromLiveStats).
   const [last] = await db
-    .select({ snapshot: accountStatSnapshots.snapshot })
-    .from(accountStatSnapshots)
-    .where(eq(accountStatSnapshots.accountId, seat.accountId));
-  const baseline = startBaselineFromLiveStats(seat.liveStats, [parseSnap(last?.snapshot), parseSnap(part.cachedStats)]);
+    .select({ snapshot: accountStatSnapshots.snapshot, polledAt: accounts.statsPolledAt })
+    .from(accounts)
+    .leftJoin(accountStatSnapshots, eq(accountStatSnapshots.accountId, accounts.id))
+    .where(eq(accounts.id, seat.accountId));
+  const lastRead = parseSnap(last?.snapshot);
+  // That read also fills the bosses the push never saw, but only when it was taken after the start
+  // (the snapshot row is rewritten only on change, so it holds the hiscores as of the last poll).
+  const polledMs = parseStamp(last?.polledAt);
+  const startMs = parseStamp(eventStartDate);
+  const fill = polledMs != null && startMs != null && polledMs >= startMs ? lastRead : null;
+  const baseline = startBaselineFromLiveStats(seat.liveStats, [lastRead, parseSnap(part.cachedStats)], fill);
   if (!baseline) return; // the plugin hasn't pushed XP for this character — the sweep will baseline it
   await db
     .update(eventParticipants)

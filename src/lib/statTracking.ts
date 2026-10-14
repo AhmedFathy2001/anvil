@@ -267,6 +267,16 @@ export function completePartialBaseline(partial: HiscoresSnapshot, hiscores: His
   };
 }
 
+/** Is this stored baseline a partial (starting-shot) one still waiting for the sweep to fill it? */
+export function isPartialBaselineJson(json: string | null | undefined): boolean {
+  if (!json) return false;
+  try {
+    return (JSON.parse(json) as HiscoresSnapshot).partial === true;
+  } catch {
+    return false;
+  }
+}
+
 /** Milestone state from stored JSON blobs — the sibling of computeGainFromJson. */
 export function milestoneStateFromJson(
   baselineJson: string | null | undefined,
