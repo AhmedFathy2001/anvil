@@ -5,7 +5,9 @@ import { db } from '@/db';
 import { completions, eventParticipants, submissions, teams, tiles, users } from '@/db/schema';
 import { verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
 import { canSeeEvent } from '@/lib/eventAccess';
+import { parseStamp } from '@/lib/dbTime';
 import { eventForPluginRequest } from '@/lib/eventScope';
+import { eventTimeState } from '@/lib/eventTime';
 import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { getStatStandings } from '@/lib/statStandings';
@@ -93,7 +95,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     teamProgress = countTileTeams(input, subs, tile.countMode);
   }
 
+  // The widget counts down to the start itself and drops its pins once the event is over. Both are
+  // stable values, so the ETag still only moves when a phase or a number does.
+  const time = eventTimeState({ startDate: event.startDate, endDate: event.endDate, forceEndedAt: event.forceEndedAt });
+  const startMs = parseStamp(event.startDate);
   return jsonWithEtag(request, {
+    phase: time.phase,
+    startsAt: startMs != null ? new Date(startMs).toISOString() : null,
     tileId,
     label: tile.label,
     points: tile.points ?? 0,
