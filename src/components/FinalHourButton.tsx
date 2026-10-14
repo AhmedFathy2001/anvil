@@ -22,7 +22,7 @@ export default function FinalHourButton({ eventId }: { eventId: number }) {
 
   async function send() {
     const ok = await confirm({
-      title: 'Send the final-hour heads-up?',
+      title: 'Send the starting-soon heads-up?',
       body: 'Posts a live countdown to the bingo channel of every clan on this board (pinging members), and pings each team in its own channel.',
       confirmLabel: 'Send it',
       tone: 'gold',
@@ -51,7 +51,7 @@ export default function FinalHourButton({ eventId }: { eventId: number }) {
         disabled={busy}
         className="px-3 py-1.5 rounded-lg text-sm border border-gold/30 text-gold bg-gold/10 hover:bg-gold/20 disabled:opacity-50 transition-colors"
       >
-        {busy ? 'Sending…' : '🔥 Send final-hour heads-up'}
+        {busy ? 'Sending…' : '🔥 Send starting-soon heads-up'}
       </button>
       {error && <p className="text-xs text-red-400">{error}</p>}
       {result && (

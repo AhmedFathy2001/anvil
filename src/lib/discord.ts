@@ -1419,7 +1419,7 @@ export function finalHourEmbed(params: FinalHourNotifyParams): DiscordEmbed {
   }
   return {
     ...eventAuthor(eventId, eventName),
-    title: '🔥 Final hour',
+    title: '🔥 Starting soon',
     description: clamp(lines.join('\n'), LIMIT.description),
     color: EMBED_COLOR.amber,
     ...(fields.length ? { fields } : {}),
