@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { statKeys } from '@/lib/tileKinds';
 import { computeGain, effectiveValue, snapshotValue } from '@/lib/statTracking';
 import { liveStatsForMembers } from '@/lib/liveStats';
+import { ttlMemo } from '@/lib/ttlMemo';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 
 export async function GET(
@@ -19,8 +20,17 @@ export async function GET(
   if (!(await eventForRequest(request, eId))) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
-  const { searchParams } = new URL(request.url);
-  const teamIdFilter = searchParams.get('teamId');
+  const teamIdFilter = new URL(request.url).searchParams.get('teamId');
+
+  // Every open board tab asks this once per team on each live refresh; the answer depends only on the
+  // event and team, so one computation serves every viewer for a few seconds.
+  const result = await ttlMemo(`gains:${eId}:${teamIdFilter ?? ''}`, () => computeGains(eId, teamIdFilter), GAINS_TTL_MS);
+  return NextResponse.json(result);
+}
+
+const GAINS_TTL_MS = 15_000;
+
+async function computeGains(eId: number, teamIdFilter: string | null) {
 
   // Get all tiles with tracked stats for this event
   const eventTiles = await db.query.tiles.findMany({
@@ -37,7 +47,7 @@ export async function GET(
   );
 
   if (uniqueStats.length === 0) {
-    return NextResponse.json([]);
+    return [];
   }
 
   let eventPlayers = await db.query.eventParticipants.findMany({
@@ -162,5 +172,5 @@ export async function GET(
     }
   }
 
-  return NextResponse.json(result);
+  return result;
 }

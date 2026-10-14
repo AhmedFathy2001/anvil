@@ -679,6 +679,29 @@ async function clanOfPerson(
  * an older one keeps working. This matters most right after a clan is imported, when somebody in
  * two clans is one login holding two tokens and their client only knows the one it was given.
  */
+// The "on play" bookkeeping in resolvePluginMember (observation breadcrumb, auto-claim, auto-link)
+// reads several account/roster rows and writes last_seen_at — on EVERY plugin request, and a live
+// event has every client polling. Its answer for one (person, character, clan) doesn't change from
+// one 30s poll to the next, so it runs at most once a minute per key, per process. Best-effort: a
+// failure just waits for the next window, as it already only retried on the next poll.
+const PLAY_BOOKKEEPING_TTL_MS = 60_000;
+const recentPlayBookkeeping = new Map<string, number>();
+function playBookkeepingDue(key: string): boolean {
+  // Production only: tests reset the database between cases and reuse the same ids, and dev wants
+  // every poll to exercise the full path.
+  if (process.env.NODE_ENV !== 'production') return true;
+  const now = Date.now();
+  const at = recentPlayBookkeeping.get(key);
+  if (at != null && now - at < PLAY_BOOKKEEPING_TTL_MS) return false;
+  recentPlayBookkeeping.set(key, now);
+  if (recentPlayBookkeeping.size > 20_000) {
+    for (const [k, v] of recentPlayBookkeeping) {
+      if (now - v >= PLAY_BOOKKEEPING_TTL_MS) recentPlayBookkeeping.delete(k);
+    }
+  }
+  return true;
+}
+
 async function userByPluginToken(token: string) {
   const direct = await db.query.users.findFirst({ where: eq(users.pluginToken, token) });
   if (direct) return direct;
@@ -1468,7 +1491,7 @@ export async function resolvePluginMember(
   // Do this before clan resolution. A new Discord person has no owned seat yet, so an apex token
   // cannot name a clan until after the first claim — but the profile should still show the account
   // the valid token reported and offer the proof step that completes that claim.
-  if (currentRsn && normalizedRsn && !hintOnly) {
+  if (currentRsn && normalizedRsn && !hintOnly && playBookkeepingDue(`obs|${user.id}|${normalizedRsn}|${accountHash ?? ''}`)) {
     await rememberPluginObservation(user.id, currentRsn.trim(), normalizedRsn, accountHash, nowIso).catch(() => {});
   }
 
@@ -1513,13 +1536,14 @@ export async function resolvePluginMember(
   // the freshly-claimed row flows through the normal owned-rows path below. Deliberately hash-only
   // — an RSN is public and not proof of control (see helper); RSN-only accounts stay on the opt-in
   // "Add" flow.
-  if (accountHash) {
+  const linkDue = !hintOnly && playBookkeepingDue(`link|${user.id}|${clan.id}|${normalizedRsn ?? ''}|${accountHash ?? ''}`);
+  if (accountHash && linkDue) {
     await maybeAutoClaimEstablishedOnPlay(user.id, accountHash);
   }
 
   // Auto-add the account they're on (opt-out): safe cases link immediately, the forge-risky
   // established-by-RSN case falls back to an opt-in suggestion. Needs the RSN to know which account.
-  if (currentRsn && normalizedRsn && !hintOnly) {
+  if (currentRsn && normalizedRsn && !hintOnly && linkDue) {
     await autoLinkOrSuggestOnPlay(clan.id, user.id, currentRsn.trim(), normalizedRsn, accountHash, nowIso);
   }
 

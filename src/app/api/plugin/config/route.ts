@@ -36,7 +36,12 @@ import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import { statKeys } from '@/lib/tileKinds';
 import { lapUnitNoun } from '@/lib/constants';
 import { ROLL_TABLES, rollItemIds } from '@/lib/rollTables';
-import { isIndividualMode, isMilestoneBasis } from '@/lib/statTracking';
+import { computeGain, isIndividualMode, isMilestoneBasis } from '@/lib/statTracking';
+import type { HiscoresSnapshot } from '@/lib/hiscores';
+import { ttlMemo } from '@/lib/ttlMemo';
+
+// How stale a team's stat-tile progress may be in the side panel. Plugin polls are ~30s apart anyway.
+const TEAM_STATS_TTL_MS = 10_000;
 import { kcNamesForKey } from '@/lib/pluginStats';
 import { isActivityKey } from '@/lib/hiscoresActivities';
 import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
@@ -481,39 +486,53 @@ export async function GET(request: Request) {
   // for the team. We pull every team player's baseline + cached stats once, parse
   // them, and sum gained values per tile (or use just the calling player's value
   // when tracking_mode is 'individual').
-  // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
-  const teamPlayers = await db
-    .select({
-      id: eventParticipants.id,
-      name: eventParticipants.name,
-      clanMemberId: eventParticipants.clanMemberId,
-      statsSnapshot: eventParticipants.statsSnapshot,
-      cachedStats: eventParticipants.cachedStats,
-      // Per-KEY last-rose timestamps — the "is this teammate grinding THIS stat tile right now" signal
-      // for "Active now". Per-stat (not per-member), so a fishing push only marks their fishing tile.
-      liveStatKeyTimes: clanRoster.liveStatKeyTimes,
-    })
-    .from(eventParticipants)
-    .leftJoin(clanRoster, eq(eventParticipants.clanMemberId, clanRoster.id))
-    .where(and(eq(eventParticipants.eventId, auth.eventId), eq(eventParticipants.teamId, auth.teamId)));
-  // Member-scoped real-time overlay (shared with weekly), folded into current as a per-key max.
-  const memberLive = await liveStatsForMembers(teamPlayers.map((p) => p.clanMemberId));
+  // Every client on the team polls this within seconds of each other, and these rows carry every
+  // teammate's two multi-KB stats blobs. One read serves the whole team for a few seconds.
+  const { teamPlayers, memberLive } = await ttlMemo(`config-team-stats:${auth.eventId}:${auth.teamId}`, async () => {
+    // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
+    const teamPlayers = await db
+      .select({
+        id: eventParticipants.id,
+        name: eventParticipants.name,
+        clanMemberId: eventParticipants.clanMemberId,
+        statsSnapshot: eventParticipants.statsSnapshot,
+        cachedStats: eventParticipants.cachedStats,
+        // Per-KEY last-rose timestamps — the "is this teammate grinding THIS stat tile right now" signal
+        // for "Active now". Per-stat (not per-member), so a fishing push only marks their fishing tile.
+        liveStatKeyTimes: clanRoster.liveStatKeyTimes,
+      })
+      .from(eventParticipants)
+      .leftJoin(clanRoster, eq(eventParticipants.clanMemberId, clanRoster.id))
+      .where(and(eq(eventParticipants.eventId, auth.eventId), eq(eventParticipants.teamId, auth.teamId)));
+    // Member-scoped real-time overlay (shared with weekly), folded into current as a per-key max.
+    const memberLive = await liveStatsForMembers(teamPlayers.map((p) => p.clanMemberId));
+    return { teamPlayers, memberLive };
+  }, TEAM_STATS_TTL_MS);
 
-  function readStatValue(blob: string | null, statType: string | null, statName: string): number | null {
+  // Each blob is parsed ONCE per request. This used to JSON.parse both multi-KB blobs per
+  // tile × player × key — thousands of parses a poll on a stat-heavy board, on the event loop.
+  type StatBlob = HiscoresSnapshot | null;
+  const parsedBlobs = new Map<string, StatBlob>();
+  function parseBlob(blob: string | null): StatBlob {
     if (!blob) return null;
+    if (parsedBlobs.has(blob)) return parsedBlobs.get(blob)!;
+    let parsed: StatBlob = null;
     try {
-      const parsed = JSON.parse(blob) as {
-        skills?: Record<string, { xp?: number; level?: number }>;
-        bosses?: Record<string, { score?: number; rank?: number }>;
-      };
-      if (statType === 'boss' || statType === 'kc') {
-        return parsed.bosses?.[statName]?.score ?? null;
-      }
-      // default to skill XP
-      return parsed.skills?.[statName]?.xp ?? null;
+      parsed = JSON.parse(blob) as HiscoresSnapshot;
     } catch {
-      return null;
+      parsed = null;
     }
+    parsedBlobs.set(blob, parsed);
+    return parsed;
+  }
+  function readStatValue(blob: string | null, statType: string | null, statName: string): number | null {
+    const parsed = parseBlob(blob);
+    if (!parsed) return null;
+    if (statType === 'boss' || statType === 'kc') {
+      return parsed.bosses?.[statName]?.score ?? null;
+    }
+    // default to skill XP
+    return parsed.skills?.[statName]?.xp ?? null;
   }
 
   // "Active now" attribution for stat tiles: a teammate who's contributed to a stat tile AND pushed
@@ -549,6 +568,14 @@ export async function GET(request: Request) {
       let lifetime = 0;
       let baselineTotal = 0;
       for (const part of statKeys(statName)) {
+        if (!milestone && statType === 'skill' && part === 'overall') {
+          // Total XP reads live per skill, exactly as the site scores it (lib/statTracking) — the
+          // hiscores overall alone only moves on logout.
+          const g = computeGain(parseBlob(p.statsSnapshot), parseBlob(p.cachedStats), plug, ['overall'], 'skill');
+          gainedTotal += g;
+          playerGained += g;
+          continue;
+        }
         const baseline = readStatValue(p.statsSnapshot, statType, part);
         const hiscoresCurrent = readStatValue(p.cachedStats, statType, part);
         const pushed = plug[part];
