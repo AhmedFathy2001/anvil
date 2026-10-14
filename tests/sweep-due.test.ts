@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { PLUGIN_RECONCILE_MS, sweepDue } from '../src/lib/pollLadder';
+import { PLUGIN_RECONCILE_MS, PLUGIN_BLIND_RECONCILE_MS, PLUGIN_UNPUSHABLE_KEYS, sweepDue } from '../src/lib/pollLadder';
 
 const NOW = new Date('2026-10-12T12:00:00.000Z');
 const ago = (min: number) => new Date(NOW.getTime() - min * 60_000).toISOString();
@@ -40,4 +40,12 @@ test('no plugin at all: exactly the old ladder', () => {
 
 test('SQLite-style timestamps read the same', () => {
   assert.equal(sweepDue({ needsBaseline: false, nextDueAt: null, liveStatsAt: '2026-10-12 11:58:00', polledAt: '2026-10-12 11:00:00' }, NOW), false);
+});
+
+test('plugin pushing but a scored stat it cannot push: due every tick, not every six hours', () => {
+  const base = { needsBaseline: false, nextDueAt: null, liveStatsAt: ago(2), pluginBlind: true };
+  assert.equal(sweepDue({ ...base, polledAt: ago(5) }, NOW), false);
+  assert.equal(sweepDue({ ...base, polledAt: ago(PLUGIN_BLIND_RECONCILE_MS / 60_000) }, NOW), true);
+  assert.ok(PLUGIN_BLIND_RECONCILE_MS < 15 * 60_000); // under the sweep tick, or it skips every other one
+  assert.ok(PLUGIN_UNPUSHABLE_KEYS.has('doomOfMokhaiotl'));
 });

@@ -64,6 +64,18 @@ export function isDue(nextDueAtIso: string | null | undefined, now: Date = new D
 export const PLUGIN_ACTIVE_MS = 20 * MINUTE;
 /** How often a pushing account is still reconciled against the hiscores. */
 export const PLUGIN_RECONCILE_MS = 6 * 60 * MINUTE;
+/**
+ * How often instead, while something scores a stat the plugin can't push — the hiscores are then the
+ * only way it moves, and six hours is a live board standing still.
+ */
+export const PLUGIN_BLIND_RECONCILE_MS = 10 * MINUTE; // under the 15-min tick, so every tick
+
+/**
+ * Hiscores keys the released plugin never pushes. Doom of Mokhaiotl prints no "Your X kill count is"
+ * line (its count is "Deep delves completed: N"); plugin fix/doom-deep-delves pushes it. Drop the key
+ * here once that release is what members run.
+ */
+export const PLUGIN_UNPUSHABLE_KEYS: ReadonlySet<string> = new Set(['doomOfMokhaiotl']);
 
 export interface SweepDueInput {
   /** A competition row or stat tile still waiting on its first reading. Always due. */
@@ -74,6 +86,8 @@ export interface SweepDueInput {
   liveStatsAt: string | null | undefined;
   /** The last hiscores poll (accounts.stats_polled_at). Null = never polled. */
   polledAt: string | null | undefined;
+  /** Something running scores a key in PLUGIN_UNPUSHABLE_KEYS for this account. */
+  pluginBlind?: boolean;
 }
 
 function ms(iso: string | null | undefined): number | null {
@@ -93,7 +107,7 @@ export function sweepDue(input: SweepDueInput, now: Date = new Date()): boolean 
   if (polled === null) return true;
 
   if (pushed !== null && nowMs - pushed < PLUGIN_ACTIVE_MS) {
-    return nowMs - polled >= PLUGIN_RECONCILE_MS;
+    return nowMs - polled >= (input.pluginBlind ? PLUGIN_BLIND_RECONCILE_MS : PLUGIN_RECONCILE_MS);
   }
   // Pushes have stopped since our last look — read the hiscores once, now.
   if (pushed !== null && pushed > polled) return true;

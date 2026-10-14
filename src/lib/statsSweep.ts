@@ -22,7 +22,7 @@ import { readAllActivities } from '@/lib/hiscoresActivities';
 const STALE_OVERLAY_MS = 6.5 * 60 * 60 * 1000;
 import { applyWeeklyValue, readMetricFromSnapshot, writePlayerSnapshot, type CompetitionType } from '@/lib/weekly';
 import { detectMilestones, computeDeltas, isDue, nextDueAt, recordDailyStats, recordMilestones } from '@/lib/statHistory';
-import { sweepDue } from '@/lib/pollLadder';
+import { sweepDue, PLUGIN_UNPUSHABLE_KEYS } from '@/lib/pollLadder';
 import { overlaySnapshot } from '@/lib/liveHistory';
 import { mergeSeatsByAccount } from '@/lib/sweepWork';
 import { normalizeRsn } from '@/lib/auth';
@@ -449,8 +449,13 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
       entry.weekly.some((w) => w.participant.baselineValue === null);
     // Accounts we couldn't read push state for (no account yet) keep the old rule exactly.
     if (entry.accountId == null || entry.polledAt === undefined) return needsBaseline || isDue(entry.nextDueAt, nowDate);
+    // Scoring a stat the plugin can't push: the hiscores are its only feed, so don't wait 6h on them.
+    const pluginBlind =
+      entry.bingo.some((b) =>
+        b.ctx.statTiles.some((t) => (t.trackedStat ?? '').split(',').some((k) => PLUGIN_UNPUSHABLE_KEYS.has(k.trim()))),
+      ) || entry.weekly.some((w) => PLUGIN_UNPUSHABLE_KEYS.has(w.comp.metric));
     const isDueNow = sweepDue(
-      { needsBaseline, nextDueAt: entry.nextDueAt, liveStatsAt: entry.liveStatsAt, polledAt: entry.polledAt },
+      { needsBaseline, nextDueAt: entry.nextDueAt, liveStatsAt: entry.liveStatsAt, polledAt: entry.polledAt, pluginBlind },
       nowDate,
     );
     if (!isDueNow && isDue(entry.nextDueAt, nowDate)) pluginSkipped++;
