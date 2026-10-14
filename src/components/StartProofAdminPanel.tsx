@@ -100,6 +100,9 @@ export default function StartProofAdminPanel({
   const [msg, setMsg] = useState('');
   const [data, setData] = useState<PanelData | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
+  // Staff filing a shot FOR a player (their plugin broke, they're on a phone, the upload kept failing).
+  const [filingFor, setFilingFor] = useState<number | null>(null);
+  const [rowMsg, setRowMsg] = useState('');
 
   // What Save would send, and the same thing as of the last save — the difference is the "Unsaved
   // changes" marker. Rows with neither a name nor a pin are blank lines, not spots, and don't count.
@@ -183,6 +186,53 @@ export default function StartProofAdminPanel({
       await load();
     } finally {
       setBusyId(null);
+    }
+  }
+
+  /**
+   * Upload a screenshot the player sent staff and file it as their starting shot. The route's admin
+   * door takes the named enrolment; staff vouching for it is the review, so it is accepted at once.
+   */
+  async function fileOnBehalf(row: ProofRow, file: File) {
+    setFilingFor(row.playerId);
+    setRowMsg('');
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const up = await clanFetch('/api/upload', { method: 'POST', body: form });
+      const upData = await up.json().catch(() => ({}));
+      if (!up.ok || !upData.url) {
+        setRowMsg(`${row.rsn}: ${upData.error || 'upload failed — try a different image.'}`);
+        return;
+      }
+      const res = await clanFetch(`/api/events/${event.id}/start-proof`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl: upData.url, playerId: row.playerId, keyword: row.expectedKeyword }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setRowMsg(`${row.rsn}: ${data.error || 'could not file the shot.'}`);
+        return;
+      }
+      const fresh = await clanFetch(`/api/admin/events/${event.id}/start-proofs`);
+      if (fresh.ok) {
+        const panel = (await fresh.json()) as PanelData;
+        const filed = panel.rows.find((r) => r.playerId === row.playerId)?.proof;
+        if (filed && filed.status !== 'accepted') {
+          await clanFetch(`/api/admin/events/${event.id}/start-proofs/${filed.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'accepted' }),
+          });
+        }
+      }
+      setRowMsg(`${row.rsn}: starting shot filed and accepted.`);
+      await load();
+    } catch {
+      setRowMsg(`${row.rsn}: upload failed — check your connection and try again.`);
+    } finally {
+      setFilingFor(null);
     }
   }
 
@@ -497,6 +547,7 @@ export default function StartProofAdminPanel({
               )}
             </div>
 
+            {rowMsg && <p className="text-xs text-text-muted mb-2">{rowMsg}</p>}
             <div className="max-h-96 overflow-y-auto divide-y divide-card-border">
               {data.rows.map((r) => (
                 <div key={r.playerId} className="flex items-center gap-3 py-2">
@@ -578,6 +629,25 @@ export default function StartProofAdminPanel({
                       >
                         Reject
                       </button>
+                    )}
+                    {r.proof?.status !== 'accepted' && (
+                      <label
+                        title={`Upload a screenshot ${r.rsn} sent you and file it as their starting shot (accepted)`}
+                        className={`text-[11px] px-2 py-0.5 rounded border border-gold/40 text-gold hover:bg-gold/10 cursor-pointer ${filingFor != null ? 'opacity-50 pointer-events-none' : ''}`}
+                      >
+                        {filingFor === r.playerId ? 'Uploading…' : 'Upload'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={filingFor != null}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            e.target.value = '';
+                            if (file) void fileOnBehalf(r, file);
+                          }}
+                        />
+                      </label>
                     )}
                     {r.proof && (
                       <button
