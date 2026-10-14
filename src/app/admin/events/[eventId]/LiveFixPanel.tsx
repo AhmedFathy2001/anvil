@@ -132,7 +132,7 @@ export default function LiveFixPanel({
           type="button"
           onClick={recompute}
           disabled={recomputing}
-          title="Re-checks every tile against what's already been submitted, and completes anything that had already met its target. Only adds completions — it never takes one away."
+          title="Re-checks every tile against what's already been submitted (and XP / KC tiles against everyone's live gains), and completes anything that had already met its target. Only adds completions — it never takes one away."
           className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gold/30 text-gold bg-gold/10 hover:bg-gold/20 transition-colors disabled:opacity-50"
         >
           {recomputing ? 'Healing…' : 'Heal the board'}
