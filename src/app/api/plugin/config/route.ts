@@ -744,7 +744,10 @@ export async function GET(request: Request) {
     | undefined;
   // Lockout can come from the event rules OR from an individual mission's own rules.
   const hasLockoutMissions = fullEventTiles.some((t) => isMissionTile(t) && parseTileMissionRules(t.rules).lockout);
-  if ((rules.lockout || hasLockoutMissions) && tilesRevealed) {
+  // MISSION tiles only: the plugin announces each one as "Mission claimed", so an ordinary tile in
+  // here double-popped every completion (after "Tile complete!") and showed it to the rival team.
+  const missionTileIds = fullEventTiles.filter((t) => isMissionTile(t)).map((t) => t.id);
+  if ((rules.lockout || hasLockoutMissions) && tilesRevealed && missionTileIds.length > 0) {
     const claimRows = await db
       .select({
         tileId: completions.tileId,
@@ -755,7 +758,7 @@ export async function GET(request: Request) {
       })
       .from(completions)
       .innerJoin(tiles, eq(completions.tileId, tiles.id))
-      .where(eq(tiles.eventId, auth.eventId))
+      .where(and(eq(tiles.eventId, auth.eventId), inArray(completions.tileId, missionTileIds)))
       .orderBy(sql`${completions.completedAt} desc`)
       .limit(12);
     // Finisher name: the completion's crediting player, else the latest submission credit on the tile.

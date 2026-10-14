@@ -221,17 +221,55 @@ export function statTotalsJson(json: string | null | undefined): { xp: number; k
   }
 }
 
+type StatSection = Record<string, { xp?: number; score?: number }>;
+
+/** Summed growth of `field` over the keys present on BOTH sides; unranked (-1) or missing counts 0. */
+function sectionGain(a: StatSection | undefined, b: StatSection | undefined, field: 'xp' | 'score', skip?: string): number {
+  if (!a || !b) return 0;
+  let sum = 0;
+  for (const [k, after] of Object.entries(b)) {
+    if (k === skip || a[k] == null) continue;
+    const from = Number(a[k]?.[field]);
+    const to = Number(after?.[field]);
+    if (!Number.isFinite(from) || !Number.isFinite(to) || from < 0 || to < 0) continue;
+    sum += Math.max(0, to - from);
+  }
+  return sum;
+}
+
+/**
+ * XP and boss KC gained between two stat snapshots, key by key. Only a skill or boss present in BOTH
+ * counts: a baseline missing its bosses (or skills) section used to read as 0, so the player's whole
+ * account landed as "gained".
+ */
+export function statGainJson(baseJson: string | null | undefined, nowJson: string | null | undefined): { xp: number; kc: number } {
+  const parse = (j: string | null | undefined): Record<string, StatSection> | null => {
+    if (!j) return null;
+    try {
+      return JSON.parse(j) as Record<string, StatSection>;
+    } catch {
+      return null;
+    }
+  };
+  const base = parse(baseJson);
+  const now = parse(nowJson);
+  if (!base || !now) return { xp: 0, kc: 0 };
+  const itemised = sectionGain(base.skills, now.skills, 'xp', 'overall');
+  // Overall only stands in when no individual skill matched on both sides.
+  const xp = itemised > 0 ? itemised : sectionGain({ overall: base.skills?.overall ?? {} }, { overall: now.skills?.overall ?? {} }, 'xp');
+  return { xp, kc: sectionGain(base.bosses, now.bosses, 'score') };
+}
+
 /** A player's running numbers since the start, as the hourly row stores them. */
 export function hourTuple(
   p: { statsSnapshot: string | null; deaths: number | null; lootGpGained: number | null; minutesPlayed: number | null },
   statsNow: string | null | undefined,
 ): HourPlayerTuple {
-  const base = statTotalsJson(p.statsSnapshot);
   // No baseline yet → no gain yet (the same rule stat tiles follow), never the whole account.
-  const now = p.statsSnapshot ? statTotalsJson(statsNow) : base;
+  const gain = p.statsSnapshot ? statGainJson(p.statsSnapshot, statsNow) : { xp: 0, kc: 0 };
   return [
-    Math.max(0, now.xp - base.xp),
-    Math.max(0, now.kc - base.kc),
+    gain.xp,
+    gain.kc,
     p.deaths ?? 0,
     p.lootGpGained ?? 0,
     p.minutesPlayed ?? 0,
