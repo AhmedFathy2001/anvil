@@ -17,7 +17,8 @@ import { countTileTeams, statTileTeams, type TrackerInput } from '@/lib/tileTrac
 // polls it only while a tile is pinned, so it answers 304 when nothing moved.
 //
 // WHO MAY READ IT is who may read the event on the website (canSeeEvent, the plugin token standing in
-// for the cookie), and a tile still hidden on a reveal board is a 404 like an unknown one.
+// for the cookie). A tile on a board not yet revealed, or still hidden by a reveal policy, is a 404
+// like an unknown one.
 export async function GET(request: Request, { params }: { params: Promise<{ id: string; tileId: string }> }) {
   const { id: rawId, tileId: rawTileId } = await params;
   const eventId = Number(rawId);
@@ -36,7 +37,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
-  const tile = await db.query.tiles.findFirst({ where: and(eq(tiles.id, tileId), eq(tiles.eventId, eventId)) });
+  // Both gates the board applies: the whole board while the host is still authoring it
+  // (tilesRevealed), then the per-tile reveal policy / unannounced missions.
+  const tile = event.tilesRevealed
+    ? await db.query.tiles.findFirst({ where: and(eq(tiles.id, tileId), eq(tiles.eventId, eventId)) })
+    : undefined;
   if (!tile || !isTileRevealed(parseEventRules(event.rules), tile)) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
