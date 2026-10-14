@@ -1378,6 +1378,49 @@ interface EventStartNotifyParams {
   boardImageVersion?: string | null;
 }
 
+interface FinalHourNotifyParams {
+  clanId: number;
+  eventId: number;
+  eventName: string;
+  startDate: string;
+  /** True when the board needs a starting shot — the post says to relog and where the spot appears. */
+  startProof: boolean;
+}
+
+/**
+ * The "final hour" heads-up, sent by hand from the admin panel before the start. An embed can't tick,
+ * but `<t:…:R>` does in every client, so this one post counts down on its own. Links straight to the
+ * starting-shot card on the event page; until the start that page shows the countdown instead.
+ */
+export function finalHourEmbed(params: FinalHourNotifyParams): DiscordEmbed {
+  const { eventId, eventName, startDate, startProof } = params;
+  const url = eventLeaderboardUrl(eventId);
+  const shotUrl = url ? `${url}#starting-shot` : null;
+  const lines = [`**${eventName}** starts ${discordTime(startDate, 'R')} (${discordTime(startDate)}).`];
+  if (startProof) {
+    lines.push(
+      '',
+      '**Log out and back in before the start** — hiscores only save on logout, and that sets your starting totals.',
+      'The starting spot is drawn at zero.' + (shotUrl ? ` Your spot, keyword and upload will be **[here](${shotUrl})** — open it now and keep it open.` : ''),
+      'Plugin users: the Anvil panel points you there.',
+    );
+  } else if (url) {
+    lines.push('', `[Open the board →](${url})`);
+  }
+  return {
+    ...eventAuthor(eventId, eventName),
+    title: '🔥 Final hour',
+    description: clamp(lines.join('\n'), LIMIT.description),
+    color: EMBED_COLOR.amber,
+    ...(shotUrl ? { url: shotUrl } : {}),
+  };
+}
+
+export async function notifyFinalHour(params: FinalHourNotifyParams): Promise<boolean> {
+  const embed = await withClanCrest(params.clanId, finalHourEmbed(params), params.eventId);
+  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { ping: true, kind: 'lifecycle' });
+}
+
 export async function notifyEventStart(params: EventStartNotifyParams): Promise<boolean> {
   const { eventId, eventName, startDate, endDate, format, tileCount, openTileCount, totalPoints, startProofLocation, startProofSessionMinutes, boardImageVersion } = params;
   // Wording follows who is competing, not the format name — a board that ranks people can't be

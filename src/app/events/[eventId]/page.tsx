@@ -543,7 +543,7 @@ export default async function EventScoreboardPage({
         placementPrizes={placementPrizes}
       />
       {myStartProofs.length > 0 && (
-        <section className="mb-6">
+        <section id="starting-shot" className="mb-6 scroll-mt-20">
           <div className="rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 mb-3">
             <p className="font-semibold text-yellow-300">Your starting shot is still missing</p>
             <p className="text-sm text-text-muted">

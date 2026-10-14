@@ -1,9 +1,11 @@
 'use client';
 
 import MotionImg from '@/components/MotionImg';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { eventTimeState, formatExactTime, type EventPhase } from '@/lib/eventTime';
 import ClanCrest from '@/components/ClanCrest';
+import { useRouter } from 'next/navigation';
+import FinalHourCountdown, { FINAL_HOUR_MS, FINAL_HOUR_GO_MS } from '@/components/FinalHourCountdown';
 
 interface Props {
   name: string;
@@ -84,11 +86,52 @@ export default function EventHero({
     return () => clearInterval(t);
   }, []);
 
+  // `?finalHour=<seconds>` previews the final-hour takeover on any event, counting down from that
+  // many seconds — for hosts checking how their banner and name read before the real thing.
+  // Read once on the client; the server render has no clock, so nothing it shows depends on this.
+  const [previewStart] = useState<number | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const secs = Number(new URLSearchParams(window.location.search).get('finalHour'));
+    return secs > 0 && secs <= 3600 ? Date.now() + secs * 1000 : null;
+  });
+
   const state = now === null ? null : eventTimeState({ startDate, endDate, forceEndedAt, now });
+  const router = useRouter();
+  const realStart = startDate ? new Date(startDate).getTime() : null;
+  const fhTarget = previewStart ?? (forceEndedAt ? null : realStart);
+  const fhLeft = now === null || fhTarget === null ? null : fhTarget - now;
+  const finalHour = fhLeft !== null && fhLeft <= FINAL_HOUR_MS && fhLeft > -FINAL_HOUR_GO_MS;
+
+  // When the real start passes, the server has just drawn the starting spot — re-fetch the page so
+  // the starting-shot card shows up without a manual reload.
+  const pastGo = fhLeft !== null && fhLeft <= -FINAL_HOUR_GO_MS;
+  const refreshed = useRef(false);
+  useEffect(() => {
+    if (pastGo && previewStart === null && realStart !== null && Date.now() - realStart < 60_000 && !refreshed.current) {
+      refreshed.current = true;
+      router.refresh();
+    }
+  }, [pastGo, previewStart, realStart, router]);
   const phase = state?.phase ?? 'none';
   const status = STATUS[phase];
   const hasPrize = prizePool > 0;
   const prizes = placementPrizes.filter((p) => p > 0);
+
+  if (finalHour && now !== null && fhTarget !== null) {
+    return (
+      <FinalHourCountdown
+        name={name}
+        iconUrl={iconUrl}
+        bannerUrl={bannerUrl}
+        bannerPosition={bannerPosition}
+        hostName={hostName}
+        prizePool={prizePool}
+        teamsCount={teamsCount}
+        target={fhTarget}
+        now={now}
+      />
+    );
+  }
 
   return (
     <div className="relative mb-6 overflow-hidden rounded-2xl border border-gold/25 bg-card-bg">

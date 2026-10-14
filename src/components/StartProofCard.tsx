@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import ImageUpload from '@/components/ImageUpload';
 import { clanFetch } from '@/lib/clanFetch';
+import WorldMapPicker from '@/components/WorldMapPicker';
 
 // The member-facing half of the starting shot (lib/startProof): what to do, where to stand, the
 // keyword only this player gets, and the upload. Shown until the shot is accepted.
@@ -62,7 +63,7 @@ export default function StartProofCard(props: Props) {
   const done = status === 'pending' || status === 'accepted';
 
   return (
-    <div className="border border-gold/40 rounded-xl bg-card-bg p-4 sm:p-5">
+    <div className="border border-gold/40 rounded-xl bg-card-bg p-4 sm:p-5 scroll-mt-20">
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="min-w-0">
           <div className="font-semibold text-gold">📸 Starting shot</div>
@@ -77,6 +78,13 @@ export default function StartProofCard(props: Props) {
 
       {status === 'rejected' && props.reviewNote && (
         <p className="text-xs text-red-400 mb-3">Staff note: {props.reviewNote}</p>
+      )}
+
+      {/* Where to stand, on the real map. Read-only: the pin is the host's draw; dragging only pans. */}
+      {props.spot && (
+        <div className="mb-3 overflow-hidden rounded-lg border border-card-border">
+          <WorldMapPicker value={props.spot} onChange={() => {}} height={220} />
+        </div>
       )}
 
       <div className="grid gap-3 sm:grid-cols-2 mb-4">
