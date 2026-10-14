@@ -1427,9 +1427,28 @@ export function finalHourEmbed(params: FinalHourNotifyParams): DiscordEmbed {
   };
 }
 
-export async function notifyFinalHour(params: FinalHourNotifyParams): Promise<boolean> {
+/**
+ * Post the heads-up to every clan on the board — host bingo channel, each co-host's co-hosted/bingo
+ * channel — pinging the TEAM roles that live in that clan's server (`rolesByClan`), never a member
+ * role. A clan with no team role in its server gets the post silently.
+ */
+export async function notifyFinalHour(
+  params: FinalHourNotifyParams,
+  rolesByClan: Map<number, string[]>,
+): Promise<{ clanId: number; status: 'sent' | 'skipped' | 'failed' }[]> {
   const embed = await withClanCrest(params.clanId, finalHourEmbed(params), params.eventId);
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { ping: true, kind: 'lifecycle' });
+  const payloadFor = (clanId: number): DiscordWebhookPayload => {
+    const roles = rolesByClan.get(clanId) ?? [];
+    return roles.length
+      ? { content: roles.map((r) => `<@&${r}>`).join(' '), allowed_mentions: { parse: [], roles }, embeds: [embed] }
+      : { embeds: [embed] };
+  };
+  const cohosts = (await acceptedCohostClanIds(params.eventId).catch(() => [] as number[])).filter((id) => id !== params.clanId);
+  const [host, ...rest] = await Promise.all([
+    sendBingoWebhookReport(params.clanId, payloadFor(params.clanId)),
+    ...cohosts.map((id) => sendCohostWebhook(id, payloadFor(id))),
+  ]);
+  return [{ clanId: params.clanId, status: host }, ...cohosts.map((clanId, k) => ({ clanId, status: rest[k] }))];
 }
 
 export async function notifyEventStart(params: EventStartNotifyParams): Promise<boolean> {

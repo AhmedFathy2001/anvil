@@ -6,7 +6,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import { useDialog } from '@/components/Confirm';
 
 interface Result {
-  clans: boolean;
+  clans: { clanId: number; status: 'sent' | 'skipped' | 'failed'; pinged: number }[];
   teams: { team: string; ok: boolean; error?: string }[];
 }
 
@@ -23,7 +23,7 @@ export default function FinalHourButton({ eventId }: { eventId: number }) {
   async function send() {
     const ok = await confirm({
       title: 'Send the starting-soon heads-up?',
-      body: 'Posts a live countdown to the bingo channel of every clan on this board (pinging members), and pings each team in its own channel.',
+      body: 'Posts a live countdown to the bingo channel of every clan on this board, pinging the team roles in that server, and pings each team in its own private channel.',
       confirmLabel: 'Send it',
       tone: 'gold',
     });
@@ -56,9 +56,16 @@ export default function FinalHourButton({ eventId }: { eventId: number }) {
       {error && <p className="text-xs text-red-400">{error}</p>}
       {result && (
         <ul className="text-xs space-y-0.5">
-          <li className={result.clans ? 'text-green-400' : 'text-red-400'}>
-            Clan channels: {result.clans ? 'posted' : 'host channel refused or not set up'}
-          </li>
+          {result.clans.map((c, i) => (
+            <li key={c.clanId} className={c.status === 'sent' ? 'text-green-400' : c.status === 'failed' ? 'text-red-400' : 'text-text-muted'}>
+              {i === 0 ? 'Our' : 'Co-host'} bingo channel:{' '}
+              {c.status === 'sent'
+                ? `posted${c.pinged ? `, ${c.pinged} team role${c.pinged === 1 ? '' : 's'} pinged` : ', no ping'}`
+                : c.status === 'failed'
+                  ? 'Discord refused the post'
+                  : 'no channel set up'}
+            </li>
+          ))}
           {result.teams.length === 0 && <li className="text-text-muted">No team channels to ping.</li>}
           {result.teams.map((t, i) => (
             <li key={`${t.team}-${i}`} className={t.ok ? 'text-green-400' : 'text-red-400'}>

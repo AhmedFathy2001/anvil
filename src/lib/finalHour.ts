@@ -10,13 +10,14 @@
 import { and, eq, inArray, isNotNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { events, teams, teamDiscordResources } from '@/db/schema';
-import { discordRest, getBotTokenOnly } from '@/lib/discord-roles';
+import { discordRest, getBotCredentials, getBotTokenOnly } from '@/lib/discord-roles';
+import { acceptedCohostClanIds } from '@/lib/coHost';
 import { finalHourEmbed, notifyFinalHour } from '@/lib/discord';
 import { parseEventRules } from '@/lib/eventRules';
 import { log } from '@/lib/logger';
 
 export interface FinalHourResult {
-  clans: boolean;
+  clans: { clanId: number; status: 'sent' | 'skipped' | 'failed'; pinged: number }[];
   teams: { team: string; ok: boolean; error?: string }[];
 }
 
@@ -37,7 +38,6 @@ export async function sendFinalHour(eventId: number): Promise<FinalHourResult | 
       return sp ? { maxSessionMinutes: sp.maxSessionMinutes ?? 0 } : null;
     })(),
   };
-  const clansOk = await notifyFinalHour(params);
 
   const eventTeams = await db
     .select({ id: teams.id, name: teams.name, roleId: teams.discordRoleId, channelId: teams.discordTextChannelId })
@@ -45,9 +45,10 @@ export async function sendFinalHour(eventId: number): Promise<FinalHourResult | 
     .where(eq(teams.eventId, eventId));
   const teamName = new Map(eventTeams.map((t) => [t.id, t.name]));
 
-  const targets: { clanId: number; team: string; roleId: string; channelId: string }[] = [];
+  const hostGuild = (await getBotCredentials(event.clanId))?.guildId ?? null;
+  const targets: { clanId: number; guildId: string | null; team: string; roleId: string; channelId: string }[] = [];
   for (const t of eventTeams) {
-    if (t.roleId && t.channelId) targets.push({ clanId: event.clanId, team: t.name, roleId: t.roleId, channelId: t.channelId });
+    if (t.roleId && t.channelId) targets.push({ clanId: event.clanId, guildId: hostGuild, team: t.name, roleId: t.roleId, channelId: t.channelId });
   }
   if (eventTeams.length > 0) {
     const rows = await db
@@ -61,9 +62,20 @@ export async function sendFinalHour(eventId: number): Promise<FinalHourResult | 
         ),
       );
     for (const r of rows) {
-      targets.push({ clanId: r.clanId, team: teamName.get(r.teamId) ?? 'Team', roleId: r.roleId!, channelId: r.textChannelId! });
+      targets.push({ clanId: r.clanId, guildId: r.guildId, team: teamName.get(r.teamId) ?? 'Team', roleId: r.roleId!, channelId: r.textChannelId! });
     }
   }
+
+  // The bingo-channel post pings the team roles that live in THAT clan's server — a role id means
+  // nothing in another guild. A role in a separate event server never reaches a clan's bingo post.
+  const clanIds = [event.clanId, ...(await acceptedCohostClanIds(eventId).catch(() => [] as number[]))];
+  const rolesByClan = new Map<number, string[]>();
+  for (const clanId of new Set(clanIds)) {
+    const guild = clanId === event.clanId ? hostGuild : ((await getBotCredentials(clanId))?.guildId ?? null);
+    if (!guild) continue;
+    rolesByClan.set(clanId, [...new Set(targets.filter((t) => t.guildId === guild).map((t) => t.roleId))]);
+  }
+  const clanResults = await notifyFinalHour(params, rolesByClan);
 
   const embed = finalHourEmbed(params);
   const tokens = new Map<number, string | null>();
@@ -88,5 +100,8 @@ export async function sendFinalHour(eventId: number): Promise<FinalHourResult | 
     }),
   );
 
-  return { clans: clansOk, teams: teamResults };
+  return {
+    clans: clanResults.map((c) => ({ ...c, pinged: rolesByClan.get(c.clanId)?.length ?? 0 })),
+    teams: teamResults,
+  };
 }
