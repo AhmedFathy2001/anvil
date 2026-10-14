@@ -328,15 +328,23 @@ export default function MyTeamClient({
     return perPersonMode ? rollupByOwner(bd, ownerByPlayerId) : bd;
   }, [team.id, event.scoringMode, teamPlayers, tiles, completions, submissions, gains, perPersonMode, ownerByPlayerId]);
 
-  // Auto-open the first person on the breakdown (top contributor) so their details show by default.
-  // Runs once when the breakdown first has members; after that, closing the panel stays closed.
+  // Auto-open YOUR row on the breakdown (in per-person mode, the row your accounts roll up into) so
+  // your own contributions show by default; with no player of yours on it (a captain who doesn't
+  // play), the first person — the top contributor. Runs once when the breakdown first has members;
+  // after that, closing the panel stays closed.
   const didAutoSelectMember = useRef(false);
   useEffect(() => {
     if (!didAutoSelectMember.current && memberBreakdown.length > 0) {
       didAutoSelectMember.current = true;
-      setSelectedMemberId((cur) => cur ?? memberBreakdown[0].playerId);
+      const myOwner = myPlayerId != null ? ownerByPlayerId.get(myPlayerId) ?? null : null;
+      const mine = memberBreakdown.find(
+        (m) =>
+          m.playerId === myPlayerId ||
+          (perPersonMode && myOwner != null && ownerByPlayerId.get(m.playerId) === myOwner),
+      );
+      setSelectedMemberId((cur) => cur ?? (mine ?? memberBreakdown[0]).playerId);
     }
-  }, [memberBreakdown]);
+  }, [memberBreakdown, myPlayerId, ownerByPlayerId, perPersonMode]);
 
   // Team MVP (overall) + MVP of the day (top contributor over tiles completed in the last 24h).
   const teamMvp = topMember(memberBreakdown);
