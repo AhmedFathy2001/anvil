@@ -242,6 +242,40 @@ async function weeklyTrackedNames(clanId: number): Promise<{ kc: string[]; skill
   };
 }
 
+// Everything in the plugin's read-bootstrap that is the SAME for every member of a clan — the active
+// weekly, notification webhooks, death/spoon pools, notify floors, tier bands, drop facts, luck
+// candidates, the clan's name. Every client re-read all of it on every 30s poll (~20 queries), so it
+// is computed once per clan per CLAN_SETTINGS_TTL_MS. An admin's settings edit reaches plugins within
+// that window, which is well inside what a poll interval already implies.
+const CLAN_SETTINGS_TTL_MS = 30_000;
+
+function clanPluginSettings(clanId: number) {
+  return ttlMemo(`plugin-clan-settings:${clanId}`, async () => {
+    const [activeWeekly, weeklyNames, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, dropRarityFloor, tiers, facts, luckItems, clanName] =
+      await Promise.all([
+        getActiveWeekly(clanId),
+        weeklyTrackedNames(clanId),
+        getNotificationWebhooks(clanId),
+        getFunDeathMessages(clanId),
+        getDeathTaunts(clanId),
+        getSpoonTaunts(clanId),
+        getAlwaysNotifyItems(clanId),
+        getShowKillCount(clanId),
+        getDropRarityFloor(clanId),
+        getTierBands(clanId),
+        getDropFacts(clanId),
+        countedLuckCandidates(clanId),
+        getClanDisplayName(clanId),
+      ]);
+    // A boss week makes that boss's collection-log items always-reportable, price aside.
+    const alwaysNotifyItemIds = await getAlwaysNotifyItemIds(
+      clanId,
+      activeWeekly?.type === 'boss' ? activeWeekly.metric : null,
+    );
+    return { activeWeekly, weeklyNames, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, dropRarityFloor, tiers, facts, luckItems, clanName, alwaysNotifyItemIds };
+  }, CLAN_SETTINGS_TTL_MS);
+}
+
 export async function GET(request: Request) {
   // Resolve the PLAYER before resolving the clan.
   //
@@ -269,19 +303,10 @@ export async function GET(request: Request) {
       // Valid token, no live event: still resolve the read-bootstrap (schedule, weekly,
       // notification webhooks, fun-death pool) so deaths/rare-drops post and the side
       // panel shows the schedule even when the player isn't enrolled anywhere.
-      const [schedule, activeWeekly, weeklyNames, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, dropRarityFloor, facts, unlinkedActiveEvent, homeBoard, switchableClans] =
+      const [schedule, clanSettings, unlinkedActiveEvent, homeBoard, switchableClans] =
         await Promise.all([
           pluginScheduleViewer(clan.id, userOnly.userId).then((v) => buildSchedule(clan.id, { ...v, viewerRsn: pluginViewerRsn(request), viewerAccountHash: request.headers.get('x-account-hash') })),
-          getActiveWeekly(clan.id),
-          weeklyTrackedNames(clan.id),
-          getNotificationWebhooks(clan.id),
-          getFunDeathMessages(clan.id),
-          getDeathTaunts(clan.id),
-          getSpoonTaunts(clan.id),
-          getAlwaysNotifyItems(clan.id),
-          getShowKillCount(clan.id),
-          getDropRarityFloor(clan.id),
-          getDropFacts(clan.id),
+          clanPluginSettings(clan.id),
           activeEventForUnlinkedRsn(request, clan.id),
           homeBoardForUser(clan.id, userOnly.userId),
           pluginClansFor(userOnly.userId, pluginViewerRsn(request)),
@@ -290,12 +315,7 @@ export async function GET(request: Request) {
         // "linked to another Anvil account" instead of tracking nothing without a word.
         const character = playedCharacter(request);
         const standing = character ? await accountStanding(userOnly.userId, character) : null;
-        // Needs the active weekly, so it resolves after it: a boss week makes that boss's collection-log
-        // items always-reportable regardless of price. See getAlwaysNotifyItemIds.
-        const alwaysNotifyItemIds = await getAlwaysNotifyItemIds(
-          clan.id,
-          activeWeekly?.type === 'boss' ? activeWeekly.metric : null,
-        );
+        const { activeWeekly, weeklyNames, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, dropRarityFloor, facts, alwaysNotifyItemIds } = clanSettings;
       return jsonWithEtag(request, {
         // Version + capability handshake — present on every /config shape (enrolled or not) so the
         // plugin can gate features per-site. Old plugins ignore it (GSON drops unknown fields).
@@ -308,7 +328,7 @@ export async function GET(request: Request) {
         player: null,
         // The clan's display name — the sidebar's clan-filter label and the logged-out home card
         // need it even when no event/team is resolvable for this token.
-        clanName: await getClanDisplayName(clan.id),
+        clanName: clanSettings.clanName,
         // WHICH CLAN THIS ANSWER IS ABOUT, and where else this person could point the plugin.
         // The plugin echoes activeClan.slug back as a `/c/<slug>` prefix, so once it has asked
         // once, every later call is addressed rather than re-resolved (lib/pluginClans).
@@ -632,7 +652,8 @@ export async function GET(request: Request) {
 
   // Active weekly SOTW/BOTW metrics are pushed live too — merged in below so a member in a bingo AND a
   // weekly comp pushes both metrics through the same debounced path.
-  const weeklyNames = await weeklyTrackedNames(clan.id);
+  const clanSettings = await clanPluginSettings(clan.id);
+  const weeklyNames = clanSettings.weeklyNames;
 
   // In-game KC-line boss names for the event's boss-KC tiles (+ any active BOTW boss). The plugin
   // watches for "Your <boss> ... count is: N" matching one of these and pushes the absolute KC to
@@ -676,27 +697,9 @@ export async function GET(request: Request) {
   // Read-bootstrap extras merged in so the plugin's login flow is a single GET:
   // schedule + active weekly (was two separate endpoints) plus the notification
   // webhooks and fun-death pool the plugin posts with directly.
-  const [schedule, activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, dropRarityFloor, tiers, facts, luckItems] =
-    await Promise.all([
-      pluginScheduleViewer(clan.id, auth.userId).then((v) => buildSchedule(clan.id, { ...v, viewerRsn: pluginViewerRsn(request), viewerAccountHash: request.headers.get('x-account-hash') })),
-      getActiveWeekly(clan.id),
-      getNotificationWebhooks(clan.id),
-      getFunDeathMessages(clan.id),
-      getDeathTaunts(clan.id),
-      getSpoonTaunts(clan.id),
-      getAlwaysNotifyItems(clan.id),
-      getShowKillCount(clan.id),
-      getDropRarityFloor(clan.id),
-      getTierBands(clan.id),
-          getDropFacts(clan.id),
-      countedLuckCandidates(clan.id),
-    ]);
-
-  // As above: a boss week makes that boss's collection-log items always-reportable, price aside.
-  const alwaysNotifyItemIds = await getAlwaysNotifyItemIds(
-    clan.id,
-    activeWeekly?.type === 'boss' ? activeWeekly.metric : null,
-  );
+  // The schedule is the viewer's own; everything else here is the clan's (cached, see above).
+  const schedule = await pluginScheduleViewer(clan.id, auth.userId).then((v) => buildSchedule(clan.id, { ...v, viewerRsn: pluginViewerRsn(request), viewerAccountHash: request.headers.get('x-account-hash') }));
+  const { activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, dropRarityFloor, tiers, facts, luckItems, alwaysNotifyItemIds } = clanSettings;
 
   // Team-level tile completions (drops, stats, manual — all tile types). The plugin uses this to
   // fire a banner for the whole team when any tile is completed, regardless of who finished it.
@@ -900,7 +903,7 @@ export async function GET(request: Request) {
     server: serverInfo(),
     // Resolved to an entry, so the logged-in character is this login's own (null on a hint-only read).
     accountStanding: playedCharacter(request) ? 'yours' : null,
-    clanName: await getClanDisplayName(clan.id),
+    clanName: clanSettings.clanName,
     // Same two fields as the not-enrolled shape above: which clan answered, and the rest of this
     // person's clans for the switcher. Present on BOTH shapes so the dropdown does not empty out
     // the moment somebody's event ends (lib/pluginClans).
