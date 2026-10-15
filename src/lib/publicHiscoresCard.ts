@@ -10,16 +10,17 @@
 // nothing else), and the cache means a popular name costs one request per half hour however many
 // people look it up.
 //
-// PRIVACY: a name that IS on Anvil never comes through here. apexCharacter answers for those, and an
-// unshared account must stay indistinguishable from a missing one — falling back to the hiscores for
-// it would hand back a card where everyone else gets a 404, which is exactly the "this exists but you
-// may not see it" signal that rule withholds. So the first thing this does is look for an accounts row,
-// and if there is one, it answers 'hidden' without touching the hiscores or the cache.
+// PRIVACY: an unshared Anvil account must stay indistinguishable from a name Anvil has never seen. So
+// this does NOT ask whether an account holds the name: every name the viewer can't see — private or
+// missing — gets the same hiscores card, built only from what Jagex publishes to anyone. Answering a
+// private account with a 404 instead turned "404 for a name that is on the hiscores" into "this person
+// has a private Anvil account", and a name spelled one way past the account check and another way to
+// Jagex could still reach it. Nothing here reads an account, so there is nothing of one to leak.
 
 import { eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, publicHiscoresCache } from '@/db/schema';
+import { publicHiscoresCache } from '@/db/schema';
 import { isPlausibleRsn, normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { fetchSnapshotWithRetry, type HiscoresSnapshot, type SnapshotFetch } from '@/lib/hiscores';
 import { profileFromSnapshot } from '@/lib/memberProfile';
@@ -31,8 +32,6 @@ export type PublicHiscoresCardResult =
   | { kind: 'card'; card: PlayerCard }
   /** Not on the hiscores (or not a name the hiscores would accept). The route's ordinary 404. */
   | { kind: 'unranked' }
-  /** An Anvil account holds this name. Never fall back: see PRIVACY above. */
-  | { kind: 'hidden' }
   /** No usable cache and we may not (budget) or could not (Jagex blip) fetch right now. */
   | { kind: 'busy'; retryAfterSec: number };
 
@@ -59,10 +58,6 @@ export async function publicHiscoresCard(rsn: string, deps: PublicHiscoresDeps =
   const clean = sanitizeRsn(rsn);
   const key = normalizeRsn(clean);
   if (!key || !isPlausibleRsn(clean)) return { kind: 'unranked' };
-
-  // clan-scope: global -- accounts are global, and this asks only whether ANY account holds the name.
-  const acct = await db.query.accounts.findFirst({ where: eq(accounts.rsnNormalized, key), columns: { id: true } });
-  if (acct) return { kind: 'hidden' };
 
   const pending = inflight.get(key);
   if (pending) return pending;

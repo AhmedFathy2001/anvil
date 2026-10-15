@@ -21,10 +21,10 @@ import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
  * Read-only and additive: advertised as the `player-card` capability, so a plugin against a site
  * without this route never calls it.
  *
- * A name NO Anvil account holds falls back to the OSRS hiscores (lib/publicHiscoresCard, advertised
- * as `player-card-hiscores`): a card with `source: 'hiscores'` instead of a 404. Only when no account
- * holds it — a private account still 404s exactly like a missing one. That fallback is the only path
- * here that can reach Jagex, so it alone carries the per-IP limit.
+ * A name the viewer can't see — not on Anvil, or private — falls back to the OSRS hiscores
+ * (lib/publicHiscoresCard, advertised as `player-card-hiscores`): a card with `source: 'hiscores'`
+ * built only from what Jagex publishes, the same for both, so the two stay indistinguishable. That
+ * fallback is the only path here that can reach Jagex, so it alone carries the per-IP limit.
  */
 
 export const dynamic = 'force-dynamic';
@@ -64,7 +64,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ rsn:
         { status: 503, headers: { 'Retry-After': String(result.retryAfterSec) } },
       );
     default:
-      // 'hidden' (a private account) and 'unranked' MUST look identical — same status, same body.
+      // Not on the hiscores.
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 }

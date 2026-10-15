@@ -68,14 +68,16 @@ after(async () => {
   await dropDatabase(DB);
 });
 
-test('a private account never falls back to the hiscores', async () => {
+test('a private account gets the same public hiscores card as a stranger — nothing of the account', async () => {
   const f = fetcher(snapshot(10));
-  // Underscore and case differences are the same name — they must not slip past the account check.
   const res = await publicHiscoresCard('quiet_IRON', { fetch: f.fetch, acquire: always, now: () => T0 });
-  assert.equal(res.kind, 'hidden');
-  assert.equal(f.calls.length, 0, 'no hiscores fetch for a name an account holds');
-  const cached = await db.select().from(s.publicHiscoresCache);
-  assert.equal(cached.length, 0, 'and nothing cached under it');
+  assert.equal(res.kind, 'card');
+  if (res.kind !== 'card') return;
+  // Indistinguishable from a name Anvil never saw: hiscores-sourced, no clan, no account type.
+  assert.equal(res.card.source, 'hiscores');
+  assert.equal(res.card.clan, null);
+  assert.equal(res.card.accountType, null);
+  await db.delete(s.publicHiscoresCache);
 });
 
 test('a stranger is fetched once, then served from cache until the TTL is up', async () => {
