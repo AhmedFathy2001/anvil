@@ -88,6 +88,8 @@ interface ChartLine {
   label: string;
   color: string;
   values: (number | null)[];
+  /** Drawn heavier — the viewer's own line among the top scorers. */
+  strong?: boolean;
 }
 
 /** Time-axis line chart: one line per series, a hover rule and a readout of every line at that point. */
@@ -155,7 +157,7 @@ function TimeChart({
           <text key={t.at} x={sx(t.at)} y={H - 8} textAnchor="middle" className="fill-text-muted" fontSize="12">{t.label}</text>
         ))}
         {lines.map((l) => (
-          <path key={l.key} d={path(l.values)} fill="none" stroke={l.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+          <path key={l.key} d={path(l.values)} fill="none" stroke={l.color} strokeWidth={l.strong ? 3.5 : 2} strokeLinejoin="round" strokeLinecap="round" />
         ))}
         {hover != null && <line x1={sx(at[hover])} x2={sx(at[hover])} y1={PAD.t} y2={H - PAD.b} stroke="currentColor" className="text-gold/60" />}
       </svg>
@@ -247,10 +249,11 @@ function PointsOverTime({ data }: { data: EventStatsData }) {
     .sort((a, b) => last(b.values) - last(a.values));
   const playerLines = tl.players.map((p, i) => ({
     key: p.key,
-    label: p.name,
+    label: p.isViewer ? `${p.name} (you)` : p.name,
     color: PLAYER_COLORS[i % PLAYER_COLORS.length],
     values: p.values,
     team: sideById.get(p.teamId)?.color ?? null,
+    strong: !!p.isViewer,
   }));
   const lines = view === 'teams' ? teamLines : playerLines;
   const empty = lines.every((l) => last(l.values) <= 0);

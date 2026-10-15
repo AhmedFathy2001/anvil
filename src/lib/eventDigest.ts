@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { clans, completions, eventDaySnapshots, eventParticipants, events, moments, teams, tiles } from '@/db/schema';
-import { and, desc, eq, inArray, lt } from 'drizzle-orm';
+import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm';
 import { scoreTeams } from '@/lib/boardScoring';
 import { parseEventRules } from '@/lib/eventRules';
 import { getEventRecap, getWindowRecap, type RecapAward } from '@/lib/eventRecap';
@@ -172,13 +172,28 @@ async function momentTally(eventId: number, fromMs: number | null, toMs: number 
   return tally;
 }
 
-function momentsLine(m: MomentTally): string | null {
+/**
+ * `deaths` is the plugin's per-player death COUNTERS for the same window — the number the clan
+ * totals above add up — not the death moments. A moment is made as the death happens and is gone
+ * if the site refuses it (a co-host's whole side was refused for a night), while a counter is a
+ * running total the next push restores. Two numbers for one thing in the same post read as a bug.
+ */
+function momentsLine(m: MomentTally, deaths: number = m.deaths): string | null {
   const parts: string[] = [];
   if (m.pets) parts.push(`🐾 ${m.pets} ${m.pets === 1 ? 'pet' : 'pets'}`);
   if (m.uniques) parts.push(`✨ ${m.uniques} ${m.uniques === 1 ? 'unique' : 'uniques'}`);
-  if (m.deaths) parts.push(`💀 ${m.deaths} ${m.deaths === 1 ? 'death' : 'deaths'}`);
+  if (deaths) parts.push(`💀 ${deaths} ${deaths === 1 ? 'death' : 'deaths'}`);
   if (m.nemesis) parts.push(`⚰️ Nemesis: **${m.nemesis.name}** (${m.nemesis.count} kills)`);
   return parts.length ? parts.join(' · ') : null;
+}
+
+/** The board's deaths so far by the plugin's counters (see momentsLine). */
+async function counterDeaths(eventId: number): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`coalesce(sum(${eventParticipants.deaths}), 0)` })
+    .from(eventParticipants)
+    .where(eq(eventParticipants.eventId, eventId));
+  return Number(row?.n ?? 0);
 }
 
 /** Post the digest for any running event whose next 24h mark has passed. Never throws. */
@@ -345,7 +360,7 @@ async function digestEvent(event: typeof events.$inferSelect, nowMs: number): Pr
   }
 
   const m = await momentTally(event.id, fromMs, toMs);
-  const mLine = momentsLine(m);
+  const mLine = momentsLine(m, windowRecap ? windowRecap.people.reduce((n, p) => n + p.deaths, 0) : m.deaths);
   if (mLine) fields.push(field('🎲 Moments', mLine, false));
 
   const span = day - fromDay > 1 ? `Days ${fromDay + 1}–${day}` : `Day ${day}`;
@@ -403,7 +418,7 @@ export async function runHalfwayReports(nowMs = Date.now()): Promise<void> {
         fields.push(field('🔢 By the numbers', bits.join(' · '), false));
       }
       const m = await momentTally(event.id, null, null);
-      const mLine = momentsLine(m);
+      const mLine = momentsLine(m, await counterDeaths(event.id));
       if (mLine) fields.push(field('🎲 Moments so far', mLine, false));
 
       await notifyEventStatsPost({

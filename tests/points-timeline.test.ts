@@ -125,7 +125,24 @@ test('submission tiles split by amount; top N keeps the best by final points', (
   );
   assert.deepEqual(player(t, 'Alice'), [0, 15, 15, 15, 15]);
   assert.deepEqual(player(t, 'Cara'), [0, 0, 0, 10, 10]);
-  assert.deepEqual(t.players.map((p) => p.name), ['Alice', 'Cara']);
+  // Bob was 2nd for the first hours (5 vs Cara's 0) before Cara passed him: having been in the top 2
+  // at any point keeps his line, behind the others by final score.
+  assert.deepEqual(t.players.map((p) => p.name), ['Alice', 'Cara', 'Bob']);
+});
+
+test('only people who were ever in the top N are drawn, plus the viewer', () => {
+  const comps = [{ teamId: 1, tileId: 2, completedAt: iso(START + H) }];
+  const subs = [
+    { teamId: 1, tileId: 2, creditPlayerId: 11, amount: 3 },
+    { teamId: 1, tileId: 2, creditPlayerId: 12, amount: 1 },
+  ];
+  const t = run(comps, { submissions: subs, topN: 1 });
+  assert.deepEqual(t.players.map((p) => p.name), ['Alice']);
+  const mine = run(comps, { submissions: subs, topN: 1, viewerPlayerIds: [12] });
+  assert.deepEqual(mine.players.map((p) => [p.name, !!p.isViewer]), [['Alice', false], ['Bob', true]]);
+  // A viewer with nothing yet is still drawn (a flat line), so they can find themselves.
+  const cara = run(comps, { submissions: subs, topN: 1, viewerPlayerIds: [21] });
+  assert.deepEqual(cara.players.map((p) => p.name), ['Alice', 'Cara']);
 });
 
 test('nothing before the start scores', () => {

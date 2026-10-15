@@ -147,7 +147,13 @@ export function resolveWindow(
   return { kind: 'day', day: w.day, fromMs, toMs: Math.min(dayEnd, nowMs), live: nowMs < dayEnd };
 }
 
-export async function getEventStats(eventId: number, w: StatsWindow, nowMs = Date.now()): Promise<EventStatsData | null> {
+export async function getEventStats(
+  eventId: number,
+  w: StatsWindow,
+  nowMs = Date.now(),
+  /** The viewer's own event rows: the points-over-time chart always draws their line. */
+  viewerPlayerIds: number[] = [],
+): Promise<EventStatsData | null> {
   // clan-scope: global -- the page resolved the event through requireEventForParticipantPage first.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return null;
@@ -404,6 +410,7 @@ export async function getEventStats(eventId: number, w: StatsWindow, nowMs = Dat
     ownerByPlayerId: event.accountSlotMode === 'per-person' ? await loadPlayerOwners(eventPlayers) : undefined,
     accountSlotMode: event.accountSlotMode,
     topN: 6,
+    viewerPlayerIds,
   });
 
   const started = nowMs >= startMs;

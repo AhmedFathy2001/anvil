@@ -45,8 +45,11 @@ export interface PointsTimeline {
   stepMs: number;
   unit: 'pts' | 'tiles';
   teams: { teamId: number; values: number[] }[];
-  /** Top scorers by final points, best first. `teamId` colours them; `key` is stable per person. */
-  players: { key: string; playerId: number; name: string; teamId: number; values: number[] }[];
+  /**
+   * Everyone who was in the top `topN` at ANY point (capped at `maxLines`), plus the viewer, best final
+   * score first. `teamId` colours them; `key` is stable per person; `isViewer` marks the viewer's line.
+   */
+  players: { key: string; playerId: number; name: string; teamId: number; values: number[]; isViewer?: boolean }[];
 }
 
 /** Hourly up to a week, 6-hourly up to a month, daily beyond — a few hundred points at most. */
@@ -79,8 +82,12 @@ export function computePointsTimeline(args: {
   ownerByPlayerId?: Map<number, number | null>;
   accountSlotMode?: string | null;
   topN?: number;
+  /** At most this many lines from the ever-top-N (the viewer's own is extra). Default 10. */
+  maxLines?: number;
+  /** The viewer's event rows — their line is always drawn, top scorer or not. */
+  viewerPlayerIds?: number[];
 }): PointsTimeline {
-  const { scoringMode, rules, startMs, toMs, teams, players, tiles, submissions, statGains, topN = 6 } = args;
+  const { scoringMode, rules, startMs, toMs, teams, players, tiles, submissions, statGains, topN = 6, maxLines = 10 } = args;
   const perPerson = args.accountSlotMode === 'per-person' && !!args.ownerByPlayerId;
   const stepMs = timelineStep(toMs - startMs);
   const at = timelineBuckets(startMs, toMs, stepMs);
@@ -156,12 +163,28 @@ export function computePointsTimeline(args: {
     for (const row of personValues.values()) if (row.values.length < i + 1) row.values.push(row.values[row.values.length - 1] ?? 0);
   });
 
+  // Who is drawn: anyone who was in the top N at any step, not just at the end — someone who led day 1
+  // and has since slipped is part of the story and shouldn't vanish. Best final score first, capped.
+  // The viewer always gets a line of their own, so everyone can find themselves.
   const last = (v: number[]) => v[v.length - 1] ?? 0;
-  const top = [...personValues.entries()]
-    .filter(([, r]) => last(r.values) > 0)
-    .sort(([, a], [, b]) => last(b.values) - last(a.values) || a.name.localeCompare(b.name))
-    .slice(0, topN)
-    .map(([key, r]) => ({ key, ...r }));
+  const rows = [...personValues.entries()];
+  const everTop = new Set<string>();
+  at.forEach((_, i) => {
+    rows
+      .filter(([, r]) => (r.values[i] ?? 0) > 0)
+      .sort(([, a], [, b]) => (b.values[i] ?? 0) - (a.values[i] ?? 0) || a.name.localeCompare(b.name))
+      .slice(0, topN)
+      .forEach(([key]) => everTop.add(key));
+  });
+  const byFinal = ([, a]: [string, { name: string; values: number[] }], [, b]: [string, { name: string; values: number[] }]) =>
+    last(b.values) - last(a.values) || a.name.localeCompare(b.name);
+  const viewerIds = new Set(args.viewerPlayerIds ?? []);
+  const isViewer = (r: { playerId: number }) => viewerIds.has(r.playerId);
+  const shown = rows.filter(([key]) => everTop.has(key)).sort(byFinal).slice(0, maxLines);
+  for (const entry of rows) {
+    if (isViewer(entry[1]) && !shown.some(([key]) => key === entry[0])) shown.push(entry);
+  }
+  const top = shown.sort(byFinal).map(([key, r]) => ({ key, ...r, ...(isViewer(r) ? { isViewer: true } : {}) }));
 
   return {
     at,

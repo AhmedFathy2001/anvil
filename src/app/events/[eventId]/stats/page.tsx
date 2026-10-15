@@ -6,6 +6,27 @@ import { getEventStats, type StatsWindow } from '@/lib/eventStats';
 import { stampMs } from '@/lib/eventDay';
 import { eventHasStarted } from '@/lib/completionGate';
 import StatsDashboard from './StatsDashboard';
+import { verifyUser } from '@/lib/auth';
+import { db } from '@/db';
+import { clanRoster, eventParticipants } from '@/db/schema';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
+
+/** The signed-in viewer's own rows on this board (any of their characters), so the chart can mark them. */
+async function viewerRows(eventId: number): Promise<number[]> {
+  const user = await verifyUser();
+  if (!user?.playerId) return [];
+  // clan-scope: global -- the subject is the viewer, whose seats span clans; scoped to their own.
+  const seats = await db
+    .select({ id: clanRoster.id })
+    .from(clanRoster)
+    .where(and(eq(clanRoster.playerId, user.playerId), isNull(clanRoster.leftAt)));
+  if (seats.length === 0) return [];
+  const rows = await db
+    .select({ id: eventParticipants.id })
+    .from(eventParticipants)
+    .where(and(eq(eventParticipants.eventId, eventId), inArray(eventParticipants.clanMemberId, seats.map((r) => r.id))));
+  return rows.map((r) => r.id);
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -54,7 +75,8 @@ export default async function EventStatsPage({
 
   const requested = day ? parseInt(day, 10) : NaN;
   const window: StatsWindow = Number.isInteger(requested) ? { kind: 'day', day: requested } : { kind: 'all' };
-  const data = (await getEventStats(id, window)) ?? (await getEventStats(id, { kind: 'all' }));
+  const mine = await viewerRows(id).catch(() => []);
+  const data = (await getEventStats(id, window, undefined, mine)) ?? (await getEventStats(id, { kind: 'all' }, undefined, mine));
   if (!data) {
     return (
       <div>
