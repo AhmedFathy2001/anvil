@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { submissions, completions, tiles, eventParticipants, events } from '@/db/schema';
 import { and, eq, gt, inArray, isNotNull, sql } from 'drizzle-orm';
 import { parseEventRules, hasRevealPolicy } from '@/lib/eventRules';
+import { parseContributionSnapshot } from '@/lib/statTracking';
 
 /**
  * Team activity feed shaping for `GET /api/plugin/activity`. Turns the two append-only tables the
@@ -43,6 +44,11 @@ export interface ActivityEntry {
   amount: number;
   /** True when the caller themselves credited this event — lets the panel style/label its own actions. */
   isSelf: boolean;
+  /**
+   * Completions only: the rest of the team who put work into the tile, biggest share first (`player`
+   * excluded). A team KC/XP tile has no single finisher, so this is how its line names people.
+   */
+  participants?: string[];
 }
 
 export interface ActivityPayload {
@@ -126,6 +132,7 @@ export async function buildActivity(args: {
       tileId: completions.tileId,
       completedAt: completions.completedAt,
       creditPlayerId: completions.creditPlayerId,
+      statContributions: completions.statContributions,
     })
     .from(completions)
     .where(and(eq(completions.teamId, teamId), gt(completions.id, since.comp)))
@@ -190,17 +197,55 @@ export async function buildActivity(args: {
   // (the finishing hand). Same approach as the config route's "completed by <who>".
   const completedTileIds = compRows.map((r) => r.tileId);
   const completedByTile = new Map<number, string>();
+  // Everyone who worked a completed tile: name → amount (submitted, or KC/XP from the frozen split).
+  const workByTile = new Map<number, Map<string, number>>();
+  const addWork = (tileId: number, name: string, amount: number) => {
+    const m = workByTile.get(tileId) ?? new Map<string, number>();
+    m.set(name, (m.get(name) ?? 0) + Math.max(0, amount));
+    workByTile.set(tileId, m);
+  };
   if (completedTileIds.length > 0) {
     const creditRows = await db
-      .select({ tileId: submissions.tileId, name: eventParticipants.name })
+      .select({ tileId: submissions.tileId, name: eventParticipants.name, amount: submissions.amount })
       .from(submissions)
       .leftJoin(eventParticipants, eq(submissions.creditPlayerId, eventParticipants.id))
       .where(and(eq(submissions.teamId, teamId), inArray(submissions.tileId, completedTileIds)))
       .orderBy(submissions.createdAt); // ascending → last write per tile wins
     for (const r of creditRows) {
-      if (r.name) completedByTile.set(r.tileId, r.name);
+      if (!r.name) continue;
+      completedByTile.set(r.tileId, r.name);
+      addWork(r.tileId, r.name, r.amount);
+    }
+    const splitIds = new Set<number>();
+    const splits = compRows.map((r) => {
+      const snap = parseContributionSnapshot(r.statContributions);
+      for (const part of snap?.split ?? []) splitIds.add(part.playerId);
+      return { tileId: r.tileId, snap };
+    });
+    if (splitIds.size > 0) {
+      const names = new Map(
+        (
+          await db
+            .select({ id: eventParticipants.id, name: eventParticipants.name })
+            .from(eventParticipants)
+            .where(inArray(eventParticipants.id, [...splitIds]))
+        ).map((p) => [p.id, p.name]),
+      );
+      for (const { tileId, snap } of splits) {
+        for (const part of snap?.split ?? []) {
+          const name = names.get(part.playerId);
+          if (name) addWork(tileId, name, part.gained);
+        }
+      }
     }
   }
+  const PARTICIPANTS_SHOWN = 8;
+  const participantsFor = (tileId: number, finisher: string | null): string[] =>
+    [...(workByTile.get(tileId) ?? new Map<string, number>())]
+      .filter(([name]) => name !== finisher)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, PARTICIPANTS_SHOWN)
+      .map(([name]) => name);
 
   // --- shape entries -------------------------------------------------------------------------
   const entries: ActivityEntry[] = [];
@@ -232,6 +277,7 @@ export async function buildActivity(args: {
       kind: 'complete',
       amount: 0,
       isSelf: who != null && selfRsn != null && who === selfRsn,
+      participants: participantsFor(r.tileId, who),
     });
   }
   for (const r of revealRows) {
