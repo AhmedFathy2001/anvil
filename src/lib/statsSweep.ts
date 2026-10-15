@@ -11,7 +11,8 @@ import { handleBountyClaim } from '@/lib/revealEngine';
 import { log } from '@/lib/logger';
 import { statKeys } from '@/lib/tileKinds';
 import { parsePluginStats } from '@/lib/pluginStats';
-import { computeGain, computeGainFromJson, effectiveValue, reconcileLive, pruneStaleOverlay, isIndividualMode, isMilestoneBasis, milestoneState, buildContributionSnapshot, needsBaselineRecapture, baselineWithOverlay, completePartialBaseline, isPartialBaselineJson } from '@/lib/statTracking';
+import { creditStatTilesForTeam } from '@/lib/statTileCredit';
+import { computeGain, effectiveValue, reconcileLive, pruneStaleOverlay, isIndividualMode, isMilestoneBasis, milestoneState, buildContributionSnapshot, needsBaselineRecapture, baselineWithOverlay, completePartialBaseline, isPartialBaselineJson } from '@/lib/statTracking';
 import { parseStatKeyTimes } from '@/lib/liveStats';
 import { readAllActivities } from '@/lib/hiscoresActivities';
 
@@ -65,7 +66,7 @@ type PlayerRow = typeof eventParticipants.$inferSelect;
 type TileRow = typeof tiles.$inferSelect;
 type TeamRow = typeof teams.$inferSelect;
 
-// Per-event working context, assembled once up front. completionSet / teamGains mutate during eval.
+// Per-event working context, assembled once up front. completionSet / touchedTeams mutate during eval.
 interface EventCtx {
   event: EventRow;
   eventTiles: TileRow[];
@@ -73,14 +74,10 @@ interface EventCtx {
   teams: TeamRow[];
   teamMap: Map<number, TeamRow>;
   completionSet: Set<string>;
-  teamGains: Map<string, number>;
-  // Per-member team-mode gains, keyed `${teamId}-${tileId}` → the raw contributors. Kept alongside
-  // teamGains (the running sum) so that when a team-mode stat tile crosses its goal we can freeze the
-  // exact per-member split onto completions.statContributions instead of only the total.
-  teamMemberGains: Map<string, { playerId: number; gained: number }[]>;
-  // Benched (sub-out) players on a team: their gain is pinned to frozenStats and never re-fetched, but
-  // it still counts toward team-mode tiles, so we seed it into teamGains/teamMemberGains each run.
-  frozenPlayers: { id: number; teamId: number; baselineJson: string | null; frozenStats: string | null }[];
+  // Teams with a member fetched this run. Their team-mode tiles are re-checked over the WHOLE team
+  // (lib/statTileCredit) — not just the members this run happened to fetch, which both missed
+  // completions and froze a split without the members it hadn't fetched.
+  touchedTeams: Set<number>;
   hasStatTiles: boolean;
   result: {
     eventId: number;
@@ -231,11 +228,7 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
       teams: eventTeams,
       teamMap: new Map(eventTeams.map((t) => [t.id, t])),
       completionSet: new Set(existingCompletions.map((c) => `${c.teamId}-${c.tileId}`)),
-      teamGains: new Map(),
-      teamMemberGains: new Map(),
-      frozenPlayers: eventPlayers
-        .filter((p) => p.teamId != null && p.frozenAt)
-        .map((p) => ({ id: p.id, teamId: p.teamId!, baselineJson: p.statsSnapshot, frozenStats: p.frozenStats })),
+      touchedTeams: new Set(),
       hasStatTiles,
       result: { eventId: event.id, eventName: event.name, playersChecked: 0, playersSnapshotted: 0, tilesCompleted: [], errors: [] },
     };
@@ -244,7 +237,7 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
     for (const player of eventPlayers) {
       if (!player.teamId) continue;
       // Benched players are pinned to frozenStats — don't re-fetch them (that would unfreeze the gain).
-      // Their contribution is seeded into team-mode sums from ctx.frozenPlayers in the finalize loop.
+      // Their locked contribution still counts: lib/statTileCredit reads it off frozenStats.
       if (player.frozenAt) continue;
       // Recapture when there's no baseline yet OR the one we have was taken before the event started
       // (an early admin pull, a moved-up start) — that keeps a pre-event baseline from counting the
@@ -782,12 +775,7 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
           }
         }
       } else {
-        ctx.teamGains.set(key, (ctx.teamGains.get(key) || 0) + gained);
-        if (gained > 0) {
-          const members = ctx.teamMemberGains.get(key) ?? [];
-          members.push({ playerId: f.player.id, gained });
-          ctx.teamMemberGains.set(key, members);
-        }
+        ctx.touchedTeams.add(f.player.teamId);
       }
     }
   }
@@ -795,62 +783,24 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
   // Team-mode completions + blackout win, from the accumulated gains.
   for (const ctx of ctxList) {
     if (ctx.hasStatTiles) {
-      for (const tile of ctx.statTiles) {
-        // Milestones were already settled per member above; they never accumulate a team total.
-        if (isIndividualMode(tile.trackingMode) || isMilestoneBasis(tile.statBasis)) continue;
-        const keys = statKeys(tile.trackedStat);
-        // Seed benched players' frozen gains into this run's team sums (they aren't fetched, so phase 3
-        // never counted them). Their locked contribution keeps counting toward the goal + the split.
-        for (const fp of ctx.frozenPlayers) {
-          const gained = computeGainFromJson(fp.baselineJson, fp.frozenStats, {}, keys, tile.statType!);
-          if (gained <= 0) continue;
-          const key = `${fp.teamId}-${tile.id}`;
-          ctx.teamGains.set(key, (ctx.teamGains.get(key) || 0) + gained);
-          const members = ctx.teamMemberGains.get(key) ?? [];
-          members.push({ playerId: fp.id, gained });
-          ctx.teamMemberGains.set(key, members);
-        }
-        for (const team of ctx.teams) {
-          const key = `${team.id}-${tile.id}`;
-          if (ctx.completionSet.has(key)) continue;
-          if ((ctx.teamGains.get(key) || 0) >= tile.statGoal!) {
-            // Event-rules gate: same as the individual path above.
-            const gate = await evaluateCompletionGate({ event: ctx.event, tile, teamId: team.id });
-            if (!gate.allowed) continue;
-            const inserted = await db
-              .insert(completions)
-              // Freeze the per-member split as of this tick so the "who got what %" can't drift as the
-              // team's underlying KC/XP keeps climbing after the tile is done.
-              .values({
-                teamId: team.id,
-                tileId: tile.id,
-                statContributions: JSON.stringify(
-                  buildContributionSnapshot(tile.statGoal!, ctx.teamMemberGains.get(key) ?? []),
-                ),
-                awardedPoints: gate.awardedPoints,
-              })
-              .onConflictDoNothing()
-              .returning({ id: completions.id });
-            ctx.completionSet.add(key);
-            if (inserted.length > 0) {
-              if (gate.bounty) handleBountyClaim(ctx.event.id, tile.id).catch(() => {});
-              ctx.result.tilesCompleted.push({ tileLabel: tile.label, teamName: team.name, playerName: '(team total)' });
-              notifyTileCompletion({
-                clanId: ctx.event.clanId,
-                eventName: ctx.event.name,
-                tileLabel: tile.label,
-                teamName: team.name,
-                teamId: team.id,
-                teamColor: team.color,
-                tileType: tile.tileType,
-                trackedStat: tile.trackedStat,
-                statType: tile.statType,
-                eventId: ctx.event.id,
-                tile,
-              }).catch(() => {});
-            }
-          }
-        }
+      // Team-mode tiles: one check per team that had a member fetched, over the whole team. The same
+      // check the live plugin push runs, so the split is frozen at the goal in the order the gains
+      // happened (lib/overshoot) and it announces the completion itself.
+      for (const teamId of ctx.touchedTeams) {
+        const open = ctx.statTiles.filter(
+          (t) => !isIndividualMode(t.trackingMode) && !isMilestoneBasis(t.statBasis) && !ctx.completionSet.has(`${teamId}-${t.id}`),
+        );
+        if (open.length === 0) continue;
+        const team = ctx.teamMap.get(teamId);
+        await creditStatTilesForTeam({
+          eventId: ctx.event.id,
+          teamId,
+          statTiles: open,
+          onCompleted: (tile) => {
+            ctx.completionSet.add(`${teamId}-${tile.id}`);
+            ctx.result.tilesCompleted.push({ tileLabel: tile.label, teamName: team?.name || 'Unknown', playerName: '(team total)' });
+          },
+        });
       }
 
       // Blackout: a team completing ALL required (non-optional) tiles.

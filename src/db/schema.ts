@@ -857,6 +857,21 @@ export const teams = pgTable('teams', {
   index('teams_captain_user_id_idx').on(table.captainUserId),
 ]);
 
+// One row per (team, open KC/XP tile): each member's gain at the last completion check and the window
+// their latest increase happened in (lib/overshoot). It is what lets a completion take the kills past
+// the goal off whoever crossed the line rather than everyone — or split them among those whose windows
+// overlap, when the order can't be known. Deleted once the tile completes; nothing reads it after.
+export const statTileProgress = pgTable('stat_tile_progress', {
+  id: serial('id').primaryKey(),
+  teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  tileId: integer('tile_id').notNull().references(() => tiles.id, { onDelete: 'cascade' }),
+  // lib/overshoot Ledger: { [playerId]: { g, base, from, to, seen } }, times in epoch millis.
+  data: text('data').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [
+  uniqueIndex('stat_tile_progress_team_tile_unique').on(table.teamId, table.tileId),
+]);
+
 export const completions = pgTable('completions', {
   id: serial('id').primaryKey(),
   teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),

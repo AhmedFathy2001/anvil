@@ -659,6 +659,13 @@
       "when": 1791167000000,
       "tag": "0135_level_milestone_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 136,
+      "version": "7",
+      "when": 1791168000000,
+      "tag": "0136_stat_tile_progress",
+      "breakpoints": true
     }
   ]
 }

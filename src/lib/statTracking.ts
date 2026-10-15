@@ -2,6 +2,7 @@ import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { isActivityKey, readActivityScore } from '@/lib/hiscoresActivities';
 import { parseStamp } from '@/lib/dbTime';
 import { SKILLS } from '@/lib/constants';
+import { settleOvershoot } from '@/lib/overshoot';
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 // The single definition of a hiscores-backed stat gain, shared by every consumer: the unified stat
@@ -38,16 +39,25 @@ export interface StatContributionSnapshot {
 
 // Build the frozen split from each team member's gain at the moment the tile completed. Drops
 // zero/negative contributors and sorts descending so the top contributor reads first.
+//
+// Never past the goal: the tile is worth its points however far the team ran over, and kills past the
+// goal don't buy a bigger share. A caller that knows who crossed the line settles the overshoot itself
+// (lib/overshoot, in the order the gains happened) and passes rows that already sum to the goal; any
+// overshoot left here comes off everyone in proportion, which leaves every share unchanged.
 export function buildContributionSnapshot(
   goal: number,
   rows: { playerId: number; gained: number }[],
 ): StatContributionSnapshot {
-  const split = rows
+  const split = capSplit(goal, rows)
     .filter((r) => r.gained > 0)
     .map((r) => ({ playerId: r.playerId, gained: r.gained }))
     .sort((a, b) => b.gained - a.gained);
   const total = split.reduce((sum, r) => sum + r.gained, 0);
   return { goal, total, split };
+}
+
+function capSplit(goal: number, rows: { playerId: number; gained: number }[]): { playerId: number; gained: number }[] {
+  return settleOvershoot(goal, rows.map((r) => ({ ...r, increase: r.gained, tied: false })));
 }
 
 // Parse a stored completions.statContributions blob. Returns null on null/malformed/legacy shape so
@@ -59,6 +69,14 @@ export function parseContributionSnapshot(
   try {
     const parsed = JSON.parse(json) as StatContributionSnapshot;
     if (!parsed || !Array.isArray(parsed.split)) return null;
+    // Completions frozen before the cap (a 517 / 500) read at the goal — proportionally, since who
+    // crossed the line was never recorded. Same shares, so nobody's points move.
+    if (parsed.goal > 0 && parsed.total > parsed.goal) {
+      const split = capSplit(parsed.goal, parsed.split)
+        .filter((r) => r.gained > 0)
+        .sort((a, b) => b.gained - a.gained);
+      return { goal: parsed.goal, total: split.reduce((s, r) => s + r.gained, 0), split };
+    }
     return parsed;
   } catch {
     return null;
