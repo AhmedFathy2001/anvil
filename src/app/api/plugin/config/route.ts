@@ -574,6 +574,10 @@ export async function GET(request: Request) {
 
     let gainedTotal = 0;
     const activeWorkers: string[] = [];
+    // Each active worker's event gain on this tile, index-matched to activeWorkers, so "Active now"
+    // shows who is actually landing the KC/XP rather than just who's online near it.
+    const activeWorkerGains: number[] = [];
+    let yourGained = 0;
     // A MILESTONE tile measures a lifetime total crossed during the event, and is always settled per
     // member (lib/statTracking.milestoneState) — so its in-game progress is the CALLER's, like an
     // individual tile, never a team sum.
@@ -618,6 +622,7 @@ export async function GET(request: Request) {
         // credits is worse than an empty one: the empty bar at least matches what will happen.
         gainedTotal = baselineTotal < goal ? Math.min(lifetime, goal) : 0;
       }
+      if (p.id === auth.playerId) yourGained = playerGained;
       // A teammate is "active on THIS tile" only if one of ITS stat keys actually rose within the window
       // (not merely any live push + some cumulative gain) — so a fishing burst no longer lights up their
       // CM/ToA tiles. The caller is excluded (the plugin marks itself "You" from its own local signal).
@@ -627,7 +632,10 @@ export async function GET(request: Request) {
           const at = Date.parse(keyTimes[k] ?? '');
           return Number.isFinite(at) && nowMs - at <= ACTIVE_STAT_WINDOW_MS;
         });
-        if (roseRecently) activeWorkers.push(p.name);
+        if (roseRecently) {
+          activeWorkers.push(p.name);
+          activeWorkerGains.push(playerGained);
+        }
       }
     }
 
@@ -647,6 +655,8 @@ export async function GET(request: Request) {
       // Teammates actively grinding this stat tile right now (RSNs), for the sidebar's "Active now".
       // Empty on older plugins/servers; the caller is never in here (the plugin marks itself "You").
       activeWorkers,
+      activeWorkerGains,
+      yourGained,
       // Boss KC tiles get the boss's representative clog item as their icon; skill tiles
       // keep -1 (the plugin shows the skill sprite instead). Composite keys use the first
       // boss's icon (a CoX + CM tile shows the CoX item).
