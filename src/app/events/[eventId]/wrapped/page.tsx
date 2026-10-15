@@ -13,12 +13,12 @@ export const dynamic = 'force-dynamic';
 export async function generateMetadata({ params }: { params: Promise<{ eventId: string }> }): Promise<Metadata> {
   const id = Number((await params).eventId);
   return wrappedMetadata(id, (event, w) => {
-    const top = w.teams[0];
+    const top = w.teams.find((t) => t.members > 1);
     return {
       title: `${event.name} Wrapped`,
-      description: `Every player's and every team's event, on one card each.${top && top.of > 1 ? ` ${top.name} took 1st.` : ''}`,
+      description: `Every player's and every team's event, on one card each.${top && top.rank === 1 && top.of > 1 ? ` ${top.name} took 1st.` : ''}`,
       path: `/events/${event.id}/wrapped`,
-      image: top && top.of > 1 ? `/api/og/wrapped/${event.id}/t/${top.id}` : `/api/og/event/${event.id}`,
+      image: top ? `/api/og/wrapped/${event.id}/t/${top.id}` : `/api/og/event/${event.id}`,
     };
   });
 }
@@ -48,7 +48,9 @@ export default async function WrappedPage({ params }: { params: Promise<{ eventI
       </div>
     );
   }
-  if (!wrapped || (wrapped.players.length === 0 && wrapped.teams.length === 0)) {
+  // Teams of one are people; their cards are already in the player list.
+  const realTeams = (wrapped?.teams ?? []).filter((t) => t.members > 1);
+  if (!wrapped || (wrapped.players.length === 0 && realTeams.length === 0)) {
     return (
       <div>{header}
         <Notice title="Nothing to wrap">Nobody logged any play during this event, so there are no cards.</Notice>
@@ -58,8 +60,6 @@ export default async function WrappedPage({ params }: { params: Promise<{ eventI
 
   const mineIds = await viewerPlayerIds(id, viewerPlayerId);
   const mine = mineIds.map((pid) => wrappedPlayerFor(wrapped, pid)).find((p) => p != null) ?? null;
-  // Teams of one are people; their cards are already in the player list.
-  const realTeams = wrapped.teams.filter((t) => t.members > 1);
 
   return (
     <div className="space-y-10">

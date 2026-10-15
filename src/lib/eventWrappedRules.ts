@@ -250,9 +250,9 @@ export function formatHours(minutes: number): string {
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
 
-/** Play time for a card's stat box, which fits ~6 characters: whole hours once it's past ten. */
+/** Play time for a card's stat box, which fits ~5 characters: whole hours, or minutes under one. */
 export function cardHours(minutes: number): string {
-  return minutes >= 600 ? `${Math.round(minutes / 60)}h` : formatHours(minutes);
+  return minutes >= 60 ? `${Math.round(minutes / 60)}h` : `${minutes}m`;
 }
 
 /** 1.2M, 340K, 950 — how players say numbers. */

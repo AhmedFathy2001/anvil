@@ -268,9 +268,9 @@ test('playerCardStats returns at most 4 entries and skips zeros', () => {
   assert.deepEqual(sparse, [{ label: 'Tiles', value: '7' }]);
 });
 
-test('cardHours: formatHours until 10 hours, then whole hours for the stat box', () => {
-  assert.equal(cardHours(599), '9h 59m');
-  assert.equal(cardHours(600), '10h');
+test('cardHours: whole hours for the stat box, minutes under one', () => {
+  assert.equal(cardHours(490), '8h');
+  assert.equal(cardHours(60), '1h');
   assert.equal(cardHours(2480), '41h');
   assert.equal(cardHours(45), '45m');
   assert.equal(playerCardStats(playerFixture({ minutesPlayed: 2480 }))[0].value, '41h');

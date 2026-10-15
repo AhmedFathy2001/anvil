@@ -782,7 +782,7 @@ export async function wrappedCard(d: WrappedCardData): Promise<Response> {
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <ClanFace name={d.clanName} logo={d.clanLogo} size={44} />
-            <Eyebrow>{`Wrapped · ${clip(d.eventName, 34)}`}</Eyebrow>
+            <Eyebrow>{`Wrapped · ${clip(d.eventName, 24)}`}</Eyebrow>
           </div>
           <div style={{ display: 'flex', alignItems: 'stretch', gap: 18, marginTop: 20 }}>
             <div style={{ display: 'flex', width: 8, borderRadius: 4, background: accent }} />
