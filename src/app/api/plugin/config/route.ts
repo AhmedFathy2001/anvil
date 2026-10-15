@@ -36,7 +36,7 @@ import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import { statKeys } from '@/lib/tileKinds';
 import { lapUnitNoun } from '@/lib/constants';
 import { ROLL_TABLES, rollItemIds } from '@/lib/rollTables';
-import { computeGain, isIndividualMode, isMilestoneBasis } from '@/lib/statTracking';
+import { computeGain, isIndividualMode, isMilestoneBasis, parseContributionSnapshot } from '@/lib/statTracking';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { ttlMemo } from '@/lib/ttlMemo';
 
@@ -721,7 +721,13 @@ export async function GET(request: Request) {
     ? await db
         // teamId + awardedPoints because lib/boardScoring reads them: a frozen award is what the
         // rules decided when the tile was finished, and re-deriving it would re-price history.
-        .select({ teamId: completions.teamId, tileId: completions.tileId, awardedPoints: completions.awardedPoints })
+        .select({
+          teamId: completions.teamId,
+          tileId: completions.tileId,
+          awardedPoints: completions.awardedPoints,
+          creditPlayerId: completions.creditPlayerId,
+          statContributions: completions.statContributions,
+        })
         .from(completions)
         .where(eq(completions.teamId, auth.teamId))
     : [];
@@ -732,8 +738,9 @@ export async function GET(request: Request) {
   const completedTileIdSet = new Set(teamCompletions.map((c) => c.tileId));
 
   // "Completed by <who>" for the plugin's completion chat line: the crediting player of the LATEST
-  // submission for each completed tile (usually the one that finished it). Stat/manual completions
-  // have no submission, so they stay unattributed (null).
+  // submission for each completed tile (usually the one that finished it). A KC/XP completion has no
+  // submission, so it names the member the completion credits (a solo tile), else whoever has the
+  // biggest share of the split frozen at completion — "Kurrozive & 2 more". Manual ones stay null.
   const completedTileIds = teamCompletions.map((c) => c.tileId);
   const completedByMap = new Map<number, string>();
   if (completedTileIds.length > 0) {
@@ -745,6 +752,19 @@ export async function GET(request: Request) {
       .orderBy(submissions.createdAt); // ascending → the last write per tile is the latest
     for (const r of creditRows) {
       if (r.name) completedByMap.set(r.tileId, r.name);
+    }
+    const nameOf = new Map(teamPlayers.map((p) => [p.id, p.name]));
+    for (const c of teamCompletions) {
+      if (completedByMap.has(c.tileId)) continue;
+      const credited = c.creditPlayerId != null ? nameOf.get(c.creditPlayerId) : undefined;
+      if (credited) {
+        completedByMap.set(c.tileId, credited);
+        continue;
+      }
+      const split = (parseContributionSnapshot(c.statContributions)?.split ?? []).filter((r) => nameOf.has(r.playerId));
+      if (split.length > 0) {
+        completedByMap.set(c.tileId, nameOf.get(split[0].playerId)! + (split.length > 1 ? ` & ${split.length - 1} more` : ''));
+      }
     }
   }
 
