@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { eventForPluginRequest } from '@/lib/eventScope';
 import { db } from '@/db';
-import { events, tiles, teams, completions, submissions } from '@/db/schema';
+import { events, tiles, teams, completions, submissions, eventParticipants } from '@/db/schema';
 import { eq, inArray, and, sql } from 'drizzle-orm';
 import { verifyPluginToken, verifyPluginTokenForEvent, pluginRsnHintOnly } from '@/lib/auth';
 import { getTierBands } from '@/lib/pluginConfig';
@@ -13,6 +13,7 @@ import { parseEventRules, hasRevealPolicy, visibleTiles, nextRevealAt } from '@/
 import { listTeamClaims } from '@/lib/tileClaims';
 import { getItemMapping } from '@/lib/osrsItems';
 import { isManualOnlyDropTile } from '@/lib/clogManual';
+import { parseContributionSnapshot } from '@/lib/statTracking';
 import { howItCounts, parseCountMode, parseSetsRequired, type CollectionRequirement } from '@/lib/collectionSets';
 
 // GET /api/plugin/board — the board for an event: every tile with its grid slot, a representative
@@ -301,6 +302,62 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null, v
     }
   }
 
+  // Who finished each of the caller's team's done tiles — a tile can take several people, so it's the
+  // contributors, biggest share first: a stat tile's split frozen at completion, a submission tile's
+  // credited amounts, else the one member the completion credits. Team-private like the claims below.
+  const finishersByTile = new Map<number, { finishedBy: { name: string; amount: number }[]; finishedByMore: number; completedAt: string }>();
+  if (callerTeamId != null && yourCompleted && yourCompleted.size > 0) {
+    const doneIds = [...yourCompleted];
+    const [teamCompletions, teamSubs, names] = await Promise.all([
+      db
+        .select({
+          tileId: completions.tileId,
+          completedAt: completions.completedAt,
+          creditPlayerId: completions.creditPlayerId,
+          statContributions: completions.statContributions,
+        })
+        .from(completions)
+        .where(and(eq(completions.teamId, callerTeamId), inArray(completions.tileId, doneIds))),
+      db
+        .select({
+          tileId: submissions.tileId,
+          playerId: submissions.creditPlayerId,
+          total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
+        })
+        .from(submissions)
+        .where(and(eq(submissions.teamId, callerTeamId), inArray(submissions.tileId, doneIds)))
+        .groupBy(submissions.tileId, submissions.creditPlayerId),
+      db
+        .select({ id: eventParticipants.id, name: eventParticipants.name })
+        .from(eventParticipants)
+        .where(eq(eventParticipants.teamId, callerTeamId)),
+    ]);
+    const nameOf = new Map(names.map((n) => [n.id, n.name]));
+    const subsByTile = new Map<number, { playerId: number; amount: number }[]>();
+    for (const r of teamSubs) {
+      if (r.playerId == null) continue;
+      const list = subsByTile.get(r.tileId) ?? [];
+      list.push({ playerId: r.playerId, amount: Number(r.total) });
+      subsByTile.set(r.tileId, list);
+    }
+    const SHOWN = 5;
+    for (const c of teamCompletions) {
+      const snap = parseContributionSnapshot(c.statContributions);
+      const rows = snap
+        ? snap.split.map((r) => ({ playerId: r.playerId, amount: r.gained }))
+        : subsByTile.get(c.tileId) ?? (c.creditPlayerId != null ? [{ playerId: c.creditPlayerId, amount: 0 }] : []);
+      const named = rows
+        .filter((r) => nameOf.has(r.playerId))
+        .sort((a, b) => b.amount - a.amount || nameOf.get(a.playerId)!.localeCompare(nameOf.get(b.playerId)!))
+        .map((r) => ({ name: nameOf.get(r.playerId)!, amount: r.amount }));
+      finishersByTile.set(c.tileId, {
+        finishedBy: named.slice(0, SHOWN),
+        finishedByMore: Math.max(0, named.length - SHOWN),
+        completedAt: c.completedAt,
+      });
+    }
+  }
+
   // TEAM-PRIVATE planning (lib/tileClaims): who on the caller's own team is going for which tile.
   // Interactive path only — the anonymous preview (callerTeamId null) must never carry a team's plan.
   // listTeamClaims already drops hidden and completed tiles. Absent when nobody has claimed a tile,
@@ -421,6 +478,7 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null, v
         ...(revealMode ? { revealedAt: t.revealedAt ?? null, closedAt: t.closedAt ?? null } : {}),
         ...(itemRequirements ? { itemRequirements } : {}),
         ...(claimsByTile.has(t.id) ? { claims: claimsByTile.get(t.id) } : {}),
+        ...(finishersByTile.get(t.id) ?? {}),
       };
     }),
     teams: eventTeams.map((tm) => ({
