@@ -829,7 +829,13 @@ interface TileCompletionNotifyParams {
   statType?: string | null;
   eventId?: number | null;
   tile?: LinkedTile | null;
+  /** Whose update took it over the line, when it was one person's. */
+  finisher?: string | null;
+  /** Everyone who put work in, biggest first, with their share (KC / XP, capped at the goal). */
+  contributors?: { name: string; amount: number }[];
 }
+
+const CONTRIBUTORS_SHOWN = 5;
 
 export async function notifyTileCompletion(params: TileCompletionNotifyParams): Promise<boolean> {
   const {
@@ -842,28 +848,38 @@ export async function notifyTileCompletion(params: TileCompletionNotifyParams): 
     statType,
     eventId,
     tile,
+    finisher,
+    contributors = [],
   } = params;
 
   // What kind of goal was met — kept as one short field rather than the old four-field block, since
   // the event/tile/team now live in the author line and title.
+  // A KC / XP tile is any tile tracking a stat, whatever its tileType says (statType 'skill' | 'boss' | 'kc').
   let typeDescription = 'Tile';
+  const unit = statType === 'skill' || statType === 'xp' ? 'XP' : 'KC';
   if (tileType === 'drop') {
     typeDescription = 'Drop';
-  } else if (tileType === 'stat' && statType === 'xp') {
-    typeDescription = `XP goal${trackedStat ? ` (${trackedStat})` : ''}`;
-  } else if (tileType === 'stat' && statType === 'kc') {
-    typeDescription = `KC goal${trackedStat ? ` (${trackedStat})` : ''}`;
-  } else if (tileType === 'stat') {
-    typeDescription = `Stat goal${trackedStat ? ` (${trackedStat})` : ''}`;
+  } else if (trackedStat || tileType === 'stat') {
+    typeDescription = `${unit} goal`;
   }
+  // Who did it, not just which team: whose update crossed the line, then everyone who put work in.
+  const people = contributors.filter((c) => c.name);
+  const lines = people.slice(0, CONTRIBUTORS_SHOWN).map((c) =>
+    c.amount > 0 ? `${c.name} · ${c.amount.toLocaleString('en-US')} ${unit}` : c.name,
+  );
+  if (people.length > CONTRIBUTORS_SHOWN) lines.push(`+${people.length - CONTRIBUTORS_SHOWN} more`);
 
   const embed: DiscordEmbed = {
     ...eventAuthor(eventId, eventName, teamName),
     ...tileThumbnail(tile),
     title: clamp(`✅ Tile complete — ${tileLabel}`, LIMIT.title),
-    description: `**${teamName}** cleared it.`,
+    description: finisher ? `**${finisher}** finished it for **${teamName}**.` : `**${teamName}** cleared it.`,
     color: teamColorToDecimal(teamColor),
-    fields: [statField('Type', typeDescription)],
+    fields: [
+      statField('Type', typeDescription),
+      // A lone finisher is already named above; a list is only worth it with more than them.
+      ...(people.length > 1 || (people.length === 1 && !finisher) ? [field('Contributors', lines.join('\n'), false)] : []),
+    ],
   };
 
   const boardUrl = eventId != null ? tileBoardUrl(eventId, tile) : null;

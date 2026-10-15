@@ -770,6 +770,7 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
                 statType: tile.statType,
                 eventId: ctx.event.id,
                 tile,
+                finisher: f.player.name,
               }).catch(() => {});
             }
           }

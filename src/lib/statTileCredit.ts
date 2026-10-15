@@ -45,6 +45,7 @@ export async function creditStatTilesForTeam(opts: {
   const teamPlayers = await db
     .select({
       id: eventParticipants.id,
+      name: eventParticipants.name,
       clanMemberId: eventParticipants.clanMemberId,
       statsSnapshot: eventParticipants.statsSnapshot,
       cachedStats: eventParticipants.cachedStats,
@@ -81,6 +82,7 @@ export async function creditStatTilesForTeam(opts: {
     return Math.max(parseStamp(p.lastStatsFetch) ?? 0, ...keys.map((k) => parseStamp(times[k]) ?? 0));
   };
 
+  const nameOf = new Map(teamPlayers.map((p) => [p.id, p.name]));
   const tileIds = statTiles.map((t) => t.id);
   const ledgerRows = await db
     .select({ tileId: statTileProgress.tileId, data: statTileProgress.data })
@@ -200,6 +202,13 @@ export async function creditStatTilesForTeam(opts: {
         statType: tile.statType,
         eventId: event.id,
         tile,
+        // The one whose update crossed the line: the lone finisher of a solo tile, or the single
+        // member who rose in the check that completed a team tile (several at once → nobody named).
+        finisher: individualFinisher?.name ?? (risen.length === 1 ? nameOf.get(risen[0]) ?? null : null),
+        contributors: splitRows
+          .filter((r) => r.gained > 0 && nameOf.has(r.playerId))
+          .sort((a, b) => b.gained - a.gained)
+          .map((r) => ({ name: nameOf.get(r.playerId)!, amount: r.gained })),
       }).catch(() => {});
     }
   }
