@@ -1334,6 +1334,13 @@ function boardLinkLine(eventId: number): string {
   return url ? `\n\n[View live standings →](${url})` : '';
 }
 
+// The end post adds Wrapped (events/<id>/wrapped): one generic link, where each player finds their own
+// card and copies its share link — posting everyone's card here would bury the channel.
+function endLinkLine(eventId: number): string {
+  const url = eventLeaderboardUrl(eventId);
+  return url ? `\n\n[Final standings →](${url}) · [🎁 Get your Wrapped card →](${url}/wrapped)` : '';
+}
+
 // The stats posts link both the board and the per-player stats page (events/<id>/stats).
 function statsLinkLine(eventId: number): string {
   const url = eventLeaderboardUrl(eventId);
@@ -1605,7 +1612,7 @@ export async function notifyEventEnd(params: EventEndNotifyParams): Promise<bool
   const embed: DiscordEmbed = {
     ...eventAuthor(eventId, eventName),
     title: '🏁 Event ended',
-    description: `**${eventName}** has concluded. Well played!${boardLinkLine(eventId)}`,
+    description: `**${eventName}** has concluded. Well played!${endLinkLine(eventId)}`,
     color: EMBED_COLOR.gold,
     fields,
   };

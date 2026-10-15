@@ -44,7 +44,10 @@ export default async function EventRecapPage({
       <ClanLink href={`/events/${id}`} className="text-sm text-text-muted hover:text-gold transition-colors">← {event.name}</ClanLink>
       <div className="flex items-center justify-between gap-3 flex-wrap mt-1">
         <h1 className="text-2xl font-bold text-gold">Event recap</h1>
-        <ClanLink href={`/events/${id}/stats`} className="text-sm text-text-muted hover:text-gold transition-colors">📊 Full stats →</ClanLink>
+        <div className="flex items-center gap-4">
+          <ClanLink href={`/events/${id}/wrapped`} className="text-sm text-text-muted hover:text-gold transition-colors">🎁 Wrapped cards →</ClanLink>
+          <ClanLink href={`/events/${id}/stats`} className="text-sm text-text-muted hover:text-gold transition-colors">📊 Full stats →</ClanLink>
+        </div>
       </div>
     </div>
   );

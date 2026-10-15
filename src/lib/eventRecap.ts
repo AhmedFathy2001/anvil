@@ -100,6 +100,9 @@ interface PersonStat {
   fastestClearTile: string | null;
   xpGained: number;
   kcGained: number;
+  /** Account-wide XP and boss KC over the whole span, tile or no tile — what a personal card shows. */
+  xpTotal: number;
+  kcTotal: number;
   deaths: number; // plugin-pushed per-event death count
   lootGpTotal: number; // plugin-pushed total loot GP for the event
   /** Hardest single hitsplat landed this event (plugin-pushed). */
@@ -156,6 +159,8 @@ function emptyStat(personKey: string): PersonStat {
     fastestClearTile: null,
     xpGained: 0,
     kcGained: 0,
+    xpTotal: 0,
+    kcTotal: 0,
     deaths: 0,
     lootGpTotal: 0,
     biggestHit: 0,
@@ -350,8 +355,10 @@ async function computeRecap(eventId: number, window?: RecapWindow): Promise<{
       const statsBase = base ? base.stats : p.statsSnapshot;
       const statsNow = statsNowById.get(p.id) ?? p.cachedStats ?? p.frozenStats;
       // A window has no per-tile standings to lean on, so its XP/KC are the account-wide gains.
+      const gains = totalGains(statsBase, statsNow);
+      s.xpTotal += gains.xp;
+      s.kcTotal += gains.kc;
       if (base) {
-        const gains = totalGains(statsBase, statsNow);
         s.xpGained += gains.xp;
         s.kcGained += gains.kc;
       }
@@ -968,4 +975,55 @@ export async function getPlayerRecap(eventId: number, playerId: number): Promise
 function sameContender(entry: RecapEntry, s: PersonStat | null | undefined): boolean {
   if (!s) return false;
   return entry.name === s.name && entry.teamName === s.teamName;
+}
+
+/** One person's whole event, for their Wrapped card (lib/eventWrapped). */
+export interface WrappedPersonStats {
+  personKey: string;
+  name: string;
+  teamId: number | null;
+  playerIds: number[];
+  xpGained: number;
+  kcGained: number;
+  minutesPlayed: number;
+  deaths: number;
+  biggestHit: number;
+  tilesFinished: number;
+  topBoss: { name: string; kc: number } | null;
+  topSkill: { name: string; xp: number } | null;
+  awardsWon: { emoji: string; title: string; valueLabel: string }[];
+}
+
+/** Everyone's numbers over the whole event, in one recap pass — Wrapped draws every card from it. */
+export async function getWrappedStats(
+  eventId: number,
+): Promise<{ ended: boolean; awards: RecapAward[]; people: WrappedPersonStats[] } | null> {
+  const r = await computeRecap(eventId);
+  if (!r) return null;
+  const playerIdsByKey = new Map<string, number[]>();
+  for (const [playerId, key] of r.personKeyByPlayerId) {
+    const list = playerIdsByKey.get(key) ?? [];
+    list.push(playerId);
+    playerIdsByKey.set(key, list);
+  }
+  const people = [...r.byPerson.values()].map(
+    (s): WrappedPersonStats => ({
+      personKey: s.personKey,
+      name: s.name,
+      teamId: s.teamId,
+      playerIds: playerIdsByKey.get(s.personKey) ?? [],
+      xpGained: s.xpTotal,
+      kcGained: s.kcTotal,
+      minutesPlayed: s.minutesPlayed,
+      deaths: s.deaths,
+      biggestHit: s.biggestHit,
+      tilesFinished: s.tilesFinished,
+      topBoss: s.topBossKc > 0 ? { name: bossLabel(s.topBossName) ?? 'Boss', kc: s.topBossKc } : null,
+      topSkill: s.topSkillXp > 0 ? { name: skillLabel(s.topSkillName) ?? 'Skill', xp: s.topSkillXp } : null,
+      awardsWon: r.awards
+        .filter((a) => a.winner && sameContender(a.winner, s))
+        .map((a) => ({ emoji: a.emoji, title: a.title, valueLabel: a.winner.valueLabel })),
+    }),
+  );
+  return { ended: isEventEnded(r.event), awards: r.awards, people };
 }

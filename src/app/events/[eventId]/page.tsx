@@ -627,6 +627,14 @@ export default async function EventScoreboardPage({
                 🏆 See the recap →
               </ClanLink>
             )}
+            {showRecapCta && (
+              <ClanLink
+                href={`/events/${id}/wrapped`}
+                className="text-sm font-semibold bg-gold/20 text-gold border border-gold/30 px-4 py-2 rounded-lg hover:bg-gold/30 transition-colors"
+              >
+                🎁 Your Wrapped card →
+              </ClanLink>
+            )}
             {showStatsLink && (
               <ClanLink
                 href={`/events/${id}/stats`}

@@ -701,6 +701,143 @@ export async function memberCard(d: MemberCardData): Promise<Response> {
   ));
 }
 
+// ── Wrapped ────────────────────────────────────────────────────────────────────────────────────
+
+export interface WrappedCardData {
+  /** The player's or the team's name. */
+  name: string;
+  eventName: string;
+  clanName: string;
+  clanLogo: Pic;
+  /** A team colour (hex), drawn as the accent rule. */
+  accent: string | null;
+  /** "Team Blue · 2nd of 6", "3rd of 8 on Team Blue". */
+  line: string | null;
+  stats: { value: string; label: string }[];
+  /** The picture on the right: a pet, else the biggest drop. */
+  feature: { sprite: Pic; kicker: string; name: string; detail: string | null } | null;
+  /** Award titles, at most three. */
+  awards: string[];
+  /** "Spooned · Dragon claws 2 of 0.3", one line. */
+  luck: string | null;
+}
+
+/**
+ * The card a player (or a team) posts after an event. The person's name is the title, the one thing
+ * worth bragging about is the picture, and the rest is a short row of numbers — the same shape as the
+ * member card, so a clan's Discord reads them as one family.
+ */
+export async function wrappedCard(d: WrappedCardData): Promise<Response> {
+  const size = titleSize(d.name, [[10, 96], [14, 84]], 68);
+  const accent = d.accent && /^#[0-9a-f]{6}$/i.test(d.accent) ? d.accent : C.gold;
+  return renderCard(['wrapped', d], async () => (
+    <Frame backdrop={await backdrop({ glow: '82% 46%', seed: seedOf(`${d.eventName}|${d.name}`), sparkCount: 16 })}>
+      {d.feature ? (
+        <div style={{ ...PANE, left: 760, top: 92, width: 360, flexDirection: 'column', alignItems: 'center' }}>
+          <div
+            style={{
+              ...PANE,
+              left: -40,
+              top: -40,
+              width: 440,
+              height: 440,
+              borderRadius: 440,
+              backgroundImage: 'radial-gradient(circle, rgba(224,170,30,0.28), rgba(224,170,30,0) 65%)',
+            }}
+          />
+          <div
+            style={{
+              display: 'flex',
+              width: 220,
+              height: 220,
+              borderRadius: 28,
+              background: 'rgba(28,23,20,0.92)',
+              border: `3px solid ${C.borderHi}`,
+              alignItems: 'center',
+              justifyContent: 'center',
+              transform: 'rotate(-4deg)',
+            }}
+          >
+            {d.feature.sprite ? (
+              // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
+              <img src={d.feature.sprite} width={150} height={150} style={{ width: 150, height: 150, objectFit: 'contain' }} />
+            ) : null}
+          </div>
+          <div style={{ display: 'flex', fontSize: 18, letterSpacing: 1.5, textTransform: 'uppercase', color: C.muted, marginTop: 28 }}>
+            {d.feature.kicker}
+          </div>
+          <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 34, color: C.goldLight, marginTop: 6, textAlign: 'center' }}>
+            {clip(d.feature.name, 26)}
+          </div>
+          {d.feature.detail ? (
+            <div style={{ display: 'flex', fontFamily: MONO, fontSize: 22, color: C.text, marginTop: 4 }}>{d.feature.detail}</div>
+          ) : null}
+        </div>
+      ) : (
+        <FaceArt>
+          <ClanFace name={d.clanName} logo={d.clanLogo} size={240} />
+        </FaceArt>
+      )}
+      <div style={{ ...PANE, left: 76, top: 62, width: 650, height: 506, flexDirection: 'column', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <ClanFace name={d.clanName} logo={d.clanLogo} size={44} />
+            <Eyebrow>{`Wrapped · ${clip(d.eventName, 34)}`}</Eyebrow>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'stretch', gap: 18, marginTop: 20 }}>
+            <div style={{ display: 'flex', width: 8, borderRadius: 4, background: accent }} />
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <Title size={size} maxLines={1}>{d.name}</Title>
+              {d.line ? <div style={{ display: 'flex', fontSize: 28, color: C.muted, marginTop: 10 }}>{d.line}</div> : null}
+            </div>
+          </div>
+          {d.awards.length ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 22 }}>
+              {d.awards.slice(0, 3).map((a) => (
+                <div
+                  key={a}
+                  style={{
+                    display: 'flex',
+                    padding: '6px 16px',
+                    borderRadius: 999,
+                    border: `2px solid ${C.gold}`,
+                    color: C.goldLight,
+                    fontSize: 22,
+                    fontWeight: 500,
+                    background: 'rgba(224,170,30,0.12)',
+                  }}
+                >
+                  {clip(a, 24)}
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {d.luck ? <div style={{ display: 'flex', fontSize: 22, color: C.text, marginTop: 18 }}>{clip(d.luck, 52)}</div> : null}
+        </div>
+        <div style={{ display: 'flex', gap: 14 }}>
+          {d.stats.map((s) => (
+            <div
+              key={s.label}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                padding: '14px 18px',
+                borderRadius: 14,
+                background: 'rgba(28,23,20,0.9)',
+                border: `2px solid ${C.border}`,
+                width: 150,
+              }}
+            >
+              <div style={{ display: 'flex', fontSize: 16, letterSpacing: 1.5, textTransform: 'uppercase', color: C.muted }}>{s.label}</div>
+              <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 700, fontSize: 38, color: C.goldLight, marginTop: 6 }}>{s.value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Frame>
+  ));
+}
+
 // ── Head to head ───────────────────────────────────────────────────────────────────────────────
 
 /** The two sides' colours, as the /compare page draws them. */
