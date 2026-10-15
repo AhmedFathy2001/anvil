@@ -75,6 +75,10 @@ export const PLUGIN_CAPABILITIES = [
   // Player card: GET /api/players/<rsn>/card — the plugin's Lookup and You tabs. Read-only; a plugin
   // against a site without it opens the profile in the browser instead.
   'player-card',
+  // The same route answers for names with NO Anvil account from the OSRS hiscores (lib/
+  // publicHiscoresCard): a card with `source: 'hiscores'` and `fetchedAt`, no clan or log. May 503
+  // with Retry-After when the global lookup budget is spent. Without it, such names 404.
+  'player-card-hiscores',
   // Goals: GET/POST/DELETE /api/plugin/goals — the You tab's own targets (99 Slayer, 500 Vorkath, a
   // finished log page). Progress is read from the player card, so nothing new is polled.
   'goals',

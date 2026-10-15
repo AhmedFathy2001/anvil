@@ -290,6 +290,25 @@ async function accountProfileFrom(row: {
     };
   }
 
+  return {
+    ...base,
+    statsAt: at ?? row.liveStatsAt ?? null,
+    ...profileFromSnapshot(snapshot),
+  };
+}
+
+/**
+ * Everything a profile derives from ONE hiscores snapshot: skills, bosses, activities, efficiency,
+ * total and combat level. No database — the snapshot is the whole input.
+ *
+ * Split out of accountProfileFrom so a character Anvil has never seen (lib/publicHiscoresCard, the
+ * plugin's Lookup on a stranger) is shaped by the same code as a tracked account, and the two cards
+ * cannot disagree about what a snapshot means.
+ */
+export function profileFromSnapshot(snapshot: HiscoresSnapshot): Pick<
+  AccountProfile,
+  'efficiency' | 'skills' | 'bosses' | 'activities' | 'totalLevel' | 'combatLevel'
+> {
   const efficiency = computeEfficiency(snapshot);
 
   const skills: SkillRow[] = SKILLS.filter((k) => k !== 'overall').map((key) => ({
@@ -329,8 +348,6 @@ async function accountProfileFrom(row: {
   });
 
   return {
-    ...base,
-    statsAt: at ?? row.liveStatsAt ?? null,
     efficiency,
     skills,
     bosses,

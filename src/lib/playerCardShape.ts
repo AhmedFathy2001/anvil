@@ -89,6 +89,14 @@ export interface PlayerCard {
   clogPages: PlayerCardPage[];
   /** Personal bests the plugin uploaded: one entry per boss and mode, best time first, team sizes behind it. */
   times: PbEntry[];
+  /**
+   * Absent on a card about an Anvil account. 'hiscores' = nobody on Anvil has this name, so the card
+   * was built from a public hiscores lookup (lib/publicHiscoresCard): no clan, no log, no history —
+   * the plugin should say so rather than show those sections as empty.
+   */
+  source?: 'hiscores';
+  /** With source 'hiscores': when that lookup was made (it is cached, so it can trail by minutes). */
+  fetchedAt?: string;
 }
 
 export interface PlayerCardInput {

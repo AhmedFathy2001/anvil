@@ -1071,6 +1071,19 @@ export const rateLimits = pgTable('rate_limits', {
   index('rate_limits_expires_at_idx').on(table.expiresAt),
 ]);
 
+// Hiscores lookups for characters Anvil has NO account for — the plugin's Lookup tab on a stranger
+// (lib/publicHiscoresCard). Keyed by normalized RSN; deliberately not an `accounts` row, because a
+// name someone typed into a search box is not a character anyone registered, and creating one would
+// put it into every sweep. 'value' rows live 30 minutes, 'unranked' 24 hours; a transient failure is
+// never written, so the next lookup simply tries again.
+export const publicHiscoresCache = pgTable('public_hiscores_cache', {
+  rsnKey: text('rsn_key').primaryKey(), // normalizeRsn(rsn)
+  rsn: text('rsn').notNull(), // as first looked up — the hiscores never tell us the real casing
+  outcome: text('outcome').notNull(), // 'value' | 'unranked'
+  body: text('body'), // HiscoresSnapshot JSON; null when unranked
+  fetchedAt: text('fetched_at').notNull(),
+});
+
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
   // The person this login belongs to. A person can hold several OSRS accounts and, eventually,

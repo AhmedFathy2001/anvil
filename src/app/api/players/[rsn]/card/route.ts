@@ -7,6 +7,8 @@ import { apexCharacter } from '@/lib/apexProfiles';
 import { verifyPluginTokenUser } from '@/lib/auth';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { loadPlayerCard } from '@/lib/playerCard';
+import { publicHiscoresCard } from '@/lib/publicHiscoresCard';
+import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 
 /**
  * The plugin's player card: GET /api/players/<rsn>/card.
@@ -18,6 +20,11 @@ import { loadPlayerCard } from '@/lib/playerCard';
  *
  * Read-only and additive: advertised as the `player-card` capability, so a plugin against a site
  * without this route never calls it.
+ *
+ * A name NO Anvil account holds falls back to the OSRS hiscores (lib/publicHiscoresCard, advertised
+ * as `player-card-hiscores`): a card with `source: 'hiscores'` instead of a 404. Only when no account
+ * holds it — a private account still 404s exactly like a missing one. That fallback is the only path
+ * here that can reach Jagex, so it alone carries the per-IP limit.
  */
 
 export const dynamic = 'force-dynamic';
@@ -34,7 +41,30 @@ export async function GET(request: Request, { params }: { params: Promise<{ rsn:
   }
 
   const character = await apexCharacter(rsn, viewerPlayerId);
-  if (!character) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (character) return jsonWithEtag(request, await loadPlayerCard(character));
 
-  return jsonWithEtag(request, await loadPlayerCard(character));
+  const limit = await rateLimit(request, 'player-card-lookup', { limit: 30, windowMs: 60_000 });
+  if (!limit.ok) {
+    return NextResponse.json(
+      { error: 'Too many lookups' },
+      {
+        status: 429,
+        headers: { ...rateLimitHeaders(limit), 'Retry-After': String(Math.max(1, Math.ceil((limit.reset - Date.now()) / 1000))) },
+      },
+    );
+  }
+
+  const result = await publicHiscoresCard(rsn);
+  switch (result.kind) {
+    case 'card':
+      return jsonWithEtag(request, result.card);
+    case 'busy':
+      return NextResponse.json(
+        { error: 'Hiscores busy, try again shortly' },
+        { status: 503, headers: { 'Retry-After': String(result.retryAfterSec) } },
+      );
+    default:
+      // 'hidden' (a private account) and 'unranked' MUST look identical — same status, same body.
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
 }
