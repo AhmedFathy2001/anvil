@@ -6,7 +6,8 @@
 //   overview  the teams ranked by score, each with a member count — or, when every team is one
 //             person (or the event ranks individuals), the PLAYERS ranked instead: a list of 300
 //             one-member teams is a player list wearing a costume.
-//   team      one team's members: captain first, then you, then by name.
+//   team      one team's members: best score first once the board is scored (each member's share,
+//             lib/teamMemberPoints), else captain first, then you, then by name.
 //   search    players by name across every team, each with the team they are on.
 //
 // Pure, no `@/` import, so it is tested directly (tests/event-roster.test.ts); the route loads rows.
@@ -43,6 +44,9 @@ export interface RosterInput {
   individuals: boolean;
   /** Individual events: points per participant, best first. Ranked players lead the list in this order. */
   individualPoints?: { participantId: number; name: string; points: number }[];
+  /** A team's page: each member's share of the team's score (participantId → points), and its unit. */
+  memberPoints?: Map<number, number>;
+  pointsUnit?: string;
 }
 
 export interface RosterTeamOut {
@@ -230,9 +234,25 @@ class Roster {
     const t = this.teamById.get(teamId);
     if (!t) return null;
     const order = (p: RosterPersonIn) => (this.isCaptain(p) ? 0 : this.isYou(p) ? 1 : 2);
-    const all = [...(this.membersOf.get(teamId) ?? [])].sort((a, b) => order(a) - order(b) || byName(a, b));
+    const pts = this.input.memberPoints;
+    const unit = this.input.pointsUnit ?? 'pts';
+    const scoreOf = (p: RosterPersonIn) => pts?.get(p.participantId) ?? 0;
+    const members = this.membersOf.get(teamId) ?? [];
+    // Scored board: best first, ranked within the team (ties share a rank), captain/you breaking ties.
+    // Unscored (before the reveal): captain, you, then by name, as before.
+    const all = pts
+      ? [...members].sort((a, b) => scoreOf(b) - scoreOf(a) || order(a) - order(b) || byName(a, b))
+      : [...members].sort((a, b) => order(a) - order(b) || byName(a, b));
+    const rank = pts ? ranks(members, scoreOf) : null;
     const { items, ...paged } = slice(all, page, pageSize);
-    return { mode: 'members', ...paged, team: this.team(t), players: items.map((p) => this.person(p)) };
+    return {
+      mode: 'members',
+      ...paged,
+      team: this.team(t),
+      players: items.map((p) =>
+        rank ? this.person(p, rank.get(p) ?? null, `${Math.round(scoreOf(p)).toLocaleString('en-US')} ${unit}`) : this.person(p),
+      ),
+    };
   }
 
   search(query: string, page: number, pageSize: number): RosterSearchPage {

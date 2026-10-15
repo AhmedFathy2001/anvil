@@ -138,3 +138,21 @@ test('search finds across teams, names starting with the query first, spaces and
   assert.equal(rosterSearch(input, 'iron zez', 1, 25).players[0]?.name, 'Iron_Zez');
   assert.equal(rosterSearch(input, '   ', 1, 25).total, 0);
 });
+
+test("a scored team's members: best share first, ranked within the team, ties by captain/you/name", () => {
+  const people = [person('zed', 1), person('Amy', 1), person('Me', 1, 9), person('Cap', 1, 5)];
+  const [zed, amy, me, cap] = people.map((p) => p.participantId);
+  const input: RosterInput = {
+    teams: [team(1, 30, 5)],
+    people,
+    viewerPlayerId: 9,
+    individuals: false,
+    memberPoints: new Map([[zed, 12], [amy, 0], [me, 6], [cap, 12]]),
+    pointsUnit: 'pts',
+  };
+  const out = rosterTeam(input, 1, 1, 25)!;
+  assert.deepEqual(
+    out.players.map((p) => [p.name, p.rank, p.score]),
+    [['Cap', 1, '12 pts'], ['zed', 1, '12 pts'], ['Me', 3, '6 pts'], ['Amy', 4, '0 pts']],
+  );
+});

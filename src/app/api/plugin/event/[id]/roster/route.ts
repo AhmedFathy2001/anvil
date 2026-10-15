@@ -11,6 +11,8 @@ import { formatScore } from '@/lib/boardScoring';
 import { getLadderBoards } from '@/lib/ladderStandings';
 import { getTeamStandings } from '@/lib/statStandings';
 import { jsonWithEtag } from '@/lib/httpEtag';
+import { teamMemberPoints } from '@/lib/teamMemberPoints';
+import { isPointsMode } from '@/lib/utils';
 import {
   pageParams,
   rosterOverview,
@@ -99,7 +101,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (query.trim()) return jsonWithEtag(request, rosterSearch(input, query, page, pageSize));
 
   if (teamParam != null) {
-    const out = /^[1-9]\d{0,9}$/.test(teamParam) ? rosterTeam(input, Number(teamParam), page, pageSize) : null;
+    if (!/^[1-9]\d{0,9}$/.test(teamParam)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    // Each member's share of the team's score, so the team's page reads best first.
+    if (event.tilesRevealed && !individuals) {
+      input.memberPoints = await teamMemberPoints(eventId, Number(teamParam));
+      input.pointsUnit = isPointsMode(event.scoringMode) ? 'pts' : 'tiles';
+    }
+    const out = rosterTeam(input, Number(teamParam), page, pageSize);
     return out ? jsonWithEtag(request, out) : NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
