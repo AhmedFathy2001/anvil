@@ -83,15 +83,31 @@ const SERIES: { key: SeriesKey; label: string; format: (n: number) => string }[]
   { key: 'loot', label: 'Loot', format: compact },
 ];
 
-function ProgressChart({ data }: { data: EventStatsData }) {
-  const [key, setKey] = useState<SeriesKey>('points');
+interface ChartLine {
+  key: string | number;
+  label: string;
+  color: string;
+  values: (number | null)[];
+}
+
+/** Time-axis line chart: one line per series, a hover rule and a readout of every line at that point. */
+function TimeChart({
+  at,
+  lines,
+  format,
+  ticks,
+  clock,
+  label,
+}: {
+  at: number[];
+  lines: ChartLine[];
+  format: (n: number) => string;
+  ticks: { at: number; label: string }[];
+  clock: (ms: number) => string;
+  label: string;
+}) {
   const [hover, setHover] = useState<number | null>(null);
-  const { at, series } = data.hourly;
-  const spec = SERIES.find((s) => s.key === key)!;
-  const lines = data.sides.map((side) => ({ side, values: series[key][side.teamId] ?? [] }));
   const max = niceMax(Math.max(0, ...lines.flatMap((l) => l.values.filter((v): v is number => v != null))));
-  const counterSeries = key === 'xp' || key === 'kc' || key === 'deaths' || key === 'loot';
-  const empty = counterSeries && lines.every((l) => l.values.every((v) => v == null));
 
   // Wide and short: the page is wide, and a curve's story is its shape over time, not its height.
   const W = 1000;
@@ -101,14 +117,6 @@ function ProgressChart({ data }: { data: EventStatsData }) {
   const x1 = Math.max(x0 + 1, at[at.length - 1] ?? x0 + 1);
   const sx = (ms: number) => PAD.l + ((ms - x0) / (x1 - x0)) * (W - PAD.l - PAD.r);
   const sy = (v: number) => H - PAD.b - (v / max) * (H - PAD.t - PAD.b);
-
-  // Axis ticks: every 6h inside a day, every day across the event.
-  const step = data.window.kind === 'day' ? 6 * HOUR : DAY;
-  const ticks: number[] = [];
-  for (let t = data.event.startMs + Math.ceil((x0 - data.event.startMs) / step) * step; t <= x1; t += step) ticks.push(t);
-  const dayStart = data.event.startMs + ((data.window.day ?? 1) - 1) * DAY;
-  const tickLabel = (t: number) =>
-    data.window.kind === 'day' ? `${Math.round((t - dayStart) / HOUR)}h` : `D${Math.round((t - data.event.startMs) / DAY) + 1}`;
 
   const path = (values: (number | null)[]) => {
     let d = '';
@@ -135,6 +143,57 @@ function ProgressChart({ data }: { data: EventStatsData }) {
   };
 
   return (
+    <div className="relative">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label={label} onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
+        {[0, 0.5, 1].map((f) => (
+          <g key={f}>
+            <line x1={PAD.l} x2={W - PAD.r} y1={sy(max * f)} y2={sy(max * f)} stroke="currentColor" className="text-card-border" strokeDasharray={f ? '3 4' : undefined} />
+            <text x={PAD.l - 6} y={sy(max * f) + 4} textAnchor="end" className="fill-text-muted" fontSize="12">{format(max * f)}</text>
+          </g>
+        ))}
+        {ticks.map((t) => (
+          <text key={t.at} x={sx(t.at)} y={H - 8} textAnchor="middle" className="fill-text-muted" fontSize="12">{t.label}</text>
+        ))}
+        {lines.map((l) => (
+          <path key={l.key} d={path(l.values)} fill="none" stroke={l.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        ))}
+        {hover != null && <line x1={sx(at[hover])} x2={sx(at[hover])} y1={PAD.t} y2={H - PAD.b} stroke="currentColor" className="text-gold/60" />}
+      </svg>
+      {hover != null && (
+        <div className="absolute top-1 right-1 text-xs border border-card-border bg-card-bg/95 rounded-lg px-3 py-2 shadow-lg pointer-events-none">
+          <p className="font-semibold mb-1">{clock(at[hover])}</p>
+          {lines.map((l) => (
+            <p key={l.key} className="flex items-center gap-2 tabular-nums">
+              <span className="inline-block w-2 h-2 rounded-full" style={{ background: l.color }} aria-hidden />
+              <span className="truncate max-w-32">{l.label}</span>
+              <span className="ml-auto font-semibold">{l.values[hover] == null ? '—' : format(l.values[hover]!)}</span>
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProgressChart({ data }: { data: EventStatsData }) {
+  const [key, setKey] = useState<SeriesKey>('points');
+  const { at, series } = data.hourly;
+  const spec = SERIES.find((s) => s.key === key)!;
+  const lines: ChartLine[] = data.sides.map((side) => ({ key: side.teamId, label: side.clanName ?? side.name, color: side.color, values: series[key][side.teamId] ?? [] }));
+  const counterSeries = key === 'xp' || key === 'kc' || key === 'deaths' || key === 'loot';
+  const empty = counterSeries && lines.every((l) => l.values.every((v) => v == null));
+
+  // Axis ticks: every 6h inside a day, every day across the event.
+  const x0 = at[0] ?? 0;
+  const x1 = Math.max(x0 + 1, at[at.length - 1] ?? x0 + 1);
+  const step = data.window.kind === 'day' ? 6 * HOUR : DAY;
+  const dayStart = data.event.startMs + ((data.window.day ?? 1) - 1) * DAY;
+  const ticks: { at: number; label: string }[] = [];
+  for (let t = data.event.startMs + Math.ceil((x0 - data.event.startMs) / step) * step; t <= x1; t += step) {
+    ticks.push({ at: t, label: data.window.kind === 'day' ? `${Math.round((t - dayStart) / HOUR)}h` : `D${Math.round((t - data.event.startMs) / DAY) + 1}` });
+  }
+
+  return (
     <Card className="p-4">
       <div className="flex flex-wrap gap-2 mb-3" role="tablist" aria-label="What to chart">
         {SERIES.map((s) => (
@@ -156,35 +215,99 @@ function ProgressChart({ data }: { data: EventStatsData }) {
           Hour-by-hour {spec.label.toLowerCase()} starts recording on the event’s first full hour — the totals below already count.
         </p>
       ) : (
-        <div className="relative">
-          <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label={`${spec.label} by hour, per team`} onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
-            {[0, 0.5, 1].map((f) => (
-              <g key={f}>
-                <line x1={PAD.l} x2={W - PAD.r} y1={sy(max * f)} y2={sy(max * f)} stroke="currentColor" className="text-card-border" strokeDasharray={f ? '3 4' : undefined} />
-                <text x={PAD.l - 6} y={sy(max * f) + 4} textAnchor="end" className="fill-text-muted" fontSize="12">{spec.format(max * f)}</text>
-              </g>
+        <TimeChart
+          at={at}
+          lines={lines}
+          format={spec.format}
+          ticks={ticks}
+          clock={(ms) => eventClock(ms, data.event.startMs)}
+          label={`${spec.label} by hour, per team`}
+        />
+      )}
+    </Card>
+  );
+}
+
+// ── Points over time ─────────────────────────────────────────────────────────────────────────────
+
+// Top scorers can share a team, so their lines take their own colours; the team shows as a dot.
+const PLAYER_COLORS = ['#e0aa1e', '#4ea8de', '#e5636a', '#57c785', '#b48ce6', '#f08c3a', '#45c4c4', '#d97ab8'];
+
+function PointsOverTime({ data }: { data: EventStatsData }) {
+  const [view, setView] = useState<'teams' | 'players'>('teams');
+  const tl = data.pointsTimeline;
+  const sideById = new Map(data.sides.map((s) => [s.teamId, s]));
+  const last = (v: number[]) => v[v.length - 1] ?? 0;
+
+  const teamLines = tl.teams
+    .map((t) => {
+      const side = sideById.get(t.teamId);
+      return { key: t.teamId, label: side?.clanName ?? side?.name ?? 'Team', color: side?.color ?? '#888', values: t.values, team: null as string | null };
+    })
+    .sort((a, b) => last(b.values) - last(a.values));
+  const playerLines = tl.players.map((p, i) => ({
+    key: p.key,
+    label: p.name,
+    color: PLAYER_COLORS[i % PLAYER_COLORS.length],
+    values: p.values,
+    team: sideById.get(p.teamId)?.color ?? null,
+  }));
+  const lines = view === 'teams' ? teamLines : playerLines;
+  const empty = lines.every((l) => last(l.values) <= 0);
+
+  // Whole event, start to now: a tick every 6h, day, 2 days or week — whichever keeps it to ~10.
+  const x0 = tl.at[0] ?? data.event.startMs;
+  const x1 = Math.max(x0 + 1, tl.at[tl.at.length - 1] ?? x0 + 1);
+  const step = [6 * HOUR, DAY, 2 * DAY, 7 * DAY].find((s) => (x1 - x0) / s <= 10) ?? 7 * DAY;
+  const ticks: { at: number; label: string }[] = [];
+  for (let t = x0 + step; t <= x1; t += step) {
+    ticks.push({ at: t, label: step < DAY ? `${Math.round((t - x0) / HOUR)}h` : `D${Math.round((t - x0) / DAY) + 1}` });
+  }
+  const sideWord = data.isClanBoard ? 'Clans' : 'Teams';
+
+  return (
+    <Card className="p-4">
+      <div className="flex flex-wrap gap-2 mb-3" role="tablist" aria-label="Whose points">
+        {([['teams', sideWord], ['players', 'Top scorers']] as const).map(([k, label]) => (
+          <button
+            key={k}
+            role="tab"
+            aria-selected={view === k}
+            onClick={() => setView(k)}
+            className={`px-3 py-1 rounded-full text-xs border transition-colors ${
+              view === k ? 'border-gold bg-gold/15 text-gold font-semibold' : 'border-card-border text-text-muted hover:text-gold'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {empty ? (
+        <p className="text-sm text-text-muted py-10 text-center">
+          {view === 'teams' ? 'No points on the board yet.' : 'Nobody has scored yet — a finished tile credits the players who worked it.'}
+        </p>
+      ) : (
+        <>
+          <TimeChart
+            at={tl.at}
+            lines={lines}
+            format={(n) => n.toLocaleString()}
+            ticks={ticks}
+            clock={(ms) => eventClock(ms, data.event.startMs)}
+            label={view === 'teams' ? `${sideWord}’ score over time` : 'Top scorers’ points over time'}
+          />
+          <ol className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3 text-xs">
+            {lines.map((l) => (
+              <li key={l.key} className="flex items-center gap-1.5 min-w-0">
+                <span className="inline-block w-3 h-0.5 rounded-full shrink-0" style={{ background: l.color }} aria-hidden />
+                {l.team && <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ background: l.team }} aria-hidden />}
+                <span className="truncate max-w-40">{l.label}</span>
+                <span className="font-semibold text-gold tabular-nums">{last(l.values).toLocaleString()}</span>
+                <span className="text-text-muted">{tl.unit}</span>
+              </li>
             ))}
-            {ticks.map((t) => (
-              <text key={t} x={sx(t)} y={H - 8} textAnchor="middle" className="fill-text-muted" fontSize="12">{tickLabel(t)}</text>
-            ))}
-            {lines.map(({ side, values }) => (
-              <path key={side.teamId} d={path(values)} fill="none" stroke={side.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-            ))}
-            {hover != null && <line x1={sx(at[hover])} x2={sx(at[hover])} y1={PAD.t} y2={H - PAD.b} stroke="currentColor" className="text-gold/60" />}
-          </svg>
-          {hover != null && (
-            <div className="absolute top-1 right-1 text-xs border border-card-border bg-card-bg/95 rounded-lg px-3 py-2 shadow-lg pointer-events-none">
-              <p className="font-semibold mb-1">{eventClock(at[hover], data.event.startMs)}</p>
-              {lines.map(({ side, values }) => (
-                <p key={side.teamId} className="flex items-center gap-2 tabular-nums">
-                  <span className="inline-block w-2 h-2 rounded-full" style={{ background: side.color }} aria-hidden />
-                  <span className="truncate max-w-32">{side.clanName ?? side.name}</span>
-                  <span className="ml-auto font-semibold">{values[hover] == null ? '—' : spec.format(values[hover]!)}</span>
-                </p>
-              ))}
-            </div>
-          )}
-        </div>
+          </ol>
+        </>
       )}
     </Card>
   );
@@ -487,6 +610,11 @@ export default function StatsDashboard({ data }: { data: EventStatsData }) {
           </div>
         </section>
       )}
+
+      <section>
+        <SectionTitle aside={<span className="text-xs text-text-muted">Whole event, from the tiles finished</span>}>Points over time</SectionTitle>
+        <PointsOverTime data={data} />
+      </section>
 
       <section>
         <SectionTitle aside={<span className="text-xs text-text-muted">{data.window.kind === 'day' ? `Day ${data.window.day}, hour by hour` : 'Whole event, hour by hour'}</span>}>Progress</SectionTitle>
