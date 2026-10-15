@@ -88,4 +88,9 @@ EXPOSE 3000
 
 # Apply pending migrations, then serve. A migration failure aborts boot (fail fast) rather than
 # serving against a half-built schema.
-CMD ["sh", "-c", "node scripts/migrate.mjs && node server.js"]
+#
+# `exec` so node REPLACES the shell as PID 1 and receives docker stop's SIGTERM itself. Next's
+# standalone server handles SIGTERM gracefully (stops accepting, finishes in-flight requests, then
+# exits), but only if the signal reaches it: a shell left as PID 1 may swallow it, and the container
+# is then SIGKILLed mid-request when the stop timeout runs out. Blue-green deploys depend on this.
+CMD ["sh", "-c", "node scripts/migrate.mjs && exec node server.js"]
