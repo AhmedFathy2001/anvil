@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
-import { eventParticipants, tiles } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { completions, eventParticipants, tiles } from '@/db/schema';
+import { eq, inArray } from 'drizzle-orm';
 import { statKeys } from '@/lib/tileKinds';
-import { computeGain, effectiveValue, snapshotValue } from '@/lib/statTracking';
+import { computeGain, effectiveValue, isMilestoneBasis, parseContributionSnapshot, snapshotValue } from '@/lib/statTracking';
 import { liveStatsForMembers } from '@/lib/liveStats';
 import { ttlMemo } from '@/lib/ttlMemo';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
@@ -172,5 +172,28 @@ async function computeGains(eId: number, teamIdFilter: string | null) {
     }
   }
 
-  return result;
+  // Per TILE, not per key: a tile the team has finished reads its frozen split — capped at the goal
+  // (lib/overshoot) — rather than the live gain, which keeps climbing past it (517 / 500). Two tiles on
+  // one key (Brutus 200 and Brutus 500) differ here once one of them is done. Milestones stay on the
+  // key's lifetime; their split is a lifetime, not a gain.
+  const statTiles = eventTiles.filter((t) => t.trackedStat && t.statType && !isMilestoneBasis(t.statBasis));
+  const frozen = new Map<string, Map<number, number>>();
+  if (statTiles.length > 0) {
+    const rows = await db
+      .select({ teamId: completions.teamId, tileId: completions.tileId, statContributions: completions.statContributions })
+      .from(completions)
+      .where(inArray(completions.tileId, statTiles.map((t) => t.id)));
+    for (const r of rows) {
+      const snap = parseContributionSnapshot(r.statContributions);
+      if (snap) frozen.set(`${r.teamId}-${r.tileId}`, new Map(snap.split.map((x) => [x.playerId, x.gained])));
+    }
+  }
+  return result.map((r) => {
+    const tileGains: Record<number, number> = {};
+    for (const t of statTiles) {
+      const split = r.teamId != null ? frozen.get(`${r.teamId}-${t.id}`) : undefined;
+      tileGains[t.id] = split ? split.get(r.playerId) ?? 0 : r.gains[t.trackedStat!] ?? 0;
+    }
+    return { ...r, tileGains };
+  });
 }

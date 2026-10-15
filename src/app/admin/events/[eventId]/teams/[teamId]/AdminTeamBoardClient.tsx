@@ -55,7 +55,7 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
           gainsMap[tile.id].push({
             playerId: p.id,
             playerName: p.name,
-            gained: playerData.gains?.[tile.trackedStat] ?? 0,
+            gained: playerData.tileGains?.[tile.id] ?? playerData.gains?.[tile.trackedStat] ?? 0,
             current: playerData.current?.[tile.trackedStat] ?? 0,
           });
         }

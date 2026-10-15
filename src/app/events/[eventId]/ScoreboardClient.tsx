@@ -242,7 +242,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
             }
           } else {
             for (const player of data) {
-              const gained = player.gains?.[tile.trackedStat!] ?? 0;
+              const gained = player.tileGains?.[tile.id] ?? player.gains?.[tile.trackedStat!] ?? 0;
               tileTotal += gained;
             }
           }

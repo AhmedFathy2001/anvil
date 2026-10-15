@@ -105,7 +105,7 @@ export default function CaptainBoardClient({ event, team: initialTeam, tiles, co
           for (const p of teamPlayers) {
             const playerData = data.find((d: { playerId: number }) => d.playerId === p.id);
             if (playerData) {
-              const gained = playerData.gains?.[tile.trackedStat] ?? 0;
+              const gained = playerData.tileGains?.[tile.id] ?? playerData.gains?.[tile.trackedStat] ?? 0;
               const current = playerData.current?.[tile.trackedStat] ?? 0;
               gainsMap[tile.id].push({
                 playerId: p.id,
