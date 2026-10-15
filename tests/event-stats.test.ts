@@ -124,6 +124,14 @@ test('stats, whole event: per member and per team, drops and deaths and tiles', 
   const hour3 = data.hourly.at.indexOf(START + 3 * HOUR);
   assert.equal(data.hourly.series.xp[red][hour3], 50_000);
   assert.equal(data.hourly.series.xp[red][1], null);
+  // Points over time: hourly from the start to now; Red's tile lands at hour 2, all of it Alice's.
+  const tl = data.pointsTimeline;
+  assert.equal(tl.stepMs, HOUR);
+  assert.equal(tl.at[0], START);
+  assert.equal(tl.at[tl.at.length - 1], now);
+  const redPts = tl.teams.find((t) => t.teamId === red)!.values;
+  assert.deepEqual([redPts[0], redPts[1], redPts[2], redPts[redPts.length - 1]], [0, 0, 10, 10]);
+  assert.deepEqual(tl.players.map((p) => [p.name, p.values[p.values.length - 1]]), [['Alice', 10]]);
 });
 
 test('stats, one day: timestamped things split exactly; unrecorded boundaries say so', async () => {

@@ -5,6 +5,12 @@ import { scoreTeams } from '@/lib/boardScoring';
 import { parseEventRules, visibleTiles } from '@/lib/eventRules';
 import { effectiveStatsForPlayers } from '@/lib/liveStats';
 import { countTurnIns } from '@/lib/turnIns';
+import { eventActivityIsValid } from '@/lib/completionGate';
+import { loadPlayerOwners } from '@/lib/draftProfiles';
+import { computePointsTimeline, type PointsTimeline } from '@/lib/pointsTimeline';
+import { getStatStandings } from '@/lib/statStandings';
+import { parseContributionSnapshot } from '@/lib/statTracking';
+import type { StatGainMap } from '@/lib/memberBreakdown';
 import {
   DAY_MS,
   HOUR_MS,
@@ -111,6 +117,8 @@ export interface EventStatsData {
   hourly: HourlySeries;
   /** False when no hourly row exists yet — the curves for counters are empty, points/drops still draw. */
   hourlyRecorded: boolean;
+  /** Whole-event score and top-scorer curves (lib/pointsTimeline), whatever the window. */
+  pointsTimeline: PointsTimeline;
 }
 
 const ZERO: HourPlayerTuple = [0, 0, 0, 0, 0];
@@ -178,7 +186,14 @@ export async function getEventStats(eventId: number, w: StatsWindow, nowMs = Dat
     ? await Promise.all([
         db.select().from(completions).where(inArray(completions.tileId, tileIds)),
         db
-          .select({ tileId: submissions.tileId, creditPlayerId: submissions.creditPlayerId, playerId: submissions.playerId, createdAt: submissions.createdAt })
+          .select({
+            tileId: submissions.tileId,
+            teamId: submissions.teamId,
+            creditPlayerId: submissions.creditPlayerId,
+            playerId: submissions.playerId,
+            amount: submissions.amount,
+            createdAt: submissions.createdAt,
+          })
           .from(submissions)
           .where(inArray(submissions.tileId, tileIds)),
       ])
@@ -361,6 +376,36 @@ export async function getEventStats(eventId: number, w: StatsWindow, nowMs = Dat
     }
   }
 
+  // ── Points over time ───────────────────────────────────────────────────────────────────────────
+  // The event page's own inputs to the scoreboard and MVP: only activity that happened during the
+  // event, frozen stat splits, and live gains only for a legacy stat completion that has none.
+  const validCompletions = allCompletions
+    .filter((c) => eventActivityIsValid(event, c.completedAt, nowMs))
+    .map((c) => ({ ...c, statContributions: parseContributionSnapshot(c.statContributions) }));
+  const statTileIds = new Set(eventTiles.filter((t) => t.trackedStat).map((t) => t.id));
+  const legacyStatTiles = [...new Set(validCompletions.filter((c) => statTileIds.has(c.tileId) && !c.statContributions).map((c) => c.tileId))];
+  const statGains: StatGainMap = {};
+  if (legacyStatTiles.length) {
+    for (const s of await getStatStandings(eventId, legacyStatTiles)) {
+      statGains[s.tileId] = s.players.map((pl) => ({ playerId: pl.playerId, gained: pl.gained }));
+    }
+  }
+  const pointsTimeline = computePointsTimeline({
+    scoringMode: event.scoringMode,
+    rules,
+    startMs,
+    toMs: Math.max(startMs, Math.min(effectiveEnd, nowMs)),
+    teams: eventTeams,
+    players: eventPlayers,
+    tiles: eventTiles,
+    completions: validCompletions,
+    submissions: allSubmissions.filter((s) => eventActivityIsValid(event, s.createdAt, nowMs)),
+    statGains,
+    ownerByPlayerId: event.accountSlotMode === 'per-person' ? await loadPlayerOwners(eventPlayers) : undefined,
+    accountSlotMode: event.accountSlotMode,
+    topN: 6,
+  });
+
   const started = nowMs >= startMs;
   const ended = nowMs >= effectiveEnd;
   return {
@@ -385,5 +430,6 @@ export async function getEventStats(eventId: number, w: StatsWindow, nowMs = Dat
     tiles: tileLines,
     hourly: { at, series },
     hourlyRecorded: rows.size > 0,
+    pointsTimeline,
   };
 }
