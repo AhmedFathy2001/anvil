@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import EventBoard from '@/components/EventBoard';
 import TileDetailModal from '@/components/TileDetailModal';
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
 import PlayerContributions from '@/components/PlayerContributions';
 import LocalTime from '@/components/LocalTime';
 import { useCountdown, useRefreshCountdown } from '@/hooks/useCountdown';
@@ -181,6 +182,17 @@ export default function MyTeamClient({
     }
     loadData();
   }, [fetchSubmissions, fetchGains]);
+
+  // Live without hammering: the board pulse (completions, submissions…) refetches the board's data,
+  // the stats pulse (a KC/XP reading landed) only the progress numbers. Both 304 while nothing moved,
+  // and poll only while this tab is the one being looked at (hooks/useLiveRefresh).
+  const onBoardChange = useCallback(() => {
+    fetchSubmissions();
+    fetchCompletions();
+    fetchGains();
+  }, [fetchSubmissions, fetchCompletions, fetchGains]);
+  useLiveRefresh({ url: `/api/events/${event.id}/pulse`, onChange: onBoardChange });
+  useLiveRefresh({ url: `/api/events/${event.id}/pulse?part=stats`, onChange: fetchGains });
 
   function handleTileClick(tileId: number) {
     const tile = tiles.find((t) => t.id === tileId);

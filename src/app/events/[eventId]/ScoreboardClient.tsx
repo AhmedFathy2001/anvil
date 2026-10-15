@@ -150,6 +150,8 @@ interface TeamGains {
   teamId: number;
   totalGained: number;
   tileGains: Record<number, number>; // tileId -> gained
+  /** tileId -> each member's share, biggest first — the tile pop-up expands a team into these. */
+  tileMembers: Record<number, { name: string; gained: number }[]>;
 }
 
 export default function ScoreboardClient({ event, tiles, teams, completions, tierBands = DEFAULT_TIER_BANDS, mvp = null, mvpToday = null, teamMvps = {}, hiddenTileCount = 0, nextRevealAt = null, staffOnlyTileIds = [], hiddenSchedule = [], boardPointsTotal = null, initialTileId = null }: Props) {
@@ -227,8 +229,10 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
         if (!res.ok) return null;
         const data = await res.json();
         const tileGains: Record<number, number> = {};
+        const tileMembers: Record<number, { name: string; gained: number }[]> = {};
         for (const tile of statTiles) {
           let tileTotal = 0;
+          const members: { name: string; gained: number }[] = [];
           if (tile.statBasis === 'milestone') {
             // A milestone measures a LIFETIME total crossed during the event, per member — so the
             // team's progress is its best ELIGIBLE member, not a sum. Someone who was already at or
@@ -239,16 +243,19 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
               if (base >= (tile.statGoal ?? 0)) continue;
               const lifetime = player.current?.[tile.trackedStat!] ?? 0;
               if (lifetime > tileTotal) tileTotal = lifetime;
+              if (lifetime > 0) members.push({ name: player.playerName, gained: lifetime });
             }
           } else {
             for (const player of data) {
               const gained = player.tileGains?.[tile.id] ?? player.gains?.[tile.trackedStat!] ?? 0;
               tileTotal += gained;
+              if (gained > 0) members.push({ name: player.playerName, gained });
             }
           }
           tileGains[tile.id] = tileTotal;
+          tileMembers[tile.id] = members.sort((a, b) => b.gained - a.gained);
         }
-        return { teamId: team.id, totalGained: teamXpGained(statTiles, tileGains), tileGains };
+        return { teamId: team.id, totalGained: teamXpGained(statTiles, tileGains), tileGains, tileMembers };
       })
     ).then((results) => {
       setTeamGains(results.filter((r): r is TeamGains => r !== null));
@@ -267,6 +274,9 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
     refetchGains();
   }, [router, refetchSubmissions, refetchGains]);
   useLiveRefresh({ url: `/api/events/${event.id}/pulse`, onChange: onBoardChange });
+  // KC/XP moves without the board changing (a plugin push, a hiscores fetch): a second, equally cheap
+  // pulse that only refetches the progress numbers — not the page — when a stat reading lands.
+  useLiveRefresh({ url: `/api/events/${event.id}/pulse?part=stats`, onChange: refetchGains });
 
   // The board and the missions are two different things (see lib/eventRules.boardTiles): a mission
   // drops mid-event from its own pool, scores under its own rules and can expire unclaimed, so
@@ -835,6 +845,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
                     teamName: team?.name || 'Unknown',
                     color: team?.color || '#888',
                     gained: tg.tileGains[selectedTile.id] || 0,
+                    members: tg.tileMembers[selectedTile.id] ?? [],
                   };
                 })
               : undefined

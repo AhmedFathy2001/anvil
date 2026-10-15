@@ -76,6 +76,8 @@ interface TeamStatProgress {
   teamName: string;
   color: string;
   gained: number;
+  /** Who on the team got what — shown when the team's row is clicked open. */
+  members?: { name: string; gained: number }[];
 }
 
 interface Props {
@@ -134,6 +136,8 @@ export default function TileDetailModal({
   teamNameById,
   extra,
 }: Props) {
+  // Public board's Team Progress: which team's row is opened into its members.
+  const [expandedTeamId, setExpandedTeamId] = useState<number | null>(null);
   const [amount, setAmount] = useState('1');
   const [imageUrls, setImageUrls] = useState<string[]>(['']);
   const [note, setNote] = useState('');
@@ -801,22 +805,33 @@ export default function TileDetailModal({
               <h3 className="text-sm font-semibold text-foreground mb-2">
                 Team Progress ({statLabel(tile.trackedStat, tile.statType)})
               </h3>
-              <div className="space-y-2 max-h-56 overflow-y-auto">
+              <div className="space-y-2 max-h-80 overflow-y-auto">
                 {[...teamStatProgress].sort((a, b) => b.gained - a.gained).map((t) => {
                   const goal = tile.statGoal || 0;
                   const percentage = goal > 0 ? Math.min(100, (t.gained / goal) * 100) : 0;
                   const isGoalMet = goal > 0 && t.gained >= goal;
+                  const members = t.members ?? [];
+                  const open = expandedTeamId === t.teamId;
+                  const unit = tile.statType === 'boss' ? 'KC' : 'XP';
                   return (
                     <div key={t.teamId} className="border border-card-border rounded-lg p-2.5 bg-brown-dark/50">
-                      <div className="flex items-center justify-between mb-1">
+                      <button
+                        type="button"
+                        disabled={members.length === 0}
+                        aria-expanded={open}
+                        onClick={() => setExpandedTeamId(open ? null : t.teamId)}
+                        className="w-full flex items-center justify-between mb-1 text-left disabled:cursor-default"
+                        title={members.length ? (open ? 'Hide who got what' : 'Show who got what') : undefined}
+                      >
                         <span className="flex items-center gap-2 text-sm font-medium text-foreground">
                           <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: t.color }} />
                           {t.teamName}
+                          {members.length > 0 && <span className="text-[10px] text-text-muted">{open ? '▾' : '▸'} {members.length}</span>}
                         </span>
                         <span className={`text-xs font-medium ${isGoalMet ? 'text-accent-green-light' : 'text-blue-400'}`}>
-                          {formatNumber(t.gained)}{goal > 0 ? ` / ${formatNumber(goal)}` : ''} {tile.statType === 'boss' ? 'KC' : 'XP'}
+                          {formatNumber(t.gained)}{goal > 0 ? ` / ${formatNumber(goal)}` : ''} {unit}
                         </span>
-                      </div>
+                      </button>
                       {goal > 0 && (
                         <div className="w-full bg-brown-dark rounded-full h-2 overflow-hidden">
                           <div
@@ -829,6 +844,19 @@ export default function TileDetailModal({
                             }}
                           />
                         </div>
+                      )}
+                      {open && (
+                        <ul className="mt-2 space-y-1 border-t border-card-border/60 pt-2">
+                          {members.map((m) => (
+                            <li key={m.name} className="flex justify-between gap-2 text-xs">
+                              <span className="text-foreground/90 truncate">{m.name}</span>
+                              <span className="text-text-muted shrink-0">
+                                {formatNumber(m.gained)} {unit}
+                                {t.gained > 0 && <span className="ml-1 opacity-70">({Math.round((m.gained / t.gained) * 100)}%)</span>}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
                       )}
                     </div>
                   );

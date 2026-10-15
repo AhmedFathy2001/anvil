@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
-import { events, tiles, completions, submissions, moments } from '@/db/schema';
+import { events, tiles, completions, submissions, moments, eventParticipants, clanRoster } from '@/db/schema';
 import { eq, inArray, sql } from 'drizzle-orm';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { cachedPulseToken } from '@/lib/pulseCache';
@@ -27,9 +27,32 @@ export async function GET(
     return jsonWithEtag(request, { v: 'none' });
   }
 
+  // `?part=stats`: KC/XP progress only. A plugin push or a hiscores fetch moves a stat tile without
+  // touching anything the board token watches, so progress bars sat stale until something else
+  // happened. Kept a separate token so the page refetches just the progress numbers for it, not
+  // the whole board.
+  if (new URL(request.url).searchParams.get('part') === 'stats') {
+    const stats = await cachedPulseToken(`event-stats:${eId}`, () => computeStatsToken(eId));
+    return jsonWithEtag(request, { v: stats });
+  }
+
   // Collapse concurrent viewers' polls of the same board to one DB computation per ~5s.
   const token = await cachedPulseToken(`event:${eId}`, () => computeEventToken(eId));
   return jsonWithEtag(request, { v: token });
+}
+
+/** The newest stat reading any player on the board has: a live plugin push or a hiscores fetch. */
+async function computeStatsToken(eId: number): Promise<string> {
+  // clan-scope: global -- a helper called only from handlers that have already run the event guard above.
+  const [row] = await db
+    .select({
+      live: sql<string | null>`max(${clanRoster.liveStatsAt})`,
+      fetched: sql<string | null>`max(${eventParticipants.lastStatsFetch})`,
+    })
+    .from(eventParticipants)
+    .leftJoin(clanRoster, eq(eventParticipants.clanMemberId, clanRoster.id))
+    .where(eq(eventParticipants.eventId, eId));
+  return `${row?.live ?? ''}|${row?.fetched ?? ''}`;
 }
 
 async function computeEventToken(eId: number): Promise<string> {

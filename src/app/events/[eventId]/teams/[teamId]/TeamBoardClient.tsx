@@ -5,6 +5,8 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import EventBoard from '@/components/EventBoard';
 import TileDetailModal from '@/components/TileDetailModal';
 import { useDropProgress } from '@/hooks/useDropProgress';
+import { useLiveRefresh } from '@/hooks/useLiveRefresh';
+import { useRouter } from 'next/navigation';
 import { ErrorBanner } from '@/components/BoardSkeleton';
 import { isPointsMode } from '@/lib/utils';
 import { scoreTeam } from '@/lib/boardScoring';
@@ -81,6 +83,18 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
         setLoading(false);
       });
   }, [fetchSubmissions, fetchGains]);
+
+  // Live without hammering: the board pulse (completions, submissions…) pulls everything, the stats
+  // pulse (a KC/XP reading landed) only the progress numbers. Both 304 while nothing moved, and
+  // poll only while this tab is the one being looked at (lib hooks/useLiveRefresh).
+  const router = useRouter();
+  const onBoardChange = useCallback(() => {
+    router.refresh();
+    fetchSubmissions();
+    fetchGains();
+  }, [router, fetchSubmissions, fetchGains]);
+  useLiveRefresh({ url: `/api/events/${event.id}/pulse`, onChange: onBoardChange });
+  useLiveRefresh({ url: `/api/events/${event.id}/pulse?part=stats`, onChange: fetchGains });
 
   const pointsMode = isPointsMode(event.scoringMode);
   // Scored by lib/boardScoring, shared with the scoreboard — this screen also used to ignore a
