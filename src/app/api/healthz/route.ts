@@ -16,7 +16,8 @@ import { GIT_SHA } from '@/lib/serverInfo';
 // No DB touch, on purpose: a Postgres blip must not get both slots taken out of rotation together.
 export const dynamic = 'force-dynamic';
 
-const DRAIN_FILE = process.env.DRAIN_FILE || '/tmp/anvil-draining';
+// Cleared by the Dockerfile CMD on every start, so a restarted slot never boots "draining".
+const DRAIN_FILE = '/tmp/anvil-draining';
 
 export async function GET() {
   const draining = existsSync(DRAIN_FILE);

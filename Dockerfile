@@ -93,4 +93,6 @@ EXPOSE 3000
 # standalone server handles SIGTERM gracefully (stops accepting, finishes in-flight requests, then
 # exits), but only if the signal reaches it: a shell left as PID 1 may swallow it, and the container
 # is then SIGKILLed mid-request when the stop timeout runs out. Blue-green deploys depend on this.
-CMD ["sh", "-c", "node scripts/migrate.mjs && exec node server.js"]
+# The drain flag (see app/api/healthz) is cleared first: /tmp survives a stop/start, and a slot
+# restarted for a rollback must not come back still telling Caddy it is draining.
+CMD ["sh", "-c", "rm -f /tmp/anvil-draining; node scripts/migrate.mjs && exec node server.js"]
