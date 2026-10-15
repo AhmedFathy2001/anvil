@@ -13,7 +13,10 @@ import { parseEventRules, hasRevealPolicy, visibleTiles, nextRevealAt } from '@/
 import { listTeamClaims } from '@/lib/tileClaims';
 import { getItemMapping } from '@/lib/osrsItems';
 import { isManualOnlyDropTile } from '@/lib/clogManual';
-import { parseContributionSnapshot } from '@/lib/statTracking';
+import { isMilestoneBasis, parseContributionSnapshot } from '@/lib/statTracking';
+import { getStatStandings } from '@/lib/statStandings';
+import { ttlMemo } from '@/lib/ttlMemo';
+import { statLabel } from '@/lib/tileKinds';
 import { howItCounts, parseCountMode, parseSetsRequired, type CollectionRequirement } from '@/lib/collectionSets';
 
 // GET /api/plugin/board — the board for an event: every tile with its grid slot, a representative
@@ -186,11 +189,13 @@ function tileRequirement(t: typeof tiles.$inferSelect): string | null {
   }
   // Stat tiles (skill XP / boss KC) — the label alone (often a custom name) doesn't convey the task.
   if (t.trackedStat) {
-    const stat = t.trackedStat.charAt(0).toUpperCase() + t.trackedStat.slice(1);
+    // The stat's name as a person writes it (Kree'Arra, not kreeArra), and the verb for what the tile
+    // counts: KC/XP gained during the event, or a lifetime total to reach for a milestone.
+    const stat = statLabel(t.trackedStat, t.statType === 'kc' ? 'boss' : t.statType);
     const goal = t.statGoal && t.statGoal > 0 ? t.statGoal.toLocaleString() : '';
-    const isBoss = t.statType === 'boss' || t.statType === 'kc';
-    if (isBoss) return goal ? `Reach ${goal} ${stat} KC` : `${stat} KC`;
-    return goal ? `Gain ${goal} ${stat} XP` : `${stat} XP`;
+    const unit = t.statType === 'boss' || t.statType === 'kc' ? 'KC' : 'XP';
+    const verb = isMilestoneBasis(t.statBasis) ? 'Reach' : 'Gain';
+    return goal ? `${verb} ${goal} ${stat} ${unit}` : `${stat} ${unit}`;
   }
   return null;
 }
@@ -302,22 +307,30 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null, v
     }
   }
 
-  // Who finished each of the caller's team's done tiles — a tile can take several people, so it's the
-  // contributors, biggest share first: a stat tile's split frozen at completion, a submission tile's
-  // credited amounts, else the one member the completion credits. Team-private like the claims below.
-  const finishersByTile = new Map<number, { finishedBy: { name: string; amount: number }[]; finishedByMore: number; completedAt: string }>();
-  if (callerTeamId != null && yourCompleted && yourCompleted.size > 0) {
-    const doneIds = [...yourCompleted];
-    const [teamCompletions, teamSubs, names] = await Promise.all([
-      db
-        .select({
-          tileId: completions.tileId,
-          completedAt: completions.completedAt,
-          creditPlayerId: completions.creditPlayerId,
-          statContributions: completions.statContributions,
-        })
-        .from(completions)
-        .where(and(eq(completions.teamId, callerTeamId), inArray(completions.tileId, doneIds))),
+  // Who is on each tile, team-private like the claims below — a tile can take several people, so it's
+  // the people and their amounts, biggest first, capped (a team KC tile can have everyone on it).
+  //  • done tiles (`finishedBy`): the stat split frozen at completion (capped at the goal), else the
+  //    submitted amounts, else the one member the completion credits;
+  //  • open tiles (`contributors`): the submitted amounts so far, or each member's live KC/XP gain.
+  type Who = { name: string; amount: number };
+  const SHOWN = 5;
+  const finishersByTile = new Map<number, { finishedBy: Who[]; finishedByMore: number; completedAt: string }>();
+  const contributorsByTile = new Map<number, { contributors: Who[]; contributorsMore: number }>();
+  if (callerTeamId != null && tileIds.length > 0) {
+    const doneIds = [...(yourCompleted ?? [])];
+    const hasOpenStat = eventTiles.some((t) => t.trackedStat && t.statType && t.statGoal && !yourCompleted?.has(t.id));
+    const [teamCompletions, teamSubs, names, standings] = await Promise.all([
+      doneIds.length
+        ? db
+            .select({
+              tileId: completions.tileId,
+              completedAt: completions.completedAt,
+              creditPlayerId: completions.creditPlayerId,
+              statContributions: completions.statContributions,
+            })
+            .from(completions)
+            .where(and(eq(completions.teamId, callerTeamId), inArray(completions.tileId, doneIds)))
+        : Promise.resolve([]),
       db
         .select({
           tileId: submissions.tileId,
@@ -325,14 +338,21 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null, v
           total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
         })
         .from(submissions)
-        .where(and(eq(submissions.teamId, callerTeamId), inArray(submissions.tileId, doneIds)))
+        .where(and(eq(submissions.teamId, callerTeamId), inArray(submissions.tileId, tileIds)))
         .groupBy(submissions.tileId, submissions.creditPlayerId),
       db
         .select({ id: eventParticipants.id, name: eventParticipants.name })
         .from(eventParticipants)
         .where(eq(eventParticipants.teamId, callerTeamId)),
+      // Every member's live gain per stat tile — one read per event, shared by every team's poll.
+      hasOpenStat ? ttlMemo(`board-standings:${event.id}`, () => getStatStandings(event.id), 15_000) : Promise.resolve([]),
     ]);
     const nameOf = new Map(names.map((n) => [n.id, n.name]));
+    const named = (rows: { playerId: number; amount: number }[]): Who[] =>
+      rows
+        .filter((r) => nameOf.has(r.playerId))
+        .sort((a, b) => b.amount - a.amount || nameOf.get(a.playerId)!.localeCompare(nameOf.get(b.playerId)!))
+        .map((r) => ({ name: nameOf.get(r.playerId)!, amount: r.amount }));
     const subsByTile = new Map<number, { playerId: number; amount: number }[]>();
     for (const r of teamSubs) {
       if (r.playerId == null) continue;
@@ -340,21 +360,31 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null, v
       list.push({ playerId: r.playerId, amount: Number(r.total) });
       subsByTile.set(r.tileId, list);
     }
-    const SHOWN = 5;
     for (const c of teamCompletions) {
       const snap = parseContributionSnapshot(c.statContributions);
-      const rows = snap
-        ? snap.split.map((r) => ({ playerId: r.playerId, amount: r.gained }))
-        : subsByTile.get(c.tileId) ?? (c.creditPlayerId != null ? [{ playerId: c.creditPlayerId, amount: 0 }] : []);
-      const named = rows
-        .filter((r) => nameOf.has(r.playerId))
-        .sort((a, b) => b.amount - a.amount || nameOf.get(a.playerId)!.localeCompare(nameOf.get(b.playerId)!))
-        .map((r) => ({ name: nameOf.get(r.playerId)!, amount: r.amount }));
+      const who = named(
+        snap
+          ? snap.split.map((r) => ({ playerId: r.playerId, amount: r.gained }))
+          : subsByTile.get(c.tileId) ?? (c.creditPlayerId != null ? [{ playerId: c.creditPlayerId, amount: 0 }] : []),
+      );
       finishersByTile.set(c.tileId, {
-        finishedBy: named.slice(0, SHOWN),
-        finishedByMore: Math.max(0, named.length - SHOWN),
+        finishedBy: who.slice(0, SHOWN),
+        finishedByMore: Math.max(0, who.length - SHOWN),
         completedAt: c.completedAt,
       });
+    }
+    const statByTile = new Map(standings.map((st) => [st.tileId, st]));
+    for (const t of eventTiles) {
+      if (yourCompleted?.has(t.id)) continue;
+      const st = statByTile.get(t.id);
+      const who = named(
+        st
+          ? st.players.filter((p) => p.teamId === callerTeamId && p.gained > 0).map((p) => ({ playerId: p.playerId, amount: p.gained }))
+          : (subsByTile.get(t.id) ?? []).filter((r) => r.amount > 0),
+      );
+      if (who.length > 0) {
+        contributorsByTile.set(t.id, { contributors: who.slice(0, SHOWN), contributorsMore: Math.max(0, who.length - SHOWN) });
+      }
     }
   }
 
@@ -472,6 +502,8 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null, v
         tileType: t.tileType ?? null,
         statType: t.statType ?? null,
         statName: t.trackedStat ?? null,
+        // statName's readable form ("Kree'Arra", "Chambers of Xeric + CoX: CM") for the detail view.
+        statLabel: t.trackedStat ? statLabel(t.trackedStat, t.statType === 'kc' ? 'boss' : t.statType) : null,
         complete: yourCompleted ? yourCompleted.has(t.id) : anyCompleted.has(t.id),
         // Reveal-policy state: when this tile went live, and (bounty) when it was claimed and
         // stopped accepting completions. Only sent on reveal-mode events.
@@ -479,6 +511,7 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null, v
         ...(itemRequirements ? { itemRequirements } : {}),
         ...(claimsByTile.has(t.id) ? { claims: claimsByTile.get(t.id) } : {}),
         ...(finishersByTile.get(t.id) ?? {}),
+        ...(contributorsByTile.get(t.id) ?? {}),
       };
     }),
     teams: eventTeams.map((tm) => ({
