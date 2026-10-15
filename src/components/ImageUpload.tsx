@@ -91,10 +91,33 @@ export default function ImageUpload({ onImageSelected, currentUrl, multiple, onI
     else handleFile(files[0]);
   }
 
-  function handleUrlSubmit() {
-    if (urlInput.trim()) {
-      setPreview(urlInput.trim());
-      onImageSelected(urlInput.trim());
+  // The server takes its own copy of the pasted image: a submission only accepts images on our media
+  // host, so handing the raw link on (as this used to) was refused when the proof was submitted.
+  async function handleUrlSubmit() {
+    const pasted = urlInput.trim();
+    if (!pasted || uploading) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const res = await clanFetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: pasted }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.url) {
+        setError(data.error || "Couldn't use that link. Try uploading the image instead.");
+        return;
+      }
+      setUrlInput('');
+      setPreview(data.url);
+      // Bulk pickers report through onImagesSelected; a pasted link is one more image for them.
+      if (multiple) onImagesSelected?.([data.url]);
+      else onImageSelected(data.url);
+    } catch {
+      setError('Upload failed. Check your connection and try again.');
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -178,18 +201,26 @@ export default function ImageUpload({ onImageSelected, currentUrl, multiple, onI
             type="text"
             value={urlInput}
             onChange={(e) => setUrlInput(e.target.value)}
-            placeholder="https://..."
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleUrlSubmit();
+              }
+            }}
+            placeholder="https://cdn.discordapp.com/…"
             className="flex-1 px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
           />
           <button
             type="button"
             onClick={handleUrlSubmit}
-            className="px-3 py-2 text-xs font-medium bg-gold/10 text-gold border border-gold/20 rounded hover:bg-gold/20 transition-colors"
+            disabled={uploading}
+            className="px-3 py-2 text-xs font-medium bg-gold/10 text-gold border border-gold/20 rounded hover:bg-gold/20 transition-colors disabled:opacity-50"
           >
-            Set
+            {uploading ? 'Adding…' : 'Set'}
           </button>
         </div>
       )}
+      {mode === 'url' && error && <p className="text-xs text-red-400">{error}</p>}
 
       {!multiple && preview && (
         <div className="relative">

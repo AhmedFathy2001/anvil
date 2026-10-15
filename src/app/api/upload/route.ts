@@ -6,6 +6,7 @@ import { currentClan } from '@/lib/clanContext';
 import crypto from 'crypto';
 import sharp from 'sharp';
 import { isAnimatedPng } from '@/lib/imageAnimation';
+import { fetchRemoteImage } from '@/lib/remoteImage';
 
 // Submission images are the single largest consumer of Blob storage — the plugin auto-submits a
 // full-resolution PNG per drop/kill and nothing deletes them until the event is torn down. We
@@ -67,8 +68,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const formData = await request.formData();
-  const file = formData.get('file') as File | null;
+  // "Paste URL": a JSON {url} instead of a file. The server takes its own copy (lib/remoteImage) and it
+  // goes through exactly the same checks and re-encode as an upload, so a submission can use it.
+  let file: File | null;
+  if ((request.headers.get('content-type') ?? '').includes('application/json')) {
+    const { url } = (await request.json().catch(() => ({}))) as { url?: unknown };
+    if (typeof url !== 'string' || !url.trim()) {
+      return NextResponse.json({ error: 'No URL provided' }, { status: 400 });
+    }
+    const remote = await fetchRemoteImage(url);
+    if (!remote.ok) return NextResponse.json({ error: remote.error }, { status: 400 });
+    file = new File([new Uint8Array(remote.bytes)], `pasted.${remote.ext}`, { type: remote.type });
+  } else {
+    const formData = await request.formData();
+    file = formData.get('file') as File | null;
+  }
 
   if (!file) {
     return NextResponse.json({ error: 'No file provided' }, { status: 400 });
