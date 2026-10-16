@@ -5,6 +5,7 @@
 // recap already shows; Wrapped just puts one person's (or one team's) share of it on a picture.
 
 import { formatCount } from '@/lib/clogLuck';
+import { bossImageUrl, itemIconUrl } from '@/lib/tileIcons';
 import type { WrappedPersonStats } from '@/lib/eventRecap';
 
 export interface WrappedMomentRow {
@@ -89,6 +90,8 @@ export interface WrappedTeam {
   pets: WrappedDrop[];
   /** Their best performer, by the same order as `placeInTeam`. */
   mvp: string | null;
+  /** The boss the team spent the most kills on, from each member's own top boss. */
+  topBoss: { name: string; kc: number } | null;
   /** Recap awards a member of this team took home. */
   awards: { emoji: string; title: string; winner: string }[];
 }
@@ -217,6 +220,7 @@ export function shapeWrapped(input: {
       biggestDrop: biggestDropOf(rows),
       pets: petsOf(rows),
       mvp: members[0] && hasWork(members[0]) ? members[0].name : null,
+      topBoss: teamTopBoss(members),
       awards: input.awards
         .filter((a) => a.winner.teamName === s.name)
         .map((a) => ({ emoji: a.emoji, title: a.title, winner: a.winner.name })),
@@ -224,6 +228,13 @@ export function shapeWrapped(input: {
   });
 
   return { players, teams };
+}
+
+function teamTopBoss(members: WrappedPersonStats[]): { name: string; kc: number } | null {
+  const kc = new Map<string, number>();
+  for (const m of members) if (m.topBoss) kc.set(m.topBoss.name, (kc.get(m.topBoss.name) ?? 0) + m.topBoss.kc);
+  const best = [...kc].sort((a, b) => b[1] - a[1])[0];
+  return best ? { name: best[0], kc: best[1] } : null;
 }
 
 function hasWork(p: WrappedPersonStats): boolean {
@@ -303,30 +314,38 @@ export function teamCardLine(t: WrappedTeam): string {
   return [place, `${t.members} player${t.members === 1 ? '' : 's'}`, mvp].filter(Boolean).join(' · ');
 }
 
-/** The picture worth showing: a pet beats any drop, because nobody needs a price to know a pet is a story. */
-export function cardFeature(x: { pets: WrappedDrop[]; biggestDrop: WrappedDrop | null }): {
-  itemId: number | null;
-  kicker: string;
-  name: string;
-  detail: string | null;
-} | null {
+/**
+ * The picture worth showing: a pet beats any drop, because nobody needs a price to know a pet is a
+ * story; then the biggest drop; then, for a grind with nothing to show for it, the boss they ground.
+ */
+export function cardFeature(x: {
+  pets: WrappedDrop[];
+  biggestDrop: WrappedDrop | null;
+  topBoss?: { name: string; kc: number } | null;
+}): { image: string | null; kicker: string; name: string; detail: string | null } | null {
   const pet = x.pets[0];
   if (pet) {
     return {
-      itemId: pet.itemId,
+      image: pet.itemId != null ? itemIconUrl(pet.itemId) : null,
       kicker: x.pets.length > 1 ? `${x.pets.length} pets` : 'Pet',
       name: pet.itemName,
       detail: null,
     };
   }
   const d = x.biggestDrop;
-  if (!d) return null;
-  return {
-    itemId: d.itemId,
-    kicker: 'Biggest drop',
-    name: d.itemName,
-    detail: d.valueGp && d.valueGp > 0 ? `${shortNumber(d.valueGp)} gp` : null,
-  };
+  if (d) {
+    return {
+      image: d.itemId != null ? itemIconUrl(d.itemId) : null,
+      kicker: 'Biggest drop',
+      name: d.itemName,
+      detail: d.valueGp && d.valueGp > 0 ? `${shortNumber(d.valueGp)} gp` : null,
+    };
+  }
+  const boss = x.topBoss;
+  if (boss) {
+    return { image: bossImageUrl(boss.name), kicker: 'Most killed', name: boss.name, detail: `${boss.kc.toLocaleString('en-US')} KC` };
+  }
+  return null;
 }
 
 /** One line of luck: the spoon if there is one (people share those), else the dry streak. */

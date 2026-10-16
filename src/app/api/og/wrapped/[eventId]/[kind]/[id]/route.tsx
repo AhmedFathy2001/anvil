@@ -19,7 +19,6 @@ import { siteCard, wrappedCard } from '@/lib/ogCard';
 import { cachedCard, remoteSprite, showingAccounts } from '@/lib/ogKit';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { isEventEnded } from '@/lib/survey';
-import { itemIconUrl } from '@/lib/tileIcons';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,7 +63,7 @@ async function load(_request: Request, { params }: { params: Promise<Params> }):
       accent: team.color,
       line: teamCardLine(team),
       stats: teamCardStats(team),
-      feature: feature && { ...feature, sprite: feature.itemId != null ? await remoteSprite(itemIconUrl(feature.itemId), 150) : null },
+      feature: feature && { ...feature, sprite: await remoteSprite(feature.image, 150) },
       awards: team.awards.map((a) => a.title),
       luck: null,
     });
@@ -79,7 +78,7 @@ async function load(_request: Request, { params }: { params: Promise<Params> }):
     accent: player.team?.color ?? null,
     line: playerCardLine(player),
     stats: playerCardStats(player),
-    feature: feature && { ...feature, sprite: feature.itemId != null ? await remoteSprite(itemIconUrl(feature.itemId), 150) : null },
+    feature: feature && { ...feature, sprite: await remoteSprite(feature.image, 150) },
     awards: player.awards.map((a) => a.title),
     luck: luckLine(player),
   });

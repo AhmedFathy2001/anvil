@@ -275,3 +275,12 @@ test('cardHours: whole hours for the stat box, minutes under one', () => {
   assert.equal(cardHours(45), '45m');
   assert.equal(playerCardStats(playerFixture({ minutesPlayed: 2480 }))[0].value, '41h');
 });
+
+test('cardFeature: with no pet or drop, the boss they ground is the picture', () => {
+  const f = cardFeature({ pets: [], biggestDrop: null, topBoss: { name: 'Zulrah', kc: 1204 } });
+  assert.equal(f?.kicker, 'Most killed');
+  assert.equal(f?.name, 'Zulrah');
+  assert.equal(f?.detail, '1,204 KC');
+  assert.ok(f?.image);
+  assert.equal(cardFeature({ pets: [], biggestDrop: null, topBoss: null }), null);
+});
