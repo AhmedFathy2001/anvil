@@ -67,6 +67,7 @@ const EVENT_LABELS: Record<string, { label: string; color: string }> = {
   captain_promoted: { label: 'Captain promoted', color: 'text-gold' },
   captain_demoted: { label: 'Captain demoted', color: 'text-text-muted' },
   fee_confirmed: { label: 'Fee confirmed', color: 'text-accent-green-light' },
+  feature_toggled: { label: 'Feature switched', color: 'text-gold' },
 };
 
 export default function AuditLogClient({

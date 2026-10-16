@@ -151,6 +151,7 @@
     "test:rulebook": "npx tsx --test tests/event-rulebook.test.ts tests/event-rules-post-migration.test.ts",
     "test:cohostdiscord": "npx tsx --test tests/cohost-discord.test.ts",
     "test:digest": "npx tsx --test tests/event-digest.test.ts tests/event-stats.test.ts",
+    "test:features": "npx tsx --test tests/features.test.ts",
     "test:withdrawnroster": "npx tsx --test tests/withdrawn-roster-migration.test.ts"
   },
   "dependencies": {

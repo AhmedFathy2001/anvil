@@ -1,3 +1,4 @@
+import { requireFeature } from '@/lib/clanFeatures';
 import { db } from '@/db';
 import { clanHref } from '@/lib/clanPath';
 import { requireClan } from '@/lib/clanContext';
@@ -31,6 +32,7 @@ export default async function AdminFeesPage() {
 
   // Resolved before the ledger query, which is now scoped by it.
   const clan = await requireClan();
+  await requireFeature(clan.id, 'fees', '/admin/dashboard');
 
   // One row per (event, status). Withdrawn and rejected sign-ups are excluded the same way every
   // other fee surface excludes them: nothing was collected and nobody is chasing it.

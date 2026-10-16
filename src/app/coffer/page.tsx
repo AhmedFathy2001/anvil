@@ -1,4 +1,5 @@
 import { and, eq, isNull } from 'drizzle-orm';
+import { requireFeature } from '@/lib/clanFeatures';
 
 import { clanRoster } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
@@ -19,6 +20,7 @@ export const dynamic = 'force-dynamic';
  */
 export default async function CofferPage() {
   const clan = await requireClan();
+  await requireFeature(clan.id, 'coffer', '/');
   const user = await verifyUser();
 
   const [balance, donors, recent] = await Promise.all([
