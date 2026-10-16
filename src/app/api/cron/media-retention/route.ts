@@ -18,7 +18,8 @@ export async function GET(request: Request) {
   }
   const authHeader = request.headers.get('authorization');
   const hasValidSecret = !!CRON_SECRET && timingSafeStrEqual(authHeader ?? '', `Bearer ${CRON_SECRET}`);
-  const devBypass = !CRON_SECRET && request.headers.get('x-vercel-cron') === '1';
+  // Local dev only. In production a missing secret is a 500 above, never an open door.
+  const devBypass = process.env.NODE_ENV !== 'production' && !CRON_SECRET && request.headers.get('x-vercel-cron') === '1';
   if (!hasValidSecret && !devBypass) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

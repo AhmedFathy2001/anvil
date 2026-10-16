@@ -251,3 +251,41 @@ test('clanless: a released ("Not my account") character stays released', async (
   await play(me.token, 'Sibling Sam', 'hash-sam', null);
   assert.equal(await accountByRsn('Sibling Sam'), undefined);
 });
+
+test('one person cannot squat a roster: past two unconfirmed first-use claims it becomes a suggestion', async () => {
+  const me = await setup('Squat One');
+  assert.ok(await play(me.token, 'Squat One', 'hash-sq-1'));
+  // Two more roster members, same login.
+  const extra = async (rsn: string) => {
+    const [ghost] = await db.insert(s.players).values({ displayName: rsn }).returning();
+    const [acct] = await db.insert(s.accounts).values({ playerId: ghost.id, rsn, rsnNormalized: rsn.toLowerCase() }).returning();
+    await db.insert(s.clanMemberships).values({ clanId, accountId: acct.id, kind: 'member', source: 'roster', rank: 'general' });
+    return acct.id;
+  };
+  const second = await extra('Squat Two');
+  const third = await extra('Squat Three');
+  await play(me.token, 'Squat Two', 'hash-sq-2');
+  await play(me.token, 'Squat Three', 'hash-sq-3');
+
+  assert.equal((await account(second)).playerId, me.person, 'a second character still claims');
+  const thirdAcct = await account(third);
+  assert.notEqual(thirdAcct.playerId, me.person, 'the third waits for proof');
+  assert.equal(thirdAcct.claimedAt, null);
+  const [suggestion] = await db
+    .select()
+    .from(s.detectedAccounts)
+    .where(eq(s.detectedAccounts.rsnNormalized, 'squat three'));
+  assert.equal(suggestion?.status, 'pending', 'it lands as an opt-in suggestion instead');
+});
+
+test('a token stored only as its hash still authenticates (the plain column is going away)', async () => {
+  const [p] = await db.insert(s.players).values({ displayName: 'hash-only' }).returning();
+  const [u] = await db
+    .insert(s.users)
+    .values({ displayName: 'hash-only', discordId: 'd-hash-only', playerId: p.id, pluginTokenHash: A.hashPluginToken('secret-tok') })
+    .returning();
+  const req = (t: string) => new Request('https://example.test/api/plugin/me', { headers: { Authorization: `Bearer ${t}` } });
+  assert.deepEqual(await A.verifyPluginTokenUser(req('secret-tok')), { userId: u.id });
+  assert.equal(await A.verifyPluginTokenUser(req('wrong-tok')), null);
+  assert.equal(await A.verifyPluginTokenUser(req(A.hashPluginToken('secret-tok'))), null, 'the hash itself is not a token');
+});

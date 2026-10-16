@@ -231,9 +231,17 @@ export async function verifyDiscordSignature(opts: {
   signature: string | null;
   timestamp: string | null;
   rawBody: string;
+  /** Injected by tests; defaults to the clock. */
+  nowMs?: number;
 }): Promise<boolean> {
   const { publicKeyHex, signature, timestamp, rawBody } = opts;
   if (!signature || !timestamp) return false;
+  // The signature covers the timestamp but nothing made the timestamp mean anything, so a captured
+  // interaction verified forever and could be replayed at will. Five minutes either way absorbs clock
+  // skew; Discord delivers within seconds.
+  const sentSec = Number(timestamp);
+  if (!Number.isFinite(sentSec)) return false;
+  if (Math.abs((opts.nowMs ?? Date.now()) / 1000 - sentSec) > 300) return false;
   const sig = hexToBytes(signature.trim());
   if (!sig || sig.length !== 64) return false;
   const key = await importVerifyKey(publicKeyHex);

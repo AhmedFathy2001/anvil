@@ -15,6 +15,11 @@ export async function GET(
   { params }: { params: Promise<{ eventId: string; tileId: string }> },
 ) {
   const { eventId, tileId } = await params;
+  // Whose board? A global editor passes verifyTileEditorForEvent for ANY event id, so without this
+  // an editor of one clan could read another clan's tiles — hidden ones included, before reveal.
+  if (!(await eventForRequest(request, parseInt(eventId, 10)))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   const editor = await verifyTileEditorForEvent(parseInt(eventId, 10));
   if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

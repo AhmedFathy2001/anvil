@@ -6,7 +6,7 @@
 // inside a transaction.
 
 export type CofferObservationKind = 'snapshot' | 'deposit' | 'withdrawal';
-export type CofferSyncOutcome = 'baseline' | 'movement' | 'duplicate' | 'reconciled';
+export type CofferSyncOutcome = 'baseline' | 'movement' | 'duplicate' | 'reconciled' | 'corroborated';
 
 export interface CofferObservation {
   kind: CofferObservationKind;
@@ -68,3 +68,50 @@ export function decideCofferSync(
   };
 }
 
+
+// ── Corroboration ────────────────────────────────────────────────────────────────────────────────
+//
+// One client's word is not money. A reading becomes a ledger movement only when a second PERSON's
+// client sees the same balance, or a treasurer confirms it; until then its entry is pending and
+// counts for nothing. Anyone with a plugin token could otherwise post "the coffer went up 2b, and I
+// did it" and have an approved donation announced in Discord.
+//
+// Confirming has to be measured from the last TRUSTED balance, not from whatever was observed just
+// before. Otherwise a forged reading poisons the next real one: the real client's reading reconciles
+// against the forged balance, a second real client corroborates that reconciliation, and the ledger
+// books a -2b correction for a +2b that was never approved.
+
+export interface PendingReading {
+  kind: string;
+  amount: number;
+  attributed: boolean;
+}
+
+export interface ConfirmedMovement {
+  /** Signed gp to book: the confirmed balance minus the last trusted one. */
+  amount: number;
+  kind: string;
+  /** Whether the reading's named actor may keep the credit. */
+  keepAttribution: boolean;
+}
+
+/**
+ * What confirming a reading books, given the last trusted balance and how many other unconfirmed
+ * readings it folds in. The entry keeps its own kind and actor only when it is the whole story — the
+ * gap since the last trusted balance is exactly its own movement and nothing else was folded in.
+ * Otherwise it becomes an unattributed adjustment, because the difference is no longer one person's.
+ */
+export function confirmReading(
+  trustedBalance: number | null,
+  readingAfter: number,
+  reading: PendingReading,
+  foldedOthers: number,
+): ConfirmedMovement {
+  const amount = trustedBalance == null ? reading.amount : readingAfter - trustedBalance;
+  const whole = foldedOthers === 0 && amount === reading.amount;
+  return {
+    amount,
+    kind: whole ? reading.kind : 'adjustment',
+    keepAttribution: whole && reading.attributed,
+  };
+}

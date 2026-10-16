@@ -143,3 +143,40 @@ export function parseWebhook(raw: string): GumroadEvent {
     urlParams,
   };
 }
+
+export type SaleCheck = 'ok' | 'rejected' | 'unverified' | 'error';
+
+/**
+ * Ask Gumroad itself whether this sale is real and still standing, before a webhook may grant
+ * anything off it. The URL secret proves a request came from someone holding the secret; this proves
+ * the SALE — so a leaked secret, or a replayed old notification for a sale since refunded, buys
+ * nothing.
+ *
+ * Optional: with no GUMROAD_ACCESS_TOKEN it answers 'unverified' and the webhook carries on as before.
+ * 'error' (Gumroad unreachable) tells the caller to 500 so Gumroad retries the notification later.
+ */
+export async function checkSaleWithGumroad(saleId: string | null, productId: string | null): Promise<SaleCheck> {
+  const token = process.env.GUMROAD_ACCESS_TOKEN;
+  if (!token) return 'unverified';
+  if (!saleId) return 'rejected';
+  let res: Response;
+  try {
+    res = await fetch(`https://api.gumroad.com/v2/sales/${encodeURIComponent(saleId)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10_000),
+      redirect: 'error',
+    });
+  } catch {
+    return 'error';
+  }
+  if (res.status === 404) return 'rejected';
+  if (!res.ok) return 'error';
+  const body = (await res.json().catch(() => null)) as
+    | { success?: boolean; sale?: { id?: string; product_id?: string; refunded?: boolean; partially_refunded?: boolean; chargebacked?: boolean; disputed?: boolean } }
+    | null;
+  const sale = body?.success ? body.sale : null;
+  if (!sale || sale.id !== saleId) return 'rejected';
+  if (productId && sale.product_id && sale.product_id !== productId) return 'rejected';
+  if (sale.refunded || sale.partially_refunded || sale.chargebacked || sale.disputed) return 'rejected';
+  return 'ok';
+}

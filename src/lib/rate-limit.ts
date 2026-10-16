@@ -28,8 +28,8 @@ interface Result {
   reset: number; // unix ms when the window resets
 }
 
-// getClientIp lives in lib/clientIp (the `@/`-free, testable module) and trusts ONLY the
-// proxy-appended IP (x-real-ip / rightmost XFF) — never the spoofable leftmost XFF entry.
+// getClientIp lives in lib/clientIp (the `@/`-free, testable module) and trusts Cloudflare's
+// CF-Connecting-IP, then the proxy-appended XFF hop — never a value the client chose.
 
 export async function rateLimit(
   request: Request,

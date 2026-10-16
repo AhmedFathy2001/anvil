@@ -19,7 +19,8 @@ import { clanMarkUrl } from '@/lib/clanMarkUrl';
 import { resolveClanById } from '@/lib/clanContext';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { discordRest, getBotCredentials } from '@/lib/discord-roles';
-import { crestImage } from '@/lib/crestImage';
+import { crestImage, logoFetchUrl } from '@/lib/crestImage';
+import { isManagedMediaUrl } from '@/lib/storage';
 import { configuredOrigin } from '@/lib/request-origin';
 import { log } from '@/lib/logger';
 
@@ -77,11 +78,28 @@ export async function webhookIdentity(clanId: number): Promise<{ username?: stri
   }
 }
 
+/**
+ * Where the server may fetch a bot avatar from: our own media or our own origin, nothing else.
+ *
+ * The avatar is fetched HERE, server-side, and the URL is a clan admin's setting — so any URL meant
+ * anyone who founded a clan could make this box request any address, redirects followed, internal
+ * services included. The settings UI only ever uploads, so our own hosts are all it needs.
+ */
+function ownImageUrl(url: string): URL | null {
+  if (isManagedMediaUrl(url)) return new URL(url);
+  const local = logoFetchUrl(url);
+  if (local) return local;
+  const origin = configuredOrigin();
+  if (origin && url.startsWith(`${origin.replace(/\/+$/, '')}/`)) return new URL(url);
+  return null;
+}
+
 /** An image as the data URI Discord's avatar field wants: a 256px PNG, whatever came in. */
 async function avatarDataUri(clanId: number, url: string | null): Promise<string> {
   let bytes: Buffer;
-  if (url) {
-    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+  const target = url ? ownImageUrl(url) : null;
+  if (target) {
+    const res = await fetch(target, { signal: AbortSignal.timeout(10_000), redirect: 'error' });
     if (!res.ok) throw new Error(`Couldn't load the image (${res.status}).`);
     bytes = Buffer.from(await res.arrayBuffer());
   } else {
@@ -142,7 +160,7 @@ export async function saveBotIdentity(clanId: number, input: IdentityInput): Pro
   if (!['anvil', 'clan', 'custom'].includes(input.mode)) return { ok: false, error: 'Unknown mode.' };
   const name = (input.name ?? '').trim().slice(0, 32);
   const avatar = (input.avatarUrl ?? '').trim();
-  if (input.mode === 'custom' && avatar && !/^https:\/\//i.test(avatar)) return { ok: false, error: 'The icon must be an https:// image.' };
+  if (input.mode === 'custom' && avatar && !ownImageUrl(avatar)) return { ok: false, error: 'Upload the icon here rather than linking one.' };
   await setSetting(clanId, IDENTITY_KEYS.mode, input.mode);
   await setSetting(clanId, IDENTITY_KEYS.name, input.mode === 'custom' ? name || null : null);
   await setSetting(clanId, IDENTITY_KEYS.avatar, input.mode === 'custom' ? avatar || null : null);

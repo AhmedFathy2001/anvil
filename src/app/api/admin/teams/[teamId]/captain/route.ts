@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { teams, users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
+import { eventForRequest } from '@/lib/eventScope';
 import { captainConflict, captainSeatNotice, placeCaptainOnTeam } from '@/lib/teamCaptain';
 
 // PUT /api/admin/teams/[teamId]/captain { userId: number | null }
@@ -32,7 +33,9 @@ export async function PUT(
   }
 
   const team = await db.query.teams.findFirst({ where: eq(teams.id, id) });
-  if (!team) {
+  // The team's event must be THIS clan's. Team ids are global, so a mod of any clan could seat
+  // themselves as captain of any team on the deployment — and a captain collects fees.
+  if (!team || !(await eventForRequest(request, team.eventId))) {
     return NextResponse.json({ error: 'Team not found' }, { status: 404 });
   }
 

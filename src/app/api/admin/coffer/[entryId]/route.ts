@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 
 import { verifyFeeCollector } from '@/lib/auth';
 import { requireClan } from '@/lib/clanContext';
-import { settleAward, settleDonation } from '@/lib/coffer';
+import { announce, settleAward, settleDonation } from '@/lib/coffer';
+import { settlePhysicalReading } from '@/lib/cofferSync';
 
 /**
  * Resolving one ledger row: approve or reject a member's donation, mark a prize sent, or take a
@@ -25,6 +26,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ ent
   switch (action) {
     case 'approve':
     case 'reject': {
+      // An in-game coffer reading nobody corroborated: confirming books it from the last trusted
+      // balance (lib/cofferSync), which a plain status flip would not.
+      const reading = await settlePhysicalReading({
+        clanId: clan.id,
+        entryId,
+        approve: action === 'approve',
+        userId: session.userId,
+      });
+      if (reading) {
+        if (reading.status === 'approved') announce(clan.id, reading);
+        return NextResponse.json({ entry: reading });
+      }
       const entry = await settleDonation({
         clanId: clan.id,
         entryId,

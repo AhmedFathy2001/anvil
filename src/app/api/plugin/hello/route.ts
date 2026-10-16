@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { resolvePluginClan } from '@/lib/auth';
+import { resolvePluginClan, verifyPluginTokenUser } from '@/lib/auth';
 import { clanMemberships, clanRoster, events, weeklyCompetitions } from '@/db/schema';
 import { findOrCreateAccount, findOrCreateSeat, findRosterSeat } from '@/lib/roster';
 import { eq, and, lte, gt, isNull, or } from 'drizzle-orm';
@@ -40,10 +40,13 @@ async function activeNow(clan: { id: number }) {
   };
 }
 
-// POST — plugin says "this RSN just logged in". If unknown, auto-register as guest.
-// No auth: anyone running the plugin can ping this. Worst case someone pollutes the guest list,
-// which is recoverable from the admin UI — but it's unauthenticated and creates a row per distinct
-// RSN, so a per-IP rate limit stops a script from mass-inflating the roster.
+// POST — plugin says "this RSN just logged in". If unknown, ask for a seat (lib/guestAdmission).
+//
+// Anyone may ASK what is running; only a signed-in client may WRITE. This used to create an
+// account and file an admission request for any string from anyone at all — a curl loop could mint
+// rows and bury a clan's staff queue — with a per-IP limit as the only brake, which a forged header
+// walked straight past. A real client sends its token whenever it has one (withOptionalAuth), so
+// requiring it for the writes costs a signed-in player nothing.
 export async function POST(request: Request) {
   // The address names the clan, or — for a client that sends its token — the token does.
   //
@@ -71,8 +74,14 @@ export async function POST(request: Request) {
   if (!rsn) return NextResponse.json({ error: 'rsn required' }, { status: 400 });
 
   const rsnNormalized = normalizeRsn(rsn);
+  const signedIn = (await verifyPluginTokenUser(request)) != null;
   // Scoped to the clan named by the Host: the same RSN legitimately sits on other clans' rosters.
   const existing = await findRosterSeat(and(eq(clanRoster.clanId, clan.id), eq(clanRoster.rsnNormalized, rsnNormalized)));
+
+  if (!existing && !signedIn) {
+    // Not signed in: answer the question, touch nothing.
+    return NextResponse.json({ clanName: clan.name, clanSlug: clan.slug, rsn, knownMember: false, isGuest: false, ...(await activeNow(clan)) });
+  }
 
   if (!existing) {
     // A login ping says the account exists and is playing. It says NOTHING about membership — and it
@@ -108,12 +117,12 @@ export async function POST(request: Request) {
     });
   }
 
-  trackPluginDay(clan.id, existing.accountId);
+  if (signedIn) trackPluginDay(clan.id, existing.accountId);
 
   // A login ping is NOT roster evidence — never resurrect a departed row here.
   // Someone logging into the game hasn't rejoined the clan; only clan-sync (the in-game
   // roster) or an admin may clear leftAt. We only bump liveness for rows still in the roster.
-  if (!existing.leftAt) {
+  if (!existing.leftAt && signedIn) {
     await db
       .update(clanMemberships)
       .set({ lastSeenInClan: new Date().toISOString() })

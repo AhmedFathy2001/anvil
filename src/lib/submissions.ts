@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { submissions, tiles, completions, teams, events, eventParticipants } from '@/db/schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, isNotNull, sql } from 'drizzle-orm';
 import { notifyTileCompletion, notifyTeamWin } from '@/lib/discord';
 import { parseTrialRankTile } from '@/lib/barracudaTrials';
 import { evaluateCompletionGate } from '@/lib/completionGate';
@@ -82,6 +82,9 @@ export async function countTileProgress(
 // Recompute a team's completion state for a submission-backed tile (drop / kill / timed)
 // and insert or revert the `completions` row accordingly. Named for its original drop-only
 // role; it now dispatches on tile_type. Stat (hiscores) tiles don't flow through here.
+/** Tile kinds the plugin can feed with image-less pings — so a completion needs one screenshot. */
+const PROOF_ON_COMPLETION_KINDS = new Set(['kill', 'lap', 'pvp', 'gain', 'deathless', 'lms', 'value', 'valuetotal']);
+
 export async function syncDropTileCompletion(
   tileId: number,
   teamId: number,
@@ -216,7 +219,21 @@ export async function syncDropTileCompletion(
     bountyEvent = gate.bounty;
   }
 
-  if (isComplete && !raceBlocked && !ruleBlocked) {
+  // PROOF ON COMPLETION. Count-only plugin pings carry no screenshot, so a tile could fill up — and
+  // be won — on nothing but a client's say-so, and a forged client can say anything. The plugin
+  // already screenshots every milestone and the finishing kill, so an honest team always has one.
+  // Held like a race block: the count stands and the credit lands the moment a screenshot does.
+  let proofBlocked = false;
+  if (isComplete && !raceBlocked && !ruleBlocked && PROOF_ON_COMPLETION_KINDS.has(tile.tileType)) {
+    const [withImage] = await db
+      .select({ id: submissions.id })
+      .from(submissions)
+      .where(and(eq(submissions.tileId, tileId), eq(submissions.teamId, teamId), isNotNull(submissions.imageUrl)))
+      .limit(1);
+    proofBlocked = !withImage;
+  }
+
+  if (isComplete && !raceBlocked && !ruleBlocked && !proofBlocked) {
     // Auto-complete — use onConflictDoNothing to avoid race condition. A Solo tile names its
     // finisher (the one member who reached the count alone) the way stat tiles do, so the activity
     // feed reads "Kayle completed 10 CoX raids" instead of attributing it to the team.
@@ -298,5 +315,5 @@ export async function syncDropTileCompletion(
     }
   }
 
-  return { totalAmount, requiredAmount: tile.requiredAmount, isComplete: isComplete && !raceBlocked && !ruleBlocked };
+  return { totalAmount, requiredAmount: tile.requiredAmount, isComplete: isComplete && !raceBlocked && !ruleBlocked && !proofBlocked };
 }
