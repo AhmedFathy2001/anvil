@@ -55,20 +55,29 @@ export async function listPhysicalCofferEvents(clanId: number, limit = 20) {
 
 /** How long a reading waits for a second client before it is only a treasurer's to confirm. */
 const CORROBORATION_WINDOW_MS = 15 * 60_000;
+/**
+ * The largest movement two clients may confirm between them. Corroboration stops one forged client;
+ * it cannot stop two people agreeing to lie — so past this, a treasurer always looks.
+ */
+const CORROBORATION_MAX_GP = 250_000_000;
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-/** The person behind a seat, or null. Corroboration needs two PEOPLE, not two characters. */
-async function personOfSeat(tx: Tx, seatId: number | null): Promise<number | null> {
+/**
+ * The person behind a seat — but only a MEMBER seat (the in-game roster's word), never a guest one.
+ * Corroboration needs two people the clan actually counts as its own, not two characters, and not a
+ * guest seat anyone can be admitted to. Null otherwise.
+ */
+async function memberPersonOfSeat(tx: Tx, seatId: number | null): Promise<number | null> {
   if (seatId == null) return null;
   // clan-scope: this clan -- by the seat id of an observation already filed under this clan.
   const [row] = await tx
-    .select({ playerId: accounts.playerId })
+    .select({ playerId: accounts.playerId, kind: clanMemberships.kind, leftAt: clanMemberships.leftAt })
     .from(clanMemberships)
     .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
     .where(eq(clanMemberships.id, seatId))
     .limit(1);
-  return row?.playerId ?? null;
+  return row && row.kind === 'member' && row.leftAt == null ? row.playerId : null;
 }
 
 /**
@@ -82,6 +91,8 @@ async function confirmReadingTx(
   syncEventId: number,
   settledByUserId: number | null,
   how: string,
+  /** Refuse (leave pending) when the booked movement would exceed this — corroboration's ceiling. */
+  maxAbs: number = Number.POSITIVE_INFINITY,
 ): Promise<CofferEntry | null> {
   const [ev] = await tx
     .select()
@@ -131,6 +142,7 @@ async function confirmReadingTx(
     { kind: entry.kind, amount: Number(entry.amount), attributed: entry.clanMemberId != null },
     folded.length,
   );
+  if (Math.abs(booked.amount) > maxAbs) return null;
   const now = new Date().toISOString();
 
   const foldedIds = folded.map((f) => f.entryId!).filter((id) => id != null);
@@ -262,9 +274,9 @@ export async function syncPhysicalCoffer(args: PhysicalCofferObservation): Promi
     } else if (decision.outcome === 'duplicate') {
       // The same balance from another observer. If a DIFFERENT person's reading of it is waiting,
       // this is the second pair of eyes it needed.
-      const me = await personOfSeat(tx, args.clanMemberId);
+      const me = await memberPersonOfSeat(tx, args.clanMemberId);
       const waiting = await tx
-        .select({ id: clanCofferSyncEvents.id, observer: clanCofferSyncEvents.clanMemberId })
+        .select({ id: clanCofferSyncEvents.id, observer: clanCofferSyncEvents.clanMemberId, amount: cofferEntries.amount })
         .from(clanCofferSyncEvents)
         .innerJoin(cofferEntries, eq(cofferEntries.id, clanCofferSyncEvents.cofferEntryId))
         .where(
@@ -278,9 +290,10 @@ export async function syncPhysicalCoffer(args: PhysicalCofferObservation): Promi
         .orderBy(desc(clanCofferSyncEvents.id))
         .limit(5);
       for (const w of waiting) {
-        const them = await personOfSeat(tx, w.observer);
+        if (Math.abs(Number(w.amount)) > CORROBORATION_MAX_GP) continue;
+        const them = await memberPersonOfSeat(tx, w.observer);
         if (me == null || them == null || me === them) continue;
-        booked = await confirmReadingTx(tx, args.clanId, w.id, null, `corroborated by ${args.rsn}`);
+        booked = await confirmReadingTx(tx, args.clanId, w.id, null, `corroborated by ${args.rsn}`, CORROBORATION_MAX_GP);
         if (booked) {
           outcome = 'corroborated';
           break;

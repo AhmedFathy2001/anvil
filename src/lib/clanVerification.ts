@@ -27,6 +27,7 @@ import { and, eq, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanAuditLog, clans } from '@/db/schema';
 import { releaseRosterMemberships } from '@/lib/homeClan';
+import { parseStamp } from '@/lib/dbTime';
 
 export { isOwnerTierRank } from '@/lib/ingameRanks';
 
@@ -56,6 +57,20 @@ export type ClaimResult =
   /** The pusher is in the roster but not senior enough. */
   /** The pusher is not in the roster they sent, which is the one thing a real member cannot be. */
   | { outcome: 'not-in-roster' };
+
+/** How long a clan holds an unverified in-game name before a proven claim may take it over. */
+const UNVERIFIED_NAME_GRACE_MS = 7 * 24 * 60 * 60_000;
+
+/** Is this clan past the grace period? Dated from its creation; a clan from before that was logged is. */
+async function pastNameGrace(clanId: number): Promise<boolean> {
+  const [created] = await db
+    .select({ at: clanAuditLog.occurredAt })
+    .from(clanAuditLog)
+    .where(and(eq(clanAuditLog.clanId, clanId), eq(clanAuditLog.eventType, 'clan_created')))
+    .limit(1);
+  const at = created ? parseStamp(created.at) : null;
+  return at == null || Date.now() - at > UNVERIFIED_NAME_GRACE_MS;
+}
 
 /**
  * Try to bind an in-game name to a clan, from a roster push.
@@ -125,17 +140,31 @@ export async function claimFromRoster(opts: {
   // index still keeps one name to one clan.
 
 
-  // Held — UNVERIFIED — by another clan. Typing a name proves nothing, and this claimant has just
-  // proved membership, so the proof wins: the name moves here. Refusing instead let anyone reserve a
-  // famous clan's name by typing it into a settings field before the real clan arrived, and hold it
-  // hostage. 0082 keeps one holder per name (a roster sync gates on it, so two holders would both
-  // receive one clan's roster), so the old holder's claim is released first — name and the member
-  // seats its syncs made, exactly what a staff un-verification does — and logged on both clans.
+  // Held — UNVERIFIED — by another clan. Typing a name proves nothing, so an unverified hold is not a
+  // reservation forever: refusing every later claim let anyone park a famous clan's name in a settings
+  // field before the real clan arrived. But the roster proof above is client-side too (see the top of
+  // this file), so a holder gets a GRACE PERIOD to verify from its own game first — a genuine clan
+  // that signed up yesterday must not lose its name to a modified client. Past it, the proven claim
+  // wins and the old holder's name is released, logged on both clans. 0082 keeps one holder per name
+  // (a roster sync gates on it), so the release must land before the write below. Its seats are left
+  // alone: an unverified clan cannot sync a roster, so there are none of its making to undo.
   const heldUnverified = await db.query.clans.findFirst({
     where: and(sql`lower(trim(${clans.inGameName})) = ${name.toLowerCase()}`, ne(clans.id, opts.clanId)),
     columns: { id: true, slug: true },
   });
   if (heldUnverified) {
+    if (!(await pastNameGrace(heldUnverified.id))) {
+      await db
+        .insert(clanAuditLog)
+        .values({
+          clanId: opts.clanId,
+          eventType: 'ingame_name_claim_refused',
+          newValue: JSON.stringify({ inGameName: name, heldBy: heldUnverified.slug, accountId: opts.pusherAccountId }),
+          notes: `held unverified by ${heldUnverified.slug}, still inside its grace period`,
+        })
+        .catch(() => {});
+      return { outcome: 'taken', byClanSlug: heldUnverified.slug };
+    }
     const released = await db
       .update(clans)
       .set({ inGameName: null, ingameNameVerifiedAt: null, ingameNameClaimedByAccountId: null })
@@ -143,7 +172,6 @@ export async function claimFromRoster(opts: {
       .returning({ id: clans.id });
     // It verified in the meantime: then it is a verified holder, refused like any other.
     if (released.length === 0) return { outcome: 'taken', byClanSlug: heldUnverified.slug };
-    await releaseRosterMemberships(heldUnverified.id, null);
     await db
       .insert(clanAuditLog)
       .values({

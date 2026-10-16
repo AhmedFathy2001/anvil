@@ -291,3 +291,21 @@ test('…but without the proof, the unverified holder keeps it', async () => {
   });
   assert.equal(r.outcome, 'not-in-roster');
 });
+
+test('…while a clan that signed up this week keeps its unverified name: the proof is client-side', async () => {
+  const { db, schema: s } = await loadDb();
+  const [young] = await db
+    .insert(s.clans)
+    .values({ slug: 'brand-new', name: 'Brand New', inGameName: 'Fresh Clan' })
+    .returning();
+  await db.insert(s.clanAuditLog).values({ clanId: young.id, eventType: 'clan_created', newValue: '{}' });
+  const [rival] = await db.insert(s.clans).values({ slug: 'rival', name: 'Rival' }).returning();
+  const r = await V.claimFromRoster({
+    clanId: rival.id,
+    reportedClanName: 'Fresh Clan',
+    pusherRsnNormalized: 'the boss',
+    pusherAccountId: ownerAccount,
+    roster: ROSTER,
+  });
+  assert.deepEqual(r, { outcome: 'taken', byClanSlug: 'brand-new' });
+});
