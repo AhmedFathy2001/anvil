@@ -72,6 +72,10 @@ export async function placeCaptainOnTeam(
   teamId: number,
   captainUserId: number,
 ): Promise<CaptainSeatResult> {
+  // A captain is a USER; their seats belong to the PLAYER behind the login (users.playerId). Matching
+  // roster player ids against the user id found nobody, or the wrong person, whenever the two differ.
+  const captain = await db.query.users.findFirst({ where: eq(users.id, captainUserId), columns: { playerId: true } });
+  if (captain?.playerId == null) return { playerId: null, reason: 'no-account' };
   // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
   const memberRows = await db
     .select({
@@ -82,7 +86,7 @@ export async function placeCaptainOnTeam(
       verifiedAt: clanRoster.verifiedAt,
     })
     .from(clanRoster)
-    .where(and(eq(clanRoster.playerId, captainUserId), isNull(clanRoster.leftAt)))
+    .where(and(eq(clanRoster.playerId, captain.playerId), isNull(clanRoster.leftAt)))
     .orderBy(desc(clanRoster.isPrimary), desc(clanRoster.verifiedAt));
   if (memberRows.length === 0) return { playerId: null, reason: 'no-account' };
   const memberIds = memberRows.map((m) => m.id);
