@@ -32,9 +32,23 @@ function person(over: Partial<WrappedPersonStats> & { personKey: string }): Wrap
     deaths: 0,
     biggestHit: 0,
     tilesFinished: 0,
+    contribPoints: 0,
+    contribTasks: 0,
+    tiles: [],
+    kills: 0,
+    drops: 0,
+    submissions: 0,
+    pvpKills: 0,
+    caTasks: 0,
+    cluesOpened: 0,
+    lootGp: 0,
+    activeDays: 0,
+    bestHaul: null,
+    fastestClear: null,
     topBoss: null,
     topSkill: null,
     awardsWon: [],
+    runnerUp: [],
     ...over,
   };
 }
@@ -55,6 +69,22 @@ function playerFixture(over: Partial<WrappedPlayer> = {}): WrappedPlayer {
     name: 'P',
     team: null,
     placeInTeam: null,
+    unit: 'pts',
+    points: 0,
+    tasks: 0,
+    teamShare: null,
+    tiles: [],
+    kills: 0,
+    drops: 0,
+    submissions: 0,
+    pvpKills: 0,
+    caTasks: 0,
+    cluesOpened: 0,
+    lootGp: 0,
+    activeDays: 0,
+    bestHaul: null,
+    fastestClear: null,
+    runnerUp: [],
     minutesPlayed: 0,
     xpGained: 0,
     kcGained: 0,
@@ -133,7 +163,22 @@ test('shapeWrapped: all-zero person with no drops or awards gets no card', () =>
   assert.deepEqual(out.players.map((p) => p.personKey), ['busy']);
 });
 
-test('shapeWrapped: placeInTeam orders by tiles, then kills, then XP', () => {
+test('shapeWrapped: placeInTeam follows the board points share before anything else', () => {
+  const byPoints = shapeWrapped({
+    people: [
+      person({ personKey: 'yak', name: 'Yak', teamId: 1, playerIds: [1], contribPoints: 900, tilesFinished: 1 }),
+      person({ personKey: 'grinder', name: 'Grinder', teamId: 1, playerIds: [2], contribPoints: 300, tilesFinished: 6, kcGained: 900 }),
+    ],
+    awards: [],
+    standings,
+    moments: [],
+    luck: [],
+  });
+  const ranks = Object.fromEntries(byPoints.players.map((p) => [p.personKey, p.placeInTeam?.rank]));
+  assert.deepEqual(ranks, { yak: 1, grinder: 2 });
+  assert.equal(byPoints.teams.find((t) => t.id === 1)!.mvp, 'Yak');
+
+  // With no points scored, tiles then kills then XP break the tie.
   const out = shapeWrapped({
     people: [
       person({ personKey: 'low', name: 'Low', teamId: 1, playerIds: [1], tilesFinished: 1, kcGained: 50, xpGained: 9 }),
@@ -243,10 +288,10 @@ test('ordinal handles teens and the 1/2/3 endings', () => {
   for (const [n, want] of cases) assert.equal(ordinal(n), want, String(n));
 });
 
-test('shortNumber matches the code: plain under 10K, rounded K, one-decimal M/B', () => {
+test('shortNumber: exact under 100K, rounded K, one-decimal M/B', () => {
   assert.equal(shortNumber(950), '950');
-  assert.equal(shortNumber(9_999), '9,999');
-  assert.equal(shortNumber(12_345), '12K');
+  assert.equal(shortNumber(12_345), '12,345');
+  assert.equal(shortNumber(123_456), '123K');
   assert.equal(shortNumber(1_250_000), '1.3M');
   assert.equal(shortNumber(2_000_000_000), '2B');
 });
@@ -259,13 +304,17 @@ test('formatHours: minutes under an hour, whole hours, and hours plus minutes', 
 
 test('playerCardStats returns at most 4 entries and skips zeros', () => {
   const all = playerCardStats(
-    playerFixture({ minutesPlayed: 90, kcGained: 5, xpGained: 100_000, tilesFinished: 3, deaths: 2 }),
+    playerFixture({ points: 1200, minutesPlayed: 90, kcGained: 5, xpGained: 100_000, tasks: 3, deaths: 2 }),
   );
   assert.equal(all.length, 4);
-  assert.deepEqual(all.map((s) => s.label), ['Played', 'Boss kills', 'XP gained', 'Tiles']);
+  assert.deepEqual(all.map((s) => s.label), ['Points', 'Played', 'Boss kills', 'XP gained']);
 
-  const sparse = playerCardStats(playerFixture({ minutesPlayed: 0, kcGained: 0, xpGained: 0, tilesFinished: 7, deaths: 0 }));
+  const sparse = playerCardStats(playerFixture({ tasks: 7 }));
   assert.deepEqual(sparse, [{ label: 'Tiles', value: '7' }]);
+
+  // A tiles board leads with tiles, not points.
+  const tiles = playerCardStats(playerFixture({ unit: 'tiles', tasks: 4, points: 4, kcGained: 9 }));
+  assert.deepEqual(tiles.map((s) => s.label), ['Tiles', 'Boss kills']);
 });
 
 test('cardHours: whole hours for the stat box, minutes under one', () => {

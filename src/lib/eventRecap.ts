@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { events, teams, tiles, eventParticipants, completions, submissions, players } from '@/db/schema';
 import { eq, inArray } from 'drizzle-orm';
-import { computeEventMvp, type StatGainMap } from '@/lib/memberBreakdown';
+import { computeEventMvp, computeMemberBreakdown, rollupByOwner, type StatGainMap } from '@/lib/memberBreakdown';
 import { loadPlayerOwners } from '@/lib/draftProfiles';
 import { getStatStandings } from '@/lib/statStandings';
 import { parseContributionSnapshot, type StatContributionSnapshot } from '@/lib/statTracking';
@@ -100,6 +100,11 @@ interface PersonStat {
   fastestClearTile: string | null;
   xpGained: number;
   kcGained: number;
+  /** Their share of the team's score, split the way the board's member breakdown and MVP split it. */
+  contribPoints: number;
+  contribTasks: number;
+  /** The tiles they put work into, with their amount and their share of the points. */
+  contribTiles: WrappedTile[];
   /** Account-wide XP and boss KC over the whole span, tile or no tile — what a personal card shows. */
   xpTotal: number;
   kcTotal: number;
@@ -159,6 +164,9 @@ function emptyStat(personKey: string): PersonStat {
     fastestClearTile: null,
     xpGained: 0,
     kcGained: 0,
+    contribPoints: 0,
+    contribTasks: 0,
+    contribTiles: [],
     xpTotal: 0,
     kcTotal: 0,
     deaths: 0,
@@ -568,6 +576,31 @@ async function computeRecap(eventId: number, window?: RecapWindow): Promise<{
     ownerByPlayerId,
     accountSlotMode: event.accountSlotMode,
   });
+  // Each person's share of their team's score — the same breakdown the board's team MVP reads, so a
+  // Wrapped card's "2nd on the team" can never disagree with who the board calls MVP.
+  for (const team of eventTeams) {
+    const raw = computeMemberBreakdown({
+      teamId: team.id,
+      scoringMode: event.scoringMode,
+      players: eventPlayers,
+      tiles: eventTiles,
+      completions: eventCompletions,
+      submissions: eventSubmissions,
+      statGains,
+    });
+    const members = event.accountSlotMode === 'per-person' ? rollupByOwner(raw, ownerByPlayerId) : raw;
+    for (const m of members) {
+      const s = stat(m.playerId);
+      if (!s) continue;
+      s.contribPoints += m.points;
+      s.contribTasks += m.tasks;
+      for (const c of m.contributions) {
+        if (c.amount <= 0 && c.count <= 0) continue;
+        s.contribTiles.push({ label: c.label, amount: c.amount, statType: c.statType, tileType: c.tileType, completed: c.completed });
+      }
+    }
+  }
+
   if (mvp) {
     const pts = isPointsMode(event.scoringMode);
     awards.push({
@@ -989,9 +1022,35 @@ export interface WrappedPersonStats {
   deaths: number;
   biggestHit: number;
   tilesFinished: number;
+  /** Share of the team's score (points, or tiles on a tiles board) — the board's MVP order. */
+  contribPoints: number;
+  contribTasks: number;
+  tiles: WrappedTile[];
+  kills: number;
+  drops: number;
+  submissions: number;
+  pvpKills: number;
+  caTasks: number;
+  cluesOpened: number;
+  lootGp: number;
+  activeDays: number;
+  bestHaul: { gp: number; tile: string | null } | null;
+  fastestClear: { seconds: number; tile: string | null } | null;
   topBoss: { name: string; kc: number } | null;
   topSkill: { name: string; xp: number } | null;
   awardsWon: { emoji: string; title: string; valueLabel: string }[];
+  /** Awards they came 2nd or 3rd in — the near misses. */
+  runnerUp: { emoji: string; title: string; place: number; valueLabel: string }[];
+}
+
+/** One tile a person worked on, for their Wrapped page. */
+export interface WrappedTile {
+  label: string;
+  /** Their kills / drops / gp, or XP / KC gained on a stat tile. */
+  amount: number;
+  statType: string | null;
+  tileType: string | null;
+  completed: boolean;
 }
 
 /** Everyone's numbers over the whole event, in one recap pass — Wrapped draws every card from it. */
@@ -1018,11 +1077,28 @@ export async function getWrappedStats(
       deaths: s.deaths,
       biggestHit: s.biggestHit,
       tilesFinished: s.tilesFinished,
+      contribPoints: s.contribPoints,
+      contribTasks: s.contribTasks,
+      tiles: [...s.contribTiles].sort((a, b) => Number(b.completed) - Number(a.completed) || b.amount - a.amount),
+      kills: s.kills,
+      drops: s.drops,
+      submissions: s.submissions,
+      pvpKills: Math.max(s.pvpKills, s.pvpKillCounter),
+      caTasks: s.caTasks,
+      cluesOpened: s.cluesOpened,
+      lootGp: s.lootGpTotal,
+      activeDays: s.activeDays.size,
+      bestHaul: s.bestHaul > 0 ? { gp: s.bestHaul, tile: s.bestHaulTile } : null,
+      fastestClear: s.fastestClear != null ? { seconds: s.fastestClear, tile: s.fastestClearTile } : null,
       topBoss: s.topBossKc > 0 ? { name: bossLabel(s.topBossName) ?? 'Boss', kc: s.topBossKc } : null,
       topSkill: s.topSkillXp > 0 ? { name: skillLabel(s.topSkillName) ?? 'Skill', xp: s.topSkillXp } : null,
       awardsWon: r.awards
         .filter((a) => a.winner && sameContender(a.winner, s))
         .map((a) => ({ emoji: a.emoji, title: a.title, valueLabel: a.winner.valueLabel })),
+      runnerUp: r.awards.flatMap((a) => {
+        const i = a.runnersUp.findIndex((e) => sameContender(e, s));
+        return i < 0 ? [] : [{ emoji: a.emoji, title: a.title, place: i + 2, valueLabel: a.runnersUp[i].valueLabel }];
+      }),
     }),
   );
   return { ended: isEventEnded(r.event), awards: r.awards, people };

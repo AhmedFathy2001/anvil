@@ -6,7 +6,9 @@
 
 import { formatCount } from '@/lib/clogLuck';
 import { bossImageUrl, itemIconUrl } from '@/lib/tileIcons';
-import type { WrappedPersonStats } from '@/lib/eventRecap';
+import type { WrappedPersonStats, WrappedTile } from '@/lib/eventRecap';
+
+export type { WrappedTile };
 
 export interface WrappedMomentRow {
   /** The event player row the moment belongs to, resolved from its seat. Null when unmatched. */
@@ -56,14 +58,33 @@ export interface WrappedPlayer {
   playerIds: number[];
   name: string;
   team: { id: number; name: string; color: string; rank: number; of: number } | null;
-  /** Their place among their own team, by tiles finished then kills then XP. */
+  /** Their place among their own team, by their share of its score (the board's MVP order). */
   placeInTeam: { rank: number; of: number } | null;
+  /** What the board scores in: 'pts', or 'tiles' on a tiles board. */
+  unit: string;
+  /** Their share of the team's score, as the board splits it. */
+  points: number;
+  /** Completed tiles they put work into. */
+  tasks: number;
+  /** points ÷ the team's score, 0–1. Null without a team score to divide by. */
+  teamShare: number | null;
+  tiles: WrappedTile[];
   minutesPlayed: number;
   xpGained: number;
   kcGained: number;
   deaths: number;
   biggestHit: number;
   tilesFinished: number;
+  kills: number;
+  drops: number;
+  submissions: number;
+  pvpKills: number;
+  caTasks: number;
+  cluesOpened: number;
+  lootGp: number;
+  activeDays: number;
+  bestHaul: { gp: number; tile: string | null } | null;
+  fastestClear: { seconds: number; tile: string | null } | null;
   topBoss: { name: string; kc: number } | null;
   topSkill: { name: string; xp: number } | null;
   biggestDrop: WrappedDrop | null;
@@ -71,6 +92,7 @@ export interface WrappedPlayer {
   spooned: WrappedLuck | null;
   dry: WrappedLuck | null;
   awards: { emoji: string; title: string; valueLabel: string }[];
+  runnerUp: { emoji: string; title: string; place: number; valueLabel: string }[];
 }
 
 export interface WrappedTeam {
@@ -114,9 +136,20 @@ function petsOf(rows: WrappedMomentRow[]): WrappedDrop[] {
     .map((r) => ({ itemId: r.itemId, itemName: r.itemName!, valueGp: null }));
 }
 
-/** Tiles finished, then boss kills, then XP: who carried the team, as the recap's MVP reads it. */
+/**
+ * Share of the team's score first, then tiles, then kills and XP — the board's own member order, so
+ * the top of a team here is always the MVP the board names. The rest only breaks ties (and orders
+ * people who scored nothing).
+ */
 function contributionOrder(a: WrappedPersonStats, b: WrappedPersonStats): number {
-  return b.tilesFinished - a.tilesFinished || b.kcGained - a.kcGained || b.xpGained - a.xpGained || a.name.localeCompare(b.name);
+  return (
+    b.contribPoints - a.contribPoints ||
+    b.contribTasks - a.contribTasks ||
+    b.tilesFinished - a.tilesFinished ||
+    b.kcGained - a.kcGained ||
+    b.xpGained - a.xpGained ||
+    a.name.localeCompare(b.name)
+  );
 }
 
 function luckFor(rows: WrappedLuckRow[], tone: WrappedLuckRow['tone']): WrappedLuck | null {
@@ -183,12 +216,27 @@ export function shapeWrapped(input: {
         : null,
       // A team of one is a person, so "1st of 1 on their team" says nothing.
       placeInTeam: mates.length > 1 ? { rank: mates.indexOf(p) + 1, of: mates.length } : null,
+      unit: standing?.unit ?? 'pts',
+      points: p.contribPoints,
+      tasks: p.contribTasks,
+      teamShare: standing && standing.score > 0 && p.contribPoints > 0 ? Math.min(1, p.contribPoints / standing.score) : null,
+      tiles: p.tiles,
       minutesPlayed: p.minutesPlayed,
       xpGained: p.xpGained,
       kcGained: p.kcGained,
       deaths: p.deaths,
       biggestHit: p.biggestHit,
       tilesFinished: p.tilesFinished,
+      kills: p.kills,
+      drops: p.drops,
+      submissions: p.submissions,
+      pvpKills: p.pvpKills,
+      caTasks: p.caTasks,
+      cluesOpened: p.cluesOpened,
+      lootGp: p.lootGp,
+      activeDays: p.activeDays,
+      bestHaul: p.bestHaul,
+      fastestClear: p.fastestClear,
       topBoss: p.topBoss,
       topSkill: p.topSkill,
       biggestDrop: biggestDropOf(mine),
@@ -196,6 +244,7 @@ export function shapeWrapped(input: {
       spooned: luckFor(luckByKey.get(p.personKey) ?? [], 'spooned'),
       dry: luckFor(luckByKey.get(p.personKey) ?? [], 'dry'),
       awards: p.awardsWon,
+      runnerUp: p.runnerUp,
     };
     if (hasAnything(player)) players.push(player);
   }
@@ -238,11 +287,14 @@ function teamTopBoss(members: WrappedPersonStats[]): { name: string; kc: number 
 }
 
 function hasWork(p: WrappedPersonStats): boolean {
-  return p.tilesFinished > 0 || p.kcGained > 0 || p.xpGained > 0;
+  return p.contribPoints > 0 || p.contribTasks > 0 || p.tilesFinished > 0 || p.kcGained > 0 || p.xpGained > 0;
 }
 
 function hasAnything(p: WrappedPlayer): boolean {
   return (
+    p.points > 0 ||
+    p.tasks > 0 ||
+    p.submissions > 0 ||
     p.minutesPlayed > 0 ||
     p.xpGained > 0 ||
     p.kcGained > 0 ||
@@ -266,11 +318,11 @@ export function cardHours(minutes: number): string {
   return minutes >= 60 ? `${Math.round(minutes / 60)}h` : `${minutes}m`;
 }
 
-/** 1.2M, 340K, 950 — how players say numbers. */
+/** 1.2M, 340K, 12,450 — how players say numbers; exact while it still fits a stat box. */
 export function shortNumber(n: number): string {
   if (n >= 1_000_000_000) return `${+(n / 1_000_000_000).toFixed(1)}B`;
   if (n >= 1_000_000) return `${+(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 10_000) return `${Math.round(n / 1_000)}K`;
+  if (n >= 100_000) return `${Math.round(n / 1_000)}K`;
   return n.toLocaleString('en-US');
 }
 
@@ -280,13 +332,22 @@ export function ordinal(n: number): string {
   return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`;
 }
 
-/** The four numbers a player's card leads with, in order of how much they say. Zeros are skipped. */
+/**
+ * The four numbers a player's card leads with, in order of how much they say. What they scored for
+ * the team comes first: it's the number the event was about. Zeros are skipped.
+ */
 export function playerCardStats(p: WrappedPlayer): { label: string; value: string }[] {
   const out: { label: string; value: string }[] = [];
+  if (p.unit === 'tiles') {
+    if (p.tasks > 0) out.push({ label: 'Tiles', value: shortNumber(p.tasks) });
+  } else if (p.points > 0) {
+    out.push({ label: 'Points', value: shortNumber(p.points) });
+  }
   if (p.minutesPlayed > 0) out.push({ label: 'Played', value: cardHours(p.minutesPlayed) });
   if (p.kcGained > 0) out.push({ label: 'Boss kills', value: shortNumber(p.kcGained) });
   if (p.xpGained > 0) out.push({ label: 'XP gained', value: shortNumber(p.xpGained) });
-  if (p.tilesFinished > 0) out.push({ label: 'Tiles', value: shortNumber(p.tilesFinished) });
+  if (p.unit !== 'tiles' && p.tasks > 0) out.push({ label: 'Tiles', value: shortNumber(p.tasks) });
+  if (p.activeDays > 0) out.push({ label: 'Days active', value: shortNumber(p.activeDays) });
   if (p.deaths > 0) out.push({ label: 'Deaths', value: shortNumber(p.deaths) });
   return out.slice(0, 4);
 }

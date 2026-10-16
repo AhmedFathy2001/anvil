@@ -63,20 +63,19 @@ export default async function PlayerWrappedPage({ params }: { params: Promise<Pa
         {preview && <p className="text-xs text-gold mt-2">Staff preview — players see this once the event ends.</p>}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[3fr_2fr] items-start">
-        <div className="space-y-3">
-          {isPublic && <CardImage src={`/api/og/wrapped/${id}/p/${wrappedPlayerKey(player)}`} alt={`${player.name}'s Wrapped card`} />}
-          <div className="flex flex-wrap items-center gap-3">
-            <CopyLink label={isMine ? 'Copy link to your card' : 'Copy link'} />
-            <span className="text-xs text-text-muted">
-              {isPublic
-                ? 'Paste it in Discord and it shows as this card.'
-                : 'This event is private, so the link opens for people who can see it and previews as a plain Anvil card.'}
-            </span>
-          </div>
+      <div className="max-w-3xl space-y-3">
+        {isPublic && <CardImage src={`/api/og/wrapped/${id}/p/${wrappedPlayerKey(player)}`} alt={`${player.name}'s Wrapped card`} />}
+        <div className="flex flex-wrap items-center gap-3">
+          <CopyLink label={isMine ? 'Copy link to your card' : 'Copy link'} />
+          <span className="text-xs text-text-muted">
+            {isPublic
+              ? 'Paste it in Discord and it shows as this card.'
+              : 'This event is private, so the link opens for people who can see it and previews as a plain Anvil card.'}
+          </span>
         </div>
-        <PlayerFacts p={player} />
       </div>
+
+      <PlayerFacts p={player} />
     </div>
   );
 }
