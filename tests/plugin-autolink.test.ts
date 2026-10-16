@@ -22,6 +22,7 @@ import assert from 'node:assert/strict';
 import { and, eq, isNull } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+import { tokenHash } from './helpers/tokenHash.ts';
 
 const DB = useTestDatabase('plugin-autolink');
 
@@ -62,7 +63,7 @@ before(async () => {
   const [person] = await db.insert(s.players).values({ displayName: 'Wanderer' }).returning();
   await db
     .insert(s.users)
-    .values({ displayName: 'Wanderer', discordId: 'disc-1', pluginToken: TOKEN, playerId: person.id });
+    .values({ displayName: 'Wanderer', discordId: 'disc-1', pluginTokenHash: tokenHash(TOKEN), playerId: person.id });
 
   // An UNCLAIMED account with a DEPARTED seat in clan B. Unclaimed is the precondition for
   // auto-link to consider it at all; departed is what makes a revival visible.
@@ -175,7 +176,7 @@ test('roster first, Discord later: first plugin play links it (provisionally), X
       playerId: discordPerson.id,
       displayName: 'Discord First',
       discordId: 'disc-roster-first',
-      pluginToken: 'token-roster-first',
+      pluginTokenHash: tokenHash('token-roster-first'),
     })
     .returning();
   assert.notEqual(placeholder.id, discordPerson.id);

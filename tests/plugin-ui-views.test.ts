@@ -7,6 +7,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+import { tokenHash } from './helpers/tokenHash.ts';
 import type { Node } from '../src/lib/pluginUi/nodes.ts';
 
 const DB = useTestDatabase('plugin-ui-views');
@@ -24,7 +25,7 @@ before(async () => {
   V = await import('../src/lib/pluginUi/views.ts');
 
   const [me] = await db.insert(s.players).values({ displayName: 'Me' }).returning();
-  await db.insert(s.users).values({ displayName: 'me', discordId: 'disc-me', pluginToken: TOKEN, playerId: me.id });
+  await db.insert(s.users).values({ displayName: 'me', discordId: 'disc-me', pluginTokenHash: tokenHash(TOKEN), playerId: me.id });
   const [mine] = await db.insert(s.accounts).values({ playerId: me.id, rsn: 'Ui Main', rsnNormalized: 'ui main', shared: false, claimedAt: new Date().toISOString() }).returning();
   await db.insert(s.memberClog).values({ accountId: mine.id, obtained: 1, total: 1600, pagesSynced: 1, pagesTotal: 1, syncedAt: new Date().toISOString() });
   await db.insert(s.memberClogItems).values({ accountId: mine.id, itemId: 12921, pageName: 'Zulrah', quantity: 1 });
@@ -124,7 +125,7 @@ test('the board page: an enrolled player claims a tile from it, and the Teams pa
   const [team] = await db.insert(s.teams).values({ eventId: ev.id, name: 'Red', color: '#ff0000' }).returning();
   const [fire] = await db.insert(s.tiles).values({ eventId: ev.id, position: 0, label: 'Fire cape', tileType: 'drop', trackedItemIds: '[6570]' }).returning();
   const [person] = await db.insert(s.players).values({ displayName: 'Board Player' }).returning();
-  await db.insert(s.users).values({ playerId: person.id, displayName: 'Board Player', discordId: 'ui-board', pluginToken: 'ui-board-token' });
+  await db.insert(s.users).values({ playerId: person.id, displayName: 'Board Player', discordId: 'ui-board', pluginTokenHash: tokenHash('ui-board-token') });
   const [acct] = await db.insert(s.accounts).values({ playerId: person.id, rsn: 'Board Main', rsnNormalized: 'board main' }).returning();
   const [seat] = await db.insert(s.clanMemberships).values({ clanId: clan.id, accountId: acct.id, kind: 'member', source: 'roster' }).returning();
   await db.insert(s.eventParticipants).values({ eventId: ev.id, teamId: team.id, clanMemberId: seat.id, accountId: acct.id, name: 'Board Main' });

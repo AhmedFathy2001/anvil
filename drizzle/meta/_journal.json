@@ -841,6 +841,13 @@
       "when": 1793500000000,
       "tag": "0165_account_plugin_seen",
       "breakpoints": true
+    },
+    {
+      "idx": 166,
+      "version": "7",
+      "when": 1793629396799,
+      "tag": "0166_plugin_token_plain_contract",
+      "breakpoints": true
     }
   ]
 }

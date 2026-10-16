@@ -7,6 +7,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+import { tokenHash } from './helpers/tokenHash.ts';
 
 const DB = useTestDatabase('clan-events');
 
@@ -27,11 +28,11 @@ before(async () => {
   V = await import('../src/lib/pluginUi/views.ts');
   clanId = (await db.insert(s.clans).values({ slug: 'masses', name: 'Masses' }).returning())[0].id;
   const [me] = await db.insert(s.players).values({ displayName: 'Me' }).returning();
-  meUser = (await db.insert(s.users).values({ displayName: 'Massgoer', discordId: 'ce-me', pluginToken: TOKEN, playerId: me.id }).returning())[0].id;
+  meUser = (await db.insert(s.users).values({ displayName: 'Massgoer', discordId: 'ce-me', pluginTokenHash: tokenHash(TOKEN), playerId: me.id }).returning())[0].id;
   const [main] = await db.insert(s.accounts).values({ playerId: me.id, rsn: 'Mass Main', rsnNormalized: 'mass main', shared: false, claimedAt: new Date().toISOString() }).returning();
   await db.insert(s.clanMemberships).values({ clanId, accountId: main.id, kind: 'member' });
   const [other] = await db.insert(s.players).values({ displayName: 'Stranger' }).returning();
-  await db.insert(s.users).values({ displayName: 'Stranger', discordId: 'ce-x', pluginToken: STRANGER, playerId: other.id });
+  await db.insert(s.users).values({ displayName: 'Stranger', discordId: 'ce-x', pluginTokenHash: tokenHash(STRANGER), playerId: other.id });
 });
 
 after(async () => {

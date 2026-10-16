@@ -23,6 +23,7 @@ import assert from 'node:assert/strict';
 import { eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+import { tokenHash } from './helpers/tokenHash.ts';
 
 const DB = useTestDatabase('account-takeover');
 
@@ -53,7 +54,7 @@ before(async () => {
   const [attacker] = await db.insert(s.players).values({ displayName: 'Attacker' }).returning();
   const [au] = await db
     .insert(s.users)
-    .values({ playerId: attacker.id, displayName: 'Attacker', discordId: 'atk-1', pluginToken: 'atk-token' })
+    .values({ playerId: attacker.id, displayName: 'Attacker', discordId: 'atk-1', pluginTokenHash: tokenHash('atk-token') })
     .returning();
   attackerUser = au.id;
 

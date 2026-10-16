@@ -484,7 +484,7 @@ export function signPlayerToken(playerId: number, teamId: number): string {
 // token working?"). For endpoints that need an event/team/player row, use
 // `verifyPluginToken` which additionally resolves the active enrollment.
 //
-// Only the per-user account token (`users.plugin_token`) is accepted — legacy
+// Only a person's own plugin token (looked up by hash: `users.plugin_token_hash` or `plugin_links`) is accepted — legacy
 // per-event `eventParticipants.player_token`s are no longer a plugin credential.
 /**
  * The clan a plugin request is for.
@@ -698,8 +698,8 @@ async function clanOfPerson(
  * The login a plugin token belongs to — whichever token it is.
  *
  * A person accumulates tokens: one per instance that ever issued them one, plus any device links.
- * `users.pluginToken` holds the newest, and `plugin_links` holds the rest, so both are checked and
- * an older one keeps working. This matters most right after a clan is imported, when somebody in
+ * `users.pluginTokenHash` holds an older account token, and `plugin_links` holds every per-client one
+ * (by hash only, 0166), so both are checked and an older one keeps working. This matters most right after a clan is imported, when somebody in
  * two clans is one login holding two tokens and their client only knows the one it was given.
  */
 // The "on play" bookkeeping in resolvePluginMember (observation breadcrumb, auto-claim, auto-link)
@@ -726,14 +726,13 @@ function playBookkeepingDue(key: string): boolean {
 }
 
 async function userByPluginToken(token: string) {
-  // By hash (0138). The plain-column match is only for a token an older blue-green slot minted
-  // during a switch, before it knew to write the hash; 0139 drops it with the plain columns.
+  // By hash only: tokens are never stored in the clear (0138/0166).
   const hash = hashPluginToken(token);
-  const direct = await db.query.users.findFirst({ where: or(eq(users.pluginTokenHash, hash), eq(users.pluginToken, token)) });
+  const direct = await db.query.users.findFirst({ where: eq(users.pluginTokenHash, hash) });
   if (direct) return direct;
 
   const link = await db.query.pluginLinks.findFirst({
-    where: and(or(eq(pluginLinks.tokenHash, hash), eq(pluginLinks.token, token)), isNull(pluginLinks.revokedAt)),
+    where: and(eq(pluginLinks.tokenHash, hash), isNull(pluginLinks.revokedAt)),
     columns: { userId: true },
   });
   if (!link) return undefined;
@@ -1571,7 +1570,7 @@ export function pluginViewerRsn(request: Request): string | null {
 // core: `verifyPluginToken` layers event resolution on top, and the live-stats ingest credits weekly
 // SOTW/BOTW by clan member even when the caller isn't in any bingo.
 //
-// Only the **per-user account token** (`users.plugin_token`) is accepted; legacy per-event
+// Only a **person's plugin token** (by hash: `users.plugin_token_hash` or `plugin_links`) is accepted; legacy per-event
 // `eventParticipants.player_token`s are not a plugin credential. `currentRsn` (header `X-RSN`, fallback
 // `?rsn=`) is the in-game name reported by the client; it scopes resolution to the matching
 // clan_member — the check that blocks "a drop on the wrong account credits the right account" (the
@@ -1910,10 +1909,7 @@ export async function pluginTokenPerson(request: Request): Promise<{ userId: num
   if (user) return { userId: user.id };
 
   const link = await db.query.pluginLinks.findFirst({
-    where: and(
-      or(eq(pluginLinks.tokenHash, hashPluginToken(token)), eq(pluginLinks.token, token)),
-      isNull(pluginLinks.revokedAt),
-    ),
+    where: and(eq(pluginLinks.tokenHash, hashPluginToken(token)), isNull(pluginLinks.revokedAt)),
   });
   if (!link) return null;
 
@@ -1980,9 +1976,15 @@ export function hashPluginToken(token: string): string {
   return crypto.createHash('sha256').update(token, 'utf8').digest('hex');
 }
 
-/** The columns a freshly minted account token writes. The plain one stops being written in 0139. */
-export function pluginTokenColumns(token: string): { pluginToken: string; pluginTokenHash: string } {
-  return { pluginToken: token, pluginTokenHash: hashPluginToken(token) };
+/**
+ * Mint a token for one more RuneLite client, stored as its hash, and hand the token back — the only
+ * time anyone sees it. Every client gets its own (plugin_links), so adding one never signs another out
+ * and each can be revoked on its own.
+ */
+export async function mintDeviceToken(userId: number): Promise<string> {
+  const token = crypto.randomBytes(32).toString('base64url');
+  await db.insert(pluginLinks).values({ userId, tokenHash: hashPluginToken(token) });
+  return token;
 }
 
 export function generatePluginLinkCode(): string {
@@ -1992,10 +1994,6 @@ export function generatePluginLinkCode(): string {
   let out = '';
   for (let i = 0; i < 6; i++) out += alphabet[bytes[i] % alphabet.length];
   return out;
-}
-
-export function generateAdminPluginToken(): string {
-  return crypto.randomBytes(32).toString('hex');
 }
 
 export function normalizeRsn(rsn: string): string {

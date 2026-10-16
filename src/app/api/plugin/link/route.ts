@@ -2,10 +2,10 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { resolvePluginClan } from '@/lib/auth';
 import { noClanForPlugin } from '@/lib/pluginNoClan';
-import { accounts, clanAuditLog, clanMemberships, clanRoster, pluginLinkCodes, pluginLinks, users } from '@/db/schema';
+import { accounts, clanAuditLog, clanMemberships, clanRoster, pluginLinkCodes, users } from '@/db/schema';
 import { findRosterSeat, personOf, personOfOrCreate } from '@/lib/roster';
 import { and, eq, isNull, sql } from 'drizzle-orm';
-import { generateAdminPluginToken, hashPluginToken, normalizeRsn, sanitizeRsn } from '@/lib/auth';
+import { mintDeviceToken, normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { applyPendingRole } from '@/lib/pending-role';
 import { applyRenameToActiveWeeklyParticipants } from '@/lib/weekly';
@@ -261,19 +261,8 @@ export async function POST(request: Request) {
   // One active token per admin user — reused across in-game characters.
   let adminToken: string | null = null;
   if (atLeast(issuingUser.role, 'admin')) {
-    const existing = await db.query.pluginLinks.findFirst({
-      where: and(eq(pluginLinks.userId, issuingUser.id), isNull(pluginLinks.revokedAt)),
-    });
-    if (existing) {
-      adminToken = existing.token;
-    } else {
-      adminToken = generateAdminPluginToken();
-      await db.insert(pluginLinks).values({
-        userId: issuingUser.id,
-        token: adminToken,
-        tokenHash: hashPluginToken(adminToken),
-      });
-    }
+    // A fresh one per link: a stored token is only a hash now, so an existing one cannot be read back.
+    adminToken = await mintDeviceToken(issuingUser.id);
   }
 
   // Now that this clan_member is linked to a Discord-authenticated user, we have

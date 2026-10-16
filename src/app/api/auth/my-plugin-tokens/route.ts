@@ -5,7 +5,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
 
 // GET /api/auth/my-plugin-tokens — the calling user's active legacy admin plugin tokens
-// (`plugin_links`; raw token returned, owner-only, sensitive).
+// (`plugin_links`; ids and dates only — tokens are stored as hashes and never returned).
 //
 // This used to serve federation tokens alongside them for the profile's "Connected plugins" panel.
 // Federation is gone and that panel with it, so nothing in-repo calls this today — it is kept
@@ -26,7 +26,6 @@ export async function GET() {
   return NextResponse.json({
     pluginLinks: links.map((r) => ({
       id: r.id,
-      token: r.token,
       createdAt: r.createdAt,
       lastUsedAt: r.lastUsedAt,
     })),
