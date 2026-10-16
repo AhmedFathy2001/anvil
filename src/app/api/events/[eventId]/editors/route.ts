@@ -5,6 +5,9 @@ import { db } from '@/db';
 import { eventEditors, events, users, clanAuditLog } from '@/db/schema';
 import { and, eq, desc } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
+import { requireClan } from '@/lib/clanContext';
+import { hasClanPresence } from '@/lib/clanGrants';
+import { getPeopleWithCharacters } from '@/lib/identity';
 import { grantEventEditor, revokeEventEditor, type BoardRole } from '@/lib/eventEditors';
 
 // Board-scoped staff grants for one event. Admin-only — this hands out authoring or money access.
@@ -52,19 +55,20 @@ export async function GET(
     .where(eq(eventEditors.eventId, eId))
     .orderBy(desc(eventEditors.createdAt));
 
-  // Assignable pool: every non-banned account. The UI badges each by role so an admin can see who
-  // already edits everything (global editor / admin) vs who a grant would actually empower.
-  const candidates = await db
-    .select({
-      id: users.id,
-      displayName: users.displayName,
-      discordUsername: users.discordUsername,
-      role: users.role,
-      editorScope: users.editorScope,
-    })
-    .from(users)
-    .where(eq(users.banned, false))
-    .orderBy(users.displayName);
+  // Assignable pool: THIS CLAN'S people — a staff grant or a roster seat here. It used to be every
+  // non-banned account on Anvil, names and Discord handles included, shown to any clan admin. The
+  // role badge is the one they hold here (lib/identity), not a global column.
+  const clan = await requireClan();
+  const candidates = (await getPeopleWithCharacters(clan.id))
+    .filter((p) => !p.banned)
+    .map((p) => ({
+      id: p.id,
+      displayName: p.displayName,
+      discordUsername: p.discordUsername,
+      role: p.role || 'member',
+      editorScope: p.boardScoped ? 'assigned' : 'all',
+    }))
+    .sort((a, b) => (a.displayName ?? '').localeCompare(b.displayName ?? ''));
 
   return NextResponse.json({ editors: grants, candidates });
 }
@@ -94,6 +98,10 @@ export async function POST(
     return NextResponse.json({ error: "role must be 'editor' or 'treasurer'" }, { status: 400 });
   }
   const boardRole: BoardRole = role === 'treasurer' ? 'treasurer' : 'editor';
+  // Only someone this clan can see — the same rule as every other grant on the People pages.
+  if (!(await hasClanPresence((await requireClan()).id, userId))) {
+    return NextResponse.json({ error: 'That person isn’t in this clan.' }, { status: 404 });
+  }
   const target = await db.query.users.findFirst({
     where: eq(users.id, userId),
     columns: { id: true, banned: true },

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanStaff, users } from '@/db/schema';
@@ -49,11 +49,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
 
   // The owner OF THIS CLAN is unbannable here. Read from the grant rather than a flag on the user:
   // being owner of some other clan is no protection in this one, and should not be.
+  // Read for THIS clan. It used to take the person's first staff row anywhere and then compare the
+  // clan — so an owner whose first row belonged to another clan was bannable from their own.
   const targetGrant = await db.query.clanStaff.findFirst({
-    where: eq(clanStaff.userId, targetId),
-    columns: { role: true, clanId: true },
+    where: and(eq(clanStaff.userId, targetId), eq(clanStaff.clanId, clan.id)),
+    columns: { role: true },
   });
-  if (targetGrant?.clanId === clan.id && targetGrant.role === 'owner') {
+  if (targetGrant?.role === 'owner') {
     return NextResponse.json({ error: 'The clan owner cannot be banned' }, { status: 400 });
   }
 
