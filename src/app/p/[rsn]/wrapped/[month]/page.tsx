@@ -9,16 +9,20 @@ import { CardImage } from '@/app/events/[eventId]/wrapped/parts';
 import { apexCharacter } from '@/lib/apexProfiles';
 import { verifyUser } from '@/lib/auth';
 import { isApexHost } from '@/lib/clanContext';
-import { formatHours, shortNumber } from '@/lib/eventWrappedRules';
+import { formatHours, ordinal, shortNumber } from '@/lib/eventWrappedRules';
 import { getMonthlyWrapped, monthsWithData } from '@/lib/monthlyWrapped';
 import {
   isMonthKey,
+  isYearKey,
   monthHasAnything,
-  monthKeyOf,
   monthLabel,
   monthlyCardStats,
+  wrappedIsOpen,
+  wrappedOpensAt,
   type MonthItem,
 } from '@/lib/monthlyWrappedRules';
+import { getYearlyWrapped } from '@/lib/yearlyWrapped';
+import type { YearlyWrapped } from '@/lib/yearlyWrappedRules';
 import { configuredOrigin } from '@/lib/request-origin';
 import { itemIconUrl } from '@/lib/tileIcons';
 
@@ -28,24 +32,31 @@ type Params = { rsn: string; month: string };
 
 async function load(p: Params) {
   if (!isApexHost((await headers()).get('host'))) return null;
-  if (!isMonthKey(p.month) || p.month > monthKeyOf(new Date())) return null;
+  const key = p.month;
+  if (!isMonthKey(key) && !isYearKey(key)) return null;
   const session = await verifyUser();
   const character = await apexCharacter(decodeURIComponent(p.rsn), session?.playerId ?? null);
   if (!character) return null;
-  const [w, months] = await Promise.all([
-    getMonthlyWrapped(character.accountId, character.rsn, p.month),
-    monthsWithData(character.accountId),
-  ]);
-  return { character, w, months };
+  const open = wrappedIsOpen(key);
+  // A year is previewable by its owner before it opens; a running month isn't worth previewing.
+  const preview = !open && isYearKey(key) && character.viewerOwns;
+  const months = await monthsWithData(character.accountId);
+  if (!open && !preview) return { character, w: null, year: null, months, key, preview };
+  const year: YearlyWrapped | null = isYearKey(key) ? await getYearlyWrapped(character.accountId, character.rsn, key) : null;
+  const w = year ?? (await getMonthlyWrapped(character.accountId, character.rsn, key));
+  return { character, w, year, months, key, preview };
 }
+
+const opensOn = (key: string) =>
+  wrappedOpensAt(key).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const data = await load(await params);
-  if (!data) return {};
+  if (!data?.w || data.preview) return {};
   const { character, w } = data;
   const path = `/p/${encodeURIComponent(character.rsn)}/wrapped/${w.monthKey}`;
   const facts = monthlyCardStats(w).map((s) => `${s.value} ${s.label.toLowerCase()}`).join(' · ');
-  const title = `${character.rsn} — ${w.monthLabel}${w.inProgress ? ' so far' : ''} on Anvil`;
+  const title = `${character.rsn} — ${w.monthLabel} Wrapped on Anvil`;
   const description = facts || `${character.rsn}'s ${w.monthLabel} in Old School RuneScape.`;
   const image = `/api/og/monthly/${encodeURIComponent(character.rsn)}/${w.monthKey}`;
   return {
@@ -112,67 +123,99 @@ function itemRight(i: MonthItem): string {
 export default async function MonthlyWrappedPage({ params }: { params: Promise<Params> }) {
   const data = await load(await params);
   if (!data) notFound();
-  const { character, w, months } = data;
+  const { character, w, year, months, key, preview } = data;
   const base = `/p/${encodeURIComponent(character.rsn)}`;
-  const idx = months.indexOf(w.monthKey);
-  const older = idx >= 0 ? months[idx + 1] : months.find((m) => m < w.monthKey);
-  const newer = idx > 0 ? months[idx - 1] : [...months].reverse().find((m) => m > w.monthKey);
+  const isYear = isYearKey(key);
+  const idx = months.indexOf(key);
+  const older = isYear ? null : idx >= 0 ? months[idx + 1] : months.find((m) => m < key);
+  const newer = isYear ? null : idx > 0 ? months[idx - 1] : [...months].reverse().find((m) => m > key);
+  const yearMonths = isYear ? months.filter((m) => m.startsWith(`${key}-`)) : [];
+
+  const header = (
+    <div>
+      <ClanLink href={base} className="text-sm text-text-muted hover:text-gold transition-colors">← {character.rsn}</ClanLink>
+      <div className="flex flex-wrap items-end justify-between gap-3 mt-1">
+        <h1 className="text-2xl font-bold text-gold">
+          {monthLabel(key)} Wrapped
+          {year?.trackedSince && (
+            <span className="text-text-muted font-normal text-lg">
+              {' '}since {new Date(`${year.trackedSince}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })}
+            </span>
+          )}
+        </h1>
+        <nav className="flex items-center gap-3 text-sm">
+          {older ? <ClanLink href={`${base}/wrapped/${older}`} className="text-text-muted hover:text-gold">← {monthLabel(older)}</ClanLink> : null}
+          {newer ? <ClanLink href={`${base}/wrapped/${newer}`} className="text-text-muted hover:text-gold">{monthLabel(newer)} →</ClanLink> : null}
+          {!isYear && <ClanLink href={`${base}/wrapped/${key.slice(0, 4)}`} className="text-text-muted hover:text-gold">{key.slice(0, 4)} →</ClanLink>}
+        </nav>
+      </div>
+      {preview && (
+        <p className="text-xs text-gold mt-2">
+          Preview, only you can see it. Your {key} Wrapped comes out on {opensOn(key)}, and the numbers keep growing until then.
+        </p>
+      )}
+    </div>
+  );
+
+  if (!w) {
+    return (
+      <div className="max-w-5xl mx-auto space-y-8">
+        {header}
+        <div className="max-w-xl mx-auto border border-dashed border-card-border rounded-xl p-8 text-center">
+          <p className="text-lg font-semibold mb-1">Not out yet</p>
+          <p className="text-sm text-text-muted">
+            {monthLabel(key)} Wrapped comes out on {opensOn(key)}. Keep playing with the Anvil plugin running and it all counts.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const any = monthHasAnything(w);
   const efficient = Math.round((w.ehpGained + w.ehbGained) * 60);
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
-      <div>
-        <ClanLink href={base} className="text-sm text-text-muted hover:text-gold transition-colors">← {character.rsn}</ClanLink>
-        <div className="flex flex-wrap items-end justify-between gap-3 mt-1">
-          <h1 className="text-2xl font-bold text-gold">
-            {w.monthLabel}
-            {w.inProgress && <span className="text-text-muted font-normal text-lg"> so far</span>}
-          </h1>
-          <nav className="flex items-center gap-3 text-sm">
-            {older ? (
-              <ClanLink href={`${base}/wrapped/${older}`} className="text-text-muted hover:text-gold">← {monthLabel(older)}</ClanLink>
-            ) : null}
-            {newer ? (
-              <ClanLink href={`${base}/wrapped/${newer}`} className="text-text-muted hover:text-gold">{monthLabel(newer)} →</ClanLink>
-            ) : null}
-          </nav>
-        </div>
-        <p className="text-sm text-text-muted mt-1">
-          {character.rsn}&rsquo;s month on one card. Copy the link and paste it in Discord: it shows as the card.
-        </p>
-      </div>
+      {header}
 
       {!any ? (
         <div className="max-w-xl mx-auto border border-dashed border-card-border rounded-xl p-8 text-center">
-          <p className="text-lg font-semibold mb-1">Nothing tracked {w.inProgress ? 'yet this month' : 'this month'}</p>
-          <p className="text-sm text-text-muted">
-            No XP, kills, log slots or PBs reached us for {w.monthLabel}. With the Anvil plugin running, every session counts.
-          </p>
+          <p className="text-lg font-semibold mb-1">Nothing tracked in {monthLabel(key)}</p>
+          <p className="text-sm text-text-muted">No XP, kills, log slots or PBs reached us. With the Anvil plugin running, every session counts.</p>
         </div>
       ) : (
         <>
           <div className="max-w-3xl space-y-3">
-            {!character.privateToViewer && <CardImage src={`/api/og/monthly/${encodeURIComponent(character.rsn)}/${w.monthKey}`} alt={`${character.rsn}'s ${w.monthLabel}`} />}
-            <div className="flex flex-wrap items-center gap-3">
-              <CopyLink label={character.viewerOwns ? 'Copy link to your month' : 'Copy link'} />
-              {character.privateToViewer && (
+            {!character.privateToViewer && !preview && (
+              <CardImage src={`/api/og/monthly/${encodeURIComponent(character.rsn)}/${key}`} alt={`${character.rsn}'s ${monthLabel(key)} Wrapped`} />
+            )}
+            {!preview && (
+              <div className="flex flex-wrap items-center gap-3">
+                <CopyLink label={character.viewerOwns ? 'Copy link to your Wrapped' : 'Copy link'} />
                 <span className="text-xs text-text-muted">
-                  This character isn&rsquo;t shared, so only you can open the link.{' '}
-                  <ClanLink href="/profile" className="text-gold hover:underline">Share it from your locker</ClanLink>.
+                  {character.privateToViewer ? (
+                    <>
+                      This character isn&rsquo;t shared, so only you can open the link.{' '}
+                      <ClanLink href="/profile" className="text-gold hover:underline">Share it from your locker</ClanLink>.
+                    </>
+                  ) : (
+                    'Paste it in Discord and it shows as this card.'
+                  )}
                 </span>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {w.xpGained > 0 && <Stat label="XP gained" value={shortNumber(w.xpGained)} />}
             {w.kcGained > 0 && <Stat label="Boss kills" value={w.kcGained.toLocaleString('en-US')} />}
-            {w.newSlots > 0 && <Stat label="New log slots" value={`+${w.newSlots.toLocaleString('en-US')}`} />}
+            {w.newSlots > 0 && <Stat label="New log slots" value={w.newSlots.toLocaleString('en-US')} />}
             {w.daysActive > 0 && <Stat label="Days active" value={w.daysActive.toLocaleString('en-US')} />}
             {efficient > 0 && <Stat label="Efficient time" value={formatHours(efficient)} />}
             {w.pbs.length > 0 && <Stat label="Personal bests" value={w.pbs.length.toLocaleString('en-US')} />}
             {w.pets.length > 0 && <Stat label={w.pets.length === 1 ? 'Pet' : 'Pets'} value={w.pets.length.toLocaleString('en-US')} />}
+            {year && year.events.length > 0 && <Stat label="Events played" value={year.events.length.toLocaleString('en-US')} />}
+            {year?.busiestMonth && <Stat label="Busiest month" value={monthLabel(year.busiestMonth.key).split(' ')[0]} />}
           </div>
 
           {(w.maxed.length > 0 || w.milestones.length > 0) && (
@@ -184,6 +227,32 @@ export default async function MonthlyWrappedPage({ params }: { params: Promise<P
                 <span key={m} className="rounded-full border border-card-border px-3 py-1 text-sm text-text-muted">{m}</span>
               ))}
             </div>
+          )}
+
+          {year && year.events.length > 0 && (
+            <Section title="Events">
+              <Rows>
+                {year.events.map((e) => (
+                  <Row
+                    key={e.eventId}
+                    left={
+                      e.cardKey != null ? (
+                        <ClanLink href={`/c/${e.clanSlug}/events/${e.eventId}/wrapped/p/${e.cardKey}`} className="hover:text-gold">{e.name}</ClanLink>
+                      ) : (
+                        e.name
+                      )
+                    }
+                    right={[
+                      e.team ? `${ordinal(e.team.rank)} of ${e.team.of} · ${e.team.name}` : null,
+                      e.placeInTeam ? `${ordinal(e.placeInTeam.rank)} on the team` : null,
+                      ...e.awards,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  />
+                ))}
+              </Rows>
+            </Section>
           )}
 
           <div className="grid gap-8 lg:grid-cols-2 items-start">
@@ -213,6 +282,17 @@ export default async function MonthlyWrappedPage({ params }: { params: Promise<P
                       <Row key={`${p.activity}-${p.teamSize}-${i}`} left={p.teamSize > 1 ? `${p.activity} (${p.teamSize})` : p.activity} right={p.time} />
                     ))}
                   </Rows>
+                </Section>
+              )}
+              {yearMonths.length > 0 && (
+                <Section title="Month by month">
+                  <div className="flex flex-wrap gap-2">
+                    {yearMonths.map((m) => (
+                      <ClanLink key={m} href={`${base}/wrapped/${m}`} className="rounded-lg border border-card-border bg-card-bg px-3 py-1.5 text-sm hover:border-gold/60">
+                        {monthLabel(m).split(' ')[0]}
+                      </ClanLink>
+                    ))}
+                  </div>
                 </Section>
               )}
             </div>

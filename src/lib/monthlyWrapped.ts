@@ -1,4 +1,4 @@
-// Monthly Wrapped: one character's calendar month. The rules are in lib/monthlyWrappedRules; this
+// Monthly (and yearly) Wrapped: one character's calendar month, or year (key 'YYYY'). The rules are in lib/monthlyWrappedRules; this
 // loads their inputs, all keyed by the ACCOUNT, so a player with no clan gets the same card.
 //
 // Callers settle visibility first (apexCharacter: shared, or the viewer's own).
@@ -9,7 +9,7 @@ import { db } from '@/db';
 import { clanMemberships, clans, memberClogItems, memberDailyStats, memberMilestones, memberPersonalBests, moments } from '@/db/schema';
 import { clogItemNames, clogPageIndex } from '@/lib/clogDataset';
 import { clogItemRarity } from '@/lib/clogRarity';
-import { monthKeyOf, nextMonthKey, shapeMonthlyWrapped, type MonthlyWrapped } from '@/lib/monthlyWrappedRules';
+import { periodDays, shapeMonthlyWrapped, wrappedIsOpen, type MonthlyWrapped } from '@/lib/monthlyWrappedRules';
 
 /**
  * A past month never changes, and a running one changes slowly; a pasted link fetches the card
@@ -57,8 +57,8 @@ async function computeMonthlyWrapped(accountId: number, rsn: string, monthKey: s
       .where(
         and(
           eq(memberDailyStats.accountId, accountId),
-          gte(memberDailyStats.day, `${monthKey}-01`),
-          lt(memberDailyStats.day, `${nextMonthKey(monthKey)}-01`),
+          gte(memberDailyStats.day, periodDays(monthKey).from),
+          lt(memberDailyStats.day, periodDays(monthKey).to),
         ),
       ),
     db
@@ -104,7 +104,7 @@ async function computeMonthlyWrapped(accountId: number, rsn: string, monthKey: s
   });
 }
 
-/** Months this character has any tracked day in, newest first — the page's month switcher. */
+/** FINISHED months this character has any tracked day in, newest first — the month switcher. */
 export async function monthsWithData(accountId: number): Promise<string[]> {
   const rows = await db
     .select({ month: sql<string>`substr(${memberDailyStats.day}, 1, 7)`.as('month') })
@@ -112,5 +112,5 @@ export async function monthsWithData(accountId: number): Promise<string[]> {
     .where(eq(memberDailyStats.accountId, accountId))
     .groupBy(sql`substr(${memberDailyStats.day}, 1, 7)`)
     .orderBy(desc(sql`substr(${memberDailyStats.day}, 1, 7)`));
-  return rows.map((r) => r.month).filter((m) => m <= monthKeyOf(new Date()));
+  return rows.map((r) => r.month).filter((m) => wrappedIsOpen(m));
 }

@@ -93,9 +93,35 @@ export function monthKeyOf(when: Date): string {
   return `${when.getUTCFullYear()}-${String(when.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
-/** "October 2026". */
+/** A whole year's key: '2026'. The same loader and rules serve it (lib/yearlyWrapped). */
+export function isYearKey(key: string): boolean {
+  return /^\d{4}$/.test(key);
+}
+
+/** "October 2026", or "2026" for a year. */
 export function monthLabel(key: string): string {
+  if (isYearKey(key)) return key;
   return `${MONTHS[Number(key.slice(5)) - 1]} ${key.slice(0, 4)}`;
+}
+
+/** The daily-row bounds a month or year key covers: [from, to) as 'YYYY-MM-DD'. */
+export function periodDays(key: string): { from: string; to: string } {
+  if (isYearKey(key)) return { from: `${key}-01-01`, to: `${Number(key) + 1}-01-01` };
+  return { from: `${key}-01`, to: `${nextMonthKey(key)}-01` };
+}
+
+/**
+ * When a period's card comes out. A month, once it's over: a recap of half a month is a recap of
+ * nothing. A year, on 1 December — the season people post these, and late enough to say something.
+ */
+export function wrappedOpensAt(key: string): Date {
+  if (isYearKey(key)) return new Date(Date.UTC(Number(key), 11, 1));
+  const next = nextMonthKey(key);
+  return new Date(Date.UTC(Number(next.slice(0, 4)), Number(next.slice(5)) - 1, 1));
+}
+
+export function wrappedIsOpen(key: string, now: Date = new Date()): boolean {
+  return now.getTime() >= wrappedOpensAt(key).getTime();
 }
 
 /** The month after `key`, as a key. December rolls the year. */
@@ -224,7 +250,7 @@ export function shapeMonthlyWrapped(input: {
     rsn: input.rsn,
     monthKey: input.monthKey,
     monthLabel: monthLabel(input.monthKey),
-    inProgress: monthKeyOf(input.now) === input.monthKey,
+    inProgress: isYearKey(input.monthKey) ? String(input.now.getUTCFullYear()) === input.monthKey : monthKeyOf(input.now) === input.monthKey,
     xpGained,
     kcGained,
     ehpGained: ehpMilli / 1000,
