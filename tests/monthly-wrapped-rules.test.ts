@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 
 import {
   isMonthKey,
+  isYearKey,
   monthKeyOf,
   monthLabel,
   monthHasAnything,
@@ -15,6 +16,7 @@ import {
   monthlyHighlights,
   nextMonthKey,
   pbTime,
+  periodDays,
   previousMonthKeyOf,
   shapeMonthlyWrapped,
   type MonthDayRow,
@@ -23,6 +25,8 @@ import {
   type MonthMomentRow,
   type MonthClogRow,
   type MonthPbRow,
+  wrappedIsOpen,
+  wrappedOpensAt,
 } from '../src/lib/monthlyWrappedRules';
 
 const day = (over: Partial<MonthDayRow> = {}): MonthDayRow => ({
@@ -303,4 +307,47 @@ test('monthlyHighlights lists 99s first and caps at 3', () => {
     milestones: ['1,000 Zulrah KC', '50M XP in Slayer', '250M total XP'],
   });
   assert.deepEqual(h, ['99 Agility', '99 Slayer', '1,000 Zulrah KC']);
+});
+
+// ---------- year keys and the open window ----------
+
+test('isYearKey accepts YYYY and rejects a month key', () => {
+  assert.equal(isYearKey('2026'), true);
+  assert.equal(isYearKey('2026-10'), false);
+});
+
+test('monthLabel of a year key is the year', () => {
+  assert.equal(monthLabel('2026'), '2026');
+});
+
+test('periodDays covers the whole year for a year key', () => {
+  assert.deepEqual(periodDays('2026'), { from: '2026-01-01', to: '2027-01-01' });
+});
+
+test('periodDays covers the calendar month for a month key', () => {
+  assert.deepEqual(periodDays('2026-12'), { from: '2026-12-01', to: '2027-01-01' });
+});
+
+test('wrappedOpensAt for a year is 1 December of that year, UTC', () => {
+  assert.equal(wrappedOpensAt('2026').toISOString(), '2026-12-01T00:00:00.000Z');
+});
+
+test('wrappedOpensAt for a month is the first of the next month', () => {
+  assert.equal(wrappedOpensAt('2026-10').toISOString(), new Date('2026-11-01T00:00:00Z').toISOString());
+});
+
+test('wrappedIsOpen for a month stays closed until the month is over', () => {
+  assert.equal(wrappedIsOpen('2026-10', new Date('2026-10-31T23:00:00Z')), false);
+  assert.equal(wrappedIsOpen('2026-10', new Date('2026-11-01T00:00:00Z')), true);
+});
+
+test('wrappedIsOpen for a year opens on 1 December, not before', () => {
+  assert.equal(wrappedIsOpen('2026', new Date('2026-11-30T23:59:59Z')), false);
+  assert.equal(wrappedIsOpen('2026', new Date('2026-12-01T00:00:00Z')), true);
+});
+
+test('shapeMonthlyWrapped with a year key in the same year is in progress', () => {
+  const w = shape({ monthKey: '2026', now: new Date('2026-10-16T12:00:00Z') });
+  assert.equal(w.inProgress, true);
+  assert.equal(w.monthLabel, '2026');
 });
