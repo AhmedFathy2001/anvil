@@ -155,3 +155,17 @@ test('the retired admin character-link route cannot mutate ownership', () => {
   assert.match(src, /status:\s*403/);
   assert.doesNotMatch(src, /db\.(?:insert|update|delete)/, 'retired route must not write');
 });
+
+// ── Site accounts are Anvil's, not a clan's ───────────────────────────────────────────────────────────
+//
+// The clan People page could delete or rename ANY user id on the platform: the route checked only that
+// the caller was an admin somewhere, and anyone can found a clan. A clan reaches people only through
+// its own grants and seats, and never the account itself.
+
+test('clan admins cannot delete or rename site accounts, and only act on their own people', () => {
+  const src = readFileSync(join(process.cwd(), 'src/app/api/admin/users/[userId]/route.ts'), 'utf-8');
+  assert.doesNotMatch(src, /db\.delete\(users\)/, 'no clan route deletes a site account');
+  assert.doesNotMatch(src, /db\.update\(users\)/, 'no clan route writes the site account');
+  const put = src.slice(src.indexOf('export async function PUT'), src.indexOf('export async function DELETE'));
+  assert.match(put, /hasClanPresence\(clan\.id, targetId\)/, 'PUT is scoped to people with a presence here');
+});

@@ -4,7 +4,7 @@ import { db } from '@/db';
 import { clanAuditLog, clanStaff, eventEditors, events, users } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { atLeast, canGrantRole, canModify, type ClanRole } from '@/lib/clanRoles';
-import { clanGrant } from '@/lib/clanGrants';
+import { clanGrant, hasClanPresence } from '@/lib/clanGrants';
 import { requireClanFromRequest } from '@/lib/clanContext';
 
 const SETTABLE_ROLES = new Set<ClanRole>(['admin', 'treasurer', 'moderator', 'member']);
@@ -36,7 +36,18 @@ export async function PUT(
   const targetId = parseInt(userId, 10);
   if (!Number.isInteger(targetId)) return NextResponse.json({ error: 'Bad id' }, { status: 400 });
 
+  // Only someone this clan can see: a grant or a seat here. Any user id was accepted, so an admin of
+  // any clan — and anyone can found a clan — could reach every account on Anvil.
+  if (!(await hasClanPresence(clan.id, targetId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
   const { displayName, role, canEditTiles, canEditGuides } = await request.json();
+
+  // The name is the person's Anvil account, shown in every clan they're in — not this clan's to set.
+  if (displayName !== undefined) {
+    return NextResponse.json({ error: "A person's name belongs to their Anvil account — only they can change it" }, { status: 403 });
+  }
 
   if (role !== undefined && !SETTABLE_ROLES.has(role)) {
     return NextResponse.json({ error: 'Role must be admin, treasurer, moderator, or member' }, { status: 400 });
@@ -79,10 +90,6 @@ export async function PUT(
     }
   }
 
-  if (displayName !== undefined) {
-    await db.update(users).set({ displayName }).where(eq(users.id, targetId));
-  }
-
   const wantsGrant = role !== undefined || canEditTiles !== undefined || canEditGuides !== undefined;
   if (wantsGrant) {
     const nextRole: ClanRole = (role ?? existing?.role ?? 'member') as ClanRole;
@@ -107,7 +114,7 @@ export async function PUT(
       });
   }
 
-  if (!wantsGrant && displayName === undefined) {
+  if (!wantsGrant) {
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
   }
 
@@ -148,42 +155,14 @@ export async function PUT(
   return NextResponse.json({ ...updatedUser, role: grant?.role ?? 'member' });
 }
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ userId: string }> }
-) {
-  const currentUser = await verifyUser();
-  if (!currentUser || !atLeast(currentUser.role, 'admin')) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const { userId } = await params;
-  const targetId = parseInt(userId, 10);
-
-  // Prevent deleting self
-  if (currentUser.userId === targetId) {
-    return NextResponse.json({ error: 'Cannot delete your own account' }, { status: 400 });
-  }
-
-  const target = await db.select().from(users).where(eq(users.id, targetId));
-  if (target.length === 0) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 });
-  }
-
-  // The owner account can never be deleted (by anyone, including the owner themselves) — ownership
-  // must be transferred to another admin first. Keeps the instance from being orphaned or hijacked.
-  if (target[0].isOwner) {
-    return NextResponse.json({ error: 'Cannot delete the owner — transfer ownership first' }, { status: 403 });
-  }
-
-  // Prevent deleting last admin
-  if (target[0].role === 'admin') {
-    const admins = await db.select().from(users).where(eq(users.role, 'admin'));
-    if (admins.length <= 1) {
-      return NextResponse.json({ error: 'Cannot delete the last admin' }, { status: 400 });
-    }
-  }
-
-  await db.delete(users).where(eq(users.id, targetId));
-  return NextResponse.json({ success: true });
+/**
+ * Deleting a site account is not a clan's power. The account is the person's across every clan they
+ * play in; a clan removes their seat (roster) or bans them here, and Anvil staff handle the rest.
+ * This used to delete any user id on the platform for any clan admin.
+ */
+export async function DELETE() {
+  return NextResponse.json(
+    { error: 'Site accounts are managed by Anvil. Remove their roster seat or ban them from this clan instead.' },
+    { status: 403 },
+  );
 }

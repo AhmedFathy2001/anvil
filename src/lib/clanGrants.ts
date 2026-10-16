@@ -6,7 +6,7 @@
 import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanStaff, users } from '@/db/schema';
+import { accounts, clanMemberships, clanStaff, users } from '@/db/schema';
 import { atLeast, type ClanRole, type PlatformRole } from '@/lib/clanRoles';
 
 export interface ClanGrant {
@@ -56,6 +56,23 @@ export async function clanGrant(clanId: number, userId: number): Promise<ClanGra
 export async function hasClanRole(clanId: number, userId: number, min: ClanRole): Promise<boolean> {
   const grant = await clanGrant(clanId, userId);
   return grant != null && atLeast(grant.role, min);
+}
+
+/**
+ * Whether this person has a presence in this clan: a staff grant, or a roster seat (current or past)
+ * on one of their characters. The same test lib/identity uses to scope the people list — a clan
+ * admin may only act on people that list could show them, never on an arbitrary user id.
+ */
+export async function hasClanPresence(clanId: number, userId: number): Promise<boolean> {
+  if (await clanGrant(clanId, userId)) return true;
+  const [seat] = await db
+    .select({ id: clanMemberships.id })
+    .from(users)
+    .innerJoin(accounts, eq(accounts.playerId, users.playerId))
+    .innerJoin(clanMemberships, and(eq(clanMemberships.accountId, accounts.id), eq(clanMemberships.clanId, clanId)))
+    .where(eq(users.id, userId))
+    .limit(1);
+  return seat != null;
 }
 
 /** The caller's platform role, read live from the row rather than trusted from a session. */
