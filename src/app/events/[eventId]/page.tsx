@@ -18,7 +18,7 @@ import { notFound } from 'next/navigation';
 import ScoreboardClient from './ScoreboardClient';
 import { verifyUser } from '@/lib/auth';
 import { signupWindowState, signupEditState } from '@/lib/signup';
-import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
+import { countPaidEntries, computePrizePool } from '@/lib/prizePool';
 import { eventPoolGp } from '@/lib/coffer';
 import { placementAmounts } from '@/lib/payouts';
 import EventHero from '@/components/EventHero';
@@ -373,11 +373,14 @@ export default async function EventScoreboardPage({
   // The stats page counts from the start; before it there's nothing to show.
   const showStatsLink = boardHasStarted(event);
 
-  const [approvedCount, cofferFunded] = await Promise.all([countApprovedSignups(id), eventPoolGp(id)]);
+  // The pot counts fees actually in (lib/prizePool countPaidEntries), not every approved sign-up.
+  const [paid, cofferFunded] = await Promise.all([countPaidEntries(id), eventPoolGp(id)]);
+  const approvedCount = paid.count;
   const prizePool = computePrizePool({
     addedPrizePool: event.addedPrizePool,
     signupFee: event.signupFee,
     approvedCount,
+    paidFeesGp: paid.gp,
     cofferFunded,
   });
 
@@ -397,7 +400,7 @@ export default async function EventScoreboardPage({
   const prizeBreakdownParts: string[] = [];
   if ((event.signupFee ?? 0) > 0) {
     prizeBreakdownParts.push(
-      `${approvedCount} ${approvedCount === 1 ? 'entry' : 'entries'} × ${event.signupFee!.toLocaleString()} gp`,
+      `${approvedCount} paid ${approvedCount === 1 ? 'entry' : 'entries'} × ${event.signupFee!.toLocaleString()} gp`,
     );
   }
   if ((event.addedPrizePool ?? 0) > 0) {

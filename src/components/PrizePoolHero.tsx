@@ -17,10 +17,10 @@ export default function PrizePoolHero({
   const fee = signupFee ?? 0;
   const added = addedPrizePool ?? 0;
 
-  // Breakdown line: "12 entries × 5,000,000 gp + 50,000,000 gp added".
+  // Breakdown line: "12 paid entries × 5,000,000 gp + 50,000,000 gp added". Only fees actually in count.
   const parts: string[] = [];
   if (fee > 0) {
-    parts.push(`${approvedCount} ${approvedCount === 1 ? 'entry' : 'entries'} × ${fee.toLocaleString()} gp`);
+    parts.push(`${approvedCount} paid ${approvedCount === 1 ? 'entry' : 'entries'} × ${fee.toLocaleString()} gp`);
   }
   if (added > 0) parts.push(`${added.toLocaleString()} gp added`);
 

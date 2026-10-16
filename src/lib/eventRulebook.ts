@@ -12,7 +12,7 @@ import { events, settings, teams, tiles, eventParticipants } from '@/db/schema';
 import { eventPoolGp } from '@/lib/coffer';
 import { boardTiles, missionTiles, parseEventRules } from '@/lib/eventRules';
 import { getClanDisplayName } from '@/lib/pluginConfig';
-import { computePrizePool, countApprovedSignups } from '@/lib/prizePool';
+import { computePrizePool, countPaidEntries } from '@/lib/prizePool';
 import { pickRulebook, type Rulebook, type RulesFacts } from '@/lib/rulesMechanics';
 
 /** The host clan's house rules (settings `board_rules` / `board_rules_url`), scoped to that clan. */
@@ -51,7 +51,7 @@ export async function loadRulesFacts(eventId: number): Promise<RulesFacts | null
       .from(tiles)
       .where(eq(tiles.eventId, eventId)),
     db.select({ id: eventParticipants.id }).from(eventParticipants).where(eq(eventParticipants.eventId, eventId)),
-    countApprovedSignups(eventId).catch(() => 0),
+    countPaidEntries(eventId).catch(() => ({ count: 0, gp: 0 })),
     eventPoolGp(eventId).catch(() => 0),
     rulebookForEvent(row),
   ]);
@@ -59,7 +59,8 @@ export async function loadRulesFacts(eventId: number): Promise<RulesFacts | null
   const pool = computePrizePool({
     addedPrizePool: row.addedPrizePool ?? null,
     signupFee: row.signupFee ?? null,
-    approvedCount: approved,
+    approvedCount: approved.count,
+    paidFeesGp: approved.gp,
     cofferFunded,
   });
   const missionPool = missionTiles(allTiles);

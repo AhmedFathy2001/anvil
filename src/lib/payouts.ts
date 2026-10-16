@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { events, payouts, eventParticipants } from '@/db/schema';
 import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
-import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
+import { countApprovedSignups, countPaidEntries, computePrizePool } from '@/lib/prizePool';
 import { eventPoolGp } from '@/lib/coffer';
 import { getTeamStandings } from '@/lib/statStandings';
 import { notifyPayout } from '@/lib/discord';
@@ -31,29 +31,35 @@ export function suggestPlaceAmounts(totalPool: number, paidPlaces: number): numb
   return defaultSplit(paidPlaces).map((pct) => Math.round((totalPool * pct) / 100));
 }
 
-// The displayed prize pool for an event: host-added bonus + clan coffer contribution + entry fee ×
-// approved (non-excluded) entries.
+// The displayed prize pool for an event: host-added bonus + clan coffer contribution + the entry fees
+// actually collected (approved, non-excluded entries whose fee is marked collected or confirmed).
 export async function getEventPrizePool(eventId: number): Promise<{
   total: number;
   added: number;
   cofferFunded: number;
   signupFee: number;
   approvedCount: number;
+  /** Entries whose fee is actually in, and what they paid — the part of the pot that is real. */
+  paidCount: number;
+  paidFeesGp: number;
 }> {
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
-  const [approvedCount, cofferFunded] = await Promise.all([
+  const [approvedCount, paid, cofferFunded] = await Promise.all([
     countApprovedSignups(eventId),
+    countPaidEntries(eventId),
     eventPoolGp(eventId),
   ]);
   const added = event?.addedPrizePool ?? 0;
   const signupFee = event?.signupFee ?? 0;
   return {
-    total: computePrizePool({ addedPrizePool: added, signupFee, approvedCount, cofferFunded }),
+    total: computePrizePool({ addedPrizePool: added, signupFee, approvedCount, cofferFunded, paidFeesGp: paid.gp }),
     added,
     cofferFunded,
     signupFee,
     approvedCount,
+    paidCount: paid.count,
+    paidFeesGp: paid.gp,
   };
 }
 

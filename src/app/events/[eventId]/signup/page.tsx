@@ -9,7 +9,7 @@ import { verifyUser } from '@/lib/auth';
 import { parseProfile, signupWindowState, signupEditState } from '@/lib/signup';
 import { checkInvite, isWellFormedToken } from '@/lib/teamInvites';
 import { clanHref } from '@/lib/clanPath';
-import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
+import { countApprovedSignups, countPaidEntries, computePrizePool } from '@/lib/prizePool';
 import { eventPoolGp } from '@/lib/coffer';
 import { parseEventRules } from '@/lib/eventRules';
 import PrizePoolHero from '@/components/PrizePoolHero';
@@ -144,11 +144,13 @@ export default async function EventSignupPage({
         startDate: event.startDate,
       });
 
-  const [approvedCount, cofferFunded] = await Promise.all([countApprovedSignups(id), eventPoolGp(id)]);
+  // Headcount for the page stays "approved"; the pot counts only fees actually in.
+  const [approvedCount, paid, cofferFunded] = await Promise.all([countApprovedSignups(id), countPaidEntries(id), eventPoolGp(id)]);
   const prizePool = computePrizePool({
     addedPrizePool: event.addedPrizePool,
     signupFee: event.signupFee,
     approvedCount,
+    paidFeesGp: paid.gp,
     cofferFunded,
   });
 
@@ -205,7 +207,7 @@ export default async function EventSignupPage({
         prizePool={prizePool}
         signupFee={event.signupFee}
         addedPrizePool={event.addedPrizePool}
-        approvedCount={approvedCount}
+        approvedCount={paid.count}
       />
 
       <SignupForm

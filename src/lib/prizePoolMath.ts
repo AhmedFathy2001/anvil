@@ -18,9 +18,12 @@ export function computePrizePool(opts: {
   signupFee: number | null;
   approvedCount: number;
   cofferFunded?: number | null;
+  /** The fees actually collected (lib/prizePool countPaidEntries). When given, the pot counts this
+   *  instead of fee × entries — money in, not money owed. */
+  paidFeesGp?: number;
 }): number {
   const added = opts.addedPrizePool ?? 0;
   const coffer = opts.cofferFunded ?? 0;
-  const fees = (opts.signupFee ?? 0) * opts.approvedCount;
+  const fees = opts.paidFeesGp ?? (opts.signupFee ?? 0) * opts.approvedCount;
   return added + coffer + fees;
 }

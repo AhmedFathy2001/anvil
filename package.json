@@ -153,6 +153,7 @@
     "test:digest": "npx tsx --test tests/event-digest.test.ts tests/event-stats.test.ts",
     "test:nextstep": "npx tsx --test tests/event-next-step.test.ts",
     "test:formats": "npx tsx --test tests/format-catalog.test.ts",
+    "test:paidpot": "npx tsx --test tests/prize-pool-paid.test.ts",
     "test:features": "npx tsx --test tests/features.test.ts",
     "test:withdrawnroster": "npx tsx --test tests/withdrawn-roster-migration.test.ts"
   },
