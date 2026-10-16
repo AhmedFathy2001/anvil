@@ -6,7 +6,7 @@
 import { and, desc, eq, gte, inArray, isNotNull, like, lt, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanMemberships, memberClogItems, memberDailyStats, memberMilestones, memberPersonalBests, moments } from '@/db/schema';
+import { clanMemberships, clans, memberClogItems, memberDailyStats, memberMilestones, memberPersonalBests, moments } from '@/db/schema';
 import { clogItemNames, clogPageIndex } from '@/lib/clogDataset';
 import { clogItemRarity } from '@/lib/clogRarity';
 import { monthKeyOf, nextMonthKey, shapeMonthlyWrapped, type MonthlyWrapped } from '@/lib/monthlyWrappedRules';
@@ -35,11 +35,15 @@ async function computeMonthlyWrapped(accountId: number, rsn: string, monthKey: s
   // Timestamps here are text in two shapes ('YYYY-MM-DD HH:MM:SS' and ISO), both UTC and both
   // starting 'YYYY-MM', so a prefix match is the month in either.
   const inMonth = `${monthKey}%`;
+  // Drops come off clan seats (the plugin reports them to a clan), and a clan that keeps to itself
+  // owns what its members got: the public character page shows no clan's drops at all. A month card
+  // is public, so only seats in PUBLIC clans count. Everything else here is the account's own.
   const seats = await db
     .select({ id: clanMemberships.id })
     .from(clanMemberships)
-    // clan-scope: global -- the subject is one CHARACTER, whose seats span clans; its drops are its own.
-    .where(eq(clanMemberships.accountId, accountId));
+    .innerJoin(clans, eq(clans.id, clanMemberships.clanId))
+    // clan-scope: global -- the subject is one CHARACTER, whose seats span clans; filtered to public clans.
+    .where(and(eq(clanMemberships.accountId, accountId), eq(clans.visibility, 'public')));
 
   const [days, milestones, clog, pbs, momentRows] = await Promise.all([
     db
