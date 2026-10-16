@@ -1,3 +1,4 @@
+import { randomInt } from 'crypto';
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { clanRoster, verificationAttempts } from '@/db/schema';
@@ -29,7 +30,8 @@ function pickTargetSkill(xpMap: Record<string, number>): string | null {
   // in would force them to start from scratch which is poor UX.
   const candidates = TRAINABLE_SKILLS.filter((s) => (xpMap[s] ?? 0) > 0);
   if (candidates.length === 0) return null;
-  return candidates[Math.floor(Math.random() * candidates.length)];
+  // Unpredictable on purpose: an attacker who can guess the skill can pre-stage the XP gain.
+  return candidates[randomInt(candidates.length)];
 }
 
 // POST /api/auth/verify-stat-delta/start { rsn }

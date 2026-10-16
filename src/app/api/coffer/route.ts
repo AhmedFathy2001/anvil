@@ -7,6 +7,7 @@ import { requireClan } from '@/lib/clanContext';
 import { fileDonation, getCofferBalance, listCofferEntries, topDonors } from '@/lib/coffer';
 import { rateLimitByKey } from '@/lib/rate-limit';
 import { findRosterSeats, seatsOwnedBy } from '@/lib/roster';
+import { isClanMediaUrl } from '@/lib/storage';
 
 /**
  * The clan coffer, from a member's side: what is in the pot, who put it there, and the form for
@@ -76,13 +77,20 @@ export async function POST(request: Request) {
   }
   const chosen = mine.find((s) => s.id === Number(body?.seatId)) ?? mine[0];
 
+  // Our upload, under this clan's prefix: staff open it from the coffer queue, and a rejected
+  // donation deletes it — so it can be neither an outside link nor another clan's file.
+  const proofUrl = typeof body?.proofUrl === 'string' && body.proofUrl ? body.proofUrl : null;
+  if (proofUrl && !isClanMediaUrl(proofUrl, clan.slug)) {
+    return NextResponse.json({ error: 'Attach proof by uploading it here.' }, { status: 400 });
+  }
+
   const entry = await fileDonation({
     clanId: clan.id,
     amount,
     clanMemberId: chosen.id,
     rsn: chosen.rsn,
     createdByUserId: session.userId,
-    proofBlobUrl: typeof body?.proofUrl === 'string' && body.proofUrl ? body.proofUrl : null,
+    proofBlobUrl: proofUrl,
     note: typeof body?.note === 'string' ? body.note.slice(0, 500) : null,
   });
   return NextResponse.json({ entry: { id: entry.id, amount: entry.amount, status: entry.status } });

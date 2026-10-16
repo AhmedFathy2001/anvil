@@ -5,7 +5,7 @@ import { events, payouts, clanRoster } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
 import { and, eq, inArray } from 'drizzle-orm';
 import { verifyEventTreasurer } from '@/lib/auth';
-import { getEventPrizePool, parsePlacementSplit, placementAmounts } from '@/lib/payouts';
+import { MAX_PAYOUT_GP, getEventPrizePool, parsePlacementSplit, placementAmounts } from '@/lib/payouts';
 import { getTeamStandings } from '@/lib/statStandings';
 import { acceptedCohostClanIds } from '@/lib/coHost';
 
@@ -89,7 +89,7 @@ export async function POST(
   const rsn = typeof body?.rsn === 'string' ? body.rsn.trim() : '';
   const amount = Number(body?.amount);
   if (!rsn) return NextResponse.json({ error: 'Recipient name is required' }, { status: 400 });
-  if (!Number.isFinite(amount) || amount < 0) {
+  if (!Number.isFinite(amount) || amount < 0 || amount > MAX_PAYOUT_GP) {
     return NextResponse.json({ error: 'Amount must be a non-negative number' }, { status: 400 });
   }
 

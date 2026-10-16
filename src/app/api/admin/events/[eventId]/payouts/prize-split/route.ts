@@ -4,7 +4,7 @@ import { db } from '@/db';
 import { events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyEventTreasurer } from '@/lib/auth';
-import { savePlacementPrizes, savePlacementSplit } from '@/lib/payouts';
+import { MAX_PAYOUT_GP, savePlacementPrizes, savePlacementSplit } from '@/lib/payouts';
 
 // POST — save the prize-per-placement structure on the event WITHOUT generating payout rows. Lets an
 // admin advertise the reward per place ahead of time (shown on the event page); the rows are built
@@ -55,7 +55,7 @@ export async function POST(
       { status: 400 },
     );
   }
-  const amounts = body.placeAmounts.map((n) => Math.max(0, Math.round(Number(n) || 0)));
+  const amounts = body.placeAmounts.map((n) => Math.min(MAX_PAYOUT_GP, Math.max(0, Math.round(Number(n) || 0))));
 
   const saved = await savePlacementPrizes(id, amounts);
   return NextResponse.json({ placeAmounts: saved });

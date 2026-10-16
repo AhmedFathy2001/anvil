@@ -54,7 +54,7 @@ function fakeApp() {
 
 test('verifyDiscordSignature: accepts a genuine signature over timestamp + raw body', async () => {
   const app = fakeApp();
-  const timestamp = '1700000000';
+  const timestamp = String(Math.floor(Date.now() / 1000));
   const rawBody = JSON.stringify({ type: 1 });
   assert.equal(
     await verifyDiscordSignature({
@@ -67,9 +67,25 @@ test('verifyDiscordSignature: accepts a genuine signature over timestamp + raw b
   );
 });
 
-test('verifyDiscordSignature: rejects a tampered body, timestamp, or signature', async () => {
+test('verifyDiscordSignature: rejects a genuine signature that is too old to be fresh (replay)', async () => {
   const app = fakeApp();
   const timestamp = '1700000000';
+  const rawBody = JSON.stringify({ type: 2, data: { name: 'bingo' } });
+  const signature = app.signFor(timestamp, rawBody);
+  // Valid bytes, valid signature — and an hour later it must still be refused.
+  assert.equal(
+    await verifyDiscordSignature({ publicKeyHex: app.publicKeyHex, signature, timestamp, rawBody, nowMs: 1_700_003_600_000 }),
+    false,
+  );
+  assert.equal(
+    await verifyDiscordSignature({ publicKeyHex: app.publicKeyHex, signature, timestamp, rawBody, nowMs: 1_700_000_060_000 }),
+    true,
+  );
+});
+
+test('verifyDiscordSignature: rejects a tampered body, timestamp, or signature', async () => {
+  const app = fakeApp();
+  const timestamp = String(Math.floor(Date.now() / 1000));
   const rawBody = JSON.stringify({ type: 2, data: { name: 'bingo' } });
   const signature = app.signFor(timestamp, rawBody);
 
@@ -90,7 +106,7 @@ test('verifyDiscordSignature: rejects a tampered body, timestamp, or signature',
     false,
   );
   assert.equal(
-    await verifyDiscordSignature({ publicKeyHex: app.publicKeyHex, signature, timestamp: '1700000001', rawBody }),
+    await verifyDiscordSignature({ publicKeyHex: app.publicKeyHex, signature, timestamp: String(Number(timestamp) + 1), rawBody }),
     false,
   );
   assert.equal(

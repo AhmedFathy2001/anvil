@@ -3,6 +3,7 @@ import { put, clanMediaKey } from '@/lib/storage';
 import { currentClan } from '@/lib/clanContext';
 import crypto from 'crypto';
 import { verifyEventTreasurer } from '@/lib/auth';
+import { eventForRequest } from '@/lib/eventScope';
 
 // Payout proofs are stored under `payouts/` so the unpay/delete actions can remove them individually.
 // Mirrors the fee-proof upload: admin-or-treasurer only, image validation, 10 MB cap.
@@ -29,6 +30,9 @@ export async function POST(
   const eId = parseInt(eventId, 10);
   if (!Number.isFinite(eId)) {
     return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
+  }
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   if (!(await verifyEventTreasurer(eId))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

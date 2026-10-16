@@ -3,7 +3,10 @@ import { db } from '@/db';
 import { signupFees } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyEventTreasurer, verifyFeeCollector } from '@/lib/auth';
-import { eventIdForFee, markFeeCollected } from '@/lib/feeConfirmations';
+import { feeEventForRequest } from '@/lib/eventScope';
+import { markFeeCollected } from '@/lib/feeConfirmations';
+import { currentClan } from '@/lib/clanContext';
+import { isClanMediaUrl } from '@/lib/storage';
 
 // A treasurer/admin claims they collected the fee in-game and uploads proof.
 //
@@ -24,9 +27,14 @@ export async function POST(
 
   // A clan treasurer collects anywhere; a board treasurer only on the board they were granted, so
   // the fee has to say which event it belongs to before we know whether they may touch it.
-  const eventId = await eventIdForFee(id);
+  // Whose fee is this? Ids are global; only this clan's ledger is this clan's to touch.
+  const event = await feeEventForRequest(request, id);
+  if (!event) {
+    return NextResponse.json({ error: 'Fee not found' }, { status: 404 });
+  }
+  const eventId = event.id;
   const session =
-    (await verifyFeeCollector()) ?? (eventId != null ? await verifyEventTreasurer(eventId) : null);
+    (await verifyFeeCollector()) ?? (await verifyEventTreasurer(eventId));
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -38,6 +46,11 @@ export async function POST(
   // Proof is now OPTIONAL — "Mark paid" can be a single tap, with a screenshot attached
   // only if the collector has one. A provided proofUrl must be a non-empty string.
   const proofUrl = typeof body?.proofUrl === 'string' && body.proofUrl ? body.proofUrl : null;
+  // Our upload, under this clan's prefix — reset deletes the proof, so it must be this clan's file.
+  const clan = await currentClan();
+  if (proofUrl && (!clan || !isClanMediaUrl(proofUrl, clan.slug))) {
+    return NextResponse.json({ error: 'Attach proof by uploading it here.' }, { status: 400 });
+  }
 
   const fee = await db.query.signupFees.findFirst({ where: eq(signupFees.id, id) });
   if (!fee) {

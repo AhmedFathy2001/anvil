@@ -8,6 +8,12 @@ import { notifyPayout } from '@/lib/discord';
 
 // Suggested percentage split of the pool by number of paid places. First place is weighted heaviest;
 // it's only the STARTING suggestion — admins set an explicit gp reward per placement in the UI.
+/**
+ * The most one payout row can hold: payouts.amount is a 32-bit integer (~2.1B gp, more than any
+ * clan prize). Checked at the routes so an oversized number is a clear 400, not a database error.
+ */
+export const MAX_PAYOUT_GP = 2_147_483_647;
+
 export function defaultSplit(paidPlaces: number): number[] {
   switch (Math.max(1, paidPlaces)) {
     case 1:

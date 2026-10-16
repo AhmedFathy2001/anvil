@@ -23,3 +23,23 @@ export function isDiscordWebhookUrl(raw: string): boolean {
   // /api/webhooks/<id>/<token> — accept an optional /vN version segment.
   return /^\/api\/(v\d+\/)?webhooks\/\d+\/[\w-]+$/.test(u.pathname);
 }
+
+/**
+ * The looser check for the SENDERS, which also address a webhook's `/messages/<id>` for edits: the
+ * host is Discord's and the path is under a webhook. Every server-side post goes through this, so a
+ * URL that slipped past the save-time check — an old row, a route that never checked — still can
+ * only ever reach Discord.
+ */
+export function isDiscordWebhookTarget(raw: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(raw.trim());
+  } catch {
+    return false;
+  }
+  return (
+    u.protocol === 'https:' &&
+    DISCORD_HOSTS.has(u.hostname.toLowerCase()) &&
+    /^\/api\/(v\d+\/)?webhooks\/\d+\/[\w-]+(\/|$)/.test(u.pathname)
+  );
+}

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import AnvilMark from '@/components/AnvilMark';
 import { verifyUser } from '@/lib/auth';
 import { isDiscordOAuthConfigured } from '@/lib/discord-oauth';
+import { safeReturnPath } from '@/lib/safe-redirect';
 
 interface SearchParams {
   return?: string;
@@ -14,15 +15,15 @@ export default async function LoginPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  // Sanitised once, before either branch uses it. The signed-in branch used to redirect to the raw
+  // value, so `/login?return=//evil.example` bounced a logged-in visitor off-site under our domain.
+  const returnTo = safeReturnPath(params.return);
   const user = await verifyUser();
   if (user) {
-    redirect(params.return || '/');
+    redirect(returnTo);
   }
 
   const oauthConfigured = isDiscordOAuthConfigured();
-  const returnTo = params.return && params.return.startsWith('/') && !params.return.startsWith('//')
-    ? params.return
-    : '/';
   const startHref = `/api/auth/discord/start?return=${encodeURIComponent(returnTo)}`;
 
   return (

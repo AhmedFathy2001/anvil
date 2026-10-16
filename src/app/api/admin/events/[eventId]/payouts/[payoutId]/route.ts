@@ -5,6 +5,7 @@ import { payouts } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { verifyEventTreasurer } from '@/lib/auth';
 import { del } from '@/lib/storage';
+import { MAX_PAYOUT_GP } from '@/lib/payouts';
 
 // PATCH — edit an editable field on a payout row (amount, recipient name, notes).
 export async function PATCH(
@@ -41,7 +42,7 @@ export async function PATCH(
 
   if (body?.amount !== undefined) {
     const amount = Number(body.amount);
-    if (!Number.isFinite(amount) || amount < 0) {
+    if (!Number.isFinite(amount) || amount < 0 || amount > MAX_PAYOUT_GP) {
       return NextResponse.json({ error: 'Amount must be a non-negative number' }, { status: 400 });
     }
     updateData.amount = Math.round(amount);

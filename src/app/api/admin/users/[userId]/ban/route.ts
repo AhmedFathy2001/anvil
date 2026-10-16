@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanStaff, users } from '@/db/schema';
@@ -7,7 +7,7 @@ import { personOf } from '@/lib/roster';
 import { verifyUser } from '@/lib/auth';
 import { requireClanFromRequest } from '@/lib/clanContext';
 import { banFromClan, liftClanBan } from '@/lib/clanBans';
-import { atLeast } from '@/lib/clanRoles';
+import { atLeast, canModify } from '@/lib/clanRoles';
 
 // POST /api/admin/users/[userId]/ban   Body: { banned: boolean, reason?: string }
 //
@@ -49,12 +49,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
 
   // The owner OF THIS CLAN is unbannable here. Read from the grant rather than a flag on the user:
   // being owner of some other clan is no protection in this one, and should not be.
+  //
+  // THIS clan's grant. Looking the person up by user alone returned whichever of their grants came
+  // first — so an owner who also staffs another clan read as "not the owner here" and their own
+  // admins could bar them from the clan they founded.
   const targetGrant = await db.query.clanStaff.findFirst({
-    where: eq(clanStaff.userId, targetId),
-    columns: { role: true, clanId: true },
+    where: and(eq(clanStaff.clanId, clan.id), eq(clanStaff.userId, targetId)),
+    columns: { role: true },
   });
-  if (targetGrant?.clanId === clan.id && targetGrant.role === 'owner') {
+  if (targetGrant?.role === 'owner') {
     return NextResponse.json({ error: 'The clan owner cannot be banned' }, { status: 400 });
+  }
+  // The same rule as changing a role: never act on a peer or a superior. Otherwise two admins can
+  // bar each other out of the clan, and the first to click wins it.
+  if (!canModify(actor.role, targetGrant?.role ?? 'member')) {
+    return NextResponse.json({ error: 'You cannot ban someone at or above your own role' }, { status: 403 });
   }
 
   const playerId = await personOf(targetId);

@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { eventPresets } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import { requireClanFromRequest } from '@/lib/clanContext';
 import { verifyAdmin } from '@/lib/auth';
 
 // Delete a saved event template. Admin-only.
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const isAdmin = await verifyAdmin();
@@ -20,6 +21,9 @@ export async function DELETE(
     return NextResponse.json({ error: 'Invalid preset id' }, { status: 400 });
   }
 
-  await db.delete(eventPresets).where(eq(eventPresets.id, presetId));
+  const clan = await requireClanFromRequest(request);
+  if (!clan) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  // This clan's templates only — the id is global, and admin of any clan is not admin of all.
+  await db.delete(eventPresets).where(and(eq(eventPresets.id, presetId), eq(eventPresets.clanId, clan.id)));
   return NextResponse.json({ success: true });
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifyUser } from '@/lib/auth';
 import { normalizeUserCode, resolveUserCode } from '@/lib/pluginDeviceAuth';
-import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
+import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +13,8 @@ export async function POST(request: Request) {
   if (!session?.userId) return NextResponse.json({ error: 'Sign in first.' }, { status: 401 });
 
   // Brute-forcing 8-char codes through this endpoint must be pointless.
-  const rl = await rateLimit(request, 'link-device', { limit: 15, windowMs: 5 * 60 * 1000 });
+  // Per login, not per IP: the person is the one trying codes, and an IP is the weaker key.
+  const rl = await rateLimitByKey('link-device', `u${session.userId}`, { limit: 15, windowMs: 5 * 60 * 1000 });
   if (!rl.ok) {
     return NextResponse.json({ error: 'Too many attempts — wait a bit.' }, { status: 429, headers: rateLimitHeaders(rl) });
   }
