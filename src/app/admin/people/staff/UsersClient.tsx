@@ -61,15 +61,9 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const { confirm, ask, notify } = useDialog();
-  const [editingUser, setEditingUser] = useState<User | null>(null);
   const [filter, setFilter] = useState<MainFilter>('all');
   const [search, setSearch] = useState('');
   const [savingRoleId, setSavingRoleId] = useState<number | null>(null);
-
-  // Rename form (display name only — role is edited inline on the row now).
-  const [editDisplayName, setEditDisplayName] = useState('');
-  const [editError, setEditError] = useState('');
-  const [saving, setSaving] = useState(false);
 
   // Board-editor assignment modal — which events a person may edit tiles on (the per-user side of
   // the per-event Board editors panel). Backed by /api/admin/users/[id]/editor-events.
@@ -274,49 +268,6 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
     fetchUsers();
   }
 
-  function startEdit(user: User) {
-    setEditingUser(user);
-    setEditDisplayName(user.displayName);
-    setEditError('');
-  }
-
-  async function handleEdit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!editingUser) return;
-    setEditError('');
-    setSaving(true);
-    const res = await clanFetch(`/api/admin/users/${editingUser.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ displayName: editDisplayName }),
-    });
-    if (!res.ok) {
-      const data = await res.json();
-      setEditError(data.error || 'Failed to update user');
-      setSaving(false);
-      return;
-    }
-    setEditingUser(null);
-    setSaving(false);
-    fetchUsers();
-  }
-
-  async function handleDelete(user: User) {
-    const ok = await confirm({
-      title: `Delete "${user.displayName}"?`,
-      body: 'Their site account goes. Roster seats and results recorded against their characters stay.',
-      confirmLabel: 'Delete account',
-    });
-    if (!ok) return;
-    const res = await clanFetch(`/api/admin/users/${user.id}`, { method: 'DELETE' });
-    if (!res.ok) {
-      const data = await res.json();
-      notify(data.error || 'Failed to delete user', 'error');
-      return;
-    }
-    fetchUsers();
-  }
-
   if (loading) {
     return <div className="text-center py-12 text-text-muted">Loading accounts…</div>;
   }
@@ -338,7 +289,6 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
         title: 'Transfer ownership to this admin',
       });
     }
-    items.push({ label: 'Rename', onClick: () => startEdit(user) });
     // Board editing is a per-event grant; admins already edit every board, so skip it for them.
     if (user.role !== 'admin') {
       items.push({ label: 'Boards…', onClick: () => openBoards(user), title: 'Choose which event boards this person can edit' });
@@ -348,7 +298,6 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
       onClick: () => banUser(user),
       variant: user.banned ? 'default' : 'danger',
     });
-    items.push({ label: 'Delete', onClick: () => handleDelete(user), variant: 'danger' });
     return items;
   }
 
@@ -545,35 +494,6 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
         />
       </div>
 
-      {/* Rename modal */}
-      {editingUser && (
-        <div className="border border-card-border rounded-xl bg-card-bg p-5 mb-6">
-          <h3 className="font-semibold mb-4">Rename: {editingUser.displayName}</h3>
-          <form onSubmit={handleEdit} className="space-y-3">
-            <div>
-              <label className="block text-xs text-text-muted mb-1">Display name</label>
-              <Input type="text" value={editDisplayName} onChange={(e) => setEditDisplayName(e.target.value)} />
-            </div>
-            {editError && <p className="text-red-400 text-sm">{editError}</p>}
-            <div className="flex gap-2 justify-end">
-              <button
-                type="button"
-                onClick={() => setEditingUser(null)}
-                className="px-4 py-2 text-sm border border-card-border rounded-lg hover:border-gold/40 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-4 py-2 text-sm font-semibold bg-gold hover:bg-gold-light text-brown-dark rounded-lg transition-colors disabled:opacity-50"
-              >
-                {saving ? 'Saving…' : 'Save'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
 
       {boardsUser && (
         <div className="border border-card-border rounded-xl bg-card-bg p-5 mb-6">
