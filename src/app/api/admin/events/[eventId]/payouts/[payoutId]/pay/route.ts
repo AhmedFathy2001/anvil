@@ -3,7 +3,7 @@ import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { events, payouts } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
-import { verifyEventTreasurer } from '@/lib/auth';
+import { verifyEventTreasurer, verifyFeeCollector } from '@/lib/auth';
 import { del } from '@/lib/storage';
 import { allPayoutsPaid, announcePayouts } from '@/lib/payouts';
 import { getEventPool, settleAward } from '@/lib/coffer';
@@ -62,9 +62,13 @@ export async function POST(
   // ONE "paid", not two. The part of the prizes that came out of the clan coffer is a single pool
   // row on the ledger, and it used to wait for a treasurer to mark it paid AGAIN on the Coffer page.
   // When the last prize goes out, the pool has been paid by definition, so the ledger says so here.
-  if (allPaid) {
+  //
+  // Only for someone who may settle the CLAN'S ledger (verifyFeeCollector — the Coffer page's own
+  // gate). A treasurer granted just this board may pay its prizes but not move the clan's coffer, so
+  // for them the pool stays put for a clan treasurer to settle, exactly as before.
+  if (allPaid && (await verifyFeeCollector())) {
     const pool = await getEventPool(eId);
-    if (pool && pool.status !== 'paid') {
+    if (pool && pool.status !== 'paid' && pool.clanId === event?.clanId) {
       await settleAward({ clanId: pool.clanId, entryId: pool.id, paid: true, userId: session.userId });
     }
   }
