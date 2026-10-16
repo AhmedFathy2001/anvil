@@ -362,7 +362,9 @@ export async function momentsForClan(clanId: number, limit = 20): Promise<Moment
     .select(MOMENT_COLUMNS)
     .from(moments)
     .innerJoin(clanMemberships, eq(moments.clanMemberId, clanMemberships.id))
-    .where(eq(clanMemberships.clanId, clanId))
+    // Members only. A guest seat is somebody visiting for a board (the other side of a clan-v-clan),
+    // and their drops are that board's story, not this clan's — the event feed still shows them.
+    .where(and(eq(clanMemberships.clanId, clanId), eq(clanMemberships.kind, 'member')))
     .orderBy(desc(moments.occurredAt))
     .limit(window);
   return rows.filter((row) => isClanWorthy(row, clan)).slice(0, limit);

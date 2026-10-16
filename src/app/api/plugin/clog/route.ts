@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { memberClog, memberClogItems, memberClogKc } from '@/db/schema';
+import { clanMemberships, memberClog, memberClogItems, memberClogKc, moments } from '@/db/schema';
 import { resolvePluginCharacter } from '@/lib/pluginAccount';
 import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
 import { clogPageIndex, clogTotalSlots, groupObtainedItems } from '@/lib/clogDataset';
 import { bossKeyForPage, bossKillsFor } from '@/lib/clogLuckBoard';
 import { resolveUnlock } from '@/lib/clogUnlock';
 import { track } from '@/lib/analytics';
+import { parseStamp } from '@/lib/dbTime';
 
 // Collection-log ingest. The plugin sends pages the player has actually OPENED — the game only hands
 // the client a page once it has drawn one — so a log arrives in pieces over days rather than whole.
@@ -167,10 +168,15 @@ export async function POST(request: Request) {
       .delete(memberClogItems)
       .where(and(eq(memberClogItems.accountId, member.accountId), eq(memberClogItems.pageName, name)));
 
+    // New slots on a page we already held are unlocks we can date — from a moment, when one saw it.
+    const fresh = previous.size > 0 ? rows.filter((r) => !previous.has(r.itemId)).map((r) => r.itemId) : [];
+    const seenLive = await momentStamps(member.accountId, fresh);
+
     if (rows.length > 0) {
       await db.insert(memberClogItems).values(
         rows.map((r) => {
           const before = previous.get(r.itemId);
+          const live = seenLive.get(r.itemId);
           return {
             accountId: member.accountId,
             itemId: r.itemId,
@@ -184,8 +190,8 @@ export async function POST(request: Request) {
             // feed. Only a genuinely new row on a page we already held is datable.
             firstSeenAt: previous.has(r.itemId)
               ? (before?.firstSeenAt ?? null)
-              : (previous.size > 0 ? nowIso : null),
-            kcAtUnlock: before?.kcAtUnlock ?? null,
+              : (previous.size > 0 ? (live?.at ?? nowIso) : null),
+            kcAtUnlock: before?.kcAtUnlock ?? live?.kc ?? null,
           };
         }),
       )
@@ -375,6 +381,10 @@ async function ingestWholeLog(
     ? await bossKillsFor(member.accountId).catch(() => ({}) as Record<string, number>)
     : ({} as Record<string, number>);
   const pageCounts = hadLog ? await pageKillCounts(member.accountId, meta.counts) : new Map<string, number>();
+  const heldIds = new Set(existing.map((r) => r.itemId));
+  const seenLive = hadLog
+    ? await momentStamps(member.accountId, parsed.map((p) => p.id).filter((id) => !heldIds.has(id)))
+    : new Map<number, { at: string; kc: number | null }>();
 
   const rows = [...pages.entries()].flatMap(([pageName, items]) =>
     items.map((r) => {
@@ -383,15 +393,17 @@ async function ingestWholeLog(
       // The one moment this is knowable: they didn't have it, now they do, so their current KC is
       // the KC it dropped at. Every later sync copies the stamp rather than re-reading it — after
       // the fact, a pet spooned at 12 and one earned at 3,000 look identical.
+      // A moment that saw it land beats both counters: it was read at the kill, they at the sync.
+      const live = !before && hadLog ? seenLive.get(r.itemId) : undefined;
       const stamped = !before && hadLog
-        ? (pageCounts.get(pageName.toLowerCase()) ?? (bossKey ? kills[bossKey] ?? null : null))
+        ? (live?.kc ?? pageCounts.get(pageName.toLowerCase()) ?? (bossKey ? kills[bossKey] ?? null : null))
         : null;
       return {
         accountId: member.accountId,
         itemId: r.itemId,
         pageName,
         quantity: r.quantity,
-        firstSeenAt: before ? before.firstSeenAt : hadLog ? meta.nowIso : null,
+        firstSeenAt: before ? before.firstSeenAt : hadLog ? (live?.at ?? meta.nowIso) : null,
         kcAtUnlock: before?.kcAtUnlock ?? stamped,
       };
     }),
@@ -584,6 +596,36 @@ async function ingestUnlocks(raw: IncomingUnlock[], member: { accountId: number 
       .where(eq(memberClog.accountId, member.accountId));
   }
   return NextResponse.json({ ok: true, recorded });
+}
+
+/**
+ * What the moments feed already knows about items this account just turned up with: the earliest
+ * moment per item, with when it happened and the KC the plugin saw it at.
+ *
+ * A pet or a rare drop is reported the second it lands, so for those the moment IS the unlock —
+ * Moxi on the 17th Amoxliatl, posted live, then synced days later at 39. Without this the sync
+ * stamped its own moment and its own counter over a fact we already held.
+ */
+async function momentStamps(
+  accountId: number,
+  itemIds: number[],
+): Promise<Map<number, { at: string; kc: number | null }>> {
+  const out = new Map<number, { at: string; kc: number | null }>();
+  if (itemIds.length === 0) return out;
+  const rows = await db
+    .select({ itemId: moments.itemId, occurredAt: moments.occurredAt, kc: moments.kc })
+    .from(moments)
+    .innerJoin(clanMemberships, eq(moments.clanMemberId, clanMemberships.id))
+    .where(and(eq(clanMemberships.accountId, accountId), inArray(moments.itemId, itemIds)));
+  for (const r of rows) {
+    const ms = parseStamp(r.occurredAt);
+    if (r.itemId == null || ms == null) continue;
+    const at = new Date(ms).toISOString();
+    const held = out.get(r.itemId);
+    if (!held || at < held.at) out.set(r.itemId, { at, kc: r.kc ?? held?.kc ?? null });
+    else if (held.kc == null && r.kc != null) held.kc = r.kc;
+  }
+  return out;
 }
 
 /** Slots that EXIST on the pages this account has synced — the denominator that isn't a lie. */
