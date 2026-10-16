@@ -82,7 +82,7 @@ export default function BoardBalancePanel({
             wants to go and change the rate behind it. */}
         <p className="text-[11px] text-text-muted">
           Measured against your clan&rsquo;s{' '}
-          <ClanLink href="/admin/integrations?tab=board" className="text-gold hover:underline">
+          <ClanLink href="/admin/rules#scoring" className="text-gold hover:underline">
             effort rates
           </ClanLink>
           {' '}— kill times, XP rates and who can realistically do the content.

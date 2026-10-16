@@ -2,11 +2,11 @@ import { NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clans } from '@/db/schema';
+import { clanAuditLog, clans } from '@/db/schema';
 import { requireClan } from '@/lib/clanContext';
 import { verificationOf } from '@/lib/clanVerification';
 import { setSetting, getSettingMap } from '@/lib/settings';
-import { verifyAdmin } from '@/lib/auth';
+import { verifyAdmin, verifyUser } from '@/lib/auth';
 import { sendTestWebhook } from '@/lib/discord';
 import { WEBHOOK_PAGE_SETTING_KEYS } from '@/lib/webhookFields';
 import { fetchGuildRoles } from '@/lib/discord-roles';
@@ -156,11 +156,24 @@ export async function PUT(request: Request) {
     }
   }
 
+  const changed: string[] = [];
   for (const key of EXPOSED_KEYS) {
     const raw = body[key];
     if (raw === undefined) continue;
     const value = typeof raw === 'string' ? raw.trim() : raw;
     await setSetting(clan.id, key, value ? value : null);
+    changed.push(key);
+  }
+  // Into the Activity log: WHICH settings changed and who changed them — never the values, since
+  // several are webhook URLs and tokens that the log's readers have no business seeing.
+  if (changed.length > 0) {
+    const actor = await verifyUser();
+    await db.insert(clanAuditLog).values({
+      clanId: clan.id,
+      eventType: 'settings_changed',
+      actorUserId: actor && actor.userId > 0 ? actor.userId : null,
+      newValue: JSON.stringify({ keys: changed }),
+    });
   }
   // The showcase switch also gates /compare/clans and its cards — see admin/clan/policy.
   if (body.public_showcase !== undefined) forgetLinkCards();

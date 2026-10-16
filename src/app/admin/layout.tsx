@@ -227,6 +227,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           ? [{ href: '/admin/announce', label: 'Post to Discord', icon: '📣', sprite: 'tinderbox' as const }]
           : []),
         { href: '/admin/features', label: 'Features', icon: '🧩', sprite: 'petRock' },
+        { href: '/admin/rules', label: 'Rules & scoring', icon: '📏', sprite: 'stats' },
         { href: '/admin/clan/audit', label: 'Activity log', icon: '📜', sprite: 'clue' },
         { href: '/admin/clan', label: 'Clan profile', icon: '🏰', sprite: 'zenyte', matchPrefix: true, exclude: ['/admin/clan/audit'] },
         // SETUP IS A STATE, NOT A PLACE: listed only while unfinished.

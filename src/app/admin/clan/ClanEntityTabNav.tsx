@@ -30,7 +30,7 @@ export default function ClanEntityTabNav({ isAdmin }: Props) {
     // Who may see the clan and how guests get in.
     { href: '/admin/clan/policy', label: 'Access', show: isAdmin },
     // Everything the clan talks to. Was System → Advanced settings.
-    { href: '/admin/integrations', label: 'Settings', show: isAdmin },
+    { href: '/admin/integrations', label: 'Discord', show: isAdmin },
     { href: '/admin/clan/audit', label: 'History', show: true },
   ];
 

@@ -712,7 +712,7 @@ export default function SignupAdminPanel({
             {confirmationsRequired === 0
               ? 'Marking a fee paid settles it outright — no second signature required.'
               : `A paid fee settles after ${confirmationsRequired} confirmation${confirmationsRequired === 1 ? '' : 's'} from someone other than whoever collected it.`}{' '}
-            <ClanLink href="/admin/integrations?tab=fees" className="text-gold hover:underline underline-offset-2">
+            <ClanLink href="/admin/rules#fees" className="text-gold hover:underline underline-offset-2">
               Change
             </ClanLink>
             {' · '}

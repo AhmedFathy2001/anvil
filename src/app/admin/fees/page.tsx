@@ -119,7 +119,7 @@ export default async function AdminFeesPage() {
             : '— from someone other than whoever collected it.'}
         </span>
         <ClanLink
-          href="/admin/integrations?tab=fees"
+          href="/admin/rules#fees"
           className="ml-auto text-xs font-medium text-gold hover:underline underline-offset-2"
         >
           Change this →
