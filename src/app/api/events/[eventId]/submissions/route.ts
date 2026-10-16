@@ -683,3 +683,40 @@ export async function DELETE(
 
   return NextResponse.json({ success: true, sync: syncResult });
 }
+
+/**
+ * PATCH ?submissionId=… { action: 'clear-flag' } — staff looked at a flagged proof and it's fine.
+ *
+ * A flag (submissions.flaggedReason) never stops a credit counting; it only asks for a human look.
+ * The event home lists flagged proofs under "Proofs to check", and this is its "Looks fine": the
+ * credit stays, the flag goes, and the proof leaves the list. Removing one is DELETE above.
+ *
+ * Moderator or better — checking proofs is moderation, the same people who run sign-ups.
+ */
+export async function PATCH(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  const { eventId } = await params;
+  const eId = parseInt(eventId, 10);
+  if (!(await eventForRequest(request, eId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+  const actingUser = await verifyUser();
+  if (!atLeast(actingUser?.role, 'moderator')) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const body = await request.json().catch(() => null);
+  if (body?.action !== 'clear-flag') {
+    return NextResponse.json({ error: "Expected { action: 'clear-flag' }" }, { status: 400 });
+  }
+  const sId = parseInt(new URL(request.url).searchParams.get('submissionId') ?? '', 10);
+  if (!Number.isInteger(sId)) return NextResponse.json({ error: 'submissionId required' }, { status: 400 });
+
+  // Only a submission on a tile of THIS event: the id came from the caller.
+  const eventTileIds = db.select({ id: tiles.id }).from(tiles).where(eq(tiles.eventId, eId));
+  const updated = await db
+    .update(submissions)
+    .set({ flaggedReason: null })
+    .where(and(eq(submissions.id, sId), inArray(submissions.tileId, eventTileIds)))
+    .returning({ id: submissions.id });
+  if (updated.length === 0) return NextResponse.json({ error: 'Submission not found' }, { status: 404 });
+  return NextResponse.json({ ok: true });
+}

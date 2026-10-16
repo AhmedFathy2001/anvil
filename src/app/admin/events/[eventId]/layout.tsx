@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { getClanFeatures } from '@/lib/clanFeatures';
 import { isTileRaceFormat, isPointsMode, eventShapeBadge } from '@/lib/utils';
 import { verifyUser } from '@/lib/auth';
 import { isEventEditor, isEventTreasurer } from '@/lib/eventEditors';
@@ -88,6 +89,7 @@ export default async function EventLayout({
     tilesOnly: isEditor,
     moneyOnly: isBoardTreasurer,
     taskNounPlural: nounPlural,
+    surveyOn: (await getClanFeatures(event.clanId)).on('survey'),
   });
 
   return (
