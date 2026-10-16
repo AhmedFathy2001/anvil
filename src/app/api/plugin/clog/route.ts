@@ -6,6 +6,7 @@ import { resolvePluginCharacter } from '@/lib/pluginAccount';
 import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
 import { clogPageIndex, clogTotalSlots, groupObtainedItems } from '@/lib/clogDataset';
 import { bossKeyForPage, bossKillsFor } from '@/lib/clogLuckBoard';
+import { resolveUnlock } from '@/lib/clogUnlock';
 import { track } from '@/lib/analytics';
 
 // Collection-log ingest. The plugin sends pages the player has actually OPENED — the game only hands
@@ -55,7 +56,7 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: { pages?: unknown; items?: unknown; syncedPages?: unknown; counts?: unknown };
+  let body: { pages?: unknown; items?: unknown; syncedPages?: unknown; counts?: unknown; unlocks?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -91,6 +92,11 @@ export async function POST(request: Request) {
       pluginVersion: request.headers.get('X-Anvil-Plugin-Version')?.slice(0, 32) ?? null,
       accountHash: request.headers.get('X-Account-Hash')?.slice(0, 128) ?? null,
     });
+  }
+
+  // LIVE unlocks: the in-game "New item added to your collection log" line, sent as it fires.
+  if (Array.isArray(body?.unlocks) && !Array.isArray(body?.pages)) {
+    return ingestUnlocks(body.unlocks as IncomingUnlock[], member);
   }
 
   if (!Array.isArray(body?.pages) || body.pages.length === 0) {
@@ -489,6 +495,95 @@ async function ingestWholeLog(
     // Non-zero means the game has items our catalogue doesn't: re-run `npm run data:clog`.
     unknown,
   });
+}
+
+interface IncomingUnlock {
+  name?: unknown;
+  kcName?: unknown;
+  kc?: unknown;
+}
+
+/** One unlock line is one item; a client batching a few after a hiccup is fine, a flood is not. */
+const MAX_UNLOCKS_PER_PUSH = 10;
+
+/**
+ * Record unlocks the plugin saw happen (lib/clogUnlock): the row lands now, dated now and stamped
+ * with the kill that produced it, and every later sync keeps both — a re-sync is not a re-unlock.
+ *
+ * Only for an account that has synced a log before. Without one there is nothing to add the slot to,
+ * and a lone row would make the first real sync think it already held a log and date every
+ * years-old item in it to today.
+ */
+async function ingestUnlocks(raw: IncomingUnlock[], member: { accountId: number }) {
+  if (raw.length === 0 || raw.length > MAX_UNLOCKS_PER_PUSH) {
+    return NextResponse.json({ error: `1-${MAX_UNLOCKS_PER_PUSH} unlocks per push` }, { status: 400 });
+  }
+  const rl = await rateLimitByKey('clog-unlock', String(member.accountId), { limit: 30, windowMs: 60_000 });
+  if (!rl.ok) {
+    return NextResponse.json({ error: 'Too many unlocks' }, { status: 429, headers: rateLimitHeaders(rl) });
+  }
+  const log = await db.query.memberClog.findFirst({ where: eq(memberClog.accountId, member.accountId) });
+  if (!log) return NextResponse.json({ ok: true, recorded: 0, reason: 'no-log' });
+
+  const ownedRows = await db
+    .select({ itemId: memberClogItems.itemId })
+    .from(memberClogItems)
+    .where(eq(memberClogItems.accountId, member.accountId));
+  const owned = new Set(ownedRows.map((r) => r.itemId));
+
+  const nowIso = new Date().toISOString();
+  let kills: Record<string, number> | null = null;
+  let recorded = 0;
+  for (const u of raw) {
+    const name = typeof u?.name === 'string' ? u.name.trim().slice(0, 120) : '';
+    if (!name) continue;
+    const resolved = resolveUnlock(
+      {
+        name,
+        kcName: typeof u?.kcName === 'string' ? u.kcName.slice(0, 120) : null,
+        kc: int(u?.kc, MAX_COUNT),
+      },
+      owned,
+    );
+    // Already held: the line fires once per slot, so this is a duplicate send or a sync that beat it.
+    if (!resolved || owned.has(resolved.itemId)) continue;
+    // No kill line for this page: the boss's inferred count (live push floored by hiscores) — what a
+    // sync would have stamped, but read now rather than days later. Null for a page that isn't a boss.
+    let kc = resolved.kc;
+    if (kc == null) {
+      const bossKey = bossKeyForPage(resolved.page);
+      if (bossKey) {
+        kills ??= await bossKillsFor(member.accountId).catch(() => ({}) as Record<string, number>);
+        kc = kills[bossKey] ?? null;
+      }
+    }
+    const inserted = await db
+      .insert(memberClogItems)
+      .values({
+        accountId: member.accountId,
+        itemId: resolved.itemId,
+        pageName: resolved.page,
+        quantity: 1,
+        firstSeenAt: nowIso,
+        kcAtUnlock: kc,
+      })
+      .onConflictDoNothing({ target: [memberClogItems.accountId, memberClogItems.itemId] })
+      .returning({ id: memberClogItems.id });
+    if (inserted.length > 0) {
+      owned.add(resolved.itemId);
+      recorded++;
+    }
+  }
+
+  if (recorded > 0) {
+    // The header's slot count, so the profile's progress bar moves with the feed. The next sync
+    // recomputes it from scratch anyway.
+    await db
+      .update(memberClog)
+      .set({ obtained: sql`${memberClog.obtained} + ${recorded}` })
+      .where(eq(memberClog.accountId, member.accountId));
+  }
+  return NextResponse.json({ ok: true, recorded });
 }
 
 /** Slots that EXIST on the pages this account has synced — the denominator that isn't a lie. */

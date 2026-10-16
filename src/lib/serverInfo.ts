@@ -96,6 +96,10 @@ export const PLUGIN_CAPABILITIES = [
   // ALL of its reading on this: an older site is never polled, and a newer plugin against it does
   // no widget reads, queues nothing and sends nothing.
   'profile-sync',
+  // POST /api/plugin/clog accepts `unlocks: [{ name, kcName?, kc? }]` — the in-game unlock line sent
+  // as it fires, so the profile's recent unlocks carry the real date and the KC it dropped at instead
+  // of whatever the next sync reads (lib/clogUnlock).
+  'clog-live-unlock',
   // Seasonal routing: /api/plugin/notify accepts `seasonal: true` and posts to the clan's Leagues
   // channel (falling back to the normal one), marking the embed as seasonal.
   'leagues-channel',
