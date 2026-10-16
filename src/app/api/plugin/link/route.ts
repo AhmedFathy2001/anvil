@@ -5,7 +5,7 @@ import { noClanForPlugin } from '@/lib/pluginNoClan';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, pluginLinkCodes, pluginLinks, users } from '@/db/schema';
 import { findRosterSeat, personOf, personOfOrCreate } from '@/lib/roster';
 import { and, eq, isNull, sql } from 'drizzle-orm';
-import { generateAdminPluginToken, normalizeRsn, sanitizeRsn } from '@/lib/auth';
+import { generateAdminPluginToken, hashPluginToken, normalizeRsn, sanitizeRsn } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { applyPendingRole } from '@/lib/pending-role';
 import { applyRenameToActiveWeeklyParticipants } from '@/lib/weekly';
@@ -268,6 +268,7 @@ export async function POST(request: Request) {
       await db.insert(pluginLinks).values({
         userId: issuingUser.id,
         token: adminToken,
+        tokenHash: hashPluginToken(adminToken),
       });
     }
   }

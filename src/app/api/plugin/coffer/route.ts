@@ -68,7 +68,8 @@ export async function POST(request: Request) {
     pluginVersion: request.headers.get('X-Anvil-Plugin-Version')?.slice(0, 40) ?? null,
   });
 
-  if (result.ledgerEntry) {
+  // Only once something is BOOKED — a lone reading waits for a second client or a treasurer.
+  if (result.ledgerEntry && result.ledgerEntry.status === 'approved') {
     void getCofferBalance(member.clanId)
       .then((b) => announceCofferMovement(member.clanId, result.ledgerEntry!, b.available))
       .catch(() => {});

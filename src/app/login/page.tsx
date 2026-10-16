@@ -20,6 +20,7 @@ export default async function LoginPage({
   const returnTo = safeReturnPath(params.return);
   const user = await verifyUser();
   if (user) {
+    // clan-prefix: platform -- the return path is already complete: every caller builds it with clanHref before linking here.
     redirect(returnTo);
   }
 

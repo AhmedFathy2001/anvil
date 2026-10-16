@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server';
-import { eq, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanAuditLog, clans } from '@/db/schema';
-import { parseWebhook, verifySeller, verifyWebhookSecret, TRIAL_DAYS } from '@/lib/gumroad';
+import { checkSaleWithGumroad, parseWebhook, verifySeller, verifyWebhookSecret, TRIAL_DAYS } from '@/lib/gumroad';
 import { PLANS, planForGumroadProduct, planForGumroadTier, planOf, type Plan } from '@/lib/plans';
 
 // Form-encoded body, and crypto — Node runtime.
@@ -43,6 +43,25 @@ async function logBilling(clanId: number, eventType: string, detail: unknown) {
     .catch(() => {});
 }
 
+/**
+ * Was this clan's suspension billing's doing? The latest status-bearing entry in its log decides: a
+ * refund or dispute suspension may be lifted by paying, anything staff did may not.
+ */
+async function suspendedByBilling(clanId: number): Promise<boolean> {
+  const [last] = await db
+    .select({ eventType: clanAuditLog.eventType })
+    .from(clanAuditLog)
+    .where(
+      and(
+        eq(clanAuditLog.clanId, clanId),
+        inArray(clanAuditLog.eventType, ['billing_refund', 'billing_dispute', 'platform_clan_updated']),
+      ),
+    )
+    .orderBy(desc(clanAuditLog.id))
+    .limit(1);
+  return last?.eventType === 'billing_refund' || last?.eventType === 'billing_dispute';
+}
+
 function trialEndsAtIso(): string {
   return new Date(Date.now() + TRIAL_DAYS * 86400_000).toISOString();
 }
@@ -55,9 +74,13 @@ function purchasedPlan(ev: ReturnType<typeof parseWebhook>, fallback: Plan): Pla
 /**
  * Find the clan a webhook is about.
  *
- * Three keys, most specific first. `ref` is the token we appended to the checkout URL, so it names
- * the clan that STARTED this purchase; the subscription id names one we have already seen; email is
- * the last resort for a sale that never went through our checkout at all.
+ * Two keys, most specific first. `ref` is the token we appended to the checkout URL, so it names
+ * the clan that STARTED this purchase; the subscription id names one we have already seen.
+ *
+ * NOT the email any more. `clans.contact_email` is free text a clan owner types and nobody verifies,
+ * so matching on it let one clan set its email to a customer's and catch their upgrade — or catch
+ * their refund and get suspended into someone else's dispute. A sale neither key matches is logged
+ * and left for staff, which is the honest answer for a purchase that never came through our checkout.
  */
 async function clanForEvent(ev: ReturnType<typeof parseWebhook>) {
   if (ev.urlParams.ref) {
@@ -69,12 +92,6 @@ async function clanForEvent(ev: ReturnType<typeof parseWebhook>) {
       where: eq(clans.gumroadSubscriptionId, ev.subscriptionId),
     });
     if (bySub) return bySub;
-  }
-  if (ev.email) {
-    const byEmail = await db.query.clans.findFirst({
-      where: sql`lower(${clans.contactEmail}) = ${ev.email.toLowerCase()}`,
-    });
-    if (byEmail) return byEmail;
   }
   return null;
 }
@@ -105,6 +122,21 @@ export async function POST(req: NextRequest) {
 
   const current = planOf(clan.plan);
 
+  // Anything that GRANTS — a sale or a renewal — must name a sale Gumroad still stands behind, and one
+  // we have not already applied. Replaying a captured notification otherwise re-ran the trial clock
+  // and lifted a refund suspension, every time.
+  if (ev.kind === 'sale' || ev.kind === 'recurring_charge') {
+    if (ev.saleId && ev.saleId === clan.gumroadSaleId) {
+      return Response.json({ received: true, note: 'already applied' });
+    }
+    const check = await checkSaleWithGumroad(ev.saleId, ev.productId);
+    if (check === 'error') return new Response('Could not confirm the sale with Gumroad', { status: 503 });
+    if (check === 'rejected') {
+      await logBilling(clan.id, 'billing_rejected', { kind: ev.kind, sale: ev.saleId });
+      return Response.json({ received: true, note: 'sale not confirmed by Gumroad' });
+    }
+  }
+
   switch (ev.kind) {
     // ── Paid, or a free trial started ────────────────────────────────────────────────────────
     case 'sale': {
@@ -121,10 +153,9 @@ export async function POST(req: NextRequest) {
           contactEmail: ev.email ?? clan.contactEmail,
           trialEndsAt: trialEndsAtIso(),
           cancelAtPeriodEnd: false,
-          // A previously-suspended clan that pays again comes back. Suspension for abuse is a
-          // separate act and an operator re-applies it; letting a payment silently un-suspend an
-          // abusive clan is the trade, and it is the rarer case.
-          status: clan.status === 'suspended' ? 'active' : clan.status,
+          // Paying again lifts a suspension only when BILLING put it there (a refund or dispute).
+          // A suspension staff applied is a judgement about the clan, and money does not overturn it.
+          status: clan.status === 'suspended' && (await suspendedByBilling(clan.id)) ? 'active' : clan.status,
         })
         .where(eq(clans.id, clan.id));
       await logBilling(clan.id, 'billing_subscribed', { plan: plan.id, subscription: ev.subscriptionId });
@@ -139,6 +170,7 @@ export async function POST(req: NextRequest) {
         .set({
           plan: plan.id,
           memberCap: plan.memberCap,
+          gumroadSaleId: ev.saleId ?? clan.gumroadSaleId, // each charge has its own id — the replay latch
           currentPeriodEnd: null, // Gumroad owns the term; we only mirror what it tells us next.
           cancelAtPeriodEnd: false,
           trialEndsAt: null, // a charge means the trial converted

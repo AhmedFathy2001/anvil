@@ -703,11 +703,14 @@ function playBookkeepingDue(key: string): boolean {
 }
 
 async function userByPluginToken(token: string) {
-  const direct = await db.query.users.findFirst({ where: eq(users.pluginToken, token) });
+  // By hash (0138). The plain-column match is only for a token an older blue-green slot minted
+  // during a switch, before it knew to write the hash; 0139 drops it with the plain columns.
+  const hash = hashPluginToken(token);
+  const direct = await db.query.users.findFirst({ where: or(eq(users.pluginTokenHash, hash), eq(users.pluginToken, token)) });
   if (direct) return direct;
 
   const link = await db.query.pluginLinks.findFirst({
-    where: and(eq(pluginLinks.token, token), isNull(pluginLinks.revokedAt)),
+    where: and(or(eq(pluginLinks.tokenHash, hash), eq(pluginLinks.token, token)), isNull(pluginLinks.revokedAt)),
     columns: { userId: true },
   });
   if (!link) return undefined;
@@ -901,6 +904,26 @@ async function seatOwnedCharacterAsGuest(clanId: number, accountId: number, nowI
     .where(eq(clanMemberships.id, seat.id));
 }
 
+/** Unconfirmed first-use claims one person may hold at once (see autoLinkOrSuggestOnPlay). */
+const MAX_PROVISIONAL_FIRST_USE = 2;
+
+/** How many accounts this login's person holds on a first-use claim nobody has confirmed yet. */
+async function provisionalFirstUseClaims(userId: number): Promise<number> {
+  const person = await personOf(userId);
+  if (person == null) return 0;
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(accounts)
+    .where(
+      and(
+        eq(accounts.playerId, person),
+        eq(accounts.verificationMethod, 'plugin_first_use'),
+        eq(accounts.provisional, 1),
+      ),
+    );
+  return row?.n ?? 0;
+}
+
 async function autoLinkOrSuggestOnPlay(
   clanId: number,
   userId: number,
@@ -1005,6 +1028,11 @@ async function autoLinkOrSuggestOnPlay(
     // lands PROVISIONAL on the staff review queue as "this Discord ↔ this RSN": usable at once,
     // confirmed or rejected by a mod afterwards. The hash from this play is anchored, so from here
     // on only that client matches. A role-carrying row stays gated — a takeover there is a promotion.
+    //
+    // CAPPED PER PERSON. Rosters are visible, so one token could walk a whole clan's list of unlinked
+    // members and squat every one, each anchored to a hash of its choosing — locking the real owners
+    // out until staff noticed. A real person plays a main and an alt or two; past
+    // MAX_PROVISIONAL_FIRST_USE unconfirmed claims, the next one is a suggestion like any other.
     const firstUse =
       !!existing &&
       !byHash &&
@@ -1014,7 +1042,8 @@ async function autoLinkOrSuggestOnPlay(
       existing.leftAt == null &&
       existing.accountHash == null &&
       existing.verifiedAt == null &&
-      !existing.pendingRole;
+      !existing.pendingRole &&
+      (await provisionalFirstUseClaims(userId)) < MAX_PROVISIONAL_FIRST_USE;
     if (existing && !firstUse && !autoClaimAllowed(existing, !!byHash)) {
       const suggestion = await db.query.detectedAccounts.findFirst({
         where: and(eq(detectedAccounts.userId, userId), eq(detectedAccounts.rsnNormalized, normalizedRsn)),
@@ -1801,7 +1830,10 @@ export async function pluginTokenPerson(request: Request): Promise<{ userId: num
   if (user) return { userId: user.id };
 
   const link = await db.query.pluginLinks.findFirst({
-    where: and(eq(pluginLinks.token, token), isNull(pluginLinks.revokedAt)),
+    where: and(
+      or(eq(pluginLinks.tokenHash, hashPluginToken(token)), eq(pluginLinks.token, token)),
+      isNull(pluginLinks.revokedAt),
+    ),
   });
   if (!link) return null;
 
@@ -1861,6 +1893,16 @@ export async function staffsAnyClan(userId: number, min: ClanRole = 'admin'): Pr
     .from(clanStaff)
     .where(eq(clanStaff.userId, userId));
   return rows.some((r) => atLeast(r.role, min));
+}
+
+/** SHA-256 (hex) of a plugin token: how one is stored and looked up (users.pluginTokenHash, 0138). */
+export function hashPluginToken(token: string): string {
+  return crypto.createHash('sha256').update(token, 'utf8').digest('hex');
+}
+
+/** The columns a freshly minted account token writes. The plain one stops being written in 0139. */
+export function pluginTokenColumns(token: string): { pluginToken: string; pluginTokenHash: string } {
+  return { pluginToken: token, pluginTokenHash: hashPluginToken(token) };
 }
 
 export function generatePluginLinkCode(): string {

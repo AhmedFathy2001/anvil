@@ -119,7 +119,11 @@ export default function CofferClient({
     }
   }
 
-  const pendingDonations = entries.filter((e) => e.kind === 'donation' && e.status === 'pending');
+  // Member-filed donations, and in-game coffer readings only one client has seen so far (a second
+  // member's client confirms those on its own; until then they are the treasurer's to confirm).
+  const pendingDonations = entries.filter(
+    (e) => (e.kind === 'donation' || e.kind === 'adjustment' || e.kind === 'withdrawal') && e.status === 'pending',
+  );
   // Pools belong in this queue too: gp set aside for a board is money a treasurer still has to send,
   // and leaving it out would mean the one movement nobody is ever prompted to complete. A planned
   // pool is here as well — it is unpaid money owed to a board, whether or not it is held.
@@ -243,16 +247,30 @@ export default function CofferClient({
 
       {msg && <p className="text-sm text-amber-300 mb-4">{msg}</p>}
 
-      <Section title="Donations to confirm" count={pendingDonations.length}>
+      <Section title="To confirm" count={pendingDonations.length}>
         {pendingDonations.length === 0 ? (
-          <Empty>Nothing waiting. Members file these from the clan&apos;s Coffer page.</Empty>
+          <Empty>Nothing waiting. Members file donations from the clan&apos;s Coffer page; in-game coffer readings land here when only one client saw them.</Empty>
         ) : (
           pendingDonations.map((e) => (
             <Row key={e.id}>
               <div className="min-w-0">
                 <p className="text-sm font-medium truncate">
-                  {e.memberName ?? e.rsn ?? 'Someone'} says they donated{' '}
-                  <span className="text-gold">{formatGp(Math.abs(e.amount))}</span>
+                  {e.kind === 'adjustment' ? (
+                    <>
+                      In-game coffer {e.amount >= 0 ? 'up' : 'down'}{' '}
+                      <span className="text-gold">{formatGp(Math.abs(e.amount))}</span>, seen by one client
+                    </>
+                  ) : e.kind === 'withdrawal' ? (
+                    <>
+                      {e.memberName ?? e.rsn ?? 'Someone'} took{' '}
+                      <span className="text-gold">{formatGp(Math.abs(e.amount))}</span> out, seen by one client
+                    </>
+                  ) : (
+                    <>
+                      {e.memberName ?? e.rsn ?? 'Someone'} says they donated{' '}
+                      <span className="text-gold">{formatGp(Math.abs(e.amount))}</span>
+                    </>
+                  )}
                 </p>
                 <p className="text-[11px] text-text-muted truncate">
                   {e.createdAt}

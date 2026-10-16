@@ -48,3 +48,29 @@ test('a mismatched chat direction cannot attribute the movement', () => {
   assert.equal(decision.attributeActor, false);
 });
 
+
+import { confirmReading } from '../src/lib/cofferSyncDecision.ts';
+
+test('confirming a lone reading books exactly its own movement, actor kept', () => {
+  assert.deepEqual(
+    confirmReading(12_000_000, 17_000_000, { kind: 'donation', amount: 5_000_000, attributed: true }, 0),
+    { amount: 5_000_000, kind: 'donation', keepAttribution: true },
+  );
+});
+
+test('a forged reading cannot poison the next real one', () => {
+  // Trusted 10m. A forger posts 10m -> 2,010m (pending). The real client then sees 12m and its
+  // reading reconciles against the forged balance: -1,998m. Confirming it must book +2m from the
+  // trusted 10m, as an unattributed adjustment, not -1,998m.
+  assert.deepEqual(
+    confirmReading(10_000_000, 12_000_000, { kind: 'adjustment', amount: -1_998_000_000, attributed: false }, 1),
+    { amount: 2_000_000, kind: 'adjustment', keepAttribution: false },
+  );
+});
+
+test('folding in another unconfirmed reading drops the actor', () => {
+  assert.deepEqual(
+    confirmReading(10_000_000, 15_000_000, { kind: 'donation', amount: 3_000_000, attributed: true }, 1),
+    { amount: 5_000_000, kind: 'adjustment', keepAttribution: false },
+  );
+});

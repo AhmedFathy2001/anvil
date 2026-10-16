@@ -254,3 +254,40 @@ test('the database also refuses duplicate unverified clan names', async () => {
     'case and surrounding whitespace cannot create a second reservation',
   );
 });
+
+test('an UNVERIFIED name is no reservation: a clan that proves membership takes it over', async () => {
+  const { db, schema: s } = await loadDb();
+  const { eq } = await import('drizzle-orm');
+  const [squatter] = await db
+    .insert(s.clans)
+    .values({ slug: 'squatter', name: 'Typed It First', inGameName: 'Iron Foundry' })
+    .returning();
+  const [real] = await db.insert(s.clans).values({ slug: 'iron-foundry', name: 'Iron Foundry' }).returning();
+
+  const r = await V.claimFromRoster({
+    clanId: real.id,
+    reportedClanName: 'Iron Foundry',
+    pusherRsnNormalized: 'the boss',
+    pusherAccountId: ownerAccount,
+    roster: ROSTER,
+  });
+  assert.deepEqual(r, { outcome: 'verified', inGameName: 'Iron Foundry' });
+  const [after] = await db.select().from(s.clans).where(eq(s.clans.id, squatter.id));
+  assert.equal(after.inGameName, null, 'the typed-in claim is released');
+  const log = await db.select().from(s.clanAuditLog).where(eq(s.clanAuditLog.clanId, squatter.id));
+  assert.ok(log.some((l) => l.eventType === 'ingame_name_released'), 'and the release is on record');
+});
+
+test('…but without the proof, the unverified holder keeps it', async () => {
+  const { db, schema: s } = await loadDb();
+  await db.insert(s.clans).values({ slug: 'holder-two', name: 'Holder', inGameName: 'Quiet Clan' });
+  const [other] = await db.insert(s.clans).values({ slug: 'claimer-two', name: 'Claimer' }).returning();
+  const r = await V.claimFromRoster({
+    clanId: other.id,
+    reportedClanName: 'Quiet Clan',
+    pusherRsnNormalized: 'not in it',
+    pusherAccountId: null,
+    roster: ROSTER,
+  });
+  assert.equal(r.outcome, 'not-in-roster');
+});

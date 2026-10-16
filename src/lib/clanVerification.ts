@@ -22,7 +22,7 @@
 // It raises the cost from "type a name" to "control a verified account in that clan, or modify your
 // client", and gives the real owners a place to complain. That is the honest claim.
 
-import { and, eq, isNotNull, ne, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanAuditLog, clans } from '@/db/schema';
@@ -125,14 +125,35 @@ export async function claimFromRoster(opts: {
   // index still keeps one name to one clan.
 
 
-  // Held — unverified — by another clan. Since 0082 an in-game name belongs to one clan whether or
-  // not it is verified, so writing it here would fail on the index and surface as a 500 mid-sync.
-  // Refuse it the way a verified holder is refused, and leave the arbitration to /staff.
+  // Held — UNVERIFIED — by another clan. Typing a name proves nothing, and this claimant has just
+  // proved membership, so the proof wins: the name moves here. Refusing instead let anyone reserve a
+  // famous clan's name by typing it into a settings field before the real clan arrived, and hold it
+  // hostage. 0082 keeps one holder per name (a roster sync gates on it, so two holders would both
+  // receive one clan's roster), so the old holder's claim is released first — name and the member
+  // seats its syncs made, exactly what a staff un-verification does — and logged on both clans.
   const heldUnverified = await db.query.clans.findFirst({
     where: and(sql`lower(trim(${clans.inGameName})) = ${name.toLowerCase()}`, ne(clans.id, opts.clanId)),
-    columns: { slug: true },
+    columns: { id: true, slug: true },
   });
-  if (heldUnverified) return { outcome: 'taken', byClanSlug: heldUnverified.slug };
+  if (heldUnverified) {
+    const released = await db
+      .update(clans)
+      .set({ inGameName: null, ingameNameVerifiedAt: null, ingameNameClaimedByAccountId: null })
+      .where(and(eq(clans.id, heldUnverified.id), isNull(clans.ingameNameVerifiedAt)))
+      .returning({ id: clans.id });
+    // It verified in the meantime: then it is a verified holder, refused like any other.
+    if (released.length === 0) return { outcome: 'taken', byClanSlug: heldUnverified.slug };
+    await releaseRosterMemberships(heldUnverified.id, null);
+    await db
+      .insert(clanAuditLog)
+      .values({
+        clanId: heldUnverified.id,
+        eventType: 'ingame_name_released',
+        newValue: JSON.stringify({ inGameName: name, toClanId: opts.clanId, accountId: opts.pusherAccountId }),
+        notes: 'unverified name taken over by a clan that proved membership in game',
+      })
+      .catch(() => {});
+  }
 
   const nowIso = new Date().toISOString();
   await db

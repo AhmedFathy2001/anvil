@@ -70,6 +70,8 @@
     "test:clanpaths": "npx tsx --test tests/clan-paths.test.ts",
     "test:adminaccess": "npx tsx --test tests/admin-access.test.ts",
     "test:security": "node --experimental-strip-types --test tests/client-ip.test.ts tests/secret-box.test.ts",
+    "test:integrity": "npx tsx --test tests/credit-integrity.test.ts",
+    "test:coffersync": "node --experimental-strip-types --test tests/coffer-sync.test.ts",
     "test:stages": "node --experimental-strip-types --test tests/board-misconfig.test.ts tests/draft-control.test.ts tests/event-stage.test.ts tests/weekly-stage.test.ts",
     "test:events": "npx tsx --test tests/event-rules.test.ts tests/event-readiness.test.ts tests/event-axes.test.ts tests/tile-authoring.test.ts",
     "test:gate": "DATABASE_URL=file:./.test-gate.db npx tsx --test tests/completion-gate-start.test.ts",

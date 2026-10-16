@@ -58,6 +58,7 @@ export async function POST(request: Request) {
       eq(events.clanId, clan.id),
     );
 
+  // clan-scope: this clan -- scope() carries eq(events.clanId, clan.id).
   const rows = await db
     .select({ id: signupFees.id })
     .from(signupFees)
@@ -82,7 +83,8 @@ export async function POST(request: Request) {
   // match every collected fee, so reporting it would invent a blocker that doesn't exist.
   const mine = noSignature
     ? []
-    : await db
+    : // clan-scope: this clan -- scope() carries eq(events.clanId, clan.id).
+      await db
         .select({ id: signupFees.id })
         .from(signupFees)
         .innerJoin(eventSignups, eq(signupFees.signupId, eventSignups.id))
