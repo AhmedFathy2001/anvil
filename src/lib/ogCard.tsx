@@ -706,8 +706,10 @@ export async function memberCard(d: MemberCardData): Promise<Response> {
 export interface WrappedCardData {
   /** The player's or the team's name. */
   name: string;
+  /** The event's name, or the month ("October 2026") on a monthly card. */
   eventName: string;
-  clanName: string;
+  /** Null for a monthly card of a player in no clan: the Anvil mark stands in for the crest. */
+  clanName: string | null;
   clanLogo: Pic;
   /** A team colour (hex), drawn as the accent rule. */
   accent: string | null;
@@ -777,13 +779,13 @@ export async function wrappedCard(d: WrappedCardData): Promise<Response> {
         </div>
       ) : (
         <FaceArt>
-          <ClanFace name={d.clanName} logo={d.clanLogo} size={240} />
+          {d.clanName ? <ClanFace name={d.clanName} logo={d.clanLogo} size={240} /> : <Mark size={220} />}
         </FaceArt>
       )}
       <div style={{ ...PANE, left: 76, top: 62, width: 650, height: 506, flexDirection: 'column', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <ClanFace name={d.clanName} logo={d.clanLogo} size={44} />
+            {d.clanName ? <ClanFace name={d.clanName} logo={d.clanLogo} size={44} /> : null}
             <Eyebrow>{`Wrapped · ${clip(d.eventName, 24)}`}</Eyebrow>
           </div>
           <div style={{ display: 'flex', alignItems: 'stretch', gap: 18, marginTop: 20 }}>

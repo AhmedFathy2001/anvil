@@ -209,6 +209,11 @@ export default async function CharacterPage({
             </span>
           )}
 
+          {/* Their month on one shareable card (app/p/[rsn]/wrapped). */}
+          <ClanLink href={`/p/${encodeURIComponent(character.rsn)}/wrapped`} className="text-gold hover:underline">
+            🎁 Monthly Wrapped
+          </ClanLink>
+
           {/* Side by side with somebody else — the compare page asks for the other name. */}
           <ClanLink
             href={`/compare?a=${encodeURIComponent(character.rsn)}`}
