@@ -10,6 +10,7 @@ import { getEventWrapped, wrappedPlayerFor } from '@/lib/eventWrapped';
 import {
   cardFeature,
   luckLine,
+  nearMisses,
   playerCardLine,
   playerCardStats,
   teamCardLine,
@@ -80,6 +81,7 @@ async function load(_request: Request, { params }: { params: Promise<Params> }):
     stats: playerCardStats(player),
     feature: feature && { ...feature, sprite: await remoteSprite(feature.image, 150) },
     awards: player.awards.map((a) => a.title),
+    nearMisses: nearMisses(player),
     luck: luckLine(player),
   });
   const accounts = player.playerIds.map((pid) => wrapped.accountOf[pid]).filter((a): a is number => a != null);

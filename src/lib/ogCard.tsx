@@ -718,6 +718,8 @@ export interface WrappedCardData {
   feature: { sprite: Pic; kicker: string; name: string; detail: string | null } | null;
   /** Award titles, at most three. */
   awards: string[];
+  /** "3rd · Big Baller": awards they came close in, drawn quieter. Fills the row when they won none. */
+  nearMisses?: string[];
   /** "Spooned · Dragon claws 2 of 0.3", one line. */
   luck: string | null;
 }
@@ -791,7 +793,7 @@ export async function wrappedCard(d: WrappedCardData): Promise<Response> {
               {d.line ? <div style={{ display: 'flex', fontSize: 28, color: C.muted, marginTop: 10 }}>{d.line}</div> : null}
             </div>
           </div>
-          {d.awards.length ? (
+          {d.awards.length || d.nearMisses?.length ? (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 22 }}>
               {d.awards.slice(0, 3).map((a) => (
                 <div
@@ -808,6 +810,22 @@ export async function wrappedCard(d: WrappedCardData): Promise<Response> {
                   }}
                 >
                   {clip(a, 24)}
+                </div>
+              ))}
+              {(d.nearMisses ?? []).slice(0, Math.max(0, 3 - d.awards.length)).map((a) => (
+                <div
+                  key={a}
+                  style={{
+                    display: 'flex',
+                    padding: '6px 16px',
+                    borderRadius: 999,
+                    border: `2px solid ${C.borderHi}`,
+                    color: C.muted,
+                    fontSize: 22,
+                    fontWeight: 500,
+                  }}
+                >
+                  {clip(a, 26)}
                 </div>
               ))}
             </div>

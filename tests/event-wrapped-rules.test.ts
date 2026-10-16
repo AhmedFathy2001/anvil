@@ -10,6 +10,7 @@ import {
   cardHours,
   formatHours,
   luckLine,
+  nearMisses,
   ordinal,
   playerCardStats,
   shapeWrapped,
@@ -332,4 +333,17 @@ test('cardFeature: with no pet or drop, the boss they ground is the picture', ()
   assert.equal(f?.detail, '1,204 KC');
   assert.ok(f?.image);
   assert.equal(cardFeature({ pets: [], biggestDrop: null, topBoss: null }), null);
+});
+
+test('luckLine falls back to the team share; nearMisses lists closest first', () => {
+  const p = playerFixture({
+    team: { id: 1, name: 'Pyramid Plunders', color: '#0ff', rank: 2, of: 6 },
+    teamShare: 0.26,
+    runnerUp: [
+      { emoji: '🧩', title: 'Jack of All Trades', place: 3, valueLabel: '54' },
+      { emoji: '💎', title: 'Big Baller', place: 2, valueLabel: '17M' },
+    ],
+  });
+  assert.equal(luckLine(p), "Scored 26% of the team's points");
+  assert.deepEqual(nearMisses(p), ['2nd · Big Baller', '3rd · Jack of All Trades']);
 });

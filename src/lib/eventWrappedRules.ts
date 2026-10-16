@@ -409,9 +409,18 @@ export function cardFeature(x: {
   return null;
 }
 
-/** One line of luck: the spoon if there is one (people share those), else the dry streak. */
+/**
+ * The card's one free line: a spoon if there is one (people share those), else the dry streak, else
+ * how much of the team's score was theirs.
+ */
 export function luckLine(p: WrappedPlayer): string | null {
   if (p.spooned) return `Spooned: ${p.spooned.itemName}, ${p.spooned.headline}`;
   if (p.dry) return `Dry: ${p.dry.itemName}, ${p.dry.headline}`;
+  if (p.teamShare != null && p.team && p.team.of > 1) return `Scored ${Math.round(p.teamShare * 100)}% of the team's points`;
   return null;
+}
+
+/** "3rd · Big Baller" for each award they came close in, nearest first. */
+export function nearMisses(p: WrappedPlayer): string[] {
+  return [...p.runnerUp].sort((a, b) => a.place - b.place).map((a) => `${ordinal(a.place)} · ${a.title}`);
 }
