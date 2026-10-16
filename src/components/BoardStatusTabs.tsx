@@ -1,10 +1,12 @@
 'use client';
 
 export type TileStatus = 'in_progress' | 'not_started' | 'completed';
-export type StatusFilter = 'all' | TileStatus;
+/** `open` = everything not yet completed (in progress + not started). */
+export type StatusFilter = 'all' | 'open' | TileStatus;
 
 export interface StatusCounts {
   all: number;
+  open: number;
   inProgress: number;
   notStarted: number;
   completed: number;
@@ -14,6 +16,7 @@ export interface StatusCounts {
 // NOT_STARTED / COMPLETED). Order matches the plugin's Status ordinal so incomplete work reads first.
 const TABS: { key: StatusFilter; label: string; countKey: keyof StatusCounts; dot?: string }[] = [
   { key: 'all', label: 'All', countKey: 'all' },
+  { key: 'open', label: 'Not done', countKey: 'open' },
   { key: 'in_progress', label: 'In progress', countKey: 'inProgress', dot: 'bg-gold' },
   { key: 'not_started', label: 'Not started', countKey: 'notStarted', dot: 'bg-text-muted' },
   { key: 'completed', label: 'Completed', countKey: 'completed', dot: 'bg-accent-green' },

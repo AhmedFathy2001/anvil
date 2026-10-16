@@ -117,7 +117,8 @@ export function TeamPlanPanel({
   onFilter: (f: ClaimFilter) => void;
   onOpenTile: (tileId: number) => void;
 }) {
-  const [open, setOpen] = useState(true);
+  // Shut by default: the board comes first, the plan is a click away.
+  const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const tileById = useMemo(() => new Map(tiles.map((t) => [t.id, t])), [tiles]);
   const people = claimsByPerson(claims.claims);

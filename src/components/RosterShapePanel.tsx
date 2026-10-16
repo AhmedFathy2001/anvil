@@ -22,6 +22,7 @@ export default function RosterShapePanel({
   title = 'Roster shape',
   note = 'from their sign-up answers',
   limit = 8,
+  collapsed = false,
 }: {
   shape: RosterShape;
   /** Bosses this board asks for that nobody named — the useful half of coverage. */
@@ -29,6 +30,8 @@ export default function RosterShapePanel({
   title?: string;
   note?: string;
   limit?: number;
+  /** Start shut, opened by its heading (a native <details>, so it needs no client code). */
+  collapsed?: boolean;
 }) {
   if (shape.answered === 0) return null;
 
@@ -36,13 +39,15 @@ export default function RosterShapePanel({
   const skills = shape.skills.slice(0, limit);
   const maxTz = Math.max(1, ...shape.timezones.map((t) => t.players));
 
-  return (
-    <section className="border border-card-border rounded-xl bg-card-bg p-5">
-      <div className="flex items-center gap-2 mb-1">
-        <span className="w-1 h-5 bg-gold rounded-full" />
-        <h2 className="text-lg font-bold">{title}</h2>
-        <span className="text-xs text-text-muted">{note}</span>
-      </div>
+  const heading = (
+    <div className="flex items-center gap-2 mb-1">
+      <span className="w-1 h-5 bg-gold rounded-full" />
+      <h2 className="text-lg font-bold">{title}</h2>
+      <span className="text-xs text-text-muted">{note}</span>
+    </div>
+  );
+  const body = (
+    <>
       <p className="text-xs text-text-muted mb-4">
         <span className="text-foreground/80">{shape.activeHoursPerWeek.toLocaleString()}h</span> active
         {shape.afkHoursPerWeek > 0 && <> + {shape.afkHoursPerWeek.toLocaleString()}h AFK</>} a week across{' '}
@@ -93,6 +98,25 @@ export default function RosterShapePanel({
       <p className="mt-4 text-[11px] text-text-muted">
         Self-reported when they signed up — what people said they do, not what they&apos;ve done.
       </p>
+    </>
+  );
+
+  if (collapsed) {
+    return (
+      <details className="group border border-card-border rounded-xl bg-card-bg">
+        <summary className="list-none cursor-pointer select-none p-5 flex items-center gap-2 [&>div]:mb-0">
+          <div className="flex-1 min-w-0">{heading}</div>
+          <span className="text-text-muted transition-transform group-open:rotate-180" aria-hidden>▾</span>
+        </summary>
+        <div className="px-5 pb-5">{body}</div>
+      </details>
+    );
+  }
+
+  return (
+    <section className="border border-card-border rounded-xl bg-card-bg p-5">
+      {heading}
+      {body}
     </section>
   );
 }

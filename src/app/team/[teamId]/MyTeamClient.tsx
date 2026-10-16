@@ -340,24 +340,6 @@ export default function MyTeamClient({
     return perPersonMode ? rollupByOwner(bd, ownerByPlayerId) : bd;
   }, [team.id, event.scoringMode, teamPlayers, tiles, completions, submissions, gains, perPersonMode, ownerByPlayerId]);
 
-  // Auto-open YOUR row on the breakdown (in per-person mode, the row your accounts roll up into) so
-  // your own contributions show by default; with no player of yours on it (a captain who doesn't
-  // play), the first person — the top contributor. Runs once when the breakdown first has members;
-  // after that, closing the panel stays closed.
-  const didAutoSelectMember = useRef(false);
-  useEffect(() => {
-    if (!didAutoSelectMember.current && memberBreakdown.length > 0) {
-      didAutoSelectMember.current = true;
-      const myOwner = myPlayerId != null ? ownerByPlayerId.get(myPlayerId) ?? null : null;
-      const mine = memberBreakdown.find(
-        (m) =>
-          m.playerId === myPlayerId ||
-          (perPersonMode && myOwner != null && ownerByPlayerId.get(m.playerId) === myOwner),
-      );
-      setSelectedMemberId((cur) => cur ?? (mine ?? memberBreakdown[0]).playerId);
-    }
-  }, [memberBreakdown, myPlayerId, ownerByPlayerId, perPersonMode]);
-
   // Team MVP (overall) + MVP of the day (top contributor over tiles completed in the last 24h).
   const teamMvp = topMember(memberBreakdown);
   const teamMvpTodayRaw = useMemo(() => {
@@ -562,9 +544,9 @@ export default function MyTeamClient({
             </div>
           )}
 
-          {/* Team roster — expanded by default. */}
+          {/* Team roster — shut by default; the breakdown above already names everyone. */}
           {teamPlayers.length > 0 && (
-            <details open className="border border-card-border rounded-xl bg-card-bg group">
+            <details className="border border-card-border rounded-xl bg-card-bg group">
               <summary className="cursor-pointer select-none list-none px-4 py-2.5 flex items-center gap-2 text-sm font-medium">
                 <span className="transition-transform group-open:rotate-90 text-text-muted">▸</span>
                 <span className="w-1 h-4 rounded-full" style={{ backgroundColor: team.color }} />

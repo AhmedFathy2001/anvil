@@ -118,14 +118,16 @@ export default function EventBoard({
       else if (s === 'in_progress') inProgress++;
       else notStarted++;
     }
-    return { all: statusById.size, inProgress, notStarted, completed };
+    return { all: statusById.size, open: inProgress + notStarted, inProgress, notStarted, completed };
   }, [statusById]);
 
   // Fold the status filter into whatever text/category/tier filter the surface already applied.
   const combinedMatched = useMemo(() => {
     if (statusFilter === 'all') return matchedTileIds ?? null;
     const statusSet = new Set<number>();
-    for (const [id, s] of statusById) if (s === statusFilter) statusSet.add(id);
+    for (const [id, s] of statusById) {
+      if (statusFilter === 'open' ? s !== 'completed' : s === statusFilter) statusSet.add(id);
+    }
     if (!matchedTileIds) return statusSet;
     return new Set([...statusSet].filter((id) => matchedTileIds.has(id)));
   }, [statusFilter, statusById, matchedTileIds]);
