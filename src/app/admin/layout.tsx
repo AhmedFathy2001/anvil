@@ -199,6 +199,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       { href: '/admin/people', label: 'Roster', icon: '🛡️', sprite: 'bandos', badge: provisionalCount, matchPrefix: true, exclude: ['/admin/people/staff'] },
       ...(isAdmin ? [{ href: '/admin/people/staff', label: 'Staff & roles', icon: '👥', sprite: 'emblem' as const }] : []),
       { href: '/admin/guides', label: 'Guides', icon: '📖', sprite: 'graceful', badge: guideUpdates, matchPrefix: true },
+      // Every staff seat may read the clan's history.
+      { href: '/admin/clan/audit', label: 'Activity log', icon: '📜', sprite: 'clue' },
     ],
   });
 
@@ -228,7 +230,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           : []),
         { href: '/admin/features', label: 'Features', icon: '🧩', sprite: 'petRock' },
         { href: '/admin/rules', label: 'Rules & scoring', icon: '📏', sprite: 'stats' },
-        { href: '/admin/clan/audit', label: 'Activity log', icon: '📜', sprite: 'clue' },
         { href: '/admin/clan', label: 'Clan profile', icon: '🏰', sprite: 'zenyte', matchPrefix: true, exclude: ['/admin/clan/audit'] },
         // SETUP IS A STATE, NOT A PLACE: listed only while unfinished.
         ...(!setup || setup.allDone || setup.dismissed

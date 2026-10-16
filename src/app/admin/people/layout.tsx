@@ -3,7 +3,7 @@ import { requireClan } from '@/lib/clanContext';
 import { clanRoster } from '@/db/schema';
 import { and, count, eq, isNull } from 'drizzle-orm';
 import { verifyUser } from '@/lib/auth';
-import PeopleTabNav from './PeopleTabNav';
+import SectionHeader from '@/components/SectionHeader';
 import { atLeast } from '@/lib/clanRoles';
 import { pendingClaimRequests } from '@/lib/claimRequests';
 
@@ -37,13 +37,14 @@ export default async function PeopleLayout({ children }: { children: React.React
 
   return (
     <div>
-      <header className="mb-5">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gold">People</h1>
-        <p className="text-text-muted text-sm mt-0.5">
-          Who is in the clan, who is asking to be, and who can act for it.
-        </p>
-      </header>
-      <PeopleTabNav isAdmin={isAdmin} provisionalCount={provisionalCount} />
+      <SectionHeader
+        pages={[
+          { href: '/admin/people', exact: true, group: 'roster', title: 'Roster', blurb: 'Who is in the clan, and who is asking to join.' },
+          { href: '/admin/people/needs-review', group: 'roster', title: 'Needs review', blurb: 'Newcomers and ownership claims waiting on a yes or no.', badge: provisionalCount },
+          // Who can act for the clan. Admin-only: handing out authority is not roster work.
+          { href: '/admin/people/staff', group: 'staff', title: 'Staff & roles', blurb: 'Who helps run the clan, and what each of them can do.', show: isAdmin },
+        ]}
+      />
       {children}
     </div>
   );

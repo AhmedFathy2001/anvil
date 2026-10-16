@@ -92,7 +92,7 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
           transition-transform duration-200
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0 lg:bg-transparent lg:border-r-0
-          overflow-y-auto
+          overflow-y-auto lg:overflow-visible
         `}
       >
         <div className="lg:sticky lg:top-20 p-4 lg:p-0 lg:pr-4">

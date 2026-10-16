@@ -1,5 +1,5 @@
 import { verifyUser } from '@/lib/auth';
-import ClanEntityTabNav from './ClanEntityTabNav';
+import SectionHeader from '@/components/SectionHeader';
 import { atLeast } from '@/lib/clanRoles';
 
 export const dynamic = 'force-dynamic';
@@ -13,13 +13,13 @@ export default async function ClanLayout({ children }: { children: React.ReactNo
 
   return (
     <div>
-      <header className="mb-5">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gold">Clan</h1>
-        <p className="text-text-muted text-sm mt-0.5">
-          How the clan presents itself, who may reach it, what it is wired to, and what it has done.
-        </p>
-      </header>
-      <ClanEntityTabNav isAdmin={isAdmin} />
+      <SectionHeader
+        pages={[
+          { href: '/admin/clan', exact: true, group: 'profile', title: 'Clan profile', tab: 'Profile', blurb: 'How the clan looks to everyone else.' },
+          { href: '/admin/clan/policy', group: 'profile', title: 'Who can join', tab: 'Access', blurb: 'Who may see the clan, and how somebody gets in.', show: isAdmin },
+          { href: '/admin/clan/audit', group: 'log', title: 'Activity log', blurb: 'Who joined, left, changed what, and when.' },
+        ]}
+      />
       {children}
     </div>
   );
