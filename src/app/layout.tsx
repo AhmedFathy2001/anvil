@@ -21,6 +21,7 @@ import { avatarUrl } from "@/lib/discord-oauth";
 import { getClanDisplayName, getDiscordInviteUrl } from "@/lib/pluginConfig";
 
 import AnalyticsBeacon from "@/components/AnalyticsBeacon";
+import NumberInputGuard from "@/components/NumberInputGuard";
 import SiteNav from "@/components/SiteNav";
 import ShellGuard from "@/components/ShellGuard";
 import { countLiveTeamInvolvements } from "@/lib/myTeamNav";
@@ -345,6 +346,7 @@ export default async function RootLayout({
         )}
         {clan && <SiteFooter />}
         <AnalyticsBeacon />
+        <NumberInputGuard />
         </DialogProvider>
         </NavProgressProvider>
         </ClanPrefixProvider>

@@ -233,3 +233,9 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .fh-slam, .fh-beat, .fh-blink, .fh-flash { animation: none; }
 }
+
+/* Number inputs: no spinner buttons. The wheel and arrow-key stepping are turned off by
+   NumberInputGuard; the field is typed into, never nudged. */
+input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
