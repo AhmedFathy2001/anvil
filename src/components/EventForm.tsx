@@ -35,6 +35,12 @@ interface EventFormProps {
    * goes: one component, showing a moderator only the half of it that is theirs.
    */
   weeklyOnly?: boolean;
+  /**
+   * The format picked on the "What are you running?" screen (app/admin/events/new). When set, the
+   * form opens already on that format and does not show its own format picker — the choice was
+   * made, and asking it again on the same screen is exactly the "asked twice" the redesign removed.
+   */
+  choice?: { mode?: Mode; weekly?: 'skill' | 'boss' | 'efficiency' };
 }
 
 /**
@@ -131,14 +137,17 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export default function EventForm({ presets = [], suggestedName = '', weeklyOnly = false }: EventFormProps) {
+export default function EventForm({ presets = [], suggestedName = '', weeklyOnly = false, choice }: EventFormProps) {
   const router = useRouter();
-  const [name, setName] = useState(suggestedName);
+  const chosenWeekly = choice?.weekly ? WEEKLY_KINDS.find((w) => w.type === choice.weekly) ?? null : null;
+  const [name, setName] = useState(
+    chosenWeekly ? defaultWeeklyTitle(chosenWeekly.type, chosenWeekly.defaultMetric) : suggestedName,
+  );
   // Until the admin types their own, the name follows the choice. Otherwise picking Skill of the
   // Week on a form that opened as "The AFK Spot Bingo #7" creates a competition CALLED that.
   const [nameTouched, setNameTouched] = useState(false);
-  const [mode, setMode] = useState<Mode>('classic');
-  const [size, setSize] = useState(5);
+  const [mode, setMode] = useState<Mode>(choice?.mode ?? 'classic');
+  const [size, setSize] = useState(() => MODES.find((m) => m.key === (choice?.mode ?? 'classic'))?.default ?? 5);
   // Reveal-policy config (showdown / lucky draw / bounty modes — see lib/eventRules). Only sent
   // when the chosen mode carries a revealPolicy; the values mirror EventRules' clamps.
   const [intervalMinutes, setIntervalMinutes] = useState(60);
@@ -190,9 +199,9 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
   const [weeklyType, setWeeklyType] = useState<'skill' | 'boss' | 'efficiency' | null>(
     // In weekly-only mode the board half of the form is not rendered at all, so starting with no
     // kind chosen would leave a form with no format picker and no format.
-    weeklyOnly ? WEEKLY_KINDS[0].type : null,
+    chosenWeekly ? chosenWeekly.type : weeklyOnly ? WEEKLY_KINDS[0].type : null,
   );
-  const [weeklyMetric, setWeeklyMetric] = useState('attack');
+  const [weeklyMetric, setWeeklyMetric] = useState(chosenWeekly?.defaultMetric ?? 'attack');
   const [includeGuests, setIncludeGuests] = useState(true);
   // Where the board's tiles come from: nothing (fill them in later), a saved/built-in template, or
   // a random draw from the clan's task library.
@@ -611,7 +620,9 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
           </div>
 
           {/* Format — one choice drives format + scoring + reveal policy. Each card carries a
-              diagram of the board it produces, because the names alone never said enough. */}
+              diagram of the board it produces, because the names alone never said enough. Not shown
+              when the format was already picked on the "What are you running?" screen. */}
+          {!choice && (
           <div>
             <label className="block text-sm font-medium text-foreground/70 mb-1.5">
               {weeklyOnly ? 'What is measured' : 'Format'}
@@ -766,6 +777,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
               })}
             </div>
           </div>
+          )}
 
           {weeklyType && (
             <Section title="Competition">
@@ -988,6 +1000,18 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
             </Section>
           )}
 
+          {/* Rarely changed: one account per person and one clan are the right answer for nearly
+              every event, so these two sit folded away instead of on the main path. */}
+          {(!weeklyType || teamBoard) && (
+          <details className="group rounded-xl border border-card-border bg-brown-dark/20">
+            <summary className="cursor-pointer list-none px-4 py-3 flex items-center justify-between text-sm">
+              <span>
+                <span className="font-medium">More options</span>
+                <span className="text-text-muted"> · {maxAccounts > 1 ? `${maxAccounts} accounts per person` : 'one account per person'}{useMultiClan ? ', with other clans' : ', just this clan'}</span>
+              </span>
+              <span className="text-text-muted transition-transform group-open:rotate-90" aria-hidden="true">›</span>
+            </summary>
+            <div className="px-4 pb-4 space-y-5">
           {/* Accounts-per-person is a sign-up concept; a whole-clan competition enters the roster
               as it stands, so the section contradicted its own footer. */}
           {!weeklyType && (
@@ -1139,6 +1163,9 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
               </div>
             )}
           </Section>
+          )}
+            </div>
+          </details>
           )}
         </div>
 
