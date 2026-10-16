@@ -249,7 +249,7 @@ export function monthHasAnything(w: MonthlyWrapped): boolean {
   return w.xpGained > 0 || w.kcGained > 0 || w.newSlots > 0 || w.pbs.length > 0 || w.pets.length > 0 || w.biggestDrop != null;
 }
 
-/** The four numbers the card leads with. */
+/** The four numbers the card leads with. Days played is already the line under the name. */
 export function monthlyCardStats(w: MonthlyWrapped): { label: string; value: string }[] {
   const out: { label: string; value: string }[] = [];
   if (w.xpGained > 0) out.push({ label: 'XP gained', value: shortNumber(w.xpGained) });
@@ -258,7 +258,6 @@ export function monthlyCardStats(w: MonthlyWrapped): { label: string; value: str
   if (w.newSlots > 0) out.push({ label: 'New slots', value: shortNumber(w.newSlots) });
   const hours = Math.round((w.ehpGained + w.ehbGained) * 60);
   if (hours > 0) out.push({ label: 'Efficient', value: cardHours(hours) });
-  if (w.daysActive > 0) out.push({ label: 'Days active', value: shortNumber(w.daysActive) });
   if (w.pbs.length > 0) out.push({ label: 'PBs', value: shortNumber(w.pbs.length) });
   return out.slice(0, 4);
 }
