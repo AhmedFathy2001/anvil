@@ -5,6 +5,9 @@ import { getWeeklyRow } from '@/lib/weeklyWorkspace';
 import { verifyUser } from '@/lib/auth';
 import { atLeast } from '@/lib/clanRoles';
 import WeeklySettingsPanel from '../WeeklySettingsPanel';
+import WeeklyRepeatToggle from '../WeeklyRepeatToggle';
+import { getWeeklyRepeat } from '@/lib/weeklyRepeat';
+import { defaultWeeklyTitle } from '@/lib/weeklyRepeatPlan';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,8 +28,13 @@ export default async function WeeklySettingsPage({ params }: { params: Promise<{
   if (!comp) notFound();
 
   const session = await verifyUser();
+  const repeat = await getWeeklyRepeat(clan.id, comp.id);
+  // "SOTW: Agility" → "Agility", for the rotation sentence.
+  const rotationLabels = (repeat?.rotation ?? []).map((m) => defaultWeeklyTitle(comp.type, m).split(': ').slice(1).join(': '));
 
   return (
+    <>
+    <WeeklyRepeatToggle competitionId={comp.id} initial={repeat} rotationLabels={rotationLabels} />
     <WeeklySettingsPanel
       comp={{
         id: comp.id,
@@ -39,5 +47,6 @@ export default async function WeeklySettingsPage({ params }: { params: Promise<{
       // different kind of act, and it is the same bar a board's delete sits behind.
       canDelete={atLeast(session?.role, 'admin')}
     />
+    </>
   );
 }

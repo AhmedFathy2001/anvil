@@ -64,7 +64,7 @@ export default function DiscordSettings({
   return (
     <div className="space-y-3.5">
       <FoldSection
-        sprite="teleport"
+        sprite="discord"
         title="Connection"
         summary={botEnabled ? 'The bot is in your server. Its name, language and permissions.' : 'Add the bot to your server first. Most of this page needs it.'}
         defaultOpen={!botEnabled}

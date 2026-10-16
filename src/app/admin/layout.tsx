@@ -224,7 +224,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     groups.push({
       label: 'Set up',
       items: [
-        { href: '/admin/integrations', label: 'Discord', icon: '🔌', sprite: 'teleport' },
+        { href: '/admin/integrations', label: 'Discord', icon: '🔌', sprite: 'discord' },
         ...(features.on('announce')
           ? [{ href: '/admin/announce', label: 'Post to Discord', icon: '📣', sprite: 'tinderbox' as const }]
           : []),

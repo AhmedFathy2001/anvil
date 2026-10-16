@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { TileCsvRow } from '@/lib/csvTiles';
 import { EVENT_MODES as MODES, type EventMode as Mode } from '@/lib/eventModes';
+import { defaultWeeklyTitle } from '@/lib/weeklyRepeatPlan';
 import { BOSSES, EFFICIENCY_METRICS, SKILLS, SKILL_LABELS } from '@/lib/constants';
 import type { EventPreset } from '@/lib/eventPresets';
 import Input from '@/components/Input';
@@ -59,17 +60,6 @@ const POOL_PRESETS: { mode: Mode; label: string; blurb: string }[] = [
   { mode: 'bounty', label: 'Bounty hunt', blurb: 'Teams · one task at a time, first to finish claims it' },
   { mode: 'ladder', label: 'Ladder', blurb: 'Individuals · a rotating pool ranked on one leaderboard' },
 ];
-
-/** 'SOTW: Agility' — what a competition calls itself when you don't rename it. */
-function defaultWeeklyTitle(type: 'skill' | 'boss' | 'efficiency', metric: string): string {
-  const label =
-    type === 'skill'
-      ? SKILL_LABELS[metric] ?? metric
-      : type === 'boss'
-        ? BOSSES.find((b) => b.key === metric)?.label ?? metric
-        : EFFICIENCY_METRICS.find((m) => m.key === metric)?.label ?? metric.toUpperCase();
-  return `${type === 'boss' ? 'BOTW' : type === 'efficiency' ? 'Efficiency' : 'SOTW'}: ${label}`;
-}
 
 /** The weekly competitions, offered beside the board formats — same page, different table. */
 const WEEKLY_KINDS = [
@@ -202,7 +192,12 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
     chosenWeekly ? chosenWeekly.type : weeklyOnly ? WEEKLY_KINDS[0].type : null,
   );
   const [weeklyMetric, setWeeklyMetric] = useState(chosenWeekly?.defaultMetric ?? 'attack');
-  const [includeGuests, setIncludeGuests] = useState(true);
+  // Members only by default: guests are visitors on an event seat, and a clan's weekly is its own.
+  const [includeGuests, setIncludeGuests] = useState(false);
+  // "Repeat every week" (lib/weeklyRepeat): on by default — a weekly that has to be re-made by hand
+  // every week is the chore this exists to remove. `rotation` is what comes AFTER the chosen metric.
+  const [repeatWeekly, setRepeatWeekly] = useState(true);
+  const [rotation, setRotation] = useState<string[]>([]);
   // Where the board's tiles come from: nothing (fill them in later), a saved/built-in template, or
   // a random draw from the clan's task library.
   const [startFrom, setStartFrom] = useState<'blank' | 'template' | 'generate'>('blank');
@@ -238,6 +233,14 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
     startDate ? 'Leave it — it starts on schedule by itself' : 'Start it when you\'re ready',
   ];
 
+  // What this kind of competition can be about — the metric picker and the rotation share it.
+  const weeklyOptions =
+    weeklyType === 'skill'
+      ? SKILLS.map((k) => ({ value: k, label: SKILL_LABELS[k] ?? k }))
+      : weeklyType === 'boss'
+        ? BOSSES.map((b) => ({ value: b.key, label: b.label }))
+        : EFFICIENCY_METRICS.map((m) => ({ value: m.key, label: m.label }));
+
   const isPool = POOL_MODES.includes(mode);
   const runPreset = activeRunPreset(startDate, endDate);
   /** The pool card is only "on" when a board is being made at all. */
@@ -261,6 +264,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
   function pickWeekly(type: 'skill' | 'boss' | 'efficiency', metric: string) {
     setWeeklyType(type);
     setWeeklyMetric(metric);
+    setRotation([]);
     if (!nameTouched) setName(defaultWeeklyTitle(type, metric));
     setError('');
     setStartFrom('blank');
@@ -376,6 +380,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
             startDate,
             endDate,
             includeGuests,
+            ...(repeatWeekly ? { repeat: { rotation: rotation.length > 0 ? [weeklyMetric, ...rotation] : null } } : {}),
           }),
         });
         const data = await res.json().catch(() => ({}));
@@ -792,16 +797,51 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                     if (!nameTouched && weeklyType) setName(defaultWeeklyTitle(weeklyType, v));
                   }}
                   ariaLabel="What the competition ranks by"
-                  options={
-                    weeklyType === 'skill'
-                      ? SKILLS.map((k) => ({ value: k, label: SKILL_LABELS[k] ?? k }))
-                      : weeklyType === 'boss'
-                        ? BOSSES.map((b) => ({ value: b.key, label: b.label }))
-                        : EFFICIENCY_METRICS.map((m) => ({ value: m.key, label: m.label }))
-                  }
+                  options={weeklyOptions}
                 />
               </div>
               <Checkbox checked={includeGuests} onChange={setIncludeGuests} label="Guests race too" className="text-sm text-foreground/80" />
+              <div className="rounded-lg border border-gold/25 bg-gold/[0.05] p-3 space-y-3">
+                <Checkbox
+                  checked={repeatWeekly}
+                  onChange={setRepeatWeekly}
+                  label="Repeat every week"
+                  description="A new one starts the moment this one ends, with the same length and prizes. Turn it off any time from the competition's Settings."
+                  className="text-sm"
+                />
+                {repeatWeekly && (
+                  <div>
+                    <p className="text-sm text-foreground/70 mb-1.5">
+                      Then rotate through <span className="text-text-muted">(optional: leave empty to repeat the same one)</span>
+                    </p>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs px-2 py-1 rounded-full bg-gold/15 text-gold border border-gold/30">
+                        1. {weeklyOptions.find((o) => o.value === weeklyMetric)?.label ?? weeklyMetric}
+                      </span>
+                      {rotation.map((m, i) => (
+                        <button
+                          key={`${m}-${i}`}
+                          type="button"
+                          onClick={() => setRotation((r) => r.filter((_, j) => j !== i))}
+                          className="text-xs px-2 py-1 rounded-full bg-brown-dark border border-card-border hover:border-red-400/50"
+                          title="Remove from the rotation"
+                        >
+                          {i + 2}. {weeklyOptions.find((o) => o.value === m)?.label ?? m} ×
+                        </button>
+                      ))}
+                      <div className="min-w-[10rem]">
+                        <Select
+                          value=""
+                          onChange={(v) => v && setRotation((r) => [...r, v])}
+                          ariaLabel="Add to the rotation"
+                          placeholder="+ Add"
+                          options={weeklyOptions}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
               <p className="text-xs text-text-muted">
                 Everyone on the roster is entered automatically when it starts — there&rsquo;s nothing to draft and
                 no sign-up. Baselines come from the hiscores at the start time.

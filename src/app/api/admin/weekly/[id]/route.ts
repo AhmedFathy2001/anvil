@@ -5,6 +5,7 @@ import { verifyAdminOrModerator } from '@/lib/auth';
 import { db } from '@/db';
 import { playerSnapshots, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { getWeeklyRepeat, setWeeklyRepeat } from '@/lib/weeklyRepeat';
 
 export async function GET(
   request: Request,
@@ -27,7 +28,8 @@ export async function GET(
 
   const participantCount = participants.length;
 
-  return NextResponse.json({ ...comp[0], participantCount, participants });
+  const repeat = await getWeeklyRepeat(comp[0].clanId, compId);
+  return NextResponse.json({ ...comp[0], participantCount, participants, repeat });
 }
 
 export async function PUT(
@@ -46,11 +48,22 @@ export async function PUT(
   // asked since the multi-clan conversion; this did not, so a moderator of any clan could rename or
   // re-date any other clan's week by guessing an id. The role check above is satisfied by being
   // staff SOMEWHERE, which is exactly the gap the scope guard closes.
-  if (!(await competitionForRequest(request, compId))) {
+  const scoped = await competitionForRequest(request, compId);
+  if (!scoped) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
-  const { title, startDate, endDate, status, includeGuests } = await request.json();
+  const { title, startDate, endDate, status, includeGuests, repeat } = await request.json();
+
+  // Repeat on (with an optional rotation) or off. Off on the current week stops the series: the cron
+  // only ever makes the next one from a week that still says repeat.
+  if (repeat !== undefined) {
+    const rotation =
+      repeat && Array.isArray(repeat.rotation)
+        ? repeat.rotation.filter((m: unknown): m is string => typeof m === 'string' && m.length > 0).slice(0, 52)
+        : null;
+    await setWeeklyRepeat(scoped.clanId, compId, repeat ? { rotation: rotation && rotation.length > 0 ? rotation : null } : null);
+  }
 
   const updates: Record<string, unknown> = {};
   if (title !== undefined) updates.title = title;
@@ -62,6 +75,7 @@ export async function PUT(
   if (typeof includeGuests === 'boolean') updates.includeGuests = includeGuests ? 1 : 0;
 
   if (Object.keys(updates).length === 0) {
+    if (repeat !== undefined) return NextResponse.json({ ok: true, repeat: await getWeeklyRepeat(scoped.clanId, compId) });
     return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
   }
 

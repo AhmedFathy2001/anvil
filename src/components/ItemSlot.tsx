@@ -20,6 +20,8 @@ export const SPRITES = {
   ring: { src: '/osrs/ring.png', w: 18, h: 22 },
   tinderbox: { src: '/osrs/tinderbox.png', w: 30, h: 28 },
   teleport: { src: '/osrs/teleport.png', w: 28, h: 28 },
+  // Not an item: Discord's own mark, for the Discord page. A vector, so it scales without pixelating.
+  discord: { src: '/icons/discord.svg', w: 22, h: 17 },
 } as const;
 
 export type SpriteName = keyof typeof SPRITES;

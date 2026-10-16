@@ -11,6 +11,7 @@ import { verifyFeeCollector } from '@/lib/auth';
 import { parseWeeklyPrizes, serializeWeeklyPrizes, totalPrizeGp } from '@/lib/weeklyPrizes';
 import { setWeeklyPool } from '@/lib/coffer';
 import { track } from '@/lib/analytics';
+import { setWeeklyRepeat } from '@/lib/weeklyRepeat';
 
 export async function GET() {
   const user = await verifyAdminOrModerator();
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { type, metric, title, startDate, endDate, includeGuests, prizes, prizeHold } = await request.json();
+  const { type, metric, title, startDate, endDate, includeGuests, prizes, prizeHold, repeat } = await request.json();
 
   if (!type || !metric || !title || !startDate || !endDate) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -94,13 +95,21 @@ export async function POST(request: Request) {
     endDate,
     createdById: user.userId > 0 ? user.userId : null,
     status,
-    // Guests race alongside members unless the admin unticked the box. Absent (an older client)
-    // means include — the clan roster is the entry list, and a weekly is a clan-wide activity.
-    includeGuests: includeGuests === false ? 0 : 1,
+    // Members only unless the admin ticked "Guests race too". Guests are visitors on an event-only
+    // seat; a clan's weekly is its own members' race by default.
+    includeGuests: includeGuests === true ? 1 : 0,
     prizes: prizesJson,
   }).returning();
 
   const comp = result[0];
+
+  // "Repeat every week": the cron starts the next one when this one ends (lib/weeklyRepeat).
+  if (repeat && typeof repeat === 'object') {
+    const rotation = Array.isArray(repeat.rotation)
+      ? repeat.rotation.filter((m: unknown): m is string => typeof m === 'string' && m.length > 0).slice(0, 52)
+      : null;
+    await setWeeklyRepeat(clan.id, comp.id, { rotation: rotation && rotation.length > 0 ? rotation : null });
+  }
 
   // A ladder set at creation holds its gp the same as one added later — the promise costs the pot
   // when it is made, wherever it was typed. A coffer too short to cover it does NOT fail the
