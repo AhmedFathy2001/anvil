@@ -89,8 +89,8 @@ before(async () => {
   ]);
 
   await db.insert(s.settings).values([
-    { clanId: hostClan, key: 'discord_webhook_bingo', value: 'https://discord.test/host' },
-    { clanId: guestClan, key: 'discord_webhook_bingo', value: 'https://discord.test/guest' },
+    { clanId: hostClan, key: 'discord_webhook_bingo', value: 'https://discord.com/api/webhooks/1/host' },
+    { clanId: guestClan, key: 'discord_webhook_bingo', value: 'https://discord.com/api/webhooks/1/guest' },
   ]);
 
   globalThis.fetch = (async (url: string | URL, init?: RequestInit) => {
@@ -118,7 +118,7 @@ test('day 1 digest: both clans get it, kill pings count as one, standings + clan
   const { runDailyDigests } = await import('../src/lib/eventDigest.ts');
   posts.length = 0;
   await runDailyDigests(START + DAY + 1000);
-  assert.deepEqual(posts.map((p) => p.url).sort(), ['https://discord.test/guest', 'https://discord.test/host']);
+  assert.deepEqual(posts.map((p) => p.url).sort(), ['https://discord.com/api/webhooks/1/guest', 'https://discord.com/api/webhooks/1/host']);
   const embed = posts[0].body.embeds![0];
   assert.match(embed.title!, /Day 1 recap/);
   const f = fieldsOf(posts[0]);
@@ -208,11 +208,11 @@ test('a 4-clan board: every clan gets the post, clans ranked by points gained th
   const done = (tileId: number, teamId: number) => ({ tileId, teamId, completedAt: new Date(START2 + DAY / 2).toISOString() });
   // Day 1: Bravo 10+15 = 25, Charlie 20, Alpha 10, Delta nothing.
   await db.insert(s.completions).values([done(x, tB), done(y, tB), done(z, tC), done(x, tA)]);
-  await db.insert(s.settings).values([a, b, c, d].map((clanId, i) => ({ clanId, key: 'discord_webhook_bingo', value: `https://discord.test/war${i}` })));
+  await db.insert(s.settings).values([a, b, c, d].map((clanId, i) => ({ clanId, key: 'discord_webhook_bingo', value: `https://discord.com/api/webhooks/1/war${i}` })));
 
   posts.length = 0;
   await runDailyDigests(START2 + DAY + 1000);
-  assert.deepEqual(posts.map((p) => p.url).sort(), ['https://discord.test/war0', 'https://discord.test/war1', 'https://discord.test/war2', 'https://discord.test/war3']);
+  assert.deepEqual(posts.map((p) => p.url).sort(), ['https://discord.com/api/webhooks/1/war0', 'https://discord.com/api/webhooks/1/war1', 'https://discord.com/api/webhooks/1/war2', 'https://discord.com/api/webhooks/1/war3']);
   const f = fieldsOf(posts[0]);
   const section = f['⚔️ Clan war today (4 clans)'];
   assert.ok(section, `no clan war field in ${Object.keys(f).join(', ')}`);

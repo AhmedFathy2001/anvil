@@ -48,12 +48,12 @@ before(async () => {
   await db.insert(s.settings).values([
     { clanId: hostClan, key: 'board_rules', value: 'Host house rules' },
     { clanId: guestClan, key: 'board_rules', value: 'Guest house rules — must never show for the host board' },
-    { clanId: hostClan, key: 'discord_webhook_bingo', value: 'https://discord.test/host-bingo' },
+    { clanId: hostClan, key: 'discord_webhook_bingo', value: 'https://discord.com/api/webhooks/1/host-bingo' },
     { clanId: hostClan, key: 'discord_member_ping_role_id', value: '111' },
-    { clanId: guestClan, key: 'discord_webhook_bingo', value: 'https://discord.test/guest-bingo' },
-    { clanId: guestClan, key: 'discord_webhook_cohost', value: 'https://discord.test/guest-cohost' },
+    { clanId: guestClan, key: 'discord_webhook_bingo', value: 'https://discord.com/api/webhooks/1/guest-bingo' },
+    { clanId: guestClan, key: 'discord_webhook_cohost', value: 'https://discord.com/api/webhooks/1/guest-cohost' },
     { clanId: guestClan, key: 'discord_member_ping_role_id', value: '222' },
-    { clanId: pendingClan, key: 'discord_webhook_bingo', value: 'https://discord.test/pending-bingo' },
+    { clanId: pendingClan, key: 'discord_webhook_bingo', value: 'https://discord.com/api/webhooks/1/pending-bingo' },
   ]);
 
   globalThis.fetch = (async (url: string | URL, init?: RequestInit) => {
@@ -120,9 +120,9 @@ test('fan-out: host + accepted co-host only, co-host channel preferred, each pin
   const ok = await sendEventBingoWebhook(hostClan, eventId, { embeds: [{ title: 'Event started' }] }, { ping: true });
   assert.equal(ok, true);
   const byUrl = new Map(posts.map((p) => [p.url, p.body]));
-  assert.deepEqual([...byUrl.keys()].sort(), ['https://discord.test/guest-cohost', 'https://discord.test/host-bingo']);
-  assert.equal(byUrl.get('https://discord.test/host-bingo')?.content, '<@&111>');
-  assert.equal(byUrl.get('https://discord.test/guest-cohost')?.content, '<@&222>');
+  assert.deepEqual([...byUrl.keys()].sort(), ['https://discord.com/api/webhooks/1/guest-cohost', 'https://discord.com/api/webhooks/1/host-bingo']);
+  assert.equal(byUrl.get('https://discord.com/api/webhooks/1/host-bingo')?.content, '<@&111>');
+  assert.equal(byUrl.get('https://discord.com/api/webhooks/1/guest-cohost')?.content, '<@&222>');
 });
 
 test('board reveal fans out a signed full-board image and interactive link', async () => {
@@ -165,7 +165,7 @@ test('board reveal test post stays in the current clan and never fans out', asyn
     test: true,
   });
   assert.equal(ok, true);
-  assert.deepEqual(posts.map((post) => post.url), ['https://discord.test/host-bingo']);
+  assert.deepEqual(posts.map((post) => post.url), ['https://discord.com/api/webhooks/1/host-bingo']);
 });
 
 test('fan-out: a co-host that switched it off gets nothing; the host still posts', async () => {
@@ -173,7 +173,7 @@ test('fan-out: a co-host that switched it off gets nothing; the host still posts
   await db.insert(s.settings).values({ clanId: guestClan, key: 'discord_cohost_posts_enabled', value: 'false' });
   posts.length = 0;
   await sendEventBingoWebhook(hostClan, eventId, { embeds: [{ title: 'Tile done' }] });
-  assert.deepEqual(posts.map((p) => p.url), ['https://discord.test/host-bingo']);
+  assert.deepEqual(posts.map((p) => p.url), ['https://discord.com/api/webhooks/1/host-bingo']);
 });
 
 test('rules post targets: host first, then accepted co-hosts; narrowed on request', async () => {
@@ -202,7 +202,7 @@ test('postEventRules: one post per clan, each in its own channel, under the host
       [guestClan, 'sent', 'posted'],
     ],
   );
-  const guestPost = posts.find((p) => p.url.startsWith('https://discord.test/guest-cohost?'));
+  const guestPost = posts.find((p) => p.url.startsWith('https://discord.com/api/webhooks/1/guest-cohost?'));
   const embeds = guestPost?.body.embeds as { title?: string; description?: string }[];
   assert.equal(embeds.length, 2);
   assert.match(embeds[0].description ?? '', /hosted by Host Clan/);
