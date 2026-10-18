@@ -16,6 +16,7 @@ import { boardRevealImageQuery } from '@/lib/boardRevealImage';
 
 import { db } from '@/db';
 import { acceptedCohostClanIds } from '@/lib/coHost';
+import { ttlMemo } from '@/lib/ttlMemo';
 import { clans, events, teams } from '@/db/schema';
 import {
   EMBED_COLOR,
@@ -413,6 +414,19 @@ export async function upsertCohostWebhook(
  * Returns the HOST's result, which is what every caller reported before co-hosts existed; a co-host
  * with no webhook (or the fan-out switched off) is skipped quietly.
  */
+/** The clan that owns an event. A host never changes, so it is remembered for a while. */
+function eventHostClanId(eventId: number): Promise<number | null> {
+  return ttlMemo(
+    `event-host:${eventId}`,
+    async () => {
+      // clan-scope: global -- reads only which clan owns this event, to address that clan's channel.
+      const [row] = await db.select({ clanId: events.clanId }).from(events).where(eq(events.id, eventId)).limit(1);
+      return row?.clanId ?? null;
+    },
+    10 * 60_000,
+  ).catch(() => null);
+}
+
 export async function sendEventBingoWebhook(
   hostClanId: number,
   eventId: number | null | undefined,
@@ -424,8 +438,18 @@ export async function sendEventBingoWebhook(
   const withPing = async (clanId: number): Promise<DiscordWebhookPayload> =>
     opts.ping ? { ...(await memberPing(clanId)), ...payload } : payload;
 
+  if (eventId == null) return withPing(hostClanId).then((p) => sendBingoWebhook(hostClanId, p));
+
+  // THE EVENT NAMES ITS HOST, not the caller. Callers pass whichever clan they were working in, and
+  // for a co-hosted board that is often the CO-HOST — a live KC push from one of its members, a
+  // captain completing a tile from their own clan's address. Taken as the host, that clan got the
+  // "host" post into a bingo channel it may not have, the real host was never in the co-host list
+  // so its server heard nothing, and the co-host's own channel was skipped as "the host". The
+  // event's extra hooks don't care who hosts, which is why only they kept posting.
+  const host = (await eventHostClanId(eventId)) ?? hostClanId;
+  hostClanId = host;
+
   const hostSend = withPing(hostClanId).then((p) => sendBingoWebhook(hostClanId, p));
-  if (eventId == null) return hostSend;
 
   const cohosts = await acceptedCohostClanIds(eventId).catch(() => [] as number[]);
   await Promise.all(

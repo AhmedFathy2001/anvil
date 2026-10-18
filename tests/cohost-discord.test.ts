@@ -125,6 +125,19 @@ test('fan-out: host + accepted co-host only, co-host channel preferred, each pin
   assert.equal(byUrl.get('https://discord.com/api/webhooks/1/guest-cohost')?.content, '<@&222>');
 });
 
+test('fan-out: a post the CO-HOST raised still reaches the host and the co-host channel', async () => {
+  // A live KC push from a co-host member, or a co-host captain completing a tile from their own
+  // clan's address, hands the co-host's clan id in as if it were the host. The event decides.
+  const { sendEventBingoWebhook } = await import('../src/lib/discord.ts');
+  posts.length = 0;
+  const ok = await sendEventBingoWebhook(guestClan, eventId, { embeds: [{ title: 'Tile complete' }] });
+  assert.equal(ok, true);
+  assert.deepEqual(
+    [...new Set(posts.map((p) => p.url))].sort(),
+    ['https://discord.com/api/webhooks/1/guest-cohost', 'https://discord.com/api/webhooks/1/host-bingo'],
+  );
+});
+
 test('board reveal fans out a signed full-board image and interactive link', async () => {
   const previousRedirect = process.env.DISCORD_REDIRECT_URI;
   process.env.DISCORD_REDIRECT_URI = 'https://anvil.test/api/auth/discord/callback';
