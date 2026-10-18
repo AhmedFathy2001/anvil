@@ -85,7 +85,10 @@ function sweep(now: number): void {
       extra--;
     }
   }
-  // A flood of keys that are ALL over their limit: protecting them stops being affordable.
+  // A flood of keys that are ALL over their limit: protecting them stops being affordable. Reaching
+  // this takes ~100k distinct client networks inside one window (IPv6 is counted per /64 — see
+  // lib/clientIp bucketOf), which is a botnet, and no in-process throttle stops one of those anyway;
+  // bounded memory is the property worth keeping here.
   if (buckets.size > HARD_MAX_BUCKETS) {
     let extra = buckets.size - HARD_MAX_BUCKETS;
     for (const k of buckets.keys()) {
