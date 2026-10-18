@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { signupFees } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
+import { feeEventForRequest } from '@/lib/eventScope';
 import { del } from '@/lib/storage';
 
 // Admin escape hatch — wipes collection state on a fee. Used when a collection was
@@ -10,7 +11,7 @@ import { del } from '@/lib/storage';
 // to be reopened (e.g. refund). Player's payment report (reportedCollectorUserId) is
 // preserved because that's their own statement — only the staff side gets reset.
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ feeId: string }> },
 ) {
   const isAdmin = await verifyAdmin();
@@ -24,6 +25,11 @@ export async function POST(
     return NextResponse.json({ error: 'Invalid fee id' }, { status: 400 });
   }
 
+  // Whose fee is this? Ids are global; only this clan's ledger is this clan's to touch.
+  const event = await feeEventForRequest(request, id);
+  if (!event) {
+    return NextResponse.json({ error: 'Fee not found' }, { status: 404 });
+  }
   const fee = await db.query.signupFees.findFirst({ where: eq(signupFees.id, id) });
   if (!fee) {
     return NextResponse.json({ error: 'Fee not found' }, { status: 404 });

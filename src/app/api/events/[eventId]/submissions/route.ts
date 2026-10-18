@@ -28,6 +28,12 @@ import { track } from '@/lib/analytics';
 /** What the plugin may say it inferred (submissions.flaggedReason). Anything else is ignored. */
 const INFERRED_FLAGS = new Set(['inferred_duplicate_pet', 'inferred_duplicate_scroll']);
 
+/** The most one image-less plugin ping may credit — far above a real 2.5s burst. */
+const MAX_PING_AMOUNT = 10;
+/** Kinds whose ping counts kills/laps/games one at a time. Gains and loot values are not counts. */
+const PING_CAPPED_KINDS = new Set(['kill', 'lap', 'pvp', 'deathless', 'lms']);
+const BIG_PING_FLAG = 'big_ping';
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
@@ -327,6 +333,19 @@ export async function POST(
     flaggedReason = inferred;
   }
 
+  // COUNT-ONLY PINGS ARE SMALL. The plugin coalesces a ~2.5s burst into one image-less ping, so a real
+  // one carries a handful of kills at most; anything bigger needs its screenshot. Without this a single
+  // forged ping could claim the 10,000-kill ceiling and finish any kill tile in one request. Clamped,
+  // and flagged so staff can see the claim — not refused, because a refused ping is requeued by the
+  // plugin and would come straight back.
+  let creditedAmount: number = amount || 1;
+  let creditNote: string | null = note || null;
+  if (isPluginKillPing && !imageUrlValue && PING_CAPPED_KINDS.has(tile.tileType) && creditedAmount > MAX_PING_AMOUNT) {
+    creditNote = `${creditNote ? `${creditNote} ` : ''}[claimed ${creditedAmount} without a screenshot]`.slice(0, 500);
+    creditedAmount = MAX_PING_AMOUNT;
+    flaggedReason = flaggedReason ?? BIG_PING_FLAG;
+  }
+
   // Per-item tracking validation
   const tileItemRequirements = tile.itemRequirements ? JSON.parse(tile.itemRequirements) as { itemId: number; name: string; requiredAmount: number; group?: string | null }[] : null;
 
@@ -420,7 +439,7 @@ export async function POST(
         ? memberProgress(tileSubs, submitterCreditId, distinctPool ? 'distinct' : null)
         : countProgress(tileSubs, tile.trackingMode, distinctPool ? 'distinct' : null).current;
     // A new item on a distinct pool is worth exactly 1, whatever the stack.
-    const submitAmount = distinctPool ? 1 : amount || 1;
+    const submitAmount = distinctPool ? 1 : creditedAmount;
 
     if (currentTotal >= tile.requiredAmount) {
       return NextResponse.json(
@@ -444,9 +463,9 @@ export async function POST(
       teamId,
       playerId: uploaderId,
       creditPlayerId: resolvedCreditPlayerId,
-      amount: amount || 1,
+      amount: creditedAmount,
       imageUrl: imageUrlValue,
-      note: note || null,
+      note: creditNote,
       itemId: itemId || null,
       durationSeconds: durationSecondsValue,
       coopGroup: coopGroupJson,
@@ -504,7 +523,7 @@ export async function POST(
       eventId: eId,
       tileId,
       teamId,
-      amount: amount || 1,
+      amount: creditedAmount,
       currentTotal,
       requiredAmount: tile.requiredAmount,
       imageUrl: imageUrlValue,

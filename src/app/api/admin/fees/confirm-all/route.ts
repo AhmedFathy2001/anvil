@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
-import { eventSignups, signupFees } from '@/db/schema';
+import { eventSignups, events, signupFees } from '@/db/schema';
 import { and, eq, ne, notInArray } from 'drizzle-orm';
 import { verifyAdmin, verifyUser } from '@/lib/auth';
 import { applyFeeConfirmation, getRequiredConfirmations, settlesOnCollect } from '@/lib/feeConfirmations';
@@ -53,12 +53,17 @@ export async function POST(request: Request) {
       // A withdrawn/rejected sign-up's fee is dead money, not something to settle.
       notInArray(eventSignups.status, ['withdrawn', 'rejected']),
       ...(eventId != null ? [eq(eventSignups.eventId, eventId)] : []),
+      // THIS CLAN'S fees. Nothing here named a clan, so one call settled every collected fee on the
+      // platform — and anyone can found a clan and be its admin.
+      eq(events.clanId, clan.id),
     );
 
+  // clan-scope: this clan -- scope() carries eq(events.clanId, clan.id).
   const rows = await db
     .select({ id: signupFees.id })
     .from(signupFees)
     .innerJoin(eventSignups, eq(signupFees.signupId, eventSignups.id))
+    .innerJoin(events, eq(eventSignups.eventId, events.id))
     .where(scope(false));
 
   let confirmed = 0;
@@ -78,10 +83,12 @@ export async function POST(request: Request) {
   // match every collected fee, so reporting it would invent a blocker that doesn't exist.
   const mine = noSignature
     ? []
-    : await db
+    : // clan-scope: this clan -- scope() carries eq(events.clanId, clan.id).
+      await db
         .select({ id: signupFees.id })
         .from(signupFees)
         .innerJoin(eventSignups, eq(signupFees.signupId, eventSignups.id))
+        .innerJoin(events, eq(eventSignups.eventId, events.id))
         .where(scope(true));
 
   return NextResponse.json({ confirmed, recorded, skipped, awaitingOtherAdmin: mine.length });

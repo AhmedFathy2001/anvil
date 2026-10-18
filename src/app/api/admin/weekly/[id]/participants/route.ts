@@ -110,6 +110,11 @@ export async function POST(
 
   const { id } = await params;
   const compId = parseInt(id, 10);
+  // The seats come from this clan, so the competition must be this clan's too — or a mod of any
+  // clan could enter their own members into somebody else's prize.
+  if (!(await competitionForRequest(request, compId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
   const { rsns } = await request.json();
 
   if (!Array.isArray(rsns) || rsns.length === 0) {
@@ -153,6 +158,13 @@ export async function PATCH(
 
   const { id } = await params;
   const compId = parseInt(id, 10);
+
+  // WHOSE COMPETITION IS THIS? Same guard as DELETE. Without it a mod of any clan could rewrite
+  // another clan's baselines — which decide who wins its prize.
+  if (!(await competitionForRequest(request, compId))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
   const { participantId, baselineValue, keepIfLeft } = await request.json();
 
   if (typeof participantId !== 'number' || !Number.isInteger(participantId)) {

@@ -136,11 +136,23 @@ async function s3Put(key: string, body: StorageBody, contentType?: string): Prom
 
 /** Recover the object key from a stored public URL so we can address it for deletion. */
 function s3KeyFromUrl(cfg: S3Config, url: string): string | null {
-  if (url.startsWith(`${cfg.publicBase}/`)) return url.slice(cfg.publicBase.length + 1);
+  let key: string | null = null;
+  if (url.startsWith(`${cfg.publicBase}/`)) key = url.slice(cfg.publicBase.length + 1);
   // Fall back to the raw endpoint/bucket form in case publicBase was changed after upload.
   const raw = `${cfg.endpoint}/${cfg.bucket}/`;
-  if (url.startsWith(raw)) return url.slice(raw.length);
-  return null;
+  if (key == null && url.startsWith(raw)) key = url.slice(raw.length);
+  if (key == null) return null;
+  // Stored URLs can be client-supplied (a proof link), and the DELETE is signed with our bucket
+  // credentials: `<base>/../other-bucket/x` would normalise to an object outside this bucket. A key
+  // that climbs, or hides a climb behind encoding, is nothing of ours to delete.
+  let decoded = key;
+  try {
+    decoded = decodeURIComponent(key);
+  } catch {
+    return null;
+  }
+  if (decoded.split(/[\\/]/).some((seg) => seg === '..' || seg === '.') || decoded.startsWith('/')) return null;
+  return key;
 }
 
 async function s3Del(urls: string[]): Promise<void> {
@@ -189,6 +201,29 @@ export function isManagedMediaUrl(raw: string): boolean {
     } catch {
       /* ignore a malformed base */
     }
+  }
+  return false;
+}
+
+/**
+ * A proof link for one of THIS clan's money records: our media host, under this clan's own prefix.
+ *
+ * isManagedMediaUrl alone is not enough here. These records delete their proof when it is replaced
+ * or reset, and a proof is a URL the client sends — so "any of our media" let a member point a
+ * record at another clan's image and have the server delete it. Money proofs are uploaded and filed
+ * from the same clan address, so the upload already lives under `c/<slug>/`; require it.
+ */
+export function isClanMediaUrl(raw: string, clanSlug: string): boolean {
+  if (!isManagedMediaUrl(raw)) return false;
+  let segs: string[];
+  try {
+    segs = decodeURIComponent(new URL(raw).pathname).split('/');
+  } catch {
+    return false;
+  }
+  if (segs.some((seg) => seg === '..' || seg === '.')) return false;
+  for (let i = 0; i < segs.length - 1; i++) {
+    if (segs[i] === 'c' && segs[i + 1] === clanSlug) return true;
   }
   return false;
 }

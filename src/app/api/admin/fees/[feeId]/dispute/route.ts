@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { signupFees } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAdminOrModerator, verifyEventTreasurer } from '@/lib/auth';
-import { eventIdForFee } from '@/lib/feeConfirmations';
+import { feeEventForRequest } from '@/lib/eventScope';
 
 // Manually flag a fee as disputed — e.g. a player says they paid but no collector claim
 // exists, or the amount is contested. Any staff member can raise a dispute; an admin
@@ -21,9 +21,14 @@ export async function POST(
 
   // Clan staff anywhere, or the treasurer of the board this fee belongs to. Raising a dispute is
   // the one money action that has to stay available to whoever noticed the problem.
-  const eventId = await eventIdForFee(id);
+  // Whose fee is this? Ids are global; only this clan's ledger is this clan's to touch.
+  const event = await feeEventForRequest(request, id);
+  if (!event) {
+    return NextResponse.json({ error: 'Fee not found' }, { status: 404 });
+  }
+  const eventId = event.id;
   const session =
-    (await verifyAdminOrModerator()) ?? (eventId != null ? await verifyEventTreasurer(eventId) : null);
+    (await verifyAdminOrModerator()) ?? (await verifyEventTreasurer(eventId));
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

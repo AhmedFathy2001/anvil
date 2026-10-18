@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { signupFees } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyAdmin, verifyUser } from '@/lib/auth';
+import { feeEventForRequest } from '@/lib/eventScope';
 import { applyFeeConfirmation } from '@/lib/feeConfirmations';
 
 // A confirmation vote. Admin-only, and separation of duties still holds: the collector
@@ -14,7 +15,7 @@ import { applyFeeConfirmation } from '@/lib/feeConfirmations';
 // The rules themselves live in lib/feeConfirmations so this route, the bulk "confirm all" action
 // and the end-of-event auto-close all apply exactly the same ones.
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ feeId: string }> },
 ) {
   const isAdmin = await verifyAdmin();
@@ -32,6 +33,11 @@ export async function POST(
     return NextResponse.json({ error: 'Invalid fee id' }, { status: 400 });
   }
 
+  // Whose fee is this? Ids are global; only this clan's ledger is this clan's to touch.
+  const event = await feeEventForRequest(request, id);
+  if (!event) {
+    return NextResponse.json({ error: 'Fee not found' }, { status: 404 });
+  }
   const fee = await db.query.signupFees.findFirst({ where: eq(signupFees.id, id) });
   if (!fee) {
     return NextResponse.json({ error: 'Fee not found' }, { status: 404 });
@@ -41,7 +47,7 @@ export async function POST(
   // can otherwise never close a fee they collected themselves — the second signature is never
   // coming, and the alternatives are lying about who collected it or leaving it open forever. It
   // stays deliberate (a separate button, admin only) and it lands in the audit line below.
-  const force = (await _request.json().catch(() => null))?.force === true;
+  const force = (await request.json().catch(() => null))?.force === true;
   const result = await applyFeeConfirmation(id, session.userId, force ? { auto: true } : undefined);
   if (result.outcome === 'own-collection') {
     return NextResponse.json(

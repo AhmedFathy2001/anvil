@@ -4,6 +4,8 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { events, payouts } from '@/db/schema';
 import { requireTeamManager } from '@/lib/teamStaff';
+import { currentClan } from '@/lib/clanContext';
+import { isClanMediaUrl } from '@/lib/storage';
 import { allPayoutsPaid, announcePayouts } from '@/lib/payouts';
 
 /**
@@ -36,6 +38,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ tea
 
   const body = (await request.json().catch(() => null)) as { proofUrl?: string; notes?: string } | null;
   const proofUrl = typeof body?.proofUrl === 'string' && body.proofUrl ? body.proofUrl : null;
+  // Our upload, under the prefix of the clan this was filed from (it was uploaded there too).
+  const clan = await currentClan();
+  if (proofUrl && (!clan || !isClanMediaUrl(proofUrl, clan.slug))) {
+    return NextResponse.json({ error: 'Attach proof by uploading it here.' }, { status: 400 });
+  }
 
   const [updated] = await db
     .update(payouts)

@@ -1184,6 +1184,10 @@ export const users = pgTable('users', {
   // inherited from separate instances at import. They resolve to the same person, and are meant to
   // be retired once that person's client has been handed this one.
   pluginToken: text('plugin_token'),
+  // SHA-256 (hex) of pluginToken — what a request is looked up by. A token is a password: storing it
+  // in the clear meant a database or backup leak handed out every account's plugin access. The plain
+  // column is still written while blue-green slots overlap (an older slot reads it); 0139 empties it.
+  pluginTokenHash: text('plugin_token_hash'),
   // FIRST RUN. Two columns and no step counter, because every step's done-ness is a fact that
   // already exists elsewhere — an accounts row, a live seat, a plugin ping — and storing a number
   // beside those facts would be a second answer free to disagree with them. What is genuinely not
@@ -1229,6 +1233,7 @@ export const users = pgTable('users', {
   levelRules: text('level_rules'),
 }, (table) => [
   uniqueIndex('users_plugin_token_unique').on(table.pluginToken),
+  uniqueIndex('users_plugin_token_hash_unique').on(table.pluginTokenHash),
   index('users_player_idx').on(table.playerId),
 ]);
 
@@ -1706,11 +1711,14 @@ export const pluginLinks = pgTable('plugin_links', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   token: text('token').notNull(),
+  // SHA-256 (hex) of token; see users.pluginTokenHash.
+  tokenHash: text('token_hash'),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
   lastUsedAt: text('last_used_at'),
   revokedAt: text('revoked_at'),
 }, (table) => [
   uniqueIndex('plugin_links_token_unique').on(table.token),
+  uniqueIndex('plugin_links_token_hash_unique').on(table.tokenHash),
   index('plugin_links_user_id_idx').on(table.userId),
 ]);
 

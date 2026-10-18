@@ -1,4 +1,5 @@
 import { webhookIdentity } from '@/lib/discordIdentity';
+import { isDiscordWebhookTarget } from '@/lib/discordWebhookUrl';
 import { eventHookTargets } from '@/lib/eventWebhooks';
 import { EVENT_POST_KINDS, type EventPostKind } from '@/lib/eventWebhookKinds';
 import { clanMarkUrl, eventMarkUrl } from '@/lib/clanMarkUrl';
@@ -127,11 +128,23 @@ async function resolveWebhookUrl(clanId: number, ...keys: string[]): Promise<str
 
 const MAX_RETRY_MS = 5000;
 
+/**
+ * Every webhook post leaves through here. Webhook URLs are typed in by clan staff and members, and
+ * the server is the one that fetches them — so anything that is not a Discord webhook is refused
+ * before a socket opens, whichever route stored or supplied it.
+ */
+function webhookFetch(url: string, init: RequestInit): Promise<Response> {
+  if (!isDiscordWebhookTarget(url)) {
+    return Promise.resolve(new Response('not a Discord webhook', { status: 400 }));
+  }
+  return fetch(url, init);
+}
+
 async function postWebhook(
   webhookUrl: string,
   payload: DiscordWebhookPayload,
 ): Promise<Response> {
-  return fetch(webhookUrl, {
+  return webhookFetch(webhookUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     // Brand every embed here rather than in each builder: this is the single JSON exit to Discord,
@@ -220,7 +233,7 @@ export async function forwardPluginNotification(
       ),
     );
     form.append('files[0]', new Blob([attachment.bytes]), attachment.filename);
-    const response = await fetch(webhookUrl, { method: 'POST', body: form });
+    const response = await webhookFetch(webhookUrl, { method: 'POST', body: form });
     if (!response.ok) {
       const text = await response.text().catch(() => '');
       log.warn('discord.plugin-notify-fail', { status: response.status, body: text.slice(0, 200) });
@@ -290,7 +303,7 @@ function webhookRequestUrl(webhookUrl: string, opts: { messageId?: string; wait?
 }
 
 async function editableWebhookRequest(url: string, method: 'POST' | 'PATCH', payload: DiscordWebhookPayload): Promise<Response> {
-  const send = () => fetch(url, {
+  const send = () => webhookFetch(url, {
     method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -536,7 +549,7 @@ export async function sendEventHookTest(
 
 export async function sendTestWebhook(webhookUrl: string): Promise<boolean> {
   try {
-    const response = await fetch(webhookUrl, {
+    const response = await webhookFetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       // Posts straight to the URL under test (it isn't a configured destination yet), so it stamps

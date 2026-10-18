@@ -6,6 +6,7 @@ import PluginPlayerTokenClient from './PluginPlayerTokenClient';
 import LinkAccountClient from './LinkAccountClient';
 import IgnoredAccountsClient from './IgnoredAccountsClient';
 import RenameRequestClient from './RenameRequestClient';
+import SignOutEverywhereClient from './SignOutEverywhereClient';
 
 // Everything that used to BE this page: the token, the manual linking paths, the accounts you told
 // us weren't yours, and name changes. None of it is gone — it's just no longer what a member sees
@@ -66,7 +67,7 @@ export default function SecurityDrawer({
           ▸
         </span>
         Account &amp; security
-        <span className="font-normal text-xs text-text-muted">token, linking, name changes</span>
+        <span className="font-normal text-xs text-text-muted">token, linking, name changes, sessions</span>
       </summary>
 
       <div className="px-5 pb-5 grid gap-5">
@@ -99,6 +100,9 @@ export default function SecurityDrawer({
             <IgnoredAccountsClient initial={ignored} />
           </>
         )}
+
+        <div className="h-px bg-card-border" />
+        <SignOutEverywhereClient />
 
         {/* Last, and inside the drawer: leaving is rare, and a control that ends something should
             not sit where a mis-click lives. */}

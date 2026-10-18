@@ -15,7 +15,7 @@ import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, clans, eventCohosts, events, weeklyCompetitions } from '@/db/schema';
+import { accounts, clanMemberships, clans, eventCohosts, eventSignups, events, signupFees, weeklyCompetitions } from '@/db/schema';
 import { currentClan, requireClan, resolveClanFromRequest } from '@/lib/clanContext';
 import { canSeeEvent } from '@/lib/eventAccess';
 import { resolvePluginClan, verifyUser } from '@/lib/auth';
@@ -51,6 +51,25 @@ export async function eventForRequest(request: Request, eventId: number): Promis
   const clan = await resolvePluginClan(request);
   if (!clan) return null;
   return eventInClan(clan.id, eventId);
+}
+
+/**
+ * The event a sign-up fee belongs to, for the clan this request is for, or null.
+ *
+ * Fee ids are global and arrive from the URL exactly like event ids, and the fee routes took them
+ * straight to the ledger: an admin of any clan — and anyone can found one — could confirm, reset,
+ * dispute or mark collected another clan's fees by id. The fee's clan is its event's, one hop, so
+ * this is the same single check at the top as eventForRequest.
+ */
+export async function feeEventForRequest(request: Request, feeId: number): Promise<ScopedEvent | null> {
+  if (!Number.isInteger(feeId)) return null;
+  const [row] = await db
+    .select({ eventId: eventSignups.eventId })
+    .from(signupFees)
+    .innerJoin(eventSignups, eq(signupFees.signupId, eventSignups.id))
+    .where(eq(signupFees.id, feeId))
+    .limit(1);
+  return row ? eventForRequest(request, row.eventId) : null;
 }
 
 /**

@@ -858,7 +858,8 @@ export async function GET(request: Request) {
       occurredAt: clanAuditLog.occurredAt,
     })
     .from(clanAuditLog)
-    .where(inArray(clanAuditLog.eventType, SYNC_EVENT_TYPES))
+    // THIS clan's log. Unfiltered, the fallback reported whichever clan synced last platform-wide.
+    .where(and(eq(clanAuditLog.clanId, clan.id), inArray(clanAuditLog.eventType, SYNC_EVENT_TYPES)))
     .orderBy(desc(clanAuditLog.occurredAt))
     .limit(200);
 

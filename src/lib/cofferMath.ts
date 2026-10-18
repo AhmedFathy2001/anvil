@@ -20,7 +20,9 @@ export function countsTowardBalance(entry: { kind: string; status: string }): bo
       return entry.status === 'approved';
     case 'adjustment':
     case 'refund':
-      return entry.status !== 'rejected' && entry.status !== 'cancelled';
+      // Not 'pending' either: an in-game coffer reading waiting for a second client (lib/cofferSync)
+      // is a claim, not money. Staff adjustments and refunds always land 'approved'.
+      return entry.status !== 'rejected' && entry.status !== 'cancelled' && entry.status !== 'pending';
     case 'withdrawal':
       // RuneLite saw coins move from the physical Clan Coffer into a member's bank. That changes
       // custody, not ownership: the clan still has the gp until a prize/payment or explicit negative

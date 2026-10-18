@@ -11,7 +11,7 @@ import { announceCofferMovement } from '@/lib/cofferFeed';
  * dead webhook must not hold up the request that filed a donation. `announceCofferMovement` never
  * throws, so there is nothing here for an unhandled rejection to catch.
  */
-function announce(clanId: number, row: CofferEntry | null | undefined): void {
+export function announce(clanId: number, row: CofferEntry | null | undefined): void {
   if (!row) return;
   void getCofferBalance(clanId)
     .then((b) => announceCofferMovement(clanId, row, b.available))

@@ -9,6 +9,7 @@ import TileDetailModal from '@/components/TileDetailModal';
 import MissionAdminPanel from '@/components/MissionAdminPanel';
 import MonthEndPanel from '@/components/MonthEndPanel';
 import StartProofAdminPanel from '@/components/StartProofAdminPanel';
+import CreditIntegrityPanel from '@/components/CreditIntegrityPanel';
 import FinalHourButton from '@/components/FinalHourButton';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 import { isPointsMode, eventNoun, isLadderFormat } from '@/lib/utils';
@@ -268,6 +269,10 @@ export default function OverviewClient({
       {/* Starting shot — the anti-stack proof everyone files at the start (lib/startProof). Turned
           on while building; becomes the review list once the event is live. */}
       {stage !== 'wrap' && <StartProofAdminPanel event={currentEvent} />}
+
+      {/* Kill credits the hiscores or the clock disagree with (lib/creditIntegrity). Renders nothing
+          when the board adds up. */}
+      {stage !== 'build' && <CreditIntegrityPanel eventId={currentEvent.id} />}
 
       {/* Board — search, filter, and click any tile to manage every team's submissions in one place. */}
       <div className="min-w-0">

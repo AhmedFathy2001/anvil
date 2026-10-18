@@ -4,7 +4,8 @@ import { db } from '@/db';
 import { events, payouts } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { verifyEventTreasurer, verifyFeeCollector } from '@/lib/auth';
-import { del } from '@/lib/storage';
+import { del, isClanMediaUrl } from '@/lib/storage';
+import { currentClan } from '@/lib/clanContext';
 import { allPayoutsPaid, announcePayouts } from '@/lib/payouts';
 import { getEventPool, settleAward } from '@/lib/coffer';
 
@@ -32,6 +33,12 @@ export async function POST(
 
   const body = (await request.json().catch(() => null)) as { proofUrl?: string; notes?: string } | null;
   const proofUrl = typeof body?.proofUrl === 'string' && body.proofUrl ? body.proofUrl : null;
+  // Our upload, under this clan's prefix — the old proof is deleted when replaced, so a link to
+  // anything else would have the server delete somebody else's file.
+  const clan = await currentClan();
+  if (proofUrl && (!clan || !isClanMediaUrl(proofUrl, clan.slug))) {
+    return NextResponse.json({ error: 'Attach proof by uploading it here.' }, { status: 400 });
+  }
 
   const payout = await db.query.payouts.findFirst({
     where: and(eq(payouts.id, id), eq(payouts.eventId, eId)),

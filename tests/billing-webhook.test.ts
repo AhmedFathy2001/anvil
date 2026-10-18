@@ -208,3 +208,62 @@ test('free clans all have a null subscription, which the unique index must allow
   const rows = await db.select().from(s.clans);
   assert.ok(rows.filter((r) => r.gumroadSubscriptionId == null).length >= 3);
 });
+
+// ── The webhook itself: replays, email matching, staff suspensions ───────────────────────────
+
+async function postWebhook(fields: Record<string, string>): Promise<Response> {
+  const { NextRequest } = await import('next/server');
+  const { POST } = await import('../src/app/api/webhooks/gumroad/route.ts');
+  return POST(
+    new NextRequest('https://anvilosrs.com/api/webhooks/gumroad?key=test-webhook-secret', {
+      method: 'POST',
+      body: new URLSearchParams({ seller_id: 'seller-123', ...fields }).toString(),
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    }),
+  );
+}
+
+test('a replayed sale is applied once, so it cannot re-lift a suspension or restart the trial', async () => {
+  const { db, schema: s } = await loadDb();
+  const [clan] = await db
+    .insert(s.clans)
+    .values({ slug: 'replayed', name: 'Replayed', status: 'suspended', gumroadRef: 'ref-replay' })
+    .returning();
+  await db.insert(s.clanAuditLog).values({ clanId: clan.id, eventType: 'billing_refund', newValue: '{}' });
+
+  assert.equal((await postWebhook({ sale_id: 'sale-r1', 'url_params[ref]': 'ref-replay' })).status, 200);
+  const first = await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) });
+  assert.equal(first?.status, 'active', 'paying again lifts a refund suspension');
+
+  // Refunded again, then the original notification is replayed.
+  await db.update(s.clans).set({ status: 'suspended' }).where(eq(s.clans.id, clan.id));
+  await db.insert(s.clanAuditLog).values({ clanId: clan.id, eventType: 'billing_refund', newValue: '{}' });
+  await postWebhook({ sale_id: 'sale-r1', 'url_params[ref]': 'ref-replay' });
+  const replayed = await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) });
+  assert.equal(replayed?.status, 'suspended', 'the same sale twice is one sale');
+});
+
+test('a sale is never matched to a clan by its typed-in contact email', async () => {
+  const { db, schema: s } = await loadDb();
+  const [clan] = await db
+    .insert(s.clans)
+    .values({ slug: 'email-squat', name: 'Squatter', contactEmail: 'victim@example.com' })
+    .returning();
+  await postWebhook({ sale_id: 'sale-e1', email: 'victim@example.com' });
+  const after = await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) });
+  assert.equal(after?.plan, 'free', 'an unverified email is not who paid');
+});
+
+test('a payment does not lift a suspension staff applied', async () => {
+  const { db, schema: s } = await loadDb();
+  const [clan] = await db
+    .insert(s.clans)
+    .values({ slug: 'staff-suspended', name: 'Staff Suspended', status: 'suspended', gumroadRef: 'ref-staff' })
+    .returning();
+  await db.insert(s.clanAuditLog).values({ clanId: clan.id, eventType: 'billing_refund', newValue: '{}' });
+  await db.insert(s.clanAuditLog).values({ clanId: clan.id, eventType: 'platform_clan_updated', newValue: '{}' });
+  await postWebhook({ sale_id: 'sale-s1', 'url_params[ref]': 'ref-staff' });
+  const after = await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) });
+  assert.equal(after?.status, 'suspended');
+  assert.notEqual(after?.plan, 'free', 'the purchase itself still lands');
+});

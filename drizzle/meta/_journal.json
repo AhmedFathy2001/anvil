@@ -673,6 +673,13 @@
       "when": 1791169000000,
       "tag": "0137_public_hiscores_cache",
       "breakpoints": true
+    },
+    {
+      "idx": 138,
+      "version": "7",
+      "when": 1791170000000,
+      "tag": "0138_plugin_token_hash",
+      "breakpoints": true
     }
   ]
 }

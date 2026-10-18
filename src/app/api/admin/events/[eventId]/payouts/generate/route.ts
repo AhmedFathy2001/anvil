@@ -5,6 +5,7 @@ import { events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyEventTreasurer } from '@/lib/auth';
 import {
+  MAX_PAYOUT_GP,
   generatePayouts,
   savePlacementPrizes,
   parsePlacementSplit,
@@ -52,7 +53,7 @@ export async function POST(
   const explicit =
     Array.isArray(body?.placeAmounts) && body.placeAmounts.every((n) => typeof n === 'number' && Number.isFinite(n));
   let placeAmounts = explicit
-    ? body!.placeAmounts!.map((n) => Math.max(0, Math.round(n)))
+    ? body!.placeAmounts!.map((n) => Math.min(MAX_PAYOUT_GP, Math.max(0, Math.round(n))))
     : placementAmounts(event, pool.total);
   if (placeAmounts.length === 0) {
     const places = Math.max(1, Math.round(Number(body?.paidPlaces) || 1));

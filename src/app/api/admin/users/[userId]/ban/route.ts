@@ -7,7 +7,7 @@ import { personOf } from '@/lib/roster';
 import { verifyUser } from '@/lib/auth';
 import { requireClanFromRequest } from '@/lib/clanContext';
 import { banFromClan, liftClanBan } from '@/lib/clanBans';
-import { atLeast } from '@/lib/clanRoles';
+import { atLeast, canModify } from '@/lib/clanRoles';
 
 // POST /api/admin/users/[userId]/ban   Body: { banned: boolean, reason?: string }
 //
@@ -57,6 +57,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
   });
   if (targetGrant?.role === 'owner') {
     return NextResponse.json({ error: 'The clan owner cannot be banned' }, { status: 400 });
+  }
+  // The same rule as changing a role: never act on a peer or a superior. Otherwise two admins can
+  // bar each other out of the clan, and the first to click wins it.
+  if (!canModify(actor.role, targetGrant?.role ?? 'member')) {
+    return NextResponse.json({ error: 'You cannot ban someone at or above your own role' }, { status: 403 });
   }
 
   const playerId = await personOf(targetId);
