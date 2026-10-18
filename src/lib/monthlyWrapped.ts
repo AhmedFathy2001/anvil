@@ -9,6 +9,7 @@ import { db } from '@/db';
 import { clanMemberships, clans, memberClogItems, memberDailyStats, memberMilestones, memberPersonalBests, moments } from '@/db/schema';
 import { clogItemNames, clogPageIndex } from '@/lib/clogDataset';
 import { clogItemRarity } from '@/lib/clogRarity';
+import { parseStamp } from '@/lib/dbTime';
 import { periodDays, shapeMonthlyWrapped, wrappedIsOpen, type MonthlyWrapped } from '@/lib/monthlyWrappedRules';
 
 /**
@@ -16,6 +17,7 @@ import { periodDays, shapeMonthlyWrapped, wrappedIsOpen, type MonthlyWrapped } f
  * several times over. Ten minutes is plenty fresh for "so far".
  */
 const CACHE_MS = 10 * 60_000;
+const FIRST_PUSH_GRACE_MS = 60 * 60_000;
 const cache = new Map<string, { at: number; value: Promise<MonthlyWrapped> }>();
 
 export function getMonthlyWrapped(accountId: number, rsn: string, monthKey: string): Promise<MonthlyWrapped> {
@@ -72,9 +74,14 @@ async function computeMonthlyWrapped(accountId: number, rsn: string, monthKey: s
       .from(memberClogItems)
       .where(and(eq(memberClogItems.accountId, accountId), isNotNull(memberClogItems.firstSeenAt), like(memberClogItems.firstSeenAt, inMonth))),
     db
-      .select({ activity: memberPersonalBests.activity, teamSize: memberPersonalBests.teamSize, centis: memberPersonalBests.centis })
+      .select({
+        activity: memberPersonalBests.activity,
+        teamSize: memberPersonalBests.teamSize,
+        centis: memberPersonalBests.centis,
+        achievedAt: memberPersonalBests.achievedAt,
+      })
       .from(memberPersonalBests)
-      .where(and(eq(memberPersonalBests.accountId, accountId), like(memberPersonalBests.achievedAt, inMonth))),
+      .where(eq(memberPersonalBests.accountId, accountId)),
     seats.length
       ? db
           .select({ kind: moments.kind, itemId: moments.itemId, itemName: moments.itemName, valueGp: moments.valueGp, source: moments.source })
@@ -89,6 +96,16 @@ async function computeMonthlyWrapped(accountId: number, rsn: string, monthKey: s
       : Promise.resolve([]),
   ]);
 
+  // A PB's date is when it reached us, and the FIRST push brings every best a player has ever set,
+  // all stamped that moment. Those aren't this period's PBs, so anything stamped within an hour of
+  // the account's first PB push is left out; only later improvements count.
+  const stamps = pbs.map((p) => parseStamp(p.achievedAt)).filter((t): t is number => t != null);
+  const firstPush = stamps.length ? Math.min(...stamps) : null;
+  const periodPbs = pbs.filter((p) => {
+    const t = parseStamp(p.achievedAt);
+    return t != null && p.achievedAt!.startsWith(monthKey) && (firstPush == null || t >= firstPush + FIRST_PUSH_GRACE_MS);
+  });
+
   const names = clogItemNames();
   return shapeMonthlyWrapped({
     rsn,
@@ -97,7 +114,7 @@ async function computeMonthlyWrapped(accountId: number, rsn: string, monthKey: s
     days,
     milestones,
     clog: clog.map((c) => ({ ...c, itemName: names.get(c.itemId) ?? `Item ${c.itemId}` })),
-    pbs,
+    pbs: periodPbs,
     moments: momentRows,
     rarity: clogItemRarity(),
     petIds: clogPageIndex().get('All Pets') ?? new Set<number>(),
