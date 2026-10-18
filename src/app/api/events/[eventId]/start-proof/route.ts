@@ -309,6 +309,7 @@ async function baselineFromStartingShot(participantId: number, eventStartDate: s
   const part = await db.query.eventParticipants.findFirst({ where: eq(eventParticipants.id, participantId) });
   if (!part?.clanMemberId || !part.teamId || part.frozenAt) return;
   if (!needsBaselineRecapture(part.statsSnapshot, part.snapshotAt, eventStartDate)) return;
+  // clan-scope: this clan -- the seat id comes off this enrolment row, which already fixes the clan.
   const [seat] = await db
     .select({ liveStats: clanRoster.liveStats, accountId: clanRoster.accountId })
     .from(clanRoster)

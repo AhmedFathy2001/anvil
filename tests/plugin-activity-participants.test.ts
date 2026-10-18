@@ -14,7 +14,7 @@ let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
 let buildActivity: typeof import('../src/lib/pluginActivity.ts')['buildActivity'];
 let eventId: number;
 let teamId: number;
-let ids: Record<string, number> = {};
+const ids: Record<string, number> = {};
 
 before(async () => {
   await resetDatabase(DB);
