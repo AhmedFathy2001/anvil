@@ -21,7 +21,16 @@ const SECURITY_HEADERS = [
   { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
 ];
 
+// Which build this is. A tab opened before a deploy keeps running the old client, and its next
+// client-side navigation sends the new server a router-state header in the old shape — Next 16.4
+// rejects that ("The router state header was sent but could not be parsed"). With a deploymentId,
+// a client from another build is told to do a full page load instead: one reload after each
+// deploy, no error. Unset for local/dev builds, where there is no skew to protect against.
+const DEPLOYMENT_ID = process.env.GIT_SHA && process.env.GIT_SHA !== 'dev' ? process.env.GIT_SHA : undefined;
+
 const nextConfig: NextConfig = {
+  deploymentId: DEPLOYMENT_ID,
+
   // Emit a self-contained server bundle (.next/standalone) so the Docker image can run the app
   // with just Node — no node_modules, no `next start`. Required for the per-clan container deploy.
   output: 'standalone',

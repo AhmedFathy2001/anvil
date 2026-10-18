@@ -18,6 +18,10 @@ COPY . .
 # Secrets are injected at runtime, not build. requireSecret()/env.ts fall back to dev defaults during
 # `next build` (NEXT_PHASE=phase-production-build), so the build needs no real credentials.
 ENV NEXT_TELEMETRY_DISABLED=1
+# The commit is baked into the client bundle as Next's deploymentId (next.config.ts), so it has to be
+# here at BUILD time, not only in the runner below. CI passes it; local builds leave it unset.
+ARG GIT_SHA=dev
+ENV GIT_SHA=$GIT_SHA
 RUN npm run build
 
 # ─── runner: minimal runtime image ────────────────────────────────────────────
