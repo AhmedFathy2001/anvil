@@ -3,7 +3,7 @@ import { eventForPluginRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { events, tiles, teams, completions, submissions, eventParticipants } from '@/db/schema';
 import { eq, inArray, and, sql } from 'drizzle-orm';
-import { verifyPluginToken, verifyPluginTokenForEvent, pluginRsnHintOnly } from '@/lib/auth';
+import { verifyPluginToken, verifyPluginTokenForEvent, verifyPluginTokenUser, resolvePluginClan, pluginRsnHintOnly } from '@/lib/auth';
 import { getTierBands } from '@/lib/pluginConfig';
 import { tileTierKey } from '@/lib/tileFilter';
 import { jsonWithEtag } from '@/lib/httpEtag';
@@ -18,6 +18,7 @@ import { getStatStandings } from '@/lib/statStandings';
 import { ttlMemo } from '@/lib/ttlMemo';
 import { statLabel } from '@/lib/tileKinds';
 import { howItCounts, parseCountMode, parseSetsRequired, type CollectionRequirement } from '@/lib/collectionSets';
+import { homeBoardForUser } from '@/lib/pluginHomeBoard';
 
 // GET /api/plugin/board — the board for an event: every tile with its grid slot, a representative
 // OSRS item icon, and which tiles each team has completed. Backs the Anvil clog tab's classic
@@ -552,6 +553,15 @@ export async function GET(request: Request) {
   // Interactive path — the caller's own active event, scoped to their team.
   const auth = await verifyPluginToken(request, hint);
   if (!auth) {
+    // Signed in, but the character being played isn't on a team — an alt, while the person's main is
+    // in the bingo. /config still shows them that board (homeBoardForUser), so the sidebar asks here
+    // for its tiles; answer with the same board, read-only, rather than a 401 the panel shows as
+    // "Couldn't load the board". Claims stay with the enrolled character.
+    const user = await verifyPluginTokenUser(request);
+    const clan = user ? await resolvePluginClan(request, user.userId) : null;
+    const home = user && clan ? await homeBoardForUser(clan.id, user.userId) : null;
+    const event = home ? (await eventForPluginRequest(request, home.eventId))?.event : null;
+    if (event) return jsonWithEtag(request, await buildBoard(event, null, null));
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken>' }, { status: 401 });
   }
   const event = await db.query.events.findFirst({ where: eq(events.id, auth.eventId) });
