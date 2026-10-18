@@ -32,7 +32,7 @@ function sectionDict(g: Record<string, unknown>, outline: GuideOutline, id: stri
 // Mirrors src/app/guide/_pages/*Guide.tsx section order. The choice values in the command def are
 // exactly these keys.
 export const GUIDE_OUTLINES: Record<string, GuideOutline> = {
-  plugin: { ns: 'plugin', page: 'plugin', sections: ['install', 'connect', 'accounts', 'working', 'bingo', 'notifications', 'clips', 'trouble'] },
+  plugin: { ns: 'plugin', page: 'plugin', sections: ['install', 'connect', 'accounts', 'working', 'bingo', 'notifications', 'trouble'] },
   discord: { ns: 'discord', page: 'discord', sections: ['bot', 'connect', 'channels', 'roles', 'commands', 'posts', 'quiet'] },
   board: { ns: 'board', page: 'board', sections: ['kinds', 'pick', 'bulk', 'traps', 'points', 'reveal', 'check'] },
   clan: { ns: 'clan', page: 'clan', sections: ['before', 'create', 'live', 'setup', 'members', 'first', 'together'] },

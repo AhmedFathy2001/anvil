@@ -96,3 +96,28 @@ export async function loadDb() {
   const schema = await import('../../src/db/schema.ts');
   return { db, pool, schema };
 }
+
+/**
+ * Insert rows naming only the columns given, for seeding a database that resetDatabase(db, through)
+ * stopped at an old migration. Drizzle's insert lists EVERY column the current schema has, so it
+ * fails there as soon as a later migration adds one ("column banner_url does not exist"). Keys are
+ * the schema's camelCase names; returns the inserted rows (snake_case columns, `id` included).
+ */
+export async function seedOldShape(
+  pool: { query: (sql: string, params: unknown[]) => Promise<{ rows: Record<string, unknown>[] }> },
+  table: string,
+  rows: Record<string, unknown> | Record<string, unknown>[],
+): Promise<(Record<string, unknown> & { id: number })[]> {
+  const out: (Record<string, unknown> & { id: number })[] = [];
+  for (const row of Array.isArray(rows) ? rows : [rows]) {
+    const keys = Object.keys(row);
+    const cols = keys.map((k) => `"${k.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)}"`).join(', ');
+    const params = keys.map((_, i) => `$${i + 1}`).join(', ');
+    const { rows: inserted } = await pool.query(
+      `insert into "${table}" (${cols}) values (${params}) returning *`,
+      keys.map((k) => row[k]),
+    );
+    out.push({ ...inserted[0], id: Number(inserted[0].id) });
+  }
+  return out;
+}

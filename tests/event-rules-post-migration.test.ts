@@ -6,7 +6,7 @@ import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { eq } from 'drizzle-orm';
 
-import { dropDatabase, loadDb, migrateRest, resetDatabase, useTestDatabase } from './helpers/testDb.ts';
+import { dropDatabase, loadDb, migrateRest, resetDatabase, useTestDatabase, seedOldShape } from './helpers/testDb.ts';
 
 const DB = useTestDatabase('event_rules_post_migration');
 
@@ -20,15 +20,15 @@ let cohostId: number;
 before(async () => {
   await resetDatabase(DB, '0111_event_participant_names');
   ({ db, pool, schema: s } = await loadDb());
-  hostId = (await db.insert(s.clans).values({ slug: 'afk', name: 'The AFK Spot' }).returning())[0].id;
-  cohostId = (await db.insert(s.clans).values({ slug: 'lfl', name: 'LFL' }).returning())[0].id;
+  hostId = (await seedOldShape(pool, 'clans', { slug: 'afk', name: 'The AFK Spot' }))[0].id;
+  cohostId = (await seedOldShape(pool, 'clans', { slug: 'lfl', name: 'LFL' }))[0].id;
   // The schema module describes 0112, while this database is intentionally stopped at 0111; use
   // the old table shape to seed the row that the migration must upgrade.
   eventId = Number((await pool.query(
     'insert into events (clan_id, name, board_size, start_date) values ($1, $2, $3, $4) returning id',
     [hostId, 'The AFK Spot VS LFL', 5, '2099-01-01T00:00:00.000Z'],
   )).rows[0].id);
-  await db.insert(s.eventCohosts).values({ eventId, clanId: cohostId, status: 'accepted' });
+  await seedOldShape(pool, 'event_cohosts', { eventId, clanId: cohostId, status: 'accepted' });
 });
 
 after(async () => {
