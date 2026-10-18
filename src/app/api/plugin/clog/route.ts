@@ -631,6 +631,8 @@ async function momentStamps(
 ): Promise<Map<number, { at: string; kc: number | null }>> {
   const out = new Map<number, { at: string; kc: number | null }>();
   if (itemIds.length === 0) return out;
+  // clan-scope: global -- one account's own moments in every clan it plays in: a collection log is
+  // the account's, not a clan's, and this only stamps that account's own unlocks.
   const rows = await db
     .select({ itemId: moments.itemId, occurredAt: moments.occurredAt, kc: moments.kc })
     .from(moments)

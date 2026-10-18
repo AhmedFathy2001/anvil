@@ -31,7 +31,9 @@ export function useLiveRefresh(opts: {
 
   // Keep the latest onChange without re-subscribing listeners every render.
   const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  });
 
   const etagRef = useRef<string | null>(null);
   const lastAtRef = useRef(0);

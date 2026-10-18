@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { MemberContribution } from '@/lib/memberBreakdown';
+import { teamEstimate, type MemberContribution } from '@/lib/memberBreakdown';
 import { formatContributionAmount } from '@/lib/tileKinds';
 
 // Per-member points/tasks for a team. Points only carry meaning in points-mode events, so that
@@ -26,11 +26,14 @@ export default function MemberBreakdown({
   pointsMode,
   selectedPlayerId,
   onSelect,
+  teamScore,
 }: {
   members: MemberContribution[];
   pointsMode: boolean;
   selectedPlayerId?: number | null;
   onSelect?: (playerId: number) => void;
+  /** The team's real score, for the estimated team total. Falls back to the members' points. */
+  teamScore?: number;
 }) {
   const selectable = !!onSelect;
   const [open, setOpen] = useState<Set<number>>(new Set());
@@ -47,6 +50,8 @@ export default function MemberBreakdown({
   const [withEst, setWithEst] = useState(false);
   const anyEst = pointsMode && members.some((m) => m.estPoints > 0);
   const showEst = anyEst && withEst;
+  const scored = teamScore ?? members.reduce((sum, m) => sum + m.points, 0);
+  const teamEst = showEst ? teamEstimate(members) : 0;
   const shown = showEst
     ? [...members].sort((a, b) => b.points + b.estPoints - (a.points + a.estPoints) || b.tasks - a.tasks)
     : members;
@@ -75,6 +80,20 @@ export default function MemberBreakdown({
             <span className="sr-only">Include estimated points from tiles in progress</span>
           </button>
           <span className={`text-[11px] ${withEst ? 'text-yellow-500/90' : 'text-text-muted'}`}>+ estimated</span>
+        </div>
+      )}
+      {showEst && (
+        <div
+          className="flex items-baseline justify-between gap-2 px-1 py-2 border-b border-card-border"
+          title="The team's score plus everyone's estimates on tiles still in progress, each tile capped at its points."
+        >
+          <span className="text-xs text-text-muted">Team, if open tiles land at this pace</span>
+          <span className="text-sm font-semibold text-yellow-500/90 tabular-nums text-right">
+            ≈{(scored + teamEst).toLocaleString()} pts
+            <span className="block text-[11px] font-normal text-text-muted">
+              {scored.toLocaleString()} + {teamEst.toLocaleString()} est.
+            </span>
+          </span>
         </div>
       )}
       <ul className="divide-y divide-card-border">

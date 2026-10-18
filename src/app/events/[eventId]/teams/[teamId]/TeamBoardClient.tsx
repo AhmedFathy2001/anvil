@@ -278,6 +278,7 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
                   <MemberBreakdown
                     members={memberBreakdown}
                     pointsMode={pointsMode}
+                    teamScore={completed}
                     selectedPlayerId={selectedMemberId}
                     onSelect={setSelectedMemberId}
                   />

@@ -6,7 +6,7 @@ import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { eq } from 'drizzle-orm';
 
-import { dropDatabase, loadDb, migrateRest, resetDatabase, useTestDatabase } from './helpers/testDb.ts';
+import { dropDatabase, loadDb, migrateRest, resetDatabase, useTestDatabase, seedOldShape } from './helpers/testDb.ts';
 
 const DB = useTestDatabase('withdrawn_roster_migration');
 
@@ -21,13 +21,10 @@ before(async () => {
   await resetDatabase(DB, '0113_clan_coffer_sync');
   ({ db, pool, schema: s } = await loadDb());
 
-  const [host, guest] = await db
-    .insert(s.clans)
-    .values([
+  const [host, guest] = await seedOldShape(pool, 'clans', [
       { slug: 'host', name: 'Host' },
       { slug: 'guest', name: 'Guest' },
-    ])
-    .returning();
+    ]);
   const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString();
   // The imported schema includes 0115/0116 columns while this database deliberately stops at
   // 0113. Seed through the old table shape, then let migrateRest apply 0114 and everything after.
@@ -40,61 +37,40 @@ before(async () => {
   const pastId = await insertEvent('Already started', day(-10), day(3));
 
   const makeAccount = async (rsn: string) => {
-    const [person] = await db.insert(s.players).values({ displayName: rsn }).returning();
-    return (await db
-      .insert(s.accounts)
-      .values({ playerId: person.id, rsn, rsnNormalized: rsn.toLowerCase() })
-      .returning())[0];
+    const [person] = await seedOldShape(pool, 'players', { displayName: rsn });
+    return (await seedOldShape(pool, 'accounts', { playerId: person.id, rsn, rsnNormalized: rsn.toLowerCase() }))[0];
   };
 
   const staleAccount = await makeAccount('Amascuff');
-  const [staleSeat] = await db
-    .insert(s.clanMemberships)
-    .values({ clanId: host.id, accountId: staleAccount.id, kind: 'member' })
-    .returning();
-  await db.insert(s.eventSignups).values({
+  const [staleSeat] = await seedOldShape(pool, 'clan_memberships', { clanId: host.id, accountId: staleAccount.id, kind: 'member' });
+  await seedOldShape(pool, 'event_signups', {
     eventId: upcomingId,
     clanMemberId: staleSeat.id,
     status: 'withdrawn',
   });
-  staleParticipantId = (await db
-    .insert(s.eventParticipants)
-    .values({ eventId: upcomingId, clanMemberId: staleSeat.id, accountId: staleAccount.id, name: 'Amascuff' })
-    .returning())[0].id;
+  staleParticipantId = (await seedOldShape(pool, 'event_participants', { eventId: upcomingId, clanMemberId: staleSeat.id, accountId: staleAccount.id, name: 'Amascuff' }))[0].id;
 
   const pastAccount = await makeAccount('Past Player');
-  const [pastSeat] = await db
-    .insert(s.clanMemberships)
-    .values({ clanId: host.id, accountId: pastAccount.id, kind: 'member' })
-    .returning();
-  await db.insert(s.eventSignups).values({
+  const [pastSeat] = await seedOldShape(pool, 'clan_memberships', { clanId: host.id, accountId: pastAccount.id, kind: 'member' });
+  await seedOldShape(pool, 'event_signups', {
     eventId: pastId,
     clanMemberId: pastSeat.id,
     status: 'withdrawn',
   });
-  pastParticipantId = (await db
-    .insert(s.eventParticipants)
-    .values({ eventId: pastId, clanMemberId: pastSeat.id, accountId: pastAccount.id, name: 'Past Player' })
-    .returning())[0].id;
+  pastParticipantId = (await seedOldShape(pool, 'event_participants', { eventId: pastId, clanMemberId: pastSeat.id, accountId: pastAccount.id, name: 'Past Player' }))[0].id;
 
   // One account can hold a host seat and a co-host seat. A stale withdrawn copy must not remove the
   // participant while the same account still has a separate active sign-up on this event.
   const activeAccount = await makeAccount('Still Playing');
-  const [oldSeat, activeSeat] = await db
-    .insert(s.clanMemberships)
-    .values([
+  const [oldSeat, activeSeat] = await seedOldShape(pool, 'clan_memberships', [
       { clanId: host.id, accountId: activeAccount.id, kind: 'guest' },
       { clanId: guest.id, accountId: activeAccount.id, kind: 'member' },
-    ])
-    .returning();
-  await db.insert(s.eventSignups).values([
+    ]);
+  await seedOldShape(pool, 'event_signups', [
     { eventId: upcomingId, clanMemberId: oldSeat.id, status: 'withdrawn' },
     { eventId: upcomingId, clanMemberId: activeSeat.id, status: 'approved' },
   ]);
-  activeParticipantId = (await db
-    .insert(s.eventParticipants)
-    .values({ eventId: upcomingId, clanMemberId: activeSeat.id, accountId: activeAccount.id, name: 'Still Playing' })
-    .returning())[0].id;
+  activeParticipantId = (await seedOldShape(pool, 'event_participants', { eventId: upcomingId, clanMemberId: activeSeat.id, accountId: activeAccount.id, name: 'Still Playing' }))[0].id;
 
   migrateRest(DB);
 });

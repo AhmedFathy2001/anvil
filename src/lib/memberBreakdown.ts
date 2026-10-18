@@ -19,6 +19,8 @@ export interface MemberTileContribution {
   // 10 XP on a 10M tile is worth ~nothing even when nobody else has started). 0 when completed
   // or when the kind has no measurable goal.
   estPoints: number;
+  // The tile's point weight — what estPoints is capped against when a team's estimates are summed.
+  weight: number;
 }
 
 // Per-member contribution rollup for a single team.
@@ -359,6 +361,7 @@ export function computeMemberBreakdown(params: {
             count: e.count,
             completed,
             estPoints,
+            weight: tile ? tileWeight(scoringMode, tile.points) : 0,
           });
         }
       }
@@ -387,6 +390,26 @@ export function computeMemberBreakdown(params: {
         b.inProgress - a.inProgress ||
         b.submissions - a.submissions,
     );
+}
+
+/**
+ * The team's estimated points still to come from open tiles: every member's estimate summed per
+ * tile, each tile capped at its own points (several people on an "each member" tile could
+ * otherwise add up past it). Add it to the team's real score for an estimated total.
+ */
+export function teamEstimate(members: MemberContribution[]): number {
+  const perTile = new Map<number, { est: number; weight: number }>();
+  for (const m of members) {
+    for (const c of m.contributions) {
+      if (c.completed || c.estPoints <= 0) continue;
+      const t = perTile.get(c.tileId) ?? { est: 0, weight: c.weight };
+      t.est += c.estPoints;
+      perTile.set(c.tileId, t);
+    }
+  }
+  let total = 0;
+  for (const t of perTile.values()) total += Math.min(t.est, t.weight);
+  return Math.round(total);
 }
 
 // One row of the individual ladder — a player (or a rolled-up person) ranked event-wide by points.

@@ -11,7 +11,7 @@ import { formatNumber, isPointsMode } from '@/lib/utils';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { boardTiles, missionTiles, parseEventRules } from '@/lib/eventRules';
 import { scoreTeams } from '@/lib/boardScoring';
-import { statKeys } from '@/lib/tileKinds';
+import { statKeys, tileKindKey, tileKindOptions } from '@/lib/tileKinds';
 import { eventAxes, taskNoun } from '@/lib/eventAxes';
 import LiveDropBoard from '@/components/LiveDropBoard';
 import TeamLens from '@/components/board/TeamLens';
@@ -168,6 +168,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
   const [lensTeamId, setLensTeamId] = useState<number | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [tierFilter, setTierFilter] = useState<string>('all');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Proof for the tile the viewer opened. The board itself only needs the light projection above,
@@ -473,22 +474,25 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
 
   const draftActive = event.draftStatus === 'active' || event.draftStatus === 'paused';
 
-  // Board filters — by text search, content category, and difficulty tier (derived from points).
+  // Board filters — by text search, content category, tile type, and difficulty tier (from points).
   const categories = tileCategories(tiles);
+  const typeOptions = tileKindOptions(tiles);
+  const showTypeFilter = typeOptions.length > 2;
   const search = searchQuery.trim().toLowerCase();
-  const filterActive = categoryFilter !== 'all' || tierFilter !== 'all' || search !== '';
+  const filterActive = categoryFilter !== 'all' || tierFilter !== 'all' || typeFilter !== 'all' || search !== '';
   const matchedTileIds = filterActive
     ? new Set(
         tiles
           .filter((t) => categoryFilter === 'all' || tileHasCategory(t.category, categoryFilter))
           .filter((t) => tierFilter === 'all' || tileTierKey(t.points, tierBands) === tierFilter)
+          .filter((t) => typeFilter === 'all' || tileKindKey(t) === typeFilter)
           .filter((t) => tileMatchesSearch(t, search))
           .map((t) => t.id),
       )
     : null;
   // Tier bands only make sense when tiles carry distinct point values.
   const showTierFilter = pointsMode && tierBands.length > 0;
-  const showFilters = categories.length > 0 || showTierFilter;
+  const showFilters = categories.length > 0 || showTierFilter || showTypeFilter;
 
   return (
     <div>
@@ -639,7 +643,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
           </div>
 
           {showFilters && (
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-4">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 mb-4">
               {categories.length > 0 && (
                 <Select
                   value={categoryFilter}
@@ -649,43 +653,33 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
                   className="shrink-0 sm:w-48"
                 />
               )}
+              {showTypeFilter && (
+                <Select
+                  value={typeFilter}
+                  onChange={setTypeFilter}
+                  options={typeOptions}
+                  ariaLabel="Filter board by tile type"
+                  className="shrink-0 sm:w-44"
+                />
+              )}
               {showTierFilter && (
-                <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
-                  <button
-                    onClick={() => setTierFilter('all')}
-                    className={`shrink-0 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
-                      tierFilter === 'all'
-                        ? 'bg-gold/20 border-gold text-gold'
-                        : 'border-card-border text-text-muted hover:border-gold/40'
-                    }`}
-                  >
-                    All tiers
-                  </button>
-                  {tierBands.map((t, i) => (
-                    <button
-                      key={t.key}
-                      onClick={() => setTierFilter(t.key)}
-                      className={`shrink-0 text-xs px-2.5 py-1.5 rounded-lg border transition-colors inline-flex items-center gap-1.5 ${
-                        tierFilter === t.key
-                          ? 'bg-gold/20 border-gold text-gold'
-                          : 'border-card-border text-text-muted hover:border-gold/40'
-                      }`}
-                    >
-                      <span
-                        className="w-1.5 h-1.5 rounded-full"
-                        style={{ backgroundColor: tierColor(i, tierBands.length) }}
-                        aria-hidden
-                      />
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
+                <Select
+                  value={tierFilter}
+                  onChange={setTierFilter}
+                  options={[
+                    { value: 'all', label: 'All tiers' },
+                    ...tierBands.map((t, i) => ({ value: t.key, label: t.label, dot: tierColor(i, tierBands.length) })),
+                  ]}
+                  ariaLabel="Filter board by tier"
+                  className="shrink-0 sm:w-48"
+                />
               )}
               {filterActive && (
                 <button
                   onClick={() => {
                     setCategoryFilter('all');
                     setTierFilter('all');
+                    setTypeFilter('all');
                   }}
                   className="shrink-0 text-xs px-2.5 py-1.5 rounded-lg text-text-muted hover:text-foreground transition-colors"
                 >

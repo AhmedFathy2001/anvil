@@ -6,7 +6,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { eq } from 'drizzle-orm';
 
-import { useTestDatabase, resetDatabase, dropDatabase, loadDb, migrateRest } from './helpers/testDb.ts';
+import { useTestDatabase, resetDatabase, dropDatabase, loadDb, migrateRest, seedOldShape } from './helpers/testDb.ts';
 
 const DB = useTestDatabase('participantnames');
 let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
@@ -16,9 +16,9 @@ let seatOnlyEntry: number;
 
 before(async () => {
   await resetDatabase(DB, '0110_event_rulebook');
-  const { db, pool: p, schema: s } = await loadDb();
+  const { pool: p } = await loadDb();
   pool = p;
-  const clan = (await db.insert(s.clans).values({ slug: 'mig', name: 'Mig' }).returning())[0].id;
+  const clan = (await seedOldShape(pool, 'clans', { slug: 'mig', name: 'Mig' }))[0].id;
   const day = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString();
   // The imported schema includes columns added after this deliberately old database shape. Seed
   // through the old SQL shape so a later nullable events column does not make this 0111 data-
@@ -29,15 +29,15 @@ before(async () => {
   )).rows[0].id);
   const live = await insertEvent('Live', day(-1), day(5));
   const past = await insertEvent('Past', day(-20), day(-10));
-  const person = (await db.insert(s.players).values({ displayName: 'P' }).returning())[0].id;
-  const [acct] = await db.insert(s.accounts).values({ playerId: person, rsn: 'Luderwasblue', rsnNormalized: 'luderwasblue' }).returning();
-  const [seat] = await db.insert(s.clanMemberships).values({ clanId: clan, accountId: acct.id, kind: 'member' }).returning();
-  liveEntry = (await db.insert(s.eventParticipants).values({ eventId: live, clanMemberId: seat.id, accountId: acct.id, name: 'aromatluder' }).returning())[0].id;
-  pastEntry = (await db.insert(s.eventParticipants).values({ eventId: past, clanMemberId: seat.id, accountId: acct.id, name: 'aromatluder' }).returning())[0].id;
+  const person = (await seedOldShape(pool, 'players', { displayName: 'P' }))[0].id;
+  const [acct] = await seedOldShape(pool, 'accounts', { playerId: person, rsn: 'Luderwasblue', rsnNormalized: 'luderwasblue' });
+  const [seat] = await seedOldShape(pool, 'clan_memberships', { clanId: clan, accountId: acct.id, kind: 'member' });
+  liveEntry = (await seedOldShape(pool, 'event_participants', { eventId: live, clanMemberId: seat.id, accountId: acct.id, name: 'aromatluder' }))[0].id;
+  pastEntry = (await seedOldShape(pool, 'event_participants', { eventId: past, clanMemberId: seat.id, accountId: acct.id, name: 'aromatluder' }))[0].id;
   // An older row with only the seat (no account_id) is matched through it.
-  const [acct2] = await db.insert(s.accounts).values({ playerId: person, rsn: 'NewAlt', rsnNormalized: 'newalt' }).returning();
-  const [seat2] = await db.insert(s.clanMemberships).values({ clanId: clan, accountId: acct2.id, kind: 'guest' }).returning();
-  seatOnlyEntry = (await db.insert(s.eventParticipants).values({ eventId: live, clanMemberId: seat2.id, accountId: null, name: 'OldAlt' }).returning())[0].id;
+  const [acct2] = await seedOldShape(pool, 'accounts', { playerId: person, rsn: 'NewAlt', rsnNormalized: 'newalt' });
+  const [seat2] = await seedOldShape(pool, 'clan_memberships', { clanId: clan, accountId: acct2.id, kind: 'guest' });
+  seatOnlyEntry = (await seedOldShape(pool, 'event_participants', { eventId: live, clanMemberId: seat2.id, accountId: null, name: 'OldAlt' }))[0].id;
   migrateRest(DB);
 });
 

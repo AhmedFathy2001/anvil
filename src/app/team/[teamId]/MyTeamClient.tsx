@@ -545,6 +545,7 @@ export default function MyTeamClient({
                   <MemberBreakdown
                     members={memberBreakdown}
                     pointsMode={pointsMode}
+                    teamScore={completed}
                     selectedPlayerId={selectedMemberId}
                     onSelect={setSelectedMemberId}
                   />

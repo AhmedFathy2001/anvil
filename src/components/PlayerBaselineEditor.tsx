@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import LocalTime from '@/components/LocalTime';
 import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
@@ -33,11 +33,7 @@ export default function PlayerBaselineEditor({ eventId, playerId, playerName, on
   const [resetting, setResetting] = useState(false);
   const { confirm } = useDialog();
 
-  useEffect(() => {
-    fetchData();
-  }, [eventId, playerId]);
-
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const res = await clanFetch(`/api/events/${eventId}/players/${playerId}/snapshot`);
@@ -49,7 +45,11 @@ export default function PlayerBaselineEditor({ eventId, playerId, playerName, on
     } finally {
       setLoading(false);
     }
-  }
+  }, [eventId, playerId]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   async function saveBaseline(stat: string, statType: string, baseline: number) {
     setSaving(true);
