@@ -42,93 +42,134 @@ export default function MemberBreakdown({
       return next;
     });
 
+  // Off: points scored. On: points + the estimate for open tiles, ranked by that — who is carrying
+  // the board, counting work that hasn't landed yet.
+  const [withEst, setWithEst] = useState(false);
+  const anyEst = pointsMode && members.some((m) => m.estPoints > 0);
+  const showEst = anyEst && withEst;
+  const shown = showEst
+    ? [...members].sort((a, b) => b.points + b.estPoints - (a.points + a.estPoints) || b.tasks - a.tasks)
+    : members;
+
   const anyContribution = members.some((m) => m.contributions.length > 0);
   if (!anyContribution) {
     return <p className="text-sm text-text-muted py-1">No member contributions yet.</p>;
   }
 
   return (
-    <ul className="divide-y divide-card-border">
-      {members.map((m, i) => {
-        const isSelected = selectable && selectedPlayerId === m.playerId;
-        const isOpen = !selectable && open.has(m.playerId);
-        const canExpand = m.contributions.length > 0;
-        return (
-          <li key={m.playerId}>
-            <button
-              type="button"
-              onClick={() => {
-                if (selectable) onSelect!(m.playerId);
-                else if (canExpand) toggle(m.playerId);
-              }}
-              aria-expanded={selectable ? undefined : isOpen}
-              aria-pressed={selectable ? isSelected : undefined}
-              disabled={!selectable && !canExpand}
-              className={`w-full flex items-center gap-2 sm:gap-3 py-2 px-1 text-left rounded-md transition-colors disabled:cursor-default ${
-                isSelected ? 'bg-gold/10' : selectable ? 'hover:bg-brown-light' : ''
-              }`}
-            >
-              {!selectable && (
-                <span
-                  className={`text-text-muted text-[10px] w-3 shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''} ${canExpand ? '' : 'opacity-0'}`}
-                  aria-hidden
-                >
-                  &#9656;
-                </span>
-              )}
-              <span className="text-xs text-text-muted w-4 shrink-0 text-right tabular-nums">{i + 1}</span>
-              <span className={`text-sm font-medium truncate min-w-0 flex-1 ${m.frozenAt ? 'text-text-muted line-through' : ''} ${isSelected ? 'text-gold' : ''}`}>{m.name}</span>
-              {m.frozenAt && (
-                <span
-                  className="text-[10px] text-amber-300/90 border border-amber-300/30 rounded px-1 py-px shrink-0"
-                  title="Subbed out — no longer active; their locked contribution still counts unless it was cleared"
-                >
-                  Subbed out
-                </span>
-              )}
-              {pointsMode && (
-                <span className="text-sm font-semibold text-gold shrink-0 tabular-nums">
-                  {m.points.toLocaleString()} pts
-                </span>
-              )}
-              {pointsMode && m.estPoints > 0 && (
-                <span
-                  className="text-xs text-yellow-500/80 shrink-0 tabular-nums"
-                  title={EST_HINT}
-                >
-                  +{m.estPoints.toLocaleString()} est.
-                </span>
-              )}
-              <span className="text-xs text-text-muted shrink-0 tabular-nums text-right">
-                {m.tasks} done
-                {m.inProgress > 0 && <span className="text-yellow-500/80"> · {m.inProgress} wip</span>}
-              </span>
-            </button>
-            {isOpen && canExpand && (
-              <ul className="pb-2 pl-9 pr-1 space-y-1">
-                {m.contributions.map((c) => (
-                  <li key={c.tileId} className="flex items-center gap-2 text-xs">
+    <div>
+      {anyEst && (
+        <div className="flex items-center justify-end gap-2 pt-2 pb-1">
+          <span className="text-[11px] text-text-muted">Scored</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={withEst}
+            onClick={() => setWithEst((v) => !v)}
+            title={EST_HINT}
+            className={`relative w-8 h-4 rounded-full transition-colors ${withEst ? 'bg-yellow-500/70' : 'bg-brown-light'}`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-foreground transition-transform ${withEst ? 'translate-x-4' : ''}`}
+            />
+            <span className="sr-only">Include estimated points from tiles in progress</span>
+          </button>
+          <span className={`text-[11px] ${withEst ? 'text-yellow-500/90' : 'text-text-muted'}`}>+ estimated</span>
+        </div>
+      )}
+      <ul className="divide-y divide-card-border">
+        {shown.map((m, i) => {
+          const isSelected = selectable && selectedPlayerId === m.playerId;
+          const isOpen = !selectable && open.has(m.playerId);
+          const canExpand = m.contributions.length > 0;
+          return (
+            <li key={m.playerId}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectable) onSelect!(m.playerId);
+                  else if (canExpand) toggle(m.playerId);
+                }}
+                aria-expanded={selectable ? undefined : isOpen}
+                aria-pressed={selectable ? isSelected : undefined}
+                disabled={!selectable && !canExpand}
+                className={`w-full flex items-center gap-2 sm:gap-3 py-2 px-1 text-left rounded-md transition-colors disabled:cursor-default ${
+                  isSelected ? 'bg-gold/10' : selectable ? 'hover:bg-brown-light' : ''
+                }`}
+              >
+                {!selectable && (
+                  <span
+                    className={`text-text-muted text-[10px] w-3 shrink-0 transition-transform ${isOpen ? 'rotate-90' : ''} ${canExpand ? '' : 'opacity-0'}`}
+                    aria-hidden
+                  >
+                    &#9656;
+                  </span>
+                )}
+                <span className="text-xs text-text-muted w-4 shrink-0 text-right tabular-nums">{i + 1}</span>
+                {/* Two lines: the name gets the row's width, the counts sit under it. */}
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-1.5 min-w-0">
                     <span
-                      className={`w-1.5 h-1.5 rounded-full shrink-0 ${c.completed ? 'bg-accent-green' : 'bg-text-muted/40'}`}
-                      aria-hidden
-                      title={c.completed ? 'Completed' : 'In progress'}
-                    />
-                    <span className="truncate min-w-0 flex-1 text-text-muted">{c.label}</span>
-                    <span className="shrink-0 text-accent-green-light tabular-nums">
-                      {formatContributionAmount(c)}
+                      className={`text-sm font-medium truncate ${m.frozenAt ? 'text-text-muted line-through' : ''} ${isSelected ? 'text-gold' : ''}`}
+                      title={m.name}
+                    >
+                      {m.name}
                     </span>
-                    {pointsMode && !c.completed && c.estPoints > 0 && (
-                      <span className="shrink-0 text-yellow-500/80 tabular-nums" title={EST_HINT}>
-                        ≈{formatEst(c.estPoints)} pts
+                    {m.frozenAt && (
+                      <span
+                        className="text-[10px] text-amber-300/90 border border-amber-300/30 rounded px-1 py-px shrink-0"
+                        title="Subbed out — no longer active; their locked contribution still counts unless it was cleared"
+                      >
+                        Subbed out
                       </span>
                     )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+                  </span>
+                  <span className="block text-[11px] text-text-muted tabular-nums">
+                    {m.tasks} done
+                    {m.inProgress > 0 && <span className="text-yellow-500/80"> · {m.inProgress} wip</span>}
+                  </span>
+                </span>
+                {pointsMode && (
+                  showEst ? (
+                    <span
+                      className="text-sm font-semibold text-yellow-500/90 shrink-0 tabular-nums text-right"
+                      title={`${m.points.toLocaleString()} scored + ${m.estPoints.toLocaleString()} estimated from tiles in progress`}
+                    >
+                      ≈{(m.points + m.estPoints).toLocaleString()} pts
+                    </span>
+                  ) : (
+                    <span className="text-sm font-semibold text-gold shrink-0 tabular-nums text-right">
+                      {m.points.toLocaleString()} pts
+                    </span>
+                  )
+                )}
+              </button>
+              {isOpen && canExpand && (
+                <ul className="pb-2 pl-9 pr-1 space-y-1">
+                  {m.contributions.map((c) => (
+                    <li key={c.tileId} className="flex items-center gap-2 text-xs">
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full shrink-0 ${c.completed ? 'bg-accent-green' : 'bg-text-muted/40'}`}
+                        aria-hidden
+                        title={c.completed ? 'Completed' : 'In progress'}
+                      />
+                      <span className="truncate min-w-0 flex-1 text-text-muted">{c.label}</span>
+                      <span className="shrink-0 text-accent-green-light tabular-nums">
+                        {formatContributionAmount(c)}
+                      </span>
+                      {pointsMode && !c.completed && c.estPoints > 0 && (
+                        <span className="shrink-0 text-yellow-500/80 tabular-nums" title={EST_HINT}>
+                          ≈{formatEst(c.estPoints)} pts
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
