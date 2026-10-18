@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- proof screenshots are user uploads of any size */
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
 import { useDialog } from '@/components/Confirm';
@@ -119,26 +119,82 @@ export function ProofsToCheck({
   onChange: () => void;
 }) {
   const { ask } = useDialog();
-  const [busy, setBusy] = useState<number | null>(null);
-  const flagged = submissions.filter((s) => s.flaggedReason);
+  // Ids with a request in flight, and ids already handled. The ref is the guard (state lags a click
+  // fired in the same frame); `handled` hides a row the moment its request succeeds, so it can't be
+  // clicked again in the gap before onChange's refetch lands — that gap is how ten clicks sent ten.
+  const inFlight = useRef(new Set<number>());
+  const [busy, setBusy] = useState<Set<number>>(new Set());
+  const [handled, setHandled] = useState<Set<number>>(new Set());
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [error, setError] = useState('');
+
+  const flagged = submissions
+    .filter((s) => s.flaggedReason && !handled.has(s.id))
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   if (flagged.length === 0) return null;
   const tileName = (id: number) => tiles.find((t) => t.id === id)?.label ?? 'Tile';
+  const picked = flagged.filter((s) => selected.has(s.id)).map((s) => s.id);
+  const allPicked = picked.length === flagged.length;
+  const anyBusy = busy.size > 0;
 
-  async function keep(id: number) {
-    setBusy(id);
-    await clanFetch(`/api/events/${eventId}/submissions?submissionId=${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'clear-flag' }),
+  const toggle = (id: number) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
     });
-    setBusy(null);
+
+  /** Run one request per proof, one at a time (a removal recomputes the board), skipping any in flight. */
+  async function run(ids: number[], send: (id: number) => Promise<Response>) {
+    const todo = ids.filter((id) => !inFlight.current.has(id));
+    if (todo.length === 0) return;
+    todo.forEach((id) => inFlight.current.add(id));
+    setBusy(new Set(inFlight.current));
+    setError('');
+    let failed = 0;
+    for (const id of todo) {
+      try {
+        const res = await send(id);
+        if (res.ok) {
+          setHandled((prev) => new Set(prev).add(id));
+          setSelected((prev) => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+        } else {
+          failed += 1;
+        }
+      } catch {
+        failed += 1;
+      }
+      inFlight.current.delete(id);
+      setBusy(new Set(inFlight.current));
+    }
+    if (failed > 0) setError(`${failed} ${failed === 1 ? 'proof' : 'proofs'} couldn't be updated. Try again.`);
     onChange();
   }
 
-  async function remove(id: number) {
+  function keep(ids: number[]) {
+    return run(ids, (id) =>
+      clanFetch(`/api/events/${eventId}/submissions?submissionId=${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'clear-flag' }),
+      }),
+    );
+  }
+
+  async function remove(ids: number[]) {
+    const todo = ids.filter((id) => !inFlight.current.has(id));
+    if (todo.length === 0) return;
+    const many = todo.length > 1;
     const reason = await ask({
-      title: 'Remove this proof?',
-      body: 'The team loses the credit. Say why. The team sees this.',
+      title: many ? `Remove ${todo.length} proofs?` : 'Remove this proof?',
+      body: many
+        ? 'Each team loses the credit. Say why — every team sees this reason.'
+        : 'The team loses the credit. Say why. The team sees this.',
       confirmLabel: 'Remove',
       tone: 'danger',
       label: 'Reason',
@@ -146,12 +202,11 @@ export function ProofsToCheck({
       placeholder: 'e.g. screenshot is from before the event',
     });
     if (!reason) return;
-    setBusy(id);
-    await clanFetch(`/api/events/${eventId}/submissions?submissionId=${id}&reason=${encodeURIComponent(reason)}`, {
-      method: 'DELETE',
-    });
-    setBusy(null);
-    onChange();
+    await run(todo, (id) =>
+      clanFetch(`/api/events/${eventId}/submissions?submissionId=${id}&reason=${encodeURIComponent(reason)}`, {
+        method: 'DELETE',
+      }),
+    );
   }
 
   return (
@@ -161,11 +216,54 @@ export function ProofsToCheck({
         Proofs to check
         <span className="text-sm font-normal text-text-muted">oldest first</span>
       </h2>
+      <div className="flex flex-wrap items-center gap-3 py-2.5 border-b border-[#2a221b]">
+        <label className="flex items-center gap-2 text-sm text-text-muted cursor-pointer select-none">
+          <input
+            type="checkbox"
+            className="w-4 h-4 accent-[var(--color-gold)]"
+            checked={allPicked}
+            ref={(el) => {
+              if (el) el.indeterminate = picked.length > 0 && !allPicked;
+            }}
+            onChange={() => setSelected(allPicked ? new Set() : new Set(flagged.map((s) => s.id)))}
+          />
+          {picked.length > 0 ? `${picked.length} selected` : `Select all ${flagged.length}`}
+        </label>
+        {picked.length > 0 && (
+          <div className="flex gap-2 ml-auto">
+            <button
+              type="button"
+              disabled={anyBusy}
+              onClick={() => remove(picked)}
+              className="px-3 py-1.5 text-sm rounded-lg border border-tile-border hover:border-red-400/50 hover:text-red-300 transition-colors disabled:opacity-50"
+            >
+              Remove {picked.length}…
+            </button>
+            <button
+              type="button"
+              disabled={anyBusy}
+              onClick={() => keep(picked)}
+              className="px-3 py-1.5 text-sm font-semibold rounded-lg border border-gold/40 bg-gold/10 text-gold hover:bg-gold/15 transition-colors disabled:opacity-50"
+            >
+              {picked.length === 1 ? 'Looks fine' : `All ${picked.length} look fine`}
+            </button>
+          </div>
+        )}
+      </div>
+      {error && <p className="text-sm text-red-300 mt-2">{error}</p>}
       <ul>
-        {[...flagged]
-          .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-          .map((s) => (
-            <li key={s.id} className="flex flex-wrap items-center gap-4 py-3.5 border-b border-[#2a221b]">
+        {flagged.map((s) => {
+          const rowBusy = busy.has(s.id);
+          return (
+            <li key={s.id} className={`flex flex-wrap items-center gap-4 py-3.5 border-b border-[#2a221b] ${rowBusy ? 'opacity-60' : ''}`}>
+              <input
+                type="checkbox"
+                aria-label={`Select ${tileName(s.tileId)}`}
+                className="w-4 h-4 shrink-0 accent-[var(--color-gold)]"
+                checked={selected.has(s.id)}
+                disabled={rowBusy}
+                onChange={() => toggle(s.id)}
+              />
               {s.imageUrl ? (
                 <a href={s.imageUrl} target="_blank" rel="noreferrer" className="shrink-0">
                   <img src={s.imageUrl} alt="Proof" className="w-28 h-16 object-cover rounded-md border border-tile-border" />
@@ -184,23 +282,24 @@ export function ProofsToCheck({
               <div className="flex gap-2 shrink-0">
                 <button
                   type="button"
-                  disabled={busy === s.id}
-                  onClick={() => remove(s.id)}
+                  disabled={rowBusy}
+                  onClick={() => remove([s.id])}
                   className="px-3 py-1.5 text-sm rounded-lg border border-tile-border hover:border-red-400/50 hover:text-red-300 transition-colors disabled:opacity-50"
                 >
                   Remove…
                 </button>
                 <button
                   type="button"
-                  disabled={busy === s.id}
-                  onClick={() => keep(s.id)}
+                  disabled={rowBusy}
+                  onClick={() => keep([s.id])}
                   className="px-3 py-1.5 text-sm font-semibold rounded-lg border border-gold/40 bg-gold/10 text-gold hover:bg-gold/15 transition-colors disabled:opacity-50"
                 >
-                  Looks fine
+                  {rowBusy ? 'Saving…' : 'Looks fine'}
                 </button>
               </div>
             </li>
-          ))}
+          );
+        })}
       </ul>
     </section>
   );
