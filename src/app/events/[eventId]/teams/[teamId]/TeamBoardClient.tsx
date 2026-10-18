@@ -272,7 +272,9 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
                 <span className="text-xs text-text-muted ml-auto">{pointsMode ? 'points · tasks' : 'tasks'}</span>
               </button>
               {breakdownOpen && (
-                <div className="px-4 pb-3 border-t border-card-border">
+                // Capped with its own scroll: a 30-member team would otherwise push the roster
+                // below it off the bottom of the (already scrolling) column.
+                <div className="px-4 pb-3 border-t border-card-border max-h-[55vh] overflow-y-auto">
                   <MemberBreakdown
                     members={memberBreakdown}
                     pointsMode={pointsMode}
