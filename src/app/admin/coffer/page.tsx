@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { requireFeature } from '@/lib/clanFeatures';
 
 import { clanHref } from '@/lib/clanPath';
 import { requireClan } from '@/lib/clanContext';
@@ -23,6 +24,7 @@ export default async function AdminCofferPage() {
   const session = await verifyFeeCollector();
   if (!session) redirect(await clanHref('/admin'));
   const clan = await requireClan();
+  await requireFeature(clan.id, 'coffer', '/admin/dashboard');
 
   const [balance, entries, roster, physicalState] = await Promise.all([
     getCofferBalance(clan.id),

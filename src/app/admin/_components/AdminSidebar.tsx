@@ -3,11 +3,15 @@
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import ClanLink, { useClanRelativePath } from '@/components/ClanLink';
+import { Sprite, type SpriteName } from '@/components/ItemSlot';
 
 export interface SidebarItem {
   href: string;
   label: string;
+  /** Emoji fallback. Ignored when `sprite` is set. */
   icon: string;
+  /** An OSRS item sprite standing for the page (see components/ItemSlot). */
+  sprite?: SpriteName;
   /** A number badge (hidden at 0) or a short word — 'read-only', '0 of 8', 'unpaid'. */
   badge?: number | string;
   /** Amber badge: this one is waiting on someone. */
@@ -15,6 +19,8 @@ export interface SidebarItem {
   /** Reachable, but not part of the job at hand — an event's Payouts before it has ended. */
   quiet?: boolean;
   matchPrefix?: boolean; // highlight when pathname starts with href
+  /** Sub-paths that have their own item, so this one shouldn't light up there too. */
+  exclude?: string[];
 }
 
 export interface SidebarGroup {
@@ -38,6 +44,10 @@ interface Props {
   scope?: 'clan' | 'event';
   /** Event rails title themselves with the event rather than the signed-in user. */
   header?: { title: string; subtitle: string };
+  /** The one "make something" action, above the groups — "+ New event". */
+  primary?: { href: string; label: string };
+  /** Where "Admin guide" at the foot of the rail goes. Omitted = no link. */
+  guideHref?: string;
 }
 
 /** /admin/events/12, /admin/events/weekly/3 — a specific event, which brings its own rail. */
@@ -45,7 +55,7 @@ function isInsideAnEvent(pathname: string): boolean {
   return /^\/admin\/events\/(weekly\/)?\d+(\/|$)/.test(pathname);
 }
 
-export default function AdminSidebar({ groups, user, scope = 'clan', header }: Props) {
+export default function AdminSidebar({ groups, user, scope = 'clan', header, primary, guideHref }: Props) {
   const pathname = usePathname();
   // Clan-relative, so a bare item.href can be compared to where we actually are.
   const here = useClanRelativePath();
@@ -82,7 +92,7 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header }: P
           transition-transform duration-200
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0 lg:bg-transparent lg:border-r-0
-          overflow-y-auto
+          overflow-y-auto lg:overflow-visible
         `}
       >
         <div className="lg:sticky lg:top-20 p-4 lg:p-0 lg:pr-4">
@@ -114,24 +124,31 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header }: P
             )}
             <div className="min-w-0">
               <div className="text-sm font-medium truncate">{user.displayName}</div>
-              <div className="text-[10px] uppercase tracking-wide text-text-muted">{user.role}</div>
+              <div className="text-xs text-text-muted capitalize">{user.role}</div>
             </div>
           </div>
           ) : null}
 
+          {primary && (
+            <ClanLink
+              href={primary.href}
+              onClick={() => setMobileOpen(false)}
+              className="block text-center mb-5 px-4 py-2.5 rounded-lg border border-gold/35 bg-gold/10 text-gold font-semibold hover:bg-gold/15 transition-colors"
+            >
+              {primary.label}
+            </ClanLink>
+          )}
+
           <nav className="space-y-5">
             {groups.map((group) => (
               <div key={group.label}>
-                <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted/70 px-3 mb-1.5">
-                  {group.label}
-                </div>
+                <div className="display italic text-[13px] text-text-dim px-3 mb-1.5">{group.label}</div>
                 <ul className="space-y-0.5">
                   {group.items.map((item) => {
                     // Compared clan-RELATIVE: item.href is a bare path and the browser is at
                     // /c/<slug>/… , so a direct comparison never matches and nothing looks active.
-                    const active = item.matchPrefix
-                      ? here.startsWith(item.href)
-                      : here === item.href;
+                    const active = (item.matchPrefix ? here.startsWith(item.href) : here === item.href)
+                      && !item.exclude?.some((x) => here.startsWith(x));
                     return (
                       <li key={item.href}>
                         <ClanLink
@@ -139,14 +156,20 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header }: P
                           onClick={() => setMobileOpen(false)}
                           className={`flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
                             active
-                              ? 'bg-gold/15 text-gold border border-gold/30'
+                              ? 'bg-gradient-to-r from-gold/15 to-gold/[0.02] text-gold-light border border-transparent shadow-[inset_3px_0_0_var(--gold)]'
                               : item.quiet
                                 ? 'text-text-muted/55 hover:text-foreground hover:bg-brown-light border border-transparent'
                                 : 'text-text-muted hover:text-foreground hover:bg-brown-light border border-transparent'
                           }`}
                         >
                           <span className="flex items-center gap-2 min-w-0">
-                            <span className={active ? 'text-gold' : 'opacity-70'}>{item.icon}</span>
+                            {item.sprite ? (
+                              <span className={`w-[22px] h-[22px] grid place-items-center shrink-0 ${active ? '' : 'opacity-75 saturate-[.7]'}`}>
+                                <Sprite name={item.sprite} className="max-w-[22px] max-h-[22px] w-auto h-auto" />
+                              </span>
+                            ) : (
+                              <span className={active ? 'text-gold' : 'opacity-70'}>{item.icon}</span>
+                            )}
                             <span className="truncate">{item.label}</span>
                           </span>
                           {item.badge != null && item.badge !== 0 && item.badge !== '' && (
@@ -168,6 +191,17 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header }: P
               </div>
             ))}
           </nav>
+
+          {guideHref && (
+            <ClanLink
+              href={guideHref}
+              onClick={() => setMobileOpen(false)}
+              className="mt-6 flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-dashed border-tile-border text-sm text-text-muted hover:text-gold hover:border-gold/40 transition-colors"
+            >
+              <Sprite name="casket" className="w-[22px] h-auto" />
+              Admin guide
+            </ClanLink>
+          )}
         </div>
       </aside>
     </>

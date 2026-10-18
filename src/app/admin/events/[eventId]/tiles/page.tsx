@@ -12,6 +12,7 @@ import { parseEventRules, hasMissions } from '@/lib/eventRules';
 import { eventAxes, supportsMissions } from '@/lib/eventAxes';
 import { atLeast } from '@/lib/clanRoles';
 import { getCofferBalance } from '@/lib/coffer';
+import { withSearchText } from '@/lib/tileSearchText';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,7 +69,7 @@ export default async function EventTilesPage({
   return (
     <TilesClient
       event={event}
-      tiles={eventTiles}
+      tiles={withSearchText(eventTiles)}
       tierBands={tierBands}
       isAdmin={atLeast(user?.role, 'admin')}
       editLocked={eventEditLocked(event)}

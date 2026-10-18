@@ -26,6 +26,7 @@ import MvpHighlight from '@/components/MvpHighlight';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
+import { tileMatchesSearch } from '@/lib/tileSearch';
 
 interface Tile {
   id: number;
@@ -52,6 +53,8 @@ interface Tile {
   targetNpcs?: string | null;
   timedActivity?: string | null;
   timeThresholdSeconds?: number | null;
+  /** Item names behind trackedItemIds, for the search (lib/tileSearchText). */
+  searchText?: string | null;
   // Mission/reveal state — drives the split between the board and its missions.
   mission?: number | null;
   revealedAt?: string | null;
@@ -479,12 +482,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
         tiles
           .filter((t) => categoryFilter === 'all' || tileHasCategory(t.category, categoryFilter))
           .filter((t) => tierFilter === 'all' || tileTierKey(t.points, tierBands) === tierFilter)
-          .filter(
-            (t) =>
-              search === '' ||
-              t.label.toLowerCase().includes(search) ||
-              (t.description?.toLowerCase().includes(search) ?? false),
-          )
+          .filter((t) => tileMatchesSearch(t, search))
           .map((t) => t.id),
       )
     : null;

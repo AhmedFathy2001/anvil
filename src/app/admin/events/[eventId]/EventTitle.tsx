@@ -35,7 +35,7 @@ export default function EventTitle({
   }, [editing]);
 
   if (!canEdit) {
-    return <h1 className="text-2xl sm:text-3xl font-bold text-gold">{name}</h1>;
+    return <h1 className="display display-lg text-3xl sm:text-[40px] font-semibold leading-tight">{name}</h1>;
   }
 
   function startEditing() {
@@ -126,7 +126,7 @@ export default function EventTitle({
       title="Rename event"
       className="group inline-flex items-center gap-2 text-left"
     >
-      <h1 className="text-2xl sm:text-3xl font-bold text-gold">{name}</h1>
+      <h1 className="display display-lg text-3xl sm:text-[40px] font-semibold leading-tight">{name}</h1>
       <span
         aria-hidden
         className="text-text-muted text-base opacity-100 [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"

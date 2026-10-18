@@ -43,6 +43,7 @@
     "test:eventimage": "npx tsx --test tests/event-image.test.ts",
     "test:tilelibrary": "npx tsx --test tests/tile-library-scope.test.ts",
     "test:tileclaims": "npx tsx --test tests/tile-claims.test.ts",
+    "test:tilesearch": "npx tsx --test tests/tile-search.test.ts",
     "test:authority": "npx tsx --test tests/clan-authority.test.ts",
     "test:platform": "npx tsx --test tests/platform-authority.test.ts",
     "test:peopleview": "npx tsx --test tests/people-browse.test.ts",
@@ -153,6 +154,12 @@
     "test:rulebook": "npx tsx --test tests/event-rulebook.test.ts tests/event-rules-post-migration.test.ts",
     "test:cohostdiscord": "npx tsx --test tests/cohost-discord.test.ts",
     "test:digest": "npx tsx --test tests/event-digest.test.ts tests/event-stats.test.ts",
+    "test:nextstep": "npx tsx --test tests/event-next-step.test.ts",
+    "test:formats": "npx tsx --test tests/format-catalog.test.ts",
+    "test:paidpot": "npx tsx --test tests/prize-pool-paid.test.ts",
+    "test:weeklyrepeat": "npx tsx --test tests/weekly-repeat.test.ts",
+    "test:weeklyroll": "npx tsx --test tests/weekly-repeat-roll.test.ts",
+    "test:features": "npx tsx --test tests/features.test.ts",
     "test:withdrawnroster": "npx tsx --test tests/withdrawn-roster-migration.test.ts"
   },
   "dependencies": {

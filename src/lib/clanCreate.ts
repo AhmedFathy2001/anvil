@@ -21,6 +21,7 @@ import { clanAuditLog, clanStaff, clans, retiredClanSlugs } from '@/db/schema';
 import { PLANS } from '@/lib/plans';
 import { newCheckoutRef } from '@/lib/billing';
 import { setSetting } from '@/lib/settings';
+import { FEATURES_OFF_SETTING, defaultFeaturesOffForNewClan } from '@/lib/features';
 import {
   availabilityMessage,
   domainRuleFailure,
@@ -204,7 +205,12 @@ export async function createClan(input: CreateClanInput): Promise<CreateClanResu
       return { ok: true as const, clanId: clan.id, slug };
     });
 
-    if (created.ok) await adoptEnvDiscordIfFirstClan(created.clanId);
+    if (created.ok) {
+      // A new clan starts with the core switched on and the extras off (Admin → Features), so a
+      // first-time admin meets a short menu. Clans from before the Features page keep everything.
+      await setSetting(created.clanId, FEATURES_OFF_SETTING, defaultFeaturesOffForNewClan());
+      await adoptEnvDiscordIfFirstClan(created.clanId);
+    }
     return created;
   } catch (e) {
     // The unique index on slug is the real arbiter: two people can pass checkSlug at the same moment

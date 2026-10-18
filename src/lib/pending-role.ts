@@ -29,6 +29,36 @@ export async function applyPendingRole(
   const member = await findRosterSeat(eq(clanRoster.id, clanMemberId));
   if (!member?.pendingRole) return false;
   const pending = member.pendingRole;
+
+  // 'editor' is offered on the roster ("Board builder") but is a capability, not a rank: it was
+  // silently dropped here, because it is not one of the ranks below. It means "may build every
+  // board", so it sets the authoring flag and leaves whatever rank they hold alone.
+  if (pending === 'editor') {
+    const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
+    if (!user) return false;
+    const existing = await clanGrant(member.clanId, userId);
+    await db
+      .insert(clanStaff)
+      .values({ clanId: member.clanId, userId, role: existing?.role ?? 'member', canEditTiles: true, editorScope: 'all' })
+      .onConflictDoUpdate({
+        target: [clanStaff.clanId, clanStaff.userId],
+        set: { canEditTiles: true, editorScope: 'all' },
+      });
+    await db.update(clanMemberships).set({ pendingRole: null }).where(eq(clanMemberships.id, clanMemberId));
+    db.insert(clanAuditLog)
+      .values({
+        clanMemberId,
+        eventType: source === 'plugin' ? 'role_auto_promoted' : 'role_promoted_on_approval',
+        clanId: member.clanId,
+        oldValue: JSON.stringify({ userId, canEditTiles: existing?.canEditTiles ?? false }),
+        newValue: JSON.stringify({ userId, canEditTiles: true }),
+        actorUserId: userId,
+        notes: 'Pre-assigned board builder applied',
+      })
+      .catch(() => {});
+    return true;
+  }
+
   if (!PENDING_ROLES.has(pending)) {
     // Unknown value — clear it so it doesn't keep re-firing on repeat calls.
     await db.update(clanMemberships).set({ pendingRole: null }).where(eq(clanMemberships.id, clanMemberId));

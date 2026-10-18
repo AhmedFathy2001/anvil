@@ -26,6 +26,7 @@ import SiteNav from "@/components/SiteNav";
 import ShellGuard from "@/components/ShellGuard";
 import { countLiveTeamInvolvements } from "@/lib/myTeamNav";
 import { clanHasCoffer } from "@/lib/coffer";
+import { getClanFeatures } from "@/lib/clanFeatures";
 import { characterCount, clansOfPerson, myProfileHref } from "@/lib/myClans";
 import { clansWithSomethingLive } from "@/lib/apexHome";
 import PlatformRail, { type RailClan } from "@/components/PlatformRail";
@@ -166,7 +167,8 @@ export default async function RootLayout({
   const myTeams = session?.userId && clan ? await countLiveTeamInvolvements(session.userId) : 0;
   // The Coffer link appears once a clan actually keeps one. Same rule as "My Team": a nav item whose
   // page reads "nothing here yet" is not navigation, and most clans will never run prize missions.
-  const hasCoffer = clan ? await clanHasCoffer(clan.id) : false;
+  // And never when the clan has switched the coffer off on Admin → Features: off is off for everyone.
+  const hasCoffer = clan ? (await getClanFeatures(clan.id)).on('coffer') && (await clanHasCoffer(clan.id)) : false;
 
   const avatar = userRow?.discordId ? avatarUrl(userRow.discordId, userRow.discordAvatar) : null;
   // WHO SEES THE ADMIN LINK. `isStaffRole` ranks the clan roles, and asking it rather than

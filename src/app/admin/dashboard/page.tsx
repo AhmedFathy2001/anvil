@@ -380,14 +380,17 @@ export default async function AdminDashboardPage() {
   const recentAudit = collapsedAudit.slice(0, 10);
 
   const netRoster = joined7d - left7d;
+  // The queue is already ordered most-pressing first (lib/adminAttention). Its head, unless it is
+  // only the "all clear" line, becomes the Next step panel.
+  const leadItem = queue.find((i) => i.severity !== 'clear') ?? null;
 
   return (
     <div>
       <header className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gold mb-1">
+        <h1 className="display display-lg text-4xl sm:text-[44px] font-semibold leading-tight">
           {new Date(now).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
         </h1>
-        <p className="text-text-muted text-sm">
+        <p className="text-text-muted text-[15px] mt-2">
           {activeMembers} on the roster · {running.length} running · {openCount(queue)} waiting on you
         </p>
       </header>
@@ -404,13 +407,16 @@ export default async function AdminDashboardPage() {
 
       <NowBar running={running} nextUp={nextUp} now={now} canReach={canReach} />
 
-      {/* What needs a human — the reason this page exists. */}
+      {/* The single most pressing thing, as the page's one forge panel: what to do next. */}
+      {leadItem && <LeadCard item={leadItem} />}
+
+      {/* What else needs a human — the reason this page exists. */}
       <section className="mt-8">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold flex items-center gap-2">
-            <span className="w-1 h-5 bg-gold rounded-full" />
-            Needs you
-            <span className="text-xs text-text-muted font-normal">
+          <h2 className="font-semibold text-lg flex items-center gap-2.5">
+            <span className="molten-bar" />
+            {leadItem ? 'Also waiting on you' : 'Needs you'}
+            <span className="text-sm text-text-muted font-normal">
               {openCount(queue) === 0 ? 'all clear' : `${openCount(queue)} open`}
             </span>
           </h2>
@@ -421,16 +427,18 @@ export default async function AdminDashboardPage() {
           )}
         </div>
         <div className="space-y-2">
-          {queue.map((item) => (
-            <AttentionCard key={item.key} item={item} />
-          ))}
+          {queue
+            .filter((item) => item !== leadItem)
+            .map((item) => (
+              <AttentionCard key={item.key} item={item} />
+            ))}
         </div>
       </section>
 
       {/* Measurements, not counts. */}
       <section className="mt-8">
         <h2 className="font-semibold flex items-center gap-2 mb-3">
-          <span className="w-1 h-5 bg-gold rounded-full" />
+          <span className="molten-bar" />
           Pulse
           <span className="text-xs text-text-muted font-normal">last 7 days</span>
         </h2>
@@ -636,6 +644,23 @@ const SEVERITY_STYLE: Record<Severity, { rail: string; chip: string; mark: strin
   clear: { rail: 'border-l-accent-green', chip: 'bg-accent-green/15 text-accent-green-light', mark: '✓' },
 };
 
+/** The one thing to do next — the dashboard's forge panel. */
+function LeadCard({ item }: { item: AttentionItem }) {
+  return (
+    <section className="forge-panel px-6 sm:px-7 py-6 mt-6">
+      <div className="text-[13px] text-gold">Your next step</div>
+      <h2 className="display text-[28px] sm:text-[32px] font-semibold leading-tight mt-1.5">{item.title}</h2>
+      <p className="text-[#cbbfa9] mt-2 max-w-[56ch] leading-relaxed">{item.detail}</p>
+      <div className="mt-5 flex flex-wrap items-center gap-4">
+        <ClanLink href={item.href} className="molten-btn">
+          {item.action}
+        </ClanLink>
+        {item.snoozable && <SnoozeButton itemKey={item.key} title={item.title} />}
+      </div>
+    </section>
+  );
+}
+
 function AttentionCard({ item }: { item: AttentionItem }) {
   const s = SEVERITY_STYLE[item.severity];
   return (
@@ -792,7 +817,7 @@ function Runway({ items, today, weeks }: { items: EventIndexItem[]; today: Date;
     <section>
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-semibold flex items-center gap-2">
-          <span className="w-1 h-5 bg-gold rounded-full" />
+          <span className="molten-bar" />
           Runway
           <span className="text-xs text-text-muted font-normal">next {weeks} weeks</span>
         </h2>
@@ -980,7 +1005,7 @@ function Activity({
     <section>
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-semibold flex items-center gap-2">
-          <span className="w-1 h-5 bg-gold rounded-full" />
+          <span className="molten-bar" />
           Activity
         </h2>
         <ClanLink href="/admin/clan/audit" className="text-xs text-gold hover:text-gold-light">
@@ -1061,7 +1086,7 @@ function Snapshot({
   return (
     <section>
       <h2 className="font-semibold flex items-center gap-2 mb-3">
-        <span className="w-1 h-5 bg-gold rounded-full" />
+        <span className="molten-bar" />
         Snapshot
       </h2>
       <div className="border border-card-border rounded-xl bg-card-bg divide-y divide-card-border">

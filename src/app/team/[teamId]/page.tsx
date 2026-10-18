@@ -23,6 +23,7 @@ import { idParam } from '@/lib/routeIds';
 import AccountChangeCard from '@/components/AccountChangeCard';
 import EventApiHost from '@/components/EventApiHost';
 import { areEventRostersFinal } from '@/lib/eventReadiness';
+import { withSearchText } from '@/lib/tileSearchText';
 
 export const dynamic = 'force-dynamic';
 
@@ -201,7 +202,7 @@ export default async function MyTeamPage({
       <MyTeamClient
         event={event}
         team={safeTeam}
-        tiles={eventTiles}
+        tiles={withSearchText(eventTiles)}
         completions={teamCompletions}
         players={eventPlayers}
         isCaptain={membership.isCaptain}

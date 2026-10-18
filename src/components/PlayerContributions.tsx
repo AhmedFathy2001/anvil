@@ -5,6 +5,7 @@ import LocalTime from '@/components/LocalTime';
 import { formatTileAmount, formatContributionAmount } from '@/lib/tileKinds';
 import { submissionHasProof } from '@/lib/submissionProof';
 import { countTurnIns, turnInsOnTile } from '@/lib/turnIns';
+import { formatEst } from '@/components/MemberBreakdown';
 
 interface Submission {
   id: number;
@@ -44,9 +45,23 @@ interface Props {
   tiles: Tile[];
   playerName: string;
   statContributions?: StatContribution[];
+  // Points mode: open tiles' estimated points for this member (lib/memberBreakdown estPoints),
+  // tileId → points. Absent/empty on a non-points board.
+  estByTile?: Map<number, number>;
 }
 
-export default function PlayerContributions({ submissions, tiles, playerName, statContributions = [] }: Props) {
+const EST_TITLE = "Estimated: the tile's points × how much of its goal this member has done. Scores when the tile completes.";
+
+function EstChip({ points }: { points: number | undefined }) {
+  if (!points || points <= 0) return null;
+  return (
+    <span className="text-xs text-yellow-500/80 flex-shrink-0 tabular-nums" title={EST_TITLE}>
+      ≈{formatEst(points)} pts
+    </span>
+  );
+}
+
+export default function PlayerContributions({ submissions, tiles, playerName, statContributions = [], estByTile }: Props) {
   // Each tile's individual submission rows start collapsed — the header (label + Total) is enough
   // at a glance; click a tile to expand its per-submission breakdown.
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -83,6 +98,7 @@ export default function PlayerContributions({ submissions, tiles, playerName, st
   const tileCount = grouped.size + stats.length;
   // A kill tile writes a row per kill — count turn-ins, not rows (lib/turnIns).
   const turnIns = countTurnIns(submissions, (id) => tileMap.get(id)?.tileType);
+  const estTotal = estByTile ? [...estByTile.values()].reduce((sum, p) => sum + p, 0) : 0;
 
   return (
     <div className="space-y-3">
@@ -93,6 +109,11 @@ export default function PlayerContributions({ submissions, tiles, playerName, st
           {turnIns > 0 && `, ${turnIns} submission${turnIns !== 1 ? 's' : ''}`})
         </span>
       </h3>
+      {estTotal > 0 && (
+        <p className="text-xs text-text-muted -mt-1" title={EST_TITLE}>
+          <span className="text-yellow-500/80 font-medium">≈{formatEst(estTotal)} pts</span> estimated from tiles still in progress
+        </p>
+      )}
 
       {/* Skill XP / boss KC contributions — hiscores-tracked, so no per-submission drill-down. */}
       {stats.map((c) => {
@@ -117,6 +138,7 @@ export default function PlayerContributions({ submissions, tiles, playerName, st
               <span className="text-xs text-accent-green-light ml-auto flex-shrink-0">
                 +{formatContributionAmount(c)}
               </span>
+              <EstChip points={estByTile?.get(c.tileId)} />
             </div>
           </div>
         );
@@ -157,6 +179,7 @@ export default function PlayerContributions({ submissions, tiles, playerName, st
             <span className="text-xs text-accent-green-light ml-auto flex-shrink-0">
               {tile ? formatTileAmount(tile, tileTotal) : `x${tileTotal}`}
             </span>
+            <EstChip points={estByTile?.get(tileId)} />
           </>
         );
         return (

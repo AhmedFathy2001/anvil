@@ -19,6 +19,7 @@ import {
   petsForSkill,
   DEFAULT_CLAN_SCOPE,
   isClanWorthy,
+  isEventFeedWorthy,
   type ClanScope,
   type EventScope,
   type Observation,
@@ -536,4 +537,16 @@ test('the sentence says which kind of number it was', () => {
     say({ itemName: null, quantity: 2277, sourceKind: 'max' }),
     'maxed, with a total level of 2,277',
   );
+});
+
+test('the board feed shows pets, deaths, clog slots and 1M+ drops — not rune piles', () => {
+  assert.ok(isEventFeedWorthy({ kind: 'pet', itemId: null, valueGp: null }));
+  assert.ok(isEventFeedWorthy({ kind: 'death', itemId: null, valueGp: null }));
+  // 300 Blood runes off an on-board Vardorvis: stored, but not a feed line.
+  assert.ok(!isEventFeedWorthy({ kind: 'loot', itemId: 565, valueGp: 120_000 }));
+  // 18 Runite ore: no clog slot, under the floor.
+  assert.ok(!isEventFeedWorthy({ kind: 'loot', itemId: 451, valueGp: 200_000 }));
+  // A clog slot shows whatever it sells for; a big haul shows whatever it is.
+  assert.ok(isEventFeedWorthy({ kind: 'unique', itemId: 20997, valueGp: null }));
+  assert.ok(isEventFeedWorthy({ kind: 'loot', itemId: 565, valueGp: 1_000_000 }));
 });

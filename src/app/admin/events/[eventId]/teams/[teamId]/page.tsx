@@ -10,6 +10,7 @@ import CaptainAssignment from './CaptainAssignment';
 import TeamStaffPanel from './TeamStaffPanel';
 import TeamInvitePanel from '@/components/TeamInvitePanel';
 import { idParam } from '@/lib/routeIds';
+import { withSearchText } from '@/lib/tileSearchText';
 
 export const dynamic = 'force-dynamic';
 
@@ -83,7 +84,7 @@ export default async function AdminTeamBoardPage({
       <AdminTeamBoardClient
         event={event}
         team={safeTeam}
-        tiles={eventTiles}
+        tiles={withSearchText(eventTiles)}
         completions={teamCompletions}
         players={eventPlayers}
         tierBands={tierBands}

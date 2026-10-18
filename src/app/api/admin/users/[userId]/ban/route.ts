@@ -49,12 +49,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
 
   // The owner OF THIS CLAN is unbannable here. Read from the grant rather than a flag on the user:
   // being owner of some other clan is no protection in this one, and should not be.
-  //
-  // THIS clan's grant. Looking the person up by user alone returned whichever of their grants came
-  // first — so an owner who also staffs another clan read as "not the owner here" and their own
-  // admins could bar them from the clan they founded.
+  // Read for THIS clan. It used to take the person's first staff row anywhere and then compare the
+  // clan — so an owner whose first row belonged to another clan was bannable from their own.
   const targetGrant = await db.query.clanStaff.findFirst({
-    where: and(eq(clanStaff.clanId, clan.id), eq(clanStaff.userId, targetId)),
+    where: and(eq(clanStaff.userId, targetId), eq(clanStaff.clanId, clan.id)),
     columns: { role: true },
   });
   if (targetGrant?.role === 'owner') {

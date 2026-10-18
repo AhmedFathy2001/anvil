@@ -13,6 +13,7 @@ import {
 import { notifyWeeklyStart, notifyWeeklyResults } from '@/lib/discord';
 import { log } from '@/lib/logger';
 import { timingSafeStrEqual } from '@/lib/auth';
+import { rollWeeklySeries } from '@/lib/weeklyRepeat';
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
@@ -117,6 +118,11 @@ export async function GET(request: Request) {
       await settleWeeklyPrizes(comp.id);
     }
   }
+
+  // Repeating competitions: each finished one that repeats starts its successor now (lib/weeklyRepeat).
+  // After the settle pass, so the results and prizes of the old week land before the new week opens.
+  const rolled = await rollWeeklySeries();
+  if (rolled > 0) log.info('weekly-cron.repeat', { started: rolled });
 
   // Process active competitions
   const activeComps = allComps.filter((c) => c.status === 'active');

@@ -15,6 +15,7 @@ import type { Completion } from '@/lib/types';
 import { atLeast } from '@/lib/clanRoles';
 import { clanHref } from '@/lib/clanPath';
 import { idParam } from '@/lib/routeIds';
+import { withSearchText } from '@/lib/tileSearchText';
 
 export const dynamic = 'force-dynamic';
 
@@ -113,7 +114,7 @@ export default async function TeamBoardPage({
       <TeamBoardClient
         event={event}
         team={safeTeam}
-        tiles={boardTiles}
+        tiles={withSearchText(boardTiles)}
         completions={teamCompletions}
         players={eventPlayers}
         tierBands={tierBands}

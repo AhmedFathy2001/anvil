@@ -14,6 +14,7 @@ import { getSetupStatus } from '@/lib/setupStatus';
 import { pendingClaimRequests } from '@/lib/claimRequests';
 import { pendingUpdateCount } from '@/lib/guides';
 import { coHostedBoardLinks } from '@/lib/coHost';
+import { getClanFeatures } from '@/lib/clanFeatures';
 
 // Admin shell — wraps every page under /admin (including the login page).
 // On the login page there's no session yet, so the sidebar is skipped and the
@@ -157,95 +158,95 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const setup = isAdmin ? await getSetupStatus(clan.id) : null;
 
   const groups: SidebarGroup[] = [];
+  // Feature switches (Admin → Features): a module that is off is hidden for everyone, here included.
+  const features = await getClanFeatures(clan.id);
 
   // Overview is everyone's landing tile.
   //
   // Feedback is NOT here any more. It is reports about Anvil, and on one site there is one product
-  // and one operator, who reads them at /staff — so every clan admin was being shown a triage queue
-  // for somebody else's job. See app/staff/feedback.
+  // and one operator, who reads them at /staff. See app/staff/feedback.
   groups.push({
     label: 'Overview',
-    items: [{ href: '/admin/dashboard', label: 'Dashboard', icon: '⌂' }],
+    items: [{ href: '/admin/dashboard', label: 'Dashboard', icon: '⌂', sprite: 'hammer' }],
   });
 
-  // ONE EVENTS GROUP, because there is one kind of thing here.
-  //
-  // There used to be two: "Events" and, under it, a "Weekly" group of its own holding
-  // "Competitions". That made the admin area look like it held two products — and it half did,
-  // because /admin/weekly was a second list of competitions that /admin/events already shows,
-  // wrapped around a second create form and a second participants panel. The public side merged
-  // them long ago (/events is the hub). The nav was the last place still saying otherwise.
+  // ONE EVENTS GROUP, because there is one kind of thing here — boards and competitions alike. Making
+  // something new is the "+ New event" action above the groups (see `primary` below), not an item.
   //
   // Schedule is open to every staff role; the event LIST is admin/editor only (see
-  // canManageEvents), so mods and treasurers see the two items that are theirs.
+  // canManageEvents), so mods and treasurers see the items that are theirs.
   groups.push({
     label: 'Events',
     items: [
       ...(canManageEvents
-        ? [{ href: '/admin/events', label: 'All events', icon: '🎯', matchPrefix: true }]
+        ? [{ href: '/admin/events', label: 'All events', icon: '🎯', sprite: 'fireCape' as const, matchPrefix: true }]
         : []),
-      { href: '/admin/schedule', label: 'Schedule', icon: '📅' },
-      // A moderator may schedule a competition and may not create a board, and lib/adminAccess
-      // draws that line by path — so this is the one "new" affordance they get, and for an admin
-      // it sits beside the list rather than in a category of its own.
-      { href: '/admin/weekly', label: 'New competition', icon: '🏆' },
-      // The task catalogue boards are generated from — same authority as tile authoring, so every
-      // editor (scoped ones included) gets it.
-      ...(canManageEvents ? [{ href: '/admin/tile-library', label: 'Task library', icon: '📚' }] : []),
+      { href: '/admin/schedule', label: 'Schedule', icon: '📅', sprite: 'stats' },
+      // The task catalogue boards are generated from — same authority as tile authoring.
+      ...(canManageEvents
+        ? [{ href: '/admin/tile-library', label: 'Task library', icon: '📚', sprite: 'casket' as const }]
+        : []),
     ],
   });
 
   if (cohostedGroup) groups.push(cohostedGroup);
 
-  // TWO NOUNS, TWO ENTRIES. This was one item called "Members & staff" holding six tabs that spanned
-  // the people (roster, review queue, staff seats) AND the clan itself (public face, access, wiring,
-  // history). A name can only describe one of those, and it described the half that kept growing.
+  // The people, and who helps run things. Staff & roles is the one place jobs are given.
+  const guideUpdates = await pendingUpdateCount(clan.id);
   groups.push({
-    label: 'People',
+    label: 'Clan',
     items: [
-      { href: '/admin/people', label: 'Roster', icon: '🛡️', badge: provisionalCount, matchPrefix: true },
+      { href: '/admin/people', label: 'Roster', icon: '🛡️', sprite: 'bandos', badge: provisionalCount, matchPrefix: true, exclude: ['/admin/people/staff'] },
+      ...(isAdmin ? [{ href: '/admin/people/staff', label: 'Staff & roles', icon: '👥', sprite: 'emblem' as const }] : []),
+      { href: '/admin/guides', label: 'Guides', icon: '📖', sprite: 'graceful', badge: guideUpdates, matchPrefix: true },
+      // Every staff seat may read the clan's history.
+      { href: '/admin/clan/audit', label: 'Activity log', icon: '📜', sprite: 'clue' },
     ],
   });
 
-  // Guides: the clan's in-game guides, on its site and in its Discord. Any staff seat may read them;
-  // writing is the canEditGuides capability. Badged with library updates waiting on an answer.
-  const guideUpdates = await pendingUpdateCount(clan.id);
-  groups.push({
-    label: 'Content',
-    items: [{ href: '/admin/guides', label: 'Guides', icon: '📖', badge: guideUpdates, matchPrefix: true }],
-  });
-
-  // Fees live on each event's Sign-ups tab rather than in a queue of their own — but the COFFER is
-  // not an event's money, it is the clan's, and mission prizes are paid out of it continuously. So
-  // Money is a group again, holding the one surface that has no event to hang off.
-  if (canHandleMoney) {
+  // The clan's money — fees on events and the coffer — for the people who handle it, and only the
+  // parts this clan has switched on.
+  if (canHandleMoney && (features.on('coffer') || features.on('fees'))) {
     groups.push({
       label: 'Money',
-      items: [{ href: '/admin/coffer', label: 'Coffer', icon: '💰', badge: cofferPending }],
-    });
-  }
-
-  // The clan as a thing. "System" used to sit below this holding Advanced settings — which was clan
-  // configuration all along, and said so itself in a line pointing readers at a different menu for
-  // the clan's own name. Dissolved into here, where the noun already was.
-  if (isAdmin) {
-    groups.push({
-      label: 'Clan',
       items: [
-        { href: '/admin/clan', label: 'Profile', icon: '🏰', matchPrefix: true },
-        { href: '/admin/integrations', label: 'Settings', icon: '🔌' },
-        // A broadcast to the clan is an ACT, not a place — but it is the clan's act, so it lives with
-        // the clan rather than in a drawer of unrelated machinery.
-        { href: '/admin/announce', label: 'Announce', icon: '📣' },
-        // SETUP IS A STATE, NOT A PLACE. A permanent menu item for a wizard you finish once is a
-        // permanent invitation to redo it; while it is unfinished the dashboard checklist is already
-        // asking, and this makes the ask reachable. Once done it stops taking up a line forever.
-        ...(!setup || setup.allDone || setup.dismissed
-          ? []
-          : [{ href: '/admin/setup', label: 'Finish setup', icon: '🧭' }]),
+        ...(features.on('coffer')
+          ? [{ href: '/admin/coffer', label: 'Coffer', icon: '💰', sprite: 'coins' as const, badge: cofferPending }]
+          : []),
+        ...(features.on('fees') ? [{ href: '/admin/fees', label: 'Fees', icon: '🪙', sprite: 'ring' as const }] : []),
       ],
     });
   }
+
+  // Set once, rarely touched. Discord is everything Anvil does in the clan's server; Features is what
+  // the clan uses at all; the Activity log is who changed what.
+  if (isAdmin) {
+    groups.push({
+      label: 'Set up',
+      items: [
+        { href: '/admin/integrations', label: 'Discord', icon: '🔌', sprite: 'discord' },
+        ...(features.on('announce')
+          ? [{ href: '/admin/announce', label: 'Post to Discord', icon: '📣', sprite: 'tinderbox' as const }]
+          : []),
+        { href: '/admin/features', label: 'Features', icon: '🧩', sprite: 'petRock' },
+        { href: '/admin/rules', label: 'Rules & scoring', icon: '📏', sprite: 'stats' },
+        { href: '/admin/clan', label: 'Clan profile', icon: '🏰', sprite: 'zenyte', matchPrefix: true, exclude: ['/admin/clan/audit'] },
+        // SETUP IS A STATE, NOT A PLACE: listed only while unfinished.
+        ...(!setup || setup.allDone || setup.dismissed
+          ? []
+          : [{ href: '/admin/setup', label: 'Finish setup', icon: '🧭', sprite: 'hammer' as const }]),
+      ],
+    });
+  }
+
+  // The one "make something" action. Admins get the full picker; a moderator may only schedule a
+  // competition (lib/adminAccess draws that line by path), so theirs goes straight there — and not at
+  // all when the clan has competitions switched off.
+  const primary = isAdmin
+    ? { href: '/admin/events/new', label: '+ New event' }
+    : features.on('weekly')
+      ? { href: '/admin/weekly', label: '+ New competition' }
+      : undefined;
 
   const user = {
     displayName: userRow?.displayName ?? session.username ?? 'Admin',
@@ -255,7 +256,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="lg:flex lg:gap-6">
-      <AdminSidebar groups={groups} user={user} />
+      <AdminSidebar groups={groups} user={user} primary={primary} guideHref="/guide/admin" />
       <div className="flex-1 min-w-0">
         {session.actingAs && (
           // Borrowed authority, said out loud. An operator working inside someone else's clan should

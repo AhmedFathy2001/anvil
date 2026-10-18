@@ -51,10 +51,10 @@ const ROLE_BADGE_CLS: Record<Role, string> = {
 // Every role and what it unlocks — surfaced in the dropdown so admins pick by meaning, not by
 // memorising which button does what.
 const ROLE_OPTIONS: { value: Role; label: string }[] = [
-  { value: 'member', label: 'Member — no admin access' },
-  { value: 'moderator', label: 'Moderator — clan + verifications' },
-  { value: 'treasurer', label: 'Treasurer — moderator + collect fees' },
-  { value: 'admin', label: 'Admin — full access' },
+  { value: 'member', label: 'Member: no staff job' },
+  { value: 'moderator', label: 'Moderator: newcomers, roster, sign-ups, proofs' },
+  { value: 'treasurer', label: 'Treasurer: fees, coffer and prizes' },
+  { value: 'admin', label: 'Admin: everything except handing over the clan' },
 ];
 
 export default function UsersClient({ currentUserId }: { currentUserId: number | null }) {
@@ -146,7 +146,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
     if (banning) {
       const input = await ask({
         title: `Ban ${user.displayName}?`,
-        body: 'They lose all site access immediately and are refused on their next Discord login.',
+        body: 'They lose their place in this clan and can’t rejoin it. Their Anvil account and any other clans they’re in aren’t touched.',
         label: 'Reason (optional)',
         multiline: true,
         confirmLabel: 'Ban them',
@@ -157,7 +157,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
     } else if (
       !(await confirm({
         title: `Unban ${user.displayName}?`,
-        body: 'They can sign in again. Nothing about their roster seats changes.',
+        body: 'They can join this clan again. They don’t get their old roster seat back by themselves.',
         confirmLabel: 'Unban',
         tone: 'gold',
       }))

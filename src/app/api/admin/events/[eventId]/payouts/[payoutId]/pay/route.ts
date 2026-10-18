@@ -3,14 +3,16 @@ import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { events, payouts } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
-import { verifyEventTreasurer } from '@/lib/auth';
+import { verifyEventTreasurer, verifyFeeCollector } from '@/lib/auth';
 import { del, isClanMediaUrl } from '@/lib/storage';
 import { currentClan } from '@/lib/clanContext';
 import { allPayoutsPaid, announcePayouts } from '@/lib/payouts';
+import { getEventPool, settleAward } from '@/lib/coffer';
 
 // POST — a treasurer/admin marks a payout as paid, optionally attaching a proof screenshot.
 // Body: { proofUrl?, notes? }. Re-marking replaces the proof. When this makes EVERY payout for the
-// event paid (and it hasn't been announced yet), the winners are auto-announced to the bingo webhook.
+// event paid (and it hasn't been announced yet), the winners are auto-announced to the bingo webhook,
+// and any coffer pool that funded them is settled as paid on the clan's ledger.
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string; payoutId: string }> },
@@ -60,10 +62,26 @@ export async function POST(
     .where(eq(payouts.id, id))
     .returning();
 
-  // Auto-announce once the whole set is paid and hasn't been announced before.
   let announced = false;
   const event = await db.query.events.findFirst({ where: eq(events.id, eId) });
-  if (event && !event.payoutsAnnouncedAt && (await allPayoutsPaid(eId))) {
+  const allPaid = await allPayoutsPaid(eId);
+
+  // ONE "paid", not two. The part of the prizes that came out of the clan coffer is a single pool
+  // row on the ledger, and it used to wait for a treasurer to mark it paid AGAIN on the Coffer page.
+  // When the last prize goes out, the pool has been paid by definition, so the ledger says so here.
+  //
+  // Only for someone who may settle the CLAN'S ledger (verifyFeeCollector — the Coffer page's own
+  // gate). A treasurer granted just this board may pay its prizes but not move the clan's coffer, so
+  // for them the pool stays put for a clan treasurer to settle, exactly as before.
+  if (allPaid && (await verifyFeeCollector())) {
+    const pool = await getEventPool(eId);
+    if (pool && pool.status !== 'paid' && pool.clanId === event?.clanId) {
+      await settleAward({ clanId: pool.clanId, entryId: pool.id, paid: true, userId: session.userId });
+    }
+  }
+
+  // Auto-announce once the whole set is paid and hasn't been announced before.
+  if (event && !event.payoutsAnnouncedAt && allPaid) {
     announced = await announcePayouts(eId).catch(() => false);
   }
 

@@ -22,14 +22,17 @@ export function eventRailGroups(opts: {
   moneyOnly?: boolean;
   /** What this board calls its entries, lower-case (lib/tileAuthoring). */
   taskNounPlural?: string;
+  /** False when the clan has the post-event survey switched off (Admin → Features). */
+  surveyOn?: boolean;
 }): SidebarGroup[] {
-  const { eventId, stage, counts, tilesOnly, moneyOnly, taskNounPlural = 'tiles' } = opts;
+  const { eventId, stage, counts, tilesOnly, moneyOnly, taskNounPlural = 'tiles', surveyOn = true } = opts;
   const base = `/admin/events/${eventId}`;
 
   const tiles = {
     href: `${base}/tiles`,
     label: `Board & ${taskNounPlural}`,
     icon: '▦',
+    sprite: 'fireCape' as const,
     badge: counts.expectedTiles > 0 && counts.tileCount < counts.expectedTiles
       ? `${counts.tileCount}/${counts.expectedTiles}`
       : counts.tileCount,
@@ -40,6 +43,7 @@ export function eventRailGroups(opts: {
     href: `${base}/teams`,
     label: stage === 'build' ? 'Teams & draft' : 'Rosters & subs',
     icon: '◈',
+    sprite: 'bandos' as const,
     badge: counts.teamCount === 0 ? 'none' : counts.teamCount,
     attn: counts.teamCount === 0,
     matchPrefix: true,
@@ -48,15 +52,17 @@ export function eventRailGroups(opts: {
     href: `${base}/signups`,
     label: 'Sign-ups',
     icon: '✎',
+    sprite: 'emblem' as const,
     badge: counts.pendingSignups > 0 ? `${counts.pendingSignups} new` : counts.signupCount,
     attn: counts.pendingSignups > 0,
     matchPrefix: true,
   };
-  const stats = { href: `${base}/stats`, label: 'Stats', icon: '▲', matchPrefix: true };
+  const stats = { href: `${base}/stats`, label: 'Stats', icon: '▲', sprite: 'stats' as const, matchPrefix: true };
   const payouts = {
     href: `${base}/payouts`,
-    label: 'Payouts',
+    label: 'Prizes',
     icon: '◍',
+    sprite: 'coins' as const,
     badge: counts.unpaidPayouts > 0 ? `${counts.unpaidPayouts} unpaid` : counts.payoutCount || undefined,
     attn: counts.unpaidPayouts > 0,
     matchPrefix: true,
@@ -65,10 +71,11 @@ export function eventRailGroups(opts: {
     href: `${base}/survey`,
     label: 'Survey',
     icon: '☰',
+    sprite: 'clue' as const,
     badge: counts.surveyResponses > 0 ? counts.surveyResponses : counts.hasSurvey ? 'ready' : 'none',
     matchPrefix: true,
   };
-  const settings = { href: `${base}/settings`, label: 'Rules & dates', icon: '⚙', matchPrefix: true };
+  const settings = { href: `${base}/settings`, label: 'Settings', icon: '⚙', sprite: 'hammer' as const, matchPrefix: true };
 
   const elsewhere: SidebarGroup = {
     label: 'Elsewhere',
@@ -88,12 +95,19 @@ export function eventRailGroups(opts: {
     return [{ label: 'This board', items: [signups, payouts] }, elsewhere];
   }
 
+  const withoutOff = (groups: SidebarGroup[]): SidebarGroup[] =>
+    surveyOn
+      ? groups
+      : groups
+          .map((g) => ({ ...g, items: g.items.filter((i) => i.href !== survey.href) }))
+          .filter((g) => g.items.length > 0);
+
   if (stage === 'build') {
-    return [
+    return withoutOff([
       {
         label: 'Getting ready',
         items: [
-          { href: base, label: 'Setup', icon: '◉' },
+          { href: base, label: 'Home', icon: '◉', sprite: 'casket' as const },
           tiles,
           teams,
           signups,
@@ -103,15 +117,15 @@ export function eventRailGroups(opts: {
       },
       { label: 'Once it starts', items: [{ ...stats, quiet: true }, { ...payouts, quiet: true }] },
       elsewhere,
-    ];
+    ]);
   }
 
   if (stage === 'run') {
-    return [
+    return withoutOff([
       {
         label: 'Live',
         items: [
-          { href: base, label: 'Now', icon: '◉' },
+          { href: base, label: 'Home', icon: '◉', sprite: 'casket' as const },
           stats,
           teams,
           signups,
@@ -120,21 +134,21 @@ export function eventRailGroups(opts: {
       { label: 'Still editable', items: [{ ...tiles, quiet: true }, { ...settings, quiet: true }] },
       { label: 'After it ends', items: [{ ...payouts, quiet: true }, { ...survey, quiet: true }] },
       elsewhere,
-    ];
+    ]);
   }
 
-  return [
+  return withoutOff([
     {
       label: 'Wrapping up',
       items: [
-        { href: base, label: 'Results', icon: '◉' },
+        { href: base, label: 'Home', icon: '◉', sprite: 'casket' as const },
         payouts,
         survey,
         stats,
       ],
     },
     {
-      label: 'Finished — read-only',
+      label: 'Finished, read-only',
       items: [
         { ...tiles, badge: counts.tileCount, attn: false, quiet: true },
         { ...teams, badge: counts.teamCount, attn: false, quiet: true },
@@ -142,7 +156,7 @@ export function eventRailGroups(opts: {
       ],
     },
     elsewhere,
-  ];
+  ]);
 }
 
 /**

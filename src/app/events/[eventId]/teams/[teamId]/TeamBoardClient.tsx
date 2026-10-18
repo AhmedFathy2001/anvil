@@ -174,6 +174,12 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
           (c) => c.statType != null,
         )
       : [];
+  // Their open tiles' estimated points (points mode only — the breakdown leaves them 0 otherwise).
+  const selectedMemberEst = new Map(
+    (memberBreakdown.find((m) => m.playerId === selectedMemberId)?.contributions ?? [])
+      .filter((c) => c.estPoints > 0)
+      .map((c) => [c.tileId, c.estPoints] as const),
+  );
 
   const selectedTile = tiles.find((t) => t.id === selectedTileId);
   const selectedTileSubmissions = submissions.filter((s) => s.tileId === selectedTileId);
@@ -229,8 +235,9 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
       )}
 
       <div className="grid gap-6 lg:gap-8 items-start lg:grid-cols-[minmax(0,20rem)_1fr]">
-        {/* Summary column */}
-        <div className="space-y-5 lg:sticky lg:top-20">
+        {/* Summary column — pinned beside the board with its own scroll, so a long member list
+            never sends you up and down past the whole board to reach it. */}
+        <div className="space-y-5 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-1">
           {/* Progress */}
           <div>
             <div className="flex justify-between text-sm mb-1">
@@ -265,7 +272,9 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
                 <span className="text-xs text-text-muted ml-auto">{pointsMode ? 'points · tasks' : 'tasks'}</span>
               </button>
               {breakdownOpen && (
-                <div className="px-4 pb-3 border-t border-card-border">
+                // Capped with its own scroll: a 30-member team would otherwise push the roster
+                // below it off the bottom of the (already scrolling) column.
+                <div className="px-4 pb-3 border-t border-card-border max-h-[55vh] overflow-y-auto">
                   <MemberBreakdown
                     members={memberBreakdown}
                     pointsMode={pointsMode}
@@ -325,7 +334,7 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
             />
           </div>
           {selectedMember && (
-            <aside className="min-w-0 xl:sticky xl:top-20 xl:flex xl:flex-col xl:max-h-[calc(100vh-6rem)]">
+            <aside className="min-w-0 order-first xl:order-none xl:sticky xl:top-20 xl:flex xl:flex-col xl:max-h-[calc(100vh-6rem)]">
               <div className="flex items-center justify-between gap-2 mb-2 shrink-0">
                 <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">Member detail</span>
                 <button
@@ -338,13 +347,15 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
                 </button>
               </div>
               {/* Own scroll region so paging through the panel never scrolls the page (which would
-                  trip the board's infinite scroll). */}
-              <div className="xl:min-h-0 xl:overflow-y-auto xl:pr-1">
+                  trip the board's infinite scroll). Below xl it sits above the board, capped, so
+                  reaching it never means scrolling past every tile. */}
+              <div className="max-h-[60vh] overflow-y-auto pr-1 xl:max-h-none xl:min-h-0">
                 <PlayerContributions
                   submissions={selectedMemberSubmissions}
                   tiles={tiles}
                   playerName={selectedMember.name}
                   statContributions={selectedMemberStatContributions}
+                  estByTile={selectedMemberEst}
                 />
               </div>
             </aside>

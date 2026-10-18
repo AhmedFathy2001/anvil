@@ -13,9 +13,11 @@ import CreditIntegrityPanel from '@/components/CreditIntegrityPanel';
 import FinalHourButton from '@/components/FinalHourButton';
 import { useEventStream, EventStreamData } from '@/hooks/useEventStream';
 import { isPointsMode, eventNoun, isLadderFormat } from '@/lib/utils';
-import { eventAxes, supportsMissions } from '@/lib/eventAxes';
+import { eventAxes, supportsMissions, taskNoun } from '@/lib/eventAxes';
+import { nextStep } from '@/lib/eventNextStep';
+import { NextStepPanel, ProofsToCheck, useStartNow } from './EventNextStep';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
-import { STAGE_BLURB, type EventStage, type StageCounts } from '@/lib/eventStage';
+import { type EventStage, type StageCounts } from '@/lib/eventStage';
 import { findBoardProblems, type BoardProblem } from '@/lib/boardMisconfig';
 import LiveFixPanel from './LiveFixPanel';
 import type { RecordedTeamResult } from '@/lib/adminEventsOverview';
@@ -159,19 +161,47 @@ export default function OverviewClient({
     setSubmissions((list) => list.filter((s) => s.id !== submissionId));
   }
 
+  // The one thing this event wants from its admin now (lib/eventNextStep) — the forge panel.
+  const axes = eventAxes(currentEvent);
+  const one = taskNoun(axes);
+  const flaggedProofs = submissions.filter((s) => s.flaggedReason).length;
+  const step = nextStep({
+    stage,
+    noun: { one, many: `${one}s` },
+    startDate: currentEvent.startDate ?? null,
+    endDate: currentEvent.endDate ?? null,
+    tileCount: counts.tileCount,
+    expectedTiles: counts.expectedTiles,
+    teamCount: counts.teamCount,
+    assignedPlayers: counts.assignedPlayers,
+    signupCount: counts.signupCount,
+    pendingSignups: counts.pendingSignups,
+    flaggedProofs,
+    payoutCount: counts.payoutCount,
+    unpaidPayouts: counts.unpaidPayouts,
+    blockers: counts.blockers,
+    individual: axes.competitors === 'individuals',
+  });
+  const starter = useStartNow(event.id, (e) => {
+    setCurrentEvent(e);
+    router.refresh();
+  });
+
   return (
     <div className="space-y-8">
-      <p className="text-sm text-text-muted -mt-2">{STAGE_BLURB[stage]}</p>
+      <NextStepPanel
+        step={step}
+        eventId={event.id}
+        onStart={() => void starter.start()}
+        starting={starter.starting}
+        error={starter.error}
+      />
 
       {stage === 'build' && (
         <BuildHome
           event={currentEvent}
           counts={counts}
           noun={noun}
-          onEventChange={(e) => {
-            setCurrentEvent(e);
-            router.refresh();
-          }}
         />
       )}
 
@@ -207,6 +237,16 @@ export default function OverviewClient({
             setCurrentEvent(e);
             router.refresh();
           }}
+        />
+      )}
+
+      {stage !== 'build' && (
+        <ProofsToCheck
+          eventId={event.id}
+          submissions={submissions}
+          tiles={localTiles}
+          teamNameById={teamNameById}
+          onChange={() => void fetchSubmissions()}
         />
       )}
 
@@ -285,18 +325,13 @@ function BuildHome({
   event,
   counts,
   noun,
-  onEventChange,
 }: {
   event: Event;
   counts: StageCounts;
   noun: string;
-  onEventChange: (e: Event) => void;
 }) {
-  const [starting, setStarting] = useState(false);
   const [testingReveal, setTestingReveal] = useState(false);
   const [testRevealStatus, setTestRevealStatus] = useState('');
-  const { confirm } = useDialog();
-  const [error, setError] = useState('');
 
   const base = `/admin/events/${event.id}`;
   const tilesDone = counts.expectedTiles > 0 && counts.tileCount >= counts.expectedTiles;
@@ -361,37 +396,6 @@ function BuildHome({
     },
   ];
 
-  async function startNow(force = false) {
-    setStarting(true);
-    setError('');
-    try {
-      const res = await clanFetch(`/api/events/${event.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'start-now', ...(force ? { force: true } : {}) }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        onEventChange(data);
-        return;
-      }
-      // 409 = the readiness gate (lib/eventReadiness) refused. It's overridable for the warnings
-      // that aren't really blockers (an event with no end date), so offer the override in words.
-      if (res.status === 409 && data.overridable) {
-        // The readiness gate's own words are the body — it knows what is missing; this only asks
-        // whether to go anyway.
-        if (await confirm({ title: 'Start it anyway?', body: data.error, confirmLabel: 'Start now', tone: 'gold' })) {
-          await startNow(true);
-          return;
-        }
-      } else {
-        setError(data.error || 'Could not start the event.');
-      }
-    } finally {
-      setStarting(false);
-    }
-  }
-
   async function testBoardReveal() {
     setTestingReveal(true);
     setTestRevealStatus('');
@@ -412,8 +416,8 @@ function BuildHome({
     <section className="border border-gold/30 rounded-xl bg-card-bg overflow-hidden">
       <div className="p-5 bg-gradient-to-br from-gold/[0.07] to-transparent">
         <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
-          <h2 className="text-lg font-bold flex items-center gap-2">
-            <span className="w-1 h-5 bg-gold rounded-full" />
+          <h2 className="text-lg font-semibold flex items-center gap-2.5">
+            <span className="molten-bar" />
             Before this can start
           </h2>
           {blocked ? (
@@ -433,25 +437,6 @@ function BuildHome({
           ))}
         </div>
 
-        <div className="mt-4 pt-4 border-t border-card-border flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={() => startNow()}
-            disabled={starting || blocked}
-            title={blocked ? counts.blockers.join(' · ') : undefined}
-            className="px-4 py-2 text-sm font-semibold rounded-lg bg-gold hover:bg-gold-light text-brown-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {starting ? 'Starting…' : `Start the ${noun} now`}
-          </button>
-          <span className="text-xs text-text-muted flex-1 min-w-[200px]">
-            {blocked
-              ? `Can't start yet — ${counts.blockers[0]}.`
-              : event.startDate
-                ? 'Or leave it — it starts on schedule by itself.'
-                : 'Nothing is scheduled, so it only starts when you say so.'}
-          </span>
-        </div>
-        {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
         {event.startDate && (
           <div className="mt-4 pt-4 border-t border-card-border">
             <FinalHourButton eventId={event.id} />
@@ -460,7 +445,7 @@ function BuildHome({
       </div>
 
       <div className="px-5 py-4 border-t border-card-border bg-black/10">
-        <p className="text-[10px] uppercase tracking-wider text-text-muted/70 mb-2">Worth checking first</p>
+        <p className="text-[13px] text-text-muted mb-2">Worth checking first</p>
         <div className="flex flex-wrap gap-2">
           <QuietLink href={`/events/${event.id}`}>See the player&apos;s view ↗</QuietLink>
           <QuietLink href={`/admin/events/${event.id}/tiles`}>Check the board balance</QuietLink>

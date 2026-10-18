@@ -35,6 +35,9 @@ interface Pool {
   cofferFunded: number;
   signupFee: number;
   approvedCount: number;
+  /** Entries whose fee is actually in, and the gp — the only fees the pot counts. */
+  paidCount: number;
+  paidFeesGp: number;
 }
 
 interface Payload {
@@ -309,8 +312,10 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
           <div className="text-xs text-text-muted">
             {pool.added.toLocaleString()} added
             {pool.cofferFunded > 0 && ` + ${pool.cofferFunded.toLocaleString()} from the coffer`} +{' '}
-            {pool.signupFee.toLocaleString()} fee × {pool.approvedCount} entr
-            {pool.approvedCount === 1 ? 'y' : 'ies'}
+            {pool.paidFeesGp.toLocaleString()} in fees from {pool.paidCount} paid entr
+            {pool.paidCount === 1 ? 'y' : 'ies'}
+            {pool.approvedCount > pool.paidCount &&
+              ` · ${((pool.approvedCount - pool.paidCount) * pool.signupFee).toLocaleString()} still owed by ${pool.approvedCount - pool.paidCount}`}
           </div>
         </div>
 

@@ -18,7 +18,7 @@ import { notFound } from 'next/navigation';
 import ScoreboardClient from './ScoreboardClient';
 import { verifyUser } from '@/lib/auth';
 import { signupWindowState, signupEditState } from '@/lib/signup';
-import { countApprovedSignups, computePrizePool } from '@/lib/prizePool';
+import { countPaidEntries, computePrizePool } from '@/lib/prizePool';
 import { eventPoolGp } from '@/lib/coffer';
 import { placementAmounts } from '@/lib/payouts';
 import EventHero from '@/components/EventHero';
@@ -29,7 +29,7 @@ import { loadEventFirsts } from '@/lib/eventFirsts';
 import MomentsFeed from '@/components/MomentsFeed';
 import { getEventLuck } from '@/lib/eventLuck';
 import EventLuck from './EventLuck';
-import { momentsForEvent } from '@/lib/momentsStore';
+import { eventFeed } from '@/lib/momentsStore';
 import { isPointsMode, eventShapeBadge } from '@/lib/utils';
 import { eventAxes } from '@/lib/eventAxes';
 import {
@@ -59,6 +59,7 @@ import { canEnterEvent } from '@/lib/eventAccess';
 import EnterEvent from './EnterEvent';
 import { eventActivityIsValid } from '@/lib/completionGate';
 import LocalTime from '@/components/LocalTime';
+import { withSearchText } from '@/lib/tileSearchText';
 
 export const dynamic = 'force-dynamic';
 
@@ -324,9 +325,9 @@ export default async function EventScoreboardPage({
   // The board's firsts — read in claim order, so they're a fact about the event rather than a
   // recomputation of the standings.
   const firsts = await loadEventFirsts(event.id, event.startDate);
-  // The week's colour: pets, big drops and deaths that happened while the board ran. Scoped at
-  // ingest (lib/moments), so this is a plain read — and never any part of the scoring.
-  const eventMoments = (await momentsForEvent(event.id, 12)).filter((moment) =>
+  // The week's colour: pets, clog slots, 1M+ drops and deaths that happened while the board ran
+  // (lib/moments isEventFeedWorthy) — never any part of the scoring.
+  const eventMoments = (await eventFeed(event.id, 12)).filter((moment) =>
     eventActivityIsValid(event, moment.occurredAt),
   );
   // Who the game was kind to this event, and who it wasn't (lib/eventLuck) — once it has started.
@@ -373,11 +374,14 @@ export default async function EventScoreboardPage({
   // The stats page counts from the start; before it there's nothing to show.
   const showStatsLink = boardHasStarted(event);
 
-  const [approvedCount, cofferFunded] = await Promise.all([countApprovedSignups(id), eventPoolGp(id)]);
+  // The pot counts fees actually in (lib/prizePool countPaidEntries), not every approved sign-up.
+  const [paid, cofferFunded] = await Promise.all([countPaidEntries(id), eventPoolGp(id)]);
+  const approvedCount = paid.count;
   const prizePool = computePrizePool({
     addedPrizePool: event.addedPrizePool,
     signupFee: event.signupFee,
     approvedCount,
+    paidFeesGp: paid.gp,
     cofferFunded,
   });
 
@@ -397,7 +401,7 @@ export default async function EventScoreboardPage({
   const prizeBreakdownParts: string[] = [];
   if ((event.signupFee ?? 0) > 0) {
     prizeBreakdownParts.push(
-      `${approvedCount} ${approvedCount === 1 ? 'entry' : 'entries'} × ${event.signupFee!.toLocaleString()} gp`,
+      `${approvedCount} paid ${approvedCount === 1 ? 'entry' : 'entries'} × ${event.signupFee!.toLocaleString()} gp`,
     );
   }
   if ((event.addedPrizePool ?? 0) > 0) {
@@ -676,7 +680,7 @@ export default async function EventScoreboardPage({
         <MomentsFeed moments={eventMoments} />
         <ScoreboardClient
           event={event}
-          tiles={boardTiles}
+          tiles={withSearchText(boardTiles)}
           teams={safeTeams}
           completions={eventCompletions}
           tierBands={tierBands}

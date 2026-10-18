@@ -4,12 +4,10 @@ import { useEffect, useState } from 'react';
 import Select from './Select';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, type TierBand } from '@/lib/tileFilter';
 import Input from '@/components/Input';
+import { tileMatchesSearch, type SearchableTile } from '@/lib/tileSearch';
 
-interface FilterTile {
+interface FilterTile extends SearchableTile {
   id: number;
-  label: string;
-  description?: string | null;
-  category?: string | null;
   points?: number | null;
 }
 
@@ -50,12 +48,7 @@ export default function BoardFilters({
         tiles
           .filter((t) => categoryFilter === 'all' || tileHasCategory(t.category, categoryFilter))
           .filter((t) => tierFilter === 'all' || tileTierKey(t.points, tierBands) === tierFilter)
-          .filter(
-            (t) =>
-              search === '' ||
-              t.label.toLowerCase().includes(search) ||
-              (t.description?.toLowerCase().includes(search) ?? false),
-          )
+          .filter((t) => tileMatchesSearch(t, search))
           .map((t) => t.id),
       ),
     );
