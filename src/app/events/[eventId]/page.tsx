@@ -29,7 +29,7 @@ import { loadEventFirsts } from '@/lib/eventFirsts';
 import MomentsFeed from '@/components/MomentsFeed';
 import { getEventLuck } from '@/lib/eventLuck';
 import EventLuck from './EventLuck';
-import { momentsForEvent } from '@/lib/momentsStore';
+import { eventFeed } from '@/lib/momentsStore';
 import { isPointsMode, eventShapeBadge } from '@/lib/utils';
 import { eventAxes } from '@/lib/eventAxes';
 import {
@@ -325,9 +325,9 @@ export default async function EventScoreboardPage({
   // The board's firsts — read in claim order, so they're a fact about the event rather than a
   // recomputation of the standings.
   const firsts = await loadEventFirsts(event.id, event.startDate);
-  // The week's colour: pets, big drops and deaths that happened while the board ran. Scoped at
-  // ingest (lib/moments), so this is a plain read — and never any part of the scoring.
-  const eventMoments = (await momentsForEvent(event.id, 12)).filter((moment) =>
+  // The week's colour: pets, clog slots, 1M+ drops and deaths that happened while the board ran
+  // (lib/moments isEventFeedWorthy) — never any part of the scoring.
+  const eventMoments = (await eventFeed(event.id, 12)).filter((moment) =>
     eventActivityIsValid(event, moment.occurredAt),
   );
   // Who the game was kind to this event, and who it wasn't (lib/eventLuck) — once it has started.

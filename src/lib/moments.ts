@@ -625,6 +625,33 @@ export function isClanWorthy(
   return (row.valueGp ?? 0) >= clan.minLootGp;
 }
 
+let clogIds: Set<number> | null = null;
+
+/** Every item with a collection-log slot. */
+function clogItemIds(): Set<number> {
+  if (clogIds) return clogIds;
+  clogIds = new Set();
+  for (const page of clogPageNames()) {
+    for (const item of clogPageItems(page)) clogIds.add(item.id);
+  }
+  return clogIds;
+}
+
+/** The haul size the board's feed shows whatever it is. */
+export const EVENT_FEED_MIN_GP = 1_000_000;
+
+/**
+ * Whether a stored board moment is worth a line in the board's feed. Ingest keeps generously —
+ * event luck counts every 1-in-128 Dragon boots, and an on-board boss's rune stacks are its tile's
+ * story — but a feed of four Vardorvis rune piles reads as spam. The feed shows pets, deaths,
+ * levels and combat tasks, plus drops that fill a collection-log slot or are worth at least 1M.
+ */
+export function isEventFeedWorthy(row: { kind: string; itemId?: number | null; valueGp?: number | null }): boolean {
+  if (row.kind !== 'unique' && row.kind !== 'loot') return true;
+  if (row.itemId != null && clogItemIds().has(row.itemId)) return true;
+  return (row.valueGp ?? 0) >= EVENT_FEED_MIN_GP;
+}
+
 /**
  * What this observation is to a competition week, or null when it's nothing to do with it.
  *

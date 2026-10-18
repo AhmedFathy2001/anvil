@@ -8,6 +8,7 @@ import { parseStamp } from '@/lib/dbTime';
 import {
   DEFAULT_CLAN_SCOPE,
   isClanWorthy,
+  isEventFeedWorthy,
   type ClanScope,
   classifyObservation,
   DEFAULT_MIN_LOOT_GP,
@@ -318,7 +319,17 @@ export async function momentsForCompetition(competitionId: number, limit = 12): 
     .limit(limit);
 }
 
-/** A board's feed, newest first. */
+/**
+ * A board's feed, newest first, as the board shows it (lib/moments isEventFeedWorthy). Reads a
+ * window several times the asked-for size, like the clan feed, so a burst of filtered-out rune
+ * stacks can't empty it.
+ */
+export async function eventFeed(eventId: number, limit = 12): Promise<MomentRow[]> {
+  const rows = await momentsForEvent(eventId, Math.min(limit * 12, 600));
+  return rows.filter(isEventFeedWorthy).slice(0, limit);
+}
+
+/** A board's moments, newest first — everything stored. */
 export async function momentsForEvent(eventId: number, limit = 20): Promise<MomentRow[]> {
   return db
     .select(MOMENT_COLUMNS)
