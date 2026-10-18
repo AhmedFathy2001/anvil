@@ -229,8 +229,9 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
       )}
 
       <div className="grid gap-6 lg:gap-8 items-start lg:grid-cols-[minmax(0,20rem)_1fr]">
-        {/* Summary column */}
-        <div className="space-y-5 lg:sticky lg:top-20">
+        {/* Summary column — pinned beside the board with its own scroll, so a long member list
+            never sends you up and down past the whole board to reach it. */}
+        <div className="space-y-5 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:pr-1">
           {/* Progress */}
           <div>
             <div className="flex justify-between text-sm mb-1">
@@ -325,7 +326,7 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
             />
           </div>
           {selectedMember && (
-            <aside className="min-w-0 xl:sticky xl:top-20 xl:flex xl:flex-col xl:max-h-[calc(100vh-6rem)]">
+            <aside className="min-w-0 order-first xl:order-none xl:sticky xl:top-20 xl:flex xl:flex-col xl:max-h-[calc(100vh-6rem)]">
               <div className="flex items-center justify-between gap-2 mb-2 shrink-0">
                 <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">Member detail</span>
                 <button
@@ -338,8 +339,9 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
                 </button>
               </div>
               {/* Own scroll region so paging through the panel never scrolls the page (which would
-                  trip the board's infinite scroll). */}
-              <div className="xl:min-h-0 xl:overflow-y-auto xl:pr-1">
+                  trip the board's infinite scroll). Below xl it sits above the board, capped, so
+                  reaching it never means scrolling past every tile. */}
+              <div className="max-h-[60vh] overflow-y-auto pr-1 xl:max-h-none xl:min-h-0">
                 <PlayerContributions
                   submissions={selectedMemberSubmissions}
                   tiles={tiles}
