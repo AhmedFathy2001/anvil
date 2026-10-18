@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeMemberBreakdown, computeIndividualStandings } from '../src/lib/memberBreakdown.ts';
+import { computeMemberBreakdown, computeIndividualStandings, teamEstimate } from '../src/lib/memberBreakdown.ts';
 
 // Two people on one team, plus a one-person team — the shape a ladder actually runs (every
 // competitor enrolled as their own team) next to the shape a bingo runs.
@@ -131,4 +131,24 @@ test('no estimate on finished tiles or outside points mode', () => {
   assert.equal(done.find((r) => r.playerId === 1)?.points, 50);
   const classic = computeMemberBreakdown({ ...args, scoringMode: 'classic', completions: [] });
   assert.equal(classic.find((r) => r.playerId === 1)?.estPoints, 0);
+});
+
+test('the team estimate sums members per tile, capped at each tile’s points', () => {
+  const rows = computeMemberBreakdown({
+    teamId: 10,
+    scoringMode: 'points',
+    players,
+    tiles: [
+      { id: 400, label: 'Each of you: 100 kills', points: 50, optional: 0, tileType: 'kill', requiredAmount: 100 },
+      { id: 401, label: '10M XP', points: 400, optional: 0, trackedStat: 'slayer', statType: 'skill', statGoal: 10_000_000 },
+    ],
+    completions: [],
+    submissions: [
+      { tileId: 400, teamId: 10, creditPlayerId: 1, amount: 80 },
+      { tileId: 400, teamId: 10, creditPlayerId: 2, amount: 70 },
+    ],
+    statGains: { 401: [{ playerId: 1, gained: 1_000_000 }] },
+  });
+  // 40 + 35 on a 50-pt tile caps at 50; plus 1M/10M of 400.
+  assert.equal(teamEstimate(rows), 90);
 });

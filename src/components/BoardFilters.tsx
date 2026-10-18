@@ -5,13 +5,14 @@ import Select from './Select';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, type TierBand } from '@/lib/tileFilter';
 import Input from '@/components/Input';
 import { tileMatchesSearch, type SearchableTile } from '@/lib/tileSearch';
+import { tileKindKey, tileKindOptions } from '@/lib/tileKinds';
 
 interface FilterTile extends SearchableTile {
   id: number;
   points?: number | null;
 }
 
-// Self-contained board filter bar (text search + content category + difficulty tier). Owns its own
+// Self-contained board filter bar (text search + content category + tile type + difficulty tier). Owns its own
 // filter state and reports the matching tile ids up via `onMatched` (null = no filter active). The
 // same logic the event scoreboard uses, extracted so every board surface can share it.
 export default function BoardFilters({
@@ -27,18 +28,22 @@ export default function BoardFilters({
 }) {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [tierFilter, setTierFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   const categories = tileCategories(tiles);
+  const typeOptions = tileKindOptions(tiles);
+  // One kind on the whole board leaves nothing to choose between.
+  const showTypeFilter = typeOptions.length > 2;
   // Tier bands only make sense when tiles carry distinct point values.
   const showTierFilter = pointsMode && tierBands.length > 0;
-  const showFilters = categories.length > 0 || showTierFilter;
+  const showFilters = categories.length > 0 || showTierFilter || showTypeFilter;
 
   // Recompute + report the matched set whenever a filter changes. Derived from the primitive filter
   // state (not a memo of a fresh Set) so it fires only on real changes, never in a render loop.
   useEffect(() => {
     const search = searchQuery.trim().toLowerCase();
-    const active = categoryFilter !== 'all' || tierFilter !== 'all' || search !== '';
+    const active = categoryFilter !== 'all' || tierFilter !== 'all' || typeFilter !== 'all' || search !== '';
     if (!active) {
       onMatched(null);
       return;
@@ -48,11 +53,12 @@ export default function BoardFilters({
         tiles
           .filter((t) => categoryFilter === 'all' || tileHasCategory(t.category, categoryFilter))
           .filter((t) => tierFilter === 'all' || tileTierKey(t.points, tierBands) === tierFilter)
+          .filter((t) => typeFilter === 'all' || tileKindKey(t) === typeFilter)
           .filter((t) => tileMatchesSearch(t, search))
           .map((t) => t.id),
       ),
     );
-  }, [categoryFilter, tierFilter, searchQuery, tiles, tierBands, onMatched]);
+  }, [categoryFilter, tierFilter, typeFilter, searchQuery, tiles, tierBands, onMatched]);
 
   return (
     <div className="mb-4">
@@ -86,7 +92,7 @@ export default function BoardFilters({
       </div>
 
       {showFilters && (
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
           {categories.length > 0 && (
             <Select
               value={categoryFilter}
@@ -94,6 +100,15 @@ export default function BoardFilters({
               options={[{ value: 'all', label: 'All categories' }, ...categories.map((c) => ({ value: c, label: c }))]}
               ariaLabel="Filter board by category"
               className="shrink-0 sm:w-48"
+            />
+          )}
+          {showTypeFilter && (
+            <Select
+              value={typeFilter}
+              onChange={setTypeFilter}
+              options={typeOptions}
+              ariaLabel="Filter board by tile type"
+              className="shrink-0 sm:w-44"
             />
           )}
           {showTierFilter && (

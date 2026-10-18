@@ -180,6 +180,21 @@ export const TILE_KIND_BADGES: Record<TileKindKey, { label: string; cls: string;
 /** The badge one tile wears on any authoring surface. */
 export const tileKindBadge = (tile: TileKindLike) => TILE_KIND_BADGES[tileKindKey(tile)];
 
+/**
+ * A board's "type" dropdown: All types, then only the kinds this board actually has, in picker
+ * order. A kind with no tiles would just be a way to empty the board.
+ */
+export function tileKindOptions(tiles: TileKindLike[]): { value: string; label: string }[] {
+  const present = new Set(tiles.map(tileKindKey));
+  return [
+    { value: 'all', label: 'All types' },
+    ...TILE_KIND_FILTERS.filter((f) => f.key !== 'all' && present.has(f.key)).map((f) => ({
+      value: f.key,
+      label: TILE_KIND_BADGES[f.key as TileKindKey].label,
+    })),
+  ];
+}
+
 /** The kind filter's options, in picker order. */
 export const TILE_KIND_FILTERS: { key: 'all' | TileKindKey; label: string }[] = [
   { key: 'all', label: 'All' },
