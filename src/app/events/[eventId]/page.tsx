@@ -59,6 +59,7 @@ import { canEnterEvent } from '@/lib/eventAccess';
 import EnterEvent from './EnterEvent';
 import { eventActivityIsValid } from '@/lib/completionGate';
 import LocalTime from '@/components/LocalTime';
+import { withSearchText } from '@/lib/tileSearchText';
 
 export const dynamic = 'force-dynamic';
 
@@ -679,7 +680,7 @@ export default async function EventScoreboardPage({
         <MomentsFeed moments={eventMoments} />
         <ScoreboardClient
           event={event}
-          tiles={boardTiles}
+          tiles={withSearchText(boardTiles)}
           teams={safeTeams}
           completions={eventCompletions}
           tierBands={tierBands}

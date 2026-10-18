@@ -16,6 +16,7 @@ import RotationView from './RotationView';
 import ActionMenu from '@/components/ActionMenu';
 import ManualOnlyBadge from '@/components/ManualOnlyBadge';
 import { isManualOnlyDropTile } from '@/lib/clogManual';
+import { tileMatchesSearch } from '@/lib/tileSearch';
 import Select from '@/components/Select';
 import Input from '@/components/Input';
 import { useModalA11y } from '@/hooks/useModalA11y';
@@ -82,20 +83,6 @@ function tileToTrackingInitial(tile: Tile) {
     missionRules: tile.rules ? parseTileMissionRules(tile.rules) : null,
     updatedAt: tile.updatedAt ?? null,
   };
-}
-
-// Text match for the tile search box — label, category, stat, description, or exact #position.
-// Shared by the Cards filter and the Quick Build left-pane search so both behave identically.
-// `q` is expected already trimmed + lowercased by the caller.
-function tileMatchesQuery(t: Tile, q: string): boolean {
-  if (!q) return true;
-  return (
-    !!t.label?.toLowerCase().includes(q) ||
-    !!t.category?.toLowerCase().includes(q) ||
-    !!t.trackedStat?.toLowerCase().includes(q) ||
-    !!t.description?.toLowerCase().includes(q) ||
-    String(t.position + 1) === q.replace(/^#/, '')
-  );
 }
 
 interface Props {
@@ -633,7 +620,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       if (kindFilter !== 'all' && tileKindKey(t) !== kindFilter) return false;
       if (categoryFilter !== 'all' && !tileHasCategory(t.category, categoryFilter)) return false;
       if (tierFilter !== 'all' && tileTierKey(t.points, tierBands) !== tierFilter) return false;
-      return tileMatchesQuery(t, q);
+      return tileMatchesSearch(t, q);
     });
   }, [boardOnly, search, kindFilter, categoryFilter, tierFilter, tierBands]);
 
@@ -643,7 +630,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   const gridFiltering = search.trim().length > 0;
   const gridTiles = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return q ? boardOnly.filter((t) => tileMatchesQuery(t, q)) : boardOnly;
+    return q ? boardOnly.filter((t) => tileMatchesSearch(t, q)) : boardOnly;
   }, [boardOnly, search]);
 
   // Collapse back to the first page whenever the result set changes.
