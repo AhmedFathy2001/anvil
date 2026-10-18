@@ -410,7 +410,8 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
                           : setPlaceAmounts((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))
                       }
                       inputMode="numeric"
-                      className="block rounded-lg px-2 py-1.5 text-right"
+                      // Room on the right for the % sign drawn over the field, so the number stops short of it.
+                      className={`block rounded-lg px-2 py-1.5 text-right ${mode === 'share' ? 'pr-7' : ''}`}
                     />
                     {mode === 'share' && (
                       <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-text-muted">
