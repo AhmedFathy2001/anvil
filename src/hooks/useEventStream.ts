@@ -51,6 +51,11 @@ interface UseEventStreamOptions {
   interval?: number; // Polling interval in ms (default 30s)
 }
 
+/** How often the board is checked for changes. Cheap: an unchanged board answers 304. */
+const PULSE_INTERVAL_MS = 10_000;
+/** The longest the admin view goes without a full pull, whatever the pulse says. */
+const FULL_REFRESH_MS = 5 * 60_000;
+
 export function useEventStream(
   eventId: number,
   options: UseEventStreamOptions = {}
@@ -66,7 +71,20 @@ export function useEventStream(
     onUpdateRef.current = onUpdate;
   }, [onUpdate]);
 
-  const fetchData = useCallback(async () => {
+  // Ask the cheap pulse first; pull the three full payloads only when it says the board moved.
+  //
+  // These are an event's EVERY completion, submission and tile — the heaviest reads an admin page
+  // makes — and they were re-downloaded on every tick whether or not anything had happened. The
+  // pulse (api/events/[id]/pulse) answers 304 with no body while the board is unchanged, and is
+  // collapsed server-side to one computation per ~5s across every viewer. So this can check MORE
+  // often than before for less work. A full pull still happens at least every FULL_REFRESH_MS, in
+  // case something the pulse does not fingerprint changed.
+  // Two fingerprints: the board (completions, submissions, tiles) and stat progress (KC/XP from
+  // plugin pushes and hiscores reads), which moves without touching the board token.
+  const etagsRef = useRef<Record<string, string | null>>({ board: null, stats: null });
+  const lastFullRef = useRef(0);
+
+  const pullFull = useCallback(async () => {
     try {
       const [completionsRes, submissionsRes, tilesRes] = await Promise.all([
         clanFetch(`/api/events/${eventId}/completions`),
@@ -81,6 +99,7 @@ export function useEventStream(
           tilesRes.json(),
         ]);
 
+        lastFullRef.current = Date.now();
         setConnected(true);
         setLastUpdate(new Date());
         onUpdateRef.current?.({ completions, submissions, tiles });
@@ -90,14 +109,45 @@ export function useEventStream(
     }
   }, [eventId]);
 
+  /** Did either fingerprint move since last time? Updates the stored ETags as a side effect. */
+  const pulseMoved = useCallback(async (): Promise<boolean> => {
+    const parts: [string, string][] = [
+      ['board', `/api/events/${eventId}/pulse`],
+      ['stats', `/api/events/${eventId}/pulse?part=stats`],
+    ];
+    const results = await Promise.all(
+      parts.map(async ([key, url]) => {
+        const prev = etagsRef.current[key];
+        const res = await clanFetch(url, { headers: prev ? { 'If-None-Match': prev } : undefined, cache: 'no-store' });
+        if (res.status === 304) return false;
+        if (!res.ok) return true; // can't tell — pull
+        etagsRef.current[key] = res.headers.get('ETag');
+        return prev !== null; // the first answer only seeds the token
+      }),
+    );
+    return results.some(Boolean);
+  }, [eventId]);
+
+  const fetchData = useCallback(async (force = false) => {
+    const due = Date.now() - lastFullRef.current >= FULL_REFRESH_MS;
+    let moved = true;
+    try {
+      moved = await pulseMoved();
+    } catch {
+      // The pulse is an optimisation; if it fails, pull.
+    }
+    if (force || due || moved) await pullFull();
+    else setConnected(true);
+  }, [pulseMoved, pullFull]);
+
   useEffect(() => {
     if (!enabled) return;
 
     // Initial fetch
-    fetchData();
+    fetchData(true);
 
-    // Set up interval polling
-    intervalRef.current = setInterval(fetchData, interval);
+    // Set up interval polling — against the pulse, so a tick on a quiet board costs a 304.
+    intervalRef.current = setInterval(() => fetchData(), Math.min(interval, PULSE_INTERVAL_MS));
 
     // Visibility change handler - fetch when tab becomes visible
     const handleVisibilityChange = () => {
@@ -108,7 +158,7 @@ export function useEventStream(
 
     // Online handler - fetch when coming back online
     const handleOnline = () => {
-      fetchData();
+      fetchData(true);
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -126,6 +176,7 @@ export function useEventStream(
   return {
     connected,
     lastUpdate,
-    refetch: fetchData,
+    // After the page's own write: always a full pull, whatever the fingerprints say.
+    refetch: () => fetchData(true),
   };
 }

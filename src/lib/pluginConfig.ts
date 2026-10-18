@@ -10,6 +10,7 @@ import { getItemMapping } from '@/lib/osrsItems';
 import { getItemPrices } from '@/lib/itemPrices';
 import { clogItemNames } from '@/lib/clogDataset';
 import { guaranteedDropsFor, parseGuaranteedOverrides, petFacts, type DropFacts } from '@/lib/dropFacts';
+import { ttlMemo } from '@/lib/ttlMemo';
 
 // Shared builders for the plugin's read-bootstrap. These back both the standalone
 // /api/plugin/schedule and /api/plugin/active-weekly routes (kept for older jars) and
@@ -101,6 +102,12 @@ export function runsPast(e: { endDate: string | null; forceEndedAt: string | nul
  * is listed to the clan. Access is unchanged — every one of these boards still opens for anyone
  * holding its link, exactly as before.
  */
+/**
+ * How long a clan's schedule rows are shared between config polls. Production only: tests (and dev)
+ * create or end a board and read the schedule straight back, and should see the query, not a memo.
+ */
+const SCHEDULE_ROWS_TTL_MS = process.env.NODE_ENV === 'production' ? 15_000 : 0;
+
 export async function buildSchedule(
   clanId: number,
   opts: {
@@ -115,17 +122,28 @@ export async function buildSchedule(
 
   // This clan's events AND the ones it CO-HOSTS (an accepted seat on another clan's board): a
   // co-host's members play those from their own clan, so their schedule has to list them.
-  const cohostedIds = (
-    await db
-      .select({ eventId: eventCohosts.eventId })
-      .from(eventCohosts)
-      .where(and(eq(eventCohosts.clanId, clanId), eq(eventCohosts.status, 'accepted')))
-  ).map((r) => r.eventId);
-  const [allEvents, allWeeklies] = await Promise.all([
-    // clan-scope: this clan -- its own events, plus the ones it holds an accepted co-host seat on.
-    db.select().from(events).where(cohostedIds.length ? or(eq(events.clanId, clanId), inArray(events.id, cohostedIds)) : eq(events.clanId, clanId)),
-    db.select().from(weeklyCompetitions).where(eq(weeklyCompetitions.clanId, clanId)),
-  ]);
+  //
+  // The same three reads for every member of the clan, on every config poll — so they are shared
+  // for SCHEDULE_ROWS_TTL_MS. Everything that depends on the viewer or on the clock is still worked
+  // out below, per request, against `nowIso`; a newly created or edited event shows within the TTL.
+  const { cohostedIds, allEvents, allWeeklies } = await ttlMemo(
+    `schedule-rows:${clanId}`,
+    async () => {
+      const cohostedIds = (
+        await db
+          .select({ eventId: eventCohosts.eventId })
+          .from(eventCohosts)
+          .where(and(eq(eventCohosts.clanId, clanId), eq(eventCohosts.status, 'accepted')))
+      ).map((r) => r.eventId);
+      const [allEvents, allWeeklies] = await Promise.all([
+        // clan-scope: this clan -- its own events, plus the ones it holds an accepted co-host seat on.
+        db.select().from(events).where(cohostedIds.length ? or(eq(events.clanId, clanId), inArray(events.id, cohostedIds)) : eq(events.clanId, clanId)),
+        db.select().from(weeklyCompetitions).where(eq(weeklyCompetitions.clanId, clanId)),
+      ]);
+      return { cohostedIds, allEvents, allWeeklies };
+    },
+    SCHEDULE_ROWS_TTL_MS,
+  );
   const cohosted = new Set(cohostedIds);
 
   const member = opts.member === true;

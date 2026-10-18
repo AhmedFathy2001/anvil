@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import { cache } from 'react';
 import { atLeast, type ClanRole } from '@/lib/clanRoles';
 import { clanGrant } from '@/lib/clanGrants';
 import { cohostBoardEventIds, grantedCohostedEventIds } from '@/lib/eventEditors';
@@ -18,6 +19,7 @@ import { recordForeignSighting } from '@/lib/accountSightings';
 import { IGNORED_STATUSES } from '@/lib/accountRelease';
 import { pickActivePluginEvent } from '@/lib/pluginEventPick';
 import { trackPluginRoute } from '@/lib/analytics';
+import { lastSeenIsFresh } from '@/lib/rosterSync';
 
 const ADMIN_SESSION_SECRET = requireSecret('ADMIN_SESSION_SECRET', 'dev-admin-secret');
 const CAPTAIN_SESSION_SECRET = requireSecret('CAPTAIN_SESSION_SECRET', 'dev-captain-secret');
@@ -148,7 +150,18 @@ export async function sessionUserIdForAnalytics(): Promise<number | null> {
   }
 }
 
-export async function verifyUser(): Promise<UserPayload | null> {
+/**
+ * Who is signed in, and what they may do in the clan this request is for.
+ *
+ * MEMOISED PER RENDER (React `cache`). A single admin page ran this five to seven times — the root
+ * layout, the admin layout, the event layout, the page and its guards — at three to six queries each,
+ * every one answering the same question about the same cookie. Within one server render the answer
+ * cannot change, so it is asked once. Outside a render (route handlers) `cache` is a pass-through and
+ * every call re-reads, exactly as before; nothing here is shared between requests.
+ */
+export const verifyUser = cache(verifyUserUncached);
+
+async function verifyUserUncached(): Promise<UserPayload | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get('admin_session')?.value;
   if (!token) return null;
@@ -881,9 +894,18 @@ export function autoClaimAllowed(
  * argument against either decision — re-adding a seat somebody deliberately ended, because they
  * logged in, is exactly the powerlessness that control was added to fix.
  */
+/** How stale `last_seen_in_clan` may get before a plugin play restamps it. */
+export const LAST_SEEN_REFRESH_MS = 15 * 60_000;
+
 async function seatOwnedCharacterAsGuest(clanId: number, accountId: number, nowIso: string): Promise<void> {
   const [seat] = await db
-    .select({ id: clanMemberships.id, kind: clanMemberships.kind, leftAt: clanMemberships.leftAt, source: clanMemberships.source })
+    .select({
+      id: clanMemberships.id,
+      kind: clanMemberships.kind,
+      leftAt: clanMemberships.leftAt,
+      source: clanMemberships.source,
+      lastSeenInClan: clanMemberships.lastSeenInClan,
+    })
     .from(clanMemberships)
     .where(and(eq(clanMemberships.clanId, clanId), eq(clanMemberships.accountId, accountId)))
     .limit(1);
@@ -895,7 +917,12 @@ async function seatOwnedCharacterAsGuest(clanId: number, accountId: number, nowI
   }
   if (seat.source === 'admin' || seat.source === 'manual') return;
   if (seat.leftAt == null) {
-    await db.update(clanMemberships).set({ lastSeenInClan: nowIso }).where(eq(clanMemberships.id, seat.id));
+    // "Last seen" is a date on a profile, refreshed hourly by roster sync — restamping it on every
+    // play (about once a minute per character) was over a million writes that moved nothing a person
+    // reads. Within LAST_SEEN_REFRESH_MS of the last stamp, leave it.
+    if (!lastSeenIsFresh(seat.lastSeenInClan, nowIso, LAST_SEEN_REFRESH_MS)) {
+      await db.update(clanMemberships).set({ lastSeenInClan: nowIso }).where(eq(clanMemberships.id, seat.id));
+    }
     return;
   }
   await db

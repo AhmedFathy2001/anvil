@@ -1,19 +1,8 @@
-// Per-IP fixed-window rate limiter backed by the app's own Turso DB.
+// Per-IP (or per-key) fixed-window rate limiter, held in this process's memory — see the store below.
 //
-// Used on the auth-adjacent /api/plugin/link endpoint to throttle brute-force
-// attempts against the 6-character link code. Sized for a small clan — no
-// external store, no extra env vars. The rate_limits table self-cleans via an
-// opportunistic DELETE on write (1-in-20 probability) so it never grows
-// unbounded.
-//
-// Fixed-window is fine here: bucket aliasing at window boundaries can let a
-// well-timed burst double the nominal limit, but the use case is gate-keeping,
-// not fair share.
+// Fixed-window is fine here: bucket aliasing at window boundaries can let a well-timed burst double
+// the nominal limit, but the use case is gate-keeping, not fair share.
 
-import { db } from '@/db';
-import { rateLimits } from '@/db/schema';
-import { lt, sql } from 'drizzle-orm';
-import { log } from '@/lib/logger';
 import { getClientIp } from '@/lib/clientIp';
 
 interface Options {
@@ -52,38 +41,60 @@ export async function rateLimitByKey(
   const windowStart = Math.floor(now / opts.windowMs) * opts.windowMs;
   const reset = windowStart + opts.windowMs;
   const key = `${scope}:${ident}:${windowStart}`;
-  const expiresAt = new Date(reset).toISOString();
 
-  try {
-    const rows = await db
-      .insert(rateLimits)
-      .values({ key, count: 1, expiresAt })
-      .onConflictDoUpdate({
-        target: rateLimits.key,
-        set: { count: sql`${rateLimits.count} + 1` },
-      })
-      .returning({ count: rateLimits.count });
+  const count = (buckets.get(key)?.count ?? 0) + 1;
+  buckets.set(key, { count, reset, limit: opts.limit });
+  // Swept on a clock, and when over capacity at most once a second — a full pass per request under a
+  // flood would itself be the denial of service.
+  if (now - lastSweep > SWEEP_EVERY_MS || (buckets.size > MAX_BUCKETS && now - lastSweep > 1_000)) sweep(now);
 
-    const count = rows[0]?.count ?? 1;
+  return {
+    ok: count <= opts.limit,
+    limit: opts.limit,
+    remaining: Math.max(0, opts.limit - count),
+    reset,
+  };
+}
 
-    // Opportunistic GC: 1-in-20 writes also clean up expired buckets.
-    if (Math.random() < 0.05) {
-      void db
-        .delete(rateLimits)
-        .where(lt(rateLimits.expiresAt, new Date(now).toISOString()))
-        .catch((err) => log.warn('ratelimit.gc-fail', {}, err));
+// ── The store: this process's memory ─────────────────────────────────────────────────────────────
+//
+// It used to be the database — an upsert per limited request, plus an opportunistic DELETE — which
+// on production meant over half a million writes to a table nobody reads, from the routes the plugin
+// calls most. One slot serves traffic at a time (blue-green), so a process-local window protects
+// exactly as well: during a slot switch each process counts on its own for a moment, which at worst
+// lets a burst through twice, and a restart forgets the counts — both fine for a throttle.
+const buckets = new Map<string, { count: number; reset: number; limit: number }>();
+const MAX_BUCKETS = 50_000;
+/** The hard ceiling: past it, the oldest buckets go whatever their state — memory must stay bounded. */
+const HARD_MAX_BUCKETS = 2 * MAX_BUCKETS;
+const SWEEP_EVERY_MS = 60_000;
+let lastSweep = 0;
+
+function sweep(now: number): void {
+  lastSweep = now;
+  for (const [k, b] of buckets) if (b.reset <= now) buckets.delete(k);
+  // Still over (a flood of distinct keys inside one window): drop the oldest buckets that are UNDER
+  // their limit. Never one that is over it — otherwise a caller who is being throttled could flood
+  // fresh keys to push their own bucket out and start again at zero.
+  if (buckets.size > MAX_BUCKETS) {
+    let extra = buckets.size - MAX_BUCKETS;
+    for (const [k, b] of buckets) {
+      if (extra <= 0) break;
+      if (b.count > b.limit) continue;
+      buckets.delete(k);
+      extra--;
     }
-
-    return {
-      ok: count <= opts.limit,
-      limit: opts.limit,
-      remaining: Math.max(0, opts.limit - count),
-      reset,
-    };
-  } catch (err) {
-    // If the DB itself is misbehaving, don't lock legitimate users out.
-    log.warn('ratelimit.store-error', { scope, ident }, err);
-    return { ok: true, limit: opts.limit, remaining: opts.limit, reset };
+  }
+  // A flood of keys that are ALL over their limit: protecting them stops being affordable. Reaching
+  // this takes ~100k distinct client networks inside one window (IPv6 is counted per /64 — see
+  // lib/clientIp bucketOf), which is a botnet, and no in-process throttle stops one of those anyway;
+  // bounded memory is the property worth keeping here.
+  if (buckets.size > HARD_MAX_BUCKETS) {
+    let extra = buckets.size - HARD_MAX_BUCKETS;
+    for (const k of buckets.keys()) {
+      if (extra-- <= 0) break;
+      buckets.delete(k);
+    }
   }
 }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { resolvePluginClan } from '@/lib/auth';
 import { getActiveWeekly } from '@/lib/pluginConfig';
+import { ttlMemo } from '@/lib/ttlMemo';
 
 // GET — returns the currently active weekly competition in THIS clan (if any). Used by older plugin
 // builds to decide whether to auto-enroll the signed-in player on login. Newer builds read the same
@@ -18,5 +19,6 @@ import { getActiveWeekly } from '@/lib/pluginConfig';
 export async function GET(request: Request) {
   const clan = await resolvePluginClan(request);
   if (!clan) return NextResponse.json(null);
-  return NextResponse.json(await getActiveWeekly(clan.id));
+  // Shared per clan for 15s — the same answer for every member's poll.
+  return NextResponse.json(await ttlMemo(`active-weekly:${clan.id}`, () => getActiveWeekly(clan.id), 15_000));
 }

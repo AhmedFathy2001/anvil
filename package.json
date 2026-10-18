@@ -56,6 +56,7 @@
     "test:homeclan": "npx tsx --test tests/home-clan.test.ts",
     "test:charrename": "npx tsx --test tests/character-rename.test.ts",
     "test:schedentry": "npx tsx --test tests/plugin-schedule-entry.test.ts",
+    "test:schedulevis": "npx tsx --test tests/plugin-schedule-visibility.test.ts",
     "test:entrypercharacter": "npx tsx --test tests/plugin-entry-per-character.test.ts",
     "test:participantnames": "npx tsx --test tests/participant-names-migration.test.ts",
     "test:accounttype": "npx tsx --test tests/account-type.test.ts",

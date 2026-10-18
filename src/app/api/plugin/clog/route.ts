@@ -159,10 +159,37 @@ export async function POST(request: Request) {
     // Replace the page: an item can leave a log page when Jagex reworks it, and a diff would leave
     // the stale row behind forever. Scoped to this page so other pages are untouched.
     const existing = await db
-      .select({ itemId: memberClogItems.itemId, firstSeenAt: memberClogItems.firstSeenAt, kcAtUnlock: memberClogItems.kcAtUnlock })
+      .select({ itemId: memberClogItems.itemId, quantity: memberClogItems.quantity, firstSeenAt: memberClogItems.firstSeenAt, kcAtUnlock: memberClogItems.kcAtUnlock })
       .from(memberClogItems)
       .where(and(eq(memberClogItems.accountId, member.accountId), eq(memberClogItems.pageName, name)));
     const previous = new Map(existing.map((r) => [r.itemId, r]));
+
+    // Counter lines as pushed, normalised the way they are stored, so they can be compared too.
+    const counts = raw?.counts;
+    const countRows =
+      counts && typeof counts === 'object' && !Array.isArray(counts)
+        ? Object.entries(counts as Record<string, unknown>)
+            .map(([label, value]) => ({ label: label.trim().slice(0, 80), count: int(value, MAX_COUNT) }))
+            .filter((r): r is { label: string; count: number } => !!r.label && r.count != null)
+            .slice(0, 12)
+            .map((r) => ({ accountId: member.accountId, pageName: name, label: r.label, count: r.count }))
+        : [];
+
+    // THE SAME PAGE AGAIN writes nothing. Opening the log re-sends every page the player looks at,
+    // and each one was deleted and re-inserted wholesale even when not one slot or count had moved.
+    const sameItems = previous.size === rows.length && rows.every((r) => previous.get(r.itemId)?.quantity === r.quantity);
+    if (sameItems) {
+      const storedCounts = await db
+        .select({ label: memberClogKc.label, count: memberClogKc.count })
+        .from(memberClogKc)
+        .where(and(eq(memberClogKc.accountId, member.accountId), eq(memberClogKc.pageName, name)));
+      const key = (xs: { label: string; count: number }[]) =>
+        xs.map((x) => `${x.label}=${x.count}`).sort().join('|');
+      if (key(storedCounts) === key(countRows)) {
+        pagesWritten++;
+        continue;
+      }
+    }
 
     await db
       .delete(memberClogItems)
@@ -206,18 +233,10 @@ export async function POST(request: Request) {
     }
 
     // Counter lines ("Abyssal Sire kills: 1,204"), replaced wholesale for the same reason.
-    const counts = raw?.counts;
     await db
       .delete(memberClogKc)
       .where(and(eq(memberClogKc.accountId, member.accountId), eq(memberClogKc.pageName, name)));
-    if (counts && typeof counts === 'object' && !Array.isArray(counts)) {
-      const countRows = Object.entries(counts as Record<string, unknown>)
-        .map(([label, value]) => ({ label: label.trim().slice(0, 80), count: int(value, MAX_COUNT) }))
-        .filter((r): r is { label: string; count: number } => !!r.label && r.count != null)
-        .slice(0, 12)
-        .map((r) => ({ accountId: member.accountId, pageName: name, label: r.label, count: r.count }));
-      if (countRows.length > 0) await db.insert(memberClogKc).values(countRows);
-    }
+    if (countRows.length > 0) await db.insert(memberClogKc).values(countRows);
 
     pagesWritten++;
   }

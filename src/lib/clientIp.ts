@@ -23,14 +23,33 @@
  */
 export function getClientIp(request: { headers: { get(name: string): string | null } }): string {
   const cf = request.headers.get('cf-connecting-ip');
-  if (cf && cf.trim()) return cf.trim();
+  if (cf && cf.trim()) return bucketOf(cf.trim());
   const fwd = request.headers.get('x-forwarded-for');
   if (fwd) {
     const parts = fwd
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean);
-    if (parts.length > 0) return parts[parts.length - 1]!; // proxy-APPENDED (rightmost) — trusted
+    if (parts.length > 0) return bucketOf(parts[parts.length - 1]!); // proxy-APPENDED (rightmost) — trusted
   }
   return 'unknown';
+}
+
+/**
+ * The unit a throttle should count: an IPv4 address as is, an IPv6 address by its /64.
+ *
+ * One household or server is handed a whole /64 — eighteen quintillion addresses — so per-address
+ * IPv6 limits are no limit at all: rotate the last half and every request is a stranger. The /64 is
+ * the smallest block one subscriber reliably holds, and the conventional unit for exactly this.
+ */
+export function bucketOf(ip: string): string {
+  if (!ip.includes(':')) return ip; // IPv4 (or an IPv4-mapped form already reduced by the proxy)
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(ip);
+  if (mapped) return mapped[1];
+  // Expand `::` so the first four hextets are where they belong, then keep them.
+  const [head, tail = ''] = ip.toLowerCase().split('::');
+  const h = head ? head.split(':') : [];
+  const t = tail ? tail.split(':') : [];
+  const full = [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill('0'), ...t];
+  return `${full.slice(0, 4).map((x) => x.replace(/^0+(?=.)/, '') || '0').join(':')}::/64`;
 }

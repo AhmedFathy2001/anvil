@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { resolvePluginClan, verifyPluginTokenUser } from '@/lib/auth';
+import { LAST_SEEN_REFRESH_MS, resolvePluginClan, verifyPluginTokenUser } from '@/lib/auth';
+import { lastSeenIsFresh } from '@/lib/rosterSync';
 import { clanMemberships, clanRoster, events, weeklyCompetitions } from '@/db/schema';
 import { findOrCreateAccount, findOrCreateSeat, findRosterSeat } from '@/lib/roster';
 import { eq, and, lte, gt, isNull, or } from 'drizzle-orm';
@@ -122,7 +123,7 @@ export async function POST(request: Request) {
   // A login ping is NOT roster evidence — never resurrect a departed row here.
   // Someone logging into the game hasn't rejoined the clan; only clan-sync (the in-game
   // roster) or an admin may clear leftAt. We only bump liveness for rows still in the roster.
-  if (!existing.leftAt && signedIn) {
+  if (!existing.leftAt && signedIn && !lastSeenIsFresh(existing.lastSeenInClan, new Date().toISOString(), LAST_SEEN_REFRESH_MS)) {
     await db
       .update(clanMemberships)
       .set({ lastSeenInClan: new Date().toISOString() })

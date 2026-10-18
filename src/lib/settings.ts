@@ -41,6 +41,7 @@ import { settings, teams } from '@/db/schema';
  * value ("explicitly off") distinct from absence ("use the default").
  */
 export async function getSetting(clanId: number, key: string): Promise<string | null> {
+  if (CACHE_ON) return (await clanSettings(clanId)).get(key) ?? null;
   const row = await db.query.settings.findFirst({
     where: and(eq(settings.clanId, clanId), eq(settings.key, key)),
   });
@@ -52,6 +53,7 @@ export async function getSetting(clanId: number, key: string): Promise<string | 
  * clan names, invite URLs, Discord ids, tokens.
  */
 export async function getSettingText(clanId: number, key: string): Promise<string | null> {
+  if (CACHE_ON) return (await clanSettings(clanId)).get(key)?.trim() || null;
   const row = await db.query.settings.findFirst({
     where: and(eq(settings.clanId, clanId), eq(settings.key, key)),
   });
@@ -66,6 +68,10 @@ export async function getSettingText(clanId: number, key: string): Promise<strin
  */
 export async function getSettingMap(clanId: number, keys: string[]): Promise<Map<string, string | null>> {
   if (keys.length === 0) return new Map();
+  if (CACHE_ON) {
+    const all = await clanSettings(clanId);
+    return new Map(keys.filter((k) => all.has(k)).map((k) => [k, all.get(k) ?? null]));
+  }
   const rows = await db
     .select({ key: settings.key, value: settings.value })
     .from(settings)
@@ -79,6 +85,7 @@ export async function setSetting(clanId: number, key: string, value: string | nu
     .insert(settings)
     .values({ clanId, key, value })
     .onConflictDoUpdate({ target: [settings.clanId, settings.key], set: { value } });
+  invalidateSettings(clanId);
 }
 
 /**
@@ -89,4 +96,39 @@ export async function setSetting(clanId: number, key: string, value: string | nu
  */
 export async function deleteSetting(clanId: number, key: string): Promise<void> {
   await db.delete(settings).where(and(eq(settings.clanId, clanId), eq(settings.key, key)));
+  invalidateSettings(clanId);
+}
+
+// ── A clan's settings, read once and kept a few seconds ──────────────────────────────────────────
+//
+// This table is about a hundred rows across every clan, and it was the most-read table on
+// production — tens of millions of single-key lookups, because a page, a plugin poll or a Discord
+// post each ask for a handful of keys one at a time. A clan's whole set is one small query, so read
+// it once and answer every key from memory for SETTINGS_TTL_MS.
+//
+// Writes through this module drop the clan's copy at once, so the process that saved a setting reads
+// it back immediately. Anything else (a second process mid blue-green switch, a raw write elsewhere)
+// is seen within the TTL. Production only: tests and dev write rows directly and read them straight
+// back, and should keep exercising the query.
+const CACHE_ON = process.env.NODE_ENV === 'production' && process.env.ANVIL_SETTINGS_CACHE !== 'off';
+const SETTINGS_TTL_MS = 10_000;
+const cache = new Map<number, { at: number; rows: Promise<Map<string, string | null>> }>();
+
+function clanSettings(clanId: number): Promise<Map<string, string | null>> {
+  const hit = cache.get(clanId);
+  if (hit && Date.now() - hit.at < SETTINGS_TTL_MS) return hit.rows;
+  const rows = db
+    .select({ key: settings.key, value: settings.value })
+    .from(settings)
+    .where(eq(settings.clanId, clanId))
+    .then((r) => new Map(r.map((x) => [x.key, x.value ?? null] as [string, string | null])));
+  // A failed read is not remembered: the next caller tries again.
+  rows.catch(() => cache.delete(clanId));
+  cache.set(clanId, { at: Date.now(), rows });
+  return rows;
+}
+
+/** Forget a clan's cached settings — for a write that bypasses setSetting (e.g. inside a transaction). */
+export function invalidateSettings(clanId: number): void {
+  cache.delete(clanId);
 }
