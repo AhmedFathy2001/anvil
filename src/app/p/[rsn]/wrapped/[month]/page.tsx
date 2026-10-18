@@ -233,23 +233,32 @@ export default async function MonthlyWrappedPage({ params }: { params: Promise<P
             <Section title="Events">
               <Rows>
                 {year.events.map((e) => (
-                  <Row
-                    key={e.eventId}
-                    left={
-                      e.cardKey != null ? (
-                        <ClanLink href={`/c/${e.clanSlug}/events/${e.eventId}/wrapped/p/${e.cardKey}`} className="hover:text-gold">{e.name}</ClanLink>
+                  <div key={e.eventId} className="px-4 py-3 space-y-1.5">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                      {e.cardKey != null ? (
+                        <ClanLink href={`/c/${e.clanSlug}/events/${e.eventId}/wrapped/p/${e.cardKey}`} className="font-medium hover:text-gold">
+                          {e.name}
+                        </ClanLink>
                       ) : (
-                        e.name
-                      )
-                    }
-                    right={[
-                      e.team ? `${ordinal(e.team.rank)} of ${e.team.of} · ${e.team.name}` : null,
-                      e.placeInTeam ? `${ordinal(e.placeInTeam.rank)} on the team` : null,
-                      ...e.awards,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  />
+                        <span className="font-medium">{e.name}</span>
+                      )}
+                      <span className="text-sm text-text-muted">
+                        {[
+                          e.team ? `${ordinal(e.team.rank)} of ${e.team.of} · ${e.team.name}` : null,
+                          e.placeInTeam ? `${ordinal(e.placeInTeam.rank)} on the team` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </span>
+                    </div>
+                    {e.awards.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {e.awards.map((a) => (
+                          <span key={a} className="rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-xs text-gold">{a}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 ))}
               </Rows>
             </Section>
