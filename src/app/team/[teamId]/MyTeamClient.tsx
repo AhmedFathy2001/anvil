@@ -374,6 +374,12 @@ export default function MyTeamClient({
           (c) => c.statType != null,
         )
       : [];
+  // Their open tiles' estimated points (points mode only — the breakdown leaves them 0 otherwise).
+  const selectedMemberEst = new Map(
+    (memberBreakdown.find((m) => m.playerId === selectedMemberId)?.contributions ?? [])
+      .filter((c) => c.estPoints > 0)
+      .map((c) => [c.tileId, c.estPoints] as const),
+  );
 
   return (
     <div>
@@ -650,6 +656,7 @@ export default function MyTeamClient({
                   tiles={tiles}
                   playerName={selectedMemberId === myPlayerId ? (myPlayerName || 'You') : selectedMember.name}
                   statContributions={selectedMemberStatContributions}
+                  estByTile={selectedMemberEst}
                 />
               </div>
             </aside>

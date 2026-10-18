@@ -1,6 +1,7 @@
 import { tileWeight } from './utils';
 import type { StatContributionSnapshot } from './statTracking';
 import { turnInsOnTile } from './turnIns';
+import { parseJsonArray } from './tileKinds';
 
 // One tile a member contributed to, with their amount on it (kills / drops / items / gp, or — for
 // skill/boss tiles — their XP or KC gain).
@@ -13,6 +14,11 @@ export interface MemberTileContribution {
   amount: number; // summed amount: kill/drop count, gp, or XP/KC gained
   count: number; // number of the member's submissions on this tile (0 for stat-tracked tiles)
   completed: boolean; // did the team complete this tile
+  // Open tiles only (points mode): what this work would be worth if the tile finished at this
+  // pace — the tile's points × the member's share of the GOAL (not of the team's progress, so
+  // 10 XP on a 10M tile is worth ~nothing even when nobody else has started). 0 when completed
+  // or when the kind has no measurable goal.
+  estPoints: number;
 }
 
 // Per-member contribution rollup for a single team.
@@ -28,6 +34,8 @@ export interface MemberContribution {
   tasks: number;
   // Distinct not-yet-completed tiles they've put work into — effort that hasn't scored yet.
   inProgress: number;
+  // Sum of their open tiles' estPoints, rounded — so a big grind that hasn't landed yet still shows.
+  estPoints: number;
   // Credited turn-ins (lib/turnIns): an auto-ping tile (one row per kill) counts once, discrete
   // turn-ins count one each. Kept for sort tiebreaks and the per-person facts.
   submissions: number;
@@ -100,6 +108,7 @@ export function rollupByOwner(
         if (ex) {
           ex.amount += c.amount;
           ex.count += c.count;
+          ex.estPoints += c.estPoints;
           ex.completed = ex.completed || c.completed;
         } else {
           byTile.set(c.tileId, { ...c });
@@ -114,6 +123,7 @@ export function rollupByOwner(
       points: grp.reduce((s, m) => s + m.points, 0),
       tasks: contributions.filter((c) => c.completed).length,
       inProgress: contributions.filter((c) => !c.completed).length,
+      estPoints: grp.reduce((s, m) => s + m.estPoints, 0),
       submissions,
       contributions,
       frozenAt: grp.every((m) => m.frozenAt) ? lead.frozenAt : null,
@@ -138,7 +148,35 @@ interface BreakdownTile {
   statType?: string | null; // 'skill' | 'boss'
   points?: number | null;
   optional?: number | null;
+  // What "done" means, for the open-tile estimate (see estimateGoal).
+  requiredAmount?: number | null;
+  statGoal?: number | null;
+  statBasis?: string | null;
+  itemRequirements?: string | null;
+  groupMode?: string | null;
 }
+
+/**
+ * The amount that finishes a tile, in the same unit as a member's contribution to it — or null
+ * when there isn't one to measure against: a milestone stat tile (a lifetime total, not a gain), a
+ * single-haul value tile (no haul short of the bar counts for anything), and "any N sets"
+ * collections (no single total).
+ */
+export function estimateGoal(tile: BreakdownTile): number | null {
+  if (tile.trackedStat) {
+    if (tile.statBasis === 'milestone') return null;
+    return tile.statGoal && tile.statGoal > 0 ? tile.statGoal : null;
+  }
+  if (tile.tileType === 'value') return null;
+  const reqs = parseJsonArray<{ requiredAmount?: number | null }>(tile.itemRequirements);
+  if (reqs.length > 0) {
+    if (tile.groupMode === 'any') return null;
+    const total = reqs.reduce((sum, r) => sum + Math.max(1, r?.requiredAmount ?? 1), 0);
+    return total > 0 ? total : null;
+  }
+  return Math.max(1, tile.requiredAmount ?? 1);
+}
+
 interface BreakdownCompletion {
   teamId: number;
   tileId: number;
@@ -298,6 +336,7 @@ export function computeMemberBreakdown(params: {
       const contributions: MemberTileContribution[] = [];
       let subCount = 0;
       let tasks = 0;
+      let estTotal = 0;
       if (byTile) {
         for (const [tileId, e] of byTile) {
           const tile = tileById.get(tileId);
@@ -305,6 +344,12 @@ export function computeMemberBreakdown(params: {
           // Turn-ins, not rows: a kill tile's 500 per-kill rows are one submission (lib/turnIns).
           if (!e.stat) subCount += turnInsOnTile(tile?.tileType, e.count);
           if (completed && tile && !tile.optional) tasks += 1;
+          let estPoints = 0;
+          if (!completed && tile && !tile.optional && scoringMode === 'points' && e.amount > 0) {
+            const goal = estimateGoal(tile);
+            if (goal) estPoints = tileWeight(scoringMode, tile.points) * Math.min(1, e.amount / goal);
+          }
+          estTotal += estPoints;
           contributions.push({
             tileId,
             label: tile?.label ?? `Tile #${tileId}`,
@@ -313,6 +358,7 @@ export function computeMemberBreakdown(params: {
             amount: e.amount,
             count: e.count,
             completed,
+            estPoints,
           });
         }
       }
@@ -327,6 +373,7 @@ export function computeMemberBreakdown(params: {
         points: Math.round(pointsByPlayer.get(p.id) ?? 0),
         tasks,
         inProgress,
+        estPoints: Math.round(estTotal),
         submissions: subCount,
         contributions,
         frozenAt: p.frozenAt ?? null,

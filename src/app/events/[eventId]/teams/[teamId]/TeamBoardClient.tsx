@@ -174,6 +174,12 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
           (c) => c.statType != null,
         )
       : [];
+  // Their open tiles' estimated points (points mode only — the breakdown leaves them 0 otherwise).
+  const selectedMemberEst = new Map(
+    (memberBreakdown.find((m) => m.playerId === selectedMemberId)?.contributions ?? [])
+      .filter((c) => c.estPoints > 0)
+      .map((c) => [c.tileId, c.estPoints] as const),
+  );
 
   const selectedTile = tiles.find((t) => t.id === selectedTileId);
   const selectedTileSubmissions = submissions.filter((s) => s.tileId === selectedTileId);
@@ -347,6 +353,7 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
                   tiles={tiles}
                   playerName={selectedMember.name}
                   statContributions={selectedMemberStatContributions}
+                  estByTile={selectedMemberEst}
                 />
               </div>
             </aside>

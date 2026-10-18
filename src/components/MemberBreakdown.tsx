@@ -13,6 +13,14 @@ import { formatContributionAmount } from '@/lib/tileKinds';
 //    elsewhere (full width). Used on the team boards where the breakdown and the detail are merged.
 //  • inline (no onSelect) — rows expand in place to a compact per-tile list. Used on the admin Stats
 //    tab, which has no room for a separate detail panel.
+const EST_HINT =
+  "Estimated points from tiles still in progress: each tile's points × how much of its goal this member has done on their own. Not scored until the tile is completed.";
+
+// Small shares read as "<1" rather than a misleading "0".
+export function formatEst(points: number): string {
+  return points >= 1 ? Math.round(points).toLocaleString() : '<1';
+}
+
 export default function MemberBreakdown({
   members,
   pointsMode,
@@ -83,6 +91,14 @@ export default function MemberBreakdown({
                   {m.points.toLocaleString()} pts
                 </span>
               )}
+              {pointsMode && m.estPoints > 0 && (
+                <span
+                  className="text-xs text-yellow-500/80 shrink-0 tabular-nums"
+                  title={EST_HINT}
+                >
+                  +{m.estPoints.toLocaleString()} est.
+                </span>
+              )}
               <span className="text-xs text-text-muted shrink-0 tabular-nums text-right">
                 {m.tasks} done
                 {m.inProgress > 0 && <span className="text-yellow-500/80"> · {m.inProgress} wip</span>}
@@ -101,6 +117,11 @@ export default function MemberBreakdown({
                     <span className="shrink-0 text-accent-green-light tabular-nums">
                       {formatContributionAmount(c)}
                     </span>
+                    {pointsMode && !c.completed && c.estPoints > 0 && (
+                      <span className="shrink-0 text-yellow-500/80 tabular-nums" title={EST_HINT}>
+                        ≈{formatEst(c.estPoints)} pts
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>
