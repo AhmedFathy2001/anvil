@@ -650,36 +650,16 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
                 />
               )}
               {showTierFilter && (
-                <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
-                  <button
-                    onClick={() => setTierFilter('all')}
-                    className={`shrink-0 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
-                      tierFilter === 'all'
-                        ? 'bg-gold/20 border-gold text-gold'
-                        : 'border-card-border text-text-muted hover:border-gold/40'
-                    }`}
-                  >
-                    All tiers
-                  </button>
-                  {tierBands.map((t, i) => (
-                    <button
-                      key={t.key}
-                      onClick={() => setTierFilter(t.key)}
-                      className={`shrink-0 text-xs px-2.5 py-1.5 rounded-lg border transition-colors inline-flex items-center gap-1.5 ${
-                        tierFilter === t.key
-                          ? 'bg-gold/20 border-gold text-gold'
-                          : 'border-card-border text-text-muted hover:border-gold/40'
-                      }`}
-                    >
-                      <span
-                        className="w-1.5 h-1.5 rounded-full"
-                        style={{ backgroundColor: tierColor(i, tierBands.length) }}
-                        aria-hidden
-                      />
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
+                <Select
+                  value={tierFilter}
+                  onChange={setTierFilter}
+                  options={[
+                    { value: 'all', label: 'All tiers' },
+                    ...tierBands.map((t, i) => ({ value: t.key, label: t.label, dot: tierColor(i, tierBands.length) })),
+                  ]}
+                  ariaLabel="Filter board by tier"
+                  className="shrink-0 sm:w-48"
+                />
               )}
               {filterActive && (
                 <button

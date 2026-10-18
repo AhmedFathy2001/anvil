@@ -1,5 +1,7 @@
 'use client';
 
+import Select from './Select';
+
 export type TileStatus = 'in_progress' | 'not_started' | 'completed';
 /** `open` = everything not yet completed (in progress + not started). */
 export type StatusFilter = 'all' | 'open' | TileStatus;
@@ -12,14 +14,15 @@ export interface StatusCounts {
   completed: number;
 }
 
-// Segmented status filter mirroring the plugin's collection-log "Bingo" tab (ALL / IN_PROGRESS /
-// NOT_STARTED / COMPLETED). Order matches the plugin's Status ordinal so incomplete work reads first.
+// Status filter mirroring the plugin's collection-log "Bingo" tab (ALL / IN_PROGRESS / NOT_STARTED /
+// COMPLETED). One choice, so a dropdown — a row of five chips ran off the side on a narrow column.
+// Order matches the plugin's Status ordinal so incomplete work reads first.
 const TABS: { key: StatusFilter; label: string; countKey: keyof StatusCounts; dot?: string }[] = [
-  { key: 'all', label: 'All', countKey: 'all' },
+  { key: 'all', label: 'All tiles', countKey: 'all' },
   { key: 'open', label: 'Not done', countKey: 'open' },
-  { key: 'in_progress', label: 'In progress', countKey: 'inProgress', dot: 'bg-gold' },
-  { key: 'not_started', label: 'Not started', countKey: 'notStarted', dot: 'bg-text-muted' },
-  { key: 'completed', label: 'Completed', countKey: 'completed', dot: 'bg-accent-green' },
+  { key: 'in_progress', label: 'In progress', countKey: 'inProgress', dot: 'var(--color-gold)' },
+  { key: 'not_started', label: 'Not started', countKey: 'notStarted', dot: 'var(--color-text-muted)' },
+  { key: 'completed', label: 'Completed', countKey: 'completed', dot: 'var(--color-accent-green)' },
 ];
 
 export default function BoardStatusTabs({
@@ -32,25 +35,12 @@ export default function BoardStatusTabs({
   counts: StatusCounts;
 }) {
   return (
-    <div className="flex items-center gap-1 overflow-x-auto pb-0.5 mb-3" role="tablist" aria-label="Filter tiles by status">
-      {TABS.map((t) => {
-        const active = value === t.key;
-        return (
-          <button
-            key={t.key}
-            role="tab"
-            aria-selected={active}
-            onClick={() => onChange(t.key)}
-            className={`shrink-0 text-xs px-2.5 py-1.5 rounded-lg border transition-colors inline-flex items-center gap-1.5 ${
-              active ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/40'
-            }`}
-          >
-            {t.dot && <span className={`w-1.5 h-1.5 rounded-full ${t.dot}`} aria-hidden />}
-            {t.label}
-            <span className={active ? 'text-gold/80' : 'text-text-muted/70'}>{counts[t.countKey]}</span>
-          </button>
-        );
-      })}
-    </div>
+    <Select
+      value={value}
+      onChange={(v) => onChange(v as StatusFilter)}
+      options={TABS.map((t) => ({ value: t.key, label: `${t.label} (${counts[t.countKey]})`, dot: t.dot }))}
+      ariaLabel="Filter tiles by status"
+      className="mb-3 sm:w-56"
+    />
   );
 }
