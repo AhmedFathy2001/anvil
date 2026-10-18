@@ -43,7 +43,7 @@ export async function rateLimitByKey(
   const key = `${scope}:${ident}:${windowStart}`;
 
   const count = (buckets.get(key)?.count ?? 0) + 1;
-  buckets.set(key, { count, reset });
+  buckets.set(key, { count, reset, limit: opts.limit });
   if (buckets.size > MAX_BUCKETS || now - lastSweep > SWEEP_EVERY_MS) sweep(now);
 
   return {
@@ -61,7 +61,7 @@ export async function rateLimitByKey(
 // calls most. One slot serves traffic at a time (blue-green), so a process-local window protects
 // exactly as well: during a slot switch each process counts on its own for a moment, which at worst
 // lets a burst through twice, and a restart forgets the counts — both fine for a throttle.
-const buckets = new Map<string, { count: number; reset: number }>();
+const buckets = new Map<string, { count: number; reset: number; limit: number }>();
 const MAX_BUCKETS = 50_000;
 const SWEEP_EVERY_MS = 60_000;
 let lastSweep = 0;
@@ -69,12 +69,16 @@ let lastSweep = 0;
 function sweep(now: number): void {
   lastSweep = now;
   for (const [k, b] of buckets) if (b.reset <= now) buckets.delete(k);
-  // Still over (a flood of distinct keys inside one window): drop the oldest, newest win.
+  // Still over (a flood of distinct keys inside one window): drop the oldest buckets that are UNDER
+  // their limit. Never one that is over it — otherwise a caller who is being throttled could flood
+  // fresh keys to push their own bucket out and start again at zero.
   if (buckets.size > MAX_BUCKETS) {
     let extra = buckets.size - MAX_BUCKETS;
-    for (const k of buckets.keys()) {
-      if (extra-- <= 0) break;
+    for (const [k, b] of buckets) {
+      if (extra <= 0) break;
+      if (b.count > b.limit) continue;
       buckets.delete(k);
+      extra--;
     }
   }
 }
