@@ -18,6 +18,7 @@ import { evaluateCompletionGate, eventHasStarted } from '@/lib/completionGate';
 import { creditStatTilesForTeam } from '@/lib/statTileCredit';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { log } from '@/lib/logger';
+import { ttlMemo } from '@/lib/ttlMemo';
 
 // Real-time boss-KC / skill-XP / activity ingest. The plugin posts {stats:[{name,kc}],
 // skills:[{name,xp}], activities:[{key,value}]} with
@@ -151,7 +152,11 @@ export async function POST(request: Request) {
   // capture from a live push would zero the session — the sweep sets the baseline from max(hiscores,
   // live)). currentValue climbs monotonically; a stale-baseline flush is spike-flagged here too.
   if (memberRow?.status === 'active') {
-    const activeComps = (await getActiveWeeklyMetrics(clan.id)).filter((c) => updatedKeys.has(c.metric));
+    // Shared per clan for 15s: every member's push asks the same question, and pushes are already
+    // debounced 15s client-side, so a competition that just started is picked up within one cycle.
+    const activeComps = (
+      await ttlMemo(`active-weekly-metrics:${clan.id}`, () => getActiveWeeklyMetrics(clan.id), 15_000)
+    ).filter((c) => updatedKeys.has(c.metric));
     for (const comp of activeComps) {
       const participant = await db.query.weeklyParticipants.findFirst({
         where: and(

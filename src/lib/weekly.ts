@@ -183,7 +183,8 @@ export type WeeklyValueOutcome =
   | 'first-captured'
   | 'updated'
   | 'negative-ignored'
-  | 'skipped-no-baseline';
+  | 'skipped-no-baseline'
+  | 'unchanged';
 
 /**
  * Apply one freshly-observed absolute stat value to a weekly participant. The single definition of
@@ -205,6 +206,13 @@ export async function applyWeeklyValue(u: WeeklyValueUpdate): Promise<{ outcome:
       .set({ baselineValue: u.value, currentValue: u.value, lastUpdated: nowIso })
       .where(eq(weeklyParticipants.id, u.participantId));
     return { outcome: 'first-captured', flagged: false };
+  }
+
+  // A LIVE PUSH that moves nothing writes nothing. The plugin re-sends what it already sent on every
+  // debounce cycle, and each one rewrote the row just to bump lastUpdated — the sweep's queue order,
+  // which a push has no business advancing (the sweep's own visits still do, below).
+  if (!u.allowFirstCapture && u.currentValue !== null && u.value <= u.currentValue) {
+    return { outcome: 'unchanged', flagged: false };
   }
 
   // Negative-gains guard: a lower fetched value than stored almost always means a different account

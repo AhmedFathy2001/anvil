@@ -3,7 +3,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { settings, users } from '@/db/schema';
 import { requireClan } from '@/lib/clanContext';
-import { getSetting } from '@/lib/settings';
+import { getSetting, invalidateSettings } from '@/lib/settings';
 import { verifyUser } from '@/lib/auth';
 import { atLeast } from '@/lib/clanRoles';
 import {
@@ -243,6 +243,8 @@ export async function PUT(request: Request) {
         await write('discord_guild_verified_id', targetGuildId || null);
       }
     });
+    // The writes above went through the transaction, not setSetting — drop the cached copy.
+    invalidateSettings(clan.id);
   } catch (error) {
     if (error instanceof GuildAlreadyClaimedError) {
       return NextResponse.json(

@@ -71,10 +71,12 @@ async function computeEventToken(eId: number): Promise<string> {
       count: sql<number>`count(*)`,
       revealed: sql<string | null>`max(${tiles.revealedAt})`,
       closed: sql<string | null>`max(${tiles.closedAt})`,
+      // A tile's text or goal edited in place: same count, same reveal — only this moves.
+      edited: sql<string | null>`max(${tiles.updatedAt})`,
     })
     .from(tiles)
     .where(eq(tiles.eventId, eId));
-  const ta = tileAgg[0] ?? { count: 0, revealed: null, closed: null };
+  const ta = tileAgg[0] ?? { count: 0, revealed: null, closed: null, edited: null };
 
   // Completions + submissions are keyed by tileId, so scope them to this event's tiles.
   const tileIds = (await db.select({ id: tiles.id }).from(tiles).where(eq(tiles.eventId, eId))).map((t) => t.id);
@@ -110,6 +112,7 @@ async function computeEventToken(eId: number): Promise<string> {
     Number(ta.count ?? 0),
     ta.revealed ?? '',
     ta.closed ?? '',
+    ta.edited ?? '',
     comp.count,
     comp.max ?? '',
     sub.count,

@@ -113,6 +113,9 @@ export async function savePersonalBests(
         achievedAt: sql`case when excluded.centis < ${memberPersonalBests.centis} then excluded.achieved_at else ${memberPersonalBests.achievedAt} end`,
         updatedAt: nowIso,
       },
+      // A row only changes when the push BEAT it. The plugin sends its whole set on a whim, and a
+      // tie or a slower time rewrote the row anyway — tens of thousands of writes that changed nothing.
+      setWhere: sql`excluded.centis < ${memberPersonalBests.centis}`,
     });
 
   return values.length;
