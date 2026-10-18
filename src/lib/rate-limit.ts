@@ -44,7 +44,9 @@ export async function rateLimitByKey(
 
   const count = (buckets.get(key)?.count ?? 0) + 1;
   buckets.set(key, { count, reset, limit: opts.limit });
-  if (buckets.size > MAX_BUCKETS || now - lastSweep > SWEEP_EVERY_MS) sweep(now);
+  // Swept on a clock, and when over capacity at most once a second — a full pass per request under a
+  // flood would itself be the denial of service.
+  if (now - lastSweep > SWEEP_EVERY_MS || (buckets.size > MAX_BUCKETS && now - lastSweep > 1_000)) sweep(now);
 
   return {
     ok: count <= opts.limit,
@@ -63,6 +65,8 @@ export async function rateLimitByKey(
 // lets a burst through twice, and a restart forgets the counts — both fine for a throttle.
 const buckets = new Map<string, { count: number; reset: number; limit: number }>();
 const MAX_BUCKETS = 50_000;
+/** The hard ceiling: past it, the oldest buckets go whatever their state — memory must stay bounded. */
+const HARD_MAX_BUCKETS = 2 * MAX_BUCKETS;
 const SWEEP_EVERY_MS = 60_000;
 let lastSweep = 0;
 
@@ -79,6 +83,14 @@ function sweep(now: number): void {
       if (b.count > b.limit) continue;
       buckets.delete(k);
       extra--;
+    }
+  }
+  // A flood of keys that are ALL over their limit: protecting them stops being affordable.
+  if (buckets.size > HARD_MAX_BUCKETS) {
+    let extra = buckets.size - HARD_MAX_BUCKETS;
+    for (const k of buckets.keys()) {
+      if (extra-- <= 0) break;
+      buckets.delete(k);
     }
   }
 }
