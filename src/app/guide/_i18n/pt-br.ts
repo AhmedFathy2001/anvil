@@ -814,7 +814,7 @@ const ptBr: PartialGuideDict = {
     title: 'Conduzindo seu primeiro evento',
     dek: 'O caminho inteiro, na ordem em que você vai realmente percorrê-lo: deixar {clanName} configurado, trazer o quadro de membros, montar um tabuleiro, formar os times, dar a largada e distribuir os prêmios. Grosso modo o trabalho de uma noite no primeiro bingo —— minutos no segundo.',
     facts: [
-      { strong: '4 passos', rest: 'no assistente de configuração' },
+      { strong: '5 passos', rest: 'na lista de configuração' },
       { strong: '7 formatos', rest: 'para montar um tabuleiro' },
       { strong: '1 botão', rest: 'para sincronizar a lista do clã' },
     ],
@@ -852,7 +852,7 @@ const ptBr: PartialGuideDict = {
     setup: {
       title: 'Dê nome ao clã, conecte o Discord',
       intro:
-        '**System → Setup** é um assistente de quatro passos, e o painel mantém os mesmos quatro como uma lista de conferência até estarem prontos: dar nome ao clã, conectar o Discord, criar um evento, adicionar casas. O status é calculado a partir de dados reais, então um passo só é marcado quando está genuinamente concluído.',
+        '**System → Setup** é um assistente curto, e o painel mantém uma lista de conferência de cinco passos até estarem prontos: dar nome ao clã, conectar o Discord, carregar seus membros, criar um evento, adicionar casas. O status é calculado a partir de dados reais, então um passo só é marcado quando está genuinamente concluído.',
       discord:
         'Para o Discord você tem dois caminhos, e eles se somam: dê ao Anvil um **bot** e ele poderá criar webhooks, sincronizar cargos e apelidos e montar canais privados de time; dê a ele uma única **URL de webhook** e ele poderá publicar anúncios e nada mais. Comece pelo webhook se quer estar no ar em dois minutos, e adicione o bot quando quiser a automação.',
       permsNote: {

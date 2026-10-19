@@ -814,7 +814,7 @@ const it: PartialGuideDict = {
     title: 'Organizzare il primo evento',
     dek: 'Tutto il percorso, nell’ordine in cui lo farai davvero: configurare {clanName}, portare dentro il roster, costruire un tabellone, comporre le squadre, far partire la cosa e distribuire i premi. Grosso modo il lavoro di una serata per il primo bingo —— minuti per il secondo.',
     facts: [
-      { strong: '4 passi', rest: 'nella procedura guidata' },
+      { strong: '5 passi', rest: 'nella lista di controllo di configurazione' },
       { strong: '7 formati', rest: 'da cui costruire un tabellone' },
       { strong: '1 pulsante', rest: 'per sincronizzare il roster' },
     ],
@@ -852,7 +852,7 @@ const it: PartialGuideDict = {
     setup: {
       title: 'Dai un nome al clan, collega Discord',
       intro:
-        '**System → Setup** è una procedura guidata in quattro passi, e la dashboard tiene gli stessi quattro come lista di controllo finché non sono fatti: nomina il clan, collega Discord, crea un evento, aggiungi caselle. Lo stato è calcolato su dati reali, quindi un passo si spunta solo quando è davvero concluso.',
+        '**System → Setup** è una procedura guidata breve, e la dashboard tiene una lista di controllo in cinque passi finché non sono fatti: nomina il clan, collega Discord, carica i tuoi membri, crea un evento, aggiungi caselle. Lo stato è calcolato su dati reali, quindi un passo si spunta solo quando è davvero concluso.',
       discord:
         'Per Discord hai due strade, e si combinano: dai ad Anvil un **bot** e potrà creare webhook, sincronizzare ruoli e nickname e costruire canali privati per le squadre; dagli un singolo **URL di webhook** e potrà pubblicare annunci e nient’altro. Parti dal webhook se vuoi essere operativo in due minuti, aggiungi il bot quando vuoi l’automazione.',
       permsNote: {

@@ -130,8 +130,10 @@ function TierCard({ plan }: { plan: Plan }) {
         ))}
       </ul>
 
+      {/* The tier rides along: the create form ends on that tier's Gumroad checkout, which is where the
+          trial actually starts. Without it every button led to the same free form and stopped there. */}
       <ClanLink
-        href="/clans/new"
+        href={plan.priceUsd ? `/clans/new?plan=${plan.id}` : '/clans/new'}
         className={`mt-5 rounded-lg px-4 py-2.5 text-center text-sm font-semibold transition-colors ${
           plan.popular
             ? 'bg-gold text-brown-dark hover:bg-gold-light'

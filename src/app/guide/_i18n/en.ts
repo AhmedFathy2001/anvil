@@ -807,7 +807,7 @@ export const en = {
     title: 'Running your first event',
     dek: 'The whole path, in the order you’ll actually walk it: get {clanName} configured, get the roster in, build a board, draft teams, start the thing, and hand out the prizes. Roughly an evening’s work for a first bingo — minutes for the second.',
     facts: [
-      { strong: '4 steps', rest: 'in the setup wizard' },
+      { strong: '5 steps', rest: 'on the setup checklist' },
       { strong: '7 formats', rest: 'to build a board from' },
       { strong: '1 button', rest: 'to sync the clan roster' },
     ],
@@ -845,7 +845,7 @@ export const en = {
     setup: {
       title: 'Name the clan, connect Discord',
       intro:
-        '**System → Setup** is a four-step wizard, and the dashboard keeps the same four as a checklist until they’re done: name the clan, connect Discord, create an event, add tiles. Status is computed from real data, so a step only ticks when it’s genuinely finished.',
+        '**System → Setup** is a short wizard, and the dashboard keeps a five-step checklist until it’s done: name the clan, connect Discord, load your members, create an event, add tiles. Status is computed from real data, so a step only ticks when it’s genuinely finished.',
       discord:
         'For Discord you have two routes, and they compose: give Anvil a **bot** and it can create webhooks, sync roles and nicknames, and build private team channels for you; give it a single **webhook URL** and it can post announcements and nothing else. Start with the webhook if you want to be live in two minutes, add the bot when you want the automation.',
       permsNote: {

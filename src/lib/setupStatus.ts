@@ -1,17 +1,17 @@
 import { db } from '@/db';
 import { getSettingMap } from '@/lib/settings';
-import { clans, events, tiles } from '@/db/schema';
-import { and, count, eq } from 'drizzle-orm';
+import { clanMemberships, clans, events, tiles } from '@/db/schema';
+import { and, count, eq, isNull } from 'drizzle-orm';
 import { writtenTile } from '@/lib/writtenTiles';
 
-// The four "zero-to-first-bingo" milestones a fresh clan needs to hit. Step status is
+// The five "zero-to-first-bingo" milestones a fresh clan needs to hit. Step status is
 // always computed live from real data (settings + counts) so the dashboard checklist and
 // the wizard's Done screen can never disagree or go stale. The `setup_completed` flag is
 // only advisory — it decides whether we auto-open the wizard / show the card, never
 // whether a step is "done".
 
 export interface SetupStep {
-  key: 'clan' | 'discord' | 'event' | 'tiles';
+  key: 'clan' | 'discord' | 'members' | 'event' | 'tiles';
   label: string;
   hint: string;
   done: boolean;
@@ -81,13 +81,18 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
   // counted everybody's, so a brand-new clan with nothing in it opened the checklist with two of
   // four steps already ticked and the wizard's Done screen congratulating it. Tiles reach their clan
   // through their event; there is no tiles.clan_id to filter on.
-  const [[ec], [tc]] = await Promise.all([
+  const [[ec], [tc], [mc]] = await Promise.all([
     db.select({ c: count() }).from(events).where(eq(events.clanId, clanId)),
     db
       .select({ c: count() })
       .from(tiles)
       .innerJoin(events, eq(tiles.eventId, events.id))
       .where(and(eq(events.clanId, clanId), writtenTile)),
+    // Live member seats — guests from other clans don't make a roster.
+    db
+      .select({ c: count() })
+      .from(clanMemberships)
+      .where(and(eq(clanMemberships.clanId, clanId), isNull(clanMemberships.leftAt), eq(clanMemberships.kind, 'member'))),
   ]);
   const eventsCount = ec?.c ?? 0;
   const tilesCount = tc?.c ?? 0;
@@ -106,6 +111,15 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
       hint: 'Let Anvil post event announcements to your server.',
       done: !!webhookUrl,
       href: '/admin/setup',
+    },
+    // The owner alone is a roster of one — the same line the dashboard's "member list is empty" uses.
+    // Without members nobody can sign up, which a clan only found out when its first event sat empty.
+    {
+      key: 'members',
+      label: 'Load your members',
+      hint: 'Sync your member list from the Anvil plugin in game — one button. Sign-ups need it.',
+      done: (mc?.c ?? 0) > 1,
+      href: '/admin/people',
     },
     {
       key: 'event',

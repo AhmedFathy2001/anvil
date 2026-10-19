@@ -148,6 +148,27 @@ test('a board of untouched "Tile N" placeholders is not tiles added', async () =
   assert.equal((await step()).done, true, 'a configured tile counts even under a placeholder name');
 });
 
+test('the members step waits for a real roster, not just the owner', async () => {
+  // The owner alone is a roster of one, which is what every clan has the minute it is made — and
+  // nobody else can sign up for anything until the list is loaded.
+  const { db, schema: s } = await loadDb();
+  const [c] = await db.insert(s.clans).values({ slug: 'roster-step', name: 'Roster Step', status: 'active' }).returning();
+  const step = async () => (await S.getSetupStatus(c.id)).steps.find((x) => x.key === 'members')!;
+  const seat = async (rsn: string, kind: 'member' | 'guest' = 'member') => {
+    const [p] = await db.insert(s.players).values({ displayName: rsn }).returning();
+    const [a] = await db.insert(s.accounts).values({ playerId: p.id, rsn, rsnNormalized: rsn.toLowerCase() }).returning();
+    await db.insert(s.clanMemberships).values({ clanId: c.id, accountId: a.id, kind });
+  };
+  await seat('RosterOwner');
+  assert.equal((await step()).done, false, 'one seat is just the owner');
+  await seat('RosterGuest', 'guest');
+  assert.equal((await step()).done, false, 'a guest is not a roster');
+  await seat('RosterMember');
+  assert.equal((await step()).done, true);
+  // Later tests count every seat in the database.
+  await db.delete(s.clanMemberships).where(eq(s.clanMemberships.clanId, c.id));
+});
+
 test('the busy clan is still credited with its own work', async () => {
   const status = await S.getSetupStatus(busyClan);
   const step = (k: string) => status.steps.find((x) => x.key === k)!;

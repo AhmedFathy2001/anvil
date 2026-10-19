@@ -822,7 +822,7 @@ const nl: PartialGuideDict = {
     title: 'Zo draai je je eerste event',
     dek: 'De hele route, in de volgorde waarin je hem echt aflegt: {clanName} instellen, de ledenlijst binnenhalen, een bord bouwen, teams draften, het geheel starten, en de prijzen uitdelen. Ongeveer een avond werk voor de eerste bingo — minuten voor de tweede.',
     facts: [
-      { strong: '4 stappen', rest: 'in de instelwizard' },
+      { strong: '5 stappen', rest: 'op de instelchecklist' },
       { strong: '7 formats', rest: 'om een bord van te bouwen' },
       { strong: '1 knop', rest: 'om de ledenlijst te synchroniseren' },
     ],
@@ -860,7 +860,7 @@ const nl: PartialGuideDict = {
     setup: {
       title: 'Noem de clan, koppel Discord',
       intro:
-        '**System → Setup** is een wizard van vier stappen, en het dashboard houdt diezelfde vier als checklist tot ze klaar zijn: noem de clan, koppel Discord, maak een event aan, voeg vakjes toe. De status wordt uit echte gegevens berekend, dus een stap wordt pas afgevinkt als hij echt af is.',
+        '**System → Setup** is een korte wizard, en het dashboard houdt een checklist van vijf stappen tot ze klaar zijn: noem de clan, koppel Discord, laad je leden, maak een event aan, voeg vakjes toe. De status wordt uit echte gegevens berekend, dus een stap wordt pas afgevinkt als hij echt af is.',
       discord:
         'Voor Discord heb je twee routes, en ze vullen elkaar aan: geef Anvil een **bot**, dan kan hij webhooks aanmaken, rollen en bijnamen synchroniseren en privé teamkanalen bouwen; geef hem één **webhook-URL**, dan kan hij aankondigingen posten en verder niets. Begin met de webhook als je binnen twee minuten live wil zijn, en voeg de bot toe wanneer je de automatisering wil.',
       permsNote: {

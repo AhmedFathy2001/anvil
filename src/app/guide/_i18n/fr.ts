@@ -823,7 +823,7 @@ const fr: PartialGuideDict = {
     title: 'Organiser votre premier événement',
     dek: 'Tout le chemin, dans l’ordre où vous le parcourrez vraiment : configurer {clanName}, faire entrer la liste des membres, construire une grille, drafter les équipes, lancer le tout, et distribuer les prix. Environ une soirée de travail pour le premier bingo — quelques minutes pour le deuxième.',
     facts: [
-      { strong: '4 étapes', rest: 'dans l’assistant de configuration' },
+      { strong: '5 étapes', rest: 'dans la liste de configuration' },
       { strong: '7 formats', rest: 'pour construire une grille' },
       { strong: '1 bouton', rest: 'pour synchroniser la liste des membres' },
     ],
@@ -861,7 +861,7 @@ const fr: PartialGuideDict = {
     setup: {
       title: 'Nommer le clan, relier Discord',
       intro:
-        '**System → Setup** est un assistant en quatre étapes, et le tableau de bord garde les mêmes quatre sous forme de liste jusqu’à ce qu’elles soient faites : nommer le clan, relier Discord, créer un événement, ajouter des cases. Le statut est calculé à partir de vraies données, une étape n’est donc cochée que lorsqu’elle est réellement terminée.',
+        '**System → Setup** est un assistant court, et le tableau de bord garde une liste de cinq étapes jusqu’à ce qu’elles soient faites : nommer le clan, relier Discord, charger vos membres, créer un événement, ajouter des cases. Le statut est calculé à partir de vraies données, une étape n’est donc cochée que lorsqu’elle est réellement terminée.',
       discord:
         'Pour Discord vous avez deux voies, et elles se combinent : donnez un **bot** à Anvil et il pourra créer des webhooks, synchroniser rôles et surnoms, et construire des salons d’équipe privés ; donnez-lui une simple **URL de webhook** et il pourra publier des annonces et rien d’autre. Commencez par le webhook si vous voulez être en ligne en deux minutes, ajoutez le bot quand vous voulez l’automatisation.',
       permsNote: {

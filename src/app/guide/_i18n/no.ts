@@ -821,7 +821,7 @@ const no: PartialGuideDict = {
     title: 'Slik kjører du ditt første event',
     dek: 'Hele veien, i den rekkefølgen du faktisk går den: få {clanName} satt opp, få inn medlemslista, bygg et brett, draft lag, dra i gang det hele og del ut premiene. Omtrent en kvelds arbeid for den første bingoen — minutter for den andre.',
     facts: [
-      { strong: '4 trinn', rest: 'i oppsettsveiviseren' },
+      { strong: '5 trinn', rest: 'på oppsettsjekklisten' },
       { strong: '7 formater', rest: 'å bygge et brett av' },
       { strong: '1 knapp', rest: 'for å synkronisere medlemslista' },
     ],
@@ -859,7 +859,7 @@ const no: PartialGuideDict = {
     setup: {
       title: 'Gi klanen navn, koble til Discord',
       intro:
-        '**System → Setup** er en veiviser i fire trinn, og dashbordet beholder de samme fire som en sjekkliste til de er ferdige: gi klanen navn, koble til Discord, opprett et event, legg til ruter. Statusen regnes ut fra ekte data, så et trinn hukes først av når det virkelig er ferdig.',
+        '**System → Setup** er en kort veiviser, og dashbordet beholder en sjekkliste i fem trinn til de er ferdige: gi klanen navn, koble til Discord, last inn medlemmene dine, opprett et event, legg til ruter. Statusen regnes ut fra ekte data, så et trinn hukes først av når det virkelig er ferdig.',
       discord:
         'For Discord har du to veier, og de lar seg kombinere: gi Anvil en **bot**, så kan den opprette webhooks, synkronisere roller og kallenavn og bygge private lagkanaler; gi den én enkelt **webhook-URL**, så kan den poste kunngjøringer og ingenting annet. Start med webhooken hvis du vil være i gang på to minutter, og legg til boten når du vil ha automatikken.',
       permsNote: {

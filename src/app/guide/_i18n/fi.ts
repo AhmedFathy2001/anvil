@@ -822,7 +822,7 @@ const fi: PartialGuideDict = {
     title: 'Näin pyörität ensimmäisen tapahtumasi',
     dek: 'Koko polku siinä järjestyksessä jossa sen oikeasti kuljet: saa {clanName} konfiguroitua, saa jäsenlista sisään, rakenna taulu, draftaa joukkueet, käynnistä koko homma ja jaa palkinnot. Suunnilleen illan työ ensimmäiselle bingolle — minuutteja toiselle.',
     facts: [
-      { strong: '4 vaihetta', rest: 'käyttöönottovelhossa' },
+      { strong: '5 vaihetta', rest: 'käyttöönoton tarkistuslistalla' },
       { strong: '7 formaattia', rest: 'joista rakentaa taulu' },
       { strong: '1 painike', rest: 'jäsenlistan synkronointiin' },
     ],
@@ -860,7 +860,7 @@ const fi: PartialGuideDict = {
     setup: {
       title: 'Nimeä klaani, yhdistä Discord',
       intro:
-        '**System → Setup** on neljän vaiheen velho, ja työpöytä pitää samat neljä tarkistuslistana kunnes ne on tehty: nimeä klaani, yhdistä Discord, luo tapahtuma, lisää ruudut. Tila lasketaan oikeasta datasta, joten vaihe kuittautuu vasta kun se on aidosti valmis.',
+        '**System → Setup** on lyhyt velho, ja työpöytä pitää viiden vaiheen tarkistuslistan kunnes ne on tehty: nimeä klaani, yhdistä Discord, lataa jäsenet, luo tapahtuma, lisää ruudut. Tila lasketaan oikeasta datasta, joten vaihe kuittautuu vasta kun se on aidosti valmis.',
       discord:
         'Discordiin on kaksi reittiä, ja ne täydentävät toisiaan: anna Anvilille **botti**, niin se voi luoda webhookeja, synkronoida rooleja ja nimimerkkejä sekä rakentaa yksityisiä joukkuekanavia; anna sille yksi **webhook-osoite**, niin se voi julkaista ilmoituksia eikä mitään muuta. Aloita webhookista jos haluat olla pystyssä kahdessa minuutissa, ja lisää botti kun haluat automatiikan.',
       permsNote: {

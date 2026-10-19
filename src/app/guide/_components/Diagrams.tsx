@@ -1,4 +1,4 @@
-// Diagrams for the admin guide: the four-step setup wizard, the shape of Discord's add-a-bot consent
+// Diagrams for the admin guide: the five-step setup checklist, the shape of Discord's add-a-bot consent
 // screen, and the states a hosted clan site passes through before it's live.
 //
 // Drawn with divs + a little inline SVG in the site's own theme tokens — deliberately NOT screenshots.
@@ -44,7 +44,7 @@ function Arrow({ vertical }: { vertical?: boolean }) {
 // ── The setup wizard ─────────────────────────────────────────────────────────────────────────────
 
 /** Glyphs for each step's screen: a field, a connection, a board, a filled board. */
-function StepGlyph({ kind }: { kind: 'field' | 'link' | 'board' | 'tiles' }) {
+function StepGlyph({ kind }: { kind: 'field' | 'link' | 'members' | 'board' | 'tiles' }) {
   if (kind === 'field') {
     return (
       <span className="flex h-6 w-full items-center rounded border border-card-border bg-brown-dark px-1.5" aria-hidden>
@@ -59,6 +59,19 @@ function StepGlyph({ kind }: { kind: 'field' | 'link' | 'board' | 'tiles' }) {
         <span className="h-5 w-5 shrink-0 rounded-lg bg-text-muted/30" />
         <Arrow />
         <span className="h-5 w-5 shrink-0 rounded-lg border border-gold/50 bg-gold/20" />
+      </span>
+    );
+  }
+  if (kind === 'members') {
+    // A short roster: a few rows of name bars, the way the synced member list reads.
+    return (
+      <span className="flex h-6 w-full flex-col justify-center gap-[3px]" aria-hidden>
+        {[10, 8, 9].map((w, i) => (
+          <span key={i} className="flex items-center gap-1">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-gold/70" />
+            <span className="h-1.5 rounded-sm bg-text-muted/40" style={{ width: `${w * 4}px` }} />
+          </span>
+        ))}
       </span>
     );
   }
@@ -77,18 +90,19 @@ function StepGlyph({ kind }: { kind: 'field' | 'link' | 'board' | 'tiles' }) {
   );
 }
 
-const SETUP_STEPS: { n: number; title: string; body: string; glyph: 'field' | 'link' | 'board' | 'tiles' }[] = [
+const SETUP_STEPS: { n: number; title: string; body: string; glyph: 'field' | 'link' | 'members' | 'board' | 'tiles' }[] = [
   { n: 1, title: 'Name the clan', body: 'What members see across the site.', glyph: 'field' },
   { n: 2, title: 'Connect Discord', body: 'A webhook, a bot, or both.', glyph: 'link' },
-  { n: 3, title: 'Create an event', body: 'Pick a format; it shapes the rest.', glyph: 'board' },
-  { n: 4, title: 'Add tiles', body: 'By hand, from a template, or a spreadsheet.', glyph: 'tiles' },
+  { n: 3, title: 'Load your members', body: 'One button in the plugin, in game.', glyph: 'members' },
+  { n: 4, title: 'Create an event', body: 'Pick a format; it shapes the rest.', glyph: 'board' },
+  { n: 5, title: 'Add tiles', body: 'By hand, from a template, or a spreadsheet.', glyph: 'tiles' },
 ];
 
 export function SetupStepsDiagram() {
   return (
     <Figure
-      label="The four setup steps: name the clan, connect Discord, create an event, add tiles"
-      caption="System → Setup, and the same four as a dashboard checklist. Each step ticks off real data, not a box you clicked — so a half-finished board still reads as unfinished."
+      label="The five setup steps: name the clan, connect Discord, load your members, create an event, add tiles"
+      caption="The setup checklist on your dashboard. Each step ticks off real data, not a box you clicked — so a half-finished board still reads as unfinished."
     >
       <ol className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
         {SETUP_STEPS.map((s, i) => (

@@ -11,7 +11,16 @@ import Input from '@/components/Input';
  * application, no bot invite, no "we're building your site, check back in a few minutes". A clan is
  * a row, so it exists as soon as this succeeds and the button goes straight there.
  */
-export default function NewClanClient({ apex, signedIn }: { apex: string; signedIn: boolean }) {
+export default function NewClanClient({
+  apex,
+  signedIn,
+  trialPlan,
+}: {
+  apex: string;
+  signedIn: boolean;
+  /** A paid tier picked on /pricing — the form then ends on its Gumroad checkout. */
+  trialPlan: { id: string; name: string; trialDays: number } | null;
+}) {
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [inGameName, setInGameName] = useState('');
@@ -21,6 +30,7 @@ export default function NewClanClient({ apex, signedIn }: { apex: string; signed
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
 
   // Suggest the slug from the display name — or the in-game name when no display name is given, since
   // that is now the required field — until they edit the slug themselves, then leave it alone.
@@ -71,13 +81,14 @@ export default function NewClanClient({ apex, signedIn }: { apex: string; signed
       const res = await fetch('/api/clans', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, slug, inGameName }),
+        body: JSON.stringify({ name, slug, inGameName, plan: trialPlan?.id }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(j.error ?? `Failed (${res.status})`);
         return;
       }
+      setCheckoutUrl(j.checkoutUrl ?? null);
       setDone(j.clan?.slug ?? slug);
     } finally {
       setBusy(false);
@@ -97,9 +108,28 @@ export default function NewClanClient({ apex, signedIn }: { apex: string; signed
           Nothing to wait for — it is already serving, at{' '}
           <code className="text-gold">{apex}{home}</code>. You are its owner.
         </p>
+        {checkoutUrl && trialPlan && (
+          <div className="mt-4 rounded-lg border border-gold/40 bg-gold/[0.06] p-4">
+            <p className="text-sm text-gray-200">
+              One step for the {trialPlan.name} trial: start it on Gumroad. Nothing is charged for{' '}
+              {trialPlan.trialDays} days, and the clan moves to {trialPlan.name} as soon as Gumroad confirms.
+            </p>
+            <a
+              href={checkoutUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-block rounded-xl bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light"
+            >
+              Start {trialPlan.trialDays}-day {trialPlan.name} trial
+            </a>
+            <p className="mt-2 text-[12.5px] text-text-dim">
+              Skipped it? It&rsquo;s on <ClanLink href="/portal" className="underline">Billing</ClanLink> whenever you want it.
+            </p>
+          </div>
+        )}
         <p className="mt-4 text-sm text-gray-300">
-          Four things left: name it in Discord, point it at a channel, make a board, fill it. The
-          wizard walks all four and knows which you have done.
+          A few things left: name it in Discord, point it at a channel, load your members, make a board,
+          fill it. The checklist on your dashboard walks them and knows which you have done.
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
           {/* ClanLink, not a raw anchor, and it matters here more than almost anywhere: these cross
@@ -130,7 +160,8 @@ export default function NewClanClient({ apex, signedIn }: { apex: string; signed
           Sign in with Discord first — a clan needs an owner, and that is how we know who you are.
         </p>
         <a
-          href="/login?return=/clans/new"
+          // eslint-disable-next-line clan-scope/clan-prefix -- apex-only page; login keeps the picked tier
+          href={`/login?return=${encodeURIComponent(trialPlan ? `/clans/new?plan=${trialPlan.id}` : '/clans/new')}`}
           className="mt-4 inline-block rounded-xl border border-gold/40 px-4 py-2.5 text-sm text-gold"
         >
           Sign in with Discord

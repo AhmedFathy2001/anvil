@@ -814,7 +814,7 @@ const pl: PartialGuideDict = {
     title: 'Prowadzenie pierwszego wydarzenia',
     dek: 'Cała droga, w kolejności, w jakiej naprawdę ją przejdziesz: skonfiguruj {clanName}, wciągnij skład, zbuduj planszę, złóż drużyny, odpal całość i rozdaj nagrody. Z grubsza wieczór pracy przy pierwszym bingo —— minuty przy drugim.',
     facts: [
-      { strong: '4 kroki', rest: 'w kreatorze konfiguracji' },
+      { strong: '5 kroków', rest: 'na liście kontrolnej konfiguracji' },
       { strong: '7 formatów', rest: 'z których zbudujesz planszę' },
       { strong: '1 przycisk', rest: 'do synchronizacji składu klanu' },
     ],
@@ -852,7 +852,7 @@ const pl: PartialGuideDict = {
     setup: {
       title: 'Nazwij klan, podłącz Discorda',
       intro:
-        '**System → Setup** to czterokrokowy kreator, a pulpit trzyma te same cztery kroki jako listę kontrolną, dopóki nie zostaną wykonane: nazwij klan, podłącz Discorda, utwórz wydarzenie, dodaj pola. Status liczony jest z prawdziwych danych, więc krok odhacza się dopiero, gdy jest naprawdę skończony.',
+        '**System → Setup** to krótki kreator, a pulpit trzyma listę kontrolną z pięciu kroków, dopóki nie zostaną wykonane: nazwij klan, podłącz Discorda, wczytaj członków, utwórz wydarzenie, dodaj pola. Status liczony jest z prawdziwych danych, więc krok odhacza się dopiero, gdy jest naprawdę skończony.',
       discord:
         'Do Discorda masz dwie drogi i one się uzupełniają: daj Anvil **bota**, a będzie mógł tworzyć webhooki, synchronizować role i pseudonimy oraz budować prywatne kanały drużyn; daj mu jeden **URL webhooka**, a będzie mógł publikować ogłoszenia i nic więcej. Zacznij od webhooka, jeśli chcesz działać w dwie minuty, a bota dodaj, gdy zechcesz automatyzacji.',
       permsNote: {

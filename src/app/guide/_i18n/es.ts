@@ -822,7 +822,7 @@ const es: PartialGuideDict = {
     title: 'Cómo organizar tu primer evento',
     dek: 'El camino entero, en el orden en que lo vas a recorrer de verdad: dejar {clanName} configurado, meter la lista de miembros, montar un tablero, repartir equipos por draft, arrancarlo todo, y repartir los premios. Como una tarde de trabajo para el primer bingo — minutos para el segundo.',
     facts: [
-      { strong: '4 pasos', rest: 'en el asistente de configuración' },
+      { strong: '5 pasos', rest: 'en la lista de configuración' },
       { strong: '7 formatos', rest: 'para montar un tablero' },
       { strong: '1 botón', rest: 'para sincronizar la lista de miembros' },
     ],
@@ -860,7 +860,7 @@ const es: PartialGuideDict = {
     setup: {
       title: 'Nombra el clan, conecta Discord',
       intro:
-        '**System → Setup** es un asistente de cuatro pasos, y el panel mantiene esos mismos cuatro como lista de tareas hasta que estén hechos: nombrar el clan, conectar Discord, crear un evento, añadir casillas. El estado se calcula con datos reales, así que un paso solo se marca cuando está genuinamente terminado.',
+        '**System → Setup** es un asistente breve, y el panel mantiene una lista de tareas de cinco pasos hasta que estén hechos: nombrar el clan, conectar Discord, cargar tus miembros, crear un evento, añadir casillas. El estado se calcula con datos reales, así que un paso solo se marca cuando está genuinamente terminado.',
       discord:
         'Para Discord tienes dos vías, y se combinan: dale a Anvil un **bot** y podrá crear webhooks, sincronizar roles y apodos, y montar canales privados de equipo; dale una sola **URL de webhook** y podrá publicar anuncios y nada más. Empieza por el webhook si quieres estar en marcha en dos minutos, y añade el bot cuando quieras la automatización.',
       permsNote: {
