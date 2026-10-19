@@ -62,7 +62,7 @@ export function nextStep(e: NextStepInput): NextStep {
         title: e.tileCount === 0 ? `Add your ${e.noun.many}` : `Add ${plural(left, `more ${e.noun.one}`, `more ${e.noun.many}`)}`,
         body:
           e.tileCount === 0
-            ? `Write them one by one, paste a list, or pull them from the task library. Plain ${e.noun.many} like “Get a Zenyte shard” are fine.`
+            ? `Click a ${e.noun.one} and type the task (“zenyte shard”, “100 zulrah”) and it’s set up to track itself. Or fill the whole board from the task library in one go.`
             : `${e.tileCount} of ${e.expectedTiles} are written. Finish the board before you open sign-ups.`,
         action: { kind: 'link', label: e.tileCount === 0 ? `Add ${e.noun.many}` : `Finish the ${e.noun.many}`, tab: 'tiles' },
       };

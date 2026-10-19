@@ -110,7 +110,7 @@ export default function SkillTileGenerator({ open: controlledOpen, onOpenChange,
         return;
       }
       const summary = `${shortXp(goal)} XP × ${skills.length} skill${skills.length === 1 ? '' : 's'}${pts !== undefined ? ` @ ${pts} pts` : ''}`;
-      onCreated({ created: data.created ?? 0, ignored: data.ignored ?? 0, label: summary });
+      onCreated({ created: (data.applied ?? 0) + (data.created ?? 0), ignored: data.ignored ?? 0, label: summary });
       // Stay open for the next batch — clear the skill picks, keep goal/points as a starting point.
       setLastBatch(`Added ${summary}.`);
       setSelected(new Set());

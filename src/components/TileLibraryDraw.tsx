@@ -26,8 +26,8 @@ export default function TileLibraryDraw({
   onDrawn,
   bands = DEFAULT_TIER_BANDS,
 }: {
-  /** How many tiles the board needs, when it's fixed (create form). Omit on the Tiles tab, where a
-   *  draw is appended to an existing board and any size is valid. */
+  /** How many tiles the board needs, when it's fixed (the create form, or a grid's blank tiles on
+   *  the Tiles tab). Omit on a board that can grow, where any size is valid. */
   target?: number;
   drawn: LibraryTask[] | null;
   onDrawn: (tasks: LibraryTask[] | null) => void;
@@ -73,6 +73,22 @@ export default function TileLibraryDraw({
       const want = Math.round(target * (weights[b.key] ?? 1 / bands.length));
       next[b.key] = Math.min(have, want);
     });
+    // Rounding each tier on its own can land one over or under (25 → 26); settle the difference on
+    // the biggest tiers so the draw fills the board exactly when the library can.
+    const order = [...bands].sort((x, y) => (next[y.key] ?? 0) - (next[x.key] ?? 0));
+    let sum = Object.values(next).reduce((x, y) => x + y, 0);
+    for (let guard = 0; sum > target && guard < 100; guard++) {
+      const b = order.find((o) => (next[o.key] ?? 0) > 0);
+      if (!b) break;
+      next[b.key] -= 1;
+      sum -= 1;
+    }
+    for (let guard = 0; sum < target && guard < 100; guard++) {
+      const b = order.find((o) => (next[o.key] ?? 0) < (meta.tierCounts[o.key] ?? 0));
+      if (!b) break;
+      next[b.key] += 1;
+      sum += 1;
+    }
     setCounts(next);
   }, [meta, target, bands, counts]);
 

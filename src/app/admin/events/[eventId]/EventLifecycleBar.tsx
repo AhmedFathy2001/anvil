@@ -1,3 +1,6 @@
+'use client';
+
+import { usePathname } from 'next/navigation';
 import type { LifecycleStep } from '@/lib/eventStage';
 import ClanLink from '@/components/ClanLink';
 
@@ -6,15 +9,23 @@ import ClanLink from '@/components/ClanLink';
  *
  * Exactly one step is lit (lib/eventStage decides which), and each step links to the surface that
  * moves it forward — so "what do I do next" is answerable without opening anything.
+ *
+ * `homeOnly` (bingo boards): only on the event home. On every other tab it sat right under the
+ * event's own rail and listed the same places again, so a page opened on two navigations before its
+ * content. A weekly has no rail, so there it stays on every tab as the navigation.
  */
 export default function EventLifecycleBar({
   steps,
   hrefFor,
+  homeOnly = false,
 }: {
   steps: LifecycleStep[];
   /** Where each step goes when clicked, by step key. A weekly's steps differ from a board's. */
   hrefFor: Record<string, string>;
+  homeOnly?: boolean;
 }) {
+  const pathname = usePathname();
+  if (homeOnly && !pathname?.replace(/\/$/, '').endsWith(hrefFor.running ?? '')) return null;
   return (
     <ol
       className={`grid grid-cols-3 ${

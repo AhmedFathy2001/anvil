@@ -315,7 +315,7 @@ export default function ClogGenerator({ open: controlledOpen, onOpenChange, hide
         onError(data.error || 'Could not create tiles.');
         return;
       }
-      onCreated({ created: data.created ?? 0, ignored: data.ignored ?? 0, activity });
+      onCreated({ created: (data.applied ?? 0) + (data.created ?? 0), ignored: data.ignored ?? 0, activity });
       // Back to the page picker (with a note) instead of closing — generating several pages
       // back-to-back is the common flow when building a board.
       const doneActivity = activity;

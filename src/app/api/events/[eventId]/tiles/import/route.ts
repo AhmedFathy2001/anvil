@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
+import { planTileImport } from '@/lib/tileImportPlan';
 import { db } from '@/db';
 import { tiles, events } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -555,6 +556,10 @@ export async function POST(
   for (const r of rows) {
     if (r && typeof r === 'object' && typeof (r as ImportRow).tileType === 'string') {
       (r as ImportRow).tileType = (r as ImportRow).tileType!.trim().toLowerCase();
+      // The task-library seed once wrote XP tasks as type "stat"; clans copied those rows into their
+      // own library, and every draw that included one failed here as an unknown type. An XP tile is a
+      // standard tile with a statType.
+      if ((r as ImportRow).tileType === 'stat') (r as ImportRow).tileType = 'standard';
     }
   }
 
@@ -568,23 +573,19 @@ export async function POST(
   const existingCount = eventTiles.length;
   // Extra/appended rows become new tiles only on dynamic (Leagues/race) boards, pre-start, up to the cap.
   const canGrow = !isClassicGrid && !eventStarted;
-  if (appendMode && !canGrow) {
-    return NextResponse.json(
-      { error: 'Appending tiles needs a Leagues or Tile-race board that hasn\'t started yet.' },
-      { status: 400 },
-    );
-  }
-  // Non-append: row i updates the tile at position i; surplus rows create tiles. Append: every row
-  // is a create, so there are no updates and the create rows start at row 0.
-  const updates = appendMode ? 0 : Math.min(rows.length, existingCount);
-  const createRowOffset = appendMode ? 0 : existingCount;
-  const creates = appendMode
-    ? Math.min(rows.length, Math.max(0, MAX_TILES - existingCount))
-    : canGrow
-      ? Math.max(0, Math.min(rows.length - existingCount, MAX_TILES - existingCount))
-      : 0;
+  // Append fills blank placeholders before it grows anything — see lib/tileImportPlan.
+  const plan = planTileImport({
+    rowCount: rows.length,
+    tiles: eventTiles,
+    append: appendMode,
+    canGrow,
+    started: eventStarted,
+    maxTiles: MAX_TILES,
+  });
+  if (!plan.ok) return NextResponse.json({ error: plan.error }, { status: 400 });
+  const { targets, updates, creates, ignored } = plan;
+  const createRowOffset = updates;
   const processed = updates + creates;
-  const ignored = rows.length - processed;
 
   // Item config is only applied pre-start (it sets the tile kind). Load the merged item mapping
   // once if any row carries items, index it by name + id, then fail loudly on any name that
@@ -654,13 +655,12 @@ export async function POST(
       );
     }
     // Existing tiles validate against their DB state (and the event's real started flag);
-    // new tiles validate against a blank template and are always pre-start. In append mode every
-    // processed row is a new tile, so none count as existing.
-    const isExisting = !appendMode && i < existingCount;
+    // new tiles validate against a blank template and are always pre-start.
+    const isExisting = i < updates;
     const kindErr = validateRowKind(
       i,
       row,
-      isExisting ? eventTiles[i] : BLANK_TILE,
+      isExisting ? targets[i] : BLANK_TILE,
       isExisting ? eventStarted : false,
       derivedList[i],
     );
@@ -676,11 +676,11 @@ export async function POST(
   await db.transaction(async (tx) => {
     for (let i = 0; i < updates; i++) {
       const updateSet = tileFieldsFromRow(rows[i] as ImportRow, !eventStarted, derivedList[i]);
-      if (isNoopUpdate(updateSet, eventTiles[i] as unknown as Record<string, unknown>)) {
+      if (isNoopUpdate(updateSet, targets[i] as unknown as Record<string, unknown>)) {
         unchanged++;
         continue;
       }
-      await tx.update(tiles).set(updateSet).where(eq(tiles.id, eventTiles[i].id));
+      await tx.update(tiles).set(updateSet).where(eq(tiles.id, targets[i].id));
       applied++;
     }
     for (let j = 0; j < creates; j++) {

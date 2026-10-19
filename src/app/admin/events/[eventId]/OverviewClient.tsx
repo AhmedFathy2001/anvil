@@ -19,6 +19,8 @@ import { NextStepPanel, ProofsToCheck, useStartNow } from './EventNextStep';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { type EventStage, type StageCounts } from '@/lib/eventStage';
 import { findBoardProblems, type BoardProblem } from '@/lib/boardMisconfig';
+import { isPlaceholderTile } from '@/lib/placeholderTile';
+import { parseEventRules } from '@/lib/eventRules';
 import LiveFixPanel from './LiveFixPanel';
 import type { RecordedTeamResult } from '@/lib/adminEventsOverview';
 import { clanFetch } from '@/lib/clanFetch';
@@ -138,6 +140,22 @@ export default function OverviewClient({
   const topScore = standings[0]?.score ?? 0;
 
   // Recomputed from the streamed tiles, so fixing a tile clears it from the panel without a reload.
+  // Written tiles nothing counts by itself: a Standard tile with no stat (what typing a label and
+  // stopping gives you), or one with auto-crediting switched off. Fine for screenshot tasks — but a
+  // board of "Zenyte shard" tiles that never track is the commonest first-bingo mistake.
+  const handTiles = useMemo(
+    () =>
+      localTiles.filter(
+        (t) =>
+          !isPlaceholderTile(t) &&
+          (!!t.autoTrackDisabled || ((t.tileType ?? 'standard') === 'standard' && !t.trackedStat)),
+      ).length,
+    [localTiles],
+  );
+  const parsedRules = useMemo(() => parseEventRules(currentEvent.rules), [currentEvent.rules]);
+  const missionOn = parsedRules.mission != null;
+  const startProofOn = parsedRules.startProof != null;
+  const missionsAllowed = supportsMissions(eventAxes(currentEvent));
   const problems = useMemo(
     () => findBoardProblems(localTiles, { pointsMode }),
     [localTiles, pointsMode],
@@ -207,6 +225,8 @@ export default function OverviewClient({
           event={currentEvent}
           counts={counts}
           noun={noun}
+          problems={problems}
+          handTiles={handTiles}
         />
       )}
 
@@ -255,25 +275,43 @@ export default function OverviewClient({
         />
       )}
 
-      {/* Missions — mid-event hidden-objective controls. Hidden on a ladder, whose whole board is
-          already a pool of announced objectives, and after the event ends. */}
-      {stage !== 'wrap' && (
-        <MissionAdminPanel
-          event={currentEvent}
-          tiles={localTiles}
-          allowed={supportsMissions(eventAxes(currentEvent))}
-        />
+      {/* Missions and the starting shot are extras. Switched on, they're in use and stay out in the
+          open (the starting shot becomes the review list once the event is live). Switched off, they
+          fold into one "Extras" row — on a first classic bingo they used to sit right under "Add your
+          tiles", two more things that looked required. A starting shot can't be added once the event
+          has started, so it isn't offered then. Ladder month-end stays as it was. */}
+      {stage !== 'wrap' && (missionOn || startProofOn) && (
+        <>
+          {missionOn && missionsAllowed && <MissionAdminPanel event={currentEvent} tiles={localTiles} allowed />}
+          {startProofOn && <StartProofAdminPanel event={currentEvent} />}
+        </>
       )}
 
-      {/* Month end — only a ladder has months worth closing: its monthly board is a window over the
-          same completions the all-time one reads, so the month ending is a moment, not a reset. */}
       {stage !== 'wrap' && (
         <MonthEndPanel event={currentEvent} allowed={isLadderFormat(currentEvent.format)} />
       )}
 
-      {/* Starting shot — the anti-stack proof everyone files at the start (lib/startProof). Turned
-          on while building; becomes the review list once the event is live. */}
-      {stage !== 'wrap' && <StartProofAdminPanel event={currentEvent} />}
+      {stage !== 'wrap' && ((!missionOn && missionsAllowed) || (!startProofOn && stage === 'build')) && (
+        <details className="group rounded-xl border border-card-border bg-card-bg">
+          <summary className="cursor-pointer list-none px-5 py-3.5 flex items-center justify-between gap-3">
+            <span>
+              <span className="font-semibold">Extras</span>
+              <span className="text-sm text-text-muted">
+                {' · '}
+                {[!missionOn && missionsAllowed && 'missions', !startProofOn && stage === 'build' && 'starting shot']
+                  .filter(Boolean)
+                  .join(', ')}{' '}
+                — optional, off
+              </span>
+            </span>
+            <span className="text-text-muted transition-transform group-open:rotate-90" aria-hidden="true">›</span>
+          </summary>
+          <div className="px-5 pb-5 space-y-6">
+            {!missionOn && missionsAllowed && <MissionAdminPanel event={currentEvent} tiles={localTiles} allowed />}
+            {!startProofOn && stage === 'build' && <StartProofAdminPanel event={currentEvent} />}
+          </div>
+        </details>
+      )}
 
       {/* Kill credits the hiscores or the clock disagree with (lib/creditIntegrity). Renders nothing
           when the board adds up. */}
@@ -330,10 +368,14 @@ function BuildHome({
   event,
   counts,
   noun,
+  problems,
+  handTiles,
 }: {
   event: Event;
   counts: StageCounts;
   noun: string;
+  problems: BoardProblem[];
+  handTiles: number;
 }) {
   const [testingReveal, setTestingReveal] = useState(false);
   const [testRevealStatus, setTestRevealStatus] = useState('');
@@ -351,6 +393,44 @@ function BuildHome({
       action: tilesDone ? 'Review' : 'Write tiles',
       blocking: false,
     },
+    // How the tiles count. Problems were only shown once the event was live (LiveFixPanel), by which
+    // point a player had already wasted an evening on a tile that could never complete.
+    ...(counts.tileCount > 0
+      ? [
+          (() => {
+            const broken = problems.filter((p) => p.severity === 'broken');
+            if (broken.length > 0) {
+              return {
+                done: false,
+                title: `${broken.length} tile${broken.length === 1 ? '' : 's'} can’t complete as set up`,
+                detail: `“${broken[0].label}”: ${broken[0].problem.toLowerCase()}. ${broken[0].fix}`,
+                href: `${base}/tiles`,
+                action: 'Fix tiles',
+                blocking: false,
+              };
+            }
+            if (handTiles > 0) {
+              return {
+                done: false,
+                title: `${handTiles} tile${handTiles === 1 ? ' is' : 's are'} ticked by hand`,
+                detail:
+                  'Neither the plugin nor the hiscores counts them; a captain marks them done. Fine for screenshot tasks. Otherwise open the tile and pick the task.',
+                href: `${base}/tiles`,
+                action: 'Review',
+                blocking: false,
+              };
+            }
+            return {
+              done: true,
+              title: 'Every tile counts by itself',
+              detail: 'The plugin or the hiscores credits each one.',
+              href: `${base}/tiles`,
+              action: 'Review',
+              blocking: false,
+            };
+          })(),
+        ]
+      : []),
     {
       done: counts.teamCount > 0 && counts.assignedPlayers > 0,
       title:
@@ -442,7 +522,9 @@ function BuildHome({
           ))}
         </div>
 
-        {event.startDate && (
+        {/* The "starting soon" heads-up tells every clan to get ready — not something to offer on a
+            board with nothing on it or nobody to play it. */}
+        {event.startDate && counts.tileCount > 0 && counts.teamCount > 0 && (
           <div className="mt-4 pt-4 border-t border-card-border">
             <FinalHourButton eventId={event.id} />
           </div>
@@ -454,7 +536,7 @@ function BuildHome({
         <div className="flex flex-wrap gap-2">
           <QuietLink href={`/events/${event.id}`}>See the player&apos;s view ↗</QuietLink>
           <CopyLinkButton path={`/events/${event.id}/signup`} label="Copy sign-up link" />
-          <QuietLink href={`/admin/events/${event.id}/tiles`}>Check the board balance</QuietLink>
+          <QuietLink href={`/admin/events/${event.id}/tiles`}>Is the board fair? Check the balance</QuietLink>
           <button
             type="button"
             onClick={testBoardReveal}

@@ -13,6 +13,8 @@ interface Props {
   hideTrigger?: boolean;
   eventId: number;
   canGrow: boolean;
+  /** Blank tiles to fill on a fixed grid — pre-fills a tier mix of that size. Omit on a growable board. */
+  target?: number;
   onCreated: (summary: { created: number; ignored: number; label: string }) => void;
   onError: (text: string) => void;
 }
@@ -21,7 +23,7 @@ interface Props {
 // Same engine as the create form's generator, but appending rather than sizing a new board, so any
 // number is valid. Stays open after adding: drawing 5 medium, then 3 hard, then 2 ultra is the
 // normal way a board gets filled.
-export default function LibraryTileGenerator({ open: controlledOpen, onOpenChange, hideTrigger, eventId, canGrow, onCreated, onError }: Props) {
+export default function LibraryTileGenerator({ open: controlledOpen, onOpenChange, hideTrigger, eventId, canGrow, target, onCreated, onError }: Props) {
   // Controlled when the parent passes `open` (the Add tiles menu drives it); self-managed
   // otherwise, so the component still works as a standalone button.
   const [innerOpen, setInnerOpen] = useState(false);
@@ -51,7 +53,7 @@ export default function LibraryTileGenerator({ open: controlledOpen, onOpenChang
         return;
       }
       onCreated({
-        created: data.created ?? rows.length,
+        created: (data.applied ?? 0) + (data.created ?? 0),
         ignored: data.ignored ?? 0,
         label: `${rows.length} task${rows.length === 1 ? '' : 's'} from the library`,
       });
@@ -101,7 +103,7 @@ export default function LibraryTileGenerator({ open: controlledOpen, onOpenChang
               </button>
             </div>
             <div className="p-5 space-y-4">
-              <TileLibraryDraw drawn={drawn} onDrawn={setDrawn} />
+              <TileLibraryDraw target={target} drawn={drawn} onDrawn={setDrawn} />
               <div className="flex items-center justify-end gap-2 border-t border-card-border pt-3">
                 <button
                   type="button"
