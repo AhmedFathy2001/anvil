@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { settings, users } from '@/db/schema';
+import { users } from '@/db/schema';
 import { requireClan } from '@/lib/clanContext';
-import { getSetting, invalidateSettings } from '@/lib/settings';
+import { getSetting } from '@/lib/settings';
 import { verifyUser } from '@/lib/auth';
 import { atLeast } from '@/lib/clanRoles';
 import {
   clanGuildId,
-  discordRest,
   getBotTokenOnly,
   getBotTokenSource,
   isSharedBotAvailable,
@@ -16,6 +15,13 @@ import {
 } from '@/lib/discord-roles';
 import { botGuildStatus, discordUserCanManageGuild } from '@/lib/discord-permissions';
 import { syncClanCommandsInBackground } from '@/lib/discordCommandSync';
+import {
+  BOT_INVITE_PERMISSIONS,
+  GuildAlreadyClaimedError,
+  fetchBotUser,
+  oauthConnectAvailable,
+  writeBotConnection,
+} from '@/lib/discordGuildBinding';
 
 // The bot connection surface. The bot TOKEN is a secret: it's stored in the settings table under
 // `discord_bot_token` when an admin brings their own, but is deliberately NOT in the settings API's
@@ -30,25 +36,8 @@ async function readGuildId(clanId: number): Promise<string> {
   return clanGuildId(clanId);
 }
 
-// Validate a token by asking Discord who it is. Returns the bot's id + display name, or null if the
-// token is missing/invalid. The id doubles as the OAuth client_id in the invite link below (for a
-// bot, application id == bot user id).
-async function fetchBotUser(token: string): Promise<{ id: string; name: string } | null> {
-  const res = await discordRest(token, '/users/@me');
-  if (!res.ok) return null;
-  const user = (await res.json()) as { id?: string; username?: string; global_name?: string };
-  if (!user?.id) return null;
-  return { id: user.id, name: user.global_name || user.username || 'bot' };
-}
+// fetchBotUser and the invite permissions live in lib/discordGuildBinding, shared with the OAuth connect.
 
-// Permissions requested by the invite link: Manage Channels + Manage Roles + Manage Nicknames +
-// Manage Webhooks (the four the features need), plus the basics to post: View Channel, Send
-// Messages, Embed Links, Attach Files, Read Message History — and for guides: Manage Threads (a bot
-// can't delete even its own forum post without it), Send Messages in Threads, and Change Nickname
-// (the per-server bot name, lib/discordIdentity). Plus Create Invite (bit 0): an event server
-// (lib/eventDiscord) needs it both for players' single-use invites and for adding opted-in players
-// with guilds.join.
-const INVITE_PERMISSIONS = '293064526865';
 
 // Ready-made "add the bot to my server" link. guild_id pre-selects the configured server so the
 // admin can't add it to the wrong one; without a server ID yet, Discord asks them to pick.
@@ -62,7 +51,7 @@ function buildInviteUrl(clientId: string, guildId: string): string {
   const params = new URLSearchParams({
     client_id: clientId,
     scope: 'bot applications.commands',
-    permissions: INVITE_PERMISSIONS,
+    permissions: BOT_INVITE_PERMISSIONS,
   });
   if (guildId) {
     params.set('guild_id', guildId);
@@ -111,6 +100,9 @@ async function buildStatus(clanId: number) {
     // inert and the ordinary invite lets the Discord manager choose the real server themselves.
     inviteUrl: bot ? buildInviteUrl(bot.id, guildVerified ? guildId : '') : null,
     sharedAvailable: isSharedBotAvailable(),
+    // One-click connect (api/admin/discord/bot/connect): the bot is the login app, so adding it can
+    // report the server back. False for a bring-your-own bot, which keeps the server-ID box.
+    oauthConnect: !!(bot && (await oauthConnectAvailable(clanId))),
   };
 }
 
@@ -200,51 +192,11 @@ export async function PUT(request: Request) {
     }
   }
 
-  class GuildAlreadyClaimedError extends Error {}
   try {
-    await db.transaction(async (tx) => {
-      if (targetGuildId) {
-        // Serialize claims for this guild. The settings table is keyed by (clan,key), so this lock
-        // closes the race between checking a value and inserting it for two different clans.
-        await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`anvil-discord-guild:${targetGuildId}`}))`);
-        const verifiedClaims = tx
-          .select({ clanId: settings.clanId })
-          .from(settings)
-          .where(
-            and(
-              eq(settings.key, 'discord_guild_verified_id'),
-              eq(settings.value, targetGuildId),
-            ),
-          );
-        const claims = await tx
-          .select({ clanId: settings.clanId })
-          .from(settings)
-          .where(
-            and(
-              eq(settings.key, 'discord_guild_id'),
-              eq(settings.value, targetGuildId),
-              inArray(settings.clanId, verifiedClaims),
-            ),
-          );
-        if (claims.some((claim) => claim.clanId !== clan.id)) throw new GuildAlreadyClaimedError();
-      }
-
-      const write = async (key: string, value: string | null) => {
-        await tx
-          .insert(settings)
-          .values({ clanId: clan.id, key, value })
-          .onConflictDoUpdate({ target: [settings.clanId, settings.key], set: { value } });
-      };
-      if (typeof botToken === 'string') await write('discord_bot_token', trimmedToken || null);
-      if (typeof guildId === 'string') {
-        await write('discord_guild_id', targetGuildId || null);
-        // Matching ids are the capability marker read by getBotCredentials. Clearing or changing
-        // the guild clears/replaces it in this same transaction—there is no usable unverified gap.
-        await write('discord_guild_verified_id', targetGuildId || null);
-      }
+    await writeBotConnection(clan.id, {
+      ...(typeof botToken === 'string' ? { botToken: trimmedToken } : {}),
+      ...(typeof guildId === 'string' ? { guildId: targetGuildId } : {}),
     });
-    // The writes above went through the transaction, not setSetting — drop the cached copy.
-    invalidateSettings(clan.id);
   } catch (error) {
     if (error instanceof GuildAlreadyClaimedError) {
       return NextResponse.json(

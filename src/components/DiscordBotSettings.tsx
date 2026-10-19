@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Input from '@/components/Input';
 import { invalidateSettings } from '@/lib/settingsClient';
 import { clanFetch } from '@/lib/clanFetch';
+import { useClanHref } from '@/lib/useClanPath';
 
 // The bot-connection surface: which bot this instance uses (shared Anvil bot vs. your own), the
 // write-only BYO token override, and the Discord server (guild) ID. Backed by /api/admin/discord/bot
@@ -27,6 +28,8 @@ interface BotStatus {
   // Ready-made Discord "add to server" link (pre-selects the configured server when set).
   inviteUrl: string | null;
   sharedAvailable: boolean;
+  /** Adding the bot can report the server back (api/admin/discord/bot/connect). */
+  oauthConnect: boolean;
 }
 
 // A clan admin is told which bot is posting for them, not where the operator keeps its token.
@@ -40,7 +43,24 @@ const SOURCE_LABEL: Record<BotSource, string> = {
   none: 'No bot connected',
 };
 
+// What came back from "Connect your Discord server" (api/auth/discord/callback → ?discord=…).
+const CONNECT_OUTCOME: Record<string, { ok: boolean; text: string }> = {
+  connected: { ok: true, text: 'Connected — Anvil can now post and set things up in your server.' },
+  cancelled: { ok: false, text: 'Cancelled on Discord’s screen. Nothing was changed.' },
+  'not-admin': {
+    ok: false,
+    text: 'The Discord account you approved with isn’t an admin of this clan on Anvil. Sign in to Anvil with that account, or have a clan admin connect.',
+  },
+  'cant-manage': { ok: false, text: 'Discord says that account can’t manage the server you picked. Pick a server you own or have Manage Server on.' },
+  claimed: { ok: false, text: 'That Discord server is already connected to another Anvil clan.' },
+  'no-server': { ok: false, text: 'Discord didn’t say which server the bot was added to. Try again.' },
+  'no-shared-bot': { ok: false, text: 'One-click connect only works with the shared Anvil bot. Enter your server ID below instead.' },
+  'connect-expired': { ok: false, text: 'That took too long or was opened twice. Press Connect again.' },
+  'discord-error': { ok: false, text: 'Discord didn’t answer properly. Try again in a moment.' },
+};
+
 export default function DiscordBotSettings() {
+  const clanHref = useClanHref();
   const [status, setStatus] = useState<BotStatus | null>(null);
   const [guildId, setGuildId] = useState('');
   const [tokenInput, setTokenInput] = useState('');
@@ -67,6 +87,16 @@ export default function DiscordBotSettings() {
         console.error('Failed to load bot status:', error);
       } finally {
         setLoading(false);
+      }
+      // The connect round trip lands back here with ?discord=<outcome>. Shown once, then dropped
+      // from the address so a reload doesn't repeat it.
+      const url = new URL(window.location.href);
+      const outcome = url.searchParams.get('discord');
+      if (outcome) {
+        const known = CONNECT_OUTCOME[outcome] ?? CONNECT_OUTCOME['discord-error'];
+        setMessage({ type: known.ok ? 'success' : 'error', text: known.text });
+        url.searchParams.delete('discord');
+        window.history.replaceState(null, '', url.toString());
       }
     })();
   }, []);
@@ -234,7 +264,24 @@ export default function DiscordBotSettings() {
       {/* With the shared bot available, getting set up is two steps — add it, name the server — and
           the bring-your-own-bot token is an advanced option. It used to sit first on the page, so a
           new admin's first question was "where do I get a bot token?", which they never needed. */}
-      {managed && !ready && (
+      {managed && !ready && status.oauthConnect && (
+        <div className="rounded-lg border border-gold/30 bg-gold/[0.05] p-3 space-y-2">
+          <p className="text-sm font-medium">Connect your Discord server</p>
+          <p className="text-xs text-text-muted leading-relaxed">
+            Discord asks which server to add Anvil to, then sends you back here, connected. You need to own the
+            server or have Manage Server, and to approve with the Discord account you use for Anvil.
+          </p>
+          {/* A navigation, not a fetch: it ends on Discord's own screen. */}
+          <a
+            href={clanHref('/api/admin/discord/bot/connect')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gold text-bg font-semibold rounded-lg text-sm hover:bg-gold/90 transition-colors"
+          >
+            Connect your Discord server
+          </a>
+          <p className="text-[11px] text-text-muted">Or enter the server ID yourself, below.</p>
+        </div>
+      )}
+      {managed && !ready && !status.oauthConnect && (
         <div className="rounded-lg border border-gold/30 bg-gold/[0.05] p-3 space-y-2">
           <p className="text-sm font-medium">Two steps to connect your Discord</p>
           <ol className="list-decimal ml-5 space-y-1.5 text-xs text-text-muted leading-relaxed">

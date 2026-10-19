@@ -1,6 +1,7 @@
+import { NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { users } from '@/db/schema';
+import { clans, users } from '@/db/schema';
 import { exchangeCodeForTokenSet, fetchDiscordUser } from '@/lib/discord-oauth';
 import { storeJoinGrant } from '@/lib/discordUserTokens';
 import { joinPendingEventServersNow } from '@/lib/eventDiscord';
@@ -8,7 +9,9 @@ import { scopeAllowsJoin } from '@/lib/eventDiscordPlan';
 import { log } from '@/lib/logger';
 import { safeReturnPath } from '@/lib/safe-redirect';
 import { completeDiscordLogin, loginFailPage } from '@/lib/discord-login';
-import { apexDomain, resolveReturnHost } from '@/lib/clanContext';
+import { apexDomain, originForHost, resolveReturnHost, sessionCookieDomain } from '@/lib/clanContext';
+import { BOT_CONNECT_COOKIE } from '@/lib/discordGuildBinding';
+import { finishBotConnect } from '@/lib/discordBotConnect';
 
 const STATE_COOKIE = 'discord_oauth_state';
 const RETURN_COOKIE = 'discord_oauth_return';
@@ -37,10 +40,18 @@ export async function GET(request: Request) {
   const state = url.searchParams.get('state');
   const error = url.searchParams.get('error');
 
+  const cookieMap = parseCookies(request);
+  // "Connect your Discord server" (api/admin/discord/bot/connect) comes back through this same
+  // redirect — it's the one Discord allows — but it is not a login: no session is made here.
+  // The cookie is "<clanId>:<state>" and only claims a return whose state is its own.
+  const [botClan, botState] = (cookieMap.get(BOT_CONNECT_COOKIE) ?? '').split(':');
+  if (botClan && botState && botState === state) {
+    return handleBotConnect(request, cookieMap, botClan, { code, state, error });
+  }
+
   if (error) return loginFailPage(`Discord returned: ${error}`);
   if (!code || !state) return loginFailPage('Missing code or state.');
 
-  const cookieMap = parseCookies(request);
   const expectedState = cookieMap.get(STATE_COOKIE);
   // Defense in depth: re-sanitize even though /start already validated it, so a tampered cookie
   // can't produce an external redirect.
@@ -93,5 +104,48 @@ export async function GET(request: Request) {
     return res;
   } catch (e) {
     return loginFailPage(e instanceof Error ? e.message : 'Could not complete login.', 500);
+  }
+}
+
+/**
+ * The bot-connect return: verify state, redeem the code, bind the server (lib/discordBotConnect),
+ * and send the admin back to their Discord settings with the outcome in the query string. Failures
+ * land there too, as a code the page explains — not on the login error page, which isn't where
+ * they were.
+ */
+async function handleBotConnect(
+  request: Request,
+  cookieMap: Map<string, string>,
+  clanIdCookie: string,
+  q: { code: string | null; state: string | null; error: string | null },
+) {
+  const back = (slug: string | null, outcome: string) => {
+    const path = slug ? `/c/${slug}/admin/integrations` : '/';
+    const res = NextResponse.redirect(new URL(`${path}?discord=${encodeURIComponent(outcome)}`, originForHost(apexDomain())));
+    const gone = { path: '/', maxAge: 0, ...(sessionCookieDomain() ? { domain: sessionCookieDomain()! } : {}) };
+    res.cookies.set(STATE_COOKIE, '', gone);
+    res.cookies.set(BOT_CONNECT_COOKIE, '', gone);
+    return res;
+  };
+  // Where to send them on an early failure: the clan named in the cookie, looked up, never echoed.
+  const slugFor = async () => {
+    const id = Number(clanIdCookie);
+    if (!Number.isInteger(id) || id <= 0) return null;
+    const row = await db.query.clans.findFirst({ where: eq(clans.id, id), columns: { slug: true } });
+    return row?.slug ?? null;
+  };
+
+  if (q.error) return back(await slugFor(), q.error === 'access_denied' ? 'cancelled' : 'discord-error');
+  const expectedState = cookieMap.get(STATE_COOKIE);
+  if (!q.code || !q.state || !expectedState || expectedState !== q.state) return back(await slugFor(), 'connect-expired');
+
+  try {
+    const tokenSet = await exchangeCodeForTokenSet(q.code);
+    const discordUser = await fetchDiscordUser(tokenSet.accessToken);
+    const result = await finishBotConnect({ clanIdCookie, tokenSet, discordUserId: discordUser.id });
+    return back(result.clanSlug, result.ok ? 'connected' : result.error);
+  } catch (e) {
+    log.warn('oauth.bot-connect-fail', {}, e);
+    return back(await slugFor(), 'discord-error');
   }
 }
