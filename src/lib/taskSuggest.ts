@@ -11,7 +11,8 @@
 
 import { BOSSES, SKILLS, SKILL_LABELS, SKILL_ALIASES } from '@/lib/constants';
 import { getItemMapping, isDroppableItem, type MappingItem } from '@/lib/osrsItems';
-import { SEED_TASKS, listLibrary } from '@/lib/tileLibrary';
+import { listLibrary } from '@/lib/tileLibrary';
+import { listAnvilTasks } from '@/lib/libraryTasks';
 import { normalizeSearch } from '@/lib/tileSearch';
 import { rowToTileConfig, splitAmount } from '@/lib/taskSuggestRows';
 
@@ -47,18 +48,24 @@ export async function suggestTasks(clanId: number, query: string): Promise<TaskS
   const words = normalizeSearch(rest).split(' ').filter(Boolean);
   if (words.length === 0 || words.join('').length < 2) return [];
 
-  const [library, items] = await Promise.all([listLibrary(clanId), getItemMapping().catch(() => [] as MappingItem[])]);
+  const [library, anvil, items] = await Promise.all([
+    listLibrary(clanId),
+    listAnvilTasks(),
+    getItemMapping().catch(() => [] as MappingItem[]),
+  ]);
   const byName = new Map<string, MappingItem>();
   for (const it of items) if (!byName.has(it.name.toLowerCase())) byName.set(it.name.toLowerCase(), it);
 
   const out: TaskSuggestion[] = [];
 
-  // A clan's library starts empty until someone imports the starter tasks, so the seed fills in for
-  // whatever the clan hasn't taken — the box is useful on a brand-new clan's first board too.
+  // The clan's own library first, then every Anvil task they haven't imported — so the box is useful
+  // on a brand-new clan's first board too.
   const taken = new Set(library.map((t) => t.seedKey).filter(Boolean));
   const pool = [
     ...library.map((t) => ({ id: `library-${t.id}`, label: t.label, category: t.category, points: t.points, config: t.config })),
-    ...SEED_TASKS.filter((t) => !taken.has(t.key)).map((t) => ({ id: `seed-${t.key}`, label: t.label, category: t.category ?? null, points: t.points, config: t.config })),
+    ...anvil
+      .filter((t) => !taken.has(t.key) && !library.some((l) => l.sourceTaskId === t.id))
+      .map((t) => ({ id: `anvil-${t.id}`, label: t.label, category: t.category, points: t.points, config: t.config })),
   ];
   for (const t of pool) {
     if (out.length >= 5) break;

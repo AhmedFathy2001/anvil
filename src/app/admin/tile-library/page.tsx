@@ -2,8 +2,8 @@ import { redirect } from 'next/navigation';
 import { requireClan } from '@/lib/clanContext';
 import { verifyTileEditorAnywhere } from '@/lib/auth';
 import { getTierBands } from '@/lib/pluginConfig';
-import { SEED_TASKS } from '@/lib/tileLibrary';
-import TileLibraryClient from './TileLibraryClient';
+import { listAnvilTasks, taskOffers } from '@/lib/libraryTasks';
+import LibraryTabs from './LibraryTabs';
 import { clanHref } from '@/lib/clanPath';
 
 export const dynamic = 'force-dynamic';
@@ -24,12 +24,11 @@ export default async function TileLibraryPage() {
         <h1 className="text-2xl font-bold">Task library</h1>
       </div>
       <p className="text-sm text-text-muted mb-6">
-        The pool your boards draw from. Add tiles from any board&rsquo;s Tiles tab, import a seed pack
-        shared by another clan, and prune what doesn&rsquo;t suit you — a generated board is only as
-        good as this list. Tiers come from your own difficulty bands, so retuning them re-sorts
-        everything here.
+        The pool your boards draw from. Pick tasks from Anvil&rsquo;s library, add tiles from any board&rsquo;s
+        Tiles tab, and prune what doesn&rsquo;t suit you. Tiers come from your own difficulty bands, so
+        retuning them re-sorts everything here.
       </p>
-      <TileLibraryClient tierBands={tierBands} seedTotal={SEED_TASKS.length} />
+      <LibraryTabs tierBands={tierBands} seedTotal={(await listAnvilTasks()).length} offers={(await taskOffers(clan.id)).length} />
     </div>
   );
 }

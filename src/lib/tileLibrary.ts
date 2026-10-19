@@ -3,8 +3,9 @@ import { db } from '@/db';
 import { tileLibrary } from '@/db/schema';
 import { getTierBands } from '@/lib/pluginConfig';
 import { tileTierKey, type TierBand } from '@/lib/tileFilter';
-import type { TileCsvRow } from '@/lib/csvTiles';
+import { TILE_CSV_COLUMNS, parseTileGrid, type TileCsvRow } from '@/lib/csvTiles';
 import seed from '@/data/tileLibrarySeed.json';
+import { importAnvilTasks, importedTaskIds, listAnvilTasks, type AnvilTask } from '@/lib/libraryTasks';
 
 // The clan's reusable task catalogue. Rows are owned by the clan (editable, deletable); the seed
 // file is only ever a starting point, copied in on demand and diffable when a later release adds
@@ -28,6 +29,9 @@ export interface LibraryTask {
   /** Derived from `points` via the clan's tier bands — recomputed on read, never persisted. */
   tier: string | null;
   seedKey: string | null;
+  /** Imported from the Anvil library (lib/libraryTasks) — and whether it still follows Anvil's updates. */
+  sourceTaskId: number | null;
+  followsSource: boolean;
   sourceEventId: number | null;
   config: TileCsvRow;
 }
@@ -41,7 +45,15 @@ const SEED_BY_KEY = new Map(SEED_TASKS.map((t) => [t.key, t]));
  * these" drops with no amount (which import as a collection needing all of them). Clans keep the
  * rows they copied, so the fix has to happen on read; anything a clan edited is left alone.
  */
-function repairedConfig(seedKey: string | null, config: TileCsvRow): TileCsvRow {
+function repairedConfig(seedKey: string | null, raw: TileCsvRow): TileCsvRow {
+  // Tasks added from a board before lib/csvTiles.tileToCsvRow was fixed were stored as raw spreadsheet
+  // cells (`type`, `items: "Name#id:1"`, numbers as text), which the importer can't read. Read them
+  // back through the sheet parser so they draw onto a board with their tracking intact.
+  const cells = raw as unknown as Record<string, unknown>;
+  const config =
+    typeof cells.type === 'string' || typeof cells.items === 'string'
+      ? (parseTileGrid([[...TILE_CSV_COLUMNS], TILE_CSV_COLUMNS.map((c) => (cells[c] == null ? '' : String(cells[c])))]).rows[0] ?? raw)
+      : raw;
   const fresh = seedKey ? SEED_BY_KEY.get(seedKey) : undefined;
   if (!fresh) return config;
   const broken =
@@ -74,6 +86,8 @@ function toTask(
     category: row.category,
     tier: tileTierKey(row.points, bands),
     seedKey: row.seedKey,
+    sourceTaskId: row.sourceTaskId,
+    followsSource: row.followsSource,
     sourceEventId: row.sourceEventId,
     config: repairedConfig(row.seedKey, parseConfig(row.config)),
   };
@@ -97,37 +111,23 @@ export async function seededKeys(clanId: number): Promise<Set<string>> {
   return new Set(rows.map((r) => r.seedKey).filter((k): k is string => !!k));
 }
 
-/** Starter tasks this clan has never had. Excludes ones they imported and then deleted? No — a
- *  deleted row frees its key, so a delete is a "give it back later" rather than a permanent no.
- *  That's the honest reading of a catalogue the clan owns: nothing is hidden from them forever. */
-export async function pendingSeedTasks(clanId: number): Promise<SeedTask[]> {
-  const have = await seededKeys(clanId);
-  return SEED_TASKS.filter((t) => !have.has(t.key));
+/**
+ * Anvil tasks this clan has never imported — the "N new tasks from Anvil" nudge. They come from the
+ * Anvil task library now (lib/libraryTasks), which replaced the seed file as the source; a task the
+ * clan imported and then deleted counts as new again, so nothing is hidden from them for good.
+ */
+export async function pendingSeedTasks(clanId: number): Promise<AnvilTask[]> {
+  const have = await importedTaskIds(clanId);
+  const keys = await seededKeys(clanId);
+  return (await listAnvilTasks()).filter((t) => !have.has(t.id) && !keys.has(t.key));
 }
 
-/**
- * Copy the given starter tasks in (all pending ones when `keys` is omitted). Idempotent: the unique
- * index on seed_key means a double-click can't duplicate anything, and we skip what's already there.
- */
+/** Import Anvil tasks by key (all pending when omitted). Copies follow Anvil until edited. */
 export async function importSeedTasks(clanId: number, keys?: string[], userId?: number | null): Promise<number> {
   const pending = await pendingSeedTasks(clanId);
   const wanted = keys?.length ? pending.filter((t) => keys.includes(t.key)) : pending;
   if (wanted.length === 0) return 0;
-
-  await db.insert(tileLibrary).values(
-    wanted.map((t) => ({
-      clanId,
-      label: t.label,
-      description: t.config.description ?? null,
-      tileType: t.config.tileType || 'standard',
-      points: t.points,
-      category: t.category ?? null,
-      config: JSON.stringify({ ...t.config, label: t.label, points: t.points, category: t.category ?? null }),
-      seedKey: t.key,
-      createdByUserId: userId ?? null,
-    })),
-  ).onConflictDoNothing();
-  return wanted.length;
+  return importAnvilTasks(clanId, wanted.map((t) => t.id), userId ?? null);
 }
 
 export interface DrawRequest {
@@ -264,6 +264,9 @@ export async function updateTask(
     };
     set.config = JSON.stringify(merged);
   }
+  // The clan's first edit forks a copy that was following its Anvil task (lib/libraryTasks): from
+  // here it's theirs, and later Anvil versions arrive as offers instead of overwriting it.
+  set.followsSource = false;
   await db.update(tileLibrary).set(set).where(and(eq(tileLibrary.id, id), eq(tileLibrary.clanId, clanId)));
 }
 

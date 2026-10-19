@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { verifyTileEditorAnywhere } from '@/lib/auth';
+import { libraryEditorUser } from '@/lib/guideAccess';
 import { BOSSES } from '@/lib/constants';
 
 // In-memory cache — fetched once per server lifecycle (same pattern as items-search).
@@ -62,7 +63,8 @@ async function getNames(): Promise<string[]> {
 
 export async function GET(request: Request) {
   // Tile-authoring support endpoint — editors configure kill tiles too, not just admins.
-  const editor = await verifyTileEditorAnywhere();
+  // Anvil library editors author tasks on the apex, outside any clan (api/library/* re-exports this).
+  const editor = (await verifyTileEditorAnywhere()) ?? (await libraryEditorUser());
   if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

@@ -52,6 +52,12 @@ export async function libraryActor(): Promise<LibraryActor | null> {
   return { user, canEdit, canGrant: hasPlatformRole(row.platformRole, 'root'), platformRole: row.platformRole };
 }
 
+/** The caller, when they may write the Anvil library — for the tile-authoring lookups staff use there. */
+export async function libraryEditorUser(): Promise<UserPayload | null> {
+  const actor = await libraryActor();
+  return actor?.canEdit ? actor.user : null;
+}
+
 export async function requireLibraryEditorApi(): Promise<{ actor: LibraryActor } | { response: NextResponse }> {
   const actor = await libraryActor();
   if (!actor || !actor.canEdit) return { response: NextResponse.json({ error: 'Not found' }, { status: 404 }) };

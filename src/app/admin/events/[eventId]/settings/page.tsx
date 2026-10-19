@@ -15,6 +15,8 @@ import EventWebhooksPanel from '../teams/EventWebhooksPanel';
 import EventDiscordServerPanel from '@/components/EventDiscordServerPanel';
 import { cohostsForEvent } from '@/lib/coHost';
 import { settlementForEvent } from '@/lib/coHostSettlement';
+import { getBoard } from '@/lib/libraryBoards';
+import BoardLibraryPanel from './BoardLibraryPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,6 +58,7 @@ export default async function EventSettingsPage({
     settlementForEvent(id),
   ]);
   const isAdmin = atLeast(session?.role, 'admin');
+  const sourceBoard = event.libraryBoardId ? await getBoard(event.libraryBoardId) : null;
 
   return (
     <>
@@ -92,6 +95,13 @@ export default async function EventSettingsPage({
       <EventWebhooksPanel eventId={id} teams={eventTeams} />
 
       <SettingsClient event={event} tiles={eventTiles} canManageEditors={isAdmin} />
+      {isAdmin && (
+        <BoardLibraryPanel
+          eventId={event.id}
+          eventName={event.name}
+          source={sourceBoard ? { id: sourceBoard.id, title: sourceBoard.title, origin: sourceBoard.origin } : null}
+        />
+      )}
       {isAdmin && <SaveAsPresetButton eventId={event.id} defaultName={event.name} />}
     </>
   );

@@ -13,6 +13,7 @@ import Select from '@/components/Select';
 import BoardShape from '@/components/BoardShape';
 import DateRangeField from '@/components/DateRangeField';
 import { formatLocalDateTime } from '@/lib/eventTime';
+import BoardLibraryPicker from '@/components/BoardLibraryPicker';
 import TileLibraryDraw from '@/components/TileLibraryDraw';
 import type { LibraryTask } from '@/lib/tileLibrary';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
@@ -200,7 +201,10 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
   const [rotation, setRotation] = useState<string[]>([]);
   // Where the board's tiles come from: nothing (fill them in later), a saved/built-in template, or
   // a random draw from the clan's task library.
-  const [startFrom, setStartFrom] = useState<'blank' | 'template' | 'generate'>('blank');
+  const [startFrom, setStartFrom] = useState<'blank' | 'library' | 'template' | 'generate'>('blank');
+  // The board library entry being started from (components/BoardLibraryPicker), remembered on the
+  // event once it exists so its use is counted and the host can suggest changes back.
+  const [libraryBoardId, setLibraryBoardId] = useState<number | null>(null);
   const [drawn, setDrawn] = useState<LibraryTask[] | null>(null);
 
   const meta = MODES.find((m) => m.key === mode)!;
@@ -404,6 +408,10 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
 
     // A generated board must line up with the board's tile count before we create anything —
     // the create API rejects a mismatch, and failing here says why in the user's own terms.
+    if (startFrom === 'library' && !libraryBoardId) {
+      setError('Pick a board from the library, or switch to a blank board.');
+      return;
+    }
     if (startFrom === 'generate') {
       if (!drawn || drawn.length === 0) {
         setError('Draw some tasks from the library first, or switch to a blank board.');
@@ -477,6 +485,15 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
         }).catch(() => {});
       }
 
+      // Started from the board library: link it and count the use. Bookkeeping — never fatal.
+      if (startFrom === 'library' && libraryBoardId) {
+        await clanFetch(`/api/admin/library/boards/${libraryBoardId}/use`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ eventId: data.id }),
+        }).catch(() => {});
+      }
+
       // Fire the co-host invites now that the event exists. Still per-clan and still never fatal —
       // the event must not be lost to a failed invite — but the results are READ now. They used to be
       // thrown away by a bare `.catch(() => {})`, so a clan that was never invited (a typo, or the
@@ -525,8 +542,9 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
             <div className="flex flex-wrap gap-2">
               {([
                 ['blank', 'Blank board'],
-                ['template', 'A template'],
-                ['generate', 'Draw from library'],
+                ['library', 'Board library'],
+                ['template', 'Your templates'],
+                ['generate', 'Draw tasks'],
               ] as const).map(([key, label]) => (
                 <button
                   key={key}
@@ -536,9 +554,13 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                     if (key !== 'generate') setDrawn(null);
                     if (key !== 'template') {
                       setActivePreset(null);
-                      setPresetCsv(null);
                       setPresetLabels(null);
                     }
+                    // Both the library and a template fill the board through presetCsv; leaving
+                    // either drops what it filled in.
+                    if (key !== 'template' && key !== 'library') setPresetCsv(null);
+                    if (key !== 'library') setLibraryBoardId(null);
+                    if (key === 'library' && startFrom === 'template') setPresetCsv(null);
                   }}
                   aria-pressed={startFrom === key}
                   className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
@@ -552,6 +574,22 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
               ))}
             </div>
           </div>
+          )}
+
+          {startFrom === 'library' && !weeklyType && (
+            <Section title="Board library">
+              <BoardLibraryPicker
+                mode={mode}
+                selectedId={libraryBoardId}
+                onPick={(b) => {
+                  setLibraryBoardId(b.id);
+                  setPresetCsv({ rows: b.tiles, labels: b.tiles.map((r) => r.label ?? ''), source: b.title });
+                  setSize(b.mode === 'classic' ? b.boardSize : b.tiles.length);
+                  setError('');
+                  if (!name.trim() || name === suggestedName) setName(suggestedName);
+                }}
+              />
+            </Section>
           )}
 
           {startFrom === 'generate' && !weeklyType && (
@@ -596,7 +634,7 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                         aria-label={`Delete template ${p.label}`}
                         className="absolute top-1.5 right-1.5 text-text-muted hover:text-red-400 text-xs px-1"
                       >
-                        Ã
+                        ×
                       </button>
                     )}
                   </div>

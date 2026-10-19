@@ -636,6 +636,10 @@ export const events = pgTable('events', {
   startProofX: integer('start_proof_x'),
   startProofY: integer('start_proof_y'),
   startProofRadius: integer('start_proof_radius'),
+  // The Anvil board library entry this event was started from (lib/libraryBoards), if any. Lets the
+  // host offer their changes back as a suggestion on an Anvil board, and counts how often a board is
+  // used. Never followed: an event's tiles are its own from the moment it's created.
+  libraryBoardId: integer('library_board_id').references((): AnyPgColumn => libraryBoards.id, { onDelete: 'set null' }),
 });
 
 export const tiles = pgTable('tiles', {
@@ -2027,6 +2031,12 @@ export const tileLibrary = pgTable('tile_library', {
   seedKey: text('seed_key'),
   /** Which board it was harvested from, when it was. Kept for provenance, not enforced. */
   sourceEventId: integer('source_event_id').references(() => events.id, { onDelete: 'set null' }),
+  // Imported from the Anvil task library (lib/libraryTasks). Like a guide copy: while
+  // `followsSource` is true the row is rewritten whenever Anvil updates the task; the clan's first
+  // edit forks it, and later Anvil versions become offers (source_version < the task's version).
+  sourceTaskId: integer('source_task_id').references((): AnyPgColumn => libraryTasks.id, { onDelete: 'set null' }),
+  sourceVersion: integer('source_version'),
+  followsSource: boolean('follows_source').notNull().default(false),
   createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
@@ -2036,6 +2046,98 @@ export const tileLibrary = pgTable('tile_library', {
   // diff what's new without duplicating anything the clan already has.
   // Per CLAN: every clan seeds from the same file, so every clan has a row for the same seed key.
   uniqueIndex('tile_library_clan_seed_key_idx').on(table.clanId, table.seedKey),
+]);
+
+// ── The Anvil library ─────────────────────────────────────────────────────────────────────────
+// Platform-wide, not per clan: tasks and boards every clan can browse and import. Curated by Anvil
+// staff and library editors (lib/guideAccess.canEditLibrary); anyone signed in can suggest a new
+// task, a fix to one, or a change to an Anvil board (library_proposals). Community boards are
+// published straight from a clan's event, no review.
+
+/** One Anvil task: a fully set-up tile, in the importer's own TileCsvRow shape. */
+export const libraryTasks = pgTable('library_tasks', {
+  id: serial('id').primaryKey(),
+  // Stable across releases and renames — the old seed file's keys carry over.
+  key: text('key').notNull(),
+  label: text('label').notNull(),
+  description: text('description'),
+  category: text('category'),
+  tileType: text('tile_type').notNull().default('standard'),
+  // On Anvil's default scale (troll 0-10, easy 11-99, medium 100-349, hard 350-699, ultra 700+); each
+  // clan's own tier bands decide which tier it shows under there.
+  points: integer('points').notNull().default(0),
+  config: text('config').notNull(),
+  // Bumped on every save; a forked clan copy below this has an offer waiting.
+  version: integer('version').notNull().default(1),
+  archived: boolean('archived').notNull().default(false),
+  createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  updatedByUserId: integer('updated_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [
+  uniqueIndex('library_tasks_key_idx').on(table.key),
+  index('library_tasks_category_idx').on(table.category),
+]);
+
+/** A ready-made board. Anvil's own, or a community one a clan published from an event. */
+export const libraryBoards = pgTable('library_boards', {
+  id: serial('id').primaryKey(),
+  title: text('title').notNull(),
+  description: text('description').notNull().default(''),
+  // 'anvil' (staff-curated; changes come through suggestions) | 'community' (a clan's, theirs to edit)
+  origin: text('origin').notNull().default('community'),
+  // The publishing clan for a community board; null for Anvil's.
+  clanId: integer('clan_id').references(() => clans.id, { onDelete: 'cascade' }),
+  publishedByUserId: integer('published_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  // lib/eventModes key — classic | leagues | race | showdown | luckydraw | bounty | ladder.
+  mode: text('mode').notNull(),
+  boardSize: integer('board_size').notNull(),
+  // TileCsvRow[] JSON, in board order.
+  tiles: text('tiles').notNull(),
+  // Who it's for: casual | mid | endgame | mixed.
+  audience: text('audience').notNull().default('mixed'),
+  // What it's about: pvm, raids, skilling, clues, slayer, pets, ironman, f2p, wilderness, minigames…
+  tags: jsonb('tags').$type<string[]>().notNull().default([]),
+  suggestedDays: integer('suggested_days'),
+  teamsMin: integer('teams_min'),
+  teamsMax: integer('teams_max'),
+  // 'published' | 'hidden' (staff took it down, or the clan unpublished it)
+  status: text('status').notNull().default('published'),
+  version: integer('version').notNull().default(1),
+  useCount: integer('use_count').notNull().default(0),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [
+  index('library_boards_origin_idx').on(table.origin, table.status),
+  index('library_boards_clan_idx').on(table.clanId),
+]);
+
+/**
+ * A suggestion for the Anvil library, reviewed by staff (lib/libraryProposals):
+ *   task-new    — payload is a whole task
+ *   task-edit   — payload is the task as the proposer would have it (target_task_id)
+ *   board-edit  — payload is the Anvil board's new tiles/meta (target_board_id)
+ */
+export const libraryProposals = pgTable('library_proposals', {
+  id: serial('id').primaryKey(),
+  kind: text('kind').notNull(),
+  targetTaskId: integer('target_task_id').references(() => libraryTasks.id, { onDelete: 'set null' }),
+  targetBoardId: integer('target_board_id').references(() => libraryBoards.id, { onDelete: 'set null' }),
+  // The target's version the suggestion was written against — a stale one is flagged in review.
+  baseVersion: integer('base_version'),
+  payload: text('payload').notNull(),
+  note: text('note'),
+  proposerUserId: integer('proposer_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  clanId: integer('clan_id').references(() => clans.id, { onDelete: 'set null' }),
+  // 'pending' | 'approved' | 'rejected' | 'withdrawn'
+  status: text('status').notNull().default('pending'),
+  reviewNote: text('review_note'),
+  reviewedByUserId: integer('reviewed_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').notNull(),
+  reviewedAt: text('reviewed_at'),
+}, (table) => [
+  index('library_proposals_status_idx').on(table.status),
+  index('library_proposals_proposer_idx').on(table.proposerUserId, table.status),
 ]);
 
 // User-submitted bug reports & feedback. Lives in EACH clan instance; the clan's admins triage it
