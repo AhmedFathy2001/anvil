@@ -957,6 +957,26 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
                   />
                 </div>
               )}
+              {/* Optional tuning, folded: a first board runs fine on none of it, and three more questions
+                  up front read as three more things to get right. The summary says what is set. */}
+              <details className="group/extras rounded-lg border border-card-border bg-brown-dark/20">
+                <summary className="cursor-pointer list-none px-3 py-2.5 flex items-center justify-between text-sm">
+                  <span>
+                    <span className="font-medium">Scoring extras</span>
+                    <span className="text-text-muted">
+                      {' · '}
+                      {[
+                        firstBonus > 0 && `+${firstBonus} first-team bonus`,
+                        decayEnabled && (decayMode === 'grow' ? 'points grow' : 'points decay'),
+                        effectivePolicy !== 'bounty' && lockout && 'lockout',
+                      ]
+                        .filter(Boolean)
+                        .join(', ') || 'none — optional'}
+                    </span>
+                  </span>
+                  <span className="text-text-muted transition-transform group-open/extras:rotate-90" aria-hidden="true">›</span>
+                </summary>
+                <div className="px-3 pb-3 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-foreground/70 mb-1.5">First-team bonus points</label>
                 <div className="flex items-center gap-2">
@@ -1037,6 +1057,8 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
               {effectivePolicy !== 'bounty' && (
                 <Checkbox checked={lockout} onChange={setLockout} label="Lockout — the first team to finish a tile locks it for everyone else" className="text-sm text-foreground/70" />
               )}
+                </div>
+              </details>
             </Section>
           )}
 

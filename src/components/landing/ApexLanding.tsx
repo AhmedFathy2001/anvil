@@ -233,7 +233,7 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
           <div className="grid gap-3 sm:grid-cols-2">
             <Feature
               title="Play another clan"
-              body="Post an open challenge, or invite a clan you already know. Both rosters play one board. Their players get a seat for the event and nothing more — no joining, no Discord swap, no shared spreadsheet."
+              body="Post an open challenge, or invite a clan you already know. Both rosters play one board. Their players are in for the event and nothing more — no joining, no Discord swap, no shared spreadsheet."
             />
             <Feature
               title="Or find people"

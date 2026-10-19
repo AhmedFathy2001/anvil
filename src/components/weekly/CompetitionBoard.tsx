@@ -248,7 +248,7 @@ export function Board({
               <span className="min-w-0 truncate text-sm font-medium">
                 {e.rsn}
                 {e.flagged && (
-                  <span className="ml-1.5 text-[11px] text-amber-300" title={e.flagReason ?? 'Baseline looks stale — an admin should check it'}>
+                  <span className="ml-1.5 text-[11px] text-amber-300" title={e.flagReason ?? 'Their starting stats look off — an admin should check them'}>
                     ⚠
                   </span>
                 )}

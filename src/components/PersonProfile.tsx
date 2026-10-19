@@ -105,7 +105,7 @@ export default function PersonProfile({
                         discover it when something stops working. */}
                     {c.seat === 'member' && <span className="text-gold">Member</span>}
                     {c.seat === 'guest' && <span>Guest</span>}
-                    {!c.seat && <span>No roster seat</span>}
+                    {!c.seat && <span>Not on the member list</span>}
                     {/* Named rather than flattened to "Staff": this page shows BOTH axes on
                         purpose, and "Member · Staff" told the owner of the clan strictly less than
                         the row already knew. */}

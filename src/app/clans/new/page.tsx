@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { apexDomain, isApexHost } from '@/lib/clanContext';
 import { verifyUser } from '@/lib/auth';
 import { PLANS, TRIAL_DAYS, checkoutUrl } from '@/lib/plans';
+import { freemiumEnforced } from '@/lib/entitlements';
 import NewClanClient from './NewClanClient';
 
 export const dynamic = 'force-dynamic';
@@ -19,11 +20,11 @@ export default async function NewClanPage({ searchParams }: { searchParams: Prom
 
   const session = await verifyUser();
 
-  // A paid tier picked on /pricing. Only honoured when its checkout is configured — otherwise there is
-  // no trial to start and the page is the plain free form it always was.
+  // A paid tier picked on /pricing. Only honoured once caps are enforced and its checkout is configured —
+  // before that every size is free and asking for a card would be for nothing.
   const { plan: planParam } = await searchParams;
   const picked = planParam ? PLANS[planParam as keyof typeof PLANS] : undefined;
-  const trialPlan = picked?.priceUsd && checkoutUrl(picked) ? { id: picked.id, name: picked.name, trialDays: TRIAL_DAYS } : null;
+  const trialPlan = freemiumEnforced() && picked?.priceUsd && checkoutUrl(picked) ? { id: picked.id, name: picked.name, trialDays: TRIAL_DAYS } : null;
 
   return (
     <div className="mx-auto max-w-xl px-4 py-10">

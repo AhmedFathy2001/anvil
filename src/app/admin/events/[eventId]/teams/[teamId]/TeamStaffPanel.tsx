@@ -181,7 +181,7 @@ export default function TeamStaffPanel({ teamId }: { teamId: number }) {
                   {u.discordUsername && (
                     <span className="text-xs text-text-muted truncate">@{u.discordUsername}</span>
                   )}
-                  <span className="ml-auto text-xs text-gold">Give a seat</span>
+                  <span className="ml-auto text-xs text-gold">Add to team staff</span>
                 </button>
               ))}
             </div>

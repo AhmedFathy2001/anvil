@@ -16,7 +16,7 @@ interface Invite {
 }
 
 const VISIBILITY: { value: string; label: string; hint: string }[] = [
-  { value: 'clan', label: 'Your clan', hint: 'Only people with a seat here — plus anyone, if your clan is public.' },
+  { value: 'clan', label: 'Your clan', hint: 'Only people on your member list — plus anyone, if your clan is public.' },
   { value: 'invited', label: 'Invited only', hint: 'Hidden unless you invite their clan, or them by name.' },
   { value: 'public', label: 'Anyone', hint: 'Listed and readable by anybody on Anvil.' },
 ];

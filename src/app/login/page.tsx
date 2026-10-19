@@ -114,8 +114,8 @@ export default async function LoginPage({
               </a>
             ) : (
               <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm leading-relaxed text-red-300">
-                <div className="mb-1 font-semibold">Discord sign-in is not configured</div>
-                Set <code className="font-mono text-xs">DISCORD_CLIENT_ID</code>,{' '}
+                <div className="mb-1 font-semibold">Sign-in isn’t switched on for this site yet</div>
+                If you’re a member, let whoever runs this site know. If that’s you: set <code className="font-mono text-xs">DISCORD_CLIENT_ID</code>,{' '}
                 <code className="font-mono text-xs">DISCORD_CLIENT_SECRET</code>, and{' '}
                 <code className="font-mono text-xs">DISCORD_REDIRECT_URI</code> on the server.
               </div>

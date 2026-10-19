@@ -155,8 +155,8 @@ export default function PublicClanHome({
             <div className="text-sm font-semibold">Just want to play with them?</div>
             <div className="text-[13px] text-text-muted">
               {view.guestPolicy === 'open'
-                ? `Ask for a guest seat and you can enter ${view.name}’s events. You stay in your own clan.`
-                : `Ask for a guest seat — a moderator answers. You can then enter ${view.name}’s events, and you stay in your own clan.`}
+                ? `Ask to join as a guest and you can enter ${view.name}’s events. You stay in your own clan.`
+                : `Ask to join as a guest — a moderator answers. You can then enter ${view.name}’s events, and you stay in your own clan.`}
             </div>
           </div>
           {signedIn ? (

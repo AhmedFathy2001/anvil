@@ -411,7 +411,7 @@ function Empty({ hasCharacters }: { hasCharacters: boolean }) {
 /** One word for how you are attached. Staff is a separate axis and outranks the seat for display. */
 function seatWord(c: ClanCard): string {
   if (c.staff) return c.seat === 'member' ? 'Staff' : 'Staff · guest';
-  return c.seat === 'member' ? 'Member' : c.seat === 'guest' ? 'Guest' : 'No seat';
+  return c.seat === 'member' ? 'Member' : c.seat === 'guest' ? 'Guest' : 'Not a member';
 }
 
 /** "closes in 3d" / "starts Sep 2" / "open" — whichever of the two dates actually bounds it. */

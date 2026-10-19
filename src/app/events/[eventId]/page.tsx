@@ -330,6 +330,19 @@ export default async function EventScoreboardPage({
       Date.now() - startedAt > 3_600_000 && !pushes.some((r) => (parseStamp(r.at) ?? 0) >= startedAt);
   }
 
+  // Underway and the viewer isn't on the board. Two different people, and both used to get nothing:
+  // somebody who signed up but whose seat no longer resolves to a player here (the personal parts of
+  // the board just vanished for them), and somebody who never signed up (the banner went blank).
+  const underway = startedAt <= Date.now() && !isEventEnded(event);
+  const offBoard =
+    session && underway && myPlayerIds.length === 0 && !isOutsider
+      ? mySignup && mySignup.status === 'approved'
+        ? ('signed-up' as const)
+        : !mySignup || mySignup.status === 'withdrawn'
+          ? ('not-entered' as const)
+          : null
+      : null;
+
   // Hide the board when either (a) sign-ups haven't opened yet, or (b) the host hasn't revealed the
   // tiles.
   //
@@ -611,6 +624,32 @@ export default async function EventScoreboardPage({
           >
             Set up the plugin
           </ClanLink>
+        </div>
+      )}
+      {offBoard === 'signed-up' && (
+        <div className="mb-6 rounded-xl border border-amber-400/30 bg-amber-500/10 p-4 flex flex-wrap items-center justify-between gap-4">
+          <div className="min-w-0">
+            <div className="font-semibold">You’re signed up, but we can’t find you on the board</div>
+            <div className="text-sm text-text-muted">
+              None of the characters linked to your profile is playing in this event, so your own progress won’t show
+              here. Check your linked characters, or ask the hosts which one they entered.
+            </div>
+          </div>
+          <ClanLink
+            href="/profile"
+            className="shrink-0 text-sm font-medium px-4 py-2 rounded-lg border border-gold/30 text-gold bg-gold/10 hover:bg-gold/20 transition-colors"
+          >
+            Your characters
+          </ClanLink>
+        </div>
+      )}
+      {offBoard === 'not-entered' && (
+        <div className="mb-6 rounded-xl border border-card-border bg-brown-dark p-4">
+          <div className="font-semibold">This one’s already running</div>
+          <div className="text-sm text-text-muted">
+            Sign-ups closed when it started, so you’re watching this time. Next time, look for the sign-up link before
+            the start.
+          </div>
         </div>
       )}
       {isOutsider ? (

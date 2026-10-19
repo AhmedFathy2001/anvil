@@ -158,7 +158,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
     } else if (
       !(await confirm({
         title: `Unban ${user.displayName}?`,
-        body: 'They can join this clan again. They don’t get their old roster seat back by themselves.',
+        body: 'They can join this clan again. They don’t go back on the member list by themselves.',
         confirmLabel: 'Unban',
         tone: 'gold',
       }))
