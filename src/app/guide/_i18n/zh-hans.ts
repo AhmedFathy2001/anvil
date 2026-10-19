@@ -820,7 +820,7 @@ const zhHans: PartialGuideDict = {
     title: '如何办好你的第一场活动',
     dek: '完整的路径，按你实际会走的顺序排列：把 {clanName} 配置好、把成员名单导进来、搭一块棋盘、选秀分队、开赛，然后发奖。第一场宾果大约要花一个晚上 —— 第二场只要几分钟。',
     facts: [
-      { strong: '4 个步骤', rest: '在设置向导里' },
+      { strong: '5 个步骤', rest: '在设置清单里' },
       { strong: '7 种赛制', rest: '可用来搭棋盘' },
       { strong: '1 个按钮', rest: '就能同步成员名单' },
     ],
@@ -858,7 +858,7 @@ const zhHans: PartialGuideDict = {
     setup: {
       title: '给氏族起名，接上 Discord',
       intro:
-        '**System → Setup** 是一个四步向导，仪表盘也会把同样这四项当成清单保留到它们完成为止：给氏族起名、接上 Discord、创建活动、添加格子。状态是按真实数据算出来的，因此某一步只有真正完成时才会被勾掉。',
+        '**System → Setup** 是一个简短的向导，仪表盘也会把这五项当成清单保留到它们完成为止：给氏族起名、接上 Discord、载入成员、创建活动、添加格子。状态是按真实数据算出来的，因此某一步只有真正完成时才会被勾掉。',
       discord:
         'Discord 有两条路，而且可以叠加：给 Anvil 一个**机器人**，它就能创建 webhook、同步身份组和昵称、并为你搭建私密的队伍频道；只给它一个 **webhook 网址**，它就只能发公告、别的什么都做不了。想两分钟内跑起来就先用 webhook，等你需要自动化时再把机器人加上。',
       permsNote: {
@@ -872,7 +872,7 @@ const zhHans: PartialGuideDict = {
     channels: {
       title: '把播报分散到多个频道',
       body: [
-        '默认情况下所有内容都发到一个主公告频道。等它变吵了，打开 **System → Advanced settings → Webhooks**，给那些吵闹的类别各自安个家 —— 宾果活动、每周竞赛、稀有掉落、死亡、PvP 击杀、combat achievements、片段。任何留空的类别都会回落到主频道，所以你可以一次只分出一个类别。',
+        '默认情况下所有内容都发到一个主公告频道。等它变吵了，打开 **Discord → Where posts go**，给那些吵闹的类别各自安个家 —— 宾果活动、每周竞赛、稀有掉落、死亡、PvP 击杀、combat achievements、片段。任何留空的类别都会回落到主频道，所以你可以一次只分出一个类别。',
         '接上机器人之后你完全不用碰 webhook 网址：从下拉框里选一个频道，按 **Create webhook**。活动繁忙时你可以给同一个频道再加一个 webhook —— Anvil 会在两者之间轮换，免得 Discord 的限流吞掉播报。',
       ],
       clipsNote: {
@@ -946,7 +946,7 @@ const zhHans: PartialGuideDict = {
       rows: [
         {
           term: '难度档位',
-          body: '分值会映射到有名字的档位（easy → elite）。如果你的氏族有不同的分级习惯，可以在 Advanced settings 里编辑这些档位。',
+          body: '分值会映射到有名字的档位（easy → elite）。如果你的氏族有不同的分级习惯，可以在 Rules & scoring 里编辑这些档位。',
         },
         {
           term: '平衡审核器',
@@ -1418,7 +1418,7 @@ const zhHans: PartialGuideDict = {
     points: {
       title: '分值、档位，以及公不公平',
       body: [
-        '在按分数计的棋盘上，每个格子都带有自己的分值，而这些分值会映射到有名字的难度档位 —— easy 到 elite —— 如果你的氏族分级方式不同，可以在 **Advanced settings** 里修改这些档位。玩家读的是档位；计分的是数字。',
+        '在按分数计的棋盘上，每个格子都带有自己的分值，而这些分值会映射到有名字的难度档位 —— easy 到 elite —— 如果你的氏族分级方式不同，可以在 **Rules & scoring** 里修改这些档位。玩家读的是档位；计分的是数字。',
         '把一个格子标记为 **optional**，它就不再计入棋盘总分 —— 你可以借此加入进阶目标，同时又不会让全盘通关变得不可能。',
         '棋盘填满之后，从 Tiles 标签页跑一次**平衡审核器**。它会检查结构和投入的分布，告诉你棋盘在哪里偏了 —— 某个没人做得完的类别、某个每小时收益远高于邻居的档位 —— 赶在玩家替你发现这些问题、并绕着走之前。',
       ],

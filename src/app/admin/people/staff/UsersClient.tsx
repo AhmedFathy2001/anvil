@@ -9,6 +9,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
 import ClanLink from '@/components/ClanLink';
 import { useDialog } from '@/components/Confirm';
+import { ROLE_BLURB } from '@/lib/clanRoles';
 
 interface Character {
   id: number;
@@ -51,10 +52,10 @@ const ROLE_BADGE_CLS: Record<Role, string> = {
 // Every role and what it unlocks — surfaced in the dropdown so admins pick by meaning, not by
 // memorising which button does what.
 const ROLE_OPTIONS: { value: Role; label: string }[] = [
-  { value: 'member', label: 'Member: no staff job' },
-  { value: 'moderator', label: 'Moderator: newcomers, roster, sign-ups, proofs' },
-  { value: 'treasurer', label: 'Treasurer: fees, coffer and prizes' },
-  { value: 'admin', label: 'Admin: everything except handing over the clan' },
+  { value: 'member', label: ROLE_BLURB.member },
+  { value: 'moderator', label: ROLE_BLURB.moderator },
+  { value: 'treasurer', label: ROLE_BLURB.treasurer },
+  { value: 'admin', label: ROLE_BLURB.admin },
 ];
 
 export default function UsersClient({ currentUserId }: { currentUserId: number | null }) {
@@ -157,7 +158,7 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
     } else if (
       !(await confirm({
         title: `Unban ${user.displayName}?`,
-        body: 'They can join this clan again. They don’t get their old roster seat back by themselves.',
+        body: 'They can join this clan again. They don’t go back on the member list by themselves.',
         confirmLabel: 'Unban',
         tone: 'gold',
       }))
@@ -507,8 +508,9 @@ export default function UsersClient({ currentUserId }: { currentUserId: number |
           ) : boardsEditsAll ? (
             <p className="text-sm rounded-lg border border-accent-green/30 bg-accent-green/10 text-accent-green-light px-3 py-2 mb-4">
               This person already edits <span className="font-semibold">every board</span> (
-              {boardsUser.role === 'admin' ? 'admin' : 'global Editor role'}). To scope them to specific
-              boards, first set their role to Member, then grant boards here.
+              {boardsUser.role === 'admin' ? 'they’re an admin' : '“Can build bingo boards” is ticked'}). To limit them to
+              specific boards,{' '}
+              {boardsUser.role === 'admin' ? 'first change their role from Admin' : 'untick that box first'}, then pick boards here.
             </p>
           ) : boardsEvents.length === 0 ? (
             <p className="text-sm text-text-muted mb-4">No events exist yet.</p>

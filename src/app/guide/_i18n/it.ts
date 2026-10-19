@@ -814,7 +814,7 @@ const it: PartialGuideDict = {
     title: 'Organizzare il primo evento',
     dek: 'Tutto il percorso, nell’ordine in cui lo farai davvero: configurare {clanName}, portare dentro il roster, costruire un tabellone, comporre le squadre, far partire la cosa e distribuire i premi. Grosso modo il lavoro di una serata per il primo bingo —— minuti per il secondo.',
     facts: [
-      { strong: '4 passi', rest: 'nella procedura guidata' },
+      { strong: '5 passi', rest: 'nella lista di controllo di configurazione' },
       { strong: '7 formati', rest: 'da cui costruire un tabellone' },
       { strong: '1 pulsante', rest: 'per sincronizzare il roster' },
     ],
@@ -852,7 +852,7 @@ const it: PartialGuideDict = {
     setup: {
       title: 'Dai un nome al clan, collega Discord',
       intro:
-        '**System → Setup** è una procedura guidata in quattro passi, e la dashboard tiene gli stessi quattro come lista di controllo finché non sono fatti: nomina il clan, collega Discord, crea un evento, aggiungi caselle. Lo stato è calcolato su dati reali, quindi un passo si spunta solo quando è davvero concluso.',
+        '**System → Setup** è una procedura guidata breve, e la dashboard tiene una lista di controllo in cinque passi finché non sono fatti: nomina il clan, collega Discord, carica i tuoi membri, crea un evento, aggiungi caselle. Lo stato è calcolato su dati reali, quindi un passo si spunta solo quando è davvero concluso.',
       discord:
         'Per Discord hai due strade, e si combinano: dai ad Anvil un **bot** e potrà creare webhook, sincronizzare ruoli e nickname e costruire canali privati per le squadre; dagli un singolo **URL di webhook** e potrà pubblicare annunci e nient’altro. Parti dal webhook se vuoi essere operativo in due minuti, aggiungi il bot quando vuoi l’automazione.',
       permsNote: {
@@ -866,7 +866,7 @@ const it: PartialGuideDict = {
     channels: {
       title: 'Dividi i post su più canali',
       body: [
-        'Di base tutto finisce in un unico canale annunci. Quando diventa rumoroso, apri **System → Advanced settings → Webhooks** e dai una casa propria alle categorie chiassose —— eventi bingo, competizioni settimanali, drop rari, morti, kill PvP, combat achievement, clip. Tutto ciò che lasci vuoto ricade sul canale principale, quindi puoi separare una categoria alla volta.',
+        'Di base tutto finisce in un unico canale annunci. Quando diventa rumoroso, apri **Discord → Where posts go** e dai una casa propria alle categorie chiassose —— eventi bingo, competizioni settimanali, drop rari, morti, kill PvP, combat achievement, clip. Tutto ciò che lasci vuoto ricade sul canale principale, quindi puoi separare una categoria alla volta.',
         'Con il bot collegato non tocchi mai un URL di webhook: scegli un canale dal menu e premi **Create webhook**. Su un evento affollato puoi aggiungere un secondo webhook allo stesso canale —— Anvil li alterna così il rate limit di Discord non si mangia i post.',
       ],
       clipsNote: {
@@ -931,7 +931,7 @@ const it: PartialGuideDict = {
       rows: [
         {
           term: 'Fasce di difficoltà',
-          body: 'i valori in punti si mappano su fasce con un nome (easy → elite). Modifica le fasce in Advanced settings se il tuo clan valuta diversamente.',
+          body: 'i valori in punti si mappano su fasce con un nome (easy → elite). Modifica le fasce in Rules & scoring se il tuo clan valuta diversamente.',
         },
         {
           term: 'Revisore di equilibrio',
@@ -1401,7 +1401,7 @@ const it: PartialGuideDict = {
     points: {
       title: 'Punti, fasce e se è equilibrato',
       body: [
-        'Su un tabellone a punti ogni casella porta il proprio valore, e quei valori si mappano su fasce di difficoltà con un nome —— da easy a elite —— che puoi modificare in **Advanced settings** se il tuo clan valuta diversamente. La fascia è ciò che leggono i giocatori; il numero è ciò che fa punteggio.',
+        'Su un tabellone a punti ogni casella porta il proprio valore, e quei valori si mappano su fasce di difficoltà con un nome —— da easy a elite —— che puoi modificare in **Rules & scoring** se il tuo clan valuta diversamente. La fascia è ciò che leggono i giocatori; il numero è ciò che fa punteggio.',
         'Segna una casella come **facoltativa** e smette di contare nel totale del tabellone: è così che aggiungi obiettivi extra senza rendere impossibile un blackout.',
         'Quando il tabellone è pieno, lancia il **revisore di equilibrio** dalla scheda Tiles. Controlla la struttura e la distribuzione dello sforzo e ti dice dove il tabellone pende da una parte —— una categoria che nessuno può finire, una fascia che vale molto più all’ora delle vicine —— prima che siano i giocatori a trovarle e ad aggirarle.',
       ],

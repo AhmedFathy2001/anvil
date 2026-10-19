@@ -5,7 +5,7 @@ import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { submissions, tiles, teams, eventParticipants, events, users, eventStartProofs } from '@/db/schema';
 import { eq, and, sql, inArray } from 'drizzle-orm';
-import { verifyAdmin, verifyUser, verifyCaptain, verifyPlayer, verifyPluginToken, resolveTeamMembership } from '@/lib/auth';
+import { verifyAdmin, verifyAdminOrModerator, verifyUser, verifyCaptain, verifyPlayer, verifyPluginToken, resolveTeamMembership } from '@/lib/auth';
 import { atLeast } from '@/lib/clanRoles';
 import { resolveTeamManagement } from '@/lib/teamStaff';
 import { syncDropTileCompletion, countTileProgress } from '@/lib/submissions';
@@ -572,8 +572,10 @@ export async function DELETE(
   // session is resolved against the submission's own team below. Keep the acting user's identity
   // (not just an isAdmin boolean) so the deletion audit names the real admin, not "Admin (admin)".
   const actingUser = await verifyUser();
-  // atLeast, not equality — owner outranks admin, so `=== 'admin'` excludes the clan's owner.
-  const isAdmin = atLeast(actingUser?.role, 'admin');
+  // Clan staff from moderator up (verifyAdminOrModerator — scoped grants excluded) may remove any
+  // proof: checking proofs is moderation, and "Proofs to check" (/admin/proofs) is a moderator's
+  // queue. It used to be admin-only here, so a moderator could clear a flag but not act on a bad one.
+  const isAdmin = !!(await verifyAdminOrModerator());
   const captain = await verifyCaptain();
   const player = await verifyPlayer();
 

@@ -9,6 +9,13 @@ interface SearchParams {
   error?: string;
 }
 
+// `?error=` is a code, not copy: printing it raw showed a banned player the single word "banned".
+// Unknown codes get the generic line — the param is attacker-controlled, so it is never echoed.
+const LOGIN_ERRORS: Record<string, string> = {
+  banned: 'This Discord account can’t sign in to Anvil. If you think that’s a mistake, ask your clan’s staff.',
+};
+const GENERIC_LOGIN_ERROR = 'Sign-in didn’t go through. Try again.';
+
 export default async function LoginPage({
   searchParams,
 }: {
@@ -86,7 +93,7 @@ export default async function LoginPage({
                 <svg className="mt-0.5 h-[18px] w-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
                   <circle cx="12" cy="12" r="9" /><path d="M12 7v6M12 17h.01" />
                 </svg>
-                <span className="min-w-0">{params.error}</span>
+                <span className="min-w-0">{LOGIN_ERRORS[params.error] ?? GENERIC_LOGIN_ERROR}</span>
               </div>
             )}
 
@@ -107,8 +114,8 @@ export default async function LoginPage({
               </a>
             ) : (
               <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm leading-relaxed text-red-300">
-                <div className="mb-1 font-semibold">Discord sign-in is not configured</div>
-                Set <code className="font-mono text-xs">DISCORD_CLIENT_ID</code>,{' '}
+                <div className="mb-1 font-semibold">Sign-in isn’t switched on for this site yet</div>
+                If you’re a member, let whoever runs this site know. If that’s you: set <code className="font-mono text-xs">DISCORD_CLIENT_ID</code>,{' '}
                 <code className="font-mono text-xs">DISCORD_CLIENT_SECRET</code>, and{' '}
                 <code className="font-mono text-xs">DISCORD_REDIRECT_URI</code> on the server.
               </div>

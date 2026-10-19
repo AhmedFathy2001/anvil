@@ -821,7 +821,7 @@ const no: PartialGuideDict = {
     title: 'Slik kjører du ditt første event',
     dek: 'Hele veien, i den rekkefølgen du faktisk går den: få {clanName} satt opp, få inn medlemslista, bygg et brett, draft lag, dra i gang det hele og del ut premiene. Omtrent en kvelds arbeid for den første bingoen — minutter for den andre.',
     facts: [
-      { strong: '4 trinn', rest: 'i oppsettsveiviseren' },
+      { strong: '5 trinn', rest: 'på oppsettsjekklisten' },
       { strong: '7 formater', rest: 'å bygge et brett av' },
       { strong: '1 knapp', rest: 'for å synkronisere medlemslista' },
     ],
@@ -859,7 +859,7 @@ const no: PartialGuideDict = {
     setup: {
       title: 'Gi klanen navn, koble til Discord',
       intro:
-        '**System → Setup** er en veiviser i fire trinn, og dashbordet beholder de samme fire som en sjekkliste til de er ferdige: gi klanen navn, koble til Discord, opprett et event, legg til ruter. Statusen regnes ut fra ekte data, så et trinn hukes først av når det virkelig er ferdig.',
+        '**System → Setup** er en kort veiviser, og dashbordet beholder en sjekkliste i fem trinn til de er ferdige: gi klanen navn, koble til Discord, last inn medlemmene dine, opprett et event, legg til ruter. Statusen regnes ut fra ekte data, så et trinn hukes først av når det virkelig er ferdig.',
       discord:
         'For Discord har du to veier, og de lar seg kombinere: gi Anvil en **bot**, så kan den opprette webhooks, synkronisere roller og kallenavn og bygge private lagkanaler; gi den én enkelt **webhook-URL**, så kan den poste kunngjøringer og ingenting annet. Start med webhooken hvis du vil være i gang på to minutter, og legg til boten når du vil ha automatikken.',
       permsNote: {
@@ -873,7 +873,7 @@ const no: PartialGuideDict = {
     channels: {
       title: 'Fordel innleggene på flere kanaler',
       body: [
-        'Alt postes som standard i én hovedkanal for kunngjøringer. Når den blir bråkete, åpne **System → Advanced settings → Webhooks** og gi de høylytte kategoriene egne hjem — bingo-event, ukeskonkurranser, sjeldne drops, dødsfall, PvP-kills, combat achievements, klipp. Alt du lar stå tomt, faller tilbake til hovedkanalen, så du kan skille ut én kategori av gangen.',
+        'Alt postes som standard i én hovedkanal for kunngjøringer. Når den blir bråkete, åpne **Discord → Where posts go** og gi de høylytte kategoriene egne hjem — bingo-event, ukeskonkurranser, sjeldne drops, dødsfall, PvP-kills, combat achievements, klipp. Alt du lar stå tomt, faller tilbake til hovedkanalen, så du kan skille ut én kategori av gangen.',
         'Med boten tilkoblet rører du aldri en webhook-URL: velg en kanal fra lista og trykk **Create webhook**. Under et travelt event kan du legge til en webhook nummer to på samme kanal — Anvil veksler mellom dem slik at Discords hastighetsgrense ikke sluker innlegg.',
       ],
       clipsNote: {
@@ -947,7 +947,7 @@ const no: PartialGuideDict = {
       rows: [
         {
           term: 'Vanskelighetsgrader',
-          body: 'poengverdier oversettes til navngitte bånd (easy → elite). Rediger båndene under Advanced settings hvis klanen din graderer annerledes.',
+          body: 'poengverdier oversettes til navngitte bånd (easy → elite). Rediger båndene under Rules & scoring hvis klanen din graderer annerledes.',
         },
         {
           term: 'Balansekontrollen',
@@ -1419,7 +1419,7 @@ const no: PartialGuideDict = {
     points: {
       title: 'Poeng, nivåer og om det er rettferdig',
       body: [
-        'På et poengbasert brett har hver rute sin egen verdi, og de verdiene oversettes til navngitte vanskelighetsbånd — easy til elite — som du kan redigere under **Advanced settings** hvis klanen din graderer annerledes. Båndet er det spillerne leser; tallet er det som teller.',
+        'På et poengbasert brett har hver rute sin egen verdi, og de verdiene oversettes til navngitte vanskelighetsbånd — easy til elite — som du kan redigere under **Rules & scoring** hvis klanen din graderer annerledes. Båndet er det spillerne leser; tallet er det som teller.',
         'Merk en rute **optional**, så slutter den å telle mot brettets total, og slik legger du til strekkmål uten å gjøre en blackout umulig.',
         'Når brettet er fullt, kjør **balansekontrollen** fra Tiles-fanen. Den sjekker strukturen og arbeidsfordelingen og forteller deg hvor brettet skjever seg — en kategori ingen kan fullføre, et bånd som er mye mer verdt per time enn naboene — før spillerne finner de tingene for deg og styrer utenom dem.',
       ],

@@ -76,10 +76,10 @@ const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'standard', label: 'Standard', blurb: 'Manual tile — a captain marks it done. No auto-tracking.' },
   { key: 'skill', label: 'Skill XP', blurb: 'Auto-completes when a skill reaches an XP goal (hiscores-polled).' },
   { key: 'boss', label: 'Boss KC', blurb: 'Auto-completes when a boss reaches a kill-count goal (hiscores-polled).' },
-  { key: 'drop', label: 'Any of these items', blurb: 'N drops from a list of items — repeats count, or switch to "different items only".' },
-  { key: 'collection', label: 'All of these / sets', blurb: 'Every item, each with its OWN count (a full Moons set) — or name sets on the items for "complete N Barrows sets".' },
+  { key: 'drop', label: 'Drop (any of these items)', blurb: 'N drops from a list of items — repeats count, or switch to "different items only".' },
+  { key: 'collection', label: 'Item set (all of these)', blurb: 'Every item, each with its OWN count (a full Moons set) — or name sets on the items for "complete N Barrows sets".' },
   { key: 'kill', label: 'Kill count', blurb: 'N kills of an NPC — even ones not on the hiscores (chickens, cows). Plugin-detected, baked screenshot.' },
-  { key: 'lap', label: 'Agility laps & floors', blurb: 'N laps of an agility course, or N Hallowed Sepulchre floors / full runs. Counted live off the in-game counter, so only laps run DURING the event count — a maxed Agility cape earns nothing on its own.' },
+  { key: 'lap', label: 'Agility laps', blurb: 'N laps of an agility course, or N Hallowed Sepulchre floors / full runs. Counted live off the in-game counter, so only laps run DURING the event count — a maxed Agility cape earns nothing on its own.' },
   { key: 'pvp', label: 'PvP kill', blurb: 'Kill rival team members — or a named bounty — in the Wilderness or on PvP worlds. Plugin credits your kill and bakes a death screenshot. Safe minigames (LMS, Soul Wars, PvP Arena) never count.' },
   { key: 'gain', label: 'Item gain', blurb: 'Catch/cook/gather N of an item — counted from inventory gains (karambwans fished, implings jarred, food cooked). Plugin-detected, baked screenshot.' },
   { key: 'timed', label: 'Timed clear', blurb: 'Clear an activity under a time cap (Inferno, raids, Colosseum). Plugin times it and bakes the result.' },
@@ -1499,7 +1499,7 @@ export default function TileTrackingConfig({
                 Unlock this tile’s label, kind and required amount to fix a misconfigured tile on the
                 running board. The change is recorded as a{' '}
                 <span className="font-semibold">live override</span> in the tile history. If you lower a
-                required amount, press <span className="font-semibold">Heal the board</span> on the
+                required amount, press <span className="font-semibold">Recheck all tiles</span> on the
                 event&rsquo;s home page afterwards — teams already at the new target complete retroactively.
               </span>
             }
@@ -1610,7 +1610,7 @@ export default function TileTrackingConfig({
             />
           </div>
           <p className="text-[10px] text-text-muted mt-0.5">
-            Tiers are your bands from Advanced settings — picking one sets its base points. The exact
+            Tiers are your bands from Rules &amp; scoring — picking one sets its base points. The exact
             number still decides standings (sum of completed tiles) and can be fine-tuned freely.
           </p>
         </div>

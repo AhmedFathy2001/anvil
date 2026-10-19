@@ -807,7 +807,7 @@ export const en = {
     title: 'Running your first event',
     dek: 'The whole path, in the order you’ll actually walk it: get {clanName} configured, get the roster in, build a board, draft teams, start the thing, and hand out the prizes. Roughly an evening’s work for a first bingo — minutes for the second.',
     facts: [
-      { strong: '4 steps', rest: 'in the setup wizard' },
+      { strong: '5 steps', rest: 'on the setup checklist' },
       { strong: '7 formats', rest: 'to build a board from' },
       { strong: '1 button', rest: 'to sync the clan roster' },
     ],
@@ -845,7 +845,7 @@ export const en = {
     setup: {
       title: 'Name the clan, connect Discord',
       intro:
-        '**System → Setup** is a four-step wizard, and the dashboard keeps the same four as a checklist until they’re done: name the clan, connect Discord, create an event, add tiles. Status is computed from real data, so a step only ticks when it’s genuinely finished.',
+        '**System → Setup** is a short wizard, and the dashboard keeps a five-step checklist until it’s done: name the clan, connect Discord, load your members, create an event, add tiles. Status is computed from real data, so a step only ticks when it’s genuinely finished.',
       discord:
         'For Discord you have two routes, and they compose: give Anvil a **bot** and it can create webhooks, sync roles and nicknames, and build private team channels for you; give it a single **webhook URL** and it can post announcements and nothing else. Start with the webhook if you want to be live in two minutes, add the bot when you want the automation.',
       permsNote: {
@@ -859,7 +859,7 @@ export const en = {
     channels: {
       title: 'Split posts across channels',
       body: [
-        'Everything posts to one master announcements channel by default. When that gets noisy, open **System → Advanced settings → Webhooks** and give the loud categories their own homes — bingo events, weekly competitions, rare drops, deaths, PvP kills, combat achievements, clips. Anything left blank falls back to the master channel, so you can split one category at a time.',
+        'Everything posts to one master announcements channel by default. When that gets noisy, open **Discord → Where posts go** and give the loud categories their own homes — bingo events, weekly competitions, rare drops, deaths, PvP kills, combat achievements, clips. Anything left blank falls back to the master channel, so you can split one category at a time.',
         'With the bot connected you never touch a webhook URL: pick a channel from the dropdown and press **Create webhook**. On a busy event you can add a second webhook to the same channel — Anvil rotates between them so Discord’s rate limit doesn’t swallow posts.',
       ],
       clipsNote: {
@@ -924,7 +924,7 @@ export const en = {
       rows: [
         {
           term: 'Difficulty tiers',
-          body: 'point values map to named bands (easy → elite). Edit the bands in Advanced settings if your clan grades differently.',
+          body: 'point values map to named bands (easy → elite). Edit the bands in Rules & scoring if your clan grades differently.',
         },
         {
           term: 'Balance auditor',
@@ -1398,7 +1398,7 @@ export const en = {
     points: {
       title: 'Points, tiers and whether it is fair',
       body: [
-        'On a points-scored board every tile carries its own value, and those values map onto named difficulty bands — easy through elite — which you can edit under **Advanced settings** if your clan grades differently. The band is what players read; the number is what scores.',
+        'On a points-scored board every tile carries its own value, and those values map onto named difficulty bands — easy through elite — which you can edit under **Rules & scoring** if your clan grades differently. The band is what players read; the number is what scores.',
         'Mark a tile **optional** and it stops counting toward the board total, which is how you add stretch goals without making a blackout impossible.',
         'When the board is full, run the **balance auditor** from the Tiles tab. It checks the structure and the effort spread and tells you where the board is lopsided — a category nobody can finish, a tier that is worth far more per hour than its neighbours — before players find those things for you and route around them.',
       ],

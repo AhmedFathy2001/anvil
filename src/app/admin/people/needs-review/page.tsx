@@ -75,11 +75,10 @@ export default async function ClanNeedsReviewPage() {
         <h2 className="text-[16.5px] font-semibold">Awaiting confirmation</h2>
       </div>
       <p className="mb-1.5 ml-4 max-w-[64ch] text-[13.5px] text-text-muted">
-        Discord logins matched to an RSN — by training the account (stat-delta), a manual request, or
-        automatically the first time their plugin played it. They are already live and lose nothing while
-        they wait; check the Discord identity against the RSN and approve to clear the flag. If it looks
-        wrong, report it — taking a character off someone is Anvil&rsquo;s call, since it is theirs in
-        every clan.
+        People who linked a character — by gaining XP on it, by asking, or just by playing it with the
+        plugin. They can already play and lose nothing while they wait. Check the Discord name matches the
+        character and approve. If it looks wrong, report it — taking a character off someone is
+        Anvil&rsquo;s call, since it is theirs in every clan.
       </p>
       <p className="mb-3.5 ml-4">
         <GuideLink href="/guide/moderator#verify">What to check before you approve</GuideLink>

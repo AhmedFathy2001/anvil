@@ -15,6 +15,7 @@ import { pendingClaimRequests } from '@/lib/claimRequests';
 import { pendingUpdateCount } from '@/lib/guides';
 import { coHostedBoardLinks } from '@/lib/coHost';
 import { getClanFeatures } from '@/lib/clanFeatures';
+import { flaggedProofBoards } from '@/lib/flaggedProofs';
 
 // Admin shell — wraps every page under /admin (including the login page).
 // On the login page there's no session yet, so the sidebar is skipped and the
@@ -77,6 +78,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     pendingClaimRequests(clan.id).then((r) => r.length),
   ]);
   const provisionalCount = provisionalRows + claimRequests;
+
+  // Flagged proofs across every board — the moderators' queue (/admin/proofs). Badged in the sidebar
+  // for whoever may open it; computed only for them.
+  const canCheckProofs = redirectFor('/admin/proofs', access) === null;
+  const flaggedCount = canCheckProofs
+    ? (await flaggedProofBoards(clan.id)).reduce((n, b) => n + b.count, 0)
+    : 0;
 
   // Donations waiting to be believed, badged on the Money group so a treasurer sees them without
   // opening the page. Only counted for the people who can act on them.
@@ -182,6 +190,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         ? [{ href: '/admin/events', label: 'All events', icon: '🎯', sprite: 'fireCape' as const, matchPrefix: true }]
         : []),
       { href: '/admin/schedule', label: 'Schedule', icon: '📅', sprite: 'stats' },
+      ...(canCheckProofs
+        ? [{ href: '/admin/proofs', label: 'Proofs to check', icon: '🔎', sprite: 'clue' as const, badge: flaggedCount }]
+        : []),
       // The task catalogue boards are generated from — same authority as tile authoring.
       ...(canManageEvents
         ? [{ href: '/admin/tile-library', label: 'Task library', icon: '📚', sprite: 'casket' as const }]
@@ -196,11 +207,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   groups.push({
     label: 'Clan',
     items: [
-      { href: '/admin/people', label: 'Roster', icon: '🛡️', sprite: 'bandos', badge: provisionalCount, matchPrefix: true, exclude: ['/admin/people/staff'] },
-      ...(isAdmin ? [{ href: '/admin/people/staff', label: 'Staff & roles', icon: '👥', sprite: 'emblem' as const }] : []),
+      // One entry for the People hub — Roster, Needs review, Staff & roles and Who can join are its
+      // tabs (app/admin/people/layout). Staff & roles used to be a second sidebar item for one tab.
+      { href: '/admin/people', label: 'People', icon: '🛡️', sprite: 'bandos', badge: provisionalCount, matchPrefix: true },
       { href: '/admin/guides', label: 'Guides', icon: '📖', sprite: 'graceful', badge: guideUpdates, matchPrefix: true },
-      // Every staff seat may read the clan's history.
-      { href: '/admin/clan/audit', label: 'Activity log', icon: '📜', sprite: 'clue' },
+      // Every staff seat may read the clan's history. Admins reach it as a tab of Clan profile (Set
+      // up, below), so it is listed here only for those who can't open that.
+      ...(isAdmin ? [] : [{ href: '/admin/clan/audit', label: 'Activity log', icon: '📜', sprite: 'clue' as const }]),
     ],
   });
 
@@ -230,7 +243,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           : []),
         { href: '/admin/features', label: 'Features', icon: '🧩', sprite: 'petRock' },
         { href: '/admin/rules', label: 'Rules & scoring', icon: '📏', sprite: 'stats' },
-        { href: '/admin/clan', label: 'Clan profile', icon: '🏰', sprite: 'zenyte', matchPrefix: true, exclude: ['/admin/clan/audit'] },
+        { href: '/admin/clan', label: 'Clan profile', icon: '🏰', sprite: 'zenyte', matchPrefix: true },
         // SETUP IS A STATE, NOT A PLACE: listed only while unfinished.
         ...(!setup || setup.allDone || setup.dismissed
           ? []

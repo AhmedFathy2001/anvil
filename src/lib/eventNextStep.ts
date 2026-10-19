@@ -26,10 +26,17 @@ export interface NextStepInput {
   blockers: string[];
   /** Individual boards (a ladder) have no teams to make. */
   individual: boolean;
+  /**
+   * The clan uses surveys and this board has none yet — the wrap-up mentions it. Optional, so it is a
+   * line in the last step rather than a step of its own that would sit there until somebody made one.
+   */
+  surveyMissing?: boolean;
 }
 
 export type NextStepAction =
   | { kind: 'link'; label: string; tab: string }
+  /** Copy a member-facing link to this event: `/events/<id>/<path>`. */
+  | { kind: 'copy'; label: string; path: string }
   | { kind: 'start'; label: string }
   | { kind: 'none' };
 
@@ -68,10 +75,12 @@ export function nextStep(e: NextStepInput): NextStep {
       };
     }
     if (!e.individual && e.signupCount === 0 && e.teamCount === 0) {
+      // Sign-ups are open from the moment an event exists, so "open" them was a step with nothing to
+      // press. What's actually missing is people knowing where to go.
       return {
-        title: 'Open sign-ups',
-        body: 'The board is ready. Open sign-ups so people can join, then make teams from who signed up.',
-        action: { kind: 'link', label: 'Open sign-ups', tab: 'signups' },
+        title: 'Share the sign-up link',
+        body: 'The board is ready and sign-ups are open. Post the link in your Discord, then make teams from who signs up.',
+        action: { kind: 'copy', label: 'Copy sign-up link', path: 'signup' },
       };
     }
     if (!e.individual && (e.teamCount === 0 || e.assignedPlayers === 0)) {
@@ -117,7 +126,7 @@ export function nextStep(e: NextStepInput): NextStep {
       title: 'It’s running',
       body: e.endDate
         ? `Nothing needs you right now. It ends on ${day(e.endDate)}.`
-        : 'Nothing needs you right now. It runs until you end it.',
+        : 'Nothing needs you right now. It has no end date, so it runs until you press “End event now” under Live activity.',
       action: { kind: 'link', label: 'See the standings', tab: 'stats' },
     };
   }
@@ -144,9 +153,13 @@ export function nextStep(e: NextStepInput): NextStep {
       action: { kind: 'link', label: 'Pay prizes', tab: 'payouts' },
     };
   }
+  // Not "nothing left": proof screenshots leave storage 90 days after the end (lib/eventMediaRetention)
+  // and the archive card at the bottom of this page was the only place that said so.
   return {
     title: 'All wrapped up',
-    body: 'Prizes are paid. Nothing left to do here.',
-    action: { kind: 'none' },
+    body:
+      'Prizes are paid. Proof screenshots are deleted 90 days after the end, so download the archive if you want to keep them.' +
+      (e.surveyMissing ? ' Want feedback? Add a short survey on the Survey tab — players answer it on the event page.' : ''),
+    action: { kind: 'link', label: 'Download the archive', tab: '#archive' },
   };
 }

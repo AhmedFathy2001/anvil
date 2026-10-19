@@ -10,6 +10,8 @@ import { checkDomain, checkInGameName, checkSlug, availabilityMessage, createCla
 import { notifyClanCreated } from '@/lib/opsEvents';
 import { rateLimitByKey } from '@/lib/rate-limit';
 import { track } from '@/lib/analytics';
+import { PLANS, checkoutUrlWithRef } from '@/lib/plans';
+import { freemiumEnforced } from '@/lib/entitlements';
 
 /**
  * Creating a clan, and checking whether a name is free.
@@ -134,5 +136,10 @@ export async function POST(request: Request) {
 
   track('clan.created', { clanId: result.clanId, userId: session.userId });
 
-  return NextResponse.json({ ok: true, clan: row });
+  // Came from a paid tier on /pricing: hand back that tier's checkout, carrying this clan's ref so the
+  // webhook can find it. The clan itself still starts free — Gumroad starting the trial is what moves it.
+  const picked = typeof body.plan === 'string' ? PLANS[body.plan as keyof typeof PLANS] : undefined;
+  const checkoutUrl = freemiumEnforced() && picked?.priceUsd ? checkoutUrlWithRef(picked, row?.gumroadRef) : null;
+
+  return NextResponse.json({ ok: true, clan: row, checkoutUrl });
 }

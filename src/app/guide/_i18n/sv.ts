@@ -821,7 +821,7 @@ const sv: PartialGuideDict = {
     title: 'Så kör du ditt första event',
     dek: 'Hela vägen, i den ordning du faktiskt går den: få {clanName} konfigurerad, få in medlemslistan, bygg en bräda, drafta lag, dra igång det hela och dela ut priserna. Ungefär en kvälls arbete för första bingot — minuter för det andra.',
     facts: [
-      { strong: '4 steg', rest: 'i installationsguiden' },
+      { strong: '5 steg', rest: 'på installationens checklista' },
       { strong: '7 format', rest: 'att bygga en bräda av' },
       { strong: '1 knapp', rest: 'för att synka medlemslistan' },
     ],
@@ -859,7 +859,7 @@ const sv: PartialGuideDict = {
     setup: {
       title: 'Namnge klanen, koppla Discord',
       intro:
-        '**System → Setup** är en guide i fyra steg, och instrumentpanelen håller kvar samma fyra som en checklista tills de är klara: namnge klanen, koppla Discord, skapa ett event, lägg till rutor. Statusen räknas ut från riktiga data, så ett steg bockas av först när det verkligen är färdigt.',
+        '**System → Setup** är en kort guide, och instrumentpanelen håller kvar en checklista i fem steg tills de är klara: namnge klanen, koppla Discord, läs in dina medlemmar, skapa ett event, lägg till rutor. Statusen räknas ut från riktiga data, så ett steg bockas av först när det verkligen är färdigt.',
       discord:
         'För Discord har du två vägar, och de går att kombinera: ge Anvil en **bot** så kan den skapa webhooks, synka roller och smeknamn och bygga privata lagkanaler; ge den en enda **webhook-URL** så kan den posta meddelanden och inget annat. Börja med webhooken om du vill vara igång på två minuter, och lägg till boten när du vill ha automatiken.',
       permsNote: {
@@ -873,7 +873,7 @@ const sv: PartialGuideDict = {
     channels: {
       title: 'Sprid inläggen över flera kanaler',
       body: [
-        'Allt postas som standard i en enda huvudkanal för meddelanden. När den blir stökig, öppna **System → Advanced settings → Webhooks** och ge de högljudda kategorierna egna hem — bingoevent, veckotävlingar, sällsynta drops, dödsfall, PvP-kills, combat achievements, klipp. Allt du lämnar tomt faller tillbaka till huvudkanalen, så du kan flytta en kategori i taget.',
+        'Allt postas som standard i en enda huvudkanal för meddelanden. När den blir stökig, öppna **Discord → Where posts go** och ge de högljudda kategorierna egna hem — bingoevent, veckotävlingar, sällsynta drops, dödsfall, PvP-kills, combat achievements, klipp. Allt du lämnar tomt faller tillbaka till huvudkanalen, så du kan flytta en kategori i taget.',
         'Med boten ansluten rör du aldrig en webhook-URL: välj en kanal i listan och tryck **Create webhook**. Under ett hektiskt event kan du lägga till en andra webhook till samma kanal — Anvil växlar mellan dem så att Discords hastighetsgräns inte sväljer inlägg.',
       ],
       clipsNote: {
@@ -947,7 +947,7 @@ const sv: PartialGuideDict = {
       rows: [
         {
           term: 'Svårighetsgrader',
-          body: 'poängvärden översätts till namngivna band (easy → elite). Redigera banden under Advanced settings om din klan graderar annorlunda.',
+          body: 'poängvärden översätts till namngivna band (easy → elite). Redigera banden under Rules & scoring om din klan graderar annorlunda.',
         },
         {
           term: 'Balansgranskaren',
@@ -1419,7 +1419,7 @@ const sv: PartialGuideDict = {
     points: {
       title: 'Poäng, nivåer och om det är rättvist',
       body: [
-        'På en poängsatt bräda bär varje ruta sitt eget värde, och de värdena översätts till namngivna svårighetsband — easy till elite — som du kan redigera under **Advanced settings** om din klan graderar annorlunda. Bandet är vad spelarna läser; siffran är vad som räknas.',
+        'På en poängsatt bräda bär varje ruta sitt eget värde, och de värdena översätts till namngivna svårighetsband — easy till elite — som du kan redigera under **Rules & scoring** om din klan graderar annorlunda. Bandet är vad spelarna läser; siffran är vad som räknas.',
         'Markera en ruta **optional** så slutar den räknas mot brädans total, och så lägger du till sträckmål utan att göra en blackout omöjlig.',
         'När brädan är full, kör **balansgranskaren** från Tiles-fliken. Den kollar strukturen och arbetsfördelningen och talar om var brädan lutar — en kategori ingen kan avsluta, ett band som är värt mycket mer per timme än sina grannar — innan spelarna hittar de sakerna åt dig och styr runt dem.',
       ],

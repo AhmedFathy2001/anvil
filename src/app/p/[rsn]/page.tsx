@@ -246,8 +246,8 @@ export default async function CharacterPage({
           achievements, records) until the sweep happened to reach this character. */}
       {!profile.statsAt && profile.skills.length === 0 && (
         <div className="mb-5 rounded-xl border border-dashed border-card-border px-5 py-4 text-center text-sm text-text-muted">
-          No hiscores yet for this character. Levels and XP appear once the hiscores sweep has seen it, or
-          as soon as the RuneLite plugin pushes.
+          No stats yet for this character. They appear within minutes of playing with the Anvil plugin running,
+          or once we next check the OSRS Hiscores.
         </div>
       )}
       <GoalsCard

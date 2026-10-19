@@ -7,6 +7,7 @@ import LeaguesBoard from './LeaguesBoard';
 import BoardStatusTabs, { type StatusFilter, type TileStatus } from './BoardStatusTabs';
 import { isTileRaceFormat } from '@/lib/utils';
 import { deriveTileIcon } from '@/lib/tileIcons';
+import { isManualTile } from '@/lib/clogManual';
 
 interface Tile {
   id: number;
@@ -148,13 +149,20 @@ export default function EventBoard({
     <BingoBoard boardSize={boardSize} pointsMode={pointsMode} tiles={iconedTiles} {...boardRest} />
   );
 
+  // The ✋ corner mark explains itself only on hover, which a phone never does. One visible line under
+  // the grid, only on boards that have such tiles.
+  const legend = isTileRaceFormat(format) || pointsMode || !tiles.some((t) => isManualTile(t)) ? null : (
+    <p className="mt-2 text-xs text-text-muted">✋ needs a screenshot · tap any tile to see how it counts</p>
+  );
+
   // Only worth showing once a board actually has some progress to sort by.
   const showTabs = showStatusFilter && tiles.length > 0 && (counts.completed > 0 || counts.inProgress > 0);
-  if (!showTabs) return board;
+  if (!showTabs && !legend) return board;
   return (
     <div>
-      <BoardStatusTabs value={statusFilter} onChange={setStatusFilter} counts={counts} />
+      {showTabs && <BoardStatusTabs value={statusFilter} onChange={setStatusFilter} counts={counts} />}
       {board}
+      {legend}
     </div>
   );
 }

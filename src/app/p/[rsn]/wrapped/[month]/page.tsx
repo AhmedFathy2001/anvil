@@ -196,7 +196,7 @@ export default async function MonthlyWrappedPage({ params }: { params: Promise<P
                   {character.privateToViewer ? (
                     <>
                       This character isn&rsquo;t shared, so only you can open the link.{' '}
-                      <ClanLink href="/profile" className="text-gold hover:underline">Share it from your locker</ClanLink>.
+                      <ClanLink href="/profile" className="text-gold hover:underline">Share it from your profile</ClanLink>.
                     </>
                   ) : (
                     'Paste it in Discord and it shows as this card.'

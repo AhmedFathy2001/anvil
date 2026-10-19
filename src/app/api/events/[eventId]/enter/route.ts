@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanAuditLog, clanMemberships, events } from '@/db/schema';
+import { accounts, clanAuditLog, clanJoinRequests, clanMemberships, events } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
 import { canEnterEvent } from '@/lib/eventAccess';
-import { admit } from '@/lib/guestAdmission';
+import { admit, guestPolicyOf } from '@/lib/guestAdmission';
 import { rateLimitByKey } from '@/lib/rate-limit';
 
 /**
@@ -132,6 +132,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
   // The accounts they could enter with: verified, and not already seated in the host clan (those
   // need no entry at all).
   let options: { id: number; rsn: string }[] = [];
+  // Asked already? The "waiting on the host" card used to live only in the browser, so a reload (or
+  // coming back the next day) offered "Ask to join" again as if nothing had been sent.
+  let pendingSince: string | null = null;
+  // A closed clan refuses every entry; say so up front instead of after the press.
+  let guestsClosed = false;
   if (session?.playerId && verdict.outcome === 'outsider') {
     // clan-scope: global -- entering somebody ELSE'S event is the whole point of this route; the clan is the event's, and canEnterEvent has already ruled on access.
     const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
@@ -142,16 +147,32 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
         .where(and(eq(clanMemberships.clanId, event.clanId), isNull(clanMemberships.leftAt)));
       const seatedIds = new Set(seated.map((r) => r.accountId));
 
-      options = (
-        await db
-          .select({ id: accounts.id, rsn: accounts.rsn, verifiedAt: accounts.verifiedAt })
-          .from(accounts)
-          .where(eq(accounts.playerId, session.playerId))
-      )
+      const mine = await db
+        .select({ id: accounts.id, rsn: accounts.rsn, verifiedAt: accounts.verifiedAt })
+        .from(accounts)
+        .where(eq(accounts.playerId, session.playerId));
+      options = mine
         .filter((a) => a.verifiedAt != null && !seatedIds.has(a.id))
         .map((a) => ({ id: a.id, rsn: a.rsn }));
+
+      const [policy, asked] = await Promise.all([
+        guestPolicyOf(event.clanId),
+        mine.length === 0
+          ? Promise.resolve(undefined)
+          : db.query.clanJoinRequests.findFirst({
+              where: and(
+                eq(clanJoinRequests.clanId, event.clanId),
+                inArray(clanJoinRequests.accountId, mine.map((a) => a.id)),
+                eq(clanJoinRequests.status, 'pending'),
+              ),
+              orderBy: asc(clanJoinRequests.requestedAt),
+              columns: { requestedAt: true },
+            }),
+      ]);
+      guestsClosed = policy === 'closed';
+      pendingSince = asked?.requestedAt ?? null;
     }
   }
 
-  return NextResponse.json({ verdict, options });
+  return NextResponse.json({ verdict, options, pendingSince, guestsClosed });
 }

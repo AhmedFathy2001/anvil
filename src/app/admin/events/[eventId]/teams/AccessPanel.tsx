@@ -16,7 +16,7 @@ interface Invite {
 }
 
 const VISIBILITY: { value: string; label: string; hint: string }[] = [
-  { value: 'clan', label: 'Your clan', hint: 'Only people with a seat here — plus anyone, if your clan is public.' },
+  { value: 'clan', label: 'Your clan', hint: 'Only people on your member list — plus anyone, if your clan is public.' },
   { value: 'invited', label: 'Invited only', hint: 'Hidden unless you invite their clan, or them by name.' },
   { value: 'public', label: 'Anyone', hint: 'Listed and readable by anybody on Anvil.' },
 ];
@@ -239,7 +239,7 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
           {guestPolicy === 'closed' && (
             <p className="mt-2 text-[12.5px] text-accent-red">
               Your clan is not taking guests, so nobody from outside can enter whatever this says.
-              Change it under Clan → Access.
+              Change it under People → Who can join.
             </p>
           )}
         </div>

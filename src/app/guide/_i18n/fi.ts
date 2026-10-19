@@ -822,7 +822,7 @@ const fi: PartialGuideDict = {
     title: 'Näin pyörität ensimmäisen tapahtumasi',
     dek: 'Koko polku siinä järjestyksessä jossa sen oikeasti kuljet: saa {clanName} konfiguroitua, saa jäsenlista sisään, rakenna taulu, draftaa joukkueet, käynnistä koko homma ja jaa palkinnot. Suunnilleen illan työ ensimmäiselle bingolle — minuutteja toiselle.',
     facts: [
-      { strong: '4 vaihetta', rest: 'käyttöönottovelhossa' },
+      { strong: '5 vaihetta', rest: 'käyttöönoton tarkistuslistalla' },
       { strong: '7 formaattia', rest: 'joista rakentaa taulu' },
       { strong: '1 painike', rest: 'jäsenlistan synkronointiin' },
     ],
@@ -860,7 +860,7 @@ const fi: PartialGuideDict = {
     setup: {
       title: 'Nimeä klaani, yhdistä Discord',
       intro:
-        '**System → Setup** on neljän vaiheen velho, ja työpöytä pitää samat neljä tarkistuslistana kunnes ne on tehty: nimeä klaani, yhdistä Discord, luo tapahtuma, lisää ruudut. Tila lasketaan oikeasta datasta, joten vaihe kuittautuu vasta kun se on aidosti valmis.',
+        '**System → Setup** on lyhyt velho, ja työpöytä pitää viiden vaiheen tarkistuslistan kunnes ne on tehty: nimeä klaani, yhdistä Discord, lataa jäsenet, luo tapahtuma, lisää ruudut. Tila lasketaan oikeasta datasta, joten vaihe kuittautuu vasta kun se on aidosti valmis.',
       discord:
         'Discordiin on kaksi reittiä, ja ne täydentävät toisiaan: anna Anvilille **botti**, niin se voi luoda webhookeja, synkronoida rooleja ja nimimerkkejä sekä rakentaa yksityisiä joukkuekanavia; anna sille yksi **webhook-osoite**, niin se voi julkaista ilmoituksia eikä mitään muuta. Aloita webhookista jos haluat olla pystyssä kahdessa minuutissa, ja lisää botti kun haluat automatiikan.',
       permsNote: {
@@ -874,7 +874,7 @@ const fi: PartialGuideDict = {
     channels: {
       title: 'Jaa julkaisut useaan kanavaan',
       body: [
-        'Kaikki julkaistaan oletuksena yhteen pääilmoituskanavaan. Kun se käy meluisaksi, avaa **System → Advanced settings → Webhooks** ja anna äänekkäille kategorioille omat kotinsa — bingotapahtumat, viikkokilpailut, harvinaiset dropit, kuolemat, PvP-tapot, combat achievementit, leikkeet. Kaikki minkä jätät tyhjäksi putoaa takaisin pääkanavaan, joten voit erottaa yhden kategorian kerrallaan.',
+        'Kaikki julkaistaan oletuksena yhteen pääilmoituskanavaan. Kun se käy meluisaksi, avaa **Discord → Where posts go** ja anna äänekkäille kategorioille omat kotinsa — bingotapahtumat, viikkokilpailut, harvinaiset dropit, kuolemat, PvP-tapot, combat achievementit, leikkeet. Kaikki minkä jätät tyhjäksi putoaa takaisin pääkanavaan, joten voit erottaa yhden kategorian kerrallaan.',
         'Botin ollessa yhdistettynä et koskaan koske webhook-osoitteeseen: valitse kanava valikosta ja paina **Create webhook**. Kiireisessä tapahtumassa voit lisätä toisen webhookin samaan kanavaan — Anvil vuorottelee niiden välillä, jottei Discordin nopeusraja niele julkaisuja.',
       ],
       clipsNote: {
@@ -948,7 +948,7 @@ const fi: PartialGuideDict = {
       rows: [
         {
           term: 'Vaikeusasteet',
-          body: 'pistearvot kääntyvät nimetyiksi kaistoiksi (easy → elite). Muokkaa kaistoja kohdassa Advanced settings jos klaanisi luokittelee toisin.',
+          body: 'pistearvot kääntyvät nimetyiksi kaistoiksi (easy → elite). Muokkaa kaistoja kohdassa Rules & scoring jos klaanisi luokittelee toisin.',
         },
         {
           term: 'Tasapainotarkastaja',
@@ -1420,7 +1420,7 @@ const fi: PartialGuideDict = {
     points: {
       title: 'Pisteet, tasot ja onko tämä reilua',
       body: [
-        'Pisteytetyllä taululla jokaisella ruudulla on oma arvonsa, ja nuo arvot kääntyvät nimetyiksi vaikeuskaistoiksi — easy–elite — joita voit muokata kohdassa **Advanced settings** jos klaanisi luokittelee toisin. Kaista on se minkä pelaajat lukevat; luku on se joka lasketaan.',
+        'Pisteytetyllä taululla jokaisella ruudulla on oma arvonsa, ja nuo arvot kääntyvät nimetyiksi vaikeuskaistoiksi — easy–elite — joita voit muokata kohdassa **Rules & scoring** jos klaanisi luokittelee toisin. Kaista on se minkä pelaajat lukevat; luku on se joka lasketaan.',
         'Merkitse ruutu **optional**, niin se lakkaa laskemasta taulun kokonaissummaan, ja näin lisäät venytystavoitteita tekemättä blackoutista mahdotonta.',
         'Kun taulu on täynnä, aja **tasapainotarkastaja** Tiles-välilehdeltä. Se tarkistaa rakenteen ja työn jakautumisen ja kertoo missä taulu kallistuu — kategoria jota kukaan ei voi saada valmiiksi, kaista joka on tunnissa paljon arvokkaampi kuin naapurinsa — ennen kuin pelaajat löytävät ne puolestasi ja kiertävät ne.',
       ],

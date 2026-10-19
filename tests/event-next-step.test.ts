@@ -29,7 +29,7 @@ test('build walks tiles → sign-ups → teams → dates → start, in that orde
   assert.equal(nextStep({ ...base, tileCount: 0 }).action.kind === 'link' && (nextStep({ ...base, tileCount: 0 }).action as { tab: string }).tab, 'tiles');
   assert.match(nextStep({ ...base, tileCount: 20 }).title, /Add 5 more tiles/);
   assert.equal((nextStep({ ...base, pendingSignups: 3 }).action as { tab: string }).tab, 'signups');
-  assert.equal(nextStep({ ...base, signupCount: 0, teamCount: 0, assignedPlayers: 0 }).title, 'Open sign-ups');
+  assert.equal(nextStep({ ...base, signupCount: 0, teamCount: 0, assignedPlayers: 0 }).title, 'Share the sign-up link');
   assert.equal(nextStep({ ...base, teamCount: 0, assignedPlayers: 0 }).title, 'Make the teams');
   assert.equal(nextStep({ ...base, startDate: null }).title, 'Pick the dates');
   assert.equal(nextStep(base).action.kind, 'start');
@@ -49,5 +49,8 @@ test('wrap: proofs, then set prizes, then pay them, then done', () => {
   assert.match(nextStep({ ...base, stage: 'wrap', flaggedProofs: 1 }).title, /Check 1 proof/);
   assert.equal(nextStep({ ...base, stage: 'wrap' }).title, 'Set the prizes');
   assert.equal(nextStep({ ...base, stage: 'wrap', payoutCount: 3, unpaidPayouts: 2 }).title, 'Pay 2 prizes');
-  assert.equal(nextStep({ ...base, stage: 'wrap', payoutCount: 3 }).action.kind, 'none');
+  // Done paying still points at the archive: proof screenshots are purged 90 days after the end.
+  assert.equal((nextStep({ ...base, stage: 'wrap', payoutCount: 3 }).action as { tab: string }).tab, '#archive');
+  assert.match(nextStep({ ...base, stage: 'wrap', payoutCount: 3, surveyMissing: true }).body, /survey/);
+  assert.doesNotMatch(nextStep({ ...base, stage: 'wrap', payoutCount: 3 }).body, /survey/);
 });

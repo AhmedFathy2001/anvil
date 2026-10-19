@@ -6,6 +6,7 @@ import Select from '@/components/Select';
 import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
 import Input from '@/components/Input';
+import { useDialog } from '@/components/Confirm';
 import { atLeast } from '@/lib/clanRoles';
 import CofferPoolCard from './CofferPoolCard';
 
@@ -86,6 +87,7 @@ function suggestAmounts(paidPlaces: number, basis: number): string[] {
 }
 
 export default function PayoutsClient({ eventId, viewerRole }: Props) {
+  const { confirm } = useDialog();
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -200,6 +202,19 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
   }
 
   async function generate() {
+    // Rebuilding over existing rows replaces every unpaid one — including amounts edited by hand.
+    const unpaid = data?.payouts.filter((p) => p.status !== 'paid').length ?? 0;
+    if (
+      unpaid > 0 &&
+      !(await confirm({
+        title: 'Rebuild the unpaid payouts?',
+        body: `The ${unpaid === 1 ? 'unpaid payout is' : `${unpaid} unpaid payouts are`} replaced from the split above, so any amount you changed by hand is lost. Paid payouts stay as they are.`,
+        confirmLabel: 'Rebuild',
+        tone: 'gold',
+      }))
+    ) {
+      return;
+    }
     setGenerating(true);
     setErr(null);
     setNotice(null);
@@ -251,6 +266,19 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
   }
 
   async function announce() {
+    // It posts straight to Discord, where it can't be taken back from here.
+    if (
+      !(await confirm({
+        title: data?.announcedAt ? 'Post the winners again?' : 'Announce the winners?',
+        body: data?.announcedAt
+          ? 'This posts the winners to your bingo Discord channel a second time.'
+          : 'This posts the winners and their prizes to your bingo Discord channel now.',
+        confirmLabel: data?.announcedAt ? 'Post again' : 'Announce',
+        tone: 'gold',
+      }))
+    ) {
+      return;
+    }
     setAnnouncing(true);
     setErr(null);
     setNotice(null);

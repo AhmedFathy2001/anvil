@@ -187,7 +187,7 @@ export default function MembersDirectory({
 
         {shown.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-text-muted">
-            {members.length === 0 ? 'No members yet — sync the roster from the plugin.' : 'Nobody matches that.'}
+            {members.length === 0 ? 'No members yet — a clan admin loads the list from the Anvil plugin.' : 'Nobody matches that.'}
           </p>
         ) : (
           // Capped, not endless: a long roster scrolls inside its own frame so the page below stays
@@ -253,7 +253,7 @@ export default function MembersDirectory({
       </div>
 
       <p className="mt-3 text-xs text-text-muted">
-        Showing {shown.length} of {members.length}. Stats come from the last hiscores sweep — a dash
+        Showing {shown.length} of {members.length}. Stats come from the latest OSRS Hiscores check — a dash
         means we haven&rsquo;t seen that account yet. <span className="text-foreground/70">7d</span> is
         efficient hours gained this week; ▲▼ is places moved since last week.
       </p>

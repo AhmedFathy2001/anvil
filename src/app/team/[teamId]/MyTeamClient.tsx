@@ -222,10 +222,12 @@ export default function MyTeamClient({
       `/api/events/${event.id}/submissions?submissionId=${submissionId}&reason=${encodeURIComponent(reason)}`,
       { method: 'DELETE' },
     );
-    if (res.ok) {
-      await fetchSubmissions();
-      await fetchCompletions();
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.error || 'Could not remove that proof.');
     }
+    await fetchSubmissions();
+    await fetchCompletions();
   }
 
   async function handleToggle(tileId: number) {
@@ -234,7 +236,11 @@ export default function MyTeamClient({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ teamId: team.id, tileId }),
     });
-    if (res.ok) await fetchCompletions();
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.error || 'That didn’t save.');
+    }
+    await fetchCompletions();
   }
 
   const colorSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -444,7 +450,17 @@ export default function MyTeamClient({
       </div>
       <p className="text-text-muted text-sm mb-2">
         {event.name}
-        {isCaptain && !boardHidden && ' · Click tiles to toggle or submit'}
+        {!boardHidden && (isCaptain ? ' · Tap a tile to mark it or add proof' : ' · Tap a tile to see how it counts and add proof')}
+        {/* "Where did my screenshot go?" — the member panel already lists a player's own proof; this
+            opens it on them without having to know you can click your own name in the roster. */}
+        {!boardHidden && myPlayerId != null && (
+          <>
+            {' · '}
+            <button type="button" onClick={() => setSelectedMemberId(myPlayerId)} className="text-gold hover:underline">
+              Your proofs
+            </button>
+          </>
+        )}
       </p>
 
       {eventCountdown && (
@@ -590,10 +606,10 @@ export default function MyTeamClient({
           <div className="min-w-0">
             {boardHidden ? (
               <div className="border border-dashed border-card-border rounded-xl p-8 sm:p-10 text-center">
-                <p className="text-lg font-semibold mb-1">The board is sealed</p>
+                <p className="text-lg font-semibold mb-1">The tiles aren&apos;t out yet</p>
                 <p className="text-sm text-text-muted max-w-md mx-auto">
-                  The host unveils the tiles before the event starts — nobody has seen them yet, so
-                  there is nothing to plan around and nothing to miss.
+                  They appear here when the host reveals them or the event starts. Nobody has seen them yet, so
+                  you aren&apos;t missing anything.
                 </p>
                 <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-sm">
                   <span className="rounded-lg border border-card-border bg-brown-dark px-3 py-1.5">

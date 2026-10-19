@@ -24,7 +24,7 @@
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
 
@@ -131,6 +131,42 @@ test('a brand-new clan has done none of the work another clan did', async () => 
 
   // And the one it HAS done, which was reported as not done: it named itself on the form.
   assert.equal(step('clan').done, true, 'it has a name, on the row');
+});
+
+test('a board of untouched "Tile N" placeholders is not tiles added', async () => {
+  // Creating an event seeds its whole board with "Tile 1".."Tile N" (api/events), so counting rows
+  // ticked this step the moment the event existed. lib/writtenTiles leaves untouched ones out.
+  const { db, schema: s } = await loadDb();
+  const [c] = await db.insert(s.clans).values({ slug: 'placeholders', name: 'Placeholders', status: 'active' }).returning();
+  const [ev] = await db.insert(s.events).values({ clanId: c.id, name: 'Blank Bingo', boardSize: 2 }).returning();
+  await db.insert(s.tiles).values([0, 1, 2, 3].map((i) => ({ eventId: ev.id, position: i, label: `Tile ${i + 1}` })));
+  const step = async () => (await S.getSetupStatus(c.id)).steps.find((x) => x.key === 'tiles')!;
+  assert.equal((await step()).done, false, 'placeholders only');
+
+  // A placeholder label with real tracking IS written — the admin set it up and kept the name.
+  await db.update(s.tiles).set({ tileType: 'drop' }).where(and(eq(s.tiles.eventId, ev.id), eq(s.tiles.position, 0)));
+  assert.equal((await step()).done, true, 'a configured tile counts even under a placeholder name');
+});
+
+test('the members step waits for a real roster, not just the owner', async () => {
+  // The owner alone is a roster of one, which is what every clan has the minute it is made — and
+  // nobody else can sign up for anything until the list is loaded.
+  const { db, schema: s } = await loadDb();
+  const [c] = await db.insert(s.clans).values({ slug: 'roster-step', name: 'Roster Step', status: 'active' }).returning();
+  const step = async () => (await S.getSetupStatus(c.id)).steps.find((x) => x.key === 'members')!;
+  const seat = async (rsn: string, kind: 'member' | 'guest' = 'member') => {
+    const [p] = await db.insert(s.players).values({ displayName: rsn }).returning();
+    const [a] = await db.insert(s.accounts).values({ playerId: p.id, rsn, rsnNormalized: rsn.toLowerCase() }).returning();
+    await db.insert(s.clanMemberships).values({ clanId: c.id, accountId: a.id, kind });
+  };
+  await seat('RosterOwner');
+  assert.equal((await step()).done, false, 'one seat is just the owner');
+  await seat('RosterGuest', 'guest');
+  assert.equal((await step()).done, false, 'a guest is not a roster');
+  await seat('RosterMember');
+  assert.equal((await step()).done, true);
+  // Later tests count every seat in the database.
+  await db.delete(s.clanMemberships).where(eq(s.clanMemberships.clanId, c.id));
 });
 
 test('the busy clan is still credited with its own work', async () => {

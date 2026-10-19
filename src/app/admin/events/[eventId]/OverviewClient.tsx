@@ -25,6 +25,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import { scoreTeams } from '@/lib/boardScoring';
 import { useDialog } from '@/components/Confirm';
+import CopyLinkButton from '@/components/CopyLinkButton';
 
 /** One superlative, flattened for display — see lib/eventRecap. */
 export interface RecapAwardSummary {
@@ -48,6 +49,8 @@ interface Props {
   /** Finished events only: the top superlatives (lib/eventRecap), already formatted. */
   awards?: RecapAwardSummary[];
   tierBands?: TierBand[];
+  /** The clan has surveys switched on (Admin → Features). */
+  surveyOn?: boolean;
 }
 
 /**
@@ -70,6 +73,7 @@ export default function OverviewClient({
   recorded = [],
   awards = [],
   tierBands = DEFAULT_TIER_BANDS,
+  surveyOn = false,
 }: Props) {
   const router = useRouter();
   const [currentEvent, setCurrentEvent] = useState(event);
@@ -181,6 +185,7 @@ export default function OverviewClient({
     unpaidPayouts: counts.unpaidPayouts,
     blockers: counts.blockers,
     individual: axes.competitors === 'individuals',
+    surveyMissing: surveyOn && !counts.hasSurvey,
   });
   const starter = useStartNow(event.id, (e) => {
     setCurrentEvent(e);
@@ -448,6 +453,7 @@ function BuildHome({
         <p className="text-[13px] text-text-muted mb-2">Worth checking first</p>
         <div className="flex flex-wrap gap-2">
           <QuietLink href={`/events/${event.id}`}>See the player&apos;s view ↗</QuietLink>
+          <CopyLinkButton path={`/events/${event.id}/signup`} label="Copy sign-up link" />
           <QuietLink href={`/admin/events/${event.id}/tiles`}>Check the board balance</QuietLink>
           <button
             type="button"
@@ -539,7 +545,7 @@ function RunHome({
   onEventChange: (e: Event) => void;
 }) {
   const [ending, setEnding] = useState(false);
-  const { confirm } = useDialog();
+  const { confirm, notify } = useDialog();
   const base = `/admin/events/${event.id}`;
 
   const tileById = useMemo(() => new Map(tiles.map((t) => [t.id, t])), [tiles]);
@@ -557,9 +563,9 @@ function RunHome({
 
   async function forceEnd() {
     const ok = await confirm({
-      title: 'Force-end this event?',
+      title: 'End the event now?',
       body: 'It stops accepting submissions immediately, standings are frozen as they are, and Discord is told.',
-      confirmLabel: 'Force-end',
+      confirmLabel: 'End event',
     });
     if (!ok) return;
     setEnding(true);
@@ -570,6 +576,7 @@ function RunHome({
         body: JSON.stringify({ action: 'force-end' }),
       });
       if (res.ok) onEventChange(await res.json());
+      else notify((await res.json().catch(() => ({}))).error || 'Could not end the event.', 'error');
     } finally {
       setEnding(false);
     }
@@ -629,15 +636,15 @@ function RunHome({
         )}
 
         <div className="mt-4 pt-4 border-t border-card-border flex flex-wrap gap-2">
-          <QuietLink href={`${base}/stats`}>Stats &amp; per-member breakdown</QuietLink>
-          <QuietLink href={`${base}/teams`}>Rosters &amp; subs</QuietLink>
+          <QuietLink href={`${base}/stats`}>Stats</QuietLink>
+          <QuietLink href={`${base}/teams`}>Teams</QuietLink>
           <button
             type="button"
             onClick={forceEnd}
             disabled={ending}
             className="ml-auto px-2.5 py-1 text-xs rounded-lg border border-red-500/30 text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-colors disabled:opacity-50"
           >
-            {ending ? 'Ending…' : 'End it now'}
+            {ending ? 'Ending…' : 'End event now'}
           </button>
         </div>
       </section>
@@ -760,7 +767,7 @@ function WrapHome({
       <div className="grid gap-4 sm:grid-cols-3">
         <NextStep
           href={`${base}/payouts`}
-          title={counts.unpaidPayouts > 0 ? `${counts.unpaidPayouts} payouts owed` : counts.payoutCount > 0 ? 'All paid' : 'Set the payouts'}
+          title={counts.unpaidPayouts > 0 ? `${counts.unpaidPayouts} prizes owed` : counts.payoutCount > 0 ? 'All paid' : 'Set the prizes'}
           detail={
             counts.unpaidPayouts > 0
               ? 'Mark each winner paid, with a screenshot.'

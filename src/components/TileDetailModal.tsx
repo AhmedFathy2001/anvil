@@ -10,8 +10,9 @@ import Textarea from '@/components/Textarea';
 import { exactTitle, formatNumber } from '@/lib/utils';
 import type { Tile, Submission, ItemRequirementProgress } from '@/lib/types';
 import ManualOnlyBadge from './ManualOnlyBadge';
+import ClanLink from '@/components/ClanLink';
 import TileTargets from './TileTargets';
-import { statLabel, parseJsonArray } from '@/lib/tileKinds';
+import { statLabel, parseJsonArray, howTileCounts, tileKindKey, TILE_KIND_BADGES } from '@/lib/tileKinds';
 import { lapUnitNoun } from '@/lib/constants';
 import { isIndividualMode } from '@/lib/statTracking';
 import { evaluateCollection } from '@/lib/collectionSets';
@@ -49,6 +50,7 @@ function parseGp(raw: string): number | null {
   const n = Math.round(parseFloat(m[1]) * mult);
   return Number.isFinite(n) && n >= 1 && n <= 2_147_483_647 ? n : null;
 }
+
 
 interface CompletedByTeam {
   teamId: number;
@@ -156,6 +158,12 @@ export default function TileDetailModal({
   const [viewer, setViewer] = useState<{ shots: ProofShot[]; index: number } | null>(null);
   const [showAllContributors, setShowAllContributors] = useState(false);
   const [error, setError] = useState('');
+  // A proof counts the moment it lands; staff only look again if it gets flagged. Say so, or the form
+  // just clears and the player wonders whether anything happened.
+  const [notice, setNotice] = useState('');
+  // A refused toggle or delete (say the event finished and editing locked). Thrown by the parent's
+  // handler; shown under the buttons so the click doesn't just do nothing.
+  const [actionError, setActionError] = useState('');
   // Delete confirmation modal state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteSubmissionId, setDeleteSubmissionId] = useState<number | null>(null);
@@ -185,6 +193,7 @@ export default function TileDetailModal({
     setClearTime('');
     setCreditPlayerId(currentPlayerId ? String(currentPlayerId) : '');
     setError('');
+    setNotice('');
   }, [tile.id, currentPlayerId]);
 
   const isCompleted = completedBy.length > 0;
@@ -207,6 +216,10 @@ export default function TileDetailModal({
   const isLms = tile.tileType === 'lms';
   const isValue = tile.tileType === 'value' || tile.tileType === 'valuetotal';
   const manualOnly = isManualTile(tile);
+  const howCounts = howTileCounts(tileKindKey(tile), manualOnly);
+  const submittedNotice = howCounts.auto
+    ? 'Added — it counts now. Staff only step in if something looks off.'
+    : 'Added. Your captain or the clan staff mark the tile done once they’ve seen it.';
   // Count-based tiles share the amount+proof "Add Submission" form. Value tiles use a gp-value form
   // (below); timed uses its own clear-time form; stat/standard have no manual submit.
   const isCount = isDrop || isKill || isLap || isPvp || isGain || isDiary || isCa || isDeathless || isLms;
@@ -251,7 +264,8 @@ export default function TileDetailModal({
   const isStatTile = !!tile.trackedStat;
   // Noun used in the count-based submission form copy ("drop" vs "kill" vs "completion" vs "item").
   const countNoun = isKill || isPvp ? 'kill' : isLap ? lapUnitNoun(parseJsonArray<string>(tile.targetNpcs)) : isDiary || isCa ? 'completion' : isGain ? 'item' : isDeathless ? 'run' : isLms ? 'game' : 'drop';
-  const kindLabel = isDrop ? 'Drop' : isKill ? 'Kill' : isLap ? (countNoun === 'lap' ? 'Agility laps' : 'Hallowed Sepulchre') : isPvp ? 'PvP kill' : isGain ? 'Item gain' : isDiary ? 'Diary' : isCa ? 'Combat task' : isDeathless ? 'Deathless' : isLms ? 'LMS' : isValue ? 'Loot value' : isTimed ? 'Timed' : isStatTile ? (tile.statType === 'boss' ? 'Boss KC' : 'XP') : 'Standard';
+  // The same names the board's badges and filters use (lib/tileKinds), bar the Sepulchre's own.
+  const kindLabel = isLap && countNoun !== 'lap' ? 'Hallowed Sepulchre' : TILE_KIND_BADGES[tileKindKey(tile)].label;
 
   // Kill/count tiles land one auto submission per kill (no screenshot), so a 500-kill tile is 500
   // identical rows. List only submissions with real proof (a screenshot or a human note) and roll
@@ -347,6 +361,7 @@ export default function TileDetailModal({
         return;
       }
       setError('');
+      setNotice('');
       setSubmitting(true);
       try {
         await onSubmit({
@@ -359,8 +374,11 @@ export default function TileDetailModal({
           durationSeconds: secs,
         });
         setImageUrls(['']);
+        setNotice(submittedNotice);
         setNote('');
         setClearTime('');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not submit. Please try again.');
       } finally {
         setSubmitting(false);
       }
@@ -394,6 +412,7 @@ export default function TileDetailModal({
     const submittedItemId = needsItem ? parseInt(itemId, 10) : undefined;
 
     setError('');
+    setNotice('');
     setSubmitting(true);
     try {
       // Submit each image as a separate submission with amount=1
@@ -424,6 +443,7 @@ export default function TileDetailModal({
       }
       setAmount('1');
       setImageUrls(['']);
+      setNotice(submittedNotice);
       setNote('');
       setCreditPlayerId('');
       setItemId('');
@@ -446,11 +466,15 @@ export default function TileDetailModal({
     if (!onDelete || !deleteSubmissionId) return;
     if (!deleteReason.trim()) return;
     setDeletingId(deleteSubmissionId);
+    setActionError('');
     try {
       await onDelete(deleteSubmissionId, deleteReason.trim());
       setDeleteModalOpen(false);
       setDeleteSubmissionId(null);
       setDeleteReason('');
+    } catch (err) {
+      setDeleteModalOpen(false);
+      setActionError(err instanceof Error ? err.message : 'Could not remove that proof. Please try again.');
     } finally {
       setDeletingId(null);
     }
@@ -491,6 +515,7 @@ export default function TileDetailModal({
       return;
     }
     setError('');
+    setNotice('');
     setSubmitting(true);
     try {
       await onSubmit({
@@ -503,6 +528,7 @@ export default function TileDetailModal({
       });
       setValueGp('');
       setImageUrls(['']);
+      setNotice(submittedNotice);
       setNote('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not submit. Please try again.');
@@ -514,8 +540,11 @@ export default function TileDetailModal({
   async function handleToggle() {
     if (!onToggle) return;
     setToggling(true);
+    setActionError('');
     try {
       await onToggle(tile.id);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'That didn’t save. Please try again.');
     } finally {
       setToggling(false);
     }
@@ -607,6 +636,21 @@ export default function TileDetailModal({
                   </span>
                 )}
               </div>
+              {/* How a player gets this one, in words a phone can show — the ✋ and badge blurbs are hover-only. */}
+              <p className="text-xs text-text-muted mt-2">
+                <span className={howCounts.auto ? 'text-accent-green-light' : 'text-amber-300'}>
+                  {howCounts.auto ? 'Automatic. ' : 'Screenshot. '}
+                </span>
+                {howCounts.text}
+                {howCounts.auto && (
+                  <>
+                    {' '}
+                    <ClanLink href="/guide/plugin" className="text-gold hover:underline">
+                      Set up the plugin
+                    </ClanLink>
+                  </>
+                )}
+              </p>
             </div>
           </div>
           <button
@@ -911,6 +955,8 @@ export default function TileDetailModal({
               {toggling ? '...' : 'Reopen tile (clear completion)'}
             </button>
           )}
+
+          {actionError && <p role="alert" className="text-xs text-red-400">{actionError}</p>}
 
           {/* Proof still in flight — say so, so an empty modal doesn't read as "no proof exists". */}
           {submissionsLoading && submissions.length === 0 && (
@@ -1235,6 +1281,7 @@ export default function TileDetailModal({
               {error && (
                 <p className="text-xs text-red-400">{error}</p>
               )}
+              {notice && !error && <p className="text-xs text-accent-green-light">{notice}</p>}
 
               <button
                 type="submit"
@@ -1304,6 +1351,7 @@ export default function TileDetailModal({
               </div>
 
               {error && <p className="text-xs text-red-400">{error}</p>}
+              {notice && !error && <p className="text-xs text-accent-green-light">{notice}</p>}
 
               <button
                 type="submit"
@@ -1378,6 +1426,7 @@ export default function TileDetailModal({
               </div>
 
               {error && <p className="text-xs text-red-400">{error}</p>}
+              {notice && !error && <p className="text-xs text-accent-green-light">{notice}</p>}
 
               <button
                 type="submit"

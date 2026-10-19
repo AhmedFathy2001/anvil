@@ -303,7 +303,7 @@ export default function WelcomeClient({
               disabled={busy}
               className="rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold text-brown-dark transition-colors hover:bg-gold-light disabled:opacity-50"
             >
-              Done — take me to my locker
+              Done — take me to my profile
             </button>
           ) : (
             <>

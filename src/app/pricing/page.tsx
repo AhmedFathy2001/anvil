@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 
 import { isApexHost } from '@/lib/clanContext';
 import { PLANS, type Plan } from '@/lib/plans';
+import { freemiumEnforced } from '@/lib/entitlements';
 import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
 
@@ -28,6 +29,7 @@ export default async function PricingPage() {
   // The four buyable tiers, in order. `custom` is negotiated, not bought, so it gets a footnote
   // rather than a card — a card with no price reads as broken.
   const tiers = [PLANS.free, PLANS.bronze, PLANS.silver, PLANS.gold];
+  const enforced = freemiumEnforced();
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-12 sm:py-16">
@@ -44,11 +46,16 @@ export default async function PricingPage() {
           Every tier runs every event format and watches every kind of tile. What you pay for is
           roster size, not features held hostage. Thirty-day trial on all of it.
         </p>
+        {!enforced && (
+          <p className="relative mx-auto mt-3 w-fit rounded-full border border-gold/40 bg-gold/10 px-3 py-1 text-[13px] text-gold">
+            Early access: every clan is free for now, whatever its size. No card needed.
+          </p>
+        )}
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {tiers.map((t) => (
-          <TierCard key={t.id} plan={t} />
+          <TierCard key={t.id} plan={t} enforced={enforced} />
         ))}
       </div>
 
@@ -95,7 +102,7 @@ export default async function PricingPage() {
   );
 }
 
-function TierCard({ plan }: { plan: Plan }) {
+function TierCard({ plan, enforced }: { plan: Plan; enforced: boolean }) {
   const price =
     plan.priceUsd === 0 ? 'Free' : plan.priceUsd == null ? '—' : `$${plan.priceUsd.toFixed(2)}`;
   return (
@@ -130,15 +137,17 @@ function TierCard({ plan }: { plan: Plan }) {
         ))}
       </ul>
 
+      {/* Once caps bite, the tier rides along and the create form ends on its Gumroad checkout — that is
+          where the trial starts. Until then every clan size is free, so no button asks for a card. */}
       <ClanLink
-        href="/clans/new"
+        href={enforced && plan.priceUsd ? `/clans/new?plan=${plan.id}` : '/clans/new'}
         className={`mt-5 rounded-lg px-4 py-2.5 text-center text-sm font-semibold transition-colors ${
           plan.popular
             ? 'bg-gold text-brown-dark hover:bg-gold-light'
             : 'border border-card-border hover:border-gold/45'
         }`}
       >
-        {plan.priceUsd === 0 ? 'Start free' : 'Start 30-day trial'}
+        {plan.priceUsd === 0 || !enforced ? 'Start free' : 'Start 30-day trial'}
       </ClanLink>
     </div>
   );

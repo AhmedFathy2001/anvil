@@ -121,7 +121,7 @@ export function lifecycleSteps(
     },
     {
       key: 'payouts',
-      label: 'Payouts',
+      label: 'Prizes',
       detail: counts.payoutCount === 0 ? 'none set' : paidUp ? 'all paid' : `${counts.unpaidPayouts} unpaid`,
       state: paidUp ? 'done' : 'todo',
     },

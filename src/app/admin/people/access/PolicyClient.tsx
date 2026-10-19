@@ -93,8 +93,8 @@ export default function PolicyClient() {
       </Group>
 
       <Group
-        title="How people join"
-        lede="A guest holds a seat here without leaving their own clan — that is how somebody plays in your event."
+        title="Players from other clans"
+        lede="Guests can play in your events without leaving their own clan."
       >
         <Choice
           name="guestPolicy"
@@ -104,13 +104,13 @@ export default function PolicyClient() {
             {
               value: 'approval',
               label: 'Ask first',
-              hint: 'Requests land on Needs review and nobody gets a seat until you say so.',
+              hint: 'Requests land on Needs review and nobody plays until you say yes.',
             },
-            { value: 'open', label: 'Anyone', hint: 'Turning up is enough. Good for an open event, noisy otherwise.' },
+            { value: 'open', label: 'Let anyone in', hint: 'Turning up is enough. Good for an open event, noisy otherwise.' },
             {
               value: 'closed',
-              label: 'Nobody',
-              hint: 'No guests and no requests. Outsiders cannot enter your events at all.',
+              label: 'No guests',
+              hint: 'Only your own members play. Players from other clans cannot enter your events or ask to.',
             },
           ]}
         />
@@ -128,8 +128,8 @@ export default function PolicyClient() {
           label="List in the Clan Hall"
           description={
             <span className="mt-0.5 block text-[13px] text-text-muted">
-              And on the cross-clan records. Unlisted is not the same as private — a link still works
-              if the setting above allows it.
+              The public list of clans on Anvil. Leaving it off doesn&apos;t make your clan private — links you
+              share still work if the setting above allows it.
             </span>
           }
         />

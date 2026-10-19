@@ -41,7 +41,7 @@ export const FORMAT_CARDS: readonly FormatCard[] = [
   { key: 'ladder', group: 'Solo & ongoing', name: 'Ladder', how: 'A points list ranked as a personal leaderboard. Tasks can rotate through the month.', goodFor: 'a monthly clan ladder', sprite: 'clue', feature: 'poolFormats', choice: { mode: 'ladder' } },
   { key: 'sotw', group: 'Solo & ongoing', name: 'Skill of the Week', how: 'Everyone on the roster is entered. Most XP in one skill wins.', goodFor: 'always having something on', sprite: 'stats', feature: 'weekly', choice: { weekly: 'skill' } },
   { key: 'botw', group: 'Solo & ongoing', name: 'Boss of the Week', how: 'Everyone on the roster is entered. Most kills on one boss wins.', goodFor: 'always having something on', sprite: 'bandos', feature: 'weekly', choice: { weekly: 'boss' } },
-  { key: 'efficiency', group: 'Solo & ongoing', name: 'Efficiency race', how: 'Everyone on the roster is entered. Most efficient hours gained (EHP or EHB) wins.', goodFor: 'fair races between mains and alts', sprite: 'dagger', feature: 'weekly', choice: { weekly: 'efficiency' } },
+  { key: 'efficiency', group: 'Solo & ongoing', name: 'Efficiency race', how: 'Everyone on the roster is entered. Most efficient hours gained wins (EHP for skilling, EHB for bossing — how long the gains would take a fast player).', goodFor: 'fair races between mains and alts', sprite: 'dagger', feature: 'weekly', choice: { weekly: 'efficiency' } },
 ];
 
 export function findFormat(key: string | null | undefined): FormatCard | null {

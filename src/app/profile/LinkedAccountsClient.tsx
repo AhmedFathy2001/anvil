@@ -191,8 +191,8 @@ export default function LinkedAccountsClient({ accounts }: { accounts: LinkedAcc
             <span
               title={
                 m.shared
-                  ? 'On: this character shows on its own profile and the cross-clan boards. Clans still see only what they hold a seat for.'
-                  : 'Off: this character stays out of the public pages. Clans that hold a seat for it still see it — that is their roster.'
+                  ? 'On: this character shows on its own profile and the cross-clan boards. Clans still see only the characters on their own member list.'
+                  : 'Off: this character stays out of the public pages. Clans that have it on their member list still see it — that is their roster.'
               }
             >
               <Checkbox

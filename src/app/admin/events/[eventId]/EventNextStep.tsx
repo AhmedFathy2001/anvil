@@ -5,6 +5,7 @@
 import { useRef, useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
+import CopyLinkButton from '@/components/CopyLinkButton';
 import { useDialog } from '@/components/Confirm';
 import { clanFetch } from '@/lib/clanFetch';
 import type { NextStep } from '@/lib/eventNextStep';
@@ -17,6 +18,19 @@ export function useStartNow(eventId: number, onEventChange: (e: Event) => void) 
   const [error, setError] = useState('');
 
   async function start(force = false): Promise<void> {
+    // Same ask as the Teams page's start button: starting announces in Discord and opens the board,
+    // neither of which a stray click on the Next step panel should do unasked.
+    if (
+      !force &&
+      !(await confirm({
+        title: 'Start the event now?',
+        body: 'The event goes live, the start is announced in Discord, and members can see the board.',
+        confirmLabel: 'Start now',
+        tone: 'gold',
+      }))
+    ) {
+      return;
+    }
     setStarting(true);
     setError('');
     try {
@@ -30,8 +44,9 @@ export function useStartNow(eventId: number, onEventChange: (e: Event) => void) 
         onEventChange(data);
         return;
       }
-      // 409 = the readiness gate refused; some of its reasons (no end date) may be overridden.
-      if (res.status === 409 && data.overridable) {
+      // 409 + blockers = the readiness gate refused. The route has no `overridable` flag — every
+      // blocker can be forced, which is what the Teams page's button offers — so key off the list.
+      if (res.status === 409 && Array.isArray(data.blockers) && !force) {
         if (await confirm({ title: 'Start it anyway?', body: data.error, confirmLabel: 'Start now', tone: 'gold' })) {
           await start(true);
         }
@@ -75,6 +90,8 @@ export function NextStepPanel({
             <button type="button" onClick={onStart} disabled={starting} className="molten-btn">
               {starting ? 'Starting…' : a.label}
             </button>
+          ) : a.kind === 'copy' ? (
+            <CopyLinkButton path={`/events/${eventId}/${a.path}`} label={a.label} className="molten-btn" />
           ) : a.tab.startsWith('#') ? (
             <button
               type="button"
@@ -99,6 +116,7 @@ const FLAG_TEXT: Record<string, string> = {
   no_start_proof: 'Counted without a starting screenshot',
   inferred_duplicate_pet: 'A pet duplicate the plugin worked out from context',
   inferred_duplicate_scroll: 'A champion scroll duplicate the plugin worked out from context',
+  big_ping: 'The plugin claimed a lot at once without a screenshot, so only 10 were counted',
 };
 
 /**

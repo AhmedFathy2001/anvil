@@ -827,7 +827,7 @@ const da: PartialGuideDict = {
     title: 'Sådan afvikler du dit første event',
     dek: 'Hele vejen, i den rækkefølge du faktisk går den: få {clanName} sat op, få medlemslisten ind, byg et bræt, draft hold, sæt det i gang, og del præmierne ud. Cirka en aftens arbejde for den første bingo — minutter for den næste.',
     facts: [
-      { strong: '4 trin', rest: 'i opsætningsguiden' },
+      { strong: '5 trin', rest: 'på opsætningstjeklisten' },
       { strong: '7 formater', rest: 'at bygge et bræt af' },
       { strong: '1 knap', rest: 'til at synkronisere medlemslisten' },
     ],
@@ -865,7 +865,7 @@ const da: PartialGuideDict = {
     setup: {
       title: 'Navngiv klanen, forbind Discord',
       intro:
-        '**System → Setup** er en guide i fire trin, og dashboardet holder de samme fire som en tjekliste, indtil de er klaret: navngiv klanen, forbind Discord, opret et event, tilføj felter. Status regnes ud fra rigtige data, så et trin bliver først flueben, når det virkelig er færdigt.',
+        '**System → Setup** er en kort guide, og dashboardet holder en tjekliste i fem trin, indtil de er klaret: navngiv klanen, forbind Discord, hent dine medlemmer, opret et event, tilføj felter. Status regnes ud fra rigtige data, så et trin bliver først flueben, når det virkelig er færdigt.',
       discord:
         'Til Discord har du to veje, og de kan kombineres: giv Anvil en **bot**, og den kan oprette webhooks, synkronisere roller og kaldenavne og bygge private holdkanaler for dig; giv den en enkelt **webhook-URL**, og den kan poste beskeder og intet andet. Start med webhooken, hvis du vil være i luften om to minutter, og tilføj botten, når du vil have automatikken.',
       permsNote: {
@@ -879,7 +879,7 @@ const da: PartialGuideDict = {
     channels: {
       title: 'Fordel opslag på flere kanaler',
       body: [
-        'Alt lander som standard i én hovedkanal til beskeder. Når den bliver larmende, åbner du **System → Advanced settings → Webhooks** og giver de larmende kategorier deres eget hjem — bingo-events, ugentlige konkurrencer, sjældne drops, dødsfald, PvP-kills, combat achievements, klip. Alt du lader stå tomt falder tilbage til hovedkanalen, så du kan flytte én kategori ad gangen.',
+        'Alt lander som standard i én hovedkanal til beskeder. Når den bliver larmende, åbner du **Discord → Where posts go** og giver de larmende kategorier deres eget hjem — bingo-events, ugentlige konkurrencer, sjældne drops, dødsfald, PvP-kills, combat achievements, klip. Alt du lader stå tomt falder tilbage til hovedkanalen, så du kan flytte én kategori ad gangen.',
         'Med botten forbundet rører du aldrig en webhook-URL: vælg en kanal i menuen og tryk **Create webhook**. Under et travlt event kan du lægge en webhook nummer to på samme kanal — Anvil skifter mellem dem, så Discords rate limit ikke sluger opslag.',
       ],
       clipsNote: {
@@ -954,7 +954,7 @@ const da: PartialGuideDict = {
       rows: [
         {
           term: 'Sværhedsgrader',
-          body: 'pointværdier oversættes til navngivne bånd (easy → elite). Rediger båndene under Advanced settings, hvis din klan graduerer anderledes.',
+          body: 'pointværdier oversættes til navngivne bånd (easy → elite). Rediger båndene under Rules & scoring, hvis din klan graduerer anderledes.',
         },
         {
           term: 'Balance-revisor',
@@ -1425,7 +1425,7 @@ const da: PartialGuideDict = {
     points: {
       title: 'Point, sværhedsgrader og om det er fair',
       body: [
-        'På et pointbaseret bræt har hvert felt sin egen værdi, og de værdier oversættes til navngivne sværhedsbånd — easy til elite — som du kan redigere under **Advanced settings**, hvis din klan graduerer anderledes. Båndet er det, spillerne læser; tallet er det, der giver point.',
+        'På et pointbaseret bræt har hvert felt sin egen værdi, og de værdier oversættes til navngivne sværhedsbånd — easy til elite — som du kan redigere under **Rules & scoring**, hvis din klan graduerer anderledes. Båndet er det, spillerne læser; tallet er det, der giver point.',
         'Markér et felt som **optional**, og det holder op med at tælle med i brættets total. Sådan tilføjer du strækmål uden at gøre en blackout umulig.',
         'Når brættet er fyldt, så kør **balance-revisoren** fra Tiles-fanen. Den tjekker strukturen og fordelingen af arbejde og fortæller dig, hvor brættet er skævt — en kategori ingen kan gøre færdig, et bånd der er langt mere værd i timen end naboerne — før spillerne finder de ting for dig og styrer uden om dem.',
       ],

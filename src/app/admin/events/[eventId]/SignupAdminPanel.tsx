@@ -20,6 +20,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import Checkbox from '@/components/Checkbox';
 import { useDialog } from '@/components/Confirm';
 import type { SurveyQuestionView } from '@/lib/survey';
+import CopyLinkButton from '@/components/CopyLinkButton';
 
 // Default 8-color palette matching the app's existing team color presets.
 const DEFAULT_TEAM_COLORS = [
@@ -517,6 +518,8 @@ export default function SignupAdminPanel({
             <span className="w-1 h-5 bg-gold rounded-full" />
             Sign-up Configuration
           </h3>
+          {/* The link members need. Nothing in the admin used to hand it over. */}
+          <CopyLinkButton path={`/events/${event.id}/signup`} label="Copy sign-up link" />
         </div>
 
         <div className="grid sm:grid-cols-2 gap-4">
@@ -814,7 +817,8 @@ export default function SignupAdminPanel({
 
         {!loading && signups.length === 0 && (
           <div className="text-center py-8 border border-dashed border-card-border rounded-xl">
-            <p className="text-text-muted text-sm">No sign-ups yet.</p>
+            <p className="text-text-muted text-sm mb-3">No sign-ups yet. Post the sign-up link in your Discord so members can join.</p>
+            <CopyLinkButton path={`/events/${event.id}/signup`} label="Copy sign-up link" />
           </div>
         )}
 

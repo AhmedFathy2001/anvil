@@ -195,8 +195,8 @@ export default function WarRoomClient({ teamId }: { teamId: number }) {
       <div className="grid gap-5 content-start">
         {data.unrated && (
           <div className="text-sm border border-yellow-500/30 bg-yellow-500/10 rounded-lg px-3 py-2.5 text-yellow-200/90">
-            Nobody in this pool has been rated yet — the tiers below are placeholders until the stats sweep
-            has seen them at least once.
+            Nobody in this pool has been rated yet — the tiers below are placeholders until we&apos;ve checked
+            their stats at least once.
           </div>
         )}
 

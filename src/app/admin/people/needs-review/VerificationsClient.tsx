@@ -51,7 +51,7 @@ export default function VerificationsClient({ items }: { items: PendingMember[] 
   if (items.length === 0) {
     return (
       <div className="border border-dashed border-card-border rounded-xl p-8 text-center text-text-muted">
-        Nothing to review. Provisional verifications will appear here.
+        All caught up. When someone links a character, they show up here for a quick check.
       </div>
     );
   }

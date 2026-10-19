@@ -26,7 +26,7 @@ export default function TeamLens({
   if (teams.length < 2) return null;
   return (
     <div className={`inline-flex flex-wrap items-center gap-1 ${className}`}>
-      <span className="mr-1 text-[11px] uppercase tracking-wider text-text-muted">Viewing as</span>
+      <span className="mr-1 text-[11px] uppercase tracking-wider text-text-muted">Show progress for</span>
       <button
         type="button"
         onClick={() => onChange(null)}

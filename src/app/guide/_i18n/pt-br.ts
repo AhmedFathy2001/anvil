@@ -814,7 +814,7 @@ const ptBr: PartialGuideDict = {
     title: 'Conduzindo seu primeiro evento',
     dek: 'O caminho inteiro, na ordem em que você vai realmente percorrê-lo: deixar {clanName} configurado, trazer o quadro de membros, montar um tabuleiro, formar os times, dar a largada e distribuir os prêmios. Grosso modo o trabalho de uma noite no primeiro bingo —— minutos no segundo.',
     facts: [
-      { strong: '4 passos', rest: 'no assistente de configuração' },
+      { strong: '5 passos', rest: 'na lista de configuração' },
       { strong: '7 formatos', rest: 'para montar um tabuleiro' },
       { strong: '1 botão', rest: 'para sincronizar a lista do clã' },
     ],
@@ -852,7 +852,7 @@ const ptBr: PartialGuideDict = {
     setup: {
       title: 'Dê nome ao clã, conecte o Discord',
       intro:
-        '**System → Setup** é um assistente de quatro passos, e o painel mantém os mesmos quatro como uma lista de conferência até estarem prontos: dar nome ao clã, conectar o Discord, criar um evento, adicionar casas. O status é calculado a partir de dados reais, então um passo só é marcado quando está genuinamente concluído.',
+        '**System → Setup** é um assistente curto, e o painel mantém uma lista de conferência de cinco passos até estarem prontos: dar nome ao clã, conectar o Discord, carregar seus membros, criar um evento, adicionar casas. O status é calculado a partir de dados reais, então um passo só é marcado quando está genuinamente concluído.',
       discord:
         'Para o Discord você tem dois caminhos, e eles se somam: dê ao Anvil um **bot** e ele poderá criar webhooks, sincronizar cargos e apelidos e montar canais privados de time; dê a ele uma única **URL de webhook** e ele poderá publicar anúncios e nada mais. Comece pelo webhook se quer estar no ar em dois minutos, e adicione o bot quando quiser a automação.',
       permsNote: {
@@ -866,7 +866,7 @@ const ptBr: PartialGuideDict = {
     channels: {
       title: 'Divida as publicações entre canais',
       body: [
-        'Por padrão tudo cai num único canal principal de anúncios. Quando ele ficar barulhento, abra **System → Advanced settings → Webhooks** e dê às categorias ruidosas casas próprias —— eventos de bingo, competições semanais, drops raros, mortes, kills de PvP, combat achievements, clipes. Tudo que ficar em branco volta para o canal principal, então dá para separar uma categoria por vez.',
+        'Por padrão tudo cai num único canal principal de anúncios. Quando ele ficar barulhento, abra **Discord → Where posts go** e dê às categorias ruidosas casas próprias —— eventos de bingo, competições semanais, drops raros, mortes, kills de PvP, combat achievements, clipes. Tudo que ficar em branco volta para o canal principal, então dá para separar uma categoria por vez.',
         'Com o bot conectado você nunca toca numa URL de webhook: escolhe um canal na lista e aperta **Create webhook**. Num evento movimentado dá para adicionar um segundo webhook ao mesmo canal —— o Anvil alterna entre eles para o limite de taxa do Discord não engolir publicações.',
       ],
       clipsNote: {
@@ -931,7 +931,7 @@ const ptBr: PartialGuideDict = {
       rows: [
         {
           term: 'Faixas de dificuldade',
-          body: 'os valores em pontos se mapeiam em faixas nomeadas (easy → elite). Edite as faixas em Advanced settings se seu clã classifica de outro jeito.',
+          body: 'os valores em pontos se mapeiam em faixas nomeadas (easy → elite). Edite as faixas em Rules & scoring se seu clã classifica de outro jeito.',
         },
         {
           term: 'Auditor de equilíbrio',
@@ -1401,7 +1401,7 @@ const ptBr: PartialGuideDict = {
     points: {
       title: 'Pontos, faixas e se está justo',
       body: [
-        'Num tabuleiro pontuado cada casa carrega o próprio valor, e esses valores se mapeiam em faixas de dificuldade nomeadas —— de easy a elite —— que você pode editar em **Advanced settings** se o seu clã classifica de outro jeito. A faixa é o que os jogadores leem; o número é o que pontua.',
+        'Num tabuleiro pontuado cada casa carrega o próprio valor, e esses valores se mapeiam em faixas de dificuldade nomeadas —— de easy a elite —— que você pode editar em **Rules & scoring** se o seu clã classifica de outro jeito. A faixa é o que os jogadores leem; o número é o que pontua.',
         'Marque uma casa como **opcional** e ela deixa de contar para o total do tabuleiro —— é assim que se adicionam metas extras sem tornar o blackout impossível.',
         'Quando o tabuleiro estiver cheio, rode o **auditor de equilíbrio** na aba Tiles. Ele confere a estrutura e a distribuição de esforço e te diz onde o tabuleiro está torto —— uma categoria que ninguém consegue fechar, uma faixa que vale muito mais por hora que as vizinhas —— antes que os jogadores achem isso por você e contornem.',
       ],

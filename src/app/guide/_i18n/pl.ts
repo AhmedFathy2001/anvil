@@ -814,7 +814,7 @@ const pl: PartialGuideDict = {
     title: 'Prowadzenie pierwszego wydarzenia',
     dek: 'Cała droga, w kolejności, w jakiej naprawdę ją przejdziesz: skonfiguruj {clanName}, wciągnij skład, zbuduj planszę, złóż drużyny, odpal całość i rozdaj nagrody. Z grubsza wieczór pracy przy pierwszym bingo —— minuty przy drugim.',
     facts: [
-      { strong: '4 kroki', rest: 'w kreatorze konfiguracji' },
+      { strong: '5 kroków', rest: 'na liście kontrolnej konfiguracji' },
       { strong: '7 formatów', rest: 'z których zbudujesz planszę' },
       { strong: '1 przycisk', rest: 'do synchronizacji składu klanu' },
     ],
@@ -852,7 +852,7 @@ const pl: PartialGuideDict = {
     setup: {
       title: 'Nazwij klan, podłącz Discorda',
       intro:
-        '**System → Setup** to czterokrokowy kreator, a pulpit trzyma te same cztery kroki jako listę kontrolną, dopóki nie zostaną wykonane: nazwij klan, podłącz Discorda, utwórz wydarzenie, dodaj pola. Status liczony jest z prawdziwych danych, więc krok odhacza się dopiero, gdy jest naprawdę skończony.',
+        '**System → Setup** to krótki kreator, a pulpit trzyma listę kontrolną z pięciu kroków, dopóki nie zostaną wykonane: nazwij klan, podłącz Discorda, wczytaj członków, utwórz wydarzenie, dodaj pola. Status liczony jest z prawdziwych danych, więc krok odhacza się dopiero, gdy jest naprawdę skończony.',
       discord:
         'Do Discorda masz dwie drogi i one się uzupełniają: daj Anvil **bota**, a będzie mógł tworzyć webhooki, synchronizować role i pseudonimy oraz budować prywatne kanały drużyn; daj mu jeden **URL webhooka**, a będzie mógł publikować ogłoszenia i nic więcej. Zacznij od webhooka, jeśli chcesz działać w dwie minuty, a bota dodaj, gdy zechcesz automatyzacji.',
       permsNote: {
@@ -866,7 +866,7 @@ const pl: PartialGuideDict = {
     channels: {
       title: 'Rozdziel wpisy na kanały',
       body: [
-        'Domyślnie wszystko trafia na jeden główny kanał ogłoszeń. Gdy zrobi się na nim głośno, otwórz **System → Advanced settings → Webhooks** i daj hałaśliwym kategoriom własne domy —— wydarzenia bingo, tygodniowe konkursy, rzadkie dropy, śmierci, kille PvP, combat achievements, klipy. Wszystko, co zostawisz puste, spada z powrotem na kanał główny, więc możesz rozdzielać po jednej kategorii.',
+        'Domyślnie wszystko trafia na jeden główny kanał ogłoszeń. Gdy zrobi się na nim głośno, otwórz **Discord → Where posts go** i daj hałaśliwym kategoriom własne domy —— wydarzenia bingo, tygodniowe konkursy, rzadkie dropy, śmierci, kille PvP, combat achievements, klipy. Wszystko, co zostawisz puste, spada z powrotem na kanał główny, więc możesz rozdzielać po jednej kategorii.',
         'Z podłączonym botem nigdy nie dotykasz URL-a webhooka: wybierasz kanał z listy i naciskasz **Create webhook**. Przy ruchliwym wydarzeniu możesz dodać drugi webhook do tego samego kanału —— Anvil przełącza się między nimi, żeby limit Discorda nie połknął wpisów.',
       ],
       clipsNote: {
@@ -931,7 +931,7 @@ const pl: PartialGuideDict = {
       rows: [
         {
           term: 'Progi trudności',
-          body: 'wartości punktowe mapują się na nazwane progi (easy → elite). Zmień progi w Advanced settings, jeśli twój klan ocenia inaczej.',
+          body: 'wartości punktowe mapują się na nazwane progi (easy → elite). Zmień progi w Rules & scoring, jeśli twój klan ocenia inaczej.',
         },
         {
           term: 'Audytor równowagi',
@@ -1401,7 +1401,7 @@ const pl: PartialGuideDict = {
     points: {
       title: 'Punkty, progi i czy to sprawiedliwe',
       body: [
-        'Na planszy punktowanej każde pole niesie własną wartość, a te wartości mapują się na nazwane progi trudności —— od easy do elite —— które możesz zmienić w **Advanced settings**, jeśli twój klan ocenia inaczej. Próg jest tym, co czytają gracze; liczba jest tym, co punktuje.',
+        'Na planszy punktowanej każde pole niesie własną wartość, a te wartości mapują się na nazwane progi trudności —— od easy do elite —— które możesz zmienić w **Rules & scoring**, jeśli twój klan ocenia inaczej. Próg jest tym, co czytają gracze; liczba jest tym, co punktuje.',
         'Oznacz pole jako **opcjonalne**, a przestaje liczyć się do sumy planszy —— tak dodaje się cele ponadprogramowe, nie czyniąc blackoutu niemożliwym.',
         'Gdy plansza jest pełna, odpal **audytora równowagi** z zakładki Tiles. Sprawdza strukturę i rozkład wysiłku i mówi ci, gdzie plansza się przechyla —— kategoria, której nikt nie skończy, próg wart o wiele więcej na godzinę niż sąsiednie —— zanim gracze znajdą to za ciebie i zaczną to obchodzić.',
       ],
