@@ -177,6 +177,27 @@ export const TILE_KIND_BADGES: Record<TileKindKey, { label: string; cls: string;
   ca: { label: 'Combat task', cls: 'bg-orange-500/20 text-orange-300', blurb: 'Complete Combat Achievement tasks during the event. Plugin-detected off the completion message.' },
 };
 
+/**
+ * How a PLAYER gets this tile, in one sentence — shown on the tile itself.
+ *
+ * The badges above are written for whoever builds the board ("hiscores-polled", "baked
+ * screenshot"); a player opening a tile needs to know whether to do anything besides play. The
+ * three answers are the three ways credit lands: the plugin sees it, the hiscores move, or a person
+ * looks at a screenshot.
+ */
+export function howTileCounts(kind: TileKindKey, manualOnly: boolean): { auto: boolean; text: string } {
+  if (manualOnly || kind === 'standard') {
+    return { auto: false, text: 'Needs a screenshot: upload one below, and your team’s captain or the clan staff confirm it.' };
+  }
+  if (kind === 'skill' || kind === 'boss') {
+    return { auto: true, text: 'Counts by itself as your XP or kill count goes up during the event. Nothing to upload.' };
+  }
+  return {
+    auto: true,
+    text: 'Counts by itself while the Anvil plugin is running in RuneLite. Only upload a screenshot if it missed one.',
+  };
+}
+
 /** The badge one tile wears on any authoring surface. */
 export const tileKindBadge = (tile: TileKindLike) => TILE_KIND_BADGES[tileKindKey(tile)];
 

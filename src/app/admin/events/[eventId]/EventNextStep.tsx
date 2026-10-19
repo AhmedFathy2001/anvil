@@ -5,6 +5,7 @@
 import { useRef, useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
+import CopyLinkButton from '@/components/CopyLinkButton';
 import { useDialog } from '@/components/Confirm';
 import { clanFetch } from '@/lib/clanFetch';
 import type { NextStep } from '@/lib/eventNextStep';
@@ -89,6 +90,8 @@ export function NextStepPanel({
             <button type="button" onClick={onStart} disabled={starting} className="molten-btn">
               {starting ? 'Starting…' : a.label}
             </button>
+          ) : a.kind === 'copy' ? (
+            <CopyLinkButton path={`/events/${eventId}/${a.path}`} label={a.label} className="molten-btn" />
           ) : a.tab.startsWith('#') ? (
             <button
               type="button"

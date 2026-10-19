@@ -140,6 +140,13 @@ export interface AttentionFacts {
    * nobody edited follow along on their own; these are the ones waiting for somebody to say yes.
    */
   guideUpdates?: number;
+  /**
+   * Proofs the system flagged for a human look (submissions.flaggedReason), per board.
+   *
+   * They only ever showed on each event's own Overview, below the live cards — a moderator running
+   * two boards had to open both to find out whether anything was waiting.
+   */
+  flaggedProofs?: { count: number; events: { name: string; count: number; href: string }[] };
 }
 
 const DAY = 86_400_000;
@@ -328,6 +335,23 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
       detail: 'They applied, or entered one of your events as a guest, and are waiting on an answer.',
       href: '/admin/people',
       action: 'Decide',
+      at: 0,
+    });
+  }
+
+  if (facts.flaggedProofs && facts.flaggedProofs.count > 0) {
+    const boards = facts.flaggedProofs.events;
+    const only = boards.length === 1 ? boards[0] : null;
+    items.push({
+      key: 'flagged-proofs',
+      snoozable: false,
+      severity: 'warn',
+      title: `${plural(facts.flaggedProofs.count, 'proof', 'proofs')} flagged for a look`,
+      detail: only
+        ? `On ${only.name}. They already count — say they look fine, or take them out.`
+        : `Across ${plural(boards.length, 'board', 'boards')}. They already count — say they look fine, or take them out.`,
+      href: only ? only.href : '/admin/events',
+      action: 'Check',
       at: 0,
     });
   }

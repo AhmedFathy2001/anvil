@@ -25,6 +25,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import { scoreTeams } from '@/lib/boardScoring';
 import { useDialog } from '@/components/Confirm';
+import CopyLinkButton from '@/components/CopyLinkButton';
 
 /** One superlative, flattened for display — see lib/eventRecap. */
 export interface RecapAwardSummary {
@@ -448,6 +449,7 @@ function BuildHome({
         <p className="text-[13px] text-text-muted mb-2">Worth checking first</p>
         <div className="flex flex-wrap gap-2">
           <QuietLink href={`/events/${event.id}`}>See the player&apos;s view ↗</QuietLink>
+          <CopyLinkButton path={`/events/${event.id}/signup`} label="Copy sign-up link" />
           <QuietLink href={`/admin/events/${event.id}/tiles`}>Check the board balance</QuietLink>
           <button
             type="button"
@@ -539,7 +541,7 @@ function RunHome({
   onEventChange: (e: Event) => void;
 }) {
   const [ending, setEnding] = useState(false);
-  const { confirm } = useDialog();
+  const { confirm, notify } = useDialog();
   const base = `/admin/events/${event.id}`;
 
   const tileById = useMemo(() => new Map(tiles.map((t) => [t.id, t])), [tiles]);
@@ -557,9 +559,9 @@ function RunHome({
 
   async function forceEnd() {
     const ok = await confirm({
-      title: 'Force-end this event?',
+      title: 'End the event now?',
       body: 'It stops accepting submissions immediately, standings are frozen as they are, and Discord is told.',
-      confirmLabel: 'Force-end',
+      confirmLabel: 'End event',
     });
     if (!ok) return;
     setEnding(true);
@@ -570,6 +572,7 @@ function RunHome({
         body: JSON.stringify({ action: 'force-end' }),
       });
       if (res.ok) onEventChange(await res.json());
+      else notify((await res.json().catch(() => ({}))).error || 'Could not end the event.', 'error');
     } finally {
       setEnding(false);
     }
@@ -637,7 +640,7 @@ function RunHome({
             disabled={ending}
             className="ml-auto px-2.5 py-1 text-xs rounded-lg border border-red-500/30 text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-colors disabled:opacity-50"
           >
-            {ending ? 'Ending…' : 'End it now'}
+            {ending ? 'Ending…' : 'End event now'}
           </button>
         </div>
       </section>

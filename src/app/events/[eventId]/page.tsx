@@ -12,11 +12,14 @@ import { clanHref } from '@/lib/clanPath';
 import { eventInClan, requireEventForParticipantPage } from '@/lib/eventScope';
 import EventApiHost from '@/components/EventApiHost';
 import { eventIconUrl } from '@/lib/eventImage';
-import { events, tiles, teams, completions, eventSignups, clanRoster, players, submissions, surveyQuestions, surveyResponses, eventStartProofs, eventParticipants } from '@/db/schema';
+import { accounts, events, tiles, teams, completions, eventSignups, clanRoster, players, submissions, surveyQuestions, surveyResponses, eventStartProofs, eventParticipants } from '@/db/schema';
 import { and, eq, isNull, inArray, count } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import ScoreboardClient from './ScoreboardClient';
 import { verifyUser } from '@/lib/auth';
+import { parseStamp } from '@/lib/dbTime';
+import { tileKindKey } from '@/lib/tileKinds';
+import { isManualTile } from '@/lib/clogManual';
 import { signupWindowState, signupEditState } from '@/lib/signup';
 import { countPaidEntries, computePrizePool } from '@/lib/prizePool';
 import { eventPoolGp } from '@/lib/coffer';
@@ -308,6 +311,25 @@ export default async function EventScoreboardPage({
     ? eventPlayers.filter((p) => p.clanMemberId != null && myMemberIds.includes(p.clanMemberId)).map((p) => p.id)
     : [];
 
+  // Playing, but the plugin hasn't been heard from since the start? Then drop, kill and lap tiles
+  // are silently not counting for them, and nothing on the board said so.
+  let pluginQuiet = false;
+  const startedAt = event.startDate ? Date.parse(event.startDate) : NaN;
+  // Only on boards with plugin-counted tiles: a skills-and-bosses board counts off the hiscores.
+  const boardNeedsPlugin = eventTiles.some(
+    (t) => !isManualTile(t) && !['standard', 'skill', 'boss'].includes(tileKindKey(t)),
+  );
+  if (boardNeedsPlugin && myPlayerIds.length > 0 && startedAt <= Date.now() && !isEventEnded(event)) {
+    const pushes = await db
+      .select({ at: accounts.liveStatsAt })
+      .from(eventParticipants)
+      .innerJoin(accounts, eq(eventParticipants.accountId, accounts.id))
+      .where(inArray(eventParticipants.id, myPlayerIds));
+    // Give a fresh start an hour before nagging — nobody is "missing" ten minutes in.
+    pluginQuiet =
+      Date.now() - startedAt > 3_600_000 && !pushes.some((r) => (parseStamp(r.at) ?? 0) >= startedAt);
+  }
+
   // Hide the board when either (a) sign-ups haven't opened yet, or (b) the host hasn't revealed the
   // tiles.
   //
@@ -575,6 +597,22 @@ export default async function EventScoreboardPage({
           </div>
         </section>
       )}
+      {pluginQuiet && (
+        <div className="mb-6 rounded-xl border border-amber-400/30 bg-amber-500/10 p-4 flex flex-wrap items-center justify-between gap-4">
+          <div className="min-w-0">
+            <div className="font-semibold">We haven’t heard from your Anvil plugin since the start</div>
+            <div className="text-sm text-text-muted">
+              Drops, kills and laps only count by themselves while the plugin is running in RuneLite.
+            </div>
+          </div>
+          <ClanLink
+            href="/guide/plugin"
+            className="shrink-0 text-sm font-medium px-4 py-2 rounded-lg border border-gold/30 text-gold bg-gold/10 hover:bg-gold/20 transition-colors"
+          >
+            Set up the plugin
+          </ClanLink>
+        </div>
+      )}
       {isOutsider ? (
         <EnterEvent eventId={event.id} signupFee={event.signupFee} />
       ) : (
@@ -744,8 +782,11 @@ function SignupBanner({
   let tone: 'info' | 'success' | 'muted' = 'info';
 
   if (isActiveSignup) {
-    title = "You're signed up";
-    body = 'Edit your details before the deadline.';
+    title = mySignup.status === 'approved' ? "You're in" : 'Sign-up received';
+    body =
+      mySignup.status === 'approved'
+        ? 'You can change your details until the deadline.'
+        : 'The hosts still need to approve it. You can change your details until the deadline.';
     ctaText = 'Manage sign-up';
     tone = 'success';
   } else if (!windowOpen) {
@@ -765,10 +806,11 @@ function SignupBanner({
     // also why the return inside it has to arrive already carrying the clan.
     ctaLabel = `/login?return=${encodeURIComponent(signupReturn)}`;
   } else if (!hasVerifiedAccount) {
-    title = 'Verify an RSN to sign up';
-    body = 'You need at least one verified RuneScape account before you can join.';
-    ctaText = 'Go to profile';
-    ctaLabel = '/profile';
+    // The sign-up page links a character in place now, so send them there rather than to /profile,
+    // which never brought them back.
+    title = 'Sign-ups are open';
+    body = 'First, link your RuneScape character — it takes a minute and the sign-up page walks you through it.';
+    ctaText = 'Sign up';
   } else {
     title = 'Sign-ups are open';
     body = signupFee ? `Sign-up fee: ${signupFee.toLocaleString()} gp.` : 'Free to enter.';

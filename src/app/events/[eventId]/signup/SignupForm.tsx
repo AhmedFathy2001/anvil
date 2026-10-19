@@ -10,6 +10,8 @@ import Input from '@/components/Input';
 import Textarea from '@/components/Textarea';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
+import AddCharacterClient from '@/app/profile/AddCharacterClient';
+import LinkAccountClient from '@/app/profile/LinkAccountClient';
 import Checkbox from '@/components/Checkbox';
 import { useDialog } from '@/components/Confirm';
 import { DEFAULT_SIGNUP_FIELDS, type SignupFields } from '@/lib/eventRules';
@@ -66,6 +68,11 @@ interface Props {
     startDate: string | null;
   };
   myAccounts: MyAccount[];
+  /**
+   * Whether this person has ANY character on Anvil, seated here or not. With no seat here, it tells
+   * "link a character" (none at all) apart from "not on this clan's roster yet" (has some elsewhere).
+   */
+  hasAnyCharacter?: boolean;
   // How many of their accounts this person may enter (event.maxAccountsPerPerson). 1 = classic.
   maxAccounts: number;
   // clanMemberIds of the accounts they currently have an active sign-up with (pre-checks the picker).
@@ -208,6 +215,7 @@ export default function SignupForm({
   eventId,
   event,
   myAccounts,
+  hasAnyCharacter = false,
   maxAccounts,
   signedUpMemberIds,
   accountFees,
@@ -398,19 +406,46 @@ export default function SignupForm({
     }
   }
 
+  // No character to sign up with. Fix it HERE rather than sending them to their profile with no way
+  // back: linking refreshes this page, and the form appears the moment a character is theirs.
   if (verifiedAccounts.length === 0) {
+    if (myAccounts.length > 0) {
+      // Seated here, just not checked yet — prove the first one is theirs.
+      return (
+        <div className="border border-card-border rounded-xl bg-card-bg p-5 space-y-3">
+          <h2 className="font-semibold">Step 1: show us {myAccounts[0].rsn} is yours</h2>
+          <p className="text-sm text-text-muted">
+            One quick check and the sign-up form appears right here.
+          </p>
+          <LinkAccountClient manualReview={false} initialRsn={myAccounts[0].rsn} />
+        </div>
+      );
+    }
+    if (hasAnyCharacter) {
+      return (
+        <div className="border border-card-border rounded-xl bg-card-bg p-5 space-y-3">
+          <h2 className="font-semibold">You’re not on this clan’s member list yet</h2>
+          <p className="text-sm text-text-muted">
+            Your character is linked to Anvil, but this clan hasn’t added it. If you’re in the clan, ask an
+            admin to add you (or to sync the member list from the plugin). If you’re from another clan, go
+            back to the event and ask to play as a guest.
+          </p>
+          <ClanLink
+            href={`/events/${eventId}`}
+            className="inline-block text-sm font-medium px-4 py-2 rounded-lg border border-gold/30 text-gold bg-gold/10 hover:bg-gold/20 transition-colors"
+          >
+            Back to the event
+          </ClanLink>
+        </div>
+      );
+    }
     return (
       <div className="border border-card-border rounded-xl bg-card-bg p-5 space-y-3">
-        <p className="text-sm">
-          You need a verified RuneScape account before you can sign up. Link and verify one
-          on your profile, then come back here.
+        <h2 className="font-semibold">Step 1: which character is yours?</h2>
+        <p className="text-sm text-text-muted">
+          Link your RuneScape character once and the sign-up form appears right here.
         </p>
-        <ClanLink
-          href="/profile"
-          className="inline-block text-sm font-medium px-4 py-2 rounded-lg border border-gold/30 text-gold bg-gold/10 hover:bg-gold/20 transition-colors"
-        >
-          Go to Profile
-        </ClanLink>
+        <AddCharacterClient first />
       </div>
     );
   }
@@ -478,13 +513,28 @@ export default function SignupForm({
       {existingSignup && !isWithdrawn && (
         <div className="border border-accent-green/30 bg-accent-green/10 rounded-xl p-4 text-sm">
           <p className="font-medium text-accent-green-light">
-            You&apos;re signed up for this event ({existingSignup.status}).
+            {existingSignup.status === 'approved' ? 'You’re in.' : 'Sign-up received — the hosts still need to approve it.'}
           </p>
-          <p className="text-text-muted text-xs mt-1">
-            {windowOpen
-              ? 'You can edit your answers until the deadline.'
-              : 'Sign-ups are closed — your answers are locked in.'}
-          </p>
+          {/* What happens next, so "signed up" isn't the end of the trail. */}
+          <ul className="text-text-muted text-xs mt-2 space-y-1 list-disc pl-4">
+            {event.signupFee ? <li>Pay the {event.signupFee.toLocaleString()} gp fee in-game — see Fee below.</li> : null}
+            {event.startDate ? (
+              <li suppressHydrationWarning>
+                It starts {new Date(event.startDate).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}. Your team is posted on the event page before then.
+              </li>
+            ) : (
+              <li>The hosts will set a start time and post the teams on the event page.</li>
+            )}
+            <li>
+              Run the Anvil plugin in RuneLite so your drops and levels count by themselves.{' '}
+              <ClanLink href="/guide/plugin" className="text-gold hover:underline">
+                How to set it up
+              </ClanLink>
+            </li>
+            <li>
+              {windowOpen ? 'You can change your answers until the deadline.' : 'Sign-ups are closed — your answers are locked in.'}
+            </li>
+          </ul>
         </div>
       )}
       {isWithdrawn && (
@@ -906,16 +956,14 @@ function PaymentReportSection({
       </div>
 
       <div className="rounded-lg bg-blue-500/10 border border-blue-500/25 p-3 text-xs text-blue-300">
-        <strong className="font-semibold text-blue-200">Optional:</strong> If you&apos;ve paid the fee in-game, tag who
-        you handed it to. You don&apos;t have to do this — it&apos;s your safety net if there&apos;s ever a
-        dispute about who collected your gp. You can come back to this page any time before
-        the event ends.
+        <strong className="font-semibold text-blue-200">How to pay:</strong> trade {fee.amount.toLocaleString()} gp in-game to
+        one of the clan staff below. Then pick who you paid here — it&apos;s your proof if anyone asks later.
       </div>
 
-      {!loaded && <p className="text-xs text-text-muted">Loading collectors…</p>}
+      {!loaded && <p className="text-xs text-text-muted">Loading who collects fees…</p>}
 
       {loaded && collectors.length === 0 && (
-        <p className="text-xs text-text-muted">No fee collectors are configured yet.</p>
+        <p className="text-xs text-text-muted">Ask your clan&apos;s staff on Discord who to pay.</p>
       )}
 
       {loaded && collectors.length > 0 && (
@@ -964,10 +1012,19 @@ function FeeStatusBadge({ status }: { status: string }) {
     // Written off when the board closed — see lib/feeConfirmations#closeOutEventFees.
     closed: 'bg-text-muted/10 text-text-muted border-card-border',
   };
+  // The stored statuses are bookkeeping words; a player wants to know where their gp stands.
+  const label: Record<string, string> = {
+    pending: 'Not paid yet',
+    reported: 'You said you paid',
+    collected: 'Paid, being checked',
+    confirmed: 'Paid',
+    disputed: 'Needs a look',
+    closed: 'Closed',
+  };
   const cls = map[status] ?? map.pending;
   return (
-    <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${cls} capitalize`}>
-      {status}
+    <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${cls}`}>
+      {label[status] ?? status}
     </span>
   );
 }

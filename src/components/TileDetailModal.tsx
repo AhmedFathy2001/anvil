@@ -10,8 +10,9 @@ import Textarea from '@/components/Textarea';
 import { exactTitle, formatNumber } from '@/lib/utils';
 import type { Tile, Submission, ItemRequirementProgress } from '@/lib/types';
 import ManualOnlyBadge from './ManualOnlyBadge';
+import ClanLink from '@/components/ClanLink';
 import TileTargets from './TileTargets';
-import { statLabel, parseJsonArray } from '@/lib/tileKinds';
+import { statLabel, parseJsonArray, howTileCounts, tileKindKey } from '@/lib/tileKinds';
 import { lapUnitNoun } from '@/lib/constants';
 import { isIndividualMode } from '@/lib/statTracking';
 import { evaluateCollection } from '@/lib/collectionSets';
@@ -49,6 +50,7 @@ function parseGp(raw: string): number | null {
   const n = Math.round(parseFloat(m[1]) * mult);
   return Number.isFinite(n) && n >= 1 && n <= 2_147_483_647 ? n : null;
 }
+
 
 interface CompletedByTeam {
   teamId: number;
@@ -156,6 +158,9 @@ export default function TileDetailModal({
   const [viewer, setViewer] = useState<{ shots: ProofShot[]; index: number } | null>(null);
   const [showAllContributors, setShowAllContributors] = useState(false);
   const [error, setError] = useState('');
+  // A proof counts the moment it lands; staff only look again if it gets flagged. Say so, or the form
+  // just clears and the player wonders whether anything happened.
+  const [notice, setNotice] = useState('');
   // A refused toggle or delete (say the event finished and editing locked). Thrown by the parent's
   // handler; shown under the buttons so the click doesn't just do nothing.
   const [actionError, setActionError] = useState('');
@@ -188,6 +193,7 @@ export default function TileDetailModal({
     setClearTime('');
     setCreditPlayerId(currentPlayerId ? String(currentPlayerId) : '');
     setError('');
+    setNotice('');
   }, [tile.id, currentPlayerId]);
 
   const isCompleted = completedBy.length > 0;
@@ -210,6 +216,10 @@ export default function TileDetailModal({
   const isLms = tile.tileType === 'lms';
   const isValue = tile.tileType === 'value' || tile.tileType === 'valuetotal';
   const manualOnly = isManualTile(tile);
+  const howCounts = howTileCounts(tileKindKey(tile), manualOnly);
+  const submittedNotice = howCounts.auto
+    ? 'Added — it counts now. Staff only step in if something looks off.'
+    : 'Added. Your captain or the clan staff mark the tile done once they’ve seen it.';
   // Count-based tiles share the amount+proof "Add Submission" form. Value tiles use a gp-value form
   // (below); timed uses its own clear-time form; stat/standard have no manual submit.
   const isCount = isDrop || isKill || isLap || isPvp || isGain || isDiary || isCa || isDeathless || isLms;
@@ -350,6 +360,7 @@ export default function TileDetailModal({
         return;
       }
       setError('');
+      setNotice('');
       setSubmitting(true);
       try {
         await onSubmit({
@@ -362,8 +373,11 @@ export default function TileDetailModal({
           durationSeconds: secs,
         });
         setImageUrls(['']);
+        setNotice(submittedNotice);
         setNote('');
         setClearTime('');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not submit. Please try again.');
       } finally {
         setSubmitting(false);
       }
@@ -397,6 +411,7 @@ export default function TileDetailModal({
     const submittedItemId = needsItem ? parseInt(itemId, 10) : undefined;
 
     setError('');
+    setNotice('');
     setSubmitting(true);
     try {
       // Submit each image as a separate submission with amount=1
@@ -427,6 +442,7 @@ export default function TileDetailModal({
       }
       setAmount('1');
       setImageUrls(['']);
+      setNotice(submittedNotice);
       setNote('');
       setCreditPlayerId('');
       setItemId('');
@@ -498,6 +514,7 @@ export default function TileDetailModal({
       return;
     }
     setError('');
+    setNotice('');
     setSubmitting(true);
     try {
       await onSubmit({
@@ -510,6 +527,7 @@ export default function TileDetailModal({
       });
       setValueGp('');
       setImageUrls(['']);
+      setNotice(submittedNotice);
       setNote('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not submit. Please try again.');
@@ -617,6 +635,21 @@ export default function TileDetailModal({
                   </span>
                 )}
               </div>
+              {/* How a player gets this one, in words a phone can show — the ✋ and badge blurbs are hover-only. */}
+              <p className="text-xs text-text-muted mt-2">
+                <span className={howCounts.auto ? 'text-accent-green-light' : 'text-amber-300'}>
+                  {howCounts.auto ? 'Automatic. ' : 'Screenshot. '}
+                </span>
+                {howCounts.text}
+                {howCounts.auto && (
+                  <>
+                    {' '}
+                    <ClanLink href="/guide/plugin" className="text-gold hover:underline">
+                      Set up the plugin
+                    </ClanLink>
+                  </>
+                )}
+              </p>
             </div>
           </div>
           <button
@@ -1247,6 +1280,7 @@ export default function TileDetailModal({
               {error && (
                 <p className="text-xs text-red-400">{error}</p>
               )}
+              {notice && !error && <p className="text-xs text-accent-green-light">{notice}</p>}
 
               <button
                 type="submit"
@@ -1316,6 +1350,7 @@ export default function TileDetailModal({
               </div>
 
               {error && <p className="text-xs text-red-400">{error}</p>}
+              {notice && !error && <p className="text-xs text-accent-green-light">{notice}</p>}
 
               <button
                 type="submit"
@@ -1390,6 +1425,7 @@ export default function TileDetailModal({
               </div>
 
               {error && <p className="text-xs text-red-400">{error}</p>}
+              {notice && !error && <p className="text-xs text-accent-green-light">{notice}</p>}
 
               <button
                 type="submit"

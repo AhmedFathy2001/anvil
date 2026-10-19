@@ -2,7 +2,7 @@ import { db } from '@/db';
 import { requireEventForParticipantPage } from '@/lib/eventScope';
 import { signupSeatsFor } from '@/lib/eventSeats';
 import EventApiHost from '@/components/EventApiHost';
-import { clanRoster, eventParticipants, eventSignups, events, signupFees, surveyQuestions, teamInvites, teams } from '@/db/schema';
+import { accounts, clanRoster, eventParticipants, eventSignups, events, signupFees, surveyQuestions, teamInvites, teams } from '@/db/schema';
 import { and, eq, inArray } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import { verifyUser } from '@/lib/auth';
@@ -80,6 +80,12 @@ export default async function EventSignupPage({
       }));
 
   const maxAccounts = event.maxAccountsPerPerson ?? 1;
+  // Only asked when there is no seat here: "link a character" vs "not on this clan's list yet".
+  const hasAnyCharacter =
+    myAccounts.length === 0 && session.playerId != null
+      ? // clan-scope: global -- the subject is a PERSON, whose characters span clans by design; scoped to their own.
+        !!(await db.query.accounts.findFirst({ where: eq(accounts.playerId, session.playerId), columns: { id: true } }))
+      : false;
 
   // All of this user's sign-up rows for the event (multi-account: possibly several). The profile lives
   // on ONE row (the primary account's); siblings carry '{}'. Pick that row as the representative for
@@ -230,6 +236,7 @@ export default async function EventSignupPage({
           startDate: event.startDate,
         }}
         myAccounts={myAccounts}
+        hasAnyCharacter={hasAnyCharacter}
         maxAccounts={maxAccounts}
         signedUpMemberIds={signedUpMemberIds}
         accountFees={accountFees}

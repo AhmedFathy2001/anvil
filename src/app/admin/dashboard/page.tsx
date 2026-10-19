@@ -7,9 +7,9 @@ import { getSetting } from '@/lib/settings';
 import { SNOOZE_SETTING_KEY, parseSnoozes } from '@/lib/adminSnooze';
 import SnoozeButton from './SnoozeButton';
 import { db } from '@/db';
-import { clanAuditLog, clanRoster, completions, events, eventSignups, signupFees, teams, tiles, users } from '@/db/schema';
+import { clanAuditLog, clanRoster, completions, events, eventSignups, signupFees, submissions, teams, tiles, users } from '@/db/schema';
 import { alias } from 'drizzle-orm/pg-core';
-import { and, count, desc, eq, gt, inArray, isNull, notInArray, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gt, inArray, isNotNull, isNull, notInArray, or, sql } from 'drizzle-orm';
 import { eventTileCount, isLadderFormat } from '@/lib/utils';
 import { writtenTile } from '@/lib/writtenTiles';
 import { getSetupStatus } from '@/lib/setupStatus';
@@ -88,6 +88,7 @@ export default async function AdminDashboardPage() {
     coHostInvites,
     accountChangeCount,
     pendingSignupEvents,
+    flaggedProofEvents,
   ] = await Promise.all([
     listEventIndex(clan.id),
     db.select().from(events).where(eq(events.clanId, clan.id)).orderBy(desc(events.createdAt)),
@@ -286,6 +287,28 @@ export default async function AdminDashboardPage() {
           href: `/admin/events/${r.eventId}/signups`,
         })),
       ),
+    // Flagged proofs, per board. Ended boards stay in for a month — settling them is part of paying
+    // out — and drop off after, so an old flag nobody cleared doesn't nag forever.
+    db
+      .select({ eventId: events.id, name: events.name, c: count() })
+      .from(submissions)
+      .innerJoin(tiles, eq(submissions.tileId, tiles.id))
+      .innerJoin(events, eq(tiles.eventId, events.id))
+      .where(
+        and(
+          eq(events.clanId, clan.id),
+          isNotNull(submissions.flaggedReason),
+          or(isNull(events.endDate), gt(events.endDate, new Date(now - 30 * 86_400_000).toISOString())),
+        ),
+      )
+      .groupBy(events.id)
+      .then((rows) =>
+        rows.map((r) => ({
+          name: r.name,
+          count: Number(r.c),
+          href: `/admin/events/${r.eventId}#proofs`,
+        })),
+      ),
   ]);
 
   // What somebody already said they know about. Per clan, so the whole staff sees one answer.
@@ -342,6 +365,10 @@ export default async function AdminDashboardPage() {
       events: pendingSignupEvents,
     },
     accountChangeRequests: accountChangeCount,
+    flaggedProofs: {
+      count: flaggedProofEvents.reduce((n, e) => n + e.count, 0),
+      events: flaggedProofEvents,
+    },
     guideUpdates: await pendingUpdateCount(clan.id),
     gap: gap
       ? {
