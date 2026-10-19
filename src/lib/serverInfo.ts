@@ -79,6 +79,9 @@ export const PLUGIN_CAPABILITIES = [
   // publicHiscoresCard): a card with `source: 'hiscores'` and `fetchedAt`, no clan or log. May 503
   // with Retry-After when the global lookup budget is spent. Without it, such names 404.
   'player-card-hiscores',
+  // GET /api/players/<rsn>/cas — the Lookup tab's combat achievements (lib/combatTasks caLookup), fetched
+  // when the tab opens. 404 for a name with no synced tasks.
+  'player-cas',
   // Goals: GET/POST/DELETE /api/plugin/goals — the You tab's own targets (99 Slayer, 500 Vorkath, a
   // finished log page). Progress is read from the player card, so nothing new is polled.
   'goals',

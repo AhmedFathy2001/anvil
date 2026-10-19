@@ -242,3 +242,63 @@ export function completedTasksFromVarps(
 ): ProgressItem[] | null {
   return decodeCombatTasks(varps, caPoints).items;
 }
+
+// ── The plugin's Lookup "CAs" tab ────────────────────────────────────────────────────────────────
+
+export interface CaLookupTask {
+  /** Name. */
+  n: string;
+  /** Tier index into CA_TIERS (0 = Easy). */
+  t: number;
+  /** Type ("Kill Count", "Mechanical", …), or null. */
+  y: string | null;
+  /** Done. */
+  d: boolean;
+  /** Description, or null. */
+  x: string | null;
+}
+
+export interface CaLookup {
+  tiers: string[];
+  earned: number;
+  nextTier: string | null;
+  nextAt: number | null;
+  perTier: { done: number; total: number }[];
+  /** One row per boss, unfinished first (most left to do at the top), finished ones after by name. */
+  monsters: { name: string; done: number; total: number; tasks: CaLookupTask[] }[];
+}
+
+/**
+ * Everything the Lookup tab draws, in one compact shape: short keys because ~650 tasks ride in it.
+ * Tasks without a monster file under "Other".
+ */
+export function caLookup(tasks: CombatTask[]): CaLookup {
+  const points = taskPoints(tasks);
+  const perTier = CA_TIERS.map(() => ({ done: 0, total: 0 }));
+  const byMonster = new Map<string, CaLookupTask[]>();
+  for (const task of tasks) {
+    const t = CA_TIERS.indexOf(task.tier);
+    if (t >= 0) {
+      perTier[t].total++;
+      if (task.done) perTier[t].done++;
+    }
+    const name = task.monster || 'Other';
+    const list = byMonster.get(name) ?? [];
+    list.push({ n: task.name, t: Math.max(0, t), y: task.type, d: task.done, x: task.description });
+    byMonster.set(name, list);
+  }
+  const monsters = [...byMonster.entries()].map(([name, list]) => ({
+    name,
+    done: list.filter((x) => x.d).length,
+    total: list.length,
+    // Missing first, easiest first, so the next thing to go and do is at the top.
+    tasks: list.sort((a, b) => Number(a.d) - Number(b.d) || a.t - b.t || a.n.localeCompare(b.n)),
+  }));
+  monsters.sort((a, b) => {
+    const leftA = a.total - a.done;
+    const leftB = b.total - b.done;
+    if ((leftA === 0) !== (leftB === 0)) return leftA === 0 ? 1 : -1;
+    return a.name.localeCompare(b.name);
+  });
+  return { tiers: CA_TIERS, earned: points.earned, nextTier: points.nextTier, nextAt: points.nextAt, perTier, monsters };
+}
