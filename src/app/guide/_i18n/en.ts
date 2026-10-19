@@ -859,7 +859,7 @@ export const en = {
     channels: {
       title: 'Split posts across channels',
       body: [
-        'Everything posts to one master announcements channel by default. When that gets noisy, open **System → Advanced settings → Webhooks** and give the loud categories their own homes — bingo events, weekly competitions, rare drops, deaths, PvP kills, combat achievements, clips. Anything left blank falls back to the master channel, so you can split one category at a time.',
+        'Everything posts to one master announcements channel by default. When that gets noisy, open **Discord → Where posts go** and give the loud categories their own homes — bingo events, weekly competitions, rare drops, deaths, PvP kills, combat achievements, clips. Anything left blank falls back to the master channel, so you can split one category at a time.',
         'With the bot connected you never touch a webhook URL: pick a channel from the dropdown and press **Create webhook**. On a busy event you can add a second webhook to the same channel — Anvil rotates between them so Discord’s rate limit doesn’t swallow posts.',
       ],
       clipsNote: {
@@ -924,7 +924,7 @@ export const en = {
       rows: [
         {
           term: 'Difficulty tiers',
-          body: 'point values map to named bands (easy → elite). Edit the bands in Advanced settings if your clan grades differently.',
+          body: 'point values map to named bands (easy → elite). Edit the bands in Rules & scoring if your clan grades differently.',
         },
         {
           term: 'Balance auditor',
@@ -1398,7 +1398,7 @@ export const en = {
     points: {
       title: 'Points, tiers and whether it is fair',
       body: [
-        'On a points-scored board every tile carries its own value, and those values map onto named difficulty bands — easy through elite — which you can edit under **Advanced settings** if your clan grades differently. The band is what players read; the number is what scores.',
+        'On a points-scored board every tile carries its own value, and those values map onto named difficulty bands — easy through elite — which you can edit under **Rules & scoring** if your clan grades differently. The band is what players read; the number is what scores.',
         'Mark a tile **optional** and it stops counting toward the board total, which is how you add stretch goals without making a blackout impossible.',
         'When the board is full, run the **balance auditor** from the Tiles tab. It checks the structure and the effort spread and tells you where the board is lopsided — a category nobody can finish, a tier that is worth far more per hour than its neighbours — before players find those things for you and route around them.',
       ],

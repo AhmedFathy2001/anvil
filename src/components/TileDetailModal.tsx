@@ -156,6 +156,9 @@ export default function TileDetailModal({
   const [viewer, setViewer] = useState<{ shots: ProofShot[]; index: number } | null>(null);
   const [showAllContributors, setShowAllContributors] = useState(false);
   const [error, setError] = useState('');
+  // A refused toggle or delete (say the event finished and editing locked). Thrown by the parent's
+  // handler; shown under the buttons so the click doesn't just do nothing.
+  const [actionError, setActionError] = useState('');
   // Delete confirmation modal state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteSubmissionId, setDeleteSubmissionId] = useState<number | null>(null);
@@ -446,11 +449,15 @@ export default function TileDetailModal({
     if (!onDelete || !deleteSubmissionId) return;
     if (!deleteReason.trim()) return;
     setDeletingId(deleteSubmissionId);
+    setActionError('');
     try {
       await onDelete(deleteSubmissionId, deleteReason.trim());
       setDeleteModalOpen(false);
       setDeleteSubmissionId(null);
       setDeleteReason('');
+    } catch (err) {
+      setDeleteModalOpen(false);
+      setActionError(err instanceof Error ? err.message : 'Could not remove that proof. Please try again.');
     } finally {
       setDeletingId(null);
     }
@@ -514,8 +521,11 @@ export default function TileDetailModal({
   async function handleToggle() {
     if (!onToggle) return;
     setToggling(true);
+    setActionError('');
     try {
       await onToggle(tile.id);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'That didn’t save. Please try again.');
     } finally {
       setToggling(false);
     }
@@ -911,6 +921,8 @@ export default function TileDetailModal({
               {toggling ? '...' : 'Reopen tile (clear completion)'}
             </button>
           )}
+
+          {actionError && <p role="alert" className="text-xs text-red-400">{actionError}</p>}
 
           {/* Proof still in flight — say so, so an empty modal doesn't read as "no proof exists". */}
           {submissionsLoading && submissions.length === 0 && (

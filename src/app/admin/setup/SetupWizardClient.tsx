@@ -151,7 +151,7 @@ export default function SetupWizardClient({ initial, channels, botEnabled, provi
               </ClanLink>{' '}
               or{' '}
               <ClanLink href="/admin/integrations" className="text-gold hover:underline">
-                Advanced settings
+                Discord
               </ClanLink>
               .
             </p>
@@ -220,7 +220,7 @@ export default function SetupWizardClient({ initial, channels, botEnabled, provi
         {step === 2 && (
           <StepShell
             title="Plugin feeds (optional)"
-            subtitle="If your clan uses the Anvil plugin, it can post drops, deaths, 99s, quests and more to Discord. One channel is enough to start — skip this and add it anytime under Advanced settings."
+            subtitle="If your clan uses the Anvil plugin, it can post drops, deaths, 99s, quests and more to Discord. One channel is enough to start — skip this and add it anytime under Discord in the admin menu."
           >
             <WebhookField
               settingKey="webhook_plugin_default"
@@ -254,9 +254,13 @@ export default function SetupWizardClient({ initial, channels, botEnabled, provi
         {isDone && (
           <div className="text-center py-4">
             <p className="text-sm text-text-muted mb-6 leading-relaxed">
-              You can fine-tune webhooks, roles, tiers and more anytime under{' '}
+              Change Discord posts and roles anytime under{' '}
               <ClanLink href="/admin/integrations" className="text-gold hover:underline">
-                Advanced settings
+                Discord
+              </ClanLink>
+              , and difficulty tiers under{' '}
+              <ClanLink href="/admin/rules" className="text-gold hover:underline">
+                Rules &amp; scoring
               </ClanLink>
               .
             </p>

@@ -866,7 +866,7 @@ const pl: PartialGuideDict = {
     channels: {
       title: 'Rozdziel wpisy na kanały',
       body: [
-        'Domyślnie wszystko trafia na jeden główny kanał ogłoszeń. Gdy zrobi się na nim głośno, otwórz **System → Advanced settings → Webhooks** i daj hałaśliwym kategoriom własne domy —— wydarzenia bingo, tygodniowe konkursy, rzadkie dropy, śmierci, kille PvP, combat achievements, klipy. Wszystko, co zostawisz puste, spada z powrotem na kanał główny, więc możesz rozdzielać po jednej kategorii.',
+        'Domyślnie wszystko trafia na jeden główny kanał ogłoszeń. Gdy zrobi się na nim głośno, otwórz **Discord → Where posts go** i daj hałaśliwym kategoriom własne domy —— wydarzenia bingo, tygodniowe konkursy, rzadkie dropy, śmierci, kille PvP, combat achievements, klipy. Wszystko, co zostawisz puste, spada z powrotem na kanał główny, więc możesz rozdzielać po jednej kategorii.',
         'Z podłączonym botem nigdy nie dotykasz URL-a webhooka: wybierasz kanał z listy i naciskasz **Create webhook**. Przy ruchliwym wydarzeniu możesz dodać drugi webhook do tego samego kanału —— Anvil przełącza się między nimi, żeby limit Discorda nie połknął wpisów.',
       ],
       clipsNote: {
@@ -931,7 +931,7 @@ const pl: PartialGuideDict = {
       rows: [
         {
           term: 'Progi trudności',
-          body: 'wartości punktowe mapują się na nazwane progi (easy → elite). Zmień progi w Advanced settings, jeśli twój klan ocenia inaczej.',
+          body: 'wartości punktowe mapują się na nazwane progi (easy → elite). Zmień progi w Rules & scoring, jeśli twój klan ocenia inaczej.',
         },
         {
           term: 'Audytor równowagi',
@@ -1401,7 +1401,7 @@ const pl: PartialGuideDict = {
     points: {
       title: 'Punkty, progi i czy to sprawiedliwe',
       body: [
-        'Na planszy punktowanej każde pole niesie własną wartość, a te wartości mapują się na nazwane progi trudności —— od easy do elite —— które możesz zmienić w **Advanced settings**, jeśli twój klan ocenia inaczej. Próg jest tym, co czytają gracze; liczba jest tym, co punktuje.',
+        'Na planszy punktowanej każde pole niesie własną wartość, a te wartości mapują się na nazwane progi trudności —— od easy do elite —— które możesz zmienić w **Rules & scoring**, jeśli twój klan ocenia inaczej. Próg jest tym, co czytają gracze; liczba jest tym, co punktuje.',
         'Oznacz pole jako **opcjonalne**, a przestaje liczyć się do sumy planszy —— tak dodaje się cele ponadprogramowe, nie czyniąc blackoutu niemożliwym.',
         'Gdy plansza jest pełna, odpal **audytora równowagi** z zakładki Tiles. Sprawdza strukturę i rozkład wysiłku i mówi ci, gdzie plansza się przechyla —— kategoria, której nikt nie skończy, próg wart o wiele więcej na godzinę niż sąsiednie —— zanim gracze znajdą to za ciebie i zaczną to obchodzić.',
       ],

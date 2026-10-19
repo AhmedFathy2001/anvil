@@ -9,6 +9,7 @@ import ClanLink from '@/components/ClanLink';
 import Checkbox from '@/components/Checkbox';
 import { useDialog } from '@/components/Confirm';
 import GuideLink from '@/components/GuideLink';
+import { ROLE_BLURB } from '@/lib/clanRoles';
 
 /**
  * A way to actually reach this person.
@@ -947,7 +948,7 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
                   options={[
                     { value: 'moderator', label: 'Moderator' },
                     { value: 'treasurer', label: 'Treasurer' },
-                    { value: 'editor', label: 'Editor' },
+                    { value: 'editor', label: 'Board builder' },
                     { value: 'admin', label: 'Admin' },
                     { value: 'none', label: 'Clear pending role' },
                   ]}
@@ -1221,9 +1222,9 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
             <p className="text-text-muted text-sm mb-4">
               {roleTarget.userId
                 ? roleTarget.provisional
-                  ? `${roleTarget.rsn} has claimed this RSN but their verification is still provisional. The role will apply when a mod approves it.`
-                  : `${roleTarget.rsn} is already linked and verified — the role applies immediately on save.`
-                : `Stamps a role onto ${roleTarget.rsn}. When they sign in via Discord and verify (plugin or stat-delta), the role is granted automatically.`}
+                  ? `${roleTarget.rsn} has linked this character but hasn't been checked yet. The role applies once a moderator approves them under Needs review.`
+                  : `${roleTarget.rsn} is already linked and checked — the role applies as soon as you save.`
+                : `Saves a role for ${roleTarget.rsn}. They get it automatically the first time they sign in and link this character.`}
             </p>
             <div className="mb-4">
               <label className="block text-xs text-text-muted mb-1">Role</label>
@@ -1233,10 +1234,10 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
                 ariaLabel="Role"
                 options={[
                   { value: 'none', label: 'None (clear)' },
-                  { value: 'moderator', label: 'Moderator — clan + verifications' },
-                  { value: 'editor', label: 'Editor — edit event tiles' },
-                  { value: 'treasurer', label: 'Treasurer — moderator + collect fees' },
-                  { value: 'admin', label: 'Admin — full access' },
+                  { value: 'moderator', label: ROLE_BLURB.moderator },
+                  { value: 'editor', label: ROLE_BLURB.editor },
+                  { value: 'treasurer', label: ROLE_BLURB.treasurer },
+                  { value: 'admin', label: ROLE_BLURB.admin },
                 ]}
               />
             </div>

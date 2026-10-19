@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
 import Select, { type SelectOption } from '@/components/Select';
 import { loadSettings, invalidateSettings } from '@/lib/settingsClient';
@@ -334,8 +335,11 @@ export default function WebhookField({
       {botEnabled && channels.length === 0 && (
         <p className="text-[11px] text-yellow-400">
           A bot is configured but Anvil can&apos;t see any channels in your server — it probably hasn&apos;t been
-          invited yet. Open <span className="text-foreground/70">Advanced settings → Discord bot</span>, where you
-          can add it in one click.
+          invited yet. Open{' '}
+          <ClanLink href="/admin/integrations" className="text-gold hover:underline">
+            Discord → Connection
+          </ClanLink>
+          , where you can add it in one click.
         </p>
       )}
 

@@ -17,6 +17,19 @@ export function useStartNow(eventId: number, onEventChange: (e: Event) => void) 
   const [error, setError] = useState('');
 
   async function start(force = false): Promise<void> {
+    // Same ask as the Teams page's start button: starting announces in Discord and opens the board,
+    // neither of which a stray click on the Next step panel should do unasked.
+    if (
+      !force &&
+      !(await confirm({
+        title: 'Start the event now?',
+        body: 'The event goes live, the start is announced in Discord, and members can see the board.',
+        confirmLabel: 'Start now',
+        tone: 'gold',
+      }))
+    ) {
+      return;
+    }
     setStarting(true);
     setError('');
     try {
@@ -30,8 +43,9 @@ export function useStartNow(eventId: number, onEventChange: (e: Event) => void) 
         onEventChange(data);
         return;
       }
-      // 409 = the readiness gate refused; some of its reasons (no end date) may be overridden.
-      if (res.status === 409 && data.overridable) {
+      // 409 + blockers = the readiness gate refused. The route has no `overridable` flag — every
+      // blocker can be forced, which is what the Teams page's button offers — so key off the list.
+      if (res.status === 409 && Array.isArray(data.blockers) && !force) {
         if (await confirm({ title: 'Start it anyway?', body: data.error, confirmLabel: 'Start now', tone: 'gold' })) {
           await start(true);
         }

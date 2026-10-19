@@ -4,7 +4,8 @@ import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { postEventRules } from '@/lib/eventRulesPost';
 import { events, tiles, teams, completions, submissions, eventStartProofs } from '@/db/schema';
-import { eq, inArray, and } from 'drizzle-orm';
+import { eq, inArray, and, count, not } from 'drizzle-orm';
+import { writtenTile } from '@/lib/writtenTiles';
 import { del } from '@/lib/storage';
 import { cleanEventImageUrl } from '@/lib/eventImage';
 import { verifyAdmin, verifyAdminOrModerator } from '@/lib/auth';
@@ -258,9 +259,13 @@ export async function PATCH(
     // deliberately in this soft lane rather than the hard 400 it used to be — a ladder that cycles
     // monthly is meant to run until it's ended.
     if (body.force !== true) {
-      const [readiness, emptyTeams] = await Promise.all([
+      const [readiness, emptyTeams, [blank]] = await Promise.all([
         getEventStartReadiness(event.id, event.draftStatus),
         emptyTeamCount(event.id),
+        db
+          .select({ n: count() })
+          .from(tiles)
+          .where(and(eq(tiles.eventId, event.id), not(writtenTile))),
       ]);
       const blockers = [
         ...readiness.blockers,
@@ -269,6 +274,8 @@ export async function PATCH(
         // side left unfilled. Soft, like the missing end date: prompted once, overridable, and never
         // allowed to hold a start that the clock reached on its own.
         ...(emptyTeams > 0 ? ['empty-teams' as const] : []),
+        // Untouched "Tile N" placeholders (lib/writtenTiles). Soft for the same reasons.
+        ...(blank.n > 0 ? ['blank-tiles' as const] : []),
       ];
       if (blockers.length > 0) {
         return NextResponse.json(

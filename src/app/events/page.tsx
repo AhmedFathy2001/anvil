@@ -6,6 +6,8 @@ import { clanSectionMetadata } from '@/lib/seoPages';
 import { loadHubView } from '@/lib/eventsHub';
 import { loadCalendar } from '@/lib/eventsCalendar';
 import { requireClan } from '@/lib/clanContext';
+import { verifyUser } from '@/lib/auth';
+import { isStaffRole } from '@/lib/clanRoles';
 import { hubKind } from '@/lib/hubKinds';
 import CompetitionCard, { boardGlyphFor } from '@/components/events/CompetitionCard';
 import WeekFrame from '@/components/events/WeekFrame';
@@ -46,6 +48,8 @@ export default async function EventsIndexPage({
   const { show } = await searchParams;
   const requested = Number.parseInt(show ?? '', 10);
   const pastLimit = Number.isFinite(requested) ? Math.min(Math.max(requested, PAGE), 500) : PAGE;
+  // Players have no Admin tab, so the empty state only points staff at one.
+  const isStaff = isStaffRole((await verifyUser())?.role);
 
   const clan = await requireClan();
   const [view, calendar] = await Promise.all([loadHubView(clan.id, { pastLimit }), loadCalendar(clan.id)]);
@@ -103,8 +107,16 @@ export default async function EventsIndexPage({
               Nothing is running. Next up is <b className="text-foreground">{nextUp[0].name}</b>
               {nextUp[0].startDate ? ` on ${new Date(nextUp[0].startDate).toLocaleDateString()}` : ''}.
             </>
+          ) : isStaff ? (
+            <>
+              Nothing is running, and nothing is scheduled.{' '}
+              <ClanLink href="/admin/events/new" className="text-gold hover:underline">
+                Start a new event
+              </ClanLink>
+              .
+            </>
           ) : (
-            'Nothing is running, and nothing is scheduled — an admin can start something from the Admin tab.'
+            'Nothing is running yet. Your clan’s staff will post here when the next event is on.'
           )}
         </div>
       ) : (

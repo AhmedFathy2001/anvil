@@ -13,6 +13,13 @@ import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 
+/** The modal shows what a handler throws — a refused write (finished event, locked editing) used to just do nothing. */
+async function throwUnlessOk(res: Response, fallback: string): Promise<void> {
+  if (res.ok) return;
+  const d = await res.json().catch(() => ({}));
+  throw new Error(d.error || fallback);
+}
+
 interface Props {
   event: Event;
   team: Team;
@@ -84,9 +91,8 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ teamId: team.id, tileId }),
     });
-    if (res.ok) {
-      await fetchCompletions();
-    }
+    await throwUnlessOk(res, 'That didn’t save.');
+    await fetchCompletions();
   }
 
   async function handleSubmit(data: { tileId: number; teamId: number; amount: number; imageUrl: string; note: string; creditPlayerId: number | null; durationSeconds?: number }) {
@@ -95,18 +101,16 @@ export default function AdminTeamBoardClient({ event, team, tiles, completions: 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    if (res.ok) {
-      await fetchSubmissions();
-      await fetchCompletions();
-    }
+    await throwUnlessOk(res, 'Submission failed.');
+    await fetchSubmissions();
+    await fetchCompletions();
   }
 
   async function handleDeleteSubmission(submissionId: number, reason: string) {
     const res = await clanFetch(`/api/events/${event.id}/submissions?submissionId=${submissionId}&reason=${encodeURIComponent(reason)}`, { method: 'DELETE' });
-    if (res.ok) {
-      await fetchSubmissions();
-      await fetchCompletions();
-    }
+    await throwUnlessOk(res, 'Could not remove that proof.');
+    await fetchSubmissions();
+    await fetchCompletions();
   }
 
   const { dropProgress, perItemProgressMap } = useDropProgress(tiles, submissions);

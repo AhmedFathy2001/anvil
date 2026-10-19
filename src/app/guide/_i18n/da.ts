@@ -879,7 +879,7 @@ const da: PartialGuideDict = {
     channels: {
       title: 'Fordel opslag på flere kanaler',
       body: [
-        'Alt lander som standard i én hovedkanal til beskeder. Når den bliver larmende, åbner du **System → Advanced settings → Webhooks** og giver de larmende kategorier deres eget hjem — bingo-events, ugentlige konkurrencer, sjældne drops, dødsfald, PvP-kills, combat achievements, klip. Alt du lader stå tomt falder tilbage til hovedkanalen, så du kan flytte én kategori ad gangen.',
+        'Alt lander som standard i én hovedkanal til beskeder. Når den bliver larmende, åbner du **Discord → Where posts go** og giver de larmende kategorier deres eget hjem — bingo-events, ugentlige konkurrencer, sjældne drops, dødsfald, PvP-kills, combat achievements, klip. Alt du lader stå tomt falder tilbage til hovedkanalen, så du kan flytte én kategori ad gangen.',
         'Med botten forbundet rører du aldrig en webhook-URL: vælg en kanal i menuen og tryk **Create webhook**. Under et travlt event kan du lægge en webhook nummer to på samme kanal — Anvil skifter mellem dem, så Discords rate limit ikke sluger opslag.',
       ],
       clipsNote: {
@@ -954,7 +954,7 @@ const da: PartialGuideDict = {
       rows: [
         {
           term: 'Sværhedsgrader',
-          body: 'pointværdier oversættes til navngivne bånd (easy → elite). Rediger båndene under Advanced settings, hvis din klan graduerer anderledes.',
+          body: 'pointværdier oversættes til navngivne bånd (easy → elite). Rediger båndene under Rules & scoring, hvis din klan graduerer anderledes.',
         },
         {
           term: 'Balance-revisor',
@@ -1425,7 +1425,7 @@ const da: PartialGuideDict = {
     points: {
       title: 'Point, sværhedsgrader og om det er fair',
       body: [
-        'På et pointbaseret bræt har hvert felt sin egen værdi, og de værdier oversættes til navngivne sværhedsbånd — easy til elite — som du kan redigere under **Advanced settings**, hvis din klan graduerer anderledes. Båndet er det, spillerne læser; tallet er det, der giver point.',
+        'På et pointbaseret bræt har hvert felt sin egen værdi, og de værdier oversættes til navngivne sværhedsbånd — easy til elite — som du kan redigere under **Rules & scoring**, hvis din klan graduerer anderledes. Båndet er det, spillerne læser; tallet er det, der giver point.',
         'Markér et felt som **optional**, og det holder op med at tælle med i brættets total. Sådan tilføjer du strækmål uden at gøre en blackout umulig.',
         'Når brættet er fyldt, så kør **balance-revisoren** fra Tiles-fanen. Den tjekker strukturen og fordelingen af arbejde og fortæller dig, hvor brættet er skævt — en kategori ingen kan gøre færdig, et bånd der er langt mere værd i timen end naboerne — før spillerne finder de ting for dig og styrer uden om dem.',
       ],

@@ -874,7 +874,7 @@ const de: PartialGuideDict = {
     channels: {
       title: 'Beiträge auf mehrere Kanäle verteilen',
       body: [
-        'Standardmäßig geht alles in einen zentralen Ankündigungskanal. Wenn der laut wird, öffne **System → Advanced settings → Webhooks** und gib den lauten Kategorien ein eigenes Zuhause — Bingo-Events, Wochenwettbewerbe, seltene Drops, Tode, PvP-Kills, Combat Achievements, Clips. Alles, was du leer lässt, fällt auf den Hauptkanal zurück, du kannst also eine Kategorie nach der anderen abtrennen.',
+        'Standardmäßig geht alles in einen zentralen Ankündigungskanal. Wenn der laut wird, öffne **Discord → Where posts go** und gib den lauten Kategorien ein eigenes Zuhause — Bingo-Events, Wochenwettbewerbe, seltene Drops, Tode, PvP-Kills, Combat Achievements, Clips. Alles, was du leer lässt, fällt auf den Hauptkanal zurück, du kannst also eine Kategorie nach der anderen abtrennen.',
         'Mit verbundenem Bot fasst du nie eine Webhook-URL an: wähle einen Kanal aus der Liste und drück **Create webhook**. Bei einem vollen Event kannst du einen zweiten Webhook auf denselben Kanal legen — Anvil wechselt zwischen ihnen, damit Discords Ratenbegrenzung keine Beiträge verschluckt.',
       ],
       clipsNote: {
@@ -948,7 +948,7 @@ const de: PartialGuideDict = {
       rows: [
         {
           term: 'Schwierigkeitsstufen',
-          body: 'Punktwerte werden auf benannte Bänder abgebildet (easy → elite). Bearbeite die Bänder unter Advanced settings, wenn dein Clan anders einstuft.',
+          body: 'Punktwerte werden auf benannte Bänder abgebildet (easy → elite). Bearbeite die Bänder unter Rules & scoring, wenn dein Clan anders einstuft.',
         },
         {
           term: 'Balance-Prüfer',
@@ -1420,7 +1420,7 @@ const de: PartialGuideDict = {
     points: {
       title: 'Punkte, Stufen und ob es fair ist',
       body: [
-        'Auf einem punktgewerteten Board trägt jedes Feld seinen eigenen Wert, und diese Werte bilden sich auf benannte Schwierigkeitsbänder ab — easy bis elite — die du unter **Advanced settings** bearbeiten kannst, wenn dein Clan anders einstuft. Das Band ist das, was Spieler lesen; die Zahl ist das, was zählt.',
+        'Auf einem punktgewerteten Board trägt jedes Feld seinen eigenen Wert, und diese Werte bilden sich auf benannte Schwierigkeitsbänder ab — easy bis elite — die du unter **Rules & scoring** bearbeiten kannst, wenn dein Clan anders einstuft. Das Band ist das, was Spieler lesen; die Zahl ist das, was zählt.',
         'Markiere ein Feld als **optional**, und es zählt nicht mehr zur Boardsumme — so fügst du Zusatzziele hinzu, ohne ein Blackout unmöglich zu machen.',
         'Wenn das Board voll ist, lass den **Balance-Prüfer** aus dem Tiles-Reiter laufen. Er prüft die Struktur und die Aufwandsverteilung und sagt dir, wo das Board schief liegt — eine Kategorie, die niemand schaffen kann, ein Band, das pro Stunde deutlich mehr wert ist als seine Nachbarn — bevor Spieler das für dich herausfinden und drum herum spielen.',
       ],

@@ -874,7 +874,7 @@ const nl: PartialGuideDict = {
     channels: {
       title: 'Verdeel de berichten over kanalen',
       body: [
-        'Standaard gaat alles naar één hoofdkanaal voor aankondigingen. Wordt dat rumoerig, open dan **System → Advanced settings → Webhooks** en geef de luide categorieën hun eigen plek — bingo-events, weekcompetities, zeldzame drops, sterfgevallen, PvP-kills, combat achievements, clips. Alles wat je leeg laat, valt terug op het hoofdkanaal, je kunt dus één categorie tegelijk afsplitsen.',
+        'Standaard gaat alles naar één hoofdkanaal voor aankondigingen. Wordt dat rumoerig, open dan **Discord → Where posts go** en geef de luide categorieën hun eigen plek — bingo-events, weekcompetities, zeldzame drops, sterfgevallen, PvP-kills, combat achievements, clips. Alles wat je leeg laat, valt terug op het hoofdkanaal, je kunt dus één categorie tegelijk afsplitsen.',
         'Met de bot verbonden raak je nooit een webhook-URL aan: kies een kanaal uit de lijst en druk **Create webhook**. Bij een druk event kun je een tweede webhook op hetzelfde kanaal zetten — Anvil wisselt ertussen zodat de snelheidslimiet van Discord geen berichten opslokt.',
       ],
       clipsNote: {
@@ -948,7 +948,7 @@ const nl: PartialGuideDict = {
       rows: [
         {
           term: 'Moeilijkheidsgraden',
-          body: 'puntenwaarden vertalen naar benoemde banden (easy → elite). Pas de banden aan onder Advanced settings als je clan anders indeelt.',
+          body: 'puntenwaarden vertalen naar benoemde banden (easy → elite). Pas de banden aan onder Rules & scoring als je clan anders indeelt.',
         },
         {
           term: 'Balanscontrole',
@@ -1420,7 +1420,7 @@ const nl: PartialGuideDict = {
     points: {
       title: 'Punten, niveaus en of het eerlijk is',
       body: [
-        'Op een bord op punten draagt elk vakje zijn eigen waarde, en die waarden vertalen naar benoemde moeilijkheidsbanden — easy tot elite — die je onder **Advanced settings** kunt aanpassen als je clan anders indeelt. De band is wat spelers lezen; het getal is wat telt.',
+        'Op een bord op punten draagt elk vakje zijn eigen waarde, en die waarden vertalen naar benoemde moeilijkheidsbanden — easy tot elite — die je onder **Rules & scoring** kunt aanpassen als je clan anders indeelt. De band is wat spelers lezen; het getal is wat telt.',
         'Markeer een vakje als **optional** en het telt niet meer mee in het totaal van het bord — zo voeg je stretchdoelen toe zonder een blackout onmogelijk te maken.',
         'Als het bord vol is, draai dan de **balanscontrole** vanaf het Tiles-tabblad. Die kijkt naar de structuur en de spreiding van werk en vertelt je waar het bord scheef ligt — een categorie die niemand kan afmaken, een band die per uur veel meer waard is dan zijn buren — voordat spelers die dingen voor je vinden en eromheen spelen.',
       ],

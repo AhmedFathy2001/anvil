@@ -222,10 +222,12 @@ export default function MyTeamClient({
       `/api/events/${event.id}/submissions?submissionId=${submissionId}&reason=${encodeURIComponent(reason)}`,
       { method: 'DELETE' },
     );
-    if (res.ok) {
-      await fetchSubmissions();
-      await fetchCompletions();
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.error || 'Could not remove that proof.');
     }
+    await fetchSubmissions();
+    await fetchCompletions();
   }
 
   async function handleToggle(tileId: number) {
@@ -234,7 +236,11 @@ export default function MyTeamClient({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ teamId: team.id, tileId }),
     });
-    if (res.ok) await fetchCompletions();
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.error || 'That didn’t save.');
+    }
+    await fetchCompletions();
   }
 
   const colorSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

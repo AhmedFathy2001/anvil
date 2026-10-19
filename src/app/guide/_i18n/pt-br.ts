@@ -866,7 +866,7 @@ const ptBr: PartialGuideDict = {
     channels: {
       title: 'Divida as publicações entre canais',
       body: [
-        'Por padrão tudo cai num único canal principal de anúncios. Quando ele ficar barulhento, abra **System → Advanced settings → Webhooks** e dê às categorias ruidosas casas próprias —— eventos de bingo, competições semanais, drops raros, mortes, kills de PvP, combat achievements, clipes. Tudo que ficar em branco volta para o canal principal, então dá para separar uma categoria por vez.',
+        'Por padrão tudo cai num único canal principal de anúncios. Quando ele ficar barulhento, abra **Discord → Where posts go** e dê às categorias ruidosas casas próprias —— eventos de bingo, competições semanais, drops raros, mortes, kills de PvP, combat achievements, clipes. Tudo que ficar em branco volta para o canal principal, então dá para separar uma categoria por vez.',
         'Com o bot conectado você nunca toca numa URL de webhook: escolhe um canal na lista e aperta **Create webhook**. Num evento movimentado dá para adicionar um segundo webhook ao mesmo canal —— o Anvil alterna entre eles para o limite de taxa do Discord não engolir publicações.',
       ],
       clipsNote: {
@@ -931,7 +931,7 @@ const ptBr: PartialGuideDict = {
       rows: [
         {
           term: 'Faixas de dificuldade',
-          body: 'os valores em pontos se mapeiam em faixas nomeadas (easy → elite). Edite as faixas em Advanced settings se seu clã classifica de outro jeito.',
+          body: 'os valores em pontos se mapeiam em faixas nomeadas (easy → elite). Edite as faixas em Rules & scoring se seu clã classifica de outro jeito.',
         },
         {
           term: 'Auditor de equilíbrio',
@@ -1401,7 +1401,7 @@ const ptBr: PartialGuideDict = {
     points: {
       title: 'Pontos, faixas e se está justo',
       body: [
-        'Num tabuleiro pontuado cada casa carrega o próprio valor, e esses valores se mapeiam em faixas de dificuldade nomeadas —— de easy a elite —— que você pode editar em **Advanced settings** se o seu clã classifica de outro jeito. A faixa é o que os jogadores leem; o número é o que pontua.',
+        'Num tabuleiro pontuado cada casa carrega o próprio valor, e esses valores se mapeiam em faixas de dificuldade nomeadas —— de easy a elite —— que você pode editar em **Rules & scoring** se o seu clã classifica de outro jeito. A faixa é o que os jogadores leem; o número é o que pontua.',
         'Marque uma casa como **opcional** e ela deixa de contar para o total do tabuleiro —— é assim que se adicionam metas extras sem tornar o blackout impossível.',
         'Quando o tabuleiro estiver cheio, rode o **auditor de equilíbrio** na aba Tiles. Ele confere a estrutura e a distribuição de esforço e te diz onde o tabuleiro está torto —— uma categoria que ninguém consegue fechar, uma faixa que vale muito mais por hora que as vizinhas —— antes que os jogadores achem isso por você e contornem.',
       ],

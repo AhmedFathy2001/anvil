@@ -9,6 +9,13 @@ interface SearchParams {
   error?: string;
 }
 
+// `?error=` is a code, not copy: printing it raw showed a banned player the single word "banned".
+// Unknown codes get the generic line — the param is attacker-controlled, so it is never echoed.
+const LOGIN_ERRORS: Record<string, string> = {
+  banned: 'This Discord account can’t sign in to Anvil. If you think that’s a mistake, ask your clan’s staff.',
+};
+const GENERIC_LOGIN_ERROR = 'Sign-in didn’t go through. Try again.';
+
 export default async function LoginPage({
   searchParams,
 }: {
@@ -86,7 +93,7 @@ export default async function LoginPage({
                 <svg className="mt-0.5 h-[18px] w-[18px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
                   <circle cx="12" cy="12" r="9" /><path d="M12 7v6M12 17h.01" />
                 </svg>
-                <span className="min-w-0">{params.error}</span>
+                <span className="min-w-0">{LOGIN_ERRORS[params.error] ?? GENERIC_LOGIN_ERROR}</span>
               </div>
             )}
 

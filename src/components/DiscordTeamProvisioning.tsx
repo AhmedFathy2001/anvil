@@ -181,7 +181,7 @@ export default function DiscordTeamProvisioning({
           Auto-creating a private channel per team and handing out contestant roles is turned off.
           Enable it under{' '}
           <ClanLink href="/admin/integrations" className="text-gold hover:underline">
-            Advanced settings → Discord team channels
+            Discord → Team channels
           </ClanLink>{' '}
           (needs the bot token + server ID). Once on, this is where you provision channels and assign
           everyone — automatically when a draft ends, or with a button for pre-assigned rosters.

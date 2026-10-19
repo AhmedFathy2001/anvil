@@ -874,7 +874,7 @@ const es: PartialGuideDict = {
     channels: {
       title: 'Reparte las publicaciones entre canales',
       body: [
-        'Por defecto todo va a un único canal principal de anuncios. Cuando se vuelva ruidoso, abre **System → Advanced settings → Webhooks** y dale casa propia a las categorías escandalosas — eventos de bingo, competiciones semanales, drops raros, muertes, kills de PvP, combat achievements, clips. Todo lo que dejes vacío vuelve al canal principal, así que puedes separar una categoría cada vez.',
+        'Por defecto todo va a un único canal principal de anuncios. Cuando se vuelva ruidoso, abre **Discord → Where posts go** y dale casa propia a las categorías escandalosas — eventos de bingo, competiciones semanales, drops raros, muertes, kills de PvP, combat achievements, clips. Todo lo que dejes vacío vuelve al canal principal, así que puedes separar una categoría cada vez.',
         'Con el bot conectado nunca tocas una URL de webhook: elige un canal del desplegable y pulsa **Create webhook**. En un evento cargado puedes añadir un segundo webhook al mismo canal — Anvil alterna entre ellos para que el límite de ritmo de Discord no se trague publicaciones.',
       ],
       clipsNote: {
@@ -948,7 +948,7 @@ const es: PartialGuideDict = {
       rows: [
         {
           term: 'Niveles de dificultad',
-          body: 'los valores en puntos se traducen a bandas con nombre (easy → elite). Edita las bandas en Advanced settings si tu clan clasifica de otra manera.',
+          body: 'los valores en puntos se traducen a bandas con nombre (easy → elite). Edita las bandas en Rules & scoring si tu clan clasifica de otra manera.',
         },
         {
           term: 'Auditor de equilibrio',
@@ -1420,7 +1420,7 @@ const es: PartialGuideDict = {
     points: {
       title: 'Puntos, niveles y si es justo',
       body: [
-        'En un tablero por puntos cada casilla lleva su propio valor, y esos valores se traducen a bandas de dificultad con nombre — easy a elite — que puedes editar en **Advanced settings** si tu clan clasifica de otro modo. La banda es lo que leen los jugadores; el número es lo que puntúa.',
+        'En un tablero por puntos cada casilla lleva su propio valor, y esos valores se traducen a bandas de dificultad con nombre — easy a elite — que puedes editar en **Rules & scoring** si tu clan clasifica de otro modo. La banda es lo que leen los jugadores; el número es lo que puntúa.',
         'Marca una casilla como **optional** y deja de contar para el total del tablero, que es como añades objetivos ambiciosos sin hacer imposible un blackout.',
         'Cuando el tablero esté lleno, lanza el **auditor de equilibrio** desde la pestaña Tiles. Revisa la estructura y el reparto de esfuerzo y te dice dónde se inclina el tablero — una categoría que nadie puede terminar, una banda que vale mucho más por hora que sus vecinas — antes de que los jugadores encuentren esas cosas por ti y las esquiven.',
       ],

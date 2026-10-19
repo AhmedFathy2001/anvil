@@ -875,7 +875,7 @@ const fr: PartialGuideDict = {
     channels: {
       title: 'Répartir les publications sur plusieurs salons',
       body: [
-        'Par défaut, tout part dans un salon d’annonces principal. Quand il devient bruyant, ouvrez **System → Advanced settings → Webhooks** et donnez aux catégories bavardes leur propre maison — événements bingo, compétitions hebdomadaires, drops rares, morts, kills PvP, combat achievements, clips. Tout ce que vous laissez vide retombe sur le salon principal, vous pouvez donc détacher une catégorie à la fois.',
+        'Par défaut, tout part dans un salon d’annonces principal. Quand il devient bruyant, ouvrez **Discord → Where posts go** et donnez aux catégories bavardes leur propre maison — événements bingo, compétitions hebdomadaires, drops rares, morts, kills PvP, combat achievements, clips. Tout ce que vous laissez vide retombe sur le salon principal, vous pouvez donc détacher une catégorie à la fois.',
         'Avec le bot connecté, vous ne touchez jamais à une URL de webhook : choisissez un salon dans la liste et appuyez sur **Create webhook**. Sur un événement chargé, vous pouvez ajouter un second webhook sur le même salon — Anvil alterne entre les deux pour que la limite de débit de Discord n’avale pas de publications.',
       ],
       clipsNote: {
@@ -949,7 +949,7 @@ const fr: PartialGuideDict = {
       rows: [
         {
           term: 'Niveaux de difficulté',
-          body: 'les valeurs en points correspondent à des paliers nommés (easy → elite). Modifiez les paliers dans Advanced settings si votre clan classe autrement.',
+          body: 'les valeurs en points correspondent à des paliers nommés (easy → elite). Modifiez les paliers dans Rules & scoring si votre clan classe autrement.',
         },
         {
           term: 'Vérificateur d’équilibre',
@@ -1421,7 +1421,7 @@ const fr: PartialGuideDict = {
     points: {
       title: 'Points, paliers et l’équité',
       body: [
-        'Sur une grille aux points, chaque case porte sa propre valeur, et ces valeurs correspondent à des paliers de difficulté nommés — easy à elite — que vous pouvez modifier dans **Advanced settings** si votre clan classe autrement. Le palier est ce que lisent les joueurs ; le chiffre est ce qui compte.',
+        'Sur une grille aux points, chaque case porte sa propre valeur, et ces valeurs correspondent à des paliers de difficulté nommés — easy à elite — que vous pouvez modifier dans **Rules & scoring** si votre clan classe autrement. Le palier est ce que lisent les joueurs ; le chiffre est ce qui compte.',
         'Marquez une case **optional** et elle cesse de compter dans le total de la grille — c’est ainsi qu’on ajoute des objectifs bonus sans rendre un blackout impossible.',
         'Quand la grille est pleine, lancez le **vérificateur d’équilibre** depuis l’onglet Tiles. Il examine la structure et la répartition de l’effort et vous dit où la grille penche — une catégorie que personne ne peut finir, un palier qui vaut bien plus à l’heure que ses voisins — avant que les joueurs ne trouvent ces choses à votre place et les contournent.',
       ],

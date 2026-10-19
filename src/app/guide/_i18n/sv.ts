@@ -873,7 +873,7 @@ const sv: PartialGuideDict = {
     channels: {
       title: 'Sprid inläggen över flera kanaler',
       body: [
-        'Allt postas som standard i en enda huvudkanal för meddelanden. När den blir stökig, öppna **System → Advanced settings → Webhooks** och ge de högljudda kategorierna egna hem — bingoevent, veckotävlingar, sällsynta drops, dödsfall, PvP-kills, combat achievements, klipp. Allt du lämnar tomt faller tillbaka till huvudkanalen, så du kan flytta en kategori i taget.',
+        'Allt postas som standard i en enda huvudkanal för meddelanden. När den blir stökig, öppna **Discord → Where posts go** och ge de högljudda kategorierna egna hem — bingoevent, veckotävlingar, sällsynta drops, dödsfall, PvP-kills, combat achievements, klipp. Allt du lämnar tomt faller tillbaka till huvudkanalen, så du kan flytta en kategori i taget.',
         'Med boten ansluten rör du aldrig en webhook-URL: välj en kanal i listan och tryck **Create webhook**. Under ett hektiskt event kan du lägga till en andra webhook till samma kanal — Anvil växlar mellan dem så att Discords hastighetsgräns inte sväljer inlägg.',
       ],
       clipsNote: {
@@ -947,7 +947,7 @@ const sv: PartialGuideDict = {
       rows: [
         {
           term: 'Svårighetsgrader',
-          body: 'poängvärden översätts till namngivna band (easy → elite). Redigera banden under Advanced settings om din klan graderar annorlunda.',
+          body: 'poängvärden översätts till namngivna band (easy → elite). Redigera banden under Rules & scoring om din klan graderar annorlunda.',
         },
         {
           term: 'Balansgranskaren',
@@ -1419,7 +1419,7 @@ const sv: PartialGuideDict = {
     points: {
       title: 'Poäng, nivåer och om det är rättvist',
       body: [
-        'På en poängsatt bräda bär varje ruta sitt eget värde, och de värdena översätts till namngivna svårighetsband — easy till elite — som du kan redigera under **Advanced settings** om din klan graderar annorlunda. Bandet är vad spelarna läser; siffran är vad som räknas.',
+        'På en poängsatt bräda bär varje ruta sitt eget värde, och de värdena översätts till namngivna svårighetsband — easy till elite — som du kan redigera under **Rules & scoring** om din klan graderar annorlunda. Bandet är vad spelarna läser; siffran är vad som räknas.',
         'Markera en ruta **optional** så slutar den räknas mot brädans total, och så lägger du till sträckmål utan att göra en blackout omöjlig.',
         'När brädan är full, kör **balansgranskaren** från Tiles-fliken. Den kollar strukturen och arbetsfördelningen och talar om var brädan lutar — en kategori ingen kan avsluta, ett band som är värt mycket mer per timme än sina grannar — innan spelarna hittar de sakerna åt dig och styr runt dem.',
       ],

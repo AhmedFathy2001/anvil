@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 
 import ClanLink from '@/components/ClanLink';
 import { clanFetch } from '@/lib/clanFetch';
+import { parseStamp } from '@/lib/dbTime';
 
 type Verdict =
   | { outcome: 'insider' }
@@ -15,6 +16,10 @@ type Verdict =
 interface EnterInfo {
   verdict: Verdict;
   options: { id: number; rsn: string }[];
+  /** When their still-open request to the host clan was sent, if there is one. */
+  pendingSince?: string | null;
+  /** The host clan takes no guests at all. */
+  guestsClosed?: boolean;
 }
 
 /**
@@ -99,11 +104,26 @@ export default function EnterEvent({ eventId, signupFee }: { eventId: number; si
     }
   }
 
-  if (pending) {
+  if (pending || info.pendingSince) {
     return (
       <Card tone="info">
-        <div className="font-semibold">Waiting on the host</div>
-        <div className="text-sm text-text-muted">{pending}</div>
+        <div className="min-w-0">
+          <div className="font-semibold">Waiting on the host</div>
+          <div className="text-sm text-text-muted">
+            {pending ?? `You asked on ${requestedDay(info.pendingSince!)}. You’ll be able to sign up once they accept.`}
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  if (info.guestsClosed) {
+    return (
+      <Card tone="muted">
+        <div className="min-w-0">
+          <div className="font-semibold">This clan isn’t taking guests</div>
+          <div className="text-sm text-text-muted">Only its own members can play. Ask the host clan if you think that should change.</div>
+        </div>
       </Card>
     );
   }
@@ -165,6 +185,12 @@ export default function EnterEvent({ eventId, signupFee }: { eventId: number; si
       {error && <p className="w-full text-[12.5px] text-accent-red">{error}</p>}
     </Card>
   );
+}
+
+/** "19 October" from the request's DB stamp (lib/dbTime reads both stamp formats). */
+function requestedDay(stamp: string): string {
+  const ms = parseStamp(stamp);
+  return ms == null ? 'an earlier visit' : new Date(ms).toLocaleDateString(undefined, { day: 'numeric', month: 'long' });
 }
 
 function Card({ tone, children }: { tone: 'info' | 'muted'; children: React.ReactNode }) {

@@ -17,12 +17,15 @@
 // side left unfilled — but it is a legitimate setup too (a placeholder to be drafted into after the
 // start). So the admin door prompts once and can be overridden, and a scheduled start is never held
 // for it. `computeStartReadiness` therefore never produces it.
+// 'blank-tiles' is soft for the same reason: a board still holding "Tile 7"-style placeholders is
+// almost always unfinished, but the admin may mean to write them live. Admin door only.
 export type StartBlockerCode =
   | 'draft-in-progress'
   | 'no-teams'
   | 'no-assigned-players'
   | 'no-end-date'
-  | 'empty-teams';
+  | 'empty-teams'
+  | 'blank-tiles';
 
 export interface StartReadinessCounts {
   draftStatus: string;
@@ -90,6 +93,8 @@ export function startBlockerLabel(code: StartBlockerCode): string {
       return 'there is no end date, so it will run until you end it manually';
     case 'empty-teams':
       return 'a team has no players on it, so it cannot score';
+    case 'blank-tiles':
+      return 'some tiles are still blank placeholders ("Tile 1", "Tile 2"…), so members would see empty squares';
   }
 }
 

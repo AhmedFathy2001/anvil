@@ -1,7 +1,8 @@
 import { db } from '@/db';
 import { getSettingMap } from '@/lib/settings';
 import { clans, events, tiles } from '@/db/schema';
-import { count, eq } from 'drizzle-orm';
+import { and, count, eq } from 'drizzle-orm';
+import { writtenTile } from '@/lib/writtenTiles';
 
 // The four "zero-to-first-bingo" milestones a fresh clan needs to hit. Step status is
 // always computed live from real data (settings + counts) so the dashboard checklist and
@@ -86,7 +87,7 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
       .select({ c: count() })
       .from(tiles)
       .innerJoin(events, eq(tiles.eventId, events.id))
-      .where(eq(events.clanId, clanId)),
+      .where(and(eq(events.clanId, clanId), writtenTile)),
   ]);
   const eventsCount = ec?.c ?? 0;
   const tilesCount = tc?.c ?? 0;

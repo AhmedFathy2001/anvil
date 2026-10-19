@@ -11,6 +11,7 @@ import { clanAuditLog, clanRoster, completions, events, eventSignups, signupFees
 import { alias } from 'drizzle-orm/pg-core';
 import { and, count, desc, eq, gt, inArray, isNull, notInArray, or, sql } from 'drizzle-orm';
 import { eventTileCount, isLadderFormat } from '@/lib/utils';
+import { writtenTile } from '@/lib/writtenTiles';
 import { getSetupStatus } from '@/lib/setupStatus';
 import SetupChecklist from '@/components/SetupChecklist';
 import MemberCapNotice from '@/components/MemberCapNotice';
@@ -94,7 +95,7 @@ export default async function AdminDashboardPage() {
       .select({ eventId: tiles.eventId, n: count() })
       .from(tiles)
       .innerJoin(events, eq(tiles.eventId, events.id))
-      .where(eq(events.clanId, clan.id))
+      .where(and(eq(events.clanId, clan.id), writtenTile))
       .groupBy(tiles.eventId),
     db
       .select({ eventId: teams.eventId, n: count() })
@@ -474,7 +475,12 @@ export default async function AdminDashboardPage() {
             value={feeCounts.owed + feeCounts.toSign + provisionalCount}
             warn={feeCounts.toSign + provisionalCount > 0}
             sub={`${feeCounts.toSign} to sign · ${feeCounts.owed} to collect · ${provisionalCount} to verify`}
-            href="/admin/fees"
+            // Fees only when there are fees; otherwise "3 to verify" sent the reader to an empty Fees page.
+            href={
+              feeCounts.owed + feeCounts.toSign === 0 && provisionalCount > 0 && canReach('/admin/people/needs-review')
+                ? '/admin/people/needs-review'
+                : '/admin/fees'
+            }
           />
         </div>
       </section>

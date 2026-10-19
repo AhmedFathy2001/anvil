@@ -9,6 +9,7 @@ import { db } from '@/db';
 import { events, eventSignups, payouts, surveyQuestions, surveyResponses, teams, tiles, eventParticipants } from '@/db/schema';
 import { and, count, eq, isNotNull, isNull, or } from 'drizzle-orm';
 import { eventTileCount } from '@/lib/utils';
+import { writtenTile } from '@/lib/writtenTiles';
 import { computeStartReadiness, startBlockerLabel } from '@/lib/eventReadiness';
 import type { StageCounts } from '@/lib/eventStage';
 
@@ -34,11 +35,12 @@ export const getStageCounts = cache(async (eventId: number): Promise<StageCounts
   ] = await Promise.all([
     // BOARD tiles only. A mission isn't a cell on the board — it's announced mid-event and scores
     // as a bonus outside the board total (lib/boardScoring) — so counting it here would report a
-    // 5×5 as a 27-tile board and read as "2 tiles over" against expectedTiles.
+    // 5×5 as a 27-tile board and read as "2 tiles over" against expectedTiles. Untouched
+    // placeholders don't count either (lib/writtenTiles).
     db
       .select({ n: count() })
       .from(tiles)
-      .where(and(eq(tiles.eventId, eventId), or(isNull(tiles.mission), eq(tiles.mission, 0)))),
+      .where(and(eq(tiles.eventId, eventId), or(isNull(tiles.mission), eq(tiles.mission, 0)), writtenTile)),
     db.select({ n: count() }).from(teams).where(eq(teams.eventId, eventId)),
     db
       .select({ n: count() })

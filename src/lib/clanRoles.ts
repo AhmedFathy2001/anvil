@@ -16,6 +16,20 @@ export const CLAN_ROLES = ['member', 'moderator', 'treasurer', 'admin', 'owner']
 export type ClanRole = (typeof CLAN_ROLES)[number];
 
 /**
+ * What each job means, in the words every role picker uses. The Staff page and the roster's
+ * pre-assign dialog each wrote their own ("Treasurer: fees, coffer and prizes" against "moderator +
+ * collect fees"), so an admin granting a role was told two different things. `editor` is the
+ * board-builder grant (the Staff page's "Can build bingo boards" box), not a rank.
+ */
+export const ROLE_BLURB: Record<'member' | 'moderator' | 'treasurer' | 'admin' | 'editor', string> = {
+  member: 'Member: no staff job',
+  moderator: 'Moderator: newcomers, roster, sign-ups, proofs',
+  treasurer: 'Treasurer: fees, coffer and prizes',
+  admin: 'Admin: everything except handing over the clan',
+  editor: 'Board builder: can build bingo boards',
+};
+
+/**
  * Rank for comparison. Treasurer and moderator deliberately tie: they are the same tier with
  * different extra capabilities (fees / moderation), not a ladder.
  */

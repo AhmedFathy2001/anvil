@@ -1610,7 +1610,7 @@ export default function TileTrackingConfig({
             />
           </div>
           <p className="text-[10px] text-text-muted mt-0.5">
-            Tiers are your bands from Advanced settings — picking one sets its base points. The exact
+            Tiers are your bands from Rules &amp; scoring — picking one sets its base points. The exact
             number still decides standings (sum of completed tiles) and can be fine-tuned freely.
           </p>
         </div>
