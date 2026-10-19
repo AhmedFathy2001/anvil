@@ -874,7 +874,7 @@ const ko: PartialGuideDict = {
       title: '게시물을 여러 채널로 나누기',
       body: [
         '기본적으로 모든 것이 하나의 공지 채널로 갑니다. 시끄러워지면 **Discord → Where posts go**를 열고 소란스러운 분류에 각자의 집을 주세요 —— 빙고 이벤트, 주간 대회, 희귀 드롭, 사망, PvP 처치, combat achievements, 클립. 비워 둔 항목은 메인 채널로 되돌아가므로 한 번에 한 분류씩 떼어낼 수 있습니다.',
-        '봇을 연결해 두면 웹훅 주소를 만질 일이 없습니다: 목록에서 채널을 고르고 **Create webhook**을 누르면 됩니다. 바쁜 이벤트라면 같은 채널에 웹훅을 하나 더 둘 수 있습니다 —— Anvil이 둘을 번갈아 쓰므로 Discord의 속도 제한이 게시물을 삼키지 않습니다.',
+        '봇을 연결해 두면 웹훅 주소를 만질 일이 없습니다: 목록에서 채널을 고르고 **Post here**을 누르면 됩니다. 바쁜 이벤트라면 같은 채널에 웹훅을 하나 더 둘 수 있습니다 —— Anvil이 둘을 번갈아 쓰므로 Discord의 속도 제한이 게시물을 삼키지 않습니다.',
       ],
       clipsNote: {
         tag: '클립 채널은 다릅니다',
@@ -1885,7 +1885,7 @@ const ko: PartialGuideDict = {
       ],
       note: {
         tag: '채널에서 클랜에 알리기',
-        body: 'Admin → Settings → Webhooks에서 **Coffer channel**을 디스코드 채널로 지정하면, 움직임마다 그것이 남긴 잔액과 함께 올라갑니다. 대체 경로가 없는 유일한 피드입니다 — 비워두면 돈에 관해서는 어디에도 올라가지 않습니다. [디스코드의 Anvil]({discordGuide}) 참고.',
+        body: 'Admin → Discord → Where posts go에서 **Coffer channel**을 디스코드 채널로 지정하면, 움직임마다 그것이 남긴 잔액과 함께 올라갑니다. 대체 경로가 없는 유일한 피드입니다 — 비워두면 돈에 관해서는 어디에도 올라가지 않습니다. [디스코드의 Anvil]({discordGuide}) 참고.',
       },
     },
 

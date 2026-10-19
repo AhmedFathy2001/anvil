@@ -867,7 +867,7 @@ const pl: PartialGuideDict = {
       title: 'Rozdziel wpisy na kanały',
       body: [
         'Domyślnie wszystko trafia na jeden główny kanał ogłoszeń. Gdy zrobi się na nim głośno, otwórz **Discord → Where posts go** i daj hałaśliwym kategoriom własne domy —— wydarzenia bingo, tygodniowe konkursy, rzadkie dropy, śmierci, kille PvP, combat achievements, klipy. Wszystko, co zostawisz puste, spada z powrotem na kanał główny, więc możesz rozdzielać po jednej kategorii.',
-        'Z podłączonym botem nigdy nie dotykasz URL-a webhooka: wybierasz kanał z listy i naciskasz **Create webhook**. Przy ruchliwym wydarzeniu możesz dodać drugi webhook do tego samego kanału —— Anvil przełącza się między nimi, żeby limit Discorda nie połknął wpisów.',
+        'Z podłączonym botem nigdy nie dotykasz URL-a webhooka: wybierasz kanał z listy i naciskasz **Post here**. Przy ruchliwym wydarzeniu możesz dodać drugi webhook do tego samego kanału —— Anvil przełącza się między nimi, żeby limit Discorda nie połknął wpisów.',
       ],
       clipsNote: {
         tag: 'Kanał klipów jest inny',
@@ -1867,7 +1867,7 @@ const pl: PartialGuideDict = {
       ],
       note: {
         tag: 'Powiedz o tym klanowi, na kanale',
-        body: 'Wskaż **Coffer channel** na kanał Discorda w Admin → Settings → Webhooks, a każdy ruch zostanie opublikowany razem z saldem, jakie po sobie zostawia. To jedyny kanał bez rozwiązania zastępczego: zostaw pusty, a o pieniądzach nie pojawi się nigdzie ani słowo. Zobacz [Anvil na Discordzie]({discordGuide}).',
+        body: 'Wskaż **Coffer channel** na kanał Discorda w Admin → Discord → Where posts go, a każdy ruch zostanie opublikowany razem z saldem, jakie po sobie zostawia. To jedyny kanał bez rozwiązania zastępczego: zostaw pusty, a o pieniądzach nie pojawi się nigdzie ani słowo. Zobacz [Anvil na Discordzie]({discordGuide}).',
       },
     },
 

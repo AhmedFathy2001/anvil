@@ -14,8 +14,8 @@
 
 /** The sub-tabs the webhooks page is split into. Order is the order they appear in. */
 export const WEBHOOK_GROUPS = [
-  { id: 'site', label: 'Anvil posts' },
-  { id: 'plugin', label: 'Plugin posts' },
+  { id: 'site', label: 'Event & clan posts' },
+  { id: 'plugin', label: 'Player highlights' },
   { id: 'filters', label: 'Who gets announced' },
 ] as const;
 
@@ -49,15 +49,15 @@ export const WEBHOOK_SECTIONS = [
   {
     id: 'master',
     group: 'site',
-    title: 'Master announcements webhook',
+    title: 'Main channel',
     blurb:
-      'The one channel Anvil posts everything to by default — event start / end, draft, submissions, weekly results, sign-up nudges. Set only this for a simple single-channel setup, or split specific posts into their own channels below.',
+      'The Discord channel Anvil posts events and clan news to: event start and end, the draft, completed tiles, weekly results, sign-up reminders. This one is all most clans need; split posts into their own channels below if you want.',
     fields: [
       {
         kind: 'webhook',
         key: 'discord_webhook_url',
-        label: 'Discord webhook',
-        help: 'Paste a webhook URL from Discord → Server Settings → Integrations → Webhooks.',
+        label: 'Channel',
+        help: 'In Discord, open the channel’s settings → Integrations → Webhooks → New Webhook → Copy Webhook URL, and paste it here. A webhook is just a link Anvil uses to post into that one channel.',
       },
     ],
   },
@@ -66,7 +66,7 @@ export const WEBHOOK_SECTIONS = [
     group: 'site',
     title: 'Separate channels',
     blurb:
-      'Split bingo, weekly and sign-up posts into their own channels. Leave blank to fall back to the master webhook.',
+      'Optional. Give bingo, weekly and sign-up posts their own channels. Anything left blank posts to the main channel.',
     fields: [
       {
         kind: 'webhook',

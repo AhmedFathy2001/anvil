@@ -123,6 +123,21 @@ export default function BalancePanel({ eventId, rules, teams, ratings, draftStat
     }
   };
 
+  // Nothing to rate anyone on yet — no past events, no marker-boss kill counts. The panel would show
+  // a 0% spread, a tier for every unknown and five balancing modes that have nothing to work with,
+  // so it says that in a line instead. Left alone once a mode is on, so it can be switched back off.
+  const nothingToRate =
+    (profiles?.length ?? 0) > 0 &&
+    (profiles ?? []).every((p) => p.evidenceEvents === 0 && p.capabilityMarkers.length === 0);
+  if (nothingToRate && mode === 'off') {
+    return (
+      <p className="text-xs text-text-muted">
+        Team balance: nobody in this pool has played an Anvil event or has boss kill counts to go on yet, so
+        there&apos;s nothing to rate teams by. After your first event, this can suggest fairer teams.
+      </p>
+    );
+  }
+
   const bandGlyph = (p: ProfileRow) =>
     p.band === 'tight' ? '' : p.band === 'medium' ? ' ·?' : ' ·??';
 

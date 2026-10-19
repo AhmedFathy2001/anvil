@@ -58,11 +58,8 @@ export default function TeamEditor({ eventId, team, eventTeams, onClose, onSaved
     e.preventDefault();
     setError('');
 
+    // Optional: without a captain the admin picks for this team in the draft (api/events/teams).
     const captainUserId = captainMember?.user?.id ?? null;
-    if (!isEdit && captainUserId == null) {
-      setError('Pick a clan member to be captain.');
-      return;
-    }
 
     setSaving(true);
     try {
@@ -169,9 +166,18 @@ export default function TeamEditor({ eventId, team, eventTeams, onClose, onSaved
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-sm font-medium text-foreground/70">Captain</label>
+              <label className="block text-sm font-medium text-foreground/70">
+                Captain <span className="font-normal text-text-muted">(optional)</span>
+              </label>
               <span className="text-[11px] text-text-muted">Captains can also be players</span>
             </div>
+            {/* Why some people are greyed out. This was only in a hover title, so a clan whose members
+                hadn't signed in yet saw a list where nothing could be picked and no reason why. */}
+            <p className="text-xs text-text-muted mb-2 leading-relaxed">
+              A captain picks for their team in the draft, from their own Anvil login. Only people who have signed
+              in to Anvil with Discord can be one; the rest are greyed out. No captain is fine: you pick for the
+              team yourself, and can add a captain later with Edit.
+            </p>
             {isEdit && (
               <p className="text-xs text-text-muted mb-2">
                 Current captain:{' '}
@@ -189,7 +195,7 @@ export default function TeamEditor({ eventId, team, eventTeams, onClose, onSaved
               preferLinked
               captainsElsewhere={captainsElsewhere}
               requireDiscordUser
-              requireDiscordUserHint="Captains sign in with Discord — this member needs a linked account first."
+              requireDiscordUserHint="Hasn't signed in to Anvil with Discord yet, so they can't log in as captain."
               emptyState="No clan members yet — sync the clan from the plugin first."
             />
             {captainMember && (

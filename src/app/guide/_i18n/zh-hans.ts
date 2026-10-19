@@ -873,7 +873,7 @@ const zhHans: PartialGuideDict = {
       title: '把播报分散到多个频道',
       body: [
         '默认情况下所有内容都发到一个主公告频道。等它变吵了，打开 **Discord → Where posts go**，给那些吵闹的类别各自安个家 —— 宾果活动、每周竞赛、稀有掉落、死亡、PvP 击杀、combat achievements、片段。任何留空的类别都会回落到主频道，所以你可以一次只分出一个类别。',
-        '接上机器人之后你完全不用碰 webhook 网址：从下拉框里选一个频道，按 **Create webhook**。活动繁忙时你可以给同一个频道再加一个 webhook —— Anvil 会在两者之间轮换，免得 Discord 的限流吞掉播报。',
+        '接上机器人之后你完全不用碰 webhook 网址：从下拉框里选一个频道，按 **Post here**。活动繁忙时你可以给同一个频道再加一个 webhook —— Anvil 会在两者之间轮换，免得 Discord 的限流吞掉播报。',
       ],
       clipsNote: {
         tag: '片段频道不一样',
@@ -1884,7 +1884,7 @@ const zhHans: PartialGuideDict = {
       ],
       note: {
         tag: '在频道里告诉全氏族',
-        body: '在 Admin → Settings → Webhooks 里把 **Coffer channel** 指向一个 Discord 频道，每一笔进出都会连同它留下的余额一起发出来。这是唯一没有后备通道的推送：留空，关于钱的事哪里都不会发。参见 [Anvil 与 Discord]({discordGuide})。',
+        body: '在 Admin → Discord → Where posts go 里把 **Coffer channel** 指向一个 Discord 频道，每一笔进出都会连同它留下的余额一起发出来。这是唯一没有后备通道的推送：留空，关于钱的事哪里都不会发。参见 [Anvil 与 Discord]({discordGuide})。',
       },
     },
 

@@ -80,15 +80,25 @@ export default function AutoEnrollPanel({ eventId, canCreateTeams, draftInProgre
     }
   }
 
+  // Nobody on the plugin yet: there's no one to add in one go, and a "0 of 0 eligible" panel with an
+  // enroll button reads like something is broken. Say it in a line instead.
+  if (counts && counts.eligible === 0 && !result) {
+    return (
+      <p className="mb-6 text-xs text-text-muted">
+        Nobody in the clan runs the Anvil plugin yet, so there&apos;s no one to add in one go. Pick people below.
+      </p>
+    );
+  }
+
   return (
     <div className="mb-6 border border-card-border rounded-xl p-4 bg-card-bg space-y-3">
       <div className="flex items-center gap-2">
         <span className="w-1 h-4 bg-gold rounded-full" />
-        <h3 className="text-base font-bold">Auto-enroll plugin members</h3>
+        <h3 className="text-base font-bold">Add everyone who runs the plugin</h3>
       </div>
       <p className="text-xs text-text-muted">
-        Add every clan member who has linked / verified an account through the Anvil plugin — one tap, no
-        sign-up form. Ideal for tile races and other open, no-payout events.
+        One tap adds every clan member who plays with the Anvil plugin, with no sign-up form. Handy for open
+        events; for a bingo with sign-ups, add people below or from the Sign-ups tab instead.
         {counts && (
           <>
             {' '}
@@ -135,7 +145,9 @@ export default function AutoEnrollPanel({ eventId, canCreateTeams, draftInProgre
           ? 'Enrolling…'
           : draftInProgress
             ? 'Unavailable while the draft is running'
-            : `Enroll active plugin members (${selected.label})`}
+            : fixedPlacement
+              ? 'Add them all'
+              : `Add them all (${selected.label})`}
       </button>
 
       {result && <p className="text-xs text-accent-green-light">Enrolled: {result}</p>}

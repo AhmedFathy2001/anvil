@@ -106,21 +106,23 @@ export default function EventWebhooksPanel({ eventId, teams }: { eventId: number
     <section className="mb-6 rounded-2xl border border-card-border bg-card-bg">
       <div className="flex items-center gap-2.5 border-b border-card-border px-5 py-3.5">
         <span className="molten h-5 w-1 shrink-0 rounded-sm" />
-        <h2 className="text-[15px] font-semibold">Event webhooks</h2>
-        <span className="ml-auto text-[12px] text-text-muted">Send this event’s posts to more channels.</span>
+        <h2 className="text-[15px] font-semibold">More Discord channels for this event</h2>
+        <span className="ml-auto text-[12px] text-text-muted">Optional</span>
       </div>
 
       <div className="space-y-4 px-5 py-4 text-[13px]">
         <p className="text-[12px] text-text-muted">
-          Every hook here gets a copy of this event’s posts — on top of your clan’s bingo channel, never instead of it.
-          Use one per channel: another server, a stream channel, or a team’s own channel. A team hook only gets
-          <em> that team’s</em> drops, completions and win (plus any event-wide posts you tick). Discord webhook URLs only.
+          Most events don&apos;t need this: posts already go to your clan&apos;s channels (Admin → Discord). Add a channel
+          here to also send this event&apos;s posts somewhere else — another server, a stream channel, or one team&apos;s
+          own channel, which then gets only <em>that team&apos;s</em> drops, completions and win (plus any event-wide
+          posts you tick). Paste the channel&apos;s webhook link: in Discord, channel settings → Integrations →
+          Webhooks → New Webhook → Copy Webhook URL.
         </p>
 
         {hooks == null ? (
           <p className="text-text-muted">Loading…</p>
         ) : hooks.length === 0 ? (
-          <p className="text-text-muted">No extra webhooks yet.</p>
+          <p className="text-text-muted">None added.</p>
         ) : (
           <ul className="space-y-2">
             {hooks.map((h) => (

@@ -880,7 +880,7 @@ const da: PartialGuideDict = {
       title: 'Fordel opslag på flere kanaler',
       body: [
         'Alt lander som standard i én hovedkanal til beskeder. Når den bliver larmende, åbner du **Discord → Where posts go** og giver de larmende kategorier deres eget hjem — bingo-events, ugentlige konkurrencer, sjældne drops, dødsfald, PvP-kills, combat achievements, klip. Alt du lader stå tomt falder tilbage til hovedkanalen, så du kan flytte én kategori ad gangen.',
-        'Med botten forbundet rører du aldrig en webhook-URL: vælg en kanal i menuen og tryk **Create webhook**. Under et travlt event kan du lægge en webhook nummer to på samme kanal — Anvil skifter mellem dem, så Discords rate limit ikke sluger opslag.',
+        'Med botten forbundet rører du aldrig en webhook-URL: vælg en kanal i menuen og tryk **Post here**. Under et travlt event kan du lægge en webhook nummer to på samme kanal — Anvil skifter mellem dem, så Discords rate limit ikke sluger opslag.',
       ],
       clipsNote: {
         tag: 'Klipkanalen er anderledes',
@@ -1891,7 +1891,7 @@ const da: PartialGuideDict = {
       ],
       note: {
         tag: 'Fortæl klanen det, i en kanal',
-        body: 'Peg **Coffer channel** på en Discord-kanal under Admin → Settings → Webhooks, så bliver hver bevægelse skrevet med den saldo den efterlader. Det er det ene feed uden reserveløsning: lad det stå tomt, og der bliver ikke skrevet noget om pengene nogen steder. Se [Anvil i Discord]({discordGuide}).',
+        body: 'Peg **Coffer channel** på en Discord-kanal under Admin → Discord → Where posts go, så bliver hver bevægelse skrevet med den saldo den efterlader. Det er det ene feed uden reserveløsning: lad det stå tomt, og der bliver ikke skrevet noget om pengene nogen steder. Se [Anvil i Discord]({discordGuide}).',
       },
     },
 

@@ -874,7 +874,7 @@ const no: PartialGuideDict = {
       title: 'Fordel innleggene på flere kanaler',
       body: [
         'Alt postes som standard i én hovedkanal for kunngjøringer. Når den blir bråkete, åpne **Discord → Where posts go** og gi de høylytte kategoriene egne hjem — bingo-event, ukeskonkurranser, sjeldne drops, dødsfall, PvP-kills, combat achievements, klipp. Alt du lar stå tomt, faller tilbake til hovedkanalen, så du kan skille ut én kategori av gangen.',
-        'Med boten tilkoblet rører du aldri en webhook-URL: velg en kanal fra lista og trykk **Create webhook**. Under et travelt event kan du legge til en webhook nummer to på samme kanal — Anvil veksler mellom dem slik at Discords hastighetsgrense ikke sluker innlegg.',
+        'Med boten tilkoblet rører du aldri en webhook-URL: velg en kanal fra lista og trykk **Post here**. Under et travelt event kan du legge til en webhook nummer to på samme kanal — Anvil veksler mellom dem slik at Discords hastighetsgrense ikke sluker innlegg.',
       ],
       clipsNote: {
         tag: 'Klippkanalen er annerledes',
@@ -1885,7 +1885,7 @@ const no: PartialGuideDict = {
       ],
       note: {
         tag: 'Fortell klanen det, i en kanal',
-        body: 'Pek **Coffer channel** mot en Discord-kanal under Admin → Settings → Webhooks, så blir hver bevegelse lagt ut med saldoen den etterlater. Det er den ene strømmen uten reserveløsning: la den stå tom, og ingenting om pengene blir lagt ut noe sted. Se [Anvil i Discord]({discordGuide}).',
+        body: 'Pek **Coffer channel** mot en Discord-kanal under Admin → Discord → Where posts go, så blir hver bevegelse lagt ut med saldoen den etterlater. Det er den ene strømmen uten reserveløsning: la den stå tom, og ingenting om pengene blir lagt ut noe sted. Se [Anvil i Discord]({discordGuide}).',
       },
     },
 

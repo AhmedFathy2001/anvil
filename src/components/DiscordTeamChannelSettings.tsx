@@ -97,13 +97,13 @@ export default function DiscordTeamChannelSettings() {
       <Checkbox
         checked={teamSync}
         onChange={setTeamSync}
-        label="Enable Discord team channels"
+        label="Give each team its own Discord channels"
         description={
           <>
-            Lets you provision a private voice + text channel per team from an event&apos;s Teams tab,
-            and assign contestants their roles. Requires the bot connected in the Discord bot tab. The
-            bot needs <em>Manage Roles</em> and <em>Manage Channels</em>, with its role above the team
-            roles it creates.
+            During an event, each team gets a private text and voice channel and a team role, set up from the
+            event&apos;s Teams page and removed afterwards. Needs the Anvil bot in your server (Connection,
+            above) with the <em>Manage Roles</em> and <em>Manage Channels</em> permissions, and the bot&apos;s
+            role dragged above the team roles it makes (Server Settings → Roles).
           </>
         }
       />
@@ -111,25 +111,26 @@ export default function DiscordTeamChannelSettings() {
       <Checkbox
         checked={cohostRoleSync}
         onChange={setCohostRoleSync}
-        label="Enable bingo-role tools for co-hosted events"
+        label="Also do this for events another clan hosts"
         description={
           <>
-            Lets your admins assign or remove this clan&apos;s contestant role from their copy of a
-            co-hosted event. The host may send a setup request, but cannot run these actions or pick
-            a role for you. Anvil uses only this clan&apos;s bot, server, and selected contestant role.
+            When your clan plays in another clan&apos;s event, your admins can hand your members the player role
+            below in <em>your</em> Discord. The other clan can ask you to, but can&apos;t do it for you.
           </>
         }
       />
 
       <div>
-        <label className="block text-sm font-medium mb-1">Contestant (bingo) role</label>
+        <label className="block text-sm font-medium mb-1">Player role</label>
         <RoleSelect
           value={bingoRoleId}
           onChange={setBingoRoleId}
-          ariaLabel="Contestant (bingo) role"
+          ariaLabel="Player role"
           className="max-w-sm"
         />
-        <p className="text-xs text-text-muted mt-1">Given to every drafted contestant.</p>
+        <p className="text-xs text-text-muted mt-1">
+          Given to everyone playing in the event, so you can ping them all at once (e.g. “@Bingo”).
+        </p>
       </div>
 
       <div>
@@ -141,7 +142,7 @@ export default function DiscordTeamChannelSettings() {
           className="max-w-sm"
         />
         <p className="text-xs text-text-muted mt-1">
-          Given to each team&apos;s captain when channels are provisioned. Leave as “No role” to skip it.
+          Given to each team&apos;s captain when the team channels are made. Leave as “No role” to skip it.
         </p>
       </div>
 

@@ -867,7 +867,7 @@ const it: PartialGuideDict = {
       title: 'Dividi i post su più canali',
       body: [
         'Di base tutto finisce in un unico canale annunci. Quando diventa rumoroso, apri **Discord → Where posts go** e dai una casa propria alle categorie chiassose —— eventi bingo, competizioni settimanali, drop rari, morti, kill PvP, combat achievement, clip. Tutto ciò che lasci vuoto ricade sul canale principale, quindi puoi separare una categoria alla volta.',
-        'Con il bot collegato non tocchi mai un URL di webhook: scegli un canale dal menu e premi **Create webhook**. Su un evento affollato puoi aggiungere un secondo webhook allo stesso canale —— Anvil li alterna così il rate limit di Discord non si mangia i post.',
+        'Con il bot collegato non tocchi mai un URL di webhook: scegli un canale dal menu e premi **Post here**. Su un evento affollato puoi aggiungere un secondo webhook allo stesso canale —— Anvil li alterna così il rate limit di Discord non si mangia i post.',
       ],
       clipsNote: {
         tag: 'Il canale delle clip è diverso',
@@ -1867,7 +1867,7 @@ const it: PartialGuideDict = {
       ],
       note: {
         tag: 'Dillo al clan, in un canale',
-        body: 'Punta **Coffer channel** su un canale Discord in Admin → Settings → Webhooks e ogni movimento viene pubblicato col saldo che lascia dietro di sé. È l\'unico feed senza ripiego: lascialo vuoto e sul denaro non viene pubblicato nulla da nessuna parte. Vedi [Anvil su Discord]({discordGuide}).',
+        body: 'Punta **Coffer channel** su un canale Discord in Admin → Discord → Where posts go e ogni movimento viene pubblicato col saldo che lascia dietro di sé. È l\'unico feed senza ripiego: lascialo vuoto e sul denaro non viene pubblicato nulla da nessuna parte. Vedi [Anvil su Discord]({discordGuide}).',
       },
     },
 

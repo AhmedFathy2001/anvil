@@ -257,16 +257,19 @@ export default function ClanMemberPicker(props: Props) {
                     <div className="text-sm font-medium truncate flex items-center gap-1.5">
                       {m.rsn}
                       {m.provisional && (
-                        <span className="text-[9px] uppercase tracking-wide bg-yellow-500/20 text-yellow-400 px-1 py-0.5 rounded">
-                          provisional
+                        <span
+                          className="text-[9px] uppercase tracking-wide bg-yellow-500/20 text-yellow-400 px-1 py-0.5 rounded"
+                          title="Linked through the plugin but not confirmed by staff yet"
+                        >
+                          unconfirmed
                         </span>
                       )}
                       {!linked && (
                         <span
                           className="text-[9px] uppercase tracking-wide bg-text-muted/15 text-text-muted px-1 py-0.5 rounded"
-                          title="No Discord-linked user — magic link fallback may be needed"
+                          title="Hasn't signed in to Anvil with Discord yet. They still play and count; they just can't log in to the site as this character."
                         >
-                          unlinked
+                          not signed in
                         </span>
                       )}
                       {m.isPrimary && (
@@ -280,16 +283,16 @@ export default function ClanMemberPicker(props: Props) {
                       {m.hasPlugin ? (
                         <span
                           className="text-[9px] uppercase tracking-wide bg-accent-green/15 text-accent-green-light px-1 py-0.5 rounded"
-                          title="On the plugin — live stat tracking"
+                          title="Runs the Anvil plugin — drops, kills and progress count live"
                         >
-                          ✦ live
+                          ✦ plugin
                         </span>
                       ) : (
                         <span
                           className="text-[9px] uppercase tracking-wide bg-text-muted/15 text-text-muted px-1 py-0.5 rounded"
-                          title="Not on the plugin — tracked via hiscores only (still counts)"
+                          title="Not running the Anvil plugin — XP and boss kills still count from the hiscores, drops need a screenshot"
                         >
-                          hiscores
+                          no plugin
                         </span>
                       )}
                     </div>
@@ -311,7 +314,7 @@ export default function ClanMemberPicker(props: Props) {
                   {captainOf ? (
                     <span className="text-[10px] text-text-muted shrink-0">captains another team</span>
                   ) : requiresLink ? (
-                    <span className="text-[10px] text-text-muted shrink-0">no Discord</span>
+                    <span className="text-[10px] text-text-muted shrink-0">can&apos;t captain yet</span>
                   ) : null}
                 </button>
               </li>

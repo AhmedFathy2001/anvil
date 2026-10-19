@@ -875,7 +875,7 @@ const de: PartialGuideDict = {
       title: 'Beiträge auf mehrere Kanäle verteilen',
       body: [
         'Standardmäßig geht alles in einen zentralen Ankündigungskanal. Wenn der laut wird, öffne **Discord → Where posts go** und gib den lauten Kategorien ein eigenes Zuhause — Bingo-Events, Wochenwettbewerbe, seltene Drops, Tode, PvP-Kills, Combat Achievements, Clips. Alles, was du leer lässt, fällt auf den Hauptkanal zurück, du kannst also eine Kategorie nach der anderen abtrennen.',
-        'Mit verbundenem Bot fasst du nie eine Webhook-URL an: wähle einen Kanal aus der Liste und drück **Create webhook**. Bei einem vollen Event kannst du einen zweiten Webhook auf denselben Kanal legen — Anvil wechselt zwischen ihnen, damit Discords Ratenbegrenzung keine Beiträge verschluckt.',
+        'Mit verbundenem Bot fasst du nie eine Webhook-URL an: wähle einen Kanal aus der Liste und drück **Post here**. Bei einem vollen Event kannst du einen zweiten Webhook auf denselben Kanal legen — Anvil wechselt zwischen ihnen, damit Discords Ratenbegrenzung keine Beiträge verschluckt.',
       ],
       clipsNote: {
         tag: 'Der Clip-Kanal ist anders',
@@ -1886,7 +1886,7 @@ const de: PartialGuideDict = {
       ],
       note: {
         tag: 'Sag es dem Clan, in einem Kanal',
-        body: 'Richte **Coffer channel** unter Admin → Settings → Webhooks auf einen Discord-Kanal, dann wird jede Bewegung mit dem Stand gepostet, den sie hinterlässt. Es ist der einzige Feed ohne Rückfallkanal: bleibt er leer, wird über das Geld nirgends etwas gepostet. Siehe [Anvil in Discord]({discordGuide}).',
+        body: 'Richte **Coffer channel** unter Admin → Discord → Where posts go auf einen Discord-Kanal, dann wird jede Bewegung mit dem Stand gepostet, den sie hinterlässt. Es ist der einzige Feed ohne Rückfallkanal: bleibt er leer, wird über das Geld nirgends etwas gepostet. Siehe [Anvil in Discord]({discordGuide}).',
       },
     },
 

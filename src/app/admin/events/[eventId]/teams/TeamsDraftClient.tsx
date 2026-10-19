@@ -799,7 +799,9 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
             ? 'Fill the player pool — sign-ups add players automatically, or add clan members manually.'
             : !orderDone
               ? 'Set the draft order — every team must be in it — then start the draft.'
-              : 'Everything’s ready — start the draft below.';
+              : activeStep === 3
+                ? 'Everything’s ready — start the draft below.'
+                : 'Everything’s ready — start the draft on the “Run draft” step.';
 
   // The one-click team-up, shared by the enroll step and the rosters step. It used to live only on
   // the enroll step, so anyone who reached "Rosters & start" with teamless players (a restored
@@ -994,7 +996,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
       {/* Plain-language model — open by default until the first team exists, then out of the way.
           Draft format only; the non-draft formats have nothing to explain. */}
       {format === 'draft' && (
-      <details open={teams.length === 0} className="rounded-xl border border-card-border bg-card-bg/60 group !mt-4">
+      <details open={teams.length < 2 && draft.status === 'none'} className="rounded-xl border border-card-border bg-card-bg/60 group !mt-4">
         <summary className="cursor-pointer select-none list-none px-4 py-3 flex items-center gap-2 text-sm font-medium">
           <span className="transition-transform group-open:rotate-90 text-text-muted">▸</span>
           How teams &amp; the draft work
@@ -1003,7 +1005,9 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
           <p>A draft splits your players into balanced teams by taking turns picking:</p>
           <ol className="list-decimal ml-5 space-y-1.5">
             <li>
-              <span className="text-foreground/80">Create teams</span> — add each team and give it a captain.
+              <span className="text-foreground/80">Create teams</span> — add each team, and a captain if you
+              have one. A captain picks for their team from their own login, so they need to have signed in to Anvil
+              with Discord once. No captain? You pick for that team here.
             </li>
             <li>
               <span className="text-foreground/80">Fill the player pool</span> — add everyone who&apos;s playing
@@ -1037,8 +1041,8 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
         </h2>
         <p className="text-xs text-text-muted mb-4">
           {format === 'preassigned'
-            ? 'The teams players join directly. Give each one a captain; there is no draft after the rosters are filled.'
-            : 'The teams players get drafted into. Give each one a captain (a captain can also play).'}
+            ? 'The teams players join directly. A captain is optional; there is no draft after the rosters are filled.'
+            : 'The teams players get drafted into. A captain is optional; without one, you pick for that team.'}
         </p>
         {teams.length > 0 ? (
           <div className="space-y-2 mb-6">
@@ -1064,13 +1068,17 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                           ♛ {team.captainName}
                         </span>
                       ) : (
-                        <span className="text-xs text-yellow-400/90 ml-2 whitespace-nowrap" title="No captain assigned yet">
-                          ♛ no captain
+                        <span className="text-xs text-text-muted ml-2 whitespace-nowrap" title="No captain yet — you pick for this team in the draft">
+                          ♛ no captain yet
                         </span>
                       )}
-                      <span className="text-text-muted text-xs ml-2 whitespace-nowrap">
-                        {completed}/{totalWeight}{pointsMode ? ' pts' : ''} ({pct}%)
-                      </span>
+                      {/* Board progress means nothing before the start — a row of "0/25 (0%)" just reads as
+                          something being wrong. */}
+                      {eventStarted && (
+                        <span className="text-text-muted text-xs ml-2 whitespace-nowrap">
+                          {completed}/{totalWeight}{pointsMode ? ' pts' : ''} ({pct}%)
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -1086,7 +1094,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                       className="text-xs font-medium bg-gold/10 text-gold border border-gold/20 px-2.5 py-1 rounded-lg hover:bg-gold/20 transition-colors"
                       title="See this team's progress and mark tiles done/undone, add or remove submissions"
                     >
-                      Manage Board
+                      Team board
                     </ClanLink>
                     {!draftLocked && (
                       <button
@@ -1194,7 +1202,9 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
             draftInProgress={isDraftInProgress}
             // Non-draft formats already chose the placement on the format screen — enroll straight
             // into it instead of asking again.
-            fixedPlacement={automaticFormat ? (format as 'individual' | 'one_team') : undefined}
+            // The draft and build-it-yourself formats both fill a pool here; asking "draft pool / one
+            // team each / one shared team" again on this step re-asked the format question.
+            fixedPlacement={automaticFormat ? (format as 'individual' | 'one_team') : 'draft_pool'}
             onEnrolled={async () => {
               await fetchDraft();
               router.refresh();
@@ -1392,9 +1402,9 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                             onClick={() => resetPlayerSnapshot(player.id)}
                             disabled={resettingSnapshot === player.id}
                             className="text-[10px] text-yellow-400 hover:text-yellow-300 transition-colors border border-yellow-400/20 px-1.5 py-0.5 rounded disabled:opacity-50"
-                            title="Reset player snapshot"
+                            title="Read this player's stats from the hiscores again"
                           >
-                            {resettingSnapshot === player.id ? '...' : 'Reset Snap'}
+                            {resettingSnapshot === player.id ? '...' : 'Re-read stats'}
                           </button>
                         )}
                         <button onClick={() => deletePlayer(player.id)} className="text-xs text-red-400 hover:text-red-300 transition-colors disabled:opacity-50">
@@ -1431,15 +1441,9 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               {teams.length >= 2 ? (
                 <>
                   <DraftOrderSetup teams={teams} currentOrder={draft.teamOrder} onSave={saveDraftOrder} saving={savingOrder} />
-                  {orderDone && draft.players.filter((p) => p.teamId === null).length > 0 && (
-                    <button
-                      onClick={() => doDraftAction('start')}
-                      disabled={!!draftAction}
-                      className="mt-4 w-full text-sm font-bold bg-accent-green/20 text-accent-green-light border border-accent-green/30 px-4 py-2.5 rounded-lg hover:bg-accent-green/30 transition-colors disabled:opacity-50"
-                    >
-                      {draftAction === 'start' ? 'Starting...' : 'Start Draft'}
-                    </button>
-                  )}
+                  {/* Start lives on the next step, "Run draft". It used to sit here under Save Draft Order
+                      and above Continue — three buttons, and the step called "Run draft" then sent you
+                      back to this one to find it. */}
                 </>
               ) : (
                 <div className="text-center py-6 border border-dashed border-card-border rounded-xl">
@@ -1522,12 +1526,42 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
 
         {/* Not started yet — nudge back to the order step where Start lives. (Draft format only;
             non-draft formats never run one.) */}
-        {format === 'draft' && activeStep === 3 && draft.status === 'none' && (
-          <div className="text-sm text-text-muted border border-dashed border-card-border rounded-xl p-4">
-            Nothing to run yet. Finish the <span className="text-foreground/80">draft order</span> and press{' '}
-            <span className="text-foreground/80">Start Draft</span> on the previous step to begin picking.
-          </div>
-        )}
+        {format === 'draft' && activeStep === 3 && draft.status === 'none' && (() => {
+          const waiting = draft.players.filter((p) => p.teamId === null).length;
+          const blocker =
+            teams.length < 2
+              ? 'Add at least two teams on the first step.'
+              : waiting === 0
+                ? 'Nobody is waiting to be picked. Add players on the “Fill player pool” step.'
+                : !orderDone
+                  ? 'Set the draft order on the previous step.'
+                  : null;
+          return (
+            <div className="border border-card-border rounded-xl p-4 bg-card-bg space-y-3">
+              <h3 className="text-base font-bold flex items-center gap-2">
+                <span className="w-1 h-4 bg-gold rounded-full" />
+                Ready to draft
+              </h3>
+              <p className="text-sm text-text-muted leading-relaxed">
+                Teams take turns picking from the {waiting} player{waiting === 1 ? '' : 's'} in the pool, in the order
+                you set, reversing each round. You can pick for every team on this page; captains can also pick from
+                their own My Team page. When the pool is empty the draft ends and the rosters are set. You can pause
+                or undo a pick while it runs.
+              </p>
+              {blocker ? (
+                <p className="text-sm text-yellow-400/90">{blocker}</p>
+              ) : (
+                <button
+                  onClick={() => doDraftAction('start')}
+                  disabled={!!draftAction}
+                  className="w-full text-sm font-bold bg-accent-green/20 text-accent-green-light border border-accent-green/30 px-4 py-2.5 rounded-lg hover:bg-accent-green/30 transition-colors disabled:opacity-50"
+                >
+                  {draftAction === 'start' ? 'Starting…' : 'Start the draft'}
+                </button>
+              )}
+            </div>
+          );
+        })()}
 
         {/* The unified post-setup view: status, actions, and roster management in one place.
             Reached when the draft completes — or, for non-draft formats, as the "Rosters & start"
@@ -1632,10 +1666,10 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
               <button
                 onClick={resendRosterToDiscord}
                 disabled={resendingRoster}
-                title="Posts only to the Discord belonging to the clan shown in the top navigation"
+                title="Posts every team and who's on it to your clan's Discord bingo channel. Use it again after changing a roster."
                 className="text-sm font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-4 py-2 rounded-lg hover:bg-indigo-500/20 transition-colors disabled:opacity-50"
               >
-                {resendingRoster ? 'Sending...' : 'Send roster to this clan’s Discord'}
+                {resendingRoster ? 'Posting…' : 'Post the teams to Discord'}
               </button>
               {rosterMessage && (
                 <span className={`text-sm ${rosterMessage.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>{rosterMessage.text}</span>
@@ -1853,7 +1887,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                                         title="Reset this player’s own progress (reopens their solo tiles, voids their submissions, strips their team-tile share) but keep them active. The team keeps its completed tiles."
                                         className="text-xs text-red-400 hover:text-red-300 border border-red-400/20 px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
                                       >
-                                        Reset
+                                        Clear progress
                                       </button>
                                       <button
                                         onClick={() => { setSubChoiceId(null); setRemoveChoiceId(p.id); }}
@@ -1938,11 +1972,17 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
             </div>
 
             <div>
-              <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
-                <span className="w-1 h-4 bg-blue-400 rounded-full" />
-                Player stats &amp; RSN
-              </h3>
-              <p className="text-xs text-text-muted mb-3">Edit a player&apos;s RSN / linked account, tweak stat baselines, or reset a baseline from live hiscores.</p>
+              {/* Repairs, not setup — folded so the last step reads as "check the teams, then start". */}
+              <details className="group rounded-xl border border-card-border bg-card-bg/60">
+              <summary className="cursor-pointer select-none list-none px-4 py-3 flex items-center gap-2 text-sm font-medium">
+                <span className="transition-transform group-open:rotate-90 text-text-muted">▸</span>
+                Fix a player&apos;s name or starting stats
+              </summary>
+              <div className="px-4 pb-4">
+              <p className="text-xs text-text-muted mb-3">
+                For when something&apos;s off: a renamed character, or XP and kill counts that started from the wrong
+                numbers. Progress is counted from the stats a player had when the event started.
+              </p>
               <div className="space-y-1.5 max-h-60 overflow-y-auto">
                 {draft.players
                   .filter((p) => p.teamId !== null)
@@ -1969,34 +2009,41 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                           onClick={() => setEditingPlayer({ id: player.id, name: player.name, discord: player.discord, timezone: player.timezone })}
                           className="text-xs text-gold hover:text-gold-light transition-colors border border-gold/20 px-2 py-0.5 rounded disabled:opacity-50"
                         >
-                          Edit
+                          Edit name
                         </button>
                         <button
                           onClick={() => setEditingBaselinePlayer({ id: player.id, name: player.name })}
                           className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors border border-indigo-400/20 px-2 py-0.5 rounded disabled:opacity-50"
                         >
-                          Stats
+                          Starting stats
                         </button>
                         <button
                           onClick={() => resetPlayerSnapshot(player.id)}
                           disabled={resettingSnapshot === player.id}
+                          title="Read this player's stats from the hiscores again and count from there"
                           className="text-xs text-yellow-400 hover:text-yellow-300 transition-colors border border-yellow-400/20 px-2 py-0.5 rounded disabled:opacity-50"
                         >
-                          {resettingSnapshot === player.id ? '...' : 'Reset'}
+                          {resettingSnapshot === player.id ? '...' : 'Re-read from hiscores'}
                         </button>
                       </fieldset>
                     </div>
                   ))}
               </div>
+              </div>
+              </details>
             </div>
 
+            {/* Pick order is the only thing this adds over Manage rosters above, so it's only shown when
+                a draft actually ran — without one every name read "#1". */}
+            {draft.status === 'completed' && (
             <div>
               <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
                 <span className="w-1 h-4 bg-gold rounded-full" />
-                Final Rosters
+                Draft results
               </h3>
               <DraftRosters players={draft.players} teams={draftTeams} teamOrder={draft.teamOrder} onPlayerClick={setStatsRsn} accountSlotMode={event.accountSlotMode} ratings={ratings} />
             </div>
+            )}
           </div>
         )}
       </div>
