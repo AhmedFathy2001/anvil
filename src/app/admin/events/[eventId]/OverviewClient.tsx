@@ -49,6 +49,8 @@ interface Props {
   /** Finished events only: the top superlatives (lib/eventRecap), already formatted. */
   awards?: RecapAwardSummary[];
   tierBands?: TierBand[];
+  /** The clan has surveys switched on (Admin → Features). */
+  surveyOn?: boolean;
 }
 
 /**
@@ -71,6 +73,7 @@ export default function OverviewClient({
   recorded = [],
   awards = [],
   tierBands = DEFAULT_TIER_BANDS,
+  surveyOn = false,
 }: Props) {
   const router = useRouter();
   const [currentEvent, setCurrentEvent] = useState(event);
@@ -182,6 +185,7 @@ export default function OverviewClient({
     unpaidPayouts: counts.unpaidPayouts,
     blockers: counts.blockers,
     individual: axes.competitors === 'individuals',
+    surveyMissing: surveyOn && !counts.hasSurvey,
   });
   const starter = useStartNow(event.id, (e) => {
     setCurrentEvent(e);

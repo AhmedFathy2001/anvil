@@ -26,6 +26,11 @@ export interface NextStepInput {
   blockers: string[];
   /** Individual boards (a ladder) have no teams to make. */
   individual: boolean;
+  /**
+   * The clan uses surveys and this board has none yet — the wrap-up mentions it. Optional, so it is a
+   * line in the last step rather than a step of its own that would sit there until somebody made one.
+   */
+  surveyMissing?: boolean;
 }
 
 export type NextStepAction =
@@ -152,7 +157,9 @@ export function nextStep(e: NextStepInput): NextStep {
   // and the archive card at the bottom of this page was the only place that said so.
   return {
     title: 'All wrapped up',
-    body: 'Prizes are paid. Proof screenshots are deleted 90 days after the end, so download the archive if you want to keep them.',
+    body:
+      'Prizes are paid. Proof screenshots are deleted 90 days after the end, so download the archive if you want to keep them.' +
+      (e.surveyMissing ? ' Want feedback? Add a short survey on the Survey tab — players answer it on the event page.' : ''),
     action: { kind: 'link', label: 'Download the archive', tab: '#archive' },
   };
 }

@@ -12,6 +12,7 @@ import { eventStage } from '@/lib/eventStage';
 import { getRecordedTeamResults } from '@/lib/adminEventsOverview';
 import { getEventRecap } from '@/lib/eventRecap';
 import { getStageCounts } from '@/lib/eventStageCounts';
+import { getClanFeatures } from '@/lib/clanFeatures';
 import { withSearchText } from '@/lib/tileSearchText';
 
 export const dynamic = 'force-dynamic';
@@ -97,6 +98,7 @@ export default async function EventOverviewPage({
         recorded={recorded}
         awards={awards}
         tierBands={tierBands}
+        surveyOn={(await getClanFeatures(event.clanId)).on('survey')}
       />
       {/* Once it's over: the zip, and when its proof images leave storage (lib/eventMediaRetention). */}
       {stage === 'wrap' && <EventArchiveCard event={event} now={renderedAt} />}

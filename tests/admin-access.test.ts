@@ -48,6 +48,8 @@ test('moderators get the moderator surfaces and are turned away from the rest', 
   assert.equal(redirectFor('/admin/dashboard', moderator), allowed);
   assert.equal(redirectFor('/admin/clan', moderator), allowed);
   assert.equal(redirectFor('/admin/verifications', moderator), allowed);
+  // Checking flagged proofs is moderation — the cross-board queue, since event pages are not theirs.
+  assert.equal(redirectFor('/admin/proofs', moderator), allowed);
   assert.equal(redirectFor('/admin/integrations', moderator), '/admin/dashboard');
   // Running events is administration, not moderation.
   assert.equal(redirectFor('/admin/events', moderator), '/admin/dashboard');

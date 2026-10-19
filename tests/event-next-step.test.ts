@@ -51,4 +51,6 @@ test('wrap: proofs, then set prizes, then pay them, then done', () => {
   assert.equal(nextStep({ ...base, stage: 'wrap', payoutCount: 3, unpaidPayouts: 2 }).title, 'Pay 2 prizes');
   // Done paying still points at the archive: proof screenshots are purged 90 days after the end.
   assert.equal((nextStep({ ...base, stage: 'wrap', payoutCount: 3 }).action as { tab: string }).tab, '#archive');
+  assert.match(nextStep({ ...base, stage: 'wrap', payoutCount: 3, surveyMissing: true }).body, /survey/);
+  assert.doesNotMatch(nextStep({ ...base, stage: 'wrap', payoutCount: 3 }).body, /survey/);
 });

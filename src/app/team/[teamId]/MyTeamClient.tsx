@@ -450,7 +450,17 @@ export default function MyTeamClient({
       </div>
       <p className="text-text-muted text-sm mb-2">
         {event.name}
-        {isCaptain && !boardHidden && ' · Click tiles to toggle or submit'}
+        {!boardHidden && (isCaptain ? ' · Tap a tile to mark it or add proof' : ' · Tap a tile to see how it counts and add proof')}
+        {/* "Where did my screenshot go?" — the member panel already lists a player's own proof; this
+            opens it on them without having to know you can click your own name in the roster. */}
+        {!boardHidden && myPlayerId != null && (
+          <>
+            {' · '}
+            <button type="button" onClick={() => setSelectedMemberId(myPlayerId)} className="text-gold hover:underline">
+              Your proofs
+            </button>
+          </>
+        )}
       </p>
 
       {eventCountdown && (

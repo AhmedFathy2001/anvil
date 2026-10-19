@@ -239,7 +239,7 @@ export default function AccessPanel({ eventId }: { eventId: number }) {
           {guestPolicy === 'closed' && (
             <p className="mt-2 text-[12.5px] text-accent-red">
               Your clan is not taking guests, so nobody from outside can enter whatever this says.
-              Change it under Clan → Access.
+              Change it under People → Who can join.
             </p>
           )}
         </div>

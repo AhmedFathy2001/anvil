@@ -116,6 +116,7 @@ const FLAG_TEXT: Record<string, string> = {
   no_start_proof: 'Counted without a starting screenshot',
   inferred_duplicate_pet: 'A pet duplicate the plugin worked out from context',
   inferred_duplicate_scroll: 'A champion scroll duplicate the plugin worked out from context',
+  big_ping: 'The plugin claimed a lot at once without a screenshot, so only 10 were counted',
 };
 
 /**

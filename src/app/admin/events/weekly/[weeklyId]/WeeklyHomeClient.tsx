@@ -96,6 +96,27 @@ export default function WeeklyHomeClient({
     }
   }
 
+  // Ending early used to mean finding the Status select under Settings ("set it by hand only to
+  // unstick one"). Pulling the end date to now hands it to the normal finish instead: the next
+  // lifecycle tick (every 15 minutes) closes it, posts the results and settles any prizes.
+  async function endNow() {
+    const ok = await confirm({
+      title: 'End this competition now?',
+      body: 'Gains stop counting now. The results post to Discord and any prizes are settled within 15 minutes.',
+      confirmLabel: 'End now',
+    });
+    if (!ok) return;
+    setMessage('');
+    const res = await clanFetch(`/api/admin/weekly/${comp.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endDate: new Date().toISOString() }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setMessage(res.ok ? 'Ending — results post within 15 minutes.' : data.error || 'Could not end it.');
+    if (res.ok) router.refresh();
+  }
+
   return (
     <div className="space-y-6">
       <p className="text-sm text-text-muted -mt-2">{STAGE_BLURB[stage]}</p>
@@ -121,7 +142,7 @@ export default function WeeklyHomeClient({
                   ? 'Everyone has a starting line'
                   : `${missingBaselines} without a baseline`
               }
-              detail="Baselines are taken from the hiscores when it starts — you can capture them early."
+              detail="Everyone's starting point is read from the hiscores when it starts. To take them early, press Pull current stats on the Baselines page."
               href={`${base}/baselines`}
               action="Baselines"
             />
@@ -151,8 +172,8 @@ export default function WeeklyHomeClient({
             />
           </div>
           <p className="text-xs text-text-muted mt-4">
-            Starts <span suppressHydrationWarning>{new Date(comp.startDate).toLocaleString()}</span>. The lifecycle cron
-            opens it on time — there&apos;s nothing to press.{' '}
+            Starts <span suppressHydrationWarning>{new Date(comp.startDate).toLocaleString()}</span>. It opens by itself
+            on time — there&apos;s nothing to press.{' '}
             {/* The card states the start time, so it has to say where to change it — otherwise the
                 answer is a rail item you have to already know about. */}
             <ClanLink href={`${base}/settings`} className="text-gold hover:underline">
@@ -180,7 +201,7 @@ export default function WeeklyHomeClient({
               .map((s) => (
                 <div key={s.participantId} className="flex items-center gap-3 p-2.5 rounded-lg bg-black/20">
                   <span className="text-sm font-medium min-w-0 flex-1 truncate">{s.rsn}</span>
-                  <span className="text-xs text-amber-300/90 truncate max-w-[50%]">{s.flagReason ?? 'implausible gain'}</span>
+                  <span className="text-xs text-amber-300/90 truncate max-w-[50%]">{s.flagReason ?? 'gain looks too big'}</span>
                 </div>
               ))}
           </div>
@@ -298,6 +319,15 @@ export default function WeeklyHomeClient({
           >
             Player view ↗
           </ClanLink>
+          {stage === 'run' && (
+            <button
+              type="button"
+              onClick={endNow}
+              className="ml-auto px-2.5 py-1 text-xs rounded-lg border border-red-500/30 text-red-400 bg-red-500/10 hover:bg-red-500/20 transition-colors"
+            >
+              End now
+            </button>
+          )}
           {message && <span className="text-xs text-text-muted">{message}</span>}
         </div>
         <p className="text-[11px] text-text-muted/70 mt-2">

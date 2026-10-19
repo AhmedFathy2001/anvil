@@ -19,6 +19,8 @@ interface Submission {
   createdAt: string;
   uploaderName?: string | null;
   creditPlayerName?: string | null;
+  /** Set when the system wants staff to look at it (it still counts meanwhile). */
+  flaggedReason?: string | null;
 }
 
 interface Tile {
@@ -175,6 +177,13 @@ export default function PlayerContributions({ submissions, tiles, playerName, st
             <span className="text-sm font-medium">{tile?.label || `Tile #${tileId}`}</span>
             {turnInsOnTile(tile?.tileType, subs.length) > 1 && (
               <span className="text-xs text-text-muted flex-shrink-0">({subs.length})</span>
+            )}
+            {/* A player looking at their own proof wants to know it counted. A flag doesn't undo that;
+                it means staff will glance at it, which is worth saying rather than leaving them to guess. */}
+            {subs.some((s) => s.flaggedReason) && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 flex-shrink-0">
+                counts · staff checking
+              </span>
             )}
             <span className="text-xs text-accent-green-light ml-auto flex-shrink-0">
               {tile ? formatTileAmount(tile, tileTotal) : `x${tileTotal}`}
