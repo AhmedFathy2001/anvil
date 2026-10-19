@@ -15,6 +15,7 @@ import { clans, events, libraryBoards, tiles } from '@/db/schema';
 import { tileToCsvRow, type TileCsvRow } from '@/lib/csvTiles';
 import { modeKeyFor, type EventMode } from '@/lib/eventModes';
 import { isPlaceholderTile } from '@/lib/placeholderTile';
+import { parseTileEffortConfig } from '@/lib/tileEffortConfig';
 import type { Tile } from '@/lib/types';
 
 export const BOARD_AUDIENCES = ['casual', 'mid', 'endgame', 'mixed'] as const;
@@ -134,6 +135,69 @@ export function rowsForLibrary(eventTiles: Tile[]): TileCsvRow[] {
       for (const k of ['revealAt', 'mission', 'missionPrizes', 'missionPoints', 'missionMaxClaims', 'missionExpiryHours', 'missionRules']) delete row[k];
       return row as TileCsvRow;
     });
+}
+
+/**
+ * Tiles from outside (a board-change suggestion) reduced to what a library tile may carry, with each
+ * field type-checked. Unknown keys — mission ladders, reveal times, anything else — are dropped, and
+ * a row that isn't a usable tile throws. Run when a suggestion is filed AND when it's approved, so
+ * what staff review is exactly what gets written.
+ */
+const NUM_KEYS = ['requiredAmount', 'points', 'statGoal', 'timeThresholdSeconds', 'setsRequired', 'perKillCap', 'coopMinMembers'] as const;
+const STR_KEYS = ['description', 'tileType', 'category', 'trackedStat', 'statType', 'statBasis', 'timedActivity', 'groupMode', 'countMode', 'coopCredit'] as const;
+export function sanitizeRows(input: unknown, opts: { mode: EventMode; boardSize: number }): TileCsvRow[] {
+  if (!Array.isArray(input)) throw new Error('Tiles must be a list.');
+  if (opts.mode === 'classic' ? input.length !== opts.boardSize * opts.boardSize : input.length < 1 || input.length > 200) {
+    throw new Error(
+      opts.mode === 'classic'
+        ? `A ${opts.boardSize}×${opts.boardSize} board needs exactly ${opts.boardSize * opts.boardSize} tiles.`
+        : 'A board needs between 1 and 200 tiles.',
+    );
+  }
+  return input.map((raw, i) => sanitizeRow(raw, i));
+}
+
+/** One tile, cleaned the same way (sanitizeRows). `i` only numbers the error message. */
+export function sanitizeRow(raw: unknown, i = 0): TileCsvRow {
+  {
+    const r = (raw ?? {}) as Record<string, unknown>;
+    const label = typeof r.label === 'string' ? r.label.trim().slice(0, 200) : '';
+    if (!label) throw new Error(`Tile ${i + 1} needs a name.`);
+    const out: Record<string, unknown> = { label };
+    for (const k of NUM_KEYS) {
+      const v = r[k];
+      if (v == null) continue;
+      if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > 1e12) throw new Error(`Tile ${i + 1}: ${k} must be a number.`);
+      out[k] = v;
+    }
+    for (const k of STR_KEYS) {
+      const v = r[k];
+      if (v == null) continue;
+      if (typeof v !== 'string') throw new Error(`Tile ${i + 1}: ${k} must be text.`);
+      out[k] = v.slice(0, k === 'description' ? 1000 : 120);
+    }
+    if (r.optional != null) out.optional = r.optional === true;
+    // Balance-only assumptions; parsed the same way the importer parses them, so junk can't ride in.
+    const effort = parseTileEffortConfig(r.effortConfig as never);
+    if (effort) out.effortConfig = effort;
+    if (r.targetNpcs != null) {
+      if (!Array.isArray(r.targetNpcs) || r.targetNpcs.some((n) => typeof n !== 'string')) throw new Error(`Tile ${i + 1}: targets must be names.`);
+      out.targetNpcs = (r.targetNpcs as string[]).slice(0, 50).map((n) => n.slice(0, 120));
+    }
+    if (r.items != null) {
+      if (!Array.isArray(r.items)) throw new Error(`Tile ${i + 1}: items must be a list.`);
+      out.items = (r.items as Record<string, unknown>[]).slice(0, 100).map((it) => {
+        const count = typeof it?.count === 'number' && Number.isInteger(it.count) && it.count > 0 ? it.count : 1;
+        const item: Record<string, unknown> = { name: typeof it?.name === 'string' ? it.name.slice(0, 120) : '', count };
+        if (typeof it?.id === 'number' && Number.isInteger(it.id) && it.id > 0) item.id = it.id;
+        if (typeof it?.group === 'string' && it.group) item.group = it.group.slice(0, 30);
+        if (typeof it?.groupRequire === 'number' && Number.isInteger(it.groupRequire) && it.groupRequire > 0) item.groupRequire = it.groupRequire;
+        if (!item.id && !item.name) throw new Error(`Tile ${i + 1}: an item needs a name or id.`);
+        return item;
+      });
+    }
+    return out as TileCsvRow;
+  }
 }
 
 /** Published boards (or every board, for staff), most used first within each origin. */

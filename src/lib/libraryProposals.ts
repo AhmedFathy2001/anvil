@@ -13,7 +13,7 @@ import { db } from '@/db';
 import { clans, libraryBoards, libraryProposals, libraryTasks, users } from '@/db/schema';
 import type { TileCsvRow } from '@/lib/csvTiles';
 import { getAnvilTask, saveAnvilTask, type AnvilTaskInput } from '@/lib/libraryTasks';
-import { cleanMeta, getBoard, replaceBoardTiles, updateBoardMeta, type BoardMeta } from '@/lib/libraryBoards';
+import { cleanMeta, getBoard, replaceBoardTiles, sanitizeRow, sanitizeRows, updateBoardMeta, type BoardMeta } from '@/lib/libraryBoards';
 
 /** Open suggestions one person may have at once — enough to be useful, too few to flood the queue. */
 export const MAX_PENDING = 5;
@@ -84,6 +84,8 @@ export async function createProposal(
   let targetBoardId: number | null = null;
   if (input.kind === 'task-new' || input.kind === 'task-edit') {
     if (!isTaskInput(input.payload)) throw new Error('A task suggestion needs a name, points and how it tracks.');
+    // Stored cleaned, so the reviewer reads exactly the setup approving would save.
+    input.payload = { ...input.payload, config: sanitizeRow({ ...input.payload.config, label: input.payload.label }) };
     if (input.kind === 'task-edit') {
       const task = input.targetTaskId ? await getAnvilTask(input.targetTaskId) : null;
       if (!task || task.archived) throw new Error('That Anvil task no longer exists.');
@@ -96,6 +98,8 @@ export async function createProposal(
     if (!board || board.origin !== 'anvil') throw new Error('Only Anvil’s own boards take suggestions; community boards belong to their clan.');
     targetBoardId = board.id;
     baseVersion = board.version;
+    // Stored in the cleaned form, so the reviewer sees exactly what approving would write.
+    if (input.payload.tiles) input.payload.tiles = sanitizeRows(input.payload.tiles, board);
   } else {
     throw new Error('Unknown kind of suggestion.');
   }
@@ -209,7 +213,10 @@ export async function approveProposal(id: number, reviewerId: number, reviewNote
     if (!board || !isBoardEdit(payload)) throw new Error('The board this was for is gone.');
     if (payload.meta) await updateBoardMeta(board.id, { ...board, ...cleanMeta({ ...board, ...payload.meta }) });
     if (payload.tiles) {
-      await replaceBoardTiles(board.id, payload.tiles, board.mode === 'classic' ? board.boardSize : payload.tiles.length);
+      // Cleaned again at approval: a row stored before this check existed, or against a board whose
+      // size has changed since, must not reach the board unvalidated.
+      const rows = sanitizeRows(payload.tiles, board);
+      await replaceBoardTiles(board.id, rows, board.mode === 'classic' ? board.boardSize : rows.length);
     }
   }
   await db

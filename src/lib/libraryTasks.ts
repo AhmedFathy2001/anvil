@@ -13,6 +13,7 @@ import { and, asc, eq, inArray, isNotNull, lt, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { libraryTasks, tileLibrary } from '@/db/schema';
 import type { TileCsvRow } from '@/lib/csvTiles';
+import { sanitizeRow } from '@/lib/libraryBoards';
 
 export interface AnvilTask {
   id: number;
@@ -65,6 +66,8 @@ function toTask(r: typeof libraryTasks.$inferSelect): AnvilTask {
 
 /** The stored config always mirrors label/points/category/description — the importer reads them off it. */
 function storedConfig(input: AnvilTaskInput): string {
+  // Only real tile fields, type-checked — the same cleaning a board suggestion gets (libraryBoards).
+  input = { ...input, config: sanitizeRow({ ...input.config, label: input.label || 'task' }) };
   const tileType = (input.config.tileType as string | undefined) === 'stat' ? 'standard' : input.config.tileType;
   return JSON.stringify({
     ...input.config,

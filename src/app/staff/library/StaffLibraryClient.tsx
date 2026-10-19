@@ -239,6 +239,12 @@ function titleOf(p: LibraryProposal): string {
   return p.targetTitle ?? (p.payload as AnvilTaskDraft).label ?? 'board';
 }
 
+/** Which fields of a tile differ — compared as JSON so arrays and item lists count too. */
+function changedFields(a: TileCsvRow, b: TileCsvRow): string[] {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  return [...keys].filter((k) => JSON.stringify((a as Record<string, unknown>)[k] ?? null) !== JSON.stringify((b as Record<string, unknown>)[k] ?? null));
+}
+
 function taskLine(t: { label: string; points: number; category?: string | null; config: TileCsvRow }): string {
   const badge = TILE_KIND_BADGES[tileKindKey(t.config as TileKindLike)]?.label;
   return [t.label, `${t.points} pts`, t.category, badge].filter(Boolean).join(' · ');
@@ -314,13 +320,20 @@ function ProposalCard({
             {edit.meta && <p className="mb-1">Details: {edit.meta.title}</p>}
             {edit.tiles && (
               <ol className="list-decimal ml-4 space-y-0.5">
-                {edit.tiles.map((t, i) => (
-                  <li key={i} className={!board.tiles.some((o) => o.label === t.label) ? 'text-accent-green-light' : ''}>
-                    {t.label}
-                  </li>
-                ))}
+                {edit.tiles.map((t, i) => {
+                  // Field by field, not by name: a tile can keep its name and change what it tracks.
+                  const before = board.tiles.find((o) => o.label === t.label);
+                  const changed = before ? changedFields(before, t) : [];
+                  return (
+                    <li key={i} className={!before ? 'text-accent-green-light' : changed.length ? 'text-amber-300' : ''}>
+                      {t.label}
+                      {changed.length > 0 && <span className="text-[10px] text-amber-300/80"> — changed: {changed.join(', ')}</span>}
+                    </li>
+                  );
+                })}
               </ol>
             )}
+            {edit.tiles && <p className="mt-1 text-[10px] text-text-muted">Green: new tile. Amber: same name, different setup.</p>}
           </div>
         </div>
       )}

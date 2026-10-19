@@ -185,3 +185,23 @@ test('a board Anvil took down leaves the library and stays marked as taken down'
   assert.ok(!(await B.listBoards()).some((b) => b.id === board.id), 'not offered to anyone');
   assert.equal((await B.getBoard(board.id))?.status, 'removed', 'and distinct from a clan hiding its own');
 });
+
+test('a board suggestion is cleaned before anyone reviews it: unknown fields go, bad rows and wrong sizes are refused', async () => {
+  const board = await B.createAnvilBoard(staff, { title: 'Anvil 2x2 b', mode: 'classic', boardSize: 2, tiles: [{ label: 'a' }, { label: 'b' }, { label: 'c' }, { label: 'd' }] });
+  await assert.rejects(
+    () => P.createProposal(member, null, { kind: 'board-edit', targetBoardId: board.id, payload: { tiles: [{ label: 'only one' }] } }),
+    /exactly 4 tiles/,
+  );
+  await assert.rejects(
+    () => P.createProposal(member, null, { kind: 'board-edit', targetBoardId: board.id, payload: { tiles: [{ label: 'a', points: 'lots' }, { label: 'b' }, { label: 'c' }, { label: 'd' }] } }),
+    /points must be a number/,
+  );
+  const id = await P.createProposal(member, null, {
+    kind: 'board-edit',
+    targetBoardId: board.id,
+    payload: { tiles: [{ label: 'a', mission: true, revealAt: '2030-01-01', missionRules: { x: 1 } }, { label: 'b' }, { label: 'c' }, { label: 'd' }] },
+  });
+  await P.approveProposal(id, staff, null);
+  const after = await B.getBoard(board.id);
+  assert.deepEqual(after?.tiles[0], { label: 'a' }, 'mission and reveal fields never reach the board');
+});
