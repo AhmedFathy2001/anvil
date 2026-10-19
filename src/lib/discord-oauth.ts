@@ -64,12 +64,42 @@ export function buildAuthorizeUrl(state: string, opts: { join?: boolean } = {}):
   return `${AUTHORIZE_URL}?${params.toString()}`;
 }
 
+/**
+ * "Add Anvil to your server" as an OAuth round trip instead of a bare invite link.
+ *
+ * Same app, same registered redirect as the login (the shared bot IS the login app — the connect
+ * route checks the ids match before offering this). Discord makes the person pick a server they can
+ * Manage, adds the bot, and sends them back with a code whose token response names that server —
+ * so the clan is bound to it without anyone turning on Developer Mode to copy a server ID.
+ *
+ * `identify` is there so the callback learns WHICH Discord account approved it, to check that
+ * person is an admin of the clan being connected. No email, no guilds.join, nothing stored.
+ */
+export function buildBotConnectUrl(state: string, permissions: string): string {
+  const { clientId, redirectUri } = requireConfig();
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: 'identify bot applications.commands',
+    permissions,
+    state,
+  });
+  // %20, not +, between scopes — what Discord's own generator emits (see api/admin/discord/bot).
+  return `${AUTHORIZE_URL}?${params.toString().replace(/\+/g, '%20')}`;
+}
+
 export interface DiscordTokenSet {
   accessToken: string;
   refreshToken: string | null;
   /** Seconds until the access token expires. */
   expiresIn: number;
   scope: string;
+  /**
+   * Set only on a `bot`-scope authorization: the server the bot was just added to, as Discord's own
+   * token response reports it (buildBotConnectUrl). Read from here, never from the redirect's query.
+   */
+  guild?: { id: string; name: string | null } | null;
 }
 
 /** Exchange a login code, keeping everything the token endpoint returned. */
@@ -112,6 +142,7 @@ async function postTokenEndpoint(body: URLSearchParams): Promise<DiscordTokenSet
     refresh_token?: string;
     expires_in?: number;
     scope?: string;
+    guild?: { id?: string; name?: string };
   };
   if (!data.access_token) throw new Error('Discord token response missing access_token');
   return {
@@ -119,6 +150,7 @@ async function postTokenEndpoint(body: URLSearchParams): Promise<DiscordTokenSet
     refreshToken: data.refresh_token ?? null,
     expiresIn: typeof data.expires_in === 'number' ? data.expires_in : 0,
     scope: data.scope ?? '',
+    guild: data.guild?.id ? { id: data.guild.id, name: data.guild.name ?? null } : null,
   };
 }
 
