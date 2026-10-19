@@ -26,7 +26,9 @@ export default async function NewEventPage({ searchParams }: { searchParams: Pro
   const offered = FORMAT_CARDS.filter((f) => !f.feature || features.on(f.feature));
   const picked = findFormat((await searchParams).format);
   const chosen = picked && offered.includes(picked) ? picked : null;
-  if (!chosen) return <FormatPicker cards={offered} />;
+  // Formats behind a switched-off feature used to just not be there, and the reason lived on a page the
+  // admin had no cause to open. Name them, and where to turn them on.
+  if (!chosen) return <FormatPicker cards={offered} hidden={FORMAT_CARDS.filter((f) => !offered.includes(f)).map((f) => f.name)} />;
 
   // Auto-name: "{Clan} Bingo #N" so the name field is never blank. Pull the clan name +
   // how many events exist so we can suggest the next number.
@@ -97,7 +99,7 @@ export default async function NewEventPage({ searchParams }: { searchParams: Pro
 const GROUPS: FormatCard['group'][] = ['Team bingo', 'Surprise tasks', 'Solo & ongoing'];
 
 /** "What are you running?" */
-function FormatPicker({ cards }: { cards: FormatCard[] }) {
+function FormatPicker({ cards, hidden }: { cards: FormatCard[]; hidden: string[] }) {
   return (
     <div className="max-w-5xl">
       <ClanLink
@@ -109,8 +111,8 @@ function FormatPicker({ cards }: { cards: FormatCard[] }) {
       <header className="mb-8">
         <h1 className="display display-lg text-4xl sm:text-[44px] font-semibold leading-tight">What are you running?</h1>
         <p className="text-text-muted mt-2 text-[15px] max-w-[62ch]">
-          Pick one and we&rsquo;ll ask a few quick questions. It&rsquo;s saved as a draft, so nothing goes out until you open
-          it. First time? Classic bingo is the easiest.
+          Pick one and we&rsquo;ll ask a few quick questions. Nothing is posted to Discord and members don&rsquo;t see
+          the tiles until you start it. First time? Classic bingo is the easiest.
         </p>
         <p className="mt-2">
           <GuideLink href="/guide/formats#choose">Compare the formats</GuideLink>
@@ -154,6 +156,15 @@ function FormatPicker({ cards }: { cards: FormatCard[] }) {
           );
         })}
       </div>
+      {hidden.length > 0 && (
+        <p className="mt-9 text-sm text-text-muted">
+          Switched off for this clan: {hidden.join(', ')}.{' '}
+          <ClanLink href="/admin/features" className="text-gold hover:underline">
+            Turn them on in Features
+          </ClanLink>
+          .
+        </p>
+      )}
     </div>
   );
 }

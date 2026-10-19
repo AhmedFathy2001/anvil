@@ -968,7 +968,7 @@ function PastEventRow({
               href={`/admin/events/${event.id}/payouts`}
               className="px-2 py-1 text-xs rounded-md border border-card-border hover:border-gold/50 transition-colors"
             >
-              Payouts
+              Prizes
             </ClanLink>
             <button
               type="button"

@@ -135,7 +135,7 @@ export default function LiveFixPanel({
           title="Re-checks every tile against what's already been submitted (and XP / KC tiles against everyone's live gains), and completes anything that had already met its target. Only adds completions — it never takes one away."
           className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gold/30 text-gold bg-gold/10 hover:bg-gold/20 transition-colors disabled:opacity-50"
         >
-          {recomputing ? 'Healing…' : 'Heal the board'}
+          {recomputing ? 'Rechecking…' : 'Recheck all tiles'}
         </button>
         <ClanLink
           href={`${base}/tiles`}
@@ -153,18 +153,23 @@ export default function LiveFixPanel({
           href={`${base}/teams`}
           className="px-3 py-1.5 text-xs rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors"
         >
-          Subs &amp; rosters
+          Teams
         </ClanLink>
         {hasStatTiles && (
           <ClanLink
             href={`${base}/stats`}
             className="px-3 py-1.5 text-xs rounded-lg border border-card-border text-text-muted hover:text-foreground transition-colors"
           >
-            Fix baselines
+            Fix starting points
           </ClanLink>
         )}
         {message && <span className="text-xs text-text-muted">{message}</span>}
       </div>
+      {/* What the recheck does was hover-only; a moderator on a phone never saw it. */}
+      <p className="mt-2 text-xs text-text-muted">
+        Recheck all tiles completes anything that already reached its target. It only adds completions, never
+        removes one.
+      </p>
     </section>
   );
 }

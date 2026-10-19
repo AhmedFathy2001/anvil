@@ -64,7 +64,7 @@ export default function ClanActivities({ activities }: { activities: ClanActivit
     return (
       <div className="border border-card-border rounded-xl bg-card-bg p-6 mb-8 text-center">
         <p className="text-sm text-text-muted">
-          Clue, minigame and collection-log numbers appear here once the next hiscores sweep runs.
+          Clue, minigame and collection-log numbers appear here after the next OSRS Hiscores check.
         </p>
       </div>
     );

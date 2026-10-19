@@ -141,9 +141,9 @@ function ManualReviewPath({ router }: { router: ReturnType<typeof useRouter> }) 
   return (
     <div>
       <p className="text-xs text-text-muted mb-3 leading-relaxed">
-        Use this if your account&apos;s Hiscores are hidden (ironman-only opt-out, very low-level alts) or if
-        the stat-delta path fails for any reason. A moderator will check your claim manually — usually a
-        Discord ping or in-game vouch is enough.
+        Use this if your character doesn&apos;t show on the OSRS Hiscores (very low level, or hidden), or if the
+        XP check didn&apos;t work. A moderator checks it by hand — a message on Discord or a word in-game is
+        usually enough.
       </p>
       <label className="block text-sm font-medium text-foreground/70 mb-1.5">RuneScape Name</label>
       <Input

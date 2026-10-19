@@ -21,7 +21,7 @@ export default function CompetitionAwards({ awards }: { awards: CompetitionAward
           Awards
         </h2>
         <span className="text-xs text-text-muted">
-          the shape of the week — updates as the sweep lands
+          the shape of the week — updates as new stats come in
         </span>
       </div>
 

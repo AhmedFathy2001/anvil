@@ -365,6 +365,7 @@ export default async function AdminDashboardPage() {
       events: pendingSignupEvents,
     },
     accountChangeRequests: accountChangeCount,
+    rosterSize: activeMembers,
     flaggedProofs: {
       count: flaggedProofEvents.reduce((n, e) => n + e.count, 0),
       events: flaggedProofEvents,

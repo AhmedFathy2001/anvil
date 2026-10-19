@@ -128,7 +128,7 @@ export default function PersonProfile({
                     href={`/c/${c.slug}/profile`}
                     className="mt-1.5 inline-block text-[12.5px] text-text-muted transition-colors hover:text-gold"
                   >
-                    Your locker in {c.name} →
+                    Your profile in {c.name} →
                   </ClanLink>
                 )}
               </li>

@@ -288,7 +288,7 @@ export default function ClanPulse({
           </div>
         ) : (
           <p className="text-sm text-text-muted py-6 text-center">
-            Nothing recorded yet — history starts building from the next hiscores sweep.
+            Nothing recorded yet — history starts building from the next OSRS Hiscores check.
           </p>
         )}
       </div>

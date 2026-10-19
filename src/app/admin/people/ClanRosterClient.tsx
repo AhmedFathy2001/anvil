@@ -839,6 +839,20 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
         </div>
       </div>
 
+      {/* A new clan's roster is empty, and nothing here said how members get onto it. */}
+      {!loading && members.length <= 1 && (
+        <div className="mb-4 rounded-xl border border-gold/30 bg-gold/10 p-4 text-sm">
+          <div className="font-semibold">Load your member list</div>
+          <p className="text-text-muted mt-1">
+            Members can&apos;t sign up for events until they&apos;re on it. Install the Anvil plugin in RuneLite, open
+            your clan window in game and press the <b className="text-foreground">Anvil</b> button in its title bar —
+            everyone arrives with their rank.{' '}
+            <ClanLink href="/guide/clan#members" className="text-gold hover:underline">
+              Show me how
+            </ClanLink>
+          </p>
+        </div>
+      )}
       {/* Who is on the roster — the shape of it, before the 249 rows of it. */}
       <Composition counts={counts} onPick={setFilter} />
 

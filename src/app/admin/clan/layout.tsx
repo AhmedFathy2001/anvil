@@ -16,7 +16,7 @@ export default async function ClanLayout({ children }: { children: React.ReactNo
       <SectionHeader
         pages={[
           { href: '/admin/clan', exact: true, group: 'profile', title: 'Clan profile', tab: 'Profile', blurb: 'How the clan looks to everyone else.' },
-          { href: '/admin/clan/policy', group: 'profile', title: 'Who can join', tab: 'Access', blurb: 'Who may see the clan, and how somebody gets in.', show: isAdmin },
+          { href: '/admin/clan/policy', group: 'profile', title: 'Who can join', tab: 'Who can join', blurb: 'Who may see the clan, and how somebody gets in.', show: isAdmin },
           { href: '/admin/clan/audit', group: 'log', title: 'Activity log', blurb: 'Who joined, left, changed what, and when.' },
         ]}
       />

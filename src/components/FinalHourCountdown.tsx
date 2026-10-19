@@ -38,7 +38,7 @@ function stepCopy(secs: number, startProof: boolean): { phase: string; sub: stri
     return { phase: 'Brace', sub: '' };
   }
   if (secs > 900)
-    return { phase: 'The final hour', sub: 'Starting shot needed. At zero: relog, go to the drawn spot, take your shot (plugin button, or keyword + screenshot here).' };
+    return { phase: 'The final hour', sub: 'Starting shot needed. At zero: log out and back in, go to the spot on your card, and take your shot (the plugin button, or your keyword + a screenshot here).' };
   if (secs > 300) return { phase: 'Relog soon', sub: 'Log out and back in just before the start. Hiscores only save on logout; that sets your starting totals.' };
   if (secs > 60) return { phase: 'Take your positions', sub: 'Your starting spot is drawn at zero and shows up right here, with your keyword and the upload.' };
   if (secs > 10) return { phase: 'Final minute', sub: 'Plugin: press Take starting shot once you are on the spot. Mobile: keyword in the chatbox, screenshot, upload.' };

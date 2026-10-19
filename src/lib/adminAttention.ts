@@ -147,6 +147,8 @@ export interface AttentionFacts {
    * two boards had to open both to find out whether anything was waiting.
    */
   flaggedProofs?: { count: number; events: { name: string; count: number; href: string }[] };
+  /** Active roster seats. A new clan has at most its owner, and nobody can sign up until it syncs. */
+  rosterSize?: number;
 }
 
 const DAY = 86_400_000;
@@ -335,6 +337,19 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
       detail: 'They applied, or entered one of your events as a guest, and are waiting on an answer.',
       href: '/admin/people',
       action: 'Decide',
+      at: 0,
+    });
+  }
+
+  if (facts.rosterSize != null && facts.rosterSize <= 1) {
+    items.push({
+      key: 'empty-roster',
+      snoozable: false,
+      severity: 'warn',
+      title: 'Your member list is empty',
+      detail: 'Members can’t sign up for events until they’re on it. Sync it from the Anvil plugin in game — one button.',
+      href: '/admin/people',
+      action: 'Load members',
       at: 0,
     });
   }

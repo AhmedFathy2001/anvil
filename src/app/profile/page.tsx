@@ -232,7 +232,7 @@ export default async function ProfilePage({
       <div className="flex items-baseline gap-3 flex-wrap mb-4">
         <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2.5">
           <span className="w-1 h-7 bg-gold rounded-full" />
-          Your locker
+          Your profile
         </h1>
         <span className="text-sm text-text-muted">
           {clanName}

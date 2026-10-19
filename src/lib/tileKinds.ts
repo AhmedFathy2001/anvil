@@ -161,7 +161,7 @@ export function tileKindKey(tile: TileKindLike): TileKindKey {
 // tracks and how it credits. Mirrors the pickers' blurbs in TileTrackingConfig.
 export const TILE_KIND_BADGES: Record<TileKindKey, { label: string; cls: string; blurb: string }> = {
   standard: { label: 'Standard', cls: 'bg-gold/15 text-gold', blurb: 'Manual tile — a captain marks it done. No auto-tracking.' },
-  skill: { label: 'Skill', cls: 'bg-blue-500/20 text-blue-300', blurb: 'Auto-completes when a skill reaches an XP goal (hiscores-polled).' },
+  skill: { label: 'Skill XP', cls: 'bg-blue-500/20 text-blue-300', blurb: 'Auto-completes when a skill reaches an XP goal (hiscores-polled).' },
   boss: { label: 'Boss KC', cls: 'bg-purple-500/20 text-purple-300', blurb: 'Auto-completes when a boss reaches a kill-count goal (hiscores-polled).' },
   drop: { label: 'Drop', cls: 'bg-accent-green/20 text-accent-green-light', blurb: 'N drops of an item (or any of a pool) — plugin-detected, baked screenshot.' },
   collection: { label: 'Item set', cls: 'bg-accent-green/20 text-accent-green-light', blurb: 'Multiple items, each with its own required count — 1× each for a full set.' },
@@ -169,9 +169,9 @@ export const TILE_KIND_BADGES: Record<TileKindKey, { label: string; cls: string;
   lap: { label: 'Agility laps', cls: 'bg-lime-500/20 text-lime-300', blurb: 'N laps of an agility course, or N Hallowed Sepulchre floors / full runs — counted live off the in-game counter. Only laps run during the event count.' },
   pvp: { label: 'PvP kill', cls: 'bg-red-500/20 text-red-200', blurb: 'Kill players — anyone, rival teams, or a named bounty — in the Wild / PvP worlds. Safe minigames never count.' },
   gain: { label: 'Item gain', cls: 'bg-teal-500/20 text-teal-300', blurb: 'Catch/cook/gather N of an item — counted from inventory gains. Plugin-detected.' },
-  timed: { label: 'Timed', cls: 'bg-cyan-500/20 text-cyan-300', blurb: 'Clear an activity under a time cap (Inferno, raids, Colosseum). Plugin times it.' },
-  deathless: { label: 'Deathless', cls: 'bg-fuchsia-500/20 text-fuchsia-300', blurb: 'Complete a raid with ZERO party deaths, N times. Plugin counts deaths in the instance.' },
-  lms: { label: 'LMS', cls: 'bg-rose-500/20 text-rose-300', blurb: 'Place top-N in Last Man Standing (1 = win), M times. Plugin-detected at game end.' },
+  timed: { label: 'Timed clear', cls: 'bg-cyan-500/20 text-cyan-300', blurb: 'Clear an activity under a time cap (Inferno, raids, Colosseum). Plugin times it.' },
+  deathless: { label: 'Deathless raid', cls: 'bg-fuchsia-500/20 text-fuchsia-300', blurb: 'Complete a raid with ZERO party deaths, N times. Plugin counts deaths in the instance.' },
+  lms: { label: 'LMS placement', cls: 'bg-rose-500/20 text-rose-300', blurb: 'Place top-N in Last Man Standing (1 = win), M times. Plugin-detected at game end.' },
   value: { label: 'Loot value', cls: 'bg-amber-500/20 text-amber-200', blurb: 'Loot worth X gp — one haul or hauls summing to a target. Plugin prices the haul.' },
   diary: { label: 'Diary', cls: 'bg-amber-500/20 text-amber-300', blurb: 'Complete achievement-diary tiers during the event. Plugin-detected off the completion message.' },
   ca: { label: 'Combat task', cls: 'bg-orange-500/20 text-orange-300', blurb: 'Complete Combat Achievement tasks during the event. Plugin-detected off the completion message.' },
@@ -219,21 +219,11 @@ export function tileKindOptions(tiles: TileKindLike[]): { value: string; label: 
 /** The kind filter's options, in picker order. */
 export const TILE_KIND_FILTERS: { key: 'all' | TileKindKey; label: string }[] = [
   { key: 'all', label: 'All' },
-  { key: 'standard', label: 'Standard' },
-  { key: 'skill', label: 'Skill' },
-  { key: 'boss', label: 'Boss' },
-  { key: 'drop', label: 'Drop' },
-  { key: 'collection', label: 'Item set' },
-  { key: 'kill', label: 'Kill' },
-  { key: 'lap', label: 'Laps' },
-  { key: 'pvp', label: 'PvP' },
-  { key: 'gain', label: 'Gain' },
-  { key: 'timed', label: 'Timed' },
-  { key: 'deathless', label: 'Deathless' },
-  { key: 'lms', label: 'LMS' },
-  { key: 'value', label: 'Value' },
-  { key: 'diary', label: 'Diary' },
-  { key: 'ca', label: 'Combat task' },
+  // The badge's own label: the filter used to call the same kind "Kill" / "Laps" / "Gain" while the
+  // badge on the tile said "Kill count" / "Agility laps" / "Item gain".
+  ...(['standard', 'skill', 'boss', 'drop', 'collection', 'kill', 'lap', 'pvp', 'gain', 'timed', 'deathless', 'lms', 'value', 'diary', 'ca'] as const).map(
+    (key) => ({ key, label: TILE_KIND_BADGES[key].label }),
+  ),
 ];
 
 /**

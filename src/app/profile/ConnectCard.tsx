@@ -236,7 +236,7 @@ export default function ConnectCard({
             <div className="mt-2.5 flex items-center gap-3 rounded-xl border border-dashed border-card-border bg-brown-dark/50 px-3 py-2.5 text-sm text-text-muted">
               <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 animate-pulse shrink-0" />
               {heard ? (
-                <span>Something came through — loading your locker…</span>
+                <span>Something came through — loading your profile…</span>
               ) : (
                 <span>
                   Waiting for RuneLite… <b className="text-foreground">log in or hop worlds once</b> and this

@@ -60,7 +60,7 @@ export function DailyUnavailable({
         </p>
       ) : (
         <p className="leading-relaxed">
-          The daily breakdown is built from the stat sweep&apos;s history, which only covers members of this
+          The daily breakdown is built from our regular stat checks, which only cover members of this
           clan and only from the day tracking started. The standings below are unaffected.
         </p>
       )}
@@ -126,7 +126,7 @@ export function RaceChart({
     <div className="rounded-xl border border-card-border bg-card-bg p-4 sm:p-5">
       <h3 className="text-sm font-bold">The race, day by day</h3>
       <p className="mt-0.5 text-xs text-text-muted">
-        cumulative {unit} the sweep recorded for the top {top.length} — the shape of the week, not just its total
+        cumulative {unit} recorded for the top {top.length} — the shape of the week, not just its total
       </p>
       <svg viewBox={`0 0 ${W} ${H}`} className="mt-4 block w-full overflow-visible" role="img" aria-label="Cumulative gains per day">
         {[0, 0.25, 0.5, 0.75, 1].map((f) => (

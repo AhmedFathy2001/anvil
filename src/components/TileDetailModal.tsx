@@ -12,7 +12,7 @@ import type { Tile, Submission, ItemRequirementProgress } from '@/lib/types';
 import ManualOnlyBadge from './ManualOnlyBadge';
 import ClanLink from '@/components/ClanLink';
 import TileTargets from './TileTargets';
-import { statLabel, parseJsonArray, howTileCounts, tileKindKey } from '@/lib/tileKinds';
+import { statLabel, parseJsonArray, howTileCounts, tileKindKey, TILE_KIND_BADGES } from '@/lib/tileKinds';
 import { lapUnitNoun } from '@/lib/constants';
 import { isIndividualMode } from '@/lib/statTracking';
 import { evaluateCollection } from '@/lib/collectionSets';
@@ -264,7 +264,8 @@ export default function TileDetailModal({
   const isStatTile = !!tile.trackedStat;
   // Noun used in the count-based submission form copy ("drop" vs "kill" vs "completion" vs "item").
   const countNoun = isKill || isPvp ? 'kill' : isLap ? lapUnitNoun(parseJsonArray<string>(tile.targetNpcs)) : isDiary || isCa ? 'completion' : isGain ? 'item' : isDeathless ? 'run' : isLms ? 'game' : 'drop';
-  const kindLabel = isDrop ? 'Drop' : isKill ? 'Kill' : isLap ? (countNoun === 'lap' ? 'Agility laps' : 'Hallowed Sepulchre') : isPvp ? 'PvP kill' : isGain ? 'Item gain' : isDiary ? 'Diary' : isCa ? 'Combat task' : isDeathless ? 'Deathless' : isLms ? 'LMS' : isValue ? 'Loot value' : isTimed ? 'Timed' : isStatTile ? (tile.statType === 'boss' ? 'Boss KC' : 'XP') : 'Standard';
+  // The same names the board's badges and filters use (lib/tileKinds), bar the Sepulchre's own.
+  const kindLabel = isLap && countNoun !== 'lap' ? 'Hallowed Sepulchre' : TILE_KIND_BADGES[tileKindKey(tile)].label;
 
   // Kill/count tiles land one auto submission per kill (no screenshot), so a 500-kill tile is 500
   // identical rows. List only submissions with real proof (a screenshot or a human note) and roll

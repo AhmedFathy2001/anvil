@@ -632,8 +632,8 @@ function RunHome({
         )}
 
         <div className="mt-4 pt-4 border-t border-card-border flex flex-wrap gap-2">
-          <QuietLink href={`${base}/stats`}>Stats &amp; per-member breakdown</QuietLink>
-          <QuietLink href={`${base}/teams`}>Rosters &amp; subs</QuietLink>
+          <QuietLink href={`${base}/stats`}>Stats</QuietLink>
+          <QuietLink href={`${base}/teams`}>Teams</QuietLink>
           <button
             type="button"
             onClick={forceEnd}
@@ -763,7 +763,7 @@ function WrapHome({
       <div className="grid gap-4 sm:grid-cols-3">
         <NextStep
           href={`${base}/payouts`}
-          title={counts.unpaidPayouts > 0 ? `${counts.unpaidPayouts} payouts owed` : counts.payoutCount > 0 ? 'All paid' : 'Set the payouts'}
+          title={counts.unpaidPayouts > 0 ? `${counts.unpaidPayouts} prizes owed` : counts.payoutCount > 0 ? 'All paid' : 'Set the prizes'}
           detail={
             counts.unpaidPayouts > 0
               ? 'Mark each winner paid, with a screenshot.'

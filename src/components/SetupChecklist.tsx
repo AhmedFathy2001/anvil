@@ -20,16 +20,19 @@ export default function SetupChecklist({ steps, completedCount, totalCount }: Pr
 
   async function dismiss() {
     setDismissing(true);
+    // Only hide what actually saved: hiding on a failed save told the owner it was gone, then it came back.
     try {
-      await clanFetch('/api/admin/settings', {
+      const res = await clanFetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ setup_completed: '1' }),
       });
+      if (res.ok) setHidden(true);
     } catch {
-      /* non-fatal — worst case the card returns next load */
+      /* stays on screen; the button can be pressed again */
+    } finally {
+      setDismissing(false);
     }
-    setHidden(true);
   }
 
   if (hidden) return null;
@@ -51,7 +54,7 @@ export default function SetupChecklist({ steps, completedCount, totalCount }: Pr
           disabled={dismissing}
           className="text-xs text-text-muted hover:text-foreground transition-colors shrink-0 disabled:opacity-50"
         >
-          Dismiss
+          Hide checklist
         </button>
       </div>
 

@@ -596,10 +596,10 @@ export default function MyTeamClient({
           <div className="min-w-0">
             {boardHidden ? (
               <div className="border border-dashed border-card-border rounded-xl p-8 sm:p-10 text-center">
-                <p className="text-lg font-semibold mb-1">The board is sealed</p>
+                <p className="text-lg font-semibold mb-1">The tiles aren&apos;t out yet</p>
                 <p className="text-sm text-text-muted max-w-md mx-auto">
-                  The host unveils the tiles before the event starts — nobody has seen them yet, so
-                  there is nothing to plan around and nothing to miss.
+                  They appear here when the host reveals them or the event starts. Nobody has seen them yet, so
+                  you aren&apos;t missing anything.
                 </p>
                 <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-sm">
                   <span className="rounded-lg border border-card-border bg-brown-dark px-3 py-1.5">
