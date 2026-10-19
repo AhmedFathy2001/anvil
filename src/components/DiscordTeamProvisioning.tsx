@@ -175,16 +175,15 @@ export default function DiscordTeamProvisioning({
       <div className="pt-8 border-t border-card-border">
         <h2 className="text-lg font-bold flex items-center gap-2 mb-1">
           <span className="w-1 h-5 bg-indigo-400 rounded-full" />
-          Discord Channels &amp; Roles
+          Team channels in Discord <span className="text-xs font-normal text-text-muted">· off</span>
         </h2>
         <p className="text-xs text-text-muted">
-          Auto-creating a private channel per team and handing out contestant roles is turned off.
-          Enable it under{' '}
+          Optional. Anvil can give each team its own private text and voice channel in your Discord, plus a
+          role so teammates find each other, and remove them when the event is over. Turn it on under{' '}
           <ClanLink href="/admin/integrations" className="text-gold hover:underline">
             Discord → Team channels
-          </ClanLink>{' '}
-          (needs the bot token + server ID). Once on, this is where you provision channels and assign
-          everyone — automatically when a draft ends, or with a button for pre-assigned rosters.
+          </ClanLink>
+          ; the Anvil bot has to be in your server first.
         </p>
       </div>
     );
@@ -254,20 +253,27 @@ export default function DiscordTeamProvisioning({
       <summary className="cursor-pointer select-none list-none flex items-center gap-2 mb-2">
         <h2 className="text-lg font-bold flex items-center gap-2">
           <span className="w-1 h-5 bg-indigo-400 rounded-full" />
-          {status.clanName} Discord Channels &amp; Roles
+          Team channels in {status.clanName}&apos;s Discord
         </h2>
         <span className="text-[10px] uppercase tracking-wide text-text-muted px-1.5 py-0.5 rounded border border-card-border">
           Optional
         </span>
         <span className="ml-auto text-text-muted transition-transform group-open:rotate-90">▸</span>
       </summary>
+      <p className="mb-3 text-xs text-text-muted leading-relaxed">
+        Each team gets a private text and voice channel and a role, and everyone on the team gets that role.
+        Run it once the rosters are set; run it again after you change a roster.
+      </p>
+      {/* Only worth saying when another clan is in the event — otherwise there is no other server. */}
+      {status.cohosts.length > 0 && (
       <div className="mb-4 rounded-lg border border-indigo-500/30 bg-indigo-500/10 p-3 text-xs">
         <p className="font-semibold text-indigo-200">These controls affect {status.clanName}&apos;s Discord only</p>
         <p className="mt-1 text-text-muted">
-          A row named after a cohost is still an event team—it does not mean Anvil is changing that
+          A row named after a co-host is still an event team—it does not mean Anvil is changing that
           clan&apos;s server. Choose whether your Discord needs channels for every team or only your own.
         </p>
       </div>
+      )}
 
       {status.ownTeamId && status.cohosts.length > 0 && (
         <div className="mb-4 grid gap-2 sm:grid-cols-2">
@@ -325,7 +331,7 @@ export default function DiscordTeamProvisioning({
           className="text-sm font-medium bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 px-4 py-2 rounded-lg hover:bg-indigo-500/25 transition-colors disabled:opacity-50"
         >
           {busy === 'provision'
-            ? 'Provisioning…'
+            ? 'Creating…'
             : scopedFullyProvisioned
               ? 'Re-sync selected roles & channels'
               : 'Create selected roles & channels'}
@@ -336,7 +342,7 @@ export default function DiscordTeamProvisioning({
           disabled={!!busy || !status.bingoRoleConfigured || status.approvedSignups === 0}
           title={
             !status.bingoRoleConfigured
-              ? 'Set a bingo role ID under Integrations → Discord team channels first'
+              ? 'Pick a player role under Discord → Team channels first'
               : status.approvedSignups === 0
                 ? 'No approved sign-ups yet'
                 : `Give the bingo role to ${selectedScope === 'own-clan' ? `${status.clanName}'s` : 'all'} approved contestant(s)`

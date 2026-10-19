@@ -87,21 +87,20 @@ export async function POST(
     typeof captainUserId === 'number' && Number.isFinite(captainUserId) && captainUserId > 0
       ? captainUserId
       : null;
-  if (captainUserIdInt == null) {
-    return NextResponse.json(
-      { error: 'captainUserId is required — assign a Discord-linked user as captain.' },
-      { status: 400 },
-    );
+  // A captain is optional. Captains pick from their own login, so only people who have signed in to
+  // Anvil with Discord can be one — and a clan whose roster came from the plugin often has nobody who
+  // has yet. Requiring one made "Add team" a dead end for exactly those clans; without a captain the
+  // admin picks for the team in the draft, and a captain can be set later from Edit.
+  if (captainUserIdInt != null) {
+    // Confirm the chosen user actually exists before we trust the FK.
+    const captainUser = await db.query.users.findFirst({ where: eq(users.id, captainUserIdInt) });
+    if (!captainUser) {
+      return NextResponse.json({ error: 'Captain user not found.' }, { status: 404 });
+    }
+    // One captaincy per person per event — lib/teamCaptain#captainConflict.
+    const conflict = await captainConflict(id, captainUserIdInt);
+    if (conflict) return NextResponse.json({ error: conflict }, { status: 409 });
   }
-
-  // Confirm the chosen user actually exists before we trust the FK.
-  const captainUser = await db.query.users.findFirst({ where: eq(users.id, captainUserIdInt) });
-  if (!captainUser) {
-    return NextResponse.json({ error: 'Captain user not found.' }, { status: 404 });
-  }
-  // One captaincy per person per event — lib/teamCaptain#captainConflict.
-  const conflict = await captainConflict(id, captainUserIdInt);
-  if (conflict) return NextResponse.json({ error: conflict }, { status: 409 });
 
   // captain_password is a legacy column we no longer read or hand out — but the live
   // DB may still have it as NOT NULL until migration 0019 lands. Stuff a random byte
@@ -121,7 +120,7 @@ export async function POST(
   // in the roster and don't sit in the draft pool waiting to be picked onto themselves. When that
   // can't happen the team is still created — the reason rides back with it, because a captain who
   // was quietly not entered finds out by being told to go and sign up.
-  const seat = await placeCaptainOnTeam(id, team.id, captainUserIdInt);
+  const seat = captainUserIdInt != null ? await placeCaptainOnTeam(id, team.id, captainUserIdInt) : null;
 
   // If a draft order was already saved, fold the new team in (at the end) so the order
   // never silently drops teams created after it was first set.
@@ -137,7 +136,7 @@ export async function POST(
   }
 
   const { captainPassword: _, ...safeTeam } = team;
-  return NextResponse.json({ ...safeTeam, captainNotice: captainSeatNotice(seat) }, { status: 201 });
+  return NextResponse.json({ ...safeTeam, captainNotice: seat ? captainSeatNotice(seat) : null }, { status: 201 });
 }
 
 export async function DELETE(

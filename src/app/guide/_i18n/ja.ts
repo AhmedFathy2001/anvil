@@ -874,7 +874,7 @@ const ja: PartialGuideDict = {
       title: '投稿を複数チャンネルに分ける',
       body: [
         '既定ではすべてが 1 つの告知チャンネルに投稿されます。うるさくなってきたら **Discord → Where posts go** を開き、騒がしいカテゴリにそれぞれの居場所を与えてください —— ビンゴイベント、週間コンペ、レアドロップ、死亡、PvP キル、combat achievements、クリップ。空のままにしたものはメインチャンネルに戻るので、1 カテゴリずつ分けていけます。',
-        'ボットをつないでおけば webhook の URL に触れることはありません：一覧からチャンネルを選び **Create webhook** を押すだけです。忙しいイベントでは同じチャンネルに 2 本目の webhook を足せます —— Anvil が交互に使うので、Discord のレート制限に投稿を飲み込まれずに済みます。',
+        'ボットをつないでおけば webhook の URL に触れることはありません：一覧からチャンネルを選び **Post here** を押すだけです。忙しいイベントでは同じチャンネルに 2 本目の webhook を足せます —— Anvil が交互に使うので、Discord のレート制限に投稿を飲み込まれずに済みます。',
       ],
       clipsNote: {
         tag: 'クリップチャンネルだけは違う',
@@ -1885,7 +1885,7 @@ const ja: PartialGuideDict = {
       ],
       note: {
         tag: 'チャンネルでクランに知らせる',
-        body: 'Admin → Settings → Webhooks で **Coffer channel** を Discord のチャンネルに向けると、動きごとに残高付きで投稿されます。代替先を持たない唯一のフィードです — 空のままなら、お金についてはどこにも投稿されません。[Anvil と Discord]({discordGuide}) を参照。',
+        body: 'Admin → Discord → Where posts go で **Coffer channel** を Discord のチャンネルに向けると、動きごとに残高付きで投稿されます。代替先を持たない唯一のフィードです — 空のままなら、お金についてはどこにも投稿されません。[Anvil と Discord]({discordGuide}) を参照。',
       },
     },
 

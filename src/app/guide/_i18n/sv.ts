@@ -874,7 +874,7 @@ const sv: PartialGuideDict = {
       title: 'Sprid inläggen över flera kanaler',
       body: [
         'Allt postas som standard i en enda huvudkanal för meddelanden. När den blir stökig, öppna **Discord → Where posts go** och ge de högljudda kategorierna egna hem — bingoevent, veckotävlingar, sällsynta drops, dödsfall, PvP-kills, combat achievements, klipp. Allt du lämnar tomt faller tillbaka till huvudkanalen, så du kan flytta en kategori i taget.',
-        'Med boten ansluten rör du aldrig en webhook-URL: välj en kanal i listan och tryck **Create webhook**. Under ett hektiskt event kan du lägga till en andra webhook till samma kanal — Anvil växlar mellan dem så att Discords hastighetsgräns inte sväljer inlägg.',
+        'Med boten ansluten rör du aldrig en webhook-URL: välj en kanal i listan och tryck **Post here**. Under ett hektiskt event kan du lägga till en andra webhook till samma kanal — Anvil växlar mellan dem så att Discords hastighetsgräns inte sväljer inlägg.',
       ],
       clipsNote: {
         tag: 'Klippkanalen är annorlunda',
@@ -1885,7 +1885,7 @@ const sv: PartialGuideDict = {
       ],
       note: {
         tag: 'Berätta för klanen, i en kanal',
-        body: 'Peka **Coffer channel** mot en Discord-kanal under Admin → Settings → Webhooks, så postas varje rörelse med saldot den lämnar efter sig. Det är det enda flödet utan reservväg: lämna det tomt och ingenting om pengarna postas någonstans. Se [Anvil i Discord]({discordGuide}).',
+        body: 'Peka **Coffer channel** mot en Discord-kanal under Admin → Discord → Where posts go, så postas varje rörelse med saldot den lämnar efter sig. Det är det enda flödet utan reservväg: lämna det tomt och ingenting om pengarna postas någonstans. Se [Anvil i Discord]({discordGuide}).',
       },
     },
 

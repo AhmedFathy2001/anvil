@@ -875,7 +875,7 @@ const fi: PartialGuideDict = {
       title: 'Jaa julkaisut useaan kanavaan',
       body: [
         'Kaikki julkaistaan oletuksena yhteen pääilmoituskanavaan. Kun se käy meluisaksi, avaa **Discord → Where posts go** ja anna äänekkäille kategorioille omat kotinsa — bingotapahtumat, viikkokilpailut, harvinaiset dropit, kuolemat, PvP-tapot, combat achievementit, leikkeet. Kaikki minkä jätät tyhjäksi putoaa takaisin pääkanavaan, joten voit erottaa yhden kategorian kerrallaan.',
-        'Botin ollessa yhdistettynä et koskaan koske webhook-osoitteeseen: valitse kanava valikosta ja paina **Create webhook**. Kiireisessä tapahtumassa voit lisätä toisen webhookin samaan kanavaan — Anvil vuorottelee niiden välillä, jottei Discordin nopeusraja niele julkaisuja.',
+        'Botin ollessa yhdistettynä et koskaan koske webhook-osoitteeseen: valitse kanava valikosta ja paina **Post here**. Kiireisessä tapahtumassa voit lisätä toisen webhookin samaan kanavaan — Anvil vuorottelee niiden välillä, jottei Discordin nopeusraja niele julkaisuja.',
       ],
       clipsNote: {
         tag: 'Leikekanava on erilainen',
@@ -1886,7 +1886,7 @@ const fi: PartialGuideDict = {
       ],
       note: {
         tag: 'Kerro klaanille, kanavalla',
-        body: 'Osoita **Coffer channel** Discord-kanavalle kohdassa Admin → Settings → Webhooks, niin jokainen liike julkaistaan sen jättämän saldon kanssa. Se on ainoa syöte ilman varareittiä: jätä tyhjäksi, eikä rahasta julkaista mitään missään. Katso [Anvil Discordissa]({discordGuide}).',
+        body: 'Osoita **Coffer channel** Discord-kanavalle kohdassa Admin → Discord → Where posts go, niin jokainen liike julkaistaan sen jättämän saldon kanssa. Se on ainoa syöte ilman varareittiä: jätä tyhjäksi, eikä rahasta julkaista mitään missään. Katso [Anvil Discordissa]({discordGuide}).',
       },
     },
 

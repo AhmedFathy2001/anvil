@@ -65,6 +65,9 @@ export default function PlayerRatingBadge({ ratings, playerId, variant = 'chip',
   const entry = ratings?.ratingFor(playerId);
   if (!entry) return null;
   const { profile, tier } = entry;
+  // Nothing to rate them on (no past events, no marker bosses): a tier would rank unknowns against
+  // each other — "S 0??" on a brand-new pool read as top-tier with a score of zero.
+  if (profile.band === 'wide' && profile.evidenceEvents === 0 && profile.capabilityMarkers.length === 0) return null;
   const glyph = bandGlyph(profile);
   return (
     <span

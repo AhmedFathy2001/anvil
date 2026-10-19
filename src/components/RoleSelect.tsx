@@ -160,7 +160,7 @@ export default function RoleSelect({
         <Input
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="Role ID (connect the bot to pick from a list)"
+          placeholder="Role ID — or add the Anvil bot to pick from a list"
           className="w-full px-3 py-2 rounded-lg bg-brown-dark border border-card-border text-sm focus:outline-none focus:border-gold/60"
         />
         <button type="button" onClick={openCreate} className="mt-1 text-xs text-gold hover:underline">

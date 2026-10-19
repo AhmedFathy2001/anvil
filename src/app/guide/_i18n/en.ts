@@ -358,7 +358,7 @@ export const en = {
       title: 'Set up webhooks',
       body: [
         'Anvil posts through **webhooks**, one per channel, and every one of them is optional. Nothing posts anywhere until you point a feed at a channel — a fresh clan is silent by design rather than by accident.',
-        'Open **Admin → Settings → Webhooks** and start with **Master announcements webhook**. With the bot connected, choose a channel, press **Create webhook**, then use **Test** beside the saved URL. Without the bot, open that Discord channel’s **Edit Channel → Integrations → Webhooks**, create one, copy its URL, paste it into Anvil, and press **Add**. A webhook URL can post to its channel, so treat it like a password; if it leaks, delete it in Discord and create a new one. **Create webhook** replaces the saved destination, while **Add another** keeps both and rotates busy posts between them.',
+        'Open **Admin → Discord → Where posts go** and start with **Main channel**. With the Anvil bot in your server, pick a channel, press **Post here**, then use **Test** beside it. Without the bot, open that Discord channel’s **Edit Channel → Integrations → Webhooks**, create one, copy its URL, paste it into Anvil, and press **Add**. A webhook URL can post to its channel, so treat it like a password; if it leaks, delete it in Discord and create a new one. **Post here** replaces the saved destination, while **Add another** keeps both and rotates busy posts between them.',
       ],
       feeds: [
         {
@@ -860,7 +860,7 @@ export const en = {
       title: 'Split posts across channels',
       body: [
         'Everything posts to one master announcements channel by default. When that gets noisy, open **Discord → Where posts go** and give the loud categories their own homes — bingo events, weekly competitions, rare drops, deaths, PvP kills, combat achievements, clips. Anything left blank falls back to the master channel, so you can split one category at a time.',
-        'With the bot connected you never touch a webhook URL: pick a channel from the dropdown and press **Create webhook**. On a busy event you can add a second webhook to the same channel — Anvil rotates between them so Discord’s rate limit doesn’t swallow posts.',
+        'With the bot connected you never touch a webhook URL: pick a channel from the dropdown and press **Post here**. On a busy event you can add a second webhook to the same channel — Anvil rotates between them so Discord’s rate limit doesn’t swallow posts.',
       ],
       clipsNote: {
         tag: 'The clips channel is different',
@@ -1866,7 +1866,7 @@ export const en = {
       ],
       note: {
         tag: 'Tell the clan, in a channel',
-        body: 'Point the **Coffer channel** at a Discord channel under Admin → Settings → Webhooks and every movement posts with the balance it leaves behind. It is the one feed with no fallback: leave it blank and nothing about the money is posted anywhere. See [Anvil in Discord]({discordGuide}).',
+        body: 'Point the **Coffer channel** at a Discord channel under Admin → Discord → Where posts go and every movement posts with the balance it leaves behind. It is the one feed with no fallback: leave it blank and nothing about the money is posted anywhere. See [Anvil in Discord]({discordGuide}).',
       },
     },
 

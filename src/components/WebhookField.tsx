@@ -42,7 +42,7 @@ type Msg = { type: 'success' | 'error'; text: string } | null;
 export default function WebhookField({
   settingKey = 'discord_webhook_url',
   label = 'Discord webhook',
-  helpText = 'Paste a webhook URL from Discord → Server Settings → Integrations → Webhooks.',
+  helpText = 'In Discord, open the channel’s settings → Integrations → Webhooks → New Webhook → Copy Webhook URL, and paste it here. A webhook is just a link Anvil uses to post into that one channel.',
   channels,
   botEnabled,
 }: WebhookFieldProps) {
@@ -244,14 +244,14 @@ export default function WebhookField({
         </ul>
       ) : (
         <p className="text-xs text-text-muted">
-          No webhook set — {canCreate ? 'create one below or paste an existing URL.' : 'paste a webhook URL below.'}
+          Not set — {canCreate ? 'pick a channel below.' : 'paste the channel’s webhook link below.'}
         </p>
       )}
 
       {/* Create with the bot */}
       {canCreate && (
         <div className="rounded-lg border border-card-border bg-bg/40 p-3 space-y-2">
-          <p className="text-xs font-medium">Create with the bot</p>
+          <p className="text-xs font-medium">Pick a channel</p>
           <div className="flex flex-wrap gap-2">
             <Select
               value={channelId}
@@ -283,7 +283,7 @@ export default function WebhookField({
               disabled={creating || !channelId || blockedByPerm}
               className="px-3 py-1.5 bg-gold text-bg font-semibold rounded-lg text-sm hover:bg-gold/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {creating ? 'Working…' : 'Create webhook'}
+              {creating ? 'Working…' : 'Post here'}
             </button>
             {urls.length > 0 && (
               <button
@@ -296,8 +296,9 @@ export default function WebhookField({
             )}
           </div>
           <p className="text-[11px] text-text-muted">
-            The bot needs <em>Manage Webhooks</em> on the channel. <strong>Create</strong> replaces this channel&apos;s
-            webhook; <strong>Add another</strong> adds a second so posts rotate across them under heavy load.
+            The Anvil bot needs the <em>Manage Webhooks</em> permission in that channel. <strong>Post here</strong>{' '}
+            replaces what&apos;s set; <strong>Add another</strong> adds a second link to share the load on busy
+            events.
           </p>
         </div>
       )}
@@ -325,8 +326,8 @@ export default function WebhookField({
 
       {!botEnabled && (
         <p className="text-[11px] text-text-muted">
-          Tip: connect a bot in the <span className="text-foreground/70">Discord bot</span> tab to create webhooks
-          automatically instead of pasting.
+          Tip: add the Anvil bot under <span className="text-foreground/70">Connection</span> at the top of this
+          page and you can just pick a channel instead of pasting links.
         </p>
       )}
 

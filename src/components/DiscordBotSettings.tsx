@@ -135,6 +135,8 @@ export default function DiscordBotSettings() {
   const needsInvite = status.configured && !badTokenSet && status.inGuild === false;
   const needsGuildId = status.configured && !badTokenSet && !status.guildId;
   const ready = status.configured && !badTokenSet && status.guildVerified && status.inGuild === true;
+  // The managed Anvil bot ('own-env' is the same bot from the clan's side — see SOURCE_LABEL).
+  const managed = status.source === 'shared' || status.source === 'own-env';
   const inviteButton = status.inviteUrl && (
     <a
       href={status.inviteUrl}
@@ -229,7 +231,36 @@ export default function DiscordBotSettings() {
         )}
       </div>
 
-      {/* BYO token (write-only) */}
+      {/* With the shared bot available, getting set up is two steps — add it, name the server — and
+          the bring-your-own-bot token is an advanced option. It used to sit first on the page, so a
+          new admin's first question was "where do I get a bot token?", which they never needed. */}
+      {managed && !ready && (
+        <div className="rounded-lg border border-gold/30 bg-gold/[0.05] p-3 space-y-2">
+          <p className="text-sm font-medium">Two steps to connect your Discord</p>
+          <ol className="list-decimal ml-5 space-y-1.5 text-xs text-text-muted leading-relaxed">
+            <li>
+              <span className="text-foreground/85">Add the Anvil bot to your server.</span>{' '}
+              {status.inviteUrl ? (
+                <a href={status.inviteUrl} target="_blank" rel="noopener noreferrer" className="text-gold hover:underline">
+                  Add Anvil to Discord ↗
+                </a>
+              ) : (
+                'The link appears here once the bot is reachable.'
+              )}{' '}
+              Pick your server on Discord&apos;s screen and press Authorize. You need to own the server or have
+              Manage Server.
+            </li>
+            <li>
+              <span className="text-foreground/85">Tell Anvil which server it is</span>, in the box below. In
+              Discord, turn on User Settings → Advanced → Developer Mode, then right-click your server&apos;s icon →
+              Copy Server ID, paste it, and press Save.
+            </li>
+          </ol>
+        </div>
+      )}
+
+      {/* BYO token (write-only) — folded behind "use your own bot" when the shared one is there. */}
+      <ByoWrap folded={managed} open={status.source === 'byo'}>
       <div>
         <label className="block text-sm font-medium mb-1">
           Your bot token <span className="text-text-muted font-normal">(optional)</span>
@@ -252,10 +283,11 @@ export default function DiscordBotSettings() {
           {status.source === 'byo' && status.sharedAvailable && ' Clear it to go back to the shared Anvil bot.'}
         </p>
       </div>
+      </ByoWrap>
 
       {/* Guild / server ID */}
       <div>
-        <label className="block text-sm font-medium mb-1">Discord server (guild) ID</label>
+        <label className="block text-sm font-medium mb-1">Your Discord server&apos;s ID</label>
         <Input
           value={guildId}
           onChange={(e) => setGuildId(e.target.value)}
@@ -263,8 +295,9 @@ export default function DiscordBotSettings() {
           className="w-full px-3 py-2 rounded-lg bg-brown-dark border border-card-border text-sm focus:outline-none focus:border-gold/60"
         />
         <p className="text-xs text-text-muted mt-1">
-          Right-click your server icon in Discord → Copy Server ID (needs Developer Mode on). The bot must already
-          be a member, and your signed-in Discord account must own the server or have Manage Server.
+          A long number. In Discord: User Settings → Advanced → Developer Mode on, then right-click your server&apos;s
+          icon → Copy Server ID. The bot must already be in the server, and the Discord account you signed in to
+          Anvil with must own it or have Manage Server.
         </p>
       </div>
 
@@ -301,5 +334,19 @@ export default function DiscordBotSettings() {
         {hasChanges && <span className="text-xs text-yellow-400">Unsaved changes</span>}
       </div>
     </div>
+  );
+}
+
+/** The bring-your-own-bot token field, behind a fold when the shared Anvil bot already covers it. */
+function ByoWrap({ folded, open, children }: { folded: boolean; open: boolean; children: React.ReactNode }) {
+  if (!folded) return <>{children}</>;
+  return (
+    <details open={open} className="group rounded-lg border border-card-border">
+      <summary className="cursor-pointer select-none list-none px-3 py-2 text-xs text-text-muted flex items-center gap-1.5">
+        <span className="transition-transform group-open:rotate-90">▸</span>
+        Use your own bot instead (advanced)
+      </summary>
+      <div className="px-3 pb-3">{children}</div>
+    </details>
   );
 }

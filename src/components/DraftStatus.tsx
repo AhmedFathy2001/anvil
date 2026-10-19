@@ -46,7 +46,7 @@ export default function DraftStatus({
               : 'bg-card-border text-text-muted'
           }`}
         >
-          {status.toUpperCase()}
+          {({ none: 'Not started', active: 'Picking', paused: 'Paused', completed: 'Done' } as Record<string, string>)[status] ?? status}
         </span>
       </div>
 

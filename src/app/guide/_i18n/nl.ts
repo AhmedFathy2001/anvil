@@ -875,7 +875,7 @@ const nl: PartialGuideDict = {
       title: 'Verdeel de berichten over kanalen',
       body: [
         'Standaard gaat alles naar één hoofdkanaal voor aankondigingen. Wordt dat rumoerig, open dan **Discord → Where posts go** en geef de luide categorieën hun eigen plek — bingo-events, weekcompetities, zeldzame drops, sterfgevallen, PvP-kills, combat achievements, clips. Alles wat je leeg laat, valt terug op het hoofdkanaal, je kunt dus één categorie tegelijk afsplitsen.',
-        'Met de bot verbonden raak je nooit een webhook-URL aan: kies een kanaal uit de lijst en druk **Create webhook**. Bij een druk event kun je een tweede webhook op hetzelfde kanaal zetten — Anvil wisselt ertussen zodat de snelheidslimiet van Discord geen berichten opslokt.',
+        'Met de bot verbonden raak je nooit een webhook-URL aan: kies een kanaal uit de lijst en druk **Post here**. Bij een druk event kun je een tweede webhook op hetzelfde kanaal zetten — Anvil wisselt ertussen zodat de snelheidslimiet van Discord geen berichten opslokt.',
       ],
       clipsNote: {
         tag: 'Het clipkanaal is anders',
@@ -1886,7 +1886,7 @@ const nl: PartialGuideDict = {
       ],
       note: {
         tag: 'Vertel het de clan, in een kanaal',
-        body: 'Richt **Coffer channel** onder Admin → Settings → Webhooks op een Discord-kanaal, dan wordt elke beweging geplaatst met het saldo dat ze achterlaat. Het is de enige feed zonder terugval: laat hem leeg en er wordt nergens iets over het geld geplaatst. Zie [Anvil in Discord]({discordGuide}).',
+        body: 'Richt **Coffer channel** onder Admin → Discord → Where posts go op een Discord-kanaal, dan wordt elke beweging geplaatst met het saldo dat ze achterlaat. Het is de enige feed zonder terugval: laat hem leeg en er wordt nergens iets over het geld geplaatst. Zie [Anvil in Discord]({discordGuide}).',
       },
     },
 

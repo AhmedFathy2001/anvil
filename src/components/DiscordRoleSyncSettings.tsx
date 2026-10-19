@@ -122,7 +122,7 @@ export default function DiscordRoleSyncSettings() {
         checked={roleSync}
         onChange={setRoleSync}
         label="Enable Discord role sync"
-        description="Gives linked members their rank + default Discord roles. Requires the bot connected in the Discord bot tab. Master switch — nickname sync also requires this on."
+        description="Gives members who have signed in to Anvil the Discord role that matches their in-game clan rank, plus any default roles. Needs the Anvil bot in your server (Connection, above). Nickname sync below also needs this on."
       />
 
       <Checkbox

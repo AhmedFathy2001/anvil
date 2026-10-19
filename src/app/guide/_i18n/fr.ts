@@ -876,7 +876,7 @@ const fr: PartialGuideDict = {
       title: 'Répartir les publications sur plusieurs salons',
       body: [
         'Par défaut, tout part dans un salon d’annonces principal. Quand il devient bruyant, ouvrez **Discord → Where posts go** et donnez aux catégories bavardes leur propre maison — événements bingo, compétitions hebdomadaires, drops rares, morts, kills PvP, combat achievements, clips. Tout ce que vous laissez vide retombe sur le salon principal, vous pouvez donc détacher une catégorie à la fois.',
-        'Avec le bot connecté, vous ne touchez jamais à une URL de webhook : choisissez un salon dans la liste et appuyez sur **Create webhook**. Sur un événement chargé, vous pouvez ajouter un second webhook sur le même salon — Anvil alterne entre les deux pour que la limite de débit de Discord n’avale pas de publications.',
+        'Avec le bot connecté, vous ne touchez jamais à une URL de webhook : choisissez un salon dans la liste et appuyez sur **Post here**. Sur un événement chargé, vous pouvez ajouter un second webhook sur le même salon — Anvil alterne entre les deux pour que la limite de débit de Discord n’avale pas de publications.',
       ],
       clipsNote: {
         tag: 'Le salon clips est différent',
@@ -1887,7 +1887,7 @@ const fr: PartialGuideDict = {
       ],
       note: {
         tag: 'Dites-le au clan, dans un salon',
-        body: 'Pointez **Coffer channel** vers un salon Discord sous Admin → Settings → Webhooks et chaque mouvement est publié avec le solde qu\'il laisse derrière lui. C\'est le seul flux sans repli : laissez-le vide et rien sur l\'argent n\'est publié nulle part. Voir [Anvil sur Discord]({discordGuide}).',
+        body: 'Pointez **Coffer channel** vers un salon Discord sous Admin → Discord → Where posts go et chaque mouvement est publié avec le solde qu\'il laisse derrière lui. C\'est le seul flux sans repli : laissez-le vide et rien sur l\'argent n\'est publié nulle part. Voir [Anvil sur Discord]({discordGuide}).',
       },
     },
 
