@@ -33,6 +33,24 @@ export interface LibraryTask {
 }
 
 export const SEED_TASKS: SeedTask[] = (seed as { tasks: SeedTask[] }).tasks;
+const SEED_BY_KEY = new Map(SEED_TASKS.map((t) => [t.key, t]));
+
+/**
+ * A seeded row's config, repaired if it was copied from a broken seed: XP tasks typed "stat" (which
+ * no importer accepts), diary tasks with no diary named (which can never credit), and "any one of
+ * these" drops with no amount (which import as a collection needing all of them). Clans keep the
+ * rows they copied, so the fix has to happen on read; anything a clan edited is left alone.
+ */
+function repairedConfig(seedKey: string | null, config: TileCsvRow): TileCsvRow {
+  const fresh = seedKey ? SEED_BY_KEY.get(seedKey) : undefined;
+  if (!fresh) return config;
+  const broken =
+    (config.tileType as string | undefined) === 'stat' ||
+    (config.tileType === 'diary' && !(config.targetNpcs && config.targetNpcs.length)) ||
+    // "Any Barrows piece" with no amount reads as a collection needing EVERY piece.
+    (!!config.items && config.items.length > 1 && config.requiredAmount == null && fresh.config.requiredAmount != null);
+  return broken ? fresh.config : config;
+}
 
 function parseConfig(raw: string): TileCsvRow {
   try {
@@ -57,7 +75,7 @@ function toTask(
     tier: tileTierKey(row.points, bands),
     seedKey: row.seedKey,
     sourceEventId: row.sourceEventId,
-    config: parseConfig(row.config),
+    config: repairedConfig(row.seedKey, parseConfig(row.config)),
   };
 }
 

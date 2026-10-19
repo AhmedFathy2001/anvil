@@ -17,6 +17,7 @@ import { TRIAL_RANK_ACTIVITIES } from '@/lib/barracudaTrials';
 import type { TileConfig, TileMissionRules } from '@/lib/types';
 import { parseTileMissionRules, type MissionReward } from '@/lib/eventRules';
 import MissionRewardEditor from '@/components/MissionRewardEditor';
+import TaskFinder from '@/components/TaskFinder';
 import NumberInput from '@/components/NumberInput';
 import { clanFetch } from '@/lib/clanFetch';
 import { RAID_EFFORT_MODES, parseTileEffortConfig } from '@/lib/tileEffortConfig';
@@ -520,7 +521,65 @@ function TrackingModeField({
   );
 }
 
-export default function TileTrackingConfig({
+// Every field that says what a tile tracks. A suggestion from the task finder starts from these
+// cleared, so picking "Zulrah kills" on a tile that was a drop doesn't leave its items behind.
+const KIND_FIELDS_CLEARED: Partial<TileConfig> = {
+  tileType: 'standard',
+  requiredAmount: null,
+  trackedStat: null,
+  statType: null,
+  statGoal: null,
+  statBasis: 'gain',
+  trackedItemIds: null,
+  itemRequirements: null,
+  groupMode: null,
+  setsRequired: null,
+  countMode: null,
+  perKillCap: null,
+  sourceNpcs: null,
+  targetNpcs: null,
+  timedActivity: null,
+  timeThresholdSeconds: null,
+  partySize: null,
+  pvpMinLootValue: null,
+};
+
+/**
+ * The tile editor, with "What's the task?" on top while the tile can still change kind.
+ *
+ * Picking a suggestion rebuilds the editor below from the tile plus the suggestion's fields — every
+ * field there starts from `initial`, so a remount is the honest way to hand it new ones. Nothing is
+ * written until the admin saves. A label someone already wrote is kept; a placeholder or a label the
+ * previous pick put there is replaced.
+ */
+export default function TileTrackingConfig(props: Props) {
+  const [applied, setApplied] = useState<{ n: number; title: string; config: Partial<TileConfig> } | null>(null);
+  const ownLabel = props.initial.label.trim() && !/^Tile [0-9]+$/.test(props.initial.label) ? props.initial.label : null;
+  const initial: TileConfig = applied
+    ? {
+        ...props.initial,
+        ...KIND_FIELDS_CLEARED,
+        ...applied.config,
+        label: ownLabel ?? applied.config.label ?? props.initial.label,
+        // Points only matter on a points board; a classic grid keeps every tile at its own value.
+        points: props.pointsMode ? applied.config.points ?? props.initial.points : props.initial.points,
+        category: applied.config.category ?? props.initial.category,
+      }
+    : props.initial;
+  return (
+    <>
+      {!props.eventStarted && (
+        <TaskFinder
+          picked={applied?.title ?? null}
+          onPick={(s) => setApplied((a) => ({ n: (a?.n ?? 0) + 1, title: s.title, config: s.config }))}
+        />
+      )}
+      <TileTrackingEditor key={applied?.n ?? 0} {...props} initial={initial} />
+    </>
+  );
+}
+
+function TileTrackingEditor({
   tileId,
   eventId,
   onSave,
@@ -1509,7 +1568,7 @@ export default function TileTrackingConfig({
 
       {/* Tile kind — the single source of truth for what this tile is */}
       <div>
-        <label className="block text-xs text-text-muted mb-1">Tile Kind</label>
+        <label className="block text-xs text-text-muted mb-1">{eventStarted ? "Tile kind" : "Kind — set for you when you pick a task above"}</label>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
           {KINDS.map((k) => (
             <button
@@ -1735,113 +1794,7 @@ export default function TileTrackingConfig({
               </div>
             ) : null;
           })()}
-          {kind === 'drop' && (
-            <div>
-              <label className="block text-xs text-text-muted mb-1">
-                Required Amount <span className="text-text-muted/60">({countMode === 'distinct' ? 'different items' : 'any tracked item counts'})</span>
-              </label>
-              <Input
-                type="number"
-                value={requiredAmount}
-                onChange={(e) => setRequiredAmount(e.target.value)}
-                disabled={locked}
-                placeholder="e.g. 10"
-                className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
-                min="1"
-              />
-              <p className="text-[10px] text-text-muted mt-0.5">
-                Total drops needed across all tracked items combined. E.g. &ldquo;10 uniques from any GWD boss&rdquo;.
-              </p>
-              {trackedItems.length > 1 && (
-                <div className="flex gap-2 mt-2">
-                  {([
-                    ['total', 'Repeats count', 'Every drop counts — 3× the same item finishes a "get 3" tile.'],
-                    ['distinct', 'Different items only', 'Only DIFFERENT items count — the same item twice counts once. "Get 3 different uniques."'],
-                  ] as const).map(([value, label, help]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      title={help}
-                      onClick={() => setCountMode(value)}
-                      className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
-                        countMode === value ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {isDrop && (
-            <div className="rounded-lg border border-card-border/60 p-2.5 space-y-2">
-              <Checkbox
-                checked={oncePerKill}
-                onChange={setOncePerKill}
-                label={
-                  <>
-                    Count once per kill
-                    <FlagHint text={PER_KILL_CAP_HELP} />
-                  </>
-                }
-                description="One kill credits this tile once, however many tracked items it dropped. Off = every drop counts, so a kill that hands you two tracked items counts twice."
-              />
-
-              {/* Roll tiles. A boss whose vestige is on a fixed rotation makes "get N unique ROLLS"
-                  a target a team can actually chase, which a 1/500 vestige isn't — and it's just this
-                  item list plus the cap above, so no new tile kind is needed.
-
-                  Collapsed: these are one-click presets for four specific bosses, and shown open on
-                  every drop tile they read as settings that belong to the tile you're editing. */}
-              <details className="group">
-                <summary className="cursor-pointer select-none list-none text-[10px] text-text-muted hover:text-foreground flex items-center gap-1">
-                  <span className="transition-transform group-open:rotate-90">▸</span>
-                  Fill from a boss&rsquo;s unique table (DT2 vestige rolls)
-                  <FlagHint text={ROLL_TABLE_HELP} />
-                </summary>
-                <div className="flex flex-wrap gap-1.5 mt-1.5">
-                  {ROLL_TABLES.map((t) => (
-                    <button
-                      key={t.boss}
-                      type="button"
-                      title={`Fill the tracked items with ${t.boss}'s unique table (${t.rollItems.length} items, ${t.vestigeName} among them) and count once per kill — one roll, one credit.`}
-                      onClick={() => {
-                        setTrackedItems(t.rollItems.map((i) => ({ ...i, perItemAmount: 1 })));
-                        setSourceNpcsText(t.boss);
-                        setOncePerKill(true);
-                      }}
-                      className="text-[10px] px-2 py-1 rounded border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors"
-                    >
-                      {t.boss}
-                    </button>
-                  ))}
-                </div>
-              </details>
-            </div>
-          )}
-
-          {isCollection && trackedItems.length > 0 && (
-            <div>
-              <label className="block text-xs text-text-muted mb-1">
-                Total Required <span className="text-text-muted/60">(auto-computed)</span>
-              </label>
-              <div className="px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground/60">
-                {(() => {
-                  // Same arithmetic the server stores (lib/collectionSets): the shortest path to
-                  // completion under this tile's mode.
-                  const total = collectionDisplayTotal(collectionRequirements, groupMode, groupMode === 'any' ? setsRequired : null);
-                  const setCount = new Set(
-                    trackedItems.map((i) => i.group?.trim().toLowerCase()).filter(Boolean),
-                  ).size;
-                  if (setCount === 0) return total;
-                  return `${total} (${groupMode === 'all' ? `all ${setCount} sets` : setsRequired > 1 ? `${setsRequired} sets` : `smallest of ${setCount} sets`})`;
-                })()}
-              </div>
-            </div>
-          )}
-
+          {/* Which item first, then how many — the item is the task; the amount qualifies it. */}
           <div>
             <label className="block text-xs text-text-muted mb-1">
               {isCollection ? 'Set Items (count per item)' : 'Tracked Items'}
@@ -2054,7 +2007,7 @@ export default function TileTrackingConfig({
                 className="w-fit"
                 label={
                   <>
-                    Drops only
+                    Only search items that drop
                     <FlagHint text="Search only items something in the game actually drops — monster drop tables, raid and clue chests, and collection log unlocks. Uncheck to search every item in the game, including shop stock and skilling resources." />
                   </>
                 }
@@ -2079,10 +2032,117 @@ export default function TileTrackingConfig({
               <p className="text-[10px] text-text-muted mt-1">
                 {isCollection
                   ? 'Add each item in the set — every one needs its own count to complete the tile.'
-                  : 'Optional: add specific item drops the plugin should auto-detect. Leave empty to count any submitted drop.'}
+                  : 'Add the item (or any of several) that counts. With none, the plugin has nothing to watch for and a captain has to tick the tile by hand.'}
               </p>
             )}
           </div>
+
+          {kind === 'drop' && (
+            <div>
+              <label className="block text-xs text-text-muted mb-1">
+                Required Amount <span className="text-text-muted/60">({countMode === 'distinct' ? 'different items' : 'any tracked item counts'})</span>
+              </label>
+              <Input
+                type="number"
+                value={requiredAmount}
+                onChange={(e) => setRequiredAmount(e.target.value)}
+                disabled={locked}
+                placeholder="e.g. 10"
+                className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
+                min="1"
+              />
+              <p className="text-[10px] text-text-muted mt-0.5">
+                Total drops needed across all tracked items combined. E.g. &ldquo;10 uniques from any GWD boss&rdquo;.
+              </p>
+              {trackedItems.length > 1 && (
+                <div className="flex gap-2 mt-2">
+                  {([
+                    ['total', 'Repeats count', 'Every drop counts — 3× the same item finishes a "get 3" tile.'],
+                    ['distinct', 'Different items only', 'Only DIFFERENT items count — the same item twice counts once. "Get 3 different uniques."'],
+                  ] as const).map(([value, label, help]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      title={help}
+                      onClick={() => setCountMode(value)}
+                      className={`flex-1 px-3 py-1.5 text-xs rounded border transition-colors ${
+                        countMode === value ? 'bg-gold/20 border-gold text-gold' : 'border-card-border text-text-muted hover:border-gold/50'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {isCollection && trackedItems.length > 0 && (
+            <div>
+              <label className="block text-xs text-text-muted mb-1">
+                Total Required <span className="text-text-muted/60">(auto-computed)</span>
+              </label>
+              <div className="px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground/60">
+                {(() => {
+                  // Same arithmetic the server stores (lib/collectionSets): the shortest path to
+                  // completion under this tile's mode.
+                  const total = collectionDisplayTotal(collectionRequirements, groupMode, groupMode === 'any' ? setsRequired : null);
+                  const setCount = new Set(
+                    trackedItems.map((i) => i.group?.trim().toLowerCase()).filter(Boolean),
+                  ).size;
+                  if (setCount === 0) return total;
+                  return `${total} (${groupMode === 'all' ? `all ${setCount} sets` : setsRequired > 1 ? `${setsRequired} sets` : `smallest of ${setCount} sets`})`;
+                })()}
+              </div>
+            </div>
+          )}
+
+          {isDrop && (
+            <div className="rounded-lg border border-card-border/60 p-2.5 space-y-2">
+              <Checkbox
+                checked={oncePerKill}
+                onChange={setOncePerKill}
+                label={
+                  <>
+                    Count once per kill
+                    <FlagHint text={PER_KILL_CAP_HELP} />
+                  </>
+                }
+                description="One kill credits this tile once, however many tracked items it dropped. Off = every drop counts, so a kill that hands you two tracked items counts twice."
+              />
+
+              {/* Roll tiles. A boss whose vestige is on a fixed rotation makes "get N unique ROLLS"
+                  a target a team can actually chase, which a 1/500 vestige isn't — and it's just this
+                  item list plus the cap above, so no new tile kind is needed.
+
+                  Collapsed: these are one-click presets for four specific bosses, and shown open on
+                  every drop tile they read as settings that belong to the tile you're editing. */}
+              <details className="group">
+                <summary className="cursor-pointer select-none list-none text-[10px] text-text-muted hover:text-foreground flex items-center gap-1">
+                  <span className="transition-transform group-open:rotate-90">▸</span>
+                  Fill from a boss&rsquo;s unique table (DT2 vestige rolls)
+                  <FlagHint text={ROLL_TABLE_HELP} />
+                </summary>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {ROLL_TABLES.map((t) => (
+                    <button
+                      key={t.boss}
+                      type="button"
+                      title={`Fill the tracked items with ${t.boss}'s unique table (${t.rollItems.length} items, ${t.vestigeName} among them) and count once per kill — one roll, one credit.`}
+                      onClick={() => {
+                        setTrackedItems(t.rollItems.map((i) => ({ ...i, perItemAmount: 1 })));
+                        setSourceNpcsText(t.boss);
+                        setOncePerKill(true);
+                      }}
+                      className="text-[10px] px-2 py-1 rounded border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors"
+                    >
+                      {t.boss}
+                    </button>
+                  ))}
+                </div>
+              </details>
+            </div>
+          )}
 
           {/* Source restriction — count the drop only from these sources (NPC, raid, or chest). */}
           <div>

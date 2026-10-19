@@ -500,11 +500,11 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
         );
       }
 
-      // A multi-clan event lands on the teams tab, where the co-host invites and roll-up live — and
-      // where an admin can retry whichever ones did not go out. Carried in the URL rather than shown
-      // here, because the board exists either way and this form is done.
+      // A multi-clan event lands on Settings → Who can play, where the co-host invites and roll-up
+      // live — and where an admin can retry whichever ones did not go out. Carried in the URL rather
+      // than shown here, because the board exists either way and this form is done.
       const failedQs = failed.length > 0 ? `?uninvited=${encodeURIComponent(failed.join(','))}` : '';
-      router.push(clanUrl(`/admin/events/${data.id}${useMultiClan ? `/teams${failedQs}` : ''}`));
+      router.push(clanUrl(`/admin/events/${data.id}${useMultiClan ? `/settings${failedQs}#who-can-play` : ''}`));
       router.refresh();
     } catch {
       setError('Failed to create event');

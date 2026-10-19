@@ -138,6 +138,7 @@ export default async function EventLayout({
       {!isEditor && !isBoardTreasurer && (
         <EventLifecycleBar
           steps={steps}
+          homeOnly
           hrefFor={{
             built: `/admin/events/${id}/settings`,
             tiles: `/admin/events/${id}/tiles`,

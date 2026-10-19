@@ -155,7 +155,7 @@ export default function BossTileGenerator({
       }
       const what = mode === 'boss' ? 'boss' : 'NPC';
       const summary = `${thresholds.join('/')} KC × ${sourceCount} ${what}${sourceCount === 1 ? '' : 's'}`;
-      onCreated({ created: data.created ?? 0, ignored: data.ignored ?? 0, label: summary });
+      onCreated({ created: (data.applied ?? 0) + (data.created ?? 0), ignored: data.ignored ?? 0, label: summary });
       setLastBatch(`Added ${summary}.`);
       // Keep the thresholds — the next batch is usually the same ladder against different bosses.
       setSelected(new Set());

@@ -1,5 +1,6 @@
 'use client';
 
+import { isPlaceholderTile } from '@/lib/placeholderTile';
 import DateTimePicker from '@/components/DateTimePicker';
 import type { Event, Tile, ItemRequirement } from '@/lib/types';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -411,6 +412,10 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   }), [localTiles]);
   const dynamicBoard = isTileRaceFormat(event.format) || pointsMode;
   const canEditTileSet = dynamicBoard && !eventStarted;
+  // The add-tiles tools fill blank "Tile N" placeholders before they grow anything (api tiles/import),
+  // so a fixed grid can use them too while it has blanks left.
+  const blankCount = useMemo(() => localTiles.filter(isPlaceholderTile).length, [localTiles]);
+  const canAddTiles = !eventStarted && (dynamicBoard || blankCount > 0);
 
   async function handleAddTile() {
     setAdding(true);
@@ -861,7 +866,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   async function handleClogCreated(summary: { created: number; ignored: number; activity: string }) {
     setImportMsg({
       type: 'success',
-      text: `Added ${summary.created} tile${summary.created === 1 ? '' : 's'} from ${summary.activity}${summary.ignored ? ` · ${summary.ignored} skipped (board cap)` : ''}.`,
+      text: `Added ${summary.created} tile${summary.created === 1 ? '' : 's'} from ${summary.activity}${summary.ignored ? ` · ${summary.ignored} skipped (no room left on the board)` : ''}.`,
     });
     await syncTilesFromServer();
   }
@@ -869,7 +874,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   async function handleSkillsCreated(summary: { created: number; ignored: number; label: string }) {
     setImportMsg({
       type: 'success',
-      text: `Added ${summary.created} tile${summary.created === 1 ? '' : 's'} (${summary.label})${summary.ignored ? ` · ${summary.ignored} skipped (board cap)` : ''}.`,
+      text: `Added ${summary.created} tile${summary.created === 1 ? '' : 's'} (${summary.label})${summary.ignored ? ` · ${summary.ignored} skipped (no room left on the board)` : ''}.`,
     });
     await syncTilesFromServer();
   }
@@ -1049,10 +1054,10 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             <ActionMenu
               label={`＋ Add ${model.nounPlural}`}
               items={[
-                { label: 'Draw from task library…', onClick: () => setGenerator('library'), disabled: !canEditTileSet, variant: 'gold' },
-                { label: 'From a collection log page…', onClick: () => setGenerator('clog'), disabled: !canEditTileSet },
-                { label: 'Skill XP tiles…', onClick: () => setGenerator('skill'), disabled: !canEditTileSet },
-                { label: 'Boss KC / kill tiles…', onClick: () => setGenerator('boss'), disabled: !canEditTileSet },
+                { label: 'Draw from task library…', onClick: () => setGenerator('library'), disabled: !canAddTiles, variant: 'gold' },
+                { label: 'From a collection log page…', onClick: () => setGenerator('clog'), disabled: !canAddTiles },
+                { label: 'Skill XP tiles…', onClick: () => setGenerator('skill'), disabled: !canAddTiles },
+                { label: 'Boss KC / kill tiles…', onClick: () => setGenerator('boss'), disabled: !canAddTiles },
                 {
                   label: importing ? 'Importing…' : 'Upload CSV / Excel…',
                   onClick: () => fileInputRef.current?.click(),
@@ -1080,7 +1085,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             {/* Dialogs only — the menu is their trigger. */}
             <ClogGenerator
               eventId={event.id}
-              canGrow={canEditTileSet}
+              canGrow={canAddTiles}
               pointsMode={pointsMode}
               onCreated={handleClogCreated}
               onError={(text) => setImportMsg({ type: 'error', text })}
@@ -1090,7 +1095,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             />
             <SkillTileGenerator
               eventId={event.id}
-              canGrow={canEditTileSet}
+              canGrow={canAddTiles}
               pointsMode={pointsMode}
               onCreated={handleSkillsCreated}
               onError={(text) => setImportMsg({ type: 'error', text })}
@@ -1100,7 +1105,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             />
             <BossTileGenerator
               eventId={event.id}
-              canGrow={canEditTileSet}
+              canGrow={canAddTiles}
               pointsMode={pointsMode}
               onCreated={handleSkillsCreated}
               onError={(text) => setImportMsg({ type: 'error', text })}
@@ -1110,7 +1115,8 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
             />
             <LibraryTileGenerator
               eventId={event.id}
-              canGrow={canEditTileSet}
+              canGrow={canAddTiles}
+              target={dynamicBoard ? undefined : blankCount}
               onCreated={handleSkillsCreated}
               onError={(text) => setImportMsg({ type: 'error', text })}
               hideTrigger
