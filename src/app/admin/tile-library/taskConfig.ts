@@ -61,6 +61,8 @@ function asNumber(v: unknown): number | null {
 export async function toTileConfig(
   row: TileCsvRow,
   fallback: { label: string; points: number; category: string | null; description: string | null },
+  /** Where item search lives — /api/library in the Anvil library editor (components/AuthoringApi). */
+  lookupApi = '/api/admin',
 ): Promise<TileConfig> {
   const reqs: ItemRequirement[] = [];
   const items = Array.isArray(row.items) ? row.items : [];
@@ -72,7 +74,7 @@ export async function toTileConfig(
     }
     if (!it.name) continue;
     try {
-      const res = await clanFetch(`/api/admin/items-search?q=${encodeURIComponent(it.name)}`);
+      const res = await clanFetch(`${lookupApi}/items-search?q=${encodeURIComponent(it.name)}`);
       const results: { id: number; name: string }[] = res.ok ? await res.json() : [];
       const hit =
         results.find((r) => r.name.toLowerCase() === it.name.toLowerCase()) ?? results[0] ?? null;
@@ -82,12 +84,20 @@ export async function toTileConfig(
     }
   }
 
+  // Same reading the importer uses (api tiles/import): a row with a total is a drop POOL — any of the
+  // items counts toward it — and one without is a collection where each item needs its own count. A
+  // single ungrouped item is a pool of one. Always building itemRequirements made every library drop,
+  // "Dragon boots" included, open in the editor as an "Item set (all of these)".
+  const amount = asNumber(row.requiredAmount);
+  const asPool = reqs.length > 0 && (amount != null || (reqs.length === 1 && !reqs[0].group));
+  const poolAmount = amount ?? (asPool ? reqs[0].requiredAmount : null);
+
   return {
     ...EMPTY,
     label: row.label ?? fallback.label,
     description: row.description ?? fallback.description,
     tileType: row.tileType || 'standard',
-    requiredAmount: asNumber(row.requiredAmount),
+    requiredAmount: asPool ? poolAmount : amount,
     trackedStat: row.trackedStat ?? null,
     statType: row.statType ?? null,
     statGoal: asNumber(row.statGoal),
@@ -98,7 +108,7 @@ export async function toTileConfig(
     targetNpcs: asArray(row.targetNpcs),
     timedActivity: row.timedActivity ?? null,
     timeThresholdSeconds: asNumber(row.timeThresholdSeconds),
-    itemRequirements: reqs.length ? reqs : null,
+    itemRequirements: reqs.length && !asPool ? reqs : null,
     trackedItemIds: reqs.length ? reqs.map((r) => r.itemId) : null,
     groupMode: row.groupMode === 'all' ? 'all' : null,
     setsRequired: asNumber(row.setsRequired),

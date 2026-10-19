@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { requirePlatformPage } from '@/lib/platformAccess';
 import { libraryActor } from '@/lib/guideAccess';
 import { pendingCount as pendingProposals } from '@/lib/guideProposals';
+import { pendingCount as pendingLibraryProposals } from '@/lib/libraryProposals';
 import { openCharacterReportCount } from '@/lib/characterReports';
 import { hasPlatformRole } from '@/lib/clanRoles';
 import { avatarUrl } from '@/lib/discord-oauth';
@@ -31,7 +32,9 @@ export default async function StaffLayout({ children }: { children: React.ReactN
     // other /staff page, most of which do not guard themselves, so anything else is still a 404.
     const guides = await libraryActor();
     const pathname = (await headers()).get('x-anvil-pathname') ?? '';
-    if (!guides?.canEdit || !(pathname === '/staff/guides' || pathname.startsWith('/staff/guides/'))) notFound();
+    // The task and board library is the same library with other content, under the same grant.
+    const inLibrary = ['/staff/guides', '/staff/library'].some((p) => pathname === p || pathname.startsWith(`${p}/`));
+    if (!guides?.canEdit || !inLibrary) notFound();
     const me = await db.query.users.findFirst({
       where: eq(users.id, guides.user.userId),
       columns: { displayName: true, discordId: true, discordAvatar: true },
@@ -42,7 +45,10 @@ export default async function StaffLayout({ children }: { children: React.ReactN
           groups={[
             {
               label: 'Platform',
-              items: [{ href: '/staff/guides', label: 'Guide library', icon: '📖', badge: await pendingProposals(), matchPrefix: true }],
+              items: [
+                { href: '/staff/guides', label: 'Guide library', icon: '📖', badge: await pendingProposals(), matchPrefix: true },
+                { href: '/staff/library', label: 'Task & board library', icon: '▦', badge: await pendingLibraryProposals(), matchPrefix: true },
+              ],
             },
           ]}
           user={{
@@ -85,6 +91,8 @@ export default async function StaffLayout({ children }: { children: React.ReactN
         { href: '/staff/audit', label: 'Operator log', icon: '⧉', matchPrefix: true },
         // The Anvil guide library every clan sees and copies from.
         { href: '/staff/guides', label: 'Guide library', icon: '📖', badge: await pendingProposals(), matchPrefix: true },
+        // Anvil's task and board library, and the suggestions clans send for it.
+        { href: '/staff/library', label: 'Task & board library', icon: '▦', badge: await pendingLibraryProposals(), matchPrefix: true },
       ],
     },
   ];

@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { verifyTileEditorAnywhere } from '@/lib/auth';
+import { libraryEditorUser } from '@/lib/guideAccess';
 import { getItemMapping, isDroppableItem } from '@/lib/osrsItems';
 
 export async function GET(request: Request) {
   // Tile-authoring support endpoint — editors configure drop/collection tiles too, not just admins.
-  const editor = await verifyTileEditorAnywhere();
+  // Anvil library editors author tasks on the apex, outside any clan (api/library/* re-exports this).
+  const editor = (await verifyTileEditorAnywhere()) ?? (await libraryEditorUser());
   if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

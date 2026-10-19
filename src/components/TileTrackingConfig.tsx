@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, useContext } from "react";
 import { SKILLS, SKILL_LABELS, SKILL_ALIASES, BOSSES, DIARY_AREAS, DIARY_TIERS, CA_TIERS, RAID_MODE_VARIANTS, AGILITY_COURSES, SEPULCHRE_TARGETS, COUNTER_TARGETS, lapUnitNoun, canonicalAgilityCourse } from "@/lib/constants";
 import { HISCORES_ACTIVITIES } from "@/lib/hiscoresActivities";
 import Select from '@/components/Select';
@@ -18,6 +18,7 @@ import type { TileConfig, TileMissionRules } from '@/lib/types';
 import { parseTileMissionRules, type MissionReward } from '@/lib/eventRules';
 import MissionRewardEditor from '@/components/MissionRewardEditor';
 import TaskFinder from '@/components/TaskFinder';
+import { AuthoringApiContext } from '@/components/AuthoringApi';
 import NumberInput from '@/components/NumberInput';
 import { clanFetch } from '@/lib/clanFetch';
 import { RAID_EFFORT_MODES, parseTileEffortConfig } from '@/lib/tileEffortConfig';
@@ -553,6 +554,8 @@ const KIND_FIELDS_CLEARED: Partial<TileConfig> = {
  * previous pick put there is replaced.
  */
 export default function TileTrackingConfig(props: Props) {
+  // The task finder suggests from a clan's own library; the Anvil library editor has no clan.
+  const outsideClan = useContext(AuthoringApiContext) !== '/api/admin';
   const [applied, setApplied] = useState<{ n: number; title: string; config: Partial<TileConfig> } | null>(null);
   const ownLabel = props.initial.label.trim() && !/^Tile [0-9]+$/.test(props.initial.label) ? props.initial.label : null;
   const initial: TileConfig = applied
@@ -568,7 +571,7 @@ export default function TileTrackingConfig(props: Props) {
     : props.initial;
   return (
     <>
-      {!props.eventStarted && (
+      {!props.eventStarted && !outsideClan && (
         <TaskFinder
           picked={applied?.title ?? null}
           onPick={(s) => setApplied((a) => ({ n: (a?.n ?? 0) + 1, title: s.title, config: s.config }))}
@@ -605,6 +608,8 @@ function TileTrackingEditor({
   const canOverride = !!eventStarted && !!isAdmin;
   const [liveOverride, setLiveOverride] = useState(false);
   const locked = !!eventStarted && !(canOverride && liveOverride);
+  // Lookups go to the clan's /api/admin, or /api/library in the Anvil library editor (no clan there).
+  const lookupApi = useContext(AuthoringApiContext);
   const [kind, setKind] = useState<TileKind>(() => deriveKind(initial));
   const [label, setLabel] = useState<string>(initial.label);
   const [description, setDescription] = useState<string>(initial.description || "");
@@ -830,7 +835,7 @@ function TileTrackingEditor({
     if (sourceNpcTimeout.current) clearTimeout(sourceNpcTimeout.current);
     sourceNpcTimeout.current = setTimeout(async () => {
       try {
-        const res = await clanFetch(`/api/admin/npc-search?q=${encodeURIComponent(segment)}`);
+        const res = await clanFetch(`${lookupApi}/npc-search?q=${encodeURIComponent(segment)}`);
         if (res.ok) {
           const results = (await res.json()) as { name: string }[];
           setSourceNpcHits(results.map((r) => r.name).slice(0, 10));
@@ -840,7 +845,7 @@ function TileTrackingEditor({
     return () => {
       if (sourceNpcTimeout.current) clearTimeout(sourceNpcTimeout.current);
     };
-  }, [sourceNpcsText]);
+  }, [sourceNpcsText, lookupApi]);
   const sourceSuggestions = useMemo(
     () => [...new Set([...SOURCE_SUGGESTIONS, ...sourceNpcHits])],
     [sourceNpcHits],
@@ -906,7 +911,7 @@ function TileTrackingEditor({
     let cancelled = false;
     (async () => {
       try {
-        const res = await clanFetch('/api/admin/ca-tasks');
+        const res = await clanFetch(`${lookupApi}/ca-tasks`);
         if (res.ok) {
           const data = await res.json();
           if (!cancelled) setCaTasks(data.tasks ?? []);
@@ -914,7 +919,7 @@ function TileTrackingEditor({
       } catch { /* ignore — the wildcard picker still works without the list */ }
     })();
     return () => { cancelled = true; };
-  }, [isCa, caTasks]);
+  }, [isCa, caTasks, lookupApi]);
 
   const caResults = useMemo(() => {
     const q = caSearch.trim().toLowerCase();
@@ -933,7 +938,7 @@ function TileTrackingEditor({
     Promise.all(
       initial.trackedItemIds.map(async (id) => {
         try {
-          const res = await clanFetch(`/api/admin/items-search?q=${id}`);
+          const res = await clanFetch(`${lookupApi}/items-search?q=${id}`);
           if (res.ok) {
             const results = await res.json();
             const match = results.find((r: { id: number }) => r.id === id);
@@ -958,7 +963,7 @@ function TileTrackingEditor({
     setItemSearching(true);
     const filter = loot ? '&dropsOnly=1' : '';
     try {
-      const res = await clanFetch(`/api/admin/items-search?q=${encodeURIComponent(query)}${filter}`);
+      const res = await clanFetch(`${lookupApi}/items-search?q=${encodeURIComponent(query)}${filter}`);
       if (res.ok) {
         const results = await res.json();
         const existingIds = new Set(trackedItems.map((i) => i.id));
@@ -970,7 +975,7 @@ function TileTrackingEditor({
       }
     } catch { /* ignore */ }
     setItemSearching(false);
-  }, [trackedItems, isDrop, dropsOnly]);
+  }, [trackedItems, isDrop, dropsOnly, lookupApi]);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -997,7 +1002,7 @@ function TileTrackingEditor({
     }
     setNpcSearching(true);
     try {
-      const res = await clanFetch(`/api/admin/npc-search?q=${encodeURIComponent(query)}`);
+      const res = await clanFetch(`${lookupApi}/npc-search?q=${encodeURIComponent(query)}`);
       if (res.ok) {
         const results = (await res.json()) as { name: string }[];
         const existing = new Set(targetNpcNames.map((n) => n.toLowerCase()));
@@ -1005,7 +1010,7 @@ function TileTrackingEditor({
       }
     } catch { /* ignore */ }
     setNpcSearching(false);
-  }, [targetNpcNames]);
+  }, [targetNpcNames, lookupApi]);
 
   function addNpc(name: string) {
     const trimmed = name.trim();
@@ -1568,7 +1573,7 @@ function TileTrackingEditor({
 
       {/* Tile kind — the single source of truth for what this tile is */}
       <div>
-        <label className="block text-xs text-text-muted mb-1">{eventStarted ? "Tile kind" : "Kind — set for you when you pick a task above"}</label>
+        <label className="block text-xs text-text-muted mb-1">{eventStarted || lookupApi !== "/api/admin" ? "Tile kind" : "Kind — set for you when you pick a task above"}</label>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
           {KINDS.map((k) => (
             <button

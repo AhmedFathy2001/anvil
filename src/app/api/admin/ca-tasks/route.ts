@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { verifyTileEditorAnywhere } from '@/lib/auth';
+import { libraryEditorUser } from '@/lib/guideAccess';
 import caData from '@/data/combatAchievements.json';
 
 // Serves the bundled Combat Achievement task dataset (src/data/combatAchievements.json, built by
@@ -11,7 +12,8 @@ const tasks = (caData.tasks as { name: string; monster: string | null; tier: str
   .map(({ name, monster, tier, type }) => ({ name, monster, tier, type }));
 
 export async function GET() {
-  const editor = await verifyTileEditorAnywhere();
+  // Anvil library editors author tasks on the apex, outside any clan (api/library/* re-exports this).
+  const editor = (await verifyTileEditorAnywhere()) ?? (await libraryEditorUser());
   if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

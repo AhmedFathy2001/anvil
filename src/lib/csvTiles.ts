@@ -681,17 +681,23 @@ function tileItemsCell(t: Tile): string {
  * tile for reuse (library harvest, seed-pack export, the library's own editor) goes through here
  * rather than hand-rolling the mapping and drifting from the CSV contract.
  */
+/**
+ * A board tile as a TileCsvRow — the typed shape the importer, the task library and the board library
+ * all consume (`tileType`, an `items` array, numbers as numbers).
+ *
+ * Built by writing the tile's spreadsheet cells and reading them back through the same parser an
+ * uploaded sheet goes through, so the two can never disagree. It used to copy the raw CELLS into the
+ * object instead — `type: "drop"`, `items: "Rune boots#4131:1"`, `points: "15"` — which the importer
+ * doesn't read: a tile added to the library from a board, or shared to the board library, came back
+ * as a Standard tile that tracks nothing.
+ */
 export function tileToCsvRow(t: Tile): TileCsvRow {
-  const cells = tileToCsvCells(t);
-  const row: Record<string, unknown> = {};
-  const effortColumns = new Set(['skillRating', 'expectedEffortHours', 'raidMode', 'raidUniqueDenominator', 'raidCompletionMinutes', 'raidLevel']);
-  TILE_CSV_COLUMNS.forEach((col, i) => {
-    // The spreadsheet uses five legible columns; the JSON/library representation keeps the same
-    // values as one typed object, which is exactly what the tile importer consumes.
-    if (effortColumns.has(col)) return;
-    const v = cells[i];
-    if (v !== undefined && v !== null && v !== '') row[col] = v;
-  });
+  const parsed = parseTileGrid([[...TILE_CSV_COLUMNS], tileToCsvCells(t)]).rows[0] ?? {};
+  const row = { ...parsed } as Record<string, unknown>;
+  // Defaults and blanks dropped, so a stored row stays readable (and diffable) as a seed pack.
+  for (const [k, v] of Object.entries(row)) {
+    if (v === null || v === undefined || v === '' || v === false || (k === 'statBasis' && v === 'gain')) delete row[k];
+  }
   const effort = parseTileEffortConfig(t.effortConfig);
   if (effort) row.effortConfig = effort;
   return row as TileCsvRow;

@@ -9,7 +9,8 @@ import type { TileConfig } from '@/lib/types';
 import type { LibraryTask } from '@/lib/tileLibrary';
 import { libraryShape, type Finding } from '@/lib/libraryShape';
 import { blankTileConfig, payloadToCsvRow, toTileConfig } from './taskConfig';
-import { clanFetch, clanUrl } from '@/lib/clanFetch';
+import { clanFetch } from '@/lib/clanFetch';
+import { useClanHref } from '@/lib/useClanPath';
 import Checkbox from '@/components/Checkbox';
 import { useDialog } from '@/components/Confirm';
 
@@ -70,6 +71,9 @@ const KIND_MARK: Record<string, { mark: string; tone: string }> = {
 const UNKNOWN_KIND = { mark: '·', tone: 'bg-brown-light text-text-muted' };
 
 export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
+  // From the route, not window.location — clanUrl read the browser's address, which the server
+  // render doesn't have, so this link hydrated with a different href.
+  const clanHref = useClanHref();
   const [tasks, setTasks] = useState<LibraryTask[] | null>(null);
   const [pendingSeed, setPendingSeed] = useState(0);
   const [search, setSearch] = useState('');
@@ -403,7 +407,7 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
             />
           </label>
           <a
-            href={clanUrl('/api/admin/tile-library/export')}
+            href={clanHref('/api/admin/tile-library/export')}
             className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors"
             title="Download the whole library as a seed pack — share it with another site, or commit it as the default"
           >
