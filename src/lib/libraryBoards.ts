@@ -51,7 +51,8 @@ export interface LibraryBoard {
   suggestedDays: number | null;
   teamsMin: number | null;
   teamsMax: number | null;
-  status: 'published' | 'hidden';
+  /** 'hidden' = the clan unpublished it; 'removed' = Anvil staff took it down, which only staff can undo. */
+  status: 'published' | 'hidden' | 'removed';
   version: number;
   useCount: number;
   updatedAt: string;
@@ -94,7 +95,7 @@ function toBoard(r: typeof libraryBoards.$inferSelect, clanName: string | null):
     suggestedDays: r.suggestedDays,
     teamsMin: r.teamsMin,
     teamsMax: r.teamsMax,
-    status: r.status === 'hidden' ? 'hidden' : 'published',
+    status: r.status === 'removed' ? 'removed' : r.status === 'hidden' ? 'hidden' : 'published',
     version: r.version,
     useCount: r.useCount,
     updatedAt: r.updatedAt,
@@ -216,7 +217,7 @@ export async function replaceBoardTiles(id: number, rows: TileCsvRow[], boardSiz
     .where(eq(libraryBoards.id, id));
 }
 
-export async function setBoardStatus(id: number, status: 'published' | 'hidden'): Promise<void> {
+export async function setBoardStatus(id: number, status: 'published' | 'hidden' | 'removed'): Promise<void> {
   await db.update(libraryBoards).set({ status, updatedAt: nowIso() }).where(eq(libraryBoards.id, id));
 }
 

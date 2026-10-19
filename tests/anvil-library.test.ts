@@ -178,3 +178,10 @@ test('five open suggestions is the limit', async () => {
     /waiting already/,
   );
 });
+
+test('a board Anvil took down leaves the library and stays marked as taken down', async () => {
+  const [board] = (await B.listBoards()).filter((b) => b.origin === 'community');
+  await B.setBoardStatus(board.id, 'removed');
+  assert.ok(!(await B.listBoards()).some((b) => b.id === board.id), 'not offered to anyone');
+  assert.equal((await B.getBoard(board.id))?.status, 'removed', 'and distinct from a clan hiding its own');
+});

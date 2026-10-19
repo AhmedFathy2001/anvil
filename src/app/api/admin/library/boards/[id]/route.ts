@@ -23,6 +23,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if ('error' in got) return got.error;
   const body = await request.json().catch(() => ({}));
   try {
+    // A board Anvil took down stays down: the clan can't republish it (or edit it back into view)
+    // from here — only the staff route moves it out of 'removed'.
+    if (got.board.status === 'removed') {
+      return NextResponse.json({ error: 'Anvil took this board down. Get in touch if you think that was a mistake.' }, { status: 403 });
+    }
     if (body?.status === 'published' || body?.status === 'hidden') await setBoardStatus(got.board.id, body.status);
     if (typeof body?.title === 'string') await updateBoardMeta(got.board.id, { ...got.board, ...body });
   } catch (e) {

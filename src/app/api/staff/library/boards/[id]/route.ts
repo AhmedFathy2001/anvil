@@ -11,7 +11,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!board) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const body = await request.json().catch(() => ({}));
   try {
-    if (body?.status === 'published' || body?.status === 'hidden') await setBoardStatus(board.id, body.status);
+    // Staff "hide" is a takedown ('removed'), which the publishing clan can't undo from its own route.
+    if (body?.status === 'published') await setBoardStatus(board.id, 'published');
+    else if (body?.status === 'hidden' || body?.status === 'removed') await setBoardStatus(board.id, 'removed');
     if (typeof body?.title === 'string') await updateBoardMeta(board.id, { ...board, ...body });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });

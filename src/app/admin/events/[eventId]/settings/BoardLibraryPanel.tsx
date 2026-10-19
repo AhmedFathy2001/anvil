@@ -199,10 +199,11 @@ export default function BoardLibraryPanel({
                     {b.title}
                     <span className="text-xs text-text-muted">
                       {' '}
-                      · {b.status === 'hidden' ? 'hidden' : 'shared'} · used {b.useCount}×
+                      · {b.status === 'removed' ? 'taken down by Anvil' : b.status === 'hidden' ? 'hidden' : 'shared'} · used {b.useCount}×
                     </span>
                   </span>
                   <span className="flex gap-2 text-xs">
+                    {b.status !== 'removed' && (
                     <button
                       disabled={busy}
                       onClick={() =>
@@ -216,6 +217,7 @@ export default function BoardLibraryPanel({
                     >
                       {b.status === 'hidden' ? 'Share again' : 'Hide'}
                     </button>
+                    )}
                     <button
                       disabled={busy}
                       onClick={() => send(`/api/admin/library/boards/${b.id}`, { method: 'DELETE' }, 'Deleted.')}

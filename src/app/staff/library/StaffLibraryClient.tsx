@@ -176,7 +176,7 @@ export default function StaffLibraryClient({ canEdit }: { canEdit: boolean }) {
       {tab === 'boards' && (
         <ul className="space-y-2">
           {(boards ?? []).map((b) => (
-            <li key={b.id} className={`rounded-xl border border-card-border bg-card-bg px-4 py-3 ${b.status === 'hidden' ? 'opacity-60' : ''}`}>
+            <li key={b.id} className={`rounded-xl border border-card-border bg-card-bg px-4 py-3 ${b.status !== 'published' ? 'opacity-60' : ''}`}>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{b.title}</span>
                 <span className={`text-[10px] px-1.5 py-0.5 rounded ${b.origin === 'anvil' ? 'bg-gold/20 text-gold' : 'bg-blue-500/15 text-blue-300'}`}>
@@ -184,7 +184,7 @@ export default function StaffLibraryClient({ canEdit }: { canEdit: boolean }) {
                 </span>
                 <span className="text-xs text-text-muted">
                   {b.mode} · {b.tiles.length} tiles · {b.audience} · used {b.useCount}× · v{b.version}
-                  {b.status === 'hidden' ? ' · hidden' : ''}
+                  {b.status === 'removed' ? ' · taken down' : b.status === 'hidden' ? ' · hidden by its clan' : ''}
                 </span>
                 {canEdit && (
                   <span className="ml-auto flex gap-3 text-xs">
@@ -196,11 +196,11 @@ export default function StaffLibraryClient({ canEdit }: { canEdit: boolean }) {
                     <button
                       disabled={busy}
                       onClick={() =>
-                        act(`/api/staff/library/boards/${b.id}`, { method: 'PATCH', body: JSON.stringify({ status: b.status === 'hidden' ? 'published' : 'hidden' }) }, b.status === 'hidden' ? 'Shown again.' : 'Hidden.')
+                        act(`/api/staff/library/boards/${b.id}`, { method: 'PATCH', body: JSON.stringify({ status: b.status === 'removed' ? 'published' : 'removed' }) }, b.status === 'removed' ? 'Shown again.' : 'Taken down — the clan can’t republish it.')
                       }
                       className="text-text-muted"
                     >
-                      {b.status === 'hidden' ? 'Show' : 'Hide'}
+                      {b.status === 'removed' ? 'Restore' : 'Take down'}
                     </button>
                     {b.origin === 'community' && (
                       <button disabled={busy} onClick={() => act(`/api/staff/library/boards/${b.id}`, { method: 'DELETE' }, 'Deleted.')} className="text-red-400">
