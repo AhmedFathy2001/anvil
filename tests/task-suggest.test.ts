@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rowToTileConfig, splitAmount } from '../src/lib/taskSuggest.ts';
+import { rowToTileConfig, splitAmount } from '../src/lib/taskSuggestRows.ts';
 
 test('a leading number is the amount, with k and m', () => {
   assert.deepEqual(splitAmount('100 zulrah'), { amount: 100, rest: 'zulrah' });
