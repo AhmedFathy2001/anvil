@@ -1,6 +1,5 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import ClanLink, { useClanRelativePath } from '@/components/ClanLink';
 import { Sprite, type SpriteName } from '@/components/ItemSlot';
@@ -56,12 +55,14 @@ function isInsideAnEvent(pathname: string): boolean {
 }
 
 export default function AdminSidebar({ groups, user, scope = 'clan', header, primary, guideHref }: Props) {
-  const pathname = usePathname();
   // Clan-relative, so a bare item.href can be compared to where we actually are.
   const here = useClanRelativePath();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  if (scope === 'clan' && isInsideAnEvent(pathname)) return null;
+  // Clan-relative: the browser is at /c/<slug>/admin/events/12, and testing the raw pathname never
+  // matched once clans moved under /c/ — so inside an event the clan nav stayed up beside the event's
+  // own rail (two rails on desktop, two stacked "Menu" buttons on a phone).
+  if (scope === 'clan' && isInsideAnEvent(here)) return null;
 
   return (
     <>
@@ -92,10 +93,14 @@ export default function AdminSidebar({ groups, user, scope = 'clan', header, pri
           transition-transform duration-200
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0 lg:bg-transparent lg:border-r-0
-          overflow-y-auto lg:overflow-visible
+          overflow-y-auto
+          lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overscroll-contain
+          [scrollbar-width:thin] [scrollbar-color:rgba(201,162,77,0.25)_transparent]
         `}
       >
-        <div className="lg:sticky lg:top-20 p-4 lg:p-0 lg:pr-4">
+        {/* The rail scrolls on its own: sticky under the header and capped to the screen, so a long
+            rail no longer means scrolling the whole page to reach its foot. */}
+        <div className="p-4 lg:p-0 lg:pr-3 lg:pb-4">
           {/* Mobile close */}
           <button
             onClick={() => setMobileOpen(false)}
