@@ -15,6 +15,7 @@ import {
   clipEmbed,
   code,
   field,
+  pluginNote,
   playerEventEmbed,
   stampBrand,
   stampEmbeds,
@@ -144,4 +145,17 @@ test('clipEmbed: a blank-but-present moment is treated as no moment', () => {
   const e = clipEmbed({ rsn: 'x', moment: '  \n \n', eventName: 'Bingo', seconds: 5 });
   assert.equal(e.title, '🎬 Clip saved');
   assert.ok(e.description!.includes('Clipped during Bingo.'));
+});
+
+test('pluginNote: the plugin\'s auto-note reads "detected by Anvil", linked to the tile', () => {
+  const url = 'https://anvilosrs.com/c/afk/events/11?tile=42';
+  assert.equal(
+    pluginNote('[Auto] Obtain a full venator bow from phantom muspah detected by RuneLite plugin', url),
+    'Obtain a full venator bow from phantom muspah detected by [Anvil](https://anvilosrs.com/c/afk/events/11?tile=42)',
+  );
+  assert.equal(pluginNote('[Auto] PvP kill on Foo — detected by RuneLite plugin', url), `PvP kill on Foo — detected by [Anvil](${url})`);
+  assert.equal(pluginNote('[Auto] Inferno cleared in 65:12 by RuneLite plugin', null), 'Inferno cleared in 65:12 by Anvil');
+  assert.equal(pluginNote('[Auto] Zulrah kill(s) counted by Anvil', url), `Zulrah kill(s) counted by [Anvil](${url})`);
+  // A player's own note is theirs.
+  assert.equal(pluginNote('got it on my first kc lol', url), 'got it on my first kc lol');
 });

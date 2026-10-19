@@ -76,6 +76,18 @@ export function field(name: string, value: string, inline = true): DiscordEmbedF
   return { name: clamp(name, LIMIT.fieldName), value: clamp(value, LIMIT.fieldValue), inline };
 }
 
+/**
+ * The plugin's auto-note ("[Auto] Venator bow detected by RuneLite plugin") as a post shows it:
+ * "Venator bow detected by Anvil", with Anvil linking to the tile on the board. Every plugin version
+ * writes the old wording, so the rewrite lives here rather than in the client. Anything a player typed
+ * is left alone.
+ */
+export function pluginNote(note: string, url: string | null): string {
+  const m = /^\[Auto\]\s*(.*?)\s+by (?:RuneLite plugin|Anvil)$/.exec(note.trim());
+  if (!m) return note;
+  return `${m[1]} by ${url ? `[Anvil](${url})` : 'Anvil'}`;
+}
+
 /** A field whose value is a number/short token — boxed via `code`. */
 export function statField(name: string, value: string | number, inline = true): DiscordEmbedField {
   return field(name, code(value), inline);

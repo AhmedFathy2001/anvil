@@ -22,6 +22,7 @@ import {
   EMBED_COLOR,
   clamp,
   field,
+  pluginNote,
   statField,
   stampEmbeds,
   teamColorToDecimal,
@@ -706,7 +707,7 @@ export async function notifySubmission(params: SubmissionNotifyParams): Promise<
   }
 
   if (note) {
-    fields.push(field('Note', note, false));
+    fields.push(field('Note', pluginNote(note, eventId != null ? tileBoardUrl(eventId, tile) : null), false));
   }
 
   const who = creditPlayerName ? `**${creditPlayerName}**` : 'Someone';
@@ -775,7 +776,7 @@ export async function notifyMergedSubmission(params: MergedSubmissionParams): Pr
   );
 
   if (note) {
-    fields.push(field('Note', note, false));
+    fields.push(field('Note', pluginNote(note, eventId != null ? tileBoardUrl(eventId, tile) : null), false));
   }
 
   // Who the credit went to — matches notifySubmission's wording so merged posts read the same.
