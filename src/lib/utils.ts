@@ -26,6 +26,14 @@ export function ordinal(n: number): string {
  * Format large numbers with K/M/B suffixes
  * e.g., 4000000 -> "4M", 200000 -> "200K", 1500 -> "1.5K"
  */
+/**
+ * The exact figures behind formatNumber's "19M / 20.1M", for a hover title: "19,023,122 / 20,142,002".
+ * Undefined when nothing was abbreviated, so short counts get no redundant tooltip.
+ */
+export function exactTitle(...nums: number[]): string | undefined {
+  return nums.some((n) => n >= 1_000) ? nums.map((n) => n.toLocaleString('en-US')).join(' / ') : undefined;
+}
+
 export function formatNumber(num: number, decimals: number = 1): string {
   if (num >= 1_000_000_000) {
     const val = num / 1_000_000_000;

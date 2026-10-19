@@ -7,7 +7,7 @@ import Select from '@/components/Select';
 import Input from '@/components/Input';
 import NumberInput from '@/components/NumberInput';
 import Textarea from '@/components/Textarea';
-import { formatNumber } from '@/lib/utils';
+import { exactTitle, formatNumber } from '@/lib/utils';
 import type { Tile, Submission, ItemRequirementProgress } from '@/lib/types';
 import ManualOnlyBadge from './ManualOnlyBadge';
 import TileTargets from './TileTargets';
@@ -743,7 +743,7 @@ export default function TileDetailModal({
                 <div className="mb-3 p-2 bg-blue-500/10 border border-blue-500/30 rounded-lg">
                   <div className="flex justify-between text-sm mb-1">
                     <span className="text-text-muted">Team Total</span>
-                    <span className="font-medium text-blue-400">
+                    <span className="font-medium text-blue-400" title={exactTitle(statProgress.reduce((sum, p) => sum + p.gained, 0), tile.statGoal ?? 0)}>
                       {formatNumber(statProgress.reduce((sum, p) => sum + p.gained, 0))} / {formatNumber(tile.statGoal)}
                     </span>
                   </div>
@@ -772,7 +772,7 @@ export default function TileDetailModal({
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-sm font-medium text-foreground">{p.playerName}</span>
-                        <span className={`text-xs font-medium ${isGoalMet ? 'text-accent-green-light' : 'text-blue-400'}`}>
+                        <span className={`text-xs font-medium ${isGoalMet ? 'text-accent-green-light' : 'text-blue-400'}`} title={exactTitle(p.gained)}>
                           +{formatNumber(p.gained)} {tile.statType === 'boss' ? 'KC' : 'XP'}
                         </span>
                       </div>
@@ -789,7 +789,7 @@ export default function TileDetailModal({
                           />
                         </div>
                       )}
-                      <div className="text-xs text-text-muted mt-1">
+                      <div className="text-xs text-text-muted mt-1" title={exactTitle(p.current)}>
                         Current: {formatNumber(p.current)}
                       </div>
                     </div>
@@ -828,7 +828,7 @@ export default function TileDetailModal({
                           {t.teamName}
                           {members.length > 0 && <span className="text-[10px] text-text-muted">{open ? '▾' : '▸'} {members.length}</span>}
                         </span>
-                        <span className={`text-xs font-medium ${isGoalMet ? 'text-accent-green-light' : 'text-blue-400'}`}>
+                        <span className={`text-xs font-medium ${isGoalMet ? 'text-accent-green-light' : 'text-blue-400'}`} title={goal > 0 ? exactTitle(t.gained, goal) : exactTitle(t.gained)}>
                           {formatNumber(t.gained)}{goal > 0 ? ` / ${formatNumber(goal)}` : ''} {unit}
                         </span>
                       </button>
@@ -850,7 +850,7 @@ export default function TileDetailModal({
                           {members.map((m) => (
                             <li key={m.name} className="flex justify-between gap-2 text-xs">
                               <span className="text-foreground/90 truncate">{m.name}</span>
-                              <span className="text-text-muted shrink-0">
+                              <span className="text-text-muted shrink-0" title={exactTitle(m.gained)}>
                                 {formatNumber(m.gained)} {unit}
                                 {t.gained > 0 && <span className="ml-1 opacity-70">({Math.round((m.gained / t.gained) * 100)}%)</span>}
                               </span>

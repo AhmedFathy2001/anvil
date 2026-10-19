@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment } from 'react';
-import { cn, formatNumber } from '@/lib/utils';
+import { cn, exactTitle, formatNumber } from '@/lib/utils';
 import { isManualTile } from '@/lib/clogManual';
 
 interface Tile {
@@ -343,7 +343,7 @@ function TrackTile({
       {/* Stat progress */}
       {showStat && statProgress && statProgress.goal > 0 && (
         <div className="absolute bottom-0 left-0 right-0">
-          <div className="text-center text-[7px] sm:text-[9px] text-blue-400 font-medium leading-none mb-0.5">
+          <div className="text-center text-[7px] sm:text-[9px] text-blue-400 font-medium leading-none mb-0.5" title={exactTitle(statProgress.current, statProgress.goal)}>
             {formatNumber(statProgress.current)}/{formatNumber(statProgress.goal)}
           </div>
           <div className="h-1 bg-brown-dark/60 overflow-hidden">

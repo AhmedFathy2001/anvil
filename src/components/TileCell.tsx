@@ -1,6 +1,6 @@
 'use client';
 
-import { cn, formatNumber } from '@/lib/utils';
+import { cn, exactTitle, formatNumber } from '@/lib/utils';
 import ClaimAvatars from '@/components/ClaimAvatars';
 import type { ClaimMarker } from '@/lib/tileClaimsView';
 
@@ -214,7 +214,7 @@ export default function TileCell({ label, icon, completedBy, interactive, onClic
       {statProgress && statProgress.goal > 0 && !isCompleted && (
         <div className="absolute bottom-0 left-0 right-0">
           <div className="flex items-center justify-center mb-0.5">
-            <span className="text-[8px] sm:text-[10px] text-blue-400 font-medium">
+            <span className="text-[8px] sm:text-[10px] text-blue-400 font-medium" title={exactTitle(statProgress.current, statProgress.goal)}>
               {formatNumber(statProgress.current)}/{formatNumber(statProgress.goal)}
             </span>
           </div>

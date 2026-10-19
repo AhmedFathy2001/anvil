@@ -7,7 +7,7 @@ import EventBoard from '@/components/EventBoard';
 import Scoreboard from '@/components/Scoreboard';
 import Select from '@/components/Select';
 import TileDetailModal from '@/components/TileDetailModal';
-import { formatNumber, isPointsMode } from '@/lib/utils';
+import { exactTitle, formatNumber, isPointsMode } from '@/lib/utils';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { boardTiles, missionTiles, parseEventRules } from '@/lib/eventRules';
 import { scoreTeams } from '@/lib/boardScoring';
@@ -572,7 +572,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
                             <span className="font-medium">{team?.name || 'Unknown'}</span>
                           </div>
                           <div className="text-right">
-                            <span className="text-lg font-bold text-blue-400">
+                            <span className="text-lg font-bold text-blue-400" title={exactTitle(tg.totalGained)}>
                               {formatNumber(tg.totalGained)}
                             </span>
                             <span className="text-xs text-text-muted ml-1">XP</span>
