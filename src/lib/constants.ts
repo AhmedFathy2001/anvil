@@ -136,6 +136,9 @@ export const BOSSES: BossOption[] = [
   { key: "solHeredit", label: "Sol Heredit", aliases: ["colosseum", "fortis colosseum", "colo"] },
   { key: "spindel", label: "Spindel" },
   { key: "tempoross", label: "Tempoross" },
+  // Raids 4 (20 Oct 2026). One mode, no entry/hard split. The count line drops the article
+  // ("Your completed Fractured Archive count is: N"), which kcNamesForKey already covers.
+  { key: "fracturedArchive", label: "The Fractured Archive", aliases: ["tfa", "raids 4", "raids"] },
   { key: "gauntlet", label: "The Gauntlet" },
   { key: "hueycoatl", label: "The Hueycoatl", aliases: ["huey"] },
   { key: "leviathan", label: "The Leviathan", aliases: ["dt2"] },
@@ -201,6 +204,8 @@ export const RAID_MODE_VARIANTS: { base: string; modes: string[] }[] = [
   { base: "Chambers of Xeric", modes: ["Chambers of Xeric Challenge Mode"] },
   { base: "Theatre of Blood", modes: ["Theatre of Blood: Entry Mode", "Theatre of Blood: Hard Mode"] },
   { base: "Tombs of Amascut", modes: ["Tombs of Amascut: Entry Mode", "Tombs of Amascut: Expert Mode"] },
+  // No article on the count line, and no modes at launch.
+  { base: "Fractured Archive", modes: [] },
 ];
 
 // Agility courses, by the EXACT name the game's lap-counter chat line carries — "Your

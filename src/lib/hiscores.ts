@@ -22,6 +22,7 @@ export interface HiscoresSnapshot {
 const EXTRA_HISCORE_BOSSES: Record<string, string> = {
   'Maggot King': 'maggotKing',
   'Mad Angel': 'madAngel',
+  'The Fractured Archive': 'fracturedArchive',
 };
 
 /**
