@@ -12,6 +12,8 @@ import { isPointsMode } from '@/lib/utils';
 import { BALANCE_RATES_SETTING_KEY } from '@/lib/balanceRates';
 import { RAID_LUCK_SETTING_KEY } from '@/lib/raidLuck';
 import { tileBalanceRevision } from '@/lib/tileBalanceRevision';
+import { unobtainableItems } from '@/lib/dropSourceCheck';
+import { parseJsonArray } from '@/lib/tileKinds';
 
 // Effort-model side of the board-balance auditor. Runs server-side because the wiki
 // drop-rate dataset (~700KB) shouldn't ship to the client; the Tiles tab fetches this
@@ -85,6 +87,28 @@ export async function GET(
     eventDays,
     teamSize,
   });
+
+  // Drop tiles restricted to a monster that doesn't drop the item can never complete.
+  const deadDrops: { id: number; label: string; sources: string[] }[] = [];
+  for (const t of eventTiles) {
+    if (t.tileType !== 'drop' && t.tileType !== 'collection') continue;
+    const sources = parseJsonArray<string>(t.sourceNpcs);
+    if (sources.length === 0) continue;
+    const reqs = parseJsonArray<{ itemId?: number }>(t.itemRequirements);
+    const ids = reqs.length > 0 ? reqs.map((r) => r.itemId).filter((n): n is number => typeof n === 'number') : parseJsonArray<number>(t.trackedItemIds);
+    if (unobtainableItems(ids, sources).length > 0) deadDrops.push({ id: t.id, label: t.label, sources });
+  }
+  if (deadDrops.length > 0) {
+    report.checks.push({
+      id: 'drop-source',
+      level: 'warn',
+      title: `${deadDrops.length} drop tile${deadDrops.length === 1 ? '' : 's'} ask for an item the source doesn't drop`,
+      detail:
+        deadDrops.map((d) => `${d.label} (only from ${d.sources.join(', ')})`).join('; ') +
+        ` — by the wiki's drop tables these can never complete. Check the item (a charged or noted variant?) or the source.`,
+      tileIds: deadDrops.map((d) => d.id),
+    });
+  }
 
   // Pool-aware pass (plan A3): the assignee-band pricing above assumes SOMEONE capable exists —
   // check that against the actual sign-up pool (or, before anyone signs up, the whole clan as the
