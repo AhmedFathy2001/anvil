@@ -1,8 +1,8 @@
 {
   "source": "https://oldschool.runescape.wiki/w/Module:Collection_log/data.json",
-  "generatedAt": "2026-07-31T11:14:52.828Z",
+  "generatedAt": "2026-10-20T17:14:51.684Z",
   "activityCount": 125,
-  "itemCount": 1712,
+  "itemCount": 1734,
   "manualOnlyIds": [
     2978,
     2979,
@@ -312,7 +312,6 @@
     31797,
     31800,
     32087,
-    32090,
     32102,
     32104,
     32106,
@@ -330,7 +329,11 @@
     32410,
     33143,
     33423,
-    34024
+    34659,
+    34661,
+    34663,
+    34665,
+    34667
   ],
   "activities": {
     "Abyssal Sire": [
@@ -6839,10 +6842,6 @@
       {
         "id": 31283,
         "name": "Soup"
-      },
-      {
-        "id": 34040,
-        "name": "Mr mcgroot"
       }
     ],
     "Skotizo": [
@@ -7223,6 +7222,34 @@
       {
         "id": 32876,
         "name": "Aquanite tendon"
+      },
+      {
+        "id": 33661,
+        "name": "Venator fang"
+      },
+      {
+        "id": 33663,
+        "name": "Venator tooth"
+      },
+      {
+        "id": 34401,
+        "name": "Necklace of Fangs"
+      },
+      {
+        "id": 34404,
+        "name": "Air diamond"
+      },
+      {
+        "id": 34410,
+        "name": "Water sapphire"
+      },
+      {
+        "id": 34416,
+        "name": "Earth emerald"
+      },
+      {
+        "id": 34422,
+        "name": "Fire ruby"
       }
     ],
     "Soul Wars": [
@@ -7315,6 +7342,76 @@
       {
         "id": 13225,
         "name": "Tzrek-jad"
+      }
+    ],
+    "The Fractured Archive": [
+      {
+        "id": 34646,
+        "name": "Orion"
+      },
+      {
+        "id": 34659,
+        "name": "Living record (tier 1)"
+      },
+      {
+        "id": 34661,
+        "name": "Living record (tier 2)"
+      },
+      {
+        "id": 34663,
+        "name": "Living record (tier 3)"
+      },
+      {
+        "id": 34665,
+        "name": "Living record (tier 4)"
+      },
+      {
+        "id": 34667,
+        "name": "Living record (tier 5)"
+      },
+      {
+        "id": 34669,
+        "name": "Ascension shards"
+      },
+      {
+        "id": 34671,
+        "name": "Fragment of living earth"
+      },
+      {
+        "id": 34673,
+        "name": "Fragment of deep water"
+      },
+      {
+        "id": 34675,
+        "name": "Fragment of whispering wind"
+      },
+      {
+        "id": 34677,
+        "name": "Fragment of burning fire"
+      },
+      {
+        "id": 34679,
+        "name": "Horn of Bran"
+      },
+      {
+        "id": 34681,
+        "name": "Ascension crossbows"
+      },
+      {
+        "id": 34717,
+        "name": "Obligator (uncharged)"
+      },
+      {
+        "id": 34719,
+        "name": "Rondache"
+      },
+      {
+        "id": 34722,
+        "name": "Archivist's folio (inert)"
+      },
+      {
+        "id": 34727,
+        "name": "Zorya's tome (uncharged)"
       }
     ],
     "The Gauntlet": [
@@ -7999,16 +8096,6 @@
       {
         "id": 28334,
         "name": "Awakener's orb"
-      }
-    ],
-    "Venators": [
-      {
-        "id": 33661,
-        "name": "Venator fang"
-      },
-      {
-        "id": 33663,
-        "name": "Venator tooth"
       }
     ],
     "Venenatis and Spindel": [

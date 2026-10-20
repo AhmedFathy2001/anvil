@@ -49,6 +49,11 @@ const KC_AWARD_TRACKED_NAMES = new Set(['Infernal cape', 'Fire cape']);
 // own. Landing on a monster page means we're not on the item page and can't judge it, so we skip
 // flagging (default tracked) rather than mislabel a genuine drop as manual.
 const MONSTER_PAGE_RE = /\{\{\s*infobox monster/i;
+// Release-day pages ({{New Content}}) often go out before anyone adds the Drop sources table — the
+// Fractured Archive's uniques all did — so a new page that says it's a "reward from [[…]]" is a
+// chest drop, not a handout. Once the wiki fills the table in, the ordinary rule above decides.
+const NEW_CONTENT_RE = /\{\{\s*new content/i;
+const REWARD_FROM_RE = /reward from \[\[/i;
 const WIKI_API = 'https://oldschool.runescape.wiki/api.php';
 const TITLE_BATCH = 50; // MediaWiki caps non-bot title queries at 50 per request.
 
@@ -119,7 +124,8 @@ async function computeManualOnlyIds(items) {
       const c = content.get(name);
       // Unknown page or a monster page (name collision) → assume tracked. Known item page without a
       // Drop sources table → manual-only.
-      if (c != null && !DROP_SOURCES_RE.test(c) && !MONSTER_PAGE_RE.test(c)) {
+      if (c != null && !DROP_SOURCES_RE.test(c) && !MONSTER_PAGE_RE.test(c)
+          && !(NEW_CONTENT_RE.test(c) && REWARD_FROM_RE.test(c))) {
         manual.push(...idsByName.get(name));
       }
     }
@@ -184,6 +190,21 @@ async function main() {
     throw new Error('Unexpected payload: expected a non-empty array of clog items.');
   }
 
+  // The wiki module re-cased ~170 names in Oct 2026 ("Jar of Dirt", "Pet Kraken") away from the
+  // in-game spelling. Keep the name we already ship when the new one differs only by case.
+  const shippedNames = new Map();
+  try {
+    for (const list of Object.values(JSON.parse(readFileSync(OUT_PATH, 'utf8')).activities ?? {})) {
+      for (const { id, name } of list) shippedNames.set(id, name);
+    }
+  } catch {
+    // First build — nothing shipped yet.
+  }
+  const displayName = (id, name) => {
+    const prev = shippedNames.get(id);
+    return prev && prev.toLowerCase() === name.toLowerCase() ? prev : name;
+  };
+
   // Group items by activity tab. One item can appear under several activities (e.g. shared
   // treasure-trail rewards, "All Pets") — it's listed under each so any of those boards can use it.
   const byActivity = {};
@@ -193,7 +214,7 @@ async function main() {
     }
     for (const tab of it.tabs) {
       if (typeof tab !== 'string' || !tab) continue;
-      (byActivity[tab] ??= []).push({ id: it.id, name: it.name });
+      (byActivity[tab] ??= []).push({ id: it.id, name: displayName(it.id, it.name) });
     }
   }
 

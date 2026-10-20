@@ -200,7 +200,7 @@
     ]
   },
   "chambersOfXeric": {
-    "label": "Chambers of Xeric",
+    "label": "Chambers of Xeric (normal mode)",
     "chest": "Ancient chest",
     "items": [
       {
@@ -398,6 +398,60 @@
       {
         "i": 22386,
         "d": 400
+      }
+    ]
+  },
+  "chambersOfXericChallengeMode": {
+    "label": "Chambers of Xeric (challenge mode)",
+    "chest": "Ancient chest",
+    "items": [
+      {
+        "i": 21034,
+        "d": 4.67
+      },
+      {
+        "i": 21079,
+        "d": 4.67
+      },
+      {
+        "i": 21000,
+        "d": 14
+      },
+      {
+        "i": 21012,
+        "d": 14
+      },
+      {
+        "i": 21018,
+        "d": 14
+      },
+      {
+        "i": 21021,
+        "d": 14
+      },
+      {
+        "i": 21024,
+        "d": 14
+      },
+      {
+        "i": 21015,
+        "d": 18.67
+      },
+      {
+        "i": 13652,
+        "d": 18.67
+      },
+      {
+        "i": 21003,
+        "d": 28
+      },
+      {
+        "i": 21043,
+        "d": 28
+      },
+      {
+        "i": 20997,
+        "d": 28
       }
     ]
   },
