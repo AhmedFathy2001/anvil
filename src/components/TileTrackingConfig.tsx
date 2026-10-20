@@ -159,6 +159,7 @@ const TIMED_LABEL_FIXES: Record<string, string | null> = {
   'ToB: HM': null,
   'Tombs of Amascut': null,
   'ToA: Expert': null,
+  'The Fractured Archive': null,
   'The Leviathan': 'Leviathan',       // "Your Leviathan kill count is: N" — no article
   'The Whisperer': 'Whisperer',
   'The Hueycoatl': 'Hueycoatl',
@@ -200,6 +201,7 @@ const SOURCE_LABEL_FIXES: Record<string, string | null> = {
   'CoX: CM': null,          // the chest reports the plain raid name regardless of mode
   'ToB: HM': null,
   'ToA: Expert': null,
+  'The Fractured Archive': 'Fractured Archive', // RuneLite's chest event name, no article
   'Sol Heredit': null,      // colosseum loot is the chest → "Fortis Colosseum"
   'Lunar Chests': 'Lunar Chest',          // RuneLite's event name is singular
   'Nightmare': 'The Nightmare',           // NPC name carries the article
@@ -217,6 +219,7 @@ const SOURCE_SUGGESTIONS = [
     'Chambers of Xeric',
     'Theatre of Blood',
     'Tombs of Amascut',
+    'Fractured Archive',
     'Fortis Colosseum',
     'Doom of Mokhaiotl',
     'Lunar Chest',
