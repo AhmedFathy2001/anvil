@@ -3,11 +3,12 @@ import { eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
 import { getSetting, setSetting } from '@/lib/settings';
-import { eventParticipants, teams, events } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eventParticipants, teams, events, tiles, completions } from '@/db/schema';
+import { eq, and, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyCaptain, verifyUser, resolveTeamMembership } from '@/lib/auth';
 import { getHiscoresStats } from '@/lib/hiscores';
 import { assertEventEditable } from '@/lib/eventLock';
+import { creditStatTilesForTeam } from '@/lib/statTileCredit';
 
 // Manual stat refresh is a STAFF override, not a per-member button: admins refresh the whole event,
 // captains refresh their own team. Regular members rely on the periodic stats cron for freshness
@@ -53,6 +54,26 @@ async function refreshPlayers(list: { id: number; name: string }[], nowIso: stri
     await delay(1200);
   }
   return results;
+}
+
+// Fresh hiscores can finish a stat tile, so run the same check the sweep and plugin pushes run.
+// Without it a tile sat at 100/100 until a teammate's push or a later sweep touched the team —
+// and a refreshed mobile player isn't due for another sweep fetch for a while.
+async function creditTeams(eventId: number, teamIds: number[]) {
+  const ids = [...new Set(teamIds)];
+  if (ids.length === 0) return;
+  const statTiles = (await db.query.tiles.findMany({ where: eq(tiles.eventId, eventId) })).filter(
+    (t) => !!t.trackedStat && !!t.statType && !!t.statGoal && !t.autoTrackDisabled,
+  );
+  if (statTiles.length === 0) return;
+  const done = await db.query.completions.findMany({
+    where: inArray(completions.tileId, statTiles.map((t) => t.id)),
+  });
+  const doneSet = new Set(done.map((c) => `${c.teamId}-${c.tileId}`));
+  for (const teamId of ids) {
+    const open = statTiles.filter((t) => !doneSet.has(`${teamId}-${t.id}`));
+    if (open.length > 0) await creditStatTilesForTeam({ eventId, teamId, statTiles: open });
+  }
 }
 
 export async function POST(
@@ -107,6 +128,7 @@ export async function POST(
         .update(eventParticipants)
         .set({ cachedStats: JSON.stringify(stats), lastStatsFetch: nowIso })
         .where(eq(eventParticipants.id, playerId));
+      if (target.teamId) await creditTeams(eId, [target.teamId]);
       return NextResponse.json({ success: true, playerId, lastFetch: nowIso });
     } catch {
       return NextResponse.json({ error: `Failed to fetch stats for ${target.name}` }, { status: 500 });
@@ -143,6 +165,7 @@ export async function POST(
       where: and(eq(eventParticipants.teamId, teamId), eq(eventParticipants.eventId, eId)),
     });
     const results = await refreshPlayers(teamPlayers, nowIso);
+    await creditTeams(eId, [teamId]);
     return NextResponse.json({ success: true, teamId, lastFetch: nowIso, results });
   }
 
@@ -157,6 +180,7 @@ export async function POST(
     }
     const allPlayers = await db.query.eventParticipants.findMany({ where: eq(eventParticipants.eventId, eId) });
     const results = await refreshPlayers(allPlayers, nowIso);
+    await creditTeams(eId, allPlayers.flatMap((p) => (p.teamId ? [p.teamId] : [])));
     return NextResponse.json({ success: true, lastFetch: nowIso, results });
   }
 
