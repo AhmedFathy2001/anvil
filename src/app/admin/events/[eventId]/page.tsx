@@ -99,9 +99,9 @@ export default async function EventOverviewPage({
         awards={awards}
         tierBands={tierBands}
         surveyOn={(await getClanFeatures(event.clanId)).on('survey')}
+        // Once it's over: the zip, and when its proof images leave storage (lib/eventMediaRetention).
+        archive={stage === 'wrap' ? <EventArchiveCard event={event} now={renderedAt} /> : null}
       />
-      {/* Once it's over: the zip, and when its proof images leave storage (lib/eventMediaRetention). */}
-      {stage === 'wrap' && <EventArchiveCard event={event} now={renderedAt} />}
     </>
   );
 }
