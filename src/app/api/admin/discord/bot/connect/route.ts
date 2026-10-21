@@ -29,8 +29,13 @@ export async function GET(request: Request) {
 
   // The callback is on the apex, and so are the cookies it reads. A clan reached on its own host
   // starts again from the apex path so the state cookie lands where the callback can see it.
+  // `?then=setup` sends the admin back to the setup wizard instead of the Discord page, so a first
+  // run never leaves the wizard. A fixed word, never a path, so it can't become an open redirect.
+  const then = new URL(request.url).searchParams.get('then') === 'setup' ? 'setup' : '';
   if (!isApexHost((await headers()).get('host'))) {
-    return NextResponse.redirect(new URL(`/c/${clan.slug}/api/admin/discord/bot/connect`, originForHost(apexDomain())));
+    return NextResponse.redirect(
+      new URL(`/c/${clan.slug}/api/admin/discord/bot/connect${then ? `?then=${then}` : ''}`, originForHost(apexDomain())),
+    );
   }
 
   if (!(await oauthConnectAvailable(clan.id))) {
@@ -53,6 +58,6 @@ export async function GET(request: Request) {
   res.cookies.set(STATE_COOKIE, state, cookie);
   // Carries its own state, so only THIS round trip is treated as a connect: a login started while an
   // abandoned connect cookie is still alive has a different state and goes the ordinary way.
-  res.cookies.set(BOT_CONNECT_COOKIE, `${clan.id}:${state}`, cookie);
+  res.cookies.set(BOT_CONNECT_COOKIE, `${clan.id}:${state}${then ? `:${then}` : ''}`, cookie);
   return res;
 }
