@@ -3,7 +3,7 @@
 
 import type { NextRequest } from 'next/server';
 
-import { assetResponse, getAsset, missThrottle, placeholderResponse } from '@/lib/assetCache';
+import { assetResponse, getAsset, limitedResponse, missThrottle, placeholderResponse } from '@/lib/assetCache';
 import { parseAssetPath, WIKI_ASSET_PREFIX } from '@/lib/assetUrls';
 
 export const runtime = 'nodejs';
@@ -16,6 +16,6 @@ export async function GET(request: NextRequest): Promise<Response> {
   const ref = pathname.startsWith(WIKI_ASSET_PREFIX) ? parseAssetPath(pathname) : null;
   if (!ref || ref.kind !== 'wiki') return placeholderResponse(404);
   const asset = await getAsset(ref, { allowMiss: missThrottle(request) });
-  if (asset === 'limited') return placeholderResponse(200, 60);
+  if (asset === 'limited') return limitedResponse();
   return asset ? assetResponse(asset) : placeholderResponse();
 }

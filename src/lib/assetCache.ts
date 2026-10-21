@@ -18,6 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { assetCacheKey, parseAssetPath, upstreamUrl, UPSTREAM_HOSTS, type AssetRef } from '@/lib/assetUrls';
+import { isKnownAsset } from '@/lib/assetKnown';
 import { getClientIp } from '@/lib/clientIp';
 import { log } from '@/lib/logger';
 import { rateLimitByKey } from '@/lib/rate-limit';
@@ -223,37 +224,71 @@ async function fetchUpstream(ref: AssetRef, key: string): Promise<CachedAsset | 
 
 // ── Public API ──
 
+/** Origin fetches actually running — only real fetch promises live here, never a throttle check. */
 const inFlight = new Map<string, Promise<CachedAsset | null | 'limited'>>();
+/** Store reads, deduped separately so a burst of cold requests reads the bucket once. */
+const storeReads = new Map<string, Promise<CachedAsset | null>>();
 
 export interface GetAssetOptions {
   /**
-   * Asked once, only on a real MISS (not in memory, not in the store, no fetch already in flight),
-   * just before going to origin. False → nothing is fetched or stored and the result is 'limited'.
-   * The /img routes pass a per-IP + global throttle; server-side callers (link cards) pass none.
+   * Asked only on a real MISS — not in memory, not in the store, and no origin fetch already in
+   * flight to join — just before starting one. False → nothing is fetched or stored, result
+   * 'limited'. A caller joining an existing fetch is never asked: it costs no upstream request.
+   * The /img routes pass missThrottle; server-side callers (link cards) pass none.
    */
-  allowMiss?: () => Promise<boolean>;
+  allowMiss?: (ref: AssetRef) => Promise<boolean>;
 }
 
-/**
- * The bytes for a cached asset — memory, then the store, then origin (stored on success). Null when
- * origin could not supply a valid image; that outcome is NOT cached anywhere, so it is retried.
- * 'limited' when allowMiss refused the origin fetch.
- */
-export function getAsset(ref: AssetRef, opts: GetAssetOptions = {}): Promise<CachedAsset | null | 'limited'> {
-  const key = assetCacheKey(ref);
-  const hot = memoryGet(key);
-  if (hot) return Promise.resolve(hot);
-  const pending = inFlight.get(key);
-  if (pending) return pending;
+// At most this many origin fetches at once; the rest queue for up to the fetch timeout, then give up
+// as 'limited' (our capacity, not the upstream's fault — so nothing public gets cached).
+const MAX_UPSTREAM_CONCURRENCY = 8;
+let upstreamActive = 0;
+const upstreamQueue: (() => void)[] = [];
 
+function acquireUpstreamSlot(): Promise<boolean> {
+  if (upstreamActive < MAX_UPSTREAM_CONCURRENCY) {
+    upstreamActive++;
+    return Promise.resolve(true);
+  }
+  return new Promise<boolean>((resolve) => {
+    const grant = () => {
+      clearTimeout(timer);
+      upstreamActive++;
+      resolve(true);
+    };
+    const timer = setTimeout(() => {
+      const i = upstreamQueue.indexOf(grant);
+      if (i >= 0) upstreamQueue.splice(i, 1);
+      resolve(false);
+    }, UPSTREAM_TIMEOUT_MS);
+    upstreamQueue.push(grant);
+  });
+}
+
+function releaseUpstreamSlot(): void {
+  upstreamActive--;
+  upstreamQueue.shift()?.();
+}
+
+function readStore(key: string): Promise<CachedAsset | null> {
+  const pending = storeReads.get(key);
+  if (pending) return pending;
+  const p = storeGet(key)
+    .catch(() => null)
+    .finally(() => storeReads.delete(key));
+  storeReads.set(key, p);
+  return p;
+}
+
+function startFetch(ref: AssetRef, key: string): Promise<CachedAsset | null | 'limited'> {
   const p = (async () => {
-    const stored = await storeGet(key);
-    if (stored) {
-      memorySet(key, stored);
-      return stored;
+    if (!(await acquireUpstreamSlot())) return 'limited' as const;
+    let fresh: CachedAsset | null;
+    try {
+      fresh = await fetchUpstream(ref, key);
+    } finally {
+      releaseUpstreamSlot();
     }
-    if (opts.allowMiss && !(await opts.allowMiss())) return 'limited' as const;
-    const fresh = await fetchUpstream(ref, key);
     if (!fresh) return null;
     memorySet(key, fresh);
     await storePut(key, fresh);
@@ -263,6 +298,34 @@ export function getAsset(ref: AssetRef, opts: GetAssetOptions = {}): Promise<Cac
     .finally(() => inFlight.delete(key));
   inFlight.set(key, p);
   return p;
+}
+
+/**
+ * The bytes for a cached asset — memory, then the store, then origin (stored on success). Null when
+ * origin could not supply a valid image; that outcome is NOT cached anywhere, so it is retried.
+ * 'limited' when the throttle or the origin-concurrency cap refused a NEW origin fetch.
+ */
+export async function getAsset(ref: AssetRef, opts: GetAssetOptions = {}): Promise<CachedAsset | null | 'limited'> {
+  const key = assetCacheKey(ref);
+  const hot = memoryGet(key);
+  if (hot) return hot;
+  let joined = inFlight.get(key);
+  if (joined) return joined;
+
+  const stored = await readStore(key);
+  if (stored) {
+    memorySet(key, stored);
+    return stored;
+  }
+
+  // Someone may have started the fetch while we read the store; joining it is free.
+  joined = inFlight.get(key);
+  if (joined) return joined;
+  if (opts.allowMiss && !(await opts.allowMiss(ref))) return 'limited';
+  // …or while the throttle was being consulted.
+  joined = inFlight.get(key);
+  if (joined) return joined;
+  return startFetch(ref, key);
 }
 
 /** As {@link getAsset}, from one of our `/img/…` paths. Null for a path that names nothing valid. */
@@ -276,17 +339,21 @@ export async function getAssetByPath(urlPath: string): Promise<CachedAsset | nul
 // ── Miss throttle (the /img routes) ──
 
 const MISS_PER_IP = { limit: 60, windowMs: 60_000 };
-const MISS_GLOBAL = { limit: 600, windowMs: 60_000 };
+export const MISS_GLOBAL = { limit: 600, windowMs: 60_000 };
 
 /**
  * Cache misses are the only expensive request here (an origin fetch plus a bucket write), and the
- * routes are unauthenticated, so misses — not hits — are throttled: 60/min per client IP (IPv6 by
- * /64) and 600/min across the process. Hits are never counted.
+ * routes are unauthenticated, so misses — not hits, not joins — are throttled: 60/min per client IP
+ * (IPv6 by /64), and 600/min across the process for anything the app does not itself reference
+ * (lib/assetKnown). Known art skips the global ceiling so junk names cannot starve real pages.
  */
-export function missThrottle(request: { headers: { get(name: string): string | null } }): () => Promise<boolean> {
-  return async () => {
+export function missThrottle(
+  request: { headers: { get(name: string): string | null } },
+): (ref: AssetRef) => Promise<boolean> {
+  return async (ref) => {
     const ip = getClientIp(request);
     if (!(await rateLimitByKey('asset-miss', ip, MISS_PER_IP)).ok) return false;
+    if (isKnownAsset(ref)) return true;
     return (await rateLimitByKey('asset-miss', 'global', MISS_GLOBAL)).ok;
   };
 }
@@ -313,7 +380,19 @@ export function assetResponse(asset: CachedAsset): Response {
   });
 }
 
-/** The placeholder, cached briefly (five minutes by default) so a recovered upstream shows up soon. */
+/**
+ * Throttled: 429, never cacheable — an edge cache must not hand one client's refusal to everyone.
+ * An <img> shows broken for a moment and the next view retries.
+ */
+export function limitedResponse(): Response {
+  return new Response(null, {
+    status: 429,
+    headers: { 'Cache-Control': 'no-store', 'Retry-After': '60', 'X-Content-Type-Options': 'nosniff' },
+  });
+}
+
+/** The placeholder for a GENUINE upstream failure (or an invalid name), publicly cached for five
+ *  minutes so a recovered upstream shows up soon. Never used for throttling — see limitedResponse. */
 export function placeholderResponse(status = 200, maxAge = 300): Response {
   return new Response(new Uint8Array(PLACEHOLDER_PNG), {
     status,

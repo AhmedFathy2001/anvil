@@ -163,6 +163,11 @@ const WIKI_BUSTERS: ReadonlyMap<string, string> = (() => {
   return m;
 })();
 
+/** Every wiki file the bundled dataset names (for the known-asset set in lib/assetKnown). */
+export function datasetWikiFiles(): Iterable<string> {
+  return WIKI_BUSTERS.keys();
+}
+
 /** The server-known cache-buster for a wiki file, or null. */
 export function wikiBusterFor(file: string): string | null {
   return WIKI_BUSTERS.get(file) ?? null;
