@@ -1561,6 +1561,10 @@ export async function resolvePluginMember(
   if (!currentRsn && !hintOnly) {
     try { currentRsn = new URL(request.url).searchParams.get('rsn'); } catch { /* not a URL we can parse */ }
   }
+  // NOT A NAME YET. Mid-login the client can report a placeholder ("#Player2014"); taken as a played
+  // name it was auto-linked, first-use, as a character of its own and landed on the review queue.
+  // Treat it as no name: nothing is observed, linked or renamed, and the next poll carries the real one.
+  if (currentRsn && !isPlausibleRsn(sanitizeRsn(currentRsn))) currentRsn = null;
   const normalizedRsn = currentRsn ? normalizeRsn(currentRsn) : null;
 
   // Stable Jagex identifier (client.getAccountHash()), captured for auto-verify so

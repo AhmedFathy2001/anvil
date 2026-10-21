@@ -9,7 +9,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { accounts, detectedAccounts } from '@/db/schema';
-import { normalizeRsn, resolvePluginMember, verifyPluginTokenUser } from '@/lib/auth';
+import { isPlausibleRsn, normalizeRsn, resolvePluginMember, sanitizeRsn, verifyPluginTokenUser } from '@/lib/auth';
 import { personOf } from '@/lib/roster';
 import { IGNORED_STATUSES } from '@/lib/accountRelease';
 
@@ -30,7 +30,8 @@ export type PlayedCharacter = {
 /** The character named by this request's headers, or null with no X-RSN (the hint never counts). */
 export function playedCharacter(request: Request): PlayedCharacter | null {
   const rsn = request.headers.get('X-RSN')?.trim();
-  if (!rsn) return null;
+  // A mid-login placeholder ("#Player2014") is not a character (see resolvePluginMember).
+  if (!rsn || !isPlausibleRsn(sanitizeRsn(rsn))) return null;
   const rsnNormalized = normalizeRsn(rsn);
   if (!rsnNormalized) return null;
   return { rsn, rsnNormalized, accountHash: request.headers.get('X-Account-Hash')?.trim() || null };
