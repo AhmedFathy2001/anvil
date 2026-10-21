@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { itemIconUrl } from '@/lib/tileIcons';
 import type { DropLine, EventStatsData, MemberStats, SeriesKey } from '@/lib/eventStats';
 
 // The stats page body (lib/eventStats). Server-rendered data in, sorting/filtering/chart hover only.
@@ -443,7 +444,7 @@ function FeedLine({ d, nowMs, teamColor, children }: { d: DropLine; nowMs: numbe
     <li className="flex items-center gap-2 py-1.5 border-b border-card-border/50 last:border-0 text-sm">
       {d.itemId ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={`https://static.runelite.net/cache/item/icon/${d.itemId}.png`} alt="" width={24} height={24} className="w-6 h-6 object-contain shrink-0" loading="lazy" />
+        <img src={itemIconUrl(d.itemId)} alt="" width={24} height={24} className="w-6 h-6 object-contain shrink-0" loading="lazy" />
       ) : (
         <span className="w-6 text-center shrink-0" aria-hidden>{KIND_EMOJI[d.kind] ?? '•'}</span>
       )}

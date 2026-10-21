@@ -7,8 +7,9 @@ import { BOOSTS, PRAYERS, SPELLS, prayerKeys, stylesFor, togglePrayer, type Slot
 import type { GearIndex } from '@/lib/dps/summary';
 import EquipmentPanel from './EquipmentPanel';
 import Select from '@/components/Select';
+import { wikiImageUrl } from '@/lib/assetUrls';
 
-const wiki = (file: string) => `https://oldschool.runescape.wiki/images/${encodeURIComponent(file.replace(/ /g, '_'))}`;
+const wiki = (file: string) => wikiImageUrl(file);
 
 const STATS = [
   { key: 'attack', label: 'Attack', icon: 'Attack icon.png' },

@@ -310,5 +310,7 @@ export const config = {
   // Everything except Next's own assets and the files it serves verbatim. The clan prefix can
   // appear in front of ANY path, and the subdomain redirect has to see every page request, so the
   // narrow list of gated prefixes this used to carry would miss both.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|txt|xml|webmanifest)$).*)'],
+  // `/img/` is the cached game art (app/img/*): public, clanless, and never under a clan prefix, so
+  // it skips this entirely — no auth, no clan rewrite, no legacy-host redirect hop.
+  matcher: ['/((?!_next/static|_next/image|img/|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|txt|xml|webmanifest)$).*)'],
 };

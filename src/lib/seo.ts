@@ -37,6 +37,18 @@ export function absoluteUrl(path: string): string {
   return `${apexOrigin()}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
+/**
+ * One of our cached game-art paths (`/img/wiki/…`, `/img/item/…`, see lib/assetUrls) made absolute on
+ * the apex, for anything that leaves the browser — Discord embeds, the plugin, satori link cards.
+ * Every other value (an already-absolute URL, a clan-uploaded image, null) passes through untouched.
+ */
+export function absoluteAssetUrl(url: string): string;
+export function absoluteAssetUrl(url: string | null | undefined): string | null;
+export function absoluteAssetUrl(url: string | null | undefined): string | null {
+  if (!url) return url ?? null;
+  return url.startsWith('/img/') ? absoluteUrl(url) : url;
+}
+
 /** A clan's canonical PATH. `/c/theafkspot/events/5`. The address every link should carry. */
 export function clanCanonicalPath(slug: string, inner = '/'): string {
   const rest = !inner || inner === '/' ? '' : inner.startsWith('/') ? inner : `/${inner}`;

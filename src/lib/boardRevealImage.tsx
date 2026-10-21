@@ -10,6 +10,7 @@ import { ImageResponse } from 'next/og';
 import { requireSecret } from '@/lib/env';
 import { Mark } from '@/lib/ogKit';
 import { deriveTileIcon } from '@/lib/tileIcons';
+import { absoluteAssetUrl } from '@/lib/seo';
 
 const PURPOSE = 'board-reveal-image:v1';
 
@@ -111,7 +112,8 @@ export function boardRevealImage(opts: {
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap }}>
           {shown.map((tile) => {
-            const icon = deriveTileIcon(tile);
+            // satori fetches <img> sources itself, so our cached-art paths have to be absolute.
+            const icon = absoluteAssetUrl(deriveTileIcon(tile));
             return (
               <div
                 key={tile.id}

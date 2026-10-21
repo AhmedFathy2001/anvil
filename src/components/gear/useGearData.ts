@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
+import { wikiImageUrl } from '@/lib/assetUrls';
 import { indexGear, type GearData, type GearIndex } from '@/lib/dps/summary';
 
 // One fetch per page load, shared by every calculator on the page.
@@ -47,5 +48,5 @@ export function useGearData(): { idx: GearIndex | null; error: string | null } {
 
 /** The wiki's image for an item. */
 export function itemIcon(img: string | undefined | null): string | null {
-  return img ? `https://oldschool.runescape.wiki/images/${encodeURIComponent(img.replace(/ /g, '_'))}` : null;
+  return img ? wikiImageUrl(img) : null;
 }

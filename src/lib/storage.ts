@@ -167,7 +167,32 @@ async function s3Del(urls: string[]): Promise<void> {
   );
 }
 
+async function s3Get(key: string): Promise<{ bytes: Buffer; contentType: string | null } | null> {
+  const cfg = s3Config();
+  const target = `${cfg.endpoint}/${cfg.bucket}/${prefixedKey(cfg, key)}`;
+  const signed = await cfg.client.sign(target, { method: 'GET' });
+  const res = await fetch(signed.url, { headers: signed.headers, cache: 'no-store', signal: AbortSignal.timeout(5_000) });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`S3 get failed (${res.status}) for ${key}`);
+  return { bytes: Buffer.from(await res.arrayBuffer()), contentType: res.headers.get('content-type') };
+}
+
 // ─── Public API ──────────────────────────────────────────────────────────────
+
+/** Is an S3/R2 bucket the configured backend? (Vercel Blob has no keyed read, so callers that need
+ *  one — the asset cache — fall back to local disk otherwise.) */
+export function s3Enabled(): boolean {
+  return resolveDriver() === 's3';
+}
+
+/**
+ * Read an object back by KEY from the S3 driver. Null when it does not exist; throws on any other
+ * failure so a caller can tell "not cached yet" from "bucket unreachable". S3 only — see s3Enabled.
+ */
+export async function getObject(key: string): Promise<{ bytes: Buffer; contentType: string | null } | null> {
+  if (!s3Enabled()) throw new Error('getObject needs the S3 storage driver');
+  return s3Get(key);
+}
 
 /**
  * Store an object and return its public URL. `key` is the object path (e.g.
