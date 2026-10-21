@@ -57,6 +57,13 @@ const ar: PartialGuideDict = {
         blurb: 'دعوة واحدة، ثم القنوات التي ينشر فيها كل تدفق، والأدوار، وأوامر الشرطة المائلة، وما تتحقق منه حين يتوقف.',
         minutes: '~٥ دقائق',
       },
+      switching: {
+        eyebrow: 'الانتقال إلى Anvil',
+        title: 'الانتقال من Dink أو Wise Old Man',
+        blurb:
+          'يرسل Anvil دروباتك إلى Discord ويدير مسابقاتكم الأسبوعية. خمس خطوات للإدارة، وخطوتان للاعبين.',
+        minutes: '~3 دقائق',
+      },
       clan: {
         eyebrow: 'لمن يبدأ عشيرة',
         title: 'أنشئ عشيرة',
@@ -133,6 +140,58 @@ const ar: PartialGuideDict = {
           'عشيرة ضد عشيرة دون جمع اسم لاعب واحد يدويًا: رابط دعوة لكل فريق، ومقعد يتيح لمشرفهم إدارة نصفهم بنفسه.',
         minutes: '~5 دقائق لكل فريق',
       },
+    },
+  },
+
+  switching: {
+    metaTitle: 'الانتقال من Dink أو Wise Old Man — Anvil',
+    metaDescription:
+      'انقل عشيرتك من Dink وWise Old Man إلى Anvil: أعدّ قنوات Discord، وزامن قائمة العشيرة، وابدأ Skill أو Boss of the Week، وأخبر أعضاءك.',
+    eyebrow: 'الانتقال إلى Anvil',
+    title: 'الانتقال من Dink أو Wise Old Man',
+    dek: 'يؤدي Anvil المهمتين معًا. فهو ينشر دروبات العشيرة وإنجازاتها في Discord. كما يُبقي قائمة العشيرة محدّثة ويدير المسابقات الأسبوعية.',
+
+    staff: {
+      title: 'إذا كنت تدير العشيرة',
+      body: [
+        '**دع البوت يُعدّ قنواتك.** اذهب إلى Admin → Discord → **Set it up for me**. اختر قناة واحدة أو عدة قنوات. إذا كان Dink ينشر في مكان ما، فعلّم على _Use the same channels_. لن يتغير شيء عند أعضائك.',
+        '**زامن قائمة العشيرة.** في RuneLite، افتح إعدادات إضافة Anvil. فعّل **Keep the clan roster in sync**. يفعل ذلك مشرف واحد مرة واحدة داخل اللعبة. وهذا يحل محل مجموعتك في Wise Old Man.',
+        '**ابدأ Skill أو Boss of the Week.** اذهب إلى Admin → All events → **+ New event**، واختر Skill of the Week أو Boss of the Week. يشارك كل من في قائمة العشيرة تلقائيًا. وهذا يحل محل مسابقات Wise Old Man.',
+        '**أخبر أعضاءك.** اذهب إلى Admin → Discord → **Tell your members** → **Post it**. ينشر البوت خطوات اللاعبين نيابةً عنك.',
+        '**بعد أسبوع، نظّف.** اذهب إلى Admin → Discord، وعلّم على webhooks القديمة الخاصة بـ Dink، ثم اضغط **Remove**. بعد ذلك لن يُنشر شيء مرتين.',
+      ],
+    },
+
+    player: {
+      title: 'إذا كنت لاعبًا',
+      body: [
+        '**ثبّت Anvil.** في RuneLite، افتح Plugin Hub وابحث عن Anvil واضغط **Install**. ثم سجّل الدخول عبر Discord من اللوحة الجانبية لـ Anvil.',
+        '**أوقف إشعارات Dink.** أو احذف Dink إن كنت لا تستخدمه في شيء آخر.',
+        '**هذا كل شيء.** لا يوجد ما تفعله بخصوص Wise Old Man.',
+      ],
+    },
+
+    questions: {
+      title: 'أسئلة',
+      intro: 'أكثر ما تسأل عنه العشائر:',
+      rows: [
+        {
+          term: 'هل يمكننا الإبقاء على Dink لبعض الأشياء؟',
+          body: 'نعم. لا ينشر Anvil عدد القتلات ولا مهام السلاير ولا السبيدرن. اترك هذه فقط مفعّلة في Dink.',
+        },
+        {
+          term: 'هل ما زلنا بحاجة إلى Wise Old Man؟',
+          body: 'فقط للأرقام القياسية على مر الزمن وترتيبات EHP / EHB.',
+        },
+        {
+          term: 'هل يلصق اللاعبون webhook في أي مكان؟',
+          body: 'لا. تحدد العشيرة القنوات من الموقع.',
+        },
+        {
+          term: 'هل تريد منشورات في خادمك الخاص أيضًا؟',
+          body: 'اذهب إلى ملفك الشخصي → **Announcements & webhooks** → _Your own webhooks_.',
+        },
+      ],
     },
   },
 

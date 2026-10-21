@@ -57,6 +57,13 @@ const sv: PartialGuideDict = {
         blurb: 'En inbjudan, sedan kanalerna varje flöde postar i, roller, snedstreckskommandon, och vad du kollar när det tystnar.',
         minutes: '~5 min',
       },
+      switching: {
+        eyebrow: 'Byt till Anvil',
+        title: 'Byt från Dink eller Wise Old Man',
+        blurb:
+          'Anvil postar dina drops på Discord och kör era veckotävlingar. Fem steg för staben, två för spelarna.',
+        minutes: '~3 min',
+      },
       clan: {
         eyebrow: 'För dig som startar en',
         title: 'Starta en klan',
@@ -133,6 +140,58 @@ const sv: PartialGuideDict = {
           'Varje kommando boten svarar på i Discord, vad varje alternativ gör, genomgångna exempel, och vad du kollar när ett inte dyker upp.',
         minutes: '~6 min',
       },
+    },
+  },
+
+  switching: {
+    metaTitle: 'Byt från Dink eller Wise Old Man — Anvil',
+    metaDescription:
+      'Flytta din klan från Dink och Wise Old Man till Anvil: ställ in Discord-kanalerna, synka klanlistan, starta Skill eller Boss of the Week och berätta för dina medlemmar.',
+    eyebrow: 'Byt till Anvil',
+    title: 'Byt från Dink eller Wise Old Man',
+    dek: 'Anvil gör båda jobben. Den postar klanens drops och bedrifter på Discord. Den håller också klanlistan uppdaterad och kör veckotävlingar.',
+
+    staff: {
+      title: 'Om du driver klanen',
+      body: [
+        '**Låt boten ställa in era kanaler.** Gå till Admin → Discord → **Set it up for me**. Välj en kanal eller flera. Om Dink postade någonstans, kryssa i _Use the same channels_. Inget ändras för dina medlemmar.',
+        '**Synka klanlistan.** Öppna Anvil-pluginets inställningar i RuneLite. Slå på **Keep the clan roster in sync**. En admin gör detta en gång, i spelet. Det ersätter din Wise Old Man-grupp.',
+        '**Starta en Skill eller Boss of the Week.** Gå till Admin → All events → **+ New event** och välj Skill of the Week eller Boss of the Week. Alla på klanlistan är med automatiskt. Det ersätter Wise Old Man-tävlingar.',
+        '**Berätta för dina medlemmar.** Gå till Admin → Discord → **Tell your members** → **Post it**. Boten postar spelarstegen åt dig.',
+        '**En vecka senare: städa upp.** Gå till Admin → Discord, kryssa i Dinks gamla webhooks och tryck på **Remove**. Efter det kan inget postas två gånger.',
+      ],
+    },
+
+    player: {
+      title: 'Om du är spelare',
+      body: [
+        '**Installera Anvil.** Öppna Plugin Hub i RuneLite, sök efter Anvil och tryck på **Install**. Logga sedan in med Discord från Anvils sidopanel.',
+        '**Stäng av Dinks notiser.** Eller avinstallera Dink, om du inte använder det till något annat.',
+        '**Det var allt.** Du behöver inte göra något för Wise Old Man.',
+      ],
+    },
+
+    questions: {
+      title: 'Frågor',
+      intro: 'De som klaner frågar oftast om:',
+      rows: [
+        {
+          term: 'Kan vi behålla Dink för vissa saker?',
+          body: 'Ja. Anvil postar inte kill counts, slayer-uppdrag eller speedruns. Låt bara de vara på i Dink.',
+        },
+        {
+          term: 'Behöver vi fortfarande Wise Old Man?',
+          body: 'Bara för rekord genom tiderna och EHP / EHB-rankningar.',
+        },
+        {
+          term: 'Måste spelarna klistra in en webhook någonstans?',
+          body: 'Nej. Klanen väljer kanalerna på sajten.',
+        },
+        {
+          term: 'Vill du ha inlägg på din egen server också?',
+          body: 'Gå till din profil → **Announcements & webhooks** → _Your own webhooks_.',
+        },
+      ],
     },
   },
 

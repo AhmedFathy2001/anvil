@@ -58,6 +58,13 @@ const nl: PartialGuideDict = {
         blurb: 'Eén uitnodiging, dan de kanalen waar elke feed post, rollen, slash-commando’s, en wat je nakijkt als het stopt.',
         minutes: '~5 min',
       },
+      switching: {
+        eyebrow: 'Overstappen naar Anvil',
+        title: 'Overstappen van Dink of Wise Old Man',
+        blurb:
+          'Anvil post je drops op Discord en draait jullie wekelijkse wedstrijden. Vijf stappen voor het bestuur, twee voor spelers.',
+        minutes: '~3 min',
+      },
       clan: {
         eyebrow: 'Voor wie er een begint',
         title: 'Een clan starten',
@@ -134,6 +141,58 @@ const nl: PartialGuideDict = {
           'Elk commando waarop de bot in Discord antwoordt, wat elke optie doet, uitgewerkte voorbeelden, en wat je controleert als er een niet verschijnt.',
         minutes: '~6 min',
       },
+    },
+  },
+
+  switching: {
+    metaTitle: 'Overstappen van Dink of Wise Old Man — Anvil',
+    metaDescription:
+      'Verhuis je clan van Dink en Wise Old Man naar Anvil: stel de Discord-kanalen in, synchroniseer de clanlijst, start Skill of Boss of the Week en vertel het je leden.',
+    eyebrow: 'Overstappen naar Anvil',
+    title: 'Overstappen van Dink of Wise Old Man',
+    dek: 'Anvil doet beide taken. Het post de drops en prestaties van je clan op Discord. Het houdt ook je clanlijst bij en draait wekelijkse wedstrijden.',
+
+    staff: {
+      title: 'Als je de clan leidt',
+      body: [
+        '**Laat de bot je kanalen instellen.** Ga naar Admin → Discord → **Set it up for me**. Kies één kanaal of meerdere. Als Dink ergens postte, vink dan _Use the same channels_ aan. Voor je leden verandert er niets.',
+        '**Synchroniseer je clanlijst.** Open in RuneLite de instellingen van de Anvil-plugin. Zet **Keep the clan roster in sync** aan. Eén admin doet dit één keer, in het spel. Dit vervangt je Wise Old Man-groep.',
+        '**Start een Skill of Boss of the Week.** Ga naar Admin → All events → **+ New event** en kies Skill of the Week of Boss of the Week. Iedereen op de clanlijst doet automatisch mee. Dit vervangt de Wise Old Man-wedstrijden.',
+        '**Vertel het je leden.** Ga naar Admin → Discord → **Tell your members** → **Post it**. De bot post de stappen voor spelers voor je.',
+        '**Een week later: opruimen.** Ga naar Admin → Discord, vink de oude webhooks van Dink aan en klik op **Remove**. Daarna kan niets meer dubbel posten.',
+      ],
+    },
+
+    player: {
+      title: 'Als je speler bent',
+      body: [
+        '**Installeer Anvil.** Open in RuneLite de Plugin Hub, zoek naar Anvil en klik op **Install**. Log daarna in met Discord via het Anvil-zijpaneel.',
+        '**Zet de meldingen van Dink uit.** Of verwijder Dink, als je het voor niets anders gebruikt.',
+        '**Dat is alles.** Voor Wise Old Man hoef je niets te doen.',
+      ],
+    },
+
+    questions: {
+      title: 'Vragen',
+      intro: 'De vragen die clans het vaakst stellen:',
+      rows: [
+        {
+          term: 'Kunnen we Dink voor sommige dingen houden?',
+          body: 'Ja. Anvil post geen kill counts, slayer-taken of speedruns. Laat in Dink alleen die aanstaan.',
+        },
+        {
+          term: 'Hebben we Wise Old Man nog nodig?',
+          body: 'Alleen voor records aller tijden en EHP / EHB-ranglijsten.',
+        },
+        {
+          term: 'Moeten spelers ergens een webhook plakken?',
+          body: 'Nee. De clan stelt de kanalen in op de site.',
+        },
+        {
+          term: 'Wil je ook posts op je eigen server?',
+          body: 'Ga naar je profiel → **Announcements & webhooks** → _Your own webhooks_.',
+        },
+      ],
     },
   },
 

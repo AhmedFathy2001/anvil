@@ -13,6 +13,10 @@ import type { GuidePage } from './index';
 // reader typing a Danish word still finds the page — this table is the extra net underneath, not
 // the only one. Adding a locale's own words here later is additive and breaks nothing.
 export const SEARCH_TERMS: Record<Exclude<GuidePage, ''>, string[]> = {
+  switching: [
+    'dink', 'wom', 'wise old man', 'migrate', 'migrating', 'switch', 'switching', 'move', 'moving',
+    'competition', 'competitions', 'sotw', 'botw', 'clan list', 'wom group',
+  ],
   clan: [
     'clan', 'create', 'start', 'new', 'make', 'register', 'setup', 'set up', 'owner',
     'address', 'slug', 'url', 'subdomain', 'name', 'rename', 'free', 'first',

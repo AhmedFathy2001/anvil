@@ -57,6 +57,13 @@ const ko: PartialGuideDict = {
         blurb: '초대 한 번, 그다음은 각 피드가 올라가는 채널, 역할, 슬래시 명령어, 그리고 멈췄을 때 볼 곳.',
         minutes: '약 5분',
       },
+      switching: {
+        eyebrow: 'Anvil로 옮기기',
+        title: 'Dink나 Wise Old Man에서 갈아타기',
+        blurb:
+          'Anvil은 드롭을 Discord에 올리고 주간 대회도 운영합니다. 운영진은 5단계, 플레이어는 2단계면 됩니다.',
+        minutes: '약 3분',
+      },
       clan: {
         eyebrow: '클랜을 시작하는 분께',
         title: '클랜 만들기',
@@ -133,6 +140,58 @@ const ko: PartialGuideDict = {
           '봇이 Discord에서 응답하는 모든 명령어, 각 옵션이 하는 일, 실제 예시, 그리고 명령어가 안 보일 때 확인할 것.',
         minutes: '약 6분',
       },
+    },
+  },
+
+  switching: {
+    metaTitle: 'Dink나 Wise Old Man에서 갈아타기 — Anvil',
+    metaDescription:
+      '클랜을 Dink와 Wise Old Man에서 Anvil로 옮겨 보세요. Discord 채널 설정, 클랜 명단 동기화, Skill 또는 Boss of the Week 시작, 그리고 멤버 안내까지.',
+    eyebrow: 'Anvil로 옮기기',
+    title: 'Dink나 Wise Old Man에서 갈아타기',
+    dek: 'Anvil은 두 가지 일을 모두 합니다. 클랜의 드롭과 업적을 Discord에 올립니다. 또 클랜 명단을 최신으로 유지하고 주간 대회를 운영합니다.',
+
+    staff: {
+      title: '클랜을 운영한다면',
+      body: [
+        '**봇이 채널을 설정하게 하세요.** Admin → Discord → **Set it up for me**로 가세요. 채널을 하나 또는 여러 개 고르세요. Dink가 어딘가에 올리고 있었다면 _Use the same channels_를 체크하세요. 멤버들에게는 달라지는 게 없습니다.',
+        '**클랜 명단을 동기화하세요.** RuneLite에서 Anvil 플러그인 설정을 열고 **Keep the clan roster in sync**를 켜세요. 관리자 한 명이 게임 안에서 한 번만 하면 됩니다. Wise Old Man 그룹을 대신합니다.',
+        '**Skill 또는 Boss of the Week를 시작하세요.** Admin → All events → **+ New event**로 가서 Skill of the Week나 Boss of the Week를 고르세요. 클랜 명단의 모든 사람이 자동으로 참여합니다. Wise Old Man 대회를 대신합니다.',
+        '**멤버들에게 알리세요.** Admin → Discord → **Tell your members** → **Post it**로 가세요. 플레이어용 안내 단계를 봇이 대신 올려 줍니다.',
+        '**일주일 뒤에 정리하세요.** Admin → Discord에서 Dink의 예전 웹훅을 체크하고 **Remove**를 누르세요. 그 뒤로는 중복 게시가 생기지 않습니다.',
+      ],
+    },
+
+    player: {
+      title: '플레이어라면',
+      body: [
+        '**Anvil을 설치하세요.** RuneLite에서 Plugin Hub를 열고 Anvil을 검색해 **Install**을 누르세요. 그런 다음 Anvil 사이드 패널에서 Discord로 로그인하세요.',
+        '**Dink 알림을 끄세요.** 다른 용도로 쓰지 않는다면 Dink를 삭제해도 됩니다.',
+        '**끝입니다.** Wise Old Man은 따로 할 일이 없습니다.',
+      ],
+    },
+
+    questions: {
+      title: '질문',
+      intro: '클랜들이 가장 많이 묻는 질문입니다.',
+      rows: [
+        {
+          term: '일부 기능은 Dink를 계속 써도 되나요?',
+          body: '네. Anvil은 킬 카운트, 슬레이어 과제, 스피드런은 올리지 않습니다. Dink에서는 그것들만 켜 두세요.',
+        },
+        {
+          term: '아직 Wise Old Man이 필요한가요?',
+          body: '역대 기록과 EHP / EHB 순위에만 필요합니다.',
+        },
+        {
+          term: '플레이어가 어딘가에 웹훅을 붙여 넣어야 하나요?',
+          body: '아니요. 채널은 클랜이 사이트에서 설정합니다.',
+        },
+        {
+          term: '내 서버에도 게시하고 싶나요?',
+          body: '프로필 → **Announcements & webhooks** → _Your own webhooks_로 가세요.',
+        },
+      ],
     },
   },
 

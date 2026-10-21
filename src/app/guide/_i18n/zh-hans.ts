@@ -56,6 +56,13 @@ const zhHans: PartialGuideDict = {
         blurb: '一次邀请，然后是各信息流发帖的频道、身份组、斜杠命令，以及停摆时该检查什么。',
         minutes: '约 5 分钟',
       },
+      switching: {
+        eyebrow: '迁移到 Anvil',
+        title: '从 Dink 或 Wise Old Man 切换过来',
+        blurb:
+          'Anvil 会把你的掉落发到 Discord，还会运行每周比赛。管理员五步，玩家两步。',
+        minutes: '约 3 分钟',
+      },
       clan: {
         eyebrow: '给要开氏族的人',
         title: '创建氏族',
@@ -132,6 +139,58 @@ const zhHans: PartialGuideDict = {
           '机器人在 Discord 里响应的每一条命令、每个选项的作用、实际示例，以及某条命令不出现时该检查什么。',
         minutes: '约 6 分钟',
       },
+    },
+  },
+
+  switching: {
+    metaTitle: '从 Dink 或 Wise Old Man 切换过来 — Anvil',
+    metaDescription:
+      '把你的公会从 Dink 和 Wise Old Man 迁到 Anvil：设置 Discord 频道、同步公会名单、开始 Skill 或 Boss of the Week，并通知成员。',
+    eyebrow: '迁移到 Anvil',
+    title: '从 Dink 或 Wise Old Man 切换过来',
+    dek: 'Anvil 两件事都能做。它把公会的掉落和成就发到 Discord，还会维护公会名单并运行每周比赛。',
+
+    staff: {
+      title: '如果你负责管理公会',
+      body: [
+        '**让机器人帮你设置频道。** 前往 Admin → Discord → **Set it up for me**。选一个频道或几个都行。如果 Dink 之前在某个频道发消息，就勾选 _Use the same channels_。成员那边不会有任何变化。',
+        '**同步公会名单。** 在 RuneLite 里打开 Anvil 插件的设置，开启 **Keep the clan roster in sync**。由一位管理员在游戏里操作一次即可。这会取代你的 Wise Old Man 小组。',
+        '**开始一场 Skill 或 Boss of the Week。** 前往 Admin → All events → **+ New event**，选择 Skill of the Week 或 Boss of the Week。公会名单里的所有人会自动参加。这会取代 Wise Old Man 的比赛。',
+        '**通知你的成员。** 前往 Admin → Discord → **Tell your members** → **Post it**。机器人会替你发布玩家要做的步骤。',
+        '**一周后，清理一下。** 前往 Admin → Discord，勾选 Dink 旧的 webhook，然后点 **Remove**。之后就不会再有重复发布了。',
+      ],
+    },
+
+    player: {
+      title: '如果你是玩家',
+      body: [
+        '**安装 Anvil。** 在 RuneLite 里打开 Plugin Hub，搜索 Anvil，点 **Install**。然后在 Anvil 侧边面板里用 Discord 登录。',
+        '**关掉 Dink 的通知。** 如果不用它做别的事，也可以直接卸载 Dink。',
+        '**就这些。** Wise Old Man 那边你什么都不用做。',
+      ],
+    },
+
+    questions: {
+      title: '常见问题',
+      intro: '公会问得最多的几个：',
+      rows: [
+        {
+          term: '有些功能我们还能继续用 Dink 吗？',
+          body: '可以。Anvil 不会发布击杀数、Slayer 任务或速通记录。在 Dink 里只保留这些开启即可。',
+        },
+        {
+          term: '我们还需要 Wise Old Man 吗？',
+          body: '只有查看历史总记录和 EHP / EHB 排名时才需要。',
+        },
+        {
+          term: '玩家需要在哪里粘贴 webhook 吗？',
+          body: '不需要。频道由公会在网站上设置。',
+        },
+        {
+          term: '想让消息也发到你自己的服务器吗？',
+          body: '前往你的个人资料 → **Announcements & webhooks** → _Your own webhooks_。',
+        },
+      ],
     },
   },
 

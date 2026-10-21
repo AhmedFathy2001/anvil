@@ -1,6 +1,7 @@
 import { requireClan } from '@/lib/clanContext';
 import { getClanFeatures } from '@/lib/clanFeatures';
 import { listBotChannels } from '@/lib/discord-broadcast';
+import { configuredOrigin } from '@/lib/request-origin';
 import GuideLink from '@/components/GuideLink';
 import DiscordSettings from './DiscordSettings';
 
@@ -19,7 +20,7 @@ export default async function AdminDiscordPage() {
       <header className="mb-8">
         <h1 className="display display-lg text-4xl sm:text-[44px] font-semibold leading-tight">Discord</h1>
         <p className="text-text-muted mt-2 text-[15px]">
-          Everything Anvil posts and does in your server. Open a section to change it.
+          Let the bot set up your channels, then tell your members. Everything else is under More settings.
         </p>
         <p className="mt-2">
           <GuideLink href="/guide/discord">Discord guide</GuideLink>
@@ -30,6 +31,7 @@ export default async function AdminDiscordPage() {
         botEnabled={botEnabled}
         funMessagesOn={features.on('funMessages')}
         clanHallOn={features.on('clanHall')}
+        siteUrl={configuredOrigin() ?? ''}
       />
     </div>
   );

@@ -1,11 +1,13 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import FoldSection from '@/components/FoldSection';
 import GuideLink from '@/components/GuideLink';
 import type { BroadcastChannel } from '@/lib/discord-broadcast';
 import WebhooksPanel from './WebhooksPanel';
+import DiscordQuickSetup from './DiscordQuickSetup';
+import { invalidateSettings } from '@/lib/settingsClient';
 import DiscordBotSettings from '@/components/DiscordBotSettings';
 import BotIdentitySettings from '@/components/BotIdentitySettings';
 import DiscordLanguageSetting from '@/components/DiscordLanguageSetting';
@@ -55,27 +57,62 @@ export default function DiscordSettings({
   botEnabled,
   funMessagesOn,
   clanHallOn,
+  siteUrl,
 }: {
   channels: BroadcastChannel[];
   botEnabled: boolean;
   funMessagesOn: boolean;
   clanHallOn: boolean;
+  siteUrl: string;
 }) {
+  // Bumped after quick setup rewrites the routing, so the by-hand fields remount and re-read it.
+  const [panelKey, setPanelKey] = useState(0);
+
   return (
     <div className="space-y-3.5">
+      {botEnabled ? (
+        <p className="text-sm">
+          <span className="text-gold">✓</span> The bot is in your server.
+        </p>
+      ) : (
+        <section className="border border-card-border rounded-xl p-5 bg-card-bg space-y-4">
+          <p className="text-sm">
+            <span className="text-text-muted">Not connected yet.</span> Add the bot to your server first. It sets up
+            channels and posts for you.
+          </p>
+          <DiscordBotSettings />
+        </section>
+      )}
+
+      {botEnabled && (
+        <DiscordQuickSetup
+          channels={channels}
+          siteUrl={siteUrl}
+          onRoutingChanged={() => {
+            invalidateSettings();
+            setPanelKey((k) => k + 1);
+          }}
+        />
+      )}
+
+      <h2 className="display text-lg font-semibold pt-6">More settings</h2>
+
       <FoldSection
         sprite="discord"
         title="Connection"
-        summary={botEnabled ? 'The bot is in your server. Its name, language and permissions.' : 'Add the bot to your server first. Most of this page needs it.'}
-        defaultOpen={!botEnabled}
+        summary={botEnabled ? 'The bot is in your server. Its name, language and permissions.' : 'The bot’s name, language and invite link.'}
       >
-        <p className="text-sm text-text-muted">
-          One bot creates channels’ webhooks, syncs roles and nicknames, and makes team channels. Use the shared Anvil bot
-          or bring your own; either way it has to be <strong className="text-foreground">invited to your server</strong>. The
-          status below says whether it is, and the invite asks Discord for exactly the permissions it needs.
-        </p>
-        <DiscordBotSettings />
-        <Divider />
+        {botEnabled && (
+          <>
+            <p className="text-sm text-text-muted">
+              One bot creates channels’ webhooks, syncs roles and nicknames, and makes team channels. Use the shared Anvil
+              bot or bring your own; either way it has to be <strong className="text-foreground">invited to your server</strong>.
+              The status below says whether it is, and the invite asks Discord for exactly the permissions it needs.
+            </p>
+            <DiscordBotSettings />
+            <Divider />
+          </>
+        )}
         <BotIdentitySettings />
         <Divider />
         <DiscordLanguageSetting />
@@ -89,12 +126,12 @@ export default function DiscordSettings({
       </FoldSection>
 
       <FoldSection
+        id="discord-by-hand"
         sprite="clue"
-        title="Where posts go"
-        summary="Clan news and player highlights, and which channel each kind of post lands in."
-        defaultOpen={botEnabled}
+        title="Change channels by hand"
+        summary="Pick the channel for each kind of post yourself, including clan news and event posts."
       >
-        <WebhooksPanel channels={channels} botEnabled={botEnabled} />
+        <WebhooksPanel key={panelKey} channels={channels} botEnabled={botEnabled} />
       </FoldSection>
 
       <FoldSection

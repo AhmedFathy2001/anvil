@@ -57,6 +57,13 @@ const ja: PartialGuideDict = {
         blurb: '招待ひとつ、そのあとは各フィードの投稿先チャンネル、ロール、スラッシュコマンド、そして止まったときに見る場所。',
         minutes: '約5分',
       },
+      switching: {
+        eyebrow: 'Anvil への移行',
+        title: 'Dink や Wise Old Man から切り替える',
+        blurb:
+          'Anvil は、あなたのドロップを Discord に投稿し、毎週のコンペも運営します。運営側は 5 ステップ、プレイヤー側は 2 ステップです。',
+        minutes: '約 3 分',
+      },
       clan: {
         eyebrow: 'これから立ち上げる人へ',
         title: 'クランを作る',
@@ -133,6 +140,58 @@ const ja: PartialGuideDict = {
           'ボットが Discord で応答するすべてのコマンド、各オプションの意味、実例、そしてコマンドが出てこないときに確認すること。',
         minutes: '約 6 分',
       },
+    },
+  },
+
+  switching: {
+    metaTitle: 'Dink や Wise Old Man から切り替える — Anvil',
+    metaDescription:
+      'クランを Dink と Wise Old Man から Anvil に移しましょう。Discord チャンネルの設定、クランリストの同期、Skill または Boss of the Week の開始、そしてメンバーへのお知らせまで。',
+    eyebrow: 'Anvil への移行',
+    title: 'Dink や Wise Old Man から切り替える',
+    dek: 'Anvil はどちらの役目も担います。クランのドロップや実績を Discord に投稿します。さらに、クランリストを最新に保ち、毎週のコンペも運営します。',
+
+    staff: {
+      title: 'クランを運営している場合',
+      body: [
+        '**ボットにチャンネルを設定してもらいます。** Admin → Discord → **Set it up for me** を開きます。チャンネルを 1 つ、または複数選びます。Dink がどこかに投稿していた場合は、_Use the same channels_ にチェックを入れてください。メンバー側は何も変わりません。',
+        '**クランリストを同期します。** RuneLite で Anvil プラグインの設定を開き、**Keep the clan roster in sync** をオンにします。これはゲーム内で、管理者 1 人が 1 回行うだけです。Wise Old Man のグループの代わりになります。',
+        '**Skill または Boss of the Week を始めます。** Admin → All events → **+ New event** を開き、Skill of the Week か Boss of the Week を選びます。クランリストの全員が自動的に参加します。Wise Old Man のコンペの代わりになります。',
+        '**メンバーに知らせます。** Admin → Discord → **Tell your members** → **Post it** を開きます。プレイヤー向けの手順はボットが投稿してくれます。',
+        '**1 週間後に片づけます。** Admin → Discord を開き、Dink の古い Webhook にチェックを入れて **Remove** を押します。これで二重投稿は起こらなくなります。',
+      ],
+    },
+
+    player: {
+      title: 'プレイヤーの場合',
+      body: [
+        '**Anvil をインストールします。** RuneLite で Plugin Hub を開き、Anvil を検索して **Install** を押します。そのあと Anvil のサイドパネルから Discord でサインインします。',
+        '**Dink の通知をオフにします。** ほかに使っていなければ、Dink をアンインストールしても構いません。',
+        '**以上です。** Wise Old Man については何もする必要はありません。',
+      ],
+    },
+
+    questions: {
+      title: 'よくある質問',
+      intro: 'クランからよく聞かれる質問です。',
+      rows: [
+        {
+          term: '一部の用途でDinkを使い続けられますか？',
+          body: 'はい。Anvil はキルカウント、スレイヤータスク、スピードランは投稿しません。Dink ではそれらだけをオンのままにしてください。',
+        },
+        {
+          term: 'まだ Wise Old Man は必要ですか？',
+          body: '通算記録と EHP / EHB ランクのためだけです。',
+        },
+        {
+          term: 'プレイヤーはどこかに Webhook を貼る必要がありますか？',
+          body: 'いいえ。チャンネルはクランがサイトで設定します。',
+        },
+        {
+          term: '自分のサーバーにも投稿してほしいですか？',
+          body: 'プロフィール → **Announcements & webhooks** → _Your own webhooks_ を開いてください。',
+        },
+      ],
     },
   },
 

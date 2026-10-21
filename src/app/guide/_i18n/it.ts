@@ -58,6 +58,13 @@ const it: PartialGuideDict = {
         blurb: 'Un invito, poi i canali in cui pubblica ogni feed, i ruoli, i comandi slash, e cosa controllare quando si ferma.',
         minutes: '~5 min',
       },
+      switching: {
+        eyebrow: 'Passare ad Anvil',
+        title: 'Passare da Dink o Wise Old Man ad Anvil',
+        blurb:
+          'Anvil pubblica i tuoi drop su Discord e gestisce le vostre competizioni settimanali. Cinque passaggi per lo staff, due per i giocatori.',
+        minutes: '~3 min',
+      },
       clan: {
         eyebrow: 'Per chi ne avvia uno',
         title: 'Creare un clan',
@@ -134,6 +141,58 @@ const it: PartialGuideDict = {
           'Ogni comando a cui il bot risponde in Discord, cosa fa ciascuna opzione, esempi pratici, e cosa controllare quando uno non compare.',
         minutes: '~6 min',
       },
+    },
+  },
+
+  switching: {
+    metaTitle: 'Passare da Dink o Wise Old Man ad Anvil — Anvil',
+    metaDescription:
+      'Porta il tuo clan da Dink e Wise Old Man ad Anvil: imposta i canali Discord, sincronizza l’elenco del clan, avvia uno Skill o Boss of the Week e avvisa i tuoi membri.',
+    eyebrow: 'Passare ad Anvil',
+    title: 'Passare da Dink o Wise Old Man ad Anvil',
+    dek: 'Anvil fa entrambi i lavori. Pubblica su Discord i drop e i traguardi del tuo clan. Tiene anche aggiornato l’elenco del clan e gestisce le competizioni settimanali.',
+
+    staff: {
+      title: 'Se gestisci il clan',
+      body: [
+        '**Lascia che sia il bot a impostare i tuoi canali.** Vai su Admin → Discord → **Set it up for me**. Scegli un canale o più. Se Dink pubblicava da qualche parte, spunta _Use the same channels_. Per i tuoi membri non cambia niente.',
+        '**Sincronizza l’elenco del clan.** In RuneLite, apri le impostazioni del plugin di Anvil. Attiva **Keep the clan roster in sync**. Un admin lo fa una sola volta, in gioco. Questo sostituisce il tuo gruppo Wise Old Man.',
+        '**Avvia uno Skill o Boss of the Week.** Vai su Admin → All events → **+ New event** e scegli Skill of the Week o Boss of the Week. Tutti quelli nell’elenco del clan partecipano in automatico. Questo sostituisce le competizioni di Wise Old Man.',
+        '**Avvisa i tuoi membri.** Vai su Admin → Discord → **Tell your members** → **Post it**. Il bot pubblica i passaggi per i giocatori al posto tuo.',
+        '**Una settimana dopo, fai pulizia.** Vai su Admin → Discord, spunta i vecchi webhook di Dink e premi **Remove**. Dopo, niente può essere pubblicato due volte.',
+      ],
+    },
+
+    player: {
+      title: 'Se sei un giocatore',
+      body: [
+        '**Installa Anvil.** In RuneLite, apri il Plugin Hub, cerca Anvil e premi **Install**. Poi accedi con Discord dal pannello laterale di Anvil.',
+        '**Disattiva le notifiche di Dink.** Oppure disinstalla Dink, se non lo usi per nient’altro.',
+        '**Tutto qui.** Per Wise Old Man non devi fare nulla.',
+      ],
+    },
+
+    questions: {
+      title: 'Domande',
+      intro: 'Quelle che i clan fanno più spesso:',
+      rows: [
+        {
+          term: 'Possiamo tenere Dink per alcune cose?',
+          body: 'Sì. Anvil non pubblica kill count, task slayer o speedrun. Lascia attive in Dink solo quelle.',
+        },
+        {
+          term: 'Ci serve ancora Wise Old Man?',
+          body: 'Solo per i record di sempre e le classifiche EHP / EHB.',
+        },
+        {
+          term: 'I giocatori devono incollare un webhook da qualche parte?',
+          body: 'No. Il clan imposta i canali sul sito.',
+        },
+        {
+          term: 'Vuoi i post anche sul tuo server?',
+          body: 'Vai al tuo profilo → **Announcements & webhooks** → _Your own webhooks_.',
+        },
+      ],
     },
   },
 

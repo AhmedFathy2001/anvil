@@ -58,6 +58,13 @@ const fi: PartialGuideDict = {
         blurb: 'Yksi kutsu, sitten kanavat joille kukin syöte julkaisee, roolit, kauttaviivakomennot ja mitä tarkistaa kun se hiljenee.',
         minutes: '~5 min',
       },
+      switching: {
+        eyebrow: 'Siirtyminen Anviliin',
+        title: 'Siirtyminen Dinkistä tai Wise Old Manista',
+        blurb:
+          'Anvil postaa dropit Discordiin ja pyörittää viikoittaisia kilpailuja. Viisi vaihetta henkilökunnalle, kaksi pelaajille.',
+        minutes: '~3 min',
+      },
       clan: {
         eyebrow: 'Sinulle joka perustat sellaisen',
         title: 'Perusta klaani',
@@ -134,6 +141,58 @@ const fi: PartialGuideDict = {
           'Jokainen komento, johon botti vastaa Discordissa, mitä kukin valinta tekee, valmiit esimerkit, ja mitä tarkistaa kun jokin komento ei näy.',
         minutes: '~6 min',
       },
+    },
+  },
+
+  switching: {
+    metaTitle: 'Siirtyminen Dinkistä tai Wise Old Manista — Anvil',
+    metaDescription:
+      'Siirrä klaanisi Dinkistä ja Wise Old Manista Anviliin: määritä Discord-kanavat, synkronoi klaanilista, aloita Skill tai Boss of the Week ja kerro jäsenillesi.',
+    eyebrow: 'Siirtyminen Anviliin',
+    title: 'Siirtyminen Dinkistä tai Wise Old Manista',
+    dek: 'Anvil hoitaa molemmat tehtävät. Se postaa klaanin dropit ja saavutukset Discordiin. Se myös pitää klaanilistan ajan tasalla ja pyörittää viikoittaisia kilpailuja.',
+
+    staff: {
+      title: 'Jos johdat klaania',
+      body: [
+        '**Anna botin määrittää kanavat.** Mene kohtaan Admin → Discord → **Set it up for me**. Valitse yksi kanava tai useampi. Jos Dink postasi johonkin, rastita _Use the same channels_. Jäsenillesi ei muutu mikään.',
+        '**Synkronoi klaanilista.** Avaa Anvil-lisäosan asetukset RuneLitessa. Laita päälle **Keep the clan roster in sync**. Yksi admin tekee tämän kerran pelissä. Tämä korvaa Wise Old Man -ryhmäsi.',
+        '**Aloita Skill tai Boss of the Week.** Mene kohtaan Admin → All events → **+ New event** ja valitse Skill of the Week tai Boss of the Week. Kaikki klaanilistalla olevat ovat mukana automaattisesti. Tämä korvaa Wise Old Manin kilpailut.',
+        '**Kerro jäsenillesi.** Mene kohtaan Admin → Discord → **Tell your members** → **Post it**. Botti postaa pelaajien ohjeet puolestasi.',
+        '**Viikon päästä: siivoa.** Mene kohtaan Admin → Discord, rastita Dinkin vanhat webhookit ja paina **Remove**. Sen jälkeen mikään ei voi postautua kahdesti.',
+      ],
+    },
+
+    player: {
+      title: 'Jos olet pelaaja',
+      body: [
+        '**Asenna Anvil.** Avaa RuneLitessa Plugin Hub, hae Anvil ja paina **Install**. Kirjaudu sitten sisään Discordilla Anvilin sivupaneelista.',
+        '**Laita Dinkin ilmoitukset pois päältä.** Tai poista Dink, jos et käytä sitä mihinkään muuhun.',
+        '**Siinä kaikki.** Wise Old Manin osalta sinun ei tarvitse tehdä mitään.',
+      ],
+    },
+
+    questions: {
+      title: 'Kysymyksiä',
+      intro: 'Yleisimmät, joita klaanit kysyvät:',
+      rows: [
+        {
+          term: 'Voimmeko pitää Dinkin joihinkin asioihin?',
+          body: 'Kyllä. Anvil ei postaa kill counteja, slayer-tehtäviä eikä speedrunneja. Jätä Dinkissä päälle vain ne.',
+        },
+        {
+          term: 'Tarvitsemmeko vielä Wise Old Mania?',
+          body: 'Vain kaikkien aikojen ennätyksiin ja EHP / EHB-sijoituksiin.',
+        },
+        {
+          term: 'Pitääkö pelaajien liittää webhook jonnekin?',
+          body: 'Ei. Klaani valitsee kanavat sivustolla.',
+        },
+        {
+          term: 'Haluatko postaukset myös omalle palvelimellesi?',
+          body: 'Mene profiiliisi → **Announcements & webhooks** → _Your own webhooks_.',
+        },
+      ],
     },
   },
 

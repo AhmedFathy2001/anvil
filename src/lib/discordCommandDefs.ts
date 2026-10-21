@@ -233,6 +233,7 @@ const CLAN_DEFINITIONS = [
           { name: 'Moderating proof', value: 'moderator' },
           { name: 'Clan vs clan', value: 'clanvsclan' },
           { name: 'Slash commands', value: 'commands' },
+          { name: 'Switching from Dink / WOM', value: 'switching' },
         ],
       },
       {

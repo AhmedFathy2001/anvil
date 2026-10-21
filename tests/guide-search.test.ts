@@ -27,6 +27,7 @@ const CARD_KEY = {
   fees: 'fees',
   coffer: 'coffer',
   commands: 'commands',
+  switching: 'switching',
 } as const;
 
 const ITEMS = (Object.keys(SEARCH_TERMS) as (keyof typeof SEARCH_TERMS)[]).map((page) => {
@@ -50,6 +51,9 @@ test('jargon finds the page that never uses the word in its title', () => {
   assert.equal(top('payout'), 'fees');
   assert.equal(top('draft'), 'captain');
   assert.equal(top('runelite'), 'plugin');
+  assert.equal(top('dink'), 'switching');
+  assert.equal(top('wise old man'), 'switching');
+  assert.equal(top('wom'), 'switching');
 });
 
 test('a symptom finds the page, not just the name of the thing', () => {

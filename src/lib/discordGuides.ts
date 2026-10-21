@@ -45,6 +45,7 @@ export const GUIDE_OUTLINES: Record<string, GuideOutline> = {
   clanvsclan: { ns: 'clanVsClan', page: 'clan-vs-clan', sections: ['shape', 'team', 'staff', 'link', 'captains', 'player', 'dead'] },
   // Mirrors COMMANDS_SECTIONS in _pages/CommandsGuide.
   commands: { ns: 'commands', page: 'commands', sections: ['using', 'bingo', 'clan', 'options', 'who', 'trouble'] },
+  switching: { ns: 'switching', page: 'switching', sections: ['staff', 'player', 'questions'] },
 };
 
 export const GUIDE_TOPICS = Object.keys(GUIDE_OUTLINES);
