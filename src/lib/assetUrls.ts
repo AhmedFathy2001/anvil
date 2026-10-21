@@ -8,6 +8,12 @@
 //
 // Exactly two upstreams, and no generic `?url=` proxy: the routes can only ever name a wiki
 // `/images/` file or a numeric RuneLite item id, which is what the validation below enforces.
+//
+// Nothing a request sends can mint a new cache key or a new upstream variant: the storage key is the
+// file alone, the only thumbnail shape is the one the app emits, and the wiki's cache-buster is
+// looked up server-side from our own dataset — a `?<hex>` on the request is ignored.
+
+import bossImages from '@/data/bossImages.json';
 
 export const WIKI_IMAGES_ORIGIN = 'https://oldschool.runescape.wiki/images/';
 export const RUNELITE_ITEM_ICON_ORIGIN = 'https://static.runelite.net/cache/item/icon/';
@@ -21,6 +27,10 @@ export const WIKI_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp'] as co
 const MAX_SEGMENT = 200;
 const MAX_FILE = 400;
 const MAX_ITEM_ID = 999_999;
+
+/** The thumbnail widths the app actually emits (data/bossImages.json is all 320px). Anything else is
+ *  refused, so a client cannot fan one file out into arbitrarily many cached sizes. */
+export const WIKI_THUMB_WIDTHS: readonly number[] = [320];
 
 function decodeSegment(seg: string): string | null {
   try {
@@ -50,7 +60,11 @@ export function normalizeWikiFile(raw: string | null | undefined): string | null
     if (/[\\/?#%\u0000-\u001f\u007f]/.test(clean)) return null;
     parts.push(clean);
   }
-  const shapeOk = parts.length === 1 || (parts.length === 3 && parts[0] === 'thumb');
+  // `File.png`, or exactly `thumb/File.png/<N>px-File.png` for an allowlisted N.
+  const shapeOk =
+    parts.length === 1 ||
+    (parts.length === 3 && parts[0] === 'thumb' &&
+      WIKI_THUMB_WIDTHS.some((w) => parts[2] === `${w}px-${parts[1]}`));
   if (!shapeOk) return null;
   const last = parts[parts.length - 1];
   const ext = last.includes('.') ? last.split('.').pop()!.toLowerCase() : '';
@@ -69,15 +83,6 @@ export function encodeWikiFile(file: string, strict = false): string {
   return file.split('/').map(enc).join('/');
 }
 
-/**
- * The wiki's cache-buster — the `?0db8f` its API appends to image URLs (data/bossImages.json carries
- * them). Short lowercase hex only; anything else is dropped rather than forwarded upstream.
- */
-export function wikiVersion(raw: string | null | undefined): string | null {
-  // Next re-serialises a bare `?0db8f` as `?0db8f=` before a route sees it, so allow the `=`.
-  const m = /^([0-9a-f]{1,12})=?$/.exec(raw?.split('#')[0].split('?')[1] ?? '');
-  return m ? m[1] : null;
-}
 
 /**
  * Our address for a wiki `/images/` file: `wikiImageUrl('Stats_icon.png')` → `/img/wiki/Stats_icon.png`.
@@ -86,9 +91,8 @@ export function wikiVersion(raw: string | null | undefined): string | null {
  */
 export function wikiImageUrl(file: string): string {
   const norm = normalizeWikiFile(file);
-  const v = wikiVersion(file);
   const path = norm ? encodeWikiFile(norm) : encodeURIComponent(file.split(/[?#]/)[0].replace(/ /g, '_'));
-  return `${WIKI_ASSET_PREFIX}${path}${v ? `?${v}` : ''}`;
+  return `${WIKI_ASSET_PREFIX}${path}`;
 }
 
 /**
@@ -126,16 +130,15 @@ export function isAssetPath(url: string | null | undefined): url is string {
   return !!url && (url.startsWith(WIKI_ASSET_PREFIX) || url.startsWith(ITEM_ASSET_PREFIX));
 }
 
-/** A wiki file (plus the wiki's cache-buster, when the URL came with one) or a RuneLite item id. */
-export type AssetRef = { kind: 'wiki'; file: string; v?: string } | { kind: 'item'; id: number };
+/** A wiki file or a RuneLite item id. */
+export type AssetRef = { kind: 'wiki'; file: string } | { kind: 'item'; id: number };
 
-/** Parse a `/img/wiki/…[?v]` or `/img/item/…` path back into what it names, or null. */
+/** Parse a `/img/wiki/…` or `/img/item/…` path (any query ignored) back into what it names, or null. */
 export function parseAssetPath(path: string): AssetRef | null {
   const p = path.split(/[?#]/)[0];
   if (p.startsWith(WIKI_ASSET_PREFIX)) {
     const file = normalizeWikiFile(p.slice(WIKI_ASSET_PREFIX.length));
-    const v = wikiVersion(path);
-    return file ? (v ? { kind: 'wiki', file, v } : { kind: 'wiki', file }) : null;
+    return file ? { kind: 'wiki', file } : null;
   }
   if (p.startsWith(ITEM_ASSET_PREFIX)) {
     const id = parseItemId(p.slice(ITEM_ASSET_PREFIX.length));
@@ -145,15 +148,37 @@ export function parseAssetPath(path: string): AssetRef | null {
 }
 
 /**
+ * file → the wiki's cache-buster (`?0db8f`), for the files our own dataset names. Built here, from
+ * data we ship, never from a request.
+ */
+const WIKI_BUSTERS: ReadonlyMap<string, string> = (() => {
+  const m = new Map<string, string>();
+  for (const url of Object.values(bossImages as Record<string, string>)) {
+    if (!url.startsWith(WIKI_IMAGES_ORIGIN)) continue;
+    const rest = url.slice(WIKI_IMAGES_ORIGIN.length);
+    const file = normalizeWikiFile(rest);
+    const v = /\?([0-9a-f]{1,12})$/.exec(rest)?.[1];
+    if (file && v) m.set(file, v);
+  }
+  return m;
+})();
+
+/** The server-known cache-buster for a wiki file, or null. */
+export function wikiBusterFor(file: string): string | null {
+  return WIKI_BUSTERS.get(file) ?? null;
+}
+
+/**
  * Where the bytes really come from — spelled exactly as the URL we used to hotlink, because the
  * wiki's edge cache keys on the literal string (an uncached spelling falls through to an origin that
- * is not always up). A versioned ref came from the wiki's API, which encodes `( ) '` and appends the
- * buster; a bare one is a hand-written name, which never did.
+ * is not always up). A dataset file is spelled the way the wiki's API hands it out (`( ) '` encoded,
+ * plus its buster); any other file is the plain hand-written spelling.
  */
 export function upstreamUrl(ref: AssetRef): string {
   if (ref.kind === 'item') return `${RUNELITE_ITEM_ICON_ORIGIN}${ref.id}.png`;
-  return ref.v
-    ? `${WIKI_IMAGES_ORIGIN}${encodeWikiFile(ref.file, true)}?${ref.v}`
+  const v = wikiBusterFor(ref.file);
+  return v
+    ? `${WIKI_IMAGES_ORIGIN}${encodeWikiFile(ref.file, true)}?${v}`
     : `${WIKI_IMAGES_ORIGIN}${encodeWikiFile(ref.file)}`;
 }
 
@@ -174,6 +199,6 @@ function safeSegment(seg: string): string {
 /** The storage key a cached asset lives under: `asset-cache/wiki/…` or `asset-cache/item/<id>.png`. */
 export function assetCacheKey(ref: AssetRef): string {
   if (ref.kind === 'item') return `asset-cache/item/${ref.id}.png`;
-  // A new cache-buster (the wiki file changed and the dataset was regenerated) is a new object.
-  return `asset-cache/wiki/${ref.v ? `v-${ref.v}/` : ''}${ref.file.split('/').map(safeSegment).join('/')}`;
+  // Keyed by the file alone: no request-controlled part ever reaches the key.
+  return `asset-cache/wiki/${ref.file.split('/').map(safeSegment).join('/')}`;
 }

@@ -9,6 +9,7 @@ import {
   parseItemId,
   proxyWikiUrl,
   upstreamUrl,
+  wikiBusterFor,
   wikiImageUrl,
 } from '../src/lib/assetUrls.ts';
 import { absoluteAssetUrl } from '../src/lib/seo.ts';
@@ -41,7 +42,7 @@ test('wikiImageUrl / proxyWikiUrl point at our route; other URLs pass through', 
   assert.equal(wikiImageUrl('Skull_(status)_icon.png'), '/img/wiki/Skull_(status)_icon.png');
   assert.equal(
     proxyWikiUrl('https://oldschool.runescape.wiki/images/thumb/Abyssal_Sire_%28phase_1%29.png/320px-Abyssal_Sire_%28phase_1%29.png?0db8f'),
-    '/img/wiki/thumb/Abyssal_Sire_(phase_1).png/320px-Abyssal_Sire_(phase_1).png?0db8f',
+    '/img/wiki/thumb/Abyssal_Sire_(phase_1).png/320px-Abyssal_Sire_(phase_1).png',
   );
   assert.equal(proxyWikiUrl('https://static.runelite.net/cache/item/icon/4151.png'), '/img/item/4151');
   assert.equal(proxyWikiUrl('https://media.example.com/a.png'), 'https://media.example.com/a.png');
@@ -76,21 +77,6 @@ test('paths round-trip to refs, upstream URLs and storage keys', () => {
     assetCacheKey({ kind: 'wiki', file: 'a(.png' }),
   );
 
-  // A dataset URL keeps the wiki's cache-buster and its API spelling upstream — the edge-cached one.
-  const sire = parseAssetPath('/img/wiki/thumb/Abyssal_Sire_(phase_1).png/320px-Abyssal_Sire_(phase_1).png?0db8f');
-  assert.deepEqual(sire, {
-    kind: 'wiki', file: 'thumb/Abyssal_Sire_(phase_1).png/320px-Abyssal_Sire_(phase_1).png', v: '0db8f',
-  });
-  assert.equal(
-    upstreamUrl(sire!),
-    'https://oldschool.runescape.wiki/images/thumb/Abyssal_Sire_%28phase_1%29.png/320px-Abyssal_Sire_%28phase_1%29.png?0db8f',
-  );
-  assert.equal(assetCacheKey(sire!), 'asset-cache/wiki/v-0db8f/thumb/Abyssal_Sire_~28phase_1~29.png/320px-Abyssal_Sire_~28phase_1~29.png');
-  // Next hands a route `?0db8f` as `?0db8f=`; same ref.
-  assert.deepEqual(parseAssetPath('/img/wiki/Stats_icon.png?0db8f='), { kind: 'wiki', file: 'Stats_icon.png', v: '0db8f' });
-  // Only a short hex buster is forwarded; any other query is dropped.
-  assert.deepEqual(parseAssetPath('/img/wiki/Stats_icon.png?url=https://evil.example'), { kind: 'wiki', file: 'Stats_icon.png' });
-
   assert.equal(parseAssetPath('/img/wiki/../secret.png'), null);
   assert.equal(parseAssetPath('/img/other/x.png'), null);
 });
@@ -99,4 +85,51 @@ test('absoluteAssetUrl puts our paths on the apex and leaves everything else alo
   assert.equal(absoluteAssetUrl('/img/item/4151'), 'https://anvilosrs.com/img/item/4151');
   assert.equal(absoluteAssetUrl('https://cdn.example.com/x.png'), 'https://cdn.example.com/x.png');
   assert.equal(absoluteAssetUrl(null), null);
+});
+
+test('cache-buster: a request query is ignored; the buster comes from our dataset', () => {
+  const sire = 'thumb/Abyssal_Sire_(phase_1).png/320px-Abyssal_Sire_(phase_1).png';
+  // Whatever the client appends, the ref (and so the key and the upstream URL) is the same.
+  for (const q of ['', '?0db8f', '?0db8f=', '?deadbeef', '?abc123=', '?url=https://evil.example']) {
+    assert.deepEqual(parseAssetPath(`/img/wiki/${sire}${q}`), { kind: 'wiki', file: sire }, q);
+  }
+  assert.equal(wikiBusterFor(sire), '0db8f');
+  // A dataset file is fetched the way the wiki's API spells it, buster included — derived server-side.
+  assert.equal(
+    upstreamUrl({ kind: 'wiki', file: sire }),
+    'https://oldschool.runescape.wiki/images/thumb/Abyssal_Sire_%28phase_1%29.png/320px-Abyssal_Sire_%28phase_1%29.png?0db8f',
+  );
+  // An unknown file gets the plain spelling and no buster, whatever the request carried.
+  assert.equal(wikiBusterFor('Stats_icon.png'), null);
+  const stats = parseAssetPath('/img/wiki/Stats_icon.png?0db8f')!;
+  assert.equal(upstreamUrl(stats), 'https://oldschool.runescape.wiki/images/Stats_icon.png');
+  // Our own URLs never carry a buster either.
+  assert.equal(wikiImageUrl('Stats_icon.png?0db8f'), '/img/wiki/Stats_icon.png');
+});
+
+test('storage keys never contain a version segment', () => {
+  const sire = 'thumb/Abyssal_Sire_(phase_1).png/320px-Abyssal_Sire_(phase_1).png';
+  const a = assetCacheKey(parseAssetPath(`/img/wiki/${sire}?0db8f`)!);
+  const b = assetCacheKey(parseAssetPath(`/img/wiki/${sire}?ffff`)!);
+  assert.equal(a, b);
+  assert.equal(a, 'asset-cache/wiki/thumb/Abyssal_Sire_~28phase_1~29.png/320px-Abyssal_Sire_~28phase_1~29.png');
+  assert.doesNotMatch(a, /v-|\?|0db8f/);
+});
+
+test('thumbnails: only thumb/<file>/<allowlisted N>px-<same file>', () => {
+  assert.equal(normalizeWikiFile('thumb/Zulrah.png/320px-Zulrah.png'), 'thumb/Zulrah.png/320px-Zulrah.png');
+  for (const bad of [
+    'thumb/Zulrah.png/321px-Zulrah.png',      // width not emitted by the app
+    'thumb/Zulrah.png/32px-Zulrah.png',
+    'thumb/Zulrah.png/1000px-Zulrah.png',
+    'thumb/Zulrah.png/320px-Vorkath.png',     // different file
+    'thumb/Zulrah.png/Zulrah.png',            // no width
+    'thumb/Zulrah.png/320px-Zulrah.png.png',
+    'thumb/Zulrah.png/0320px-Zulrah.png',
+    'thumbs/Zulrah.png/320px-Zulrah.png',
+    'thumb/Zulrah.png/320px-Zulrah.png/x.png',
+  ]) {
+    assert.equal(normalizeWikiFile(bad), null, bad);
+    assert.equal(parseAssetPath(`/img/wiki/${bad}`), null, bad);
+  }
 });

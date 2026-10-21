@@ -18,7 +18,9 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { assetCacheKey, parseAssetPath, upstreamUrl, UPSTREAM_HOSTS, type AssetRef } from '@/lib/assetUrls';
+import { getClientIp } from '@/lib/clientIp';
 import { log } from '@/lib/logger';
+import { rateLimitByKey } from '@/lib/rate-limit';
 import { getObject, put, s3Enabled } from '@/lib/storage';
 
 export interface CachedAsset {
@@ -221,13 +223,23 @@ async function fetchUpstream(ref: AssetRef, key: string): Promise<CachedAsset | 
 
 // ── Public API ──
 
-const inFlight = new Map<string, Promise<CachedAsset | null>>();
+const inFlight = new Map<string, Promise<CachedAsset | null | 'limited'>>();
+
+export interface GetAssetOptions {
+  /**
+   * Asked once, only on a real MISS (not in memory, not in the store, no fetch already in flight),
+   * just before going to origin. False → nothing is fetched or stored and the result is 'limited'.
+   * The /img routes pass a per-IP + global throttle; server-side callers (link cards) pass none.
+   */
+  allowMiss?: () => Promise<boolean>;
+}
 
 /**
  * The bytes for a cached asset — memory, then the store, then origin (stored on success). Null when
  * origin could not supply a valid image; that outcome is NOT cached anywhere, so it is retried.
+ * 'limited' when allowMiss refused the origin fetch.
  */
-export function getAsset(ref: AssetRef): Promise<CachedAsset | null> {
+export function getAsset(ref: AssetRef, opts: GetAssetOptions = {}): Promise<CachedAsset | null | 'limited'> {
   const key = assetCacheKey(ref);
   const hot = memoryGet(key);
   if (hot) return Promise.resolve(hot);
@@ -240,6 +252,7 @@ export function getAsset(ref: AssetRef): Promise<CachedAsset | null> {
       memorySet(key, stored);
       return stored;
     }
+    if (opts.allowMiss && !(await opts.allowMiss())) return 'limited' as const;
     const fresh = await fetchUpstream(ref, key);
     if (!fresh) return null;
     memorySet(key, fresh);
@@ -255,7 +268,27 @@ export function getAsset(ref: AssetRef): Promise<CachedAsset | null> {
 /** As {@link getAsset}, from one of our `/img/…` paths. Null for a path that names nothing valid. */
 export async function getAssetByPath(urlPath: string): Promise<CachedAsset | null> {
   const ref = parseAssetPath(urlPath);
-  return ref ? getAsset(ref) : null;
+  if (!ref) return null;
+  const got = await getAsset(ref);
+  return got === 'limited' ? null : got;
+}
+
+// ── Miss throttle (the /img routes) ──
+
+const MISS_PER_IP = { limit: 60, windowMs: 60_000 };
+const MISS_GLOBAL = { limit: 600, windowMs: 60_000 };
+
+/**
+ * Cache misses are the only expensive request here (an origin fetch plus a bucket write), and the
+ * routes are unauthenticated, so misses — not hits — are throttled: 60/min per client IP (IPv6 by
+ * /64) and 600/min across the process. Hits are never counted.
+ */
+export function missThrottle(request: { headers: { get(name: string): string | null } }): () => Promise<boolean> {
+  return async () => {
+    const ip = getClientIp(request);
+    if (!(await rateLimitByKey('asset-miss', ip, MISS_PER_IP)).ok) return false;
+    return (await rateLimitByKey('asset-miss', 'global', MISS_GLOBAL)).ok;
+  };
 }
 
 // ── HTTP responses ──
@@ -280,14 +313,14 @@ export function assetResponse(asset: CachedAsset): Response {
   });
 }
 
-/** The placeholder, cached for five minutes so a recovered upstream shows up soon after. */
-export function placeholderResponse(status = 200): Response {
+/** The placeholder, cached briefly (five minutes by default) so a recovered upstream shows up soon. */
+export function placeholderResponse(status = 200, maxAge = 300): Response {
   return new Response(new Uint8Array(PLACEHOLDER_PNG), {
     status,
     headers: {
       'Content-Type': 'image/png',
       'Content-Length': String(PLACEHOLDER_PNG.byteLength),
-      'Cache-Control': 'public, max-age=300',
+      'Cache-Control': `public, max-age=${maxAge}`,
       'X-Content-Type-Options': 'nosniff',
     },
   });
