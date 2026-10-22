@@ -10,6 +10,7 @@ import { splitEvenly } from '@/lib/splitGp';
 import GuideLink from '@/components/GuideLink';
 import { useDialog } from '@/components/Confirm';
 import LocalTime from '@/components/LocalTime';
+import { parseStamp } from '@/lib/dbTime';
 import type { CofferBalance } from '@/lib/cofferMath';
 import type { CofferLedgerRow } from '@/lib/coffer';
 
@@ -216,8 +217,8 @@ export default function CofferClient({
         <GuideLink href="/guide/coffer">How the coffer works</GuideLink>
       </h1>
       <p className="text-sm text-text-muted mb-5">
-        The pot mission prizes are paid from. Members report what they hand in; nothing counts until
-        you say it happened.
+        The pot event and mission prizes are paid from. Members report what they hand in; nothing counts
+        until you say it happened.
       </p>
 
       <div className="grid sm:grid-cols-3 gap-3 mb-6">
@@ -226,24 +227,21 @@ export default function CofferClient({
         <Figure label="Confirmed total" value={formatGp(balance.confirmed)} hint="Everything approved, before promises" />
       </div>
 
-      <div className="border border-card-border rounded-xl bg-card-bg px-4 py-3 mb-6 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-xs font-semibold">In-game Clan Coffer</p>
-          <p className="text-[11px] text-text-muted">
-            A separate physical reading from RuneLite. Deposits fund the ledger; moving coins to a bank is tracked but not treated as spending.
-          </p>
-        </div>
+      {/* A reading, not a balance. It sat in its own card beside the three figures and read as a
+          fourth — "which one is the real pot?" — when it is only there to cross-check them against. */}
+      <p className="text-[11px] text-text-muted -mt-3 mb-6">
+        <span className="text-foreground/80">In-game Clan Coffer:</span>{' '}
         {physicalState ? (
-          <div className="text-right">
-            <p className="text-lg font-bold text-gold">{formatGp(physicalState.balance)}</p>
-            <p className="text-[10px] text-text-muted">
-              last seen <LocalTime date={physicalState.observedAt} />
-            </p>
-          </div>
+          <>
+            {formatGp(physicalState.balance)} when a member&apos;s plugin last saw it (
+            <LocalTime date={physicalState.observedAt} />)
+          </>
         ) : (
-          <p className="text-xs text-text-muted">Not observed yet — open the coffer with Anvil enabled.</p>
+          'not seen yet — open it in game with Anvil enabled'
         )}
-      </div>
+        . It&apos;s for checking the numbers above against, not a second balance: deposits there fund this pot,
+        and moving coins to a bank isn&apos;t counted as spending.
+      </p>
 
       {msg && <p className="text-sm text-amber-300 mb-4">{msg}</p>}
 
@@ -273,7 +271,7 @@ export default function CofferClient({
                   )}
                 </p>
                 <p className="text-[11px] text-text-muted truncate">
-                  {e.createdAt}
+                  <Stamp value={e.createdAt} />
                   {e.note ? ` · ${e.note}` : ''}
                 </p>
               </div>
@@ -503,38 +501,21 @@ export default function CofferClient({
         </div>
       </Section>
 
-      <Section title="Holds and payouts" count={moneyOut.length}>
-        <div className="px-3 py-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] text-text-muted border-b border-card-border/60">
-          <span>
-            <span className="text-gold font-semibold">{formatGp(stillOwed)}</span> still owed
-          </span>
-          <span>
-            <span className="text-accent-green-light font-semibold">{formatGp(paidOut)}</span> paid out
-          </span>
-          <span className="text-text-muted/70">Prizes, board pools and gp taken out by hand.</span>
-        </div>
-        {moneyOut.length === 0 ? (
-          <Empty>Nothing has gone out yet.</Empty>
-        ) : (
-          <div className="divide-y divide-card-border/60">
-            {moneyOut.map((e) => (
-              <div key={e.id} className="flex items-center justify-between gap-3 px-3 py-2">
-                <div className="min-w-0">
-                  <p className="text-xs truncate">
-                    <span className="text-gold">{formatGp(Math.abs(e.amount))}</span>
-                    <span className="text-text-muted"> · {kindLabel(e)}</span>
-                    {(e.memberName ?? e.rsn) && <span className="text-text-muted"> · {e.memberName ?? e.rsn}</span>}
-                  </p>
-                  {e.note && <p className="text-[10px] text-text-muted truncate">{e.note}</p>}
-                </div>
-                <span className={`text-[10px] flex-shrink-0 ${statusTone(e.status)}`}>{statusLabel(e.status)}</span>
-              </div>
-            ))}
+      {/* What has gone out, as one line over the ledger. It used to be its own list, so a single 30m
+          prize showed three times on one page — under Prizes to send, here, and in the ledger. The
+          rows are all in the ledger; the totals are the part only this added. */}
+      <Section title="Everything that has moved" count={entries.length}>
+        {moneyOut.length > 0 && (
+          <div className="px-3 py-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] text-text-muted border-b border-card-border/60">
+            <span>
+              <span className="text-gold font-semibold">{formatGp(stillOwed)}</span> still owed
+            </span>
+            <span>
+              <span className="text-accent-green-light font-semibold">{formatGp(paidOut)}</span> paid out
+            </span>
+            <span className="text-text-muted/70">Prizes, board pools and gp taken out by hand.</span>
           </div>
         )}
-      </Section>
-
-      <Section title="Everything that has moved" count={entries.length}>
         {entries.length === 0 ? (
           <Empty>The ledger is empty.</Empty>
         ) : (
@@ -550,7 +531,10 @@ export default function CofferClient({
                     <span className="text-text-muted"> · {kindLabel(e)}</span>
                     {(e.memberName ?? e.rsn) && <span className="text-text-muted"> · {e.memberName ?? e.rsn}</span>}
                   </p>
-                  {e.note && <p className="text-[10px] text-text-muted truncate">{e.note}</p>}
+                  <p className="text-[10px] text-text-muted truncate">
+                    <Stamp value={e.createdAt} />
+                    {e.note ? ` · ${e.note}` : ''}
+                  </p>
                 </div>
                 <span className={`text-[10px] flex-shrink-0 ${statusTone(e.status)}`}>{statusLabel(e.status)}</span>
               </div>
@@ -560,6 +544,12 @@ export default function CofferClient({
       </Section>
     </div>
   );
+}
+
+/** A ledger time in the reader's own clock. The column holds two formats — see lib/dbTime. */
+function Stamp({ value }: { value: string }) {
+  const ms = parseStamp(value);
+  return ms === null ? <>{value}</> : <LocalTime date={new Date(ms)} />;
 }
 
 function kindLabel(e: CofferLedgerRow): string {

@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanMemberships } from '@/db/schema';
+import { accounts } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
+import { applyChoices } from '@/lib/clanApply';
 import { resolveClanBySlug } from '@/lib/clanContext';
 import { admit } from '@/lib/guestAdmission';
 import { rateLimitByKey } from '@/lib/rate-limit';
@@ -34,23 +35,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
 
   if (!session?.playerId) return NextResponse.json({ signedIn: false, options: [] });
 
-  const seated = await db
-    .select({ accountId: clanMemberships.accountId })
-    .from(clanMemberships)
-    .where(and(eq(clanMemberships.clanId, clan.id), isNull(clanMemberships.leftAt)));
-  const seatedIds = new Set(seated.map((r) => r.accountId));
-
-  const options = (
-    await db
-      .select({ id: accounts.id, rsn: accounts.rsn, verifiedAt: accounts.verifiedAt })
-      .from(accounts)
-      .where(eq(accounts.playerId, session.playerId))
-  )
-    .filter((a) => a.verifiedAt != null && !seatedIds.has(a.id))
-    .map((a) => ({ id: a.id, rsn: a.rsn }));
-
-  // Already in with every character they have — there is nothing here to ask for.
-  const alreadyIn = options.length === 0 && seatedIds.size > 0;
+  const { alreadyIn, options } = await applyChoices(clan.id, session.playerId);
 
   return NextResponse.json({ signedIn: true, guestPolicy: clan.guestPolicy, alreadyIn, options });
 }

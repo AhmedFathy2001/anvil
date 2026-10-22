@@ -43,22 +43,36 @@ export default function ApplyToClan({
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The GET failed. Saying so beats an empty space under a panel that just invited them in.
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     let alive = true;
     fetch(`/api/clans/${slug}/apply`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: Info | null) => {
-        if (!alive || !d) return;
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((d: Info) => {
+        if (!alive) return;
         setInfo(d);
         if (d.options.length === 1) setChosen(d.options[0].id);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (alive) setLoadFailed(true);
+      });
     return () => {
       alive = false;
     };
   }, [slug]);
 
+  if (loadFailed) {
+    return (
+      <span className="shrink-0 text-[13px] text-text-muted">
+        Couldn’t load this right now —{' '}
+        <button type="button" onClick={() => window.location.reload()} className="text-gold underline underline-offset-2 hover:text-gold-light">
+          try again
+        </button>
+      </span>
+    );
+  }
   if (!info) return null;
   if (info.alreadyIn) return null; // they are already here; the panel above is not addressed to them
 

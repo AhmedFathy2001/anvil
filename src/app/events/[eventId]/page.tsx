@@ -653,7 +653,7 @@ export default async function EventScoreboardPage({
         </div>
       )}
       {isOutsider ? (
-        <EnterEvent eventId={event.id} signupFee={event.signupFee} />
+        <EnterEvent eventId={event.id} signupFee={event.signupFee} signupsOpen={window.open} />
       ) : (
       <SignupBanner
         eventId={event.id}
@@ -839,7 +839,7 @@ function SignupBanner({
     tone = 'muted';
   } else if (!loggedIn) {
     title = 'Sign-ups are open';
-    body = signupFee ? `Sign-up fee: ${signupFee.toLocaleString()} gp.` : 'Free to enter.';
+    body = signupFee ? `Sign-up fee: ${signupFee.toLocaleString()} gp.` : 'No sign-up fee.';
     ctaText = 'Log in to sign up';
     // Prefixed. `/login` is a platform path so ClanLink leaves it alone — which is right, and is
     // also why the return inside it has to arrive already carrying the clan.
@@ -852,7 +852,7 @@ function SignupBanner({
     ctaText = 'Sign up';
   } else {
     title = 'Sign-ups are open';
-    body = signupFee ? `Sign-up fee: ${signupFee.toLocaleString()} gp.` : 'Free to enter.';
+    body = signupFee ? `Sign-up fee: ${signupFee.toLocaleString()} gp.` : 'No sign-up fee.';
     ctaText = 'Sign up';
   }
 

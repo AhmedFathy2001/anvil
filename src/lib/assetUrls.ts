@@ -2,7 +2,7 @@
 //
 // PURE — no `@/db`, no Node APIs — so a client component, a server module and a test can all import
 // it. Browsers (and Discord, and the link cards) never load an image straight from the OSRS wiki or
-// RuneLite's static host any more: they load `/img/wiki/<file>` and `/img/item/<id>`, which the
+// RuneLite's static host any more: they load `/img/wiki/<file>` and `/img/item/<id>.png`, which the
 // read-through cache in lib/assetCache serves from our bucket. One flaky wiki file used to blank an
 // icon everywhere at once, and every visitor was a request to someone else's server.
 //
@@ -120,9 +120,15 @@ export function parseItemId(raw: string | null | undefined): number | null {
   return Number.isSafeInteger(id) && id > 0 && id <= MAX_ITEM_ID ? id : null;
 }
 
-/** Our address for a RuneLite item sprite: `/img/item/4151`. */
+/**
+ * Our address for a RuneLite item sprite: `/img/item/4151.png`.
+ *
+ * With the extension, because Cloudflare decides what to edge-cache by it: the bare `/img/item/4151`
+ * came back DYNAMIC on every request while the `.png` wiki paths beside it were HITs. The route
+ * still answers the bare form (parseItemId accepts both), so URLs already stored or posted keep working.
+ */
 export function itemAssetUrl(itemId: number): string {
-  return `${ITEM_ASSET_PREFIX}${Math.trunc(itemId)}`;
+  return `${ITEM_ASSET_PREFIX}${Math.trunc(itemId)}.png`;
 }
 
 /** Is this one of our cached-asset paths (relative)? */

@@ -20,6 +20,8 @@ interface EnterInfo {
   pendingSince?: string | null;
   /** The host clan takes no guests at all. */
   guestsClosed?: boolean;
+  /** Has any character at all, verified or not. */
+  hasCharacter?: boolean;
 }
 
 /**
@@ -33,8 +35,21 @@ interface EnterInfo {
  * The server decides WHETHER to render this (the viewer is an outsider who can see the event); this
  * asks the route what entering would involve, because the answer includes which of their characters
  * are eligible and only the route knows that. One GET, and only for the people it applies to.
+ *
+ * ONE VERB. The player-facing word for joining an event is "Sign up", here as on the sign-up page —
+ * an outsider used to be told to "enter", sent to their profile, and then met "Sign up" everywhere
+ * after. Underneath, pressing it still takes a guest seat through admit(); only the words changed.
  */
-export default function EnterEvent({ eventId, signupFee }: { eventId: number; signupFee: number | null }) {
+export default function EnterEvent({
+  eventId,
+  signupFee,
+  signupsOpen,
+}: {
+  eventId: number;
+  signupFee: number | null;
+  /** The sign-up window is open, so the sign-up page is somewhere to send them. */
+  signupsOpen: boolean;
+}) {
   const router = useRouter();
   const [info, setInfo] = useState<EnterInfo | null>(null);
   const [chosen, setChosen] = useState<number | null>(null);
@@ -70,7 +85,7 @@ export default function EnterEvent({ eventId, signupFee }: { eventId: number; si
     if (verdict.reason === 'banned') {
       return (
         <Card tone="muted">
-          <div className="font-semibold">You can’t enter this one</div>
+          <div className="font-semibold">You can’t sign up for this one</div>
           <div className="text-sm text-text-muted">This clan has barred you from its events.</div>
         </Card>
       );
@@ -89,7 +104,7 @@ export default function EnterEvent({ eventId, signupFee }: { eventId: number; si
         body: JSON.stringify({ accountId: chosen }),
       });
       const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error ?? 'Could not enter');
+      if (!res.ok) throw new Error(data?.error ?? 'Could not sign up');
       if (data?.pending) {
         setPending(data.message ?? 'Sent to the host.');
         return;
@@ -128,22 +143,28 @@ export default function EnterEvent({ eventId, signupFee }: { eventId: number; si
     );
   }
 
-  // Nothing to enter with. Say which door to go through rather than showing an empty picker — an
-  // unverified character is the usual reason, and it is fixed somewhere else entirely.
+  // Nothing to sign up with. Say which door to go through rather than showing an empty picker.
+  //
+  // No character at all, while sign-ups are open: the sign-up page links one inline, so send them
+  // there. A character that is not verified yet is fixed on the profile — the sign-up page would only
+  // send them back here.
   if (options.length === 0) {
+    const toSignup = signupsOpen && !info.hasCharacter;
     return (
       <Card tone="info">
         <div className="min-w-0">
-          <div className="font-semibold">Verify a character to enter</div>
+          <div className="font-semibold">{toSignup ? 'Sign up for this event' : 'Verify a character to sign up'}</div>
           <div className="text-sm text-text-muted">
-            Entering someone else’s event needs a character you have proved is yours.
+            {toSignup
+              ? 'You’ll link your character on the sign-up page, then join as a guest of the hosting clan.'
+              : 'Signing up for someone else’s event needs a character you have proved is yours.'}
           </div>
         </div>
         <ClanLink
-          href="/profile"
+          href={toSignup ? `/events/${eventId}/signup` : '/profile'}
           className="shrink-0 rounded-lg border border-gold/30 bg-gold/10 px-4 py-2 text-sm font-medium text-gold transition-colors hover:bg-gold/20"
         >
-          Go to profile
+          {toSignup ? 'Sign up' : 'Verify on your profile'}
         </ClanLink>
       </Card>
     );
@@ -154,7 +175,7 @@ export default function EnterEvent({ eventId, signupFee }: { eventId: number; si
   return (
     <Card tone="info">
       <div className="min-w-0">
-        <div className="font-semibold">{asks ? 'Ask to play in this event' : 'You can enter this event'}</div>
+        <div className="font-semibold">{asks ? 'Ask to sign up for this event' : 'Sign up for this event'}</div>
         <div className="text-sm text-text-muted">
           {asks
             ? 'The host reviews entries from outside the clan.'
@@ -179,7 +200,7 @@ export default function EnterEvent({ eventId, signupFee }: { eventId: number; si
           disabled={busy || chosen == null}
           className="rounded-lg border border-gold/30 bg-gold/10 px-4 py-2 text-sm font-medium text-gold transition-colors hover:bg-gold/20 disabled:opacity-50"
         >
-          {busy ? 'Sending…' : asks ? 'Ask to join' : 'Enter'}
+          {busy ? 'Sending…' : asks ? 'Ask to sign up' : 'Sign up'}
         </button>
       </div>
       {error && <p className="w-full text-[12.5px] text-accent-red">{error}</p>}

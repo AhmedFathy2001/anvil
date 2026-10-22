@@ -189,6 +189,7 @@ export default function ScheduleClient() {
         gaps={gaps}
         openGaps={openGaps}
         unscheduled={unscheduled}
+        loading={loading}
       />
 
       {/* View switch, month nav, kind filter */}
@@ -271,10 +272,14 @@ export default function ScheduleClient() {
         <QuarterGrid from={range.start} to={range.end} placed={placed} today={today} />
       )}
 
-      <div className="grid gap-6 lg:grid-cols-2 mt-8">
-        <NextUp item={nextUp} prep={prep} nowMs={nowMs} runningNow={runningNow} />
-        <Unscheduled items={unscheduled} openGaps={openGaps} />
-      </div>
+      {/* Not until the schedule has loaded: with no items yet, both panels would announce that nothing
+          is scheduled — a false claim the server render showed on every visit. */}
+      {!loading && (
+        <div className="grid gap-6 lg:grid-cols-2 mt-8">
+          <NextUp item={nextUp} prep={prep} nowMs={nowMs} runningNow={runningNow} />
+          <Unscheduled items={unscheduled} openGaps={openGaps} />
+        </div>
+      )}
     </div>
   );
 }
@@ -318,6 +323,7 @@ function CoverageRibbon({
   gaps,
   openGaps,
   unscheduled,
+  loading,
 }: {
   from: Date;
   to: Date;
@@ -325,6 +331,8 @@ function CoverageRibbon({
   gaps: Gap[];
   openGaps: Gap[];
   unscheduled: Item[];
+  /** Before the items arrive every day looks empty, so the ribbon makes no claim about gaps yet. */
+  loading: boolean;
 }) {
   const total = daysBetween(from, to) + 1;
   const segments: { left: number; width: number; gap: boolean }[] = [];
@@ -357,7 +365,7 @@ function CoverageRibbon({
           Coverage · {shortDate(from)} → {shortDate(to)}
         </div>
         <div className="relative h-2.5 rounded-full bg-brown-dark overflow-hidden mt-2 flex">
-          {segments.map((s, i) => (
+          {!loading && segments.map((s, i) => (
             <span
               key={i}
               className={s.gap ? 'bg-yellow-500/25' : 'bg-accent-green/60'}
@@ -379,7 +387,9 @@ function CoverageRibbon({
         </div>
       </div>
       <div className="flex items-center gap-2.5 flex-wrap">
-        {worst ? (
+        {loading ? (
+          <span className="text-xs text-text-muted">Checking for gaps…</span>
+        ) : worst ? (
           <>
             <span className="text-xs px-2 py-1 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/30 whitespace-nowrap">
               {/* A gap running to the edge of the view has no honest length — only a start. */}

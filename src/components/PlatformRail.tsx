@@ -58,9 +58,10 @@ export default function PlatformRail({
 }) {
   const pathname = usePathname() ?? '/';
 
-  const item = (href: string, label: string, icon: React.ReactNode) => {
-    // Exact match for the root, prefix match for the rest, so /clans/new keeps Clans lit.
-    const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
+  const item = (href: string, label: string, icon: React.ReactNode, exact = href === '/') => {
+    // Prefix match, so /guide/<page> keeps Guides lit. Exact for the root, and for the Clan Hall:
+    // /clans/new is the create form, not the hall, and lighting the hall there says you are browsing.
+    const active = exact ? pathname === href : pathname.startsWith(href);
     return (
       <ClanLink
         key={href}
@@ -101,7 +102,7 @@ export default function PlatformRail({
         {item('/', 'Home', <HomeIcon />)}
         {/* Your own page, one click from anywhere — it used to take a search of the Hall of Records. */}
         {myProfileHref && item(myProfileHref, 'My profile', <ProfileIcon />)}
-        {item('/clans', 'Clan Hall', <SearchIcon />)}
+        {item('/clans', 'Clan Hall', <SearchIcon />, true)}
         {item('/leaderboard', 'Hall of Records', <ChartIcon />)}
         {item('/guide', 'Guides', <BookIcon />)}
         {/* /staff existed and NOTHING linked to it. Platform capability is its own axis — no clan
@@ -149,16 +150,20 @@ export default function PlatformRail({
           surface a person sees BEFORE they have an account — and from nowhere at all once they were
           signed in and looking at this nav. Someone in one clan who wanted a second had to go back
           to marketing to find the button. Signed-in only for the same reason the form is: a clan
-          needs an owner, and the session is what names one. */}
+          needs an owner, and the session is what names one.
+
+          It leads to the Clan Hall, not the form: "start or join" from a nav is one intent, and most
+          people pressing it are looking for a clan that already exists. The hall opens with both
+          choices side by side; landing on the create form instead had them making a second clan. */}
       {signedIn && (
         <ClanLink
-          href="/clans/new"
+          href="/clans"
           className="flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md border border-dashed border-card-border px-2.5 py-1.5 text-[13px] text-text-muted transition-colors hover:border-gold/40 hover:text-gold lg:justify-start"
         >
           <span className="shrink-0 text-text-dim">
             <PlusIcon />
           </span>
-          Start or join a clan
+          Join or start a clan
         </ClanLink>
       )}
 

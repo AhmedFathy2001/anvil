@@ -133,13 +133,13 @@ export default function AnnounceClient() {
   if (!targets?.enabled) {
     return (
       <div className="border border-card-border rounded-xl p-5 bg-card-bg">
-        <p className="text-sm mb-2">The Discord bot isn’t configured yet.</p>
+        <p className="text-sm mb-2">Your Discord server isn’t connected yet.</p>
         <p className="text-xs text-text-muted mb-4">
-          This tool posts as the bot, so it needs the bot connected — set a bot token and your server ID
-          under Integrations → Discord bot.
+          This posts as Anvil’s bot, so it needs your server connected first. It takes one button on the
+          Discord page.
         </p>
         <ClanLink href="/admin/integrations" className="text-sm text-gold hover:underline">
-          Go to Integrations →
+          Go to Discord →
         </ClanLink>
       </div>
     );

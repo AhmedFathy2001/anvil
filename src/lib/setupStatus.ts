@@ -25,8 +25,13 @@ export interface SetupStatus {
   allDone: boolean;
   /** The owner finished or dismissed the wizard at least once. */
   dismissed: boolean;
-  /** Brand-new clan: nothing meaningful configured, never dismissed — safe to auto-open once. */
+  /** Brand-new clan: nothing meaningful configured, never dismissed. */
   isFresh: boolean;
+  /**
+   * The dashboard already sent this clan to the wizard once. Separate from `dismissed`, which also
+   * hides the checklist card — the card should stay until the owner closes it, the redirect should not.
+   */
+  wizardShown: boolean;
   /**
    * Managed clan: the control-plane provisioner handed us CLAN_NAME (seeded into settings by
    * migrate.mjs), so identity fields were collected at sign-up rather than typed here. The wizard
@@ -54,6 +59,7 @@ const WANTED_KEYS = [
   'webhook_rare_drops',
   'webhook_deaths',
   'setup_completed',
+  'setup_wizard_shown',
 ];
 
 export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
@@ -159,6 +165,7 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
     // named for it — a distinction with no cases left now that creation always asks. Kept as a
     // tautology it would read like a condition, so it is gone.
     isFresh: !dismissed && !webhookUrl,
+    wizardShown: !!get('setup_wizard_shown'),
     provisioned,
     values: {
       clanName,

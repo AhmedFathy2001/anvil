@@ -5,6 +5,7 @@ import TileKinds, { TILE_KIND_COUNT } from '@/components/landing/TileKinds';
 import Faq from '@/components/landing/Faq';
 import { FEATURE_PAGES, GENERAL_FAQ } from '@/lib/answers';
 import { EVENT_MODES } from '@/lib/eventModes';
+import { PLANS } from '@/lib/plans';
 import { DISCORD_LOCALES } from '@/lib/discordI18n';
 import type { PlatformStats } from '@/lib/platformStats';
 
@@ -88,7 +89,9 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
             </ClanLink>
           </div>
           <p className="mt-3.5 text-[13px] text-text-dim">
-            Free for one event · 30-day trial on everything else
+            {/* The same model as the FAQ and /pricing, off the same PLANS row: "free for one event" was
+                an older plan the free tier no longer matches. */}
+            Free for clans up to {PLANS.free.memberCap} members · bigger clans get a 30-day trial
           </p>
           {/* BOTH CTAs above address the organiser, because they are who signs a clan up. That left
               the far larger group — the members they bring, and anyone who just wants their own

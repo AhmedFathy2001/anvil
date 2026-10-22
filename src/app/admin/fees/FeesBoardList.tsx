@@ -6,10 +6,20 @@ import { atLeast } from '@/lib/clanRoles';
 import ClanLink from '@/components/ClanLink';
 import { useRouter } from 'next/navigation';
 import { useDialog } from '@/components/Confirm';
+import type { EventStage } from '@/lib/eventStage';
+
+// The board's real stage. Fees are taken at sign-up, so most boards here haven't started yet — the
+// chip used to say "Running" for anything not ended, a month before the board opened.
+const STAGE_CHIP: Record<EventStage, { label: string; className: string }> = {
+  build: { label: 'Upcoming', className: 'bg-gold/10 text-gold' },
+  run: { label: 'Running', className: 'bg-accent-green/15 text-accent-green-light' },
+  wrap: { label: 'Ended', className: 'bg-card-border/70 text-text-muted' },
+};
 
 export interface FeeBoard {
   eventId: number;
   name: string;
+  stage: EventStage;
   /** Past its end date or force-ended — the only state where closing out is offered. */
   ended: boolean;
   endDate: string | null;
@@ -105,11 +115,9 @@ export default function FeesBoardList({ boards, viewerRole }: { boards: FeeBoard
                   {b.name}
                 </ClanLink>
                 <span
-                  className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                    b.ended ? 'bg-card-border/70 text-text-muted' : 'bg-accent-green/15 text-accent-green-light'
-                  }`}
+                  className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${STAGE_CHIP[b.stage].className}`}
                 >
-                  {b.ended ? 'Ended' : 'Running'}
+                  {STAGE_CHIP[b.stage].label}
                 </span>
               </div>
               <div className="text-xs text-text-muted mt-0.5">

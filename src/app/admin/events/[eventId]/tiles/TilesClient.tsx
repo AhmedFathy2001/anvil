@@ -1078,7 +1078,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
                   separatorBefore: true,
                 },
                 {
-                  label: 'Export as seed pack',
+                  label: 'Export as task pack',
                   onClick: () => { window.location.href = clanUrl(`/api/admin/tile-library/export?eventId=${event.id}`); },
                 },
               ]}
