@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, isNull, ne } from 'drizzle-orm';
 import { db } from '@/db';
-import { clanRoster, eventParticipants, eventSignups, events, signupFees, teams, players, users } from '@/db/schema';
+import { clanRoster, eventParticipants, eventSignups, events, signupFees, teams, users } from '@/db/schema';
 import { generatePlayerToken } from '@/lib/auth';
 import { seatsOwnedBy } from '@/lib/roster';
 
@@ -107,7 +107,7 @@ export async function placeCaptainOnTeam(
 
   const unassigned = existing.find((p) => p.teamId == null);
   if (unassigned) {
-    await db.update(eventParticipants).set({ teamId }).where(eq(players.id, unassigned.id));
+    await db.update(eventParticipants).set({ teamId }).where(eq(eventParticipants.id, unassigned.id));
     if (unassigned.clanMemberId != null) await enrolSignup(eventId, captainUserId, unassigned.clanMemberId);
     return { playerId: unassigned.id, reason: null };
   }
