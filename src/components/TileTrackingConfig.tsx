@@ -902,24 +902,42 @@ function TileTrackingEditor({
     : frozenKillSource ?? (killPicks.some((p) => !p.key) ? 'plugin' : 'hiscores');
   const isStat = kind === 'skill' || (kind === 'kills' && killSource === 'hiscores');
   const isDrop = kind === 'drop' || kind === 'collection';
-  // Does the named source drop these items? Looked up in the wiki drop tables server-side; the
-  // answer is kept with the query it answers, so a stale one never shows against new inputs.
-  const dropCheckKey = isDrop && sourceNpcsText.trim() && trackedItems.length > 0
+  // Does the named source drop these items, and is each one the variant that actually drops (the
+  // chest gives an uncharged Tumeken's shadow — the charged one never drops)? Looked up in the wiki
+  // drop tables server-side; the answer is kept with the query it answers, so a stale one never
+  // shows against new inputs.
+  const dropCheckKey = isDrop && trackedItems.length > 0
     ? `items=${trackedItems.map((i) => i.id).join(',')}&sources=${encodeURIComponent(sourceNpcsText)}`
     : null;
-  const [dropCheck, setDropCheck] = useState<{ key: string; missing: number[] } | null>(null);
+  const [dropCheck, setDropCheck] = useState<{
+    key: string;
+    missing: number[];
+    variants: Record<number, { id: number; name: string }>;
+  } | null>(null);
   useEffect(() => {
     if (!dropCheckKey) return;
     const timer = setTimeout(async () => {
       try {
         const res = await clanFetch(`${lookupApi}/drop-check?${dropCheckKey}`);
-        if (res.ok) setDropCheck({ key: dropCheckKey, missing: ((await res.json()) as { missing: number[] }).missing });
+        if (res.ok) {
+          const body = (await res.json()) as { missing: number[]; variants?: Record<number, { id: number; name: string }> };
+          setDropCheck({ key: dropCheckKey, missing: body.missing, variants: body.variants ?? {} });
+        }
       } catch { /* advisory only */ }
     }, 400);
     return () => clearTimeout(timer);
   }, [dropCheckKey, lookupApi]);
-  const undroppable = dropCheck && dropCheck.key === dropCheckKey
-    ? trackedItems.filter((i) => dropCheck.missing.includes(i.id))
+  const freshDropCheck = dropCheck && dropCheck.key === dropCheckKey ? dropCheck : null;
+  // An item that's the wrong variant is reported once, as that — not again as "the source doesn't
+  // drop it", which is the same problem with a less useful answer.
+  const wrongVariants = freshDropCheck
+    ? trackedItems.flatMap((i) => {
+        const drop = freshDropCheck.variants[i.id];
+        return drop && !trackedItems.some((t) => t.id === drop.id) ? [{ item: i, drop }] : [];
+      })
+    : [];
+  const undroppable = freshDropCheck
+    ? trackedItems.filter((i) => freshDropCheck.missing.includes(i.id) && !freshDropCheck.variants[i.id])
     : [];
   const isCollection = kind === 'collection';
   // The tile's requirements in the shape lib/collectionSets reads, and the sets they form — so the
@@ -1891,6 +1909,28 @@ function TileTrackingEditor({
                       className="text-red-400 hover:text-red-300 flex-shrink-0"
                     >
                       &times;
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {wrongVariants.length > 0 && (
+              <div role="alert" className="mb-2 space-y-1 rounded border border-amber-400/30 bg-amber-400/5 px-2 py-1.5 text-[11px] text-amber-300">
+                {wrongVariants.map(({ item, drop }) => (
+                  <div key={item.id} className="flex items-center gap-2 flex-wrap">
+                    <span className="flex-1 min-w-0">
+                      {item.name} never drops — it drops as <span className="font-medium">{drop.name}</span>, and the
+                      plugin only credits the exact item.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setTrackedItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, id: drop.id, name: drop.name } : i)))
+                      }
+                      className="flex-shrink-0 px-2 py-0.5 rounded border border-amber-400/40 hover:bg-amber-400/10 transition-colors"
+                    >
+                      Use {drop.name}
                     </button>
                   </div>
                 ))}
