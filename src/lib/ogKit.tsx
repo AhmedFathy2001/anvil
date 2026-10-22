@@ -12,6 +12,8 @@ import path from 'node:path';
 import { ImageResponse } from 'next/og';
 import type { ReactElement, ReactNode } from 'react';
 
+import { getAssetByPath } from '@/lib/assetCache';
+import { isAssetPath, proxyWikiUrl } from '@/lib/assetUrls';
 
 /** The palette, lifted from globals.css. */
 export const C = {
@@ -679,6 +681,11 @@ const sourceInFlight = new Map<string, Promise<Buffer | null>>();
 
 /** The source image's bytes: memory-remembered miss → disk → network (limited), in that order. */
 function sourceBytes(url: string): Promise<Buffer | null> {
+  // Game art from the wiki / RuneLite goes through the shared asset cache (lib/assetCache) directly —
+  // the same bytes the /img routes serve, no self-HTTP hop and no second copy on this disk.
+  const local = proxyWikiUrl(url);
+  if (isAssetPath(local)) return getAssetByPath(local).then((a) => a?.bytes ?? null, () => null);
+
   const missUntil = memoryMiss.get(url);
   if (missUntil && missUntil > Date.now()) return Promise.resolve(null);
 

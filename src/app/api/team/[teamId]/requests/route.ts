@@ -7,6 +7,7 @@ import { generatePlayerToken } from '@/lib/auth';
 import { requireTeamManager } from '@/lib/teamStaff';
 import { enrolParticipant, participantForSeat } from '@/lib/participants';
 import { parseProfile } from '@/lib/signup';
+import { captureStartingStatsSoon } from '@/lib/startingStats';
 
 /**
  * People asking to join THIS team, on an event the host runs by application (rules.teamChoice).
@@ -127,6 +128,7 @@ export async function POST(
     });
   } else if (existingPlayer.teamId == null) {
     await db.update(eventParticipants).set({ teamId: tId }).where(eq(eventParticipants.id, existingPlayer.id));
+    captureStartingStatsSoon(signup.eventId, [existingPlayer.id]);
   }
 
   return NextResponse.json({ ok: true, action: 'approve' });

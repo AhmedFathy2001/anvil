@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import StatsClient from './StatsClient';
 import { getStatStandings, getTeamStandings } from '@/lib/statStandings';
+import { startingStatsFor } from '@/lib/startingStats';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,6 +47,7 @@ export default async function EventStatsPage({
       statStandings={statStandings}
       teamStandings={teamStandings}
       statsPulledAt={pullRow}
+      startingStats={await startingStatsFor(event, eventPlayers)}
     />
   );
 }

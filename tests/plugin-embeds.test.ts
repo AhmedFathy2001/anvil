@@ -8,6 +8,8 @@ import {
   SPOON_LINES,
   type PluginEmbedKind,
 } from '../src/lib/pluginEmbeds.ts';
+import { proxyWikiUrl } from '../src/lib/assetUrls.ts';
+import { absoluteAssetUrl } from '../src/lib/seo.ts';
 
 // Parity with the plugin. Until site-embeds the plugin built every clan-notification embed itself;
 // tests/fixtures/legacy-plugin-embeds.json is what those Java builders (plugin d876ce6 + the quest
@@ -18,10 +20,13 @@ import {
 // time to every embed, and numbers always use "," grouping where the plugin used the player's JVM
 // locale.
 
-const legacy = JSON.parse(readFileSync(new URL('./fixtures/legacy-plugin-embeds.json', import.meta.url), 'utf8')) as Record<
-  string,
-  unknown
->;
+// One more intentional difference: the plugin hotlinked game art from the wiki and RuneLite's static
+// host, and the site now serves the same images through its own asset cache (lib/assetUrls), so the
+// fixture's sprite URLs are mapped onto those addresses before comparing. The fixture stays verbatim.
+const legacy = JSON.parse(
+  readFileSync(new URL('./fixtures/legacy-plugin-embeds.json', import.meta.url), 'utf8'),
+  (_key, value) => (typeof value === 'string' ? absoluteAssetUrl(proxyWikiUrl(value)) : value),
+) as Record<string, unknown>;
 
 /** Pick SPOON_LINES[i] deterministically. */
 const pick = (i: number) => () => (i + 0.5) / SPOON_LINES.length;
@@ -317,7 +322,7 @@ test('a level below 99 reads in the same voice, with the skill wiki page and ico
     description: 'Zezima just reached **level 85 Slayer**!',
     color: 4886745,
     url: 'https://oldschool.runescape.wiki/w/Slayer',
-    thumbnail: { url: 'https://oldschool.runescape.wiki/images/Slayer_icon.png' },
+    thumbnail: { url: 'https://anvilosrs.com/img/wiki/Slayer_icon.png' },
     fields: [{ name: 'Progress', value: '12 of 23 skills at 99', inline: true }],
     image: { url: 'attachment://anvil-achievement.png' },
   });

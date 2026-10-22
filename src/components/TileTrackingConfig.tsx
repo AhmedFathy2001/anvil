@@ -10,6 +10,16 @@ import ChipsInput from '@/components/ChipsInput';
 import Textarea from '@/components/Textarea';
 import { splitCategories, tileTierKey, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { statKeys } from '@/lib/tileKinds';
+import {
+  chooseKillSource,
+  hiscoresKeyForMonster,
+  hiscoresKeyLabel,
+  isActivityOnlyKey,
+  killLineNameForKey,
+  killSourceOf,
+  MIXED_SOURCE_NOTE,
+  type KillPick,
+} from '@/lib/killSource';
 import { collectionDisplayTotal, howItCounts } from '@/lib/collectionSets';
 import { ROLL_TABLES } from '@/lib/rollTables';
 import Checkbox from '@/components/Checkbox';
@@ -72,15 +82,16 @@ interface Props {
 // A tile is exactly ONE kind. The kind decides which fields are meaningful — the form
 // shows only those, and switching kind clears the others so the data model can never
 // hold a nonsensical combo (e.g. a 10M-XP goal on a drop tile).
-type TileKind = 'standard' | 'skill' | 'boss' | 'drop' | 'collection' | 'kill' | 'lap' | 'pvp' | 'timed' | 'lms' | 'value' | 'diary' | 'ca' | 'gain' | 'deathless';
+// 'kills' is ONE authoring kind over two stored shapes — a hiscores boss-stat tile or a plugin kill
+// tile — and the shape is picked from the monsters chosen (lib/killSource), not by the admin.
+type TileKind = 'standard' | 'skill' | 'kills' | 'drop' | 'collection' | 'lap' | 'pvp' | 'timed' | 'lms' | 'value' | 'diary' | 'ca' | 'gain' | 'deathless';
 
 const KINDS: { key: TileKind; label: string; blurb: string }[] = [
   { key: 'standard', label: 'Standard', blurb: 'Manual tile — a captain marks it done. No auto-tracking.' },
   { key: 'skill', label: 'Skill XP', blurb: 'Auto-completes when a skill reaches an XP goal (hiscores-polled).' },
-  { key: 'boss', label: 'Boss KC', blurb: 'Auto-completes when a boss reaches a kill-count goal (hiscores-polled).' },
+  { key: 'kills', label: 'Kills', blurb: 'N kills of any boss or monster. Counted from the hiscores when every monster you pick is on them; otherwise by the plugin as you play (chickens, cows, slayer mobs).' },
   { key: 'drop', label: 'Drop (any of these items)', blurb: 'N drops from a list of items — repeats count, or switch to "different items only".' },
   { key: 'collection', label: 'Item set (all of these)', blurb: 'Every item, each with its OWN count (a full Moons set) — or name sets on the items for "complete N Barrows sets".' },
-  { key: 'kill', label: 'Kill count', blurb: 'N kills of an NPC — even ones not on the hiscores (chickens, cows). Plugin-detected, baked screenshot.' },
   { key: 'lap', label: 'Agility laps', blurb: 'N laps of an agility course, or N Hallowed Sepulchre floors / full runs. Counted live off the in-game counter, so only laps run DURING the event count — a maxed Agility cape earns nothing on its own.' },
   { key: 'pvp', label: 'PvP kill', blurb: 'Kill rival team members — or a named bounty — in the Wilderness or on PvP worlds. Plugin credits your kill and bakes a death screenshot. Safe minigames (LMS, Soul Wars, PvP Arena) never count.' },
   { key: 'gain', label: 'Item gain', blurb: 'Catch/cook/gather N of an item — counted from inventory gains (karambwans fished, implings jarred, food cooked). Plugin-detected, baked screenshot.' },
@@ -308,7 +319,7 @@ function deriveKind(initial: TileConfig): TileKind {
   if (initial.tileType === 'drop') {
     return initial.itemRequirements && initial.itemRequirements.length > 0 ? 'collection' : 'drop';
   }
-  if (initial.tileType === 'kill') return 'kill';
+  if (initial.tileType === 'kill') return 'kills';
   if (initial.tileType === 'lap') return 'lap';
   if (initial.tileType === 'pvp') return 'pvp';
   if (initial.tileType === 'gain') return 'gain';
@@ -319,9 +330,24 @@ function deriveKind(initial: TileConfig): TileKind {
   if (initial.tileType === 'diary') return 'diary';
   if (initial.tileType === 'ca') return 'ca';
   if (initial.statType === 'skill') return 'skill';
-  if (initial.statType === 'boss') return 'boss';
+  if (initial.statType === 'boss') return 'kills';
   return 'standard';
 }
+
+/** The monsters a stored kills tile already counts, as editor picks. Plugin names stay verbatim. */
+function initialKillPicks(initial: TileConfig): KillPick[] {
+  const source = killSourceOf(initial);
+  if (source === 'hiscores') {
+    return statKeys(initial.trackedStat).map((key) => ({ name: killLineNameForKey(key) ?? hiscoresKeyLabel(key), key }));
+  }
+  if (source === 'plugin') {
+    return (initial.targetNpcs || []).map((name) => ({ name, key: hiscoresKeyForMonster(name) }));
+  }
+  return [];
+}
+
+const samePick = (a: KillPick, b: KillPick) =>
+  (a.key && b.key ? a.key === b.key : false) || a.name.toLowerCase() === b.name.toLowerCase();
 
 // mm:ss <-> seconds helpers for the timed-tile threshold input.
 function secondsToClock(total: number | null | undefined): string {
@@ -697,10 +723,16 @@ function TileTrackingEditor({
   // "The Nightmare" + "Phosani's Nightmare" can all be added so any of them count. The same
   // column carries diary and CA selectors when the tile is one of those kinds, so scope each
   // state to its own kind here.
-  const [targetNpcNames, setTargetNpcNames] = useState<string[]>(
-    initial.tileType === 'diary' || initial.tileType === 'ca' || initial.tileType === 'pvp' || initial.tileType === 'lap'
-      ? [] : initial.targetNpcs || [],
-  );
+  // Kills: the monsters chosen, each with its hiscores key when it has one. Which engine counts the
+  // tile follows from these (chooseKillSource) — unless the event has started, when the tile's
+  // source is frozen as it was saved and never converted.
+  const [killPicks, setKillPicks] = useState<KillPick[]>(() => initialKillPicks(initial));
+  const frozenKillSource = eventStarted ? killSourceOf(initial) : null;
+  const [killAmount, setKillAmount] = useState<string>(() => {
+    const source = killSourceOf(initial);
+    const n = source === 'hiscores' ? initial.statGoal : source === 'plugin' ? initial.requiredAmount : null;
+    return n != null ? String(n) : '';
+  });
   // Agility courses — the same targetNpcs column again, holding verbatim lap-counter names.
   const [lapCourses, setLapCourses] = useState<string[]>(
     initial.tileType === 'lap' ? initial.targetNpcs || [] : [],
@@ -861,8 +893,33 @@ function TileTrackingEditor({
   // consecutive saves in one sitting keep passing the PUT's baseUpdatedAt check.
   const [baseStamp, setBaseStamp] = useState<string | null>(initial.updatedAt ?? null);
 
-  const isStat = kind === 'skill' || kind === 'boss';
+  const killChoice = useMemo(() => chooseKillSource(killPicks, frozenKillSource), [killPicks, frozenKillSource]);
+  // The engine this kills tile will be saved for. While the selection is unsaveable (empty, or a
+  // pick that can't fit) fall back to the frozen source, else to what the picks lean towards.
+  const killSource: 'hiscores' | 'plugin' = killChoice.ok
+    ? killChoice.source
+    : frozenKillSource ?? (killPicks.some((p) => !p.key) ? 'plugin' : 'hiscores');
+  const isStat = kind === 'skill' || (kind === 'kills' && killSource === 'hiscores');
   const isDrop = kind === 'drop' || kind === 'collection';
+  // Does the named source drop these items? Looked up in the wiki drop tables server-side; the
+  // answer is kept with the query it answers, so a stale one never shows against new inputs.
+  const dropCheckKey = isDrop && sourceNpcsText.trim() && trackedItems.length > 0
+    ? `items=${trackedItems.map((i) => i.id).join(',')}&sources=${encodeURIComponent(sourceNpcsText)}`
+    : null;
+  const [dropCheck, setDropCheck] = useState<{ key: string; missing: number[] } | null>(null);
+  useEffect(() => {
+    if (!dropCheckKey) return;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await clanFetch(`${lookupApi}/drop-check?${dropCheckKey}`);
+        if (res.ok) setDropCheck({ key: dropCheckKey, missing: ((await res.json()) as { missing: number[] }).missing });
+      } catch { /* advisory only */ }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [dropCheckKey, lookupApi]);
+  const undroppable = dropCheck && dropCheck.key === dropCheckKey
+    ? trackedItems.filter((i) => dropCheck.missing.includes(i.id))
+    : [];
   const isCollection = kind === 'collection';
   // The tile's requirements in the shape lib/collectionSets reads, and the sets they form — so the
   // editor's set controls and its auto-computed total use the same rule the board completes on.
@@ -895,7 +952,7 @@ function TileTrackingEditor({
     }
     return out;
   })();
-  const isKill = kind === 'kill';
+  const isKill = kind === 'kills' && killSource === 'plugin';
   const isLap = kind === 'lap';
   // "lap" on a course, "floor"/"run" in the Sepulchre — drives every noun in this block.
   const lapNoun = lapUnitNoun(lapCourses);
@@ -1008,30 +1065,51 @@ function TileTrackingEditor({
       const res = await clanFetch(`${lookupApi}/npc-search?q=${encodeURIComponent(query)}`);
       if (res.ok) {
         const results = (await res.json()) as { name: string }[];
-        const existing = new Set(targetNpcNames.map((n) => n.toLowerCase()));
-        setNpcResults(results.map((r) => r.name).filter((n) => !existing.has(n.toLowerCase())));
+        setNpcResults(
+          results
+            .map((r) => r.name)
+            .filter((n) => !killPicks.some((p) => samePick(p, { name: n, key: hiscoresKeyForMonster(n) })))
+            // A tile frozen on the hiscores can only take monsters the hiscores count.
+            .filter((n) => frozenKillSource !== 'hiscores' || !!hiscoresKeyForMonster(n)),
+        );
       }
     } catch { /* ignore */ }
     setNpcSearching(false);
-  }, [targetNpcNames, lookupApi]);
+  }, [killPicks, lookupApi, frozenKillSource]);
 
+  // Hiscores bosses and counters matching the search box, offered above the wiki's monster hits so a
+  // boss resolves to its hiscores entry rather than whatever the wiki calls the NPC.
+  const hiscoresHits = useMemo(() => {
+    const q = npcSearch.trim().toLowerCase();
+    if (q.length < 2) return [];
+    return TRACKABLE_KC_OPTIONS.filter(
+      (o) =>
+        (o.label.toLowerCase().includes(q) || o.value.toLowerCase() === q || (o.keywords ?? []).some((k) => k.includes(q))) &&
+        !killPicks.some((p) => p.key === o.value) &&
+        // The plugin counts kills; a clue tier can't ride on a plugin-counted tile.
+        !(frozenKillSource === 'plugin' && isActivityOnlyKey(o.value)),
+    ).slice(0, 8);
+  }, [npcSearch, killPicks, frozenKillSource]);
+
+  /** Add a typed / wiki / quick-add name; a name the hiscores know is tagged with its key. */
   function addNpc(name: string) {
     const trimmed = name.trim();
     if (!trimmed) return;
-    setTargetNpcNames((prev) =>
-      prev.some((n) => n.toLowerCase() === trimmed.toLowerCase()) ? prev : [...prev, trimmed],
-    );
+    const pick = { name: trimmed, key: hiscoresKeyForMonster(trimmed) };
+    setKillPicks((prev) => (prev.some((p) => samePick(p, pick)) ? prev : [...prev, pick]));
+  }
+  /** Add a hiscores entry picked from the list, under the name the plugin's kill-count line uses. */
+  function addKillKey(key: string) {
+    const pick = { name: killLineNameForKey(key) ?? hiscoresKeyLabel(key), key };
+    setKillPicks((prev) => (prev.some((p) => samePick(p, pick)) ? prev : [...prev, pick]));
   }
   function addAllNpcResults() {
     if (npcResults.length === 0) return;
-    setTargetNpcNames((prev) => {
-      const seen = new Set(prev.map((n) => n.toLowerCase()));
+    setKillPicks((prev) => {
       const merged = [...prev];
       for (const n of npcResults) {
-        if (!seen.has(n.toLowerCase())) {
-          merged.push(n);
-          seen.add(n.toLowerCase());
-        }
+        const pick = { name: n, key: hiscoresKeyForMonster(n) };
+        if (!merged.some((p) => samePick(p, pick))) merged.push(pick);
       }
       return merged;
     });
@@ -1039,9 +1117,10 @@ function TileTrackingEditor({
     setNpcSearch("");
     setShowNpcDropdown(false);
   }
-  function removeNpc(name: string) {
-    setTargetNpcNames((prev) => prev.filter((n) => n !== name));
+  function removeKillPick(index: number) {
+    setKillPicks((prev) => prev.filter((_, i) => i !== index));
   }
+  const killPicked = (name: string) => killPicks.some((p) => samePick(p, { name, key: hiscoresKeyForMonster(name) }));
 
   // Switching kind wipes the other kinds' fields so a save can't smuggle stale data.
   function changeKind(next: TileKind) {
@@ -1049,14 +1128,14 @@ function TileTrackingEditor({
     setError(null);
     // Fields not relevant to the destination kind are always cleared; each branch then
     // keeps only what it needs.
-    if (next === 'skill' || next === 'boss') {
+    if (next === 'skill') {
       setTrackedStat("");
       setStatGoal("");
       setTrackingMode("team");
       setRequiredAmount("");
       setTrackedItems([]);
       setSourceNpcsText("");
-      setTargetNpcNames([]);
+      setKillPicks([]);
       setDiarySelectors([]);
       setCaSelectors([]);
       setLapCourses([]);
@@ -1065,15 +1144,17 @@ function TileTrackingEditor({
     } else if (next === 'drop' || next === 'collection') {
       setTrackedStat("");
       setStatGoal("");
-      setTargetNpcNames([]);
+      setKillPicks([]);
       setDiarySelectors([]);
       setCaSelectors([]);
       setLapCourses([]);
       setTimedActivity("");
       setTimeThresholdClock("");
-    } else if (next === 'kill') {
+    } else if (next === 'kills') {
+      // Keeps killPicks + killAmount — the kills kind's whole config.
       setTrackedStat("");
       setStatGoal("");
+      setRequiredAmount("");
       setTrackedItems([]);
       setSourceNpcsText("");
       setDiarySelectors([]);
@@ -1087,7 +1168,7 @@ function TileTrackingEditor({
       setStatGoal("");
       setTrackedItems([]);
       setSourceNpcsText("");
-      setTargetNpcNames([]);
+      setKillPicks([]);
       setDiarySelectors([]);
       setCaSelectors([]);
       setTimedActivity("");
@@ -1098,7 +1179,7 @@ function TileTrackingEditor({
       setStatGoal("");
       setTrackedItems([]);
       setSourceNpcsText("");
-      setTargetNpcNames([]);
+      setKillPicks([]);
       setDiarySelectors([]);
       setCaSelectors([]);
       setLapCourses([]);
@@ -1109,7 +1190,7 @@ function TileTrackingEditor({
       setTrackedStat("");
       setStatGoal("");
       setSourceNpcsText("");
-      setTargetNpcNames([]);
+      setKillPicks([]);
       setDiarySelectors([]);
       setCaSelectors([]);
       setLapCourses([]);
@@ -1121,7 +1202,7 @@ function TileTrackingEditor({
       setStatGoal("");
       setTrackedItems([]);
       setSourceNpcsText("");
-      setTargetNpcNames([]);
+      setKillPicks([]);
       setDiarySelectors([]);
       setCaSelectors([]);
       setLapCourses([]);
@@ -1132,7 +1213,7 @@ function TileTrackingEditor({
       setStatGoal("");
       setTrackedItems([]);
       setSourceNpcsText("");
-      setTargetNpcNames([]);
+      setKillPicks([]);
       setCaSelectors([]);
       setLapCourses([]);
       setTimedActivity("");
@@ -1143,7 +1224,7 @@ function TileTrackingEditor({
       setStatGoal("");
       setTrackedItems([]);
       setSourceNpcsText("");
-      setTargetNpcNames([]);
+      setKillPicks([]);
       setDiarySelectors([]);
       setLapCourses([]);
       setTimedActivity("");
@@ -1154,7 +1235,7 @@ function TileTrackingEditor({
       setRequiredAmount("");
       setTrackedItems([]);
       setSourceNpcsText("");
-      setTargetNpcNames([]);
+      setKillPicks([]);
       setDiarySelectors([]);
       setCaSelectors([]);
       setLapCourses([]);
@@ -1164,7 +1245,7 @@ function TileTrackingEditor({
       setStatGoal("");
       setTrackedItems([]);
       setSourceNpcsText("");
-      setTargetNpcNames([]);
+      setKillPicks([]);
       setDiarySelectors([]);
       setCaSelectors([]);
       setLapCourses([]);
@@ -1176,7 +1257,7 @@ function TileTrackingEditor({
       setStatGoal("");
       setRequiredAmount("");
       setTrackedItems([]);
-      setTargetNpcNames([]);
+      setKillPicks([]);
       setDiarySelectors([]);
       setCaSelectors([]);
       setLapCourses([]);
@@ -1190,7 +1271,7 @@ function TileTrackingEditor({
       setRequiredAmount("");
       setTrackedItems([]);
       setSourceNpcsText("");
-      setTargetNpcNames([]);
+      setKillPicks([]);
       setDiarySelectors([]);
       setCaSelectors([]);
       setLapCourses([]);
@@ -1200,10 +1281,10 @@ function TileTrackingEditor({
   }
 
   function validate(): string | null {
-    if (kind === 'skill' || kind === 'boss') {
-      if (!trackedStat) return `Pick a ${kind === 'skill' ? 'skill' : 'boss'} to track.`;
+    if (kind === 'skill') {
+      if (!trackedStat) return 'Pick a skill to track.';
       const goal = parseInt(statGoal, 10);
-      if (!Number.isInteger(goal) || goal < 1) return `Set a ${kind === 'skill' ? 'XP' : 'KC'} goal of at least 1.`;
+      if (!Number.isInteger(goal) || goal < 1) return 'Set an XP goal of at least 1.';
     }
     if (kind === 'drop') {
       const amt = parseInt(requiredAmount, 10);
@@ -1217,10 +1298,10 @@ function TileTrackingEditor({
       if (trackedItems.length === 0) return 'Add at least one item to the collection.';
       if (trackedItems.some((i) => i.perItemAmount < 1)) return 'Each collection item needs a count of at least 1.';
     }
-    if (kind === 'kill') {
-      if (targetNpcNames.length === 0) return 'Add at least one NPC to count kills for.';
-      const amt = parseInt(requiredAmount, 10);
-      if (!Number.isInteger(amt) || amt < 1) return 'Set a required kill count of at least 1.';
+    if (kind === 'kills') {
+      if (!killChoice.ok) return killChoice.error;
+      const amt = parseInt(killAmount, 10);
+      if (!Number.isInteger(amt) || amt < 1) return 'Set how many kills the tile needs (at least 1).';
     }
     if (kind === 'lap') {
       if (lapCourses.length === 0) return 'Add at least one agility course (or Sepulchre floor) to count.';
@@ -1367,9 +1448,11 @@ function TileTrackingEditor({
       };
 
       if (isStat) {
-        payload.statType = kind; // 'skill' | 'boss'
-        payload.trackedStat = trackedStat;
-        payload.statGoal = parseInt(statGoal, 10);
+        // A skill tile, or a kills tile whose monsters are all on the hiscores (statType 'boss').
+        const killsOnHiscores = kind === 'kills' && killChoice.ok && killChoice.source === 'hiscores';
+        payload.statType = kind === 'skill' ? 'skill' : 'boss';
+        payload.trackedStat = killsOnHiscores ? killChoice.trackedStat : trackedStat;
+        payload.statGoal = parseInt(killsOnHiscores ? killAmount : statGoal, 10);
         payload.statBasis = statBasis;
         // A milestone is settled per member — a team's lifetime totals summed together are
         // meaningless — so persist the mode the server will actually use rather than leaving a
@@ -1398,9 +1481,9 @@ function TileTrackingEditor({
         payload.trackedItemIds = trackedItems.length > 0 ? trackedItems.map((i) => i.id) : null;
         payload.countMode = countMode === 'distinct' && trackedItems.length > 1 ? 'distinct' : null;
         payload.perKillCap = oncePerKill ? 1 : null;
-      } else if (kind === 'kill') {
-        payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : null;
-        payload.targetNpcs = targetNpcNames;
+      } else if (isKill && killChoice.ok && killChoice.source === 'plugin') {
+        payload.requiredAmount = killAmount ? parseInt(killAmount, 10) : null;
+        payload.targetNpcs = killChoice.targetNpcs;
         payload.trackingMode = trackingMode;
         payload.coopCredit = coopPerKill ? 'per-kill' : null;
         payload.coopMinMembers = coopMinMembers.trim() ? parseInt(coopMinMembers, 10) : null;
@@ -1537,9 +1620,10 @@ function TileTrackingEditor({
   // the count kinds), and only when the target isn't mentioned in the title OR description.
   const amountWarning = useMemo(() => {
     let target: number | null = null;
-    if (kind === 'skill' || kind === 'boss') target = parseAmountToken(statGoal);
+    if (kind === 'skill') target = parseAmountToken(statGoal);
+    else if (kind === 'kills') target = parseAmountToken(killAmount);
     else if (kind === 'value') target = parseAmountToken(valueGpText);
-    else if (['drop', 'kill', 'lap', 'pvp', 'gain', 'deathless', 'lms'].includes(kind)) target = parseAmountToken(requiredAmount);
+    else if (['drop', 'lap', 'pvp', 'gain', 'deathless', 'lms'].includes(kind)) target = parseAmountToken(requiredAmount);
     if (target == null || target <= 0) return null;
     const labelNums = extractCountLikeNumbers(label);
     if (labelNums.length === 0) return null;
@@ -1547,7 +1631,7 @@ function TileTrackingEditor({
     if (allNums.includes(target)) return null;
     const titleNum = labelNums.find((n) => n !== target) ?? labelNums[0];
     return { titleNum, target };
-  }, [kind, label, description, requiredAmount, statGoal, valueGpText]);
+  }, [kind, label, description, requiredAmount, statGoal, killAmount, valueGpText]);
 
   return (
     <div className="space-y-3">
@@ -1698,79 +1782,33 @@ function TileTrackingEditor({
         />
       </div>
 
-      {/* ---- STAT KINDS (skill / boss) ---- */}
-      {isStat && (
+      {/* ---- SKILL XP (hiscores) ---- */}
+      {kind === 'skill' && (
         <div className="space-y-3 rounded-lg border border-gold/20 bg-gold/5 p-3">
-          {kind === 'skill' ? (
-            <div>
-              <label className="block text-xs text-text-muted mb-1">Skill</label>
-              <Select
-                value={trackedStat}
-                onChange={setTrackedStat}
-                placeholder="Select a skill..."
-                ariaLabel="Skill"
-                options={SKILLS.map((key) => ({ value: key, label: SKILL_LABELS[key] || key, keywords: SKILL_ALIASES[key] }))}
-              />
-            </div>
-          ) : (
-            /* Boss KC can track SEVERAL hiscores bosses on one tile — gains sum across them
-               (CoX + CoX: CM, or all four GWD bosses). Stored comma-separated in trackedStat. */
-            <div>
-              <label className="block text-xs text-text-muted mb-1">
-                Boss(es) <span className="text-text-muted/60">(KC gains sum across all listed)</span>
-              </label>
-              {statKeys(trackedStat).length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {statKeys(trackedStat).map((key) => (
-                    <span
-                      key={key}
-                      className="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded bg-gold/15 border border-gold/30 text-gold"
-                    >
-                      {trackedKeyLabel(key)}
-                      <button
-                        type="button"
-                        onClick={() => setTrackedStat(statKeys(trackedStat).filter((k) => k !== key).join(','))}
-                        className="text-red-400 hover:text-red-300 flex-shrink-0"
-                        aria-label={`Remove ${trackedKeyLabel(key)}`}
-                      >
-                        &times;
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-              <Select
-                value=""
-                onChange={(key) => {
-                  if (!key) return;
-                  const keys = statKeys(trackedStat);
-                  if (!keys.includes(key)) setTrackedStat([...keys, key].join(','));
-                }}
-                placeholder={statKeys(trackedStat).length > 0 ? 'Add another...' : 'Select a boss or activity...'}
-                ariaLabel="Boss or activity"
-                options={TRACKABLE_KC_OPTIONS.filter((o) => !statKeys(trackedStat).includes(o.value))}
-              />
-              <p className="text-[10px] text-text-muted mt-0.5">
-                Add more than one to combine modes — e.g. <span className="text-foreground/70">Chambers of Xeric</span> +{' '}
-                <span className="text-foreground/70">CoX: CM</span> counts clears of either toward the goal. Non-boss
-                hiscores counters (clues, Guardians of the Rift, Bounty Hunter…) work the same way.
-              </p>
-            </div>
-          )}
+          <div>
+            <label className="block text-xs text-text-muted mb-1">Skill</label>
+            <Select
+              value={trackedStat}
+              onChange={setTrackedStat}
+              placeholder="Select a skill..."
+              ariaLabel="Skill"
+              options={SKILLS.map((key) => ({ value: key, label: SKILL_LABELS[key] || key, keywords: SKILL_ALIASES[key] }))}
+            />
+          </div>
 
           <div>
-            <label className="block text-xs text-text-muted mb-1">Goal ({kind === 'skill' ? 'XP' : 'KC'})</label>
+            <label className="block text-xs text-text-muted mb-1">Goal (XP)</label>
             <Input
               type="number"
               value={statGoal}
               onChange={(e) => setStatGoal(e.target.value)}
-              placeholder={kind === 'skill' ? 'e.g. 1000000' : 'e.g. 100'}
+              placeholder="e.g. 1000000"
               className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
               min="1"
             />
           </div>
 
-          <StatBasisField value={statBasis} onChange={setStatBasis} unit={kind === 'skill' ? 'XP' : 'kills'} />
+          <StatBasisField value={statBasis} onChange={setStatBasis} unit="XP" />
 
           {/* A milestone is per member by definition, so the Team/Solo question doesn't apply. */}
           {statBasis !== 'milestone' && (
@@ -2165,6 +2203,13 @@ function TileTrackingEditor({
               placeholder="e.g. Zulrah, Chambers of Xeric, Barrows"
               ariaLabel="Source restriction"
             />
+            {undroppable.length > 0 && (
+              <p role="alert" className="text-[11px] text-amber-300 mt-1 rounded border border-amber-400/30 bg-amber-400/5 px-2 py-1">
+                {sourceNpcsText.split(',').map((s) => s.trim()).filter(Boolean).join(' / ')} doesn&rsquo;t drop{' '}
+                {undroppable.map((i) => i.name).join(', ')} according to the wiki&rsquo;s drop table, so this tile could
+                never complete. Check the source, or the exact item (a charged or noted version is a different item).
+              </p>
+            )}
             <p className="text-[10px] text-text-muted mt-0.5 leading-relaxed">
               Comma-separated. The drop only counts when it comes from one of these (case-insensitive). Leave blank to
               accept any source.
@@ -2305,28 +2350,30 @@ function TileTrackingEditor({
         </div>
       )}
 
-      {/* ---- KILL KIND ---- */}
-      {isKill && (
+      {/* ---- KILLS (one kind; the counting engine follows from the monsters — lib/killSource) ---- */}
+      {kind === 'kills' && (
         <div className="space-y-3 rounded-lg border border-accent-green/20 bg-accent-green/5 p-3">
           <div>
             <label className="block text-xs text-text-muted mb-1">
-              Target NPC(s) <span className="text-text-muted/60">(any listed name counts)</span>
+              Monster(s) <span className="text-text-muted/60">(kills of any listed one count)</span>
             </label>
 
-            {/* Selected NPC chips */}
-            {targetNpcNames.length > 0 && (
+            {/* Picked monsters. A hiscores entry shows its hiscores name; the plugin matches `name`. */}
+            {killPicks.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mb-2">
-                {targetNpcNames.map((name) => (
+                {killPicks.map((p, i) => (
                   <span
-                    key={name}
+                    key={`${p.key ?? ''}|${p.name}`}
+                    title={p.key ? `On the hiscores · the plugin matches “${p.name}”` : 'Not on the hiscores — only the plugin can count it'}
                     className="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded bg-accent-green/15 border border-accent-green/30 text-accent-green-light"
                   >
-                    {name}
+                    {p.key ? trackedKeyLabel(p.key) : p.name}
+                    {!p.key && <span className="text-[9px] uppercase tracking-wider text-text-muted">plugin</span>}
                     <button
                       type="button"
-                      onClick={() => removeNpc(name)}
+                      onClick={() => removeKillPick(i)}
                       className="text-red-400 hover:text-red-300 flex-shrink-0"
-                      aria-label={`Remove ${name}`}
+                      aria-label={`Remove ${p.name}`}
                     >
                       &times;
                     </button>
@@ -2335,7 +2382,8 @@ function TileTrackingEditor({
               </div>
             )}
 
-            {/* Search + free-text add. Enter adds the typed text verbatim (override). */}
+            {/* One search: hiscores bosses/counters first, then the wiki's monster list. Enter adds
+                the typed text verbatim — the plugin's reported name is the source of truth. */}
             <div ref={npcSearchRef} className="relative">
               <Input
                 type="text"
@@ -2356,20 +2404,43 @@ function TileTrackingEditor({
                     setShowNpcDropdown(false);
                   }
                 }}
-                onFocus={() => npcResults.length > 0 && setShowNpcDropdown(true)}
-                placeholder="Search monsters (e.g. Nightmare, Chicken)..."
+                onFocus={() => (npcResults.length > 0 || hiscoresHits.length > 0) && setShowNpcDropdown(true)}
+                placeholder="Search bosses and monsters (e.g. Zulrah, Nightmare, Chicken)..."
                 className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
               />
               {npcSearching && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-muted">...</span>}
-              {showNpcDropdown && npcResults.length > 0 && (
-                <div className="absolute z-50 w-full mt-1 max-h-48 overflow-y-auto bg-brown-dark border border-card-border rounded shadow-lg">
-                  <button
-                    type="button"
-                    onClick={addAllNpcResults}
-                    className="w-full text-left px-3 py-2 text-xs font-semibold text-gold border-b border-card-border hover:bg-gold/10 transition-colors"
-                  >
-                    + Add all {npcResults.length} match{npcResults.length !== 1 ? 'es' : ''}
-                  </button>
+              {showNpcDropdown && (hiscoresHits.length > 0 || npcResults.length > 0) && (
+                <div className="absolute z-50 w-full mt-1 max-h-60 overflow-y-auto bg-brown-dark border border-card-border rounded shadow-lg">
+                  {hiscoresHits.length > 0 && (
+                    <p className="px-3 pt-2 pb-1 text-[9px] uppercase tracking-wider text-text-muted/70">On the hiscores</p>
+                  )}
+                  {hiscoresHits.map((o) => (
+                    <button
+                      key={o.value}
+                      type="button"
+                      onClick={() => {
+                        addKillKey(o.value);
+                        setNpcSearch('');
+                        setNpcResults([]);
+                        setShowNpcDropdown(false);
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-gold/10 transition-colors"
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                  {npcResults.length > 0 && (
+                    <>
+                      <p className="px-3 pt-2 pb-1 text-[9px] uppercase tracking-wider text-text-muted/70 border-t border-card-border">Monsters</p>
+                      <button
+                        type="button"
+                        onClick={addAllNpcResults}
+                        className="w-full text-left px-3 py-2 text-xs font-semibold text-gold border-b border-card-border hover:bg-gold/10 transition-colors"
+                      >
+                        + Add all {npcResults.length} match{npcResults.length !== 1 ? 'es' : ''}
+                      </button>
+                    </>
+                  )}
                   {npcResults.map((name) => (
                     <button
                       key={name}
@@ -2389,30 +2460,29 @@ function TileTrackingEditor({
               )}
             </div>
             <p className="text-[10px] text-text-muted mt-0.5 leading-relaxed">
-              A kill counts when the NPC&rsquo;s name matches <span className="text-foreground/70">any</span> of these
-              (case-insensitive). Add every variant you want to count — e.g. <span className="text-foreground/70">The
-              Nightmare</span> + <span className="text-foreground/70">Phosani&rsquo;s Nightmare</span>, or use
-              &ldquo;Add all matches&rdquo;. These need not be on the hiscores (chickens, cows, etc.). Press Enter to add a
-              name that isn&rsquo;t in the list — the plugin&rsquo;s reported name is the source of truth.
+              A kill of <span className="text-foreground/70">any</span> listed monster counts. Add every variant you
+              want — e.g. <span className="text-foreground/70">The Nightmare</span> +{' '}
+              <span className="text-foreground/70">Phosani&rsquo;s Nightmare</span>, or{' '}
+              <span className="text-foreground/70">Chambers of Xeric</span> + <span className="text-foreground/70">CoX: CM</span>.
+              Monsters off the hiscores (chickens, cows, slayer mobs) work too.
             </p>
 
-            {/* Raid quick-adds — completions credit off the game's kill-count line, which names the
-                mode exactly. To count both normal and CM/Hard/Expert on one tile, add both strings.
-                Collapsed, because most kill tiles aren't raids and eight raid-mode chips under the
-                search box read as required setup rather than the shortcut they are. */}
+            {/* Raid quick-adds — the exact in-game mode strings (CoX CM has NO colon). The hiscores
+                carry most modes, so these usually keep a tile on the hiscores; entry modes aren't
+                there and make it a plugin tile. Collapsed: most kills tiles aren't raids. */}
             <details className="group mt-2">
               <summary className="cursor-pointer select-none list-none text-[10px] text-text-muted hover:text-foreground flex items-center gap-1">
                 <span className="transition-transform group-open:rotate-90">▸</span>
                 Add a raid (exact in-game mode names)
               </summary>
               <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-              {RAID_KC_NAMES.filter((n) => !targetNpcNames.some((t) => t.toLowerCase() === n.toLowerCase())).map((n) => (
+              {RAID_KC_NAMES.filter((n) => !killPicked(n) && (frozenKillSource !== 'hiscores' || !!hiscoresKeyForMonster(n))).map((n) => (
                 <button
                   key={n}
                   type="button"
                   onClick={() => addNpc(n)}
                   className="text-[10px] px-2 py-0.5 rounded border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors"
-                  title="Add this raid mode — the completion counts off the in-game count line"
+                  title="Add this raid mode — completions count off the in-game count line"
                 >
                   + {n}
                 </button>
@@ -2421,10 +2491,10 @@ function TileTrackingEditor({
             </details>
 
             {/* Counter quick-adds — activities that keep an in-game count but aren't on the
-                hiscores, so they can only be kill tiles. None of them appear in the monster search
+                hiscores, so only the plugin can count them. None of them appear in the monster search
                 above, which is the whole point: without these chips you'd have to already know the
-                exact string. Grouped, because "Herbiboar" and "Larran's big chest" are not the same
-                kind of thing and a flat row of 18 chips reads as noise. */}
+                exact string. Hidden on a tile frozen on the hiscores, which can't take them. */}
+            {frozenKillSource !== 'hiscores' && (
             <details className="group mt-1.5">
               <summary className="cursor-pointer select-none list-none text-[10px] text-text-muted hover:text-foreground flex items-center gap-1">
                 <span className="transition-transform group-open:rotate-90">▸</span>
@@ -2432,9 +2502,7 @@ function TileTrackingEditor({
               </summary>
               <div className="mt-1.5 space-y-1.5">
                 {COUNTER_GROUPS.map(([group, entries]) => {
-                  const unused = entries.filter(
-                    (e) => !targetNpcNames.some((t) => t.toLowerCase() === e.name.toLowerCase()),
-                  );
+                  const unused = entries.filter((e) => !killPicked(e.name));
                   if (unused.length === 0) return null;
                   return (
                     <div key={group}>
@@ -2457,27 +2525,60 @@ function TileTrackingEditor({
                 })}
               </div>
             </details>
+            )}
           </div>
 
+          {/* Which engine counts it — chosen for the admin, said in one line. */}
+          {killPicks.length > 0 && (
+            <p className="text-[11px] leading-relaxed text-text-muted" data-testid="kill-source-note">
+              {frozenKillSource
+                ? <>
+                    <span className="text-foreground/80">
+                      {frozenKillSource === 'hiscores' ? 'Counted from the hiscores.' : 'Counted by the plugin as you play.'}
+                    </span>{' '}
+                    Fixed once the event started, so it keeps scoring the way it has been.
+                  </>
+                : killChoice.ok && killChoice.source === 'hiscores'
+                  ? 'Counted from the hiscores — no plugin needed, and kills during the event count even if the plugin was off.'
+                  : killChoice.ok && killChoice.mixed
+                    ? MIXED_SOURCE_NOTE
+                    : 'Counted by the plugin as you play — these aren’t on the hiscores.'}
+            </p>
+          )}
+
           <div>
-            <label className="block text-xs text-text-muted mb-1">Required Kills</label>
+            <label className="block text-xs text-text-muted mb-1">Kills needed</label>
             <Input
               type="number"
-              value={requiredAmount}
-              onChange={(e) => setRequiredAmount(e.target.value)}
-              disabled={locked}
+              value={killAmount}
+              onChange={(e) => setKillAmount(e.target.value)}
+              // A plugin tile's count is frozen at start like every count kind's; a hiscores goal
+              // never was (it's a stat goal), and that stays as it was.
+              disabled={locked && killSource === 'plugin'}
               placeholder="e.g. 50"
               className="w-full px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground disabled:opacity-50"
               min="1"
             />
           </div>
 
-          <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="kills" goal="kill count" teamPlay={teamPlay} />
+          {killSource === 'hiscores' && (
+            <>
+              <StatBasisField value={statBasis} onChange={setStatBasis} unit="kills" />
+              {/* A milestone is per member by definition, so the Team/Solo question doesn't apply. */}
+              {statBasis !== 'milestone' && (
+                <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="gains" goal="goal" teamPlay={teamPlay} />
+              )}
+            </>
+          )}
+
+          {killSource === 'plugin' && (
+            <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="kills" goal="kill count" teamPlay={teamPlay} />
+          )}
 
           {/* Shared kills. Tracking Mode answers WHOSE kills count; these answer what a kill several
               members were in is worth, and whether it counts at all. Meaningless on an individual
               board — there are no teammates to share a kill with. */}
-          {teamPlay && (
+          {teamPlay && killSource === 'plugin' && (
           <details
             open={coopPerKill || !!coopMinMembers}
             className="group rounded-lg border border-card-border/60"

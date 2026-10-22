@@ -6,7 +6,7 @@ import Input from '@/components/Input';
 import Select from '@/components/Select';
 import AnvilTaskEditor, { type AnvilTaskDraft } from '@/components/AnvilTaskEditor';
 import { tileTierKey, type TierBand } from '@/lib/tileFilter';
-import { TILE_KIND_BADGES, tileKindKey, type TileKindLike } from '@/lib/tileKinds';
+import { TILE_KIND_BADGES, tileKindFilterKey, type TileKindLike } from '@/lib/tileKinds';
 import type { AnvilTask } from '@/lib/libraryTasks';
 import type { TaskOffer } from '@/lib/libraryTasks';
 import type { LibraryProposal } from '@/lib/libraryProposals';
@@ -59,7 +59,7 @@ export default function AnvilLibraryBrowser({ tierBands, onImported }: { tierBan
     void load();
   }, [load]);
 
-  const kindOf = (t: AnvilTask) => tileKindKey(t.config as TileKindLike);
+  const kindOf = (t: AnvilTask) => tileKindFilterKey(t.config as TileKindLike);
   const visible = useMemo(() => {
     const words = q.toLowerCase().split(/\s+/).filter(Boolean);
     return (rows ?? []).filter((t) => {

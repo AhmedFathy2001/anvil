@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Input from '@/components/Input';
-import WebhookField from '@/components/WebhookField';
+import ConnectDiscordStep from './ConnectDiscordStep';
 import type { BroadcastChannel } from '@/lib/discord-broadcast';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
@@ -18,8 +18,7 @@ interface Props {
     rareDrops: string;
     deaths: string;
   };
-  // Feed the in-wizard webhook creation flow. Empty / false when no bot is connected — WebhookField
-  // then falls back to paste-only.
+  // Listable channels for the paste-a-link fallback; the bot status itself is read by the step.
   channels: BroadcastChannel[];
   botEnabled: boolean;
   // Managed clan: identity fields were collected at sign-up (provisioner env → seeded settings),
@@ -29,28 +28,30 @@ interface Props {
 
 type Msg = { type: 'success' | 'error'; text: string } | null;
 
-// 3 input steps + a Done screen. Step 1 batch-saves its keys on Continue; steps 2–3 use WebhookField,
-// which creates/pastes and saves each webhook immediately, so those steps just advance.
-const TOTAL_STEPS = 3;
+// 2 input steps + a Done screen. Step 1 batch-saves its keys on Continue; step 2 (Discord) saves as
+// it goes — the bot's one-press setup, or a pasted link — so Finish only marks setup complete.
+const TOTAL_STEPS = 2;
 
 // A step whose fields are already satisfied is skipped at open (Back still reaches it, prefilled).
 // Step 1's invite is optional — a set clan name alone satisfies it (managed sign-up asked for the
 // invite already; leaving it blank there was a choice).
 //
-// Step 3 is all-optional, and satisfied by the ONE field that covers everything — a clan that set the
-// base has answered the question the step is asking, and being shown it again would imply they had
-// not. Failing that it wants both splits, since either alone leaves a feed still unrouted.
+// Step 2 is done once event news has a channel AND player posts do — the catch-all, or both of the
+// splits quick setup writes (drops and deaths), since either alone leaves a feed unrouted.
+function discordDone(initial: Props['initial']): boolean {
+  return (
+    !!initial.webhookUrl.trim() &&
+    !!(initial.pluginWebhook.trim() || (initial.rareDrops.trim() && initial.deaths.trim()))
+  );
+}
+
 function firstIncompleteStep(initial: Props['initial']): number {
-  const done = [
-    !!initial.clanName.trim(),
-    !!initial.webhookUrl.trim(),
-    !!(initial.pluginWebhook.trim() || (initial.rareDrops.trim() && initial.deaths.trim())),
-  ];
+  const done = [!!initial.clanName.trim(), discordDone(initial)];
   const first = done.indexOf(false);
   return first === -1 ? TOTAL_STEPS : first; // everything done → straight to the Done screen
 }
 
-export default function SetupWizardClient({ initial, channels, botEnabled, provisioned }: Props) {
+export default function SetupWizardClient({ initial, channels, provisioned }: Props) {
   const router = useRouter();
   // Open at the first step with anything left to do; already-satisfied steps are skipped.
   const [initialStep] = useState(() => firstIncompleteStep(initial));
@@ -64,6 +65,7 @@ export default function SetupWizardClient({ initial, channels, botEnabled, provi
   const [inviteUrl, setInviteUrl] = useState(initial.inviteUrl);
 
   const [saving, setSaving] = useState(false);
+  const [discordReady, setDiscordReady] = useState(() => discordDone(initial));
   const [msg, setMsg] = useState<Msg>(null);
 
   async function saveKeys(keys: Record<string, string>): Promise<boolean> {
@@ -77,7 +79,10 @@ export default function SetupWizardClient({ initial, channels, botEnabled, provi
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setMsg({ type: 'error', text: data.error || 'Could not save. Try again.' });
+        setMsg({
+          type: 'error',
+          text: data.error || 'Could not save. Try again.',
+        });
         return false;
       }
       return true;
@@ -95,12 +100,6 @@ export default function SetupWizardClient({ initial, channels, botEnabled, provi
       setMsg(null);
       setStep((s) => s + 1);
     }
-  }
-
-  // Steps whose webhooks already saved themselves (via WebhookField) just move forward.
-  function advance() {
-    setMsg(null);
-    setStep((s) => s + 1);
   }
 
   async function finish() {
@@ -160,10 +159,7 @@ export default function SetupWizardClient({ initial, channels, botEnabled, provi
 
         {/* Step 1 — Your clan */}
         {step === 0 && (
-          <StepShell
-            title="Your clan"
-            subtitle="What should we call your clan across the site and in Discord posts?"
-          >
+          <StepShell title="Your clan" subtitle="What should we call your clan across the site and in Discord posts?">
             <Field label="Display name" hint="Shown on the site, in the plugin and in Discord posts.">
               <Input
                 value={clanName}
@@ -201,52 +197,14 @@ export default function SetupWizardClient({ initial, channels, botEnabled, provi
           </StepShell>
         )}
 
-        {/* Step 2 — Connect Discord */}
+        {/* Step 2 — Discord: add the bot, then one press sets up every channel */}
         {step === 1 && (
-          <StepShell
-            title="Connect Discord"
-            subtitle="Anvil posts event announcements, results and drops to your server. Pick a channel and let the bot create the webhook for you — or paste one you already have."
-          >
-            <WebhookField
+          <StepShell title="Connect Discord" subtitle="Where your clan sees events, drops, deaths and achievements.">
+            <ConnectDiscordStep
+              alreadyDone={discordDone(initial)}
               channels={channels}
-              botEnabled={botEnabled}
-              label="Announcements channel"
-              helpText="Event start / end, draft, results and sign-up nudges post here. Create one with the bot, or paste a webhook URL."
+              onDone={() => setDiscordReady(true)}
             />
-          </StepShell>
-        )}
-
-        {/* Step 3 — Optional extras */}
-        {step === 2 && (
-          <StepShell
-            title="Plugin feeds (optional)"
-            subtitle="If your clan uses the Anvil plugin, it can post drops, deaths, 99s, quests and more to Discord. One channel is enough to start — skip this and add it anytime under Discord in the admin menu."
-          >
-            <WebhookField
-              settingKey="webhook_plugin_default"
-              label="Plugin notifications channel"
-              helpText="Everything the plugin posts goes here. You can split any of it into its own channel later."
-              channels={channels}
-              botEnabled={botEnabled}
-            />
-            <div className="border-t border-card-border pt-4">
-              <WebhookField
-                settingKey="webhook_rare_drops"
-                label="Rare drops channel (optional)"
-                helpText="Give drops a channel of their own instead of the one above."
-                channels={channels}
-                botEnabled={botEnabled}
-              />
-            </div>
-            <div className="border-t border-card-border pt-4">
-              <WebhookField
-                settingKey="webhook_deaths"
-                label="Deaths channel (optional)"
-                helpText="Give deaths a channel of their own instead of the one above."
-                channels={channels}
-                botEnabled={botEnabled}
-              />
-            </div>
           </StepShell>
         )}
 
@@ -329,13 +287,8 @@ export default function SetupWizardClient({ initial, channels, botEnabled, provi
                 </PrimaryBtn>
               )}
               {step === 1 && (
-                <PrimaryBtn disabled={saving} onClick={advance}>
-                  Continue
-                </PrimaryBtn>
-              )}
-              {step === 2 && (
                 <PrimaryBtn disabled={saving} onClick={finish}>
-                  {saving ? 'Saving…' : 'Finish'}
+                  {saving ? 'Saving…' : discordReady ? 'Finish' : 'Skip for now'}
                 </PrimaryBtn>
               )}
             </div>
@@ -364,15 +317,7 @@ function StepDots({ current, total }: { current: number; total: number }) {
   );
 }
 
-function StepShell({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle: string;
-  children: React.ReactNode;
-}) {
+function StepShell({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return (
     <div>
       <h2 className="font-semibold text-lg">{title}</h2>

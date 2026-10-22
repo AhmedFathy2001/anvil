@@ -6,7 +6,7 @@ import type { TaskSuggestion } from '@/lib/taskSuggest';
 
 const SOURCE_BADGE: Record<TaskSuggestion['source'], string> = {
   library: 'Task',
-  boss: 'Boss KC',
+  boss: 'Kills',
   skill: 'Skill XP',
   item: 'Drop',
 };

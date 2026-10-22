@@ -71,3 +71,6 @@ docs/PLUGIN_SUBMISSION.md
 .test-*.db
 .test-*.db-wal
 .test-*.db-shm
+
+# Local asset cache (lib/assetCache disk fallback)
+/.cache/

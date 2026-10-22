@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { captureStartingStatsSoon } from '@/lib/startingStats';
 import { loginOf } from '@/lib/roster';
 import { db } from '@/db';
 import { clanRoster, eventParticipants, teams, eventSignups, accounts } from '@/db/schema';
@@ -104,6 +105,8 @@ export async function upsertPlayers(
       }
     }
   }
+  // Placed on a team of a running event → take their starting stats now (no-op before the start).
+  if (assignTeamId != null) captureStartingStatsSoon(eventId, results.map((r) => r.id));
   return results;
 }
 
@@ -414,6 +417,7 @@ export async function placeUnassignedPlayers(
       .update(eventParticipants)
       .set({ teamId, pickedAt })
       .where(and(eq(eventParticipants.eventId, eventId), isNull(eventParticipants.teamId)));
+    captureStartingStatsSoon(eventId, pool.map((p) => p.id));
     return { placed: pool.length, teamsCreated };
   }
 
@@ -446,6 +450,7 @@ export async function placeUnassignedPlayers(
       if (a.playerId != null) await db.update(eventParticipants).set({ teamId, pickedAt }).where(eq(eventParticipants.id, a.playerId));
     }
   }
+  captureStartingStatsSoon(eventId, pool.map((p) => p.id));
   return { placed: pool.length, teamsCreated };
 }
 

@@ -1,8 +1,9 @@
 import { and, desc, eq, inArray, isNull, ne } from 'drizzle-orm';
 import { db } from '@/db';
-import { clanRoster, eventParticipants, eventSignups, events, signupFees, teams, players, users } from '@/db/schema';
+import { clanRoster, eventParticipants, eventSignups, events, signupFees, teams, users } from '@/db/schema';
 import { generatePlayerToken } from '@/lib/auth';
 import { seatsOwnedBy } from '@/lib/roster';
+import { captureStartingStatsSoon } from '@/lib/startingStats';
 
 /**
  * Seat a team's captain on their own team.
@@ -107,8 +108,9 @@ export async function placeCaptainOnTeam(
 
   const unassigned = existing.find((p) => p.teamId == null);
   if (unassigned) {
-    await db.update(eventParticipants).set({ teamId }).where(eq(players.id, unassigned.id));
+    await db.update(eventParticipants).set({ teamId }).where(eq(eventParticipants.id, unassigned.id));
     if (unassigned.clanMemberId != null) await enrolSignup(eventId, captainUserId, unassigned.clanMemberId);
+    captureStartingStatsSoon(eventId, [unassigned.id]);
     return { playerId: unassigned.id, reason: null };
   }
 
@@ -143,6 +145,7 @@ export async function placeCaptainOnTeam(
     .returning({ id: eventParticipants.id });
 
   await enrolSignup(eventId, captainUserId, account.id);
+  if (player?.id != null) captureStartingStatsSoon(eventId, [player.id]);
   return player?.id != null ? { playerId: player.id, reason: null } : { playerId: null, reason: 'no-account' };
 }
 

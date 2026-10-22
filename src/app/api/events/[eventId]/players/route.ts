@@ -12,6 +12,7 @@ import { upsertPlayers, backfillApprovedSignups, accountCapError, type MemberInp
 import { assertEventEditable } from '@/lib/eventLock';
 import { acceptedCohostClanIds } from '@/lib/coHost';
 import { swapTrackedAccount } from '@/lib/trackedAccount';
+import { captureStartingStatsSoon } from '@/lib/startingStats';
 
 export async function GET(
   request: Request,
@@ -332,5 +333,8 @@ export async function PATCH(
     .where(eq(eventParticipants.id, pId))
     .returning();
 
+  // Placed on a team, swapped account (which clears the start line) or unbenched on a running
+  // event → take their starting stats now. A no-op for anyone who already has them.
+  captureStartingStatsSoon(eId, [pId]);
   return NextResponse.json(updated);
 }

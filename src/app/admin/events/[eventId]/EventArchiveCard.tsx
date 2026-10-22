@@ -29,7 +29,7 @@ export default function EventArchiveCard({
   const daysLeft = purgeAt ? Math.ceil((purgeAt.getTime() - now) / 86_400_000) : null;
 
   return (
-    <section id="archive" className="mt-6 scroll-mt-6 rounded-xl border border-card-border bg-card-bg p-5">
+    <section id="archive" className="scroll-mt-24 rounded-xl border border-card-border bg-card-bg p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 max-w-xl">
           <h2 className="flex items-center gap-2 text-base font-semibold">

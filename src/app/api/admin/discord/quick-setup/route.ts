@@ -6,6 +6,7 @@ import { discordRest, getBotCredentials } from '@/lib/discord-roles';
 import { findOrCreateAnvilWebhook } from '@/lib/discord-webhooks';
 import { log } from '@/lib/logger';
 import {
+  NEWS_TARGET,
   QUICK_SETUP_GROUPS,
   QUICK_SETUP_KEYS,
   isQuickSetupLayout,
@@ -78,13 +79,16 @@ export async function POST(request: Request) {
     channels.filter((c) => c.type === CHANNEL_TEXT || c.type === CHANNEL_ANNOUNCEMENT).map((c) => [c.id, c]),
   );
 
-  const before = Object.fromEntries(await getSettingMap(clan.id, [...QUICK_SETUP_KEYS]));
+  const before = Object.fromEntries(await getSettingMap(clan.id, [...QUICK_SETUP_KEYS, NEWS_TARGET.settingKey]));
+  // A clan with nowhere for event news yet gets that channel too — a first run sets up everything in
+  // one press. One that already chose a news channel keeps it.
+  const work = before[NEWS_TARGET.settingKey]?.trim() ? targets : [...targets, NEWS_TARGET];
 
   let categoryId: string | null =
     channels.find((c) => c.type === CHANNEL_CATEGORY && c.name.toLowerCase() === CATEGORY_NAME.toLowerCase())?.id ?? null;
 
   const rows: QuickSetupRow[] = [];
-  for (const target of targets) {
+  for (const target of work) {
     try {
       let channel: RawChannel | undefined = reuse[target.settingKey] ? postable.get(reuse[target.settingKey]) : undefined;
       if (!channel) channel = [...postable.values()].find((c) => c.name === target.channelName);

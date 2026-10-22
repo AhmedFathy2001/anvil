@@ -56,6 +56,12 @@ export const QUICK_SETUP_GROUPS: Record<QuickSetupLayout, readonly QuickSetupTar
   ],
 };
 
+/**
+ * Event news (start / end, draft, results, sign-ups) — the site's own posts, not the plugin's. Quick
+ * setup gives it a channel too when the clan has none, so a first run sets up everything at once.
+ */
+export const NEWS_TARGET: QuickSetupTarget = { settingKey: 'discord_webhook_url', channelName: 'events', label: 'Event news' };
+
 /** The catch-all every plugin kind falls back to. Mirrors PLUGIN_WEBHOOK_BASE_KEY in pluginConfig. */
 export const BASE_KEY = 'webhook_plugin_default';
 
@@ -81,6 +87,7 @@ export const QUICK_SETUP_KEYS: readonly string[] = [BASE_KEY, ...Object.keys(SPL
 
 export function quickSetupLabel(settingKey: string): string {
   if (settingKey === BASE_KEY) return 'Everything else';
+  if (settingKey === NEWS_TARGET.settingKey) return NEWS_TARGET.label;
   return SPLIT_KEY_LABELS[settingKey] ?? settingKey;
 }
 

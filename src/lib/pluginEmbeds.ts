@@ -18,7 +18,12 @@
 // Pure: no database, no network — the route validates and calls `buildPluginEmbed`.
 
 import { clamp, code, LIMIT, type DiscordEmbed, type DiscordEmbedField } from './discordEmbeds';
-import { itemIconUrl, skillIconUrl } from './tileIcons';
+import { absoluteAssetUrl } from './seo';
+import { itemIconUrl as itemIconPath, skillIconUrl as skillIconPath, wikiImageUrl } from './tileIcons';
+
+// Discord fetches thumbnails itself, so our cached-art paths go out apex-absolute.
+const itemIconUrl = (id: number) => absoluteAssetUrl(itemIconPath(id));
+const skillIconUrl = (skill: string | null | undefined) => absoluteAssetUrl(skillIconPath(skill));
 
 export const PLUGIN_EMBED_KINDS = [
   'drop',
@@ -169,7 +174,7 @@ export type PluginEmbedFacts =
 export const PLUGIN_COLOR = { rare: 0xd4a017, achievement: 0x4a90d9 } as const;
 
 const WIKI = 'https://oldschool.runescape.wiki/w/';
-const CA_ICON_URL = 'https://oldschool.runescape.wiki/images/Combat_Achievements_icon.png';
+const caIconUrl = () => absoluteAssetUrl(wikiImageUrl('Combat_Achievements_icon.png'));
 const CA_WIKI_URL = 'https://oldschool.runescape.wiki/w/Combat_Achievements';
 const CA_TIERS: readonly CaTierName[] = ['Easy', 'Medium', 'Hard', 'Elite', 'Master', 'Grandmaster'];
 
@@ -421,7 +426,7 @@ function caTaskEmbed(f: CaTaskFacts): DiscordEmbed {
       e.fields.push(stat('Next unlock', `${commas(total)}/${commas(next)} (${((100 * total) / next).toFixed(1)}%)`));
     }
   }
-  e.thumbnail = { url: CA_ICON_URL };
+  e.thumbnail = { url: caIconUrl() };
   return e;
 }
 

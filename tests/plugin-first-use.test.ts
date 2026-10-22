@@ -147,13 +147,13 @@ test('the real config endpoint claims before it asks the token which clan it bel
   // This is the production deadlock the resolvePluginMember unit path did not cover. /config used to
   // ask resolvePluginClan first; a new Discord person owns no seat until resolvePluginMember claims
   // this roster row, so the route returned 404 before the claim code could ever run.
-  const me = await setup('Config Newbie');
+  const me = await setup('Cfg Newbie');
   const { GET } = await import('../src/app/api/plugin/config/route.ts');
   const response = await GET(
     new Request('https://anvilosrs.com/api/plugin/config', {
       headers: {
         Authorization: `Bearer ${me.token}`,
-        'X-RSN': 'Config Newbie',
+        'X-RSN': 'Cfg Newbie',
         'X-Account-Hash': 'hash-config',
       },
     }),
@@ -167,12 +167,12 @@ test('the real config endpoint claims before it asks the token which clan it bel
 });
 
 test('an XP-verified account can later connect RuneLite and gain its tracking anchor', async () => {
-  const me = await setup('XP Then Plugin');
+  const me = await setup('XP Then Plug');
   const { claimAccountForPerson } = await import('../src/lib/accountClaim.ts');
   const proof = await claimAccountForPerson({
     playerId: me.person,
-    rsn: 'XP Then Plugin',
-    rsnNormalized: 'xp then plugin',
+    rsn: 'XP Then Plug',
+    rsnNormalized: 'xp then plug',
     method: 'stat_delta',
     provisional: false,
     actorUserId: me.login,
@@ -183,7 +183,7 @@ test('an XP-verified account can later connect RuneLite and gain its tracking an
   assert.equal(before.verificationMethod, 'stat_delta');
   assert.equal(before.accountHash, null);
 
-  const resolved = await play(me.token, 'XP Then Plugin', 'hash-after-xp');
+  const resolved = await play(me.token, 'XP Then Plug', 'hash-after-xp');
   assert.equal(resolved?.clanMemberId, me.seatId);
   const after = await account(me.accountId);
   assert.equal(after.verificationMethod, 'plugin');

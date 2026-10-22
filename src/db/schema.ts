@@ -757,6 +757,13 @@ export const tiles = pgTable('tiles', {
   // worth at least this much — so a positive floor cannot credit loot-key / no-loot kills. A gp
   // value (not seconds) so it needs its own column rather than reusing timeThresholdSeconds.
   pvpMinLootValue: integer('pvp_min_loot_value'),
+  // KILL tiles (tile_type='kill'): how kill progress posts to Discord. 'milestones' = at 25/50/75% and
+  // on completion (goals of 4 or less: completion only) — lib/killSource.killMilestoneToPost.
+  // NULL = the legacy every-window progress post. The migration that added this (0141) left every
+  // EXISTING row NULL and only then set the default, so tiles on boards that were already running keep
+  // posting exactly as before, while every tile created afterwards — by any write path — gets
+  // milestones. Never backfill it: that would change posting on events already under way.
+  killPosts: text('kill_posts').default('milestones'),
   // Free-text grouping label (e.g. "Zulrah", "Slayer", "Skilling", "GWD") used to
   // filter tasks by boss/skill/category in the RuneLite plugin's collection-log tab.
   // NULL = uncategorised.
@@ -2841,7 +2848,11 @@ export const hiscoresFetches = pgTable(
     rsnKey: text('rsn_key').notNull(),
     mode: text('mode').$type<HiscoresFetchMode>().notNull().default('main'),
     accountId: integer('account_id'),
-    /** 0 = a competition is waiting, 1 = roster filler, 2 = background probes. Lower goes first. */
+    /**
+     * -1 = a late joiner waiting on their start line (lib/startingStats; Forge caps it at a fifth of
+     * each claim), 0 = a competition is waiting, 1 = roster filler, 2 = background probes. Lower goes
+     * first.
+     */
     priority: smallint('priority').notNull().default(1),
     requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
     claimedAt: timestamp('claimed_at', { withTimezone: true }),

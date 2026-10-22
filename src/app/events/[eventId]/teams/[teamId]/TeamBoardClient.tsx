@@ -18,6 +18,8 @@ import BoardFilters from '@/components/BoardFilters';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
+import StartingStatsLine, { useStartingStatsPoll } from '@/components/StartingStatsLine';
+import type { StartingStatsStatus } from '@/lib/startingStatsRules';
 
 interface Props {
   event: Event;
@@ -25,10 +27,12 @@ interface Props {
   tiles: Tile[];
   completions: Completion[];
   players: Player[];
+  /** Late joiners whose starting stats are being read, or were just taken (lib/startingStats). */
+  startingStats?: Record<number, StartingStatsStatus>;
   tierBands?: TierBand[];
 }
 
-export default function TeamBoardClient({ event, team, tiles, completions, players, tierBands = DEFAULT_TIER_BANDS }: Props) {
+export default function TeamBoardClient({ event, team, tiles, completions, players, startingStats = {}, tierBands = DEFAULT_TIER_BANDS }: Props) {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [matchedTileIds, setMatchedTileIds] = useState<Set<number> | null>(null);
   const [gains, setGains] = useState<Record<number, PlayerGain[]>>({});
@@ -88,6 +92,11 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
   // pulse (a KC/XP reading landed) only the progress numbers. Both 304 while nothing moved, and
   // poll only while this tab is the one being looked at (lib hooks/useLiveRefresh).
   const router = useRouter();
+  // A late joiner still waiting on their starting stats: refresh lightly until they land.
+  const startingStatsPoll = useStartingStatsPoll(
+    Object.values(startingStats).some((s) => s.state === 'pending'),
+    () => router.refresh(),
+  );
   const onBoardChange = useCallback(() => {
     router.refresh();
     fetchSubmissions();
@@ -309,6 +318,7 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
                         Subbed out
                       </span>
                     )}
+                    <StartingStatsLine status={startingStats[player.id]} lapsed={startingStatsPoll.lapsed} />
                   </span>
                 ))}
               </div>

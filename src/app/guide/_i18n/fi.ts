@@ -1361,7 +1361,7 @@ const fi: PartialGuideDict = {
         boss: { label: 'Bossin KC', blurb: 'Valmistuu automaattisesti kun bossi saavuttaa tappomäärätavoitteen (haettu hiscoresista).' },
         drop: { label: 'Droppi', blurb: 'N droppia esineestä (tai mistä tahansa poolista) — pluginin havaitsema, leivottu kuvakaappaus.' },
         collection: { label: 'Esinesarja', blurb: 'Useita esineitä, kullakin oma vaadittu määränsä — yksi kutakin täyteen sarjaan.' },
-        kill: { label: 'Tappomäärä', blurb: 'N tappoa NPC:stä — myös niistä joita hiscores ei koskaan laskenut (kanat, lehmät). Pluginin havaitsema.' },
+        kill: { label: 'Tapot', blurb: 'N tappoa mistä tahansa bossista tai hirviöstä. Lasketaan hiscoresista, kun jokainen ruudun hirviö on siellä, muuten plugin laskee pelatessasi (kanat, lehmät, Slayer-hirviöt).' },
         lap: { label: 'Agility-kierrokset', blurb: 'N kierrosta agility-radalla, tai N kerrosta / kokonaista suoritusta Hallowed Sepulchressa — laskettuna livenä pelin laskurista. Vain tapahtuman aikana juostut kierrokset lasketaan.' },
         pvp: { label: 'PvP-tappo', blurb: 'Tapa pelaajia — ketä tahansa, kilpailevia joukkueita, tai nimetty kohde — Wildernessissä tai PvP-maailmoissa. Turvalliset minipelit eivät koskaan laske.' },
         gain: { label: 'Esinesaalis', blurb: 'Pyydystä, valmista tai kerää N esinettä — laskettuna siitä mitä päätyy inventoryyn. Pluginin havaitsema.' },
@@ -1384,8 +1384,8 @@ const fi: PartialGuideDict = {
         'Useimmat huonosti käyttäytyvät ruudut ovat oikea idea väärällä tyypillä ilmaistuna. Ne neljä jotka kompastuttavat:',
       rows: [
         {
-          term: 'Bossin KC-tavoite',
-          body: '**ei** ole kill-ruutu. Kill-ruudut tarkkailevat NPC-kuolemia pluginin kautta; KC-tavoite on hiscores-luku ja tarvitsee `trackedStat` + `statType=boss` + `statGoal`. Käytä kill-ruutua siihen mitä Hiscores ei koskaan laskenut — lehmiin, kanoihin, tiettyyn slayer-möröön.',
+          term: 'Bossilista ja yksi hiscoresin ulkopuolinen hirviö',
+          body: 'on **kokonaan** pluginin ruutu. Tapot-ruutu lasketaan hiscoresista vain, jos jokainen sen hirviö on siellä; lisää kana neljän GWD-bossin joukkoon, ja koko ruutu tarvitsee pluginin. Jos osa klaanista pelaa ilman sitä, anna hiscores-bosseille oma ruutu.',
         },
         {
           term: 'Collection log -paikka',

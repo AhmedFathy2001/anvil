@@ -18,8 +18,10 @@ export function tileKindLabel(tile: TileKindLike): string {
   switch (tile.tileType) {
     case 'drop':
       return tile.itemRequirements ? 'Collection' : 'Drop';
+    // One "Kills" kind in authoring, whichever engine counts it (lib/killSource): the plugin here,
+    // the hiscores on a boss stat tile below.
     case 'kill':
-      return 'Kill count';
+      return 'Kills';
     case 'lap':
       return lapUnitNoun(parseJsonArray<string>(tile.targetNpcs)) === 'lap'
         ? 'Agility laps' : 'Hallowed Sepulchre';
@@ -42,7 +44,7 @@ export function tileKindLabel(tile: TileKindLike): string {
     case 'ca':
       return 'Combat task';
     default:
-      return tile.trackedStat ? (tile.statType === 'boss' ? 'Boss KC' : 'XP') : 'Standard';
+      return tile.trackedStat ? (tile.statType === 'boss' ? 'Kills' : 'XP') : 'Standard';
   }
 }
 
@@ -137,7 +139,9 @@ export interface TileSummaryLike extends TileKindLike {
 
 /** Derive the single canonical kind from the stored columns (mirrors TileTrackingConfig). */
 export function tileKindKey(tile: TileKindLike): TileKindKey {
-  if (tile.tileType === 'kill') return 'kill';
+  // 'kills' is the authoring alias a library/CSV row may still carry before it's saved as one of the
+  // two stored shapes (lib/killSource); it reads as Kills either way.
+  if (tile.tileType === 'kill' || tile.tileType === 'kills') return 'kill';
   if (tile.tileType === 'lap') return 'lap';
   if (tile.tileType === 'pvp') return 'pvp';
   if (tile.tileType === 'gain') return 'gain';
@@ -162,10 +166,12 @@ export function tileKindKey(tile: TileKindLike): TileKindKey {
 export const TILE_KIND_BADGES: Record<TileKindKey, { label: string; cls: string; blurb: string }> = {
   standard: { label: 'Standard', cls: 'bg-gold/15 text-gold', blurb: 'Manual tile — a captain marks it done. No auto-tracking.' },
   skill: { label: 'Skill XP', cls: 'bg-blue-500/20 text-blue-300', blurb: 'Auto-completes when a skill reaches an XP goal (hiscores-polled).' },
-  boss: { label: 'Boss KC', cls: 'bg-purple-500/20 text-purple-300', blurb: 'Auto-completes when a boss reaches a kill-count goal (hiscores-polled).' },
+  // 'boss' and 'kill' are the two stored shapes of ONE authoring kind, "Kills" (lib/killSource picks
+  // the shape from the monsters chosen) — same label and colour, the blurb says which engine counts.
+  boss: { label: 'Kills', cls: 'bg-red-500/20 text-red-300', blurb: 'N kills of one or more bosses — counted from the hiscores (plus the live plugin push).' },
   drop: { label: 'Drop', cls: 'bg-accent-green/20 text-accent-green-light', blurb: 'N drops of an item (or any of a pool) — plugin-detected, baked screenshot.' },
   collection: { label: 'Item set', cls: 'bg-accent-green/20 text-accent-green-light', blurb: 'Multiple items, each with its own required count — 1× each for a full set.' },
-  kill: { label: 'Kill count', cls: 'bg-red-500/20 text-red-300', blurb: 'N kills of an NPC — even ones off the hiscores (chickens, cows). Plugin-detected.' },
+  kill: { label: 'Kills', cls: 'bg-red-500/20 text-red-300', blurb: 'N kills of any monster — even ones off the hiscores (chickens, cows). Counted by the plugin as you play.' },
   lap: { label: 'Agility laps', cls: 'bg-lime-500/20 text-lime-300', blurb: 'N laps of an agility course, or N Hallowed Sepulchre floors / full runs — counted live off the in-game counter. Only laps run during the event count.' },
   pvp: { label: 'PvP kill', cls: 'bg-red-500/20 text-red-200', blurb: 'Kill players — anyone, rival teams, or a named bounty — in the Wild / PvP worlds. Safe minigames never count.' },
   gain: { label: 'Item gain', cls: 'bg-teal-500/20 text-teal-300', blurb: 'Catch/cook/gather N of an item — counted from inventory gains. Plugin-detected.' },
@@ -189,8 +195,18 @@ export function howTileCounts(kind: TileKindKey, manualOnly: boolean): { auto: b
   if (manualOnly || kind === 'standard') {
     return { auto: false, text: 'Needs a screenshot: upload one below, and your team’s captain or the clan staff confirm it.' };
   }
-  if (kind === 'skill' || kind === 'boss') {
-    return { auto: true, text: 'Counts by itself as your XP or kill count goes up during the event. Nothing to upload.' };
+  if (kind === 'skill') {
+    return { auto: true, text: 'Counts by itself as your XP goes up during the event. Nothing to upload.' };
+  }
+  // The two engines behind the one "Kills" kind, said plainly so a player knows whether the plugin matters.
+  if (kind === 'boss') {
+    return { auto: true, text: 'Counted from the hiscores as your kill count goes up during the event. Nothing to upload.' };
+  }
+  if (kind === 'kill') {
+    return {
+      auto: true,
+      text: 'Counted by the plugin as you play — keep the Anvil plugin running in RuneLite. Only upload a screenshot if it missed one.',
+    };
   }
   return {
     auto: true,
@@ -206,7 +222,7 @@ export const tileKindBadge = (tile: TileKindLike) => TILE_KIND_BADGES[tileKindKe
  * order. A kind with no tiles would just be a way to empty the board.
  */
 export function tileKindOptions(tiles: TileKindLike[]): { value: string; label: string }[] {
-  const present = new Set(tiles.map(tileKindKey));
+  const present = new Set(tiles.map(tileKindFilterKey));
   return [
     { value: 'all', label: 'All types' },
     ...TILE_KIND_FILTERS.filter((f) => f.key !== 'all' && present.has(f.key)).map((f) => ({
@@ -216,12 +232,21 @@ export function tileKindOptions(tiles: TileKindLike[]): { value: string; label: 
   ];
 }
 
+/**
+ * The key a tile files under in the kind FILTERS: its kind, except that both stored shapes of
+ * "Kills" (hiscores 'boss', plugin 'kill') are one option — two "Kills" entries would be a riddle.
+ */
+export function tileKindFilterKey(tile: TileKindLike): TileKindKey {
+  const k = tileKindKey(tile);
+  return k === 'boss' ? 'kill' : k;
+}
+
 /** The kind filter's options, in picker order. */
 export const TILE_KIND_FILTERS: { key: 'all' | TileKindKey; label: string }[] = [
   { key: 'all', label: 'All' },
   // The badge's own label: the filter used to call the same kind "Kill" / "Laps" / "Gain" while the
   // badge on the tile said "Kill count" / "Agility laps" / "Item gain".
-  ...(['standard', 'skill', 'boss', 'drop', 'collection', 'kill', 'lap', 'pvp', 'gain', 'timed', 'deathless', 'lms', 'value', 'diary', 'ca'] as const).map(
+  ...(['standard', 'skill', 'kill', 'drop', 'collection', 'lap', 'pvp', 'gain', 'timed', 'deathless', 'lms', 'value', 'diary', 'ca'] as const).map(
     (key) => ({ key, label: TILE_KIND_BADGES[key].label }),
   ),
 ];
@@ -239,13 +264,20 @@ export function tileConfigSummary(tile: TileSummaryLike, noun = 'tile'): string 
     }
     case 'drop':
       return tile.requiredAmount ? `Required: ${tile.requiredAmount}` : 'Item drop';
-    case 'skill':
-    case 'boss': {
+    case 'skill': {
       const goal = tile.statGoal ? ` · goal ${tile.statGoal.toLocaleString()}` : '';
       return `${statLabel(tile.trackedStat, tile.statType)}${goal} · ${tile.trackingMode}`;
     }
-    case 'kill':
-      return tile.requiredAmount ? `Kill count · ${tile.requiredAmount}` : 'Kill count';
+    // Both shapes of "Kills" read the same, with the engine named last.
+    case 'boss': {
+      const goal = tile.statGoal ? ` · ${tile.statGoal.toLocaleString()}` : '';
+      return `Kills${goal} · ${statLabel(tile.trackedStat, tile.statType)} · hiscores · ${tile.trackingMode}`;
+    }
+    case 'kill': {
+      const npcs = parseJsonArray<string>(tile.targetNpcs);
+      const what = npcs.length === 1 ? ` · ${npcs[0]}` : npcs.length > 1 ? ` · ${npcs.length} monsters` : '';
+      return `Kills${tile.requiredAmount ? ` · ${tile.requiredAmount.toLocaleString()}` : ''}${what} · plugin`;
+    }
     case 'lap': {
       const courses = parseJsonArray<string>(tile.targetNpcs);
       const noun = lapUnitNoun(courses);

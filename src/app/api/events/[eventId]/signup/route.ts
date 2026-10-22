@@ -11,6 +11,7 @@ import { checkInvite, isWellFormedToken } from '@/lib/teamInvites';
 import { parseEventRules } from '@/lib/eventRules';
 import { enrolParticipant, participantForSeat, removeParticipantForWithdrawnSeat } from '@/lib/participants';
 import { track } from '@/lib/analytics';
+import { captureStartingStatsSoon } from '@/lib/startingStats';
 
 export async function GET(
   request: Request,
@@ -350,6 +351,7 @@ export async function POST(
     } else if (invite && existingPlayer.teamId == null) {
       // Already in the pool (signed up first, invited after) — the link moves them onto the team.
       await db.update(eventParticipants).set({ teamId: invite.teamId }).where(eq(eventParticipants.id, existingPlayer.id));
+      captureStartingStatsSoon(existingPlayer.eventId, [existingPlayer.id]);
     }
 
     if (event.signupFee && event.signupFee > 0) {

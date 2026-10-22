@@ -43,10 +43,10 @@ export async function GET(request: Request) {
   const cookieMap = parseCookies(request);
   // "Connect your Discord server" (api/admin/discord/bot/connect) comes back through this same
   // redirect — it's the one Discord allows — but it is not a login: no session is made here.
-  // The cookie is "<clanId>:<state>" and only claims a return whose state is its own.
-  const [botClan, botState] = (cookieMap.get(BOT_CONNECT_COOKIE) ?? '').split(':');
+  // The cookie is "<clanId>:<state>[:setup]" and only claims a return whose state is its own.
+  const [botClan, botState, botThen] = (cookieMap.get(BOT_CONNECT_COOKIE) ?? '').split(':');
   if (botClan && botState && botState === state) {
-    return handleBotConnect(request, cookieMap, botClan, { code, state, error });
+    return handleBotConnect(request, cookieMap, botClan, { code, state, error }, botThen === 'setup');
   }
 
   if (error) return loginFailPage(`Discord returned: ${error}`);
@@ -118,9 +118,10 @@ async function handleBotConnect(
   cookieMap: Map<string, string>,
   clanIdCookie: string,
   q: { code: string | null; state: string | null; error: string | null },
+  toSetup = false,
 ) {
   const back = (slug: string | null, outcome: string) => {
-    const path = slug ? `/c/${slug}/admin/integrations` : '/';
+    const path = slug ? `/c/${slug}/admin/${toSetup ? 'setup' : 'integrations'}` : '/';
     const res = NextResponse.redirect(new URL(`${path}?discord=${encodeURIComponent(outcome)}`, originForHost(apexDomain())));
     const gone = { path: '/', maxAge: 0, ...(sessionCookieDomain() ? { domain: sessionCookieDomain()! } : {}) };
     res.cookies.set(STATE_COOKIE, '', gone);

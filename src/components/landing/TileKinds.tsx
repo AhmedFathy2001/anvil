@@ -1,4 +1,4 @@
-import { itemIconUrl } from '@/lib/tileIcons';
+import { itemIconUrl, wikiImageUrl } from '@/lib/tileIcons';
 import { TILE_KIND_BADGES, type TileKindKey } from '@/lib/tileKinds';
 
 /**
@@ -19,23 +19,22 @@ import { TILE_KIND_BADGES, type TileKindKey } from '@/lib/tileKinds';
  * person building a board ("hiscores-polled", "plugin-detected"); somebody deciding whether to try
  * Anvil wants to know what it watches, not how.
  */
-const WIKI = 'https://oldschool.runescape.wiki/images/';
 
 const COPY: Record<TileKindKey, { label: string; blurb: string; icon: string }> = {
   drop: { label: 'Drops', blurb: 'N of an item, or any one from a pool', icon: itemIconUrl(4151) },
   boss: { label: 'Boss KC', blurb: 'Kill counts, straight off the hiscores', icon: itemIconUrl(20997) },
-  skill: { label: 'Skill XP', blurb: 'Reach a level, or an experience goal', icon: `${WIKI}Stats_icon.png` },
+  skill: { label: 'Skill XP', blurb: 'Reach a level, or an experience goal', icon: wikiImageUrl('Stats_icon.png') },
   collection: { label: 'Item sets', blurb: 'Several items, each with its own count', icon: itemIconUrl(11832) },
-  kill: { label: 'NPC kills', blurb: 'Even ones the hiscores never tracked', icon: `${WIKI}Slayer_icon.png` },
-  lap: { label: 'Agility laps', blurb: 'Laps, Sepulchre floors, full runs', icon: `${WIKI}Agility_icon.png` },
+  kill: { label: 'NPC kills', blurb: 'Even ones the hiscores never tracked', icon: wikiImageUrl('Slayer_icon.png') },
+  lap: { label: 'Agility laps', blurb: 'Laps, Sepulchre floors, full runs', icon: wikiImageUrl('Agility_icon.png') },
   timed: { label: 'Timed clears', blurb: 'Inferno, raids, Colosseum — under a cap', icon: itemIconUrl(21295) },
-  deathless: { label: 'Deathless', blurb: 'Raids finished with nobody dying', icon: `${WIKI}Hitpoints_icon.png` },
-  pvp: { label: 'PvP kills', blurb: 'Anyone, a rival team, or a named bounty', icon: `${WIKI}Skull_(status)_icon.png` },
+  deathless: { label: 'Deathless', blurb: 'Raids finished with nobody dying', icon: wikiImageUrl('Hitpoints_icon.png') },
+  pvp: { label: 'PvP kills', blurb: 'Anyone, a rival team, or a named bounty', icon: wikiImageUrl('Skull_(status)_icon.png') },
   lms: { label: 'LMS', blurb: 'Place top-N in Last Man Standing', icon: itemIconUrl(12746) },
   value: { label: 'Loot value', blurb: 'A haul worth X gp, priced as it drops', icon: itemIconUrl(995) },
-  gain: { label: 'Gathering', blurb: 'Catch, cook or gather N of anything', icon: `${WIKI}Fishing_icon.png` },
-  diary: { label: 'Diaries', blurb: 'Achievement diary tiers, as they complete', icon: `${WIKI}Achievement_Diaries_icon.png` },
-  ca: { label: 'Combat tasks', blurb: 'Combat achievements earned during the event', icon: `${WIKI}Combat_Achievements_icon.png` },
+  gain: { label: 'Gathering', blurb: 'Catch, cook or gather N of anything', icon: wikiImageUrl('Fishing_icon.png') },
+  diary: { label: 'Diaries', blurb: 'Achievement diary tiers, as they complete', icon: wikiImageUrl('Achievement_Diaries_icon.png') },
+  ca: { label: 'Combat tasks', blurb: 'Combat achievements earned during the event', icon: wikiImageUrl('Combat_Achievements_icon.png') },
   standard: { label: 'Anything else', blurb: 'A captain marks it, with the proof attached', icon: itemIconUrl(19835) },
 };
 

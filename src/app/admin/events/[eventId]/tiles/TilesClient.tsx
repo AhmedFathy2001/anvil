@@ -28,6 +28,7 @@ import {
   TILE_KIND_FILTERS,
   tileConfigSummary,
   tileKindBadge,
+  tileKindFilterKey,
   tileKindKey,
   type TileKindKey,
 } from '@/lib/tileKinds';
@@ -622,7 +623,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
   const filteredTiles = useMemo(() => {
     const q = search.trim().toLowerCase();
     return boardOnly.filter((t) => {
-      if (kindFilter !== 'all' && tileKindKey(t) !== kindFilter) return false;
+      if (kindFilter !== 'all' && tileKindFilterKey(t) !== kindFilter) return false;
       if (categoryFilter !== 'all' && !tileHasCategory(t.category, categoryFilter)) return false;
       if (tierFilter !== 'all' && tileTierKey(t.points, tierBands) !== tierFilter) return false;
       return tileMatchesSearch(t, q);

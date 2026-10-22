@@ -1,15 +1,21 @@
 // Tile icon derivation. The DB `tiles.icon` URL column is legacy — nothing populates it in the
 // current authoring flow — so board surfaces derive a display icon from the tile's structured
 // tracking config instead. Item images come from RuneLite's static export of the game cache
-// (the exact sprites the plugin renders in-game); skill icons come from the OSRS wiki.
+// (the exact sprites the plugin renders in-game); skill icons come from the OSRS wiki. Both are
+// served through our own asset cache (lib/assetUrls, app/img/*), never hotlinked.
 
 import { BOSSES, SKILLS } from './constants';
 import { parsePbActivity } from '@/lib/pbGroups';
 import bossIcons from '@/data/bossIcons.json';
 import bossImages from '@/data/bossImages.json';
+import { itemAssetUrl, proxyWikiUrl, wikiImageUrl } from '@/lib/assetUrls';
 
+export { wikiImageUrl } from '@/lib/assetUrls';
+
+/** RuneLite's cache sprite for an item, through our asset cache (`/img/item/<id>`). Relative — wrap
+ *  in `absoluteAssetUrl` (lib/seo) wherever the URL leaves the browser (Discord, plugin, cards). */
 export function itemIconUrl(itemId: number): string {
-  return `https://static.runelite.net/cache/item/icon/${itemId}.png`;
+  return itemAssetUrl(itemId);
 }
 
 const COINS_ITEM_ID = 995;
@@ -72,7 +78,10 @@ const BOSS_NAME_ALIASES: Record<string, string> = {
 // Generated from the OSRS wiki (npm run data:bossimages): activity name → the boss's own picture.
 // Same keys as BOSS_ICONS. Only bosses the wiki has a monster/logo image for — a skilling activity
 // or a combined wildy page has none, which is why bossItemFor's drop sprite stays the fallback.
-const BOSS_IMAGES = bossImages as Record<string, string>;
+// The dataset stores the wiki's own URLs; they are mapped onto our asset cache once, here.
+const BOSS_IMAGES: Record<string, string> = Object.fromEntries(
+  Object.entries(bossImages as Record<string, string>).map(([k, v]) => [k, proxyWikiUrl(v)]),
+);
 
 /** The BOSS_ICONS/BOSS_IMAGES key for a boss/activity name — lowercase, drop a leading "the ",
  *  apply the display-name aliases. Shared so the drop-sprite and the picture resolve alike. */
@@ -124,10 +133,10 @@ export function bossImageForStatKey(key: string | null | undefined): string | nu
 export function skillIconUrl(skill: string | null | undefined): string | null {
   if (!skill) return null;
   const key = skill.trim().toLowerCase();
-  if (key === 'overall') return 'https://oldschool.runescape.wiki/images/Stats_icon.png';
+  if (key === 'overall') return wikiImageUrl('Stats_icon.png');
   if (!(SKILLS as readonly string[]).includes(key)) return null;
   const file = key.charAt(0).toUpperCase() + key.slice(1);
-  return `https://oldschool.runescape.wiki/images/${file}_icon.png`;
+  return wikiImageUrl(`${file}_icon.png`);
 }
 
 const firstItemId = (trackedItemIds?: string | null, itemRequirements?: string | null): number | null => {
@@ -169,8 +178,8 @@ const ACTIVITY_ITEM_IDS: Record<string, number> = {
 
 // LMS and PvP Arena are RANKS, not counters — the wiki skull reads better than a reward item.
 const ACTIVITY_ICON_URLS: Record<string, string> = {
-  lastManStanding: 'https://oldschool.runescape.wiki/images/Skull_(status)_icon.png',
-  pvpArena: 'https://oldschool.runescape.wiki/images/Skull_(status)_icon.png',
+  lastManStanding: wikiImageUrl('Skull_(status)_icon.png'),
+  pvpArena: wikiImageUrl('Skull_(status)_icon.png'),
 };
 
 /** Display icon for a non-boss hiscores counter, or null when the key isn't one. */
@@ -204,7 +213,8 @@ export interface IconableTile {
  * timed tiles, coins for loot-value tiles. Null = no icon (e.g. manual tiles).
  */
 export function deriveTileIcon(tile: IconableTile): string | null {
-  if (tile.icon) return tile.icon;
+  // An admin-set wiki image URL still goes through our cache rather than being hotlinked.
+  if (tile.icon) return proxyWikiUrl(tile.icon);
 
   const item = firstItemId(tile.trackedItemIds, tile.itemRequirements);
   if (item != null) return itemIconUrl(item);
@@ -225,10 +235,10 @@ export function deriveTileIcon(tile: IconableTile): string | null {
   // Agility laps: the skill icon. Course-specific art would need a per-course sprite table for a
   // detail nobody reads off a 48px tile — the Agility icon already says exactly what the tile is.
   if (type === 'lap') return skillIconUrl('agility');
-  if (type === 'diary') return 'https://oldschool.runescape.wiki/images/Achievement_Diaries_icon.png';
-  if (type === 'ca') return 'https://oldschool.runescape.wiki/images/Combat_Achievements_icon.png';
+  if (type === 'diary') return wikiImageUrl('Achievement_Diaries_icon.png');
+  if (type === 'ca') return wikiImageUrl('Combat_Achievements_icon.png');
   // PvP kills: the wilderness skull — the universal "dangerous PvP" marker.
-  if (type === 'pvp') return 'https://oldschool.runescape.wiki/images/Skull_(status)_icon.png';
+  if (type === 'pvp') return wikiImageUrl('Skull_(status)_icon.png');
 
   // Stat tiles: skill icon for skill XP, the boss itself for KC. Composite trackedStat
   // (comma-separated keys, gains summed) uses the FIRST key's icon.
@@ -251,7 +261,7 @@ export function deriveTileIcon(tile: IconableTile): string | null {
  */
 export function competitionIconUrl(type: string, metric: string): string | null {
   if (type === 'skill') return skillIconUrl(metric);
-  if (type === 'efficiency') return 'https://oldschool.runescape.wiki/images/Stats_icon.png';
+  if (type === 'efficiency') return wikiImageUrl('Stats_icon.png');
   const item = bossItemForStatKey(metric);
   return item != null ? itemIconUrl(item) : null;
 }
@@ -263,7 +273,7 @@ export function competitionIconUrl(type: string, metric: string): string | null 
  */
 export function competitionImageUrl(type: string, metric: string): string | null {
   if (type === 'skill') return skillIconUrl(metric);
-  if (type === 'efficiency') return 'https://oldschool.runescape.wiki/images/Stats_icon.png';
+  if (type === 'efficiency') return wikiImageUrl('Stats_icon.png');
   return bossImageForStatKey(metric);
 }
 

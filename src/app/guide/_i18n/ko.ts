@@ -1360,7 +1360,7 @@ const ko: PartialGuideDict = {
         boss: { label: '보스 처치 수', blurb: '보스가 처치 수 목표에 도달하면 자동으로 완료됩니다(hiscores에서 읽음).' },
         drop: { label: '드롭', blurb: '어떤 아이템(또는 풀 안의 아무거나)이 N번 드롭 —— 플러그인이 감지하고 스크린샷을 새겨 넣습니다.' },
         collection: { label: '아이템 세트', blurb: '여러 아이템 각각에 필요 수량 —— 하나씩 모으면 세트 완성.' },
-        kill: { label: '처치 수', blurb: '어떤 NPC를 N마리 처치 —— hiscores가 한 번도 세지 않은 것(닭, 소)까지 포함. 플러그인 감지.' },
+        kill: { label: '처치', blurb: '아무 보스나 몬스터를 N마리 처치. 칸의 몬스터가 모두 hiscores에 있으면 hiscores에서, 아니면 플레이하는 동안 플러그인이 셉니다(닭, 소, 슬레이어 몹).' },
         lap: { label: '어질리티 랩', blurb: '어질리티 코스 N바퀴, 또는 Hallowed Sepulchre의 N층 / 완주 —— 게임 내 카운터로 실시간 집계. 이벤트 중에 돈 랩만 셉니다.' },
         pvp: { label: 'PvP 처치', blurb: '플레이어를 처치 —— 아무나, 상대 팀, 또는 지목된 현상금 대상을 —— 황무지나 PvP 월드에서. 안전한 미니게임은 절대 세지 않습니다.' },
         gain: { label: '아이템 획득', blurb: '어떤 아이템을 N개 잡거나, 요리하거나, 모으기 —— 인벤토리에 들어온 것으로 집계. 플러그인 감지.' },
@@ -1383,8 +1383,8 @@ const ko: PartialGuideDict = {
         '이상하게 구는 칸 대부분은 옳은 발상을 잘못된 종류로 표현한 것입니다. 사람들이 걸려 넘어지는 넷:',
       rows: [
         {
-          term: '보스 처치 수 목표',
-          body: '는 kill 칸이 **아닙니다**. kill 칸은 플러그인을 통해 NPC의 죽음을 지켜봅니다. 처치 수 목표는 hiscores 숫자라 `trackedStat` + `statType=boss` + `statGoal`이 필요합니다. kill 칸은 Hiscores가 한 번도 세지 않은 것 —— 소, 닭, 특정 슬레이어 몹 —— 에 쓰세요.',
+          term: '보스 목록에 hiscores 밖 몬스터 하나',
+          body: '를 더하면 그 칸은 **통째로** 플러그인 칸이 됩니다. 처치 칸은 위의 몬스터가 모두 hiscores에 있을 때만 hiscores에서 셉니다. GWD 보스 넷에 닭 한 마리를 더하면 칸 전체에 플러그인이 필요합니다. 클랜에 플러그인 없이 하는 사람이 있다면 hiscores 보스는 따로 칸을 만드세요.',
         },
         {
           term: 'collection log 한 칸',

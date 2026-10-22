@@ -53,6 +53,9 @@ interface Props {
   tierBands?: TierBand[];
   /** The clan has surveys switched on (Admin → Features). */
   surveyOn?: boolean;
+  /** Finished events only: the archive card, shown under the wrap-up rather than after the board,
+   *  which grows as it's scrolled and kept pushing the download out of reach. */
+  archive?: React.ReactNode;
 }
 
 /**
@@ -76,6 +79,7 @@ export default function OverviewClient({
   awards = [],
   tierBands = DEFAULT_TIER_BANDS,
   surveyOn = false,
+  archive,
 }: Props) {
   const router = useRouter();
   const [currentEvent, setCurrentEvent] = useState(event);
@@ -264,6 +268,7 @@ export default function OverviewClient({
           }}
         />
       )}
+      {stage === 'wrap' && archive}
 
       {stage !== 'build' && (
         <ProofsToCheck

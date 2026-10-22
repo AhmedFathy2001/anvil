@@ -1,5 +1,7 @@
 import { getSettingText, setSetting } from '@/lib/settings';
 import { log } from '@/lib/logger';
+import { proxyWikiUrl } from '@/lib/assetUrls';
+import { absoluteAssetUrl } from '@/lib/seo';
 
 /**
  * Seasonal (Leagues) support for plugin notifications.
@@ -20,7 +22,7 @@ const LEAGUES_ICON_CACHE_SETTING = 'leagues_icon_cached';
 const LEAGUES_ICON_CACHED_AT_SETTING = 'leagues_icon_cached_at';
 
 /** Every league so far has used this; it's the mode's own icon, not a season's. */
-const GENERIC_LEAGUES_ICON = 'https://oldschool.runescape.wiki/images/League_icon.png';
+const GENERIC_LEAGUES_ICON = 'https://oldschool.runescape.wiki/images/League_icon.png'; // stored form; served via proxyWikiUrl
 
 /** Re-check the wiki at most this often — a league's art changes once a season, if that. */
 const ICON_TTL_MS = 24 * 60 * 60 * 1000;
@@ -52,6 +54,12 @@ async function putSetting(clanId: number, key: string, value: string): Promise<v
  * embed bare. A clan that wants control sets the icon themselves and this never runs.
  */
 export async function leaguesIconUrl(clanId: number): Promise<string> {
+  // Whatever the source (override, scrape, generic), a wiki image goes out through our asset cache —
+  // apex-absolute, since Discord fetches it. Mapped at read time so already-cached values convert too.
+  return absoluteAssetUrl(proxyWikiUrl(await leaguesIconSource(clanId)));
+}
+
+async function leaguesIconSource(clanId: number): Promise<string> {
   const override = await getSetting(clanId, LEAGUES_ICON_SETTING);
   if (override) return override;
 

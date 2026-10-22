@@ -24,6 +24,7 @@ import {
 import { approverFor, type Approver } from '@/lib/accountChangeRules';
 import { findRosterSeat } from '@/lib/roster';
 import { swapTrackedAccount } from '@/lib/trackedAccount';
+import { captureStartingStatsSoon } from '@/lib/startingStats';
 
 export interface OpenRequest {
   id: number;
@@ -303,6 +304,8 @@ export async function decideAccountChange(opts: {
 
   if (swap.changed && swap.updates) {
     await db.update(eventParticipants).set(swap.updates).where(eq(eventParticipants.id, participant.id));
+    // The swap cleared the start line; on a running event take the new account's now.
+    captureStartingStatsSoon(participant.eventId, [participant.id]);
   }
   await settle();
   return { ok: true, changed: !!swap.changed, rsn: swap.rsn };

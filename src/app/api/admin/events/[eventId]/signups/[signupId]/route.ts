@@ -13,6 +13,7 @@ import { atLeast } from '@/lib/clanRoles';
 import { enrolParticipant, participantForSeat, removeParticipantForWithdrawnSeat } from '@/lib/participants';
 import { assertEventEditable } from '@/lib/eventLock';
 import { cohostSignupClanFor } from '@/lib/eventEditors';
+import { captureStartingStatsSoon } from '@/lib/startingStats';
 
 // Per-signup admin actions. All admin-only — captain selection is high-stakes and we
 // don't want a moderator accidentally locking the wrong person in.
@@ -178,6 +179,7 @@ export async function PATCH(
               : { teamId: null, pickNumber: null, pickedAt: null },
           )
           .where(eq(eventParticipants.id, seated.id));
+        if (team) captureStartingStatsSoon(evtId, [seated.id]);
       }
 
       logAction('signup_team_changed', { teamId: team?.id ?? null, teamName: team?.name ?? null });
@@ -230,6 +232,7 @@ export async function PATCH(
         // Signed up before the teams existed, or applied and waited: the approval seats them now.
         // Someone already ON a team is left alone — that placement was a decision too.
         await db.update(eventParticipants).set({ teamId: seatTeamId }).where(eq(eventParticipants.id, existingPlayer.id));
+        captureStartingStatsSoon(evtId, [existingPlayer.id]);
       }
 
       // Nudge the approved member to pay their fee (incentive to convert + stay active).
@@ -395,6 +398,7 @@ export async function PATCH(
           .update(eventParticipants)
           .set({ teamId: team.id, pickNumber: 0, pickedAt: now })
           .where(eq(eventParticipants.id, existingPlayer.id));
+        captureStartingStatsSoon(evtId, [existingPlayer.id]);
       } else {
         await enrolParticipant({
           eventId: evtId,

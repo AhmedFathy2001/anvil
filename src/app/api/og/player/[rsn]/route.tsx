@@ -7,12 +7,11 @@ import { compact } from '@/lib/linkText';
 import { memberCard, siteCard } from '@/lib/ogCard';
 import { cachedCard, remoteSprite, showingAccounts } from '@/lib/ogKit';
 import { loadPlayerCard } from '@/lib/playerCard';
-import { bossItemForStatKey, itemIconUrl } from '@/lib/tileIcons';
+import { bossItemForStatKey, itemIconUrl, wikiImageUrl } from '@/lib/tileIcons';
 
 export const dynamic = 'force-dynamic';
 
 const MAX_TOTAL_LEVEL = (SKILLS.length - 1) * 99;
-const WIKI = 'https://oldschool.runescape.wiki/images';
 
 /**
  * A character's card, for /p/<rsn>: the member card's layout, told from the character's side.
@@ -38,8 +37,8 @@ async function load(_request: Request, { params }: { params: Promise<{ rsn: stri
 
   const [loot, totalIcon, combatIcon, clanLogo] = await Promise.all([
     Promise.all(itemIds.slice(0, 9).map((id) => remoteSprite(itemIconUrl(id), 76))),
-    remoteSprite(`${WIKI}/Stats_icon.png`, 24),
-    remoteSprite(`${WIKI}/Combat_icon.png`, 24),
+    remoteSprite(wikiImageUrl('Stats_icon.png'), 24),
+    remoteSprite(wikiImageUrl('Combat_icon.png'), 24),
     clan ? ourImageAsDataUrl(clan.logoUrl, { width: 260, height: 260 }, 'png') : Promise.resolve(null),
   ]);
 

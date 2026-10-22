@@ -28,6 +28,8 @@ import { countPicksTaken } from '@/lib/draft';
 import NumberInput from '@/components/NumberInput';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
+import StartingStatsLine, { retryStartingStats, useStartingStatsPoll } from '@/components/StartingStatsLine';
+import type { StartingStatsStatus } from '@/lib/startingStatsRules';
 import Input from '@/components/Input';
 import { useDialog } from '@/components/Confirm';
 import GuideLink from '@/components/GuideLink';
@@ -43,6 +45,8 @@ interface DraftState {
   pickInRound: number;
   totalPicked: number;
   poolRemaining: number;
+  /** Late joiners' starting-stats line, by player id (lib/startingStats). Absent = nothing to say. */
+  startingStats?: Record<number, StartingStatsStatus>;
 }
 
 interface Props {
@@ -51,6 +55,8 @@ interface Props {
   teams: Team[];
   players: Player[];
   completions: Completion[];
+  /** Seeds DraftState.startingStats; the draft GET keeps it fresh. */
+  startingStats?: Record<number, StartingStatsStatus>;
   // Finished event, not unlocked (lib/eventLock): the API refuses every mutation, so all
   // interactive controls render disabled (links/viewing stay live).
   editLocked?: boolean;
@@ -61,7 +67,7 @@ interface Props {
 // player on their own solo team; 'one_team' = whole clan on one shared roster.
 type TeamFormat = 'draft' | 'preassigned' | 'individual' | 'one_team';
 
-export default function TeamsDraftClient({ event, tiles, teams, players: initialPlayers, completions, editLocked = false }: Props) {
+export default function TeamsDraftClient({ event, tiles, teams, players: initialPlayers, completions, startingStats: initialStartingStats, editLocked = false }: Props) {
   const router = useRouter();
   // What this event actually IS — a ladder and a race aren't bingos, and the start copy says so.
   const noun = eventNoun(event.format);
@@ -161,6 +167,7 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
     pickInRound: 0,
     totalPicked: initialPlayers.filter((p) => p.teamId !== null).length,
     poolRemaining: initialPlayers.filter((p) => p.teamId === null).length,
+    startingStats: initialStartingStats,
   });
 
   // Per-person ratings for the whole tab — one fetch, shared by the balance panel, the pool cards
@@ -281,6 +288,16 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
   }, [draft.status, fetchDraft]);
 
   const isDraftInProgress = draft.status === 'active' || draft.status === 'paused';
+
+  // Somebody added after the start whose starting stats are still being read → poll the draft GET
+  // lightly until they land (components/StartingStatsLine).
+  const startingStatsPending = Object.values(draft.startingStats ?? {}).some((s) => s.state === 'pending');
+  const startingStatsPoll = useStartingStatsPoll(startingStatsPending, fetchDraft);
+  async function retryPlayerStartingStats(playerId: number) {
+    await retryStartingStats(event.id, playerId);
+    await fetchDraft();
+    startingStatsPoll.restart();
+  }
 
   // A finished event is read-only unless the admin unlocked editing (the server 409s every mutation
   // route via lib/eventLock; this is the client mirror). Every mutating handler calls this first, and
@@ -1800,17 +1817,24 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                             const frozen = !!p.frozenAt;
                             return (
                               <div key={p.id} className="flex items-center justify-between gap-2 text-sm">
-                                <span className="truncate flex items-center gap-1.5 min-w-0">
-                                  <span className={`truncate ${frozen ? 'text-text-muted' : ''}`}>{p.name}</span>
-                                  <PlayerRatingBadge ratings={ratings} playerId={p.id} />
-                                  {frozen && (
-                                    <span
-                                      className="text-[10px] text-amber-300/90 border border-amber-300/30 rounded px-1 py-px shrink-0"
-                                      title="Subbed out — no longer active; stat gains frozen at the sub moment (kept-points subs still count toward team tiles, cleared-points subs contribute 0)"
-                                    >
-                                      Subbed out
-                                    </span>
-                                  )}
+                                <span className="min-w-0 flex flex-col">
+                                  <span className="truncate flex items-center gap-1.5 min-w-0">
+                                    <span className={`truncate ${frozen ? 'text-text-muted' : ''}`}>{p.name}</span>
+                                    <PlayerRatingBadge ratings={ratings} playerId={p.id} />
+                                    {frozen && (
+                                      <span
+                                        className="text-[10px] text-amber-300/90 border border-amber-300/30 rounded px-1 py-px shrink-0"
+                                        title="Subbed out — no longer active; stat gains frozen at the sub moment (kept-points subs still count toward team tiles, cleared-points subs contribute 0)"
+                                      >
+                                        Subbed out
+                                      </span>
+                                    )}
+                                  </span>
+                                  <StartingStatsLine
+                                    status={draft.startingStats?.[p.id]}
+                                    lapsed={startingStatsPoll.lapsed}
+                                    onRetry={editLocked ? undefined : () => retryPlayerStartingStats(p.id)}
+                                  />
                                 </span>
                                 {/* All-mutating action cluster — disabled on a locked event; the
                                     player name beside it stays selectable. */}

@@ -1,4 +1,5 @@
 import { and, eq, isNull } from 'drizzle-orm';
+import { captureStartingStatsSoon } from '@/lib/startingStats';
 
 import { db } from '@/db';
 import { clanMemberships, clans, eventParticipants, teams } from '@/db/schema';
@@ -66,6 +67,7 @@ export async function seatOnClanTeam(opts: {
   }
 
   await db.update(eventParticipants).set({ teamId }).where(eq(eventParticipants.id, opts.participantId));
+  captureStartingStatsSoon(opts.eventId, [opts.participantId]);
   return { ok: true, teamId };
 }
 
