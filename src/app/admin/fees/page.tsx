@@ -63,14 +63,16 @@ export default async function AdminFeesPage() {
   const now = new Date().getTime();
   const byEvent = new Map<number, FeeBoard>();
   for (const r of rows) {
+    const stage = eventStage(r, now);
     const board =
       byEvent.get(r.eventId) ??
       ({
         eventId: r.eventId,
         name: r.name,
+        stage,
         // 'wrap' is the only stage where closing out is offered: while a board runs, an unpaid fee
         // is a debt someone is still chasing.
-        ended: eventStage(r, now) === 'wrap',
+        ended: stage === 'wrap',
         endDate: r.forceEndedAt ?? r.endDate,
         unpaid: 0,
         toSign: 0,
