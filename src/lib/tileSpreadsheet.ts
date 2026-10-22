@@ -96,7 +96,7 @@ export async function buildTileSpreadsheet(opts: {
   });
   const lastRow = VALIDATION_ROWS + 1;
   for (let r = 2; r <= lastRow; r++) {
-    ws.getCell(`C${r}`).dataValidation = listValidation(['"standard,drop,kill,lap,gain,timed,deathless,diary,ca,lms,value,valuetotal"']);
+    ws.getCell(`C${r}`).dataValidation = listValidation(['"standard,kills,drop,kill,lap,gain,timed,deathless,diary,ca,lms,value,valuetotal"']);
     ws.getCell(`F${r}`).dataValidation = listValidation(['"true,false"']);
     ws.getCell(`I${r}`).dataValidation = listValidation(['"skill,boss"']);
     ws.getCell(`Q${r}`).dataValidation = listValidation(['"any,all"']);
@@ -119,8 +119,11 @@ export async function buildTileSpreadsheet(opts: {
     'Manual tile — staff approve it by hand. No auto-tracking.');
   example({ label: '10M Mining XP', type: 'standard', points: 10, category: 'Skilling', trackedStat: 'mining', statType: 'skill', statGoal: 10000000 },
     'Skill goal: type stays "standard"; trackedStat + statType=skill + statGoal (XP) drive it.');
+  example({ label: '50 GWD boss kills', type: 'kills', points: 8, category: 'GWD', requiredAmount: 50,
+      targetNpcs: "General Graardor|Kree'Arra|Commander Zilyana|K'ril Tsutsaroth" },
+    'KILLS: monsters in targetNpcs, requiredAmount = kills. All on the hiscores → counted from the hiscores; any monster off them → the plugin counts all of it.');
   example({ label: '50 Zulrah KC', type: 'standard', points: 8, category: 'Zulrah', trackedStat: 'zulrah', statType: 'boss', statGoal: 50 },
-    'Boss goal: type stays "standard"; trackedStat + statType=boss + statGoal (kill count).');
+    'The same as an explicit hiscores tile (what a download writes): type "standard"; trackedStat + statType=boss + statGoal.');
   example({ label: 'Any Bandos unique', type: 'drop', points: 15, category: 'GWD', requiredAmount: 3, items: 'Bandos chestplate; Bandos tassets; Bandos boots; Bandos hilt' },
     'Drop POOL: requiredAmount set → any listed item counts toward the total (here, any 3).');
   example({ label: 'Full Bandos set', type: 'drop', points: 25, category: 'GWD', items: 'Bandos chestplate:1; Bandos tassets:1; Bandos boots:1' },
@@ -138,7 +141,7 @@ export async function buildTileSpreadsheet(opts: {
       targetNpcs: 'Chambers of Xeric', coopCredit: 'per-kill', coopMinMembers: 3 },
     'SHARED KILLS: per-kill counts one raid once however many members were in it; coopMinMembers=3 means it only counts with 3 of your team there.');
   example({ label: 'Kill 100 cows', type: 'kill', points: 3, category: 'Skilling', requiredAmount: 100, targetNpcs: 'Cow|Cow calf' },
-    'Kill count of NPCs (even non-hiscores). targetNpcs is comma- or pipe-separated; requiredAmount = kills.');
+    'An explicit plugin kill tile (what a download writes for one): targetNpcs comma- or pipe-separated; requiredAmount = kills.');
   example({ label: '100 Ardougne laps', type: 'lap', points: 12, category: 'Skilling', requiredAmount: 100,
       targetNpcs: 'Ardougne Rooftop|Prifddinas Agility Course' },
     'Agility laps: course name(s) EXACTLY as the in-game lap counter spells them; requiredAmount = laps. Only laps run during the event count.');

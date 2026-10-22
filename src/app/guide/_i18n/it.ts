@@ -1342,7 +1342,7 @@ const it: PartialGuideDict = {
         boss: { label: 'KC boss', blurb: 'Si completa da sola quando un boss raggiunge un obiettivo di killcount (letto dagli hiscores).' },
         drop: { label: 'Drop', blurb: 'N drop di un oggetto (o uno qualsiasi di un insieme) —— rilevato dal plugin, con screenshot impresso.' },
         collection: { label: 'Set di oggetti', blurb: 'Più oggetti, ciascuno con la propria quantità richiesta —— 1× di ognuno per un set completo.' },
-        kill: { label: 'Killcount', blurb: 'N uccisioni di un NPC —— anche di quelli che non compaiono negli hiscores (galline, mucche). Rilevato dal plugin.' },
+        kill: { label: 'Kills', blurb: 'N uccisioni di qualsiasi boss o mostro. Contate dagli hiscores quando ogni mostro della casella è presente lì, altrimenti dal plugin mentre giochi (galline, mucche, mostri Slayer).' },
         lap: { label: 'Giri di agility', blurb: 'N giri di un percorso di agility, o N piani / run complete dell’Hallowed Sepulchre —— contati dal vivo sul contatore in gioco. Valgono solo i giri fatti durante l’evento.' },
         pvp: { label: 'Kill PvP', blurb: 'Uccidi giocatori —— chiunque, squadre rivali o una taglia con nome —— nella Wild o nei mondi PvP. I minigiochi safe non contano mai.' },
         gain: { label: 'Oggetti ottenuti', blurb: 'Pesca/cucina/raccogli N di un oggetto —— contati dai guadagni d’inventario. Rilevato dal plugin.' },
@@ -1365,8 +1365,8 @@ const it: PartialGuideDict = {
         'Quasi tutte le caselle che si comportano male sono l’idea giusta espressa nel tipo sbagliato. Le quattro che fregano tutti:',
       rows: [
         {
-          term: 'Un obiettivo di KC di un boss',
-          body: '**non** è una casella kill. Le caselle kill osservano le morti degli NPC tramite il plugin; un obiettivo di KC è un numero degli hiscores e richiede `trackedStat` + `statType=boss` + `statGoal`. Usa una casella kill per ciò che gli Hiscores non hanno mai contato —— mucche, galline, uno specifico mostro da slayer.',
+          term: 'Una lista di boss più un mostro fuori dagli hiscores',
+          body: 'diventa una casella del plugin per **tutto**. Una casella Kills è contata dagli hiscores solo se ogni suo mostro c’è; aggiungi una gallina a quattro boss di GWD e l’intera casella richiede il plugin. Se parte del clan gioca senza, lascia i boss degli hiscores in una casella a parte.',
         },
         {
           term: 'Uno slot del Collection Log',

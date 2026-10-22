@@ -13,6 +13,7 @@ import ManualOnlyBadge from './ManualOnlyBadge';
 import ClanLink from '@/components/ClanLink';
 import TileTargets from './TileTargets';
 import { statLabel, parseJsonArray, howTileCounts, tileKindKey, TILE_KIND_BADGES } from '@/lib/tileKinds';
+import { killSourceOf } from '@/lib/killSource';
 import { lapUnitNoun } from '@/lib/constants';
 import { isIndividualMode } from '@/lib/statTracking';
 import { evaluateCollection } from '@/lib/collectionSets';
@@ -265,7 +266,15 @@ export default function TileDetailModal({
   // Noun used in the count-based submission form copy ("drop" vs "kill" vs "completion" vs "item").
   const countNoun = isKill || isPvp ? 'kill' : isLap ? lapUnitNoun(parseJsonArray<string>(tile.targetNpcs)) : isDiary || isCa ? 'completion' : isGain ? 'item' : isDeathless ? 'run' : isLms ? 'game' : 'drop';
   // The same names the board's badges and filters use (lib/tileKinds), bar the Sepulchre's own.
-  const kindLabel = isLap && countNoun !== 'lap' ? 'Hallowed Sepulchre' : TILE_KIND_BADGES[tileKindKey(tile)].label;
+  // Both engines behind "Kills" (hiscores boss tile, plugin kill tile) wear one badge: "Kills · 50".
+  // Which engine counts it is the how-it-counts line below.
+  const killSource = killSourceOf(tile);
+  const killsGoal = killSource === 'hiscores' ? tile.statGoal : killSource === 'plugin' ? tile.requiredAmount : null;
+  const kindLabel = isLap && countNoun !== 'lap'
+    ? 'Hallowed Sepulchre'
+    : killSource && killsGoal
+      ? `Kills · ${killsGoal.toLocaleString()}`
+      : TILE_KIND_BADGES[tileKindKey(tile)].label;
 
   // Kill/count tiles land one auto submission per kill (no screenshot), so a 500-kill tile is 500
   // identical rows. List only submissions with real proof (a screenshot or a human note) and roll
@@ -593,12 +602,12 @@ export default function TileDetailModal({
                   {kindLabel}
                 </span>
                 {manualOnly && <ManualOnlyBadge byStaff={!!tile.autoTrackDisabled} />}
-                {isStatTile && tile.statGoal && (
+                {isStatTile && !killSource && tile.statGoal && (
                   <span className="text-xs text-text-muted">
                     Goal: {tile.statGoal.toLocaleString()} {tile.statType === 'boss' ? 'KC' : 'XP'}
                   </span>
                 )}
-                {(isKill || isLap || isPvp) && tile.requiredAmount && (
+                {(isLap || isPvp) && tile.requiredAmount && (
                   <span className="text-xs text-text-muted">
                     Goal: {tile.requiredAmount.toLocaleString()} kill{tile.requiredAmount !== 1 ? 's' : ''}
                   </span>

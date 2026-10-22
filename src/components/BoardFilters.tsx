@@ -5,7 +5,7 @@ import Select from './Select';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, type TierBand } from '@/lib/tileFilter';
 import Input from '@/components/Input';
 import { tileMatchesSearch, type SearchableTile } from '@/lib/tileSearch';
-import { tileKindKey, tileKindOptions } from '@/lib/tileKinds';
+import { tileKindFilterKey, tileKindOptions } from '@/lib/tileKinds';
 
 interface FilterTile extends SearchableTile {
   id: number;
@@ -53,7 +53,7 @@ export default function BoardFilters({
         tiles
           .filter((t) => categoryFilter === 'all' || tileHasCategory(t.category, categoryFilter))
           .filter((t) => tierFilter === 'all' || tileTierKey(t.points, tierBands) === tierFilter)
-          .filter((t) => typeFilter === 'all' || tileKindKey(t) === typeFilter)
+          .filter((t) => typeFilter === 'all' || tileKindFilterKey(t) === typeFilter)
           .filter((t) => tileMatchesSearch(t, search))
           .map((t) => t.id),
       ),

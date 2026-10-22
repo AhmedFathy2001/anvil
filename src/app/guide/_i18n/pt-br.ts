@@ -1342,7 +1342,7 @@ const ptBr: PartialGuideDict = {
         boss: { label: 'KC de boss', blurb: 'Completa sozinha quando um boss atinge uma meta de killcount (lido dos hiscores).' },
         drop: { label: 'Drop', blurb: 'N drops de um item (ou qualquer um de um conjunto) —— detectado pelo plugin, com captura gravada.' },
         collection: { label: 'Conjunto de itens', blurb: 'Vários itens, cada um com a própria quantidade exigida —— 1× de cada para o conjunto completo.' },
-        kill: { label: 'Killcount', blurb: 'N mortes de um NPC —— até dos que nunca estiveram nos hiscores (galinhas, vacas). Detectado pelo plugin.' },
+        kill: { label: 'Kills', blurb: 'N mortes de qualquer boss ou monstro. Contado pelos hiscores quando todo monstro da casa está neles; senão, pelo plugin enquanto você joga (galinhas, vacas, monstros de Slayer).' },
         lap: { label: 'Voltas de agility', blurb: 'N voltas numa pista de agility, ou N andares / runs completas do Hallowed Sepulchre —— contadas ao vivo pelo contador do jogo. Só valem as voltas feitas durante o evento.' },
         pvp: { label: 'Kill de PvP', blurb: 'Mate jogadores —— qualquer um, times rivais ou um alvo nomeado —— na Wild ou em mundos PvP. Minigames seguros nunca contam.' },
         gain: { label: 'Itens obtidos', blurb: 'Pesque/cozinhe/colete N de um item —— contados pelos ganhos de inventário. Detectado pelo plugin.' },
@@ -1365,8 +1365,8 @@ const ptBr: PartialGuideDict = {
         'Quase toda casa mal-comportada é a ideia certa expressa no tipo errado. As quatro que pegam as pessoas:',
       rows: [
         {
-          term: 'Uma meta de KC de boss',
-          body: '**não** é uma casa de kill. Casas de kill observam mortes de NPC pelo plugin; uma meta de KC é um número dos hiscores e precisa de `trackedStat` + `statType=boss` + `statGoal`. Use uma casa de kill para o que os Hiscores nunca contaram —— vacas, galinhas, um mob específico de slayer.',
+          term: 'Uma lista de bosses mais um monstro fora dos hiscores',
+          body: 'vira uma casa do plugin para **tudo**. Uma casa Kills só é contada pelos hiscores quando todo monstro nela está lá; junte uma galinha a quatro bosses de GWD e a casa inteira precisa do plugin. Se parte do clã joga sem ele, deixe os bosses dos hiscores numa casa própria.',
         },
         {
           term: 'Um slot do Collection Log',

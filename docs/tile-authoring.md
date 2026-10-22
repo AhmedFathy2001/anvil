@@ -7,8 +7,9 @@ in `src/lib/csvTiles.ts` and the import API in
 
 > **TL;DR for generating hundreds of tasks:** make a Leagues-style event (dynamic board),
 > then upload a CSV with one row per tile. Each row is a tile; row order = tile order.
-> Use **item names** for drops (resolved to IDs on import), **pipe-separated** NPC names
-> for kills, and `trackedStat`/`statType`/`statGoal` (not the `type` column) for skill/boss
+> Use **item names** for drops (resolved to IDs on import), `type=kills` with
+> **pipe-separated** monster names for any kill goal (bosses or not — the source is picked
+> for you, see *Kills* in §4), and `trackedStat`/`statType`/`statGoal` (not the `type` column) for skill
 > goals.
 
 ---
@@ -52,15 +53,15 @@ A blank `label` auto-fills as `Tile N`.
 |---|---|---|
 | `label` | Tile name shown on the board | Required for a meaningful tile; ≤200 chars |
 | `description` | Free text shown on the tile | Optional |
-| `type` | `standard` \| `drop` \| `kill` \| `pvp` \| `gain` \| `timed` \| `deathless` \| `lms` \| `value` | **Skill/boss tiles leave this `standard`** and use the stat columns instead |
+| `type` | `standard` \| `kills` \| `drop` \| `kill` \| `pvp` \| `gain` \| `timed` \| `deathless` \| `lms` \| `value` | **Skill tiles leave this `standard`** and use the stat columns. Any kill goal: `kills` (see below). `boss`/`boss kc` and `kill count` are accepted as the explicit shapes they mean |
 | `points` | Integer score weight (Leagues scoring) | ≥ 0, default 1 |
 | `category` | Grouping tag(s) for the plugin/UI — comma-separated for several (e.g. `"Inferno, PvM"`, quoted) | ≤120 chars |
 | `optional` | `true`/`false` (also `1`/`0`/`yes`/`y`) — doesn't count toward the total | |
-| `requiredAmount` | Integer — **drop** (items needed) or **kill** (kills needed) | ≥ 1; leave blank for other kinds |
+| `requiredAmount` | Integer — **drop** (items needed) or **kills** / **kill** (kills needed) | ≥ 1; leave blank for other kinds |
 | `trackedStat` | Skill or boss **key** (e.g. `mining`, `zulrah`) | See §4 for valid keys |
 | `statType` | `skill` \| `boss` | Required when `trackedStat` is set |
 | `statGoal` | Integer XP (skill) or KC (boss) goal | ≥ 0 |
-| `targetNpcs` | **Kill** tiles — NPC name(s), **pipe-separated** | e.g. `Cow\|Cow calf`; up to 25, ≤40 chars each |
+| `targetNpcs` | **Kills** / **kill** tiles — monster name(s), **pipe-separated** | e.g. `Cow\|Cow calf`; up to 25, ≤60 chars each |
 | `timedActivity` | **Timed** tiles — activity to time (e.g. `Inferno`) | ≤60 chars |
 | `timeThresholdSeconds` | **Timed** tiles — time cap in seconds; **LMS** tiles — placement cap (1 = win, 3 = top-3); **Deathless** tiles — exact party size (blank = any); **Drop** tiles — exact raid party size for the drop to count (blank = any) | 1–86400 (e.g. 1800 = 30:00) |
 | `revealAt` | **Showdown boards only** (scheduled reveal policy) — when this tile goes live | ISO or `2026-08-01 19:00` (local, stored UTC); blank = stays hidden; other boards ignore it |
@@ -154,8 +155,30 @@ Leave `requiredAmount` blank.
 cooking, woodcutting, fletching, fishing, firemaking, crafting, smithing, mining, herblore,
 agility, thieving, slayer, farming, runecraft, hunter, construction, sailing`
 
-### Boss goal (hiscores KC)
-`type` stays `standard`. Set `trackedStat` (boss key), `statType=boss`, `statGoal` (KC).
+### Kills (any boss or monster) — the source is picked for you
+`type=kills`. Put the monster(s) in `targetNpcs` (pipe-separated — boss names, raid mode
+names, hiscores keys, or any NPC) and the kill count in `requiredAmount`. On import:
+
+- **every monster is on the hiscores** → saved as a hiscores boss tile (`standard` +
+  `statType=boss`, keys summed in `trackedStat`, `statGoal` = the amount). No plugin needed.
+- **any monster is off the hiscores** (chickens, cows, slayer mobs, entry-mode raids, the
+  counters in `COUNTER_TARGETS`) → saved as a plugin kill tile, and the plugin counts **all**
+  of it — two sources are never summed.
+
+Non-boss hiscores counters (clue tiers, GOTR…) can only be counted from the hiscores, so they
+can't share a `kills` row with off-hiscores monsters. On an event that has **started**, an
+existing tile keeps the source it has; a row that doesn't fit it is refused rather than
+converting the tile.
+```
+"50 GWD boss kills",,kills,8,GWD,false,50,,,,"General Graardor|Kree'Arra|Commander Zilyana|K'ril Tsutsaroth",,,
+"Kill 100 cows",,kills,3,Skilling,false,100,,,,"Cow|Cow calf",,,
+```
+Raid modes are the exact in-game strings (`Chambers of Xeric Challenge Mode` has **no**
+colon; `Theatre of Blood: Hard Mode` does).
+
+### Boss goal (explicit hiscores shape)
+What a download writes for a hiscores kills tile, and still accepted as-is: `type` stays
+`standard`; `trackedStat` (boss key), `statType=boss`, `statGoal` (KC).
 ```
 "50 Zulrah KC",,standard,8,Zulrah,false,,zulrah,boss,50,,,,
 ```
@@ -179,8 +202,10 @@ royalTitans, yama`
 "Full Bandos set",,drop,25,GWD,false,,,,,,,,"Bandos chestplate:1; Bandos tassets:1; Bandos boots:1"
 ```
 
-### Kill (NPC count — even non-hiscores mobs)
-`type=kill`. Set `targetNpcs` (pipe-separated names) and `requiredAmount` (kill count).
+### Kill (explicit plugin shape)
+What a download writes for a plugin kills tile, and still accepted as-is: `type=kill`, with
+`targetNpcs` (pipe-separated names) and `requiredAmount` (kill count). Always plugin-counted,
+whatever the names are.
 ```
 "Kill 100 cows",,kill,3,Skilling,false,100,,,,"Cow|Cow calf",,,
 ```
@@ -257,12 +282,12 @@ See `docs/examples/tiles-example.csv` for a complete file covering every kind.
 
 ## 6. Gotchas
 
-- **Skill/boss tiles are NOT `type=skill`/`type=boss`.** `type` only accepts
-  `standard|drop|kill|timed`. Skill/boss is expressed via `trackedStat`+`statType`+`statGoal`
-  on a `standard` row.
+- **Skill tiles are NOT `type=skill`.** Skill is expressed via `trackedStat`+`statType`+`statGoal`
+  on a `standard` row. For kill goals use `type=kills` (the explicit `standard`+`statType=boss`
+  and `kill` shapes still work; `boss` is accepted as the former).
 - **`items` uses semicolons**, not commas (comma is the CSV delimiter). **`targetNpcs` uses
   pipes** (`|`) — and on `ca` rows pipes are the ONLY separator (task names contain commas).
-- **Don't set `requiredAmount` on stat/standard/timed tiles** — it only belongs on drop/kill.
+- **Don't set `requiredAmount` on stat/standard/timed tiles** — it only belongs on drop/kills/kill.
 - **Quote any cell containing a comma** (e.g. a description) per normal CSV rules; `""`
   escapes a literal quote.
 - **Classic N×N grids won't grow** — only Leagues/Tile-race boards create tiles beyond the

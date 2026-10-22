@@ -1361,7 +1361,7 @@ const nl: PartialGuideDict = {
         boss: { label: 'Boss-KC', blurb: 'Rondt vanzelf af zodra een boss een killcount-doel haalt (uit de hiscores gelezen).' },
         drop: { label: 'Drop', blurb: 'N drops van een item (of eender welk uit een pool) — door de plugin gezien, met ingebakken schermafbeelding.' },
         collection: { label: 'Itemset', blurb: 'Meerdere items, elk met een eigen vereist aantal — één van elk voor een volledige set.' },
-        kill: { label: 'Killcount', blurb: 'N kills van een NPC — ook die nooit in de hiscores stonden (kippen, koeien). Door de plugin gezien.' },
+        kill: { label: 'Kills', blurb: 'N kills van elke boss of elk monster. Geteld uit de hiscores als elk monster op het vakje daarin staat, anders door de plugin terwijl je speelt (kippen, koeien, Slayer-monsters).' },
         lap: { label: 'Agility-rondes', blurb: 'N rondes op een agility-parcours, of N verdiepingen / volledige runs in de Hallowed Sepulchre — live meegeteld met de teller in het spel. Alleen rondes tijdens het event tellen.' },
         pvp: { label: 'PvP-kill', blurb: 'Dood spelers — wie dan ook, rivaliserende teams, of een genoemd doelwit — in de Wilderness of op PvP-werelden. Veilige minigames tellen nooit.' },
         gain: { label: 'Itemwinst', blurb: 'Vang, kook of verzamel N van een item — geteld aan wat in de inventory belandt. Door de plugin gezien.' },
@@ -1384,8 +1384,8 @@ const nl: PartialGuideDict = {
         'De meeste vakjes die zich misdragen zijn het juiste idee in de verkeerde soort uitgedrukt. De vier waar mensen over struikelen:',
       rows: [
         {
-          term: 'Een boss-KC-doel',
-          body: 'is **geen** kill-vakje. Kill-vakjes kijken via de plugin naar NPC-doden; een KC-doel is een hiscores-getal en heeft `trackedStat` + `statType=boss` + `statGoal` nodig. Gebruik een kill-vakje voor wat de Hiscores nooit hebben geteld — koeien, kippen, een bepaalde slayer-mob.',
+          term: 'Een bosslijst plus één monster buiten de hiscores',
+          body: 'is in z’n **geheel** een plugin-vakje. Een Kills-vakje telt alleen uit de hiscores als elk monster erop daarin staat; zet een kip bij vier GWD-bosses en het hele vakje heeft de plugin nodig. Speelt een deel van je clan zonder, geef de hiscores-bosses dan een eigen vakje.',
         },
         {
           term: 'Een plek in de collection log',

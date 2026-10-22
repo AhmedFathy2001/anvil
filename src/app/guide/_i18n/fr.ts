@@ -1362,7 +1362,7 @@ const fr: PartialGuideDict = {
         boss: { label: 'KC de boss', blurb: 'Se termine automatiquement quand un boss atteint un objectif de kills (lu dans les hiscores).' },
         drop: { label: 'Drop', blurb: 'N drops d’un objet (ou de n’importe lequel d’un lot) — détecté par le plugin, capture intégrée.' },
         collection: { label: 'Lot d’objets', blurb: 'Plusieurs objets, chacun avec son propre nombre requis — un de chaque pour un lot complet.' },
-        kill: { label: 'Compteur de kills', blurb: 'N kills d’un PNJ — même ceux que les hiscores n’ont jamais comptés (poules, vaches). Détecté par le plugin.' },
+        kill: { label: 'Kills', blurb: 'N kills de n’importe quel boss ou monstre. Compté depuis les hiscores quand chaque monstre de la case y figure, sinon par le plugin pendant que vous jouez (poules, vaches, monstres de Slayer).' },
         lap: { label: 'Tours d’agility', blurb: 'N tours sur un parcours d’agility, ou N étages / runs complètes du Hallowed Sepulchre — comptés en direct sur le compteur du jeu. Seuls les tours faits pendant l’événement comptent.' },
         pvp: { label: 'Kill PvP', blurb: 'Tuer des joueurs — n’importe qui, des équipes rivales, ou une cible nommée — dans le Wilderness ou sur les mondes PvP. Les mini-jeux sûrs ne comptent jamais.' },
         gain: { label: 'Gain d’objet', blurb: 'Attraper, cuisiner ou récolter N d’un objet — compté sur ce qui arrive dans l’inventaire. Détecté par le plugin.' },
@@ -1385,8 +1385,8 @@ const fr: PartialGuideDict = {
         'La plupart des cases qui se comportent mal sont la bonne idée exprimée dans le mauvais type. Les quatre qui piègent les gens :',
       rows: [
         {
-          term: 'Un objectif de KC de boss',
-          body: 'n’est **pas** une case kill. Les cases kill surveillent les morts de PNJ via le plugin ; un objectif de KC est un chiffre des hiscores et exige `trackedStat` + `statType=boss` + `statGoal`. Utilisez une case kill pour ce que les Hiscores n’ont jamais compté — vaches, poules, un mob de slayer précis.',
+          term: 'Une liste de boss plus un monstre hors hiscores',
+          body: 'est une case plugin pour **tout** son contenu. Une case Kills n’est comptée depuis les hiscores que si chaque monstre y figure ; ajoutez une poule à quatre boss de GWD et toute la case a besoin du plugin. Si une partie du clan joue sans, laissez les boss des hiscores sur leur propre case.',
         },
         {
           term: 'Un emplacement de collection log',

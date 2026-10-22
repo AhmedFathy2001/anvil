@@ -1359,7 +1359,7 @@ const zhHans: PartialGuideDict = {
         boss: { label: 'Boss 击杀数', blurb: '当某个 boss 达到击杀数目标时自动完成（从 hiscores 读取）。' },
         drop: { label: '掉落', blurb: '某件物品（或某个物品池中任意一件）掉落 N 次 —— 由插件识别，附带合成的截图。' },
         collection: { label: '物品套装', blurb: '多件物品，各有各自需要的数量 —— 每种一件即为完整套装。' },
-        kill: { label: '击杀数', blurb: '击杀某种 NPC N 次 —— 连 hiscores 从不统计的也算（鸡、牛）。由插件识别。' },
+        kill: { label: '击杀', blurb: '击杀任意 boss 或怪物 N 次。格子里的怪物都在 hiscores 上时从 hiscores 统计，否则在你游戏时由插件统计（鸡、牛、杀戮任务怪）。' },
         lap: { label: '敏捷跑圈', blurb: '在某条敏捷路线上跑 N 圈，或在 Hallowed Sepulchre 完成 N 层 / N 次完整通关 —— 依据游戏内计数器实时统计。只有活动期间跑的圈数才算。' },
         pvp: { label: 'PvP 击杀', blurb: '击杀玩家 —— 任何人、敌对队伍，或指定的悬赏目标 —— 在荒野或 PvP 世界里。安全的小游戏永远不算。' },
         gain: { label: '物品获取', blurb: '捕捉、烹饪或采集某物品 N 个 —— 依据进入背包的数量统计。由插件识别。' },
@@ -1382,8 +1382,8 @@ const zhHans: PartialGuideDict = {
         '大多数行为古怪的格子，都是把正确的想法用错了类型表达。最常绊倒人的四个：',
       rows: [
         {
-          term: 'Boss 击杀数目标',
-          body: '**不是** kill 类型的格子。kill 格子通过插件监视 NPC 死亡；击杀数目标是个 hiscores 数字，需要 `trackedStat` + `statType=boss` + `statGoal`。kill 格子留给 Hiscores 从来不统计的东西 —— 牛、鸡、某个特定的 slayer 怪。',
+          term: '一串 boss 再加一个不在 hiscores 上的怪物',
+          body: '整个格子都会变成插件格子。击杀格子只有在上面每个怪物都在 hiscores 上时才从 hiscores 统计；给四个 GWD boss 加一只鸡，整个格子就需要插件。如果部分成员不用插件，把 hiscores 上的 boss 单独放一个格子。',
         },
         {
           term: '收藏日志的一个格位',

@@ -18,7 +18,7 @@ export interface SearchableTile extends TileKindLike {
 
 /** What a player might type for a kind, beyond its label ("kc" for a boss tile). */
 const KIND_WORDS: Partial<Record<string, string>> = {
-  boss: 'boss kc bosses',
+  boss: 'boss kc bosses kill kills',
   skill: 'skill xp skilling',
   drop: 'drop drops',
   collection: 'drop drops set sets item set collection',

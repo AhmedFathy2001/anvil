@@ -1339,7 +1339,7 @@ export const en = {
         boss: { label: '', blurb: '' },
         drop: { label: '', blurb: '' },
         collection: { label: '', blurb: '' },
-        kill: { label: '', blurb: '' },
+        kill: { label: '', blurb: 'N kills of any boss or monster. Counted from the hiscores when every monster on the tile is on them, otherwise by the plugin as you play (chickens, cows, slayer mobs).' },
         lap: { label: '', blurb: '' },
         pvp: { label: '', blurb: '' },
         gain: { label: '', blurb: '' },
@@ -1362,8 +1362,8 @@ export const en = {
         'Most badly-behaved tiles are the right idea expressed as the wrong kind. The four that catch people:',
       rows: [
         {
-          term: 'A boss KC goal',
-          body: 'is **not** a kill tile. Kill tiles watch NPC deaths through the plugin; a KC goal is a hiscores number and needs `trackedStat` + `statType=boss` + `statGoal`. Use a kill tile for things the Hiscores never counted — cows, chickens, a specific slayer mob.',
+          term: 'A boss list plus one off-hiscores monster',
+          body: 'is a plugin tile for **all** of it. A Kills tile is counted from the hiscores only when every monster on it is on them; add a chicken to four GWD bosses and the whole tile needs the plugin. If some of your clan play without it, keep the hiscores bosses on their own tile.',
         },
         {
           term: 'A collection-log slot',

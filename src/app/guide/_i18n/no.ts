@@ -1360,7 +1360,7 @@ const no: PartialGuideDict = {
         boss: { label: 'Boss-KC', blurb: 'Blir ferdig automatisk når en boss når et killcount-mål (hentet fra hiscores).' },
         drop: { label: 'Drop', blurb: 'N drops av en gjenstand (eller hvilken som helst fra en pulje) — oppdaget av pluginet, med innbakt skjermbilde.' },
         collection: { label: 'Gjenstandssett', blurb: 'Flere gjenstander, hver med sitt eget krav — én av hver til et komplett sett.' },
-        kill: { label: 'Killcount', blurb: 'N kills av en NPC — også de som aldri sto på hiscores (høner, kuer). Oppdaget av pluginet.' },
+        kill: { label: 'Kills', blurb: 'N kills av hvilken som helst boss eller monster. Talt fra hiscores når hvert monster i ruten står der, ellers av pluginet mens du spiller (høner, kuer, Slayer-monstre).' },
         lap: { label: 'Agility-runder', blurb: 'N runder på en agility-bane, eller N etasjer / hele runder i Hallowed Sepulchre — talt live fra telleren i spillet. Bare runder løpt under eventet teller.' },
         pvp: { label: 'PvP-kill', blurb: 'Drep spillere — hvem som helst, rivaliserende lag, eller en navngitt dusør — i Wilderness eller på PvP-verdener. Trygge minispill teller aldri.' },
         gain: { label: 'Gjenstandsgevinst', blurb: 'Fang, tilbered eller samle N av en gjenstand — talt fra det som havner i inventoryet. Oppdaget av pluginet.' },
@@ -1383,8 +1383,8 @@ const no: PartialGuideDict = {
         'De fleste ruter som oppfører seg dårlig, er riktig idé uttrykt som feil type. De fire som tar folk:',
       rows: [
         {
-          term: 'Et boss-KC-mål',
-          body: 'er **ikke** en kill-rute. Kill-ruter følger NPC-dødsfall via pluginet; et KC-mål er et hiscores-tall og trenger `trackedStat` + `statType=boss` + `statGoal`. Bruk en kill-rute til det Hiscores aldri har telt — kuer, høner, en bestemt slayer-mob.',
+          term: 'En boss-liste pluss ett monster utenfor hiscores',
+          body: 'er en plugin-rute for **alt sammen**. En Kills-rute telles bare fra hiscores når hvert monster i den står der; legg en høne til fire GWD-bosser, og hele ruten trenger pluginet. Spiller en del av klanen uten, gi hiscores-bossene en egen rute.',
         },
         {
           term: 'En plass i collection log',

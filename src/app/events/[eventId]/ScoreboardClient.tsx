@@ -11,7 +11,7 @@ import { exactTitle, formatNumber, isPointsMode } from '@/lib/utils';
 import { tileTierKey, tileCategories, tileHasCategory, tierColor, DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { boardTiles, missionTiles, parseEventRules } from '@/lib/eventRules';
 import { scoreTeams } from '@/lib/boardScoring';
-import { statKeys, tileKindKey, tileKindOptions } from '@/lib/tileKinds';
+import { statKeys, tileKindFilterKey, tileKindOptions } from '@/lib/tileKinds';
 import { eventAxes, taskNoun } from '@/lib/eventAxes';
 import LiveDropBoard from '@/components/LiveDropBoard';
 import TeamLens from '@/components/board/TeamLens';
@@ -485,7 +485,7 @@ export default function ScoreboardClient({ event, tiles, teams, completions, tie
         tiles
           .filter((t) => categoryFilter === 'all' || tileHasCategory(t.category, categoryFilter))
           .filter((t) => tierFilter === 'all' || tileTierKey(t.points, tierBands) === tierFilter)
-          .filter((t) => typeFilter === 'all' || tileKindKey(t) === typeFilter)
+          .filter((t) => typeFilter === 'all' || tileKindFilterKey(t) === typeFilter)
           .filter((t) => tileMatchesSearch(t, search))
           .map((t) => t.id),
       )
