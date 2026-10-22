@@ -24,9 +24,9 @@ export default async function TileLibraryPage() {
         <h1 className="text-2xl font-bold">Task library</h1>
       </div>
       <p className="text-sm text-text-muted mb-6">
-        The pool your boards draw from. Pick tasks from Anvil&rsquo;s library, add tiles from any board&rsquo;s
-        Tiles tab, and prune what doesn&rsquo;t suit you. Tiers come from your own difficulty bands, so
-        retuning them re-sorts everything here.
+        Tasks you keep so you can reuse them on any board instead of writing them again. You don&rsquo;t need it
+        to build a board. Anvil&rsquo;s library is a ready-made set Anvil keeps up to date; add the ones you want, or
+        save tiles from a board&rsquo;s Tiles tab. Tasks are grouped by your clan&rsquo;s difficulty tiers.
       </p>
       <LibraryTabs tierBands={tierBands} seedTotal={(await listAnvilTasks()).length} offers={(await taskOffers(clan.id)).length} />
     </div>
