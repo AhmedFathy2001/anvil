@@ -32,9 +32,23 @@ permissions:
   contents: read
   packages: write
 
+# TWO PUSHES IN A ROW MUST NOT RACE. On beta two close pushes once deployed side by side and the
+# OLDER commit finished last, so the box ended up running the stale one. Each job gets its own
+# per-branch concurrency group, with different cancel rules on purpose:
+#
+#   build  — cancel-in-progress: a superseded build is wasted work and nothing on the box depends on
+#            it. A cancelled build fails `needs`, so its deploy never starts.
+#   deploy — NOT cancelled mid-flight. It is an ssh into /opt/anvil/deploy.sh, which pulls, swaps the
+#            blue/green slot and health-gates; killing the ssh client half-way could leave the box
+#            mid-switch. Instead GitHub queues: at most one deploy runs per branch, and a newer one
+#            waiting replaces any older one still waiting. Deploys therefore finish in push order and
+#            the last push always lands last.
 jobs:
   build:
     runs-on: ubuntu-latest
+    concurrency:
+      group: build-${{ github.ref }}
+      cancel-in-progress: true
     outputs:
       reused: ${{ steps.existing.outputs.found }}
     steps:
@@ -116,6 +130,10 @@ jobs:
     # anything (the commit it points at already deployed when its branch was pushed).
     if: startsWith(github.ref, 'refs/heads/')
     runs-on: ubuntu-latest
+    # Queued, never cancelled mid-deploy — see the note above `jobs:`.
+    concurrency:
+      group: deploy-${{ github.ref }}
+      cancel-in-progress: false
     # Repo secrets: SSH_HOST / SSH_USER / SSH_KEY.
     #
     # THE BOX OWNS THE DEPLOY, and this only asks for it. How a channel comes up is a property of
