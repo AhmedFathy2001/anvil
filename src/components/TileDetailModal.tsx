@@ -12,6 +12,7 @@ import type { Tile, Submission, ItemRequirementProgress } from '@/lib/types';
 import ManualOnlyBadge from './ManualOnlyBadge';
 import ClanLink from '@/components/ClanLink';
 import TileTargets from './TileTargets';
+import LapCounterTip from './LapCounterTip';
 import { statLabel, parseJsonArray, howTileCounts, tileKindKey, TILE_KIND_BADGES } from '@/lib/tileKinds';
 import { killSourceOf } from '@/lib/killSource';
 import { lapUnitNoun } from '@/lib/constants';
@@ -609,7 +610,7 @@ export default function TileDetailModal({
                 )}
                 {(isLap || isPvp) && tile.requiredAmount && (
                   <span className="text-xs text-text-muted">
-                    Goal: {tile.requiredAmount.toLocaleString()} kill{tile.requiredAmount !== 1 ? 's' : ''}
+                    Goal: {tile.requiredAmount.toLocaleString()} {countNoun}{tile.requiredAmount !== 1 ? 's' : ''}
                   </span>
                 )}
                 {isTimed && tile.timeThresholdSeconds && (
@@ -677,6 +678,9 @@ export default function TileDetailModal({
           {/* What the tile tracks — the admin-configured items/NPCs/raid. Item lists are
               suppressed when the per-item progress section below already names them. */}
           <TileTargets tile={tile} hideItems={!!perItemProgress?.length} />
+
+          {/* Course laps only (the Sepulchre prints its own floor lines, no counter to toggle). */}
+          {isLap && countNoun === 'lap' && !manualOnly && <LapCounterTip />}
 
           {/* Completion status */}
           {completedBy.length > 0 && (
