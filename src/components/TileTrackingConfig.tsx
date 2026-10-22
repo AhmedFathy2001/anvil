@@ -863,6 +863,25 @@ function TileTrackingEditor({
 
   const isStat = kind === 'skill' || kind === 'boss';
   const isDrop = kind === 'drop' || kind === 'collection';
+  // Does the named source drop these items? Looked up in the wiki drop tables server-side; the
+  // answer is kept with the query it answers, so a stale one never shows against new inputs.
+  const dropCheckKey = isDrop && sourceNpcsText.trim() && trackedItems.length > 0
+    ? `items=${trackedItems.map((i) => i.id).join(',')}&sources=${encodeURIComponent(sourceNpcsText)}`
+    : null;
+  const [dropCheck, setDropCheck] = useState<{ key: string; missing: number[] } | null>(null);
+  useEffect(() => {
+    if (!dropCheckKey) return;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await clanFetch(`${lookupApi}/drop-check?${dropCheckKey}`);
+        if (res.ok) setDropCheck({ key: dropCheckKey, missing: ((await res.json()) as { missing: number[] }).missing });
+      } catch { /* advisory only */ }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [dropCheckKey, lookupApi]);
+  const undroppable = dropCheck && dropCheck.key === dropCheckKey
+    ? trackedItems.filter((i) => dropCheck.missing.includes(i.id))
+    : [];
   const isCollection = kind === 'collection';
   // The tile's requirements in the shape lib/collectionSets reads, and the sets they form — so the
   // editor's set controls and its auto-computed total use the same rule the board completes on.
@@ -2165,6 +2184,13 @@ function TileTrackingEditor({
               placeholder="e.g. Zulrah, Chambers of Xeric, Barrows"
               ariaLabel="Source restriction"
             />
+            {undroppable.length > 0 && (
+              <p role="alert" className="text-[11px] text-amber-300 mt-1 rounded border border-amber-400/30 bg-amber-400/5 px-2 py-1">
+                {sourceNpcsText.split(',').map((s) => s.trim()).filter(Boolean).join(' / ')} doesn&rsquo;t drop{' '}
+                {undroppable.map((i) => i.name).join(', ')} according to the wiki&rsquo;s drop table, so this tile could
+                never complete. Check the source, or the exact item (a charged or noted version is a different item).
+              </p>
+            )}
             <p className="text-[10px] text-text-muted mt-0.5 leading-relaxed">
               Comma-separated. The drop only counts when it comes from one of these (case-insensitive). Leave blank to
               accept any source.
