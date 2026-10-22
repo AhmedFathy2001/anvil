@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Pricing — Anvil',
-  description: 'Free for your first event. Paid tiers scale with your roster. 30-day trial on everything.',
+  description: `Free for clans up to ${PLANS.free.memberCap} members. Paid tiers scale with your roster, with a 30-day trial.`,
 };
 
 /**
