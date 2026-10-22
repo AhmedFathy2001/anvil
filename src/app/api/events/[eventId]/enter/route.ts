@@ -56,7 +56,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
   const body = await request.json().catch(() => null);
   const accountId = Number(body?.accountId);
   if (!Number.isInteger(accountId) || accountId <= 0) {
-    return NextResponse.json({ error: 'Which account are you entering with?' }, { status: 400 });
+    return NextResponse.json({ error: 'Which character are you signing up with?' }, { status: 400 });
   }
 
   // Theirs, and verified. Verification is the same gate the ordinary sign-up applies — it proves the
@@ -137,6 +137,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
   let pendingSince: string | null = null;
   // A closed clan refuses every entry; say so up front instead of after the press.
   let guestsClosed = false;
+  // Whether they have any character at all. With none, linking one is the next step, and the sign-up
+  // page does that inline; with only unverified ones, verifying is, and that lives on the profile.
+  let hasCharacter = false;
   if (session?.playerId && verdict.outcome === 'outsider') {
     // clan-scope: global -- entering somebody ELSE'S event is the whole point of this route; the clan is the event's, and canEnterEvent has already ruled on access.
     const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
@@ -170,9 +173,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
             }),
       ]);
       guestsClosed = policy === 'closed';
+      hasCharacter = mine.length > 0;
       pendingSince = asked?.requestedAt ?? null;
     }
   }
 
-  return NextResponse.json({ verdict, options, pendingSince, guestsClosed });
+  return NextResponse.json({ verdict, options, pendingSince, guestsClosed, hasCharacter });
 }
