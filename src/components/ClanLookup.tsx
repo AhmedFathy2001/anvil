@@ -429,9 +429,11 @@ function Tag({ tone, children }: { tone: 'green' | 'gold' | 'dim' | 'red'; child
 
 /** What the guest policy means to somebody standing outside. */
 function doorway(policy: string): string {
-  if (policy === 'open') return 'Open';
-  if (policy === 'closed') return 'Closed';
-  return 'By approval';
+  // Says WHAT the policy is about. "By approval" alone left you guessing — joining? viewing? It is
+  // the guest door: who may join this clan's events from outside it.
+  if (policy === 'open') return 'Guests welcome';
+  if (policy === 'closed') return 'No guests';
+  return 'Guests by approval';
 }
 
 /** The same hue ClanCrest's initials variant derives, so the banner strip matches the icon. */

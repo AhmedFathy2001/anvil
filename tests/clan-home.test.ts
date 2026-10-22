@@ -98,3 +98,22 @@ test('a brand-new clan with nothing filled in has safe defaults', async () => {
 test('a missing clan is null, not a throw', async () => {
   assert.equal(await publicClanHomeView(999999), null);
 });
+
+test('the member count is member seats — guests left out, members the hiscores have not found kept', async () => {
+  // The Clan Hall card counts member seats; this read counted rows whose ACCOUNT status was 'active'
+  // (Jagex-side health), so the two pages disagreed about the same clan.
+  const [clan] = await db.insert(s.clans).values({ slug: 'countme', name: 'Count Me' }).returning();
+  const seat = async (rsn: string, kind: 'member' | 'guest', status = 'active') => {
+    const [p] = await db.insert(s.players).values({ displayName: rsn }).returning();
+    const [a] = await db
+      .insert(s.accounts)
+      .values({ playerId: p.id, rsn, rsnNormalized: rsn.toLowerCase(), status })
+      .returning();
+    await db.insert(s.clanMemberships).values({ clanId: clan.id, accountId: a.id, kind });
+  };
+  await seat('Countone', 'member');
+  await seat('Counttwo', 'member', 'not_found');
+  await seat('Visitorx', 'guest');
+
+  assert.equal((await publicClanHomeView(clan.id))!.memberCount, 2);
+});

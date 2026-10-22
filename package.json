@@ -154,6 +154,7 @@
     "test:seo": "npx tsx --test tests/seo.test.ts",
     "test:clanhall": "npx tsx --test tests/clan-hall.test.ts",
     "test:clanapply": "npx tsx --test tests/clan-apply.test.ts",
+    "test:clanhome": "npx tsx --test tests/clan-home.test.ts",
     "test:imageanimation": "npx tsx --test tests/image-animation.test.ts",
     "test:linktext": "npx tsx --test tests/link-text.test.ts",
     "test:apexhome": "npx tsx --test tests/apex-home.test.ts tests/apex-home-signals.test.ts",
