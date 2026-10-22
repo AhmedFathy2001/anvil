@@ -1,6 +1,6 @@
 {
   "source": "https://oldschool.runescape.wiki/w/Combat_Achievements/All_tasks (Bucket: combat_achievement)",
-  "generatedAt": "2026-10-12T14:15:42.075Z",
+  "generatedAt": "2026-10-22T04:58:00.476Z",
   "taskCount": 655,
   "tiers": [
     "Easy",
@@ -1065,7 +1065,7 @@
       "monster": "General Graardor",
       "tier": "Hard",
       "type": "Mechanical",
-      "description": "Kill General Graardor whilst he is immobilized<sup class=\"noprint\">&#91;<span class=\"fact-text\" title=\"&quot;Immobilized&quot; is American English, whereas British English would use &quot;immobilised&quot;.\">sic</span>&#93;</sup>."
+      "description": "Kill General Graardor whilst he is immobilized."
     },
     {
       "id": 181,
