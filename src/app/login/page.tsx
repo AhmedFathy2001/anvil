@@ -70,7 +70,7 @@ export default async function LoginPage({
             <div className="relative hidden gap-5 font-mono text-[10.5px] text-text-dim lg:flex">
               <span className="flex items-center gap-1.5"><Tick /> No password</span>
               <span className="flex items-center gap-1.5"><Tick /> One identity</span>
-              <span className="flex items-center gap-1.5"><Tick /> Nothing to set up</span>
+              <span className="flex items-center gap-1.5"><Tick /> Every clan</span>
             </div>
           </div>
         </div>
@@ -85,8 +85,7 @@ export default async function LoginPage({
               Sign in to Anvil
             </h1>
             <p className="mt-4 max-w-[44ch] text-[15px] leading-relaxed text-text-muted">
-              Continue with Discord — the account you use with your clan. First time? That&apos;s all it takes; there&apos;s no
-              separate sign-up.
+              Continue with Discord, using the account you use with your clan. New to Anvil? This is the whole sign-up.
             </p>
 
             {params.error && (
