@@ -14,6 +14,7 @@ import { ImageResponse } from 'next/og';
 
 import { requireSecret } from '@/lib/env';
 import { itemIconUrl } from '@/lib/tileIcons';
+import { absoluteAssetUrl } from '@/lib/seo';
 
 const PURPOSE = 'clog-image:v1';
 
@@ -111,7 +112,7 @@ export function clogGridImage(opts: { title: string; page: string; slots: ClogSl
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element -- ImageResponse renders plain <img>, there is no next/image here */}
-              <img src={itemIconUrl(s.id)} width={42} height={38} alt="" style={{ objectFit: 'contain', opacity: s.quantity > 0 ? 1 : 0.22 }} />
+              <img src={absoluteAssetUrl(itemIconUrl(s.id))} width={42} height={38} alt="" style={{ objectFit: 'contain', opacity: s.quantity > 0 ? 1 : 0.22 }} />
               {s.quantity > 1 && (
                 <div style={{ position: 'absolute', top: 2, left: 4, fontSize: 14, fontWeight: 700, color: C.count }}>
                   {s.quantity >= 100_000 ? `${Math.floor(s.quantity / 1000)}K` : String(s.quantity)}

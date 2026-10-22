@@ -9,7 +9,7 @@ import PersonalLuck from './PersonalLuck';
 import StatsBrowser from './StatsBrowser';
 import { levelUps, statTrends } from '@/lib/statTrends';
 import { setUrlParams } from '@/lib/urlState';
-import { activityImageUrl, bossImageForStatKey, itemIconUrl, skillIconUrl } from '@/lib/tileIcons';
+import { activityImageUrl, bossImageForStatKey, itemIconUrl, skillIconUrl, wikiImageUrl } from '@/lib/tileIcons';
 import { personalBestEntries } from '@/lib/pbGroups';
 import { useMediaQuery } from '@/lib/useMediaQuery';
 import { TAB_SLUG, type ProfileLinkState, type ProfileTab } from '@/lib/profileLink';
@@ -59,7 +59,7 @@ const TABS: { key: Tab; label: string }[] = [
 ];
 
 const bossLabel = (key: string) => BOSSES.find((b) => b.key === key)?.label ?? key;
-const SKULL_ICON = 'https://oldschool.runescape.wiki/images/Skull_(status)_icon.png';
+const SKULL_ICON = wikiImageUrl('Skull_(status)_icon.png');
 
 function fmtXp(xp: number): string {
   if (xp >= 1_000_000_000) return `${(xp / 1_000_000_000).toFixed(2)}B`;

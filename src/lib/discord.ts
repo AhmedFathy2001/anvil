@@ -11,6 +11,7 @@ import { formatEfficiencyHours, weeklyKindLabel } from '@/lib/constants';
 import { formatGp } from '@/lib/adminEventsFormat';
 import { placeLabel } from '@/lib/eventRules';
 import { deriveTileIcon, skillIconUrl, bossItemForStatKey, itemIconUrl, type IconableTile } from '@/lib/tileIcons';
+import { absoluteAssetUrl } from '@/lib/seo';
 import { eq } from 'drizzle-orm';
 import { boardRevealImageQuery } from '@/lib/boardRevealImage';
 
@@ -613,7 +614,7 @@ function eventAuthor(
 // board renders. Absent for tiles with no derivable icon (e.g. manual tiles).
 function tileThumbnail(tile: IconableTile | null | undefined): Pick<DiscordEmbed, 'thumbnail'> {
   const icon = tile ? deriveTileIcon(tile) : null;
-  return icon ? { thumbnail: { url: icon } } : {};
+  return icon ? { thumbnail: { url: absoluteAssetUrl(icon) } } : {};
 }
 
 // Discord renders <t:UNIX:STYLE> dynamically per viewer: the timezone is the
@@ -1025,7 +1026,7 @@ export async function notifyTilesRevealed(params: TilesRevealedNotifyParams): Pr
     title: clamp(title, LIMIT.title),
     description,
     color: EMBED_COLOR.gold,
-    ...(icon ? { thumbnail: { url: icon } } : {}),
+    ...(icon ? { thumbnail: { url: absoluteAssetUrl(icon) } } : {}),
     ...(fields.length ? { fields } : {}),
     ...(boardUrl ? { url: boardUrl } : {}),
   };
@@ -1720,7 +1721,7 @@ export async function notifyPayout(params: PayoutNotifyParams): Promise<boolean>
 
   const embed: DiscordEmbed = {
     ...eventAuthor(eventId, eventName),
-    ...{ thumbnail: { url: itemIconUrl(995) } }, // coins — the payout's own icon
+    ...{ thumbnail: { url: absoluteAssetUrl(itemIconUrl(995)) } }, // coins — the payout's own icon
     title: '💰 Prizes paid out',
     description: `Congratulations to the winners of **${eventName}**. Prizes have been sent.${boardLinkLine(eventId)}`,
     color: EMBED_COLOR.gold,
@@ -1740,11 +1741,11 @@ const weeklyKind = weeklyKindLabel;
 function weeklyThumbnail(type: string, metric: string): Pick<DiscordEmbed, 'thumbnail'> {
   if (type === 'skill') {
     const url = skillIconUrl(metric);
-    return url ? { thumbnail: { url } } : {};
+    return url ? { thumbnail: { url: absoluteAssetUrl(url) } } : {};
   }
   if (type === 'boss') {
     const itemId = bossItemForStatKey(metric);
-    return itemId != null ? { thumbnail: { url: itemIconUrl(itemId) } } : {};
+    return itemId != null ? { thumbnail: { url: absoluteAssetUrl(itemIconUrl(itemId)) } } : {};
   }
   return {};
 }

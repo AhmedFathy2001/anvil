@@ -15,6 +15,7 @@ import { effectiveClanRules, xpPostsFor, type XpMilestoneRow, type XpRules } fro
 import { getClanMilestoneRules, levelPrefsForAccount } from '@/lib/levelRulesStore';
 import { getNotificationWebhooks } from '@/lib/pluginConfig';
 import { skillIconUrl } from '@/lib/tileIcons';
+import { absoluteAssetUrl } from '@/lib/seo';
 import { totalXpLabel } from '@/lib/totalXpMilestones';
 
 /** The embed for a total-XP step. Exported for tests. */
@@ -37,7 +38,7 @@ export function skillXpEmbed(rsn: string, skill: string, xp: number): DiscordEmb
     author: { name: rsn },
   };
   const icon = skillIconUrl(skill);
-  if (icon) e.thumbnail = { url: icon };
+  if (icon) e.thumbnail = { url: absoluteAssetUrl(icon) };
   return e;
 }
 

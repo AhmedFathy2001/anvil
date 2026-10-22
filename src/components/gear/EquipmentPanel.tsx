@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { GearItem } from '@/lib/dps/engine';
 import type { Slot } from '@/lib/dps/tables';
+import { wikiImageUrl } from '@/lib/assetUrls';
 import { itemIcon } from './useGearData';
 
 // The in-game equipment screen: the slots where a player's eye expects them.
@@ -21,7 +22,7 @@ const SLOT_LABEL: Record<Slot, string> = {
 };
 
 // The wiki's own slot silhouettes, faint in an empty slot like in game.
-const slotGlyph = (slot: Slot) => `https://oldschool.runescape.wiki/images/${SLOT_LABEL[slot]}_slot.png`;
+const slotGlyph = (slot: Slot) => wikiImageUrl(`${SLOT_LABEL[slot]}_slot.png`);
 
 const BONUS = ['Stab', 'Slash', 'Crush', 'Magic', 'Range', 'Str', 'R.Str', 'M.Dmg', 'Pray'];
 

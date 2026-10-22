@@ -29,7 +29,8 @@ import { fmt, type DiscordDict } from '@/lib/discordI18n';
 import { resolveInvoker, resolveRosterPlayer, type ClanContext, type InvokerIdentity } from '@/lib/discordContext';
 import { clanMarkUrl } from '@/lib/clanMarkUrl';
 
-import { competitionImageUrl, itemIconUrl, bossImageUrl } from '@/lib/tileIcons';
+import { competitionImageUrl, itemIconUrl, bossImageUrl, wikiImageUrl } from '@/lib/tileIcons';
+import { absoluteAssetUrl } from '@/lib/seo';
 import { clogPageItems, clogPageIndex, clogPageNames } from '@/lib/clogDataset';
 import { matchBestsToPages, titleCaseActivity } from '@/lib/clogProfile';
 import { clogImageQuery } from '@/lib/clogImage';
@@ -56,7 +57,7 @@ import { getLuckBoards, getMemberLuck } from '@/lib/clogLuckBoard';
 import { formatCount, formatNet, formatOdds } from '@/lib/clogLuck';
 import { guideCommand } from '@/lib/discordGuides';
 
-const STATS_ICON = 'https://oldschool.runescape.wiki/images/Stats_icon.png';
+const STATS_ICON = wikiImageUrl('Stats_icon.png');
 const CLOG_ITEM_ID = 22711; // Collection log
 const COINS_ITEM_ID = 995;
 
@@ -140,7 +141,8 @@ function placeMark(index: number): string {
 }
 
 function thumb(url: string | null | undefined): Pick<DiscordEmbed, 'thumbnail'> {
-  return url ? { thumbnail: { url } } : {};
+  // Discord fetches it itself: our cached-art paths (/img/…) go out apex-absolute.
+  return url ? { thumbnail: { url: absoluteAssetUrl(url) } } : {};
 }
 
 /** The site URL for a section, when the clan has a public origin. */

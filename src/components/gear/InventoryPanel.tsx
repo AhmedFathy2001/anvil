@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+import { wikiImageUrl } from '@/lib/assetUrls';
 import type { InvItem } from '@/lib/guideTiers';
 
 /** Wiki icon for any item by name — inventories hold items the equipment dataset doesn't know. */
 const iconFor = (name: string | undefined) =>
-  name ? `https://oldschool.runescape.wiki/images/${encodeURIComponent(name.replace(/ /g, '_'))}.png` : null;
+  name ? wikiImageUrl(`${name}.png`) : null;
 
 /** The in-game stack label (K from 100,000, M from 10M) — sooner in small cells, where digits collide. */
 function stackLabel(q: number, compact: boolean): string {

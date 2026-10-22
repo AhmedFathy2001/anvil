@@ -9,12 +9,11 @@ import { momentsForMembers } from '@/lib/momentsStore';
 import { memberCard, siteCard } from '@/lib/ogCard';
 import { cachedCard, remoteSprite } from '@/lib/ogKit';
 import { getClanDisplayName } from '@/lib/pluginConfig';
-import { bossItemForStatKey, itemIconUrl } from '@/lib/tileIcons';
+import { bossItemForStatKey, itemIconUrl, wikiImageUrl } from '@/lib/tileIcons';
 
 export const dynamic = 'force-dynamic';
 
 const MAX_TOTAL_LEVEL = (SKILLS.length - 1) * 99;
-const WIKI = 'https://oldschool.runescape.wiki/images';
 
 /**
  * A member's card, as their clan sees them: name, the clan, the four numbers people compare, and
@@ -55,8 +54,8 @@ async function load(_request: Request, { params }: { params: Promise<{ slug: str
 
   const [loot, totalIcon, combatIcon] = await Promise.all([
     Promise.all(itemIds.map((id) => remoteSprite(itemIconUrl(id), 76))),
-    remoteSprite(`${WIKI}/Stats_icon.png`, 24),
-    remoteSprite(`${WIKI}/Combat_icon.png`, 24),
+    remoteSprite(wikiImageUrl('Stats_icon.png'), 24),
+    remoteSprite(wikiImageUrl('Combat_icon.png'), 24),
   ]);
 
   const line = [
