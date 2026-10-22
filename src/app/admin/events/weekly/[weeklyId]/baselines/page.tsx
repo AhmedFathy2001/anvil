@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { requireClan } from '@/lib/clanContext';
 import { getWeeklyRow, getWeeklyStandings } from '@/lib/weeklyWorkspace';
 import WeeklyRosterClient from '../WeeklyRosterClient';
+import { weeklyStartingStatsFor } from '@/lib/startingStats';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,7 @@ export default async function WeeklyBaselinesPage({ params }: { params: Promise<
   if (!comp) notFound();
 
   const standings = await getWeeklyStandings(id);
+  const startingStats = weeklyStartingStatsFor(comp, standings.map((s) => ({ id: s.participantId, baselineValue: s.baselineValue })));
 
-  return <WeeklyRosterClient competitionId={id} type={comp.type} standings={standings} mode="baselines" />;
+  return <WeeklyRosterClient competitionId={id} type={comp.type} standings={standings} startingStats={startingStats} mode="baselines" />;
 }

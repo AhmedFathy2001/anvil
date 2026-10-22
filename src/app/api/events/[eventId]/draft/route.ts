@@ -15,6 +15,7 @@ import { notifyDraftComplete, notifyDraftCompleteForClan, notifyDraftStart } fro
 import { syncTeamDiscordOnDraftCompleteFireAndForget } from '@/lib/discord-teams';
 import { assertEventEditable } from '@/lib/eventLock';
 import { track } from '@/lib/analytics';
+import { startingStatsFor } from '@/lib/startingStats';
 
 export async function GET(
   request: Request,
@@ -143,6 +144,9 @@ export async function GET(
     pickInRound,
     totalPicked: pickedPlayers.length,
     poolRemaining: poolPlayers.length,
+    // Late joiners on a running event: are their starting stats in yet (lib/startingStats)? Only
+    // ids with something to say are present; nothing at all before the start.
+    startingStats: startingStatsFor(event, rawPlayers),
     balanceMode,
   });
 }

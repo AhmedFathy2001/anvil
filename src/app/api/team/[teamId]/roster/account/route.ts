@@ -6,6 +6,7 @@ import { clanRoster, eventParticipants } from '@/db/schema';
 import { requireTeamManager } from '@/lib/teamStaff';
 import { swapTrackedAccount } from '@/lib/trackedAccount';
 import { assertEventEditable } from '@/lib/eventLock';
+import { captureStartingStatsSoon } from '@/lib/startingStats';
 
 /**
  * Which character one of your own players is being followed on.
@@ -81,6 +82,8 @@ export async function PATCH(
   if (!swap.changed) return NextResponse.json({ ok: true, changed: false, rsn: swap.rsn });
 
   await db.update(eventParticipants).set(swap.updates!).where(eq(eventParticipants.id, player.id));
+  // A new account means a new start line (the swap cleared the old one) — take it now.
+  captureStartingStatsSoon(management.eventId, [player.id]);
   return NextResponse.json({ ok: true, changed: true, rsn: swap.rsn });
 }
 

@@ -8,6 +8,8 @@ import { weeklyGain, weeklyStatValue } from '@/lib/weeklyLabels';
 import Input from '@/components/Input';
 import { useDialog } from '@/components/Confirm';
 import { doubleEntries, surplusSeats, type EntrantSeat } from '@/lib/weeklyEntrants';
+import StartingStatsLine, { useStartingStatsPoll } from '@/components/StartingStatsLine';
+import type { StartingStatsStatus } from '@/lib/startingStatsRules';
 
 /**
  * The two roster surfaces of a weekly, which are the same table read two ways.
@@ -22,6 +24,7 @@ export default function WeeklyRosterClient({
   standings,
   mode,
   includeGuests,
+  startingStats = {},
 }: {
   competitionId: number;
   type: string;
@@ -29,8 +32,19 @@ export default function WeeklyRosterClient({
   mode: 'participants' | 'baselines';
   /** The competition's guest switch — shown and flippable on the participants view. */
   includeGuests?: boolean;
+  /** Mid-competition additions: are their starting stats in yet (lib/startingStats)? By participant id. */
+  startingStats?: Record<number, StartingStatsStatus>;
 }) {
   const router = useRouter();
+  const startingStatsPoll = useStartingStatsPoll(
+    Object.values(startingStats).some((s) => s.state === 'pending'),
+    () => router.refresh(),
+  );
+  async function retryStartingStats(participantId: number) {
+    await clanFetch(`/api/admin/weekly/${competitionId}/participants/${participantId}/starting-stats`, { method: 'POST' });
+    router.refresh();
+    startingStatsPoll.restart();
+  }
   const [busy, setBusy] = useState(false);
   const { confirm } = useDialog();
   const [message, setMessage] = useState('');
@@ -411,6 +425,12 @@ export default function WeeklyRosterClient({
                     {row.flagged && row.flagReason && (
                       <span className="block text-[11px] text-amber-300/80 mt-0.5">{row.flagReason}</span>
                     )}
+                    <StartingStatsLine
+                      status={startingStats[row.participantId]}
+                      lapsed={startingStatsPoll.lapsed}
+                      onRetry={() => retryStartingStats(row.participantId)}
+                      className="mt-0.5"
+                    />
                   </td>
 
                   {mode === 'baselines' && (

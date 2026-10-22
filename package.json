@@ -163,7 +163,9 @@
     "test:weeklyrepeat": "npx tsx --test tests/weekly-repeat.test.ts",
     "test:weeklyroll": "npx tsx --test tests/weekly-repeat-roll.test.ts",
     "test:features": "npx tsx --test tests/features.test.ts",
-    "test:withdrawnroster": "npx tsx --test tests/withdrawn-roster-migration.test.ts"
+    "test:withdrawnroster": "npx tsx --test tests/withdrawn-roster-migration.test.ts",
+    "test:startingstats": "npx tsx --test tests/starting-stats.test.ts",
+    "test:startingstatsdb": "npx tsx --test tests/starting-stats-capture.test.ts"
   },
   "dependencies": {
     "@vercel/blob": "^2.0.1",

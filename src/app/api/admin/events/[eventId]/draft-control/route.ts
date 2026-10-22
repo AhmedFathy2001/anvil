@@ -12,6 +12,7 @@ import { buildDraftBalance } from '@/lib/draftBalance';
 import { notifyDraftComplete } from '@/lib/discord';
 import { syncTeamDiscordOnDraftCompleteFireAndForget } from '@/lib/discord-teams';
 import { parseEventRules, validateEventRules } from '@/lib/eventRules';
+import { captureStartingStatsSoon } from '@/lib/startingStats';
 
 /**
  * Admin steering for a draft that's already running.
@@ -113,6 +114,7 @@ export async function POST(
         .update(eventParticipants)
         .set({ teamId })
         .where(and(eq(eventParticipants.eventId, eId), inArray(eventParticipants.id, rows.map((r) => r.id))));
+      captureStartingStatsSoon(eId, rows.map((r) => r.id));
 
       return NextResponse.json({ ok: true, moved: rows.length, teamId });
     }
@@ -147,6 +149,7 @@ export async function POST(
         .update(eventParticipants)
         .set({ teamId: giveTeam })
         .where(and(eq(eventParticipants.eventId, eId), inArray(eventParticipants.id, takeRows.map((r) => r.id))));
+      captureStartingStatsSoon(eId, rows.map((r) => r.id));
 
       return NextResponse.json({ ok: true, swapped: giveRows.length + takeRows.length });
     }
@@ -243,6 +246,7 @@ export async function POST(
         .update(eventParticipants)
         .set({ teamId: control.currentTeamId, pickNumber: control.currentPickNumber, pickedAt: now })
         .where(and(eq(eventParticipants.eventId, eId), inArray(eventParticipants.id, chosen.playerIds)));
+      captureStartingStatsSoon(eId, chosen.playerIds);
 
       // Was that the last one? Then the draft is over, and the roster post has to fire here too —
       // otherwise a draft finished by a host-made pick ends silently.

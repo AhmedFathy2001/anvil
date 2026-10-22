@@ -7,6 +7,7 @@ import { eq, and, inArray, isNull } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { assertEventEditable } from '@/lib/eventLock';
 import { buildDraftBalance, greedyAssignments, projectedStrengths } from '@/lib/draftBalance';
+import { captureStartingStatsSoon } from '@/lib/startingStats';
 
 // POST — the "Balance teams" button: distribute everyone still in the pool across the existing
 // teams by profile rating (greedy weakest-team-first; multi-account people move as one). Never
@@ -65,6 +66,8 @@ export async function POST(
     const profile = balance.byPlayerId.get(a.playerIds[0]);
     if (profile) profile.teamId = a.teamId; // keep the in-memory strengths honest for the summary
   }
+
+  captureStartingStatsSoon(id, assignments.flatMap((a) => a.playerIds));
 
   const strengths = projectedStrengths(balance, teamIds);
   const teamName = new Map(eventTeams.map((t) => [t.id, t.name]));

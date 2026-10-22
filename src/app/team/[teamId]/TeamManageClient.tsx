@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import TeamInvitePanel from '@/components/TeamInvitePanel';
 import { clanFetch } from '@/lib/clanFetch';
+import StartingStatsLine, { useStartingStatsPoll } from '@/components/StartingStatsLine';
+import type { StartingStatsStatus } from '@/lib/startingStatsRules';
 import { useDialog } from '@/components/Confirm';
 
 // The manager's half of a team page: who's on it, what their proof looks like, whose fee is still
@@ -78,6 +80,7 @@ const FEE_BUCKET: Record<string, { label: string; cls: string }> = {
 
 export default function TeamManageClient({ teamId }: { teamId: number }) {
   const [roster, setRoster] = useState<RosterRow[]>([]);
+  const [startingStats, setStartingStats] = useState<Record<number, StartingStatsStatus>>({});
   const { confirm, ask, notify } = useDialog();
   const [proof, setProof] = useState<ProofRow[]>([]);
   const [fees, setFees] = useState<FeeRow[]>([]);
@@ -115,6 +118,7 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
       if (rosterRes.ok) {
         const data = await rosterRes.json();
         setRoster(data.roster ?? []);
+        setStartingStats(data.startingStats ?? {});
         setProof(data.proof ?? []);
         setStarted(!!data.eventStarted);
         setCanManageAccounts(!!data.delegated);
@@ -136,6 +140,19 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // A late joiner whose starting stats are still being read: re-read just the roster, quietly,
+  // until they land (components/StartingStatsLine). The host retries from the Teams tab.
+  const startingStatsPoll = useStartingStatsPoll(
+    Object.values(startingStats).some((s) => s.state === 'pending'),
+    async () => {
+      const res = await clanFetch(`/api/team/${teamId}/roster`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setRoster(data.roster ?? []);
+      setStartingStats(data.startingStats ?? {});
+    },
+  );
 
   const removePlayer = async (playerId: number, name: string) => {
     const ok = await confirm({
@@ -402,6 +419,7 @@ export default function TeamManageClient({ teamId }: { teamId: number }) {
                       {r.pickNumber != null && (
                         <div className="text-[11px] text-text-muted font-mono">pick {r.pickNumber + 1}</div>
                       )}
+                      <StartingStatsLine status={startingStats[r.playerId]} lapsed={startingStatsPoll.lapsed} />
                     </div>
                     {/* Only where the board delegates management to the team — a clan running its
                         own side. On a drafted board this is the host's to do. */}

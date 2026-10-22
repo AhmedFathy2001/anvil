@@ -13,6 +13,7 @@ import { notifyDraftComplete } from '@/lib/discord';
 import { syncTeamDiscordOnDraftCompleteFireAndForget } from '@/lib/discord-teams';
 import { assertEventEditable } from '@/lib/eventLock';
 import { track } from '@/lib/analytics';
+import { captureStartingStatsSoon } from '@/lib/startingStats';
 
 export async function POST(
   request: Request,
@@ -214,6 +215,8 @@ export async function POST(
       pickedAt: now,
     })
     .where(and(inArray(eventParticipants.id, groupIds), eq(eventParticipants.eventId, eId), isNull(eventParticipants.teamId)));
+  // A pick made after the start (a late draft) takes the player's starting stats now.
+  captureStartingStatsSoon(eId, groupIds);
 
   // Check if pool is now empty → auto-complete draft
   const remainingPool = unpicked.length - groupIds.length;
