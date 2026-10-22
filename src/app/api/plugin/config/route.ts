@@ -937,7 +937,9 @@ export async function GET(request: Request) {
     trackedSkillNames,
     trackedActivityKeys,
     trackedDrops: dropTiles
-      .filter(t => t.trackedItemIds) // only tiles with item IDs configured
+      // Only tiles with items configured. A collection imported before 0143 can carry its items in
+      // itemRequirements alone, so fall back to those rather than silently dropping the tile.
+      .filter(t => t.trackedItemIds || t.itemRequirements)
       .map(t => {
         const itemReqs = t.itemRequirements
           ? JSON.parse(t.itemRequirements) as { itemId: number; name: string; requiredAmount: number; group?: string | null; groupRequire?: number | null }[]
@@ -949,7 +951,9 @@ export async function GET(request: Request) {
         const countedItems = distinct
           ? [...(tileItemTotals ?? new Map<number, number>())].filter(([, n]) => n > 0).map(([id]) => id)
           : null;
-        const trackedIds = JSON.parse(t.trackedItemIds || '[]') as number[];
+        const trackedIds = t.trackedItemIds
+          ? (JSON.parse(t.trackedItemIds) as number[])
+          : (itemReqs ?? []).map((r) => r.itemId);
 
         let acceptedSources: string[] | null = null;
         if (t.acceptedSources) {

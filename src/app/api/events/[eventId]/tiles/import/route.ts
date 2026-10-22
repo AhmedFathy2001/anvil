@@ -267,7 +267,10 @@ function deriveItemFields(
   return {
     tileType: 'drop',
     requiredAmount: collectionDisplayTotal(reqs, row.groupMode, row.groupMode === 'all' ? null : row.setsRequired),
-    trackedItemIds: null,
+    // The set's item ids as the flat pool too, as the single-tile PUT does. Everything that asks
+    // "which items does this tile track" (plugin config, search, balance, moments) reads this
+    // column, so a collection without it is invisible to the plugin and never auto-credits.
+    trackedItemIds: reqs.map((r) => r.itemId),
     itemRequirements: reqs,
     groupMode: row.groupMode === 'all' ? 'all' : null,
     // Counting sets only means something when they're alternatives ('any'); 'all' needs each once.
