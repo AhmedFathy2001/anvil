@@ -39,12 +39,12 @@ export default async function PeopleLayout({ children }: { children: React.React
     <div>
       <SectionHeader
         pages={[
-          { href: '/admin/people', exact: true, group: 'roster', title: 'Roster', blurb: 'Who is in the clan, and who is asking to join.' },
-          { href: '/admin/people/needs-review', group: 'roster', title: 'Needs review', blurb: 'Newcomers and ownership claims waiting on a yes or no.', badge: provisionalCount },
+          { href: '/admin/people', exact: true, title: 'Roster', blurb: 'Who is in the clan, and who is asking to join.' },
+          { href: '/admin/people/needs-review', title: 'Needs review', blurb: 'Newcomers and ownership claims waiting on a yes or no.', badge: provisionalCount },
           // Who can act for the clan. Admin-only: handing out authority is not roster work.
-          { href: '/admin/people/staff', group: 'staff', title: 'Staff & roles', blurb: 'Who helps run the clan, and what each of them can do.', show: isAdmin },
+          { href: '/admin/people/staff', title: 'Staff & roles', blurb: 'Who helps run the clan, and what each of them can do.', show: isAdmin },
           // Who may see the clan and how outsiders get in — here, next to the people it decides about.
-          { href: '/admin/people/access', group: 'staff', title: 'Who can join', blurb: 'Who may see the clan, and how players from other clans get in.', show: isAdmin },
+          { href: '/admin/people/access', title: 'Who can join', blurb: 'Who may see the clan, and how players from other clans get in.', show: isAdmin },
         ]}
       />
       {children}

@@ -8,8 +8,6 @@ export interface SectionPage {
   blurb: string;
   /** Matches the path exactly instead of as a prefix. */
   exact?: boolean;
-  /** Pages that share a tab strip. A page alone in its group gets a heading and no tabs. */
-  group: string;
   /** Short tab label, when the title is too long for a tab. */
   tab?: string;
   badge?: number;
@@ -17,9 +15,12 @@ export interface SectionPage {
 }
 
 /**
- * The heading for a section shared by several sidebar entries (People, Clan): it names the page you
- * are on, and shows tabs only for its siblings — the pages that really are one job. Each sidebar
- * entry used to land on one hub page whose tabs repeated the other sidebar entries.
+ * The heading for a hub (People, Clan): it names the page you are on, and tabs every page of the hub
+ * this viewer may open. A hub with one visible page gets the heading alone.
+ *
+ * Tabs used to be split by "group", showing only the current page's siblings — so from Roster nothing
+ * linked to Staff & roles or Who can join, and from Clan profile nothing linked to the Activity log.
+ * A page you cannot reach from its own hub is a page nobody finds.
  */
 export default function SectionHeader({ pages }: { pages: SectionPage[] }) {
   const pathname = useClanRelativePath();
@@ -28,7 +29,6 @@ export default function SectionHeader({ pages }: { pages: SectionPage[] }) {
   // The most specific match wins: /admin/people/staff over /admin/people.
   const here =
     [...visible].sort((a, b) => b.href.length - a.href.length).find(matches) ?? visible[0];
-  const siblings = visible.filter((p) => p.group === here.group);
 
   return (
     <>
@@ -36,10 +36,10 @@ export default function SectionHeader({ pages }: { pages: SectionPage[] }) {
         <h1 className="display display-lg text-4xl sm:text-[44px] font-semibold leading-tight">{here.title}</h1>
         <p className="text-text-muted mt-2 text-[15px]">{here.blurb}</p>
       </header>
-      {siblings.length > 1 && (
+      {visible.length > 1 && (
         <div className="relative -mx-1 mb-8">
           <nav className="flex items-center gap-1 border-b border-card-border overflow-x-auto overflow-y-hidden px-1">
-            {siblings.map((p) => {
+            {visible.map((p) => {
               const active = p === here;
               return (
                 <ClanLink

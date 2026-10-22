@@ -428,7 +428,7 @@ export default function SignupForm({
           <p className="text-sm text-text-muted">
             Your character is linked to Anvil, but this clan hasn’t added it. If you’re in the clan, ask an
             admin to add you (or to sync the member list from the plugin). If you’re from another clan, go
-            back to the event and ask to play as a guest.
+            back to the event and sign up as a guest from there.
           </p>
           <ClanLink
             href={`/events/${eventId}`}

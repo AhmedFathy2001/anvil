@@ -7,6 +7,7 @@ import Checkbox from '@/components/Checkbox';
 import Input from '@/components/Input';
 import type { ClanFocus } from '@/lib/clanHome';
 import ClanCrest from '@/components/ClanCrest';
+import ClanLink from '@/components/ClanLink';
 
 const FOCUS: { value: ClanFocus; label: string }[] = [
   { value: 'pvm', label: 'PvM' },
@@ -176,7 +177,7 @@ export default function ProfileClient({ clanName = 'Clan' }: { clanName?: string
             onChange={(v) => set('recruiting', v)}
             labelClassName="block text-[14px] font-medium"
             label="We're recruiting"
-            description={<span className="mt-0.5 block text-[13px] text-text-muted">Shows a recruiting call on your clan home. Who can actually apply follows your Access settings.</span>}
+            description={<span className="mt-0.5 block text-[13px] text-text-muted">Shows a recruiting call on your clan home. Who can actually apply is set on{' '}<ClanLink href="/admin/people/access" className="text-gold hover:text-gold-light underline underline-offset-2">Who can join</ClanLink>.</span>}
           />
           <Checkbox
             className="rounded-xl border border-card-border bg-card-bg p-3.5 transition-colors hover:border-gold/40"

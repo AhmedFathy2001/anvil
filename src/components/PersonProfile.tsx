@@ -74,8 +74,8 @@ export default function PersonProfile({
         <div>
           <h1 className="text-3xl font-bold text-gold">{displayName}</h1>
           <p className="text-sm text-text-muted">
-            Your account across Anvil — characters, sharing, webhooks and billing. Everything about a
-            clan&rsquo;s boards lives in that clan&rsquo;s locker, linked below.
+            Your account across Anvil — your characters and your clans. Everything about a clan&rsquo;s
+            boards lives on your profile in that clan, linked below.
           </p>
         </div>
       </div>
@@ -204,13 +204,20 @@ export default function PersonProfile({
             </details>
           </>
         )}
-        <LinkAccountsToggle linked={linked} sharedCount={characters.filter((c) => c.shared).length} />
+        {/* "These are the same player" is a statement about two characters, so it waits for a second. */}
+        {characters.length >= 2 && (
+          <LinkAccountsToggle linked={linked} sharedCount={characters.filter((c) => c.shared).length} />
+        )}
       </section>
 
       {/* Announcements & webhooks — where your drops, deaths and CAs post, and your own Discord
           webhooks. Person-level and cross-clan: it routes BETWEEN your clans, so it could never have
-          lived on one of them. Absent only until you have a character to route. */}
-      {emission && (
+          lived on one of them.
+
+          WAITS FOR A CHARACTER. `emission` exists for anyone with a player row, so a brand-new
+          account met routing, nine webhook categories and level-post rules before it had a single
+          thing that could post. And it starts folded: it is settings, not the page. */}
+      {emission && characters.length > 0 && (
         <section className="mt-10">
           <h2 className="mb-1 text-lg font-semibold">Announcements &amp; webhooks</h2>
           <p className="mb-3 max-w-[70ch] text-sm text-text-muted">
@@ -218,28 +225,32 @@ export default function PersonProfile({
             set once here, for all of them. (Bingo submissions are separate: those always reach the
             clan running the board.)
           </p>
-          <AnnouncementsDrawer initial={emission} defaultOpen />
+          <AnnouncementsDrawer initial={emission} />
         </section>
       )}
 
-      {/* Billing is a platform concern too — one account, one subscription, wherever you host. */}
-      <section className="mt-10">
-        <h2 className="mb-3 text-lg font-semibold">Billing &amp; plan</h2>
-        <ClanLink
-          href="/portal"
-          className="flex items-center justify-between gap-3 rounded-xl border border-card-border bg-card-bg p-4 transition-colors hover:border-gold/40"
-        >
-          <span>
-            <span className="block font-medium text-foreground">Manage billing &amp; your plan</span>
-            <span className="mt-0.5 block text-sm text-text-muted">
-              Your subscription, invoices and the tier each clan you host is on.
+      {/* Billing is a platform concern too — one account, one subscription, wherever you host. Only
+          for someone who owns a clan: subscriptions are per hosted clan (see /portal), and a player
+          never pays, so to everyone else this was a section about money that did not concern them. */}
+      {clans.some((c) => c.role === 'owner') && (
+        <section className="mt-10">
+          <h2 className="mb-3 text-lg font-semibold">Billing &amp; plan</h2>
+          <ClanLink
+            href="/portal"
+            className="flex items-center justify-between gap-3 rounded-xl border border-card-border bg-card-bg p-4 transition-colors hover:border-gold/40"
+          >
+            <span>
+              <span className="block font-medium text-foreground">Manage billing &amp; your plan</span>
+              <span className="mt-0.5 block text-sm text-text-muted">
+                Your subscription, invoices and the tier each clan you host is on.
+              </span>
             </span>
-          </span>
-          <span className="text-gold" aria-hidden>
-            →
-          </span>
-        </ClanLink>
-      </section>
+            <span className="text-gold" aria-hidden>
+              →
+            </span>
+          </ClanLink>
+        </section>
+      )}
     </div>
   );
 }

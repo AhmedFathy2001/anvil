@@ -68,10 +68,14 @@ export async function publicClanHomeView(clanId: number, discordInvite: string |
   const clan = await db.query.clans.findFirst({ where: eq(clans.id, clanId) });
   if (!clan) return null;
 
+  // MEMBER SEATS — the same count the Clan Hall card (lib/apexDirectory) and the members' own home
+  // (lib/homeView) show. This counted live rows whose ACCOUNT status was 'active', which is Jagex-side
+  // health, not membership: guests were counted, and every member the hiscores had not found yet was
+  // not — a clan was "10 members" on its Clan Hall card and "1 member" one click later.
   const [memberRow] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(clanRoster)
-    .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.status, 'active'), isNull(clanRoster.leftAt)));
+    .where(and(eq(clanRoster.clanId, clanId), eq(clanRoster.kind, 'member'), isNull(clanRoster.leftAt)));
 
   const [eventRow] = await db
     .select({ n: sql<number>`count(*)::int` })
