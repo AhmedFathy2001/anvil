@@ -26,6 +26,20 @@ const USER_AGENT = 'anvil-bingo ca dataset builder (contact: clan admin)';
 // tier into the bundle (the tile selectors and plugin matching key off these exact names).
 const TIERS = ['Easy', 'Medium', 'Hard', 'Elite', 'Master', 'Grandmaster'];
 
+// The task text is wikitext rendered to HTML, so an editor's {{sic}} or a citation turns up as a
+// <sup class="noprint">[sic]</sup> in the middle of a sentence. Drop those annotations whole, then
+// any other tag, and decode the few entities the wiki emits.
+function plainTaskText(html) {
+  return html
+    .replace(/<sup\b[^>]*>[\s\S]*?<\/sup>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 async function main() {
   console.log('Querying the wiki Bucket store for Combat Achievement tasks…');
   const res = await fetch(SOURCE_URL, { headers: { 'User-Agent': USER_AGENT } });
@@ -62,7 +76,7 @@ async function main() {
       monster: typeof r.monster === 'string' && r.monster !== 'None' ? r.monster : null,
       tier: TIERS[tierIdx],
       type: typeof r.type === 'string' ? r.type : null,
-      description: typeof r.task === 'string' ? r.task : null,
+      description: typeof r.task === 'string' ? plainTaskText(r.task) : null,
     });
   }
 

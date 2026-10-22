@@ -5,10 +5,15 @@ name: Refresh game data
 # Wiki that a `data:*` script regenerates; left alone, the totals go stale (a new CA release, say,
 # never appears until someone remembers to rebuild).
 #
-# It opens a PR rather than pushing straight to a branch that deploys. A wiki outage or a schema
+# Daily, because a release lands on a Wednesday and the wiki fills its pages in over the following
+# days — a weekly run left new content (The Fractured Archive) missing for up to a week.
+#
+# It opens a PR into beta rather than pushing straight to a branch that deploys. Never into main:
+# main only moves by scripts/promote.sh fast-forwarding it to what beta tested. A wiki outage or a schema
 # change on their side can produce a mangled catalogue, and the one thing worse than a stale total is
 # an empty one shipped automatically — so the diff gets a human glance (and the normal CI checks) on
-# the way in. Turn on auto-merge for the PR if you want it fully hands-off.
+# the way in. scripts/check-data-refresh.mjs runs first: it drops timestamp-only rewrites (else a PR
+# a day for nothing) and fails the run on a catalogue that shrank. Turn on auto-merge for the PR if you want it fully hands-off.
 #
 # Diaries are NOT here: they're a fixed set of regions/tiers in lib/constants (Jagex adds one every
 # few years), not a wiki fetch. Quests aren't here either — there is no quest catalogue yet; that
@@ -19,12 +24,13 @@ name: Refresh game data
 
 on:
   schedule:
-    - cron: '17 6 * * 1' # Mondays 06:17 UTC
+    - cron: '17 6 * * *' # daily 06:17 UTC
   workflow_dispatch: {}
 
 permissions:
   contents: write
   pull-requests: write
+  actions: write # dispatch CI on the PR branch (see below)
 
 jobs:
   refresh:
@@ -33,6 +39,8 @@ jobs:
       NEXT_TELEMETRY_DISABLED: 1
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: beta
 
       - uses: actions/setup-node@v4
         with:
@@ -49,6 +57,9 @@ jobs:
           npm run data:drops
           npm run data:slayer
 
+      - name: Drop timestamp-only changes, refuse shrunken catalogues
+        run: node scripts/check-data-refresh.mjs
+
       - name: Open a PR if anything changed
         env:
           GH_TOKEN: ${{ github.token }}
@@ -64,12 +75,17 @@ jobs:
           git config user.email "bot@anvilosrs.com"
           git checkout -B "$BRANCH"
           git add src/data
-          git commit -m "chore(data): weekly wiki catalogue refresh"
+          git commit -m "chore(data): wiki catalogue refresh"
           git push -f origin "$BRANCH"
 
-          # Create the PR, or (if one is already open on this branch) just leave the new commit on it.
-          gh pr create --base main --head "$BRANCH" \
-            --title "chore(data): refresh CA / clog / drops / slayer catalogues" \
-            --body "Automated weekly refresh of the wiki-sourced datasets. **Review the diff** — a malformed or partial wiki fetch shows up as a large deletion or a collapsed \`taskCount\`. CI (typecheck/lint/build) runs on this PR as usual." \
-            --label data --label automated \
-            || echo "A PR for $BRANCH already exists; the new commit was pushed to it."
+          # One standing PR: a later run force-pushes onto it. A failed create is a real failure —
+          # it used to be swallowed by `|| echo`, and every weekly run since went nowhere.
+          if [ -z "$(gh pr list --head "$BRANCH" --base beta --state open --json number --jq '.[].number')" ]; then
+            gh pr create --base beta --head "$BRANCH" \
+              --title "chore(data): refresh CA / clog / drops / slayer catalogues" \
+              --body "Automated wiki refresh of the wiki-sourced datasets (timestamp-only rewrites dropped, shrunken catalogues refused). **Review the diff** before merging."
+          fi
+
+          # A PR opened with the workflow token triggers no pull_request workflows, so run the
+          # checks by hand. They report on the head commit, which is what the PR shows.
+          gh workflow run ci.yml --ref "$BRANCH"
