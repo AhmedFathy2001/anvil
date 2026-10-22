@@ -1360,7 +1360,7 @@ const sv: PartialGuideDict = {
         boss: { label: 'Boss-KC', blurb: 'Blir klar automatiskt när en boss når ett killcount-mål (hämtat från hiscores).' },
         drop: { label: 'Drop', blurb: 'N drops av ett föremål (eller vilket som helst ur en pool) — upptäckt av pluginet, med inbakad skärmbild.' },
         collection: { label: 'Föremålsset', blurb: 'Flera föremål, vart och ett med sitt eget krav — ett av varje för ett komplett set.' },
-        kill: { label: 'Killcount', blurb: 'N kills av en NPC — även sådana som aldrig stått på hiscores (höns, kor). Upptäckt av pluginet.' },
+        kill: { label: 'Kills', blurb: 'N kills av vilken boss eller vilket monster som helst. Räknas från hiscores när varje monster på rutan finns där, annars av pluginet medan du spelar (höns, kor, Slayer-monster).' },
         lap: { label: 'Agility-varv', blurb: 'N varv på en agility-bana, eller N våningar / hela rundor i Hallowed Sepulchre — räknade live från spelets räknare. Bara varv som körs under eventet räknas.' },
         pvp: { label: 'PvP-kill', blurb: 'Döda spelare — vem som helst, rivaliserande lag, eller ett namngivet mål — i Wilderness eller på PvP-världar. Säkra minispel räknas aldrig.' },
         gain: { label: 'Föremålsvinst', blurb: 'Fånga, laga eller samla N av ett föremål — räknat från det som hamnar i inventoryt. Upptäckt av pluginet.' },
@@ -1383,8 +1383,8 @@ const sv: PartialGuideDict = {
         'De flesta rutor som beter sig illa är rätt idé uttryckt som fel sort. De fyra som fångar folk:',
       rows: [
         {
-          term: 'Ett boss-KC-mål',
-          body: 'är **inte** en kill-ruta. Kill-rutor bevakar NPC-dödsfall via pluginet; ett KC-mål är ett hiscores-tal och behöver `trackedStat` + `statType=boss` + `statGoal`. Använd en kill-ruta för sådant Hiscores aldrig räknat — kor, höns, en specifik slayer-mob.',
+          term: 'En bosslista plus ett monster utanför hiscores',
+          body: 'är en plugin-ruta för **allt**. En Kills-ruta räknas bara från hiscores när varje monster på den finns där; lägg till en höna till fyra GWD-bossar så behöver hela rutan pluginet. Spelar en del av klanen utan, ge hiscores-bossarna en egen ruta.',
         },
         {
           term: 'En plats i collection log',

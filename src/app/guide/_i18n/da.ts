@@ -1366,7 +1366,7 @@ const da: PartialGuideDict = {
         boss: { label: 'Boss-KC', blurb: 'Bliver færdigt automatisk, når en boss når et killcount-mål (hentet fra hiscores).' },
         drop: { label: 'Drop', blurb: 'N drops af et item (eller hvilket som helst fra en pulje) — registreret af pluginnet, med indbagt screenshot.' },
         collection: { label: 'Itemsæt', blurb: 'Flere items, hver med sit eget krævede antal — 1× af hver til et fuldt sæt.' },
-        kill: { label: 'Killcount', blurb: 'N kills af en NPC — også dem der aldrig stod på hiscores (høns, køer). Registreret af pluginnet.' },
+        kill: { label: 'Kills', blurb: 'N kills af en hvilken som helst boss eller monster. Talt fra hiscores, når hvert monster på feltet står der, ellers af pluginnet mens du spiller (høns, køer, Slayer-monstre).' },
         lap: { label: 'Agility-omgange', blurb: 'N omgange på en agility-bane, eller N etager / hele runs i Hallowed Sepulchre — talt live fra tælleren i spillet. Kun omgange løbet under eventet tæller.' },
         pvp: { label: 'PvP-kill', blurb: 'Dræb spillere — hvem som helst, rivaliserende hold, eller en navngiven dusør — i Wilderness eller på PvP-verdener. Sikre minigames tæller aldrig.' },
         gain: { label: 'Item-gevinst', blurb: 'Fang, tilbered eller saml N af et item — talt fra det, der lander i inventory. Registreret af pluginnet.' },
@@ -1389,8 +1389,8 @@ const da: PartialGuideDict = {
         'De fleste felter, der opfører sig dårligt, er den rigtige idé udtrykt som den forkerte type. De fire, der fanger folk:',
       rows: [
         {
-          term: 'Et boss-KC-mål',
-          body: 'er **ikke** et kill-felt. Kill-felter holder øje med NPC-dødsfald gennem pluginnet; et KC-mål er et hiscores-tal og skal bruge `trackedStat` + `statType=boss` + `statGoal`. Brug et kill-felt til det, Hiscores aldrig har talt — køer, høns, en bestemt slayer-mob.',
+          term: 'En boss-liste plus ét monster uden for hiscores',
+          body: 'er et plugin-felt for **det hele**. Et Kills-felt tælles kun fra hiscores, når hvert monster på det står der; læg en høne til fire GWD-bosser, og hele feltet kræver pluginnet. Spiller en del af klanen uden, så giv hiscores-bosserne deres eget felt.',
         },
         {
           term: 'En collection log-plads',

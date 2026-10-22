@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { killSourceOf } from '@/lib/killSource';
 import { eventForRequest } from '@/lib/eventScope';
 import { db } from '@/db';
 import { tiles, events } from '@/db/schema';
@@ -479,6 +480,19 @@ export async function PUT(
   // Prevents nonsense like a 10M-XP goal on a drop tile (stat tracking + drop tracking
   // on the same row), which downstream submission/cron logic would otherwise fight over.
   const merged = { ...tile, ...updateSet } as typeof tile;
+  // A kills tile's counting engine (hiscores boss-stat vs plugin kill — lib/killSource) is frozen once
+  // the event has started, live override or not: converting it mid-event would change how a running
+  // board scores. The editor never sends one; this is the guard for anything else that might.
+  if (eventStarted) {
+    const sourceBefore = killSourceOf(tile);
+    const sourceAfter = killSourceOf(merged);
+    if (sourceBefore && sourceAfter && sourceBefore !== sourceAfter) {
+      return NextResponse.json(
+        { error: 'This tile’s kills are counted from the ' + (sourceBefore === 'hiscores' ? 'hiscores' : 'plugin') + ', and that can’t change once the event has started.' },
+        { status: 400 },
+      );
+    }
+  }
   const parseLen = (v: unknown): number => {
     if (typeof v !== 'string' || !v) return 0;
     try {

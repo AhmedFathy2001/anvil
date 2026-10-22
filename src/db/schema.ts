@@ -757,6 +757,13 @@ export const tiles = pgTable('tiles', {
   // worth at least this much — so a positive floor cannot credit loot-key / no-loot kills. A gp
   // value (not seconds) so it needs its own column rather than reusing timeThresholdSeconds.
   pvpMinLootValue: integer('pvp_min_loot_value'),
+  // KILL tiles (tile_type='kill'): how kill progress posts to Discord. 'milestones' = at 25/50/75% and
+  // on completion (goals of 4 or less: completion only) — lib/killSource.killMilestoneToPost.
+  // NULL = the legacy every-window progress post. The migration that added this (0141) left every
+  // EXISTING row NULL and only then set the default, so tiles on boards that were already running keep
+  // posting exactly as before, while every tile created afterwards — by any write path — gets
+  // milestones. Never backfill it: that would change posting on events already under way.
+  killPosts: text('kill_posts').default('milestones'),
   // Free-text grouping label (e.g. "Zulrah", "Slayer", "Skilling", "GWD") used to
   // filter tasks by boss/skill/category in the RuneLite plugin's collection-log tab.
   // NULL = uncategorised.

@@ -4,6 +4,7 @@
 import type { MappingItem } from '@/lib/osrsItems';
 import type { TileCsvRow } from '@/lib/csvTiles';
 import type { TileConfig } from '@/lib/types';
+import { applyKillTypeAlias, resolveKillsRow } from '@/lib/killSource';
 
 /**
  * A leading amount in the query: "100 zulrah", "5m fishing", "2.5k slayer". Returns the number and
@@ -18,7 +19,11 @@ export function splitAmount(query: string): { amount: number | null; rest: strin
 }
 
 /** A library row as editor fields. Item names resolve to ids here, the same way the importer does. */
-export function rowToTileConfig(row: TileCsvRow, byName: Map<string, MappingItem>): Partial<TileConfig> | null {
+export function rowToTileConfig(input: TileCsvRow, byName: Map<string, MappingItem>): Partial<TileConfig> | null {
+  // A "kills" row (or a "boss"/"kill count" alias) becomes the stored shape the importer would make.
+  const resolved = resolveKillsRow(applyKillTypeAlias({ ...input }));
+  if (!resolved.ok) return null;
+  const row = resolved.row;
   const cfg: Partial<TileConfig> = {
     tileType: !row.tileType || (row.tileType as string) === 'stat' ? 'standard' : row.tileType,
     requiredAmount: row.requiredAmount ?? null,

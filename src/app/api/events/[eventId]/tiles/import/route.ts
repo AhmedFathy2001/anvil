@@ -13,6 +13,7 @@ import { serializeTileMissionRules, type MissionRules } from '@/lib/eventRules';
 import { collectionDisplayTotal } from '@/lib/collectionSets';
 import { isRaidEffortMode, parseTileEffortConfig, type TileEffortConfig } from '@/lib/tileEffortConfig';
 import { track } from '@/lib/analytics';
+import { applyKillTypeAlias, killSourceOf, resolveKillsRow } from '@/lib/killSource';
 
 // Bulk tile import — maps CSV/JSON rows onto an event's tiles by position (row order).
 // Built for Leagues-style boards where configuring hundreds of tiles one at a time is
@@ -93,7 +94,7 @@ const MAX_TILES = 1000;
 
 // Every tile kind the board supports. Anything else in a `type` cell is a typo — reject it
 // loudly rather than storing a junk type the trackers would never match.
-const VALID_TILE_TYPES = new Set(['standard', 'drop', 'kill', 'lap', 'pvp', 'gain', 'timed', 'deathless', 'diary', 'ca', 'lms', 'value', 'valuetotal']);
+const VALID_TILE_TYPES = new Set(['standard', 'drop', 'kill', 'kills', 'lap', 'pvp', 'gain', 'timed', 'deathless', 'diary', 'ca', 'lms', 'value', 'valuetotal']);
 
 // Structural subset of a tile row that the kind cross-validation reads. A full tile row is
 // assignable to this; new (to-be-created) tiles use the blank template below.
@@ -556,6 +557,9 @@ export async function POST(
   for (const r of rows) {
     if (r && typeof r === 'object' && typeof (r as ImportRow).tileType === 'string') {
       (r as ImportRow).tileType = (r as ImportRow).tileType!.trim().toLowerCase();
+      // Legacy/alternative kills names ("boss", "kill count") → their stored shape; "kills" is
+      // resolved per row below, once we know whether its target tile's source is frozen.
+      applyKillTypeAlias(r as ImportRow);
       // The task-library seed once wrote XP tasks as type "stat"; clans copied those rows into their
       // own library, and every draw that included one failed here as an unknown type. An XP tile is a
       // standard tile with a statType.
@@ -628,6 +632,17 @@ export async function POST(
         { status: 400 },
       );
     }
+  }
+
+  // "kills" rows → a hiscores boss tile or a plugin kill tile (lib/killSource). An existing tile on a
+  // started event keeps the source it has: the row must fit it, and never converts it.
+  for (let i = 0; i < processed; i++) {
+    const row = rows[i] as ImportRow;
+    if (!row || typeof row !== 'object' || row.tileType !== 'kills') continue;
+    const frozen = eventStarted && i < updates ? killSourceOf(targets[i]) : null;
+    const resolved = resolveKillsRow(row, frozen);
+    if (!resolved.ok) return NextResponse.json({ error: `Row ${i + 1}: ${resolved.error}` }, { status: 400 });
+    (rows as unknown[])[i] = resolved.row;
   }
 
   // Drop fields each processed row's `items` resolve to (null when no items / event started).

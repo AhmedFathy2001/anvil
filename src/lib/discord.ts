@@ -753,6 +753,8 @@ interface MergedSubmissionParams {
   note: string | null;
   imageUrl: string | null;
   completed: boolean;
+  /** Kill-milestone post (25/50/75) — said in the description instead of "made progress". */
+  milestonePct?: number | null;
   eventId?: number | null;
   tile?: LinkedTile | null;
 }
@@ -787,7 +789,9 @@ export async function notifyMergedSubmission(params: MergedSubmissionParams): Pr
     title: submissionTitle(tileType, tileLabel, completed),
     description: completed
       ? `${who} finished it for **${teamName}**.`
-      : `${who} made progress for **${teamName}**.`,
+      : params.milestonePct
+        ? `**${teamName}** is ${params.milestonePct}% of the way there.`
+        : `${who} made progress for **${teamName}**.`,
     color: teamColorToDecimal(teamColor),
     fields,
   };

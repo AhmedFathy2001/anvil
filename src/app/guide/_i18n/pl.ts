@@ -1342,7 +1342,7 @@ const pl: PartialGuideDict = {
         boss: { label: 'KC bossa', blurb: 'Kończy się samo, gdy boss osiągnie cel killcountu (odczyt z hiscores).' },
         drop: { label: 'Drop', blurb: 'N dropów przedmiotu (albo dowolnego z puli) —— wykrywane przez plugin, z wypalonym zrzutem.' },
         collection: { label: 'Zestaw przedmiotów', blurb: 'Kilka przedmiotów, każdy z własną wymaganą liczbą —— po 1× z każdego na pełny zestaw.' },
-        kill: { label: 'Killcount', blurb: 'N zabójstw NPC —— także tych spoza hiscores (kury, krowy). Wykrywane przez plugin.' },
+        kill: { label: 'Kills', blurb: 'N zabójstw dowolnego bossa lub potwora. Liczone z hiscores, gdy każdy potwór na polu tam jest, w przeciwnym razie przez plugin podczas gry (kury, krowy, potwory Slayera).' },
         lap: { label: 'Okrążenia agility', blurb: 'N okrążeń toru agility albo N pięter / pełnych przebiegów Hallowed Sepulchre —— liczone na żywo z licznika w grze. Liczą się tylko okrążenia zrobione w trakcie wydarzenia.' },
         pvp: { label: 'Kill PvP', blurb: 'Zabijaj graczy —— kogokolwiek, rywalizujące drużyny albo wskazany cel —— na Wildzie lub światach PvP. Bezpieczne minigry nigdy się nie liczą.' },
         gain: { label: 'Zdobyte przedmioty', blurb: 'Złów/ugotuj/zbierz N sztuk przedmiotu —— liczone z przyrostów w ekwipunku. Wykrywane przez plugin.' },
@@ -1365,8 +1365,8 @@ const pl: PartialGuideDict = {
         'Prawie każde źle zachowujące się pole to dobry pomysł wyrażony w złym rodzaju. Cztery, które łapią ludzi:',
       rows: [
         {
-          term: 'Cel na KC bossa',
-          body: '**nie** jest polem kill. Pola kill patrzą na śmierci NPC przez plugin; cel KC to liczba z hiscores i wymaga `trackedStat` + `statType=boss` + `statGoal`. Pola kill używaj do rzeczy, których Hiscores nigdy nie liczyły —— krowy, kury, konkretny mob ze slayera.',
+          term: 'Lista bossów plus jeden potwór spoza hiscores',
+          body: 'to w **całości** pole pluginu. Pole Kills liczy się z hiscores tylko wtedy, gdy każdy potwór na nim tam jest; dodaj kurę do czterech bossów GWD, a całe pole wymaga pluginu. Jeśli część klanu gra bez niego, daj bossom z hiscores osobne pole.',
         },
         {
           term: 'Slot w Collection Logu',

@@ -1361,7 +1361,7 @@ const de: PartialGuideDict = {
         boss: { label: 'Boss-KC', blurb: 'Wird automatisch fertig, wenn ein Boss ein Killcount-Ziel erreicht (aus den Hiscores gelesen).' },
         drop: { label: 'Drop', blurb: 'N Drops eines Gegenstands (oder irgendeines aus einem Pool) — vom Plugin erkannt, mit eingebackenem Screenshot.' },
         collection: { label: 'Gegenstandssatz', blurb: 'Mehrere Gegenstände, jeder mit eigener geforderter Anzahl — je einer für einen vollen Satz.' },
-        kill: { label: 'Killcount', blurb: 'N Kills eines NPCs — auch solcher, die nie in den Hiscores standen (Hühner, Kühe). Vom Plugin erkannt.' },
+        kill: { label: 'Kills', blurb: 'N Kills beliebiger Bosse oder Monster. Aus den Hiscores gezählt, wenn jedes Monster auf dem Feld dort steht, sonst vom Plugin beim Spielen (Hühner, Kühe, Slayer-Mobs).' },
         lap: { label: 'Agility-Runden', blurb: 'N Runden auf einem Agility-Kurs, oder N Stockwerke / komplette Durchläufe im Hallowed Sepulchre — live am Spielzähler mitgezählt. Nur Runden während des Events zählen.' },
         pvp: { label: 'PvP-Kill', blurb: 'Töte Spieler — irgendwen, gegnerische Teams, oder ein benanntes Kopfgeld — in der Wilderness oder auf PvP-Welten. Sichere Minispiele zählen nie.' },
         gain: { label: 'Gegenstandsgewinn', blurb: 'Fange, koche oder sammle N eines Gegenstands — gezählt an dem, was ins Inventar wandert. Vom Plugin erkannt.' },
@@ -1384,8 +1384,8 @@ const de: PartialGuideDict = {
         'Die meisten Felder, die sich schlecht benehmen, sind die richtige Idee in der falschen Art ausgedrückt. Die vier, über die Leute stolpern:',
       rows: [
         {
-          term: 'Ein Boss-KC-Ziel',
-          body: 'ist **kein** Kill-Feld. Kill-Felder beobachten NPC-Tode über das Plugin; ein KC-Ziel ist eine Hiscores-Zahl und braucht `trackedStat` + `statType=boss` + `statGoal`. Nimm ein Kill-Feld für das, was die Hiscores nie gezählt haben — Kühe, Hühner, einen bestimmten Slayer-Mob.',
+          term: 'Eine Boss-Liste plus ein Monster außerhalb der Hiscores',
+          body: 'ist **komplett** ein Plugin-Feld. Ein Kills-Feld wird nur dann aus den Hiscores gezählt, wenn jedes Monster darauf dort steht; nimm zu vier GWD-Bossen ein Huhn dazu, und das ganze Feld braucht das Plugin. Wenn ein Teil eures Clans ohne spielt, gib den Hiscores-Bossen ein eigenes Feld.',
         },
         {
           term: 'Ein Collection-Log-Platz',

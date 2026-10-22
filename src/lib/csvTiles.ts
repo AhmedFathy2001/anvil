@@ -6,7 +6,13 @@
 // Columns:
 //   label               tile name (required for a meaningful tile; blank → auto "Tile N")
 //   description         free-text shown on the tile
-//   type                "standard" | "drop" | "kill" | "lap" | "pvp" | "gain" | "timed" | "deathless" | "lms" | "value" | "valuetotal" | "diary" | "ca"  (stat tiles use trackedStat/statType instead)
+//   type                "standard" | "drop" | "kills" | "kill" | "lap" | "pvp" | "gain" | "timed" | "deathless" | "lms" | "value" | "valuetotal" | "diary" | "ca"  (skill tiles use trackedStat/statType instead)
+//                       "kills" = N kills of the monsters in targetNpcs (and/or trackedStat), amount in
+//                       requiredAmount (or statGoal): saved as a hiscores boss tile when every monster is
+//                       on the hiscores, else as a plugin kill tile (lib/killSource). The explicit
+//                       shapes still import as they always did — "kill" (plugin) and "standard" +
+//                       statType=boss (hiscores); "boss"/"boss kc" and "kill count" are accepted as
+//                       those. Exports write the explicit shapes, so a sheet round-trips 1:1.
 //   points              integer reward weight (Leagues scoring)
 //   skillRating         balance audit only — execution difficulty from 0 (routine) to 5 (elite)
 //   expectedEffortHours balance audit only — person-hours including setup and failed attempts;
@@ -112,6 +118,7 @@ import { missionClaimCap, parseTileMissionRules, type MissionRules } from '@/lib
 import { parseGpInput } from '@/lib/adminEventsFormat';
 import { SKILLS, SKILL_LABELS, BOSSES, canonicalAgilityCourse } from '@/lib/constants';
 import { HISCORES_ACTIVITIES } from '@/lib/hiscoresActivities';
+import { applyKillTypeAlias } from '@/lib/killSource';
 import {
   RAID_EFFORT_MODES,
   isRaidEffortMode,
@@ -481,6 +488,10 @@ export function parseTileGrid(grid: string[][]): ParsedTileCsv {
       row.trackedStat = resolved ? resolved.key : rawStat || null;
       if (resolved && !row.statType) row.statType = resolved.type;
     }
+    // "boss" / "kill count" and friends → the stored shape they mean. After statType is read, so an
+    // alias's implied statType isn't overwritten by a blank cell. "kills" stays for resolveKillsRow,
+    // which needs to know whether the target tile's source is frozen.
+    if (row.tileType !== undefined) applyKillTypeAlias(row);
     if (col.statGoal >= 0) row.statGoal = toNumberLoose(get(cells, col.statGoal));
     // Anything but the explicit opt-in is a gain tile, so a stray value can't silently re-interpret
     // a board's scoring on import.

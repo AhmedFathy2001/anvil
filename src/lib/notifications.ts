@@ -2,6 +2,7 @@ import { db } from '@/db';
 import { pendingNotifications, tiles, teams, events } from '@/db/schema';
 import { eq, and, or, lte, sql } from 'drizzle-orm';
 import { notifyMergedSubmission } from '@/lib/discord';
+import { killMilestoneToPost, usesKillMilestones } from '@/lib/killSource';
 
 // Server-side debounce for bingo submission notifications. Each submission upserts a per-(tile,team)
 // bucket instead of posting to Discord immediately; a flush collapses everything accrued into ONE
@@ -114,8 +115,22 @@ async function flushBucket(tileId: number, teamId: number): Promise<boolean> {
   // Throttle grindy progress chatter to milestone crossings; a completing submission always posts.
   // The bucket is already claimed (deleted) above, so a suppressed window just skips the Discord
   // post — the underlying submissions stay recorded and the running total keeps advancing.
-  if (row.completed !== 1 && !crossesMilestone(row.pendingAmount, row.latestTotal, row.requiredAmount)) {
-    return false;
+  //
+  // Plugin kill tiles created since tiles.kill_posts existed post only at 25/50/75% (and completion):
+  // a boss killed once a minute otherwise posts once a minute. Older tiles (kill_posts NULL) keep the
+  // throttle they always had, so boards already running post exactly as before.
+  let milestonePct: number | null = null;
+  if (row.completed !== 1) {
+    if (usesKillMilestones(tile)) {
+      milestonePct = killMilestoneToPost(
+        row.latestTotal != null ? row.latestTotal - row.pendingAmount : null,
+        row.latestTotal,
+        row.requiredAmount,
+      );
+      if (milestonePct == null) return false;
+    } else if (!crossesMilestone(row.pendingAmount, row.latestTotal, row.requiredAmount)) {
+      return false;
+    }
   }
 
   await notifyMergedSubmission({
@@ -133,6 +148,7 @@ async function flushBucket(tileId: number, teamId: number): Promise<boolean> {
     note: row.latestNote,
     imageUrl: row.latestImageUrl,
     completed: row.completed === 1,
+    milestonePct,
     eventId: event.id,
     tile,
   }).catch(() => {});

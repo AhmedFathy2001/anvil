@@ -1361,7 +1361,7 @@ const es: PartialGuideDict = {
         boss: { label: 'KC de jefe', blurb: 'Se completa sola cuando un jefe alcanza un objetivo de kills (leído de los hiscores).' },
         drop: { label: 'Drop', blurb: 'N drops de un objeto (o de cualquiera de un conjunto) — detectado por el plugin, con captura incrustada.' },
         collection: { label: 'Conjunto de objetos', blurb: 'Varios objetos, cada uno con su propia cantidad requerida — uno de cada para un conjunto completo.' },
-        kill: { label: 'Contador de kills', blurb: 'N kills de un PNJ — incluso de los que los hiscores nunca contaron (gallinas, vacas). Detectado por el plugin.' },
+        kill: { label: 'Kills', blurb: 'N kills de cualquier jefe o monstruo. Se cuenta desde los hiscores cuando todos los monstruos de la casilla están en ellos; si no, lo cuenta el plugin mientras juegas (gallinas, vacas, monstruos de Slayer).' },
         lap: { label: 'Vueltas de agility', blurb: 'N vueltas en un circuito de agility, o N plantas / recorridos completos del Hallowed Sepulchre — contadas en vivo desde el contador del juego. Solo cuentan las vueltas hechas durante el evento.' },
         pvp: { label: 'Kill de PvP', blurb: 'Mata jugadores — a cualquiera, a equipos rivales, o a un objetivo con nombre — en el Wilderness o en mundos PvP. Los minijuegos seguros nunca cuentan.' },
         gain: { label: 'Ganancia de objeto', blurb: 'Pesca, cocina o recolecta N de un objeto — contado por lo que entra en el inventario. Detectado por el plugin.' },
@@ -1384,8 +1384,8 @@ const es: PartialGuideDict = {
         'La mayoría de las casillas que se portan mal son la idea correcta expresada con el tipo equivocado. Las cuatro que pillan a la gente:',
       rows: [
         {
-          term: 'Un objetivo de KC de jefe',
-          body: '**no** es una casilla kill. Las casillas kill vigilan muertes de PNJ mediante el plugin; un objetivo de KC es una cifra de los hiscores y necesita `trackedStat` + `statType=boss` + `statGoal`. Usa una casilla kill para lo que los Hiscores nunca contaron — vacas, gallinas, un mob de slayer concreto.',
+          term: 'Una lista de jefes más un monstruo fuera de los hiscores',
+          body: 'es una casilla del plugin para **todo**. Una casilla Kills solo se cuenta desde los hiscores si todos sus monstruos están en ellos; añade una gallina a cuatro jefes de GWD y toda la casilla necesita el plugin. Si parte del clan juega sin él, deja los jefes de los hiscores en su propia casilla.',
         },
         {
           term: 'Una ranura del collection log',
