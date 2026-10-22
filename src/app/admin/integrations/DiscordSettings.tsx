@@ -76,9 +76,8 @@ export default function DiscordSettings({
         </p>
       ) : (
         <section className="border border-card-border rounded-xl p-5 bg-card-bg space-y-4">
-          <p className="text-sm">
-            <span className="text-text-muted">Not connected yet.</span> Add the bot to your server first. It sets up
-            channels and posts for you.
+          <p className="text-sm text-text-muted">
+            Once your server is connected, Anvil sets up the channels and posts for you.
           </p>
           <DiscordBotSettings />
         </section>

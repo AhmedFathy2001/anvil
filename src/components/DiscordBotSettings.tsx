@@ -167,6 +167,9 @@ export default function DiscordBotSettings() {
   const ready = status.configured && !badTokenSet && status.guildVerified && status.inGuild === true;
   // The managed Anvil bot ('own-env' is the same bot from the clan's side — see SOURCE_LABEL).
   const managed = status.source === 'shared' || status.source === 'own-env';
+  // With one-click connect there is a button for the whole job, so the by-hand server ID is a
+  // fallback behind a fold rather than a second set of instructions under the first.
+  const oneClick = managed && status.oauthConnect;
   const inviteButton = status.inviteUrl && (
     <a
       href={status.inviteUrl}
@@ -177,22 +180,63 @@ export default function DiscordBotSettings() {
       Add the bot to your server ↗
     </a>
   );
+  // Re-running the invite repairs permissions or adds the bot to a second server. For the shared bot
+  // it sits in the status box; for your own bot it lives with the token, in the advanced fold.
+  const reinvite = status.inviteUrl && !needsInvite && (
+    <p className="text-xs text-text-muted mt-2">
+      <a href={status.inviteUrl} target="_blank" rel="noopener noreferrer" className="text-gold hover:underline">
+        Invite / re-invite the bot ↗
+      </a>{' '}
+      — re-running this also repairs missing permissions.
+      {!managed && ' Your own bot needs “Public Bot” enabled in its Discord app for this link to work.'}
+    </p>
+  );
+  // ONE state line. It used to read "Using the shared Anvil bot — connected as Anvil" under a "Not
+  // connected yet" heading: both true (the bot account is signed in, the clan's server is not linked),
+  // and together they read as a contradiction. The managed bot is never the thing that is missing.
+  const stateLine = ready ? (
+    <>
+      <span className="text-green-400">✓ {managed ? 'Connected' : SOURCE_LABEL[status.source]}</span>
+      {status.guildName && (
+        <span className="text-text-muted"> to <span className="text-foreground/80">{status.guildName}</span></span>
+      )}
+      {!managed && status.botUser && (
+        <span className="text-text-muted"> as <span className="text-foreground/80">{status.botUser}</span></span>
+      )}
+    </>
+  ) : managed && !badTokenSet ? (
+    <span className="text-yellow-400">• Anvil’s bot is ready — connect your Discord server</span>
+  ) : (
+    <>
+      <span className="text-yellow-400">• {SOURCE_LABEL[status.source]}</span>
+      {status.configured && status.botUser && (
+        <span className="text-text-muted"> — signed in as <span className="text-foreground/80">{status.botUser}</span></span>
+      )}
+    </>
+  );
+
+  const serverIdField = (
+    <div>
+      <label className="block text-sm font-medium mb-1">Your Discord server&apos;s ID</label>
+      <Input
+        value={guildId}
+        onChange={(e) => setGuildId(e.target.value)}
+        placeholder="e.g. 123456789012345678"
+        className="w-full px-3 py-2 rounded-lg bg-brown-dark border border-card-border text-sm focus:outline-none focus:border-gold/60"
+      />
+      <p className="text-xs text-text-muted mt-1">
+        A long number. In Discord: User Settings → Advanced → Developer Mode on, then right-click your server&apos;s
+        icon → Copy Server ID. The bot must already be in the server, and the Discord account you signed in to
+        Anvil with must own it or have Manage Server.
+      </p>
+    </div>
+  );
 
   return (
     <div className="space-y-4">
-      {/* Effective source + whether the bot is actually in this clan's server */}
+      {/* Where this clan stands, in one line, plus whatever is still to do */}
       <div className="rounded-lg border border-card-border bg-bg/40 p-3">
-        <p className="text-sm">
-          <span className={ready ? 'text-green-400' : 'text-yellow-400'}>
-            {ready ? '✓' : '•'} {SOURCE_LABEL[status.source]}
-          </span>
-          {status.configured && status.botUser && (
-            <span className="text-text-muted"> — connected as <span className="text-foreground/80">{status.botUser}</span></span>
-          )}
-          {ready && status.guildName && (
-            <span className="text-text-muted"> in <span className="text-foreground/80">{status.guildName}</span></span>
-          )}
-        </p>
+        <p className="text-sm">{stateLine}</p>
         {badTokenSet && (
           <p className="text-xs text-yellow-400 mt-1">
             The current bot token was rejected by Discord — replace it below or clear it.
@@ -208,7 +252,7 @@ export default function DiscordBotSettings() {
             {inviteButton}
           </div>
         )}
-        {needsGuildId && (
+        {needsGuildId && !managed && (
           <p className="text-xs text-yellow-400 mt-1">
             Add your Discord server ID below so Anvil knows which server to work in.
           </p>
@@ -231,10 +275,9 @@ export default function DiscordBotSettings() {
             Couldn&apos;t reach Discord to check whether the bot is in your server — retry in a moment.
           </p>
         )}
-        {status.source === 'shared' && !needsInvite && (
+        {managed && ready && (
           <p className="text-xs text-text-muted mt-1">
-            Managed for you — you only need to keep the Anvil bot in your server. Paste your own token below to use
-            a different bot instead.
+            Managed for you — you only need to keep the Anvil bot in your server.
           </p>
         )}
         {status.source === 'none' && (
@@ -243,30 +286,14 @@ export default function DiscordBotSettings() {
             below{status.sharedAvailable ? ', or nothing — the shared Anvil bot will be used' : ''}.
           </p>
         )}
-        {/* Always reachable once we know which bot it is: re-invite to fix permissions, or add it
-            to a second server after changing the server ID. */}
-        {status.inviteUrl && !needsInvite && (
-          <p className="text-xs text-text-muted mt-2">
-            <a
-              href={status.inviteUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-gold hover:underline"
-            >
-              Invite / re-invite the bot ↗
-            </a>{' '}
-            — re-running this also repairs missing permissions.
-            {status.source !== 'shared' && ' Your own bot needs “Public Bot” enabled in its Discord app for this link to work.'}
-          </p>
-        )}
+        {managed && ready && reinvite}
       </div>
 
-      {/* With the shared bot available, getting set up is two steps — add it, name the server — and
-          the bring-your-own-bot token is an advanced option. It used to sit first on the page, so a
-          new admin's first question was "where do I get a bot token?", which they never needed. */}
-      {managed && !ready && status.oauthConnect && (
+      {/* With the shared bot available, getting set up is one button — or, without one-click connect,
+          two steps. The bring-your-own-bot token is an advanced option: it used to sit first on the
+          page, so a new admin's first question was "where do I get a bot token?", which they never needed. */}
+      {oneClick && !ready && (
         <div className="rounded-lg border border-gold/30 bg-gold/[0.05] p-3 space-y-2">
-          <p className="text-sm font-medium">Connect your Discord server</p>
           <p className="text-xs text-text-muted leading-relaxed">
             Discord asks which server to add Anvil to, then sends you back here, connected. You need to own the
             server or have Manage Server, and to approve with the Discord account you use for Anvil.
@@ -278,7 +305,6 @@ export default function DiscordBotSettings() {
           >
             Connect your Discord server
           </a>
-          <p className="text-[11px] text-text-muted">Or enter the server ID yourself, below.</p>
         </div>
       )}
       {managed && !ready && !status.oauthConnect && (
@@ -298,9 +324,8 @@ export default function DiscordBotSettings() {
               Manage Server.
             </li>
             <li>
-              <span className="text-foreground/85">Tell Anvil which server it is</span>, in the box below. In
-              Discord, turn on User Settings → Advanced → Developer Mode, then right-click your server&apos;s icon →
-              Copy Server ID, paste it, and press Save.
+              <span className="text-foreground/85">Tell Anvil which server it is</span>: paste its ID in the box
+              below and press Save.
             </li>
           </ol>
         </div>
@@ -326,27 +351,22 @@ export default function DiscordBotSettings() {
         />
         <p className="text-xs text-text-muted mt-1">
           Discord Developer Portal → your application → Bot → Reset Token. Validated with Discord before it&apos;s
-          saved; stored server-side and never shown again.
+          saved; stored server-side and never shown again. Your own bot needs “Public Bot” enabled in its Discord
+          app so it can be invited.
           {status.source === 'byo' && status.sharedAvailable && ' Clear it to go back to the shared Anvil bot.'}
         </p>
+        {!managed && reinvite}
       </div>
       </ByoWrap>
 
-      {/* Guild / server ID */}
-      <div>
-        <label className="block text-sm font-medium mb-1">Your Discord server&apos;s ID</label>
-        <Input
-          value={guildId}
-          onChange={(e) => setGuildId(e.target.value)}
-          placeholder="e.g. 123456789012345678"
-          className="w-full px-3 py-2 rounded-lg bg-brown-dark border border-card-border text-sm focus:outline-none focus:border-gold/60"
-        />
-        <p className="text-xs text-text-muted mt-1">
-          A long number. In Discord: User Settings → Advanced → Developer Mode on, then right-click your server&apos;s
-          icon → Copy Server ID. The bot must already be in the server, and the Discord account you signed in to
-          Anvil with must own it or have Manage Server.
-        </p>
-      </div>
+      {/* Guild / server ID — the by-hand fallback when one-click connect does the job. */}
+      {oneClick ? (
+        <Fold label={ready ? 'Server ID' : 'Can’t use the button? Enter the server ID'} open={!!status.guildId && !status.guildVerified}>
+          {serverIdField}
+        </Fold>
+      ) : (
+        serverIdField
+      )}
 
       {message && (
         <div
@@ -360,6 +380,8 @@ export default function DiscordBotSettings() {
         </div>
       )}
 
+      {/* Both fields can be folded away; a lone greyed-out Save under two closed folds is only noise. */}
+      {(hasChanges || !oneClick) && (
       <div className="flex gap-2 items-center">
         <button
           onClick={save}
@@ -380,6 +402,7 @@ export default function DiscordBotSettings() {
         {!hasChanges && <span className="text-xs text-green-400">Saved</span>}
         {hasChanges && <span className="text-xs text-yellow-400">Unsaved changes</span>}
       </div>
+      )}
     </div>
   );
 }
@@ -388,10 +411,18 @@ export default function DiscordBotSettings() {
 function ByoWrap({ folded, open, children }: { folded: boolean; open: boolean; children: React.ReactNode }) {
   if (!folded) return <>{children}</>;
   return (
+    <Fold label="Use your own bot instead (advanced)" open={open}>
+      {children}
+    </Fold>
+  );
+}
+
+function Fold({ label, open, children }: { label: string; open: boolean; children: React.ReactNode }) {
+  return (
     <details open={open} className="group rounded-lg border border-card-border">
       <summary className="cursor-pointer select-none list-none px-3 py-2 text-xs text-text-muted flex items-center gap-1.5">
         <span className="transition-transform group-open:rotate-90">▸</span>
-        Use your own bot instead (advanced)
+        {label}
       </summary>
       <div className="px-3 pb-3">{children}</div>
     </details>
