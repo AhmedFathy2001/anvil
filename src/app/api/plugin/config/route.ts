@@ -36,6 +36,7 @@ import { statKeys } from '@/lib/tileKinds';
 import { lapUnitNoun } from '@/lib/constants';
 import { ROLL_TABLES, rollItemIds } from '@/lib/rollTables';
 import { computeGain, isIndividualMode, isMilestoneBasis, parseContributionSnapshot } from '@/lib/statTracking';
+import { eligibleSinceReveal, gainSinceReveal, parseRevealStats } from '@/lib/revealStats';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { ttlMemo } from '@/lib/ttlMemo';
 
@@ -487,6 +488,8 @@ export async function GET(request: Request) {
     const sources = milestone || isIndividualMode(trackingMode)
       ? teamPlayers.filter((p) => p.id === auth.playerId)
       : teamPlayers;
+    // A mission counts from its announce, not the event start (lib/revealStats).
+    const reveal = parseRevealStats(t.revealStats);
 
     for (const p of sources) {
       // Real-time plugin push (boss KC AND skill XP) folds into current as a per-key max, so the
@@ -501,9 +504,7 @@ export async function GET(request: Request) {
         if (!milestone && statType === 'skill' && part === 'overall') {
           // Total XP reads live per skill, exactly as the site scores it (lib/statTracking) — the
           // hiscores overall alone only moves on logout.
-          const g = computeGain(parseBlob(p.statsSnapshot), parseBlob(p.cachedStats), plug, ['overall'], 'skill');
-          gainedTotal += g;
-          playerGained += g;
+          playerGained += computeGain(parseBlob(p.statsSnapshot), parseBlob(p.cachedStats), plug, ['overall'], 'skill');
           continue;
         }
         const baseline = readStatValue(p.statsSnapshot, statType, part);
@@ -516,13 +517,16 @@ export async function GET(request: Request) {
         baselineTotal += Math.max(0, baseline);
         lifetime += Math.max(0, current);
         const gained = current - baseline;
-        if (gained > 0) { if (!milestone) gainedTotal += gained; playerGained += gained; }
+        if (gained > 0) playerGained += gained;
       }
-      if (milestone) {
+      if (!milestone) {
+        playerGained = gainSinceReveal(playerGained, reveal, p.id);
+        gainedTotal += playerGained;
+      } else {
         // Report the caller's lifetime against the goal — but ZERO once they were already at or above
         // it when the event started. They can never complete this tile, and a full bar that never
         // credits is worse than an empty one: the empty bar at least matches what will happen.
-        gainedTotal = baselineTotal < goal ? Math.min(lifetime, goal) : 0;
+        gainedTotal = baselineTotal < goal && eligibleSinceReveal(reveal, p.id, goal) ? Math.min(lifetime, goal) : 0;
       }
       if (p.id === auth.playerId) yourGained = playerGained;
       // A teammate is "active on THIS tile" only if one of ITS stat keys actually rose within the window

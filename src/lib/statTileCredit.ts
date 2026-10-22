@@ -8,6 +8,7 @@ import { advanceLedger, parseLedger, settleOvershoot, tiedWith, type Ledger, typ
 import { parseStamp } from '@/lib/dbTime';
 import { notifyTileCompletion } from '@/lib/discord';
 import { evaluateCompletionGate } from '@/lib/completionGate';
+import { eligibleSinceReveal, gainSinceReveal, parseRevealStats } from '@/lib/revealStats';
 import { handleBountyClaim } from '@/lib/revealEngine';
 
 type StatTile = typeof tiles.$inferSelect;
@@ -106,13 +107,16 @@ export async function creditStatTilesForTeam(opts: {
     // stats say. Also freezes the rule-adjusted award for the insert below.
     const gate = event ? await evaluateCompletionGate({ event, tile, teamId }) : null;
     const keys = statKeys(tile.trackedStat);
+    // A mission counts from its announce, not the event start (lib/revealStats).
+    const reveal = parseRevealStats(tile.revealStats);
+    const tileGain = (p: (typeof teamPlayers)[number]) => gainSinceReveal(gainFor(p, keys, tile.statType!), reveal, p.id);
     // A MILESTONE tile asks whether someone crossed a lifetime threshold during the event, and is
     // always settled per member — a team's lifetime totals summed together are meaningless (see
     // lib/statTracking.milestoneState). So it behaves like an individual tile whatever the tracking
     // mode says, and the finisher is whoever became eligible and reached it.
     const milestone = isMilestoneBasis(tile.statBasis);
-    const msFor = (p: (typeof teamPlayers)[number]) =>
-      p.frozenAt
+    const msFor = (p: (typeof teamPlayers)[number]) => {
+      const ms = p.frozenAt
         ? milestoneStateFromJson(p.statsSnapshot, p.frozenStats, {}, keys, tile.statType!, tile.statGoal!)
         : milestoneStateFromJson(
             p.statsSnapshot,
@@ -122,6 +126,8 @@ export async function creditStatTilesForTeam(opts: {
             tile.statType!,
             tile.statGoal!,
           );
+      return eligibleSinceReveal(reveal, p.id, tile.statGoal!) ? ms : { ...ms, eligible: false, reached: false };
+    };
 
     const individual = milestone || isIndividualMode(tile.trackingMode);
 
@@ -131,7 +137,7 @@ export async function creditStatTilesForTeam(opts: {
     if (!individual) {
       const obs: Observation[] = teamPlayers.map((p) => ({
         playerId: p.id,
-        gained: gainFor(p, keys, tile.statType!),
+        gained: tileGain(p),
         freshAt: freshAt(p, keys),
       }));
       ({ next: ledger, risen } = advanceLedger(ledgers.get(tile.id)?.ledger ?? {}, obs, eventStartMs));
@@ -150,11 +156,11 @@ export async function creditStatTilesForTeam(opts: {
     const individualFinisher = milestone
       ? teamPlayers.find((p) => msFor(p).reached)
       : individual
-        ? teamPlayers.find((p) => gainFor(p, keys, tile.statType!) >= tile.statGoal!)
+        ? teamPlayers.find((p) => tileGain(p) >= tile.statGoal!)
         : undefined;
     const meets = individual
       ? individualFinisher != null
-      : teamPlayers.reduce((sum, p) => sum + gainFor(p, keys, tile.statType!), 0) >= tile.statGoal!;
+      : teamPlayers.reduce((sum, p) => sum + tileGain(p), 0) >= tile.statGoal!;
     if (!meets || (gate && !gate.allowed)) {
       await saveLedger();
       continue;
@@ -166,7 +172,7 @@ export async function creditStatTilesForTeam(opts: {
     const splitRows = milestone
       ? [{ playerId: individualFinisher!.id, gained: msFor(individualFinisher!).lifetime }]
       : individual
-        ? [{ playerId: individualFinisher!.id, gained: gainFor(individualFinisher!, keys, tile.statType!) }]
+        ? [{ playerId: individualFinisher!.id, gained: tileGain(individualFinisher!) }]
         : settleTeamSplit(tile.statGoal!, ledger!, risen);
 
     // Notify only on a genuine insert — the sweep + a push can both cross a threshold and would

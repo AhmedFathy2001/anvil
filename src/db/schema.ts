@@ -764,6 +764,10 @@ export const tiles = pgTable('tiles', {
   // posting exactly as before, while every tile created afterwards — by any write path — gets
   // milestones. Never backfill it: that would change posting on events already under way.
   killPosts: text('kill_posts').default('milestones'),
+  // Where each player stood on this tile's stat when it was ANNOUNCED mid-event (missions), so it
+  // counts only what's done after the announce — not KC banked between the event start and the drop.
+  // JSON { [participantId]: { g: gain so far, l: lifetime } }; NULL = count from the event baseline.
+  revealStats: text('reveal_stats'),
   // Free-text grouping label (e.g. "Zulrah", "Slayer", "Skilling", "GWD") used to
   // filter tasks by boss/skill/category in the RuneLite plugin's collection-log tab.
   // NULL = uncategorised.

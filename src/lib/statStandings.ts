@@ -5,6 +5,7 @@ import { parseEventRules } from '@/lib/eventRules';
 import { scoreTeams } from '@/lib/boardScoring';
 import { statKeys, statLabel } from '@/lib/tileKinds';
 import { jsonStatValue, effectiveValue, computeGainFromJson, parseContributionSnapshot } from '@/lib/statTracking';
+import { gainSinceReveal, parseRevealStats } from '@/lib/revealStats';
 import { liveStatsForMembers } from '@/lib/liveStats';
 
 export interface StatStandingPlayer {
@@ -78,6 +79,8 @@ export async function getStatStandings(eventId: number, tileIds?: number[]): Pro
 
   return statTiles.map((tile) => {
     const keys = statKeys(tile.trackedStat);
+    // A mission counts from its announce, not the event start (lib/revealStats).
+    const reveal = parseRevealStats(tile.revealStats);
     const rows: StatStandingPlayer[] = drafted
       .map((p) => {
         const baseline = readStat(p.statsSnapshot, tile.statType!, keys);
@@ -106,7 +109,7 @@ export async function getStatStandings(eventId: number, tileIds?: number[]): Pro
             baseline,
             current,
             // Same rule while benched: no starting point, nothing attributable.
-            gained: computeGainFromJson(p.statsSnapshot, p.frozenStats, {}, keys, tile.statType!),
+            gained: gainSinceReveal(computeGainFromJson(p.statsSnapshot, p.frozenStats, {}, keys, tile.statType!), reveal, p.id),
             hasBaseline: !!p.statsSnapshot,
           };
         }
@@ -133,7 +136,7 @@ export async function getStatStandings(eventId: number, tileIds?: number[]): Pro
           // missing snapshot reads as a baseline of zero, so the gain becomes the whole account.
           // It also clamps PER KEY, matching what actually scores — subtracting the summed totals
           // let a composite tile net one key's drop against another's rise.
-          gained: computeGainFromJson(p.statsSnapshot, p.cachedStats, plug, keys, tile.statType!),
+          gained: gainSinceReveal(computeGainFromJson(p.statsSnapshot, p.cachedStats, plug, keys, tile.statType!), reveal, p.id),
           hasBaseline: !!p.statsSnapshot,
         };
       })
