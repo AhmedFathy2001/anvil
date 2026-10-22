@@ -129,12 +129,12 @@ test('a released character can move: the real owner’s plugin claims it', async
 test('the profile Remove is the same flow — the character is claimable afterwards', async () => {
   const me = await login();
   const other = await login();
-  await play(me.token, 'Removed On Site', 'h-site');
+  await play(me.token, 'Removed Site', 'h-site');
   const { releaseCharacter } = await import('../src/lib/accountRelease.ts');
-  const acct = await accountByRsn('Removed On Site');
+  const acct = await accountByRsn('Removed Site');
   const out = await releaseCharacter({ userId: me.userId, playerId: me.person, accountId: acct.id, via: 'profile' });
   assert.deepEqual(out, { ok: true });
-  assert.ok(await play(other.token, 'Removed On Site', 'h-site'), 'before the fix this was owned-by-other forever');
+  assert.ok(await play(other.token, 'Removed Site', 'h-site'), 'before the fix this was owned-by-other forever');
 });
 
 test('a live event blocks the detach but still records the choice', async () => {
@@ -164,11 +164,11 @@ test('a live event blocks the detach but still records the choice', async () => 
 test('somebody else’s character played here: recorded once, shown as other, disputable', async () => {
   const owner = await login();
   const visitor = await login();
-  await play(owner.token, 'Owned Elsewhere', 'h-owned');
+  await play(owner.token, 'Owned Else', 'h-owned');
 
-  assert.equal(await play(visitor.token, 'Owned Elsewhere', 'h-owned'), null, 'never moves ownership');
-  await play(visitor.token, 'Owned Elsewhere', 'h-owned');
-  const acct = await accountByRsn('Owned Elsewhere');
+  assert.equal(await play(visitor.token, 'Owned Else', 'h-owned'), null, 'never moves ownership');
+  await play(visitor.token, 'Owned Else', 'h-owned');
+  const acct = await accountByRsn('Owned Else');
   assert.equal(acct.playerId, owner.person);
 
   const rows = await db.select().from(s.accountSightings).where(eq(s.accountSightings.accountId, acct.id));
@@ -177,15 +177,15 @@ test('somebody else’s character played here: recorded once, shown as other, di
   assert.equal(rows[0].hashMatched, 1);
   assert.equal(rows[0].firstSeenAt, rows[0].lastSeenAt, 'a second play within the window wrote nothing');
 
-  assert.equal(await standing(visitor.token, 'Owned Elsewhere', 'h-owned'), 'other');
+  assert.equal(await standing(visitor.token, 'Owned Else', 'h-owned'), 'other');
 
   const { alsoPlayedFromByAccount } = await import('../src/lib/accountSightings.ts');
   const shown = await alsoPlayedFromByAccount([acct.id], owner.userId);
   assert.equal(shown.get(acct.id)?.length, 1, 'the owner’s profile can say so');
 
-  const d = await act(visitor.token, 'Owned Elsewhere', 'h-owned', 'dispute');
+  const d = await act(visitor.token, 'Owned Else', 'h-owned', 'dispute');
   assert.equal(d.status, 200, JSON.stringify(d.body));
-  const again = await act(visitor.token, 'Owned Elsewhere', 'h-owned', 'dispute');
+  const again = await act(visitor.token, 'Owned Else', 'h-owned', 'dispute');
   assert.equal(again.body.alreadyOpen, true, 'one report, not one per click');
   const reports = await db.select().from(s.characterReports).where(eq(s.characterReports.accountId, acct.id));
   assert.equal(reports.length, 1);
@@ -194,7 +194,7 @@ test('somebody else’s character played here: recorded once, shown as other, di
   assert.match(reports[0].body ?? '', /hash matched/);
   assert.doesNotMatch(reports[0].body ?? '', /h-owned/, 'the hash itself never lands in a report');
 
-  const own = await act(owner.token, 'Owned Elsewhere', 'h-owned', 'dispute');
+  const own = await act(owner.token, 'Owned Else', 'h-owned', 'dispute');
   assert.equal(own.status, 409, 'nothing to dispute on your own character');
 });
 
@@ -246,13 +246,13 @@ test('release cannot launder a first-use claim into a verified one', async () =>
   // over outright.
   const a = await login();
   const b = await login();
-  await rosterMember('Launder Target');
-  await play(a.token, 'Launder Target', 'made-up');
-  assert.equal((await accountByRsn('Launder Target')).verificationMethod, 'plugin_first_use');
-  await act(a.token, 'Launder Target', 'made-up', 'release');
+  await rosterMember('Launder Tgt');
+  await play(a.token, 'Launder Tgt', 'made-up');
+  assert.equal((await accountByRsn('Launder Tgt')).verificationMethod, 'plugin_first_use');
+  await act(a.token, 'Launder Tgt', 'made-up', 'release');
 
-  await play(b.token, 'Launder Target', 'made-up');
-  const acct = await accountByRsn('Launder Target');
+  await play(b.token, 'Launder Tgt', 'made-up');
+  const acct = await accountByRsn('Launder Tgt');
   assert.equal(acct.provisional, 1, 'still only a provisional, reviewable claim');
   assert.equal(acct.verificationMethod, 'plugin_first_use');
 });
@@ -261,22 +261,22 @@ test('a hash-proven character keeps its hash on release: name alone can’t take
   const owner = await login();
   const stranger = await login();
   const realOwner = await login();
-  const id = await rosterMember('Proven Member');
+  const id = await rosterMember('Proven Mem');
   await db.update(s.accounts).set({ accountHash: 'real-hash' }).where(eq(s.accounts.id, id));
-  await play(owner.token, 'Proven Member', 'real-hash');
-  let acct = await accountByRsn('Proven Member');
+  await play(owner.token, 'Proven Mem', 'real-hash');
+  let acct = await accountByRsn('Proven Mem');
   assert.equal(acct.playerId, owner.person);
   assert.equal(acct.provisional, 0, 'hash-matched: claimed outright');
 
-  await act(owner.token, 'Proven Member', 'real-hash', 'release');
-  acct = await accountByRsn('Proven Member');
+  await act(owner.token, 'Proven Mem', 'real-hash', 'release');
+  acct = await accountByRsn('Proven Mem');
   assert.equal(acct.accountHash, 'real-hash', 'the character’s own hash stays');
 
-  await play(stranger.token, 'Proven Member', 'some-other-hash');
-  assert.equal((await accountByRsn('Proven Member')).claimedAt, null, 'a name is not proof');
+  await play(stranger.token, 'Proven Mem', 'some-other-hash');
+  assert.equal((await accountByRsn('Proven Mem')).claimedAt, null, 'a name is not proof');
 
-  assert.ok(await play(realOwner.token, 'Proven Member', 'real-hash'));
-  assert.equal((await accountByRsn('Proven Member')).playerId, realOwner.person);
+  assert.ok(await play(realOwner.token, 'Proven Mem', 'real-hash'));
+  assert.equal((await accountByRsn('Proven Mem')).playerId, realOwner.person);
 });
 
 test('a name-only play of somebody else’s character records nothing for the owner to see', async () => {
@@ -296,18 +296,18 @@ test('Track it again can never lift a staff rejection', async () => {
   // Staff rejecting a first-use claim leaves a 'dismissed' marker so the plugin can't re-claim it.
   // "resume" deletes only the login's own 'released' marker — and release never softens a dismissal.
   const claimant = await login();
-  const id = await rosterMember('Staff Rejected');
+  const id = await rosterMember('Staff Reject');
   await db.insert(s.detectedAccounts).values({
-    userId: claimant.userId, rsn: 'Staff Rejected', rsnNormalized: 'staff rejected', status: 'dismissed',
+    userId: claimant.userId, rsn: 'Staff Reject', rsnNormalized: 'staff reject', status: 'dismissed',
     detectedAt: new Date().toISOString(), lastSeenAt: new Date().toISOString(),
   });
-  await act(claimant.token, 'Staff Rejected', 'h-rej', 'release');
-  await act(claimant.token, 'Staff Rejected', 'h-rej', 'resume');
+  await act(claimant.token, 'Staff Reject', 'h-rej', 'release');
+  await act(claimant.token, 'Staff Reject', 'h-rej', 'resume');
   const marker = await db.query.detectedAccounts.findFirst({
-    where: and(eq(s.detectedAccounts.userId, claimant.userId), eq(s.detectedAccounts.rsnNormalized, 'staff rejected')),
+    where: and(eq(s.detectedAccounts.userId, claimant.userId), eq(s.detectedAccounts.rsnNormalized, 'staff reject')),
   });
   assert.equal(marker?.status, 'dismissed', 'still the staff decision');
-  await play(claimant.token, 'Staff Rejected', 'h-rej');
+  await play(claimant.token, 'Staff Reject', 'h-rej');
   const acct = (await db.select().from(s.accounts).where(eq(s.accounts.id, id)))[0];
   assert.equal(acct.claimedAt, null, 'the plugin did not re-claim it');
 });
@@ -316,9 +316,9 @@ test('a name-only claim stays provisional when a later play anchors a hash', asy
   // An old plugin (no hash) links a brand-new name provisionally. A later play WITH a hash must not
   // promote it to verified — that hash is whatever the client sent.
   const me = await login();
-  await play(me.token, 'Old Plugin Alt', null);
-  await play(me.token, 'Old Plugin Alt', 'any-hash');
-  const acct = await accountByRsn('Old Plugin Alt');
+  await play(me.token, 'Old Plug Alt', null);
+  await play(me.token, 'Old Plug Alt', 'any-hash');
+  const acct = await accountByRsn('Old Plug Alt');
   assert.equal(acct.provisional, 1);
   assert.equal(acct.verificationMethod, 'plugin_first_use');
 });
