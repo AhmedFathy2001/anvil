@@ -13,6 +13,7 @@ import { statKeys } from '@/lib/tileKinds';
 import { parsePluginStats } from '@/lib/pluginStats';
 import { creditStatTilesForTeam } from '@/lib/statTileCredit';
 import { computeGain, effectiveValue, reconcileLive, pruneStaleOverlay, isIndividualMode, isMilestoneBasis, milestoneState, buildContributionSnapshot, needsBaselineRecapture, baselineWithOverlay, completePartialBaseline, isPartialBaselineJson } from '@/lib/statTracking';
+import { eligibleSinceReveal, gainSinceReveal, parseRevealStats } from '@/lib/revealStats';
 import { parseStatKeyTimes } from '@/lib/liveStats';
 import { readAllActivities } from '@/lib/hiscoresActivities';
 
@@ -724,10 +725,14 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
       const ms = milestone
         ? milestoneState(f.baseline, f.current, f.liveMap, statKeys(tile.trackedStat), tile.statType!, tile.statGoal!)
         : null;
+      // A mission counts from its announce, not the event start (lib/revealStats).
+      const reveal = parseRevealStats(tile.revealStats);
       // What this member has to their name for the tile — their lifetime for a milestone, their
       // in-event gain otherwise. Used for the frozen contribution split either way.
-      const gained = ms ? ms.lifetime : computeGain(f.baseline, f.current, f.liveMap, statKeys(tile.trackedStat), tile.statType!);
-      const meetsGoal = ms ? ms.reached : gained >= tile.statGoal!;
+      const gained = ms
+        ? ms.lifetime
+        : gainSinceReveal(computeGain(f.baseline, f.current, f.liveMap, statKeys(tile.trackedStat), tile.statType!), reveal, f.player.id);
+      const meetsGoal = ms ? ms.reached && eligibleSinceReveal(reveal, f.player.id, tile.statGoal!) : gained >= tile.statGoal!;
 
       if (milestone || isIndividualMode(tile.trackingMode)) {
         if (meetsGoal) {

@@ -8,6 +8,7 @@ import { assertEventEditable } from '@/lib/eventLock';
 import { diffTiles, logTileAudit } from '@/lib/tile-audit';
 import { atLeast } from '@/lib/clanRoles';
 import { tileBalanceRevision } from '@/lib/tileBalanceRevision';
+import { captureRevealStats } from '@/lib/revealStatsCapture';
 
 // Set one thing on many tiles at once.
 //
@@ -204,7 +205,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
       patch,
       revealState === 'live'
         ? { revealedAt: new Date().toISOString(), closedAt: null }
-        : { revealedAt: null, closedAt: null },
+        : { revealedAt: null, closedAt: null, revealStats: null },
     );
   }
 
@@ -226,6 +227,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
     .update(tiles)
     .set({ ...patch, updatedAt })
     .where(and(eq(tiles.eventId, eId), inArray(tiles.id, before.map((t) => t.id))));
+  // Missions opened by hand count from now, same as ones the engine announces.
+  if (revealState === 'live') await captureRevealStats(before.map((t) => t.id));
 
   // One history entry per tile, same as a single edit would write — a bulk change should be as
   // traceable as the twenty individual ones it replaces.

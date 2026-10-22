@@ -6,6 +6,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { statKeys } from '@/lib/tileKinds';
 import { computeGain, effectiveValue, isMilestoneBasis, parseContributionSnapshot, snapshotValue } from '@/lib/statTracking';
 import { liveStatsForMembers } from '@/lib/liveStats';
+import { gainSinceReveal, parseRevealStats } from '@/lib/revealStats';
 import { ttlMemo } from '@/lib/ttlMemo';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 
@@ -192,7 +193,10 @@ async function computeGains(eId: number, teamIdFilter: string | null) {
     const tileGains: Record<number, number> = {};
     for (const t of statTiles) {
       const split = r.teamId != null ? frozen.get(`${r.teamId}-${t.id}`) : undefined;
-      tileGains[t.id] = split ? split.get(r.playerId) ?? 0 : r.gains[t.trackedStat!] ?? 0;
+      // A mission counts from its announce, not the event start (lib/revealStats).
+      tileGains[t.id] = split
+        ? split.get(r.playerId) ?? 0
+        : gainSinceReveal(r.gains[t.trackedStat!] ?? 0, parseRevealStats(t.revealStats), r.playerId);
     }
     return { ...r, tileGains };
   });

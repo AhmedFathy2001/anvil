@@ -19,6 +19,7 @@ import { dueSlotCount } from '@/lib/missionSchedule';
 import { dayKeyFields, localDayKey } from '@/lib/zonedTime';
 import { notifyTilesRevealed, notifyBountyClaim, notifyMissionPrize } from '@/lib/discord';
 import { log } from '@/lib/logger';
+import { captureRevealStats } from '@/lib/revealStatsCapture';
 import { missionPool } from '@/lib/missionRamp';
 import { getTierBands } from '@/lib/pluginConfig';
 
@@ -315,6 +316,8 @@ async function flipAndAnnounceMissions(
     .set({ revealedAt: now })
     .where(and(inArray(tiles.id, toReveal.map((t) => t.id)), isNull(tiles.revealedAt)))
     .returning({ id: tiles.id, label: tiles.label, points: tiles.points, icon: tiles.icon });
+  // Missions count from the announce: capture everyone's standing before anything else can move it.
+  await captureRevealStats(flipped.map((f) => f.id));
   if (flipped.length > 0) {
     log.info('reveal-engine.mission-announce', {
       eventId: event.id,

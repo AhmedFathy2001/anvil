@@ -12,6 +12,7 @@ import { collectionDisplayTotal, type CollectionRequirement } from '@/lib/collec
 import { atLeast } from '@/lib/clanRoles';
 import { isRaidEffortMode, parseTileEffortConfig } from '@/lib/tileEffortConfig';
 import { track } from '@/lib/analytics';
+import { captureRevealStats } from '@/lib/revealStatsCapture';
 
 export async function GET(
   request: Request,
@@ -328,10 +329,12 @@ export async function PUT(
       .set(
         revealState === 'live'
           ? { revealedAt: new Date().toISOString(), closedAt: null, updatedAt: new Date().toISOString() }
-          : { revealedAt: null, closedAt: null, updatedAt: new Date().toISOString() },
+          : { revealedAt: null, closedAt: null, revealStats: null, updatedAt: new Date().toISOString() },
       )
       .where(and(eq(tiles.id, tileId), eq(tiles.eventId, eId)))
       .returning();
+    // A mission opened by hand counts from now, same as one the engine announces.
+    if (revealState === 'live' && updated) await captureRevealStats([updated.id]);
     return NextResponse.json(updated);
   }
 
@@ -725,6 +728,7 @@ export async function POST(
             label: _label,
             revealedAt: _revealedAt,
             closedAt: _closedAt,
+            revealStats: _revealStats,
             updatedAt: _updatedAt,
             ...config
           } = source;
