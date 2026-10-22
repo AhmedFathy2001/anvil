@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import {
   eventIsRunning,
   joinedAfterStart,
+  retryInTurn,
   shouldCaptureNow,
   shouldCaptureWeeklyNow,
   startingStatsStatus,
@@ -141,4 +142,23 @@ test('weekly roster line: never tried is pending, tried-and-missed (lastUpdated 
     'taken',
   );
   assert.equal(weeklyStartingStatsStatus({ ...comp, status: 'upcoming' }, fresh, BEFORE), null);
+});
+
+test('Try all: retries one at a time, in order, and stops at the first 429', async () => {
+  const calls: number[] = [];
+  let inFlight = 0;
+  const outcomes: Record<number, 'ok' | 'limited' | 'failed'> = { 1: 'ok', 2: 'failed', 3: 'limited', 4: 'ok' };
+  const r = await retryInTurn([1, 2, 3, 4], async (id) => {
+    inFlight++;
+    assert.equal(inFlight, 1, 'never two retries at once');
+    calls.push(id);
+    await new Promise((res) => setTimeout(res, 1));
+    inFlight--;
+    return outcomes[id];
+  });
+  assert.deepEqual(calls, [1, 2, 3], 'nothing after the 429 is asked');
+  assert.deepEqual(r, { asked: 1, limited: true, failed: 1 });
+
+  const all = await retryInTurn([5, 6], async () => 'ok');
+  assert.deepEqual(all, { asked: 2, limited: false, failed: 0 });
 });

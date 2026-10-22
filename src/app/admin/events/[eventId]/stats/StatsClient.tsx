@@ -13,7 +13,7 @@ import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
 import { useDialog } from '@/components/Confirm';
-import StartingStatsLine, { retryStartingStats, useStartingStatsPoll } from '@/components/StartingStatsLine';
+import StartingStatsLine, { StartingStatsSummary, retryStartingStats, unreadIds, useStartingStatsPoll } from '@/components/StartingStatsLine';
 import type { StartingStatsStatus } from '@/lib/startingStatsRules';
 
 // Every hiscores action (snapshot / refresh / reset) fans out a request per enrolled player, so
@@ -393,6 +393,15 @@ export default function StatsClient({ event, teams, tiles, players, statStanding
                       ⚠ {missing} player{missing !== 1 ? 's' : ''} with no starting stats captured yet — their gains won&apos;t track until a baseline is captured.
                     </p>
                   )}
+                  <StartingStatsSummary
+                    ids={unreadIds(tile.players.map((p) => p.playerId), startingStats, startingStatsPoll.lapsed)}
+                    onRetry={(id) => retryStartingStats(event.id, id)}
+                    onDone={() => {
+                      router.refresh();
+                      startingStatsPoll.restart();
+                    }}
+                    className="mb-2"
+                  />
                   {tile.players.length === 0 ? (
                     <p className="text-xs text-text-muted">No drafted players yet.</p>
                   ) : (

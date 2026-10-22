@@ -28,7 +28,7 @@ import { countPicksTaken } from '@/lib/draft';
 import NumberInput from '@/components/NumberInput';
 import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
-import StartingStatsLine, { retryStartingStats, useStartingStatsPoll } from '@/components/StartingStatsLine';
+import StartingStatsLine, { StartingStatsSummary, retryStartingStats, unreadIds, useStartingStatsPoll } from '@/components/StartingStatsLine';
 import type { StartingStatsStatus } from '@/lib/startingStatsRules';
 import Input from '@/components/Input';
 import { useDialog } from '@/components/Confirm';
@@ -1808,6 +1808,15 @@ export default function TeamsDraftClient({ event, tiles, teams, players: initial
                           {subbedOutCount > 0 && <span className="text-amber-300/70"> · {subbedOutCount} subbed out</span>}
                         </span>
                       </div>
+                      <StartingStatsSummary
+                        ids={unreadIds(roster.map((p) => p.id), draft.startingStats, startingStatsPoll.lapsed)}
+                        onRetry={editLocked ? undefined : (id) => retryStartingStats(event.id, id)}
+                        onDone={async () => {
+                          await fetchDraft();
+                          startingStatsPoll.restart();
+                        }}
+                        className="mb-1.5"
+                      />
                       <div className="space-y-1 mb-2">
                         {roster.length === 0 ? (
                           <p className="text-xs text-text-muted">No players yet.</p>
