@@ -33,7 +33,8 @@ const APPLY_CONCURRENCY = 4;
  * flooding the queue with the whole backlog of untyped accounts at once.
  */
 const PROBES_PER_DRAIN = 8;
-/** Queue priority for background probes — behind competition work (0) and roster filler (1). */
+/** Queue priority for background probes — behind late joiners (-1, lib/startingStats), competition
+ * work (0) and roster filler (1). */
 const PROBE_PRIORITY = 2;
 
 export interface ForgeWorkEntry {

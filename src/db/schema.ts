@@ -2841,7 +2841,11 @@ export const hiscoresFetches = pgTable(
     rsnKey: text('rsn_key').notNull(),
     mode: text('mode').$type<HiscoresFetchMode>().notNull().default('main'),
     accountId: integer('account_id'),
-    /** 0 = a competition is waiting, 1 = roster filler, 2 = background probes. Lower goes first. */
+    /**
+     * -1 = a late joiner waiting on their start line (lib/startingStats; Forge caps it at a fifth of
+     * each claim), 0 = a competition is waiting, 1 = roster filler, 2 = background probes. Lower goes
+     * first.
+     */
     priority: smallint('priority').notNull().default(1),
     requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
     claimedAt: timestamp('claimed_at', { withTimezone: true }),

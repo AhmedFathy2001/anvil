@@ -6,6 +6,7 @@ import { requireClan } from '@/lib/clanContext';
 import { clanRoster, weeklyCompetitions, weeklyParticipants } from '@/db/schema';
 import { and, eq, getTableColumns, inArray, isNull } from 'drizzle-orm';
 import { findOrCreateClanMember } from '@/lib/clan';
+import { captureWeeklyStartingStatsSoon } from '@/lib/startingStats';
 
 export async function GET(
   request: Request,
@@ -122,24 +123,29 @@ export async function POST(
   }
 
   let added = 0;
+  const addedIds: number[] = [];
   for (const rsn of rsns) {
     if (typeof rsn !== 'string') continue;
     const trimmed = sanitizeRsn(rsn);
     if (!trimmed) continue;
     try {
       const clanMemberId = await findOrCreateClanMember(clan.id, trimmed);
-      await db.insert(weeklyParticipants).values({
+      const inserted = await db.insert(weeklyParticipants).values({
         competitionId: compId,
         clanMemberId,
         rsn: trimmed,
         rsnNormalized: normalizeRsn(trimmed),
-      }).onConflictDoNothing();
+      }).onConflictDoNothing().returning({ id: weeklyParticipants.id });
+      addedIds.push(...inserted.map((r) => r.id));
       added++;
     } catch {
       // Skip on error
     }
   }
 
+  // Added mid-competition → take their starting stats now rather than on the next sweep. A no-op
+  // for a competition that hasn't started.
+  captureWeeklyStartingStatsSoon(compId, addedIds);
   return NextResponse.json({ added });
 }
 

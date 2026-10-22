@@ -7,6 +7,7 @@ import TeamsDraftClient from './TeamsDraftClient';
 import { loadEventProfiles, attachProfiles } from '@/lib/draftProfiles';
 import { parseContributionSnapshot } from '@/lib/statTracking';
 import { eventEditLocked } from '@/lib/eventLock';
+import { startingStatsFor } from '@/lib/startingStats';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,6 +65,7 @@ export default async function EventTeamsPage({ params }: { params: Promise<{ eve
         teams={safeTeams}
         players={eventPlayers}
         completions={eventCompletions}
+        startingStats={await startingStatsFor(event, rawPlayers)}
         editLocked={eventEditLocked(event)}
       />
     </>

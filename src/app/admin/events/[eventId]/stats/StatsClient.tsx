@@ -13,6 +13,8 @@ import { clanFetch } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
 import { useDialog } from '@/components/Confirm';
+import StartingStatsLine, { retryStartingStats, useStartingStatsPoll } from '@/components/StartingStatsLine';
+import type { StartingStatsStatus } from '@/lib/startingStatsRules';
 
 // Every hiscores action (snapshot / refresh / reset) fans out a request per enrolled player, so
 // after a manual pull we lock the pull buttons for a cooldown to stop spam-clicking from hammering
@@ -35,6 +37,8 @@ interface Props {
   teamStandings: TeamStanding[];
   // ISO time of the last manual stat pull (persisted), or null. Seeds the cooldown across refreshes.
   statsPulledAt: string | null;
+  /** Late joiners' starting-stats line, by player id (lib/startingStats). */
+  startingStats?: Record<number, StartingStatsStatus>;
 }
 
 // Only the submission fields the activity rollup needs — keeps us decoupled from the
@@ -47,8 +51,13 @@ interface ActivitySubmission {
   amount: number;
 }
 
-export default function StatsClient({ event, teams, tiles, players, statStandings, teamStandings, statsPulledAt }: Props) {
+export default function StatsClient({ event, teams, tiles, players, statStandings, teamStandings, statsPulledAt, startingStats = {} }: Props) {
   const router = useRouter();
+  // Late joiners still waiting on their starting stats → refresh lightly until they land.
+  const startingStatsPoll = useStartingStatsPoll(
+    Object.values(startingStats).some((s) => s.state === 'pending'),
+    () => router.refresh(),
+  );
   // Which player's baseline editor is open (per-row "Fix baseline" on the standings table).
   const [baselinePlayer, setBaselinePlayer] = useState<{ id: number; name: string } | null>(null);
   const [snapshotting, setSnapshotting] = useState(false);
@@ -405,7 +414,19 @@ export default function StatsClient({ event, teams, tiles, players, statStanding
                             const pct = tile.statGoal > 0 ? Math.min(100, Math.round((p.gained / tile.statGoal) * 100)) : 0;
                             return (
                               <tr key={p.playerId} className="border-t border-card-border/50">
-                                <td className="py-1.5 pr-3 font-medium text-foreground">{p.name}</td>
+                                <td className="py-1.5 pr-3 font-medium text-foreground">
+                                  <div>{p.name}</div>
+                                  <StartingStatsLine
+                                    status={startingStats[p.playerId]}
+                                    lapsed={startingStatsPoll.lapsed}
+                                    onRetry={async () => {
+                                      await retryStartingStats(event.id, p.playerId);
+                                      router.refresh();
+                                      startingStatsPoll.restart();
+                                    }}
+                                    className="font-normal"
+                                  />
+                                </td>
                                 <td className="py-1.5 pr-3">
                                   {team && (
                                     <span className="px-1.5 py-0.5 rounded" style={{ backgroundColor: team.color + '20', color: team.color }}>

@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { clanRoster, eventParticipants, eventSignups, events, signupFees, teams, users } from '@/db/schema';
 import { generatePlayerToken } from '@/lib/auth';
 import { seatsOwnedBy } from '@/lib/roster';
+import { captureStartingStatsSoon } from '@/lib/startingStats';
 
 /**
  * Seat a team's captain on their own team.
@@ -109,6 +110,7 @@ export async function placeCaptainOnTeam(
   if (unassigned) {
     await db.update(eventParticipants).set({ teamId }).where(eq(eventParticipants.id, unassigned.id));
     if (unassigned.clanMemberId != null) await enrolSignup(eventId, captainUserId, unassigned.clanMemberId);
+    captureStartingStatsSoon(eventId, [unassigned.id]);
     return { playerId: unassigned.id, reason: null };
   }
 
@@ -143,6 +145,7 @@ export async function placeCaptainOnTeam(
     .returning({ id: eventParticipants.id });
 
   await enrolSignup(eventId, captainUserId, account.id);
+  if (player?.id != null) captureStartingStatsSoon(eventId, [player.id]);
   return player?.id != null ? { playerId: player.id, reason: null } : { playerId: null, reason: 'no-account' };
 }
 

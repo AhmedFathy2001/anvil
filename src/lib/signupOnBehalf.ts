@@ -16,6 +16,7 @@ import { clanRoster, eventParticipants, eventSignups, signupFees, teams } from '
 import { enrolParticipant, participantForSeat } from '@/lib/participants';
 import { findRosterSeat, loginOf } from '@/lib/roster';
 import { sanitizeProfile, serializeProfile } from '@/lib/signup';
+import { captureStartingStatsSoon } from '@/lib/startingStats';
 
 export type SignupRow = typeof eventSignups.$inferSelect;
 
@@ -159,6 +160,7 @@ export async function signUpOnBehalf(input: {
     });
   } else if (teamId != null && player.teamId == null) {
     await db.update(eventParticipants).set({ teamId }).where(eq(eventParticipants.id, player.id));
+    captureStartingStatsSoon(event.id, [player.id]);
   }
 
   return { ok: true, signup };

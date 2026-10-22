@@ -6,6 +6,7 @@ import { and, eq, inArray, or, isNotNull } from 'drizzle-orm';
 import { verifyAdmin } from '@/lib/auth';
 import { parseContributionSnapshot, buildContributionSnapshot } from '@/lib/statTracking';
 import { assertEventEditable } from '@/lib/eventLock';
+import { captureStartingStatsSoon } from '@/lib/startingStats';
 
 // Reset a single player's participation in an event — the "nuclear" option, minus the whole-team blast
 // radius. Per the product decision: this resets THIS player's own progress only. Their solo/individual
@@ -124,6 +125,8 @@ export async function POST(
         ...(remove ? { teamId: null, pickNumber: null, pickedAt: null } : {}),
       })
       .where(eq(eventParticipants.id, pId));
+    // A plain reset on a running event zeroes them from here: the new start line is taken now.
+    if (!benched && !remove) captureStartingStatsSoon(eId, [pId]);
   }
 
   return NextResponse.json({

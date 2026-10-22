@@ -24,6 +24,7 @@ import AccountChangeCard from '@/components/AccountChangeCard';
 import EventApiHost from '@/components/EventApiHost';
 import { areEventRostersFinal } from '@/lib/eventReadiness';
 import { withSearchText } from '@/lib/tileSearchText';
+import { startingStatsFor } from '@/lib/startingStats';
 
 export const dynamic = 'force-dynamic';
 
@@ -205,6 +206,7 @@ export default async function MyTeamPage({
         tiles={withSearchText(eventTiles)}
         completions={teamCompletions}
         players={eventPlayers}
+        startingStats={await startingStatsFor(event, rawEventPlayers.filter((p) => p.teamId === tId))}
         isCaptain={membership.isCaptain}
         boardHidden={boardHidden}
         tools={

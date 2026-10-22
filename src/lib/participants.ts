@@ -25,6 +25,7 @@
 // call concurrently: the conflict clause turns a race into the same answer both callers wanted.
 
 import { and, eq, inArray, isNotNull, notInArray, sql } from 'drizzle-orm';
+import { captureStartingStatsSoon } from '@/lib/startingStats';
 
 import { db } from '@/db';
 import { clanRoster, eventParticipants, eventSignups } from '@/db/schema';
@@ -163,6 +164,7 @@ export async function enrolParticipant(values: NewParticipant): Promise<{ row: P
   // this is a plain insert, exactly as it was before.
   if (accountId == null) {
     const [row] = await db.insert(eventParticipants).values({ ...values, accountId: null }).returning();
+    captureStartingStatsSoon(row.eventId, [row.id]);
     return { row, created: true };
   }
 
@@ -171,7 +173,11 @@ export async function enrolParticipant(values: NewParticipant): Promise<{ row: P
     .values({ ...values, accountId })
     .onConflictDoNothing(onAccountConflict)
     .returning();
-  if (row) return { row, created: true };
+  if (row) {
+    // On a team of a running event → starting stats now. A pool row is a no-op until it's placed.
+    captureStartingStatsSoon(row.eventId, [row.id]);
+    return { row, created: true };
+  }
 
   // The index refused it: this account is already on this board. Hand back the row that won, so the
   // caller carries on with the player who is actually there.

@@ -4,6 +4,7 @@ import { clanRoster, events, eventParticipants, payouts, submissions, teams, til
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { requireTeamManager } from '@/lib/teamStaff';
 import { enrolParticipant, participantForSeat } from '@/lib/participants';
+import { captureStartingStatsSoon, startingStatsFor } from '@/lib/startingStats';
 
 /**
  * A team's own roster and its recent proof, for whoever runs that team.
@@ -36,7 +37,7 @@ export async function GET(
   const started = !!event?.startDate && event.startDate <= new Date().toISOString();
 
   // clan-scope: global -- reached through team membership or a token, not through a clan — that is what lets a visiting clan's people use it.
-  const roster = await db
+  const rosterRows = await db
     .select({
       playerId: eventParticipants.id,
       name: eventParticipants.name,
@@ -45,10 +46,26 @@ export async function GET(
       frozenAt: eventParticipants.frozenAt,
       rsn: clanRoster.rsn,
       lastSeen: clanRoster.liveStatsAt,
+      // For the starting-stats line only; never sent (see below).
+      teamId: eventParticipants.teamId,
+      statsSnapshot: eventParticipants.statsSnapshot,
+      snapshotAt: eventParticipants.snapshotAt,
+      pickedAt: eventParticipants.pickedAt,
     })
     .from(eventParticipants)
     .leftJoin(clanRoster, eq(eventParticipants.clanMemberId, clanRoster.id))
     .where(and(eq(eventParticipants.eventId, management.eventId), eq(eventParticipants.teamId, tId)));
+  // Late joiners on a running event: are their starting stats in yet (lib/startingStats)?
+  const startingStats = event ? await startingStatsFor(event, rosterRows.map((r) => ({ ...r, id: r.playerId }))) : {};
+  const roster = rosterRows.map((r) => ({
+    playerId: r.playerId,
+    name: r.name,
+    clanMemberId: r.clanMemberId,
+    pickNumber: r.pickNumber,
+    frozenAt: r.frozenAt,
+    rsn: r.rsn,
+    lastSeen: r.lastSeen,
+  }));
 
   // Their team's proof: the submissions their own players made, newest first, with the screenshot.
   const eventTiles = await db
@@ -101,6 +118,7 @@ export async function GET(
     cashPolicy: event?.cashPolicy ?? 'host-holds',
     payouts: teamPayouts,
     roster,
+    startingStats,
     proof: proof.map((p) => ({
       ...p,
       tileLabel: tileLabel.get(p.tileId) ?? 'Tile',
@@ -172,6 +190,7 @@ export async function POST(
       return NextResponse.json({ error: 'They are already on another team in this event.' }, { status: 409 });
     }
     await db.update(eventParticipants).set({ teamId: tId }).where(eq(eventParticipants.id, existing.id));
+    captureStartingStatsSoon(management.eventId, [existing.id]);
     return NextResponse.json({ ok: true, playerId: existing.id });
   }
 
