@@ -1,4 +1,6 @@
-// GET /img/item/<id> — RuneLite's cache sprite for one item id, served from our own cache.
+// GET /img/item/<id>.png — RuneLite's cache sprite for one item id, served from our own cache.
+// The bare /img/item/<id> (the old spelling, still in stored URLs and old Discord posts) is the same
+// handler: parseItemId takes either.
 
 import { assetResponse, getAsset, limitedResponse, missThrottle, placeholderResponse } from '@/lib/assetCache';
 import { parseItemId } from '@/lib/assetUrls';

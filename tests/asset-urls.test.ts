@@ -44,7 +44,7 @@ test('wikiImageUrl / proxyWikiUrl point at our route; other URLs pass through', 
     proxyWikiUrl('https://oldschool.runescape.wiki/images/thumb/Abyssal_Sire_%28phase_1%29.png/320px-Abyssal_Sire_%28phase_1%29.png?0db8f'),
     '/img/wiki/thumb/Abyssal_Sire_(phase_1).png/320px-Abyssal_Sire_(phase_1).png',
   );
-  assert.equal(proxyWikiUrl('https://static.runelite.net/cache/item/icon/4151.png'), '/img/item/4151');
+  assert.equal(proxyWikiUrl('https://static.runelite.net/cache/item/icon/4151.png'), '/img/item/4151.png');
   assert.equal(proxyWikiUrl('https://media.example.com/a.png'), 'https://media.example.com/a.png');
   assert.equal(proxyWikiUrl(null), null);
 });
@@ -55,7 +55,9 @@ test('item ids: positive integers only', () => {
   for (const bad of ['', '0', '-1', '1.5', '1e3', 'abc', '4151.gif', '1234567', '0x10', ' 1']) {
     assert.equal(parseItemId(bad), null, bad);
   }
-  assert.equal(itemAssetUrl(4151), '/img/item/4151');
+  // The .png spelling is what Cloudflare edge-caches; the bare one is still parsed for old URLs.
+  assert.equal(itemAssetUrl(4151), '/img/item/4151.png');
+  assert.equal(parseItemId(itemAssetUrl(4151).slice('/img/item/'.length)), 4151);
 });
 
 test('paths round-trip to refs, upstream URLs and storage keys', () => {
@@ -64,8 +66,9 @@ test('paths round-trip to refs, upstream URLs and storage keys', () => {
   assert.equal(upstreamUrl(wiki!), 'https://oldschool.runescape.wiki/images/Skull_(status)_icon.png');
   assert.equal(assetCacheKey(wiki!), 'asset-cache/wiki/Skull_~28status~29_icon.png');
 
-  const item = parseAssetPath('/img/item/4151');
+  const item = parseAssetPath('/img/item/4151.png');
   assert.deepEqual(item, { kind: 'item', id: 4151 });
+  assert.deepEqual(parseAssetPath('/img/item/4151'), { kind: 'item', id: 4151 });
   assert.equal(upstreamUrl(item!), 'https://static.runelite.net/cache/item/icon/4151.png');
   assert.equal(assetCacheKey(item!), 'asset-cache/item/4151.png');
 
@@ -82,7 +85,7 @@ test('paths round-trip to refs, upstream URLs and storage keys', () => {
 });
 
 test('absoluteAssetUrl puts our paths on the apex and leaves everything else alone', () => {
-  assert.equal(absoluteAssetUrl('/img/item/4151'), 'https://anvilosrs.com/img/item/4151');
+  assert.equal(absoluteAssetUrl('/img/item/4151.png'), 'https://anvilosrs.com/img/item/4151.png');
   assert.equal(absoluteAssetUrl('https://cdn.example.com/x.png'), 'https://cdn.example.com/x.png');
   assert.equal(absoluteAssetUrl(null), null);
 });

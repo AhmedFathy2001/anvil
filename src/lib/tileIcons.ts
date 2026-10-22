@@ -12,7 +12,7 @@ import { itemAssetUrl, proxyWikiUrl, wikiImageUrl } from '@/lib/assetUrls';
 
 export { wikiImageUrl } from '@/lib/assetUrls';
 
-/** RuneLite's cache sprite for an item, through our asset cache (`/img/item/<id>`). Relative — wrap
+/** RuneLite's cache sprite for an item, through our asset cache (`/img/item/<id>.png`). Relative — wrap
  *  in `absoluteAssetUrl` (lib/seo) wherever the URL leaves the browser (Discord, plugin, cards). */
 export function itemIconUrl(itemId: number): string {
   return itemAssetUrl(itemId);
