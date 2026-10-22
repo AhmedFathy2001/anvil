@@ -47,7 +47,7 @@ export default async function EventStatsPage({
       statStandings={statStandings}
       teamStandings={teamStandings}
       statsPulledAt={pullRow}
-      startingStats={startingStatsFor(event, eventPlayers)}
+      startingStats={await startingStatsFor(event, eventPlayers)}
     />
   );
 }

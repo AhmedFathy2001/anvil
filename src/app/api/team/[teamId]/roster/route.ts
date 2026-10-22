@@ -56,7 +56,7 @@ export async function GET(
     .leftJoin(clanRoster, eq(eventParticipants.clanMemberId, clanRoster.id))
     .where(and(eq(eventParticipants.eventId, management.eventId), eq(eventParticipants.teamId, tId)));
   // Late joiners on a running event: are their starting stats in yet (lib/startingStats)?
-  const startingStats = event ? startingStatsFor(event, rosterRows.map((r) => ({ ...r, id: r.playerId }))) : {};
+  const startingStats = event ? await startingStatsFor(event, rosterRows.map((r) => ({ ...r, id: r.playerId }))) : {};
   const roster = rosterRows.map((r) => ({
     playerId: r.playerId,
     name: r.name,

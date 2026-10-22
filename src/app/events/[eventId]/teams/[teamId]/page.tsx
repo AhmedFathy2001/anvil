@@ -16,6 +16,7 @@ import { atLeast } from '@/lib/clanRoles';
 import { clanHref } from '@/lib/clanPath';
 import { idParam } from '@/lib/routeIds';
 import { withSearchText } from '@/lib/tileSearchText';
+import { startingStatsFor } from '@/lib/startingStats';
 
 export const dynamic = 'force-dynamic';
 
@@ -117,6 +118,7 @@ export default async function TeamBoardPage({
         tiles={withSearchText(boardTiles)}
         completions={teamCompletions}
         players={eventPlayers}
+        startingStats={await startingStatsFor(event, rawEventPlayers.filter((p) => p.teamId === tId))}
         tierBands={tierBands}
       />
     </>

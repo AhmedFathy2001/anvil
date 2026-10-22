@@ -20,6 +20,9 @@ import MemberBreakdown from '@/components/MemberBreakdown';
 import BoardFilters from '@/components/BoardFilters';
 import { DEFAULT_TIER_BANDS, type TierBand } from '@/lib/tileFilter';
 import { clanFetch } from '@/lib/clanFetch';
+import { useRouter } from 'next/navigation';
+import StartingStatsLine, { useStartingStatsPoll } from '@/components/StartingStatsLine';
+import type { StartingStatsStatus } from '@/lib/startingStatsRules';
 import { claimFilterIds, TeamPlanPanel, TileClaimSection, useTeamClaims, type ClaimFilter } from './TeamClaims';
 import { completionMarkers } from '@/lib/tileClaimsView';
 
@@ -29,6 +32,8 @@ interface Props {
   tiles: Tile[];
   completions: Completion[];
   players: Player[];
+  /** Late joiners whose starting stats are being read, or were just taken (lib/startingStats). */
+  startingStats?: Record<number, StartingStatsStatus>;
   // Resolved from the Discord session: is this user the captain, and do they have a
   // player row on the team (a captain is usually also a player).
   isCaptain: boolean;
@@ -55,6 +60,7 @@ export default function MyTeamClient({
   tiles,
   completions: initialCompletions,
   players,
+  startingStats = {},
   isCaptain,
   myPlayerId,
   myPlayerName,
@@ -84,6 +90,13 @@ export default function MyTeamClient({
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
 
   const teamPlayers = useMemo(() => players.filter((p) => p.teamId === team.id), [players, team.id]);
+  // A teammate added after the start whose starting stats are still being read: refresh lightly
+  // until they land. Status only here — retrying is the host's.
+  const router = useRouter();
+  const startingStatsPoll = useStartingStatsPoll(
+    Object.values(startingStats).some((s) => s.state === 'pending'),
+    () => router.refresh(),
+  );
   // Team-private planning: who is going for which tile. Not loaded while the board is sealed.
   const claims = useTeamClaims(team.id, !boardHidden && tiles.length > 0);
   const [claimFilter, setClaimFilter] = useState<ClaimFilter>('all');
@@ -593,6 +606,7 @@ export default function MyTeamClient({
                         Subbed out
                       </span>
                     )}
+                    <StartingStatsLine status={startingStats[player.id]} lapsed={startingStatsPoll.lapsed} />
                   </span>
                 ))}
               </div>

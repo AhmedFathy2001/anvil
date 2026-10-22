@@ -16,7 +16,7 @@ export default async function WeeklyParticipantsPage({ params }: { params: Promi
   if (!comp) notFound();
 
   const standings = await getWeeklyStandings(id);
-  const startingStats = weeklyStartingStatsFor(comp, standings.map((s) => ({ id: s.participantId, baselineValue: s.baselineValue })));
+  const startingStats = weeklyStartingStatsFor(comp, standings.map((s) => ({ id: s.participantId, baselineValue: s.baselineValue, lastUpdated: s.lastUpdated })));
 
   return <WeeklyRosterClient competitionId={id} type={comp.type} standings={standings} startingStats={startingStats} mode="participants" includeGuests={comp.includeGuests === 1} />;
 }

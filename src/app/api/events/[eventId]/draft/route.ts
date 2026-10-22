@@ -146,7 +146,7 @@ export async function GET(
     poolRemaining: poolPlayers.length,
     // Late joiners on a running event: are their starting stats in yet (lib/startingStats)? Only
     // ids with something to say are present; nothing at all before the start.
-    startingStats: startingStatsFor(event, rawPlayers),
+    startingStats: await startingStatsFor(event, rawPlayers),
     balanceMode,
   });
 }

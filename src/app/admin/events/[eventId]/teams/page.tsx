@@ -65,7 +65,7 @@ export default async function EventTeamsPage({ params }: { params: Promise<{ eve
         teams={safeTeams}
         players={eventPlayers}
         completions={eventCompletions}
-        startingStats={startingStatsFor(event, rawPlayers)}
+        startingStats={await startingStatsFor(event, rawPlayers)}
         editLocked={eventEditLocked(event)}
       />
     </>

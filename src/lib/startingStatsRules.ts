@@ -29,10 +29,19 @@ export interface StartingStatsParticipant {
   pickedAt: string | null;
 }
 
-/** A capture attempt this process made for the participant: when it finished, and whether it landed. */
-export interface StartingStatsAttempt {
-  ok: boolean;
-  at: number;
+/**
+ * What we know about the reads for one row, beyond the row itself (lib/startingStats gathers it):
+ *
+ *   inFlight         — a read is running or queued for them right now (this process, or a request
+ *                      still waiting in hiscores_fetches)
+ *   lastFailedReadAt — when their latest hiscores read failed, if their latest read DID fail. Read
+ *                      off hiscores_fetches, so it survives a restart.
+ *   justCapturedAt   — this process just took their start line (a fast path for the "taken" line)
+ */
+export interface StartingStatsSignals {
+  inFlight?: boolean;
+  lastFailedReadAt?: string | null;
+  justCapturedAt?: string | null;
 }
 
 export type StartingStatsStatus =
@@ -101,15 +110,20 @@ export function startingStatsStatus(
   event: StartingStatsEvent,
   p: StartingStatsParticipant,
   nowMs: number,
-  lastAttempt?: StartingStatsAttempt | null,
+  signals: StartingStatsSignals = {},
 ): StartingStatsStatus | null {
   if (!eventIsRunning(event, nowMs)) return null;
   if (p.teamId == null || p.frozenAt) return null;
   if (needsStartingStats(event, p)) {
-    return lastAttempt && !lastAttempt.ok ? { state: 'failed' } : { state: 'pending' };
+    if (signals.inFlight) return { state: 'pending' };
+    // Only a failure since they could have been read counts: after the start, and after they were
+    // placed (an old miss for the same name is not this player's).
+    const failedAt = parseStamp(signals.lastFailedReadAt);
+    const since = Math.max(parseStamp(event.startDate) ?? 0, parseStamp(p.pickedAt) ?? 0);
+    return failedAt != null && failedAt >= since ? { state: 'failed' } : { state: 'pending' };
   }
   // Late if we can tell from the row, or because this process is what just captured them.
-  if (!p.snapshotAt || !(joinedAfterStart(event, p) || lastAttempt?.ok)) return null;
+  if (!p.snapshotAt || !(joinedAfterStart(event, p) || signals.justCapturedAt)) return null;
   return { state: 'taken', at: p.snapshotAt };
 }
 
@@ -141,17 +155,24 @@ export function shouldCaptureWeeklyNow(
 }
 
 /**
- * The weekly row's line. A weekly row keeps no capture time, so "taken" is only reported when this
- * process is what just took it — exactly the late-add case, and quiet for everyone else.
+ * The weekly row's line. A weekly row with no starting value but a `lastUpdated` has been tried and
+ * missed — the sweep stamps it on a failed read to move it down its queue, and so does a late-add
+ * capture — which is what makes "couldn't read" survive a restart. A weekly row keeps no capture
+ * time, so "taken" is only reported when this process just took it: exactly the late-add case.
  */
 export function weeklyStartingStatsStatus(
   comp: StartingStatsCompetition,
-  p: { baselineValue: number | null },
+  p: { baselineValue: number | null; lastUpdated: string | null },
   nowMs: number,
-  lastAttempt?: StartingStatsAttempt | null,
+  signals: StartingStatsSignals = {},
 ): StartingStatsStatus | null {
   if (!weeklyIsRunning(comp, nowMs)) return null;
-  if (p.baselineValue === null) return lastAttempt && !lastAttempt.ok ? { state: 'failed' } : { state: 'pending' };
-  if (lastAttempt?.ok) return { state: 'taken', at: new Date(lastAttempt.at).toISOString() };
+  if (p.baselineValue === null) {
+    if (signals.inFlight) return { state: 'pending' };
+    const tried = parseStamp(p.lastUpdated);
+    const start = parseStamp(comp.startDate) ?? 0;
+    return tried != null && tried >= start ? { state: 'failed' } : { state: 'pending' };
+  }
+  if (signals.justCapturedAt) return { state: 'taken', at: signals.justCapturedAt };
   return null;
 }

@@ -85,9 +85,21 @@ test('roster line: nothing before the start', () => {
   assert.equal(startingStatsStatus(event, player(), BEFORE), null);
 });
 
-test('roster line: pending while missing, failed once an attempt has failed', () => {
+test('roster line: pending while missing, failed once their latest read has failed', () => {
   assert.deepEqual(startingStatsStatus(event, player(), DURING), { state: 'pending' });
-  assert.deepEqual(startingStatsStatus(event, player(), DURING, { ok: false, at: DURING }), { state: 'failed' });
+  const failed = { lastFailedReadAt: '2026-10-21T09:00:30.000Z' };
+  assert.deepEqual(startingStatsStatus(event, player(), DURING, failed), { state: 'failed' });
+  // A read running now (a retry, or a request still waiting on Forge) wins over the last failure.
+  assert.deepEqual(startingStatsStatus(event, player(), DURING, { ...failed, inFlight: true }), { state: 'pending' });
+});
+
+test('roster line: a failure from before they were placed is not theirs', () => {
+  // Same name missed an hour before this player was put on the team (e.g. an older pool read).
+  const old = { lastFailedReadAt: '2026-10-21T07:00:00.000Z' };
+  assert.deepEqual(startingStatsStatus(event, player(), DURING, old), { state: 'pending' });
+  // …and nothing before the start ever counts.
+  const preStart = { lastFailedReadAt: '2026-10-20T11:00:00.000Z' };
+  assert.deepEqual(startingStatsStatus(event, player({ pickedAt: null }), DURING, preStart), { state: 'pending' });
 });
 
 test('roster line: taken is shown for late joiners only, so the roster is not noisy', () => {
@@ -98,7 +110,7 @@ test('roster line: taken is shown for late joiners only, so the roster is not no
   const onTime = player({ pickedAt: '2026-10-19T10:00:00.000Z', statsSnapshot: fullBaseline, snapshotAt: '2026-10-20T12:05:00.000Z' });
   assert.equal(startingStatsStatus(event, onTime, DURING), null);
   // …unless this process is what just captured them (an account swap, a reset).
-  assert.deepEqual(startingStatsStatus(event, onTime, DURING, { ok: true, at: DURING }), { state: 'taken', at: '2026-10-20T12:05:00.000Z' });
+  assert.deepEqual(startingStatsStatus(event, onTime, DURING, { justCapturedAt: '2026-10-21T09:00:00.000Z' }), { state: 'taken', at: '2026-10-20T12:05:00.000Z' });
 });
 
 test('joinedAfterStart: placed after the start, or a start line taken well after it', () => {
@@ -117,10 +129,16 @@ test('weekly: only an active, started competition captures, and only a missing s
   assert.equal(shouldCaptureWeeklyNow({ ...comp, status: 'completed' }, { baselineValue: null }, AFTER), false);
 });
 
-test('weekly roster line: pending, failed, and taken only when just captured', () => {
-  assert.deepEqual(weeklyStartingStatsStatus(comp, { baselineValue: null }, DURING), { state: 'pending' });
-  assert.deepEqual(weeklyStartingStatsStatus(comp, { baselineValue: null }, DURING, { ok: false, at: DURING }), { state: 'failed' });
-  assert.equal(weeklyStartingStatsStatus(comp, { baselineValue: 10 }, DURING), null);
-  assert.equal(weeklyStartingStatsStatus(comp, { baselineValue: 10 }, DURING, { ok: true, at: DURING })?.state, 'taken');
-  assert.equal(weeklyStartingStatsStatus({ ...comp, status: 'upcoming' }, { baselineValue: null }, BEFORE), null);
+test('weekly roster line: never tried is pending, tried-and-missed (lastUpdated set) is failed', () => {
+  const fresh = { baselineValue: null, lastUpdated: null };
+  const missed = { baselineValue: null, lastUpdated: '2026-10-21T09:00:30.000Z' };
+  assert.deepEqual(weeklyStartingStatsStatus(comp, fresh, DURING), { state: 'pending' });
+  assert.deepEqual(weeklyStartingStatsStatus(comp, missed, DURING), { state: 'failed' });
+  assert.deepEqual(weeklyStartingStatsStatus(comp, missed, DURING, { inFlight: true }), { state: 'pending' });
+  assert.equal(weeklyStartingStatsStatus(comp, { baselineValue: 10, lastUpdated: null }, DURING), null);
+  assert.equal(
+    weeklyStartingStatsStatus(comp, { baselineValue: 10, lastUpdated: null }, DURING, { justCapturedAt: '2026-10-21T09:00:00.000Z' })?.state,
+    'taken',
+  );
+  assert.equal(weeklyStartingStatsStatus({ ...comp, status: 'upcoming' }, fresh, BEFORE), null);
 });

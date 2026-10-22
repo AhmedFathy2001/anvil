@@ -133,10 +133,10 @@ test('a late joiner is read at the top of the queue and the live session is fold
   assert.ok(row.cachedStats, 'current stats warmed too');
 
   const [q] = await db.select().from(s.hiscoresFetches).where(eq(s.hiscoresFetches.rsnKey, m.key));
-  assert.equal(q.priority, 0, 'top lane');
+  assert.equal(q.priority, lib.LATE_JOINER_PRIORITY, 'the late-joiner lane, ahead of competition work');
   assert.equal(q.consumedAt, null, 'left for the drain to apply as usual');
 
-  const status = lib.startingStatsFor((await db.query.events.findFirst({ where: eq(s.events.id, runningEventId) }))!, [{ ...row }]);
+  const status = await lib.startingStatsFor((await db.query.events.findFirst({ where: eq(s.events.id, runningEventId) }))!, [{ ...row }]);
   assert.equal(status[row.id]?.state, 'taken');
 });
 
@@ -185,7 +185,35 @@ test('a 404 leaves them uncaptured, and the roster says it could not read them',
   const row = await participant(m.participantId);
   assert.equal(row.statsSnapshot, null);
   const event = (await db.query.events.findFirst({ where: eq(s.events.id, runningEventId) }))!;
-  assert.equal(lib.startingStatsFor(event, [row])[row.id]?.state, 'failed');
+  // Read off hiscores_fetches, not this process's memory — so it holds across a restart.
+  assert.equal((await lib.startingStatsFor(event, [row]))[row.id]?.state, 'failed');
+});
+
+test('a request still waiting on Forge reads as pending, not failed', async () => {
+  const m = await member('Waiter', { eventId: runningEventId, teamId: runningTeamId });
+  await db.insert(s.hiscoresFetches).values({ rsn: 'Waiter', rsnKey: m.key, priority: -1, mode: 'main' });
+  const row = await participant(m.participantId);
+  const event = (await db.query.events.findFirst({ where: eq(s.events.id, runningEventId) }))!;
+  assert.equal((await lib.startingStatsFor(event, [row]))[row.id]?.state, 'pending');
+});
+
+test('the late lane is kept short: past the cap, a new request goes in the competition lane', async () => {
+  for (let i = 0; i < 10; i++) {
+    await db.insert(s.hiscoresFetches).values({ rsn: `Q${i}`, rsnKey: `queued${i}`, priority: -1, mode: 'main' });
+  }
+  const m = await member('Overflow', { eventId: runningEventId, teamId: runningTeamId });
+  const capture = lib.captureStartingStats(runningEventId, [m.participantId]);
+  for (let i = 0; i < 40; i++) {
+    const [q] = await db.select().from(s.hiscoresFetches).where(eq(s.hiscoresFetches.rsnKey, m.key));
+    if (q) {
+      assert.equal(q.priority, 0);
+      break;
+    }
+    await new Promise((res) => setTimeout(res, 100));
+  }
+  await forgeAnswers(m.key, 'ok', body(100));
+  assert.equal((await capture).captured, 1);
+  await pool.query(`DELETE FROM hiscores_fetches WHERE rsn_key LIKE 'queued%'`);
 });
 
 test('weekly: a participant added mid-competition gets their starting value now', async () => {
@@ -206,4 +234,23 @@ test('weekly: a participant added mid-competition gets their starting value now'
   assert.equal(after.currentValue, 1300);
   const snaps = await db.select().from(s.playerSnapshots).where(eq(s.playerSnapshots.weeklyCompetitionId, wc.id));
   assert.ok(snaps.some((x) => x.kind === 'baseline'), 'the competition’s player snapshot is written');
+});
+
+test('weekly: a miss stamps lastUpdated, so "couldn\'t read" survives a restart', async () => {
+  const [wc] = await db
+    .insert(s.weeklyCompetitions)
+    .values({ clanId, type: 'skill', metric: 'attack', title: 'SOTW 2', status: 'active', startDate: hoursFromNow(-5), endDate: hoursFromNow(100) })
+    .returning();
+  const m = await member('Weeklyghost', { eventId: futureEventId, teamId: null });
+  const [wp] = await db
+    .insert(s.weeklyParticipants)
+    .values({ competitionId: wc.id, clanMemberId: m.membershipId, rsn: 'Weeklyghost', rsnNormalized: 'weeklyghost' })
+    .returning();
+  const capture = lib.captureWeeklyStartingStats(wc.id, [wp.id]);
+  await forgeAnswers(m.key, 'unranked', null);
+  assert.equal((await capture).failed, 1);
+  const [after] = await db.select().from(s.weeklyParticipants).where(eq(s.weeklyParticipants.id, wp.id));
+  assert.equal(after.baselineValue, null);
+  assert.ok(after.lastUpdated);
+  assert.equal(lib.weeklyStartingStatsFor(wc, [after])[after.id]?.state, 'failed');
 });
