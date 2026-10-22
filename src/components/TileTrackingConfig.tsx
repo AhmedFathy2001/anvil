@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo, useContext } from "react";
+import LapCounterTip from "@/components/LapCounterTip";
 import { SKILLS, SKILL_LABELS, SKILL_ALIASES, BOSSES, DIARY_AREAS, DIARY_TIERS, CA_TIERS, RAID_MODE_VARIANTS, AGILITY_COURSES, SEPULCHRE_TARGETS, COUNTER_TARGETS, lapUnitNoun, canonicalAgilityCourse } from "@/lib/constants";
 import { HISCORES_ACTIVITIES } from "@/lib/hiscoresActivities";
 import Select from '@/components/Select';
@@ -2684,6 +2685,11 @@ function TileTrackingEditor({
               banked beforehand are worth nothing. Listing several courses lets a team pick whichever they can reach.
               {' '}Brimhaven Agility Arena counts tickets rather than laps, so it isn&rsquo;t selectable.
             </p>
+            {lapNoun === 'lap' && (
+              <div className="mt-1.5">
+                <LapCounterTip compact />
+              </div>
+            )}
             {lapNoun !== 'lap' && (
               <p className="text-[10px] text-amber-300/80 mt-1 leading-relaxed">
                 The Sepulchre announces <span className="text-foreground/70">each floor</span> as it&rsquo;s cleared,
