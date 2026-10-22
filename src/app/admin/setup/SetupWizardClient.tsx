@@ -51,6 +51,15 @@ function firstIncompleteStep(initial: Props['initial']): number {
   return first === -1 ? TOTAL_STEPS : first; // everything done → straight to the Done screen
 }
 
+// Names only what is really filled in. It used to say "your clan name and Discord details are
+// already filled in" while the very step under it asked to connect Discord. The notice only ever
+// shows on the Discord step (it is the one step that can follow a skip), so the skipped step is the
+// clan one, and Discord is by definition not done yet.
+function skippedNotice(initial: Props['initial'], provisioned: boolean): string {
+  const filled = initial.inviteUrl.trim() ? 'Your clan name and Discord invite link are' : 'Your clan name is';
+  return `${filled} already filled in${provisioned ? ' from when you created the clan' : ''}, so we started at Discord.`;
+}
+
 export default function SetupWizardClient({ initial, channels, provisioned }: Props) {
   const router = useRouter();
   // Open at the first step with anything left to do; already-satisfied steps are skipped.
@@ -141,16 +150,9 @@ export default function SetupWizardClient({ initial, channels, provisioned }: Pr
               ✓
             </span>
             <p className="text-sm text-text-muted leading-relaxed">
-              {provisioned
-                ? 'Your clan name and Discord details from sign-up are already filled in, so we skipped what’s done. '
-                : 'Steps you’ve already completed were skipped. '}
-              Change any of it later in the{' '}
+              {skippedNotice(initial, provisioned)} Change it later in the{' '}
               <ClanLink href="/admin/clan" className="text-gold hover:underline">
                 Clan profile
-              </ClanLink>{' '}
-              or{' '}
-              <ClanLink href="/admin/integrations" className="text-gold hover:underline">
-                Discord
               </ClanLink>
               .
             </p>
