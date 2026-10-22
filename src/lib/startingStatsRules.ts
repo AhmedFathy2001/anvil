@@ -49,6 +49,33 @@ export type StartingStatsStatus =
   | { state: 'failed' }
   | { state: 'taken'; at: string };
 
+/** What one "Try again" came back with. 'limited' is the endpoint's 429 (3 tries per player per 5 min). */
+export type RetryOutcome = 'ok' | 'limited' | 'failed';
+
+/**
+ * "Try all" for a roster: one retry at a time, in order, stopping at the first 429.
+ *
+ * Sequential on purpose — firing eight at once would put eight hiscores reads in the queue in the
+ * same instant. The limit is per player, but a 429 means these reads were asked for moments ago, so
+ * it stops there rather than burning through everyone else's remaining tries too.
+ */
+export async function retryInTurn(
+  ids: readonly number[],
+  retryOne: (id: number) => Promise<RetryOutcome>,
+  onProgress?: (done: number) => void,
+): Promise<{ asked: number; limited: boolean; failed: number }> {
+  let asked = 0;
+  let failed = 0;
+  for (const id of ids) {
+    const outcome = await retryOne(id);
+    if (outcome === 'limited') return { asked, limited: true, failed };
+    if (outcome === 'ok') asked++;
+    else failed++;
+    onProgress?.(asked + failed);
+  }
+  return { asked, limited: false, failed };
+}
+
 /** How the roster polls while somebody is still pending: every 5s, for at most two minutes. */
 export const STARTING_STATS_POLL_MS = 5_000;
 export const STARTING_STATS_POLL_WINDOW_MS = 2 * 60_000;

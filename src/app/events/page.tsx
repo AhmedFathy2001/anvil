@@ -14,6 +14,7 @@ import WeekFrame from '@/components/events/WeekFrame';
 import HubRecord from './HubRecord';
 import SeasonCalendar from './SeasonCalendar';
 import EventTimer from '@/components/EventTimer';
+import LocalTime from '@/components/LocalTime';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +22,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const clan = await requireClan();
   const name = (await getClanDisplayName(clan.id, clan.name)) || clan.name;
   return clanSectionMetadata({
-    section: 'Competitions',
+    section: 'Events',
     description: `Every bingo board, Skill of the Week and Boss of the Week ${name} has run — what is live now, what is coming, and how the last ones finished.`,
   });
 }
@@ -63,7 +64,9 @@ export default async function EventsIndexPage({
       href: `/events/${b.id}`,
       startDate: b.startDate,
       endDate: b.endDate,
-      foot: b.hostSlug ? `${b.foot} · co-hosted · ${b.hostSlug} hosts` : b.foot,
+      // No start date in the foot: the row's timer already gives it, in the reader's own clock. The
+      // card's foot is formatted on the server (UTC), so the two disagreed by a day near midnight.
+      foot: b.hostSlug ? `co-hosted · ${b.hostSlug} hosts` : null,
     })),
     ...view.upcoming.weeks.map((w) => ({
       key: `w${w.id}`,
@@ -105,7 +108,13 @@ export default async function EventsIndexPage({
           {nextUp.length > 0 ? (
             <>
               Nothing is running. Next up is <b className="text-foreground">{nextUp[0].name}</b>
-              {nextUp[0].startDate ? ` on ${new Date(nextUp[0].startDate).toLocaleDateString()}` : ''}.
+              {nextUp[0].startDate && (
+                <>
+                  {' '}
+                  on <LocalTime date={nextUp[0].startDate} format="date" />
+                </>
+              )}
+              .
             </>
           ) : isStaff ? (
             <>
@@ -172,7 +181,8 @@ export default async function EventsIndexPage({
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-semibold">{n.name}</span>
                       <span className="block truncate text-[11.5px] text-text-muted">
-                        {meta.short} · {n.foot}
+                        {meta.short}
+                        {n.foot ? ` · ${n.foot}` : ''}
                       </span>
                     </span>
                     <span className="ml-auto shrink-0 text-[11.5px]">

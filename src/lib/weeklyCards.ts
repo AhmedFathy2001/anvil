@@ -5,6 +5,7 @@ import { BOSSES, EFFICIENCY_LABELS, SKILL_LABELS } from '@/lib/constants';
 import { competitionImageUrl } from '@/lib/tileIcons';
 import { dayRange, metricGain, type CompetitionType } from '@/lib/competitionInsights';
 import { countsTowardLeaderboard } from '@/lib/weekly';
+import { weeklyStage } from '@/lib/weeklyStage';
 
 /**
  * A weekly competition, reduced to what a card needs.
@@ -201,8 +202,10 @@ export async function loadWeeklyCards(
   }
 
   return shown.map((c) => {
-    const state: WeeklyCard['state'] =
-      c.status === 'active' ? 'live' : c.status === 'upcoming' ? 'upcoming' : 'past';
+    // The stage, not the raw status: a week stays 'active' until the lifecycle cron closes it, so a
+    // Boss of the Week that ended yesterday sat under "On now" with a LIVE badge until then.
+    const stage = weeklyStage(c, now.getTime());
+    const state: WeeklyCard['state'] = stage === 'run' ? 'live' : stage === 'build' ? 'upcoming' : 'past';
     const leader = leaders.get(c.id);
     return {
       id: c.id,

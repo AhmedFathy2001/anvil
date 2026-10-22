@@ -185,7 +185,7 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
       const parsed = JSON.parse(text);
       const packTasks = Array.isArray(parsed?.tasks) ? parsed.tasks : null;
       if (!packTasks) {
-        setMsg({ type: 'error', text: 'That file has no `tasks` array — is it a seed pack?' });
+        setMsg({ type: 'error', text: 'That file isn’t a task pack — use one made with Export pack.' });
         return;
       }
       await post(
@@ -388,7 +388,7 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
               onClick={() => post({ action: 'seed' }, `Imported ${pendingSeed} starter tasks.`)}
               disabled={busy}
               className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-gold/15 border border-gold/30 text-gold hover:bg-gold/25 transition-colors disabled:opacity-50"
-              title={`${seedTotal} curated starter tasks ship with Anvil; ${pendingSeed} of them aren't in your library`}
+              title={`Copies ${pendingSeed} of Anvil's ${seedTotal} ready-made tasks into your library, to use on any board`}
             >
               Import {pendingSeed} starter task{pendingSeed === 1 ? '' : 's'}
             </button>
@@ -409,7 +409,7 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
           <a
             href={clanHref('/api/admin/tile-library/export')}
             className="text-xs font-medium px-3 py-1.5 rounded-lg border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors"
-            title="Download the whole library as a seed pack — share it with another site, or commit it as the default"
+            title="Download your whole library as a file — to share with another clan, or keep as a backup"
           >
             ⬇ Export pack
           </a>
@@ -426,7 +426,7 @@ export default function TileLibraryClient({ tierBands, seedTotal }: Props) {
       ) : visible.length === 0 ? (
         <p className="text-sm text-text-muted">
           {tasks.length === 0
-            ? 'Nothing here yet — import the starter tasks, a seed pack, or add a board’s tiles from its Tiles tab.'
+            ? 'Nothing here yet. Import the starter tasks for a ready-made set, add tasks from Anvil’s library, or save a board’s tiles from its Tiles tab.'
             : 'No tasks match those filters.'}
         </p>
       ) : (

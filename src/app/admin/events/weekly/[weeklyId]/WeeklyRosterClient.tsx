@@ -8,7 +8,7 @@ import { weeklyGain, weeklyStatValue } from '@/lib/weeklyLabels';
 import Input from '@/components/Input';
 import { useDialog } from '@/components/Confirm';
 import { doubleEntries, surplusSeats, type EntrantSeat } from '@/lib/weeklyEntrants';
-import StartingStatsLine, { useStartingStatsPoll } from '@/components/StartingStatsLine';
+import StartingStatsLine, { StartingStatsSummary, postStartingStatsRetry, unreadIds, useStartingStatsPoll } from '@/components/StartingStatsLine';
 import type { StartingStatsStatus } from '@/lib/startingStatsRules';
 
 /**
@@ -40,8 +40,10 @@ export default function WeeklyRosterClient({
     Object.values(startingStats).some((s) => s.state === 'pending'),
     () => router.refresh(),
   );
+  const retryOne = (participantId: number) =>
+    postStartingStatsRetry(`/api/admin/weekly/${competitionId}/participants/${participantId}/starting-stats`);
   async function retryStartingStats(participantId: number) {
-    await clanFetch(`/api/admin/weekly/${competitionId}/participants/${participantId}/starting-stats`, { method: 'POST' });
+    await retryOne(participantId);
     router.refresh();
     startingStatsPoll.restart();
   }
@@ -376,6 +378,16 @@ export default function WeeklyRosterClient({
             />
           </div>
         </div>
+
+        <StartingStatsSummary
+          ids={unreadIds(standings.map((r) => r.participantId), startingStats, startingStatsPoll.lapsed)}
+          onRetry={retryOne}
+          onDone={() => {
+            router.refresh();
+            startingStatsPoll.restart();
+          }}
+          className="px-4 pb-2"
+        />
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

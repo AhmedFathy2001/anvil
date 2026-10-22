@@ -3,7 +3,7 @@ import { pendingUpdateCount } from '@/lib/guides';
 import { redirect } from 'next/navigation';
 import { verifyUser } from '@/lib/auth';
 import { redirectFor } from '@/lib/adminAccess';
-import { getSetting } from '@/lib/settings';
+import { getSetting, setSetting } from '@/lib/settings';
 import { SNOOZE_SETTING_KEY, parseSnoozes } from '@/lib/adminSnooze';
 import SnoozeButton from './SnoozeButton';
 import { db } from '@/db';
@@ -54,11 +54,15 @@ export default async function AdminDashboardPage() {
     : null;
   const canReach = (href: string) => redirectFor(href, access) === null;
   const canManageEvents = canReach('/admin/events');
-  // First-run: a brand-new clan (no name, no webhook, never dismissed) is sent straight
-  // to the guided wizard once. It's always escapable, and skipping sets the advisory flag
-  // so this never becomes a trap.
+  // First-run: a brand-new clan (no webhook, never dismissed) is sent straight to the guided
+  // wizard ONCE. `isFresh` stays true until setup is finished or skipped, so on its own it sent the
+  // owner back to the wizard on every Dashboard click; the shown flag is written before the redirect
+  // so the next visit lands here, where the checklist still offers the same steps.
   const setup = await getSetupStatus(clan.id);
-  if (setup.isFresh) redirect(await clanHref('/admin/setup?welcome=1'));
+  if (setup.isFresh && !setup.wizardShown) {
+    await setSetting(clan.id, 'setup_wizard_shown', new Date().toISOString());
+    redirect(await clanHref('/admin/setup?welcome=1'));
+  }
   // Read-only: the grace clock is started by the roster sync, never by someone opening a page.
   const capStatus = await rosterCapStatus(clan.id);
 
