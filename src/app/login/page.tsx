@@ -56,21 +56,21 @@ export default async function LoginPage({
 
             <div className="my-auto hidden py-12 lg:block">
               <div className="mb-4 flex items-center gap-2.5 font-mono text-[10px] uppercase tracking-[0.18em] text-gold-dark">
-                Back to the forge
+                New here or back again
                 <span className="h-px w-12 bg-gradient-to-r from-gold-dark to-transparent" />
               </div>
               <div className="display display-lg max-w-[10ch] text-[2.75rem] font-semibold leading-[1.04]">
-                Your clan is waiting.
+                One sign-in for every clan.
               </div>
               <p className="mt-5 max-w-[34ch] text-[15px] leading-relaxed text-text-muted">
-                One sign-in gets you back to your events, teams, account progress, and every clan you call home.
+                Your Discord account is your Anvil account: the same sign-in for your events, teams and progress in every clan you play in.
               </p>
             </div>
 
             <div className="relative hidden gap-5 font-mono text-[10.5px] text-text-dim lg:flex">
               <span className="flex items-center gap-1.5"><Tick /> No password</span>
               <span className="flex items-center gap-1.5"><Tick /> One identity</span>
-              <span className="flex items-center gap-1.5"><Tick /> Right back here</span>
+              <span className="flex items-center gap-1.5"><Tick /> Nothing to set up</span>
             </div>
           </div>
         </div>
@@ -78,14 +78,15 @@ export default async function LoginPage({
         <div className="flex min-w-0 items-center p-6 sm:p-10 lg:p-14">
           <div className="w-full min-w-0">
             <div className="mb-4 flex items-center gap-2.5 font-mono text-[10px] uppercase tracking-[0.18em] text-gold-dark">
-              Member access
+              Players and staff
               <span className="h-px w-10 bg-gradient-to-r from-gold-dark to-transparent" />
             </div>
             <h1 className="display display-lg text-[clamp(2rem,5vw,2.75rem)] font-semibold leading-[1.05]">
               Sign in to Anvil
             </h1>
             <p className="mt-4 max-w-[44ch] text-[15px] leading-relaxed text-text-muted">
-              Use the Discord account you use with your clan. Anvil will return you to where you left off.
+              Continue with Discord — the account you use with your clan. First time? That&apos;s all it takes; there&apos;s no
+              separate sign-up.
             </p>
 
             {params.error && (
