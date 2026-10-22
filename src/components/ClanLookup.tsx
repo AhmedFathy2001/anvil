@@ -124,6 +124,29 @@ export default function ClanLookup({ clans }: { clans: LookupClan[] }) {
         </p>
       </header>
 
+      {/* BOTH WAYS IN, side by side. The rail's "Join or start a clan" lands here, so this is where
+          the choice is made — joining is the common case and the cards below are how; starting one
+          is a button, not a footnote at the end of the grid. */}
+      <div className="mb-6 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-card-border bg-card-bg p-4">
+          <p className="text-[14.5px] font-semibold">Join a clan</p>
+          <p className="mt-1 text-[13px] text-text-muted">
+            Find yours below and open its page — that is where you ask to join, or join their events as
+            a guest.
+          </p>
+        </div>
+        <ClanLink
+          href="/clans/new"
+          className="group flex items-center gap-4 rounded-xl border border-gold/30 bg-gold/[0.06] p-4 transition-colors hover:border-gold/50 hover:bg-gold/10"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block text-[14.5px] font-semibold text-gold">Start your own clan</span>
+            <span className="mt-1 block text-[13px] text-text-muted">Free, and live as soon as you submit.</span>
+          </span>
+          <span className="shrink-0 text-[13px] text-gold transition-transform group-hover:translate-x-0.5">Start →</span>
+        </ClanLink>
+      </div>
+
       <div className="mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-card-border bg-card-border lg:grid-cols-4">
         <Stat label="Clans listed" value={totals.clans.toLocaleString()} />
         <Stat label="Members" value={totals.members.toLocaleString()} />

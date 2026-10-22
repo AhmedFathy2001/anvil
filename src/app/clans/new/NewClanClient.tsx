@@ -246,9 +246,8 @@ export default function NewClanClient({
       >
         {busy ? 'Creating…' : 'Create clan'}
       </button>
-          {/* The rail button says "start or join", because from a nav those are one intent. This is the
-          half of it that is not this form — without it, somebody who meant to JOIN their clan has
-          landed on the page that creates a second one, and the next thing they do is create it. */}
+          {/* The way back for anyone who reached this form from a pricing or landing page but meant to
+          JOIN a clan — without it, the next thing they do is create a second one. */}
       <p className="pt-1 text-center text-xs text-gray-500">
         Looking for a clan that already exists?{' '}
         <ClanLink href="/clans" className="text-gold hover:text-gold-light">
