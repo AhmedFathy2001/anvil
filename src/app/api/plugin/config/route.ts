@@ -825,6 +825,11 @@ export async function GET(request: Request) {
             ...(m && m.multiplier !== 1 ? { multiplier: m.multiplier } : {}),
             ...(prizes.length ? { prizes } : {}),
             ...(m?.reward?.maxClaims != null ? { maxClaims: m.reward.maxClaims } : {}),
+            // When an unclaimed mission auto-closes (expiryHours after its announce), so the plugin
+            // can count it down. Absent = it stays open until claimed or the event ends.
+            ...(m?.expiryHours != null && t.revealedAt
+              ? { expiresAt: new Date(Date.parse(t.revealedAt) + m.expiryHours * 3_600_000).toISOString() }
+              : {}),
           };
         })
       : undefined;
@@ -872,6 +877,11 @@ export async function GET(request: Request) {
         ? { nextRevealAt: effectiveNextRevealAt, decay: rules.decay }
         : {}),
       ...(missions ? { missions } : {}),
+      // Missions not yet announced. With no scheduled drop (nextRevealAt null) this is what tells "no
+      // more missions" apart from "staff drop the next one by hand".
+      ...(missions && !revealMode
+        ? { missionsLeft: fullEventTiles.filter((t) => isMissionTile(t) && t.revealedAt == null).length }
+        : {}),
       ...(cofferAvailable != null ? { cofferAvailable } : {}),
       // Ladder standings: all-time + this-month individual leaderboards with the caller's rank.
       ...(ladderStandings ? { standings: ladderStandings, monthlyStandings: ladderMonthly } : {}),
