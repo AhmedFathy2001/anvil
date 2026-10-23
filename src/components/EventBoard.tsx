@@ -5,6 +5,7 @@ import BingoBoard from './BingoBoard';
 import TileRaceBoard from './TileRaceBoard';
 import LeaguesBoard from './LeaguesBoard';
 import BoardStatusTabs, { type StatusFilter, type TileStatus } from './BoardStatusTabs';
+import Select from './Select';
 import { isTileRaceFormat } from '@/lib/utils';
 import { deriveTileIcon } from '@/lib/tileIcons';
 import { isManualTile } from '@/lib/clogManual';
@@ -89,6 +90,7 @@ export default function EventBoard({
 }: EventBoardProps) {
   const { completions, activeTeamId, dropProgress, statProgress, matchedTileIds } = rest;
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [closestFirst, setClosestFirst] = useState(false);
 
   // Per-tile completion status — mirrors the plugin's ClogTaskModel.statusOf: completed when the
   // (active team's) tile is claimed, else in-progress when any partial progress exists, else
@@ -144,7 +146,7 @@ export default function EventBoard({
     // Leagues-style (points scoring) renders as a task-list accordion, not a square grid —
     // so it isn't bound to a perfect-square tile count. The status map lets it sort
     // incomplete-first by default, like the plugin's collection-log list.
-    <LeaguesBoard tiles={iconedTiles} {...boardRest} statusById={statusById} />
+    <LeaguesBoard tiles={iconedTiles} {...boardRest} statusById={statusById} closestFirst={closestFirst} />
   ) : (
     <BingoBoard boardSize={boardSize} pointsMode={pointsMode} tiles={iconedTiles} {...boardRest} />
   );
@@ -160,7 +162,24 @@ export default function EventBoard({
   if (!showTabs && !legend) return board;
   return (
     <div>
-      {showTabs && <BoardStatusTabs value={statusFilter} onChange={setStatusFilter} counts={counts} />}
+      {showTabs && (
+        <div className="flex flex-wrap gap-x-2">
+          <BoardStatusTabs value={statusFilter} onChange={setStatusFilter} counts={counts} />
+          {/* The task list only — a grid's order IS its layout. */}
+          {pointsMode && !isTileRaceFormat(format) && (
+            <Select
+              value={closestFirst ? 'closest' : 'board'}
+              onChange={(v) => setClosestFirst(v === 'closest')}
+              options={[
+                { value: 'board', label: 'Board order' },
+                { value: 'closest', label: 'Closest first' },
+              ]}
+              ariaLabel="Sort tiles"
+              className="mb-3 sm:w-44"
+            />
+          )}
+        </div>
+      )}
       {board}
       {legend}
     </div>

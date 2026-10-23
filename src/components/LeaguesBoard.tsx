@@ -55,6 +55,8 @@ interface LeaguesBoardProps {
   claimedBy?: Map<number, import('@/lib/tileClaimsView').ClaimMarker[]> | null;
   /** Difficulty bands (admin-configured). A long board groups under them instead of running flat. */
   tierBands?: TierBand[];
+  /** One flat list, the tiles nearest done on top (completed last) — instead of grouping by band. */
+  closestFirst?: boolean;
 }
 
 // Plugin parity: in-progress first, then not-started, then completed. Within a status group the
@@ -80,6 +82,7 @@ export default function LeaguesBoard({
   staffOnlyTileIds,
   claimedBy,
   tierBands = DEFAULT_TIER_BANDS,
+  closestFirst = false,
 }: LeaguesBoardProps) {
   const visibleTiles = [...tiles].filter((t) => (matchedTileIds ? matchedTileIds.has(t.id) : true));
 
@@ -88,7 +91,14 @@ export default function LeaguesBoard({
   // the event is decided); short ones keep the plugin's incomplete-first order exactly as it was.
   const bandOrder = [...tierBands].sort((a, b) => b.min - a.min);
   const bandIndex = new Map(bandOrder.map((b, i) => [b.key, i]));
-  const grouped = visibleTiles.length > 40 && bandOrder.length > 1;
+  const grouped = !closestFirst && visibleTiles.length > 40 && bandOrder.length > 1;
+  // How far along a tile is, 0..1 — its count against the goal, drop or KC/XP alike.
+  const fraction = (id: number) => {
+    const d = dropProgress?.get(id);
+    if (d) return d.current / Math.max(1, d.required);
+    const s = statProgress?.get(id);
+    return s ? s.current / Math.max(1, s.goal) : 0;
+  };
 
   const sorted = visibleTiles.sort((a, b) => {
     if (grouped) {
@@ -98,6 +108,11 @@ export default function LeaguesBoard({
     }
     const sa = statusById ? STATUS_ORDER[statusById.get(a.id) ?? 'not_started'] : 0;
     const sb = statusById ? STATUS_ORDER[statusById.get(b.id) ?? 'not_started'] : 0;
+    if (closestFirst) {
+      const doneA = sa === STATUS_ORDER.completed ? 1 : 0;
+      const doneB = sb === STATUS_ORDER.completed ? 1 : 0;
+      return doneA - doneB || fraction(b.id) - fraction(a.id) || a.position - b.position;
+    }
     return sa - sb || a.position - b.position;
   });
 
