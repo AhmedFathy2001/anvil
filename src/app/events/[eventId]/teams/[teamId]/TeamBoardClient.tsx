@@ -119,6 +119,15 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
 
   const { dropProgress, perItemProgressMap } = useDropProgress(tiles, submissions);
 
+  // KC/XP tiles show the team's count on the board itself, exactly as My Team does.
+  const statProgress = new Map<number, { current: number; goal: number; statType?: string }>();
+  for (const tile of tiles) {
+    if (tile.trackedStat && tile.statGoal) {
+      const totalGained = (gains[tile.id] || []).reduce((sum, p) => sum + p.gained, 0);
+      statProgress.set(tile.id, { current: totalGained, goal: tile.statGoal, statType: tile.statType || undefined });
+    }
+  }
+
   // Multi-account 'per-person' events roll a person's accounts into one contributor (MVP + breakdown).
   const perPersonMode = event.accountSlotMode === 'per-person';
   const ownerByPlayerId = useMemo(
@@ -340,6 +349,7 @@ export default function TeamBoardClient({ event, team, tiles, completions, playe
               activeTeamId={team.id}
               onTileClick={(tileId) => setSelectedTileId(tileId)}
               dropProgress={dropProgress}
+              statProgress={statProgress}
               pointsMode={pointsMode}
               matchedTileIds={matchedTileIds}
             />
