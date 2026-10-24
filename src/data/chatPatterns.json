@@ -544,6 +544,165 @@
           }
         }
       ]
+    },
+    {
+      "key": "kc.deep_delves",
+      "description": "Doom of Mokhaiotl deep-delve count (delve 9+). Pushed as Doom's boss KC; NOT a kill credit.",
+      "types": [
+        "GAMEMESSAGE",
+        "SPAM",
+        "MESBOX",
+        "FRIENDSCHATNOTIFICATION"
+      ],
+      "input": "plain",
+      "match": "find",
+      "regex": "^Deep delves completed: (?<count>[\\d,]+)",
+      "groups": [
+        "count"
+      ],
+      "samples": [
+        {
+          "line": "Deep delves completed: 1,893",
+          "expect": {
+            "count": "1,893"
+          }
+        },
+        {
+          "line": "Deep delves completed: 893",
+          "expect": {
+            "count": "893"
+          }
+        }
+      ]
+    },
+    {
+      "key": "pickpocket",
+      "description": "A successful pickpocket. Marks the tick so that tick's NPC loot isn't counted as a kill.",
+      "types": [
+        "ANY_SERVER"
+      ],
+      "input": "tags-stripped",
+      "match": "full",
+      "regex": "You pick (the )?(?<target>.+)'s? pocket.*",
+      "groups": [],
+      "samples": [
+        {
+          "line": "You pick the man's pocket.",
+          "expect": {
+            "target": "man"
+          }
+        },
+        {
+          "line": "You pick the Elf's pocket.",
+          "expect": {
+            "target": "Elf"
+          }
+        }
+      ]
+    },
+    {
+      "key": "chest.larran",
+      "description": "Larran's chest opened. Starts the looting-bag / drop-line watch that credits the chest's loot.",
+      "types": [
+        "ANY_SERVER"
+      ],
+      "input": "tags-stripped",
+      "match": "full",
+      "regex": "You have opened Larran's (?<size>big|small) chest.*",
+      "groups": [
+        "size"
+      ],
+      "samples": [
+        {
+          "line": "You have opened Larran's big chest 12 times.",
+          "expect": {
+            "size": "big"
+          }
+        },
+        {
+          "line": "You have opened Larran's small chest 1 time.",
+          "expect": {
+            "size": "small"
+          }
+        }
+      ]
+    },
+    {
+      "key": "drop.plain",
+      "description": "Plain drop line with no source, held to credit a Larran's chest's loot. Lines ending in \")\" or containing \") from \" are skipped by the plugin.",
+      "types": [
+        "ANY_SERVER"
+      ],
+      "input": "tags-stripped",
+      "match": "full",
+      "regex": "^(?<rsn>.{1,20}?) received a drop: (?:(?<qty>[\\d,]+) x )?(?<item>.+?)\\.?$",
+      "groups": [
+        "rsn",
+        "qty",
+        "item"
+      ],
+      "samples": [
+        {
+          "line": "Drenvox received a drop: Dagon'hai robe bottom",
+          "expect": {
+            "rsn": "Drenvox",
+            "item": "Dagon'hai robe bottom"
+          }
+        },
+        {
+          "line": "Drenvox received a drop: 581 x Iron ore",
+          "expect": {
+            "rsn": "Drenvox",
+            "qty": "581",
+            "item": "Iron ore"
+          }
+        }
+      ]
+    },
+    {
+      "key": "drop.valuable",
+      "description": "The game's own valuable/untradeable drop line, held to credit a Larran's chest's loot.",
+      "types": [
+        "ANY_SERVER"
+      ],
+      "input": "tags-stripped",
+      "match": "full",
+      "regex": "^(?:Valuable|Untradeable) drop: (?:(?<qty>[\\d,]+) x )?(?<item>.+?)(?: \\([\\d,]+ coins\\))?\\.?$",
+      "groups": [
+        "qty",
+        "item"
+      ],
+      "samples": [
+        {
+          "line": "Valuable drop: Dagon'hai robe bottom (573,719 coins)",
+          "expect": {
+            "item": "Dagon'hai robe bottom"
+          }
+        },
+        {
+          "line": "Untradeable drop: Dagon'hai hat",
+          "expect": {
+            "item": "Dagon'hai hat"
+          }
+        }
+      ]
+    },
+    {
+      "key": "lms.victory",
+      "description": "Last Man Standing win. Records 1st place when it arrives as an LMS game ends. Matched against the trimmed line.",
+      "types": [
+        "ANY_SERVER"
+      ],
+      "input": "tags-stripped",
+      "match": "full",
+      "regex": "You are victorious!",
+      "groups": [],
+      "samples": [
+        {
+          "line": "You are victorious!",
+          "expect": {}
+        }
+      ]
     }
   ]
 }
