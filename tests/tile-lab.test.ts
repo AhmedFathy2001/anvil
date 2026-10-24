@@ -248,6 +248,55 @@ test('the stat simulator completes a stat tile through the real engine; reset wi
   assert.equal(after.statsSnapshot, null);
 });
 
+test('the lab clan is hidden by the platform, and a hidden clan drops off every listing', async () => {
+  const { db, schema: s } = await loadDb();
+  const { and, eq } = await import('drizzle-orm');
+  const { listedClanWhere, showcaseJoinOn } = await import('../src/lib/clanListing.ts');
+  const labId = (await L.labClanId())!;
+  const [lab] = await db.select().from(s.clans).where(eq(s.clans.id, labId));
+  assert.equal(lab.platformHidden, true);
+
+  const listed = async () =>
+    (await db.select({ slug: s.clans.slug }).from(s.clans).leftJoin(s.settings, showcaseJoinOn()).where(listedClanWhere())).map((r) => r.slug);
+  assert.deepEqual(await listed(), ['alpha'], 'a public clan is listed, the lab is not');
+  await db.update(s.clans).set({ platformHidden: true }).where(eq(s.clans.slug, 'alpha'));
+  assert.deepEqual(await listed(), [], 'hidden by the platform outranks the clan being public');
+  await db.update(s.clans).set({ platformHidden: false }).where(and(eq(s.clans.slug, 'alpha')));
+});
+
+test('"Test in lab" copies a real tile whole onto a one-tile session on the main character', async () => {
+  const { db, schema: s } = await loadDb();
+  const { eq } = await import('drizzle-orm');
+  const [source] = await db
+    .insert(s.tiles)
+    .values({
+      eventId: realEvent,
+      position: 7,
+      label: 'Maggot King pet',
+      tileType: 'drop',
+      requiredAmount: 1,
+      trackedItemIds: '[30000]',
+      sourceNpcs: '["Maggot King"]',
+      mission: 1,
+    })
+    .returning();
+  const eventId = await L.labSessionFromTile(userId, source);
+  assert.ok(eventId && (await L.labEvent(eventId)));
+  const copied = await db.select().from(s.tiles).where(eq(s.tiles.eventId, eventId!));
+  assert.equal(copied.length, 1);
+  assert.equal(copied[0].label, 'Maggot King pet');
+  assert.equal(copied[0].tileType, 'drop');
+  assert.equal(copied[0].trackedItemIds, '[30000]');
+  assert.equal(copied[0].sourceNpcs, '["Maggot King"]');
+  assert.equal(copied[0].mission, 0, 'a lab copy is an ordinary tile, open from the first poll');
+  const seated = await db.select().from(s.eventParticipants).where(eq(s.eventParticipants.eventId, eventId!));
+  assert.deepEqual(seated.map((p) => p.accountId), [accountId]);
+  // The source board is untouched.
+  const [still] = await db.select().from(s.tiles).where(eq(s.tiles.id, source.id));
+  assert.equal(still.eventId, realEvent);
+  await L.setLabSessionEnd(eventId!, null);
+});
+
 test('ending the session hands the character back to the real event and stops quarantining', async () => {
   await L.setLabSessionEnd(labEventId, null);
   assert.equal((await A.verifyPluginToken(pluginRequest()))?.eventId, realEvent);

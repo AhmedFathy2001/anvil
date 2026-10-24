@@ -37,7 +37,7 @@ export async function GET(request: Request) {
     // clan-scope: global -- exact address lookup, see the note above.
     const exact = await db.query.clans.findFirst({
       where: and(eq(clans.slug, slug), ne(clans.id, own.id)),
-      columns: { id: true, slug: true, name: true, logoUrl: true, status: true, visibility: true },
+      columns: { id: true, slug: true, name: true, logoUrl: true, status: true, visibility: true, platformHidden: true },
     });
     if (exact && exact.status === 'active') {
       const showcase = await db.query.settings.findFirst({

@@ -109,6 +109,10 @@ export const clans = pgTable('clans', {
   openToChallenges: boolean('open_to_challenges').notNull().default(false),
   // What a recruit needs, as JSON: { minTotal?, minEhp?, region?, timezone? }.
   requirements: jsonb('requirements').notNull().default({}),
+  // HIDDEN BY THE PLATFORM, overriding the clan's own choices: off every public listing (lib/clanListing)
+  // and no Discord card for outsiders (lib/clanHall), whatever `visibility` and `public_showcase` say.
+  // Set from /staff/clans and logged in the clan's own audit log. The tile-lab clan is born with it.
+  platformHidden: boolean('platform_hidden').notNull().default(false),
   // NOTE: "listed" (appears in directory + leaderboard) stays the `public_showcase` SETTING for now,
   // set from the Access tab (api/admin/clan/policy). Promoting it to a column here would mean two
   // sources of truth until every public_showcase reader is migrated — a separate, careful pass.

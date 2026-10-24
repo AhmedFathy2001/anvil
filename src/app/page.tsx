@@ -175,6 +175,8 @@ export default async function HomePage() {
   // A Discord that is off, unreachable or switched off for the server is simply no card.
   const hallPromise = (async () => {
     const config = await hallConfig(clan.id);
+    // Hidden by the platform (/staff/clans): the card is for insiders only.
+    if (config.platformHidden && !insider) return null;
     // The viewer's own accounts, so the card can offer "My team" during an event.
     const viewerAccountIds = myMemberIds.length
       ? (await db.select({ accountId: clanRoster.accountId }).from(clanRoster).where(and(eq(clanRoster.clanId, clan.id), inArray(clanRoster.id, myMemberIds)))).map((r) => r.accountId)

@@ -23,11 +23,12 @@
 //    The cost is honest: real play on that character during a session is not recorded until the
 //    next sync. The lab page says so.
 
-import { and, desc, eq, gt, inArray, isNull, lte, or, sql, type SQL, type SQLWrapper } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull, lte, ne, or, sql, type SQL, type SQLWrapper } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 import { db } from '@/db';
 import {
+  accounts,
   clans,
   clanStaff,
   completions,
@@ -47,6 +48,7 @@ import {
   tiles,
 } from '@/db/schema';
 import { log } from '@/lib/logger';
+import { personOf } from '@/lib/roster';
 
 /** The lab clan's address. Reserved in lib/clanNames so nobody can found a clan there. */
 export const LAB_CLAN_SLUG = 'anvil-lab';
@@ -80,6 +82,8 @@ export async function ensureLabClan(actorUserId: number): Promise<number> {
         status: 'active',
         // Closed to strangers, which is also what keeps it off every listing (lib/clanListing).
         visibility: 'members',
+        // And hidden by the platform, so no listing or Discord card can ever name it.
+        platformHidden: true,
         tagline: 'Platform test bench. Not a real clan.',
       })
       .onConflictDoNothing()
@@ -205,6 +209,43 @@ export async function labQuarantine(
 }
 
 // ── Session management (the /staff/lab page) ─────────────────────────────────────────────────
+
+/**
+ * The caller's own characters, main first. A session quarantines its characters' real pushes, so it
+ * may only ever hold the staffer's own — never a member's.
+ */
+export async function ownLabCharacters(userId: number): Promise<{ id: number; rsn: string }[]> {
+  const person = await personOf(userId);
+  if (person == null) return [];
+  return db
+    .select({ id: accounts.id, rsn: accounts.rsn })
+    .from(accounts)
+    .where(and(eq(accounts.playerId, person), ne(accounts.status, 'ignored')))
+    .orderBy(desc(accounts.isPrimary), accounts.id);
+}
+
+/**
+ * "Test in lab" from a real tile: a fresh one-tile session on the caller's main character, the tile
+ * copied whole. Mission and reveal state are dropped — the lab tests what the tile tracks, so it is
+ * visible and open from the first poll. Null when the caller has no character.
+ */
+/** What a lab copy of a tile leaves behind: its identity, place, and mission/reveal state. */
+const NOT_COPIED = ['id', 'eventId', 'position', 'updatedAt', 'revealAt', 'revealedAt', 'closedAt', 'revealStats', 'mission'] as const;
+
+export async function labSessionFromTile(actorUserId: number, source: typeof tiles.$inferSelect): Promise<number | null> {
+  const [main] = await ownLabCharacters(actorUserId);
+  if (!main) return null;
+  const eventId = await createLabSession(actorUserId, {
+    name: `Lab: ${source.label}`.slice(0, 80),
+    hours: 2,
+    boardSize: 1,
+    accounts: [{ accountId: main.id, name: main.rsn }],
+  });
+  const copy: Partial<typeof tiles.$inferInsert> = { ...source };
+  for (const k of NOT_COPIED) delete copy[k];
+  await db.update(tiles).set(copy).where(and(eq(tiles.eventId, eventId), eq(tiles.position, 0)));
+  return eventId;
+}
 
 export interface LabSessionInput {
   name: string;

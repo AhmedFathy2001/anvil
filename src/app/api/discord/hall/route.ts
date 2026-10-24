@@ -23,6 +23,10 @@ export async function GET() {
   if (!readable) {
     return NextResponse.json({ error: 'No clan' }, { status: 404 });
   }
+  // Hidden by the platform (/staff/clans): outsiders get no card, the same as the clan home.
+  if (config.platformHidden && !viewer.insider) {
+    return NextResponse.json({ view: null }, { headers: { 'Cache-Control': 'private, no-store' } });
+  }
   const view = await clanHallView(clan.id, {
     includeNames: viewer.insider || config.publicNames,
     viewerAccountIds: viewer.accountIds,

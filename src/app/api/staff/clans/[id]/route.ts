@@ -9,6 +9,7 @@ import { availabilityMessage, normalizeSlug } from '@/lib/clanNames';
 import { checkSlug } from '@/lib/clanCreate';
 import { ClanDeleteBlocked, deleteClan } from '@/lib/clanDelete';
 import { log } from '@/lib/logger';
+import { forgetLinkCards } from '@/lib/ogKit';
 
 /**
  * Clan lifecycle, the platform half.
@@ -88,6 +89,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
   }
 
+  if ('platformHidden' in body) {
+    // Off every public listing and no Discord card for outsiders, whatever the clan itself chose
+    // (lib/clanListing, lib/clanHall). The clan keeps serving its own members exactly as before.
+    if (typeof body.platformHidden !== 'boolean') return NextResponse.json({ error: 'platformHidden must be true or false' }, { status: 400 });
+    patch.platformHidden = body.platformHidden;
+  }
+
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: 'Nothing to change' }, { status: 400 });
   }
@@ -120,6 +128,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       notes: `platform ${actor.role}`,
     })
     .catch(() => {});
+
+  // Link cards cache whether a clan may be named; a hidden clan must stop being named now.
+  if ('platformHidden' in patch) forgetLinkCards();
 
   return NextResponse.json({ ok: true, clan: after });
 }

@@ -1,5 +1,8 @@
--- Tile lab (lib/lab): staff test any tile kind against a real account without a real bingo. Additive
--- only — three new tables, nothing existing changes, so a blue-green rollback is unaffected.
+-- Tile lab (lib/lab): staff test any tile kind against a real account without a real bingo, plus the
+-- platform's own "hide this clan" switch. Additive only — three tables and one defaulted column — so a
+-- blue-green rollback is unaffected.
+ALTER TABLE "clans" ADD COLUMN IF NOT EXISTS "platform_hidden" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+UPDATE "clans" SET "platform_hidden" = true WHERE "slug" = 'anvil-lab';--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "lab_log" (
   "id" bigserial PRIMARY KEY NOT NULL,
   "event_id" integer NOT NULL REFERENCES "events"("id") ON DELETE CASCADE,

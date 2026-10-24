@@ -224,6 +224,7 @@ export async function topPlayers(
       // whether their clan agreed to be named next to them.
       clanStatus: clans.status,
       clanVisibility: clans.visibility,
+      clanHidden: clans.platformHidden,
       clanShowcase: settings.value,
       xpGained: sql<number>`coalesce(sum(${memberDailyStats.xpGained}), 0)`,
     })
@@ -247,7 +248,7 @@ export async function topPlayers(
         modeWhere(mode),
       ),
     )
-    .groupBy(accounts.id, accounts.rsn, accounts.accountType, clans.name, clans.slug, clans.status, clans.visibility, settings.value)
+    .groupBy(accounts.id, accounts.rsn, accounts.accountType, clans.name, clans.slug, clans.status, clans.visibility, clans.platformHidden, settings.value)
     // A STABLE SECOND KEY, because paging without one is how a row appears on two pages and another
     // on neither. Equal totals are common at the quiet end of a long table — every account with no
     // gains in the window sums to the same zero — and Postgres is free to order those differently
@@ -260,7 +261,7 @@ export async function topPlayers(
     // A player in an unlisted clan still ranks — they published their character. They just appear
     // unaffiliated, because naming the clan here would publish something the clan withheld.
     const listed = r.clanSlug != null && isClanListed(
-      { status: r.clanStatus ?? '', visibility: r.clanVisibility },
+      { status: r.clanStatus ?? '', visibility: r.clanVisibility, platformHidden: r.clanHidden },
       r.clanShowcase,
     );
     return {

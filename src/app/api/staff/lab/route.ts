@@ -1,25 +1,13 @@
 import { NextResponse } from 'next/server';
-import { and, desc, eq, inArray, ne } from 'drizzle-orm';
+import { desc, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, eventParticipants, events } from '@/db/schema';
+import { eventParticipants, events } from '@/db/schema';
 import { CAN_WRITE, requirePlatformApi } from '@/lib/platformAccess';
-import { createLabSession, labClanId, MAX_LAB_HOURS } from '@/lib/lab';
-import { personOf } from '@/lib/roster';
+import { createLabSession, labClanId, MAX_LAB_HOURS, ownLabCharacters } from '@/lib/lab';
 
 // /api/staff/lab — tile-lab sessions (lib/lab). GET lists them with the caller's own characters
 // (the only ones a session may use); POST starts one.
-
-/** The caller's own characters. A session quarantines its characters' real pushes, so it may only
- *  ever hold the staffer's own — never a member's. */
-async function ownCharacters(userId: number) {
-  const person = await personOf(userId);
-  if (person == null) return [];
-  return db
-    .select({ id: accounts.id, rsn: accounts.rsn })
-    .from(accounts)
-    .where(and(eq(accounts.playerId, person), ne(accounts.status, 'ignored')));
-}
 
 export async function GET() {
   const gate = await requirePlatformApi('support');
@@ -47,7 +35,7 @@ export async function GET() {
     : [];
   return NextResponse.json({
     sessions: sessions.map((s) => ({ ...s, characters: people.filter((p) => p.eventId === s.id).map((p) => p.name) })),
-    characters: await ownCharacters(gate.actor.user.userId),
+    characters: await ownLabCharacters(gate.actor.user.userId),
     maxHours: MAX_LAB_HOURS,
   });
 }
@@ -62,7 +50,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
   const wanted = Array.isArray(body.accountIds) ? body.accountIds.filter((n): n is number => Number.isInteger(n)) : [];
-  const mine = await ownCharacters(gate.actor.user.userId);
+  const mine = await ownLabCharacters(gate.actor.user.userId);
   const picked = mine.filter((c) => wanted.includes(c.id));
   if (picked.length === 0) {
     return NextResponse.json({ error: 'Pick at least one of your own characters.' }, { status: 400 });
