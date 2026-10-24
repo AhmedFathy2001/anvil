@@ -81,6 +81,8 @@ function tileToTrackingInitial(tile: Tile) {
     // Timed raids keep their party size in its own column (deathless/drop ride
     // timeThresholdSeconds). Without this the editor reloaded blank and the next save nulled it.
     partySize: tile.partySize ?? null,
+    minRaidLevel: tile.minRaidLevel ?? null,
+    partyTeamOnly: !!tile.partyTeamOnly,
     pvpMinLootValue: tile.pvpMinLootValue ?? null,
     mission: !!tile.mission,
     missionRules: tile.rules ? parseTileMissionRules(tile.rules) : null,
@@ -670,9 +672,11 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
       timedActivity?: string | null;
       timeThresholdSeconds?: number | null;
       partySize?: number | null;
+      minRaidLevel?: number | null;
+      partyTeamOnly?: boolean | null;
     },
   ) {
-    const { trackedItemIds, itemRequirements, sourceNpcs, targetNpcs, optional: updatedOptional, ...rest } = updated;
+    const { trackedItemIds, itemRequirements, sourceNpcs, targetNpcs, optional: updatedOptional, partyTeamOnly, ...rest } = updated;
     setLocalTiles((prev) =>
       prev.map((t) =>
         t.id === tileId
@@ -680,6 +684,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
               ...t,
               ...rest,
               optional: updatedOptional ? 1 : 0,
+              partyTeamOnly: partyTeamOnly === undefined ? t.partyTeamOnly : partyTeamOnly ? 1 : null,
               trackedItemIds:
                 trackedItemIds === undefined ? t.trackedItemIds : trackedItemIds === null ? null : JSON.stringify(trackedItemIds),
               itemRequirements:

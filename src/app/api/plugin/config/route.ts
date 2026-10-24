@@ -776,8 +776,10 @@ export async function GET(request: Request) {
   // Shared-kill tiles need the same RSN→team map: naming the teammates in your instance is how a
   // kill gets correlated (and how a minimum-teammates tile counts people who aren't running the
   // plugin). Sent for those tiles too, not just PvP ones.
+  // A deathless tile that cares who was in the raid needs it too ("all teammates" is judged in-game).
   const hasCoopTiles = trackedTiles.some(
-    (t) => t.tileType === 'kill' && (t.coopCredit === 'per-kill' || (t.coopMinMembers ?? 0) > 0),
+    (t) => (t.tileType === 'kill' || t.tileType === 'deathless')
+      && (t.coopCredit === 'per-kill' || (t.coopMinMembers ?? 0) > 0 || !!t.partyTeamOnly),
   );
   const pvpRoster = hasPvpTiles || hasCoopTiles
     ? (
@@ -1185,6 +1187,8 @@ export async function GET(request: Request) {
         thresholdSeconds: t.timeThresholdSeconds ?? null,
         // Exact party size required inside the raid (0 = any) — mirrors deathless partySize.
         partySize: t.partySize ?? 0,
+        // ToA: the raid level the run must END at (0 = any) — judged at the completion line.
+        minRaidLevel: t.minRaidLevel ?? 0,
         // Signature reward of the timed activity (Colosseum → Dizana's quiver) — the clog
         // accordion's icon; -1 falls back to the book sprite.
         itemId: notableItemFor(t.timedActivity) ?? -1,
@@ -1285,6 +1289,13 @@ export async function GET(request: Request) {
         currentAmount: submissionMap[t.id] ?? 0,
         // Exact party size required (rides timeThresholdSeconds); 0 = any size.
         partySize: t.timeThresholdSeconds ?? 0,
+        // ToA raid-level floor (0 = any); "every player is on the team"; and the kill tile's
+        // shared-run rules — a run several teammates finished together credits once, and/or needs
+        // at least this many of the team in it (lib/coopRuns, fed by the plugin's fingerprint).
+        minRaidLevel: t.minRaidLevel ?? 0,
+        partyTeamOnly: !!t.partyTeamOnly,
+        coopCredit: t.coopCredit === 'per-kill' ? 'per-kill' : 'per-member',
+        coopMinMembers: t.coopMinMembers ?? 0,
         itemId: notableItemFor(t.timedActivity) ?? -1,
         completed: completedTileIdSet.has(t.id),
       })),

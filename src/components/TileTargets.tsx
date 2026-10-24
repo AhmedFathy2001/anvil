@@ -19,6 +19,10 @@ export interface TileTargetsLike {
   timedActivity?: string | null;
   timeThresholdSeconds?: number | null;
   partySize?: number | null;
+  minRaidLevel?: number | null;
+  partyTeamOnly?: number | boolean | null;
+  coopCredit?: string | null;
+  coopMinMembers?: number | null;
   groupMode?: string | null;
   setsRequired?: number | null;
   countMode?: string | null;
@@ -203,11 +207,18 @@ export default function TileTargets({ tile, hideItems }: Props) {
     if (tile.partySize) {
       rows.push(<Row key="tparty" label="Party size">exactly {tile.partySize}</Row>);
     }
+    if (tile.minRaidLevel) {
+      rows.push(<Row key="tlevel" label="Raid level">{tile.minRaidLevel}+ at the end of the raid</Row>);
+    }
   }
 
   if (kind === 'deathless') {
     if (tile.timedActivity) rows.push(<Row key="raid" label="Raid">{tile.timedActivity} — zero party deaths</Row>);
     if (tile.timeThresholdSeconds) rows.push(<Row key="dparty" label="Party size">exactly {tile.timeThresholdSeconds}</Row>);
+    if (tile.partyTeamOnly) rows.push(<Row key="dteam" label="Party">every player on your team</Row>);
+    else if (tile.coopMinMembers) rows.push(<Row key="dmin" label="Teammates">at least {tile.coopMinMembers} in the raid</Row>);
+    if (tile.minRaidLevel) rows.push(<Row key="dlevel" label="Raid level">{tile.minRaidLevel}+ at the end of the raid</Row>);
+    if (tile.coopCredit === 'per-kill') rows.push(<Row key="dshared" label="Shared runs">count once for the team</Row>);
     if (tile.requiredAmount && tile.requiredAmount > 1) rows.push(<Row key="runs" label="Runs needed">{tile.requiredAmount}</Row>);
   }
 

@@ -31,6 +31,8 @@ const EMPTY: TileConfig = {
   timedActivity: null,
   timeThresholdSeconds: null,
   partySize: null,
+  minRaidLevel: null,
+  partyTeamOnly: null,
   mission: false,
   missionRules: null,
   updatedAt: null,

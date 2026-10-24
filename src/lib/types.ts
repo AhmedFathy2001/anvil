@@ -95,6 +95,8 @@ export interface Tile extends TileRevealState {
   timedActivity?: string | null; // activity identifier (timed tiles only)
   timeThresholdSeconds?: number | null; // completion-time cap in seconds (timed tiles only)
   partySize?: number | null; // timed raid tiles — exact party size required (null = any)
+  minRaidLevel?: number | null; // ToA timed/deathless tiles — raid level the run must END at (null = any)
+  partyTeamOnly?: number | null; // deathless tiles — 1 = every player in the raid is on the team
   pvpMinLootValue?: number | null; // pvp tiles — min loot value (gp) a kill must yield (null/0 = none)
   mission?: number | null; // 1 = a mission tile (hidden until announced mid-event; see tiles.mission)
   rules?: string | null; // per-mission scoring JSON (see tiles.rules / MissionRules); null on normal tiles
@@ -236,6 +238,10 @@ export interface TileConfig {
   timeThresholdSeconds: number | null;
   // Timed raid tiles: require exactly this many players in the raid instance. null = any.
   partySize?: number | null;
+  // ToA timed/deathless tiles: the raid level the run must END at (after any failed timer). null = any.
+  minRaidLevel?: number | null;
+  // Deathless tiles: every player in the raid must be on the team.
+  partyTeamOnly?: boolean | null;
   // PvP tiles: minimum loot value (gp) a kill must yield to count. null/0 = no minimum.
   pvpMinLootValue?: number | null;
   // MISSION tiles: hidden until announced mid-event, with their own scoring. `mission` flags it;

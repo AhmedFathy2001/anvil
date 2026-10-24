@@ -294,6 +294,41 @@ function activityIsRaid(activity: string): boolean {
   const a = activity.toLowerCase();
   return RAID_SOURCES.some((raid) => a.includes(raid));
 }
+// Only ToA has a raid level (the invocation total), so only a ToA activity offers the floor.
+function activityIsToa(activity: string): boolean {
+  return activity.toLowerCase().includes('tombs of amascut');
+}
+
+const RAID_LEVEL_HELP =
+  'The raid level the run must END at — what the game counts the raid as. A failed time-limit invocation (Walk/Jog/Run/Sprint for it) lowers the level once the party reaches the chest room, so a 500 that misses its timer ends below 500 and does not count. Blank = any level.';
+function RaidLevelField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <label className="block text-xs text-text-muted mb-1">
+        Minimum raid level <span className="text-text-muted/60">(optional — blank = any)</span>
+        <FlagHint text={RAID_LEVEL_HELP} />
+      </label>
+      <Input
+        type="number"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="any"
+        min="1"
+        max="600"
+        className="w-24 px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+      />
+      <p className="text-[10px] text-text-muted mt-0.5">
+        e.g. 500. Judged on the level at the chest — a failed timer invocation drops it there.
+      </p>
+    </div>
+  );
+}
+
+const DEATHLESS_TEAM_OPTIONS = [
+  { value: 'any', label: 'Anyone can be in the raid' },
+  { value: 'all', label: 'Every player is on the team' },
+  { value: 'min', label: 'At least N teammates' },
+];
 
 // Deathless tiles only make sense for group PvM with a completion message the plugin can
 // correlate — the raids. Free text still accepted for future content. Base and per-mode
@@ -572,6 +607,8 @@ const KIND_FIELDS_CLEARED: Partial<TileConfig> = {
   timedActivity: null,
   timeThresholdSeconds: null,
   partySize: null,
+  minRaidLevel: null,
+  partyTeamOnly: null,
   pvpMinLootValue: null,
 };
 
@@ -831,6 +868,17 @@ function TileTrackingEditor({
   const [coopMinMembers, setCoopMinMembers] = useState<string>(
     initial.coopMinMembers ? String(initial.coopMinMembers) : '',
   );
+  // ToA raid-level floor (timed + deathless): blank = any level.
+  const [minRaidLevel, setMinRaidLevel] = useState<string>(initial.minRaidLevel ? String(initial.minRaidLevel) : '');
+  // Deathless: who may be in the raid. 'all' rides partyTeamOnly, 'min' rides coopMinMembers.
+  const [deathlessTeam, setDeathlessTeam] = useState<string>(
+    initial.partyTeamOnly ? 'all' : initial.tileType === 'deathless' && initial.coopMinMembers ? 'min' : 'any',
+  );
+  // Kills: count with the plugin even though every monster is on the hiscores — the only way a raid
+  // KC tile can count a shared raid once or require teammates (lib/killSource).
+  const [killPreferPlugin, setKillPreferPlugin] = useState<boolean>(
+    () => killSourceOf(initial) === 'plugin' && initialKillPicks(initial).every((p) => !!p.key),
+  );
   const [groupRequires, setGroupRequires] = useState<Record<string, number>>(() => {
     const out: Record<string, number> = {};
     for (const r of initial.itemRequirements ?? []) {
@@ -894,7 +942,13 @@ function TileTrackingEditor({
   // consecutive saves in one sitting keep passing the PUT's baseUpdatedAt check.
   const [baseStamp, setBaseStamp] = useState<string | null>(initial.updatedAt ?? null);
 
-  const killChoice = useMemo(() => chooseKillSource(killPicks, frozenKillSource), [killPicks, frozenKillSource]);
+  const killChoice = useMemo(
+    () => chooseKillSource(killPicks, frozenKillSource, killPreferPlugin),
+    [killPicks, frozenKillSource, killPreferPlugin],
+  );
+  // Every pick is on the hiscores and countable off a KC line: the host may choose either engine.
+  const killEngineChoosable = !frozenKillSource && killPicks.length > 0
+    && killPicks.every((p) => !!p.key && !!killLineNameForKey(p.key));
   // The engine this kills tile will be saved for. While the selection is unsaveable (empty, or a
   // pick that can't fit) fall back to the frozen source, else to what the picks lean towards.
   const killSource: 'hiscores' | 'plugin' = killChoice.ok
@@ -1359,6 +1413,14 @@ function TileTrackingEditor({
         if (!Number.isInteger(size) || size < 1 || size > 100) return 'Party size must be between 1 and 100 (or blank for any).';
       }
     }
+    if ((kind === 'timed' || kind === 'deathless') && activityIsToa(timedActivity) && minRaidLevel.trim()) {
+      const level = parseInt(minRaidLevel, 10);
+      if (!Number.isInteger(level) || level < 1 || level > 600) return 'Raid level must be between 1 and 600 (or blank for any).';
+    }
+    if (kind === 'deathless' && deathlessTeam === 'min') {
+      const n = parseInt(coopMinMembers, 10);
+      if (!Number.isInteger(n) || n < 2 || n > 50) return 'Set how many teammates must be in the raid (2–50).';
+    }
     if (kind === 'deathless') {
       if (!timedActivity.trim()) return 'Pick the raid this tile is for (e.g. Theatre of Blood).';
       const amt = parseInt(requiredAmount || '1', 10);
@@ -1462,6 +1524,8 @@ function TileTrackingEditor({
         timedActivity: null,
         timeThresholdSeconds: null,
         partySize: null,
+        minRaidLevel: null,
+        partyTeamOnly: null,
         // Cleared by default so switching away from PvP drops any stale floor; the pvp branch sets it.
         pvpMinLootValue: null,
       };
@@ -1546,12 +1610,19 @@ function TileTrackingEditor({
         payload.partySize = activityIsRaid(timedActivity) && timedPartySize.trim()
           ? parseInt(timedPartySize, 10)
           : null;
+        payload.minRaidLevel = activityIsToa(timedActivity) && minRaidLevel.trim() ? parseInt(minRaidLevel, 10) : null;
       } else if (kind === 'deathless') {
         // The raid rides the timedActivity column; requiredAmount = deathless runs needed;
         // an exact party size (optional) rides timeThresholdSeconds, like the LMS cap.
         payload.timedActivity = timedActivity.trim();
         payload.requiredAmount = requiredAmount ? parseInt(requiredAmount, 10) : 1;
         payload.timeThresholdSeconds = deathlessPartySize.trim() ? parseInt(deathlessPartySize, 10) : null;
+        payload.minRaidLevel = activityIsToa(timedActivity) && minRaidLevel.trim() ? parseInt(minRaidLevel, 10) : null;
+        // Who may be in the run, and what a run several teammates finished together is worth — the
+        // same shared-kill rules as a kill tile (lib/coopRuns), judged on deathless runs.
+        payload.partyTeamOnly = teamPlay && deathlessTeam === 'all';
+        payload.coopMinMembers = teamPlay && deathlessTeam === 'min' && coopMinMembers.trim() ? parseInt(coopMinMembers, 10) : null;
+        payload.coopCredit = teamPlay && coopPerKill ? 'per-kill' : null;
       } else if (kind === 'lms') {
         // The placement cap rides the timeThresholdSeconds column; requiredAmount = games.
         payload.timeThresholdSeconds = parseInt(lmsPlacementCap, 10);
@@ -1617,6 +1688,8 @@ function TileTrackingEditor({
           timedActivity: updated.timedActivity ?? null,
           timeThresholdSeconds: updated.timeThresholdSeconds ?? null,
           partySize: updated.partySize ?? null,
+          minRaidLevel: updated.minRaidLevel ?? null,
+          partyTeamOnly: !!updated.partyTeamOnly,
           mission: !!updated.mission,
           missionRules: updated.rules ? parseTileMissionRules(updated.rules) : null,
           updatedAt: updated.updatedAt ?? null,
@@ -2616,6 +2689,17 @@ function TileTrackingEditor({
             <TrackingModeField value={trackingMode} onChange={setTrackingMode} unit="kills" goal="kill count" teamPlay={teamPlay} />
           )}
 
+          {/* All on the hiscores, but the hiscores can't see who raided TOGETHER — so offer the
+              plugin when the host wants shared kills counted once or teammates required. */}
+          {teamPlay && killEngineChoosable && (
+            <Checkbox
+              checked={killPreferPlugin}
+              onChange={setKillPreferPlugin}
+              label="Count with the plugin instead of the hiscores"
+              description="Needed for shared kills: 3 teammates in one raid can then count as 1 or 3, and you can require teammates in it. Only kills made during the event while running the plugin count."
+            />
+          )}
+
           {/* Shared kills. Tracking Mode answers WHOSE kills count; these answer what a kill several
               members were in is worth, and whether it counts at all. Meaningless on an individual
               board — there are no teammates to share a kill with. */}
@@ -3129,6 +3213,9 @@ function TileTrackingEditor({
               </p>
             </div>
           )}
+          {activityIsToa(timedActivity) && (
+            <RaidLevelField value={minRaidLevel} onChange={setMinRaidLevel} />
+          )}
         </div>
       )}
 
@@ -3182,6 +3269,51 @@ function TileTrackingEditor({
               the raid&rsquo;s party size from the game, so a split team still counts correctly.
             </p>
           </div>
+          {teamPlay && (
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Who can be in the raid</label>
+              <Select
+                value={deathlessTeam}
+                onChange={setDeathlessTeam}
+                ariaLabel="Who can be in the raid"
+                options={DEATHLESS_TEAM_OPTIONS}
+              />
+              {deathlessTeam === 'min' && (
+                <Input
+                  type="number"
+                  value={coopMinMembers}
+                  onChange={(e) => setCoopMinMembers(e.target.value)}
+                  placeholder="e.g. 3"
+                  min="2"
+                  max="50"
+                  className="mt-1.5 w-24 px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
+                />
+              )}
+              <p className="text-[10px] text-text-muted mt-0.5">
+                {deathlessTeam === 'all'
+                  ? 'Anyone in the raid who isn’t on this team voids the run. Pair it with a party size for “a 3-man with only our team”.'
+                  : deathlessTeam === 'min'
+                    ? 'Outsiders are fine as long as this many of the raid are on the team (you included).'
+                    : 'The party can be anyone — teammates, clanmates, or strangers.'}
+              </p>
+            </div>
+          )}
+          {activityIsToa(timedActivity) && (
+            <RaidLevelField value={minRaidLevel} onChange={setMinRaidLevel} />
+          )}
+          {teamPlay && (
+            <Checkbox
+              checked={coopPerKill}
+              onChange={setCoopPerKill}
+              label={
+                <>
+                  Count a shared run once
+                  <FlagHint text={COOP_CREDIT_HELP} />
+                </>
+              }
+              description="Teammates who finished the same raid together credit it once between them. Off = each teammate in it adds a run, so a 3-man counts 3."
+            />
+          )}
         </div>
       )}
 

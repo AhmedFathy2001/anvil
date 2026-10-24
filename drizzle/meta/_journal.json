@@ -729,6 +729,13 @@
       "when": 1792840000000,
       "tag": "0147_game_clans",
       "breakpoints": true
+    },
+    {
+      "idx": 148,
+      "version": "7",
+      "when": 1792860000000,
+      "tag": "0148_raid_tile_gates",
+      "breakpoints": true
     }
   ]
 }
