@@ -124,3 +124,14 @@ test('only marked plugin kill tiles use milestones — legacy (NULL) tiles keep 
   assert.equal(usesKillMilestones({ tileType: 'kill', killPosts: null }), false);
   assert.equal(usesKillMilestones({ tileType: 'drop', killPosts: 'milestones' }), false);
 });
+
+test('a raid on the hiscores can be counted by the plugin when the host asks (shared raids)', () => {
+  const hiscores = chooseKillSource(['chambersOfXeric']);
+  assert.equal(hiscores.ok && hiscores.source, 'hiscores');
+  const plugin = chooseKillSource(['chambersOfXeric'], null, true);
+  assert.ok(plugin.ok && plugin.source === 'plugin');
+  assert.deepEqual(plugin.ok && plugin.source === 'plugin' ? plugin.targetNpcs : null, ['Chambers of Xeric']);
+  // A started event's frozen source wins over the preference.
+  const frozen = chooseKillSource(['chambersOfXeric'], 'hiscores', true);
+  assert.equal(frozen.ok && frozen.source, 'hiscores');
+});

@@ -68,7 +68,7 @@ export async function PUT(
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;
-  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, statBasis, trackingMode, optional, lottery, autoTrackDisabled, trackedItemIds, itemRequirements, groupMode, setsRequired, countMode, perKillCap, coopCredit, coopMinMembers, points, effortConfig, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, pvpMinLootValue, revealAt, revealState, mission, missionRules, baseUpdatedAt, liveOverride } = await request.json();
+  const { tileId, label, description, tileType, requiredAmount, trackedStat, statType, statGoal, statBasis, trackingMode, optional, lottery, autoTrackDisabled, trackedItemIds, itemRequirements, groupMode, setsRequired, countMode, perKillCap, coopCredit, coopMinMembers, points, effortConfig, category, sourceNpcs, targetNpcs, timedActivity, timeThresholdSeconds, partySize, minRaidLevel, partyTeamOnly, pvpMinLootValue, revealAt, revealState, mission, missionRules, baseUpdatedAt, liveOverride } = await request.json();
 
   if (!tileId) {
     return NextResponse.json({ error: 'tileId is required' }, { status: 400 });
@@ -220,6 +220,14 @@ export async function PUT(
   if (coopMinMembers !== undefined && coopMinMembers !== null) {
     if (!Number.isInteger(coopMinMembers) || coopMinMembers < 2 || coopMinMembers > 50) {
       return NextResponse.json({ error: 'coopMinMembers must be an integer between 2 and 50 (or null for no requirement)' }, { status: 400 });
+    }
+  }
+
+  // ToA raid level the run must end at. 0..600 in steps the game uses, but any integer in range is
+  // accepted — the check is "at least", so an odd number only means "the next step up".
+  if (minRaidLevel !== undefined && minRaidLevel !== null) {
+    if (!Number.isInteger(minRaidLevel) || minRaidLevel < 1 || minRaidLevel > 600) {
+      return NextResponse.json({ error: 'minRaidLevel must be an integer between 1 and 600 (or null for any level)' }, { status: 400 });
     }
   }
 
@@ -448,6 +456,12 @@ export async function PUT(
   }
   if (coopMinMembers !== undefined) {
     updateSet.coopMinMembers = coopMinMembers ?? null;
+  }
+  if (minRaidLevel !== undefined) {
+    updateSet.minRaidLevel = minRaidLevel ?? null;
+  }
+  if (partyTeamOnly !== undefined) {
+    updateSet.partyTeamOnly = partyTeamOnly ? 1 : null;
   }
 
   if (itemRequirements !== undefined) {

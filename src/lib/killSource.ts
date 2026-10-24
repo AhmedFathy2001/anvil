@@ -135,6 +135,10 @@ export const MIXED_SOURCE_NOTE =
 export function chooseKillSource(
   picks: (string | KillPick)[],
   frozen: KillSource | null = null,
+  // The host asked for the plugin even though every pick is on the hiscores — the hiscores can't
+  // tell three people who raided TOGETHER from three separate raids, so "count a shared raid once"
+  // and "needs N teammates" only exist on a plugin tile. Ignored once the source is frozen.
+  preferPlugin = false,
 ): KillSourceChoice {
   const list = picks
     .map((p) => (typeof p === 'string' ? killPick(p) : { name: p.name.trim(), key: p.key ?? hiscoresKeyForMonster(p.name) }))
@@ -142,7 +146,7 @@ export function chooseKillSource(
   if (list.length === 0) return { ok: false, error: 'Add at least one monster to count kills for.' };
 
   const offHiscores = list.filter((p) => !p.key);
-  const wantsPlugin = frozen === 'plugin' || (frozen == null && offHiscores.length > 0);
+  const wantsPlugin = frozen === 'plugin' || (frozen == null && (offHiscores.length > 0 || preferPlugin));
 
   if (!wantsPlugin) {
     if (offHiscores.length > 0) {

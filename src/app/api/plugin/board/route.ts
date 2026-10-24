@@ -149,11 +149,14 @@ function tileRequirement(t: typeof tiles.$inferSelect): string | null {
       if (!t.timedActivity) return null;
       const cap = t.timeThresholdSeconds ? ` under ${fmtClock(t.timeThresholdSeconds)}` : '';
       const party = t.partySize ? ` (${t.partySize}-player)` : '';
-      return `Clear ${t.timedActivity}${cap}${party}`;
+      const level = t.minRaidLevel ? ` at raid level ${t.minRaidLevel}+` : '';
+      return `Clear ${t.timedActivity}${cap}${party}${level}`;
     }
     case 'deathless': {
       if (!t.timedActivity) return null;
-      return amt ? `${amt}× deathless ${t.timedActivity}` : `Deathless ${t.timedActivity}`;
+      const level = t.minRaidLevel ? ` at raid level ${t.minRaidLevel}+` : '';
+      const party = t.timeThresholdSeconds ? ` (${t.timeThresholdSeconds}-player${t.partyTeamOnly ? ', all teammates' : ''})` : t.partyTeamOnly ? ' (all teammates)' : '';
+      return (amt ? `${amt}× deathless ${t.timedActivity}` : `Deathless ${t.timedActivity}`) + level + party;
     }
     case 'diary': {
       const d = names(t.targetNpcs);
