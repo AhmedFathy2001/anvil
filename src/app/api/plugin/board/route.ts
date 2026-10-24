@@ -9,7 +9,7 @@ import { tileTierKey } from '@/lib/tileFilter';
 import { jsonWithEtag } from '@/lib/httpEtag';
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import { lapUnitNoun } from '@/lib/constants';
-import { parseEventRules, hasRevealPolicy, visibleTiles, nextRevealAt } from '@/lib/eventRules';
+import { parseEventRules, hasRevealPolicy, visibleTiles, nextRevealAt, isMissionTile } from '@/lib/eventRules';
 import { listTeamClaims } from '@/lib/tileClaims';
 import { getItemMapping } from '@/lib/osrsItems';
 import { isManualOnlyDropTile } from '@/lib/clogManual';
@@ -506,9 +506,10 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null, v
         // statName's readable form ("Kree'Arra", "Chambers of Xeric + CoX: CM") for the detail view.
         statLabel: t.trackedStat ? statLabel(t.trackedStat, t.statType === 'kc' ? 'boss' : t.statType) : null,
         complete: yourCompleted ? yourCompleted.has(t.id) : anyCompleted.has(t.id),
-        // Reveal-policy state: when this tile went live, and (bounty) when it was claimed and
-        // stopped accepting completions. Only sent on reveal-mode events.
-        ...(revealMode ? { revealedAt: t.revealedAt ?? null, closedAt: t.closedAt ?? null } : {}),
+        // Reveal-policy state: when this tile went live, and when it was claimed / expired and
+        // stopped accepting completions. Sent on reveal-mode events, and for missions on any board —
+        // without it an expired or locked-out mission sat in the plugin's "Not done" list as Open.
+        ...(revealMode || isMissionTile(t) ? { revealedAt: t.revealedAt ?? null, closedAt: t.closedAt ?? null } : {}),
         ...(itemRequirements ? { itemRequirements } : {}),
         ...(claimsByTile.has(t.id) ? { claims: claimsByTile.get(t.id) } : {}),
         ...(finishersByTile.get(t.id) ?? {}),
