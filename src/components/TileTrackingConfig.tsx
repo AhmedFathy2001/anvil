@@ -300,7 +300,7 @@ function activityIsToa(activity: string): boolean {
 }
 
 const RAID_LEVEL_HELP =
-  'The raid level the run must END at — what the game counts the raid as. A failed time-limit invocation (Walk/Jog/Run/Sprint for it) lowers the level when the Warden dies, so a 500 that misses its timer ends below 500 and does not count. Blank = any level.';
+  'The raid level the run must END at — what the game counts the raid as. A failed time-limit invocation (Walk/Jog/Run/Sprint for it) lowers the level once the party reaches the chest room, so a 500 that misses its timer ends below 500 and does not count. Blank = any level.';
 function RaidLevelField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div>
@@ -318,7 +318,7 @@ function RaidLevelField({ value, onChange }: { value: string; onChange: (v: stri
         className="w-24 px-3 py-2 bg-brown-dark border border-card-border rounded text-sm text-foreground"
       />
       <p className="text-[10px] text-text-muted mt-0.5">
-        e.g. 500. Judged on the level the raid ends at — a failed timer invocation drops it.
+        e.g. 500. Judged on the level at the chest — a failed timer invocation drops it there.
       </p>
     </div>
   );

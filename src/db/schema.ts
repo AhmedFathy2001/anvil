@@ -805,8 +805,8 @@ export const tiles = pgTable('tiles', {
   // column (plugin back-compat); timed tiles can't reuse it since it already holds the cap.
   partySize: integer('party_size'),
   // ToA raid tiles (timed / deathless): the run only counts when the raid ENDS at this raid level or
-  // higher — read at the completion line, after a failed time-limit invocation has already lowered
-  // it. NULL = any level. Ignored for the other raids, which have no raid level.
+  // higher — read at the chest, after a failed time-limit invocation has lowered it on entering
+  // the chest room. NULL = any level. Ignored for the other raids, which have no raid level.
   minRaidLevel: integer('min_raid_level'),
   // DEATHLESS tiles: 1 = every player in the raid must be on the tile's team (an outsider in the
   // party voids the run). Judged by the plugin, which sees the party; coopMinMembers can still ask
