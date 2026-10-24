@@ -310,7 +310,9 @@ export default async function CharacterPage({
 function GameClanChip({ clan }: { clan: CharacterGameClan }) {
   const body = (
     <>
-      <ClanCrest name={clan.anvilClan?.name ?? clan.name} logoUrl={clan.anvilClan?.logoUrl ?? null} size={18} />
+      {!clan.anvilClanUnlisted && (
+        <ClanCrest name={clan.anvilClan?.name ?? clan.name} logoUrl={clan.anvilClan?.logoUrl ?? null} size={18} />
+      )}
       {clan.name}
       {clan.title && <span className="text-text-dim">· {clan.title}</span>}
     </>

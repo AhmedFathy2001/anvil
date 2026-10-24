@@ -107,8 +107,16 @@ test('a VERIFIED Anvil clan with that name takes over — listed redirects, priv
   await db.update(s.clans).set({ ingameNameVerifiedAt: T0 }).where(eq(s.clans.id, typed.id));
 
   assert.deepEqual(await G.ghostClanPage('Iron Foundry'), { kind: 'anvil', slug: 'typed' });
+  // No seat in that clan's roster: the claim is unconfirmed — bare name, no link, no title.
+  const claimed = await G.gameClanForAccount(alice);
+  assert.equal(claimed?.anvilClan, null);
+  assert.equal(claimed?.anvilClanUnlisted, true);
+  assert.equal(claimed?.title, null);
+
+  await db.insert(s.clanMemberships).values({ clanId: typed.id, accountId: alice, kind: 'member' });
   const mine = await G.gameClanForAccount(alice);
   assert.equal(mine?.anvilClan?.slug, 'typed');
+  assert.equal(mine?.title, 'Dragonstone');
   assert.deepEqual((await G.ghostClanLeads()).map((l) => l.name), ['Other Clan']);
 
   await db.update(s.clans).set({ visibility: 'private' }).where(eq(s.clans.id, typed.id));

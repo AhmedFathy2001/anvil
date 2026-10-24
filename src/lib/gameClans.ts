@@ -12,10 +12,10 @@
 // `clans.in_game_name`), it is matched by name key at read time and the Anvil clan's own page
 // takes over.
 
-import { and, desc, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accountGameClans, accounts, clans, gameClans, settings } from '@/db/schema';
+import { accountGameClans, accounts, clanMemberships, clans, gameClans, settings } from '@/db/schema';
 import { listedClanWhere, showcaseJoinOn } from '@/lib/clanListing';
 import {
   GAME_CLAN_RESTAMP_MS,
@@ -94,13 +94,14 @@ export type AnvilClanRef = { slug: string; name: string; logoUrl: string | null 
  * nothing). `listed` false = it exists but chose to stay off public surfaces, so nothing public may
  * point at it or describe its members.
  */
-async function anvilClansByKey(keys: string[]): Promise<Map<string, AnvilClanRef & { listed: boolean }>> {
-  const out = new Map<string, AnvilClanRef & { listed: boolean }>();
+async function anvilClansByKey(keys: string[]): Promise<Map<string, AnvilClanRef & { id: number; listed: boolean }>> {
+  const out = new Map<string, AnvilClanRef & { id: number; listed: boolean }>();
   if (keys.length === 0) return out;
   // clan-scope: global -- matching an in-game name to WHICHEVER clan verified it; settings joined per clan row (showcaseJoinOn).
   const rows = await db
     .select({
       key: sql<string>`lower(trim(regexp_replace(${clans.inGameName}, '[\\s_\\u00a0]+', ' ', 'g')))`,
+      id: clans.id,
       slug: clans.slug,
       name: clans.name,
       logoUrl: clans.logoUrl,
@@ -114,7 +115,7 @@ async function anvilClansByKey(keys: string[]): Promise<Map<string, AnvilClanRef
         inArray(sql`lower(trim(regexp_replace(${clans.inGameName}, '[\\s_\\u00a0]+', ' ', 'g')))`, keys),
       ),
     );
-  for (const r of rows) out.set(r.key, { slug: r.slug, name: r.name, logoUrl: r.logoUrl, listed: !!r.listed });
+  for (const r of rows) out.set(r.key, { id: r.id, slug: r.slug, name: r.name, logoUrl: r.logoUrl, listed: !!r.listed });
   return out;
 }
 
@@ -127,7 +128,10 @@ export type CharacterGameClan = {
   hidden: boolean;
   /** The Anvil clan this is, when it is one and is listed. */
   anvilClan: AnvilClanRef | null;
-  /** An Anvil clan that keeps itself off public pages: name the clan, link nowhere. */
+  /**
+   * Name the clan, link nowhere: an Anvil clan that keeps itself off public pages, or one whose
+   * roster has no seat for this account (the report is unconfirmed, so no crest, link or title).
+   */
   anvilClanUnlisted: boolean;
 };
 
@@ -148,10 +152,29 @@ export async function gameClanForAccount(accountId: number): Promise<CharacterGa
     .limit(1);
   if (!row) return null;
   const anvil = (await anvilClansByKey([row.key])).get(row.key);
+  if (!anvil) return { ...row, anvilClan: null, anvilClanUnlisted: false };
+
+  // ON ANVIL, THE ROSTER DECIDES. The report is client-side, so a modified client could claim a
+  // verified clan and borrow its crest and link — with "Owner" for a title. A clan that is here
+  // has a roster that knows: the chip links only for a real member seat; otherwise it is the bare
+  // name, linking nowhere, with no title.
+  const [seat] = await db
+    .select({ id: clanMemberships.id })
+    .from(clanMemberships)
+    .where(
+      and(
+        eq(clanMemberships.clanId, anvil.id),
+        eq(clanMemberships.accountId, accountId),
+        eq(clanMemberships.kind, 'member'),
+        isNull(clanMemberships.leftAt),
+      ),
+    )
+    .limit(1);
+  if (!seat) return { ...row, title: null, anvilClan: null, anvilClanUnlisted: true };
   return {
     ...row,
-    anvilClan: anvil?.listed ? { slug: anvil.slug, name: anvil.name, logoUrl: anvil.logoUrl } : null,
-    anvilClanUnlisted: !!anvil && !anvil.listed,
+    anvilClan: anvil.listed ? { slug: anvil.slug, name: anvil.name, logoUrl: anvil.logoUrl } : null,
+    anvilClanUnlisted: !anvil.listed,
   };
 }
 
