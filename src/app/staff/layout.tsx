@@ -75,6 +75,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
       items: [
         { href: '/staff', label: 'Overview', icon: '◎' },
         { href: '/staff/clans', label: 'Clans', icon: '🏰', matchPrefix: true },
+        { href: '/staff/ghost-clans', label: 'Ghost clans', icon: '👻' },
         { href: '/staff/people', label: 'People', icon: '👤', matchPrefix: true },
         // Visits, feature use and where onboarding stalls (lib/analytics). Read-only, so support too.
         { href: '/staff/analytics', label: 'Analytics', icon: '📈', matchPrefix: true },
