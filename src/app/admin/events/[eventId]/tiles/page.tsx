@@ -10,7 +10,8 @@ import { verifyUser } from '@/lib/auth';
 import { eventEditLocked } from '@/lib/eventLock';
 import { parseEventRules, hasMissions } from '@/lib/eventRules';
 import { eventAxes, supportsMissions } from '@/lib/eventAxes';
-import { atLeast } from '@/lib/clanRoles';
+import { atLeast, hasPlatformRole } from '@/lib/clanRoles';
+import { CAN_WRITE } from '@/lib/platformAccess';
 import { getCofferBalance } from '@/lib/coffer';
 import { withSearchText } from '@/lib/tileSearchText';
 
@@ -77,6 +78,8 @@ export default async function EventTilesPage({
       missionsAllowed={missionsAllowed}
       missionsEnabled={missionsEnabled}
       cofferAvailable={coffer?.available ?? null}
+      // Rendering only; the lab API reads the platform role live from the row.
+      canLab={hasPlatformRole(user?.platformRole, CAN_WRITE)}
     />
   );
 }

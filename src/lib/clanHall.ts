@@ -4,7 +4,7 @@
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { clanRoster, clanStaff, eventParticipants, events, memberDailyStats, teams } from '@/db/schema';
+import { clanRoster, clans, clanStaff, eventParticipants, events, memberDailyStats, teams } from '@/db/schema';
 import { verifyUser } from '@/lib/auth';
 import { viewerMemberIds } from '@/lib/competitionView';
 import { fetchGuildWidget, isSnowflake, type WidgetResult } from '@/lib/discordWidget';
@@ -20,16 +20,27 @@ export interface HallConfig {
   guildId: string | null;
   /** Off until an admin turns it on (hallSwitches) — the bot being in the server is not consent. */
   enabled: boolean;
+  /** Hidden by the platform (/staff/clans): no card for outsiders, no off-site embed or badge. */
+  platformHidden: boolean;
   publicNames: boolean;
   embed: boolean;
 }
 
 export async function hallConfig(clanId: number): Promise<HallConfig> {
-  const map = await getSettingMap(clanId, ['discord_guild_id', HALL_ENABLED_KEY, HALL_PUBLIC_NAMES_KEY, HALL_EMBED_KEY]);
+  const [map, row] = await Promise.all([
+    getSettingMap(clanId, ['discord_guild_id', HALL_ENABLED_KEY, HALL_PUBLIC_NAMES_KEY, HALL_EMBED_KEY]),
+    // clan-scope: this clan -- its own row, by id.
+    db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { platformHidden: true } }),
+  ]);
   const guildId = map.get('discord_guild_id')?.trim() || null;
+  const switches = hallSwitches((k) => map.get(k));
+  const platformHidden = !!row?.platformHidden;
   return {
     guildId: isSnowflake(guildId) ? guildId : null,
-    ...hallSwitches((k) => map.get(k)),
+    ...switches,
+    // The off-site embed and badge are for strangers by definition, so a hidden clan has none.
+    embed: switches.embed && !platformHidden,
+    platformHidden,
   };
 }
 

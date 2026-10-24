@@ -24,6 +24,7 @@ import { parseEventRules } from '@/lib/eventRules';
 import { startProofGate, NO_START_PROOF_FLAG, START_PROOF_REQUIRED_CODE } from '@/lib/startProof';
 import { eventHasStarted } from '@/lib/completionGate';
 import { track } from '@/lib/analytics';
+import { replayOutsideLab } from '@/lib/lab';
 
 /** What the plugin may say it inferred (submissions.flaggedReason). Anything else is ignored. */
 const INFERRED_FLAGS = new Set(['inferred_duplicate_pet', 'inferred_duplicate_scroll']);
@@ -111,6 +112,9 @@ export async function POST(
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   const { event: scopedEvent, viaCohost } = scoped;
+  // A replayed scenario from the dev client credits lab boards only (lib/lab).
+  const replay = await replayOutsideLab(request, scopedEvent.id);
+  if (replay) return replay;
   const clan = { id: scopedEvent.clanId };
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);

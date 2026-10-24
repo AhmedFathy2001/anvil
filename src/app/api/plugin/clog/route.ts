@@ -9,6 +9,7 @@ import { bossKeyForPage, bossKillsFor } from '@/lib/clogLuckBoard';
 import { resolveUnlock } from '@/lib/clogUnlock';
 import { track } from '@/lib/analytics';
 import { parseStamp } from '@/lib/dbTime';
+import { labQuarantine } from '@/lib/lab';
 
 // Collection-log ingest. The plugin sends pages the player has actually OPENED — the game only hands
 // the client a page once it has drawn one — so a log arrives in pieces over days rather than whole.
@@ -63,6 +64,9 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
+  // A character in a tile-lab session writes nothing real; the push goes to the lab log (lib/lab).
+  const quarantined = await labQuarantine(request, member.accountId, 'clog', body);
+  if (quarantined) return quarantined;
 
   // WHOLE-LOG push. The plugin can have the server transmit every entry at once instead of the
   // player paging through the log, and what arrives is a flat obtained-item list with no pages.

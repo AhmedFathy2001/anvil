@@ -20,6 +20,8 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { log } from '@/lib/logger';
 import { effectiveClanRules, levelPostMatches, levelPostOf } from '@/lib/levelRules';
 import { getClanMilestoneRules, getMemberLevelPrefs } from '@/lib/levelRulesStore';
+import { labQuarantine } from '@/lib/lab';
+import { resolvePluginCharacter } from '@/lib/pluginAccount';
 
 // The plugin POSTs clan notifications (death / kill / rare drop / CA) here instead of straight to
 // Discord, so it never receives or calls a webhook URL itself — the server owns those (RuneLite
@@ -162,6 +164,15 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: 'Malformed body' }, { status: 400 });
   }
+
+  // A character in a tile-lab session posts nowhere real: the post goes to the lab log (lib/lab).
+  const quarantined = await labQuarantine(
+    request,
+    member?.accountId ?? (async () => (await resolvePluginCharacter(request))?.accountId),
+    'notify',
+    { channel, kind, facts, content, embed, seasonal, image: image?.filename ?? null },
+  );
+  if (quarantined) return quarantined;
 
   if (!isChannel(channel)) {
     return NextResponse.json({ error: 'Unknown channel' }, { status: 400 });

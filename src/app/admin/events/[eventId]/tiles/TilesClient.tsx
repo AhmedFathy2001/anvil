@@ -9,6 +9,7 @@ import TileTrackingConfig from '@/components/TileTrackingConfig';
 import ClogGenerator from './ClogGenerator';
 import BoardBalancePanel from './BoardBalancePanel';
 import TileHistoryPanel from './TileHistoryPanel';
+import TestInLabButton from '@/components/TestInLabButton';
 import SkillTileGenerator from './SkillTileGenerator';
 import BossTileGenerator from './BossTileGenerator';
 import LibraryTileGenerator from './LibraryTileGenerator';
@@ -101,6 +102,8 @@ interface Props {
   missionsEnabled?: boolean;
   /** Coffer gp available for mission prizes, or null where the board pays none. */
   cofferAvailable?: number | null;
+  /** Platform staff: offer "Test in lab" on each tile (lib/lab). The API re-checks the role live. */
+  canLab?: boolean;
   // Finished event, not unlocked (lib/eventLock): the API refuses tile mutations, so the whole
   // authoring surface renders disabled.
   editLocked?: boolean;
@@ -122,7 +125,7 @@ function useHasRoomForInspector(): boolean {
   return wide;
 }
 
-export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BANDS, isAdmin = false, editLocked = false, teamPlay = true, missionsAllowed = true, missionsEnabled = true, cofferAvailable = null }: Props) {
+export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BANDS, isAdmin = false, editLocked = false, teamPlay = true, missionsAllowed = true, missionsEnabled = true, cofferAvailable = null, canLab = false }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   // The board itself, so the header's Quick build shortcut can jump straight to it.
@@ -953,6 +956,7 @@ export default function TilesClient({ event, tiles, tierBands = DEFAULT_TIER_BAN
     missionsEnabled={missionsEnabled}
     cofferAvailable={cofferAvailable}
     canDelete={canEditTileSet}
+    canLab={canLab}
     revealEditor={
       showsReveal(editingTile) ? (
         <RevealAtEditor
@@ -2146,9 +2150,10 @@ interface DrawerProps {
   revealEditor?: React.ReactNode;
   /** What one entry on this board is called — a ladder's are tasks (lib/tileAuthoring). */
   noun?: string;
+  canLab?: boolean;
 }
 
-function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions, teamPlay, missionsAllowed, missionsEnabled, cofferAvailable, revealEditor }: DrawerProps) {
+function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventStarted, isAdmin, pointsMode, canDelete, onClose, onDelete, onSaved, tierBands, lockHolder, categorySuggestions, teamPlay, missionsAllowed, missionsEnabled, cofferAvailable, revealEditor, canLab = false }: DrawerProps) {
   // Docked, this is a column in the page, not a dialog over it — so it must not take the page's
   // scroll or swallow Tab. Undocked it really is a drawer, and stays one.
   const ref = useModalA11y<HTMLDivElement>({ onClose, modal: !docked });
@@ -2221,6 +2226,8 @@ function TileConfigDrawer({ tile, docked = false, noun = 'Tile', eventId, eventS
             missionsEnabled={missionsEnabled}
             cofferAvailable={cofferAvailable}
           />
+
+          {canLab && <TestInLabButton tileId={tile.id} />}
 
           {canDelete && onDelete && (
             <div className="mt-5 pt-4 border-t border-card-border">

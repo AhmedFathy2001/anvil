@@ -109,6 +109,10 @@ export const clans = pgTable('clans', {
   openToChallenges: boolean('open_to_challenges').notNull().default(false),
   // What a recruit needs, as JSON: { minTotal?, minEhp?, region?, timezone? }.
   requirements: jsonb('requirements').notNull().default({}),
+  // HIDDEN BY THE PLATFORM, overriding the clan's own choices: off every public listing (lib/clanListing)
+  // and no Discord card for outsiders (lib/clanHall), whatever `visibility` and `public_showcase` say.
+  // Set from /staff/clans and logged in the clan's own audit log. The tile-lab clan is born with it.
+  platformHidden: boolean('platform_hidden').notNull().default(false),
   // NOTE: "listed" (appears in directory + leaderboard) stays the `public_showcase` SETTING for now,
   // set from the Access tab (api/admin/clan/policy). Promoting it to a column here would mean two
   // sources of truth until every public_showcase reader is migrated — a separate, careful pass.
@@ -3411,3 +3415,53 @@ export const analyticsEvents = pgTable('analytics_events', {
   index('analytics_events_clan_ts_idx').on(t.clanId, t.ts),
 ]);
 export type AnalyticsEvent = typeof analyticsEvents.$inferSelect;
+
+// ── Tile lab ──────────────────────────────────────────────────────────────────────────────────
+// Platform staff test any tile kind against a real account without a real bingo (lib/lab). A lab
+// session is an ordinary event owned by the hidden lab clan, so every clan-scoped surface misses it
+// by construction; these tables hold what only the lab needs.
+
+// What a character in a live lab session pushed that would have reached the real world — a Discord
+// post, a moment, a clog or PB write. The routes divert it here instead (lib/lab labQuarantine), so
+// a faked pet line shows up on the lab page rather than in the clan's channel.
+export const labLog = pgTable('lab_log', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  accountId: integer('account_id').references(() => accounts.id, { onDelete: 'set null' }),
+  /** The plugin route it arrived at, e.g. 'notify'. */
+  endpoint: text('endpoint').notNull(),
+  /** The body as sent, trimmed by the writer. Never scoring; read only by the lab page. */
+  payload: jsonb('payload'),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (t) => [
+  index('lab_log_event_idx').on(t.eventId, t.id),
+]);
+
+// Scripted game events the dev client replays (`::anvil sync` in the plugin's test harness). The
+// steps are the harness's own JSON format, stored as sent; the plugin validates them, not us.
+export const labScenarios = pgTable('lab_scenarios', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description').notNull().default(''),
+  /** `${name}` placeholders and their defaults, e.g. { "boss": "Vorkath", "kc": "50" }. */
+  params: jsonb('params').notNull().default({}),
+  steps: jsonb('steps').notNull().default([]),
+  updatedBy: integer('updated_by').references(() => users.id, { onDelete: 'set null' }),
+  updatedAt: text('updated_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (t) => [
+  uniqueIndex('lab_scenarios_name_unique').on(t.name),
+]);
+
+// Replacement regexes for the chat lines the plugin parses, keyed by the plugin's catalog key
+// (src/data/chatPatterns.json). When Jagex rewords a line, an override here reaches every plugin on
+// its next poll (GET /api/plugin/chat-patterns) — no release. The plugin re-validates each one and
+// falls back to its built-in pattern on anything it does not like. No row = the built-in pattern.
+export const chatPatternOverrides = pgTable('chat_pattern_overrides', {
+  key: text('key').primaryKey(),
+  regex: text('regex').notNull(),
+  /** Optional literal every matching line contains — the plugin's cheap pre-check before the regex. */
+  hint: text('hint'),
+  note: text('note'),
+  updatedBy: integer('updated_by').references(() => users.id, { onDelete: 'set null' }),
+  updatedAt: text('updated_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+});

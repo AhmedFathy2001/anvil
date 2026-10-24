@@ -93,6 +93,11 @@ export default async function StaffLayout({ children }: { children: React.ReactN
         { href: '/staff/guides', label: 'Guide library', icon: '📖', badge: await pendingProposals(), matchPrefix: true },
         // Anvil's task and board library, and the suggestions clans send for it.
         { href: '/staff/library', label: 'Task & board library', icon: '▦', badge: await pendingLibraryProposals(), matchPrefix: true },
+        // Test any tile kind on your own account without a real bingo (lib/lab), and the replay
+        // scenarios the dev client pulls.
+        { href: '/staff/lab', label: 'Tile lab', icon: '⚗', matchPrefix: true },
+        // The chat lines every plugin parses, and their live overrides (lib/chatPatterns).
+        { href: '/staff/chat-patterns', label: 'Chat patterns', icon: '✎', matchPrefix: true },
       ],
     },
   ];

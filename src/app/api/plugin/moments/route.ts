@@ -6,6 +6,7 @@ import { rateLimitByKey, rateLimitHeaders } from '@/lib/rate-limit';
 import { activeScopesFor, recordMoments } from '@/lib/momentsStore';
 import { caTierRank, type Observation } from '@/lib/moments';
 import { stripChatTags } from '@/lib/chatTags';
+import { labQuarantine } from '@/lib/lab';
 
 // Highlight ingest: the pets, uniques, big hauls, deaths and combat tasks that happen while a competition week or
 // a bingo is running (lib/moments decides which of those it is — see that file for why the rules
@@ -97,6 +98,9 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
+  // A character in a tile-lab session writes nothing real; the push goes to the lab log (lib/lab).
+  const quarantined = await labQuarantine(request, member.accountId, 'moments', body);
+  if (quarantined) return quarantined;
   if (!Array.isArray(body?.moments)) {
     return NextResponse.json({ error: 'moments[] required' }, { status: 400 });
   }

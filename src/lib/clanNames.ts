@@ -24,6 +24,8 @@ export const RESERVED_SLUGS = new Set([
   'staff', 'platform', 'clans', 'profile', 'events', 'members', 'guide', 'guides', 'pricing',
   'leaderboard', 'leaderboards', 'welcome',
   'portal', 'legal', 'privacy', 'terms', 'refunds', 'preview', 'about',
+  // The hidden tile-lab clan (lib/lab LAB_CLAN_SLUG) lives here; nobody may found one over it.
+  'lab', 'anvil-lab',
 ]);
 
 export interface AvailabilityResult {

@@ -20,6 +20,7 @@ import { IGNORED_STATUSES } from '@/lib/accountRelease';
 import { pickActivePluginEvent } from '@/lib/pluginEventPick';
 import { trackPluginRoute } from '@/lib/analytics';
 import { lastSeenIsFresh } from '@/lib/rosterSync';
+import { labParticipantScope } from '@/lib/lab';
 
 const ADMIN_SESSION_SECRET = requireSecret('ADMIN_SESSION_SECRET', 'dev-admin-secret');
 const CAPTAIN_SESSION_SECRET = requireSecret('CAPTAIN_SESSION_SECRET', 'dev-captain-secret');
@@ -1508,12 +1509,16 @@ export async function pluginParticipantScope(member: { clanMemberId: number; acc
   ]);
   const seatIds = [...new Set([member.clanMemberId, ...ownSeats.map((s) => s.id)])];
   const cohostedIds = cohosted.map((c) => c.eventId);
-  return and(
+  const ordinary = and(
     inArray(eventParticipants.clanMemberId, seatIds),
     cohostedIds.length > 0
       ? or(eq(events.clanId, member.clanId), inArray(events.id, cohostedIds))
       : eq(events.clanId, member.clanId),
   )!;
+  // A tile-lab board this character is entered in (lib/lab). Its row carries the account and no
+  // seat, so the seat rule above can never reach it.
+  const lab = await labParticipantScope(member.accountId);
+  return lab ? or(ordinary, lab)! : ordinary;
 }
 
 /** The character a read may personalise on: the played RSN, else the launcher hint. Never for writes. */

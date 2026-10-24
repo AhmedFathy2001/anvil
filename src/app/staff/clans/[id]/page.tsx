@@ -6,6 +6,10 @@ import { CAN_DELETE_CLAN, requirePlatformPage } from '@/lib/platformAccess';
 import { hasPlatformRole } from '@/lib/clanRoles';
 import ClanLink from '@/components/ClanLink';
 import ClanEditor from './ClanEditor';
+import PlatformHiddenToggle from './PlatformHiddenToggle';
+import { db } from '@/db';
+import { clans } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,6 +43,8 @@ export default async function StaffClanPage({ params }: { params: Promise<{ id: 
   // The query already took a clan filter; nothing had ever passed it one.
   const actions = await platformActions(20, { clanId: clan.id });
   const canWrite = hasPlatformRole(actor.role, 'staff');
+  // clan-scope: this clan -- its own row, by id.
+  const hidden = !!(await db.query.clans.findFirst({ where: eq(clans.id, clan.id), columns: { platformHidden: true } }))?.platformHidden;
   const canDelete = hasPlatformRole(actor.role, CAN_DELETE_CLAN);
 
   return (
@@ -186,6 +192,12 @@ export default async function StaffClanPage({ params }: { params: Promise<{ id: 
               Every clan’s errors →
             </ClanLink>
           </p>
+        </Section>
+      )}
+
+      {canWrite && (
+        <Section title="Public visibility">
+          <PlatformHiddenToggle clanId={clan.id} hidden={hidden} />
         </Section>
       )}
 

@@ -9,6 +9,8 @@ import { db } from '@/db';
 import { clanRoster } from '@/db/schema';
 import { findRosterSeat, personOf, seatsOwnedBy } from '@/lib/roster';
 import { and, eq, isNull } from 'drizzle-orm';
+import { labQuarantine } from '@/lib/lab';
+import { resolvePluginCharacter } from '@/lib/pluginAccount';
 
 /**
  * Clip relay — the clan's clips channel, without every member pasting a webhook.
@@ -117,6 +119,15 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: 'Malformed body' }, { status: 400 });
   }
+
+  // A character in a tile-lab session posts nowhere real: the clip's details go to the lab log.
+  const quarantined = await labQuarantine(
+    request,
+    async () => (await resolvePluginCharacter(request))?.accountId,
+    'clip',
+    { moment, eventName, seconds, standing, file: file?.name ?? null, bytes: file?.size ?? null },
+  );
+  if (quarantined) return quarantined;
 
   if (!file) {
     return NextResponse.json({ error: 'No clip file in the request' }, { status: 400 });

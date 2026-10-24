@@ -1,0 +1,542 @@
+[
+ {
+  "name": "agility-lap",
+  "description": "One agility lap via the course's lap-count line",
+  "params": {
+   "course": "Seers' Village Rooftop",
+   "kc": "1234"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "Your ${course} lap count is: ${kc}."
+    }
+   }
+  ]
+ },
+ {
+  "name": "boss-kc",
+  "description": "One boss kill credited off the Jagex KC line alone (kill tiles for corpse-loot bosses)",
+  "params": {
+   "boss": "Araxxor",
+   "kc": "10"
+  },
+  "steps": [
+   {
+    "death": {
+     "who": "npc",
+     "name": "${boss}"
+    }
+   },
+   {
+    "chat": {
+     "message": "Your ${boss} kill count is: ${kc}."
+    }
+   }
+  ]
+ },
+ {
+  "name": "boss-pb",
+  "description": "Timed clear: boss death, KC line, then the fight-duration personal-best line",
+  "params": {
+   "boss": "Vorkath",
+   "kc": "100",
+   "time": "1:36"
+  },
+  "steps": [
+   {
+    "death": {
+     "who": "npc",
+     "name": "${boss}"
+    }
+   },
+   {
+    "chat": {
+     "message": "Your ${boss} kill count is: ${kc}."
+    }
+   },
+   {
+    "chat": {
+     "message": "Fight duration: ${time} (new personal best)."
+    }
+   }
+  ]
+ },
+ {
+  "name": "boss-pet-duplicate",
+  "description": "Pet already owned: the 'would have been followed' line only, no clog line",
+  "params": {
+   "boss": "Scurrius",
+   "kc": "251"
+  },
+  "steps": [
+   {
+    "death": {
+     "who": "npc",
+     "name": "${boss}"
+    }
+   },
+   {
+    "chat": {
+     "message": "Your ${boss} kill count is: ${kc}."
+    }
+   },
+   {
+    "chat": {
+     "message": "You have a funny feeling like you would have been followed..."
+    }
+   }
+  ]
+ },
+ {
+  "name": "boss-pet",
+  "description": "Boss kill, KC line, pet line, then the clog line that names the pet (no loot event fires for pets)",
+  "params": {
+   "boss": "Scurrius",
+   "kc": "250",
+   "pet": "Scurry"
+  },
+  "steps": [
+   {
+    "death": {
+     "who": "npc",
+     "name": "${boss}"
+    }
+   },
+   {
+    "chat": {
+     "message": "Your ${boss} kill count is: ${kc}."
+    }
+   },
+   {
+    "chat": {
+     "message": "You have a funny feeling like you're being followed."
+    }
+   },
+   {
+    "wait": 1
+   },
+   {
+    "chat": {
+     "message": "New item added to your collection log: ${pet}"
+    }
+   }
+  ]
+ },
+ {
+  "name": "ca-task",
+  "description": "Combat achievement task line (credits CA tiles; tier must be Easy..Grandmaster)",
+  "params": {
+   "tier": "Elite",
+   "task": "Whack-a-Mole"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "Congratulations, you've completed an ${tier} combat task: ${task}."
+    }
+   }
+  ]
+ },
+ {
+  "name": "clog-clan-broadcast",
+  "description": "The clan's copy of a clog unlock, naming you \u2014 the only sighting when the personal setting is off",
+  "params": {
+   "item": "Fighter torso",
+   "count": "356/1717"
+  },
+  "steps": [
+   {
+    "chat": {
+     "type": "CLAN_MESSAGE",
+     "message": "${me} received a new collection log item: ${item} (${count})"
+    }
+   }
+  ]
+ },
+ {
+  "name": "clog-unlock",
+  "description": "Personal collection-log line for an item that never fires a loot event (BA torso, gamble pets)",
+  "params": {
+   "item": "Fighter torso"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "New item added to your collection log: ${item}"
+    }
+   }
+  ]
+ },
+ {
+  "name": "cox-raid",
+  "description": "CoX completion: in-raid + party-size varbits, completion + KC lines, then the reward chest loot",
+  "params": {
+   "kc": "125",
+   "party": "3",
+   "time": "15:39",
+   "item": "20997"
+  },
+  "steps": [
+   {
+    "varbit": {
+     "name": "RAIDS_CLIENT_INDUNGEON",
+     "value": 1
+    }
+   },
+   {
+    "varbit": {
+     "name": "RAIDS_CLIENT_PARTYSIZE",
+     "value": "${party}"
+    }
+   },
+   {
+    "wait": 2
+   },
+   {
+    "chat": {
+     "message": "Congratulations - your raid is complete! Duration: ${time}"
+    }
+   },
+   {
+    "chat": {
+     "message": "Your completed Chambers of Xeric count is: ${kc}."
+    }
+   },
+   {
+    "wait": 3
+   },
+   {
+    "loot": {
+     "kind": "generic",
+     "lootType": "EVENT",
+     "name": "Chambers of Xeric",
+     "items": [
+      {
+       "id": "${item}",
+       "qty": 1
+      }
+     ]
+    }
+   },
+   {
+    "wait": 5
+   },
+   {
+    "varbit": {
+     "name": "RAIDS_CLIENT_PARTYSIZE",
+     "value": 0
+    }
+   },
+   {
+    "varbit": {
+     "name": "RAIDS_CLIENT_INDUNGEON",
+     "value": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "diary-tier",
+  "description": "Achievement diary tier completion line",
+  "params": {
+   "tier": "hard",
+   "area": "Ardougne"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "Congratulations! You have completed all of the ${tier} tasks in the ${area} area. Speak to the diary NPC to claim your reward."
+    }
+   }
+  ]
+ },
+ {
+  "name": "level-99",
+  "description": "A 99: the XP drop (StatChanged) plus the level-up chat line",
+  "params": {
+   "skill": "Cooking",
+   "xp": "13034431"
+  },
+  "steps": [
+   {
+    "stat": {
+     "skill": "${skill}",
+     "xp": "${xp}",
+     "level": 99,
+     "boostedLevel": 99
+    }
+   },
+   {
+    "chat": {
+     "message": "Congratulations, you've just advanced your ${skill} level. You are now level 99."
+    }
+   }
+  ]
+ },
+ {
+  "name": "npc-drop",
+  "description": "Any NPC drop by name + item id (server + client loot events); for drop/value tiles on non-KC monsters",
+  "params": {
+   "npc": "Lizardman shaman",
+   "npcId": "-1",
+   "combat": "150",
+   "item": "13576",
+   "qty": "1"
+  },
+  "steps": [
+   {
+    "death": {
+     "who": "npc",
+     "name": "${npc}",
+     "npcId": "${npcId}"
+    }
+   },
+   {
+    "loot": {
+     "kind": "server",
+     "name": "${npc}",
+     "npcId": "${npcId}",
+     "combatLevel": "${combat}",
+     "items": [
+      {
+       "id": "${item}",
+       "qty": "${qty}"
+      }
+     ]
+    }
+   },
+   {
+    "wait": 1
+   },
+   {
+    "loot": {
+     "kind": "npc",
+     "name": "${npc}",
+     "npcId": "${npcId}",
+     "combatLevel": "${combat}",
+     "items": [
+      {
+       "id": "${item}",
+       "qty": "${qty}"
+      }
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "name": "pvp-kill",
+  "description": "A PK: Wilderness varbit on, our hitsplat on a fake player, their death (damage->death attribution)",
+  "params": {
+   "victim": "Some Pker"
+  },
+  "steps": [
+   {
+    "varbit": {
+     "name": "INSIDE_WILDERNESS",
+     "value": 1
+    }
+   },
+   {
+    "wait": 1
+   },
+   {
+    "pvpKill": {
+     "victim": "${victim}",
+     "damage": 25
+    }
+   },
+   {
+    "wait": 2
+   },
+   {
+    "varbit": {
+     "name": "INSIDE_WILDERNESS",
+     "value": 0
+    }
+   }
+  ]
+ },
+ {
+  "name": "self-death",
+  "description": "The local player dies (deaths channel, deathless tiles, recap counter)",
+  "params": {},
+  "steps": [
+   {
+    "death": {
+     "who": "self"
+    }
+   }
+  ]
+ },
+ {
+  "name": "sepulchre-run",
+  "description": "Full Hallowed Sepulchre run: floors 1-5 then the Grand Hallowed Coffin",
+  "params": {
+   "total": "1234",
+   "coffins": "42"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "You have completed Floor 1 of the Hallowed Sepulchre! Total completions: ${total}."
+    }
+   },
+   {
+    "wait": 10
+   },
+   {
+    "chat": {
+     "message": "You have completed Floor 2 of the Hallowed Sepulchre! Total completions: ${total}."
+    }
+   },
+   {
+    "wait": 10
+   },
+   {
+    "chat": {
+     "message": "You have completed Floor 3 of the Hallowed Sepulchre! Total completions: ${total}."
+    }
+   },
+   {
+    "wait": 10
+   },
+   {
+    "chat": {
+     "message": "You have completed Floor 4 of the Hallowed Sepulchre! Total completions: ${total}."
+    }
+   },
+   {
+    "wait": 10
+   },
+   {
+    "chat": {
+     "message": "You have completed Floor 5 of the Hallowed Sepulchre! Total completions: ${total}."
+    }
+   },
+   {
+    "wait": 10
+   },
+   {
+    "chat": {
+     "message": "You have opened the Grand Hallowed Coffin ${coffins} times!"
+    }
+   }
+  ]
+ },
+ {
+  "name": "spill-drop",
+  "description": "Drop-attribution line for drops with no loot event (Maggot King spill-outs); names you",
+  "params": {
+   "item": "Elder venator fang",
+   "boss": "Maggot King"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "${me} received a drop: ${item} (${boss})"
+    }
+   }
+  ]
+ },
+ {
+  "name": "tob-raid",
+  "description": "ToB completion: KC line, total-time line (on FRIENDSCHATNOTIFICATION, as the game sends it), chest loot",
+  "params": {
+   "kc": "5",
+   "time": "1:02:30",
+   "item": "22477"
+  },
+  "steps": [
+   {
+    "chat": {
+     "message": "Your completed Theatre of Blood count is: ${kc}."
+    }
+   },
+   {
+    "chat": {
+     "type": "FRIENDSCHATNOTIFICATION",
+     "message": "Theatre of Blood total completion time: ${time}"
+    }
+   },
+   {
+    "wait": 3
+   },
+   {
+    "loot": {
+     "kind": "generic",
+     "lootType": "EVENT",
+     "name": "Theatre of Blood",
+     "items": [
+      {
+       "id": "${item}",
+       "qty": 1
+      }
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "name": "zulrah-unique",
+  "description": "Zulrah kill: KC line + loot (server + client loot events, as the real client fires both) with a Tanzanite fang",
+  "params": {
+   "kc": "500",
+   "item": "12922"
+  },
+  "steps": [
+   {
+    "death": {
+     "who": "npc",
+     "name": "Zulrah",
+     "npcId": 2042
+    }
+   },
+   {
+    "chat": {
+     "message": "Your Zulrah kill count is: ${kc}."
+    }
+   },
+   {
+    "loot": {
+     "kind": "server",
+     "name": "Zulrah",
+     "npcId": 2042,
+     "combatLevel": 725,
+     "items": [
+      {
+       "id": "${item}",
+       "qty": 1
+      },
+      {
+       "id": 12934,
+       "qty": 500
+      }
+     ]
+    }
+   },
+   {
+    "wait": 1
+   },
+   {
+    "loot": {
+     "kind": "npc",
+     "name": "Zulrah",
+     "npcId": 2042,
+     "combatLevel": 725,
+     "items": [
+      {
+       "id": "${item}",
+       "qty": 1
+      },
+      {
+       "id": 12934,
+       "qty": 500
+      }
+     ]
+    }
+   }
+  ]
+ }
+]

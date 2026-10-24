@@ -52,6 +52,8 @@ export function showcaseJoinOn(): SQL {
 export function listedClanWhere(): SQL {
   return and(
     eq(clans.status, 'active'),
+    // The platform's override (/staff/clans): hidden is hidden, whatever the clan itself chose.
+    eq(clans.platformHidden, false),
     // Anything that is not exactly 'public' is closed, matching `clanVisibilityOf`. A typo in this
     // column hides a clan; it must never expose one.
     eq(clans.visibility, 'public'),
@@ -66,9 +68,13 @@ export function listedClanWhere(): SQL {
  *
  * `showcase` is the raw setting value: null when there is no row.
  */
-export function isClanListed(clan: { status: string; visibility: string | null }, showcase: string | null): boolean {
+export function isClanListed(
+  clan: { status: string; visibility: string | null; platformHidden?: boolean | null },
+  showcase: string | null,
+): boolean {
   return (
     clan.status === 'active' &&
+    !clan.platformHidden &&
     clanVisibilityOf(clan.visibility) === 'public' &&
     showcase !== 'off'
   );

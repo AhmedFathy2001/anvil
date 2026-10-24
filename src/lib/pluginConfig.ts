@@ -782,6 +782,9 @@ import { PUBLIC_SHOWCASE_KEY } from '@/lib/clanListing';
 export { PUBLIC_SHOWCASE_KEY };
 
 export async function getPublicShowcase(clanId: number): Promise<boolean> {
+  // Hidden by the platform (/staff/clans) outranks the clan's own switch.
+  const row = await db.query.clans.findFirst({ where: eq(clans.id, clanId), columns: { platformHidden: true } });
+  if (row?.platformHidden) return false;
   // default (no row) = listed; explicit 'off' opts out
   return (await getSetting(clanId, PUBLIC_SHOWCASE_KEY)) !== 'off';
 }

@@ -6,6 +6,7 @@ import { pluginParticipantScope, resolvePluginMember } from '@/lib/auth';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { eventHasStarted } from '@/lib/completionGate';
 import { parseStamp } from '@/lib/dbTime';
+import { replayOutsideLab } from '@/lib/lab';
 
 // Real-time ingest for the fun end-of-event "recap" counters (total deaths, total loot GP, and PvP
 // kills for the active event). The plugin pushes ABSOLUTE per-event totals — idempotent, so a retry
@@ -87,6 +88,7 @@ export async function POST(request: Request) {
   const playerRows = await db
     .select({
       id: eventParticipants.id,
+      eventId: eventParticipants.eventId,
       teamId: eventParticipants.teamId,
       deaths: eventParticipants.deaths,
       lootGpGained: eventParticipants.lootGpGained,
@@ -111,6 +113,9 @@ export async function POST(request: Request) {
   if (!active) {
     return NextResponse.json({ ok: true, updated: 0 });
   }
+  // A replayed scenario's deaths and kills count on lab boards only (lib/lab).
+  const replay = await replayOutsideLab(request, active.eventId);
+  if (replay) return replay;
 
   // Absolute counts only ever rise — keep the max so a retry or restart never regresses the total.
   const curDeaths = active.deaths ?? 0;

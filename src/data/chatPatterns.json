@@ -1,0 +1,549 @@
+{
+  "version": 1,
+  "patterns": [
+    {
+      "key": "kc.count",
+      "description": "Boss/raid/activity count line. Drives kill-count tiles, KC on drop posts, timed-clear identity, guaranteed awards (Fire/Infernal cape).",
+      "types": [
+        "GAMEMESSAGE",
+        "SPAM",
+        "MESBOX",
+        "FRIENDSCHATNOTIFICATION"
+      ],
+      "input": "plain",
+      "match": "find",
+      "regex": "Your (?:completed |subdued )?(?<name>.+?) (?:kill |completion |success |chest |harvest |lap |Total Ticket )?count is: (?<count>[\\d,]+)",
+      "groups": [
+        "name",
+        "count"
+      ],
+      "samples": [
+        {
+          "line": "Your Duke Sucellus kill count is: 7.",
+          "expect": {
+            "name": "Duke Sucellus",
+            "count": "7"
+          }
+        },
+        {
+          "line": "Your completed Chambers of Xeric count is: 306.",
+          "expect": {
+            "name": "Chambers of Xeric",
+            "count": "306"
+          }
+        },
+        {
+          "line": "Your Gauntlet completion count is: 45.",
+          "expect": {
+            "name": "Gauntlet",
+            "count": "45"
+          }
+        }
+      ]
+    },
+    {
+      "key": "sepulchre.floor",
+      "description": "Hallowed Sepulchre floor clear. Credits that floor and the any-floor target.",
+      "types": [
+        "GAMEMESSAGE",
+        "SPAM",
+        "MESBOX",
+        "FRIENDSCHATNOTIFICATION"
+      ],
+      "input": "plain",
+      "match": "find",
+      "regex": "You have completed Floor (?<floor>\\d) of the Hallowed Sepulchre! Total completions: (?<total>[\\d,]+)",
+      "groups": [
+        "floor"
+      ],
+      "samples": [
+        {
+          "line": "You have completed Floor 3 of the Hallowed Sepulchre! Total completions: 1,234.",
+          "expect": {
+            "floor": "3",
+            "total": "1,234"
+          }
+        }
+      ]
+    },
+    {
+      "key": "sepulchre.coffin",
+      "description": "Grand Hallowed Coffin opened: a complete Sepulchre run.",
+      "types": [
+        "GAMEMESSAGE",
+        "SPAM",
+        "MESBOX",
+        "FRIENDSCHATNOTIFICATION"
+      ],
+      "input": "plain",
+      "match": "find",
+      "regex": "You have opened the Grand Hallowed Coffin (?<count>[\\d,]+) times?!",
+      "groups": [],
+      "samples": [
+        {
+          "line": "You have opened the Grand Hallowed Coffin 42 times!",
+          "expect": {
+            "count": "42"
+          }
+        },
+        {
+          "line": "You have opened the Grand Hallowed Coffin 1 time!",
+          "expect": {
+            "count": "1"
+          }
+        }
+      ]
+    },
+    {
+      "key": "counter.hunter_rumour",
+      "description": "Hunter Guild rumour completed. One line, one credit.",
+      "types": [
+        "GAMEMESSAGE",
+        "SPAM",
+        "MESBOX",
+        "FRIENDSCHATNOTIFICATION"
+      ],
+      "input": "plain",
+      "match": "find",
+      "regex": "You have completed (?<count>[\\d,]+) rumours? for the Hunter Guild",
+      "groups": [],
+      "samples": [
+        {
+          "line": "You have completed 42 rumours for the Hunter Guild.",
+          "expect": {
+            "count": "42"
+          }
+        },
+        {
+          "line": "You have completed 1 rumour for the Hunter Guild.",
+          "expect": {
+            "count": "1"
+          }
+        }
+      ]
+    },
+    {
+      "key": "counter.egg_offering",
+      "description": "Bird's egg offering at the Woodcutting Guild shrine.",
+      "types": [
+        "GAMEMESSAGE",
+        "SPAM",
+        "MESBOX",
+        "FRIENDSCHATNOTIFICATION"
+      ],
+      "input": "plain",
+      "match": "find",
+      "regex": "You have made (?:[\\d,]+|one) offerings?\\.",
+      "groups": [],
+      "samples": [
+        {
+          "line": "You have made 7 offerings.",
+          "expect": {}
+        },
+        {
+          "line": "You have made one offering.",
+          "expect": {}
+        }
+      ]
+    },
+    {
+      "key": "clog.unlock",
+      "description": "Personal collection-log unlock (needs the in-game notification on). Trailing period is trimmed by the plugin.",
+      "types": [
+        "GAMEMESSAGE",
+        "SPAM",
+        "MESBOX",
+        "FRIENDSCHATNOTIFICATION"
+      ],
+      "input": "plain",
+      "match": "find",
+      "regex": "New item added to your collection log: (?<item>.*)",
+      "groups": [
+        "item"
+      ],
+      "flags": [
+        "DOTALL"
+      ],
+      "samples": [
+        {
+          "line": "New item added to your collection log: Infernal cape",
+          "expect": {
+            "item": "Infernal cape"
+          }
+        }
+      ]
+    },
+    {
+      "key": "clog.clan_broadcast",
+      "description": "Clan broadcast of a collection-log unlock. Acted on only when rsn is the local player.",
+      "types": [
+        "ANY_SERVER"
+      ],
+      "input": "plain",
+      "match": "full",
+      "regex": "^(?<rsn>.{1,20}?) received a new collection log item: (?<item>.+?)(?: \\(\\d+/\\d+\\))?\\.?$",
+      "groups": [
+        "rsn",
+        "item"
+      ],
+      "hint": "received a new collection log item",
+      "samples": [
+        {
+          "line": "hyperi0n received a new collection log item: Lost bag (356/1717)",
+          "expect": {
+            "rsn": "hyperi0n",
+            "item": "Lost bag"
+          }
+        },
+        {
+          "line": "Nisbro received a new collection log item: Twisted bow",
+          "expect": {
+            "rsn": "Nisbro",
+            "item": "Twisted bow"
+          }
+        }
+      ]
+    },
+    {
+      "key": "drop.personal",
+      "description": "Server drop-attribution line (drops with no loot event, e.g. Maggot King spill-outs). Last parenthetical is the source.",
+      "types": [
+        "ANY_SERVER"
+      ],
+      "input": "tags-stripped",
+      "match": "full",
+      "regex": "^(?<rsn>.{1,20}?) received a drop: (?:(?<qty>[\\d,]+) x )?(?<item>.+) \\((?<source>[^()]+)\\)\\.?$",
+      "groups": [
+        "rsn",
+        "qty",
+        "item",
+        "source"
+      ],
+      "hint": "received a drop",
+      "samples": [
+        {
+          "line": "Nisbro received a drop: Elder venator fang (Maggot King)",
+          "expect": {
+            "rsn": "Nisbro",
+            "item": "Elder venator fang",
+            "source": "Maggot King"
+          }
+        },
+        {
+          "line": "Nisbro received a drop: 1,500 x Cannonball (Maggot King).",
+          "expect": {
+            "rsn": "Nisbro",
+            "qty": "1,500",
+            "item": "Cannonball",
+            "source": "Maggot King"
+          }
+        },
+        {
+          "line": "Nisbro received a drop: Rune platebody (g) (Maggot King)",
+          "expect": {
+            "rsn": "Nisbro",
+            "item": "Rune platebody (g)",
+            "source": "Maggot King"
+          }
+        }
+      ]
+    },
+    {
+      "key": "drop.clan_broadcast",
+      "description": "Clan broadcast of a drop with its value. Tried before drop.personal; acted on only for the local player.",
+      "types": [
+        "ANY_SERVER"
+      ],
+      "input": "tags-stripped",
+      "match": "full",
+      "regex": "^(?<rsn>.{1,20}?) received a drop: (?:(?<qty>[\\d,]+) x )?(?<item>.+) \\([\\d,]+ coins\\) from (?<source>.+?)\\.?$",
+      "groups": [
+        "rsn",
+        "qty",
+        "item",
+        "source"
+      ],
+      "hint": "received a drop",
+      "samples": [
+        {
+          "line": "Nisbro received a drop: Elder venator fang (50,000,000 coins) from Maggot King.",
+          "expect": {
+            "rsn": "Nisbro",
+            "item": "Elder venator fang",
+            "source": "Maggot King"
+          }
+        },
+        {
+          "line": "Nisbro received a drop: Rune platebody (g) (39,000 coins) from Maggot King.",
+          "expect": {
+            "rsn": "Nisbro",
+            "item": "Rune platebody (g)",
+            "source": "Maggot King"
+          }
+        }
+      ]
+    },
+    {
+      "key": "ca.task",
+      "description": "Combat achievement task completed. A trailing \" (N points)\" is stripped by the plugin.",
+      "types": [
+        "GAMEMESSAGE",
+        "SPAM",
+        "MESBOX",
+        "FRIENDSCHATNOTIFICATION"
+      ],
+      "input": "plain",
+      "match": "find",
+      "regex": "Congratulations, you've completed an? (?<tier>\\w+) combat task: (?<task>.+?)\\.?$",
+      "groups": [
+        "tier",
+        "task"
+      ],
+      "samples": [
+        {
+          "line": "Congratulations, you've completed an Elite combat task: Whack-a-Mole.",
+          "expect": {
+            "tier": "Elite",
+            "task": "Whack-a-Mole"
+          }
+        },
+        {
+          "line": "Congratulations, you've completed a Master combat task: Nylocas, On the Rocks (5 points).",
+          "expect": {
+            "tier": "Master",
+            "task": "Nylocas, On the Rocks (5 points)"
+          }
+        }
+      ]
+    },
+    {
+      "key": "level.up",
+      "description": "Skill level-up. 99s post to the achievements channel; any level re-checks total milestones.",
+      "types": [
+        "GAMEMESSAGE",
+        "SPAM",
+        "MESBOX",
+        "FRIENDSCHATNOTIFICATION"
+      ],
+      "input": "plain",
+      "match": "find",
+      "regex": "you(?:'ve|’ve)? just advanced (?:your|an?) (?<skill>\\w+) level\\. You are now level (?<level>\\d+)\\.",
+      "groups": [
+        "skill",
+        "level"
+      ],
+      "flags": [
+        "CASE_INSENSITIVE"
+      ],
+      "samples": [
+        {
+          "line": "Congratulations, you've just advanced your Cooking level. You are now level 99.",
+          "expect": {
+            "skill": "Cooking",
+            "level": "99"
+          }
+        },
+        {
+          "line": "Congratulations, you’ve just advanced your Fishing level. You are now level 99.",
+          "expect": {
+            "skill": "Fishing",
+            "level": "99"
+          }
+        },
+        {
+          "line": "Congratulations, you've just advanced an Agility level. You are now level 70.",
+          "expect": {
+            "skill": "Agility",
+            "level": "70"
+          }
+        }
+      ]
+    },
+    {
+      "key": "diary.complete",
+      "description": "Achievement diary tier completed. Credits diary tiles and posts to achievements.",
+      "types": [
+        "GAMEMESSAGE",
+        "SPAM",
+        "MESBOX",
+        "FRIENDSCHATNOTIFICATION"
+      ],
+      "input": "plain",
+      "match": "find",
+      "regex": "You have completed all of the (?<tier>easy|medium|hard|elite) tasks in (?:the )?(?<area>.+?) area",
+      "groups": [
+        "tier",
+        "area"
+      ],
+      "flags": [
+        "CASE_INSENSITIVE"
+      ],
+      "samples": [
+        {
+          "line": "Congratulations! You have completed all of the easy tasks in the Ardougne area.",
+          "expect": {
+            "tier": "easy",
+            "area": "Ardougne"
+          }
+        },
+        {
+          "line": "Well done! You have completed all of the elite tasks in the Kourend & Kebos area.",
+          "expect": {
+            "tier": "elite",
+            "area": "Kourend & Kebos"
+          }
+        }
+      ]
+    },
+    {
+      "key": "pet.drop",
+      "description": "New pet. Posts the pet and captures a proof for manual submission.",
+      "types": [
+        "GAMEMESSAGE",
+        "SPAM",
+        "MESBOX",
+        "FRIENDSCHATNOTIFICATION"
+      ],
+      "input": "raw",
+      "match": "find",
+      "regex": "You have a funny feeling like you're being followed|You feel something weird sneaking into your backpack",
+      "groups": [],
+      "samples": [
+        {
+          "line": "You have a funny feeling like you're being followed.",
+          "expect": {}
+        },
+        {
+          "line": "You feel something weird sneaking into your backpack.",
+          "expect": {}
+        }
+      ]
+    },
+    {
+      "key": "pet.duplicate",
+      "description": "Pet already owned (\"would have been followed\"). Posted unnamed; still captures a proof.",
+      "types": [
+        "GAMEMESSAGE",
+        "SPAM",
+        "MESBOX",
+        "FRIENDSCHATNOTIFICATION"
+      ],
+      "input": "raw",
+      "match": "find",
+      "regex": "You have a funny feeling like you would have been followed",
+      "groups": [],
+      "samples": [
+        {
+          "line": "You have a funny feeling like you would have been followed...",
+          "expect": {}
+        }
+      ]
+    },
+    {
+      "key": "scroll.champion_duplicate",
+      "description": "Champion's scroll when the challenge is already done (no item, no loot event). Captures a proof.",
+      "types": [
+        "GAMEMESSAGE",
+        "SPAM",
+        "MESBOX",
+        "FRIENDSCHATNOTIFICATION"
+      ],
+      "input": "raw",
+      "match": "find",
+      "regex": "funny feeling that you would have received a Champion",
+      "groups": [],
+      "samples": [
+        {
+          "line": "You have a funny feeling that you would have received a Champion's scroll.",
+          "expect": {}
+        }
+      ]
+    },
+    {
+      "key": "timed.duration",
+      "description": "Clear-time token for timed tiles. Runs on the LOWERCASED line.",
+      "types": [
+        "GAMEMESSAGE",
+        "SPAM",
+        "MESBOX",
+        "FRIENDSCHATNOTIFICATION"
+      ],
+      "input": "lowercase",
+      "match": "find",
+      "regex": "(?:duration|completion time|time:|subdued in)[^0-9]{0,16}(?<time>(?:\\d{1,2}:)?\\d{1,3}:\\d{2})",
+      "groups": [
+        "time"
+      ],
+      "samples": [
+        {
+          "line": "fight duration: 1:36 (new personal best)",
+          "expect": {
+            "time": "1:36"
+          }
+        },
+        {
+          "line": "theatre of blood total completion time: 1:02:30",
+          "expect": {
+            "time": "1:02:30"
+          }
+        },
+        {
+          "line": "subdued in 6:32 (new personal best).",
+          "expect": {
+            "time": "6:32"
+          }
+        }
+      ]
+    },
+    {
+      "key": "timed.raid_subtime",
+      "description": "ToA per-room/per-challenge sub-times that must NOT count as a raid clear. Runs on the LOWERCASED line.",
+      "types": [
+        "GAMEMESSAGE",
+        "SPAM",
+        "MESBOX",
+        "FRIENDSCHATNOTIFICATION"
+      ],
+      "input": "lowercase",
+      "match": "find",
+      "regex": "challenge complete|challenge time:|challenge completion time",
+      "groups": [],
+      "samples": [
+        {
+          "line": "challenge time: 10:23",
+          "expect": {}
+        },
+        {
+          "line": "tombs of amascut: expert mode challenge completion time: 30:16. personal best: 16:08",
+          "expect": {}
+        }
+      ]
+    },
+    {
+      "key": "timed.trial_completion",
+      "description": "Barracuda Trials (Sailing) course + rank. Runs on the LOWERCASED line.",
+      "types": [
+        "GAMEMESSAGE",
+        "SPAM",
+        "MESBOX",
+        "FRIENDSCHATNOTIFICATION"
+      ],
+      "input": "lowercase",
+      "match": "find",
+      "regex": "completed the (?<course>.+?) and achieved the (?<rank>\\w+) rank",
+      "groups": [
+        "course",
+        "rank"
+      ],
+      "samples": [
+        {
+          "line": "you have completed the gwenith glide and achieved the marlin rank.",
+          "expect": {
+            "course": "gwenith glide",
+            "rank": "marlin"
+          }
+        }
+      ]
+    }
+  ]
+}

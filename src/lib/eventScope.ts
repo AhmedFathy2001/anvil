@@ -15,10 +15,12 @@ import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 
 import { db } from '@/db';
-import { accounts, clanMemberships, clans, eventCohosts, eventSignups, events, signupFees, weeklyCompetitions } from '@/db/schema';
+import { accounts, clanMemberships, clans, eventCohosts, eventParticipants, eventSignups, events, signupFees, weeklyCompetitions } from '@/db/schema';
 import { currentClan, requireClan, resolveClanFromRequest } from '@/lib/clanContext';
 import { canSeeEvent } from '@/lib/eventAccess';
 import { resolvePluginClan, verifyUser } from '@/lib/auth';
+import { labEvent } from '@/lib/lab';
+import { resolvePluginCharacter } from '@/lib/pluginAccount';
 
 export type ScopedEvent = typeof events.$inferSelect;
 
@@ -101,7 +103,29 @@ export async function eventForPluginRequest(
     .innerJoin(events, eq(events.id, eventCohosts.eventId))
     .where(and(eq(eventCohosts.eventId, eventId), eq(eventCohosts.clanId, clan.id), eq(eventCohosts.status, 'accepted')))
     .limit(1);
-  return row ? { event: row.event, viaCohost: true } : null;
+  if (row) return { event: row.event, viaCohost: true };
+  return labEventForPluginRequest(request, eventId);
+}
+
+/**
+ * A tile-lab board (lib/lab), at whatever clan address the plugin is connected to — but only for a
+ * character entered on it. `viaCohost: true` for the same reason as a co-host: no cookie role read
+ * off this address means anything on a lab board.
+ */
+async function labEventForPluginRequest(
+  request: Request,
+  eventId: number,
+): Promise<{ event: ScopedEvent; viaCohost: boolean } | null> {
+  const event = await labEvent(eventId);
+  if (!event) return null;
+  const member = await resolvePluginCharacter(request);
+  if (!member) return null;
+  const [entered] = await db
+    .select({ id: eventParticipants.id })
+    .from(eventParticipants)
+    .where(and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.accountId, member.accountId)))
+    .limit(1);
+  return entered ? { event, viaCohost: true } : null;
 }
 
 /** The same, for a server page: renders the not-found page rather than returning null. */
