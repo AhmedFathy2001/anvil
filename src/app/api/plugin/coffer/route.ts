@@ -6,6 +6,7 @@ import { getCofferBalance } from '@/lib/coffer';
 import { syncPhysicalCoffer } from '@/lib/cofferSync';
 import type { CofferObservationKind } from '@/lib/cofferSyncDecision';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
+import { labQuarantine } from '@/lib/lab';
 
 const MAX_GP = 2_147_483_647;
 const KINDS = new Set<CofferObservationKind>(['snapshot', 'deposit', 'withdrawal']);
@@ -35,6 +36,9 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
+  // A character in a tile-lab session writes nothing real; the push goes to the lab log (lib/lab).
+  const quarantined = await labQuarantine(request, member.accountId, 'coffer', body);
+  if (quarantined) return quarantined;
 
   const kind = typeof body.kind === 'string' && KINDS.has(body.kind as CofferObservationKind)
     ? body.kind as CofferObservationKind

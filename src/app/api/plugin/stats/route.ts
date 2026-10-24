@@ -19,6 +19,7 @@ import { creditStatTilesForTeam } from '@/lib/statTileCredit';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { log } from '@/lib/logger';
 import { ttlMemo } from '@/lib/ttlMemo';
+import { labQuarantine } from '@/lib/lab';
 
 // Real-time boss-KC / skill-XP / activity ingest. The plugin posts {stats:[{name,kc}],
 // skills:[{name,xp}], activities:[{key,value}]} with
@@ -69,6 +70,9 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
+  // A character in a tile-lab session writes nothing real; the push goes to the lab log (lib/lab).
+  const quarantined = await labQuarantine(request, member.accountId, 'stats', body);
+  if (quarantined) return quarantined;
   if (isEmptyPush(body)) {
     // Same reason: a client sending empty bodies looks exactly like a client sending nothing.
     log.warn('plugin-stats.refused', { clan: clan.slug, clanMemberId: member.clanMemberId, reason: 'empty' });

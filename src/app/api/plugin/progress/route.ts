@@ -8,6 +8,7 @@ import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { cleanProgress, progressUpdates } from '@/lib/memberProgress';
 import { cleanItems, countDone, isItemCategory, serializeItems } from '@/lib/memberProgressItems';
 import { decodeCombatTasks } from '@/lib/combatTasks';
+import { labQuarantine } from '@/lib/lab';
 
 // POST /api/plugin/progress — quest points, combat-achievement points/tier, and diary counts.
 //
@@ -42,6 +43,9 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
+  // A character in a tile-lab session writes nothing real; the push goes to the lab log (lib/lab).
+  const quarantined = await labQuarantine(request, member.accountId, 'progress', body);
+  if (quarantined) return quarantined;
 
   // GAME MODE, from the IRONMAN varbit (lib/accountType). NOT max-merged like the progress keys: a
   // mode really does go down — de-ironing, a hardcore death — so the latest report is the truth. The

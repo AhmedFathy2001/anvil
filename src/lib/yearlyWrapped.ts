@@ -11,6 +11,7 @@ import { visibilityOf } from '@/lib/eventVisibility';
 import { getMonthlyWrapped } from '@/lib/monthlyWrapped';
 import type { YearEvent, YearlyWrapped } from '@/lib/yearlyWrappedRules';
 import { isEventEnded } from '@/lib/survey';
+import { notLabClan } from '@/lib/lab';
 
 export async function getYearlyWrapped(accountId: number, rsn: string, year: string): Promise<YearlyWrapped> {
   const [base, firstDay, busiest, events] = await Promise.all([
@@ -57,7 +58,8 @@ async function yearEvents(accountId: number, year: string): Promise<YearEvent[]>
     .from(eventParticipants)
     .innerJoin(events, eq(events.id, eventParticipants.eventId))
     .innerJoin(clans, eq(clans.id, events.clanId))
-    .where(and(eq(eventParticipants.accountId, accountId), like(events.startDate, `${year}-%`)));
+    // Tile-lab boards are test runs, not events anyone played (lib/lab).
+    .where(and(eq(eventParticipants.accountId, accountId), like(events.startDate, `${year}-%`), notLabClan(events.clanId)));
 
   const shown = rows.filter(
     (r) => r.clanVisibility === 'public' && visibilityOf(r.visibility) !== 'invited' && isEventEnded(r),

@@ -141,6 +141,13 @@ export const PLUGIN_CAPABILITIES = [
   // `totalLevel.milestone`, re-checking each destination's rules before posting. Without it the
   // plugin keeps its built-in 99s / every-100-from-1800 / max behaviour.
   'level-rules',
+  // Chat-line overrides (lib/chatPatterns): GET /api/plugin/chat-patterns serves staff-edited
+  // replacements for the plugin's built-in line regexes, so a Jagex rewording is a site edit rather
+  // than a hub release. The plugin re-validates each and keeps its default on anything it rejects.
+  'chat-patterns',
+  // Tile lab (lib/lab): GET /api/plugin/lab/scenarios hands platform staff's dev client the replay
+  // scenarios authored on /staff/lab. Only the test harness reads it; the hub plugin never does.
+  'lab-scenarios',
 ] as const;
 
 /** The `server` block returned to the plugin (and /api/version). */

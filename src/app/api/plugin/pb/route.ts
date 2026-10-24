@@ -5,6 +5,7 @@ import { memberPersonalBests } from '@/db/schema';
 import { resolvePluginCharacter } from '@/lib/pluginAccount';
 import { MAX_BESTS_PER_PUSH, normalizeBests, savePersonalBests, type IncomingBest } from '@/lib/personalBests';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
+import { labQuarantine } from '@/lib/lab';
 
 // Personal-best ingest. Times are CENTISECONDS — the game separates runs by hundredths, and a
 // leaderboard in whole seconds would tie times the game itself doesn't.
@@ -38,6 +39,9 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
+  // A character in a tile-lab session writes nothing real; the push goes to the lab log (lib/lab).
+  const quarantined = await labQuarantine(request, member.accountId, 'pb', body);
+  if (quarantined) return quarantined;
   if (!Array.isArray(body?.bests) || body.bests.length === 0) {
     return NextResponse.json({ error: 'bests[] required' }, { status: 400 });
   }
