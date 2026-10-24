@@ -5,7 +5,7 @@ import { verifyUser } from '@/lib/auth';
 import { canSeeClan } from '@/lib/clanAccess';
 import { currentClan } from '@/lib/clanContext';
 import { clanVisibilityOf } from '@/lib/clanVisibility';
-import { hallConfig, hallJoinUrl } from '@/lib/clanHall';
+import { hallConfig, hallJoinUrl, hallViewer } from '@/lib/clanHall';
 import { SITE } from '@/lib/site';
 
 export const dynamic = 'force-dynamic';
@@ -42,7 +42,10 @@ export async function GET(request: Request) {
       config.enabled &&
       (offSite
         ? clanVisibilityOf(clan.visibility) === 'public' && config.embed
-        : await canSeeClan({ clanId: clan.id, visibility: clan.visibility, playerId: session?.playerId, userId: session?.userId }));
+        : (await canSeeClan({ clanId: clan.id, visibility: clan.visibility, playerId: session?.playerId, userId: session?.userId })) &&
+          // Hidden by the platform: the card is for insiders only (clan home, api/discord/hall), so
+          // its Join link is too. Off-site is already closed — a hidden clan has no embed.
+          (!config.platformHidden || (await hallViewer(clan.id)).insider));
     dest = allowed ? await hallJoinUrl(clan.id) : null;
   }
 
