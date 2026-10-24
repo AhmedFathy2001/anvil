@@ -401,6 +401,56 @@ export const accountStatSnapshots = pgTable('account_stat_snapshots', {
 });
 
 /**
+ * An in-game OSRS clan, as the characters in it describe it — whether or not that clan uses Anvil.
+ *
+ * A "ghost" clan: nobody created it, nobody owns it, and it grants nothing. It exists because a
+ * player's plugin said "I'm in Iron Foundry, rank Dragonstone", the way WOM and RuneProfile show a
+ * player's clan. Built member by member from each player's OWN row (lib/gameClans) — never from a
+ * roster push, so it only ever holds what Anvil users said about themselves.
+ *
+ * NOT MEMBERSHIP. Seats, staff and access come from clan_roster / clan_staff and nothing here moves
+ * them (see roster-membership rules in lib/homeClan). A ghost clan that matches a verified
+ * `clans.in_game_name` is that Anvil clan — resolved at read time on the name key rather than stored,
+ * so a verification, a release or a rename can never leave a stale link behind.
+ */
+export const gameClans = pgTable('game_clans', {
+  id: serial('id').primaryKey(),
+  /** lib/gameClans gameClanKey: lowercased, trimmed, whitespace collapsed. The identity. */
+  nameKey: text('name_key').notNull(),
+  /** As the game last spelled it. */
+  name: text('name').notNull(),
+  firstSeenAt: text('first_seen_at').notNull(),
+  lastSeenAt: text('last_seen_at').notNull(),
+}, (table) => [
+  uniqueIndex('game_clans_name_key_unique').on(table.nameKey),
+]);
+
+/**
+ * Which in-game clan a character is in, as its own plugin last reported. One row per account.
+ *
+ * `gameClanId` NULL means the plugin looked and saw no clan — kept as a row rather than deleted so
+ * the owner's `hidden` choice survives leaving and joining clans.
+ */
+export const accountGameClans = pgTable('account_game_clans', {
+  accountId: integer('account_id')
+    .primaryKey()
+    .references(() => accounts.id, { onDelete: 'cascade' }),
+  gameClanId: integer('game_clan_id').references(() => gameClans.id, { onDelete: 'set null' }),
+  /** The game's numeric ClanRank (-1 guest … 126 owner, 127 Jagex mod). */
+  rank: integer('rank'),
+  /** The clan's own name for that rank ("Dragonstone", "Recruit") — what players recognise. */
+  title: text('title'),
+  /** When the game says they joined (ClanMember.getJoinDate), as YYYY-MM-DD. */
+  joinedOn: text('joined_on'),
+  /** Last time the plugin confirmed this. Throttled to once a day when nothing changed. */
+  observedAt: text('observed_at').notNull(),
+  /** The owner turned it off: never shown on profiles or ghost pages. */
+  hidden: boolean('hidden').notNull().default(false),
+}, (table) => [
+  index('account_game_clans_clan_idx').on(table.gameClanId),
+]);
+
+/**
  * An account's place on a clan's roster. The JOIN that makes someone a member of somewhere.
  *
  * MEMBERSHIP IS GRANTED, NEVER ASSUMED. Logging in makes a person a user of the platform and nothing

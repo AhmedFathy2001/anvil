@@ -148,6 +148,10 @@ export const PLUGIN_CAPABILITIES = [
   // Tile lab (lib/lab): GET /api/plugin/lab/scenarios hands platform staff's dev client the replay
   // scenarios authored on /staff/lab. Only the test harness reads it; the hub plugin never does.
   'lab-scenarios',
+  // Ghost clans (lib/gameClans): POST /api/plugin/game-clan takes the character's OWN row from the
+  // in-game clan settings — clan name, rank, rank title, join date — on login and on change. Never
+  // the member list. Works with no Anvil clan; feeds the profile's clan line and the hidden page.
+  'game-clan',
 ] as const;
 
 /** The `server` block returned to the plugin (and /api/version). */

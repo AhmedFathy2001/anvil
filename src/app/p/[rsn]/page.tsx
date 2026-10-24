@@ -14,6 +14,8 @@ import { bossPagesFor } from '@/lib/clogKillcounts';
 import { getCollectionLog } from '@/lib/clogRead';
 import { configuredOrigin } from '@/lib/request-origin';
 import ProfileShare from './ProfileShare';
+import GameClanToggle from './GameClanToggle';
+import { gameClanForAccount, type CharacterGameClan } from '@/lib/gameClans';
 import GoalsCard from '@/components/GoalsCard';
 import { goalsForProfile } from '@/lib/goals';
 import { goalRatesFrom } from '@/lib/statTrends';
@@ -130,7 +132,7 @@ export default async function CharacterPage({
   const profile = await getAccountProfile(character.accountId);
   if (!profile) notFound();
 
-  const [series, records, milestones, collection, progress, questItems, caItems, trackingSince] = await Promise.all([
+  const [series, records, milestones, collection, progress, questItems, caItems, trackingSince, gameClanRow] = await Promise.all([
     getDailySeries(character.accountId, 365),
     getRecords(character.accountId),
     getMilestones(character.accountId, 50),
@@ -139,7 +141,12 @@ export default async function CharacterPage({
     getMemberItems(character.accountId, 'quest'),
     getMemberItems(character.accountId, 'ca'),
     getTrackingSince(character.accountId),
+    gameClanForAccount(character.accountId),
   ]);
+  // The in-game clan their plugin reported (lib/gameClans). A hidden one is the owner's to see.
+  const gameClan = gameClanRow && (!gameClanRow.hidden || character.viewerOwns) ? gameClanRow : null;
+  // The same clan as their Anvil seat: the rank title joins that chip instead of a second one.
+  const seatIsGameClan = !!gameClan && !!character.clan && gameClan.anvilClan?.slug === character.clan.slug;
 
   const goals = await goalsForProfile(
     character.accountId,
@@ -174,8 +181,13 @@ export default async function CharacterPage({
             >
               <ClanCrest name={character.clan.name} logoUrl={character.clan.logoUrl} size={18} />
               {character.clan.name}
+              {seatIsGameClan && gameClan?.title && <span className="text-text-dim">· {gameClan.title}</span>}
             </ClanLink>
           ) : null}
+          {gameClan && !seatIsGameClan && <GameClanChip clan={gameClan} />}
+          {gameClan && character.viewerOwns && (
+            <GameClanToggle accountId={character.accountId} hidden={gameClan.hidden} />
+          )}
           {character.clan ? (
             // The same character, seen by its clan: standings, competition history, the moments
             // feed. Two pages about one account used to have no way between them.
@@ -185,7 +197,7 @@ export default async function CharacterPage({
             >
               Clan profile →
             </ClanLink>
-          ) : (
+          ) : gameClan ? null : (
             <span className="text-text-dim">No clan</span>
           )}
 
@@ -288,6 +300,30 @@ export default async function CharacterPage({
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * The in-game clan, when it is not the Anvil clan already shown: its Anvil page when it has a listed
+ * one, else its ghost page — or plain text for an Anvil clan that keeps itself off public pages.
+ */
+function GameClanChip({ clan }: { clan: CharacterGameClan }) {
+  const body = (
+    <>
+      <ClanCrest name={clan.anvilClan?.name ?? clan.name} logoUrl={clan.anvilClan?.logoUrl ?? null} size={18} />
+      {clan.name}
+      {clan.title && <span className="text-text-dim">· {clan.title}</span>}
+    </>
+  );
+  if (clan.anvilClanUnlisted) return <span className="flex items-center gap-2">{body}</span>;
+  return (
+    <ClanLink
+      href={clan.anvilClan ? `/c/${clan.anvilClan.slug}` : `/clans/g/${encodeURIComponent(clan.key)}`}
+      className="flex items-center gap-2 transition-colors hover:text-gold"
+      title={clan.joinedOn ? `In-game clan · joined ${clan.joinedOn}` : 'In-game clan'}
+    >
+      {body}
+    </ClanLink>
   );
 }
 
