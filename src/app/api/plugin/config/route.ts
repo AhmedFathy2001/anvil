@@ -424,6 +424,8 @@ export async function GET(request: Request) {
         clanMemberId: eventParticipants.clanMemberId,
         statsSnapshot: eventParticipants.statsSnapshot,
         cachedStats: eventParticipants.cachedStats,
+        frozenAt: eventParticipants.frozenAt,
+        frozenStats: eventParticipants.frozenStats,
         // Per-KEY last-rose timestamps — the "is this teammate grinding THIS stat tile right now" signal
         // for "Active now". Per-stat (not per-member), so a fishing push only marks their fishing tile.
         liveStatKeyTimes: clanRoster.liveStatKeyTimes,
@@ -494,7 +496,13 @@ export async function GET(request: Request) {
     for (const p of sources) {
       // Real-time plugin push (boss KC AND skill XP) folds into current as a per-key max, so the
       // in-game progress reflects a fresh kill / training burst before the hiscores sweep catches up.
-      const plug = (p.clanMemberId != null && memberLive.get(p.clanMemberId)) || {};
+      //
+      // A benched (subbed-out) player is pinned to the stats frozen when they left, with no overlay —
+      // as lib/statTileCredit scores them and the tracker shows them. Their live XP kept counting here,
+      // so a team read a full bar in-game on a tile the site had nowhere near done.
+      const benched = !!p.frozenAt;
+      const nowStats = benched ? p.frozenStats : p.cachedStats;
+      const plug = benched ? {} : (p.clanMemberId != null && memberLive.get(p.clanMemberId)) || {};
       // Composite trackedStat ("chambersOfXeric,chambersOfXericChallengeMode") sums the
       // per-key gains — CoX and CM clears count toward the same tile.
       let playerGained = 0;
@@ -504,11 +512,11 @@ export async function GET(request: Request) {
         if (!milestone && statType === 'skill' && part === 'overall') {
           // Total XP reads live per skill, exactly as the site scores it (lib/statTracking) — the
           // hiscores overall alone only moves on logout.
-          playerGained += computeGain(parseBlob(p.statsSnapshot), parseBlob(p.cachedStats), plug, ['overall'], 'skill');
+          playerGained += computeGain(parseBlob(p.statsSnapshot), parseBlob(nowStats), plug, ['overall'], 'skill');
           continue;
         }
         const baseline = readStatValue(p.statsSnapshot, statType, part);
-        const hiscoresCurrent = readStatValue(p.cachedStats, statType, part);
+        const hiscoresCurrent = readStatValue(nowStats, statType, part);
         const pushed = plug[part];
         const current = hiscoresCurrent != null || pushed != null
           ? Math.max(hiscoresCurrent ?? 0, pushed ?? 0)
@@ -532,7 +540,7 @@ export async function GET(request: Request) {
       // A teammate is "active on THIS tile" only if one of ITS stat keys actually rose within the window
       // (not merely any live push + some cumulative gain) — so a fishing burst no longer lights up their
       // CM/ToA tiles. The caller is excluded (the plugin marks itself "You" from its own local signal).
-      if (playerGained > 0 && p.id !== auth.playerId && activeWorkers.length < ACTIVE_WORKERS_CAP) {
+      if (playerGained > 0 && !benched && p.id !== auth.playerId && activeWorkers.length < ACTIVE_WORKERS_CAP) {
         const keyTimes = parseStatKeyTimes(p.liveStatKeyTimes);
         const roseRecently = statKeys(statName).some((k) => {
           const at = Date.parse(keyTimes[k] ?? '');
