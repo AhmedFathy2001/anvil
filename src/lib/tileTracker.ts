@@ -1,4 +1,5 @@
 import { countProgress, submissionCreditKey, UNATTRIBUTED_CREDIT, type CountedSubmission } from '@/lib/countProgress';
+import { collectionProgress } from '@/lib/pluginPanel';
 import { isIndividualMode } from '@/lib/statTracking';
 
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
@@ -61,6 +62,42 @@ export function countTileTeams(
     }
     return team(input, t, countProgress(own, input.trackingMode, countMode).current, byPlayer);
   }));
+}
+
+export interface TrackerRequirement {
+  itemId: number;
+  requiredAmount: number;
+  group?: string | null;
+  groupRequire?: number | null;
+}
+
+/**
+ * Collection tile (itemRequirements): the bar counts PIECES through lib/pluginPanel collectionProgress —
+ * what the side panel shows — so a Voidwaker reads 1/3 and a Barrows set 2/4, never "1/1" off the
+ * tile's requiredAmount. Each item's total is the team's, like the config's per-item totals.
+ */
+export function collectionTileTeams(
+  input: TrackerInput,
+  subs: (CountedSubmission & { teamId: number })[],
+  reqs: TrackerRequirement[],
+  groupMode: string | null | undefined,
+  setsRequired: number,
+): { goal: number; teams: TrackerTeam[] } {
+  const progress = (totals: Map<number, number>) =>
+    collectionProgress(reqs.map((r) => ({ ...r, currentAmount: totals.get(r.itemId) ?? 0 })), groupMode, setsRequired);
+  const [, goal] = progress(new Map());
+  const teams = rank(input.teams.map((t) => {
+    const own = subs.filter((s) => s.teamId === t.teamId);
+    const totals = new Map<number, number>();
+    const byPlayer = new Map<number, number>();
+    for (const s of own) {
+      if (s.itemId != null) totals.set(s.itemId, (totals.get(s.itemId) ?? 0) + s.amount);
+      const key = submissionCreditKey(s);
+      byPlayer.set(key, (byPlayer.get(key) ?? 0) + s.amount);
+    }
+    return team(input, t, progress(totals)[0], byPlayer);
+  }));
+  return { goal, teams };
 }
 
 /** Stat tile: per-player gains (lib/statStandings) with their team. */

@@ -10,9 +10,10 @@ import { eventForPluginRequest } from '@/lib/eventScope';
 import { eventTimeState } from '@/lib/eventTime';
 import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
 import { jsonWithEtag } from '@/lib/httpEtag';
+import { parseJsonArray } from '@/lib/tileKinds';
 import { getStatStandings } from '@/lib/statStandings';
 import { isMilestoneBasis } from '@/lib/statTracking';
-import { countTileTeams, statTileTeams, type TrackerInput } from '@/lib/tileTracker';
+import { collectionTileTeams, countTileTeams, statTileTeams, type TrackerInput, type TrackerRequirement } from '@/lib/tileTracker';
 
 // GET /api/plugin/event/[id]/tile/[tileId]/progress — one tile's progress for every team, with each
 // team's top contributors (lib/tileTracker). Backs the plugin's pinned in-game tracker widget, which
@@ -92,7 +93,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       })
       .from(submissions)
       .where(eq(submissions.tileId, tileId));
-    teamProgress = countTileTeams(input, subs, tile.countMode);
+    const reqs = parseJsonArray<TrackerRequirement>(tile.itemRequirements);
+    if (reqs.length > 0) {
+      ({ goal, teams: teamProgress } = collectionTileTeams(input, subs, reqs, tile.groupMode, tile.setsRequired ?? 1));
+    } else {
+      teamProgress = countTileTeams(input, subs, tile.countMode);
+    }
   }
 
   // The widget counts down to the start itself and drops its pins once the event is over. Both are

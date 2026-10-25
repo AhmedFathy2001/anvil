@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { countTileTeams, statTileTeams, TRACKER_TOP_MEMBERS, type TrackerInput } from '../src/lib/tileTracker';
+import { collectionTileTeams, countTileTeams, statTileTeams, TRACKER_TOP_MEMBERS, type TrackerInput } from '../src/lib/tileTracker';
 
 const input = (over: Partial<TrackerInput> = {}): TrackerInput => ({
   teams: [
@@ -71,4 +71,27 @@ test('stat tile sums gains, or takes the best on a solo tile', () => {
   assert.equal(statTileTeams(input(), players).find((t) => t.teamId === 1)!.current, 10);
   assert.equal(statTileTeams(input({ trackingMode: 'solo' }), players).find((t) => t.teamId === 1)!.current, 7);
   assert.deepEqual(statTileTeams(input(), players).find((t) => t.teamId === 2)!.members, []);
+});
+
+test('a set tile counts pieces toward the set, not submissions against requiredAmount', () => {
+  const voidwaker = [
+    { itemId: 1, requiredAmount: 1 },
+    { itemId: 2, requiredAmount: 1 },
+    { itemId: 3, requiredAmount: 1 },
+  ];
+  const out = collectionTileTeams(input(), [{ teamId: 2, playerId: 20, amount: 1, itemId: 2 }], voidwaker, null, 1);
+  assert.equal(out.goal, 3);
+  assert.deepEqual(out.teams.map((t) => [t.name, t.current]), [['Blue', 1], ['Red', 0]]);
+});
+
+test('an any-of-these-sets tile shows the closest set, and a stray piece of another set does not add', () => {
+  const set = (g: string, base: number) => [0, 1, 2, 3].map((i) => ({ itemId: base + i, requiredAmount: 1, group: g }));
+  const barrows = [...set('Ahrim', 10), ...set('Verac', 20)];
+  const out = collectionTileTeams(input(), [
+    { teamId: 1, playerId: 10, amount: 1, itemId: 20 },
+    { teamId: 1, playerId: 11, amount: 1, itemId: 22 },
+    { teamId: 1, playerId: 11, amount: 1, itemId: 10 },
+  ], barrows, 'any', 1);
+  assert.equal(out.goal, 4);
+  assert.equal(out.teams.find((t) => t.name === 'Red')!.current, 2);
 });
