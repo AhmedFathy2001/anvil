@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { verifyPluginTokenUser } from '@/lib/auth';
-import { deleteGoal, listGoals, saveGoal } from '@/lib/goals';
+import { deleteGoal, goalsWithProgress, saveGoal } from '@/lib/goals';
 import { accountForCharacter, accountStanding, playedCharacter } from '@/lib/pluginAccount';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 
@@ -8,7 +8,8 @@ import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
  * The plugin's goals: GET lists, POST {kind, metric, target} adds (or retargets), DELETE ?id= removes.
  *
  * On the character being played (X-RSN), and only one the Account Token OWNS — the same test the
- * no-clan stats path uses. No clan needed: a goal is the player's, not their clan's. Advertised as the
+ * no-clan stats path uses. Each goal comes with its progress, label and deadline line worked out
+ * (lib/goalProgress, as the profile page shows it), so the plugin only draws them. No clan needed: a goal is the player's, not their clan's. Advertised as the
  * `goals` capability.
  */
 
@@ -20,7 +21,7 @@ async function ownedAccount(request: Request) {
   if (!viewer || !character) return null;
   if ((await accountStanding(viewer.userId, character)) !== 'yours') return null;
   const account = await accountForCharacter(character);
-  return account ? { userId: viewer.userId, accountId: account.id } : null;
+  return account ? { userId: viewer.userId, accountId: account.id, rsn: character.rsn } : null;
 }
 
 const notYours = () =>
@@ -29,7 +30,7 @@ const notYours = () =>
 export async function GET(request: Request) {
   const owner = await ownedAccount(request);
   if (!owner) return notYours();
-  return NextResponse.json({ goals: await listGoals(owner.accountId) });
+  return NextResponse.json({ goals: await goalsWithProgress(owner.accountId, owner.rsn) });
 }
 
 export async function POST(request: Request) {
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
   }
   const refused = await saveGoal(owner.accountId, (body ?? {}) as Record<string, unknown>);
   if (refused) return NextResponse.json({ error: refused }, { status: 400 });
-  return NextResponse.json({ goals: await listGoals(owner.accountId) });
+  return NextResponse.json({ goals: await goalsWithProgress(owner.accountId, owner.rsn) });
 }
 
 export async function DELETE(request: Request) {
@@ -55,5 +56,5 @@ export async function DELETE(request: Request) {
   const id = Number(new URL(request.url).searchParams.get('id'));
   if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: 'Which goal?' }, { status: 400 });
   await deleteGoal(owner.accountId, id);
-  return NextResponse.json({ goals: await listGoals(owner.accountId) });
+  return NextResponse.json({ goals: await goalsWithProgress(owner.accountId, owner.rsn) });
 }

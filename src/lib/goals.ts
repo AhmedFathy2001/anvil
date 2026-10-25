@@ -5,6 +5,8 @@ import { playerGoals } from '@/db/schema';
 import { checkGoal, MAX_GOALS, type GoalInput } from '@/lib/goalRules';
 import { goalProgress, type GoalRates, type GoalRow, type GoalView } from '@/lib/goalProgress';
 import { BOSSES, SKILLS } from '@/lib/constants';
+import { getAccountProfile } from '@/lib/memberProfile';
+import { getCollectionLog } from '@/lib/clogRead';
 
 // The one place goals are written — the plugin route and the profile page both come through here,
 // so the cap and the "same goal again = new target" rule can't differ between them.
@@ -57,6 +59,16 @@ export async function saveGoal(accountId: number, input: GoalInput): Promise<str
 export async function deleteGoal(accountId: number, id: number): Promise<void> {
   // clan-scope: global -- scoped to the account by the WHERE.
   await db.delete(playerGoals).where(and(eq(playerGoals.id, id), eq(playerGoals.accountId, accountId)));
+}
+
+/**
+ * The plugin's You tab: each goal with where it stands, read exactly as the profile page reads it, so
+ * the plugin only draws it. Still carries the bare goal fields older plugins read.
+ */
+export async function goalsWithProgress(accountId: number, rsn: string): Promise<GoalView[]> {
+  const [rows, profile, log] = await Promise.all([listGoals(accountId), getAccountProfile(accountId), getCollectionLog(accountId, rsn)]);
+  const stats = { skills: profile?.skills ?? [], bosses: profile?.bosses ?? [], pages: log.synced ? log.pages : null };
+  return rows.map((g) => goalProgress(g, stats));
 }
 
 /** What a profile page's GoalsCard needs: the goals with progress, and what may be picked. */
