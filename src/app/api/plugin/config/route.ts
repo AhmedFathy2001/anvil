@@ -58,6 +58,8 @@ import { getCofferBalance } from '@/lib/coffer';
 import crypto from 'crypto';
 import { accountStanding, playedCharacter } from '@/lib/pluginAccount';
 import { homeBoardForUser } from '@/lib/pluginHomeBoard';
+import { activeNow, panelSchedule, panelTiles, ACTIVE_WINDOW_MS, type WorkSighting } from '@/lib/pluginPanel';
+import { parseStamp } from '@/lib/dbTime';
 
 const CODEWORD_SECRET = requireSecret('CODEWORD_SECRET', 'dev-codeword-secret');
 
@@ -288,6 +290,12 @@ export async function GET(request: Request) {
         // comes from, and which items a source hands over every kill. Posted drops read from these
         // instead of guessing from the last loot event.
         dropFacts: facts,
+        // No board to draw rows for — the panel still lists the schedule (lib/pluginPanel).
+        panel: {
+          tiles: [],
+          activeNow: [],
+          ...panelSchedule(schedule, { ids: [homeBoard?.eventId ?? -1], title: homeBoard ? null : unlinkedActiveEvent }),
+        },
       });
     }
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken>' }, { status: 401 });
@@ -470,6 +478,8 @@ export async function GET(request: Request) {
   const ACTIVE_STAT_WINDOW_MS = 5 * 60_000;
   const ACTIVE_WORKERS_CAP = 5;
   const nowMs = Date.now();
+  // Everyone (the caller too) whose stat key on a tile rose within the window — the panel's "Active now".
+  const statSightings: WorkSighting[] = [];
 
   const trackedStats = statTilesRaw.map((t) => {
     const statName = t.trackedStat ?? '';
@@ -537,18 +547,19 @@ export async function GET(request: Request) {
         gainedTotal = baselineTotal < goal && eligibleSinceReveal(reveal, p.id, goal) ? Math.min(lifetime, goal) : 0;
       }
       if (p.id === auth.playerId) yourGained = playerGained;
-      // A teammate is "active on THIS tile" only if one of ITS stat keys actually rose within the window
+      // Somebody is "active on THIS tile" only if one of ITS stat keys actually rose within the window
       // (not merely any live push + some cumulative gain) — so a fishing burst no longer lights up their
-      // CM/ToA tiles. The caller is excluded (the plugin marks itself "You" from its own local signal).
-      if (playerGained > 0 && !benched && p.id !== auth.playerId && activeWorkers.length < ACTIVE_WORKERS_CAP) {
+      // CM/ToA tiles.
+      if (playerGained > 0 && !benched) {
         const keyTimes = parseStatKeyTimes(p.liveStatKeyTimes);
-        const roseRecently = statKeys(statName).some((k) => {
-          const at = Date.parse(keyTimes[k] ?? '');
-          return Number.isFinite(at) && nowMs - at <= ACTIVE_STAT_WINDOW_MS;
-        });
-        if (roseRecently) {
-          activeWorkers.push(p.name);
-          activeWorkerGains.push(playerGained);
+        const roseAt = Math.max(-1, ...statKeys(statName).map((k) => Date.parse(keyTimes[k] ?? '')).filter(Number.isFinite));
+        if (roseAt >= 0 && nowMs - roseAt <= ACTIVE_STAT_WINDOW_MS) {
+          statSightings.push({ tileId: t.id, name: p.name, self: p.id === auth.playerId, atMs: roseAt, gain: playerGained });
+          // Older plugins add the caller themselves, from a local signal.
+          if (p.id !== auth.playerId && activeWorkers.length < ACTIVE_WORKERS_CAP) {
+            activeWorkers.push(p.name);
+            activeWorkerGains.push(playerGained);
+          }
         }
       }
     }
@@ -854,7 +865,7 @@ export async function GET(request: Request) {
     ? nextRevealAt(event, rules, fullEventTiles)
     : nextMissionAt(event, rules, fullEventTiles);
 
-  return jsonWithEtag(request, {
+  const body = {
     server: serverInfo(),
     // Resolved to an entry, so the logged-in character is this login's own (null on a hint-only read).
     accountStanding: playedCharacter(request) ? 'yours' : null,
@@ -1307,5 +1318,32 @@ export async function GET(request: Request) {
         itemId: notableItemFor(t.timedActivity) ?? -1,
         completed: completedTileIdSet.has(t.id),
       })),
+  };
+
+  // "Active now": credited submissions in the window (named, the caller's own marked) and the stat
+  // sightings above. The created_at column holds two formats (lib/dbTime), so the SQL cut is coarse
+  // and the exact window is applied after parsing.
+  const cutoff = new Date(nowMs - ACTIVE_WINDOW_MS).toISOString().slice(0, 10);
+  const recent = await db
+    .select({ tileId: submissions.tileId, createdAt: submissions.createdAt, creditPlayerId: submissions.creditPlayerId, playerId: submissions.playerId })
+    .from(submissions)
+    .where(and(eq(submissions.teamId, team.id), sql`${submissions.createdAt} >= ${cutoff}`));
+  const names = new Map(teamPlayers.map((p) => [p.id, p.name]));
+  const sightings: WorkSighting[] = [...statSightings];
+  for (const r of recent) {
+    const who = r.creditPlayerId ?? r.playerId;
+    const atMs = parseStamp(r.createdAt);
+    if (who == null || atMs == null || !names.has(who)) continue;
+    sightings.push({ tileId: r.tileId, name: names.get(who)!, self: who === auth.playerId, atMs });
+  }
+  const rows = panelTiles(body);
+  return jsonWithEtag(request, {
+    ...body,
+    // The side panel's rows, ready to draw (lib/pluginPanel, capability 'panel-view').
+    panel: {
+      tiles: rows,
+      activeNow: activeNow(rows, sightings, nowMs),
+      ...panelSchedule(schedule, { ids: [event.id] }),
+    },
   });
 }
