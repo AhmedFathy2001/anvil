@@ -75,6 +75,10 @@ export const PLUGIN_CAPABILITIES = [
   // Player card: GET /api/players/<rsn>/card — the plugin's Lookup and You tabs. Read-only; a plugin
   // against a site without it opens the profile in the browser instead.
   'player-card',
+  // /api/plugin/config carries `panel`: the side panel's tile rows, "Active now" (the caller included)
+  // and the schedule in display order, so the plugin draws them instead of working them out
+  // (lib/pluginPanel). A plugin that relies on it needs the site to ship first.
+  'panel-view',
   // The same route answers for names with NO Anvil account from the OSRS hiscores (lib/
   // publicHiscoresCard): a card with `source: 'hiscores'` and `fetchedAt`, no clan or log. May 503
   // with Retry-After when the global lookup budget is spent. Without it, such names 404.
