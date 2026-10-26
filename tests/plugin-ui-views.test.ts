@@ -1,0 +1,115 @@
+// The plugin's Lookup and You tabs are built by the site (lib/pluginUi/views) and only drawn by the
+// plugin. This drives the views and the goal actions against a real database, as the route would.
+//
+// Run: npx tsx --test tests/plugin-ui-views.test.ts
+
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+
+import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+import type { Node } from '../src/lib/pluginUi/nodes.ts';
+
+const DB = useTestDatabase('plugin-ui-views');
+
+let db: Awaited<ReturnType<typeof loadDb>>['db'];
+let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
+let s: Awaited<ReturnType<typeof loadDb>>['schema'];
+let V: typeof import('../src/lib/pluginUi/views.ts');
+
+const TOKEN = 'ui-token';
+
+before(async () => {
+  await resetDatabase(DB);
+  ({ db, pool, schema: s } = await loadDb());
+  V = await import('../src/lib/pluginUi/views.ts');
+
+  const [me] = await db.insert(s.players).values({ displayName: 'Me' }).returning();
+  await db.insert(s.users).values({ displayName: 'me', discordId: 'disc-me', pluginToken: TOKEN, playerId: me.id });
+  const [mine] = await db.insert(s.accounts).values({ playerId: me.id, rsn: 'Ui Main', rsnNormalized: 'ui main', shared: false, claimedAt: new Date().toISOString() }).returning();
+  await db.insert(s.memberClog).values({ accountId: mine.id, obtained: 1, total: 1600, pagesSynced: 1, pagesTotal: 1, syncedAt: new Date().toISOString() });
+  await db.insert(s.memberClogItems).values({ accountId: mine.id, itemId: 12921, pageName: 'Zulrah', quantity: 1 });
+
+  const [other] = await db.insert(s.players).values({ displayName: 'Other' }).returning();
+  await db.insert(s.accounts).values({ playerId: other.id, rsn: 'Ui Shared', rsnNormalized: 'ui shared', shared: true, claimedAt: new Date().toISOString() });
+  await db.insert(s.accounts).values({ playerId: other.id, rsn: 'Ui Hidden', rsnNormalized: 'ui hidden', shared: false });
+});
+
+after(async () => {
+  await pool.end();
+  await dropDatabase(DB);
+});
+
+const req = (headers: Record<string, string> = {}) => new Request('http://site/api/plugin/ui', { headers });
+const asMe = () => req({ Authorization: `Bearer ${TOKEN}`, 'X-RSN': 'Ui Main' });
+
+function texts(n: Node): string[] {
+  const out: string[] = [];
+  const walk = (x: unknown) => {
+    if (!x || typeof x !== 'object') return;
+    if (Array.isArray(x)) return x.forEach(walk);
+    const o = x as Record<string, unknown>;
+    if (o.t === 'text' && typeof o.s === 'string') out.push(o.s);
+    Object.values(o).forEach(walk);
+  };
+  walk(n);
+  return out;
+}
+
+test('a shared character is anyone’s card; a private one reads as not on Anvil, except to its owner', async () => {
+  const shared = await V.pluginView(req(), 'player', { rsn: 'Ui Shared' });
+  assert.ok(texts(shared!.ui).includes('Ui Shared'));
+
+  // The hiscores fallback would go to Jagex for a name it can't show; a private name must not leak
+  // either way, so only the owner's own token turns it into a card.
+  const mine = await V.pluginView(asMe(), 'player', { rsn: 'Ui Main' });
+  assert.ok(texts(mine!.ui).includes('Ui Main'));
+  assert.ok(!texts(mine!.ui).some((t) => t.startsWith('Not on Anvil')));
+});
+
+test('You: your own private card with goals; nobody logged in gets a line, not a card', async () => {
+  const you = await V.pluginView(asMe(), 'you', {});
+  assert.ok(texts(you!.ui).includes('Ui Main'));
+  assert.ok(texts(you!.ui).includes('Goals'));
+  assert.ok(!texts(you!.ui).some((t) => t.startsWith('Log in to a character that is yours')), 'it is yours, so goals are kept');
+  const nobody = await V.pluginView(req({ Authorization: `Bearer ${TOKEN}` }), 'you', {});
+  assert.deepEqual(texts(nobody!.ui), ['Log in to a character to see your card.']);
+});
+
+test('goals: add from the form, then remove; someone else’s character can’t keep goals', async () => {
+  const form = await V.pluginView(asMe(), 'goal-new', { kind: 'clog' });
+  assert.ok(texts(form!.ui).includes('Log page'), 'the log is synced, so pages are offered');
+
+  const added = await V.pluginAct(asMe(), 'goal-add', { kind: 'skill' }, { metric: 'slayer', target: '99', due: '30' });
+  assert.ok(texts(added!.ui).includes('99 Slayer'));
+  const [goal] = await db.select().from(s.playerGoals);
+  assert.match(goal.dueOn ?? '', /^\d{4}-\d{2}-\d{2}$/);
+
+  const refused = await V.pluginAct(asMe(), 'goal-add', { kind: 'skill' }, { metric: 'notaskill', target: '99', due: '' });
+  assert.ok(texts(refused!.ui).some((t) => t.length > 0 && !t.includes('Slayer') && t !== 'Goals' && t !== '+ Add goal'), 'the reason shows');
+
+  const removed = await V.pluginAct(asMe(), 'goal-remove', { id: String(goal.id) }, {});
+  assert.ok(!texts(removed!.ui).includes('99 Slayer'));
+
+  const notMine = await V.pluginAct(req({ Authorization: `Bearer ${TOKEN}`, 'X-RSN': 'Ui Shared' }), 'goal-add', { kind: 'skill' }, { metric: 'slayer', target: '99' });
+  assert.ok(texts(notMine!.ui).some((t) => t.startsWith('Log in to a character that is yours')));
+});
+
+test('a log page marks what is owned, faint for the rest', async () => {
+  const page = await V.pluginView(asMe(), 'clog-page', { rsn: 'Ui Main', page: 'zulrah', back: 'cat:Bosses' });
+  const icons: { item?: number; dim?: boolean }[] = [];
+  const walk = (x: unknown) => {
+    if (!x || typeof x !== 'object') return;
+    if (Array.isArray(x)) return x.forEach(walk);
+    const o = x as Record<string, unknown>;
+    if (o.t === 'icon' && typeof o.item === 'number') icons.push(o as { item: number; dim?: boolean });
+    Object.values(o).forEach(walk);
+  };
+  walk(page!.ui);
+  assert.equal(icons.find((i) => i.item === 12921)?.dim, false);
+  assert.ok(icons.some((i) => i.dim === true));
+});
+
+test('unknown views and actions are refused, so the plugin can only ask for what is listed', async () => {
+  assert.equal(await V.pluginView(req(), 'admin', {}), null);
+  assert.equal(await V.pluginAct(asMe(), 'delete-everything', {}, {}), null);
+});

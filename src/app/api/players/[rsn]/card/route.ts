@@ -1,14 +1,7 @@
 import { NextResponse } from 'next/server';
-import { eq } from 'drizzle-orm';
 
-import { db } from '@/db';
-import { users } from '@/db/schema';
-import { apexCharacter } from '@/lib/apexProfiles';
-import { verifyPluginTokenUser } from '@/lib/auth';
 import { jsonWithEtag } from '@/lib/httpEtag';
-import { loadPlayerCard } from '@/lib/playerCard';
-import { publicHiscoresCard } from '@/lib/publicHiscoresCard';
-import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
+import { lookupPlayerCard } from '@/lib/pluginUi/load';
 
 /**
  * The plugin's player card: GET /api/players/<rsn>/card.
@@ -31,40 +24,19 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request, { params }: { params: Promise<{ rsn: string }> }) {
   const rsn = decodeURIComponent((await params).rsn).trim();
-  if (!rsn || rsn.length > 12) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-
-  let viewerPlayerId: number | null = null;
-  const viewer = await verifyPluginTokenUser(request);
-  if (viewer) {
-    const row = await db.query.users.findFirst({ where: eq(users.id, viewer.userId), columns: { playerId: true } });
-    viewerPlayerId = row?.playerId ?? null;
-  }
-
-  const character = await apexCharacter(rsn, viewerPlayerId);
-  if (character) return jsonWithEtag(request, await loadPlayerCard(character));
-
-  const limit = await rateLimit(request, 'player-card-lookup', { limit: 30, windowMs: 60_000 });
-  if (!limit.ok) {
-    return NextResponse.json(
-      { error: 'Too many lookups' },
-      {
-        status: 429,
-        headers: { ...rateLimitHeaders(limit), 'Retry-After': String(Math.max(1, Math.ceil((limit.reset - Date.now()) / 1000))) },
-      },
-    );
-  }
-
-  const result = await publicHiscoresCard(rsn);
-  switch (result.kind) {
+  const found = await lookupPlayerCard(request, rsn);
+  switch (found.kind) {
     case 'card':
-      return jsonWithEtag(request, result.card);
+      return jsonWithEtag(request, found.card);
+    case 'limited':
+      return NextResponse.json({ error: 'Too many lookups' }, { status: 429, headers: { 'Retry-After': String(found.retryAfterSec) } });
     case 'busy':
       return NextResponse.json(
         { error: 'Hiscores busy, try again shortly' },
-        { status: 503, headers: { 'Retry-After': String(result.retryAfterSec) } },
+        { status: 503, headers: { 'Retry-After': String(found.retryAfterSec) } },
       );
     default:
-      // Not on the hiscores.
+      // Not on Anvil (or not visible) and not on the hiscores.
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 }

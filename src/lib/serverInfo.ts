@@ -95,6 +95,10 @@ export const PLUGIN_CAPABILITIES = [
   // Event rosters: GET /api/plugin/event/<id>/roster — the plugin's Teams page, paged (lib/eventRoster).
   // Without it the plugin shows no Teams row at all.
   'event-roster',
+  // GET/POST /api/plugin/ui: the side panel's Lookup and You tabs built here and drawn by the plugin's
+  // one renderer (lib/pluginUi): player and clan cards, log pages, CAs, compare, goals. A plugin that
+  // draws them this way has none of that code, so it needs the site to ship first.
+  'plugin-ui',
   // Tile tracker: GET /api/plugin/event/<id>/tile/<tileId>/progress — every team's progress on one
   // tile with its top contributors, for the plugin's pinned in-game widget (lib/tileTracker).
   'tile-tracker',
