@@ -84,3 +84,53 @@ test('KC line phrasings: chest counts and words before the name', () => {
   // No baseline floor given (a late joiner's): only the "reached" half applies.
   assert.equal(checkKcLine({ key: 'zulrah', kc: 498 }, null, snap({ zulrah: 520 })), 'ok');
 });
+
+test('clue tallies, collection log and combat tasks read off proof lines', async () => {
+  const { newClogItems, caTaskKeys, kcOf } = await import('../src/lib/footprint');
+  assert.deepEqual(kcLineClaims([{ text: 'You have completed 41 elite Treasure Trails.' }]), [{ key: 'cluesElite', kc: 41 }]);
+  assert.deepEqual(newClogItems([{ text: 'New item added to your collection log: Tanzanite fang' }]), ['tanzanite fang']);
+  assert.deepEqual(caTaskKeys([{ text: "Congratulations, you've completed an easy combat task: Barrows Novice (1 point)." }]), ['barrows']);
+  // Activities are read by their path; unranked is unknown.
+  const s = { skills: {}, bosses: {}, clues: { elite: { rank: 5, score: 41 } }, collectionsLogged: { rank: -1, score: -1 } } as unknown as HiscoresSnapshot;
+  assert.equal(kcOf(s, 'cluesElite'), 41);
+  assert.equal(kcOf(s, 'collectionsLogged'), null);
+});
+
+test('mob kills, gathering gains and "did it move at all"', async () => {
+  const { killHpFloor, checkMobKills, gainXpFloor, checkGain, checkMoved, countKeyFor } = await import('../src/lib/footprint');
+  const hp = (xp: number) => ({ skills: { hitpoints: { rank: 1, level: 1, xp } }, bosses: {} }) as HiscoresSnapshot;
+  assert.equal(killHpFloor(['Hill Giant']), 35);
+  assert.equal(killHpFloor(['Hill Giant', 'Made-up thing']), null);
+  // 100 hill giants: ≥ half of 100 × 35 × 1.33 ≈ 2328 HP XP.
+  assert.equal(checkMobKills(100, 35, hp(10_000), hp(13_000)), 'ok');
+  assert.equal(checkMobKills(100, 35, hp(10_000), hp(10_500)), 'short');
+  const fish = (xp: number) => ({ skills: { fishing: { rank: 1, level: 1, xp } }, bosses: {} }) as HiscoresSnapshot;
+  const floors = gainXpFloor([{ itemId: 3142, amount: 1000 }], [3142]);
+  assert.deepEqual(floors, { fishing: 45_000 });
+  assert.equal(checkGain(floors, fish(0), fish(40_000)), 'ok');
+  assert.equal(checkGain(floors, fish(0), fish(10_000)), 'short');
+  assert.equal(gainXpFloor([{ itemId: 4151, amount: 1 }], [4151]), null); // a whip is not gathered
+  assert.equal(checkMoved(['zulrah'], snap({ zulrah: 50 }), snap({ zulrah: 50 })), 'short');
+  assert.equal(checkMoved(['zulrah'], snap({ zulrah: 50 }), snap({ zulrah: 51 })), 'ok');
+  assert.equal(countKeyFor('Inferno'), 'tzKalZuk');
+});
+
+test('PB jump, schedule shift, two countries', async () => {
+  const { pbJumps, pbKey, scheduleShift, twoCountries } = await import('../src/lib/footprint');
+  const before = { [pbKey('tzKalZuk', 0)]: 3600 * 100, [pbKey('theatreOfBlood', 4)]: 1500 * 100 };
+  assert.deepEqual(
+    pbJumps(before, [
+      { key: 'tzKalZuk', partySize: null, seconds: 1800 }, // half the old best
+      { key: 'theatreOfBlood', partySize: 4, seconds: 1400 }, // a normal improvement
+      { key: 'zulrah', partySize: null, seconds: 30 }, // no pre-event best
+    ]),
+    [{ key: 'tzKalZuk', pbSeconds: 3600, runSeconds: 1800 }],
+  );
+  const evenings = Array.from({ length: 40 }, (_, i) => 18 + (i % 4)); // 18–21 UTC
+  assert.equal(scheduleShift(evenings, Array.from({ length: 20 }, () => 19)), null);
+  assert.equal(scheduleShift(evenings, Array.from({ length: 20 }, () => 6)), 1);
+  assert.equal(scheduleShift(evenings.slice(0, 5), Array.from({ length: 20 }, () => 6)), null); // too little history
+  const h = 3_600_000;
+  assert.deepEqual(twoCountries([{ country: 'EG', first: 0, last: 2 * h }, { country: 'PH', first: 3 * h, last: 4 * h }]), ['EG', 'PH']);
+  assert.equal(twoCountries([{ country: 'EG', first: 0, last: h }, { country: 'DE', first: 10 * h, last: 11 * h }]), null);
+});

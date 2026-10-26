@@ -259,6 +259,13 @@ export interface EventRules {
    * event starts. On by default — the moment a board opens is the moment people read the rules.
    */
   rulesAtStart: boolean;
+  /**
+   * Account-sharing checks (lib/integrityNetwork): note which network and country each player's
+   * plugin connects from, hashed per event, so staff can see one machine playing two accounts or one
+   * account played from two countries. OFF by default and disclosed to players wherever the rules
+   * are shown — a check people know about is half the deterrent.
+   */
+  sharingChecks: boolean;
 }
 
 /** The optional halves of the sign-up form. The account picker and the fee are never optional. */
@@ -321,6 +328,7 @@ export const DEFAULT_EVENT_RULES: EventRules = {
   captainInvites: false,
   teamChoice: false,
   rulesAtStart: true,
+  sharingChecks: false,
 };
 
 /**
@@ -530,6 +538,7 @@ export function parseEventRules(raw: string | null | undefined): EventRules {
     teamChoice: obj.teamChoice === true,
     // Only an explicit false turns it off; every board stored before this existed posts.
     rulesAtStart: obj.rulesAtStart !== false,
+    sharingChecks: obj.sharingChecks === true,
   };
 }
 
@@ -649,6 +658,9 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
   if (o.rulesAtStart !== undefined && typeof o.rulesAtStart !== 'boolean') {
     return { error: 'rules.rulesAtStart must be a boolean' };
   }
+  if (o.sharingChecks !== undefined && typeof o.sharingChecks !== 'boolean') {
+    return { error: 'rules.sharingChecks must be a boolean' };
+  }
   if (o.startProof !== undefined && o.startProof !== null) {
     const s = o.startProof as {
       onMissing?: unknown; autoAcceptPlugin?: unknown; locations?: unknown; pick?: unknown; maxSessionMinutes?: unknown;
@@ -704,6 +716,7 @@ export function validateEventRules(input: unknown): { rules: string | null } | {
     !canonical.captainInvites &&
     !canonical.teamChoice &&
     canonical.rulesAtStart &&
+    !canonical.sharingChecks &&
     // WITHOUT THIS the toggles are wiped by any other rules edit. "Default" here means "storing
     // nothing loses nothing", and a board that has switched a sign-up section on or off has said
     // something that null cannot hold — so it has to be asked about like every other key.

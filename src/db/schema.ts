@@ -1029,6 +1029,10 @@ export const eventParticipants = pgTable('event_participants', {
   // player everywhere gains are computed (cron team-sum seeding, standings, gains API), so their gain =
   // frozenStats − statsSnapshot stays fixed. NULL when not frozen.
   frozenStats: text('frozen_stats'),
+  // Personal bests as they stood BEFORE the event (lib/footprintCheck), captured once early on so a
+  // PB beaten during the event still has its old value to be compared against. JSON
+  // {"<hiscores key>|<team size>": centiseconds}; '{}' = captured, none. NULL = not captured yet.
+  pbBaseline: text('pb_baseline'),
   // Fun end-of-event "recap" counters, pushed by the plugin as ABSOLUTE per-event totals and max-merged
   // (idempotent — a retry / client restart can't double-count). `deaths` = the player's own deaths this
   // event; `lootGpGained` = GE value of ALL loot the plugin saw this event (not just value-tile hauls);
@@ -2428,6 +2432,25 @@ export const integritySignals = pgTable('integrity_signals', {
   dismissedAt: text('dismissed_at'),
 }, (t) => [
   uniqueIndex('integrity_signals_unique').on(t.eventId, t.participantId, t.kind),
+]);
+
+/**
+ * Which networks a player's plugin reached us from during an event, ONLY on boards whose host turned
+ * on rules.sharingChecks (disclosed to players on the rules card and at sign-up). Never an address:
+ * `netHash` is an HMAC keyed per event of the IPv4 address or IPv6 /64, so it can be compared within
+ * one event and nowhere else. `country` is Cloudflare's two-letter guess. Purged 30 days after the
+ * event ends (lib/footprintCheck). Feeds the shared-network and two-countries signals.
+ */
+export const integrityNetwork = pgTable('integrity_network', {
+  id: serial('id').primaryKey(),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  participantId: integer('participant_id').notNull().references(() => eventParticipants.id, { onDelete: 'cascade' }),
+  netHash: text('net_hash').notNull(),
+  country: text('country'),
+  firstSeenAt: text('first_seen_at').notNull(),
+  lastSeenAt: text('last_seen_at').notNull(),
+}, (t) => [
+  uniqueIndex('integrity_network_unique').on(t.eventId, t.participantId, t.netHash),
 ]);
 
 export const proofUploads = pgTable('proof_uploads', {

@@ -49,6 +49,7 @@ const GAME_LINES: RegExp[] = [
   /^Untradeable drop: /,
   / received a drop: /,
   /^New item added to your collection log: /,
+  /^You have completed [\d,]+ \w+ Treasure Trails?/,
   /^Your .+ (?:kill|completion|completed|lap|success|subdued|opened|harvest)?\s*count is: [\d,]+/i,
   /^Your completed .+ count is: [\d,]+/i,
   /(?:Fight|Challenge|Raid|Delve)? ?(?:duration|completion time): ?[\d:.]+/i,

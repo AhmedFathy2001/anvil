@@ -25,26 +25,45 @@ interface Signal {
   rsn: string;
 }
 
-function signalText(s: Signal): { tag: string; text: string } {
-  let d: { key?: string; kc?: number; hours?: number; windowHours?: number } = {};
+const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
+
+/**
+ * What a signal says, and how much it weighs: 3 strong, 2 medium, 1 weak. A weak one is shown only
+ * beside another signal for the same player — alone it is just how some people play.
+ */
+function signalText(s: Signal): { tag: string; text: string; weight: number } {
+  let d: {
+    key?: string; kc?: number; hours?: number; windowHours?: number; pbSeconds?: number; runSeconds?: number;
+    offShare?: number; zones?: string[]; usual?: string | null; other?: string; sameTeam?: boolean; countries?: string[];
+  } = {};
   try {
     d = s.detail ? JSON.parse(s.detail) : {};
   } catch {
     /* show the generic line */
   }
-  if (s.kind.startsWith('first_service_kill:') && d.key) {
-    return {
-      tag: 'first kill',
-      text: `No ranked ${hiscoresKeyLabel(d.key)} KC before the event; ${d.kc ?? 'some'} now. Content people often pay someone else to do.`,
-    };
+  const kind = s.kind.split(':')[0];
+  switch (kind) {
+    case 'first_service_kill':
+      return { weight: 3, tag: 'first kill', text: `No ranked ${hiscoresKeyLabel(d.key ?? '')} KC before the event; ${d.kc ?? 'some'} now. Content people often pay someone else to do.` };
+    case 'long_hours':
+      return { weight: 3, tag: 'long hours', text: `Gains worth at least ${d.hours} hours of efficient play in ${d.windowHours} hours — more than one person usually plays.` };
+    case 'other_login':
+      return { weight: 3, tag: 'other login', text: 'Played through a different Anvil login during the event — somebody else\'s RuneLite. Also what a shared family PC looks like.' };
+    case 'pb_jump':
+      return { weight: 2, tag: 'PB jump', text: `${hiscoresKeyLabel(d.key ?? '')} in ${mmss(d.runSeconds ?? 0)}; their best before the event was ${mmss(d.pbSeconds ?? 0)}.` };
+    case 'two_countries':
+      return { weight: 2, tag: 'two countries', text: `Their plugin connected from ${(d.countries ?? []).join(' and ')} within three hours.` };
+    case 'shared_network':
+      return d.sameTeam
+        ? { weight: 1, tag: 'same network', text: `Same network as teammate ${d.other} — one machine playing two accounts, or one household.` }
+        : { weight: 2, tag: 'same network', text: `Same network as ${d.other}, on another team — one household, or one person on both sides.` };
+    case 'timezone_change':
+      return { weight: 1, tag: 'timezone', text: `Proof PC timezone ${(d.zones ?? []).join(', ')}${d.usual ? `; earlier proofs were ${d.usual}` : ''}.` };
+    case 'schedule_shift':
+      return { weight: 1, tag: 'new hours', text: `${d.offShare}% of their event activity is at hours they never played before.` };
+    default:
+      return { weight: 1, tag: 'check', text: s.kind };
   }
-  if (s.kind.startsWith('long_hours:')) {
-    return {
-      tag: 'long hours',
-      text: `Gains worth at least ${d.hours} hours of efficient play in ${d.windowHours} hours — more than one person usually plays.`,
-    };
-  }
-  return { tag: 'check', text: s.kind };
 }
 
 /**
@@ -83,14 +102,22 @@ export default function CreditIntegrityPanel({ eventId }: { eventId: number }) {
     if (res?.ok) setSignals((prev) => prev.filter((s) => s.id !== id));
   }
 
-  if (!flags || (flags.length === 0 && signals.length === 0)) return null;
+  // Strongest first; a weak signal only next to another one for the same player.
+  const read = signals.map((s) => ({ s, ...signalText(s) }));
+  const count = new Map<number, number>();
+  for (const r of read) count.set(r.s.playerId, (count.get(r.s.playerId) ?? 0) + 1);
+  const shown = read
+    .filter((r) => r.weight > 1 || (count.get(r.s.playerId) ?? 0) > 1)
+    .sort((a, b) => b.weight - a.weight || a.s.rsn.localeCompare(b.s.rsn));
+
+  if (!flags || (flags.length === 0 && shown.length === 0)) return null;
 
   return (
     <section className="border border-yellow-500/40 rounded-xl bg-card-bg p-5">
       <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
         <span className="w-1 h-5 bg-gold rounded-full" />
         Credits &amp; players to check
-        <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-300">{flags.length + signals.length}</span>
+        <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-300">{flags.length + shown.length}</span>
       </h2>
       <p className="text-sm text-text-muted mb-3 max-w-[75ch]">
         These boss kills don&rsquo;t match outside evidence: more than the player&rsquo;s hiscores KC rose by,
@@ -99,8 +126,7 @@ export default function CreditIntegrityPanel({ eventId }: { eventId: number }) {
         boosting and account sharing leave behind; honest players can show them too. Only staff see this.
       </p>
       <ul className="grid gap-2">
-        {signals.map((s) => {
-          const { tag, text } = signalText(s);
+        {shown.map(({ s, tag, text }) => {
           return (
             <li
               key={`signal-${s.id}`}
