@@ -1089,6 +1089,18 @@ export const submissions = pgTable('submissions', {
   // submission still counts — flagging is deliberately softer than refusing, since the drop really
   // happened and refusing would lose it. NULL on everything unremarkable.
   flaggedReason: text('flagged_reason'),
+  // PROVENANCE (lib/proofStamp). 'plugin' when the request carried a plugin token, 'web' otherwise,
+  // NULL on rows from before this existed. A token proves WHO sent it, never what software — the
+  // plugin is public, so this is a label, not a guarantee.
+  source: text('source'),
+  // A plugin proof that arrived CLEAN: the site baked the banner itself and `imageUrl` is that
+  // stamped copy; this is the untouched frame, for "Hide stamp". NULL when the plugin baked its own.
+  cleanImageUrl: text('clean_image_url'),
+  // sha256 of the clean image bytes as stored (proof_uploads), so a swapped file is detectable.
+  imageSha256: text('image_sha256'),
+  // What the stamp was drawn from, as JSON: the client's claims (title, timezone, capture time,
+  // filtered game lines) plus the server's own received time. Client fields are self-reported.
+  proofFacts: text('proof_facts'),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   index('submissions_tile_id_idx').on(table.tileId),
@@ -2387,6 +2399,21 @@ export const draftShortlists = pgTable('draft_shortlists', {
   uniqueIndex('draft_shortlists_unique').on(table.eventId, table.userId, table.personKey),
   index('draft_shortlists_owner_idx').on(table.eventId, table.userId, table.position),
 ]);
+
+/**
+ * Who uploaded each proof image, and how. /api/upload and the submission are separate requests, so
+ * without this a plugin-token submission could point at a picture somebody uploaded through the
+ * website. The submission looks its image up here: a plugin proof whose image did not come from the
+ * same user's plugin token still counts, but is flagged (lib/proofStamp).
+ */
+export const proofUploads = pgTable('proof_uploads', {
+  url: text('url').primaryKey(),
+  sha256: text('sha256').notNull(),
+  // 'plugin' | 'web'
+  via: text('via').notNull(),
+  userId: integer('user_id'),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+});
 
 // STARTING SHOT proofs — one row per enrolled player per event (lib/startProof). The image is the
 // same managed-media upload every other proof uses (/api/upload → WebP), so a full roster costs

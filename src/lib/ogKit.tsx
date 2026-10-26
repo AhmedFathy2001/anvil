@@ -66,7 +66,7 @@ const FONT_FILES: { file: string; name: string; weight: OgFont['weight'] }[] = [
 
 let fontsPromise: Promise<OgFont[]> | null = null;
 
-function ogFonts(): Promise<OgFont[]> {
+export function ogFonts(): Promise<OgFont[]> {
   if (!fontsPromise) {
     fontsPromise = Promise.all(
       FONT_FILES.map(async (f): Promise<OgFont | null> => {

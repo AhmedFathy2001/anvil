@@ -333,6 +333,7 @@ export default function TileDetailModal({
           row.shots.push({
             id: sub.id,
             imageUrl: sub.imageUrl,
+            cleanImageUrl: sub.cleanImageUrl ?? null,
             credit: sub.creditPlayerName ?? sub.uploaderName ?? null,
             note: sub.note ?? null,
             createdAt: sub.createdAt,
@@ -1014,6 +1015,16 @@ export default function TileDetailModal({
                             oversized ping · check
                           </span>
                         )}
+                        {(s.flaggedReason === 'proof_image_mismatch' || s.flaggedReason === 'captured_before_start' || s.flaggedReason === 'capture_clock_ahead') && (
+                          <span
+                            title={s.flaggedReason === 'proof_image_mismatch'
+                              ? "The screenshot wasn't uploaded by this player's plugin"
+                              : "The player's PC clock doesn't fit this event — check the stamp's capture and received times"}
+                            className="px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-300 font-medium"
+                          >
+                            {s.flaggedReason === 'proof_image_mismatch' ? 'screenshot origin · check' : 'capture time · check'}
+                          </span>
+                        )}
                         {s.flaggedReason === 'no_start_proof' && (
                           <span
                             title="Landed before this player filed their starting shot"
@@ -1041,6 +1052,7 @@ export default function TileDetailModal({
                               shots: [{
                                 id: s.id,
                                 imageUrl: s.imageUrl!,
+                                cleanImageUrl: s.cleanImageUrl ?? null,
                                 credit: s.creditPlayerName ?? null,
                                 note: s.note ?? null,
                                 createdAt: s.createdAt,

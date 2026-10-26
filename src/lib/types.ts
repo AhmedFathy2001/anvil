@@ -176,6 +176,10 @@ export interface Submission {
   /** Why this credit wants a human look: 'no_start_proof' (lib/startProof), or 'inferred_duplicate_pet' /
    * 'inferred_duplicate_scroll' when the plugin worked out an unnamed duplicate from context. */
   flaggedReason?: string | null;
+  /** 'plugin' | 'web'; null on rows from before provenance was recorded (lib/proofStamp). */
+  source?: string | null;
+  /** The frame under a site-drawn stamp, for "Hide stamp". */
+  cleanImageUrl?: string | null;
 }
 
 export interface ItemRequirement {
