@@ -24,7 +24,7 @@ import { db } from '@/db';
 import { getSetting } from '@/lib/settings';
 import { events, teams, eventParticipants, clanRoster, users, eventSignups } from '@/db/schema';
 import { findRosterSeat } from '@/lib/roster';
-import { and, eq, isNotNull } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import { log } from '@/lib/logger';
 import { discordRest, getBotCredentials, resolveDiscordIdForMember } from '@/lib/discord-roles';
 import { acceptedCohostClanIds } from '@/lib/coHost';
@@ -585,11 +585,11 @@ export async function assignTeamRoles(
     return { ok: false, reason: 'teams not provisioned — run provision first', assigned: 0, skipped: 0 };
   }
 
-  // Only drafted players (teamId set).
+  // Only drafted players (teamId set) who aren't benched.
   const drafted = await db
     .select()
     .from(eventParticipants)
-    .where(and(eq(eventParticipants.eventId, eventId), isNotNull(eventParticipants.teamId)));
+    .where(and(eq(eventParticipants.eventId, eventId), isNotNull(eventParticipants.teamId), isNull(eventParticipants.frozenAt)));
 
   const roleServers: NonNullable<AssignReport['roleServers']> = [];
   if (cfg.bingoRoleId) roleServers.push({ clanId: event.clanId, guildId: cfg.guildId, assigned: 0, failed: 0 });
