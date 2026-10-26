@@ -14,14 +14,14 @@ import type { PushScope } from './ticket.ts';
 
 /**
  * One NOTIFY from the database (migration 0149) or lib/pushNotify: e = event, t = team, i = tile,
- * x = someone left the board or changed team.
+ * x = a team somebody just left (removed, or moved to another).
  */
 export interface PushChange {
   k: string;
   e: number;
   t: number | null;
   i: number | null;
-  x?: boolean;
+  x?: number;
 }
 
 export interface PushClient {
@@ -122,9 +122,12 @@ export class ViewHub {
   dispatch(change: PushChange): void {
     const onBoard = this.events.get(change.e);
     if (!onBoard) return;
-    // A ticket's team was true when the site signed it. When the roster moves, everyone on that board
-    // asks again rather than anyone hearing a team they've left until their ticket runs out.
-    if (change.x) for (const c of [...onBoard]) c.rescope?.();
+    // A ticket's team was true when the site signed it. When somebody leaves a team, that team's
+    // listeners ask again — the leaver among them — rather than anyone hearing a team they've left
+    // until their ticket runs out. Nobody else on the board is touched.
+    if (change.x != null) {
+      for (const c of [...(this.teams.get(teamKey(change.e, change.x)) ?? [])]) c.rescope?.();
+    }
     const prefix = `team:${change.e}:`;
     for (const k of this.teams.keys()) {
       if (!k.startsWith(prefix)) continue;
@@ -229,7 +232,7 @@ export function parseChange(payload: string): PushChange | null {
       e: p.e,
       t: Number.isInteger(p.t) ? p.t : null,
       i: Number.isInteger(p.i) ? p.i : null,
-      ...(p.x === true ? { x: true } : {}),
+      ...(Number.isInteger(p.x) ? { x: p.x } : {}),
     };
   } catch {
     return null;

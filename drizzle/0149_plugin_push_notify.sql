@@ -16,7 +16,7 @@ DECLARE
   ev integer;
   tm integer;
   tl integer;
-  moved boolean := false;
+  left_team integer;
 BEGIN
   IF TG_OP = 'DELETE' THEN r := OLD; ELSE r := NEW; END IF;
   IF TG_TABLE_NAME = 'events' THEN
@@ -30,9 +30,12 @@ BEGIN
     IF TG_OP = 'UPDATE' AND OLD.team_id IS NOT DISTINCT FROM NEW.team_id AND OLD.name IS NOT DISTINCT FROM NEW.name THEN
       tm := r.team_id;
     END IF;
-    -- Somebody left the board or changed team: whoever is listening re-tickets (x), so nobody keeps
-    -- hearing a team they're no longer on.
-    moved := TG_OP = 'DELETE' OR (TG_OP = 'UPDATE' AND OLD.team_id IS DISTINCT FROM NEW.team_id);
+    -- Somebody left a team (removed, or moved to another): x names it, and that team's listeners
+    -- re-ticket so nobody keeps hearing a team they're no longer on. A pick from the pool (no team
+    -- before) takes nothing from anyone, so it doesn't.
+    IF TG_OP = 'DELETE' OR (TG_OP = 'UPDATE' AND OLD.team_id IS DISTINCT FROM NEW.team_id) THEN
+      left_team := OLD.team_id;
+    END IF;
   ELSE
     -- submissions, completions: the team's own change, on one tile.
     tm := r.team_id;
@@ -41,7 +44,7 @@ BEGIN
   END IF;
   -- A cascade from a deleted tile/event finds no parent; that delete announces itself.
   IF ev IS NOT NULL THEN
-    PERFORM pg_notify('anvil_push', json_build_object('k', TG_TABLE_NAME, 'e', ev, 't', tm, 'i', tl, 'x', moved)::text);
+    PERFORM pg_notify('anvil_push', json_build_object('k', TG_TABLE_NAME, 'e', ev, 't', tm, 'i', tl, 'x', left_team)::text);
   END IF;
   RETURN NULL;
 END

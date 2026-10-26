@@ -28,7 +28,7 @@ let clanCtx: typeof import('../src/lib/clanContext.ts');
 let listener: pg.Client;
 let site: http.Server;
 let server: ChildProcess;
-const heard: { k: string; e: number; t: number | null; i: number | null; x?: boolean }[] = [];
+const heard: { k: string; e: number; t: number | null; i: number | null; x?: number | null }[] = [];
 let ids: { clan: number; event: number; red: number; blue: number; teamTile: number; soloTile: number; soloKill: number; me: number; mate: number };
 
 before(async () => {
@@ -94,7 +94,7 @@ after(async () => {
 /** Wait for the listener to catch up, then take what it heard. */
 async function drain(): Promise<typeof heard> {
   await new Promise((r) => setTimeout(r, 100));
-  return heard.splice(0).map(({ x, ...rest }) => (x ? { ...rest, x } : rest));
+  return heard.splice(0).map(({ x, ...rest }) => (x != null ? { ...rest, x } : rest));
 }
 
 test('a submission announces its event, team and tile', async () => {
@@ -117,14 +117,16 @@ test("a participant's stats refresh speaks to their team only; bookkeeping colum
   assert.deepEqual(await drain(), [{ k: 'event_participants', e: ids.event, t: ids.red, i: null }]);
 });
 
-test('moving someone to another team is a roster change (x), so listeners re-ticket', async () => {
-  const [temp] = await db.insert(s.eventParticipants).values({ eventId: ids.event, teamId: ids.blue, name: 'Mover' }).returning();
+test('leaving a team names it (x) so its listeners re-ticket; a pick from the pool names none', async () => {
+  const [temp] = await db.insert(s.eventParticipants).values({ eventId: ids.event, name: 'Mover' }).returning();
   await drain();
+  await db.update(s.eventParticipants).set({ teamId: ids.blue }).where(eq(s.eventParticipants.id, temp.id));
   await db.update(s.eventParticipants).set({ teamId: ids.red }).where(eq(s.eventParticipants.id, temp.id));
   await db.delete(s.eventParticipants).where(eq(s.eventParticipants.id, temp.id));
   assert.deepEqual(await drain(), [
-    { k: 'event_participants', e: ids.event, t: null, i: null, x: true },
-    { k: 'event_participants', e: ids.event, t: null, i: null, x: true },
+    { k: 'event_participants', e: ids.event, t: null, i: null },
+    { k: 'event_participants', e: ids.event, t: null, i: null, x: ids.blue },
+    { k: 'event_participants', e: ids.event, t: null, i: null, x: ids.red },
   ]);
 });
 
