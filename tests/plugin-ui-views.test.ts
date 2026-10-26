@@ -151,4 +151,15 @@ test('the board page: an enrolled player claims a tile from it, and the Teams pa
   assert.ok(texts(teamsPage!.ui).includes('Board Main'));
   const members = await V.pluginView(asPlayer(), 'teams', { event: String(ev.id), team: String(team.id), part: 'list' });
   assert.ok(texts(members!.ui).includes('Board Main'));
+
+  // The Clan tab, off the same config the plugin polls: the board on the list, then its page.
+  // An open-ended event (no end date) is running: the Clan tab reads it the way tracking does.
+  const home = await V.pluginView(asPlayer(), 'home', { track: '1', pins: '' });
+  assert.ok(texts(home!.ui).includes('Live Bingo'), JSON.stringify(texts(home!.ui)));
+  const boardHome = await V.pluginView(asPlayer(), 'home', { open: 'board' });
+  assert.ok(texts(boardHome!.ui).includes('All events'));
+  assert.ok(texts(boardHome!.ui).includes('Nearest tiles'), JSON.stringify(texts(boardHome!.ui)));
+  // From the page, "All tiles" comes back with a way home.
+  const tilesPage = await V.pluginView(asPlayer(), 'board', { event: '0', back: 'board', backLabel: 'Live Bingo' });
+  assert.ok(texts(tilesPage!.ui).includes('Live Bingo') && texts(tilesPage!.ui).includes('All tiles'));
 });

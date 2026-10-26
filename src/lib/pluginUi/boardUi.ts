@@ -490,7 +490,7 @@ export function tileDetailUi(board: Board, t: BoardTile, s: BoardState, ctx: Boa
   }
   const pin = pinAction(t, s, ctx, list(s, { tile: String(t.tileId) }));
   if (pin) parts.push(gap(5), pin.on ? button(pin.label, pin.on, pin.tip) : muted(pin.tip, { wrap: true }));
-  if (ctx.boardPath) parts.push(gap(5), text('Open on Anvil ↗', 'brand', { tip: 'Open this tile on the Anvil site', on: { a: 'site', path: `${ctx.boardPath}?tile=${t.tileId}` } }));
+  if (ctx.boardPath) parts.push(gap(5), text('Open on Anvil', 'brand', { tip: 'Open this tile on the Anvil site', on: { a: 'site', path: `${ctx.boardPath}?tile=${t.tileId}` }, icon: { t: 'icon', glyph: 'external', w: 11, h: 11, color: 'brand' }, iconAfter: true }));
 
   return col([button('Back to tiles', list(s), 'Return to the searchable tile list'), gap(7), card(parts, { inset: 9 })]);
 }

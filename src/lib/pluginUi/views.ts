@@ -1,6 +1,8 @@
 import { and, eq, ilike, or } from 'drizzle-orm';
 
 import { buildBoard, pluginBoardScope } from '@/app/api/plugin/board/route';
+import { GET as configRoute } from '@/app/api/plugin/config/route';
+import { GET as weeklyRoute } from '@/app/api/plugin/weekly-leaderboard/route';
 import { db } from '@/db';
 import { clans, memberClogItems, settings } from '@/db/schema';
 import { apexCharacter } from '@/lib/apexProfiles';
@@ -10,6 +12,8 @@ import { clogPageItems, clogPageNames } from '@/lib/clogDataset';
 import { caLookup, combatTasks } from '@/lib/combatTasks';
 import { deleteGoal, goalsWithProgress, saveGoal } from '@/lib/goals';
 import { getMemberItems } from '@/lib/memberProgressRead';
+import { buildActivity } from '@/lib/pluginActivity';
+import { ttlMemo } from '@/lib/ttlMemo';
 import { loadPlayerCard } from '@/lib/playerCard';
 import { accountForCharacter, accountStanding, playedCharacter } from '@/lib/pluginAccount';
 import { pluginClaimCaller } from '@/lib/pluginClaimCaller';
@@ -22,8 +26,9 @@ import { resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/l
 
 import { type BoardContext, type BoardState, type BoardTile, STATUSES, type Status, boardRowsUi, boardUi, tileDetailUi } from './boardUi';
 import { clanCardUi, clanCompareUi, clanSearchUi } from './clanUi';
+import { type HomeConfig, type HomeData, eventUi, homeUi } from './homeUi';
 import { lookupPlayerCard, viewerPlayerId, visibleClan } from './load';
-import { type View, button, col, gap, message } from './nodes';
+import { type Node, type View, backRow, button, col, gap, message, text } from './nodes';
 import { notFoundUi, playerCardUi } from './playerCardUi';
 import { casUi, clogPageUi, compareUi, dueOnFrom, goalFormUi, goalsUi } from './playerMoreUi';
 import { rosterUi, teamsUi } from './teamsUi';
@@ -211,7 +216,7 @@ async function boardView(request: Request, a: Args, error: string | null = null)
   const tile = positive(a.tile) ? (board.tiles as BoardTile[]).find((t) => t.tileId === Number(a.tile)) : undefined;
   const inner = tile ? tileDetailUi(board, tile, state, ctx, error) : boardRowsUi(board, state, ctx);
   // Opened on a tile from the Clan tab, the detail arrives inside the whole page, so "Back to tiles" has a list to go to.
-  return { ui: a.part === 'rows' ? inner : boardUi(board, state, ctx, inner) };
+  return { ui: a.part === 'rows' ? inner : withBack(a, 'All tiles', boardUi(board, state, ctx, inner)) };
 }
 
 async function claimAct(request: Request, act: 'claim' | 'unclaim', a: Args, note: string | undefined): Promise<View> {
@@ -235,7 +240,85 @@ async function teamsView(request: Request, a: Args): Promise<View> {
   const state = { event, team: positive(a.team) ?? 0, page: positive(a.page) ?? 1, back: positive(a.back) ?? 1 };
   const q = (a.q ?? '').trim().slice(0, 40);
   const data = event ? await pluginRoster(request, event, { query: q, team: state.team || null, page: state.page, pageSize: 25 }) : null;
-  return { ui: a.part === 'list' ? rosterUi(data, state) : teamsUi(data, state, q) };
+  return { ui: a.part === 'list' ? rosterUi(data, state) : withBack(a, 'Teams', teamsUi(data, state, q)) };
+}
+
+/** A page opened from the Clan tab: "‹ <event>" back to it, then the page's title over it. */
+function withBack(a: Args, title: string, page: Node): Node {
+  if (!a.back) return page;
+  return col([backRow(a.backLabel || 'Back', { a: 'load', v: 'home', args: { open: a.back } }), gap(8), text(title, 'brand'), gap(6), page]);
+}
+
+// ---- The Clan tab -----------------------------------------------------------------------------------
+
+/**
+ * The Clan tab: the clan's events, or one of them. Built from the answer /api/plugin/config gives this
+ * same caller — the route itself, so the tab can never show a board the plugin isn't tracking — plus
+ * the team feed, the standings, the live weeklies' boards and the clan's card.
+ */
+async function homeView(request: Request, a: Args): Promise<View> {
+  const res = await configRoute(request);
+  if (!res.ok) {
+    return message(res.status === 404 ? 'You’re not in a clan on Anvil yet — join one on the site and it shows here.' : 'Couldn’t reach Anvil — try again in a moment.');
+  }
+  const cfg = (await res.json()) as HomeConfig & { event?: { startDate: string | null; endDate: string | null; forceEndedAt?: string | null } | null };
+  const now = Date.now();
+  // Running: started, not force-ended, and not past an end — an open-ended event (no end date) runs
+  // until the host ends it, as the plugin's tracking reads it (eventTimeState calls that 'none').
+  const ev = cfg.event;
+  const at = (iso: string | null | undefined) => (iso ? Date.parse(iso) : NaN);
+  const live = !!ev && !ev.forceEndedAt && !(at(ev.startDate) > now) && !(at(ev.endDate) <= now);
+  const slug = cfg.activeClan?.slug ?? (a.clan ?? '').trim();
+  const clanPath = slug ? `/c/${encodeURIComponent(slug)}` : '';
+  const me = playedCharacter(request);
+  const open = a.open ?? '';
+
+  const auth = live ? await verifyPluginToken(request) : null;
+  const liveWeeklies = (cfg.panel?.weeklies ?? []).filter((w) => w.status === 'active');
+  const [feed, roster, boards, ownClan] = await Promise.all([
+    auth
+      ? buildActivity({ teamId: auth.teamId, eventId: auth.eventId, selfPlayerId: auth.playerId, selfRsn: auth.rsn, since: { sub: 0, comp: 0, rev: 0 } }).then((p) => p.activity)
+      : Promise.resolve([]),
+    live && cfg.event ? pluginRoster(request, cfg.event.id, { query: '', team: null, page: 1, pageSize: 50 }) : Promise.resolve(null),
+    Promise.all(
+      liveWeeklies.map(async (w) => {
+        const url = new URL(request.url);
+        url.search = `?id=${w.id}`;
+        const r = await weeklyRoute(new Request(url, { headers: request.headers }));
+        return [w.id, r.ok ? ((await r.json()) as { total: number; entries: { rank: number; rsn: string; gained: number }[] }) : null] as const;
+      }),
+    ),
+    !open && slug ? ownClanCard(request, slug) : Promise.resolve(null),
+  ]);
+  const norm = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase();
+  const weekly: HomeData['weekly'] = new Map();
+  for (const [id, b] of boards) {
+    if (!b) continue;
+    const top = (b.entries ?? []).map((e) => ({ ...e, self: !!me && norm(e.rsn) === norm(me.rsn) }));
+    weekly.set(id, { total: b.total, top, you: top.find((e) => e.self) ?? null });
+  }
+  const data: HomeData = {
+    cfg,
+    live,
+    inGame: !!me,
+    feed,
+    standings: roster && roster.mode === 'teams' ? roster.teams.filter((t) => t.rank != null).sort((x, y) => x.rank! - y.rank!) : [],
+    weekly,
+    pins: a.track === '1' ? (a.pins ?? '').split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0) : null,
+    chosen: a.chosen === '1',
+    ownClan,
+    boardPath: cfg.event ? `${clanPath}/events/${cfg.event.id}` : null,
+    clanPath,
+    now,
+  };
+  return { ui: (open && eventUi(data, open)) || homeUi(data) };
+}
+
+/** Your clan's card under its events; the same answer for a few minutes, the clan doesn't change by the second. */
+async function ownClanCard(request: Request, slug: string): Promise<Node | null> {
+  const clan = await visibleClan(request, slug);
+  if (!clan) return null;
+  return clanCardUi(await ttlMemo(`plugin-ui-clan-card:${clan.id}`, () => loadClanCard(clan), 5 * 60_000), false);
 }
 
 export async function pluginView(request: Request, v: string, a: Args): Promise<View | null> {
@@ -264,6 +347,8 @@ export async function pluginView(request: Request, v: string, a: Args): Promise<
       return boardView(request, a);
     case 'teams':
       return teamsView(request, a);
+    case 'home':
+      return homeView(request, a);
     default:
       return null;
   }

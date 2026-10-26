@@ -18,6 +18,7 @@ export type Color = 'white' | 'muted' | 'brand' | 'done' | 'error' | 'claim' | `
  * - flip: switch the `key` toggles between their off and lit faces
  * - post: send `act` with `args` and the view's inputs; the answer is a view, shown like `load`
  * - pin: pin (or unpin) a tile's in-game tracker on this client, then do `then`
+ * - switch: point the plugin at another of the member's clans (the panel's clan picker does the same)
  */
 export type Action =
   | { a: 'site'; path: string }
@@ -35,7 +36,8 @@ export type Action =
       ask?: string;
       askValue?: string;
     }
-  | { a: 'pin'; event: number; tile: number; on: boolean; then?: Action };
+  | { a: 'pin'; event: number; /** 0 with `on: false` = every pin on the event. */ tile: number; on: boolean; then?: Action }
+  | { a: 'switch'; slug: string };
 
 interface Common {
   /** Tooltip, plain text. */
@@ -76,6 +78,8 @@ export type Node =
       /** A timestamp: the text is "3d ago", worked out when drawn. */
       at?: string;
       icon?: Node;
+      /** The icon after the text (a link's ↗), not before it. */
+      iconAfter?: boolean;
       cell?: boolean;
       /** At least this wide (a rank column). */
       w?: number;
@@ -130,7 +134,20 @@ export type Node =
       label?: string;
     })
   | (Common & { t: 'button'; label: string; /** Shown but can't be pressed. */ off?: boolean })
-  | (Common & { t: 'gap'; h: number });
+  | (Common & { t: 'gap'; h: number })
+  | (Common & {
+      t: 'countdown';
+      /** Counts down to this; null = no clock, and `none` shows. */
+      at: string | null;
+      prefix: string;
+      /** Shown once it's due. */
+      due: string;
+      none: string;
+      font?: 'small' | 'regular' | 'bold';
+      color?: Color;
+    })
+  /** A part only the plugin can draw (it reads the game): the starting shot's checks and its button. */
+  | (Common & { t: 'native'; name: 'start-proof' });
 
 /** A view: the node tree plus whether the plugin may hold it a while (a lookup) or not (your own). */
 export interface View {
