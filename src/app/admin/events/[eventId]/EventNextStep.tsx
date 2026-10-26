@@ -117,6 +117,9 @@ const FLAG_TEXT: Record<string, string> = {
   inferred_duplicate_pet: 'A pet duplicate the plugin worked out from context',
   inferred_duplicate_scroll: 'A champion scroll duplicate the plugin worked out from context',
   big_ping: 'The plugin claimed a lot at once without a screenshot, so only 10 were counted',
+  proof_image_mismatch: "Sent by the plugin, but its screenshot wasn't uploaded by that player's plugin",
+  captured_before_start: "The player's PC clock says the screenshot was taken before the event started",
+  capture_clock_ahead: "The player's PC clock was set ahead of the server when the screenshot was taken",
 };
 
 /**

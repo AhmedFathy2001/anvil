@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import LocalTime from './LocalTime';
 
 /**
@@ -14,6 +14,8 @@ import LocalTime from './LocalTime';
 export interface ProofShot {
   id: number;
   imageUrl: string;
+  /** The frame before the site drew its stamp on (lib/proofStamp) — what "Hide stamp" shows. */
+  cleanImageUrl?: string | null;
   /** Who earned it — not necessarily who uploaded it. */
   credit: string | null;
   note: string | null;
@@ -33,6 +35,8 @@ export default function ProofGallery({
   onClose: () => void;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  // Sticky across the walk: someone hunting for what's under the banner wants it off on every shot.
+  const [hideStamp, setHideStamp] = useState(false);
   const count = shots.length;
 
   const step = useCallback(
@@ -88,6 +92,17 @@ export default function ProofGallery({
             {count > 1 && <span className="ml-2">{index + 1} of {count}</span>}
           </p>
         </div>
+        <div className="flex shrink-0 gap-2">
+        {shot.cleanImageUrl && (
+          <button
+            type="button"
+            onClick={() => setHideStamp((h) => !h)}
+            aria-pressed={hideStamp}
+            className="rounded-lg border border-card-border bg-card-bg px-3 py-1.5 text-xs text-text-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+          >
+            {hideStamp ? 'Show stamp' : 'Hide stamp'}
+          </button>
+        )}
         <button
           ref={closeRef}
           type="button"
@@ -97,6 +112,7 @@ export default function ProofGallery({
         >
           Close
         </button>
+        </div>
       </div>
 
       <div className="flex-1 min-h-0 flex items-center gap-2 px-2 pb-3" onClick={(e) => e.stopPropagation()}>
@@ -112,7 +128,7 @@ export default function ProofGallery({
         )}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={shot.imageUrl}
+          src={hideStamp && shot.cleanImageUrl ? shot.cleanImageUrl : shot.imageUrl}
           alt={shot.note || 'Proof screenshot'}
           className="max-h-full max-w-full m-auto object-contain rounded-lg"
         />

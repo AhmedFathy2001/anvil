@@ -7,6 +7,8 @@ import crypto from 'crypto';
 import sharp from 'sharp';
 import { isAnimatedPng } from '@/lib/imageAnimation';
 import { fetchRemoteImage } from '@/lib/remoteImage';
+import { db } from '@/db';
+import { proofUploads } from '@/db/schema';
 
 // Submission images are the single largest consumer of Blob storage — the plugin auto-submits a
 // full-resolution PNG per drop/kill and nothing deletes them until the event is torn down. We
@@ -151,7 +153,21 @@ export async function POST(request: Request) {
 
   const clan = await currentClan();
   const filename = clanMediaKey(clan?.slug, `submissions/${crypto.randomUUID()}.${finalExt}`);
-  const { url } = await put(filename, body, safeContentType);
+  const bytes = Buffer.isBuffer(body) ? body : Buffer.from(await body.arrayBuffer());
+  const { url } = await put(filename, bytes, safeContentType);
+
+  // Provenance: which door this picture came in by, and its fingerprint (schema proofUploads). A
+  // failure here must not lose the upload — the submission just won't find it and flags instead.
+  await db
+    .insert(proofUploads)
+    .values({
+      url,
+      sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+      via: pluginAuth ? 'plugin' : 'web',
+      userId: pluginAuth ? pluginAuth.userId : (webUser?.userId ?? null),
+    })
+    .onConflictDoNothing()
+    .catch((e) => console.error('[upload] provenance row failed', e));
 
   return NextResponse.json({ url });
 }

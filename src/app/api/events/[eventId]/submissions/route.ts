@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { eventForPluginRequest, eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
 import { db } from '@/db';
-import { submissions, tiles, teams, eventParticipants, events, users, eventStartProofs } from '@/db/schema';
+import { submissions, tiles, teams, eventParticipants, events, users, eventStartProofs, proofUploads, clans } from '@/db/schema';
 import { eq, and, sql, inArray } from 'drizzle-orm';
 import { verifyAdmin, verifyAdminOrModerator, verifyUser, verifyCaptain, verifyPlayer, verifyPluginToken, resolveTeamMembership } from '@/lib/auth';
 import { atLeast } from '@/lib/clanRoles';
@@ -25,6 +25,11 @@ import { startProofGate, NO_START_PROOF_FLAG, START_PROOF_REQUIRED_CODE } from '
 import { eventHasStarted } from '@/lib/completionGate';
 import { track } from '@/lib/analytics';
 import { replayOutsideLab } from '@/lib/lab';
+import { parseProofClaims, captureFlag, gameLines, stampModel, PROOF_IMAGE_MISMATCH_FLAG } from '@/lib/proofStamp';
+import { bakeStamp } from '@/lib/proofStampImage';
+import { put, clanMediaKey } from '@/lib/storage';
+import { parseStamp } from '@/lib/dbTime';
+import crypto from 'crypto';
 
 /** What the plugin may say it inferred (submissions.flaggedReason). Anything else is ignored. */
 const INFERRED_FLAGS = new Set(['inferred_duplicate_pet', 'inferred_duplicate_scroll']);
@@ -93,6 +98,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
+  const receivedAt = Date.now();
   const rl = await rateLimit(request, 'submissions', { limit: 60, windowMs: 60_000 });
   if (!rl.ok) return NextResponse.json({ error: 'Too many submissions — slow down.' }, { status: 429, headers: rateLimitHeaders(rl) });
   const { eventId } = await params;
@@ -119,7 +125,7 @@ export async function POST(
   // Finished events are read-only unless explicitly unlocked (lib/eventLock).
   const lockedResponse = await assertEventEditable(eId);
   if (lockedResponse) return lockedResponse;
-  const { tileId, teamId, amount, imageUrl, note, creditPlayerId, itemId, durationSeconds, coopGroup, coopPartySize, inferred } = await request.json();
+  const { tileId, teamId, amount, imageUrl, note, creditPlayerId, itemId, durationSeconds, coopGroup, coopPartySize, inferred, proof } = await request.json();
 
   if (!tileId || !teamId || !Number.isInteger(tileId) || !Number.isInteger(teamId) || tileId < 1 || teamId < 1) {
     return NextResponse.json({ error: 'tileId and teamId are required and must be positive integers' }, { status: 400 });
@@ -337,6 +343,25 @@ export async function POST(
     flaggedReason = inferred;
   }
 
+  // PROVENANCE (lib/proofStamp). The image was uploaded by a separate request; a plugin proof whose
+  // picture did not come in through the same user's plugin token is flagged. A row missing entirely
+  // only counts against a plugin that sent stamp claims — an older plugin may be retrying a picture
+  // uploaded before provenance was recorded.
+  const upload = imageUrlValue
+    ? await db.query.proofUploads.findFirst({ where: eq(proofUploads.url, imageUrlValue) })
+    : null;
+  const claims = pluginAuth && imageUrlValue ? parseProofClaims(proof) : null;
+  if (pluginAuth && imageUrlValue) {
+    const foreign = upload
+      ? upload.via !== 'plugin' || (upload.userId != null && pluginAuth.userId != null && upload.userId !== pluginAuth.userId)
+      : claims != null;
+    if (foreign) flaggedReason = flaggedReason ?? PROOF_IMAGE_MISMATCH_FLAG;
+  }
+  if (claims) {
+    const start = parseStamp(event.startDate);
+    flaggedReason = flaggedReason ?? captureFlag(claims, receivedAt, start);
+  }
+
   // COUNT-ONLY PINGS ARE SMALL. The plugin coalesces a ~2.5s burst into one image-less ping, so a real
   // one carries a handful of kills at most; anything bigger needs its screenshot. Without this a single
   // forged ping could claim the 10,000-kill ceiling and finish any kill tile in one request. Clamped,
@@ -460,7 +485,7 @@ export async function POST(
     }
   }
 
-  const [submission] = await db
+  const [inserted] = await db
     .insert(submissions)
     .values({
       tileId,
@@ -475,8 +500,42 @@ export async function POST(
       coopGroup: coopGroupJson,
       coopPartySize: coopPartySizeValue,
       flaggedReason,
+      source: pluginAuth ? 'plugin' : 'web',
+      imageSha256: upload?.sha256 ?? null,
     })
     .returning();
+
+  // SITE-DRAWN STAMP. A current plugin uploads the clean frame and says what the banner should read;
+  // draw it here, after the insert, so it can carry the proof id. The stamped copy becomes imageUrl,
+  // so every view and Discord post shows it unchanged; the clean frame stays for "Hide stamp". Any
+  // failure leaves the clean frame as the proof — a missing banner never costs a credit.
+  let submission = inserted;
+  if (claims && imageUrlValue) {
+    const facts = { ...claims, chat: undefined, lines: gameLines(claims), receivedAt };
+    try {
+      // Only a picture this site stored itself (a proof_uploads row on a managed host), and no
+      // redirects — the URL is client-supplied, so it must never become a fetch of somewhere else.
+      if (!upload) throw new Error('no upload record for this image');
+      const res = await fetch(imageUrlValue, { redirect: 'error' });
+      if (!res.ok) throw new Error(`clean frame fetch ${res.status}`);
+      const clean = Buffer.from(await res.arrayBuffer());
+      const stamped = await bakeStamp(clean, stampModel({
+        claims, rsn: pluginAuth?.rsn ?? null, team: team.name, event: event.name,
+        receivedAt, submissionId: inserted.id, sha256: upload?.sha256 ?? null,
+      }));
+      const slug = (await db.query.clans.findFirst({ where: eq(clans.id, clan.id), columns: { slug: true } }))?.slug;
+      const { url } = await put(clanMediaKey(slug, `submissions/${crypto.randomUUID()}-stamped.webp`), stamped, 'image/webp');
+      [submission] = await db.update(submissions)
+        .set({ imageUrl: url, cleanImageUrl: imageUrlValue, proofFacts: JSON.stringify(facts) })
+        .where(eq(submissions.id, inserted.id)).returning();
+      imageUrlValue = url;
+    } catch (e) {
+      console.error('[submissions] stamp failed; keeping the clean frame', e);
+      [submission] = await db.update(submissions)
+        .set({ proofFacts: JSON.stringify(facts) })
+        .where(eq(submissions.id, inserted.id)).returning();
+    }
+  }
 
   // Current progress for the Discord "x / y" line — mode-aware, so a Solo tile's post reads the
   // finisher's own count rather than a team sum that isn't what completes the tile.
