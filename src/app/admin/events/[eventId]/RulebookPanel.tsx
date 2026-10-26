@@ -26,6 +26,7 @@ export default function RulebookPanel({ eventId }: { eventId: number }) {
   const [originalRulebook, setOriginalRulebook] = useState('');
   const [clanRules, setClanRules] = useState('');
   const [atStart, setAtStart] = useState(true);
+  const [sharing, setSharing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -45,6 +46,7 @@ export default function RulebookPanel({ eventId }: { eventId: number }) {
         setOriginalRulebook(d.rulebook ?? '');
         setClanRules(d.clanRules ?? '');
         setAtStart(d.rulesAtStart !== false);
+        setSharing(d.sharingChecks === true);
       })
       .catch(() => setMessage({ ok: false, text: 'Could not load the rules.' }))
       .finally(() => setLoaded(true));
@@ -116,6 +118,11 @@ export default function RulebookPanel({ eventId }: { eventId: number }) {
   async function toggleAtStart(on: boolean) {
     setAtStart(on);
     if (!(await patch({ rulesAtStart: on }))) setAtStart(!on);
+  }
+
+  async function toggleSharing(on: boolean) {
+    setSharing(on);
+    if (!(await patch({ sharingChecks: on }))) setSharing(!on);
   }
 
   if (!loaded) return null;
@@ -225,6 +232,13 @@ export default function RulebookPanel({ eventId }: { eventId: number }) {
           disabled={busy}
           label="Post or refresh the Discord rules when the event starts"
           description="If you already posted them before the bingo, Anvil updates those same host and co-host messages. Otherwise it creates them under the start announcement."
+        />
+        <Checkbox
+          checked={sharing}
+          onChange={toggleSharing}
+          disabled={busy}
+          label="Check for shared accounts"
+          description="Staff see when two players connect from the same network, or one player from two countries within a few hours. Players are told on the rules and sign-up pages. Addresses are never stored: only a code that means something on this event, deleted 30 days after it ends."
         />
         <div className="rounded-lg border border-gold/20 bg-gold/5 px-3 py-2 text-xs text-text-muted">
           <strong className="text-gold">Before the bingo:</strong>{' '}

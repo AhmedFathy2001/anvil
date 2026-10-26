@@ -141,6 +141,8 @@ export function mechanicsLines(
     }
   }
 
+  if (rules.sharingChecks) out.push(t.rules.sharingChecks);
+
   if (rules.teamChoice) out.push(t.rules.teamChoice);
   else if (rules.captainInvites) out.push(t.rules.captainInvites);
 

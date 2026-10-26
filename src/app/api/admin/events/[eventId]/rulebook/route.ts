@@ -40,6 +40,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
     generatedRulesMessage,
     postedToDiscord: Object.keys(row.rulesMessageIds ?? {}).length > 0,
     rulesAtStart: parseEventRules(row.rules).rulesAtStart,
+    sharingChecks: parseEventRules(row.rules).sharingChecks,
     clanRules: fallback.text ?? '',
   });
 }
@@ -53,6 +54,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
     rulebook?: unknown;
     rulesMessage?: unknown;
     rulesAtStart?: unknown;
+    sharingChecks?: unknown;
   } | null;
   if (!body) return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
 
@@ -80,9 +82,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
     }
     updates.rulesMessage = text || null;
   }
-  if (body.rulesAtStart !== undefined) {
-    if (typeof body.rulesAtStart !== 'boolean') {
+  if (body.rulesAtStart !== undefined || body.sharingChecks !== undefined) {
+    if (body.rulesAtStart !== undefined && typeof body.rulesAtStart !== 'boolean') {
       return NextResponse.json({ error: 'rulesAtStart must be a boolean' }, { status: 400 });
+    }
+    if (body.sharingChecks !== undefined && typeof body.sharingChecks !== 'boolean') {
+      return NextResponse.json({ error: 'sharingChecks must be a boolean' }, { status: 400 });
     }
     let stored: Record<string, unknown> = {};
     try {
@@ -91,9 +96,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
     } catch {
       stored = {};
     }
-    // Default is on, so "on" is stored as absence — the column stays NULL on a classic board.
-    if (body.rulesAtStart) delete stored.rulesAtStart;
-    else stored.rulesAtStart = false;
+    // Each is stored only when it differs from its default, so the column stays NULL on a classic board.
+    if (body.rulesAtStart === true) delete stored.rulesAtStart;
+    else if (body.rulesAtStart === false) stored.rulesAtStart = false;
+    if (body.sharingChecks === true) stored.sharingChecks = true;
+    else if (body.sharingChecks === false) delete stored.sharingChecks;
     updates.rules = Object.keys(stored).length ? JSON.stringify(stored) : null;
   }
   if (Object.keys(updates).length === 0) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
