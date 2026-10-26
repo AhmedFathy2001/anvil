@@ -180,6 +180,8 @@ export interface Submission {
   source?: string | null;
   /** The frame under a site-drawn stamp, for "Hide stamp". */
   cleanImageUrl?: string | null;
+  /** Hiscores footprint verdict (lib/footprint): 'ok' | 'short' | 'dismissed', null = not checked. */
+  footprint?: string | null;
 }
 
 export interface ItemRequirement {

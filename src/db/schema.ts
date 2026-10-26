@@ -1101,6 +1101,10 @@ export const submissions = pgTable('submissions', {
   // What the stamp was drawn from, as JSON: the client's claims (title, timezone, capture time,
   // filtered game lines) plus the server's own received time. Client fields are self-reported.
   proofFacts: text('proof_facts'),
+  // The hiscores footprint verdict (lib/footprint): 'ok' (a settled hiscores read covers this
+  // credit), 'short' (it doesn't — flagged footprint_short), 'dismissed' (staff looked and cleared
+  // it; the check never re-raises it). NULL = not checkable yet, or nothing to check.
+  footprint: text('footprint'),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [
   index('submissions_tile_id_idx').on(table.tileId),
@@ -2406,6 +2410,26 @@ export const draftShortlists = pgTable('draft_shortlists', {
  * website. The submission looks its image up here: a plugin proof whose image did not come from the
  * same user's plugin token still counts, but is flagged (lib/proofStamp).
  */
+/**
+ * Per-player reasons for a staff look during an event (lib/footprint): a first-ever kill of content
+ * people buy as a service, more efficient hours in a day than one person plays. Never shown to
+ * players, never a verdict. One row per (event, player, kind) — `kind` carries its subject, e.g.
+ * 'first_service_kill:tzKalZuk' or 'long_hours:day3' — so a re-run never duplicates one.
+ */
+export const integritySignals = pgTable('integrity_signals', {
+  id: serial('id').primaryKey(),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  participantId: integer('participant_id').notNull().references(() => eventParticipants.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(),
+  /** JSON: what it was measured from, for the staff line. */
+  detail: text('detail'),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  /** Staff marked it "looks fine". */
+  dismissedAt: text('dismissed_at'),
+}, (t) => [
+  uniqueIndex('integrity_signals_unique').on(t.eventId, t.participantId, t.kind),
+]);
+
 export const proofUploads = pgTable('proof_uploads', {
   url: text('url').primaryKey(),
   sha256: text('sha256').notNull(),

@@ -750,6 +750,13 @@
       "when": 1793085303039,
       "tag": "0150_proof_provenance",
       "breakpoints": true
+    },
+    {
+      "idx": 151,
+      "version": "7",
+      "when": 1793171703039,
+      "tag": "0151_hiscores_footprint",
+      "breakpoints": true
     }
   ]
 }

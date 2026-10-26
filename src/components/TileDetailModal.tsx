@@ -1025,6 +1025,22 @@ export default function TileDetailModal({
                             {s.flaggedReason === 'proof_image_mismatch' ? 'screenshot origin · check' : 'capture time · check'}
                           </span>
                         )}
+                        {s.flaggedReason === 'footprint_short' && (
+                          <span
+                            title="Jagex's hiscores don't show this yet, even after the player logged out"
+                            className="px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-300 font-medium"
+                          >
+                            hiscores · check
+                          </span>
+                        )}
+                        {s.footprint === 'ok' && (
+                          <span
+                            title="Confirmed: Jagex's hiscores show this after the player logged out"
+                            className="px-1.5 py-0.5 rounded bg-green-500/15 text-green-300 font-medium"
+                          >
+                            hiscores ✓
+                          </span>
+                        )}
                         {s.flaggedReason === 'no_start_proof' && (
                           <span
                             title="Landed before this player filed their starting shot"
