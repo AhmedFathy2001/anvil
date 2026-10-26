@@ -224,3 +224,116 @@ test('clans: members open in Lookup, compare only when offered, search rows open
   assert.ok(texts(ui).includes('Running: BOTW Vorkath'));
   assert.ok(actions(clanSearchUi('afk', [{ slug: 'theafkspot', name: 'The AFK Spot' }])).some((a) => a.a === 'load' && a.v === 'clan'));
 });
+
+// ---- The board's tiles page and the Teams page ------------------------------------------------
+
+import { type BoardContext, type BoardTile, boardRowsUi, boardUi, claimLine, filterTiles, tileDetailUi, trackingLines } from '../src/lib/pluginUi/boardUi';
+import { rosterUi, teamLine } from '../src/lib/pluginUi/teamsUi';
+
+const tileOf = (id: number, extra: Partial<BoardTile> = {}): BoardTile =>
+  ({
+    tileId: id,
+    position: id,
+    label: `Tile ${id}`,
+    description: null,
+    points: 10,
+    tier: null,
+    tierKey: null,
+    category: null,
+    tileType: 'drop',
+    statType: null,
+    statName: null,
+    statLabel: null,
+    itemIds: [1],
+    trackedItems: [{ itemId: 1, name: 'Thing' }],
+    requiredAmount: 1,
+    requirement: null,
+    howItCounts: null,
+    sources: [],
+    autoTrackDisabled: 0,
+    complete: false,
+    ...extra,
+  }) as BoardTile;
+
+const boardOf = (tiles: BoardTile[], readOnly = false) =>
+  ({ eventId: 7, name: 'Bingo', readOnly, tilesRevealed: true, tiles, teams: [{ teamId: 1, name: 'Red', color: '#ff0000', completedTileIds: [2] }] }) as never;
+const ctxOf = (extra: Partial<BoardContext> = {}): BoardContext => ({ eventId: 7, claimBlock: null, pins: [], progress: new Map(), boardPath: '/c/afk/events/7', ...extra });
+const state = { event: 0, pre: false, q: '', status: 'all' as const, page: 0 };
+
+test('board search: a category name brings its tiles first; nicknames find bosses; statuses split open tiles', () => {
+  const tiles = [
+    tileOf(1, { label: 'Big hilt energy', sources: ['General Graardor'], category: 'GWD' }),
+    tileOf(2, { label: 'Tombs of Amascut purple', complete: true }),
+    tileOf(3, { label: 'Zulrah scales', category: 'PvM' }),
+    tileOf(4, { label: 'Barrows set', tileType: 'drop', itemRequirements: [{ itemId: 5, name: 'Ahrim hood', requiredAmount: 1, currentAmount: 0, group: 'Ahrim', groupRequire: 0 }] }),
+  ];
+  const progress = new Map([[3, { current: 20, goal: 100 }]]);
+  assert.deepEqual(filterTiles(tiles, 'graardor', 'all', false, progress).map((t) => t.tileId), [1]);
+  assert.deepEqual(filterTiles(tiles, 'toa', 'all', false, progress).map((t) => t.tileId), [2]);
+  assert.deepEqual(filterTiles(tiles, 'pvm', 'all', false, progress).map((t) => t.tileId), [3]);
+  assert.deepEqual(filterTiles(tiles, 'set', 'all', false, progress).map((t) => t.tileId), [4]);
+  assert.deepEqual(filterTiles(tiles, '', 'open', false, progress).map((t) => t.tileId), [1, 3, 4]);
+  assert.deepEqual(filterTiles(tiles, '', 'progress', false, progress).map((t) => t.tileId), [3]);
+  assert.deepEqual(filterTiles(tiles, '', 'new', false, progress).map((t) => t.tileId), [1, 4]);
+  assert.deepEqual(filterTiles(tiles, '', 'closest', false, progress)[0].tileId, 3);
+  assert.deepEqual(filterTiles(tiles, '', 'done', true, progress), [], 'nothing is done before the start');
+});
+
+test('board rows: fifteen a page, rows open their tile, and the menu claims or says why not', () => {
+  const tiles = Array.from({ length: 20 }, (_, i) => tileOf(i + 1));
+  const first = boardRowsUi(boardOf(tiles), state, ctxOf());
+  assert.ok(texts(first).includes('1–15 of 20'));
+  const rows = walk(first).filter((x) => x.menu);
+  assert.equal(rows.length, 15);
+  assert.deepEqual(rows[0].on, { a: 'load', v: 'board', args: { event: '0', pre: '', q: '', status: 'all', page: '0', part: 'rows', tile: '1' }, into: 'tiles' });
+  assert.deepEqual(rows[0].menu!.map((m) => m.label), ['I’m going for this', 'I’m going for this, with a note…', 'Track on screen']);
+  const prev = walk(first).find((x) => x.t === 'button' && x.label === '‹ Previous') as Extract<Node, { t: 'button' }>;
+  assert.equal(prev.off, true);
+
+  const readOnly = boardRowsUi(boardOf(tiles, true), state, ctxOf({ claimBlock: 'Join this event to claim tiles.', pins: null }));
+  assert.deepEqual(walk(readOnly).find((x) => x.menu)!.menu, [{ label: 'Join this event to claim tiles.' }]);
+  const page = boardUi(boardOf(tiles, true), state, ctxOf({ claimBlock: 'Join this event to claim tiles.' }));
+  assert.ok(texts(page).includes('Click for details · join this event to claim tiles.'));
+});
+
+test('tile detail: claim buttons, the pin (and its limit), the site link, and an error from the claim', () => {
+  const t = tileOf(5, { claims: [{ name: 'Alice', note: 'tonight', mine: false }] });
+  const ui = tileDetailUi(boardOf([t]), t, state, ctxOf({ pins: [1, 2] }), 'Slow down a moment and try again.');
+  const all = texts(ui);
+  assert.ok(all.includes('Slow down a moment and try again.'));
+  assert.ok(all.includes('Alice (tonight)'));
+  const pin = walk(ui).find((x) => x.t === 'button' && x.label === 'Track on screen')!;
+  assert.deepEqual(pin.on, { a: 'pin', event: 7, tile: 5, on: true, then: { a: 'load', v: 'board', args: { event: '0', pre: '', q: '', status: 'all', page: '0', part: 'rows', tile: '5' }, into: 'tiles' } });
+  const claim = walk(ui).find((x) => x.t === 'button' && x.label === 'Add note…')!;
+  assert.equal(claim.on?.a === 'post' && claim.on.ask?.startsWith('Note for your team'), true);
+  assert.ok(walk(ui).some((x) => x.on?.a === 'site' && x.on.path === '/c/afk/events/7?tile=5'));
+
+  const full = tileDetailUi(boardOf([t]), t, state, ctxOf({ pins: [1, 2, 3] }));
+  assert.ok(texts(full).some((s) => s.startsWith('You\'re already tracking 3 tiles')));
+  assert.equal(claimLine([{ name: 'Bob', note: null, mine: false }, { name: 'Me', note: null, mine: true }]), 'Planning: You, Bob');
+});
+
+test('tracking lines: sets say how much of each is needed and what is done', () => {
+  const t = tileOf(9, {
+    itemRequirements: [
+      { itemId: 1, name: 'Hood', requiredAmount: 1, currentAmount: 1, group: 'Ahrim', groupRequire: 0 },
+      { itemId: 2, name: 'Top', requiredAmount: 1, currentAmount: 1, group: 'Ahrim', groupRequire: 0 },
+      { itemId: 3, name: 'Skirt', requiredAmount: 1, currentAmount: 0, group: 'Karil', groupRequire: 0 },
+    ],
+  });
+  assert.deepEqual(trackingLines(t), ['Ahrim set — all 2 · done:', '  ✓ Hood', '  ✓ Top', 'Karil set — all 1:', '  1× Skirt']);
+});
+
+test('teams: the ranked list opens a team; a team page goes back; search rows open the player', () => {
+  const team = { teamId: 3, name: 'Red', color: '#ff0000', rank: 1, score: '9 tiles', members: 12, yours: true };
+  assert.equal(teamLine(team), '#1 · 9 tiles · 12 members');
+  const overview = rosterUi({ mode: 'teams', page: 1, pageSize: 25, total: 1, pages: 1, teams: [team], yourTeam: null, unplaced: 0 }, { event: 7, team: 0, page: 1, back: 1 });
+  assert.ok(actions(overview).some((a) => a.a === 'load' && a.args?.team === '3'));
+  const members = rosterUi(
+    { mode: 'members', page: 1, pageSize: 25, total: 1, pages: 1, team, players: [{ name: 'Cap', teamId: 3, teamName: 'Red', teamColor: '#ff0000', rank: null, score: null, captain: true, you: false }] },
+    { event: 7, team: 3, page: 1, back: 2 },
+  );
+  assert.ok(actions(members).some((a) => a.a === 'load' && a.args?.team === '0' && a.args?.page === '2'), 'back lands on the overview page it came from');
+  assert.ok(actions(members).some((a) => a.a === 'lookup' && a.rsn === 'Cap'));
+  assert.ok(texts(members).includes('Captain'));
+});

@@ -467,10 +467,14 @@ every line, colour and click, the plugin has one renderer (`UiView`) and no card
 - `GET /api/plugin/ui?v=<view>&<args>&clan=<slug>` (token and X-RSN optional; X-RSN is "me" for
   Compare and goals): `{ "ui": <node> }`, ETag'd. Views: `player` (rsn), `you`, `cas` (rsn, tier,
   mode, missing), `clog-page` (rsn, page, back, kc), `compare` (rsn), `clan` (slug, own), `clan-compare`
-  (slug), `clans` (q), `goals`, `goal-new` (kind). Each keeps the visibility of the route it replaces
+  (slug), `clans` (q), `goals`, `goal-new` (kind), `board` (event — 0 = the live board — pre, q, status,
+  page, tile, part; the plugin adds `track` and `pins`, the tiles it has pinned) and `teams` (event, team,
+  page, back, q, part). Each keeps the visibility of the route it replaces
   (`/api/players/<rsn>/card`, `/api/clans/<slug>/card`). Unknown view: **404**.
 - `POST /api/plugin/ui` `{act, args, fields}`: `goal-add` (args.kind; fields metric, target, due in
-  days) and `goal-remove` (args.id), answered with the view to show next. Unknown action: **404**.
+  days), `goal-remove` (args.id), `claim` (the board args + tile; fields.note) and `unclaim`, answered
+  with the view to show next. Claims keep `/api/plugin/claims`' rules (lib/pluginClaimCaller). Unknown
+  action: **404**.
 - A node is `{ "t": <type>, … }`; types: `col`, `row` (l/c/r), `grid`, `text`, `icon`, `bar`, `tabs`,
   `fold`, `filter`, `slot`, `toggle`, `input`, `button`, `gap` (lib/pluginUi/nodes has every field).
   Any node may carry `tip` and `on` (a click). A type the plugin doesn't know is left out.
@@ -479,7 +483,8 @@ every line, colour and click, the plugin has one renderer (`UiView`) and no card
 - `on` is one of a fixed set: `site` (a path on this site, opened in the browser), `lookup`, `clan`
   (open in Lookup), `load` (fetch a view into slot `into`, or in place of the view), `pane` (show a
   slot's pane already in hand), `flip` (a toggle's key), `post` (send an action with the view's
-  inputs). The plugin ignores anything else.
+  inputs; `ask` prompts for a note first), `pin` (this client's in-game tile tracker, then `then`). Any
+  node may carry `menu`, a right-click list of `{label, on}`. The plugin ignores anything else.
 
 ### `moments`
 

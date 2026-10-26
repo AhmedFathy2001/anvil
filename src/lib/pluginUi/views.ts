@@ -1,9 +1,9 @@
 import { and, eq, ilike, or } from 'drizzle-orm';
 
+import { buildBoard, pluginBoardScope } from '@/app/api/plugin/board/route';
 import { db } from '@/db';
 import { clans, memberClogItems, settings } from '@/db/schema';
 import { apexCharacter } from '@/lib/apexProfiles';
-import { verifyPluginTokenUser } from '@/lib/auth';
 import { loadClanCard } from '@/lib/clanCard';
 import { listedClanWhere, showcaseJoinOn } from '@/lib/clanListing';
 import { clogPageItems, clogPageNames } from '@/lib/clogDataset';
@@ -12,13 +12,21 @@ import { deleteGoal, goalsWithProgress, saveGoal } from '@/lib/goals';
 import { getMemberItems } from '@/lib/memberProgressRead';
 import { loadPlayerCard } from '@/lib/playerCard';
 import { accountForCharacter, accountStanding, playedCharacter } from '@/lib/pluginAccount';
+import { pluginClaimCaller } from '@/lib/pluginClaimCaller';
+import { buildEnrolledConfig } from '@/lib/pluginConfigEnrolled';
+import type { PanelTile } from '@/lib/pluginPanel';
+import { pluginRoster } from '@/lib/pluginRoster';
 import { rateLimit } from '@/lib/rate-limit';
+import { claimTile, cleanNote, unclaimTile } from '@/lib/tileClaims';
+import { resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
 
+import { type BoardContext, type BoardState, type BoardTile, STATUSES, type Status, boardRowsUi, boardUi, tileDetailUi } from './boardUi';
 import { clanCardUi, clanCompareUi, clanSearchUi } from './clanUi';
 import { lookupPlayerCard, viewerPlayerId, visibleClan } from './load';
 import { type View, button, col, gap, message } from './nodes';
 import { notFoundUi, playerCardUi } from './playerCardUi';
 import { casUi, clogPageUi, compareUi, dueOnFrom, goalFormUi, goalsUi } from './playerMoreUi';
+import { rosterUi, teamsUi } from './teamsUi';
 
 // Every view the panel can ask for, by name, and every action it can send. The plugin passes the
 // view's args as query parameters, plus `clan` (the clan it is pointed at) on every call.
@@ -150,6 +158,86 @@ async function goalFormView(request: Request, kind: string): Promise<View> {
   return { ui: goalFormUi(kind, pages) };
 }
 
+// ---- The board and its teams -----------------------------------------------------------------------
+
+const positive = (v: string | undefined) => {
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : null;
+};
+
+function boardState(a: Args): BoardState {
+  const status = STATUSES.some((x) => x.v === a.status) ? (a.status as Status) : 'all';
+  return { event: positive(a.event) ?? 0, pre: a.pre === '1', q: (a.q ?? '').slice(0, 80), status, page: Math.max(0, Number(a.page) || 0) };
+}
+
+/**
+ * The team's count per tile, as the side panel's rows read it (the config builder, with the caller as
+ * the viewer so per-member tiles are theirs). The live board only: a preview has no team counts.
+ */
+async function teamProgress(request: Request): Promise<BoardContext['progress']> {
+  const out: BoardContext['progress'] = new Map();
+  const auth = await verifyPluginToken(request);
+  const user = auth?.userId != null ? { userId: auth.userId } : await verifyPluginTokenUser(request);
+  const clan = auth && user ? await resolvePluginClan(request, user.userId) : null;
+  if (!auth || !clan) return out;
+  const built = await buildEnrolledConfig({
+    eventId: auth.eventId,
+    teamId: auth.teamId,
+    clan,
+    viewer: { playerId: auth.playerId, userId: auth.userId, rsn: auth.rsn, request },
+  });
+  if (!built.ok) return out;
+  for (const t of (built.body as { panel?: { tiles?: PanelTile[] } }).panel?.tiles ?? []) out.set(t.tileId, { current: t.current, goal: t.goal });
+  return out;
+}
+
+async function boardView(request: Request, a: Args, error: string | null = null): Promise<View> {
+  const state = boardState(a);
+  const scope = await pluginBoardScope(request, state.event || null);
+  if (!scope) return message('Couldn’t load the board.', [gap(5), button('Retry', { a: 'load', v: 'board', args: a })]);
+  const [board, progress] = await Promise.all([
+    buildBoard(scope.event, scope.teamId, scope.userId),
+    !state.event && !state.pre && scope.teamId != null ? teamProgress(request) : Promise.resolve(new Map()),
+  ]);
+  const clan = (a.clan ?? '').trim();
+  const ctx: BoardContext = {
+    eventId: scope.event.id,
+    claimBlock: board.readOnly ? 'Join this event to claim tiles.' : playedCharacter(request) ? null : 'Log in to claim tiles.',
+    // The plugin says which tiles it has pinned, and whether it can pin here at all (in game, tracker on).
+    pins: a.track === '1' ? (a.pins ?? '').split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0) : null,
+    progress,
+    boardPath: `${clan ? `/c/${encodeURIComponent(clan)}` : ''}/events/${scope.event.id}`,
+  };
+  const tile = positive(a.tile) ? (board.tiles as BoardTile[]).find((t) => t.tileId === Number(a.tile)) : undefined;
+  const inner = tile ? tileDetailUi(board, tile, state, ctx, error) : boardRowsUi(board, state, ctx);
+  // Opened on a tile from the Clan tab, the detail arrives inside the whole page, so "Back to tiles" has a list to go to.
+  return { ui: a.part === 'rows' ? inner : boardUi(board, state, ctx, inner) };
+}
+
+async function claimAct(request: Request, act: 'claim' | 'unclaim', a: Args, note: string | undefined): Promise<View> {
+  const event = positive(a.event);
+  const tileId = positive(a.tile);
+  const c = await pluginClaimCaller(request, event ?? undefined);
+  let error: string | null = c.ok ? null : c.error;
+  if (c.ok && tileId) {
+    if (act === 'unclaim') await unclaimTile(c.auth.teamId, tileId, c.userId);
+    else {
+      const r = await claimTile({ eventId: c.auth.eventId, teamId: c.auth.teamId, tileId, userId: c.userId, participantId: c.auth.playerId, note: cleanNote(note) });
+      if (!r.ok) error = r.error;
+    }
+  }
+  return boardView(request, a, error);
+}
+
+async function teamsView(request: Request, a: Args): Promise<View> {
+  const scope = positive(a.event) ? null : await pluginBoardScope(request, null);
+  const event = positive(a.event) ?? scope?.event.id ?? 0;
+  const state = { event, team: positive(a.team) ?? 0, page: positive(a.page) ?? 1, back: positive(a.back) ?? 1 };
+  const q = (a.q ?? '').trim().slice(0, 40);
+  const data = event ? await pluginRoster(request, event, { query: q, team: state.team || null, page: state.page, pageSize: 25 }) : null;
+  return { ui: a.part === 'list' ? rosterUi(data, state) : teamsUi(data, state, q) };
+}
+
 export async function pluginView(request: Request, v: string, a: Args): Promise<View | null> {
   switch (v) {
     case 'player':
@@ -172,6 +260,10 @@ export async function pluginView(request: Request, v: string, a: Args): Promise<
       return goalsView(request);
     case 'goal-new':
       return goalFormView(request, a.kind ?? 'skill');
+    case 'board':
+      return boardView(request, a);
+    case 'teams':
+      return teamsView(request, a);
     default:
       return null;
   }
@@ -179,6 +271,7 @@ export async function pluginView(request: Request, v: string, a: Args): Promise<
 
 /** An action from the panel: `args` as the view gave them, `fields` from its inputs. */
 export async function pluginAct(request: Request, act: string, args: Args, fields: Args): Promise<View | null> {
+  if (act === 'claim' || act === 'unclaim') return claimAct(request, act, args, fields.note);
   if (act !== 'goal-add' && act !== 'goal-remove') return null;
   const owner = await ownedAccount(request);
   if (!owner) return { ui: goalsUi([], NOT_YOURS) };

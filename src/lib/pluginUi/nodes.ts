@@ -17,6 +17,7 @@ export type Color = 'white' | 'muted' | 'brand' | 'done' | 'error' | 'claim' | `
  * - pane: show one of slot `into`'s panes, already in hand
  * - flip: switch the `key` toggles between their off and lit faces
  * - post: send `act` with `args` and the view's inputs; the answer is a view, shown like `load`
+ * - pin: pin (or unpin) a tile's in-game tracker on this client, then do `then`
  */
 export type Action =
   | { a: 'site'; path: string }
@@ -25,7 +26,16 @@ export type Action =
   | { a: 'load'; v: string; args?: Record<string, string>; into?: string }
   | { a: 'pane'; into: string; pane: string }
   | { a: 'flip'; key: string }
-  | { a: 'post'; act: string; args?: Record<string, string>; into?: string };
+  | {
+      a: 'post';
+      act: string;
+      args?: Record<string, string>;
+      into?: string;
+      /** Ask first (a one-line prompt); the answer goes as field `note`. Cancelling sends nothing. */
+      ask?: string;
+      askValue?: string;
+    }
+  | { a: 'pin'; event: number; tile: number; on: boolean; then?: Action };
 
 interface Common {
   /** Tooltip, plain text. */
@@ -36,6 +46,8 @@ interface Common {
   k?: string;
   /** Under a filter: shown only while something is typed. */
   q?: boolean;
+  /** Right-click menu: an item without `on` is shown greyed out (it says why something can't be done). */
+  menu?: { label: string; on?: Action }[];
 }
 
 export type Node =
@@ -65,6 +77,8 @@ export type Node =
       at?: string;
       icon?: Node;
       cell?: boolean;
+      /** At least this wide (a rank column). */
+      w?: number;
     })
   | (Common & {
       t: 'icon';
@@ -74,7 +88,7 @@ export type Node =
       skill?: string;
       /** A boss, minigame or clue by name or hiscores key: the game's own picture. */
       boss?: string;
-      glyph?: 'check' | 'chevron-right' | 'chevron-left' | 'external' | 'close';
+      glyph?: 'check' | 'chevron-right' | 'chevron-left' | 'external' | 'close' | 'swatch';
       color?: Color;
       w?: number;
       h?: number;
@@ -106,7 +120,8 @@ export type Node =
   | (Common & {
       t: 'input';
       name: string;
-      kind: 'select' | 'number' | 'check';
+      /** A search fires `on` as the member pauses typing; a select fires it on change. */
+      kind: 'select' | 'number' | 'check' | 'search';
       options?: { v: string; label: string }[];
       value?: string;
       min?: number;
@@ -114,7 +129,7 @@ export type Node =
       step?: number;
       label?: string;
     })
-  | (Common & { t: 'button'; label: string })
+  | (Common & { t: 'button'; label: string; /** Shown but can't be pressed. */ off?: boolean })
   | (Common & { t: 'gap'; h: number });
 
 /** A view: the node tree plus whether the plugin may hold it a while (a lookup) or not (your own). */
