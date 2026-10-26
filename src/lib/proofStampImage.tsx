@@ -11,6 +11,7 @@ import { BODY, MONO, ogFonts } from '@/lib/ogKit';
 import type { StampModel } from '@/lib/proofStamp';
 
 const GOLD = '#d4a017';
+const MAX_SIDE = 2400;
 
 function Tag({ text, top, scale }: { text: string; top: number; scale: number }) {
   return (
@@ -28,8 +29,11 @@ function Tag({ text, top, scale }: { text: string; top: number; scale: number })
 
 /** The clean frame with the stamp drawn on, as WebP. */
 export async function bakeStamp(clean: Buffer, model: StampModel): Promise<Buffer> {
-  const { width = 0, height = 0 } = await sharp(clean).metadata();
+  // Stored frames are downscaled to 1600 on upload; anything far past that is not one of ours, and
+  // the overlay is rendered at full size, so refuse rather than draw a huge canvas.
+  const { width = 0, height = 0 } = await sharp(clean, { limitInputPixels: MAX_SIDE * MAX_SIDE }).metadata();
   if (!width || !height) throw new Error('unreadable proof image');
+  if (width > MAX_SIDE || height > MAX_SIDE) throw new Error(`proof image too large (${width}x${height})`);
   // The plugin's banner was drawn at native size on a frame usually ~1000px wide; the stored frame
   // is downscaled to at most 1600, so scale the type with it.
   const s = Math.min(1.6, Math.max(0.75, width / 1000));
