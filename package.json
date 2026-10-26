@@ -48,6 +48,7 @@
     "test:tileclaims": "npx tsx --test tests/tile-claims.test.ts",
     "test:pluginboard": "npx tsx --test tests/plugin-board-alt.test.ts",
     "test:pluginpanel": "npx tsx --test tests/plugin-panel.test.ts tests/plugin-goals-progress.test.ts",
+    "test:pluginpush": "npx tsx --test tests/plugin-push.test.ts tests/plugin-push-notify.test.ts",
     "test:tilesearch": "npx tsx --test tests/tile-search.test.ts",
     "test:authority": "npx tsx --test tests/clan-authority.test.ts",
     "test:platform": "npx tsx --test tests/platform-authority.test.ts",
@@ -189,7 +190,8 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "sharp": "^0.35.5",
-    "tailwind-merge": "^3.6.0"
+    "tailwind-merge": "^3.6.0",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "@libsql/client": "^0.17.0",
@@ -199,6 +201,7 @@
     "@types/pg": "^8.21.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/ws": "^8.18.1",
     "drizzle-kit": "^0.31.8",
     "eslint": "^9",
     "eslint-config-next": "^16.4.2",

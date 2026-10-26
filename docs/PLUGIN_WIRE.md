@@ -506,6 +506,42 @@ Rarity is priced server-side from the shipped drop dataset and never read from t
 **Never scoring.** Nothing here completes a tile, awards a point or moves a standing: no hiscores
 read can confirm a drop. It is the colour around the numbers.
 
+### `push-ws`
+
+A live channel that SENDS the data a plugin used to poll for: the team's progress, the board and
+pinned-tile tracker numbers arrive the moment they change, built once and shared by everyone they
+belong to.
+
+- Advertised only where the push server runs (`PUSH_WS=1` on the site). Without it, plugins poll
+  exactly as before; every route stays as it is for older plugins.
+- `GET /api/plugin/push/ticket` (plugin token): `{ url, ticket, expiresAt }`, or **204** when the
+  caller has no board to listen to. The ticket is HMAC-signed by the site (`lib/push/ticket`) and
+  carries the scope the config route would resolve: the seat's event and team, else the home board
+  with no team. It lives 10 minutes.
+- Connect to `url` with `Authorization: Bearer <ticket>` (only ever on the site's own host). A bad or
+  expired ticket gets **401** before the upgrade. Messages:
+  - `{"t":"hello"}` on connect.
+  - `{"t":"team","eventId","teamId","config":{…},"members":{…},"board":{…}}` — straight away, then
+    whenever it changes. `config` is the team's share of `/api/plugin/config` (`event`, `team`,
+    `board`, `completedTiles`, every `tracked*` list, `panel.tiles`, `panel.activeNow`) built with no
+    caller: merge it over the config you hold. Per-member tiles (Solo count tiles, individual and
+    milestone stat tiles) read 0 there; `members[<your player id>].c[<tileId>]` is your own number
+    for them and `.y[<tileId>]` your own stat gain (`yourGained`). "Active now" names everyone — mark
+    yourself by name. `board` is `/api/plugin/board` for that team. Team 0 (no team) carries `board`
+    only.
+  - `{"t":"tile","eventId","tileId","progress":{…}}` — the tracker route's answer for a tile that
+    moved, to everyone on the board, with no `mine` flags: mark your team by `teamId` and yourself by
+    `members[].id`.
+- Built by `lib/push/views` from `lib/pluginConfigEnrolled` (the config route's own builder), so the
+  two can't disagree (tests/plugin-push-notify asserts it). A view is built once per change, gathered
+  for 300 ms and at most once per 2 s, and an unchanged rebuild isn't resent.
+- Listen-only socket (a client message closes it). Close **4001** = ticket expired: fetch a new one
+  and reconnect, which also re-scopes after a seat change. **1012** = server restart. Reconnect with
+  backoff on any close. Keep a slow config poll: per-player and clan settings are not pushed.
+- Server: `push/server.ts`, its own container off the site image
+  (`node --experimental-strip-types push/server.ts`), reading views from the site's
+  `GET /api/internal/push/view` with a derived secret; served on `/api/plugin/push/ws` of the same host.
+
 ## Checklist: shipping a new plugin-facing feature
 
 On the site:

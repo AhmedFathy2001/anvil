@@ -22,6 +22,8 @@ export interface TrackerTeamIn {
 }
 
 export interface TrackerMember {
+  /** The participant id (0 for a staff upload), so a client sent everyone's view can find itself. */
+  id: number;
   name: string;
   amount: number;
   mine: boolean;
@@ -119,6 +121,7 @@ function team(input: TrackerInput, t: TrackerTeamIn, current: number, byPlayer: 
   const members = [...byPlayer.entries()]
     .filter(([, amount]) => amount > 0)
     .map(([id, amount]) => ({
+      id: id === UNATTRIBUTED_CREDIT ? 0 : id,
       name: id === UNATTRIBUTED_CREDIT ? 'Staff upload' : (input.names.get(id) ?? 'Unknown'),
       amount,
       mine: id !== UNATTRIBUTED_CREDIT && id === input.viewerPlayerId,

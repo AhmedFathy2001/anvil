@@ -28,7 +28,7 @@ test('count tile sums each team and puts the viewer team first', () => {
     { teamId: 2, playerId: 21, creditPlayerId: 20, amount: 1 },
   ]);
   assert.deepEqual(out.map((t) => [t.name, t.current, t.mine]), [['Blue', 3, true], ['Red', 9, false]]);
-  assert.deepEqual(out[0].members, [{ name: 'Me', amount: 3, mine: true }]);
+  assert.deepEqual(out[0].members, [{ id: 20, name: 'Me', amount: 3, mine: true }]);
   assert.deepEqual(out[1].members.map((m) => m.name), ['Alice', 'Bob']);
 });
 
@@ -45,7 +45,7 @@ test('unattributed uploads show as a staff line, completions are flagged', () =>
   const out = countTileTeams(input({ completedTeamIds: new Set([1]) }), [{ teamId: 1, playerId: null, amount: 2 }]);
   const red = out.find((t) => t.teamId === 1)!;
   assert.equal(red.complete, true);
-  assert.deepEqual(red.members, [{ name: 'Staff upload', amount: 2, mine: false }]);
+  assert.deepEqual(red.members, [{ id: 0, name: 'Staff upload', amount: 2, mine: false }]);
 });
 
 test('the viewer keeps their line beyond the top members', () => {
@@ -59,7 +59,7 @@ test('the viewer keeps their line beyond the top members', () => {
   subs.push({ teamId: 2, playerId: 20, amount: 1 });
   const blue = countTileTeams(input({ names }), subs).find((t) => t.mine)!;
   assert.equal(blue.members.length, TRACKER_TOP_MEMBERS + 1);
-  assert.deepEqual(blue.members.at(-1), { name: 'Me', amount: 1, mine: true });
+  assert.deepEqual(blue.members.at(-1), { id: 20, name: 'Me', amount: 1, mine: true });
 });
 
 test('stat tile sums gains, or takes the best on a solo tile', () => {

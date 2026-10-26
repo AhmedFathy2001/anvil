@@ -20,6 +20,7 @@ import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { log } from '@/lib/logger';
 import { ttlMemo } from '@/lib/ttlMemo';
 import { labQuarantine } from '@/lib/lab';
+import { notifyTeamTiles } from '@/lib/pushNotify';
 
 // Real-time boss-KC / skill-XP / activity ingest. The plugin posts {stats:[{name,kc}],
 // skills:[{name,xp}], activities:[{key,value}]} with
@@ -140,6 +141,7 @@ export async function POST(request: Request) {
     );
 
     if (statTiles.length > 0) {
+      notifyTeamTiles(activePlayer.eventId, activePlayer.teamId!, statTiles.map((t) => t.id));
       completed.push(
         ...(await creditStatTilesForTeam({
           eventId: activePlayer.eventId,
