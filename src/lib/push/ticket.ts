@@ -56,3 +56,11 @@ export function verifyTicket(ticket: string, key: Buffer, nowMs: number): PushSc
 function mac(body: string, key: Buffer): string {
   return crypto.createHmac('sha256', key).update(body).digest('base64url');
 }
+
+/**
+ * The push server's pass onto the site's internal view route (api/internal/push/view), from the same
+ * shared secret under another label: nothing a plugin holds can open it.
+ */
+export function internalSecret(sessionSecret: string): string {
+  return crypto.createHmac('sha256', sessionSecret).update('anvil-push-internal:v1').digest('base64url');
+}

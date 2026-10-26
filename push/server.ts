@@ -1,21 +1,23 @@
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 // anvil-push: the plugin's live channel. Postgres NOTIFY 'anvil_push' (migration 0149's triggers and
-// lib/pushNotify) → src/lib/push/hub → one WebSocket per signed-in plugin, telling it what to
-// refetch. It holds no state worth keeping and does no auth of its own beyond checking the ticket the
-// site signed (src/lib/push/ticket), so it can restart at any time: plugins reconnect and catch up.
+// lib/pushNotify) says what moved; src/lib/push/hub asks the site for each affected view ONCE
+// (api/internal/push/view → lib/push/views) and sends that same text to every plugin subscribed to it.
+// It holds no state worth keeping and does no auth of its own beyond checking the ticket the site
+// signed (src/lib/push/ticket), so it can restart at any time: plugins reconnect and get it all again.
 //
 // Its own container, off the site image (Dockerfile copies push/ and src/lib/push/):
 //   node --experimental-strip-types push/server.ts
 // so a blue-green site deploy doesn't drop every socket. Env: DATABASE_URL, PLAYER_SESSION_SECRET
-// (the site's own — the ticket key derives from it), PUSH_PORT (3100), PUSH_MIN_GAP_MS.
+// (the site's own — both keys derive from it), SITE_INTERNAL_URL (http://anvil-site:3000),
+// PUSH_PORT (3100), PUSH_MIN_GAP_MS.
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 import http from 'node:http';
 import pg from 'pg';
 import { WebSocketServer, type WebSocket } from 'ws';
 
-import { PushHub, parseChange } from '../src/lib/push/hub.ts';
-import { ticketKey, verifyTicket } from '../src/lib/push/ticket.ts';
+import { ViewHub, parseChange } from '../src/lib/push/hub.ts';
+import { internalSecret, ticketKey, verifyTicket } from '../src/lib/push/ticket.ts';
 
 const PATH = '/api/plugin/push/ws';
 const CHANNEL = 'anvil_push';
@@ -30,7 +32,28 @@ if (!dbUrl || !secret) {
   process.exit(1);
 }
 const key = ticketKey(secret);
-const hub = new PushHub({ minGapMs: Number(process.env.PUSH_MIN_GAP_MS) || undefined });
+const site = (process.env.SITE_INTERNAL_URL || 'http://anvil-site:3000').replace(/\/$/, '');
+const siteSecret = internalSecret(secret);
+
+/** One view from the site, or null (unknown/hidden key, or the site didn't answer in time). */
+async function fetchView(viewKey: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${site}/api/internal/push/view?key=${encodeURIComponent(viewKey)}`, {
+      headers: { 'x-push-secret': siteSecret },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) {
+      if (res.status !== 404) log('push.view-failed', { key: viewKey, status: res.status });
+      return null;
+    }
+    return await res.text();
+  } catch (err) {
+    log('push.view-failed', { key: viewKey, message: (err as Error).message });
+    return null;
+  }
+}
+
+const hub = new ViewHub({ fetchView, minGapMs: Number(process.env.PUSH_MIN_GAP_MS) || undefined });
 
 function log(event: string, fields: Record<string, unknown> = {}) {
   console.log(JSON.stringify({ at: new Date().toISOString(), event, ...fields }));
@@ -64,6 +87,8 @@ server.on('upgrade', (req, socket, head) => {
     ws.on('pong', () => alive.add(ws));
     // Nothing comes the other way; the plugin only listens.
     ws.on('message', () => ws.close(1003, 'listen only'));
+    // Hello first: the views follow, the cached ones straight away.
+    ws.send(JSON.stringify({ t: 'hello' }));
     const remove = hub.add({ scope, send: (m) => ws.readyState === ws.OPEN && ws.send(m) });
     // The ticket's scope was true when it was signed. At its expiry the plugin reconnects with a fresh
     // one, so a seat that changed (event over, team moved) re-scopes within the ticket's lifetime.
@@ -72,7 +97,6 @@ server.on('upgrade', (req, socket, head) => {
       clearTimeout(expiry);
       remove();
     });
-    ws.send(JSON.stringify({ t: 'hello' }));
   });
 });
 

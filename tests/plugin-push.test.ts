@@ -1,12 +1,12 @@
-// The plugin's live push: the signed ticket (lib/push/ticket) and who hears which change, how often
-// (lib/push/hub). Pure — the database and socket halves are tests/plugin-push-notify.test.ts.
+// The plugin's live push: the signed ticket (lib/push/ticket) and which views get built, how often, and
+// who gets them (lib/push/hub). Pure — the database and socket halves are tests/plugin-push-notify.test.ts.
 //
 // Run: npx tsx --test tests/plugin-push.test.ts
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { PushHub, parseChange, type PushChange } from '../src/lib/push/hub.ts';
+import { ViewHub, parseChange, parseViewKey, teamKey, tileKey, type PushChange } from '../src/lib/push/hub.ts';
 import { signTicket, ticketKey, verifyTicket, TICKET_TTL_MS } from '../src/lib/push/ticket.ts';
 
 const key = ticketKey('secret');
@@ -28,92 +28,150 @@ test('a ticket signed with another key, or edited, is refused', () => {
   assert.equal(verifyTicket('', key, 1), null);
 });
 
-/** A hub on a hand-driven clock, recording what each client was sent. */
-function harness(minGapMs = 5_000) {
+/**
+ * A hub on a hand-driven clock with a fake site: every build is recorded and answers `views[key]`
+ * (stamped with how many builds there have been, unless frozen).
+ */
+function harness(opts: { gatherMs?: number; minGapMs?: number } = {}) {
   let now = 0;
   const timers: { at: number; fn: () => void }[] = [];
-  const hub = new PushHub({
-    minGapMs,
+  const built: string[] = [];
+  const views = new Map<string, string>();
+  const hub = new ViewHub({
+    gatherMs: opts.gatherMs ?? 100,
+    minGapMs: opts.minGapMs ?? 1_000,
     now: () => now,
     later: (fn, ms) => {
       const t = { at: now + ms, fn };
       timers.push(t);
-      return () => timers.splice(timers.indexOf(t), 1);
+      return () => {
+        const i = timers.indexOf(t);
+        if (i >= 0) timers.splice(i, 1);
+      };
+    },
+    fetchView: async (key) => {
+      built.push(key);
+      return views.get(key) ?? null;
     },
   });
   const client = (eventIds: number[], teamId: number | null) => {
-    const got: unknown[] = [];
-    const remove = hub.add({ scope: { userId: 1, eventIds, teamId }, send: (m) => got.push(JSON.parse(m)) });
+    const got: string[] = [];
+    const remove = hub.add({ scope: { userId: 1, eventIds, teamId }, send: (m) => got.push(m) });
     return { got, remove };
   };
-  const advance = (ms: number) => {
+  const advance = async (ms: number) => {
     now += ms;
     for (const t of timers.filter((x) => x.at <= now)) {
       timers.splice(timers.indexOf(t), 1);
       t.fn();
     }
+    await new Promise((r) => setImmediate(r));
   };
-  return { hub, client, advance };
+  return { hub, client, advance, built, views };
 }
 
 const change = (over: Partial<PushChange>): PushChange => ({ k: 'submissions', e: 1, t: null, i: null, ...over });
 
-test("a teammate's drop refetches my config; another team's only moves the board", () => {
-  const { hub, client } = harness();
-  const mine = client([1], 10);
-  const theirs = client([1], 20);
+test('a new client gets its team view; teammates share one build of it', async () => {
+  const { client, advance, built, views } = harness();
+  views.set(teamKey(1, 10), 'red-v1');
+  const a = client([1], 10);
+  const b = client([1], 10);
+  await advance(100);
+  assert.deepEqual(built, ['team:1:10'], 'one build for both');
+  assert.deepEqual(a.got, ['red-v1']);
+  assert.deepEqual(b.got, ['red-v1']);
+  const c = client([1], 10);
+  assert.deepEqual(c.got, ['red-v1'], 'a later teammate gets the cached view at once');
+  assert.equal(built.length, 1);
+});
+
+test("a teammate's drop rebuilds my team and the tile, not the other team", async () => {
+  const { hub, client, advance, built, views } = harness();
+  views.set(teamKey(1, 10), 'red-v1');
+  views.set(teamKey(1, 20), 'blue-v1');
+  const red = client([1], 10);
+  const blue = client([1], 20);
+  await advance(100);
+  built.length = 0;
+  views.set(teamKey(1, 10), 'red-v2');
+  views.set(tileKey(1, 5), 'tile5-v1');
   hub.dispatch(change({ t: 10, i: 5 }));
-  assert.deepEqual(mine.got, [{ t: 'changed', config: true, board: true, tiles: [5] }]);
-  assert.deepEqual(theirs.got, [{ t: 'changed', board: true, tiles: [5] }]);
+  await advance(1_000);
+  assert.deepEqual(built.sort(), ['team:1:10', 'tile:1:5']);
+  assert.deepEqual(red.got, ['red-v1', 'red-v2', 'tile5-v1']);
+  assert.deepEqual(blue.got, ['blue-v1', 'tile5-v1'], 'the tracker is everyone\'s');
 });
 
-test('an event-wide change reaches everyone on that board, and nobody on another', () => {
-  const { hub, client } = harness();
-  const a = client([1], 10);
-  const viewer = client([1], null);
-  const elsewhere = client([2], 30);
-  hub.dispatch(change({ k: 'events' }));
-  assert.equal(a.got.length, 1);
-  assert.deepEqual(viewer.got, [{ t: 'changed', config: true, board: true }]);
-  assert.equal(elsewhere.got.length, 0);
+test('an event-wide change rebuilds every team on that board and nobody elsewhere', async () => {
+  const { hub, client, advance, built, views } = harness();
+  for (const [k, v] of [[teamKey(1, 10), 'a'], [teamKey(1, 20), 'b'], [teamKey(1, 0), 'board'], [teamKey(2, 30), 'c']]) views.set(k, v);
+  client([1], 10);
+  client([1], 20);
+  client([1], null);
+  client([2], 30);
+  await advance(100);
+  built.length = 0;
+  hub.dispatch(change({ k: 'tiles' }));
+  await advance(1_000);
+  assert.deepEqual(built.sort(), ['team:1:0', 'team:1:10', 'team:1:20']);
 });
 
-test('a burst goes out at once, then folds into one message per gap', () => {
-  const { hub, client, advance } = harness(5_000);
+test('a rebuild that changes nothing is not sent', async () => {
+  const { hub, client, advance, views } = harness();
+  views.set(teamKey(1, 10), 'same');
   const me = client([1], 10);
-  hub.dispatch(change({ t: 10, i: 1 }));
-  hub.dispatch(change({ t: 20, i: 2 }));
-  hub.dispatch(change({ t: 10, i: 3 }));
-  assert.equal(me.got.length, 1, 'the first change is not held back');
-  advance(4_999);
-  assert.equal(me.got.length, 1);
-  advance(1);
-  assert.deepEqual(me.got[1], { t: 'changed', config: true, board: true, tiles: [2, 3] });
-  advance(60_000);
-  assert.equal(me.got.length, 2, 'nothing pending, nothing sent');
+  await advance(100);
+  hub.dispatch(change({ t: 10 }));
+  await advance(1_000);
+  assert.deepEqual(me.got, ['same']);
 });
 
-test('a closed client hears nothing more and leaves no timer behind', () => {
-  const { hub, client, advance } = harness();
+test('a burst is gathered into one build, then at most one per gap', async () => {
+  const { hub, client, advance, built, views } = harness({ gatherMs: 100, minGapMs: 1_000 });
+  views.set(teamKey(1, 10), 'v');
+  client([1], 10);
+  await advance(100);
+  built.length = 0;
+  for (let n = 0; n < 5; n++) hub.dispatch(change({ t: 10 }));
+  await advance(1_000);
+  assert.equal(built.length, 1, 'five drops, one build');
+  hub.dispatch(change({ t: 10 }));
+  await advance(500);
+  assert.equal(built.length, 1, 'held until the gap is up');
+  await advance(500);
+  assert.equal(built.length, 2);
+});
+
+test('the last client leaving drops the view, and a late build goes nowhere', async () => {
+  const { hub, client, advance, built, views } = harness();
+  views.set(teamKey(1, 10), 'v');
   const me = client([1], 10);
-  hub.dispatch(change({}));
-  hub.dispatch(change({}));
   me.remove();
-  advance(10_000);
-  assert.equal(me.got.length, 1);
+  await advance(1_000);
   assert.equal(hub.size, 0);
+  assert.deepEqual(me.got, []);
+  assert.ok(built.length <= 1);
 });
 
-test('after the database listener comes back, everyone refetches', () => {
-  const { hub, client } = harness();
-  const a = client([1], 10);
-  const b = client([2], null);
+test('after the database listener comes back, every view is rebuilt', async () => {
+  const { hub, client, advance, built, views } = harness();
+  views.set(teamKey(1, 10), 'a');
+  views.set(teamKey(2, 0), 'b');
+  client([1], 10);
+  client([2], null);
+  await advance(100);
+  built.length = 0;
   hub.refreshAll();
-  assert.deepEqual(a.got, [{ t: 'changed', config: true, board: true }]);
-  assert.deepEqual(b.got, [{ t: 'changed', config: true, board: true }]);
+  await advance(1_000);
+  assert.deepEqual(built.sort(), ['team:1:10', 'team:2:0']);
 });
 
-test('NOTIFY payloads parse, and junk is ignored', () => {
+test('view keys and NOTIFY payloads parse, and junk is ignored', () => {
+  assert.deepEqual(parseViewKey('team:4:0'), { kind: 'team', eventId: 4, id: 0 });
+  assert.deepEqual(parseViewKey('tile:4:9'), { kind: 'tile', eventId: 4, id: 9 });
+  assert.equal(parseViewKey('team:4'), null);
+  assert.equal(parseViewKey('admin:1:1'), null);
   assert.deepEqual(parseChange('{"k":"completions","e":4,"t":9,"i":2}'), { k: 'completions', e: 4, t: 9, i: 2 });
   assert.deepEqual(parseChange('{"k":"events","e":4,"t":null,"i":null}'), { k: 'events', e: 4, t: null, i: null });
   assert.equal(parseChange('{"k":"x"}'), null);

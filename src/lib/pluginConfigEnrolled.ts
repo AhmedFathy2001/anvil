@@ -1,0 +1,1247 @@
+import { pluginLevelRules } from '@/lib/levelRulesStore';
+import { resolvePluginClan } from '@/lib/auth';
+import { howItCounts, parseCountMode, parseSetsRequired } from '@/lib/collectionSets';
+import { countedLuckCandidates } from '@/lib/clogLuckBoard';
+import { db } from '@/db';
+import { events, tiles, teams, submissions, eventParticipants, completions, clanRoster, eventStartProofs } from '@/db/schema';
+import { eq, and, sql, inArray } from 'drizzle-orm';
+import { pluginViewerRsn } from '@/lib/auth';
+import { requireSecret } from '@/lib/env';
+import {
+  buildSchedule,
+  pluginScheduleViewer,
+  getActiveWeekly,
+  getActiveWeeklyMetrics,
+  getNotificationWebhooks,
+  getFunDeathMessages,
+  getDeathTaunts,
+  getSpoonTaunts,
+  getAlwaysNotifyItems,
+  getAlwaysNotifyItemIds,
+  getShowKillCount,
+  getDropRarityFloor,
+  getDropFacts,
+  getClanDisplayName,
+  getTierBands,
+  personalBestActivities,
+  NOTIFY_CHANNELS,
+  type NotifyChannel,
+  type PluginWebhooks,
+} from '@/lib/pluginConfig';
+import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
+import { statKeys } from '@/lib/tileKinds';
+import { lapUnitNoun } from '@/lib/constants';
+import { ROLL_TABLES, rollItemIds } from '@/lib/rollTables';
+import { computeGain, isIndividualMode, isMilestoneBasis, parseContributionSnapshot } from '@/lib/statTracking';
+import { eligibleSinceReveal, gainSinceReveal, parseRevealStats } from '@/lib/revealStats';
+import type { HiscoresSnapshot } from '@/lib/hiscores';
+import { ttlMemo } from '@/lib/ttlMemo';
+
+// How stale a team's stat-tile progress may be in the side panel. Plugin polls are ~30s apart anyway.
+const TEAM_STATS_TTL_MS = 10_000;
+import { kcNamesForKey } from '@/lib/pluginStats';
+import { isActivityKey } from '@/lib/hiscoresActivities';
+import { liveStatsForMembers, parseStatKeyTimes } from '@/lib/liveStats';
+import { serverInfo } from '@/lib/serverInfo';
+import { pluginClansFor } from '@/lib/pluginClans';
+import { boardPointsPool, scoreTeam } from '@/lib/boardScoring';
+import { parseEventRules, hasRevealPolicy, nextRevealAt, nextMissionAt, isMissionTile, parseTileMissionRules, missionPrizeSummary } from '@/lib/eventRules';
+import { startProofState } from '@/lib/startProof';
+import { combatTaskVarps } from '@/lib/combatTasks';
+import { isLadderFormat } from '@/lib/utils';
+import { getLadderBoards, toPluginStandings, type PluginStandings } from '@/lib/ladderStandings';
+import { getCofferBalance } from '@/lib/coffer';
+import crypto from 'crypto';
+import { playedCharacter } from '@/lib/pluginAccount';
+import { activeNow, panelSchedule, panelTiles, ACTIVE_WINDOW_MS, type WorkSighting } from '@/lib/pluginPanel';
+import { parseStamp } from '@/lib/dbTime';
+
+const CODEWORD_SECRET = requireSecret('CODEWORD_SECRET', 'dev-codeword-secret');
+
+// The roll tables as the plugin needs them: ids to match loot against, the vestige to watch for, and
+// the cadence. Item NAMES stay server-side — they exist for the tile editor's fill button, and the
+// plugin already knows how to name an item id.
+export const pluginRollTables = ROLL_TABLES.map((t) => ({
+  boss: t.boss,
+  rollItemIds: rollItemIds(t),
+  vestigeItemId: t.vestigeItemId,
+  vestigeName: t.vestigeName,
+  rollsPerVestige: t.rollsPerVestige,
+}));
+
+// The plugin only needs to know WHICH notification channels are live, never the webhook URLs
+// themselves — it posts to /api/plugin/notify and the server forwards to Discord. Sending the raw
+// URLs would let a plugin call them directly, which the RuneLite plugin hub forbids. Clips are
+// excluded: those post to a user-pasted webhook configured in the plugin, not via the site.
+//
+// One flag per channel, derived rather than listed: a channel added to NOTIFY_CHANNELS shows up here
+// without a second edit, and the two can't drift into disagreeing about what exists.
+export function notifyFlags(webhooks: PluginWebhooks) {
+  return Object.fromEntries(NOTIFY_CHANNELS.map((c) => [c, !!webhooks[c]])) as Record<
+    NotifyChannel,
+    boolean
+  >;
+}
+
+function generateCodeword(playerId: number, eventId: number): string {
+  const date = new Date().toISOString().slice(0, 10);
+  const hmac = crypto.createHmac('sha256', CODEWORD_SECRET);
+  hmac.update(`${playerId}:${eventId}:${date}`);
+  return hmac.digest('hex').slice(0, 6).toUpperCase();
+}
+
+
+
+// The active weekly comps' metrics as plugin-pushable names: boss metrics expand to their KC-line
+// names, skill metrics are the lowercase skill name. Merged into trackedKcNames/trackedSkillNames so
+// the plugin pushes SOTW/BOTW live (debounced 15 s, same machinery as bingo tiles) even for a member
+// with no active bingo event.
+async function weeklyTrackedNames(clanId: number): Promise<{ kc: string[]; skills: string[] }> {
+  const metrics = await getActiveWeeklyMetrics(clanId);
+  return {
+    kc: metrics.filter((m) => m.type === 'boss').flatMap((m) => kcNamesForKey(m.metric)),
+    skills: metrics.filter((m) => m.type === 'skill').map((m) => m.metric),
+  };
+}
+
+// Everything in the plugin's read-bootstrap that is the SAME for every member of a clan — the active
+// weekly, notification webhooks, death/spoon pools, notify floors, tier bands, drop facts, luck
+// candidates, the clan's name. Every client re-read all of it on every 30s poll (~20 queries), so it
+// is computed once per clan per CLAN_SETTINGS_TTL_MS. An admin's settings edit reaches plugins within
+// that window, which is well inside what a poll interval already implies.
+const CLAN_SETTINGS_TTL_MS = 30_000;
+
+export function clanPluginSettings(clanId: number) {
+  return ttlMemo(`plugin-clan-settings:${clanId}`, async () => {
+    const [activeWeekly, weeklyNames, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, dropRarityFloor, tiers, facts, luckItems, clanName] =
+      await Promise.all([
+        getActiveWeekly(clanId),
+        weeklyTrackedNames(clanId),
+        getNotificationWebhooks(clanId),
+        getFunDeathMessages(clanId),
+        getDeathTaunts(clanId),
+        getSpoonTaunts(clanId),
+        getAlwaysNotifyItems(clanId),
+        getShowKillCount(clanId),
+        getDropRarityFloor(clanId),
+        getTierBands(clanId),
+        getDropFacts(clanId),
+        countedLuckCandidates(clanId),
+        getClanDisplayName(clanId),
+      ]);
+    // A boss week makes that boss's collection-log items always-reportable, price aside.
+    const alwaysNotifyItemIds = await getAlwaysNotifyItemIds(
+      clanId,
+      activeWeekly?.type === 'boss' ? activeWeekly.metric : null,
+    );
+    return { activeWeekly, weeklyNames, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, dropRarityFloor, tiers, facts, luckItems, clanName, alwaysNotifyItemIds };
+  }, CLAN_SETTINGS_TTL_MS);
+}
+
+/** The plugin caller a config is built for. Null builds the TEAM view (lib/push/views) instead. */
+export interface ConfigViewer {
+  playerId: number;
+  userId: number | null;
+  rsn: string | null;
+  request: Request;
+}
+
+/** One member's own numbers in the team view: c = their progress on a per-member tile, y = their stat gain. */
+export interface MemberOwn {
+  c: Record<number, number>;
+  y: Record<number, number>;
+}
+
+type PluginClan = NonNullable<Awaited<ReturnType<typeof resolvePluginClan>>>;
+
+/**
+ * The enrolled /api/plugin/config body for one seat — or, with no viewer, for the whole TEAM: the
+ * same reading with nothing caller-specific in it (no codeword, schedule, start proof, "You"), and
+ * every member's own numbers in `members` so each teammate's plugin can pick out its own. The push
+ * server sends that one answer to every teammate (lib/push/views), which is why it has to come from
+ * the very code the route answers with.
+ */
+export async function buildEnrolledConfig(args: { eventId: number; teamId: number; clan: PluginClan; viewer: ConfigViewer | null }) {
+  const { eventId, teamId, clan, viewer } = args;
+  const playerId = viewer?.playerId ?? null;
+  const members: Record<number, MemberOwn> = {};
+  const memberOwn = (id: number) => (members[id] ??= { c: {}, y: {} });
+
+  // clan-scope: global -- the id came from a row this request already established, so the clan is settled upstream.
+  const event = await db.query.events.findFirst({
+    where: eq(events.id, eventId),
+  });
+  if (!event) {
+    return { ok: false as const, error: 'Event not found', status: 404 };
+  }
+
+  const team = await db.query.teams.findFirst({
+    where: eq(teams.id, teamId),
+  });
+  if (!team) {
+    return { ok: false as const, error: 'Team not found', status: 404 };
+  }
+
+  // Tiles stay hidden in-game until the host reveals them: with `tilesRevealed` off we
+  // feed the tracked-tile builders empty inputs, so trackedStats/Drops/Kills/Timed all
+  // come back empty while the rest of the config (schedule, weekly, notify flags) still
+  // flows. Mirrors the web board + plugin board gates.
+  const tilesRevealed = !!event.tilesRevealed;
+
+  // Reveal-policy events (lib/eventRules) narrow that further per-tile: the plugin only ever
+  // learns about REVEALED tiles (hidden tile content must never reach a client), and only
+  // still-open ones are worth detecting for — a claimed bounty tile is done rotating. The
+  // full-board rows stay server-side; completed-tile labels resolve off the revealed subset
+  // (a completed tile is revealed by definition).
+  const fullEventTiles = tilesRevealed
+    ? await db.query.tiles.findMany({ where: eq(tiles.eventId, eventId) })
+    : [];
+  const rules = parseEventRules(event.rules);
+  const revealMode = hasRevealPolicy(rules);
+
+  // STARTING SHOT (lib/startProof): what this player still owes, plus the keyword only they get.
+  // Null on every event that doesn't ask for one, so an older plugin sees nothing new and a newer
+  // one hides its button. The keyword is stable for the whole event, so it never churns the ETag.
+  const startProofRow = rules.startProof && playerId != null
+    ? await db.query.eventStartProofs.findFirst({
+        where: and(eq(eventStartProofs.eventId, event.id), eq(eventStartProofs.playerId, playerId)),
+      })
+    : null;
+  const startProof = rules.startProof && playerId != null
+    ? startProofState({ cfg: rules.startProof, event, playerId, proof: startProofRow ?? null })
+    : null;
+  // The tiles the plugin may track: board tiles are policy-gated (revealed + open on a reveal board,
+  // all on classic); MISSION tiles are always hidden until announced, so a hidden mission never leaks
+  // into the tracked lists even on a classic board.
+  const allEventTiles = fullEventTiles.filter((t) => {
+    if (isMissionTile(t)) return t.revealedAt != null && t.closedAt == null;
+    return !revealMode || (t.revealedAt != null && t.closedAt == null);
+  });
+  // What the plugin may WATCH: the same, minus tiles an admin switched to complete-by-hand. The site
+  // already refuses to auto-complete those, but the plugin kept submitting to them, so they filled
+  // progress and posted tile messages as if tracked.
+  const trackedTiles = allEventTiles.filter((t) => !t.autoTrackDisabled);
+
+  // Get drop tiles with tracked item IDs
+  const dropTiles = trackedTiles.filter((t) => t.tileType === 'drop');
+
+  // Stat-tracked tiles (skill XP / boss KC). The DB sometimes stores tile_type='standard'
+  // for these — match on the presence of a trackedStat field instead.
+  const statTilesRaw = trackedTiles.filter((t) => t.trackedStat && t.trackedStat.length > 0);
+
+  // Get current submission totals per tile for this team
+  const teamSubmissions = await db
+    .select({
+      tileId: submissions.tileId,
+      total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
+    })
+    .from(submissions)
+    .where(eq(submissions.teamId, teamId))
+    .groupBy(submissions.tileId);
+
+  const submissionMap = Object.fromEntries(teamSubmissions.map(s => [s.tileId, s.total]));
+
+  // The CALLER's own totals per tile (credit follows creditPlayerId when a captain uploaded on their
+  // behalf). Solo ("any one member") tiles complete on one member's count, so the progress the plugin
+  // shows in-game — and counts up against locally — has to be theirs, not the team's. Mirrors what
+  // trackedStats already does for individual-mode hiscores tiles by filtering `sources` to the caller.
+  const soloSubmissionMap: Record<number, number> = {};
+  let soloByMember: { tileId: number; who: number | null; total: number }[] = [];
+  if (playerId != null) {
+    const own = await db
+      .select({
+        tileId: submissions.tileId,
+        total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
+      })
+      .from(submissions)
+      .where(and(
+        eq(submissions.teamId, teamId),
+        sql`COALESCE(${submissions.creditPlayerId}, ${submissions.playerId}) = ${playerId}`,
+      ))
+      .groupBy(submissions.tileId);
+    for (const r of own) soloSubmissionMap[r.tileId] = r.total;
+  } else {
+    // The TEAM view: everyone's own totals, so each teammate's plugin picks out its own — on exactly
+    // the tiles currentFor() below answers per member (filled in once the body is built).
+    soloByMember = await db
+      .select({
+        tileId: submissions.tileId,
+        who: sql<number>`COALESCE(${submissions.creditPlayerId}, ${submissions.playerId})`,
+        total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
+      })
+      .from(submissions)
+      .where(eq(submissions.teamId, teamId))
+      .groupBy(submissions.tileId, sql`COALESCE(${submissions.creditPlayerId}, ${submissions.playerId})`);
+  }
+  // Progress to advertise for a count tile: the caller's own on a Solo tile, the team's otherwise.
+  const perMemberTiles = new Set<number>();
+  const currentFor = (t: { id: number; trackingMode: string | null }) => {
+    if (!isIndividualMode(t.trackingMode)) return submissionMap[t.id] ?? 0;
+    perMemberTiles.add(t.id);
+    return soloSubmissionMap[t.id] ?? 0;
+  };
+
+  // Get per-item submission totals for tiles with itemRequirements
+  const perItemSubmissions = await db
+    .select({
+      tileId: submissions.tileId,
+      itemId: submissions.itemId,
+      total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
+    })
+    .from(submissions)
+    .where(eq(submissions.teamId, teamId))
+    .groupBy(submissions.tileId, submissions.itemId);
+
+  // Build a map: tileId -> { itemId -> total }
+  const perItemMap = new Map<number, Map<number, number>>();
+  for (const row of perItemSubmissions) {
+    if (row.itemId == null) continue;
+    if (!perItemMap.has(row.tileId)) perItemMap.set(row.tileId, new Map());
+    perItemMap.get(row.tileId)!.set(row.itemId, Number(row.total));
+  }
+
+  // Aggregate stat-tile progress so the side panel can show "Mining XP: 4500/5000"
+  // for the team. We pull every team player's baseline + cached stats once, parse
+  // them, and sum gained values per tile (or use just the calling player's value
+  // when tracking_mode is 'individual').
+  // Every client on the team polls this within seconds of each other, and these rows carry every
+  // teammate's two multi-KB stats blobs. One read serves the whole team for a few seconds.
+  const { teamPlayers, memberLive } = await ttlMemo(`config-team-stats:${eventId}:${teamId}`, async () => {
+    // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
+    const teamPlayers = await db
+      .select({
+        id: eventParticipants.id,
+        name: eventParticipants.name,
+        clanMemberId: eventParticipants.clanMemberId,
+        statsSnapshot: eventParticipants.statsSnapshot,
+        cachedStats: eventParticipants.cachedStats,
+        frozenAt: eventParticipants.frozenAt,
+        frozenStats: eventParticipants.frozenStats,
+        // Per-KEY last-rose timestamps — the "is this teammate grinding THIS stat tile right now" signal
+        // for "Active now". Per-stat (not per-member), so a fishing push only marks their fishing tile.
+        liveStatKeyTimes: clanRoster.liveStatKeyTimes,
+      })
+      .from(eventParticipants)
+      .leftJoin(clanRoster, eq(eventParticipants.clanMemberId, clanRoster.id))
+      .where(and(eq(eventParticipants.eventId, eventId), eq(eventParticipants.teamId, teamId)));
+    // Member-scoped real-time overlay (shared with weekly), folded into current as a per-key max.
+    const memberLive = await liveStatsForMembers(teamPlayers.map((p) => p.clanMemberId));
+    return { teamPlayers, memberLive };
+  }, TEAM_STATS_TTL_MS);
+
+  // Each blob is parsed ONCE per request. This used to JSON.parse both multi-KB blobs per
+  // tile × player × key — thousands of parses a poll on a stat-heavy board, on the event loop.
+  type StatBlob = HiscoresSnapshot | null;
+  const parsedBlobs = new Map<string, StatBlob>();
+  function parseBlob(blob: string | null): StatBlob {
+    if (!blob) return null;
+    if (parsedBlobs.has(blob)) return parsedBlobs.get(blob)!;
+    let parsed: StatBlob = null;
+    try {
+      parsed = JSON.parse(blob) as HiscoresSnapshot;
+    } catch {
+      parsed = null;
+    }
+    parsedBlobs.set(blob, parsed);
+    return parsed;
+  }
+  function readStatValue(blob: string | null, statType: string | null, statName: string): number | null {
+    const parsed = parseBlob(blob);
+    if (!parsed) return null;
+    if (statType === 'boss' || statType === 'kc') {
+      return parsed.bosses?.[statName]?.score ?? null;
+    }
+    // default to skill XP
+    return parsed.skills?.[statName]?.xp ?? null;
+  }
+
+  // "Active now" attribution for stat tiles: a teammate who's contributed to a stat tile AND pushed
+  // live stats within this window is shown as actively grinding it (the plugin marks the caller "You"
+  // via its own local signal, so the caller is excluded here). Capped to bound the payload.
+  const ACTIVE_STAT_WINDOW_MS = 5 * 60_000;
+  const ACTIVE_WORKERS_CAP = 5;
+  const nowMs = Date.now();
+  // Everyone (the caller too) whose stat key on a tile rose within the window — the panel's "Active now".
+  const statSightings: WorkSighting[] = [];
+
+  const trackedStats = statTilesRaw.map((t) => {
+    const statName = t.trackedStat ?? '';
+    const statType = t.statType ?? 'skill';
+    const goal = t.statGoal ?? 0;
+    const trackingMode = t.trackingMode ?? 'team';
+
+    let gainedTotal = 0;
+    const activeWorkers: string[] = [];
+    // Each active worker's event gain on this tile, index-matched to activeWorkers, so "Active now"
+    // shows who is actually landing the KC/XP rather than just who's online near it.
+    const activeWorkerGains: number[] = [];
+    let yourGained = 0;
+    // A MILESTONE tile measures a lifetime total crossed during the event, and is always settled per
+    // member (lib/statTracking.milestoneState) — so its in-game progress is the CALLER's, like an
+    // individual tile, never a team sum.
+    const milestone = isMilestoneBasis(t.statBasis);
+    const perMember = milestone || isIndividualMode(trackingMode);
+    const sources = perMember && playerId != null
+      ? teamPlayers.filter((p) => p.id === playerId)
+      : teamPlayers;
+    // A mission counts from its announce, not the event start (lib/revealStats).
+    const reveal = parseRevealStats(t.revealStats);
+
+    for (const p of sources) {
+      // Real-time plugin push (boss KC AND skill XP) folds into current as a per-key max, so the
+      // in-game progress reflects a fresh kill / training burst before the hiscores sweep catches up.
+      //
+      // A benched (subbed-out) player is pinned to the stats frozen when they left, with no overlay —
+      // as lib/statTileCredit scores them and the tracker shows them. Their live XP kept counting here,
+      // so a team read a full bar in-game on a tile the site had nowhere near done.
+      const benched = !!p.frozenAt;
+      const nowStats = benched ? p.frozenStats : p.cachedStats;
+      const plug = benched ? {} : (p.clanMemberId != null && memberLive.get(p.clanMemberId)) || {};
+      // Composite trackedStat ("chambersOfXeric,chambersOfXericChallengeMode") sums the
+      // per-key gains — CoX and CM clears count toward the same tile.
+      let playerGained = 0;
+      let lifetime = 0;
+      let baselineTotal = 0;
+      for (const part of statKeys(statName)) {
+        if (!milestone && statType === 'skill' && part === 'overall') {
+          // Total XP reads live per skill, exactly as the site scores it (lib/statTracking) — the
+          // hiscores overall alone only moves on logout.
+          playerGained += computeGain(parseBlob(p.statsSnapshot), parseBlob(nowStats), plug, ['overall'], 'skill');
+          continue;
+        }
+        const baseline = readStatValue(p.statsSnapshot, statType, part);
+        const hiscoresCurrent = readStatValue(nowStats, statType, part);
+        const pushed = plug[part];
+        const current = hiscoresCurrent != null || pushed != null
+          ? Math.max(hiscoresCurrent ?? 0, pushed ?? 0)
+          : null;
+        if (baseline == null || current == null) continue;
+        baselineTotal += Math.max(0, baseline);
+        lifetime += Math.max(0, current);
+        const gained = current - baseline;
+        if (gained > 0) playerGained += gained;
+      }
+      // The team view (no caller) leaves a per-member tile at zero and lists each member's own instead.
+      if (!milestone) {
+        playerGained = gainSinceReveal(playerGained, reveal, p.id);
+        if (playerId == null && perMember) memberOwn(p.id).c[t.id] = playerGained;
+        else gainedTotal += playerGained;
+      } else {
+        // Report the caller's lifetime against the goal — but ZERO once they were already at or above
+        // it when the event started. They can never complete this tile, and a full bar that never
+        // credits is worse than an empty one: the empty bar at least matches what will happen.
+        const mine = baselineTotal < goal && eligibleSinceReveal(reveal, p.id, goal) ? Math.min(lifetime, goal) : 0;
+        if (playerId == null) memberOwn(p.id).c[t.id] = mine;
+        else gainedTotal = mine;
+      }
+      if (p.id === playerId) yourGained = playerGained;
+      if (playerId == null) memberOwn(p.id).y[t.id] = playerGained;
+      // Somebody is "active on THIS tile" only if one of ITS stat keys actually rose within the window
+      // (not merely any live push + some cumulative gain) — so a fishing burst no longer lights up their
+      // CM/ToA tiles.
+      if (playerGained > 0 && !benched) {
+        const keyTimes = parseStatKeyTimes(p.liveStatKeyTimes);
+        const roseAt = Math.max(-1, ...statKeys(statName).map((k) => Date.parse(keyTimes[k] ?? '')).filter(Number.isFinite));
+        if (roseAt >= 0 && nowMs - roseAt <= ACTIVE_STAT_WINDOW_MS) {
+          statSightings.push({ tileId: t.id, name: p.name, self: p.id === playerId, atMs: roseAt, gain: playerGained });
+          // Older plugins add the caller themselves, from a local signal.
+          if (p.id !== playerId && activeWorkers.length < ACTIVE_WORKERS_CAP) {
+            activeWorkers.push(p.name);
+            activeWorkerGains.push(playerGained);
+          }
+        }
+      }
+    }
+
+    return {
+      tileId: t.id,
+      // Board position so the plugin can mirror the site's tile order (difficulty sort, shuffle).
+      position: t.position ?? 0,
+      label: t.label,
+      description: t.description ?? null,
+      points: t.points ?? 0,
+      category: t.category ?? null,
+      statName,
+      statType,
+      trackingMode,
+      currentAmount: gainedTotal,
+      goalAmount: goal,
+      // Teammates actively grinding this stat tile right now (RSNs), for the sidebar's "Active now".
+      // Empty on older plugins/servers; the caller is never in here (the plugin marks itself "You").
+      activeWorkers,
+      activeWorkerGains,
+      yourGained,
+      // Boss KC tiles get the boss's representative clog item as their icon; skill tiles
+      // keep -1 (the plugin shows the skill sprite instead). Composite keys use the first
+      // boss's icon (a CoX + CM tile shows the CoX item).
+      itemId: (statType === 'boss' || statType === 'kc') ? bossItemForStatKey(statKeys(statName)[0] ?? statName) ?? -1 : -1,
+    };
+  });
+
+  // Active weekly SOTW/BOTW metrics are pushed live too — merged in below so a member in a bingo AND a
+  // weekly comp pushes both metrics through the same debounced path.
+  const clanSettings = await clanPluginSettings(clan.id);
+  const weeklyNames = clanSettings.weeklyNames;
+
+  // In-game KC-line boss names for the event's boss-KC tiles (+ any active BOTW boss). The plugin
+  // watches for "Your <boss> ... count is: N" matching one of these and pushes the absolute KC to
+  // /api/plugin/stats so the tile updates in real time (see lib/pluginStats + the endpoint).
+  const trackedKcNames = Array.from(
+    new Set([
+      ...statTilesRaw
+        .filter((t) => t.statType === 'boss' || t.statType === 'kc')
+        .flatMap((t) => statKeys(t.trackedStat).flatMap((k) => kcNamesForKey(k))),
+      ...weeklyNames.kc,
+    ]),
+  );
+
+  // The event's tracked stats that are hiscores ACTIVITIES rather than bosses — clue tiers, clog
+  // slots, Colosseum glory and the rest. They're saved as statType 'boss' (they share the KC-style
+  // picker), so they'd otherwise be indistinguishable here; kcNamesForKey returns [] for them, which
+  // is why they contribute nothing to trackedKcNames. Sent as raw keys: the plugin reads each from a
+  // named varbit, so unlike a boss there is no in-game name to match on. It pushes only the subset
+  // it can actually read — rank-based entries (LMS, PvP Arena, Bounty Hunter) have no in-game
+  // counter — and that filtering is the plugin's call, so everything the board tracks is listed.
+  const trackedActivityKeys = Array.from(
+    new Set(
+      statTilesRaw
+        .filter((t) => t.statType === 'boss' || t.statType === 'kc')
+        .flatMap((t) => statKeys(t.trackedStat))
+        .filter((k) => isActivityKey(k)),
+    ),
+  );
+
+  // Skill names for the event's skill-XP tiles (+ any active SOTW skill). The plugin pushes real-time
+  // absolute XP for these off StatChanged so the tile / weekly moves without waiting on the sweep.
+  const trackedSkillNames = Array.from(
+    new Set([
+      ...statTilesRaw
+        .filter((t) => t.statType === 'skill')
+        .flatMap((t) => statKeys(t.trackedStat)),
+      ...weeklyNames.skills,
+    ]),
+  );
+
+  // Read-bootstrap extras merged in so the plugin's login flow is a single GET:
+  // schedule + active weekly (was two separate endpoints) plus the notification
+  // webhooks and fun-death pool the plugin posts with directly.
+  // The schedule is the viewer's own; everything else here is the clan's (cached, see above).
+  const schedule = viewer
+    ? await pluginScheduleViewer(clan.id, viewer.userId).then((v) => buildSchedule(clan.id, { ...v, viewerRsn: pluginViewerRsn(viewer.request), viewerAccountHash: viewer.request.headers.get('x-account-hash') }))
+    : null;
+  const { activeWeekly, webhooks, funDeathMessages, deathTaunts, spoonTaunts, alwaysNotifyItems, showKillCount, dropRarityFloor, tiers, facts, luckItems, alwaysNotifyItemIds } = clanSettings;
+
+  // Team-level tile completions (drops, stats, manual — all tile types). The plugin uses this to
+  // fire a banner for the whole team when any tile is completed, regardless of who finished it.
+  const teamCompletions = tilesRevealed
+    ? await db
+        // teamId + awardedPoints because lib/boardScoring reads them: a frozen award is what the
+        // rules decided when the tile was finished, and re-deriving it would re-price history.
+        .select({
+          teamId: completions.teamId,
+          tileId: completions.tileId,
+          awardedPoints: completions.awardedPoints,
+          creditPlayerId: completions.creditPlayerId,
+          statContributions: completions.statContributions,
+        })
+        .from(completions)
+        .where(eq(completions.teamId, teamId))
+    : [];
+  // Label lookups include CLOSED reveal-mode tiles (a completed bounty tile is closed but its
+  // completion row still needs its label) — just never the still-hidden ones.
+  const visibleEventTiles = revealMode ? fullEventTiles.filter((t) => t.revealedAt != null) : fullEventTiles;
+  const tileById = new Map(visibleEventTiles.map((t) => [t.id, t]));
+  const completedTileIdSet = new Set(teamCompletions.map((c) => c.tileId));
+
+  // "Completed by <who>" for the plugin's completion chat line: the crediting player of the LATEST
+  // submission for each completed tile (usually the one that finished it). A KC/XP completion has no
+  // submission, so it names the member the completion credits (a solo tile), else whoever has the
+  // biggest share of the split frozen at completion — "Kurrozive & 2 more". Manual ones stay null.
+  const completedTileIds = teamCompletions.map((c) => c.tileId);
+  const completedByMap = new Map<number, string>();
+  if (completedTileIds.length > 0) {
+    const creditRows = await db
+      .select({ tileId: submissions.tileId, name: eventParticipants.name })
+      .from(submissions)
+      .leftJoin(eventParticipants, eq(submissions.creditPlayerId, eventParticipants.id))
+      .where(and(eq(submissions.teamId, teamId), inArray(submissions.tileId, completedTileIds)))
+      .orderBy(submissions.createdAt); // ascending → the last write per tile is the latest
+    for (const r of creditRows) {
+      if (r.name) completedByMap.set(r.tileId, r.name);
+    }
+    const nameOf = new Map(teamPlayers.map((p) => [p.id, p.name]));
+    for (const c of teamCompletions) {
+      if (completedByMap.has(c.tileId)) continue;
+      const credited = c.creditPlayerId != null ? nameOf.get(c.creditPlayerId) : undefined;
+      if (credited) {
+        completedByMap.set(c.tileId, credited);
+        continue;
+      }
+      const split = (parseContributionSnapshot(c.statContributions)?.split ?? []).filter((r) => nameOf.has(r.playerId));
+      if (split.length > 0) {
+        completedByMap.set(c.tileId, nameOf.get(split[0].playerId)! + (split.length > 1 ? ` & ${split.length - 1} more` : ''));
+      }
+    }
+  }
+
+  // THE WHOLE BOARD'S FRACTION, from the server rather than from what the plugin can see.
+  //
+  // The plugin only ever learns about tiles it can TRACK — a drop, a KC, an XP goal. A manual tile
+  // never reaches it, so counting the rows it holds denominated a 25-tile board at 10 and reported
+  // "5 / 10 tiles - 50%" beside a website, a Discord post and a clan-switcher row all saying 5 / 25.
+  // A board is not a subset of what a client can detect.
+  //
+  // Scored through lib/boardScoring like every other surface, so it is the same number the website
+  // shows rather than a twelfth hand-rolled reduce: missions stay a bonus outside the denominator,
+  // a drip-feed board measures against the whole pool, and frozen awardedPoints are honoured.
+  // Absent while the board is unrevealed — there is no board to be a fraction of yet.
+  const boardTally = tilesRevealed
+    ? scoreTeam({
+        scoringMode: event.scoringMode,
+        rules,
+        tiles: fullEventTiles,
+        completions: teamCompletions,
+        teamId: teamId,
+        boardPointsTotal: boardPointsPool(event.scoringMode, fullEventTiles),
+      })
+    : null;
+
+  const completedTiles = teamCompletions.map((c) => {
+    const tile = tileById.get(c.tileId);
+    return {
+      tileId: c.tileId,
+      label: tile?.label ?? `Tile #${c.tileId}`,
+      points: tile?.points ?? 0,
+      completedBy: completedByMap.get(c.tileId) ?? null,
+    };
+  });
+
+  // Lock-out claims (bounty / lockout modifier): the most recent missions someone locked in,
+  // EVENT-WIDE (not just this team), so the plugin can announce "X claimed <mission>" to the other
+  // eventParticipants. Only shipped on lockout events; the plugin diffs it across polls and skips its own.
+  let recentClaims:
+    | { tileId: number; label: string; points: number; rsn: string | null; at: string }[]
+    | undefined;
+  // Lockout can come from the event rules OR from an individual mission's own rules.
+  const hasLockoutMissions = fullEventTiles.some((t) => isMissionTile(t) && parseTileMissionRules(t.rules).lockout);
+  // MISSION tiles only: the plugin announces each one as "Mission claimed", so an ordinary tile in
+  // here double-popped every completion (after "Tile complete!") and showed it to the rival team.
+  const missionTileIds = fullEventTiles.filter((t) => isMissionTile(t)).map((t) => t.id);
+  if ((rules.lockout || hasLockoutMissions) && tilesRevealed && missionTileIds.length > 0) {
+    const claimRows = await db
+      .select({
+        tileId: completions.tileId,
+        teamId: completions.teamId,
+        creditPlayerId: completions.creditPlayerId,
+        awardedPoints: completions.awardedPoints,
+        at: completions.completedAt,
+      })
+      .from(completions)
+      .innerJoin(tiles, eq(completions.tileId, tiles.id))
+      .where(and(eq(tiles.eventId, eventId), inArray(completions.tileId, missionTileIds)))
+      .orderBy(sql`${completions.completedAt} desc`)
+      .limit(12);
+    // Finisher name: the completion's crediting player, else the latest submission credit on the tile.
+    const claimCreditIds = Array.from(
+      new Set(claimRows.map((c) => c.creditPlayerId).filter((x): x is number => x != null)),
+    );
+    const claimNameById = new Map<number, string>();
+    if (claimCreditIds.length > 0) {
+      const rows = await db.select({ id: eventParticipants.id, name: eventParticipants.name }).from(eventParticipants).where(inArray(eventParticipants.id, claimCreditIds));
+      for (const r of rows) claimNameById.set(r.id, r.name);
+    }
+    const subTileIds = Array.from(new Set(claimRows.filter((c) => c.creditPlayerId == null).map((c) => c.tileId)));
+    const subNameByTileTeam = new Map<string, string>();
+    if (subTileIds.length > 0) {
+      const subRows = await db
+        .select({ tileId: submissions.tileId, teamId: submissions.teamId, name: eventParticipants.name })
+        .from(submissions)
+        .leftJoin(eventParticipants, eq(submissions.creditPlayerId, eventParticipants.id))
+        .where(inArray(submissions.tileId, subTileIds))
+        .orderBy(submissions.createdAt); // ascending → last write per (tile,team) wins
+      for (const r of subRows) {
+        if (r.name) subNameByTileTeam.set(`${r.tileId}:${r.teamId}`, r.name);
+      }
+    }
+    recentClaims = claimRows.map((c) => {
+      const tile = tileById.get(c.tileId);
+      const rsn =
+        c.creditPlayerId != null
+          ? claimNameById.get(c.creditPlayerId) ?? null
+          : subNameByTileTeam.get(`${c.tileId}:${c.teamId}`) ?? null;
+      return {
+        tileId: c.tileId,
+        label: tile?.label ?? `Tile #${c.tileId}`,
+        points: c.awardedPoints ?? tile?.points ?? 0,
+        rsn,
+        at: c.at,
+      };
+    });
+  }
+
+  // PvP-kill tiles need the event roster so the plugin can tell whether a victim is on a
+  // rival team ('team:other' selectors match RSN → teamId). Only shipped while a pvp tile
+  // exists — otherwise it's payload (and roster) for nothing.
+  const hasPvpTiles = trackedTiles.some((t) => t.tileType === 'pvp');
+  // Shared-kill tiles need the same RSN→team map: naming the teammates in your instance is how a
+  // kill gets correlated (and how a minimum-teammates tile counts people who aren't running the
+  // plugin). Sent for those tiles too, not just PvP ones.
+  // A deathless tile that cares who was in the raid needs it too ("all teammates" is judged in-game).
+  const hasCoopTiles = trackedTiles.some(
+    (t) => (t.tileType === 'kill' || t.tileType === 'deathless')
+      && (t.coopCredit === 'per-kill' || (t.coopMinMembers ?? 0) > 0 || !!t.partyTeamOnly),
+  );
+  const pvpRoster = hasPvpTiles || hasCoopTiles
+    ? (
+        await db
+          .select({ name: eventParticipants.name, teamId: eventParticipants.teamId })
+          .from(eventParticipants)
+          .where(eq(eventParticipants.eventId, eventId))
+      ).filter((p): p is { name: string; teamId: number } => p.teamId != null)
+    : [];
+
+  // Ladder events (in-game "missions board"): the individual leaderboard both all-time and for the
+  // current UTC month, plus the caller's live rank — so the plugin renders a DMM-All-Stars-style board
+  // straight from /config (no extra endpoint). Gated to format='ladder' so other events pay nothing.
+  let ladderStandings: PluginStandings | null = null;
+  let ladderMonthly: PluginStandings | null = null;
+  if (isLadderFormat(event.format)) {
+    const boards = await getLadderBoards(event);
+    ladderStandings = toPluginStandings(boards.allTime, playerId ?? -1, boards.ownerByPlayerId, boards.perPerson);
+    ladderMonthly = toPluginStandings(boards.monthly, playerId ?? -1, boards.ownerByPlayerId, boards.perPerson);
+  }
+
+  // The plugin's "missions board": the announced, still-open objectives with their face points, reveal
+  // time, and per-mission decay/lockout, so it can show a live grow/decay value + a countdown. On a
+  // reveal-policy board every open tile is a mission (ladder/rotating); on a classic board only the
+  // announced MISSION-flagged tiles are. Each carries its own decay (mission tiles) or the event's.
+  const missionSource = revealMode ? allEventTiles : allEventTiles.filter((t) => isMissionTile(t));
+  const missions =
+    missionSource.length > 0
+      ? missionSource.map((t) => {
+          const m = isMissionTile(t) ? parseTileMissionRules(t.rules) : null;
+          // The prize ladder, flattened to what a client needs to RENDER it: the gp on each place
+          // and how many places there are. What the points work out to is already the tile's own
+          // value plus the decay ramp the plugin mirrors, so it isn't duplicated here.
+          const prizes = m ? missionPrizeSummary(m) : [];
+          return {
+            tileId: t.id,
+            label: t.label,
+            points: t.points ?? 0,
+            revealedAt: t.revealedAt ?? null,
+            category: t.category ?? null,
+            decay: m ? m.decay : rules.decay,
+            lockout: m ? m.lockout : rules.lockout,
+            // A double-value day, stamped when this one dropped. Absent = ordinary; the client
+            // multiplies the value it already computes from `points` and the decay ramp.
+            ...(m && m.multiplier !== 1 ? { multiplier: m.multiplier } : {}),
+            ...(prizes.length ? { prizes } : {}),
+            ...(m?.reward?.maxClaims != null ? { maxClaims: m.reward.maxClaims } : {}),
+            // When an unclaimed mission auto-closes (expiryHours after its announce), so the plugin
+            // can count it down. Absent = it stays open until claimed or the event ends.
+            ...(m?.expiryHours != null && t.revealedAt
+              ? { expiresAt: new Date(Date.parse(t.revealedAt) + m.expiryHours * 3_600_000).toISOString() }
+              : {}),
+          };
+        })
+      : undefined;
+
+  // What the coffer can actually cover. Sent only when something on this board promises gp, so a
+  // board with no prizes pays nothing for the query — and sent at all because "50m to first" reads
+  // very differently next to an empty pot, and the plugin should be able to say which it is.
+  const anyPrizes = missions?.some((m) => 'prizes' in m && (m.prizes?.length ?? 0) > 0) ?? false;
+  const cofferAvailable = anyPrizes ? (await getCofferBalance(clan.id)).available : null;
+  // Countdown target: the board's next reveal, else the next mission drop (classic-with-missions).
+  const effectiveNextRevealAt = revealMode
+    ? nextRevealAt(event, rules, fullEventTiles)
+    : nextMissionAt(event, rules, fullEventTiles);
+
+  const body = {
+    server: serverInfo(),
+    // Resolved to an entry, so the logged-in character is this login's own (null on a hint-only read).
+    accountStanding: viewer && playedCharacter(viewer.request) ? 'yours' : null,
+    clanName: clanSettings.clanName,
+    // Same two fields as the not-enrolled shape above: which clan answered, and the rest of this
+    // person's clans for the switcher. Present on BOTH shapes so the dropdown does not empty out
+    // the moment somebody's event ends (lib/pluginClans).
+    activeClan: { slug: clan.slug, name: clan.name },
+    clans: viewer ? await pluginClansFor(viewer.userId, viewer.rsn) : [],
+    event: {
+      id: event.id,
+      name: event.name,
+      startDate: event.startDate,
+      endDate: event.endDate,
+      forceEndedAt: event.forceEndedAt ?? null,
+      // The plugin's Anvil tab opens the matching view (grid / points accordion / tile race / ladder)
+      // for the player's own active event straight from these two fields.
+      format: event.format,
+      scoringMode: event.scoringMode,
+      // Reveal-policy board extras (absent on classic events). Old plugins ignore unknown fields.
+      ...(revealMode
+        ? {
+            revealPolicy: rules.revealPolicy,
+            hiddenTileCount: fullEventTiles.length - visibleEventTiles.length,
+          }
+        : {}),
+      // The missions board: the announced objectives + the countdown/decay they need. Present for a
+      // reveal board (its open tiles) OR a classic board that has announced mission tiles.
+      ...(revealMode || missions
+        ? { nextRevealAt: effectiveNextRevealAt, decay: rules.decay }
+        : {}),
+      ...(missions ? { missions } : {}),
+      // Missions not yet announced. With no scheduled drop (nextRevealAt null) this is what tells "no
+      // more missions" apart from "staff drop the next one by hand".
+      ...(missions && !revealMode
+        ? { missionsLeft: fullEventTiles.filter((t) => isMissionTile(t) && t.revealedAt == null).length }
+        : {}),
+      ...(cofferAvailable != null ? { cofferAvailable } : {}),
+      // Ladder standings: all-time + this-month individual leaderboards with the caller's rank.
+      ...(ladderStandings ? { standings: ladderStandings, monthlyStandings: ladderMonthly } : {}),
+      // Lock-out claims (event-wide) so the plugin can announce another player's claim.
+      ...(recentClaims ? { recentClaims } : {}),
+    },
+    team: {
+      id: team.id,
+      name: team.name,
+      color: team.color,
+    },
+    // The board's own fraction — see boardTally above. Old plugins ignore it and keep counting the
+    // tiles they hold; a newer one shows the board the rest of Anvil is showing.
+    ...(boardTally
+      ? {
+          board: {
+            tilesComplete: boardTally.boardScore,
+            tilesTotal: boardTally.total,
+            pointsScored: boardTally.unit === 'pts',
+          },
+        }
+      : {}),
+    player: {
+      id: playerId,
+    },
+    codeword: playerId != null ? generateCodeword(playerId, event.id) : null,
+    // Activity names for the personal-best import (lib/pluginConfig). RuneLite files its stored PBs
+    // under a config scope the plugin can READ but can't LIST, so it has to ask by name — and the
+    // names live here rather than in the plugin so a new boss is a dataset change, not a release.
+    pbActivities: personalBestActivities(),
+    caVarps: combatTaskVarps(),
+    // Null unless this event requires a starting shot (lib/startProof). Carries the drawn location,
+    // this player's keyword and whether they've filed one — the plugin's button keys off it.
+    startProof,
+    // Bosses whose vestige is on a fixed rotation (lib/rollTables). Server-side data so a cadence
+    // change or a corrected item list is an edit here, not a plugin release.
+    rollTables: pluginRollTables,
+    schedule,
+    activeWeekly,
+    // Admin-configurable difficulty bands (points → tier) for the in-clog Tier filter.
+    tiers,
+    notify: notifyFlags(webhooks),
+    funDeathMessages,
+    deathTaunts,
+    spoonTaunts,
+    alwaysNotifyItems,
+    alwaysNotifyItemIds,
+    showKillCount,
+    dropRarityFloor,
+    // See the unenrolled branch above (capability 'level-rules'). Only for a signed-in member: an
+    // event token with no login behind it gets no field, and the plugin keeps its built-in rules.
+    ...(viewer?.userId != null ? { levelRules: await pluginLevelRules(clan.id, viewer.userId) } : {}),
+    // See the unenrolled branch above — the drop channel posts with or without a live board, so the
+    // facts behind those posts ship on both shapes.
+    dropFacts: facts,
+    // Drops that count toward luck (lib/luckWorth): reported as moments whatever they sell for, so
+    // an untradeable vestige reaches event luck (lib/eventLuck) and not only its first-ever unlock.
+    // Board-only: event luck is the one reader. Capability 'luck-drops'.
+    luckItemIds: [...new Set(luckItems.map((c) => c.itemId))].sort((a, b) => a - b),
+    completedTiles,
+    trackedStats,
+    trackedKcNames,
+    trackedSkillNames,
+    trackedActivityKeys,
+    trackedDrops: dropTiles
+      // Only tiles with items configured. A collection imported before 0143 can carry its items in
+      // itemRequirements alone, so fall back to those rather than silently dropping the tile.
+      .filter(t => t.trackedItemIds || t.itemRequirements)
+      .map(t => {
+        const itemReqs = t.itemRequirements
+          ? JSON.parse(t.itemRequirements) as { itemId: number; name: string; requiredAmount: number; group?: string | null; groupRequire?: number | null }[]
+          : null;
+        const tileItemTotals = perItemMap.get(t.id);
+        // "Different items only" pool: what counts is how many DIFFERENT items the team has, and the
+        // plugin skips a repeat of one already counted (the site would refuse it anyway).
+        const distinct = !itemReqs && parseCountMode(t.countMode) === 'distinct';
+        const countedItems = distinct
+          ? [...(tileItemTotals ?? new Map<number, number>())].filter(([, n]) => n > 0).map(([id]) => id)
+          : null;
+        const trackedIds = t.trackedItemIds
+          ? (JSON.parse(t.trackedItemIds) as number[])
+          : (itemReqs ?? []).map((r) => r.itemId);
+
+        let acceptedSources: string[] | null = null;
+        if (t.acceptedSources) {
+          try {
+            const parsed = JSON.parse(t.acceptedSources);
+            if (Array.isArray(parsed)) acceptedSources = parsed.filter((s) => typeof s === 'string');
+          } catch { /* ignore malformed JSON, treat as accept-any */ }
+        }
+        let sourceNpcs: string[] | null = null;
+        if (t.sourceNpcs) {
+          try {
+            const parsed = JSON.parse(t.sourceNpcs);
+            if (Array.isArray(parsed)) sourceNpcs = parsed.filter((s) => typeof s === 'string');
+          } catch { /* ignore malformed JSON, treat as any-source */ }
+        }
+        return {
+          tileId: t.id,
+          // Board position so the plugin can mirror the site's tile order (difficulty sort, shuffle).
+          position: t.position ?? 0,
+          label: t.label,
+          description: t.description ?? null,
+          points: t.points ?? 0,
+          category: t.category ?? null,
+          itemIds: trackedIds,
+          requiredAmount: t.requiredAmount ?? 1,
+          currentAmount: countedItems ? countedItems.length : submissionMap[t.id] ?? 0,
+          // The one-sentence rule (lib/collectionSets howItCounts) — the sidebar shows it verbatim.
+          howItCounts: howItCounts({
+            tileType: t.tileType,
+            requiredAmount: t.requiredAmount,
+            poolSize: trackedIds.length,
+            countMode: t.countMode,
+            itemRequirements: itemReqs,
+            groupMode: t.groupMode,
+            setsRequired: t.setsRequired,
+          }),
+          ...(countedItems ? { countMode: 'distinct', countedItemIds: countedItems } : {}),
+          acceptedSources,
+          sourceNpcs,
+          // Exact raid party size required ("solo Cursed phalanx"); rides
+          // timeThresholdSeconds on drop tiles. 0 = any size.
+          partySize: t.timeThresholdSeconds ?? 0,
+          // Most this tile can be credited from one kill (0 = uncapped). The plugin enforces it —
+          // it's the only side that can see where one kill ends and the next begins.
+          perKillCap: t.perKillCap ?? 0,
+          ...(itemReqs ? {
+            itemRequirements: itemReqs.map(req => ({
+              itemId: req.itemId,
+              name: req.name,
+              requiredAmount: req.requiredAmount,
+              group: req.group ?? null,
+              // How many of the set satisfy it (absent = all), and how the sets combine. Older
+              // plugins ignore both and keep reading the tile as OR-ed full sets; the SERVER owns
+              // completion either way, so an 'all' tile still credits correctly in-game — its
+              // progress bar just reads the old way until the plugin ships set support.
+              groupRequire: req.groupRequire ?? 0,
+              currentAmount: tileItemTotals?.get(req.itemId) ?? 0,
+            })),
+            groupMode: t.groupMode === 'all' ? 'all' : 'any',
+            // Sets needed in 'any' mode. A piece then counts up to this many times (Ahrim's twice);
+            // older plugins cap each piece at one and simply stop tracking after the first set.
+            setsRequired: parseSetsRequired(t.setsRequired),
+          } : {}),
+        };
+      }),
+
+    // Kill-count tiles — the plugin counts kills of the named NPC(s) (not hiscores-backed)
+    // and submits a baked screenshot toward `requiredAmount`. `currentAmount` is the team's
+    // submitted kill total so the side panel can show progress.
+    //
+    // Agility-lap tiles ride this same array on purpose. The plugin's kill counter is driven by
+    // the Jagex "Your <X> ... count is: N" line, whose parser already strips the "lap" counter
+    // word — so a lap tile is exactly a kill tile whose target names are course names, and it
+    // credits on every client build, including ones released before laps existed. Only the SITE
+    // needs to know the difference (it says "laps", not "kills").
+    trackedKills: trackedTiles
+      .filter((t) => t.tileType === 'kill' || t.tileType === 'lap')
+      .map((t) => {
+        let targetNpcs: string[] = [];
+        if (t.targetNpcs) {
+          try {
+            const parsed = JSON.parse(t.targetNpcs);
+            if (Array.isArray(parsed)) targetNpcs = parsed.filter((s) => typeof s === 'string');
+          } catch { /* ignore malformed JSON */ }
+        }
+        return {
+          tileId: t.id,
+          // Board position so the plugin can mirror the site's tile order (difficulty sort, shuffle).
+          position: t.position ?? 0,
+          label: t.label,
+          description: t.description ?? null,
+          points: t.points ?? 0,
+          category: t.category ?? null,
+          targetNpcs,
+          requiredAmount: t.requiredAmount ?? 1,
+          currentAmount: currentFor(t),
+          // What one credit is, for the plugin's in-game wording only ("Tracked lap: …"). Reads off
+          // the targets, since a Sepulchre tile counts floors rather than laps. Clients that predate
+          // agility tiles ignore the field and say "kill", which is the old behaviour.
+          unit: t.tileType === 'lap' ? lapUnitNoun(targetNpcs) : 'kill',
+          trackingMode: t.trackingMode ?? 'team',
+          // Shared kills: 'per-kill' collapses one kill several members were in, and
+          // coopMinMembers gates it on how many of the team were there. Either one makes the plugin
+          // attach what it could see of its company to the submission (lib/coopRuns correlates
+          // them server-side). Absent/'per-member' + 0 = nothing to report, as before.
+          coopCredit: t.coopCredit === 'per-kill' ? 'per-kill' : 'per-member',
+          coopMinMembers: t.coopMinMembers ?? 0,
+        };
+      }),
+
+    // PvP-kill tiles — the plugin credits a kill off the "You have defeated <name>!" line
+    // (sent only to the player the game awards the kill/loot key to — one credit per death),
+    // gated to dangerous PvP (Wilderness / PvP worlds), when the victim matches a selector:
+    // 'team:other' = any member of a rival team (resolved against pvpRoster), 'rsn:<name>'
+    // = a named bounty.
+    // Selectors live in the targetNpcs column (reused per-tileType, like diary/CA).
+    trackedPvp: trackedTiles
+      .filter((t) => t.tileType === 'pvp')
+      .map((t) => {
+        let targets: string[] = [];
+        if (t.targetNpcs) {
+          try {
+            const parsed = JSON.parse(t.targetNpcs);
+            if (Array.isArray(parsed)) targets = parsed.filter((s) => typeof s === 'string');
+          } catch { /* ignore malformed JSON */ }
+        }
+        return {
+          tileId: t.id,
+          // Board position so the plugin can mirror the site's tile order (difficulty sort, shuffle).
+          position: t.position ?? 0,
+          label: t.label,
+          description: t.description ?? null,
+          points: t.points ?? 0,
+          category: t.category ?? null,
+          targets,
+          requiredAmount: t.requiredAmount ?? 1,
+          currentAmount: currentFor(t),
+          trackingMode: t.trackingMode ?? 'team',
+          // Minimum loot value (gp) a kill must yield to count. 0 = no minimum (every attributed
+          // kill counts, incl. loot-key kills). > 0 makes the plugin price the kill's loot and
+          // only credit kills worth at least this much.
+          minLootValue: t.pvpMinLootValue ?? 0,
+        };
+      }),
+    pvpRoster,
+
+    // Achievement-diary tiles — the plugin credits a completion when the in-game diary
+    // completion line matches one of the tile's selectors ("Ardougne Elite", "Any Elite",
+    // "Wilderness Any"). Selectors live in the targetNpcs column (reused per-tileType).
+    trackedDiaries: trackedTiles
+      .filter((t) => t.tileType === 'diary')
+      .map((t) => {
+        let diaries: string[] = [];
+        if (t.targetNpcs) {
+          try {
+            const parsed = JSON.parse(t.targetNpcs);
+            if (Array.isArray(parsed)) diaries = parsed.filter((s) => typeof s === 'string');
+          } catch { /* ignore malformed JSON */ }
+        }
+        return {
+          tileId: t.id,
+          // Board position so the plugin can mirror the site's tile order (difficulty sort, shuffle).
+          position: t.position ?? 0,
+          label: t.label,
+          description: t.description ?? null,
+          points: t.points ?? 0,
+          category: t.category ?? null,
+          diaries,
+          requiredAmount: t.requiredAmount ?? 1,
+          currentAmount: currentFor(t),
+          trackingMode: t.trackingMode ?? 'team',
+        };
+      }),
+
+    // Combat Achievement tiles — the plugin credits a completion when the in-game "you've
+    // completed a <tier> combat task" line matches one of the tile's selectors (exact task
+    // names like "Whack-a-Mole", or "Any <Tier>" wildcards). Selectors live in the targetNpcs
+    // column (reused per-tileType, like diary). Players who already own a task re-fire the
+    // line via the in-game "Repeat completion" setting. Consumed by a future plugin release —
+    // current plugins simply ignore the field.
+    trackedCombatTasks: trackedTiles
+      .filter((t) => t.tileType === 'ca')
+      .map((t) => {
+        let tasks: string[] = [];
+        if (t.targetNpcs) {
+          try {
+            const parsed = JSON.parse(t.targetNpcs);
+            if (Array.isArray(parsed)) tasks = parsed.filter((s) => typeof s === 'string');
+          } catch { /* ignore malformed JSON */ }
+        }
+        return {
+          tileId: t.id,
+          // Board position so the plugin can mirror the site's tile order (difficulty sort, shuffle).
+          position: t.position ?? 0,
+          label: t.label,
+          description: t.description ?? null,
+          points: t.points ?? 0,
+          category: t.category ?? null,
+          tasks,
+          requiredAmount: t.requiredAmount ?? 1,
+          currentAmount: currentFor(t),
+          trackingMode: t.trackingMode ?? 'team',
+        };
+      }),
+
+    // Timed-clear tiles — the plugin times the named activity and bakes the duration onto a
+    // screenshot; the tile completes when a submitted time is at or under `thresholdSeconds`.
+    trackedTimed: trackedTiles
+      .filter((t) => t.tileType === 'timed')
+      .map((t) => ({
+        tileId: t.id,
+        // Board position so the plugin can mirror the site's tile order (difficulty sort, shuffle).
+        position: t.position ?? 0,
+        label: t.label,
+        description: t.description ?? null,
+        points: t.points ?? 0,
+        category: t.category ?? null,
+        activity: t.timedActivity ?? null,
+        thresholdSeconds: t.timeThresholdSeconds ?? null,
+        // Exact party size required inside the raid (0 = any) — mirrors deathless partySize.
+        partySize: t.partySize ?? 0,
+        // ToA: the raid level the run must END at (0 = any) — judged at the completion line.
+        minRaidLevel: t.minRaidLevel ?? 0,
+        // Signature reward of the timed activity (Colosseum → Dizana's quiver) — the clog
+        // accordion's icon; -1 falls back to the book sprite.
+        itemId: notableItemFor(t.timedActivity) ?? -1,
+        completed: completedTileIdSet.has(t.id),
+      })),
+
+    // LMS placement tiles — the plugin watches Last Man Standing games and submits a baked
+    // screenshot each time the player places at or under `placementCap` (1 = win). The cap
+    // rides in the timeThresholdSeconds column; `requiredAmount` qualifying games complete
+    // the tile (summed like kill tiles).
+    trackedLms: trackedTiles
+      .filter((t) => t.tileType === 'lms')
+      .map((t) => ({
+        tileId: t.id,
+        // Board position so the plugin can mirror the site's tile order (difficulty sort, shuffle).
+        position: t.position ?? 0,
+        label: t.label,
+        description: t.description ?? null,
+        points: t.points ?? 0,
+        category: t.category ?? null,
+        placementCap: t.timeThresholdSeconds ?? 1,
+        requiredAmount: t.requiredAmount ?? 1,
+        currentAmount: submissionMap[t.id] ?? 0,
+        completed: completedTileIdSet.has(t.id),
+      })),
+
+    // Loot-value tiles — the plugin prices every loot haul (drop, loot key, PvP kill) and
+    // submits a baked screenshot when one meets `thresholdGp` (stored in requiredAmount).
+    // `sources` optionally restricts where the haul may come from: NPC/chest names, or the
+    // special "PvP" for player kills. Empty = any source.
+    trackedValues: trackedTiles
+      .filter((t) => t.tileType === 'value' || t.tileType === 'valuetotal')
+      .map((t) => {
+        let sources: string[] = [];
+        if (t.sourceNpcs) {
+          try {
+            const parsed = JSON.parse(t.sourceNpcs);
+            if (Array.isArray(parsed)) sources = parsed.filter((s) => typeof s === 'string');
+          } catch { /* ignore malformed JSON */ }
+        }
+        return {
+          tileId: t.id,
+          // Board position so the plugin can mirror the site's tile order (difficulty sort, shuffle).
+          position: t.position ?? 0,
+          label: t.label,
+          description: t.description ?? null,
+          points: t.points ?? 0,
+          category: t.category ?? null,
+          thresholdGp: t.requiredAmount ?? 1,
+          // 'single' = one haul must meet the threshold; 'total' = hauls sum toward it.
+          mode: t.tileType === 'valuetotal' ? 'total' : 'single',
+          currentGp: submissionMap[t.id] ?? 0,
+          sources,
+          completed: completedTileIdSet.has(t.id),
+        };
+      }),
+
+    // Item-gain tiles — the plugin counts tracked items appearing in the inventory
+    // (fishing catches, cooked food, jarred implings) and submits a baked running total,
+    // exactly like kill tiles. Bank/GE/trade gains are ignored plugin-side.
+    trackedGains: trackedTiles
+      .filter((t) => t.tileType === 'gain')
+      .map((t) => ({
+        tileId: t.id,
+        // Board position so the plugin can mirror the site's tile order (difficulty sort, shuffle).
+        position: t.position ?? 0,
+        label: t.label,
+        description: t.description ?? null,
+        points: t.points ?? 0,
+        category: t.category ?? null,
+        itemIds: (() => {
+          try {
+            const ids = JSON.parse(t.trackedItemIds || '[]');
+            return Array.isArray(ids) ? ids.filter((n) => typeof n === 'number') : [];
+          } catch { return []; }
+        })(),
+        requiredAmount: t.requiredAmount ?? 1,
+        currentAmount: currentFor(t),
+        trackingMode: t.trackingMode ?? 'team',
+        completed: completedTileIdSet.has(t.id),
+      })),
+
+    // Deathless-raid tiles — the plugin counts player deaths inside the raid instance and
+    // credits a run off the completion message only when that count is zero. The raid name
+    // rides timedActivity; requiredAmount = deathless runs needed.
+    trackedDeathless: trackedTiles
+      .filter((t) => t.tileType === 'deathless')
+      .map((t) => ({
+        tileId: t.id,
+        // Board position so the plugin can mirror the site's tile order (difficulty sort, shuffle).
+        position: t.position ?? 0,
+        label: t.label,
+        description: t.description ?? null,
+        points: t.points ?? 0,
+        category: t.category ?? null,
+        activity: t.timedActivity ?? null,
+        requiredAmount: t.requiredAmount ?? 1,
+        currentAmount: submissionMap[t.id] ?? 0,
+        // Exact party size required (rides timeThresholdSeconds); 0 = any size.
+        partySize: t.timeThresholdSeconds ?? 0,
+        // ToA raid-level floor (0 = any); "every player is on the team"; and the kill tile's
+        // shared-run rules — a run several teammates finished together credits once, and/or needs
+        // at least this many of the team in it (lib/coopRuns, fed by the plugin's fingerprint).
+        minRaidLevel: t.minRaidLevel ?? 0,
+        partyTeamOnly: !!t.partyTeamOnly,
+        coopCredit: t.coopCredit === 'per-kill' ? 'per-kill' : 'per-member',
+        coopMinMembers: t.coopMinMembers ?? 0,
+        itemId: notableItemFor(t.timedActivity) ?? -1,
+        completed: completedTileIdSet.has(t.id),
+      })),
+  };
+
+  // "Active now": credited submissions in the window (named, the caller's own marked) and the stat
+  // sightings above. The created_at column holds two formats (lib/dbTime), so the SQL cut is coarse
+  // and the exact window is applied after parsing.
+  const cutoff = new Date(nowMs - ACTIVE_WINDOW_MS).toISOString().slice(0, 10);
+  const recent = await db
+    .select({ tileId: submissions.tileId, createdAt: submissions.createdAt, creditPlayerId: submissions.creditPlayerId, playerId: submissions.playerId })
+    .from(submissions)
+    .where(and(eq(submissions.teamId, team.id), sql`${submissions.createdAt} >= ${cutoff}`));
+  const names = new Map(teamPlayers.map((p) => [p.id, p.name]));
+  const sightings: WorkSighting[] = [...statSightings];
+  for (const r of recent) {
+    const who = r.creditPlayerId ?? r.playerId;
+    const atMs = parseStamp(r.createdAt);
+    if (who == null || atMs == null || !names.has(who)) continue;
+    sightings.push({ tileId: r.tileId, name: names.get(who)!, self: who === playerId, atMs });
+  }
+  for (const r of soloByMember) {
+    if (r.who != null && perMemberTiles.has(r.tileId)) memberOwn(r.who).c[r.tileId] = Number(r.total);
+  }
+  const rows = panelTiles(body);
+  return {
+    ok: true as const,
+    body: {
+      ...body,
+      // The side panel's rows, ready to draw (lib/pluginPanel, capability 'panel-view').
+      panel: {
+        tiles: rows,
+        activeNow: activeNow(rows, sightings, nowMs),
+        ...(schedule ? panelSchedule(schedule, { ids: [event.id] }) : { scheduled: [], weeklies: [] }),
+      },
+    },
+    members,
+  };
+}

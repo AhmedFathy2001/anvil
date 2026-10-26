@@ -195,7 +195,8 @@ export function canonicalUrl(): string | null {
 
 /**
  * 'push-ws': GET /api/plugin/push/ticket hands a signed pass onto the live push socket
- * (push/server.ts), which says when to refetch config, the board or a pinned tile. Advertised only
+ * (push/server.ts), which sends the team's progress, the board and pinned-tile numbers as they change
+ * (lib/push/views; docs/PLUGIN_WIRE.md). Advertised only
  * where that server runs (PUSH_WS=1), so a plugin never dials a socket nobody answers; without it,
  * plugins poll exactly as before.
  */
