@@ -506,6 +506,31 @@ Rarity is priced server-side from the shipped drop dataset and never read from t
 **Never scoring.** Nothing here completes a tile, awards a point or moves a standing: no hiscores
 read can confirm a drop. It is the colour around the numbers.
 
+### `push-ws`
+
+A live channel that tells the plugin **when** to refetch, so it can stop polling on a timer. It
+carries no data of its own: every message names routes the plugin already polls.
+
+- Advertised only where the push server runs (`PUSH_WS=1` on the site). Without it, plugins poll
+  exactly as before.
+- `GET /api/plugin/push/ticket` (plugin token): `{ url, ticket, expiresAt }`, or **204** when the
+  caller has no board to listen to. The ticket is HMAC-signed by the site (`lib/push/ticket`) and
+  carries the scope the config route would resolve: the seat's event and team, else the home board.
+  It lives 10 minutes.
+- Connect to `url` with `Authorization: Bearer <ticket>`. A bad or expired ticket gets **401**
+  before the upgrade. The server sends `{"t":"hello"}`, then
+  `{"t":"changed","config":true,"board":true,"tiles":[12]}` with any subset of the keys:
+  `config` = refetch `/api/plugin/config`, `board` = the board/panel reads, `tiles` = pinned
+  tracker tiles. Messages to one client are at most one per 5 s; the first in a quiet spell is
+  immediate.
+- The socket is listen-only (a client message closes it). Close code **4001** = ticket expired:
+  fetch a new ticket and reconnect, which also re-scopes after a seat change. **1012** = server
+  restart. Reconnect with backoff on any close, then refetch once to catch up.
+- Keep a slow poll while connected: the push covers board writes (migration 0149 triggers) and
+  live stat pushes, not every clan setting.
+- Server: `push/server.ts`, its own container off the site image
+  (`node --experimental-strip-types push/server.ts`), behind the same host on `/api/plugin/push/ws`.
+
 ## Checklist: shipping a new plugin-facing feature
 
 On the site:

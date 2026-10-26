@@ -193,12 +193,22 @@ export function canonicalUrl(): string | null {
   }
 }
 
+/**
+ * 'push-ws': GET /api/plugin/push/ticket hands a signed pass onto the live push socket
+ * (push/server.ts), which says when to refetch config, the board or a pinned tile. Advertised only
+ * where that server runs (PUSH_WS=1), so a plugin never dials a socket nobody answers; without it,
+ * plugins poll exactly as before.
+ */
+export function pushEnabled(): boolean {
+  return process.env.PUSH_WS === '1';
+}
+
 export function serverInfo() {
   return {
     version: APP_VERSION,
     sha: GIT_SHA,
     apiLevel: PLUGIN_API_LEVEL,
-    capabilities: [...PLUGIN_CAPABILITIES],
+    capabilities: [...PLUGIN_CAPABILITIES, ...(pushEnabled() ? ['push-ws'] : [])],
     // Where this deployment prefers to be called. Additive: older plugins ignore it.
     canonicalUrl: canonicalUrl(),
   };

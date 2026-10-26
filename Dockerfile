@@ -85,6 +85,11 @@ COPY --from=builder --chown=nextjs:nodejs /app/node_modules/postgres-bytea ./nod
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/postgres-date ./node_modules/postgres-date
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/postgres-interval ./node_modules/postgres-interval
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/pg-cloudflare ./node_modules/pg-cloudflare
+# The live push server (push/server.ts) runs from this same image as its own container, under Node's
+# type stripping: its source, the two pure modules it shares with the site, and the socket library.
+COPY --from=builder --chown=nextjs:nodejs /app/push ./push
+COPY --from=builder --chown=nextjs:nodejs /app/src/lib/push ./src/lib/push
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/ws ./node_modules/ws
 
 USER nextjs
 VOLUME /data
