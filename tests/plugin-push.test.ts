@@ -167,13 +167,28 @@ test('after the database listener comes back, every view is rebuilt', async () =
   assert.deepEqual(built.sort(), ['team:1:10', 'team:2:0']);
 });
 
+test("a roster change sends everyone on that board to re-ticket, and nobody else", async () => {
+  const { hub, advance, views } = harness();
+  views.set(teamKey(1, 10), 'a');
+  views.set(teamKey(2, 30), 'b');
+  const dropped: number[] = [];
+  hub.add({ scope: { userId: 1, eventIds: [1], teamId: 10 }, send: () => {}, rescope: () => dropped.push(1) });
+  hub.add({ scope: { userId: 2, eventIds: [2], teamId: 30 }, send: () => {}, rescope: () => dropped.push(2) });
+  await advance(100);
+  hub.dispatch(change({ k: 'event_participants' }));
+  assert.deepEqual(dropped, [], 'a stats refresh is not a roster change');
+  hub.dispatch(change({ k: 'event_participants', x: true }));
+  assert.deepEqual(dropped, [1]);
+});
+
 test('view keys and NOTIFY payloads parse, and junk is ignored', () => {
   assert.deepEqual(parseViewKey('team:4:0'), { kind: 'team', eventId: 4, id: 0 });
   assert.deepEqual(parseViewKey('tile:4:9'), { kind: 'tile', eventId: 4, id: 9 });
   assert.equal(parseViewKey('team:4'), null);
   assert.equal(parseViewKey('admin:1:1'), null);
   assert.deepEqual(parseChange('{"k":"completions","e":4,"t":9,"i":2}'), { k: 'completions', e: 4, t: 9, i: 2 });
-  assert.deepEqual(parseChange('{"k":"events","e":4,"t":null,"i":null}'), { k: 'events', e: 4, t: null, i: null });
+  assert.deepEqual(parseChange('{"k":"events","e":4,"t":null,"i":null,"x":false}'), { k: 'events', e: 4, t: null, i: null });
+  assert.deepEqual(parseChange('{"k":"event_participants","e":4,"t":null,"i":null,"x":true}'), { k: 'event_participants', e: 4, t: null, i: null, x: true });
   assert.equal(parseChange('{"k":"x"}'), null);
   assert.equal(parseChange('not json'), null);
 });

@@ -12,17 +12,23 @@ import type { PushScope } from './ticket.ts';
 // team costs a handful of builds a minute however many teammates are watching.
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 
-/** One NOTIFY from the database (migration 0149) or lib/pushNotify: e = event, t = team, i = tile. */
+/**
+ * One NOTIFY from the database (migration 0149) or lib/pushNotify: e = event, t = team, i = tile,
+ * x = someone left the board or changed team.
+ */
 export interface PushChange {
   k: string;
   e: number;
   t: number | null;
   i: number | null;
+  x?: boolean;
 }
 
 export interface PushClient {
   scope: PushScope;
   send(message: string): void;
+  /** Drop the connection so the plugin re-tickets: its scope was signed before a roster change. */
+  rescope?(): void;
 }
 
 export interface ViewHubOptions {
@@ -114,7 +120,11 @@ export class ViewHub {
   }
 
   dispatch(change: PushChange): void {
-    if (!this.events.has(change.e)) return;
+    const onBoard = this.events.get(change.e);
+    if (!onBoard) return;
+    // A ticket's team was true when the site signed it. When the roster moves, everyone on that board
+    // asks again rather than anyone hearing a team they've left until their ticket runs out.
+    if (change.x) for (const c of [...onBoard]) c.rescope?.();
     const prefix = `team:${change.e}:`;
     for (const k of this.teams.keys()) {
       if (!k.startsWith(prefix)) continue;
@@ -219,6 +229,7 @@ export function parseChange(payload: string): PushChange | null {
       e: p.e,
       t: Number.isInteger(p.t) ? p.t : null,
       i: Number.isInteger(p.i) ? p.i : null,
+      ...(p.x === true ? { x: true } : {}),
     };
   } catch {
     return null;

@@ -89,7 +89,11 @@ server.on('upgrade', (req, socket, head) => {
     ws.on('message', () => ws.close(1003, 'listen only'));
     // Hello first: the views follow, the cached ones straight away.
     ws.send(JSON.stringify({ t: 'hello' }));
-    const remove = hub.add({ scope, send: (m) => ws.readyState === ws.OPEN && ws.send(m) });
+    const remove = hub.add({
+      scope,
+      send: (m) => ws.readyState === ws.OPEN && ws.send(m),
+      rescope: () => ws.close(4001, 'roster changed'),
+    });
     // The ticket's scope was true when it was signed. At its expiry the plugin reconnects with a fresh
     // one, so a seat that changed (event over, team moved) re-scopes within the ticket's lifetime.
     const expiry = setTimeout(() => ws.close(4001, 'ticket expired'), Math.max(1_000, ticketExpiry(ticket) - Date.now()));
