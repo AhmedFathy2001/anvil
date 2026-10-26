@@ -13,6 +13,7 @@ import { assertEventEditable } from '@/lib/eventLock';
 import { acceptedCohostClanIds } from '@/lib/coHost';
 import { swapTrackedAccount } from '@/lib/trackedAccount';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
+import { syncEventServerMembersFireAndForget } from '@/lib/eventDiscord';
 
 export async function GET(
   request: Request,
@@ -336,5 +337,7 @@ export async function PATCH(
   // Placed on a team, swapped account (which clears the start line) or unbenched on a running
   // event → take their starting stats now. A no-op for anyone who already has them.
   captureStartingStatsSoon(eId, [pId]);
+  // Benched, unbenched or moved: their event-server team role follows (no-op without an event server).
+  if (frozen !== undefined || teamId !== undefined) syncEventServerMembersFireAndForget(eId);
   return NextResponse.json(updated);
 }

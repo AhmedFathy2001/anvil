@@ -24,7 +24,7 @@
  * by that clan's admins, or automatically when that clan has team sync switched on — the host never
  * drives a co-host's bot.
  */
-import { and, eq, inArray, isNotNull, gte } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, gte } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   events,
@@ -573,10 +573,15 @@ export async function provisionClanPlanning(eventId: number, clanId: number): Pr
   for (const team of ownTeams) {
     const row = await ensureTeamResources(ctx, team, 'planning', true, categoryId, result);
     if (!row.roleId) continue;
-    for (const discordId of await teamDiscordIds(team.id)) {
+    const active = await teamDiscordIds(team.id);
+    for (const discordId of active) {
       const r = await putRole(ctx, discordId, row.roleId);
       if (r === 'joined') result.membersAssigned++;
       else if (r === 'not-member') result.membersNotInServer++;
+    }
+    // Subbed out: take the planning role back (unless another of their accounts is still playing).
+    for (const discordId of await teamDiscordIds(team.id, { benched: true })) {
+      if (!active.includes(discordId)) await removeRole(ctx, discordId, row.roleId);
     }
   }
   result.ok = result.failures.length === 0;
@@ -596,11 +601,22 @@ interface RosteredPlayer {
   seatClanId: number | null;
 }
 
-async function rosteredPlayers(eventId: number): Promise<RosteredPlayer[]> {
+/**
+ * Players on a team. Benched (subbed-out) players keep their teamId so their locked gains still count,
+ * but they are off the team as far as Discord goes: no event-server role, no planning role, no DM.
+ * `benched: true` returns exactly those, so their roles can be taken back.
+ */
+async function rosteredPlayers(eventId: number, opts: { benched?: boolean } = {}): Promise<RosteredPlayer[]> {
   const rows = await db
     .select()
     .from(eventParticipants)
-    .where(and(eq(eventParticipants.eventId, eventId), isNotNull(eventParticipants.teamId)));
+    .where(
+      and(
+        eq(eventParticipants.eventId, eventId),
+        isNotNull(eventParticipants.teamId),
+        opts.benched ? isNotNull(eventParticipants.frozenAt) : isNull(eventParticipants.frozenAt),
+      ),
+    );
   const out: RosteredPlayer[] = [];
   for (const p of rows) {
     // clan-scope: global -- the seat behind a participant of an event the caller already settled.
@@ -611,10 +627,10 @@ async function rosteredPlayers(eventId: number): Promise<RosteredPlayer[]> {
   return out;
 }
 
-async function teamDiscordIds(teamId: number): Promise<string[]> {
+async function teamDiscordIds(teamId: number, opts: { benched?: boolean } = {}): Promise<string[]> {
   const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId), columns: { eventId: true } });
   if (!team) return [];
-  const players = await rosteredPlayers(team.eventId);
+  const players = await rosteredPlayers(team.eventId, opts);
   return [...new Set(players.filter((p) => p.teamId === teamId && p.discordId).map((p) => p.discordId!))];
 }
 
@@ -838,7 +854,8 @@ export async function syncEventServerMembers(eventId: number): Promise<MemberSyn
     (await db.select({ id: teams.id, name: teams.name }).from(teams).where(eq(teams.eventId, eventId))).map((t) => [t.id, t.name]),
   );
 
-  for (const player of await rosteredPlayers(eventId)) {
+  const players = await rosteredPlayers(eventId);
+  for (const player of players) {
     if (!player.discordId) {
       result.noDiscord++;
       continue;
@@ -906,8 +923,37 @@ export async function syncEventServerMembers(eventId: number): Promise<MemberSyn
     await db.update(eventDiscordMembers).set(patch).where(eq(eventDiscordMembers.id, row.id));
     result.pending++;
   }
+
+  // Subbed out or taken off the roster: drop their team role and park the row as 'removed' so the
+  // pending re-check cron stops handing it back. They stay in the server; subbing them back in
+  // re-settles the row on the next sync.
+  const active = new Set(players.map((p) => p.discordId).filter(Boolean));
+  const stale = (
+    await db
+      .select()
+      .from(eventDiscordMembers)
+      .where(and(eq(eventDiscordMembers.eventId, eventId), eq(eventDiscordMembers.guildId, ctx.guildId)))
+  ).filter((r) => !active.has(r.discordId) && r.status !== 'removed');
+  for (const row of stale) {
+    const oldRole = row.teamId != null ? roleByTeam.get(row.teamId) : undefined;
+    if (row.status === 'joined' && oldRole) await removeRole(ctx, row.discordId, oldRole);
+    await db
+      .update(eventDiscordMembers)
+      .set({ status: 'removed', lastCheckedAt: new Date().toISOString(), lastError: null })
+      .where(eq(eventDiscordMembers.id, row.id));
+  }
   result.ok = true;
   return result;
+}
+
+/** A roster change (bench, unbench, move, removal) on a live event: bring the event server in line. */
+export function syncEventServerMembersFireAndForget(eventId: number): void {
+  (async () => {
+    // clan-scope: global -- system hook after a roster change on this event.
+    const event = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { discordLayout: true, eventGuildId: true } });
+    if (!event || event.discordLayout === 'own' || !event.eventGuildId) return;
+    await syncEventServerMembers(eventId);
+  })().catch((err) => log.warn('event-discord.member-sync-throw', { eventId }, err));
 }
 
 /**
@@ -990,7 +1036,7 @@ async function playerRow(eventId: number, userId: number): Promise<{ event: Even
       eq(eventDiscordMembers.discordId, user.discordId),
     ),
   });
-  if (!row) return null;
+  if (!row || row.status === 'removed') return null;
   const ctx = await eventServerCtx(event);
   if (!ctx) return null;
   return { event, row, ctx };

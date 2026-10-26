@@ -402,6 +402,31 @@ test('a refused rename keeps the join, and the note says why', async () => {
   assert.equal(after?.lastError, null, 'cleared once the rename works');
 });
 
+test('a subbed-out player loses their team role, is never re-added, and gets it back when subbed in', async () => {
+  const hostPlayer = (await db.query.eventParticipants.findFirst({ where: eq(s.eventParticipants.name, 'Host Player') }))!;
+  await db.update(s.eventParticipants).set({ frozenAt: new Date().toISOString() }).where(eq(s.eventParticipants.id, hostPlayer.id));
+
+  calls.length = 0;
+  const r = await E.syncEventServerMembers(eventId);
+  assert.ok(r.ok, r.error);
+  assert.ok(calls.some((c) => c.method === 'DELETE' && c.path.startsWith(`/guilds/${EVENT_GUILD}/members/u-host-player/roles/`)), 'role taken back');
+  assert.ok(!calls.some((c) => c.method === 'PUT' && c.path.includes('/members/u-host-player')), 'not handed out again');
+  const row = await db.query.eventDiscordMembers.findFirst({ where: eq(s.eventDiscordMembers.discordId, 'u-host-player') });
+  assert.equal(row?.status, 'removed');
+  assert.ok(!(await E.adminStatus(eventId, hostClan))?.members.some((m) => m.name === 'Host Player'), 'off the players list');
+
+  calls.length = 0;
+  await E.recheckPendingEventServerMembers();
+  assert.ok(!calls.some((c) => c.path.includes('u-host-player')), 'the sweep leaves them alone');
+
+  await db.update(s.eventParticipants).set({ frozenAt: null }).where(eq(s.eventParticipants.id, hostPlayer.id));
+  calls.length = 0;
+  await E.syncEventServerMembers(eventId);
+  assert.ok(calls.some((c) => c.method === 'PUT' && c.path.startsWith(`/guilds/${EVENT_GUILD}/members/u-host-player/roles/`)), 'role back');
+  const back = await db.query.eventDiscordMembers.findFirst({ where: eq(s.eventDiscordMembers.discordId, 'u-host-player') });
+  assert.equal(back?.status, 'joined');
+});
+
 test('roles Anvil creates grant nothing server-wide, so the pickers can always list them', async () => {
   const { createGuildRole } = await import('../src/lib/discord-roles.ts');
   calls.length = 0;
