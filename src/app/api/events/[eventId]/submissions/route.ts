@@ -25,7 +25,7 @@ import { startProofGate, NO_START_PROOF_FLAG, START_PROOF_REQUIRED_CODE } from '
 import { eventHasStarted } from '@/lib/completionGate';
 import { track } from '@/lib/analytics';
 import { replayOutsideLab } from '@/lib/lab';
-import { parseProofClaims, captureFlag, gameLines, stampModel, PROOF_IMAGE_MISMATCH_FLAG } from '@/lib/proofStamp';
+import { parseProofClaims, captureFlag, gameLines, stampModel, PROOF_IMAGE_MISMATCH_FLAG, PROVENANCE_REQUIRED_FROM } from '@/lib/proofStamp';
 import { bakeStamp } from '@/lib/proofStampImage';
 import { put, clanMediaKey } from '@/lib/storage';
 import { parseStamp } from '@/lib/dbTime';
@@ -344,18 +344,19 @@ export async function POST(
   }
 
   // PROVENANCE (lib/proofStamp). The image was uploaded by a separate request; a plugin proof whose
-  // picture did not come in through the same user's plugin token is flagged. A row missing entirely
-  // only counts against a plugin that sent stamp claims — an older plugin may be retrying a picture
-  // uploaded before provenance was recorded.
+  // picture did not come in through the same user's plugin token is flagged — including a stamped
+  // copy (via 'stamp') posted back as if fresh. A row missing entirely counts once provenance has
+  // been recorded long enough that no honest retry predates it. This flag wins over the softer
+  // reasons above: a client can choose to send `inferred`, and must not be able to mask this with it.
   const upload = imageUrlValue
     ? await db.query.proofUploads.findFirst({ where: eq(proofUploads.url, imageUrlValue) })
     : null;
   const claims = pluginAuth && imageUrlValue ? parseProofClaims(proof) : null;
   if (pluginAuth && imageUrlValue) {
     const foreign = upload
-      ? upload.via !== 'plugin' || (upload.userId != null && pluginAuth.userId != null && upload.userId !== pluginAuth.userId)
-      : claims != null;
-    if (foreign) flaggedReason = flaggedReason ?? PROOF_IMAGE_MISMATCH_FLAG;
+      ? upload.via !== 'plugin' || upload.userId == null || upload.userId !== pluginAuth.userId
+      : claims != null || receivedAt >= PROVENANCE_REQUIRED_FROM;
+    if (foreign) flaggedReason = PROOF_IMAGE_MISMATCH_FLAG;
   }
   if (claims) {
     const start = parseStamp(event.startDate);
@@ -525,6 +526,10 @@ export async function POST(
       }));
       const slug = (await db.query.clans.findFirst({ where: eq(clans.id, clan.id), columns: { slug: true } }))?.slug;
       const { url } = await put(clanMediaKey(slug, `submissions/${crypto.randomUUID()}-stamped.webp`), stamped, 'image/webp');
+      // Registered as a stamp, so posting this copy back as a fresh proof reads as foreign above.
+      await db.insert(proofUploads).values({
+        url, sha256: crypto.createHash('sha256').update(stamped).digest('hex'), via: 'stamp', userId: upload.userId,
+      }).onConflictDoNothing();
       [submission] = await db.update(submissions)
         .set({ imageUrl: url, cleanImageUrl: imageUrlValue, proofFacts: JSON.stringify(facts) })
         .where(eq(submissions.id, inserted.id)).returning();

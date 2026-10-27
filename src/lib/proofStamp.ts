@@ -132,6 +132,13 @@ export const PROOF_IMAGE_MISMATCH_FLAG = 'proof_image_mismatch';
 export const CAPTURED_BEFORE_START_FLAG = 'captured_before_start';
 export const CLOCK_AHEAD_FLAG = 'capture_clock_ahead';
 
+/**
+ * From here on every plugin proof's picture must have a proof_uploads row. Before it, a missing row
+ * may be an honest retry of a picture uploaded before rows were recorded (the plugin keeps proofs
+ * through outages), so only a plugin that also sent stamp claims is held to it.
+ */
+export const PROVENANCE_REQUIRED_FROM = Date.UTC(2026, 9, 30);
+
 /** Tolerance for a PC clock running fast before "captured in the future" means something. */
 const CLOCK_SKEW_MS = 2 * 60_000;
 

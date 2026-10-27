@@ -2409,7 +2409,7 @@ export const draftShortlists = pgTable('draft_shortlists', {
 export const proofUploads = pgTable('proof_uploads', {
   url: text('url').primaryKey(),
   sha256: text('sha256').notNull(),
-  // 'plugin' | 'web'
+  // 'plugin' | 'web' (who uploaded it) | 'stamp' (the site's own stamped copy of a plugin frame).
   via: text('via').notNull(),
   userId: integer('user_id'),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
