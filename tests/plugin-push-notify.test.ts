@@ -176,7 +176,7 @@ test("the team view plus my own numbers is exactly my config's progress", async 
   assert.deepEqual(amounts(overlay(view.config.trackedKills)), amounts(body.trackedKills));
 });
 
-test('the push server sends my team its view, then the new one when a teammate scores', async () => {
+test('the push server sends my team its view, then just the count when a teammate scores', async () => {
   const url = `ws://127.0.0.1:${PORT}/api/plugin/push/ws`;
   const refused = await new Promise<number>((resolve) => {
     const ws = new WebSocket(url);
@@ -188,7 +188,7 @@ test('the push server sends my team its view, then the new one when a teammate s
   const connect = (teamId: number) => {
     const { ticket } = signTicket({ userId: 1, eventIds: [ids.event], teamId }, ticketKey('test-secret'), Date.now());
     const ws = new WebSocket(url, { headers: { Authorization: `Bearer ${ticket}` } });
-    const got: { t: string; teamId?: number; tileId?: number; config?: { trackedDrops: { tileId: number; currentAmount: number }[] } }[] = [];
+    const got: { t: string; teamId?: number; tileId?: number; c?: Record<string, number>; config?: { trackedDrops: { tileId: number; currentAmount: number }[] } }[] = [];
     ws.on('message', (m) => got.push(JSON.parse(String(m))));
     return { ws, got };
   };
@@ -202,7 +202,9 @@ test('the push server sends my team its view, then the new one when a teammate s
   assert.equal(teamTile(red.got[1]), 3);
 
   await db.insert(s.submissions).values({ tileId: ids.teamTile, teamId: ids.red, playerId: ids.mate, amount: 1 });
-  await waitFor(() => red.got.some((m) => m.t === 'team' && teamTile(m) === 4) && blue.got.some((m) => m.t === 'tile'));
+  // Only a count moved, so red gets just that count, not its whole view again.
+  await waitFor(() => red.got.some((m) => m.t === 'counts' && m.c?.[ids.teamTile] === 4) && blue.got.some((m) => m.t === 'tile'));
+  assert.equal(red.got.filter((m) => m.t === 'team').length, 1, 'the whole view went out once, on connect');
   assert.ok(red.got.some((m) => m.t === 'tile' && m.tileId === ids.teamTile), 'the tracker moves too');
   assert.equal(blue.got.filter((m) => m.t === 'team').length, 1, "the other team's view didn't change, so it wasn't resent");
   red.ws.close();

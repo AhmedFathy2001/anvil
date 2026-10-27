@@ -484,7 +484,9 @@ sign-in, the clan picker, settings and banner sounds, and the starting-shot card
   `fold`, `filter`, `slot`, `toggle`, `input`, `button`, `gap`, `countdown` (ticks in the plugin),
   `warm` (draws nothing; fetches its `on` ahead of the click that wants it) and `native` (a part only
   the plugin draws: `start-proof`) (lib/pluginUi/nodes has every field).
-  Colours: `white`, `text` (RuneLite's text grey), `muted`, `brand`, `done`, `progress`, `claim`,
+  `live: {tile, cur, goal, fmt}` on a bar or a text is a count the plugin moves itself — the higher
+  of `cur` and what it knows newer (its own kill at once, a teammate's from the push) — as a fill or
+  as `of` ("1,234 / 5K"), `raw`, `pct` or `near`. Colours: `white`, `text` (RuneLite's text grey), `muted`, `brand`, `done`, `progress`, `claim`,
   `error` or `#rrggbb`. Any node may carry `tip` and `on` (a click). A type the plugin doesn't know is left out.
 - Pictures are game ids only — `item`, `sprite`, `skill`, `boss` (a hiscores key or name) — drawn with
   RuneLite's managers. **No URL ever travels in a node** (tests/plugin-ui asserts it).
@@ -567,6 +569,12 @@ side panel itself is a `plugin-ui` view: a team message is the plugin's cue to f
     for them and `.y[<tileId>]` your own stat gain (`yourGained`). Team 0 (no team) is just
     `{"t":"team","eventId","teamId":0,"at"}`: the board moved. (Until 2026-10-27 it also carried the
     board and the panel's rows, ~28 KB a second per listener that the server-built panel never read.)
+  - After that first whole view, a listener gets only what moved: `{"t":"counts","eventId","teamId",
+    "c":{<tileId>: <team count>},"m":{<player id>: {"c","y"}}}` when only counts did (lay `c` over
+    every `tracked*` row's `currentAmount`, then your own `m` entry as above); `{"t":"moved",…}` when
+    nothing of the team's did but the board did (a rival's tile, a claim — fetch the panel's view);
+    and the whole `team` view again when anything else changed (a completion, a new mission). A
+    newcomer always starts from the whole view (lib/push/hub `teamDelta`).
   - `{"t":"tile","eventId","tileId","progress":{…}}` — the tracker route's answer for a tile that
     moved, to everyone on the board, with no `mine` flags: mark your team by `teamId` and yourself by
     `members[].id`.

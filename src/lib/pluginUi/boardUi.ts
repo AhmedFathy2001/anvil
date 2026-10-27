@@ -326,8 +326,9 @@ function tileRow(t: BoardTile, s: BoardState, ctx: BoardContext): Node {
   const details = t.description?.trim() || t.requirement;
   const canClaim = ctx.claimBlock == null && !t.complete;
   const planning = claimLine(t.claims);
+  const p = started != null ? ctx.progress.get(t.tileId) : undefined;
   const right = state
-    ? text(state, done ? 'done' : started != null ? IN_PROGRESS : isManual(t) ? MANUAL : 'muted', done ? { icon: { t: 'icon', glyph: 'check', w: 11, h: 11, color: 'done' } } : {})
+    ? text(state, done ? 'done' : started != null ? IN_PROGRESS : isManual(t) ? MANUAL : 'muted', done ? { icon: { t: 'icon', glyph: 'check', w: 11, h: 11, color: 'done' } } : p && !closedUndone(t) ? { live: { tile: t.tileId, cur: p.current, goal: p.goal } } : {})
     : undefined;
   const head = row(undefined, text(name.length > 28 ? `${name.slice(0, 27)}…` : name, done ? 'done' : 'text'), right, { gap: 6 });
   return col([head, ...(planning ? [text(planning.length > 36 ? `${planning.slice(0, 35)}…` : planning, mine(t.claims) ? 'brand' : 'claim', { tip: claimWho(t.claims) })] : [])], {
@@ -450,7 +451,8 @@ export function tileDetailUi(board: Board, t: BoardTile, s: BoardState, ctx: Boa
   if (error) parts.push(text(error, 'error', { wrap: true }), gap(4));
   const p = ctx.progress.get(t.tileId);
   if (p && !t.complete && p.current < p.goal && p.goal > 1) {
-    parts.push(...heading('Progress', 0), row(text(`${percent(p.current, p.goal)}%`, 'text'), { t: 'bar', pct: percent(p.current, p.goal), color: IN_PROGRESS, h: 6, bg: 'panel' }, text(`${count(p.current)} / ${count(p.goal)}`, 'muted', { tip: exact(p.current, p.goal) })), gap(9));
+    const live = { tile: t.tileId, cur: p.current, goal: p.goal };
+    parts.push(...heading('Progress', 0), row(text(`${percent(p.current, p.goal)}%`, 'text', { live: { ...live, fmt: 'pct' } }), { t: 'bar', pct: percent(p.current, p.goal), color: IN_PROGRESS, h: 6, bg: 'panel', live }, text(`${count(p.current)} / ${count(p.goal)}`, 'muted', { tip: exact(p.current, p.goal), live })), gap(9));
   }
   const facts = [
     !s.pre ? `Status: ${stateText(t, false)}` : isManual(t) ? 'Completion: manual' : null,

@@ -113,6 +113,9 @@ test('the board page: standings, pins with a way to drop them, active now, neare
   assert.ok(walk(ui).some((x) => (x.on as { open?: { pane: string } } | undefined)?.open?.pane === 't:1'), 'a row opens its tile on the tiles page');
   const warm = walk(ui).find((x) => x.t === 'warm') as { on: { a: string; v: string; args: Record<string, string> } } | undefined;
   assert.deepEqual(warm?.on.args, { event: '0', back: 'board', backLabel: 'Summer Bingo' }, 'the tiles page every row opens is fetched ahead');
+  const live = walk(ui).filter((x) => x.live && (x.live as { tile: number }).tile === 1).map((x) => [x.t, (x.live as { fmt?: string }).fmt ?? '']);
+  assert.deepEqual(live, [['text', 'of'], ['bar', ''], ['text', 'near'], ['bar', '']], 'its tracked row and its nearest row move in the plugin');
+  assert.ok(!walk(ui).some((x) => x.live && (x.live as { tile: number }).tile === 3), 'a done tile has nothing to move');
 });
 
 test('a starting shot owed puts the plugin’s own card in; an alt watching gets the board read-only', () => {
