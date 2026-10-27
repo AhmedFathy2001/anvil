@@ -19,6 +19,7 @@ import { recordForeignSighting } from '@/lib/accountSightings';
 import { IGNORED_STATUSES } from '@/lib/accountRelease';
 import { pickActivePluginEvent } from '@/lib/pluginEventPick';
 import { trackPluginRoute } from '@/lib/analytics';
+import { noteNetwork } from '@/lib/integrityNetwork';
 import { lastSeenIsFresh } from '@/lib/rosterSync';
 import { labParticipantScope } from '@/lib/lab';
 
@@ -1724,6 +1725,8 @@ export async function resolvePluginMember(
   await ensurePluginVerifiedOnPlay(matchedMember, user.id, accountHash, nowIso);
   // Which plugin endpoint this account used today — once per (account, route, day), never per poll.
   trackPluginRoute(clan.id, matchedMember.accountId, user.id, request.url);
+  // Opt-in boards only (rules.sharingChecks); throttled, fire-and-forget.
+  noteNetwork(request, matchedMember.accountId);
 
   // Both, deliberately: the SEAT is this clan's roster row, the ACCOUNT is what Jagex tracks and
   // what every stat, best and collection-log row hangs off — one history per account, not per clan.

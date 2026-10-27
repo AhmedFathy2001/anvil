@@ -209,6 +209,15 @@ export default async function EventSignupPage({
           : "One sign-up per Discord account. Pick the RSN you'll play with — that's the only account that'll be tracked for this event."}
       </p>
 
+      {eventRules.sharingChecks && (
+        <p className="text-sm text-text-muted mb-6 rounded-lg border border-card-border bg-card-bg px-3 py-2">
+          <strong className="text-foreground">This event checks for shared accounts.</strong> Staff can see when
+          two players&rsquo; plugins connect from the same network, or one player&rsquo;s from two countries within a
+          few hours. Your address is never stored, only a code that means something on this event, deleted 30
+          days after it ends.
+        </p>
+      )}
+
       <PrizePoolHero
         prizePool={prizePool}
         signupFee={event.signupFee}

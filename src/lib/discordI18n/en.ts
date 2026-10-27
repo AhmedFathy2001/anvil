@@ -112,6 +112,8 @@ export const en = {
       '• **Starting shot** — every player files one screenshot after the start, at a location drawn at the start moment. Until you file yours, anything you submit is flagged for review.',
     startProofSession:
       '-# Log out and back in first — hiscores only save on logout, so your shot must be within {minutes} minutes of a fresh login.',
+    sharingChecks:
+      '• **Account-sharing checks** — staff see when two players connect from the same network, or one from two countries within hours. Addresses are never kept, only a code for this event, deleted 30 days after it.',
     teamChoice: '• **Teams** — you pick your team when you sign up; staff approve it.',
     captainInvites: '• **Teams** — captains hand out invite links for their own side.',
     entryFee: '• **Entry fee** — {amount} per entry.',

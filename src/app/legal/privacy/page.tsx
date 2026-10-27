@@ -52,6 +52,15 @@ export default function PrivacyPage() {
           <strong>Technical:</strong> log data such as IP address, request metadata, and error
           diagnostics, used to operate and secure the service.
         </li>
+        <li>
+          <strong>Fair-play checks:</strong> to help a clan&rsquo;s staff spot boosted or shared
+          accounts in its events, we compare the hiscores, personal bests and play times the plugin
+          and hiscores already give us. On events whose organiser turns on account-sharing checks (the
+          event&rsquo;s rules say so), we also record which network and country the plugin connects
+          from: never the IP address itself, only a code that can be matched within that one event,
+          and Cloudflare&rsquo;s country guess. These results are shown to the clan&rsquo;s staff only.
+          They are reasons for a person to take a look, never an automatic penalty.
+        </li>
       </ul>
 
       <h2>3. How we use data</h2>
@@ -117,6 +126,10 @@ export default function PrivacyPage() {
         organisers can download the whole event, images included, as an archive. Payment-proof
         screenshots may be removed sooner, once the payment they show has been confirmed. Daily database
         backups are kept for 14 days.
+      </p>
+      <p>
+        Network codes and countries recorded for account-sharing checks are deleted 30 days after the
+        event ends.
       </p>
 
       <h2>7. Your rights</h2>

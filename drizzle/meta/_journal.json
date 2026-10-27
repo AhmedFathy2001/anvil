@@ -757,6 +757,13 @@
       "when": 1793171703039,
       "tag": "0151_hiscores_footprint",
       "breakpoints": true
+    },
+    {
+      "idx": 152,
+      "version": "7",
+      "when": 1793258103039,
+      "tag": "0152_integrity_signals",
+      "breakpoints": true
     }
   ]
 }

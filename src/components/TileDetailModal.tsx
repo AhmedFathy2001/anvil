@@ -1027,7 +1027,7 @@ export default function TileDetailModal({
                         )}
                         {s.flaggedReason === 'footprint_short' && (
                           <span
-                            title="Jagex's hiscores don't show this yet, even after the player logged out"
+                            title="Jagex's hiscores don't back this up (KC, XP or count), even after the player logged out"
                             className="px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-300 font-medium"
                           >
                             hiscores · check
