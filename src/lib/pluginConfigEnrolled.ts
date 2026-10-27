@@ -287,6 +287,7 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
       tileId: submissions.tileId,
       itemId: submissions.itemId,
       total: sql<number>`COALESCE(SUM(${submissions.amount}), 0)`,
+      lastAt: sql<string>`MAX(${submissions.createdAt})`,
     })
     .from(submissions)
     .where(eq(submissions.teamId, teamId))
@@ -294,8 +295,12 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
 
   // Build a map: tileId -> { itemId -> total }
   const perItemMap = new Map<number, Map<number, number>>();
+  // The piece the team added last, per tile: which set a one-of-several-sets row says it went to.
+  const lastItem = new Map<number, { itemId: number; at: string }>();
   for (const row of perItemSubmissions) {
     if (row.itemId == null) continue;
+    const prev = lastItem.get(row.tileId);
+    if (!prev || String(row.lastAt) > prev.at) lastItem.set(row.tileId, { itemId: row.itemId, at: String(row.lastAt) });
     if (!perItemMap.has(row.tileId)) perItemMap.set(row.tileId, new Map());
     perItemMap.get(row.tileId)!.set(row.itemId, Number(row.total));
   }
@@ -938,6 +943,7 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
             // Sets needed in 'any' mode. A piece then counts up to this many times (Ahrim's twice);
             // older plugins cap each piece at one and simply stop tracking after the first set.
             setsRequired: parseSetsRequired(t.setsRequired),
+            lastItemId: lastItem.get(t.id)?.itemId ?? null,
           } : {}),
         };
       }),

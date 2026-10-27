@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { activeNow, collectionProgress, panelSchedule, panelTiles, ACTIVE_WINDOW_MS, type PanelTile } from '../src/lib/pluginPanel';
+import { activeNow, collectionProgress, panelSchedule, panelTiles, setsLine, ACTIVE_WINDOW_MS, type PanelTile } from '../src/lib/pluginPanel';
 
 const req = (have: number, group: string | null, groupRequire = 0) => ({ requiredAmount: 1, currentAmount: have, group, groupRequire });
 const base = (tileId: number, label = `Tile ${tileId}`) => ({ tileId, label, points: 0, position: 0, description: null });
@@ -134,4 +134,20 @@ test('the schedule hides the shown board and lists live first, then soonest', ()
   );
   assert.deepEqual(scheduled.map((b) => b.id), [3, 1]);
   assert.deepEqual(weeklies.map((w) => w.id), [2, 1]);
+});
+
+test('a one-of-several-sets tile names its closest set, and the set the last piece went to', () => {
+  const piece = (itemId: number, group: string, have: number) => ({ itemId, requiredAmount: 1, currentAmount: have, group });
+  const barrows = [
+    piece(1, "Dharok's set", 1), piece(2, "Dharok's set", 1), piece(3, "Dharok's set", 0), piece(4, "Dharok's set", 0),
+    piece(5, "Guthan's set", 1), piece(6, "Guthan's set", 1), piece(7, "Guthan's set", 1), piece(8, "Guthan's set", 0),
+  ];
+  assert.equal(setsLine(barrows, 'any', 1, 2), "Guthan's 3/4 · last Dharok's 2/4");
+  assert.equal(setsLine(barrows, 'any', 1, 7), "Guthan's 3/4", 'the last piece was for the closest set');
+  assert.equal(setsLine(barrows, 'any', 1, null), "Guthan's 3/4");
+  assert.equal(setsLine(barrows, 'all', 1, 2), null, 'every set counts: the bar already says it');
+  assert.equal(setsLine(barrows.slice(0, 4), 'any', 1, 2), null, 'one set: nothing to choose between');
+  const rows = panelTiles({ trackedDrops: [{ tileId: 9, label: 'One full barrows set', points: 1, position: 1, description: null, currentAmount: 5, requiredAmount: 4, itemRequirements: barrows, groupMode: 'any', setsRequired: 1, lastItemId: 2 }] });
+  assert.equal(rows[0].current, 3);
+  assert.equal(rows[0].sets, "Guthan's 3/4 · last Dharok's 2/4");
 });

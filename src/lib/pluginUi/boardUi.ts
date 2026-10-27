@@ -49,7 +49,8 @@ export interface BoardContext {
   claimBlock: string | null;
   /** Tiles this client has pinned over the game; null where it can't pin on this board. */
   pins: number[] | null;
-  progress: Map<number, { current: number; goal: number }>;
+  /** The team's count per tile; `sets` names the sets on a one-of-several-sets tile (lib/pluginPanel setsLine). */
+  progress: Map<number, { current: number; goal: number; sets?: string }>;
   /** The board's page on the site, for "Open on Anvil". */
   boardPath: string | null;
 }
@@ -452,7 +453,7 @@ export function tileDetailUi(board: Board, t: BoardTile, s: BoardState, ctx: Boa
   const p = ctx.progress.get(t.tileId);
   if (p && !t.complete && p.current < p.goal && p.goal > 1) {
     const live = { tile: t.tileId, cur: p.current, goal: p.goal };
-    parts.push(...heading('Progress', 0), row(text(`${percent(p.current, p.goal)}%`, 'text', { live: { ...live, fmt: 'pct' } }), { t: 'bar', pct: percent(p.current, p.goal), color: IN_PROGRESS, h: 6, bg: 'panel', live }, text(`${count(p.current)} / ${count(p.goal)}`, 'muted', { tip: exact(p.current, p.goal), live })), gap(9));
+    parts.push(...heading('Progress', 0), row(text(`${percent(p.current, p.goal)}%`, 'text', { live: { ...live, fmt: 'pct' } }), { t: 'bar', pct: percent(p.current, p.goal), color: IN_PROGRESS, h: 6, bg: 'panel', live }, text(`${count(p.current)} / ${count(p.goal)}`, 'muted', { tip: exact(p.current, p.goal), live })), ...(p.sets ? [muted(p.sets, { wrap: true })] : []), gap(9));
   }
   const facts = [
     !s.pre ? `Status: ${stateText(t, false)}` : isManual(t) ? 'Completion: manual' : null,
