@@ -1,0 +1,54 @@
+# Access log for the load profile (loadtest/profile.mjs). LIVE on the box since 2026-10-27, written
+# inline in the `:8080` block of /opt/anvil/Caddyfile — the Cloudflare Tunnel ingress, which is where
+# ALL public traffic arrives (the firewall drops 80/443; the hostname blocks see nothing). That block
+# already had a small unfiltered log at /data/tunnel-access.log; this replaced it under the same name.
+# The snippet below is the same log in importable form. Edit the Caddyfile in place (the bind mount
+# pins the inode — `cat > Caddyfile`, never `sed -i`), and validate before reloading:
+#
+#   docker exec anvil-caddy-1 caddy validate --config /etc/caddy/Caddyfile
+#   docker exec anvil-caddy-1 caddy reload  --config /etc/caddy/Caddyfile
+#
+# CREDENTIALS. Caddy redacts Authorization and Cookie unless `log_credentials` is on — and redacted,
+# every plugin client looks like the same person. So credentials ARE let through (global option
+# below) and immediately replaced by a short SHA-256 prefix: enough to tell sessions apart, useless
+# as a token. The other identifying headers are dropped, the client address is hashed the same way.
+# After the reload, prove it:
+#
+#   docker exec anvil-caddy-1 sh -c "grep -cE '\"(Authorization\":\\[\"Bearer|Cookie\":\\[\"[^\"]*=)' /data/tunnel-access.log"   # must print 0
+#
+# (profile.mjs also refuses to read a log with a credential in the clear.)
+#
+# RETENTION: a week (rolled files gzip to ~8 MB each), inside the caddy_data volume. Copy out with
+#   docker exec anvil-caddy-1 sh -c 'ls /data/tunnel-access*'; docker cp anvil-caddy-1:/data/<file> .
+#
+# Server option — only on the tunnel listener, inside the existing `servers :8080 { ... }` block:
+#
+#   	log_credentials
+#
+# client_ip is kept in clear on purpose: it is what the abuse blocklist (`@attack client_ip ...`) is
+# written from. The header copies of it are hashed or dropped.
+
+(access_log) {
+	log {
+		output file /data/tunnel-access.log {
+			roll_size 100MiB
+			roll_keep 50
+			roll_keep_for 168h
+		}
+		format filter {
+			wrap json
+			fields {
+				request>headers>Authorization hash
+				request>headers>Cookie hash
+				request>headers>Cf-Connecting-Ip hash
+				request>headers>X-Forwarded-For delete
+				request>headers>X-Real-Ip delete
+				request>headers>X-Rsn delete
+				request>headers>X-Rsn-Hint delete
+				request>headers>X-Account-Hash delete
+				request>headers>Referer delete
+				resp_headers delete
+			}
+		}
+	}
+}

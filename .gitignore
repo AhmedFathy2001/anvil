@@ -74,3 +74,6 @@ docs/PLUGIN_SUBMISSION.md
 
 # Local asset cache (lib/assetCache disk fallback)
 /.cache/
+
+# load test outputs (profile, fixtures with live tokens, k6 summaries)
+/loadtest/.out/
