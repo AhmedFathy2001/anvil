@@ -142,9 +142,11 @@ test("the team view plus my own numbers is exactly my config's progress", async 
     config: {
       trackedDrops: { tileId: number; currentAmount: number }[];
       trackedKills: { tileId: number; currentAmount: number }[];
-      panel: { tiles: { tileId: number; current: number }[] };
+      panel?: unknown;
       codeword?: unknown;
     };
+    board?: unknown;
+    at: string;
     members: Record<number, { c: Record<number, number> }>;
   };
   const amounts = (rows: { tileId: number; currentAmount: number }[]) => Object.fromEntries(rows.map((d) => [d.tileId, d.currentAmount]));
@@ -154,6 +156,9 @@ test("the team view plus my own numbers is exactly my config's progress", async 
   assert.deepEqual(view.members[ids.me].c, { [ids.soloKill]: 4 });
   assert.deepEqual(view.members[ids.mate].c, { [ids.soloKill]: 7 });
   assert.equal(view.config.codeword, undefined, 'nothing of one caller rides a team view');
+  assert.equal(view.board, undefined, 'no board: the panel is a site view, fetched when this arrives');
+  assert.equal(view.config.panel, undefined);
+  assert.ok(view.at, 'stamped, so a rebuild always goes out');
 
   // What the plugin does with it: its own numbers over the team's, then compared with its own config.
   const overlay = (rows: { tileId: number; currentAmount: number }[]) =>
@@ -169,8 +174,6 @@ test("the team view plus my own numbers is exactly my config's progress", async 
   const body = own.body as unknown as typeof view.config;
   assert.deepEqual(amounts(overlay(view.config.trackedDrops)), amounts(body.trackedDrops));
   assert.deepEqual(amounts(overlay(view.config.trackedKills)), amounts(body.trackedKills));
-  const rows = (r: { tileId: number; current: number }[]) => Object.fromEntries(r.map((x) => [x.tileId, x.current]));
-  assert.deepEqual({ ...rows(view.config.panel.tiles), ...view.members[ids.me].c }, rows(body.panel.tiles), 'the panel rows too');
 });
 
 test('the push server sends my team its view, then the new one when a teammate scores', async () => {

@@ -2,7 +2,6 @@ import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { events, teams, tiles } from '@/db/schema';
-import { buildBoard } from '@/app/api/plugin/board/route';
 import { resolveClanById } from '@/lib/clanContext';
 import { isTileRevealed, parseEventRules } from '@/lib/eventRules';
 import { buildEnrolledConfig } from '@/lib/pluginConfigEnrolled';
@@ -14,8 +13,10 @@ import { parseViewKey } from '@/lib/push/hub';
 //
 //   team:<event>:<team>  everything on the side panel and in tracking that the whole team shares — the
 //                        config route's own reading built with no caller (lib/pluginConfigEnrolled),
-//                        each member's own numbers in `members`, and the board. Team 0 = a viewer
-//                        with no team on that board: the board only.
+//                        and each member's own numbers in `members`. Team 0 = a viewer with no team
+//                        on that board: a bare stamped "it moved", so the panel asks for its view.
+//                        No board and no panel rows: the panel is a site view now (lib/pluginUi),
+//                        fetched when this arrives, and a board a second was ~28 KB/s per listener.
 //   tile:<event>:<tile>  one tile's tracker numbers for every team (lib/tileTrackerView).
 //
 // One answer per key, sent to everyone subscribed to it; each plugin marks itself.
@@ -43,26 +44,24 @@ export async function pushView(key: string): Promise<Record<string, unknown> | n
 }
 
 async function teamView(event: typeof events.$inferSelect, teamId: number) {
-  if (teamId === 0) return { t: 'team', eventId: event.id, teamId: 0, board: await buildBoard(event, null, null) };
+  if (teamId === 0) return { t: 'team', eventId: event.id, teamId: 0, at: new Date().toISOString() };
   const team = await db.query.teams.findFirst({ where: and(eq(teams.id, teamId), eq(teams.eventId, event.id)) });
   if (!team) return null;
   // The team's own clan: a co-host's team plays from its home clan, which is the clan its members'
   // plugins are connected to.
   const clan = await resolveClanById(team.clanId ?? event.clanId);
   if (!clan) return null;
-  const [built, board] = await Promise.all([
-    buildEnrolledConfig({ eventId: event.id, teamId, clan, viewer: null }),
-    buildBoard(event, teamId, null),
-  ]);
+  const built = await buildEnrolledConfig({ eventId: event.id, teamId, clan, viewer: null });
   if (!built.ok) return null;
-  const body = built.body as Record<string, unknown> & { panel: { tiles: unknown; activeNow: unknown } };
+  const body = built.body as Record<string, unknown>;
   const config: Record<string, unknown> = {};
   for (const f of TEAM_FIELDS) if (body[f] !== undefined) config[f] = body[f];
   const ev = { ...(body.event as Record<string, unknown>) };
   for (const f of CALLER_EVENT_FIELDS) delete ev[f];
   config.event = ev;
-  config.panel = { tiles: body.panel.tiles, activeNow: body.panel.activeNow };
-  return { t: 'team', eventId: event.id, teamId, config, members: built.members, board };
+  // `at`: a rebuild only happens because something on the board changed (a rival's tile, a claim), which
+  // the team's own share may not show; stamped, it still goes out, and the panel refetches its view.
+  return { t: 'team', eventId: event.id, teamId, config, members: built.members, at: new Date().toISOString() };
 }
 
 async function tileView(event: typeof events.$inferSelect, tileId: number) {

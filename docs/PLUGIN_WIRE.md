@@ -545,9 +545,9 @@ read can confirm a drop. It is the colour around the numbers.
 
 ### `push-ws`
 
-A live channel that SENDS the data a plugin used to poll for: the team's progress, the board and
-pinned-tile tracker numbers arrive the moment they change, built once and shared by everyone they
-belong to.
+A live channel that SENDS the data a plugin used to poll for: the team's progress and pinned-tile
+tracker numbers arrive the moment they change, built once and shared by everyone they belong to. The
+side panel itself is a `plugin-ui` view: a team message is the plugin's cue to fetch it again.
 
 - Advertised only where the push server runs (`PUSH_WS=1` on the site). Without it, plugins poll
   exactly as before; every route stays as it is for older plugins.
@@ -558,14 +558,15 @@ belong to.
 - Connect to `url` with `Authorization: Bearer <ticket>` (only ever on the site's own host). A bad or
   expired ticket gets **401** before the upgrade. Messages:
   - `{"t":"hello"}` on connect.
-  - `{"t":"team","eventId","teamId","config":{…},"members":{…},"board":{…}}` — straight away, then
-    whenever it changes. `config` is the team's share of `/api/plugin/config` (`event`, `team`,
-    `board`, `completedTiles`, every `tracked*` list, `panel.tiles`, `panel.activeNow`) built with no
-    caller: merge it over the config you hold. Per-member tiles (Solo count tiles, individual and
+  - `{"t":"team","eventId","teamId","config":{…},"members":{…},"at"}` — straight away, then whenever
+    anything on the board changes (`at` stamps each rebuild, so one goes out even when the team's own
+    share didn't move: a rival's tile, a claim). `config` is the team's share of `/api/plugin/config`
+    (`event`, `team`, `board`, `completedTiles`, every `tracked*` list) built with no caller: merge
+    it over the config you hold. Per-member tiles (Solo count tiles, individual and
     milestone stat tiles) read 0 there; `members[<your player id>].c[<tileId>]` is your own number
-    for them and `.y[<tileId>]` your own stat gain (`yourGained`). "Active now" names everyone — mark
-    yourself by name. `board` is `/api/plugin/board` for that team. Team 0 (no team) carries `board`
-    only.
+    for them and `.y[<tileId>]` your own stat gain (`yourGained`). Team 0 (no team) is just
+    `{"t":"team","eventId","teamId":0,"at"}`: the board moved. (Until 2026-10-27 it also carried the
+    board and the panel's rows, ~28 KB a second per listener that the server-built panel never read.)
   - `{"t":"tile","eventId","tileId","progress":{…}}` — the tracker route's answer for a tile that
     moved, to everyone on the board, with no `mine` flags: mark your team by `teamId` and yourself by
     `members[].id`.
