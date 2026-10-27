@@ -24,7 +24,7 @@ import { rateLimit } from '@/lib/rate-limit';
 import { claimTile, cleanNote, unclaimTile } from '@/lib/tileClaims';
 import { resolvePluginClan, verifyPluginToken, verifyPluginTokenUser } from '@/lib/auth';
 
-import { type BoardContext, type BoardState, type BoardTile, STATUSES, type Status, boardRowsUi, boardUi, tileDetailUi } from './boardUi';
+import { type BoardContext, type BoardState, type BoardTile, STATUSES, type Status, boardRowsUi, boardUi } from './boardUi';
 import { clanCardUi, clanCompareUi, clanSearchUi } from './clanUi';
 import { type HomeConfig, type HomeData, eventUi, homeUi } from './homeUi';
 import { lookupPlayerCard, viewerPlayerId, visibleClan } from './load';
@@ -213,9 +213,8 @@ async function boardView(request: Request, a: Args, error: string | null = null)
     progress,
     boardPath: `${clan ? `/c/${encodeURIComponent(clan)}` : ''}/events/${scope.event.id}`,
   };
-  const tile = positive(a.tile) ? (board.tiles as BoardTile[]).find((t) => t.tileId === Number(a.tile)) : undefined;
-  const inner = tile ? tileDetailUi(board, tile, state, ctx, error) : boardRowsUi(board, state, ctx);
-  // Opened on a tile from the Clan tab, the detail arrives inside the whole page, so "Back to tiles" has a list to go to.
+  const tile = positive(a.tile) && a.list !== '1' ? (board.tiles as BoardTile[]).find((t) => t.tileId === Number(a.tile)) : undefined;
+  const inner = boardRowsUi(board, state, ctx, tile, error);
   return { ui: a.part === 'rows' ? inner : withBack(a, 'All tiles', boardUi(board, state, ctx, inner)) };
 }
 
