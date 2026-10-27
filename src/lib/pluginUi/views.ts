@@ -13,6 +13,8 @@ import { caLookup, combatTasks } from '@/lib/combatTasks';
 import { deleteGoal, goalsWithProgress, saveGoal } from '@/lib/goals';
 import { getMemberItems } from '@/lib/memberProgressRead';
 import { buildActivity } from '@/lib/pluginActivity';
+import { canSeeClan } from '@/lib/clanAccess';
+import { type ClanEventView, listClanEvents, setGoing } from '@/lib/clanEvents';
 import { ttlMemo } from '@/lib/ttlMemo';
 import { loadPlayerCard } from '@/lib/playerCard';
 import { accountForCharacter, accountStanding, playedCharacter } from '@/lib/pluginAccount';
@@ -274,7 +276,7 @@ async function homeView(request: Request, a: Args): Promise<View> {
 
   const auth = live ? await verifyPluginToken(request) : null;
   const liveWeeklies = (cfg.panel?.weeklies ?? []).filter((w) => w.status === 'active');
-  const [feed, roster, boards, ownClan] = await Promise.all([
+  const [feed, roster, boards, ownClan, clanEvents] = await Promise.all([
     auth
       ? buildActivity({ teamId: auth.teamId, eventId: auth.eventId, selfPlayerId: auth.playerId, selfRsn: auth.rsn, since: { sub: 0, comp: 0, rev: 0 } }).then((p) => p.activity)
       : Promise.resolve([]),
@@ -288,6 +290,7 @@ async function homeView(request: Request, a: Args): Promise<View> {
       }),
     ),
     !open && slug ? ownClanCard(request, slug) : Promise.resolve(null),
+    slug ? clanEventsFor(request, slug) : Promise.resolve([] as ClanEventView[]),
   ]);
   const norm = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase();
   const weekly: HomeData['weekly'] = new Map();
@@ -309,8 +312,34 @@ async function homeView(request: Request, a: Args): Promise<View> {
     boardPath: cfg.event ? `${clanPath}/events/${cfg.event.id}` : null,
     clanPath,
     now,
+    clanEvents,
   };
   return { ui: (open && eventUi(data, open)) || homeUi(data) };
+}
+
+/** The clan's events in the next fortnight, with the caller's own "going" marked. */
+async function clanEventsFor(request: Request, slug: string): Promise<ClanEventView[]> {
+  const clan = await visibleClan(request, slug);
+  if (!clan) return [];
+  const user = await verifyPluginTokenUser(request);
+  return listClanEvents(clan.id, { userId: user?.userId ?? null, withinDays: 14 });
+}
+
+/** "I'm going" from the panel: a member of the event's clan (a seat or a staff grant), signed in to the plugin. */
+async function clanEventGoingAct(request: Request, a: Args): Promise<View> {
+  // A post carries no ?clan=; the answer is the Clan tab of the clan the button was drawn for.
+  const url = new URL(request.url);
+  url.search = new URLSearchParams({ clan: a.clan ?? '' }).toString();
+  const asGet = new Request(url, { headers: request.headers });
+  const back = () => homeView(asGet, { clan: a.clan ?? '', open: a.open ?? '' });
+  const user = await verifyPluginTokenUser(request);
+  const clan = await visibleClan(request, a.clan ?? '');
+  if (!user || !clan) return message('Sign in to the plugin to say you’re going.');
+  const member = await canSeeClan({ clanId: clan.id, visibility: 'private', playerId: await viewerPlayerId(request), userId: user.userId });
+  if (!member) return message('Only members of this clan can say they’re going.');
+  if (!(await rateLimit(request, `plugin-clan-event-going:${user.userId}`, { limit: 20, windowMs: 60_000 })).ok) return back();
+  await setGoing(clan.id, Number(a.id), user.userId, a.going === '1');
+  return back();
 }
 
 /** Your clan's card under its events; the same answer for a few minutes, the clan doesn't change by the second. */
@@ -356,6 +385,7 @@ export async function pluginView(request: Request, v: string, a: Args): Promise<
 /** An action from the panel: `args` as the view gave them, `fields` from its inputs. */
 export async function pluginAct(request: Request, act: string, args: Args, fields: Args): Promise<View | null> {
   if (act === 'claim' || act === 'unclaim') return claimAct(request, act, args, fields.note);
+  if (act === 'clan-event-going') return clanEventGoingAct(request, args);
   if (act !== 'goal-add' && act !== 'goal-remove') return null;
   const owner = await ownedAccount(request);
   if (!owner) return { ui: goalsUi([], NOT_YOURS) };

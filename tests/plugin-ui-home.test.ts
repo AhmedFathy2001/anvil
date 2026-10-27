@@ -186,3 +186,22 @@ test('words: reveal notes, who is on a tile, and the feed', () => {
   assert.deepEqual(folded.map(feedLine), ['Ann & 1 more completed Zulrah', 'Bob +3 · Zulrah']);
   assert.equal(feedLine(e('r1', 'reveal', null, 0)), 'New tile revealed: Zulrah');
 });
+
+test('a clan event: a card under Events, and its page says "I\'m going" for the clan it was drawn for', () => {
+  const ce = {
+    id: 4, title: 'Nex mass', description: 'Bring a zcb', location: 'Ancient Prison', world: 330, icon: 'nex', host: 'Drenvox',
+    repeat: 'weekly' as const, timezone: 'Europe/London', durationMin: 90, startsAt: '2026-10-27T20:00:00.000Z', repeatUntil: null, ping: true,
+    occurrence: { start: '2026-10-27T20:00:00.000Z', end: '2026-10-27T21:30:00.000Z' }, phase: 'upcoming' as const, going: 2, goingNames: ['A', 'B'], mine: false,
+  };
+  const d = base(liveCfg(), { clanEvents: [ce] });
+  const list = homeUi(d);
+  assert.ok(texts(list).includes('Clan event · weekly'));
+  assert.ok(texts(list).includes('Ancient Prison · W330'));
+  assert.ok(walk(list).some((x) => (x.on as { args?: { open?: string } } | undefined)?.args?.open === 'clan-event:4'));
+  const page = eventUi(d, 'clan-event:4')!;
+  assert.ok(texts(page).includes('Hosted by Drenvox'));
+  const go = walk(page).find((x) => x.t === 'button' && x.label === 'I’m going') as { on: { act: string; args: Record<string, string> } };
+  assert.equal(go.on.act, 'clan-event-going');
+  assert.deepEqual(go.on.args, { id: '4', going: '1', open: 'clan-event:4', clan: 'afk' });
+  assert.ok(walk(page).some((x) => x.t === 'icon' && x.boss === 'nex'), 'its picture is a game key');
+});

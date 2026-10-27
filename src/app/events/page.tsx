@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
 import ClanLink from '@/components/ClanLink';
+import { listClanEvents } from '@/lib/clanEvents';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { clanSectionMetadata } from '@/lib/seoPages';
 import { loadHubView } from '@/lib/eventsHub';
@@ -53,7 +54,11 @@ export default async function EventsIndexPage({
   const isStaff = isStaffRole((await verifyUser())?.role);
 
   const clan = await requireClan();
-  const [view, calendar] = await Promise.all([loadHubView(clan.id, { pastLimit }), loadCalendar(clan.id)]);
+  const [view, calendar, clanEvents] = await Promise.all([
+    loadHubView(clan.id, { pastLimit }),
+    loadCalendar(clan.id),
+    listClanEvents(clan.id, { withinDays: 30 }),
+  ]);
   const liveCount = view.live.boards.length + view.live.weeks.length;
   const nextUp = [
     ...view.upcoming.boards.map((b) => ({
@@ -162,6 +167,31 @@ export default async function EventsIndexPage({
           )}
           <WeekFrame weeks={view.live.weeks} />
         </div>
+      )}
+
+      {/* ---- clan events: masses, hangouts — scheduled, not tracked (lib/clanEvents) ---- */}
+      {clanEvents.length > 0 && (
+        <>
+          <SectionHead title="Clan events" note={`${clanEvents.length} in the next month`} />
+          <ul className="mb-2 divide-y divide-card-border overflow-hidden rounded-xl border border-card-border bg-card-bg">
+            {clanEvents.slice(0, 8).map((ce) => (
+              <li key={ce.id}>
+                <ClanLink href={`/clan-events/${ce.id}`} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-brown-light/40">
+                  <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-accent-green" />
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold">{ce.title}</span>
+                    <span className="block truncate text-[11.5px] text-text-muted">
+                      {[ce.repeat === 'weekly' ? 'Weekly' : 'Clan event', ce.location, ce.world ? `W${ce.world}` : null, `${ce.going} going`].filter(Boolean).join(' · ')}
+                    </span>
+                  </span>
+                  <span className="ml-auto shrink-0 text-[11.5px]">
+                    <EventTimer startDate={ce.occurrence.start} endDate={ce.occurrence.end} className="text-[11.5px] text-text-muted" />
+                  </span>
+                </ClanLink>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
       {/* ---- up next ----------------------------------------------------------------- */}

@@ -8,7 +8,7 @@ import { isLabClan } from '@/lib/lab';
 import { getSettingText } from '@/lib/settings';
 import { startBlockerLabel, type StartBlockerCode } from '@/lib/eventReadiness';
 import { eventAxes, taskNoun } from '@/lib/eventAxes';
-import { formatEfficiencyHours, weeklyKindLabel } from '@/lib/constants';
+import { SKILLS, formatEfficiencyHours, weeklyKindLabel } from '@/lib/constants';
 import { formatGp } from '@/lib/adminEventsFormat';
 import { placeLabel } from '@/lib/eventRules';
 import { deriveTileIcon, skillIconUrl, bossItemForStatKey, itemIconUrl, type IconableTile } from '@/lib/tileIcons';
@@ -67,6 +67,8 @@ const SIGNUP_WEBHOOK_KEY = 'discord_webhook_signups';
  * announcements channel filling with who donated what.
  */
 const COFFER_WEBHOOK_KEY = 'discord_webhook_coffer';
+// Clan events (lib/clanEvents): a mass, a hangout. Falls back to the main channel.
+const CLAN_EVENTS_WEBHOOK_KEY = 'discord_webhook_clan_events';
 
 // Wraps the shared reader because a notify must never throw on a database hiccup — the post is
 // best-effort, and losing it is better than failing whatever triggered it.
@@ -1319,7 +1321,7 @@ async function memberPingRoleId(clanId: number): Promise<string | null> {
 
 // Public site origin, derived from the OAuth redirect URI (cron has no request context to read a
 // host header from). Used to build deep links into the app for Discord posts. Null if unconfigured.
-function siteBaseUrl(): string | null {
+export function siteBaseUrl(): string | null {
   const uri = process.env.DISCORD_REDIRECT_URI;
   if (!uri) return null;
   try {
@@ -1758,6 +1760,26 @@ function weeklyThumbnail(type: string, metric: string): Pick<DiscordEmbed, 'thum
     return itemId != null ? { thumbnail: { url: absoluteAssetUrl(itemIconUrl(itemId)) } } : {};
   }
   return {};
+}
+
+/** A clan event's picture: a skill or boss key, as a weekly's would be. */
+export function clanEventThumbnail(icon: string | null): Pick<DiscordEmbed, 'thumbnail'> {
+  if (!icon) return {};
+  return weeklyThumbnail((SKILLS as readonly string[]).includes(icon) ? 'skill' : 'boss', icon);
+}
+
+/** A clan event's announcement, posted once and then edited in place (its id kept by the caller). */
+export async function upsertClanEventPost(clanId: number, embed: DiscordEmbed, existingMessageId?: string): Promise<EditableWebhookResult> {
+  const destination = await resolveWebhookDestination(clanId, CLAN_EVENTS_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
+  if (!destination) return { status: 'skipped' };
+  return upsertWebhookMessage(destination, { embeds: [await withClanCrest(clanId, embed)] }, clanId, existingMessageId);
+}
+
+/** A clan event's reminder or "starting now": a fresh post, pinging the member role when asked. */
+export async function sendClanEventPost(clanId: number, embed: DiscordEmbed, ping: boolean): Promise<boolean> {
+  const url = await resolveWebhookUrl(clanId, CLAN_EVENTS_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
+  if (!url) return false;
+  return sendToWebhook(url, { ...(ping ? await memberPing(clanId) : {}), embeds: [await withClanCrest(clanId, embed)] }, clanId);
 }
 
 interface WeeklyStartParams {

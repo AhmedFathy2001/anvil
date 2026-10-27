@@ -54,6 +54,8 @@ const MODERATOR_PATHS = [
   // (Profile, Access) each check for themselves and bounce a moderator to /admin/people.
   '/admin/clan',
   '/admin/schedule',
+  // Clan events (a mass, a hangout): scheduling them is the same job as the calendar they sit on.
+  '/admin/clan-events',
   '/admin/verifications',
   '/admin/fees',
   // Checking flagged proofs is moderation; this is the cross-board queue for people who can't open events.

@@ -34,6 +34,8 @@ export const CLAN_SCOPED_ROOTS = [
   // In-game guides. Like /profile it renders on the apex too (the Anvil library), and inside a clan
   // it is that clan's guides — so a link from inside one keeps the prefix.
   '/guides',
+  // A clan event (a mass, a hangout): the clan's, like its weeklies.
+  '/clan-events',
 ] as const;
 
 /**
@@ -55,6 +57,7 @@ export const CLAN_SCOPED_API_ROOTS = [
   '/api/hiscores',
   '/api/items',
   '/api/coffer',
+  '/api/clan-events',
 ] as const;
 
 /** Roots that are the platform's, and must never be prefixed. */

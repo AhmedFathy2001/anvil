@@ -1,4 +1,6 @@
 import type { ActivityEntry } from '@/lib/pluginActivity';
+import type { ClanEventView } from '@/lib/clanEvents';
+import { SKILLS } from '@/lib/constants';
 import type { PanelActive, PanelTile } from '@/lib/pluginPanel';
 import type { ScheduleBingo, ScheduleWeekly } from '@/lib/pluginConfig';
 import type { RosterTeamOut } from '@/lib/eventRoster';
@@ -17,6 +19,7 @@ const WEEKLY_SHOWN = 10;
 const EFFICIENCY_SCALE = 1000;
 const IN_PROGRESS: Color = 'progress';
 const LIGHT: Color = '#cdcdcd';
+const SKILL_KEYS = new Set<string>(SKILLS);
 
 export interface Mission {
   tileId: number;
@@ -86,6 +89,8 @@ export interface HomeData {
   /** Site path prefix for this clan (`/c/<slug>`), for weekly and event links. */
   clanPath: string;
   now: number;
+  /** The clan's events (a mass, a hangout) in the next fortnight, soonest first (lib/clanEvents). */
+  clanEvents?: ClanEventView[];
 }
 
 // ---- Small words ----------------------------------------------------------------------------------
@@ -295,6 +300,7 @@ export function homeUi(d: HomeData): Node {
     const timing = timingLabel(!live, s.startDate, s.endDate, d.now);
     cards.push(drillCard(s.title || 'Bingo', [text(scheduledKind(s), LIGHT), muted(clip(timing ?? sizeLabel(s), 30)), muted(clip(live ? 'Running — you’re not in it' : sizeLabel(s), 30))], home(`event:${s.id}`)));
   }
+  for (const ce of d.clanEvents ?? []) cards.push(drillCard(ce.title, clanEventLines(ce), home(`clan-event:${ce.id}`)));
   if (cards.length) parts.push(...heading('Events'), ...cards.flatMap((c, i) => (i ? [gap(8), c] : [c])));
   else parts.push(muted('No active event yet.'));
   parts.push(gap(12));
@@ -355,12 +361,60 @@ export function eventUi(d: HomeData, open: string): Node | null {
     const w = d.cfg.panel?.weeklies?.find((x) => x.id === Number(weekly[1]));
     return w ? col([back, gap(8), ...weeklyPage(d, w)]) : null;
   }
+  const clanEvent = /^clan-event:(\d+)$/.exec(open);
+  if (clanEvent) {
+    const ce = d.clanEvents?.find((x) => x.id === Number(clanEvent[1]));
+    return ce ? col([back, gap(8), ...clanEventPage(d, ce)]) : null;
+  }
   const event = /^event:(\d+)$/.exec(open);
   if (event) {
     const s = d.cfg.panel?.scheduled?.find((x) => x.id === Number(event[1]));
     return s ? col([back, gap(8), ...scheduledPage(d, s)]) : null;
   }
   return null;
+}
+
+// ---- A clan event (a mass, a hangout): scheduled, not tracked -------------------------------------------
+
+const where = (ce: ClanEventView) => [ce.location, ce.world ? `W${ce.world}` : null].filter(Boolean).join(' · ');
+
+/** When it is: live with its end ticking down, or a countdown to the start. */
+function clanEventWhen(ce: ClanEventView): Node {
+  return ce.phase === 'live'
+    ? { t: 'countdown', at: ce.occurrence.end, prefix: 'Live now · ends in ', due: 'Just finished', none: 'Live now', color: 'done' }
+    : { t: 'countdown', at: ce.occurrence.start, prefix: 'Starts in ', due: 'Starting now', none: '', color: ce.phase === 'soon' ? 'brand' : 'muted' };
+}
+
+function clanEventLines(ce: ClanEventView): Node[] {
+  return [
+    text(ce.repeat === 'weekly' ? 'Clan event · weekly' : 'Clan event', LIGHT),
+    clanEventWhen(ce),
+    ...(where(ce) ? [muted(clip(where(ce), 30))] : []),
+    muted(`${ce.going} going${ce.mine ? ' · you too' : ''}`, ce.mine ? { color: 'brand' } : {}),
+  ];
+}
+
+function clanEventPage(d: HomeData, ce: ClanEventView): Node[] {
+  const picture = ce.icon ? icon(SKILL_KEYS.has(ce.icon) ? { skill: ce.icon, w: 20, h: 20 } : { boss: ce.icon, w: 20, h: 20 }) : undefined;
+  const parts: Node[] = [
+    row(picture, text(ce.title, 'brand', { font: 'bold', wrap: true }), undefined, { gap: 6 }),
+    muted(ce.repeat === 'weekly' ? 'Clan event · every week' : 'Clan event'),
+    gap(6),
+    clanEventWhen(ce),
+  ];
+  if (where(ce)) parts.push(text(where(ce), 'text', { wrap: true }));
+  if (ce.host) parts.push(muted(`Hosted by ${ce.host}`));
+  if (ce.description) parts.push(gap(6), text(ce.description, 'muted', { wrap: true }));
+  parts.push(...heading(`Going · ${ce.going}`));
+  if (ce.goingNames.length) parts.push(muted(ce.goingNames.join(', ') + (ce.going > ce.goingNames.length ? ` +${ce.going - ce.goingNames.length}` : ''), { wrap: true }), gap(6));
+  const post = (going: boolean): Action => ({
+    a: 'post',
+    act: 'clan-event-going',
+    args: { id: String(ce.id), going: going ? '1' : '0', open: `clan-event:${ce.id}`, clan: d.cfg.activeClan?.slug ?? '' },
+  });
+  parts.push(ce.mine ? button('Not going any more', post(false), 'Take your name off the list') : button('I’m going', post(true), 'Put your name on the list — your clan sees it here, on the site and in Discord'));
+  if (d.clanPath) parts.push(gap(6), siteLink('Open on Anvil', 'Open this clan event on the Anvil site', `${d.clanPath}/clan-events/${ce.id}`));
+  return [card(parts, { inset: 9 })];
 }
 
 function boardPage(d: HomeData, b: Board): Node[] {

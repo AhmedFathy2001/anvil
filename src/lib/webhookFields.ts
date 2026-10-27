@@ -82,6 +82,12 @@ export const WEBHOOK_SECTIONS = [
       },
       {
         kind: 'webhook',
+        key: 'discord_webhook_clan_events',
+        label: 'Clan events channel',
+        help: 'Clan events (a boss mass, a hangout): the announcement, a reminder 15 minutes before, and "starting now".',
+      },
+      {
+        kind: 'webhook',
         key: 'discord_webhook_signups',
         label: 'Sign-up approvals channel',
         help: 'Posts a fee-payment nudge (pinging the member) each time a sign-up is approved.',
