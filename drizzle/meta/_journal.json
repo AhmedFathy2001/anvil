@@ -764,6 +764,13 @@
       "when": 1793258103039,
       "tag": "0152_integrity_signals",
       "breakpoints": true
+    },
+    {
+      "idx": 153,
+      "version": "7",
+      "when": 1793344503039,
+      "tag": "0153_clan_events",
+      "breakpoints": true
     }
   ]
 }

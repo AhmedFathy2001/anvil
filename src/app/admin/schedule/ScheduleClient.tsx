@@ -17,7 +17,7 @@ import {
 
 // One shape for boards and weeklies alike — see lib/eventIndex.
 interface Item {
-  kind: 'board' | 'weekly';
+  kind: 'board' | 'weekly' | 'clanevent';
   id: number;
   title: string;
   badge: string;
@@ -77,7 +77,9 @@ function toneFor(item: Item): string {
   if (item.status === 'upcoming') {
     return item.kind === 'board'
       ? 'bg-gold/15 text-gold-light border-gold/40'
-      : 'bg-blue-500/15 text-blue-300 border-blue-500/40';
+      : item.kind === 'clanevent'
+        ? 'bg-teal-500/15 text-teal-300 border-teal-500/40'
+        : 'bg-blue-500/15 text-blue-300 border-blue-500/40';
   }
   return 'bg-text-muted/10 text-text-muted border-text-muted/30';
 }
@@ -96,7 +98,7 @@ export default function ScheduleClient() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<ViewMode>('month');
   const [cursor, setCursor] = useState<Date>(() => startOfMonth(new Date()));
-  const [kinds, setKinds] = useState<{ board: boolean; weekly: boolean }>({ board: true, weekly: true });
+  const [kinds, setKinds] = useState<{ board: boolean; weekly: boolean; clanevent: boolean }>({ board: true, weekly: true, clanevent: true });
   const [expandedWeeks, setExpandedWeeks] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
@@ -251,6 +253,12 @@ export default function ScheduleClient() {
             onClick={() => setKinds((k) => ({ ...k, weekly: !k.weekly }))}
             label="Weeklies"
             swatch={<span className="w-2 h-2 bg-blue-400 rounded-full" />}
+          />
+          <KindToggle
+            on={kinds.clanevent}
+            onClick={() => setKinds((k) => ({ ...k, clanevent: !k.clanevent }))}
+            label="Clan events"
+            swatch={<span className="w-2 h-2 bg-teal-400 rounded-[1px]" />}
           />
         </div>
       </div>
@@ -536,7 +544,7 @@ function MonthGrid({
                       >
                         <span
                           className={`shrink-0 w-[6px] h-[6px] bg-current ${
-                            p.item.kind === 'board' ? 'rotate-45 rounded-[1px]' : 'rounded-full'
+                            p.item.kind === 'board' ? 'rotate-45 rounded-[1px]' : p.item.kind === 'clanevent' ? 'rounded-[1px]' : 'rounded-full'
                           }`}
                           aria-hidden
                         />
@@ -627,7 +635,7 @@ function QuarterGrid({
                 >
                   <span
                     className={`shrink-0 w-[6px] h-[6px] ${
-                      p.item.kind === 'board' ? 'rotate-45 rounded-[1px] bg-gold' : 'rounded-full bg-blue-400'
+                      p.item.kind === 'board' ? 'rotate-45 rounded-[1px] bg-gold' : p.item.kind === 'clanevent' ? 'rounded-[1px] bg-teal-400' : 'rounded-full bg-blue-400'
                     }`}
                     aria-hidden
                   />

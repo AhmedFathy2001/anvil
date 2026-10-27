@@ -5,6 +5,7 @@ import { lifecycleSteps } from '@/lib/eventStage';
 import { getEventRow, getStageCounts } from '@/lib/eventStageCounts';
 import { atLeast } from '@/lib/clanRoles';
 import { requireClan } from '@/lib/clanContext';
+import { listClanEvents } from '@/lib/clanEvents';
 
 // GET — everything this clan runs, boards and weeklies together, for the admin schedule calendar.
 // One shape for both (lib/eventIndex) rather than two lists the client has to reconcile; the
@@ -16,7 +17,25 @@ export async function GET() {
   }
 
   const clan = await requireClan();
-  const items = await listEventIndex(clan.id);
+  const [index, clanEvents] = await Promise.all([listEventIndex(clan.id), listClanEvents(clan.id)]);
+  // Clan events (a mass, a hangout) sit on the same calendar at their next occurrence; a weekly one
+  // shows its next week, which is the one there is anything left to plan around.
+  const items = [
+    ...index,
+    ...clanEvents.map((e) => ({
+      kind: 'clanevent' as const,
+      id: e.id,
+      title: e.title,
+      badge: e.repeat === 'weekly' ? 'Weekly' : 'Clan event',
+      status: e.phase === 'live' ? ('running' as const) : ('upcoming' as const),
+      startDate: e.occurrence.start,
+      endDate: e.occurrence.end,
+      href: '/admin/clan-events',
+      publicHref: `/clan-events/${e.id}`,
+      headline: `${e.going} going`,
+      sortAt: e.occurrence.start,
+    })),
+  ];
   // Only a dated item can be plotted. The undated ones aren't dropped, though: a board with no
   // dates is exactly what a gap in the calendar is usually waiting for, so it rides along
   // separately and the page can offer to schedule it.

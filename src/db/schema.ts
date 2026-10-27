@@ -3511,6 +3511,54 @@ export const tileClaims = pgTable('tile_claims', {
 ]);
 export type TileClaim = typeof tileClaims.$inferSelect;
 
+/**
+ * Clan events: something the clan hosts that nothing tracks — a weekly Nex mass, a skilling
+ * hangout, a drop party. A name, when, where; posted to Discord and shown in the plugin's Clan tab.
+ * A weekly one is one row: its occurrences are worked out from `startsAt` in `timezone` (lib/clanEvents),
+ * so a 20:00 London mass stays at 20:00 London across the clock change.
+ */
+export const clanEvents = pgTable('clan_events', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  description: text('description'),
+  location: text('location'),
+  world: integer('world'),
+  /** A hiscores boss or skill key for its picture (game ids only — never a URL). */
+  icon: text('icon'),
+  host: text('host'),
+  /** The first occurrence's start, ISO UTC. */
+  startsAt: text('starts_at').notNull(),
+  durationMin: integer('duration_min').notNull().default(60),
+  /** 'none' | 'weekly' */
+  repeat: text('repeat').notNull().default('none'),
+  /** A weekly series' last day (ISO UTC); null runs until cancelled. */
+  repeatUntil: text('repeat_until'),
+  timezone: text('timezone').notNull().default('UTC'),
+  /** Ping the clan's member role on the reminder and the start. */
+  ping: integer('ping').notNull().default(1),
+  cancelledAt: text('cancelled_at'),
+  createdById: integer('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  updatedAt: text('updated_at'),
+  /** The announcement's message id per webhook URL, edited in place (lib/discord upsert). */
+  discordMessageIds: jsonb('discord_message_ids').$type<Record<string, string>>(),
+  /** The occurrence (its ISO start) whose 15-minute reminder went out — one per occurrence. */
+  remindedFor: text('reminded_for'),
+  /** The occurrence whose "starting now" went out. */
+  startedFor: text('started_for'),
+}, (t) => [index('clan_events_clan_idx').on(t.clanId)]);
+export type ClanEvent = typeof clanEvents.$inferSelect;
+
+/** "I'm going", per person and per occurrence (a weekly mass asks again each week). */
+export const clanEventRsvps = pgTable('clan_event_rsvps', {
+  id: serial('id').primaryKey(),
+  clanEventId: integer('clan_event_id').notNull().references(() => clanEvents.id, { onDelete: 'cascade' }),
+  occurrence: text('occurrence').notNull(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (t) => [uniqueIndex('clan_event_rsvps_unique').on(t.clanEventId, t.occurrence, t.userId)]);
+
 // ── Platform analytics ──────────────────────────────────────────────────────────────────────────
 //
 // What people do on Anvil, for /staff/analytics: page views, the handful of actions that say a

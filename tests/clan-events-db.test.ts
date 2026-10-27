@@ -1,0 +1,99 @@
+// Clan events against a real database (lib/clanEvents): scheduling, "I'm going" per occurrence, the
+// reminder and "starting now" each claimed once, and the plugin's Clan tab and going action.
+//
+// Run: npx tsx --test tests/clan-events-db.test.ts
+
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+
+import { useTestDatabase, resetDatabase, dropDatabase, loadDb } from './helpers/testDb.ts';
+
+const DB = useTestDatabase('clan-events');
+
+let db: Awaited<ReturnType<typeof loadDb>>['db'];
+let pool: Awaited<ReturnType<typeof loadDb>>['pool'];
+let s: Awaited<ReturnType<typeof loadDb>>['schema'];
+let CE: typeof import('../src/lib/clanEvents.ts');
+let V: typeof import('../src/lib/pluginUi/views.ts');
+let clanId = 0;
+let meUser = 0;
+const TOKEN = 'ce-token';
+const STRANGER = 'ce-stranger';
+
+before(async () => {
+  await resetDatabase(DB);
+  ({ db, pool, schema: s } = await loadDb());
+  CE = await import('../src/lib/clanEvents.ts');
+  V = await import('../src/lib/pluginUi/views.ts');
+  clanId = (await db.insert(s.clans).values({ slug: 'masses', name: 'Masses' }).returning())[0].id;
+  const [me] = await db.insert(s.players).values({ displayName: 'Me' }).returning();
+  meUser = (await db.insert(s.users).values({ displayName: 'Massgoer', discordId: 'ce-me', pluginToken: TOKEN, playerId: me.id }).returning())[0].id;
+  const [main] = await db.insert(s.accounts).values({ playerId: me.id, rsn: 'Mass Main', rsnNormalized: 'mass main', shared: false, claimedAt: new Date().toISOString() }).returning();
+  await db.insert(s.clanMemberships).values({ clanId, accountId: main.id, kind: 'member' });
+  const [other] = await db.insert(s.players).values({ displayName: 'Stranger' }).returning();
+  await db.insert(s.users).values({ displayName: 'Stranger', discordId: 'ce-x', pluginToken: STRANGER, playerId: other.id });
+});
+
+after(async () => {
+  await pool.end();
+  await dropDatabase(DB);
+});
+
+const input = (startsAt: string, over: Record<string, unknown> = {}) => {
+  const p = CE.parseClanEventInput({ title: 'Nex mass', location: 'Ancient Prison', world: 330, startsAt, durationMin: 90, repeat: 'weekly', timezone: 'Europe/London', icon: 'nex', ...over });
+  assert.ok(p.ok);
+  return p.input;
+};
+
+test('a form is checked before anything is saved', () => {
+  assert.deepEqual(CE.parseClanEventInput({ title: '', startsAt: '2026-11-01T20:00:00Z', durationMin: 60 }), { ok: false, error: 'Give it a name.' });
+  assert.equal((CE.parseClanEventInput({ title: 'x', startsAt: 'soon', durationMin: 60 }) as { ok: false }).ok, false);
+  assert.equal((CE.parseClanEventInput({ title: 'x', startsAt: '2026-11-01T20:00:00Z', durationMin: 60, world: 12 }) as { error: string }).error, 'That isn’t a world number.');
+  const p = CE.parseClanEventInput({ title: ' Mass ', startsAt: '2026-11-01T20:00:00Z', durationMin: 60, timezone: 'Not/AZone', icon: 'https://evil' });
+  assert.ok(p.ok && p.input.timezone === 'UTC' && p.input.icon === null && p.input.title === 'Mass', 'a bad zone falls back to UTC; an icon is a game key, never a URL');
+});
+
+test('going is per occurrence: next week asks again', async () => {
+  const start = new Date(Date.now() + 3_600_000).toISOString();
+  const ev = await CE.createClanEvent(clanId, input(start), meUser);
+  let view = await CE.setGoing(clanId, ev.id, meUser, true);
+  assert.equal(view?.going, 1);
+  assert.equal(view?.mine, true);
+  assert.deepEqual(view?.goingNames, ['Massgoer']);
+  view = await CE.setGoing(clanId, ev.id, meUser, true);
+  assert.equal(view?.going, 1, 'saying it twice is still one');
+  const nextWeek = await CE.listClanEvents(clanId, { userId: meUser, now: Date.parse(start) + 8 * 86_400_000 });
+  assert.equal(nextWeek.find((x) => x.id === ev.id)?.going, 0);
+  view = await CE.setGoing(clanId, ev.id, meUser, false);
+  assert.equal(view?.going, 0);
+  assert.equal((await CE.listClanEvents(clanId, { withinDays: 1 })).some((x) => x.id === ev.id), true);
+  assert.equal(await CE.cancelClanEvent(clanId, ev.id), true);
+  assert.equal((await CE.listClanEvents(clanId)).some((x) => x.id === ev.id), false, 'called off: gone from every list');
+});
+
+test('the reminder and "starting now" are claimed once per occurrence', async () => {
+  const start = Date.now() + 10 * 60_000; // inside the 15-minute window
+  const ev = await CE.createClanEvent(clanId, input(new Date(start).toISOString(), { repeat: 'none' }), meUser);
+  const row = () => db.query.clanEvents.findFirst({ where: (t, { eq }) => eq(t.id, ev.id) });
+  await CE.processClanEventReminders(Date.now());
+  assert.equal((await row())?.remindedFor, new Date(start).toISOString());
+  await CE.processClanEventReminders(Date.now());
+  assert.equal((await row())?.startedFor, null);
+  await CE.processClanEventReminders(start + 60_000);
+  assert.equal((await row())?.startedFor, new Date(start).toISOString());
+  // Moving it resets both, so the new time is reminded again.
+  await CE.updateClanEvent(clanId, ev.id, input(new Date(start + 86_400_000).toISOString(), { repeat: 'none' }));
+  assert.equal((await row())?.remindedFor, null);
+});
+
+test('the plugin says "I\'m going" for a member, and not for a stranger', async () => {
+  const ev = await CE.createClanEvent(clanId, input(new Date(Date.now() + 2 * 3_600_000).toISOString(), { title: 'Skilling hangout', repeat: 'none' }), meUser);
+  const post = (token: string) =>
+    V.pluginAct(new Request('http://site/api/plugin/ui', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'X-RSN': 'Mass Main' } }), 'clan-event-going', { id: String(ev.id), going: '1', open: `clan-event:${ev.id}`, clan: 'masses' }, {});
+  await post(STRANGER);
+  assert.equal((await CE.getClanEvent(clanId, ev.id))?.going, 0, 'not in the clan');
+  await post(TOKEN);
+  const after = await CE.getClanEvent(clanId, ev.id, meUser);
+  assert.equal(after?.going, 1);
+  assert.equal(after?.mine, true);
+});

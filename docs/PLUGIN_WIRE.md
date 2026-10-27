@@ -471,13 +471,15 @@ sign-in, the clan picker, settings and banner sounds, and the starting-shot card
   mode, missing), `clog-page` (rsn, page, back, kc), `compare` (rsn), `clan` (slug, own), `clan-compare`
   (slug), `clans` (q), `goals`, `goal-new` (kind), `board` (event — 0 = the live board — pre, q, status,
   page, tile, part, back, backLabel) and `teams` (event, team, page, back, q, part, backLabel), and
-  `home` (open: `board` | `weekly:<id>` | `event:<id>`) — the Clan tab, built from the answer
+  `home` (open: `board` | `weekly:<id>` | `event:<id>` | `clan-event:<id>`) — the Clan tab, built from the answer
   `/api/plugin/config` gives the same caller plus the team feed, standings, live weeklies' boards and
   the clan card. On every call the plugin adds `chosen` (the member picked this clan rather than Auto),
   and `track` and `pins` (whether it can pin trackers on the board, and which tiles it has). Each keeps the visibility of the route it replaces
   (`/api/players/<rsn>/card`, `/api/clans/<slug>/card`). Unknown view: **404**.
 - `POST /api/plugin/ui` `{act, args, fields}`: `goal-add` (args.kind; fields metric, target, due in
-  days), `goal-remove` (args.id), `claim` (the board args + tile; fields.note) and `unclaim`, answered
+  days), `goal-remove` (args.id), `claim` (the board args + tile; fields.note), `unclaim`, and
+  `clan-event-going` (args.id, going `1`|`0`, clan, open — "I'm going" on a clan event, for a member of
+  that clan; lib/clanEvents), answered
   with the view to show next. Claims keep `/api/plugin/claims`' rules (lib/pluginClaimCaller). Unknown
   action: **404**.
 - A node is `{ "t": <type>, … }`; types: `col`, `row` (l/c/r), `grid`, `text`, `icon`, `bar`, `tabs`,
