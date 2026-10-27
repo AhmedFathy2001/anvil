@@ -1,0 +1,52 @@
+# Access log for the load profile (loadtest/profile.mjs). Paste the snippet at the TOP of the live
+# /opt/anvil/Caddyfile, after the global options block, and `import access_log` inside every site
+# block whose traffic should be profiled. Validate before reloading:
+#
+#   docker exec caddy caddy validate --config /etc/caddy/Caddyfile
+#   docker exec caddy caddy reload  --config /etc/caddy/Caddyfile
+#
+# CREDENTIALS. Caddy redacts Authorization and Cookie unless `log_credentials` is on — and redacted,
+# every plugin client looks like the same person. So credentials ARE let through (global option
+# below) and immediately replaced by a short SHA-256 prefix: enough to tell sessions apart, useless
+# as a token. The other identifying headers are dropped, the client address is hashed the same way.
+# After the reload, prove it:
+#
+#   docker exec caddy sh -c "grep -cE 'Bearer |=' /data/access-logs/access.log"   # must print 0
+#
+# (profile.mjs also refuses to read a log with a credential in the clear.)
+#
+# RETENTION: a week, ~2 GB at most, inside the caddy_data volume. Copy out with
+#   docker cp caddy:/data/access-logs ./access-logs
+#
+# Global options — add inside the existing top `{ ... }` block:
+#
+#   servers {
+#   	log_credentials
+#   }
+
+(access_log) {
+	log {
+		output file /data/access-logs/access.log {
+			roll_size 100MiB
+			roll_keep 20
+			roll_keep_for 168h
+		}
+		format filter {
+			wrap json
+			fields {
+				request>headers>Authorization hash
+				request>headers>Cookie hash
+				request>headers>Cf-Connecting-Ip hash
+				request>headers>X-Forwarded-For delete
+				request>headers>X-Rsn delete
+				request>headers>X-Rsn-Hint delete
+				request>headers>X-Account-Hash delete
+				request>headers>Referer delete
+				request>remote_ip delete
+				request>client_ip delete
+				request>tls delete
+				resp_headers delete
+			}
+		}
+	}
+}
