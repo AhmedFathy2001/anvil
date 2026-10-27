@@ -486,7 +486,7 @@ function missionRows(d: HomeData, e: NonNullable<HomeConfig['event']>, title: st
     if (m.expiresAt) parts.push({ t: 'countdown', at: m.expiresAt, prefix: 'Expires in ', due: 'Expired', none: '', color: 'brand' });
     const p = tiles.get(m.tileId);
     if (p && p.goal > 0) {
-      parts.push(gap(2), row(undefined, { t: 'bar', pct: p.complete ? 100 : percent(p.current, p.goal), color: p.complete ? 'done' : IN_PROGRESS, h: 6, bg: 'panel' }, muted(p.complete ? 'Done' : `${count(p.current)} / ${count(p.goal)}`, { tip: p.complete ? undefined : exact(p.current, p.goal) })));
+      parts.push(gap(2), row(undefined, { t: 'bar', pct: p.complete ? 100 : percent(p.current, p.goal), color: p.complete ? 'done' : IN_PROGRESS, h: 6, bg: 'panel', ...(p.complete ? {} : { live: { tile: m.tileId, cur: p.current, goal: p.goal } }) }, muted(p.complete ? 'Done' : `${count(p.current)} / ${count(p.goal)}`, p.complete ? {} : { tip: exact(p.current, p.goal), live: { tile: m.tileId, cur: p.current, goal: p.goal } })));
     }
     return col(parts, { on: openTile(m.tileId, title) });
   });
@@ -497,12 +497,13 @@ function progressRow(label: string, t: PanelTile, a: PanelActive | null, color: 
   const big = nearest && t.goal >= 100_000;
   const value = nearest ? (t.complete ? 'Done' : t.goal <= 0 ? '—' : big ? `${percent(t.current, t.goal)}%` : `${t.current} / ${t.goal}`) : t.goal > 0 ? `${count(t.current)} / ${count(t.goal)}` : '';
   const who = a ? workersLine(a) : '';
+  const moving = !t.complete && t.goal > 0;
   return col(
     [
-      row(undefined, text(clip(label, 24), a?.self ? 'brand' : 'text'), muted(value, { tip: t.complete ? undefined : exact(t.current, t.goal) })),
+      row(undefined, text(clip(label, 24), a?.self ? 'brand' : 'text'), muted(value, { tip: t.complete ? undefined : exact(t.current, t.goal), ...(moving ? { live: { tile: t.tileId, cur: t.current, goal: t.goal, fmt: nearest ? 'near' : 'of' } } : {}) })),
       ...(who ? [gap(1), text(clip(who, 36), a?.self ? 'brand' : 'muted', { tip: who })] : []),
       gap(3),
-      { t: 'bar', pct: t.complete ? 100 : percent(t.current, t.goal), color: t.complete ? 'done' : color, h: 6, bg: 'card' },
+      { t: 'bar', pct: t.complete ? 100 : percent(t.current, t.goal), color: t.complete ? 'done' : color, h: 6, bg: 'card', ...(moving ? { live: { tile: t.tileId, cur: t.current, goal: t.goal } } : {}) },
     ],
     { on: openTile(t.tileId, title), tip: tileTip(t) },
   );

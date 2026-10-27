@@ -184,11 +184,13 @@ export class ViewHub {
     v.inFlight = false;
     if (this.views.get(v.key) !== v) return; // nobody is listening any more
     if (text != null) {
-      const to = text !== v.text ? this.audience(v.key) : new Set<PushClient>();
+      // Listeners already holding the last text get what changed; newcomers get it whole.
+      const change = text !== v.text ? (v.text == null ? text : teamDelta(v.key, v.text, text)) : null;
+      const owed = new Set(v.owed);
       v.text = text;
-      for (const c of v.owed) to.add(c);
       v.owed.clear();
-      for (const c of to) c.send(text);
+      if (change != null) for (const c of this.audience(v.key)) if (!owed.has(c)) c.send(change);
+      for (const c of owed) c.send(text);
     }
     if (v.dirty) this.schedule(v);
   }
@@ -220,6 +222,60 @@ function removeFrom<K>(map: Map<K, Set<PushClient>>, key: K, client: PushClient)
   const set = map.get(key);
   set?.delete(client);
   if (set?.size === 0) map.delete(key);
+}
+
+/**
+ * What a team view's listeners need, given the one they hold: when only counts moved (the usual —
+ * a kill, a drop), `{"t":"counts","c":{tile: team count},"m":{player: {c, y}}}` with just those;
+ * when nothing of the team's moved (a rival's tile, a claim: the board did), `{"t":"moved"}`; when
+ * anything else changed (a completion, a new mission), the whole view. Tile views always go whole.
+ */
+export function teamDelta(key: string, before: string, after: string): string {
+  if (parseViewKey(key)?.kind !== 'team') return after;
+  let a: TeamMessage;
+  let b: TeamMessage;
+  try {
+    a = JSON.parse(before);
+    b = JSON.parse(after);
+  } catch {
+    return after;
+  }
+  const [shapeA, countsA] = splitCounts(a);
+  const [shapeB, countsB] = splitCounts(b);
+  if (shapeA !== shapeB) return after;
+  const c: Record<string, number> = {};
+  for (const [tile, n] of Object.entries(countsB)) if (countsA[tile] !== n) c[tile] = n;
+  const m: Record<string, unknown> = {};
+  for (const [player, own] of Object.entries(b.members ?? {})) {
+    if (JSON.stringify(own) !== JSON.stringify(a.members?.[player])) m[player] = own;
+  }
+  const head = { eventId: b.eventId, teamId: b.teamId };
+  if (!Object.keys(c).length && !Object.keys(m).length) return JSON.stringify({ t: 'moved', ...head });
+  return JSON.stringify({ t: 'counts', ...head, c, m });
+}
+
+interface TeamMessage {
+  eventId: number;
+  teamId: number;
+  at?: string;
+  config?: Record<string, unknown>;
+  members?: Record<string, unknown>;
+}
+
+/** The view with every tracked count zeroed and the members and stamp left out, and those counts by tile. */
+function splitCounts(v: TeamMessage): [string, Record<string, number>] {
+  const counts: Record<string, number> = {};
+  const config: Record<string, unknown> = { ...(v.config ?? {}) };
+  for (const [field, list] of Object.entries(config)) {
+    if (!field.startsWith('tracked') || !Array.isArray(list)) continue;
+    config[field] = list.map((row) => {
+      if (!row || typeof row !== 'object' || !('tileId' in row) || !('currentAmount' in row)) return row;
+      const r = row as { tileId: number; currentAmount: number };
+      counts[String(r.tileId)] = r.currentAmount;
+      return { ...r, currentAmount: 0 };
+    });
+  }
+  return [JSON.stringify({ ...v, at: undefined, members: undefined, config }), counts];
 }
 
 /** A NOTIFY payload as a change, or null when it isn't one of ours. */

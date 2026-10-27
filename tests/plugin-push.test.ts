@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { ViewHub, parseChange, parseViewKey, teamKey, tileKey, type PushChange } from '../src/lib/push/hub.ts';
+import { ViewHub, parseChange, parseViewKey, teamDelta, teamKey, tileKey, type PushChange } from '../src/lib/push/hub.ts';
 import { signTicket, ticketKey, verifyTicket, TICKET_TTL_MS } from '../src/lib/push/ticket.ts';
 
 const key = ticketKey('secret');
@@ -194,4 +194,35 @@ test('view keys and NOTIFY payloads parse, and junk is ignored', () => {
   assert.deepEqual(parseChange('{"k":"event_participants","e":4,"t":null,"i":null,"x":12}'), { k: 'event_participants', e: 4, t: null, i: null, x: 12 });
   assert.equal(parseChange('{"k":"x"}'), null);
   assert.equal(parseChange('not json'), null);
+});
+
+const teamView = (drops: [number, number][], members: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) =>
+  JSON.stringify({
+    t: 'team', eventId: 1, teamId: 10,
+    config: { completedTiles: [], trackedDrops: drops.map(([tileId, currentAmount]) => ({ tileId, currentAmount, itemIds: [4151] })), ...extra },
+    members, at: String(Math.random()),
+  });
+
+test('a team view goes out as only what moved: counts, a bare "moved", or whole when anything else changed', () => {
+  const v1 = teamView([[5, 1], [6, 0]], { 7: { c: { 9: 2 } } });
+  const counts = JSON.parse(teamDelta('team:1:10', v1, teamView([[5, 3], [6, 0]], { 7: { c: { 9: 4 } } })));
+  assert.deepEqual(counts, { t: 'counts', eventId: 1, teamId: 10, c: { 5: 3 }, m: { 7: { c: { 9: 4 } } } });
+  assert.deepEqual(JSON.parse(teamDelta('team:1:10', v1, teamView([[5, 1], [6, 0]], { 7: { c: { 9: 2 } } }))), { t: 'moved', eventId: 1, teamId: 10 }, 'only the stamp: a rival\'s tile or a claim');
+  const done = teamView([[5, 1], [6, 0]], {}, { completedTiles: [6] });
+  assert.equal(teamDelta('team:1:10', v1, done), done, 'a completion sends the whole view');
+  assert.equal(teamDelta('tile:1:5', '{"a":1}', '{"a":2}'), '{"a":2}', 'tile views always go whole');
+});
+
+test('listeners holding the last view get the delta; a newcomer gets the view whole', async () => {
+  const { hub, client, advance, views } = harness();
+  views.set(teamKey(1, 10), teamView([[5, 1]]));
+  const a = client([1], 10);
+  await advance(100);
+  views.set(teamKey(1, 10), teamView([[5, 2]]));
+  hub.dispatch(change({ t: 10 }));
+  await advance(1_000);
+  assert.equal(JSON.parse(a.got[1]).t, 'counts');
+  const b = client([1], 10);
+  assert.equal(JSON.parse(b.got[0]).t, 'team', 'whole, with the latest counts');
+  assert.equal(JSON.parse(b.got[0]).config.trackedDrops[0].currentAmount, 2);
 });

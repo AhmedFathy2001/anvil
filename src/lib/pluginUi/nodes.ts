@@ -51,6 +51,20 @@ interface Common {
   q?: boolean;
   /** Right-click menu: an item without `on` is shown greyed out (it says why something can't be done). */
   menu?: { label: string; on?: Action }[];
+  /**
+   * A count the plugin keeps moving without asking again: a bar's fill, or a text's number in `fmt`.
+   * It shows the higher of `cur` and what it knows newer — its own kill the moment it lands, a
+   * teammate's from the live push.
+   */
+  live?: Live;
+}
+
+/** `of`: "1,234 / 5K" · `raw`: "1234 / 5000" · `pct`: "24%" · `near`: `pct` from a goal of 100K up, else `raw`. */
+export interface Live {
+  tile: number;
+  cur: number;
+  goal: number;
+  fmt?: 'of' | 'raw' | 'pct' | 'near';
 }
 
 export type Node =
