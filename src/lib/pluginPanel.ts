@@ -20,6 +20,12 @@ export interface PanelTile {
   complete: boolean;
   position: number;
   description: string | null;
+  /**
+   * A one-of-several-sets tile ("One full barrows set"): the closest set by name, and the set the
+   * team's latest piece went to when that's another one — "Guthan's 3/4 · last Dharok's 2/4". The
+   * count alone is the closest set's, so a Dharok piece that didn't move it looked lost.
+   */
+  sets?: string;
 }
 
 /** A tile someone on the caller's team worked in the last {@link ACTIVE_WINDOW_MS}. */
@@ -48,6 +54,7 @@ export const YOU = 'You';
 // ── Tile rows ─────────────────────────────────────────────────────────────────────────────────────
 
 interface Req {
+  itemId?: number;
   requiredAmount: number;
   currentAmount: number;
   group?: string | null;
@@ -57,7 +64,7 @@ interface Req {
 /** The config's tracked tiles, as far as the rows need them (every list is optional). */
 export interface TrackedLists {
   completedTiles?: { tileId: number }[];
-  trackedDrops?: (Base & { requiredAmount: number; itemRequirements?: Req[]; groupMode?: string; setsRequired?: number })[];
+  trackedDrops?: (Base & { requiredAmount: number; itemRequirements?: Req[]; groupMode?: string; setsRequired?: number; lastItemId?: number | null })[];
   trackedStats?: (Base & { goalAmount: number })[];
   trackedKills?: (Base & { requiredAmount: number })[];
   trackedPvp?: (Base & { requiredAmount: number })[];
@@ -93,8 +100,9 @@ function clampGp(gp: number): number {
 export function panelTiles(cfg: TrackedLists): PanelTile[] {
   const done = new Set((cfg.completedTiles ?? []).map((c) => c.tileId));
   const rows: PanelTile[] = [];
-  const add = (t: Omit<Base, 'currentAmount'>, current: number, goal: number, complete: boolean) =>
+  const add = (t: Omit<Base, 'currentAmount'>, current: number, goal: number, complete: boolean, sets?: string | null) =>
     rows.push({
+      ...(sets ? { sets } : {}),
       tileId: t.tileId,
       label: t.label ?? '',
       current,
@@ -110,7 +118,7 @@ export function panelTiles(cfg: TrackedLists): PanelTile[] {
   for (const d of cfg.trackedDrops ?? []) {
     if (d.itemRequirements?.length) {
       const [current, goal, complete] = collectionProgress(d.itemRequirements, d.groupMode, d.setsRequired ?? 1);
-      add(d, current, goal, complete || done.has(d.tileId));
+      add(d, current, goal, complete || done.has(d.tileId), complete ? null : setsLine(d.itemRequirements, d.groupMode, d.setsRequired ?? 1, d.lastItemId ?? null));
     } else {
       add(d, d.currentAmount, d.requiredAmount, done.has(d.tileId));
     }
@@ -214,6 +222,34 @@ export function collectionProgress(reqs: Req[], groupMode: string | null | undef
     }
   }
   return [best[0], Math.max(1, best[1]), false];
+}
+
+/**
+ * "Guthan's 3/4 · last Dharok's 2/4" for a tile done by any ONE of several sets: the closest set by
+ * name, then the set the latest piece went to when it's a different one. Null for every other shape
+ * (one set, every set, several sets of one), where the count already says it.
+ */
+export function setsLine(reqs: Req[], groupMode: string | null | undefined, setsRequired: number, lastItemId: number | null): string | null {
+  if (groupMode?.toLowerCase() === 'all' || setsRequired > 1) return null;
+  const groups = new Map<string, { name: string; reqs: Req[] }>();
+  for (const r of reqs) {
+    const g = r.group?.trim();
+    if (!g) continue;
+    const key = g.toLowerCase();
+    const at = groups.get(key) ?? { name: g.replace(/\s+set$/i, ''), reqs: [] };
+    at.reqs.push(r);
+    groups.set(key, at);
+  }
+  if (groups.size < 2) return null;
+  const sat = (rs: Req[]) => rs.filter((r) => r.currentAmount >= Math.max(1, r.requiredAmount)).length;
+  const line = (g: { name: string; reqs: Req[] }) => {
+    const need = requireCount(g.reqs);
+    return { text: `${g.name} ${Math.min(sat(g.reqs), need)}/${need}`, left: need - Math.min(sat(g.reqs), need), have: sat(g.reqs) };
+  };
+  const all = [...groups.values()].map((g) => ({ g, ...line(g) }));
+  const best = all.reduce((a, b) => (b.left < a.left || (b.left === a.left && b.have > a.have) ? b : a));
+  const last = lastItemId == null ? undefined : all.find((x) => x.g.reqs.some((r) => r.itemId === lastItemId));
+  return last && last !== best ? `${best.text} · last ${last.text}` : best.text;
 }
 
 /** Distinct items a set needs: the strictest declaration, clamped to the set's size. */

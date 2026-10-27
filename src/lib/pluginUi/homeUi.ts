@@ -555,6 +555,7 @@ function progressRow(label: string, t: PanelTile, a: PanelActive | null, color: 
   return col(
     [
       row(undefined, text(clip(label, 24), a?.self ? 'brand' : 'text'), muted(value, { tip: t.complete ? undefined : exact(t.current, t.goal), ...(moving ? { live: { tile: t.tileId, cur: t.current, goal: t.goal, fmt: nearest ? 'near' : 'of' } } : {}) })),
+      ...(t.sets ? [gap(1), muted(clip(t.sets, 40), { tip: t.sets })] : []),
       ...(who ? [gap(1), text(clip(who, 36), a?.self ? 'brand' : 'muted', { tip: who })] : []),
       gap(3),
       { t: 'bar', pct: t.complete ? 100 : percent(t.current, t.goal), color: t.complete ? 'done' : color, h: 6, bg: 'card', ...(moving ? { live: { tile: t.tileId, cur: t.current, goal: t.goal } } : {}) },

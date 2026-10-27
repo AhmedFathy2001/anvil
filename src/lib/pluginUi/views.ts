@@ -194,7 +194,7 @@ async function teamProgress(request: Request): Promise<BoardContext['progress']>
     viewer: { playerId: auth.playerId, userId: auth.userId, rsn: auth.rsn, request },
   });
   if (!built.ok) return out;
-  for (const t of (built.body as { panel?: { tiles?: PanelTile[] } }).panel?.tiles ?? []) out.set(t.tileId, { current: t.current, goal: t.goal });
+  for (const t of (built.body as { panel?: { tiles?: PanelTile[] } }).panel?.tiles ?? []) out.set(t.tileId, { current: t.current, goal: t.goal, ...(t.sets ? { sets: t.sets } : {}) });
   return out;
 }
 
