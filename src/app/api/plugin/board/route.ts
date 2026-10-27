@@ -528,49 +528,58 @@ export async function buildBoard(event: EventRow, callerTeamId: number | null, v
   };
 }
 
-export async function GET(request: Request) {
-  const eventIdParam = new URL(request.url).searchParams.get('eventId');
+/**
+ * Which board a plugin request is about, and as whom. With an `eventId`, that event: an authenticated
+ * participant is scoped to their team on it (before the start too), anyone else reads it read-only.
+ * Without, the caller's own active event; an alt whose main is on a team gets that home board,
+ * read-only — claims stay with the enrolled character. Null when there is no board to show.
+ */
+export async function pluginBoardScope(
+  request: Request,
+  eventId: number | null,
+): Promise<{ event: EventRow; teamId: number | null; userId: number | null; playerId: number | null } | null> {
   // A read: at the login screen the Jagex Launcher's character (X-RSN-Hint) may stand in for the
   // played name, so the team's plan is on the panel before Play. Claims, the write, never take it.
   const hint = { hintOnly: pluginRsnHintOnly(request) };
+  if (eventId != null) {
+    // Whose event is this? The id came from the query string, so it names any clan's board until
+    // something asks — and this endpoint is deliberately anonymous, so nothing else will. A co-host's
+    // address answers too: its members' plugins ask there (lib/eventScope eventForPluginRequest).
+    const event = (await eventForPluginRequest(request, eventId))?.event;
+    if (!event) return null;
+    const auth = await verifyPluginTokenForEvent(request, eventId, hint);
+    return { event, teamId: auth?.teamId ?? null, userId: auth?.userId ?? null, playerId: auth?.playerId ?? null };
+  }
+  const auth = await verifyPluginToken(request, hint);
+  if (!auth) {
+    const user = await verifyPluginTokenUser(request);
+    const clan = user ? await resolvePluginClan(request, user.userId) : null;
+    const home = user && clan ? await homeBoardForUser(clan.id, user.userId) : null;
+    const event = home ? (await eventForPluginRequest(request, home.eventId))?.event : null;
+    return event ? { event, teamId: null, userId: null, playerId: null } : null;
+  }
+  const event = await db.query.events.findFirst({ where: eq(events.id, auth.eventId) });
+  return event ? { event, teamId: auth.teamId, userId: auth.userId, playerId: auth.playerId } : null;
+}
 
-  // Preview path. Anonymous/non-participants remain read-only; an authenticated participant is
-  // scoped to their exact team on this exact event (including before the start date).
+export async function GET(request: Request) {
+  const eventIdParam = new URL(request.url).searchParams.get('eventId');
   if (eventIdParam) {
     const eventId = Number(eventIdParam);
     if (!Number.isFinite(eventId) || eventId <= 0) {
       return NextResponse.json({ error: 'Invalid eventId' }, { status: 400 });
     }
-    // Whose event is this? The id came from the query string, so it names any clan's board until
-    // something asks — and this endpoint is deliberately anonymous, so nothing else will. A co-host's
-    // address answers too: its members' plugins ask there (lib/eventScope eventForPluginRequest).
-    const event = (await eventForPluginRequest(request, eventId))?.event;
-    if (!event) {
-      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
-    }
+    const scope = await pluginBoardScope(request, eventId);
+    if (!scope) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
     // ETag/304: the clog re-fetches on tab-open but the board rarely changes — an unchanged fetch
     // returns 304 with no body (a 1000-tile board can be tens of KB gzipped). See lib/httpEtag.
-    const auth = await verifyPluginTokenForEvent(request, eventId, hint);
-    return jsonWithEtag(request, await buildBoard(event, auth?.teamId ?? null, auth?.userId ?? null));
+    return jsonWithEtag(request, await buildBoard(scope.event, scope.teamId, scope.userId));
   }
-
-  // Interactive path — the caller's own active event, scoped to their team.
-  const auth = await verifyPluginToken(request, hint);
-  if (!auth) {
-    // Signed in, but the character being played isn't on a team — an alt, while the person's main is
-    // in the bingo. /config still shows them that board (homeBoardForUser), so the sidebar asks here
-    // for its tiles; answer with the same board, read-only, rather than a 401 the panel shows as
-    // "Couldn't load the board". Claims stay with the enrolled character.
-    const user = await verifyPluginTokenUser(request);
-    const clan = user ? await resolvePluginClan(request, user.userId) : null;
-    const home = user && clan ? await homeBoardForUser(clan.id, user.userId) : null;
-    const event = home ? (await eventForPluginRequest(request, home.eventId))?.event : null;
-    if (event) return jsonWithEtag(request, await buildBoard(event, null, null));
+  // Interactive path — the caller's own active event, scoped to their team; an alt gets the home
+  // board read-only rather than a 401 the panel would show as "Couldn't load the board".
+  const scope = await pluginBoardScope(request, null);
+  if (!scope) {
     return NextResponse.json({ error: 'Unauthorized. Provide Authorization: Bearer <accountToken>' }, { status: 401 });
   }
-  const event = await db.query.events.findFirst({ where: eq(events.id, auth.eventId) });
-  if (!event) {
-    return NextResponse.json({ error: 'Event not found' }, { status: 404 });
-  }
-  return jsonWithEtag(request, await buildBoard(event, auth.teamId, auth.userId));
+  return jsonWithEtag(request, await buildBoard(scope.event, scope.teamId, scope.userId));
 }

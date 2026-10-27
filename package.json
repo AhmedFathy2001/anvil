@@ -48,6 +48,7 @@
     "test:tileclaims": "npx tsx --test tests/tile-claims.test.ts",
     "test:pluginboard": "npx tsx --test tests/plugin-board-alt.test.ts",
     "test:pluginpanel": "npx tsx --test tests/plugin-panel.test.ts tests/plugin-goals-progress.test.ts",
+    "test:pluginui": "npx tsx --test tests/plugin-ui.test.ts tests/plugin-ui-home.test.ts tests/plugin-ui-views.test.ts",
     "test:pluginpush": "npx tsx --test tests/plugin-push.test.ts tests/plugin-push-notify.test.ts",
     "test:tilesearch": "npx tsx --test tests/tile-search.test.ts",
     "test:authority": "npx tsx --test tests/clan-authority.test.ts",
