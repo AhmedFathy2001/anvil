@@ -120,6 +120,7 @@ const FLAG_TEXT: Record<string, string> = {
   proof_image_mismatch: "Sent by the plugin, but its screenshot wasn't uploaded by that player's plugin",
   captured_before_start: "The player's PC clock says the screenshot was taken before the event started",
   capture_clock_ahead: "The player's PC clock was set ahead of the server when the screenshot was taken",
+  footprint_short: "Jagex's hiscores don't show this yet, even after the player logged out",
 };
 
 /**

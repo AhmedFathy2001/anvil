@@ -803,7 +803,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
   const eventTileIds = db.select({ id: tiles.id }).from(tiles).where(eq(tiles.eventId, eId));
   const updated = await db
     .update(submissions)
-    .set({ flaggedReason: null })
+    // A hiscores shortfall staff waved through stays waved through: the footprint check skips
+    // 'dismissed' rather than raising it again on the next read.
+    .set({ flaggedReason: null, footprint: sql`case when ${submissions.footprint} = 'short' then 'dismissed' else ${submissions.footprint} end` })
     .where(and(eq(submissions.id, sId), inArray(submissions.tileId, eventTileIds)))
     .returning({ id: submissions.id });
   if (updated.length === 0) return NextResponse.json({ error: 'Submission not found' }, { status: 404 });
