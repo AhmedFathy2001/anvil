@@ -7,13 +7,14 @@
 // reach the site go to this same route and nowhere else.
 
 /** A colour by role, or "#rrggbb". */
-export type Color = 'white' | 'muted' | 'brand' | 'done' | 'error' | 'claim' | 'progress' | `#${string}`;
+export type Color = 'white' | 'text' | 'muted' | 'brand' | 'done' | 'error' | 'claim' | 'progress' | `#${string}`;
 
 /**
  * What a click does. The plugin knows exactly these and drops anything else.
  * - site: open a page on this site (a path, never a URL)
  * - lookup / clan: open a player's or a clan's card in the Lookup tab
- * - load: fetch view `v` and show it in slot `into` (or in place of the whole view)
+ * - load: fetch view `v` and show it in slot `into` (or in place of the whole view); `open` shows one of
+ *   the answer's panes first (a tile on the tiles page), so every tile shares one answer the plugin keeps
  * - pane: show one of slot `into`'s panes, already in hand
  * - flip: switch the `key` toggles between their off and lit faces
  * - post: send `act` with `args` and the view's inputs; the answer is a view, shown like `load`
@@ -24,7 +25,7 @@ export type Action =
   | { a: 'site'; path: string }
   | { a: 'lookup'; rsn: string }
   | { a: 'clan'; slug: string }
-  | { a: 'load'; v: string; args?: Record<string, string>; into?: string }
+  | { a: 'load'; v: string; args?: Record<string, string>; into?: string; open?: { into: string; pane: string } }
   | { a: 'pane'; into: string; pane: string }
   | { a: 'flip'; key: string }
   | {
@@ -121,6 +122,8 @@ export type Node =
     })
   | (Common & { t: 'slot'; id: string; c: Node; panes?: Record<string, Node>; load?: Action })
   | (Common & { t: 'toggle'; key: string; off: Node; lit: Node })
+  /** Draws nothing: fetches `on` (a load) ahead of the click that will want it, so the click is instant. */
+  | (Common & { t: 'warm'; on: Action })
   | (Common & {
       t: 'input';
       name: string;
@@ -195,6 +198,10 @@ export function percent(part: number, whole: number): number {
 }
 
 /** "9,999", "12K", "4.1M", "4.6B": the game's capital suffixes, rounded down. */
+/** The exact count for a tooltip where the line shows a short one ("1,234,567 / 2,700,000"); none when small. */
+export const exact = (current: number, goal: number): string | undefined =>
+  goal >= 10_000 || current >= 10_000 ? `${current.toLocaleString('en-US')} / ${goal.toLocaleString('en-US')}` : undefined;
+
 export function count(n: number): string {
   if (n < 10_000) return n.toLocaleString('en-US');
   if (n < 1_000_000) return `${Math.floor(n / 1000)}K`;

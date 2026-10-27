@@ -110,7 +110,9 @@ test('the board page: standings, pins with a way to drop them, active now, neare
   assert.ok(nearest.indexOf('Tile 1') < nearest.indexOf('Tile 2'));
   assert.ok(!nearest.includes('Tile 3'));
   assert.ok(all.includes('View all 25 tiles'));
-  assert.ok(walk(ui).some((x) => (x.on as { args?: { tile?: string } } | undefined)?.args?.tile === '1'), 'a row opens its tile on the board page');
+  assert.ok(walk(ui).some((x) => (x.on as { open?: { pane: string } } | undefined)?.open?.pane === 't:1'), 'a row opens its tile on the tiles page');
+  const warm = walk(ui).find((x) => x.t === 'warm') as { on: { a: string; v: string; args: Record<string, string> } } | undefined;
+  assert.deepEqual(warm?.on.args, { event: '0', back: 'board', backLabel: 'Summer Bingo' }, 'the tiles page every row opens is fetched ahead');
 });
 
 test('a starting shot owed puts the plugin’s own card in; an alt watching gets the board read-only', () => {

@@ -481,13 +481,16 @@ sign-in, the clan picker, settings and banner sounds, and the starting-shot card
   with the view to show next. Claims keep `/api/plugin/claims`' rules (lib/pluginClaimCaller). Unknown
   action: **404**.
 - A node is `{ "t": <type>, … }`; types: `col`, `row` (l/c/r), `grid`, `text`, `icon`, `bar`, `tabs`,
-  `fold`, `filter`, `slot`, `toggle`, `input`, `button`, `gap`, `countdown` (ticks in the plugin) and
-  `native` (a part only the plugin draws: `start-proof`) (lib/pluginUi/nodes has every field).
-  Any node may carry `tip` and `on` (a click). A type the plugin doesn't know is left out.
+  `fold`, `filter`, `slot`, `toggle`, `input`, `button`, `gap`, `countdown` (ticks in the plugin),
+  `warm` (draws nothing; fetches its `on` ahead of the click that wants it) and `native` (a part only
+  the plugin draws: `start-proof`) (lib/pluginUi/nodes has every field).
+  Colours: `white`, `text` (RuneLite's text grey), `muted`, `brand`, `done`, `progress`, `claim`,
+  `error` or `#rrggbb`. Any node may carry `tip` and `on` (a click). A type the plugin doesn't know is left out.
 - Pictures are game ids only — `item`, `sprite`, `skill`, `boss` (a hiscores key or name) — drawn with
   RuneLite's managers. **No URL ever travels in a node** (tests/plugin-ui asserts it).
 - `on` is one of a fixed set: `site` (a path on this site, opened in the browser), `lookup`, `clan`
-  (open in Lookup), `load` (fetch a view into slot `into`, or in place of the view), `pane` (show a
+  (open in Lookup), `load` (fetch a view into slot `into`, or in place of the view; `open` shows one of the answer's
+  panes first), `pane` (show a
   slot's pane already in hand), `flip` (a toggle's key), `post` (send an action with the view's
   inputs; `ask` prompts for a note first), `pin` (this client's in-game tile tracker, then `then`; tile 0
   unpins the event), `switch` (point the plugin at another of the member's clans). Any

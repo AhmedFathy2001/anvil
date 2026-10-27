@@ -1,6 +1,6 @@
 import type { buildBoard } from '@/app/api/plugin/board/route';
 
-import { type Action, type Color, type Node, button, card, col, count, gap, muted, percent, row, text } from './nodes';
+import { type Action, type Color, type Node, button, card, col, count, exact, gap, muted, percent, row, text } from './nodes';
 
 // The board's "All tiles" page in the plugin's side panel (was the catalogue in AnvilSidebarPanel):
 // search, a status filter, fifteen rows a page, and a tile's detail with claiming and pinning. Pure;
@@ -329,7 +329,7 @@ function tileRow(t: BoardTile, s: BoardState, ctx: BoardContext): Node {
   const right = state
     ? text(state, done ? 'done' : started != null ? IN_PROGRESS : isManual(t) ? MANUAL : 'muted', done ? { icon: { t: 'icon', glyph: 'check', w: 11, h: 11, color: 'done' } } : {})
     : undefined;
-  const head = row(undefined, text(name.length > 28 ? `${name.slice(0, 27)}…` : name, done ? 'done' : 'white'), right, { gap: 6 });
+  const head = row(undefined, text(name.length > 28 ? `${name.slice(0, 27)}…` : name, done ? 'done' : 'text'), right, { gap: 6 });
   return col([head, ...(planning ? [text(planning.length > 36 ? `${planning.slice(0, 35)}…` : planning, mine(t.claims) ? 'brand' : 'claim', { tip: claimWho(t.claims) })] : [])], {
     bg: 'card',
     inset: 7,
@@ -382,7 +382,7 @@ function pinAction(t: BoardTile, s: BoardState, ctx: BoardContext, then?: Action
 // ---- One tile ------------------------------------------------------------------------------------
 
 const heading = (s: string, above = 9): Node[] => [...(above ? [gap(above)] : []), text(s, 'brand'), gap(2)];
-const note = (s: string, color: Color = 'white'): Node => text(s, color, { wrap: true });
+const note = (s: string, color: Color = 'muted'): Node => text(s, color, { wrap: true });
 
 /** "Kurrozive · 312 KC" — a finisher and their share, in the tile's unit. */
 export function finisherLine(t: BoardTile, f: { name: string; amount: number }): string {
@@ -446,11 +446,11 @@ function setTimes(reqs: { requiredAmount: number; currentAmount: number }[], nee
 
 export function tileDetailUi(board: Board, t: BoardTile, s: BoardState, ctx: BoardContext, error: string | null = null): Node {
   const name = t.label?.trim() || `Tile ${t.tileId}`;
-  const parts: Node[] = [text(name, 'white', { font: 'bold' }), gap(4)];
+  const parts: Node[] = [text(name, 'text', { font: 'bold' }), gap(4)];
   if (error) parts.push(text(error, 'error', { wrap: true }), gap(4));
   const p = ctx.progress.get(t.tileId);
   if (p && !t.complete && p.current < p.goal && p.goal > 1) {
-    parts.push(...heading('Progress', 0), row(text(`${percent(p.current, p.goal)}%`), { t: 'bar', pct: percent(p.current, p.goal), color: IN_PROGRESS, h: 6, bg: 'panel' }, text(`${count(p.current)} / ${count(p.goal)}`, 'muted')), gap(9));
+    parts.push(...heading('Progress', 0), row(text(`${percent(p.current, p.goal)}%`, 'text'), { t: 'bar', pct: percent(p.current, p.goal), color: IN_PROGRESS, h: 6, bg: 'panel' }, text(`${count(p.current)} / ${count(p.goal)}`, 'muted', { tip: exact(p.current, p.goal) })), gap(9));
   }
   const facts = [
     !s.pre ? `Status: ${stateText(t, false)}` : isManual(t) ? 'Completion: manual' : null,
@@ -484,7 +484,7 @@ export function tileDetailUi(board: Board, t: BoardTile, s: BoardState, ctx: Boa
       const header = line.endsWith(':');
       const ticked = line.trim().startsWith('✓');
       const s2 = ticked ? line.trim().slice(1).trim() : line.trim();
-      const color: Color = header ? SET_COLORS[headers++ % SET_COLORS.length] : ticked ? DONE_LINE : 'white';
+      const color: Color = header ? SET_COLORS[headers++ % SET_COLORS.length] : ticked ? DONE_LINE : 'muted';
       parts.push(
         ...(header && i > 0 ? [gap(6)] : []),
         row(undefined, text(s2, color, { wrap: true, ...(ticked ? { icon: { t: 'icon', glyph: 'check', w: 11, h: 11, color: DONE_LINE } } : {}) }), undefined, { inset: line.startsWith('  ') ? 8 : 0 }),
