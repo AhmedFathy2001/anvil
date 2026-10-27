@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
 import { loginOf } from '@/lib/roster';
 import { db } from '@/db';
-import { clanRoster, eventParticipants, teams, eventSignups, accounts } from '@/db/schema';
+import { clanRoster, eventParticipants, events, teams, eventSignups, accounts } from '@/db/schema';
 import { and, eq, inArray, isNull, isNotNull, or } from 'drizzle-orm';
 import { generatePlayerToken } from '@/lib/auth';
 import { accountsOfSeats, accountsOnBoard, onAccountConflict, type Participant } from '@/lib/participants';
@@ -168,7 +168,10 @@ export interface EligibleMember {
 // The plugin-active roster for an event, flagged with whether each member already has a player row
 // (and whether it's on a team). Powers the auto-enroll panel's preview count.
 export async function listEligiblePluginMembers(eventId: number): Promise<EligibleMember[]> {
-  // clan-scope: global -- keyed by a SEAT, and a seat belongs to exactly one clan, so the clan rides along with the id.
+  // The HOST clan's seats only. This once read every clan's plugin users, so one clan's auto-enroll
+  // put the whole platform on its board. Co-host clans bring their people through their own team.
+  const [event] = await db.select({ clanId: events.clanId }).from(events).where(eq(events.id, eventId)).limit(1);
+  if (!event) return [];
   const rows = await db
     .select({
       id: clanRoster.id,
@@ -178,7 +181,7 @@ export async function listEligiblePluginMembers(eventId: number): Promise<Eligib
     })
     .from(clanRoster)
     .leftJoin(eventParticipants, and(eq(eventParticipants.clanMemberId, clanRoster.id), eq(eventParticipants.eventId, eventId)))
-    .where(eligibleWhere())
+    .where(and(eq(clanRoster.clanId, event.clanId), eligibleWhere()))
     .orderBy(clanRoster.rsn);
   return rows;
 }
