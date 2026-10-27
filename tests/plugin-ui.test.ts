@@ -279,20 +279,30 @@ test('board search: a category name brings its tiles first; nicknames find bosse
   assert.deepEqual(filterTiles(tiles, '', 'done', true, progress), [], 'nothing is done before the start');
 });
 
-test('board rows: fifteen a page, rows open their tile, and the menu claims or says why not', () => {
+test('board rows: fifteen a page, every page and detail carried as a pane, and the menu claims or says why not', () => {
   const tiles = Array.from({ length: 20 }, (_, i) => tileOf(i + 1));
   const first = boardRowsUi(boardOf(tiles), state, ctxOf());
   assert.ok(texts(first).includes('1–15 of 20'));
-  const rows = walk(first).filter((x) => x.menu);
+  const rows = walk((first as Extract<Node, { t: 'slot' }>).c).filter((x) => x.menu);
   assert.equal(rows.length, 15);
-  assert.deepEqual(rows[0].on, { a: 'load', v: 'board', args: { event: '0', pre: '', q: '', status: 'all', page: '0', part: 'rows', tile: '1' }, into: 'tiles' });
+  assert.deepEqual(rows[0].on, { a: 'pane', into: 'tile', pane: 't:1' });
+  const panes = (first as Extract<Node, { t: 'slot' }>).panes!;
+  assert.deepEqual(Object.keys(panes).length, 2 + 20, 'two pages and a detail per tile');
+  const next = walk(first).find((x) => x.t === 'button' && x.label === 'Next ›') as Extract<Node, { t: 'button' }>;
+  assert.deepEqual(next.on, { a: 'pane', into: 'tile', pane: 'p1' });
+  const back = (id: number) => (walk(panes[`t:${id}`]).find((x) => x.t === 'button' && x.label === 'Back to tiles') as Extract<Node, { t: 'button' }>).on;
+  assert.deepEqual(back(17), { a: 'pane', into: 'tile', pane: 'p1' }, 'a tile goes back to its own page');
+  const opened = boardRowsUi(boardOf(tiles), state, ctxOf(), tiles[16]);
+  const shown = walk((opened as Extract<Node, { t: 'slot' }>).c);
+  assert.ok(shown.some((x) => x.t === 'button' && x.label === 'Back to tiles'), 'opened on a tile, the detail shows first');
+  assert.deepEqual(back(17), (shown.find((x) => x.t === 'button' && x.label === 'Back to tiles') as Extract<Node, { t: 'button' }>).on);
   assert.deepEqual(rows[0].menu!.map((m) => m.label), ['I’m going for this', 'I’m going for this, with a note…', 'Track on screen']);
   const prev = walk(first).find((x) => x.t === 'button' && x.label === '‹ Previous') as Extract<Node, { t: 'button' }>;
   assert.equal(prev.off, true);
 
   const readOnly = boardRowsUi(boardOf(tiles, true), state, ctxOf({ claimBlock: 'Join this event to claim tiles.', pins: null }));
   assert.deepEqual(walk(readOnly).find((x) => x.menu)!.menu, [{ label: 'Join this event to claim tiles.' }]);
-  const page = boardUi(boardOf(tiles, true), state, ctxOf({ claimBlock: 'Join this event to claim tiles.' }));
+  const page = boardUi(boardOf(tiles, true), state, ctxOf({ claimBlock: 'Join this event to claim tiles.' }), readOnly);
   assert.ok(texts(page).includes('Click for details · join this event to claim tiles.'));
 });
 

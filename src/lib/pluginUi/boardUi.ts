@@ -56,7 +56,7 @@ export interface BoardContext {
 
 const MANUAL: Color = '#e8b83a';
 const DONE_LINE: Color = '#6fc26f';
-const IN_PROGRESS: Color = '#7dc4f0';
+const IN_PROGRESS: Color = 'progress';
 const SET_COLORS: Color[] = ['#e0c06a', '#6ac8e0', '#e08ac4', '#a89af0', '#5fd4be', '#e8a87a'];
 const TRACKED_TYPES = new Set(['kill', 'lap', 'pvp', 'diary', 'ca', 'timed', 'lms', 'value', 'valuetotal', 'deathless']);
 const TYPE_WORDS: Record<string, string[]> = {
@@ -246,7 +246,7 @@ function stateText(t: BoardTile, pre: boolean): string | null {
 }
 
 /** The whole page: counts, the search and the filter, then the list — or `inner` — in slot `tiles`. */
-export function boardUi(board: Board, s: BoardState, ctx: BoardContext, inner?: Node): Node {
+export function boardUi(board: Board, s: BoardState, ctx: BoardContext, inner: Node): Node {
   const tiles = board.tiles as BoardTile[];
   if (!tiles.length) return muted(board.tilesRevealed ? 'No visible tiles.' : 'Tiles haven’t been revealed yet.');
   const hidden = 'hiddenTileCount' in board && board.hiddenTileCount ? ` · ${board.hiddenTileCount} still hidden` : '';
@@ -269,28 +269,49 @@ export function boardUi(board: Board, s: BoardState, ctx: BoardContext, inner?: 
       ? []
       : [gap(5), row(muted('Show'), { t: 'input', name: 'status', kind: 'select', options: [...STATUSES], value: s.status, tip: 'Filter tiles by completion state', on: reload } as Node, undefined)]),
     gap(7),
-    { t: 'slot', id: 'tiles', c: inner ?? boardRowsUi(board, s, ctx) },
+    { t: 'slot', id: 'tiles', c: inner },
   ]);
 }
 
-/** One page of matching rows, with Previous / Next. */
-export function boardRowsUi(board: Board, s: BoardState, ctx: BoardContext): Node {
+/** Switch slot `tile` to a page (`p<n>`) or a tile's detail (`t:<id>`) the answer already carries. */
+const pane = (name: string): Action => ({ a: 'pane', into: 'tile', pane: name });
+
+/**
+ * The matching tiles: every page and every tile's detail arrive together as panes of slot `tile`, so
+ * paging, opening a tile and going back draw at once instead of waiting on the site. `open` is the
+ * tile shown first (opened from the Clan tab, or after a claim); otherwise the state's page.
+ */
+export function boardRowsUi(board: Board, s: BoardState, ctx: BoardContext, open?: BoardTile, error: string | null = null): Node {
   const found = filterTiles(board.tiles as BoardTile[], s.q, s.status, s.pre, ctx.progress);
-  if (!found.length) return muted('No matching tiles.');
+  if (!found.length && !open) return muted('No matching tiles.');
   const pages = Math.max(1, Math.ceil(found.length / PAGE_SIZE));
-  const page = Math.max(0, Math.min(s.page, pages - 1));
+  const panes: Record<string, Node> = {};
+  for (let page = 0; page < pages; page++) panes[`p${page}`] = rowsPage(found, page, pages, { ...s, page }, ctx);
+  found.forEach((t, i) => (panes[`t:${t.tileId}`] = tileDetailUi(board, t, { ...s, page: Math.floor(i / PAGE_SIZE) }, ctx)));
+  let first = panes[`p${Math.max(0, Math.min(s.page, pages - 1))}`];
+  if (open) {
+    const at = found.findIndex((t) => t.tileId === open.tileId);
+    first = tileDetailUi(board, open, { ...s, page: at < 0 ? 0 : Math.floor(at / PAGE_SIZE) }, ctx, error);
+    panes[`t:${open.tileId}`] = first;
+  }
+  return { t: 'slot', id: 'tile', panes, c: first };
+}
+
+/** One page of matching rows, with Previous / Next. */
+function rowsPage(found: BoardTile[], page: number, pages: number, s: BoardState, ctx: BoardContext): Node {
+  if (!found.length) return muted('No matching tiles.');
   const from = page * PAGE_SIZE;
   const to = Math.min(found.length, from + PAGE_SIZE);
   const rows: Node[] = [muted(`${from + 1}–${to} of ${found.length}`), gap(5)];
-  found.slice(from, to).forEach((t, i) => rows.push(...(i ? [gap(5)] : []), tileRow(t, { ...s, page }, ctx)));
+  found.slice(from, to).forEach((t, i) => rows.push(...(i ? [gap(5)] : []), tileRow(t, s, ctx)));
   if (pages > 1) {
     rows.push(gap(7), {
       t: 'grid',
       cols: 2,
       gap: 4,
       c: [
-        { ...button('‹ Previous', list({ ...s, page: page - 1 }), 'Show the previous tiles'), off: page <= 0 } as Node,
-        { ...button('Next ›', list({ ...s, page: page + 1 }), 'Show the next tiles'), off: page >= pages - 1 } as Node,
+        { ...button('‹ Previous', pane(`p${page - 1}`), 'Show the previous tiles'), off: page <= 0 } as Node,
+        { ...button('Next ›', pane(`p${page + 1}`), 'Show the next tiles'), off: page >= pages - 1 } as Node,
       ],
     });
   }
@@ -313,18 +334,19 @@ function tileRow(t: BoardTile, s: BoardState, ctx: BoardContext): Node {
     bg: 'card',
     inset: 7,
     tip: `${details ? `${name} — ${details}` : name}${canClaim ? ' (right-click to claim)' : ''}`,
-    on: list(s, { tile: String(t.tileId) }),
-    menu: [...claimMenu(t, s, ctx), ...pinMenu(t, s, ctx)],
+    on: pane(`t:${t.tileId}`),
+    menu: [...claimMenu(t, s, ctx, true), ...pinMenu(t, s, ctx)],
   });
 }
 
-function claimMenu(t: BoardTile, s: BoardState, ctx: BoardContext): { label: string; on?: Action }[] {
+/** The claim choices; from a row (`fromRow`), the answer stays on the list instead of opening the tile. */
+function claimMenu(t: BoardTile, s: BoardState, ctx: BoardContext, fromRow = false): { label: string; on?: Action }[] {
   if (t.complete) return [{ label: 'This tile is already complete.' }];
   if (ctx.claimBlock) return [{ label: ctx.claimBlock }];
   const post = (act: string, extra: Partial<Extract<Action, { a: 'post' }>> = {}): Action => ({
     a: 'post',
     act,
-    args: args(s, { tile: String(t.tileId) }),
+    args: args(s, { tile: String(t.tileId), ...(fromRow ? { list: '1' } : {}) }),
     into: 'tiles',
     ...extra,
   });
@@ -341,7 +363,7 @@ function claimMenu(t: BoardTile, s: BoardState, ctx: BoardContext): { label: str
 }
 
 function pinMenu(t: BoardTile, s: BoardState, ctx: BoardContext): { label: string; on?: Action }[] {
-  const b = pinAction(t, s, ctx);
+  const b = pinAction(t, s, ctx, list(s)); // redrawn on the same page, so the menu says "Stop tracking"
   return b ? [{ label: b.label, on: b.on }] : [];
 }
 
@@ -492,5 +514,5 @@ export function tileDetailUi(board: Board, t: BoardTile, s: BoardState, ctx: Boa
   if (pin) parts.push(gap(5), pin.on ? button(pin.label, pin.on, pin.tip) : muted(pin.tip, { wrap: true }));
   if (ctx.boardPath) parts.push(gap(5), text('Open on Anvil', 'brand', { tip: 'Open this tile on the Anvil site', on: { a: 'site', path: `${ctx.boardPath}?tile=${t.tileId}` }, icon: { t: 'icon', glyph: 'external', w: 11, h: 11, color: 'brand' }, iconAfter: true }));
 
-  return col([button('Back to tiles', list(s), 'Return to the searchable tile list'), gap(7), card(parts, { inset: 9 })]);
+  return col([button('Back to tiles', pane(`p${s.page}`), 'Return to the searchable tile list'), gap(7), card(parts, { inset: 9 })]);
 }

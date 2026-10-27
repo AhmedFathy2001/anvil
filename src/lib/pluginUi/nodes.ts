@@ -7,7 +7,7 @@
 // reach the site go to this same route and nowhere else.
 
 /** A colour by role, or "#rrggbb". */
-export type Color = 'white' | 'muted' | 'brand' | 'done' | 'error' | 'claim' | `#${string}`;
+export type Color = 'white' | 'muted' | 'brand' | 'done' | 'error' | 'claim' | 'progress' | `#${string}`;
 
 /**
  * What a click does. The plugin knows exactly these and drops anything else.

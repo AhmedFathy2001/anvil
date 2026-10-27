@@ -15,7 +15,7 @@ const STANDINGS_SHOWN = 3;
 const ACTIVITY_SHOWN = 12;
 const WEEKLY_SHOWN = 10;
 const EFFICIENCY_SCALE = 1000;
-const IN_PROGRESS: Color = '#7dc4f0';
+const IN_PROGRESS: Color = 'progress';
 const LIGHT: Color = '#cdcdcd';
 
 export interface Mission {
