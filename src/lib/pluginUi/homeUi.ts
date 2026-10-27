@@ -3,7 +3,7 @@ import type { PanelActive, PanelTile } from '@/lib/pluginPanel';
 import type { ScheduleBingo, ScheduleWeekly } from '@/lib/pluginConfig';
 import type { RosterTeamOut } from '@/lib/eventRoster';
 
-import { type Action, type Color, type Node, backRow, button, card, col, count, gap, icon, muted, percent, row, text } from './nodes';
+import { type Action, type Color, type Node, backRow, button, card, col, count, exact, gap, icon, muted, percent, row, text } from './nodes';
 
 // The plugin's Clan tab, built here (was the event list and event page in AnvilSidebarPanel, fed by
 // AnvilSidebarDataSource/ConnectionView): the clan's events as cards, and one event's page — the
@@ -256,13 +256,15 @@ const statusLine = (b: Board, d: HomeData): string => {
 
 const home = (open?: string): Action => ({ a: 'load', v: 'home', args: open ? { open } : {} });
 /** A tile's detail on the board page, with a way back to this event. */
-const openTile = (tileId: number, title: string): Action => ({ a: 'load', v: 'board', args: { event: '0', tile: String(tileId), back: 'board', backLabel: title } });
+/** The live board's tiles page; a tile opens on it as a pane, so every tile is the one answer the page warms. */
+const allTiles = (title: string): Action => ({ a: 'load', v: 'board', args: { event: '0', back: 'board', backLabel: title } });
+const openTile = (tileId: number, title: string): Action => ({ ...(allTiles(title) as Extract<Action, { a: 'load' }>), open: { into: 'tile', pane: `t:${tileId}` } });
 const siteLink = (label: string, tip: string, path: string): Node =>
   text(label, 'brand', { tip, on: { a: 'site', path }, icon: icon({ glyph: 'external', w: 11, h: 11, color: 'brand' }), iconAfter: true });
 
 /** A clickable card on a list — its title and a chevron, then its lines. */
 function drillCard(title: string, lines: Node[], on: Action, tip = title): Node {
-  return card([row(undefined, text(clip(title, 22), 'white', { font: 'regular' }), icon({ glyph: 'chevron-right', w: 12, h: 12, color: 'brand' })), ...lines], { on, tip });
+  return card([row(undefined, text(clip(title, 22), 'text', { font: 'regular' }), icon({ glyph: 'chevron-right', w: 12, h: 12, color: 'brand' })), ...lines], { on, tip });
 }
 
 const thickBar = (p: number): Node => ({ t: 'bar', pct: p, color: p >= 100 ? 'done' : 'brand', h: 6, bg: 'panel' });
@@ -378,7 +380,7 @@ function boardPage(d: HomeData, b: Board): Node[] {
     for (const t of d.standings) {
       if (shown < STANDINGS_SHOWN || t.yours) {
         if (shown) parts.push(gap(3));
-        parts.push(row(undefined, text(`${t.rank}. ${clip(t.name, 22)}`, t.yours ? 'brand' : 'white', { icon: icon({ glyph: 'swatch', color: (/^#[0-9a-f]{6}$/i.test(t.color) ? t.color : '#989898') as Color, w: 8, h: 8 }) }), text(t.score ?? '', t.yours ? 'brand' : 'muted'), {
+        parts.push(row(undefined, text(`${t.rank}. ${clip(t.name, 22)}`, t.yours ? 'brand' : 'text', { icon: icon({ glyph: 'swatch', color: (/^#[0-9a-f]{6}$/i.test(t.color) ? t.color : '#989898') as Color, w: 8, h: 8 }) }), text(t.score ?? '', t.yours ? 'brand' : 'muted'), {
           tip: `${t.name} — ${t.members} member${t.members === 1 ? '' : 's'}. Click for the roster.`,
           on: teams(b.title),
         }));
@@ -432,7 +434,7 @@ function boardPage(d: HomeData, b: Board): Node[] {
     parts.push(...heading('Nearest tiles'));
     if (!nearest.length) parts.push(muted('No tiles to show yet.'));
     nearest.forEach((t, i) => parts.push(...(i ? [gap(8)] : []), progressRow(t.label, t, null, IN_PROGRESS, b.title, true)));
-    parts.push(gap(8), button(b.points ? 'View all tiles' : `View all ${b.total} tiles`, { a: 'load', v: 'board', args: { event: '0', back: 'board', backLabel: b.title } }, 'Search the full board, including manual tiles'));
+    parts.push(gap(8), button(b.points ? 'View all tiles' : `View all ${b.total} tiles`, allTiles(b.title), 'Search the full board, including manual tiles'), { t: 'warm', on: allTiles(b.title) });
   }
   return parts;
 }
@@ -449,7 +451,7 @@ function summary(d: HomeData, b: Board): Node {
       ? 'You: unranked — finish a mission to get on the board'
       : `You: #${m.yourRank} this month · ${m.yourPoints} pts${e.standings && e.standings.yourRank > 0 ? ` · #${e.standings.yourRank} all-time` : ''}`;
     return card([
-      text(b.title, 'white', { font: 'regular' }),
+      text(b.title, 'text', { font: 'regular' }),
       muted(rank, { wrap: true }),
       gap(6),
       countdown(e, true),
@@ -460,7 +462,7 @@ function summary(d: HomeData, b: Board): Node {
   }
   const reveal = d.live && d.cfg.event ? revealNote(d.cfg.event, d.now) : null;
   return card([
-    text(b.title, 'white', { font: 'regular' }),
+    text(b.title, 'text', { font: 'regular' }),
     gap(4),
     ...(b.total <= 0
       ? [text(b.note ?? 'No active event yet.', LIGHT, { wrap: true })]
@@ -484,7 +486,7 @@ function missionRows(d: HomeData, e: NonNullable<HomeConfig['event']>, title: st
     if (m.expiresAt) parts.push({ t: 'countdown', at: m.expiresAt, prefix: 'Expires in ', due: 'Expired', none: '', color: 'brand' });
     const p = tiles.get(m.tileId);
     if (p && p.goal > 0) {
-      parts.push(gap(2), row(undefined, { t: 'bar', pct: p.complete ? 100 : percent(p.current, p.goal), color: p.complete ? 'done' : IN_PROGRESS, h: 6, bg: 'panel' }, muted(p.complete ? 'Done' : `${count(p.current)} / ${count(p.goal)}`)));
+      parts.push(gap(2), row(undefined, { t: 'bar', pct: p.complete ? 100 : percent(p.current, p.goal), color: p.complete ? 'done' : IN_PROGRESS, h: 6, bg: 'panel' }, muted(p.complete ? 'Done' : `${count(p.current)} / ${count(p.goal)}`, { tip: p.complete ? undefined : exact(p.current, p.goal) })));
     }
     return col(parts, { on: openTile(m.tileId, title) });
   });
@@ -497,7 +499,7 @@ function progressRow(label: string, t: PanelTile, a: PanelActive | null, color: 
   const who = a ? workersLine(a) : '';
   return col(
     [
-      row(undefined, text(clip(label, 24), a?.self ? 'brand' : 'white'), muted(value)),
+      row(undefined, text(clip(label, 24), a?.self ? 'brand' : 'text'), muted(value, { tip: t.complete ? undefined : exact(t.current, t.goal) })),
       ...(who ? [gap(1), text(clip(who, 36), a?.self ? 'brand' : 'muted', { tip: who })] : []),
       gap(3),
       { t: 'bar', pct: t.complete ? 100 : percent(t.current, t.goal), color: t.complete ? 'done' : color, h: 6, bg: 'card' },
@@ -511,7 +513,7 @@ const tileTip = (t: PanelTile) => (t.description?.trim() && t.description.trim()
 function feedList(entries: ActivityEntry[], tiles: Map<number, PanelTile>, title: string): Node {
   const rows: Node[] = entries.slice(0, ACTIVITY_SHOWN).flatMap((e, i) => {
     const line = feedLine(e);
-    const color: Color = e.kind === 'complete' ? 'done' : e.kind === 'reveal' || e.isSelf ? 'brand' : 'white';
+    const color: Color = e.kind === 'complete' ? 'done' : e.kind === 'reveal' || e.isSelf ? 'brand' : 'text';
     const t = tiles.get(e.tileId);
     const others = (e.participants ?? []).filter((p) => p && p !== e.player);
     const detail = e.kind === 'complete' && others.length ? `${line} — with ${others.join(', ')}` : line;
@@ -532,7 +534,7 @@ function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
   const path = `${d.clanPath}/weekly/${w.id}`;
   const parts: Node[] = [
     card([
-      text(w.title || weeklyKind(w.type), 'white', { font: 'regular' }),
+      text(w.title || weeklyKind(w.type), 'text', { font: 'regular' }),
       text(`${weeklyKind(w.type)} · ${w.metricLabel}`, LIGHT),
       ...(line ? [muted(line)] : []),
       gap(4),
@@ -548,7 +550,7 @@ function weeklyPage(d: HomeData, w: ScheduleWeekly): Node[] {
       for (const r of s.top) {
         if (shown >= WEEKLY_SHOWN && !r.self) continue;
         if (shown >= WEEKLY_SHOWN) parts.push(gap(3), muted('…'));
-        parts.push(gap(3), row(text(String(r.rank), 'muted', { w: 22, align: 'r' }), text(clip(r.rsn, 16), r.self ? 'brand' : 'white', { tip: r.rsn }), text(`+${weeklyGain(w, r.gained)}`, r.self ? 'brand' : 'muted', { align: 'r' })));
+        parts.push(gap(3), row(text(String(r.rank), 'muted', { w: 22, align: 'r' }), text(clip(r.rsn, 16), r.self ? 'brand' : 'text', { tip: r.rsn }), text(`+${weeklyGain(w, r.gained)}`, r.self ? 'brand' : 'muted', { align: 'r' })));
         shown++;
       }
     }
@@ -563,11 +565,11 @@ function scheduledPage(d: HomeData, s: ScheduleBingo): Node[] {
     s.yourEntry === 'entered'
       ? text(live ? 'You’re in — your board shows once it loads.' : 'You’re signed up — waiting for it to start.', 'done', { wrap: true })
       : s.yourEntry === 'pending'
-        ? text('Signed up — waiting for the host to approve.', 'white', { wrap: true })
+        ? text('Signed up — waiting for the host to approve.', 'text', { wrap: true })
         : text(live ? 'You’re not enrolled in this one.' : 'Sign up on the site to take part.', LIGHT, { wrap: true });
   const parts: Node[] = [
     card([
-      text(s.title || 'Bingo', 'white', { font: 'regular' }),
+      text(s.title || 'Bingo', 'text', { font: 'regular' }),
       text(scheduledKind(s), LIGHT),
       ...(timing ? [text(timing, live ? 'done' : 'muted')] : []),
       ...(sizeLabel(s) ? [muted(sizeLabel(s))] : []),
