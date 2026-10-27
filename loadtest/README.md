@@ -18,15 +18,16 @@ Most of the load comes from the plugin (config/board polls, stat pushes, the pus
 
 ## 1. Record: turn on the access log (box)
 
-`caddy-access-log.caddy` has the snippet and the exact edit for the live `/opt/anvil/Caddyfile`. In short:
-`log_credentials` in the global `servers` block, the `(access_log)` snippet, and `import access_log` in
-each site block. Credentials and client addresses are **hashed** (8 hex characters, enough to tell
-sessions apart, useless as a token). RSN/account headers and Referer are dropped. Logs are kept for a week.
+On since 2026-10-27, in the `:8080` (Cloudflare Tunnel) block of the live `/opt/anvil/Caddyfile`,
+writing `/data/tunnel-access.log`. All public traffic enters there. `caddy-access-log.caddy` records
+the exact config. Credentials are **hashed** (8 hex characters, enough to tell sessions apart, useless
+as a token). RSN/account headers and Referer are dropped. `client_ip` stays in clear for the abuse
+blocklist. Logs are kept for a week.
 
 Check after the reload (must print `0`):
 
 ```sh
-docker exec caddy sh -c "grep -cE 'Bearer |=' /data/access-logs/access.log"
+docker exec anvil-caddy-1 sh -c "grep -cE '\"(Authorization\":\\[\"Bearer|Cookie\":\\[\"[^\"]*=)' /data/tunnel-access.log"
 ```
 
 Leave it on for a few days, including **an event evening**. That evening is the shape worth modelling.
@@ -34,8 +35,8 @@ Leave it on for a few days, including **an event evening**. That evening is the 
 ## 2. Profile
 
 ```sh
-docker cp caddy:/data/access-logs ./access-logs        # on the box, then scp the folder here
-npm run load:profile -- access-logs/*.log* --host '^(anvilosrs\.com|[a-z0-9-]+\.anvilosrs\.com)$'
+ssh anvil 'docker exec anvil-caddy-1 sh -c "cd /data && tar c tunnel-access*"' | tar x -C access-logs
+npm run load:profile -- access-logs/tunnel-access* --host '^(anvilosrs\.com|[a-z0-9-]+\.anvilosrs\.com)$'
 ```
 
 First run without a window and read the hourly table, then re-run on the busy stretch:
