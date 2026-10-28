@@ -200,3 +200,64 @@ export function summariseMoments(rows: MomentRow[], limit = 8): MomentsSummary {
 export function kindEmoji(kind: string): string {
   return MOMENT_EMOJI[kind] ?? '⭐';
 }
+
+/** A drop credited on the board, as a feed line would carry it (lib/submittedDrops). */
+export interface SubmittedDrop {
+  submissionId: number;
+  rsn: string;
+  itemId: number;
+  itemName: string | null;
+  quantity: number;
+  valueGp: number | null;
+  teamId: number | null;
+  /** When it was submitted, epoch ms. */
+  at: number;
+}
+
+/** How far apart a feed line and a submission of the same item may be and still be one drop. */
+export const SAME_DROP_WINDOW_MS = 30 * 60_000;
+
+/**
+ * The feed, plus every credited drop it never saw.
+ *
+ * The feed is what the plugin reported, so a drop proven with a screenshot on the site — a mega
+ * rare someone uploaded by hand — was missing from "value seen" and from "Most valuable", the one
+ * card it should have topped. A submission already in the feed (same person, same item, close in
+ * time) is the same drop and stays one line; each feed line can stand for one submission only.
+ */
+export function withSubmittedDrops(rows: MomentRow[], drops: SubmittedDrop[]): MomentRow[] {
+  const claimed = new Set<number>();
+  const added: MomentRow[] = [];
+  for (const d of drops) {
+    const name = d.rsn.toLowerCase();
+    const match = rows.find(
+      (r) =>
+        !claimed.has(r.id) &&
+        r.itemId === d.itemId &&
+        r.rsn.toLowerCase() === name &&
+        Math.abs(Date.parse(r.occurredAt) - d.at) <= SAME_DROP_WINDOW_MS,
+    );
+    if (match) {
+      claimed.add(match.id);
+      continue;
+    }
+    added.push({
+      // Negative, so it can never collide with a real moment id.
+      id: -d.submissionId,
+      rsn: d.rsn,
+      kind: 'unique',
+      itemId: d.itemId,
+      itemName: d.itemName,
+      quantity: d.quantity,
+      valueGp: d.valueGp,
+      source: null,
+      kc: null,
+      rarityDenominator: null,
+      tier: null,
+      sourceKind: null,
+      teamId: d.teamId,
+      occurredAt: new Date(d.at).toISOString(),
+    });
+  }
+  return added.length ? [...rows, ...added] : rows;
+}
