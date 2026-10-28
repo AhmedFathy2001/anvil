@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import Select from '@/components/Select';
 import SignupQuestions, { type AnswerValue } from '@/components/SignupQuestions';
 import { clanFetch } from '@/lib/clanFetch';
 import type { SurveyQuestionView } from '@/lib/survey';
@@ -71,13 +72,7 @@ export default function SignupPanel(props: {
           {props.seats.length > 1 && (
             <label className="block text-sm">
               <span className="mb-1 block text-xs text-text-muted">Signing up as</span>
-              <select value={seat ?? ''} onChange={(e) => setSeat(Number(e.target.value))} className="rounded border border-card-border bg-brown-dark px-3 py-2 text-sm text-foreground">
-                {props.seats.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.rsn}
-                  </option>
-                ))}
-              </select>
+              <Select value={seat != null ? String(seat) : ''} onChange={(v) => setSeat(Number(v))} options={props.seats.map((s) => ({ value: String(s.id), label: s.rsn }))} ariaLabel="Signing up as" className="w-auto min-w-48" />
             </label>
           )}
           <SignupQuestions questions={props.questions} answers={answers} onChange={(q, v) => setAnswers((a) => { const next = { ...a }; if (v === undefined) delete next[String(q)]; else next[String(q)] = v; return next; })} disabled={busy} />
