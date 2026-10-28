@@ -75,7 +75,14 @@ async function chatLive(tx: Tx, clanId: number): Promise<boolean> {
   const [row] = await tx
     .select({ id: clanCofferBroadcasts.id })
     .from(clanCofferBroadcasts)
-    .where(and(eq(clanCofferBroadcasts.clanId, clanId), gte(clanCofferBroadcasts.createdAt, new Date(Date.now() - CHAT_LIVE_MS))))
+    .where(
+      and(
+        eq(clanCofferBroadcasts.clanId, clanId),
+        gte(clanCofferBroadcasts.createdAt, new Date(Date.now() - CHAT_LIVE_MS)),
+        // Only a line two people reported: one member's forged line must not switch the screen off.
+        sql`cardinality(${clanCofferBroadcasts.reporters}) >= 2`,
+      ),
+    )
     .limit(1);
   return !!row;
 }

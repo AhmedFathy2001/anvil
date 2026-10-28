@@ -53,6 +53,19 @@ const report = (who: number, line: string, clanName = 'The AFK Spot') =>
   CB.recordCofferBroadcast({ clanId, clanMemberId: seats[who].seat, rsn: seats[who].rsn, line, clanName });
 const confirmed = async () => (await C.getCofferBalance(clanId)).confirmed;
 
+test('one person’s lines alone don’t switch the coffer screen off', async () => {
+  await report(0, 'Nisbro has deposited 2,000,000,000 coins into the coffer.');
+  await CS.syncPhysicalCoffer({ clanId, eventKey: crypto.randomUUID(), clanMemberId: seats[0].seat, userId: treasurer, rsn: 'Nisbro', pluginVersion: null, kind: 'snapshot', beforeBalance: 7, afterBalance: 7, actorConfirmed: false });
+  const r = await CS.syncPhysicalCoffer({ clanId, eventKey: crypto.randomUUID(), clanMemberId: seats[0].seat, userId: treasurer, rsn: 'Nisbro', pluginVersion: null, kind: 'deposit', beforeBalance: 7, afterBalance: 9, actorConfirmed: true });
+  const [ev] = await db.select().from(s.clanCofferSyncEvents).where((await import('drizzle-orm')).eq(s.clanCofferSyncEvents.eventKey, (await db.select().from(s.clanCofferSyncState))[0].lastEventKey!));
+  assert.equal(r.outcome, 'movement');
+  assert.ok(ev.cofferEntryId != null, 'the reading still files an entry');
+  await db.delete(s.clanCofferSyncEvents);
+  await db.delete(s.clanCofferSyncState);
+  await db.delete(s.clanCofferBroadcasts);
+  await db.delete(s.cofferEntries);
+});
+
 test('a deposit seen by two people is a donation by the person named', async () => {
   const line = 'Nisbro has deposited 46,203,031 coins into the coffer.';
   const first = await report(0, line);
