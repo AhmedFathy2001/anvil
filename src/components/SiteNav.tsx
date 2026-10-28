@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import ClanCrest from '@/components/ClanCrest';
 import { useEffect, useRef, useState } from 'react';
 import ClanLink from '@/components/ClanLink';
+import PendingBadge from '@/components/PendingBadge';
 
 interface NavUser {
   displayName: string;
@@ -30,6 +31,8 @@ interface Props {
   isStaff: boolean;
   /** The first admin surface this person's grant may actually open in the current clan. */
   adminHref: string;
+  /** Set for platform operators only: what's waiting on them (lib/staffPending). */
+  platformBadge?: { count: number; title: string } | null;
   discordInvite: string | null;
   user: NavUser | null;
   /** The clan whose pages these are, or null on the apex. */
@@ -66,7 +69,7 @@ const DiscordIcon = (
   </svg>
 );
 
-export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff, adminHref, discordInvite, user, clan, myClans }: Props) {
+export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff, adminHref, platformBadge = null, discordInvite, user, clan, myClans }: Props) {
   const [open, setOpen] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const switcherRef = useRef<HTMLDivElement | null>(null);
@@ -233,6 +236,13 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
             Admin
           </ClanLink>
         )}
+        {/* /staff lives on the apex, never under a clan's prefix — a plain link, not a ClanLink. */}
+        {platformBadge && (
+          <a href="/staff" className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-gold/70 hover:text-gold hover:bg-gold/10 transition-all">
+            Platform
+            {platformBadge.count > 0 && <PendingBadge count={platformBadge.count} title={platformBadge.title} />}
+          </a>
+        )}
         {discordInvite && (
           <a
             href={discordInvite}
@@ -351,6 +361,12 @@ export default function SiteNav({ signedIn, myTeams, hasCoffer = false, isStaff,
               >
                 Admin
               </ClanLink>
+            )}
+            {platformBadge && (
+              <a href="/staff" className="flex items-center gap-1.5 px-3 py-2.5 rounded-md text-sm text-gold/70 hover:text-gold hover:bg-gold/10 transition-all">
+                Platform
+                {platformBadge.count > 0 && <PendingBadge count={platformBadge.count} title={platformBadge.title} />}
+              </a>
             )}
             {discordInvite && (
               <a

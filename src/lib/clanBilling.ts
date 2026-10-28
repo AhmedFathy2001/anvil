@@ -30,6 +30,8 @@ export type BillingState =
   | 'lapsed'
   /** On a paid plan with no subscription behind it — comped, or migrated by hand. */
   | 'comped'
+  /** Paid once; the subscription ended (a card that kept failing, or a cancel that ran out). Free now. */
+  | 'ended'
   /** Free tier, no trial, nothing owed. The ordinary resting state under freemium. */
   | 'free';
 
@@ -39,6 +41,18 @@ export interface BillingFacts {
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
   subscribed: boolean;
+  /** Had a subscription that ended. Optional so older callers read as never-paid. */
+  subscriptionEnded?: boolean;
+}
+
+/**
+ * Paying, or paid once. The webhook KEEPS the subscription id when a subscription ends, so a
+ * restart from Gumroad's side can find the clan again — which makes the id alone mean "ever had
+ * one". The plan is what says whether it's still paying: an ended one drops to free.
+ */
+export function subscriptionFacts(subscriptionId: string | null, plan: string): { subscribed: boolean; subscriptionEnded: boolean } {
+  const had = !!subscriptionId;
+  return { subscribed: had && plan !== 'free', subscriptionEnded: had && plan === 'free' };
 }
 
 export interface BillingStatus {
@@ -140,6 +154,12 @@ export function billingStatus(facts: BillingFacts, now: number): BillingStatus {
       // moment a conversation is worth having, and nothing else on the platform marks it.
       attention: true,
     };
+  }
+
+  if (facts.subscriptionEnded) {
+    // Not flagged: nothing is owed and nothing is broken — they're on free, like a clan that never
+    // paid. But it's the one fact about money a directory should never lose, so it's said.
+    return { state: 'ended', daysLeft: null, label: 'Paid, ended · free now', attention: false };
   }
 
   // A paid plan with nothing behind it. Deliberate in every case we have (a migration, a deal, a

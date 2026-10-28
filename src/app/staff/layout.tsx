@@ -5,7 +5,7 @@ import { requirePlatformPage } from '@/lib/platformAccess';
 import { libraryActor } from '@/lib/guideAccess';
 import { pendingCount as pendingProposals } from '@/lib/guideProposals';
 import { pendingCount as pendingLibraryProposals } from '@/lib/libraryProposals';
-import { openCharacterReportCount } from '@/lib/characterReports';
+import { staffPending } from '@/lib/staffPending';
 import { hasPlatformRole } from '@/lib/clanRoles';
 import { avatarUrl } from '@/lib/discord-oauth';
 import { db } from '@/db';
@@ -68,13 +68,16 @@ export default async function StaffLayout({ children }: { children: React.ReactN
   });
 
   const canWrite = hasPlatformRole(actor.role, 'staff');
+  // The same counts the Platform link wears everywhere else, broken out by where each is cleared.
+  const pending = await staffPending();
 
   const groups: SidebarGroup[] = [
     {
       label: 'Platform',
       items: [
-        { href: '/staff', label: 'Overview', icon: '◎' },
-        { href: '/staff/clans', label: 'Clans', icon: '🏰', matchPrefix: true },
+        { href: '/staff', label: 'Overview', icon: '◎', badge: pending.nameDisputes, attn: true },
+        // Billing that wants a look: overdue, cancelling, or a trial ending this week.
+        { href: '/staff/clans', label: 'Clans', icon: '🏰', badge: pending.billing, attn: true, matchPrefix: true },
         { href: '/staff/ghost-clans', label: 'Ghost clans', icon: '👻' },
         { href: '/staff/people', label: 'People', icon: '👤', matchPrefix: true },
         // Visits, feature use and where onboarding stalls (lib/analytics). Read-only, so support too.
@@ -83,17 +86,17 @@ export default async function StaffLayout({ children }: { children: React.ReactN
         // operator can do, and the one most often needed when somebody asks why.
         // Reports about the product, from every clan. Was a triage queue in each clan's own admin
         // area, which asked every clan admin to look after a queue that was never theirs.
-        { href: '/staff/feedback', label: 'Feedback', icon: '💬', matchPrefix: true },
+        { href: '/staff/feedback', label: 'Feedback', icon: '💬', badge: pending.feedback, matchPrefix: true },
         // Characters clans raised: who owns a character is the platform's call (lib/characterReports).
-        { href: '/staff/reports', label: 'Character reports', icon: '⚑', badge: await openCharacterReportCount(), matchPrefix: true },
+        { href: '/staff/reports', label: 'Character reports', icon: '⚑', badge: pending.reports, matchPrefix: true },
         // What broke, across every clan. The platform had no way to learn it was failing except a
         // member posting in Discord; this is the surface the hourly digest links back to.
-        { href: '/staff/errors', label: 'Errors', icon: '⚠', matchPrefix: true },
+        { href: '/staff/errors', label: 'Errors', icon: '⚠', badge: pending.errors, matchPrefix: true },
         { href: '/staff/audit', label: 'Operator log', icon: '⧉', matchPrefix: true },
         // The Anvil guide library every clan sees and copies from.
-        { href: '/staff/guides', label: 'Guide library', icon: '📖', badge: await pendingProposals(), matchPrefix: true },
+        { href: '/staff/guides', label: 'Guide library', icon: '📖', badge: pending.guideProposals, matchPrefix: true },
         // Anvil's task and board library, and the suggestions clans send for it.
-        { href: '/staff/library', label: 'Task & board library', icon: '▦', badge: await pendingLibraryProposals(), matchPrefix: true },
+        { href: '/staff/library', label: 'Task & board library', icon: '▦', badge: pending.libraryProposals, matchPrefix: true },
         // Test any tile kind on your own account without a real bingo (lib/lab), and the replay
         // scenarios the dev client pulls.
         { href: '/staff/lab', label: 'Tile lab', icon: '⚗', matchPrefix: true },

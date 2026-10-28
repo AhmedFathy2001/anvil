@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 
 import ClanLink from '@/components/ClanLink';
 import ClanCrest from '@/components/ClanCrest';
+import PendingBadge from '@/components/PendingBadge';
 
 export interface RailClan {
   slug: string;
@@ -43,6 +44,7 @@ export default function PlatformRail({
   characterCount,
   myProfileHref,
   platformStaff,
+  platformBadge,
   guideLibrary,
 }: {
   clans: RailClan[];
@@ -53,12 +55,14 @@ export default function PlatformRail({
   myProfileHref?: string | null;
   /** Holds a platform role. A separate axis from any clan grant — see lib/clanRoles. */
   platformStaff?: boolean;
+  /** What's waiting on a platform operator, for the Platform link (lib/staffPending). */
+  platformBadge?: { count: number; title: string } | null;
   /** Writes the Anvil guide library without holding a platform role. */
   guideLibrary?: boolean;
 }) {
   const pathname = usePathname() ?? '/';
 
-  const item = (href: string, label: string, icon: React.ReactNode, exact = href === '/') => {
+  const item = (href: string, label: string, icon: React.ReactNode, exact = href === '/', badge?: { count: number; title: string } | null) => {
     // Prefix match, so /guide/<page> keeps Guides lit. Exact for the root, and for the Clan Hall:
     // /clans/new is the create form, not the hall, and lighting the hall there says you are browsing.
     const active = exact ? pathname === href : pathname.startsWith(href);
@@ -75,6 +79,7 @@ export default function PlatformRail({
       >
         <span className={`shrink-0 ${active ? 'text-gold' : 'text-text-dim'}`}>{icon}</span>
         {label}
+        {badge && badge.count > 0 && <PendingBadge count={badge.count} title={badge.title} />}
       </ClanLink>
     );
   };
@@ -107,7 +112,7 @@ export default function PlatformRail({
         {item('/guide', 'Guides', <BookIcon />)}
         {/* /staff existed and NOTHING linked to it. Platform capability is its own axis — no clan
             role confers it — so an operator had to know the URL to reach the platform's own admin. */}
-        {platformStaff && item('/staff', 'Platform', <ShieldIcon />)}
+        {platformStaff && item('/staff', 'Platform', <ShieldIcon />, false, platformBadge)}
         {guideLibrary && item('/staff/guides', 'Guide library', <ShieldIcon />)}
       </div>
 

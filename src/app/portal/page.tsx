@@ -124,7 +124,7 @@ export default async function PortalPage() {
                 overCap={overCap}
                 onTrial={onTrial}
                 trialDaysLeft={trialDaysLeft}
-                hasSubscription={!!c.subscriptionId}
+                hasSubscription={!!c.subscriptionId && c.plan !== 'free'}
                 checkoutRef={c.gumroadRef}
               />
             );
