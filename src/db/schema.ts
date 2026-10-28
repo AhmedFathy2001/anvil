@@ -3141,6 +3141,26 @@ export const clanCofferSyncEvents = pgTable('clan_coffer_sync_events', {
 ]);
 export type ClanCofferSyncEvent = typeof clanCofferSyncEvents.$inferSelect;
 
+// The clan-chat line every member sees when someone uses the coffer ("Nisbro has deposited 519 coins
+// into the coffer."), as reported by each plugin that saw it. One row per movement: reports of the same
+// actor, direction and amount close together are the same line seen by different people
+// (lib/cofferBroadcast). `reporters` holds the PEOPLE (players.id) who reported it — two make it money.
+export const clanCofferBroadcasts = pgTable('clan_coffer_broadcasts', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  actorRsn: text('actor_rsn').notNull(),
+  actorKey: text('actor_key').notNull(),
+  direction: text('direction').notNull(),
+  amount: bigint('amount', { mode: 'number' }).notNull(),
+  reporters: integer('reporters').array().notNull().default(sql`'{}'::integer[]`),
+  /** The seats those reports came from: one person's second client seeing the same line is not a second line. */
+  reporterSeats: integer('reporter_seats').array().notNull().default(sql`'{}'::integer[]`),
+  cofferEntryId: integer('coffer_entry_id').references(() => cofferEntries.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('clan_coffer_broadcasts_match_idx').on(t.clanId, t.actorKey, t.createdAt),
+]);
+
 // ── What broke, and how often ────────────────────────────────────────────────────────────────────
 //
 // The platform had no way to learn it was broken. A board that 500s at two in the morning, mid-event,

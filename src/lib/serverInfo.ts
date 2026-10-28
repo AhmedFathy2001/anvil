@@ -136,6 +136,9 @@ export const PLUGIN_CAPABILITIES = [
   // Physical OSRS Clan Coffer observations. A plugin only reads/posts these when the endpoint is
   // advertised, so older self-hosted sites do not receive a stream of 404s.
   'coffer-sync',
+  // The coffer's clan-chat line (POST /api/plugin/coffer/broadcast, lib/cofferBroadcast): every member's
+  // plugin reports it, so mobile deposits are seen and credited by name. Gated for the same 404 reason.
+  'coffer-chat',
   // Team-private tile claims (lib/tileClaims): the AUTHED /api/plugin/board carries `claims` on each
   // tile the caller's team has called, and POST/DELETE /api/plugin/claims makes or drops your own.
   // Gated so a plugin shows the claim menu only where a click can actually land.

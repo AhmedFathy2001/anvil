@@ -778,6 +778,13 @@
       "when": 1793344563039,
       "tag": "0154_clan_event_modules",
       "breakpoints": true
+    },
+    {
+      "idx": 155,
+      "version": "7",
+      "when": 1793344563040,
+      "tag": "0155_coffer_broadcasts",
+      "breakpoints": true
     }
   ]
 }

@@ -111,7 +111,8 @@ export function confirmReading(
   const whole = foldedOthers === 0 && amount === reading.amount;
   return {
     amount,
-    kind: whole ? reading.kind : 'adjustment',
+    // A fall is coins moving to someone's bank — custody, never spending — named or not.
+    kind: whole ? reading.kind : amount < 0 ? 'withdrawal' : 'adjustment',
     keepAttribution: whole && reading.attributed,
   };
 }

@@ -74,3 +74,12 @@ test('folding in another unconfirmed reading drops the actor', () => {
     { amount: 5_000_000, kind: 'adjustment', keepAttribution: false },
   );
 });
+
+test('a fall nobody can name is still custody, never spending', () => {
+  // 28 Oct: one client saw 50m -> 0 for a tick while another saw 50m -> 3.8m. The reconciled -46.2m
+  // was booked as an adjustment and took Nisbro's donation back out of the balance.
+  assert.deepEqual(
+    confirmReading(50_000_000, 3_796_969, { kind: 'adjustment', amount: 3_796_969, attributed: false }, 1),
+    { amount: -46_203_031, kind: 'withdrawal', keepAttribution: false },
+  );
+});
