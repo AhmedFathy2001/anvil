@@ -3,7 +3,7 @@ import { and, desc, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanAuditLog, clans } from '@/db/schema';
-import { checkSaleWithGumroad, parseWebhook, verifySeller, verifyWebhookSecret, TRIAL_DAYS } from '@/lib/gumroad';
+import { checkSaleWithGumroad, checkSubscriptionWithGumroad, nextChargeDue, parseWebhook, verifySeller, verifyWebhookSecret, TRIAL_DAYS } from '@/lib/gumroad';
 import { PLANS, planForGumroadProduct, planForGumroadTier, planOf, type Plan } from '@/lib/plans';
 
 // Form-encoded body, and crypto — Node runtime.
@@ -60,6 +60,33 @@ async function suspendedByBilling(clanId: number): Promise<boolean> {
     .orderBy(desc(clanAuditLog.id))
     .limit(1);
   return last?.eventType === 'billing_refund' || last?.eventType === 'billing_dispute';
+}
+
+/**
+ * The plan a clan had before its subscription ended, from the billing_ended entry that dropped it —
+ * so taking the membership up again gives back what was paid for, not a guess. Only when nothing
+ * has happened since: a refund, dispute or staff change after the end makes the old plan stale.
+ */
+async function planBeforeEnd(clanId: number): Promise<Plan | null> {
+  const [last] = await db
+    .select({ eventType: clanAuditLog.eventType, newValue: clanAuditLog.newValue })
+    .from(clanAuditLog)
+    .where(
+      and(
+        eq(clanAuditLog.clanId, clanId),
+        inArray(clanAuditLog.eventType, ['billing_ended', 'billing_restarted', 'billing_subscribed', 'billing_refund', 'billing_dispute', 'platform_clan_updated']),
+      ),
+    )
+    .orderBy(desc(clanAuditLog.id))
+    .limit(1);
+  if (last?.eventType !== 'billing_ended') return null;
+  try {
+    const from = (JSON.parse(last.newValue ?? '{}') as { from?: string }).from;
+    const plan = planOf(from);
+    return plan === PLANS.free ? null : plan;
+  } catch {
+    return null;
+  }
 }
 
 function trialEndsAtIso(): string {
@@ -141,6 +168,7 @@ export async function POST(req: NextRequest) {
     // ── Paid, or a free trial started ────────────────────────────────────────────────────────
     case 'sale': {
       const plan = purchasedPlan(ev, current === PLANS.free ? PLANS.bronze : current);
+      const trialEnd = ev.freeTrialEndsAt && !Number.isNaN(Date.parse(ev.freeTrialEndsAt)) ? new Date(ev.freeTrialEndsAt).toISOString() : trialEndsAtIso();
       await db
         .update(clans)
         .set({
@@ -151,7 +179,10 @@ export async function POST(req: NextRequest) {
           gumroadProductId: ev.productId,
           gumroadProductPermalink: ev.productPermalink,
           contactEmail: ev.email ?? clan.contactEmail,
-          trialEndsAt: trialEndsAtIso(),
+          trialEndsAt: trialEnd,
+          // The first charge falls due when the trial runs out — and if it never comes, that date
+          // going by is what marks the clan overdue (lib/clanBilling).
+          currentPeriodEnd: trialEnd,
           cancelAtPeriodEnd: false,
           // Paying again lifts a suspension only when BILLING put it there (a refund or dispute).
           // A suspension staff applied is a judgement about the clan, and money does not overturn it.
@@ -164,14 +195,18 @@ export async function POST(req: NextRequest) {
 
     // ── Renewed ──────────────────────────────────────────────────────────────────────────────
     case 'recurring_charge': {
-      const plan = purchasedPlan(ev, current);
+      // A charge on a clan already dropped to free is a membership taken up again (the restart's own
+      // notification may come after it, or not at all): it gets back the plan it had.
+      const plan = purchasedPlan(ev, current === PLANS.free ? ((await planBeforeEnd(clan.id)) ?? PLANS.bronze) : current);
       await db
         .update(clans)
         .set({
           plan: plan.id,
           memberCap: plan.memberCap,
           gumroadSaleId: ev.saleId ?? clan.gumroadSaleId, // each charge has its own id — the replay latch
-          currentPeriodEnd: null, // Gumroad owns the term; we only mirror what it tells us next.
+          // Gumroad never says when the next charge is, only how often they come. Counting it here
+          // is what lets a renewal that never arrives — a failed card — show up as overdue.
+          currentPeriodEnd: nextChargeDue(ev.recurrence, Date.now()),
           cancelAtPeriodEnd: false,
           trialEndsAt: null, // a charge means the trial converted
         })
@@ -196,7 +231,11 @@ export async function POST(req: NextRequest) {
         .set({
           plan: 'free',
           memberCap: PLANS.free.memberCap,
-          gumroadSubscriptionId: null, // freed, so the same clan can subscribe again later
+          // KEPT, not cleared. A membership taken up again from Gumroad's side arrives as a restart
+          // naming only this id — clearing it left that notification with no clan to find. A plan
+          // of free is what says "not paying" (lib/platformView `subscribed`); a new checkout
+          // overwrites the id anyway.
+          currentPeriodEnd: null,
           cancelAtPeriodEnd: false,
           trialEndsAt: null,
         })
@@ -204,6 +243,48 @@ export async function POST(req: NextRequest) {
       // Note what is NOT touched: status. The site stays up, the roster stays, the history stays.
       await logBilling(clan.id, 'billing_ended', { from: clan.plan, to: 'free' });
       return Response.json({ received: true });
+    }
+
+    // ── Taken up again after it ended or was cancelled ───────────────────────────────────────
+    case 'restarted': {
+      if (clan.status === 'suspended') {
+        // A suspension is for a person to lift, never a webhook with no money attached.
+        await logBilling(clan.id, 'billing_restart_ignored', { reason: 'suspended' });
+        return Response.json({ received: true, note: 'suspended' });
+      }
+      // A restart names no sale, so the replay latch sales use can't apply. Gumroad is asked
+      // whether the membership is running instead.
+      const check = await checkSubscriptionWithGumroad(ev.subscriptionId);
+      if (check === 'error') return new Response('Could not confirm the subscription with Gumroad', { status: 503 });
+      if (check === 'dead') {
+        await logBilling(clan.id, 'billing_rejected', { kind: ev.kind, subscription: ev.subscriptionId });
+        return Response.json({ received: true, note: 'subscription not running' });
+      }
+      // Cancelled but still inside the term: only the cancel flag was ever set, so only it clears.
+      if (current !== PLANS.free) {
+        await db.update(clans).set({ cancelAtPeriodEnd: false }).where(eq(clans.id, clan.id));
+        await logBilling(clan.id, 'billing_restarted', { plan: clan.plan, was: 'cancelling' });
+        return Response.json({ received: true, plan: clan.plan });
+      }
+      // Ended. Only a clan whose last billing word was that end gets its plan back from it — a
+      // replayed restart after a later refund or staff change finds nothing to restore.
+      const before = await planBeforeEnd(clan.id);
+      if (!before) {
+        await logBilling(clan.id, 'billing_restart_ignored', { reason: 'nothing to restore' });
+        return Response.json({ received: true, note: 'nothing to restore' });
+      }
+      const plan = purchasedPlan(ev, before);
+      await db
+        .update(clans)
+        .set({
+          plan: plan.id,
+          memberCap: plan.memberCap,
+          currentPeriodEnd: nextChargeDue(ev.recurrence, Date.now()),
+          cancelAtPeriodEnd: false,
+        })
+        .where(eq(clans.id, clan.id));
+      await logBilling(clan.id, 'billing_restarted', { plan: plan.id, was: 'ended' });
+      return Response.json({ received: true, plan: plan.id });
     }
 
     // ── Refund or chargeback ─────────────────────────────────────────────────────────────────

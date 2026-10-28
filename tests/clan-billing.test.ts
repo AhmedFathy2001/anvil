@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import {
   billingStatus,
   liveness,
+  subscriptionFacts,
   daysUntil,
   QUIET_SYNC_DAYS,
   TRIAL_WARN_DAYS,
@@ -155,4 +156,21 @@ test('a clan that synced this morning is not quiet', () => {
 test('a future stamp reads as zero days ago, not as negative', () => {
   // Clock skew between the box and Postgres is real and must not render "-1 days quiet".
   assert.equal(liveness({ lastEventAt: inDays(1), lastRosterSyncAt: inDays(1) }, NOW).eventDays, 0);
+});
+
+test('an ended subscription reads as ended, not as never-paid, and not as paying', () => {
+  // The webhook keeps the id when a subscription ends; the plan dropping to free is what ends it.
+  assert.deepEqual(subscriptionFacts('sub-1', 'free'), { subscribed: false, subscriptionEnded: true });
+  assert.deepEqual(subscriptionFacts('sub-1', 'gold'), { subscribed: true, subscriptionEnded: false });
+  assert.deepEqual(subscriptionFacts(null, 'gold'), { subscribed: false, subscriptionEnded: false });
+  const s = billingStatus(facts(subscriptionFacts('sub-1', 'free')), NOW);
+  assert.equal(s.state, 'ended');
+  assert.equal(s.attention, false, 'nothing owed, nothing broken');
+});
+
+test('a renewal date that went by is overdue after a day’s grace', () => {
+  assert.equal(billingStatus(facts({ plan: 'silver', subscribed: true, currentPeriodEnd: inDays(-1) }), NOW).state, 'active');
+  const s = billingStatus(facts({ plan: 'silver', subscribed: true, currentPeriodEnd: inDays(-3) }), NOW);
+  assert.equal(s.state, 'lapsed');
+  assert.equal(s.attention, true);
 });

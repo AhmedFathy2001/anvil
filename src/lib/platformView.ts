@@ -18,6 +18,7 @@ import { and, asc, count, countDistinct, desc, eq, inArray, isNull, like, or, sq
 import { db } from '@/db';
 import { accounts, clanAuditLog, clanMemberships, clanStaff, clans, errorEvents, events as eventsTable, players, users, weeklyCompetitions } from '@/db/schema';
 import { apexDomain } from '@/lib/clanContext';
+import { subscriptionFacts } from '@/lib/clanBilling';
 
 export interface PlatformTotals {
   clans: number;
@@ -118,8 +119,10 @@ export interface ClanRow {
   trialEndsAt: string | null;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
-  /** They have a Gumroad subscription at all — a paying clan, as opposed to one put on a plan by hand. */
+  /** A Gumroad subscription is paying for the plan — as opposed to a plan put on by hand. */
   subscribed: boolean;
+  /** Had one, and it ended: back on free. Worth seeing apart from a clan that never paid. */
+  subscriptionEnded: boolean;
 
   // ── Liveness ────────────────────────────────────────────────────────────────────────────────
   //
@@ -243,7 +246,7 @@ export async function allClans(): Promise<ClanRow[]> {
     trialEndsAt: r.trialEndsAt,
     currentPeriodEnd: r.currentPeriodEnd,
     cancelAtPeriodEnd: r.cancelAtPeriodEnd,
-    subscribed: !!r.gumroadSubscriptionId,
+    ...subscriptionFacts(r.gumroadSubscriptionId, r.plan),
     lastEventAt: r.lastEventAt,
     lastRosterSyncAt: r.lastRosterSyncAt,
   }));
@@ -1038,7 +1041,7 @@ export async function clanDetail(clanId: number): Promise<ClanDetail | null> {
       trialEndsAt: row.trialEndsAt,
       currentPeriodEnd: row.currentPeriodEnd,
       cancelAtPeriodEnd: row.cancelAtPeriodEnd,
-      subscribed: !!row.gumroadSubscriptionId,
+      ...subscriptionFacts(row.gumroadSubscriptionId, row.plan),
       lastEventAt,
       lastRosterSyncAt: counts?.lastSync ?? null,
     },

@@ -34,6 +34,7 @@ import SiteFooter from "@/components/SiteFooter";
 import ClanPrivate from "@/components/ClanPrivate";
 import { canSeeClan } from "@/lib/clanAccess";
 import { hasPlatformRole, isStaffRole } from "@/lib/clanRoles";
+import { pendingSummary, staffPending } from "@/lib/staffPending";
 import "./globals.css";
 import ClanLink, { ClanPrefixProvider } from '@/components/ClanLink';
 import { NavProgressProvider } from '@/components/NavProgress';
@@ -195,6 +196,10 @@ export default async function RootLayout({
   // an operator had no link to /staff anywhere in the app — the page existed and nothing pointed at
   // it. `support` is the lowest rung that may open it, matching app/staff/layout.
   const isPlatformStaff = hasPlatformRole(session?.platformRole, 'support');
+  // What's waiting on them, on the link itself — so an operator learns there is something to do
+  // without having to open /staff to find out there isn't.
+  const platformPending = isPlatformStaff ? await staffPending().catch(() => null) : null;
+  const platformBadge = platformPending ? { count: platformPending.total, title: pendingSummary(platformPending) } : null;
 
   // Clan-specific Discord invite: admin-configurable (settings) with an env fallback. The link is
   // hidden entirely when neither is set, so a fresh self-hosted instance shows no dead link.
@@ -287,6 +292,7 @@ export default async function RootLayout({
               characterCount={session ? myCharacters : undefined}
               myProfileHref={profileHref}
               platformStaff={isPlatformStaff}
+              platformBadge={platformBadge}
               // A library guide editor holds no platform role, so the Platform link would 404 for
               // them; they get a link to the one /staff page that is theirs.
               guideLibrary={!isPlatformStaff && userRow?.platformGuideEditor === true}
@@ -325,6 +331,7 @@ export default async function RootLayout({
               hasCoffer={hasCoffer}
               isStaff={isStaff}
               adminHref={adminHref}
+              platformBadge={isPlatformStaff ? platformBadge ?? { count: 0, title: '' } : null}
               discordInvite={discordInvite}
               user={session && userRow ? { displayName: userRow.displayName, avatarUrl: avatar } : null}
             />

@@ -57,6 +57,7 @@ export type GumroadEventKind =
   | 'recurring_charge'      // subscription renewed and was charged
   | 'cancellation'          // buyer cancelled (stays active until period end)
   | 'subscription_ended'    // membership fully ended (failed payment / trial not converted / expired)
+  | 'restarted'             // an ended or cancelled membership was taken up again from Gumroad's side
   | 'refund'
   | 'dispute'
   | 'other';
@@ -73,6 +74,8 @@ export interface GumroadEvent {
   email: string | null;
   priceCents: number | null;
   recurrence: string | null;      // 'monthly' | 'yearly' | ...
+  /** When a free trial started by this sale runs out — the first charge is due then. */
+  freeTrialEndsAt: string | null;
   isRecurringCharge: boolean;
   /** Query params we appended to the checkout URL, echoed back (our correlation `ref` lives here). */
   urlParams: Record<string, string>;
@@ -114,7 +117,8 @@ export function parseWebhook(raw: string): GumroadEvent {
       case 'dispute':               kind = 'dispute'; break;
       case 'cancellation':          kind = 'cancellation'; break;
       case 'subscription_ended':    kind = 'subscription_ended'; break;
-      // subscription_updated / _restarted etc. — reconcile as a sale (active) when charged.
+      case 'subscription_restarted': kind = 'restarted'; break;
+      // subscription_updated etc. — reconcile as a sale (active) when charged.
       default:                      kind = isRecurringCharge ? 'recurring_charge' : 'other';
     }
   } else {
@@ -139,6 +143,7 @@ export function parseWebhook(raw: string): GumroadEvent {
     email: get('email'),
     priceCents: priceStr != null ? Number(priceStr) : null,
     recurrence: get('recurrence'),
+    freeTrialEndsAt: get('free_trial_ends_at'),
     isRecurringCharge,
     urlParams,
   };
@@ -179,4 +184,48 @@ export async function checkSaleWithGumroad(saleId: string | null, productId: str
   if (productId && sale.product_id && sale.product_id !== productId) return 'rejected';
   if (sale.refunded || sale.partially_refunded || sale.chargebacked || sale.disputed) return 'rejected';
   return 'ok';
+}
+
+const RECURRENCE_MONTHS: Record<string, number> = { monthly: 1, quarterly: 3, biannually: 6, yearly: 12, every_two_years: 24 };
+
+/**
+ * When the next charge is due, counted from a charge. Gumroad tells us a charge happened and how
+ * often it recurs, never the date of the next one — and without that date nothing can notice a
+ * renewal that didn't come. An unknown recurrence counts as monthly: the shortest term errs toward
+ * looking at a clan too early rather than too late.
+ */
+export function nextChargeDue(recurrence: string | null, fromMs: number): string {
+  const d = new Date(fromMs);
+  d.setUTCMonth(d.getUTCMonth() + (RECURRENCE_MONTHS[recurrence ?? ''] ?? 1));
+  return d.toISOString();
+}
+
+export type SubscriptionCheck = 'alive' | 'dead' | 'unverified' | 'error';
+
+/**
+ * Ask Gumroad whether a membership is running. The restart notification carries no sale to check
+ * with checkSaleWithGumroad, so this is what stands between a replayed restart and a free plan.
+ * Same contract: no GUMROAD_ACCESS_TOKEN → 'unverified', unreachable → 'error' (caller 503s).
+ */
+export async function checkSubscriptionWithGumroad(subscriptionId: string | null): Promise<SubscriptionCheck> {
+  const token = process.env.GUMROAD_ACCESS_TOKEN;
+  if (!token) return 'unverified';
+  if (!subscriptionId) return 'dead';
+  let res: Response;
+  try {
+    res = await fetch(`https://api.gumroad.com/v2/subscribers/${encodeURIComponent(subscriptionId)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10_000),
+      redirect: 'error',
+    });
+  } catch {
+    return 'error';
+  }
+  if (res.status === 404) return 'dead';
+  if (!res.ok) return 'error';
+  const body = (await res.json().catch(() => null)) as { success?: boolean; subscriber?: { id?: string; status?: string } } | null;
+  const sub = body?.success ? body.subscriber : null;
+  if (!sub || sub.id !== subscriptionId) return 'dead';
+  // 'alive' and 'pending_cancellation' are both running today; every other status is over or failing.
+  return sub.status === 'alive' || sub.status === 'pending_cancellation' ? 'alive' : 'dead';
 }

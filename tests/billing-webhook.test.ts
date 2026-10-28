@@ -128,32 +128,6 @@ test('the member cap is reported, not enforced by deletion', () => {
 
 // ── What a lapse does to a clan ───────────────────────────────────────────────────────────────
 
-test('a lapsed subscription drops the plan and leaves the clan standing', async () => {
-  const { db, schema: s } = await loadDb();
-  const [clan] = await db
-    .insert(s.clans)
-    .values({
-      slug: 'lapsing',
-      name: 'Lapsing Clan',
-      plan: 'silver',
-      memberCap: 300,
-      status: 'active',
-      gumroadSubscriptionId: 'sub-lapse',
-    })
-    .returning();
-
-  // What the subscription_ended branch does.
-  await db
-    .update(s.clans)
-    .set({ plan: 'free', memberCap: PLANS.free.memberCap, gumroadSubscriptionId: null })
-    .where(eq(s.clans.id, clan.id));
-
-  const after = await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) });
-  assert.equal(after?.plan, 'free');
-  assert.equal(after?.status, 'active', 'the site stays up — this is the whole point');
-  assert.equal(after?.gumroadSubscriptionId, null, 'freed, so they can subscribe again');
-});
-
 test('a refund suspends, because that is the abuse case rather than the lapse one', async () => {
   const { db, schema: s } = await loadDb();
   const [clan] = await db
@@ -266,4 +240,81 @@ test('a payment does not lift a suspension staff applied', async () => {
   const after = await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) });
   assert.equal(after?.status, 'suspended');
   assert.notEqual(after?.plan, 'free', 'the purchase itself still lands');
+});
+
+// ── Ending, and taking it up again ────────────────────────────────────────────────────────────
+
+test('a lapsed subscription drops the plan, leaves the clan standing, and keeps the id', async () => {
+  const { db, schema: s } = await loadDb();
+  const [clan] = await db
+    .insert(s.clans)
+    .values({ slug: 'lapsing', name: 'Lapsing Clan', plan: 'silver', memberCap: 300, status: 'active', gumroadSubscriptionId: 'sub-lapse' })
+    .returning();
+  assert.equal((await postWebhook({ resource_name: 'subscription_ended', subscription_id: 'sub-lapse' })).status, 200);
+  const after = await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) });
+  assert.equal(after?.plan, 'free');
+  assert.equal(after?.memberCap, PLANS.free.memberCap);
+  assert.equal(after?.status, 'active', 'the site stays up — this is the whole point');
+  assert.equal(after?.gumroadSubscriptionId, 'sub-lapse', 'kept, so a restart can find the clan');
+});
+
+test('a restart after the end gives back the plan that was paid for', async () => {
+  const { db, schema: s } = await loadDb();
+  const [clan] = await db
+    .insert(s.clans)
+    .values({ slug: 'restarting', name: 'Restarting', plan: 'gold', memberCap: 600, status: 'active', gumroadSubscriptionId: 'sub-restart' })
+    .returning();
+  await postWebhook({ resource_name: 'subscription_ended', subscription_id: 'sub-restart' });
+  assert.equal((await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) }))?.plan, 'free');
+
+  assert.equal((await postWebhook({ resource_name: 'subscription_restarted', subscription_id: 'sub-restart', recurrence: 'monthly' })).status, 200);
+  const back = await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) });
+  assert.equal(back?.plan, 'gold');
+  assert.equal(back?.memberCap, PLANS.gold.memberCap);
+  assert.ok(back?.currentPeriodEnd && Date.parse(back.currentPeriodEnd) > Date.now(), 'the next charge is due a month out');
+
+  // Replayed once it's been applied: the last billing word is the restart, so nothing to restore.
+  await db.update(s.clans).set({ plan: 'free' }).where(eq(s.clans.id, clan.id));
+  await postWebhook({ resource_name: 'subscription_restarted', subscription_id: 'sub-restart' });
+  assert.equal((await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) }))?.plan, 'free');
+});
+
+test('a restart lifts no suspension and restores nothing after a refund', async () => {
+  const { db, schema: s } = await loadDb();
+  const [clan] = await db
+    .insert(s.clans)
+    .values({ slug: 'restart-refund', name: 'Restart Refund', plan: 'silver', status: 'active', gumroadSubscriptionId: 'sub-rr' })
+    .returning();
+  await postWebhook({ resource_name: 'subscription_ended', subscription_id: 'sub-rr' });
+  await db.insert(s.clanAuditLog).values({ clanId: clan.id, eventType: 'billing_refund', newValue: '{}' });
+  await postWebhook({ resource_name: 'subscription_restarted', subscription_id: 'sub-rr' });
+  assert.equal((await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) }))?.plan, 'free');
+
+  await db.update(s.clans).set({ status: 'suspended' }).where(eq(s.clans.id, clan.id));
+  await postWebhook({ resource_name: 'subscription_restarted', subscription_id: 'sub-rr' });
+  assert.equal((await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) }))?.status, 'suspended');
+});
+
+test('a restart while cancelling just clears the cancel', async () => {
+  const { db, schema: s } = await loadDb();
+  const [clan] = await db
+    .insert(s.clans)
+    .values({ slug: 'uncancel', name: 'Uncancel', plan: 'bronze', status: 'active', gumroadSubscriptionId: 'sub-unc', cancelAtPeriodEnd: true })
+    .returning();
+  await postWebhook({ resource_name: 'subscription_restarted', subscription_id: 'sub-unc' });
+  const after = await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) });
+  assert.equal(after?.cancelAtPeriodEnd, false);
+  assert.equal(after?.plan, 'bronze');
+});
+
+test('a renewal records when the next one is due, so a missed one shows as overdue', async () => {
+  const { db, schema: s } = await loadDb();
+  const [clan] = await db
+    .insert(s.clans)
+    .values({ slug: 'renewing', name: 'Renewing', plan: 'silver', status: 'active', gumroadSubscriptionId: 'sub-renew' })
+    .returning();
+  await postWebhook({ resource_name: 'sale', is_recurring_charge: 'true', sale_id: 'sale-renew-1', subscription_id: 'sub-renew', recurrence: 'yearly' });
+  const after = await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) });
+  const days = (Date.parse(after!.currentPeriodEnd!) - Date.now()) / 86_400_000;
+  assert.ok(days > 360 && days < 370, `a yearly charge is due in a year, got ${days}`);
 });
