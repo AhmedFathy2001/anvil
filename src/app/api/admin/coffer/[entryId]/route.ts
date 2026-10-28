@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { verifyFeeCollector } from '@/lib/auth';
 import { requireClan } from '@/lib/clanContext';
 import { announce, settleAward, settleDonation } from '@/lib/coffer';
+import { settleBroadcastEntry } from '@/lib/cofferBroadcast';
 import { settlePhysicalReading } from '@/lib/cofferSync';
 
 /**
@@ -26,6 +27,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ ent
   switch (action) {
     case 'approve':
     case 'reject': {
+      // A clan-chat coffer line only one person reported (lib/cofferBroadcast).
+      const line = await settleBroadcastEntry({ clanId: clan.id, entryId, approve: action === 'approve', userId: session.userId });
+      if (line) {
+        if (line.length === 0) return NextResponse.json({ error: 'That has already been resolved.' }, { status: 409 });
+        for (const e of line) if (e.status === 'approved') announce(clan.id, e);
+        return NextResponse.json({ entry: line[line.length - 1] });
+      }
       // An in-game coffer reading nobody corroborated: confirming books it from the last trusted
       // balance (lib/cofferSync), which a plain status flip would not.
       const reading = await settlePhysicalReading({

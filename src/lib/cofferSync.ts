@@ -1,6 +1,7 @@
 import { db } from '@/db';
 import {
   accounts,
+  clanCofferBroadcasts,
   clanCofferSyncEvents,
   clanCofferSyncState,
   clanMemberships,
@@ -59,16 +60,32 @@ const CORROBORATION_WINDOW_MS = 15 * 60_000;
  * The largest movement two clients may confirm between them. Corroboration stops one forged client;
  * it cannot stop two people agreeing to lie — so past this, a treasurer always looks.
  */
-const CORROBORATION_MAX_GP = 250_000_000;
+export const CORROBORATION_MAX_GP = 250_000_000;
 
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Once a clan's plugins report the coffer's clan-chat line (lib/cofferBroadcast), that line is what
+ * books movements: it names the person and catches mobile deposits. The coffer screen then only keeps
+ * the physical balance — booking from both would count every deposit twice.
+ */
+const CHAT_LIVE_MS = 7 * 24 * 3_600_000;
+
+async function chatLive(tx: Tx, clanId: number): Promise<boolean> {
+  const [row] = await tx
+    .select({ id: clanCofferBroadcasts.id })
+    .from(clanCofferBroadcasts)
+    .where(and(eq(clanCofferBroadcasts.clanId, clanId), gte(clanCofferBroadcasts.createdAt, new Date(Date.now() - CHAT_LIVE_MS))))
+    .limit(1);
+  return !!row;
+}
 
 /**
  * The person behind a seat — but only a MEMBER seat (the in-game roster's word), never a guest one.
  * Corroboration needs two people the clan actually counts as its own, not two characters, and not a
  * guest seat anyone can be admitted to. Null otherwise.
  */
-async function memberPersonOfSeat(tx: Tx, seatId: number | null): Promise<number | null> {
+export async function memberPersonOfSeat(tx: Tx, seatId: number | null): Promise<number | null> {
   if (seatId == null) return null;
   // clan-scope: this clan -- by the seat id of an observation already filed under this clan.
   const [row] = await tx
@@ -251,13 +268,15 @@ export async function syncPhysicalCoffer(args: PhysicalCofferObservation): Promi
     let booked: CofferEntry | null = null;
     let outcome: string = decision.outcome;
 
-    if (decision.ledgerAmount !== 0) {
+    const books = decision.ledgerAmount !== 0 && !(await chatLive(tx, args.clanId));
+    if (books) {
       const attributed = decision.attributeActor;
       const [row] = await tx
         .insert(cofferEntries)
         .values({
           clanId: args.clanId,
-          kind: attributed ? (decision.ledgerAmount > 0 ? 'donation' : 'withdrawal') : 'adjustment',
+          // Coins leaving the coffer are custody whether or not we know whose bank they went to.
+          kind: decision.ledgerAmount < 0 ? 'withdrawal' : attributed ? 'donation' : 'adjustment',
           amount: decision.ledgerAmount,
           status: 'pending',
           clanMemberId: attributed ? args.clanMemberId : null,
@@ -271,7 +290,7 @@ export async function syncPhysicalCoffer(args: PhysicalCofferObservation): Promi
         })
         .returning();
       pendingEntry = row ?? null;
-    } else if (decision.outcome === 'duplicate') {
+    } else if (decision.outcome === 'duplicate' && !(await chatLive(tx, args.clanId))) {
       // The same balance from another observer. If a DIFFERENT person's reading of it is waiting,
       // this is the second pair of eyes it needed.
       const me = await memberPersonOfSeat(tx, args.clanMemberId);

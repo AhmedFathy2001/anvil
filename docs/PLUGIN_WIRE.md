@@ -77,7 +77,8 @@ the clan's clips channel); `leagues-channel` (`POST /api/plugin/notify` accepts
 competition week or a running board); `drop-facts` (a `dropFacts` block on
 `/api/plugin/config`, below); `mission-prizes` (what a mission pays, place by place —
 below); `coffer-sync` (absolute in-game Clan Coffer observations posted to
-`/api/plugin/coffer`, below); `tile-claims` (team-private "I'm going for this" on board tiles —
+`/api/plugin/coffer`, below); `coffer-chat` (the coffer's clan-chat line posted to
+`/api/plugin/coffer/broadcast`, below); `tile-claims` (team-private "I'm going for this" on board tiles —
 below); `player-card` (`GET /api/players/<rsn>/card` — the side panel's
 Lookup and You tabs, below); `clan-card` (`GET /api/clans/<slug>/card` — a clan as the panel shows it: members, this week's
 top gainers, top players, average log, highlights, running SOTW/BOTW; public listed clans plus the
@@ -137,6 +138,24 @@ server state and the client's `beforeBalance` is recorded as an unattributed rec
 This is intentionally an absolute-balance protocol. It recovers after a client was offline or a
 request was lost, and no client gets to say “add this amount” repeatedly. Without the capability the
 plugin does not read the interface or call the endpoint.
+
+### `coffer-chat`
+
+Every coffer use posts a line to the whole clan chat, the person who did it included:
+`Nisbro has deposited 519 coins into the coffer.` / `… has withdrawn one coin from the coffer.`
+For each such line in its own clan channel (`CLAN_MESSAGE`), the plugin posts the text as it saw it
+and the channel's name (the message's sender):
+
+```json
+{ "line": "Nisbro has deposited 519 coins into the coffer.", "clanName": "The AFK Spot" }
+```
+
+The site parses the line, refuses a channel that isn't this clan's in-game name, and treats reports
+of the same actor, direction and amount within two minutes as one movement. It books once two
+different members have reported it; until then it waits for a treasurer. A deposit is credited to the
+person named (net of coins they took out earlier and are putting back); a withdrawal is custody. Once
+a clan's plugins report these lines, `coffer-sync` readings only track the physical balance and no
+longer book movements, so nothing is counted twice.
 
 ### `mission-prizes`
 
