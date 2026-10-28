@@ -2,7 +2,7 @@ import { inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { memberClog } from '@/db/schema';
-import { BOSSES, SKILL_LABELS } from '@/lib/constants';
+import { SKILL_LABELS, bossMetricLabel } from '@/lib/constants';
 import { getClanAnalytics, listMembers } from '@/lib/memberProfile';
 import { momentsForClan } from '@/lib/momentsStore';
 import { getActiveWeeklyMetrics } from '@/lib/pluginConfig';
@@ -36,7 +36,6 @@ export interface ClanCard {
   competitions: { type: string; metric: string; label: string }[];
 }
 
-const bossLabel = new Map(BOSSES.map((b) => [b.key, b.label]));
 
 export async function loadClanCard(clan: { id: number; slug: string; name: string; logoUrl: string | null }): Promise<ClanCard> {
   const members = await listMembers(clan.id);
@@ -95,7 +94,7 @@ export async function loadClanCard(clan: { id: number; slug: string; name: strin
     competitions: weekly.map((c) => ({
       type: c.type,
       metric: c.metric,
-      label: c.type === 'skill' ? SKILL_LABELS[c.metric] ?? c.metric : c.type === 'boss' ? bossLabel.get(c.metric) ?? c.metric : c.metric.toUpperCase(),
+      label: c.type === 'skill' ? SKILL_LABELS[c.metric] ?? c.metric : c.type === 'boss' ? bossMetricLabel(c.metric) || c.metric : c.metric.toUpperCase(),
     })),
   };
 }

@@ -83,7 +83,8 @@ export interface DailyRow {
  */
 export function metricGain(row: DailyRow, type: CompetitionType, metric: string): number {
   if (type === 'efficiency') return metric === 'ehb' ? row.ehbMilliGained : row.ehpMilliGained;
-  if (type === 'boss') return row.deltas?.bosses?.[metric] ?? 0;
+  // A raid across its modes ("theatreOfBlood,theatreOfBloodHardMode") sums its keys.
+  if (type === 'boss') return metric.split(',').reduce((sum, k) => sum + (row.deltas?.bosses?.[k.trim()] ?? 0), 0);
   if (metric === 'overall') return row.xpGained;
   return row.deltas?.skills?.[metric] ?? 0;
 }

@@ -4,13 +4,13 @@
 // and the events list both need them, so they live here — one spelling of "Zulrah", one spelling
 // of a gain, everywhere.
 
-import { BOSSES, EFFICIENCY_LABELS, SKILL_LABELS, formatEfficiencyHours } from '@/lib/constants';
+import { EFFICIENCY_LABELS, SKILL_LABELS, bossMetricLabel, formatEfficiencyHours } from '@/lib/constants';
 
 /** 'Agility', 'Zulrah', 'EHP' — what the competition ranks by. */
 export function weeklyMetricLabel(type: string, metric: string): string {
   if (type === 'skill') return SKILL_LABELS[metric] || metric;
   if (type === 'efficiency') return EFFICIENCY_LABELS[metric] || metric.toUpperCase();
-  return BOSSES.find((b) => b.key === metric)?.label || metric;
+  return bossMetricLabel(metric) || metric;
 }
 
 /** A raw stat value in the unit its competition uses. Efficiency stores milli-hours. */

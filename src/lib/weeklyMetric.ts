@@ -10,7 +10,7 @@
 // by everybody downstream remembering to floor it.
 
 import { computeEhpEhb } from '@/lib/efficiency';
-import { EFFICIENCY_SCALE } from '@/lib/constants';
+import { EFFICIENCY_SCALE, metricKeys } from '@/lib/constants';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
 import { log } from '@/lib/logger';
 
@@ -72,6 +72,18 @@ export function readMetricFromSnapshot(
     return { kind: 'value', value: skill.xp, snapshot };
   }
 
+  // A raid across its modes is the sum of its keys — and unreadable if any one of them is.
+  const keys = metricKeys(metric);
+  if (keys.length > 1) {
+    let total = 0;
+    for (const key of keys) {
+      const part = readMetricFromSnapshot(snapshot, type, key);
+      if (part.kind !== 'value') return part;
+      total += part.value;
+    }
+    return { kind: 'value', value: total, snapshot };
+  }
+
   const boss = snapshot.bosses?.[metric];
   // A missing key means our parser doesn't know this boss AT ALL (hiscores lists every
   // activity for a ranked player, unranked ones with score -1) — writing 0 here is what
@@ -85,4 +97,39 @@ export function readMetricFromSnapshot(
   // a real "0 KC" value, not a fetch failure.
   if (boss.score < 0) return { kind: 'value', value: 0, snapshot };
   return { kind: 'value', value: boss.score, snapshot };
+}
+
+/**
+ * A metric's value with the plugin's live overlay folded in: max(hiscores, live) per hiscores key, then
+ * summed — so a raid across its modes takes each mode's freshest count, not the larger of two sums.
+ */
+export function effectiveMetricValue(
+  snapshot: HiscoresSnapshot,
+  type: CompetitionType,
+  metric: string,
+  liveMap: Record<string, number>,
+): FetchResult {
+  const keys = type === 'boss' ? metricKeys(metric) : [metric];
+  let total = 0;
+  for (const key of keys) {
+    const part = readMetricFromSnapshot(snapshot, type, key);
+    if (part.kind !== 'value') return part;
+    total += Math.max(part.value, liveMap[key] ?? 0);
+  }
+  return { kind: 'value', value: total, snapshot };
+}
+
+/**
+ * The live overlay alone for a metric, or null when it doesn't hold every key — a raid's live value is
+ * only whole once each mode has been pushed; until then the sweep credits it.
+ */
+export function liveMetricValue(type: CompetitionType, metric: string, live: Record<string, number>): number | null {
+  const keys = type === 'boss' ? metricKeys(metric) : [metric];
+  let total = 0;
+  for (const key of keys) {
+    const v = live[key];
+    if (typeof v !== 'number') return null;
+    total += v;
+  }
+  return total;
 }

@@ -12,7 +12,7 @@ import { log } from '@/lib/logger';
 import { statKeys } from '@/lib/tileKinds';
 import { parsePluginStats } from '@/lib/pluginStats';
 import { creditStatTilesForTeam } from '@/lib/statTileCredit';
-import { computeGain, effectiveValue, reconcileLive, pruneStaleOverlay, isIndividualMode, isMilestoneBasis, milestoneState, buildContributionSnapshot, needsBaselineRecapture, baselineWithOverlay, completePartialBaseline, isPartialBaselineJson } from '@/lib/statTracking';
+import { computeGain, reconcileLive, pruneStaleOverlay, isIndividualMode, isMilestoneBasis, milestoneState, buildContributionSnapshot, needsBaselineRecapture, baselineWithOverlay, completePartialBaseline, isPartialBaselineJson } from '@/lib/statTracking';
 import { eligibleSinceReveal, gainSinceReveal, parseRevealStats } from '@/lib/revealStats';
 import { parseStatKeyTimes } from '@/lib/liveStats';
 import { readAllActivities } from '@/lib/hiscoresActivities';
@@ -22,7 +22,9 @@ import { readAllActivities } from '@/lib/hiscoresActivities';
 // is a bogus/doubled push — drop it and trust hiscores. Slightly over 6h so a full-length session's
 // last push isn't clipped early.
 const STALE_OVERLAY_MS = 6.5 * 60 * 60 * 1000;
-import { applyWeeklyValue, readMetricFromSnapshot, writePlayerSnapshot, type CompetitionType } from '@/lib/weekly';
+import { applyWeeklyValue, writePlayerSnapshot, type CompetitionType } from '@/lib/weekly';
+import { effectiveMetricValue } from '@/lib/weeklyMetric';
+import { metricKeys } from '@/lib/constants';
 import { detectMilestones, computeDeltas, isDue, nextDueAt, recordDailyStats, recordMilestones } from '@/lib/statHistory';
 import { sweepDue, PLUGIN_UNPUSHABLE_KEYS } from '@/lib/pollLadder';
 import { overlaySnapshot } from '@/lib/liveHistory';
@@ -447,7 +449,7 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
     const pluginBlind =
       entry.bingo.some((b) =>
         b.ctx.statTiles.some((t) => (t.trackedStat ?? '').split(',').some((k) => PLUGIN_UNPUSHABLE_KEYS.has(k.trim()))),
-      ) || entry.weekly.some((w) => PLUGIN_UNPUSHABLE_KEYS.has(w.comp.metric));
+      ) || entry.weekly.some((w) => metricKeys(w.comp.metric).some((k) => PLUGIN_UNPUSHABLE_KEYS.has(k)));
     const isDueNow = sweepDue(
       { needsBaseline, nextDueAt: entry.nextDueAt, liveStatsAt: entry.liveStatsAt, polledAt: entry.polledAt, pluginBlind },
       nowDate,
@@ -643,15 +645,15 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
 
     // Weekly: extract each comp's metric from the one snapshot, fold in the live overlay, apply.
     for (const w of entry.weekly) {
-      const m = readMetricFromSnapshot(snapshot, w.comp.type, w.comp.metric);
+      const m = effectiveMetricValue(snapshot, w.comp.type, w.comp.metric, liveMap);
       if (m.kind !== 'value') {
         // Unknown boss key / bad read — leave the value, just advance the queue position.
         await db.update(weeklyParticipants).set({ lastUpdated: ts }).where(eq(weeklyParticipants.id, w.participant.id));
         continue;
       }
-      // Effective = max(hiscores, live). On first capture this becomes the baseline, absorbing a
-      // mid-session logout flush so the gain starts at 0.
-      const value = effectiveValue(m.value, liveMap, w.comp.metric);
+      // Effective = max(hiscores, live), per key for a raid across its modes. On first capture this
+      // becomes the baseline, absorbing a mid-session logout flush so the gain starts at 0.
+      const value = m.value;
       const outcome = await applyWeeklyValue({
         participantId: w.participant.id,
         type: w.comp.type,

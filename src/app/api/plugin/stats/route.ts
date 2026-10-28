@@ -13,6 +13,8 @@ import { computeGainFromJson, isIndividualMode, isMilestoneBasis, milestoneState
 import { liveStatsForMembers } from '@/lib/liveStats';
 import { getActiveWeeklyMetrics } from '@/lib/pluginConfig';
 import { applyWeeklyValue } from '@/lib/weekly';
+import { liveMetricValue, type CompetitionType } from '@/lib/weeklyMetric';
+import { metricKeys } from '@/lib/constants';
 import { notifyTileCompletion } from '@/lib/discord';
 import { evaluateCompletionGate, eventHasStarted } from '@/lib/completionGate';
 import { creditStatTilesForTeam } from '@/lib/statTileCredit';
@@ -162,7 +164,7 @@ export async function POST(request: Request) {
     // debounced 15s client-side, so a competition that just started is picked up within one cycle.
     const activeComps = (
       await ttlMemo(`active-weekly-metrics:${clan.id}`, () => getActiveWeeklyMetrics(clan.id), 15_000)
-    ).filter((c) => updatedKeys.has(c.metric));
+    ).filter((c) => metricKeys(c.metric).some((k) => updatedKeys.has(k)));
     for (const comp of activeComps) {
       const participant = await db.query.weeklyParticipants.findFirst({
         where: and(
@@ -171,11 +173,14 @@ export async function POST(request: Request) {
         ),
       });
       if (!participant) continue; // not enrolled yet — the lifecycle cron enrolls + the sweep baselines
+      // A raid across its modes needs every mode in the overlay to be whole; otherwise the sweep has it.
+      const value = liveMetricValue(comp.type as CompetitionType, comp.metric, live);
+      if (value == null) continue;
       await applyWeeklyValue({
         participantId: participant.id,
         type: comp.type,
         metric: comp.metric,
-        value: live[comp.metric] ?? 0,
+        value,
         baselineValue: participant.baselineValue,
         currentValue: participant.currentValue,
         lastUpdated: participant.lastUpdated,

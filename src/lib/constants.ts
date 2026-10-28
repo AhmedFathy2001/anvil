@@ -419,11 +419,36 @@ export function weeklyKindLabel(type: string): string {
  * copies of this function had already grown in lib/; the API routes couldn't see any of them, which
  * is why the in-game banner read "PhosanisNightmare".
  */
+/**
+ * A boss competition's metric can name SEVERAL hiscores keys, comma-separated — a raid counted across
+ * its modes ("theatreOfBlood,theatreOfBloodHardMode"). KC is the sum across them, the same convention
+ * a boss-KC tile's trackedStat follows (lib/tileKinds statKeys). A single key is the common case.
+ */
+export function metricKeys(metric: string): string[] {
+  return metric.split(',').map((s) => s.trim()).filter(Boolean);
+}
+
+/** The raids as one competition across every mode. Picked as a whole; any key list reads as the sum. */
+export const RAIDS_ANY_MODE: { key: string; label: string; keywords: string[] }[] = [
+  { key: 'chambersOfXeric,chambersOfXericChallengeMode', label: 'Chambers of Xeric (any mode)', keywords: ['cox', 'cm', 'raids'] },
+  { key: 'theatreOfBlood,theatreOfBloodHardMode', label: 'Theatre of Blood (any mode)', keywords: ['tob', 'hmt', 'raids'] },
+  { key: 'tombsOfAmascut,tombsOfAmascutExpertMode', label: 'Tombs of Amascut (any mode)', keywords: ['toa', 'expert', 'raids'] },
+];
+
+/** "Theatre of Blood (any mode)", "Vorkath", or "ToB: HM + ToA: Expert" for a hand-made set. */
+export function bossMetricLabel(metric: string): string {
+  const group = RAIDS_ANY_MODE.find((g) => g.key === metric);
+  if (group) return group.label;
+  return metricKeys(metric)
+    .map((k) => BOSSES.find((b) => b.key === k)?.label ?? k)
+    .join(' + ');
+}
+
 export function weeklyMetricLabel(type: string, metric: string): string {
   if (!metric) return '';
   if (type === 'skill') return SKILL_LABELS[metric] ?? metric;
   if (type === 'efficiency') return EFFICIENCY_LABELS[metric] ?? metric.toUpperCase();
-  return BOSSES.find((b) => b.key === metric)?.label ?? metric;
+  return bossMetricLabel(metric) || metric;
 }
 
 /**

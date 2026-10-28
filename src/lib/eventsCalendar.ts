@@ -2,7 +2,7 @@ import { db } from '@/db';
 import { eventCohosts, events, weeklyCompetitions } from '@/db/schema';
 import { and, eq, gte, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { modeKeyFor } from '@/lib/eventModes';
-import { BOSSES, EFFICIENCY_LABELS, SKILL_LABELS } from '@/lib/constants';
+import { EFFICIENCY_LABELS, SKILL_LABELS, bossMetricLabel } from '@/lib/constants';
 import type { HubKind } from '@/lib/eventsHub';
 
 /**
@@ -149,5 +149,5 @@ export async function loadCalendar(
 function weeklyMetricLabel(type: string, metric: string): string {
   if (type === 'skill') return SKILL_LABELS[metric] ?? metric;
   if (type === 'efficiency') return EFFICIENCY_LABELS[metric] ?? metric.toUpperCase();
-  return BOSSES.find((b) => b.key === metric)?.label ?? metric;
+  return bossMetricLabel(metric) || metric;
 }
