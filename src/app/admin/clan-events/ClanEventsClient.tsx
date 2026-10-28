@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
+import DateTimePicker from '@/components/DateTimePicker';
 import Input from '@/components/Input';
+import Select, { type SelectOption } from '@/components/Select';
+import { BOSSES, SKILLS, SKILL_LABELS } from '@/lib/constants';
 import { clanFetch } from '@/lib/clanFetch';
 
 interface Ev {
@@ -33,21 +36,33 @@ interface Form {
   world: string;
   icon: string;
   host: string;
-  start: string; // datetime-local, in this browser's zone
+  start: string; // ISO instant
   durationMin: string;
   repeat: 'none' | 'weekly';
-  until: string; // date, this browser's zone
+  until: string; // YYYY-MM-DD, this browser's zone
   ping: boolean;
 }
 
 const BLANK: Form = { title: '', description: '', location: '', world: '', icon: '', host: '', start: '', durationMin: '60', repeat: 'none', until: '', ping: true };
 
-/** An ISO instant as a datetime-local value in this browser's zone. */
-function localInput(iso: string): string {
+/** An ISO instant as a calendar date in this browser's zone. */
+function localDate(iso: string): string {
   const d = new Date(iso);
   const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
+
+const REPEAT_OPTIONS: SelectOption[] = [
+  { value: 'none', label: 'Just once' },
+  { value: 'weekly', label: 'Every week' },
+];
+
+// The picture is a skill or boss key, as a weekly's metric is (clanEventThumbnail).
+const ICON_OPTIONS: SelectOption[] = [
+  { value: '', label: 'No picture' },
+  ...SKILLS.filter((k) => k !== 'overall').map((k) => ({ value: k, label: SKILL_LABELS[k] ?? k, keywords: ['skill'] })),
+  ...BOSSES.map((b) => ({ value: b.key, label: b.label, keywords: b.aliases })),
+];
 
 const when = (iso: string) => new Date(iso).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
@@ -81,9 +96,9 @@ export default function ClanEventsClient() {
       description: form.description,
       location: form.location,
       world: form.world,
-      icon: form.icon.trim().toLowerCase().replace(/\s+/g, '_'),
+      icon: form.icon,
       host: form.host,
-      startsAt: new Date(form.start).toISOString(),
+      startsAt: form.start,
       durationMin: Number(form.durationMin),
       repeat: form.repeat,
       repeatUntil: form.repeat === 'weekly' && form.until ? new Date(`${form.until}T23:59`).toISOString() : null,
@@ -112,10 +127,10 @@ export default function ClanEventsClient() {
       world: ev.world ? String(ev.world) : '',
       icon: ev.icon ?? '',
       host: ev.host ?? '',
-      start: localInput(ev.startsAt),
+      start: ev.startsAt,
       durationMin: String(ev.durationMin),
       repeat: ev.repeat,
-      until: ev.repeatUntil ? localInput(ev.repeatUntil).slice(0, 10) : '',
+      until: ev.repeatUntil ? localDate(ev.repeatUntil) : '',
       ping: ev.ping,
     });
   }
@@ -185,7 +200,7 @@ export default function ClanEventsClient() {
         <div className="grid grid-cols-[1fr_96px] gap-2">
           <div>
             <label className={label}>Starts (your time)</label>
-            <Input type="datetime-local" value={form.start} onChange={(e) => set('start', e.target.value)} required />
+            <DateTimePicker value={form.start} onChange={(iso) => set('start', iso)} ariaLabel="Starts" required />
           </div>
           <div>
             <label className={label}>Minutes</label>
@@ -195,19 +210,12 @@ export default function ClanEventsClient() {
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className={label}>Repeats</label>
-            <select
-              value={form.repeat}
-              onChange={(e) => set('repeat', e.target.value as Form['repeat'])}
-              className="w-full rounded border border-card-border bg-brown-dark px-3 py-2 text-sm text-foreground focus:border-gold focus:outline-none"
-            >
-              <option value="none">Just once</option>
-              <option value="weekly">Every week</option>
-            </select>
+            <Select value={form.repeat} onChange={(v) => set('repeat', v as Form['repeat'])} options={REPEAT_OPTIONS} ariaLabel="Repeats" />
           </div>
           {form.repeat === 'weekly' && (
             <div>
               <label className={label}>Until (optional)</label>
-              <Input type="date" value={form.until} onChange={(e) => set('until', e.target.value)} />
+              <DateTimePicker dateOnly value={form.until} onChange={(v) => set('until', v)} placeholder="No end" ariaLabel="Repeats until" />
             </div>
           )}
         </div>
@@ -228,7 +236,7 @@ export default function ClanEventsClient() {
           </div>
           <div>
             <label className={label}>Boss or skill (picture)</label>
-            <Input value={form.icon} onChange={(e) => set('icon', e.target.value)} placeholder="nex, slayer…" maxLength={40} />
+            <Select value={form.icon} onChange={(v) => set('icon', v)} options={ICON_OPTIONS} placeholder="No picture" ariaLabel="Picture" searchable />
           </div>
         </div>
         <div>

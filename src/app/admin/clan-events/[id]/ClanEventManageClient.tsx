@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useDialog } from '@/components/Confirm';
 import Input from '@/components/Input';
 import PayoutRowControls from '@/components/PayoutRowControls';
+import Select from '@/components/Select';
 import SignupFeeControls from '@/components/SignupFeeControls';
 import { atLeast } from '@/lib/clanRoles';
 import { clanFetch } from '@/lib/clanFetch';
@@ -123,14 +124,12 @@ export default function ClanEventManageClient(props: Props) {
                 </div>
                 <div>
                   <label className={label}>Sign-ups close</label>
-                  <select
+                  <Select
                     value={m.signups.closes}
-                    onChange={(e) => setM({ ...m, signups: { ...m.signups, closes: e.target.value === 'end' ? 'end' : 'start' } })}
-                    className="w-full rounded border border-card-border bg-brown-dark px-3 py-2 text-sm text-foreground"
-                  >
-                    <option value="start">When it starts</option>
-                    <option value="end">When it ends</option>
-                  </select>
+                    onChange={(v) => setM({ ...m, signups: { ...m.signups, closes: v === 'end' ? 'end' : 'start' } })}
+                    options={[{ value: 'start', label: 'When it starts' }, { value: 'end', label: 'When it ends' }]}
+                    ariaLabel="Sign-ups close"
+                  />
                 </div>
                 <div className="col-span-2">{toggle(m.signups.approval, (approval) => setM({ ...m, signups: { ...m.signups, approval } }), 'You approve each one', 'Sign-ups wait for staff before they count.')}</div>
               </div>
@@ -155,14 +154,15 @@ export default function ClanEventManageClient(props: Props) {
             {weekly && (
               <div className="pt-1">
                 <label className={label}>Every week is…</label>
-                <select
+                <Select
                   value={m.scope}
-                  onChange={(e) => setM({ ...m, scope: e.target.value === 'series' ? 'series' : 'occurrence' })}
-                  className="w-full rounded border border-card-border bg-brown-dark px-3 py-2 text-sm text-foreground"
-                >
-                  <option value="occurrence">Its own — sign-ups, pot and survey each week</option>
-                  <option value="series">One run — a single sign-up, pot and survey for the series</option>
-                </select>
+                  onChange={(v) => setM({ ...m, scope: v === 'series' ? 'series' : 'occurrence' })}
+                  options={[
+                    { value: 'occurrence', label: 'Its own — sign-ups, pot and survey each week' },
+                    { value: 'series', label: 'One run — a single sign-up, pot and survey for the series' },
+                  ]}
+                  ariaLabel="Every week is"
+                />
               </div>
             )}
           </div>
@@ -193,13 +193,7 @@ export default function ClanEventManageClient(props: Props) {
       {(saved.signups.on || saved.payouts.on || saved.survey.on) && keys.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm text-text-muted">Showing</span>
-          <select value={key} onChange={(e) => setKey(e.target.value)} className="rounded border border-card-border bg-brown-dark px-3 py-2 text-sm text-foreground">
-            {keys.map((k) => (
-              <option key={k.key} value={k.key}>
-                {keyLabel(k)}
-              </option>
-            ))}
-          </select>
+          <Select value={key} onChange={setKey} options={keys.map((k) => ({ value: k.key, label: keyLabel(k) }))} ariaLabel="Which date" className="w-auto min-w-56" />
         </div>
       )}
 

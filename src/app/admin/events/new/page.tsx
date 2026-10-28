@@ -155,6 +155,26 @@ function FormatPicker({ cards, hidden }: { cards: FormatCard[]; hidden: string[]
             </section>
           );
         })}
+        <section>
+          <h2 className="display text-2xl font-semibold">Custom events</h2>
+          <p className="text-text-muted mt-1 mb-4">Nothing to track: a time, a place and who&rsquo;s going.</p>
+          <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+            <ClanLink
+              href="/admin/clan-events"
+              className="flex gap-4 items-start p-[18px] rounded-xl border border-[#2e251d] bg-[#18130f] hover:border-gold/35 transition-colors"
+            >
+              <ItemSlot name="teleport" size={60} />
+              <span className="min-w-0 flex flex-col gap-1.5">
+                <span className="display text-xl font-semibold text-foreground">Clan event</span>
+                <span className="text-[#d8cdb8] leading-snug">
+                  A boss mass, a hangout or a drop party, once or every week. Posted to Discord and reminded before it starts, with
+                  optional sign-ups, entry fee, payouts and a survey.
+                </span>
+                <span className="text-sm text-[#8f8270]">Good for weekly masses and get-togethers</span>
+              </span>
+            </ClanLink>
+          </div>
+        </section>
       </div>
       {hidden.length > 0 && (
         <p className="mt-9 text-sm text-text-muted">
