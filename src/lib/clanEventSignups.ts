@@ -117,7 +117,9 @@ export async function withdraw(clanId: number, eventId: number, userId: number, 
   const w = signupWindow(parseModules(e.modules), e, now);
   if (!w.open) return fail('Sign-ups are closed — ask the host to take you off.', 409);
   const prior = await mySignup(clanId, eventId, w.key, userId);
-  if (!prior) return { ok: true, value: null };
+  // Only a place you hold is yours to give up — a turned-down sign-up stays turned down, or deleting
+  // it would let them straight back in.
+  if (!prior || !ACTIVE.includes(prior.status)) return { ok: true, value: null };
   if (prior.feeStatus && prior.feeStatus !== 'pending') {
     await db.update(clanEventSignups).set({ status: 'withdrawn', updatedAt: new Date(now).toISOString() }).where(eq(clanEventSignups.id, prior.id));
   } else {

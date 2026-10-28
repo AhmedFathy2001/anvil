@@ -91,6 +91,9 @@ test('sign-up answers are checked, the cap holds, and approval keeps them waitin
   assert.ok(rej.ok);
   const back = await SU.signUp(clanId, id, people[1], { answers: { [qid]: 'Tank' } });
   assert.ok(!back.ok && back.status === 403, 'turned down stays turned down');
+  assert.ok((await SU.withdraw(clanId, id, people[1].userId)).ok);
+  const retry = await SU.signUp(clanId, id, people[1], { answers: { [qid]: 'Tank' } });
+  assert.ok(!retry.ok && retry.status === 403, 'withdrawing can’t wipe a rejection');
 });
 
 test('the entry fee: the collector can’t sign off their own collection, a second admin can', async () => {
