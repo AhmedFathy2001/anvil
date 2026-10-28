@@ -91,7 +91,7 @@ export default function MomentsSummaryPanel({
   const { counts, deathBoard, killers, members, biggestHaul, hardestTask } = summary;
   if (counts.total === 0 && gains.length === 0) return null;
 
-  const topLooters = members.filter((m) => m.lootGp > 0).slice(0, 8);
+  const topLooters = members.filter((m) => m.lootGp > 0).sort((a, b) => b.lootGp - a.lootGp).slice(0, 8);
   const totalXp = gains.reduce((sum, g) => sum + g.xp, 0);
   const totalKc = gains.reduce((sum, g) => sum + g.kc, 0);
   const topXp = gains.filter((g) => g.xp > 0).sort((a, b) => b.xp - a.xp).slice(0, 8);

@@ -33,7 +33,8 @@ export async function submittedDropsForEvent(eventId: number): Promise<Submitted
     .innerJoin(tiles, eq(tiles.id, submissions.tileId))
     .leftJoin(eventParticipants, eq(eventParticipants.id, submissions.playerId))
     .leftJoin(credited, eq(credited.id, submissions.creditPlayerId))
-    .where(and(eq(tiles.eventId, eventId), or(isNotNull(submissions.itemId), isNotNull(tiles.trackedItemIds))));
+    // Drop tiles only: a value tile's `amount` is gp, and a kill or timed tile's isn't an item at all.
+    .where(and(eq(tiles.eventId, eventId), eq(tiles.tileType, 'drop'), or(isNotNull(submissions.itemId), isNotNull(tiles.trackedItemIds))));
   if (rows.length === 0) return [];
 
   const [prices, mapping] = await Promise.all([getItemPrices(), getItemMapping()]);
