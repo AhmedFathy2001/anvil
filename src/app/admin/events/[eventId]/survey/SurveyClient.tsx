@@ -5,6 +5,7 @@ import Input from '@/components/Input';
 import Select from '@/components/Select';
 import { RATING_MAX, SURVEY_QUESTION_TYPES, isChoiceType, type QuestionResult, type SurveyAnswerMap, type SurveyQuestionType, type SurveyQuestionView, type SurveyRespondentView, type SurveyStage } from '@/lib/survey';
 import { clanFetch } from '@/lib/clanFetch';
+import { surveyTemplateById } from '@/lib/surveyTemplates';
 import ClanLink from '@/components/ClanLink';
 import Checkbox from '@/components/Checkbox';
 
@@ -141,21 +142,21 @@ export default function SurveyClient({
     }
   }
 
-  async function loadTemplate(id: string) {
+  // Into the draft only: nothing is written until Save, the same as every other edit here. A question
+  // the draft already asks (same prompt) isn't added again, so a second click can't duplicate it.
+  function loadTemplate(id: string) {
+    const template = surveyTemplateById(id);
+    if (!template) return;
     setError(null);
-    setNotice(null);
-    const res = await clanFetch(`${apiBase}/template`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ templateId: id }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setError(data.error || 'Could not load template');
-      return;
-    }
-    setQuestions((data.questions as SurveyQuestionView[]).map(toEdit));
-    setNotice('Template loaded — edit and save.');
+    const asked = new Set(questions.map((q) => q.prompt.trim().toLowerCase()));
+    const added = template.questions
+      .filter((t) => !asked.has(t.prompt.trim().toLowerCase()))
+      .map((t) => {
+        newKey.current += 1;
+        return { key: `new-${newKey.current}`, type: t.type, prompt: t.prompt, options: t.options ? [...t.options] : [], required: !!t.required };
+      });
+    setQuestions((qs) => [...qs, ...added]);
+    setNotice(added.length ? `Added ${added.length} question${added.length === 1 ? '' : 's'} — save to keep them.` : 'Those questions are already here.');
   }
 
   return (

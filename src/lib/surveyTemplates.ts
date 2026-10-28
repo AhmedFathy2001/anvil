@@ -16,7 +16,7 @@ export interface SurveyTemplate {
   questions: SurveyTemplateQuestion[];
 }
 
-// Curated starter surveys. "Load template" appends these to the event's survey; everything stays
+// Curated starter surveys. "Load template" adds these to the survey being edited (saved with it); everything stays
 // editable afterwards, so admins can start here and tweak or build entirely from scratch.
 export const SURVEY_TEMPLATES: SurveyTemplate[] = [
   {

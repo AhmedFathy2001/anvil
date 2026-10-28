@@ -3,7 +3,6 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanEventQuestions } from '@/db/schema';
 import { SURVEY_QUESTION_TYPES, isChoiceType, toQuestionView, type SurveyQuestionType, type SurveyQuestionView, type SurveyStage } from '@/lib/survey';
-import { surveyTemplateById } from '@/lib/surveyTemplates';
 
 // A clan event's own questions: on its sign-up form ('signup') and in the survey after ('post'). The
 // same model, builder and answer checks as a board's (lib/survey) — only where they're kept differs.
@@ -57,25 +56,4 @@ export async function saveQuestions(clanId: number, eventId: number, stage: Surv
     else await db.insert(clanEventQuestions).values({ clanId, clanEventId: eventId, stage, ...fields });
   }
   return { ok: true, questions: await loadQuestions(clanId, eventId, stage) };
-}
-
-/** Add a curated template's questions after the survey's own (lib/surveyTemplates). */
-export async function addSurveyTemplate(clanId: number, eventId: number, templateId: string): Promise<SurveyQuestionView[] | null> {
-  const template = surveyTemplateById(templateId);
-  if (!template) return null;
-  const current = await loadQuestions(clanId, eventId, 'post');
-  const base = current.reduce((max, q) => Math.max(max, q.position + 1), 0);
-  await db.insert(clanEventQuestions).values(
-    template.questions.map((q, i) => ({
-      clanId,
-      clanEventId: eventId,
-      stage: 'post',
-      position: base + i,
-      type: q.type,
-      prompt: q.prompt,
-      options: isChoiceType(q.type) && q.options ? JSON.stringify(q.options) : null,
-      required: !!q.required,
-    })),
-  );
-  return loadQuestions(clanId, eventId, 'post');
 }
