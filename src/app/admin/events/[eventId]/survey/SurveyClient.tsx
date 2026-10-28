@@ -28,6 +28,16 @@ interface Props {
    * no stage would wipe the other form's questions.
    */
   stage?: SurveyStage;
+  /**
+   * Where the questions live, for a builder that isn't a board's — a clan event keeps its own
+   * (api/admin/clan-events/[id]/survey). The routes under it are the same: questions, template, results.
+   */
+  apiBase?: string;
+  /** Its results for one date (a weekly clan event asks each week). Defaults to `${apiBase}/results`. */
+  resultsUrl?: string;
+  /** The participant view to preview, and the line above the builder, when they differ from a board's. */
+  previewHref?: string;
+  intro?: React.ReactNode;
 }
 
 // A question in the editor. `key` is a stable client-side identity (existing rows reuse their db id,
@@ -59,6 +69,10 @@ export default function SurveyClient({
   responseCount,
   templates,
   stage = 'post',
+  apiBase = `/api/events/${eventId}/survey`,
+  resultsUrl,
+  previewHref = `/events/${eventId}/survey`,
+  intro,
 }: Props) {
   const [tab, setTab] = useState<'build' | 'results'>('build');
   const [questions, setQuestions] = useState<EditQuestion[]>(initialQuestions.map(toEdit));
@@ -110,7 +124,7 @@ export default function SurveyClient({
           required: q.required,
         })),
       };
-      const res = await clanFetch(`/api/events/${eventId}/survey/questions`, {
+      const res = await clanFetch(`${apiBase}/questions`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -130,7 +144,7 @@ export default function SurveyClient({
   async function loadTemplate(id: string) {
     setError(null);
     setNotice(null);
-    const res = await clanFetch(`/api/events/${eventId}/survey/template`, {
+    const res = await clanFetch(`${apiBase}/template`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ templateId: id }),
@@ -155,14 +169,16 @@ export default function SurveyClient({
         </h2>
       </div>
       <p className="text-sm text-text-muted mb-4">
-        {stage === 'signup' ? (
+        {intro ? (
+          intro
+        ) : stage === 'signup' ? (
           <>Asked on the sign-up form, after the sections everyone gets. Answers show on the sign-up.</>
         ) : (
           <>
             {ended
               ? 'The event has ended — approved participants can fill this out now.'
               : 'Build the survey now; approved participants will be able to fill it out once the event ends.'}{' '}
-            <ClanLink href={`/events/${eventId}/survey`} className="text-gold hover:underline" target="_blank">
+            <ClanLink href={previewHref} className="text-gold hover:underline" target="_blank">
               Preview the participant view ↗
             </ClanLink>
           </>
@@ -288,13 +304,13 @@ export default function SurveyClient({
           </div>
         </div>
       ) : (
-        <ResultsView eventId={eventId} />
+        <ResultsView url={resultsUrl ?? `${apiBase}/results`} />
       )}
     </div>
   );
 }
 
-function ResultsView({ eventId }: { eventId: number }) {
+function ResultsView({ url }: { url: string }) {
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [results, setResults] = useState<QuestionResult[]>([]);
@@ -308,7 +324,7 @@ function ResultsView({ eventId }: { eventId: number }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await clanFetch(`/api/events/${eventId}/survey/results`);
+      const res = await clanFetch(url);
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || 'Could not load results');

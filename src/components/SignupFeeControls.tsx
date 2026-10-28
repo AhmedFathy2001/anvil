@@ -23,6 +23,8 @@ interface Props {
   viewerId: number;
   confirmationsRequired: number;
   onChanged: () => void;
+  /** Where this fee's moves go — a board fee's by default; a clan event's lives under its own route. */
+  apiBase?: string;
 }
 
 // Friendly buckets over the raw fee statuses. Non-technical staff think "has it been
@@ -47,7 +49,7 @@ function bucket(status: string): { label: string; cls: string } {
 // Inline fee collection on a signup row. Replaces the old standalone /admin/fees queue:
 // one-tap Mark paid (+ optional proof), a Confirm vote that tallies toward the required
 // count, Dispute, and an admin Reset.
-export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmationsRequired, onChanged }: Props) {
+export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmationsRequired, onChanged, apiBase = '/api/admin/fees' }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const { confirm } = useDialog();
@@ -122,7 +124,7 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
       }
     }
     setAttaching(false);
-    await act(`/api/admin/fees/${fee.id}/collect`, 'collect', proofUrl ? { proofUrl } : {});
+    await act(`${apiBase}/${fee.id}/collect`, 'collect', proofUrl ? { proofUrl } : {});
   }
 
   return (
@@ -175,7 +177,7 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
         {/* Confirm vote */}
         {canConfirm && isPaid && !isClosed && !(collectedByViewer && needsSecondSignature) && (
           <button
-            onClick={() => act(`/api/admin/fees/${fee.id}/confirm`, 'confirm')}
+            onClick={() => act(`${apiBase}/${fee.id}/confirm`, 'confirm')}
             disabled={busy !== null}
             className="text-xs font-medium px-3 py-1 rounded border border-gold/40 text-gold hover:bg-gold/10 transition-colors disabled:opacity-50"
           >
@@ -204,7 +206,7 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
                 confirmLabel: 'Settle it',
               });
               if (ok) {
-                act(`/api/admin/fees/${fee.id}/confirm`, 'force', { force: true });
+                act(`${apiBase}/${fee.id}/confirm`, 'force', { force: true });
               }
             }}
             disabled={busy !== null}
@@ -218,7 +220,7 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
         {/* Dispute */}
         {canDispute && !isConfirmed && !isDisputed && !isClosed && (
           <button
-            onClick={() => act(`/api/admin/fees/${fee.id}/dispute`, 'dispute')}
+            onClick={() => act(`${apiBase}/${fee.id}/dispute`, 'dispute')}
             disabled={busy !== null}
             className="text-xs font-medium px-3 py-1 rounded border border-red-400/30 text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-50"
           >
@@ -235,7 +237,7 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
                 body: 'The uploaded proof and any confirmations are cleared, and the player owes it again.',
                 confirmLabel: 'Reset',
               });
-              if (ok) act(`/api/admin/fees/${fee.id}/reset`, 'reset');
+              if (ok) act(`${apiBase}/${fee.id}/reset`, 'reset');
             }}
             disabled={busy !== null}
             className="text-xs font-medium px-3 py-1 rounded border border-card-border text-text-muted hover:text-foreground transition-colors disabled:opacity-50"

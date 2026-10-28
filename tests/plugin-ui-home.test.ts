@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
+import { NO_MODULES } from '../src/lib/clanEventModules';
 import type { ActivityEntry } from '../src/lib/pluginActivity';
 import type { ScheduleBingo } from '../src/lib/pluginConfig';
 import {
@@ -192,6 +193,7 @@ test('a clan event: a card under Events, and its page says "I\'m going" for the 
     id: 4, title: 'Nex mass', description: 'Bring a zcb', location: 'Ancient Prison', world: 330, icon: 'nex', host: 'Drenvox',
     repeat: 'weekly' as const, timezone: 'Europe/London', durationMin: 90, startsAt: '2026-10-27T20:00:00.000Z', repeatUntil: null, ping: true,
     occurrence: { start: '2026-10-27T20:00:00.000Z', end: '2026-10-27T21:30:00.000Z' }, phase: 'upcoming' as const, going: 2, goingNames: ['A', 'B'], mine: false,
+    modules: NO_MODULES, signup: null, surveyOpen: false,
   };
   const d = base(liveCfg(), { clanEvents: [ce] });
   const list = homeUi(d);

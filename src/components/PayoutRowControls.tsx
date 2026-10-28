@@ -17,11 +17,14 @@ interface Props {
   eventId: number;
   viewerRole: string;
   onChanged: () => void;
+  /** This row's route and where its proof uploads — a board's by default (a clan event has its own). */
+  base?: string;
+  uploadUrl?: string;
 }
 
 // Per-row payout actions: one-tap Mark paid (+ optional proof screenshot), Unpay, Delete. Mirrors
 // SignupFeeControls but for outbound prize money — gated to admin/treasurer.
-export default function PayoutRowControls({ payout, eventId, viewerRole, onChanged }: Props) {
+export default function PayoutRowControls({ payout, eventId, viewerRole, onChanged, base: baseOverride, uploadUrl }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const { confirm } = useDialog();
@@ -31,7 +34,7 @@ export default function PayoutRowControls({ payout, eventId, viewerRole, onChang
   // atLeast, not equality: an owner outranks admin.
   const canPay = atLeast(viewerRole, 'admin') || viewerRole === 'treasurer';
   const isPaid = payout.status === 'paid';
-  const base = `/api/admin/events/${eventId}/payouts/${payout.id}`;
+  const base = baseOverride ?? `/api/admin/events/${eventId}/payouts/${payout.id}`;
 
   async function act(url: string, key: string, method = 'POST', body?: unknown) {
     setBusy(key);
@@ -65,7 +68,7 @@ export default function PayoutRowControls({ payout, eventId, viewerRole, onChang
         try {
           const fd = new FormData();
           fd.append('file', file);
-          const up = await clanFetch(`/api/admin/events/${eventId}/payouts/upload`, { method: 'POST', body: fd });
+          const up = await clanFetch(uploadUrl ?? `/api/admin/events/${eventId}/payouts/upload`, { method: 'POST', body: fd });
           const upData = await up.json().catch(() => ({}));
           if (!up.ok) {
             setErr(upData.error || 'Upload failed.');

@@ -771,6 +771,13 @@
       "when": 1793344503039,
       "tag": "0153_clan_events",
       "breakpoints": true
+    },
+    {
+      "idx": 154,
+      "version": "7",
+      "when": 1793344563039,
+      "tag": "0154_clan_event_modules",
+      "breakpoints": true
     }
   ]
 }

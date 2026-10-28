@@ -390,8 +390,13 @@ function clanEventLines(ce: ClanEventView): Node[] {
     text(ce.repeat === 'weekly' ? 'Clan event · weekly' : 'Clan event', LIGHT),
     clanEventWhen(ce),
     ...(where(ce) ? [muted(clip(where(ce), 30))] : []),
-    muted(`${ce.going} going${ce.mine ? ' · you too' : ''}`, ce.mine ? { color: 'brand' } : {}),
+    muted(`${goingLabel(ce)}${ce.mine ? ' · you too' : ''}`, ce.mine ? { color: 'brand' } : {}),
   ];
+}
+
+/** "4 going", or with sign-ups "4/10 signed up". */
+function goingLabel(ce: ClanEventView): string {
+  return ce.signup ? `${ce.going}${ce.signup.cap != null ? `/${ce.signup.cap}` : ''} signed up` : `${ce.going} going`;
 }
 
 function clanEventPage(d: HomeData, ce: ClanEventView): Node[] {
@@ -405,14 +410,32 @@ function clanEventPage(d: HomeData, ce: ClanEventView): Node[] {
   if (where(ce)) parts.push(text(where(ce), 'text', { wrap: true }));
   if (ce.host) parts.push(muted(`Hosted by ${ce.host}`));
   if (ce.description) parts.push(gap(6), text(ce.description, 'muted', { wrap: true }));
-  parts.push(...heading(`Going · ${ce.going}`));
+  parts.push(...heading(ce.signup ? `Signed up · ${ce.going}${ce.signup.cap != null ? `/${ce.signup.cap}` : ''}` : `Going · ${ce.going}`));
+  if (ce.modules.fee.on) parts.push(muted(`Entry ${ce.modules.fee.amount.toLocaleString('en-US')} gp`));
   if (ce.goingNames.length) parts.push(muted(ce.goingNames.join(', ') + (ce.going > ce.goingNames.length ? ` +${ce.going - ce.goingNames.length}` : ''), { wrap: true }), gap(6));
   const post = (going: boolean): Action => ({
     a: 'post',
     act: 'clan-event-going',
     args: { id: String(ce.id), going: going ? '1' : '0', open: `clan-event:${ce.id}`, clan: d.cfg.activeClan?.slug ?? '' },
   });
-  parts.push(ce.mine ? button('Not going any more', post(false), 'Take your name off the list') : button('I’m going', post(true), 'Put your name on the list — your clan sees it here, on the site and in Discord'));
+  const s = ce.signup;
+  if (!s) {
+    parts.push(ce.mine ? button('Not going any more', post(false), 'Take your name off the list') : button('I’m going', post(true), 'Put your name on the list — your clan sees it here, on the site and in Discord'));
+  } else if (s.myStatus === 'pending' || s.myStatus === 'approved') {
+    parts.push(muted(s.myStatus === 'pending' ? 'You’re signed up — waiting on the host' : 'You’re signed up', { color: 'brand' }));
+    if (s.myFee === 'pending') parts.push(muted('Your entry fee isn’t marked paid yet'));
+    if (s.open && !s.hasForm) parts.push(button('Take my name off', post(false), 'Withdraw your sign-up'));
+  } else if (s.myStatus === 'rejected') {
+    parts.push(muted('The host turned this sign-up down'));
+  } else if (!s.open) {
+    parts.push(muted(s.reason ?? 'Sign-ups are closed'));
+  } else if (s.hasForm) {
+    // The host's questions are asked on the site — the panel only draws a fixed set of inputs.
+    if (d.clanPath) parts.push(siteLink('Sign up on Anvil', 'The host has a few questions — answer them on the site', `${d.clanPath}/clan-events/${ce.id}`));
+  } else {
+    parts.push(button('Sign me up', post(true), 'Put your name down — the host sees it here, on the site and in Discord'));
+  }
+  if (ce.surveyOpen && d.clanPath) parts.push(gap(6), siteLink('Answer the survey', 'Tell the host how it went', `${d.clanPath}/clan-events/${ce.id}/survey`));
   if (d.clanPath) parts.push(gap(6), siteLink('Open on Anvil', 'Open this clan event on the Anvil site', `${d.clanPath}/clan-events/${ce.id}`));
   return [card(parts, { inset: 9 })];
 }

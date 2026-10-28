@@ -2,7 +2,10 @@ import { and, eq, inArray, isNull, or, ne, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanEventRsvps, clanEvents, clans, users, type ClanEvent } from '@/db/schema';
-import { type Occurrence, currentOccurrence, dueNotice, phaseOf } from '@/lib/clanEventTimes';
+import { type ClanEventModules, anyModule, keyFor, parseModules, signupWindow, surveyKey } from '@/lib/clanEventModules';
+import { loadQuestions } from '@/lib/clanEventQuestions';
+import { activeCount, activeNames, mySignup, signUp, withdraw } from '@/lib/clanEventSignups';
+import { type Occurrence, currentOccurrence, dueNotice, pastOccurrences, phaseOf } from '@/lib/clanEventTimes';
 import { clanEventThumbnail, sendClanEventPost, siteBaseUrl, upsertClanEventPost } from '@/lib/discord';
 import { type DiscordEmbed, EMBED_COLOR, LIMIT, clamp, field } from '@/lib/discordEmbeds';
 import { log } from '@/lib/logger';
@@ -28,31 +31,52 @@ export interface ClanEventView {
   repeatUntil: string | null;
   ping: boolean;
   occurrence: Occurrence;
-  phase: 'upcoming' | 'soon' | 'live';
+  /** 'ended' only when a module still has something to do after it (the survey, payouts). */
+  phase: 'upcoming' | 'soon' | 'live' | 'ended';
+  /** Going — or, with sign-ups on, signed up (pending and approved). */
   going: number;
-  /** Who's going (display names), up to 20. */
+  /** Who's going (display names, or the RSNs signed up), up to 20. */
   goingNames: string[];
-  /** Whether the asking person is going. */
+  /** Whether the asking person is going (or signed up). */
   mine: boolean;
+  modules: ClanEventModules;
+  /** With sign-ups on: whether they're open, the cap, whether there's a form to fill, and the asker's own. */
+  signup: { open: boolean; reason: string | null; cap: number | null; hasForm: boolean; myStatus: string | null; myFee: string | null } | null;
+  /** The survey is open to answer now. */
+  surveyOpen: boolean;
 }
 
-/** The clan's events with an occurrence still ahead (or on now), soonest first. */
-export async function listClanEvents(clanId: number, opts: { userId?: number | null; now?: number; withinDays?: number } = {}): Promise<ClanEventView[]> {
+/**
+ * The clan's events with an occurrence still ahead (or on now), soonest first. `recentDays` (staff)
+ * also keeps ones with a module that ended within that many days — there are winners to pay and a
+ * survey to read after the last week.
+ */
+export async function listClanEvents(clanId: number, opts: { userId?: number | null; now?: number; withinDays?: number; recentDays?: number } = {}): Promise<ClanEventView[]> {
   const now = opts.now ?? Date.now();
   const rows = await db.query.clanEvents.findMany({ where: and(eq(clanEvents.clanId, clanId), isNull(clanEvents.cancelledAt)) });
   const horizon = opts.withinDays != null ? now + opts.withinDays * 86_400_000 : Infinity;
+  const recent = (e: ClanEvent): Occurrence | null => {
+    if (!opts.recentDays || !anyModule(parseModules(e.modules))) return null;
+    const last = pastOccurrences(e, now, 1)[0];
+    return last && Date.parse(last.end) >= now - opts.recentDays * 86_400_000 ? last : null;
+  };
   const live = rows
-    .map((e) => ({ e, o: currentOccurrence(e, now) }))
+    .map((e) => ({ e, o: currentOccurrence(e, now) ?? recent(e) }))
     .filter((x): x is { e: ClanEvent; o: Occurrence } => x.o != null && Date.parse(x.o.start) <= horizon)
     .sort((a, b) => Date.parse(a.o.start) - Date.parse(b.o.start));
   return withGoing(live, opts.userId ?? null, now);
 }
 
-/** One event as the site and the plugin show it, with its occurrence on now or next; null when over or cancelled. */
+/**
+ * One event as the site and the plugin show it, with its occurrence on now or next; null when over
+ * or cancelled — unless a module still has work after it (a survey to answer, winners to pay), when
+ * it's the one that last ended.
+ */
 export async function getClanEvent(clanId: number, id: number, userId: number | null = null, now = Date.now()): Promise<ClanEventView | null> {
   const e = await db.query.clanEvents.findFirst({ where: and(eq(clanEvents.id, id), eq(clanEvents.clanId, clanId)) });
-  const o = e ? currentOccurrence(e, now) : null;
-  if (!e || !o) return null;
+  if (!e) return null;
+  const o = currentOccurrence(e, now) ?? (!e.cancelledAt && anyModule(parseModules(e.modules)) ? pastOccurrences(e, now, 1)[0] ?? null : null);
+  if (!o) return null;
   return (await withGoing([{ e, o }], userId, now))[0];
 }
 
@@ -64,9 +88,29 @@ async function withGoing(list: { e: ClanEvent; o: Occurrence }[], userId: number
     .innerJoin(users, eq(users.id, clanEventRsvps.userId))
     .where(inArray(clanEventRsvps.clanEventId, list.map((x) => x.e.id)))
     .orderBy(clanEventRsvps.createdAt);
-  return list.map(({ e, o }) => {
-    const mine = rsvps.filter((r) => r.eventId === e.id && r.occurrence === o.start);
-    return {
+  const signupEvents = list.filter(({ e }) => parseModules(e.modules).signups.on);
+  const signed = await activeNames(signupEvents[0]?.e.clanId ?? 0, signupEvents.map(({ e }) => e.id));
+  const views: ClanEventView[] = [];
+  for (const { e, o } of list) {
+    const m = parseModules(e.modules);
+    const key = keyFor(m, e, o);
+    const mine = m.signups.on
+      ? signed.filter((r) => r.eventId === e.id && r.occurrence === key).map((r) => ({ userId: r.userId, name: r.rsn }))
+      : rsvps.filter((r) => r.eventId === e.id && r.occurrence === o.start);
+    let signup: ClanEventView['signup'] = null;
+    if (m.signups.on) {
+      const w = signupWindow(m, e, now);
+      const own = userId != null ? await mySignup(e.clanId, e.id, key, userId) : null;
+      signup = {
+        open: w.open,
+        reason: w.open ? null : w.reason,
+        cap: m.signups.cap,
+        hasForm: (await loadQuestions(e.clanId, e.id, 'signup')).length > 0,
+        myStatus: own?.status ?? null,
+        myFee: own?.feeStatus ?? null,
+      };
+    }
+    views.push({
       id: e.id,
       title: e.title,
       description: e.description,
@@ -81,12 +125,16 @@ async function withGoing(list: { e: ClanEvent; o: Occurrence }[], userId: number
       repeatUntil: e.repeatUntil,
       ping: e.ping === 1,
       occurrence: o,
-      phase: phaseOf(o, now),
+      phase: Date.parse(o.end) <= now ? 'ended' : phaseOf(o, now),
       going: mine.length,
       goingNames: mine.slice(0, 20).map((r) => r.name),
       mine: userId != null && mine.some((r) => r.userId === userId),
-    };
-  });
+      modules: m,
+      signup,
+      surveyOpen: surveyKey(m, e, now) != null,
+    });
+  }
+  return views;
 }
 
 // ── Writing ──────────────────────────────────────────────────────────────────────────────────────
@@ -191,19 +239,50 @@ export async function cancelClanEvent(clanId: number, id: number): Promise<boole
   return true;
 }
 
-/** "I'm going" (or not) for the occurrence on now or next. Returns the view after, or null when it's over. */
-export async function setGoing(clanId: number, id: number, userId: number, going: boolean): Promise<ClanEventView | null> {
+/**
+ * "I'm going" (or not) for the occurrence on now or next. With sign-ups on it's a sign-up with no
+ * answers — refused when the host's form has a required question, which only the site can ask.
+ */
+export async function setGoing(
+  clanId: number,
+  id: number,
+  who: { userId: number; playerId: number | null; displayName: string | null },
+  going: boolean,
+): Promise<{ ok: true; view: ClanEventView } | { ok: false; error: string; status: number }> {
+  const userId = who.userId;
   const view = await getClanEvent(clanId, id, userId);
-  if (!view) return null;
-  if (going) {
+  if (!view || view.phase === 'ended') return { ok: false, error: 'That event is over.', status: 404 };
+  if (view.modules.signups.on) {
+    const r = going ? await signUp(clanId, id, who, {}) : await withdraw(clanId, id, userId);
+    if (!r.ok) return r;
+  } else if (going) {
     await db.insert(clanEventRsvps).values({ clanEventId: id, occurrence: view.occurrence.start, userId }).onConflictDoNothing();
   } else {
     await db.delete(clanEventRsvps).where(and(eq(clanEventRsvps.clanEventId, id), eq(clanEventRsvps.occurrence, view.occurrence.start), eq(clanEventRsvps.userId, userId)));
   }
   const after = await getClanEvent(clanId, id, userId);
-  const row = await db.query.clanEvents.findFirst({ where: eq(clanEvents.id, id) });
+  const row = await db.query.clanEvents.findFirst({ where: and(eq(clanEvents.id, id), eq(clanEvents.clanId, clanId)) });
   if (row) void announce(row).catch((e) => log.warn('clan-events.announce-failed', { id }, e)); // the going count
-  return after;
+  return after ? { ok: true, view: after } : { ok: false, error: 'That event is over.', status: 404 };
+}
+
+/** Bring the Discord announcement up to date after the list changed elsewhere (a sign-up on the site, staff approving one). */
+export async function refreshClanEventPost(clanId: number, id: number): Promise<void> {
+  const row = await db.query.clanEvents.findFirst({ where: and(eq(clanEvents.id, id), eq(clanEvents.clanId, clanId)) });
+  if (row) void announce(row).catch((e) => log.warn('clan-events.announce-failed', { id }, e));
+}
+
+/** The host's module settings (lib/clanEventModules); the announcement follows (a sign-up link, a cap). */
+export async function setClanEventModules(clanId: number, id: number, raw: unknown): Promise<ClanEventModules | null> {
+  const modules = parseModules(raw);
+  const [row] = await db
+    .update(clanEvents)
+    .set({ modules, updatedAt: new Date().toISOString() })
+    .where(and(eq(clanEvents.id, id), eq(clanEvents.clanId, clanId)))
+    .returning();
+  if (!row) return null;
+  void announce(row).catch((e) => log.warn('clan-events.announce-failed', { id }, e));
+  return modules;
 }
 
 // ── Discord ──────────────────────────────────────────────────────────────────────────────────────
@@ -217,14 +296,19 @@ async function eventLink(clanId: number, id: number): Promise<string | null> {
 const when = (iso: string, style: 'F' | 'R') => `<t:${Math.floor(Date.parse(iso) / 1000)}:${style}>`;
 
 /** The embed for an occurrence: the announcement, the reminder and the start share it. */
-export function clanEventEmbed(e: Pick<ClanEvent, 'title' | 'description' | 'location' | 'world' | 'icon' | 'host' | 'repeat'>, o: Occurrence | null, going: number, link: string | null, kind: 'announce' | 'reminder' | 'start' | 'cancelled'): DiscordEmbed {
+export function clanEventEmbed(e: Pick<ClanEvent, 'title' | 'description' | 'location' | 'world' | 'icon' | 'host' | 'repeat' | 'modules'>, o: Occurrence | null, going: number, link: string | null, kind: 'announce' | 'reminder' | 'start' | 'cancelled'): DiscordEmbed {
+  const m = parseModules(e.modules);
+  const count = m.signups.on ? `${going}${m.signups.cap != null ? `/${m.signups.cap}` : ''}` : String(going);
+  const fee = m.fee.on ? ` · ${m.fee.amount.toLocaleString('en-US')} gp entry` : '';
   const head = { announce: e.repeat === 'weekly' ? 'Clan event · every week' : 'Clan event', reminder: 'Starting in 15 minutes', start: 'Starting now', cancelled: 'Cancelled' }[kind];
   const where = [e.location, e.world ? `World ${e.world}` : null].filter(Boolean).join(' · ');
   const fields = [
     ...(o && kind !== 'cancelled' ? [field(kind === 'start' ? 'Until' : 'When', kind === 'start' ? when(o.end, 'F') : `${when(o.start, 'F')}\n${when(o.start, 'R')}`)] : []),
     ...(where ? [field('Where', where)] : []),
     ...(e.host ? [field('Host', e.host)] : []),
-    ...(kind !== 'cancelled' ? [field('Going', link ? `${going} · [I'm going →](${link})` : String(going))] : []),
+    ...(kind !== 'cancelled'
+      ? [field(m.signups.on ? 'Signed up' : 'Going', link ? `${count}${fee} · [${m.signups.on ? 'Sign up' : "I'm going"} →](${link})` : `${count}${fee}`)]
+      : []),
   ];
   return {
     author: { name: head },
@@ -247,7 +331,7 @@ async function announce(e: ClanEvent): Promise<void> {
   const ids = e.discordMessageIds ?? {};
   const prior = ids[MESSAGE];
   if (!o && !prior) return; // over before anyone heard of it
-  const going = o ? await goingCount(e.id, o.start) : 0;
+  const going = o ? await goingCount(e, o) : 0;
   const embed = clanEventEmbed(e, o, going, await eventLink(e.clanId, e.id), e.cancelledAt || !o ? 'cancelled' : 'announce');
   const result = await upsertClanEventPost(e.clanId, embed, prior);
   if (result.status !== 'sent' || !result.messageId) return;
@@ -255,11 +339,14 @@ async function announce(e: ClanEvent): Promise<void> {
   await db.update(clanEvents).set({ discordMessageIds: next }).where(eq(clanEvents.id, e.id));
 }
 
-async function goingCount(id: number, occurrence: string): Promise<number> {
+/** Going, or signed up when the event takes sign-ups. */
+async function goingCount(e: ClanEvent, o: Occurrence): Promise<number> {
+  const m = parseModules(e.modules);
+  if (m.signups.on) return activeCount(e.clanId, e.id, keyFor(m, e, o));
   const [r] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(clanEventRsvps)
-    .where(and(eq(clanEventRsvps.clanEventId, id), eq(clanEventRsvps.occurrence, occurrence)));
+    .where(and(eq(clanEventRsvps.clanEventId, e.id), eq(clanEventRsvps.occurrence, o.start)));
   return r?.n ?? 0;
 }
 
@@ -285,7 +372,7 @@ export async function processClanEventReminders(now = Date.now()): Promise<void>
         .where(and(eq(clanEvents.id, e.id), or(isNull(column), ne(column, o.start))))
         .returning({ id: clanEvents.id });
       if (!claimed.length) continue;
-      const embed = clanEventEmbed(e, o, await goingCount(e.id, o.start), await eventLink(e.clanId, e.id), due);
+      const embed = clanEventEmbed(e, o, await goingCount(e, o), await eventLink(e.clanId, e.id), due);
       await sendClanEventPost(e.clanId, embed, e.ping === 1);
     } catch (err) {
       log.warn('clan-events.reminder-failed', { id: e.id }, err);

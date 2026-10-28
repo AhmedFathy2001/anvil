@@ -16,9 +16,22 @@ interface Props {
   // submit. `previewNotEnded` distinguishes "not open to players yet" from "you're not a participant".
   preview?: boolean;
   previewNotEnded?: boolean;
+  /** Where answers go and the way back, for a survey that isn't a board's (a clan event's). */
+  submitUrl?: string;
+  backHref?: string;
 }
 
-export default function SurveyResponseClient({ eventId, eventName, questions, initialAnswers, alreadySubmitted, preview = false, previewNotEnded = false }: Props) {
+export default function SurveyResponseClient({
+  eventId,
+  eventName,
+  questions,
+  initialAnswers,
+  alreadySubmitted,
+  preview = false,
+  previewNotEnded = false,
+  submitUrl = `/api/events/${eventId}/survey/respond`,
+  backHref = `/events/${eventId}`,
+}: Props) {
   const [answers, setAnswers] = useState<SurveyAnswerMap>(initialAnswers);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +51,7 @@ export default function SurveyResponseClient({ eventId, eventName, questions, in
     setSubmitting(true);
     setError(null);
     try {
-      const res = await clanFetch(`/api/events/${eventId}/survey/respond`, {
+      const res = await clanFetch(submitUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ answers }),
@@ -59,7 +72,7 @@ export default function SurveyResponseClient({ eventId, eventName, questions, in
       <div className="max-w-xl mx-auto mt-6 border border-accent-green/30 bg-accent-green/5 rounded-xl p-8 text-center">
         <p className="text-lg font-semibold text-accent-green-light mb-1">Thanks for the feedback!</p>
         <p className="text-sm text-text-muted mb-4">Your response to {eventName} has been recorded.</p>
-        <ClanLink href={`/events/${eventId}`} className="text-sm text-gold hover:underline">← Back to the event</ClanLink>
+        <ClanLink href={backHref} className="text-sm text-gold hover:underline">← Back to the event</ClanLink>
       </div>
     );
   }
