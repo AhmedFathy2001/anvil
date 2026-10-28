@@ -69,6 +69,12 @@ export interface EventRecap {
     submissions: number;
     gpLooted: number;
   };
+  /**
+   * Everyone's account-wide XP and boss KC over the event, tile or no tile — the "By the numbers"
+   * totals and per-player lists. Not the Grinder's figure, which on a full recap counts only what
+   * the board's own XP/KC tiles tracked.
+   */
+  gains: { name: string; teamId: number | null; xp: number; kc: number }[];
 }
 
 // A person's own slice of the recap, for the plugin dashboard card.
@@ -914,6 +920,9 @@ export async function getEventRecap(eventId: number): Promise<EventRecap | null>
     ended: isEventEnded(r.event),
     awards: r.awards,
     totals: r.totals,
+    gains: [...r.byPerson.values()]
+      .filter((s) => s.xpTotal > 0 || s.kcTotal > 0)
+      .map((s) => ({ name: s.name, teamId: s.teamId, xp: s.xpTotal, kc: s.kcTotal })),
   };
 }
 

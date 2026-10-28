@@ -100,3 +100,22 @@ test('the lists are capped, and ties never wobble', () => {
   // Everyone tied on one death, so the order is alphabetical rather than insertion order.
   assert.deepEqual(s.killers.map((k) => k.name), ['Boss0', 'Boss1', 'Boss10', 'Boss11', 'Boss2']);
 });
+
+test('a drop submitted on the site counts toward the value seen; one the feed already has is not counted twice', async () => {
+  const { withSubmittedDrops } = await import('../src/lib/momentsAnalytics.ts');
+  const t = Date.parse('2026-10-20T12:00:00Z');
+  const feed = [row({ rsn: 'Alice', kind: 'unique', itemId: 1, itemName: 'Bow', valueGp: 100, occurredAt: new Date(t).toISOString() })];
+  const merged = withSubmittedDrops(feed, [
+    // The same bow, submitted five minutes later by the plugin: one drop.
+    { submissionId: 10, rsn: 'alice', itemId: 1, itemName: 'Bow', quantity: 1, valueGp: 100, teamId: null, at: t + 5 * 60_000 },
+    // A shadow uploaded by hand, which the feed never saw.
+    { submissionId: 11, rsn: 'Bob', itemId: 2, itemName: "Tumeken's shadow (uncharged)", quantity: 1, valueGp: 1_000_000_000, teamId: 7, at: t },
+    // A second bow for Alice: the feed line is spoken for, so this one is new.
+    { submissionId: 12, rsn: 'Alice', itemId: 1, itemName: 'Bow', quantity: 1, valueGp: 100, teamId: null, at: t + 60_000 },
+  ]);
+  assert.equal(merged.length, 3);
+  const s = summariseMoments(merged);
+  assert.equal(s.gpSeen, 1_000_000_200);
+  assert.equal(s.biggestHaul?.itemName, "Tumeken's shadow (uncharged)");
+  assert.equal(merged.find((m) => m.rsn === 'Bob')?.teamId, 7, 'it lands on the right side');
+});

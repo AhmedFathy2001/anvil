@@ -57,9 +57,18 @@ function Standout({
   );
 }
 
+/** A big number, short: 76,037,377 → 76m. */
+function short(value: number): string {
+  return gp(value);
+}
+
+type Gain = { name: string; teamId: number | null; xp: number; kc: number };
+
 export default function MomentsSummaryPanel({
   summary,
-  sides = [],
+  sides: feedSides = [],
+  gains = [],
+  teams = [],
 }: {
   summary: MomentsSummary;
   /**
@@ -68,14 +77,36 @@ export default function MomentsSummaryPanel({
    * "who died more" is a question about SIDES, and the answer was only ever available per person.
    */
   sides?: { teamId: number; name: string; color: string; summary: MomentsSummary }[];
+  /**
+   * Everyone's account-wide XP and boss KC over the event (lib/eventRecap `gains`) — hiscores, not
+   * the plugin feed, so it fills in even for a side whose members never sent a moment.
+   */
+  gains?: Gain[];
+  /** The event's teams, so a side with gains but no moments still gets its card. */
+  teams?: { id: number; name: string; color: string }[];
 }) {
   // No "Rarest" card: its 1-in-N is the wiki's per-NPC rate, which is wrong for raid purples (rates
   // move with points) and for drops shared between a boss and slayer mobs. Back when the drop-rate
   // data can be trusted per source, `summary.rarestDrop` is still computed and can come back.
   const { counts, deathBoard, killers, members, biggestHaul, hardestTask } = summary;
-  if (counts.total === 0) return null;
+  if (counts.total === 0 && gains.length === 0) return null;
 
   const topLooters = members.filter((m) => m.lootGp > 0).slice(0, 8);
+  const totalXp = gains.reduce((sum, g) => sum + g.xp, 0);
+  const totalKc = gains.reduce((sum, g) => sum + g.kc, 0);
+  const topXp = gains.filter((g) => g.xp > 0).sort((a, b) => b.xp - a.xp).slice(0, 8);
+  const topKc = gains.filter((g) => g.kc > 0).sort((a, b) => b.kc - a.kc).slice(0, 8);
+  const sideGains = (teamId: number) => {
+    const mine = gains.filter((g) => g.teamId === teamId);
+    return { xp: mine.reduce((s, g) => s + g.xp, 0), kc: mine.reduce((s, g) => s + g.kc, 0) };
+  };
+  // Every team with something to show: a side that only levelled, and sent no moments, still counts.
+  const empty: MomentsSummary = { ...summary, counts: { pet: 0, unique: 0, death: 0, loot: 0, ca: 0, level: 0, total: 0 }, gpSeen: 0, deathBoard: [] };
+  const sides = teams.length
+    ? teams
+        .map((t) => feedSides.find((s) => s.teamId === t.id) ?? { teamId: t.id, name: t.name, color: t.color, summary: empty })
+        .filter((s) => s.summary.counts.total > 0 || sideGains(s.teamId).xp > 0 || sideGains(s.teamId).kc > 0)
+    : feedSides;
 
   return (
     <div>
@@ -85,13 +116,15 @@ export default function MomentsSummaryPanel({
         <span className="text-xs text-text-muted">everything the plugin saw happen, counted</span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
         <Tile emoji={kindEmoji('death')} value={counts.death.toLocaleString()} label="deaths" />
         <Tile emoji={kindEmoji('pet')} value={counts.pet.toLocaleString()} label="pets" />
         <Tile emoji={kindEmoji('unique')} value={counts.unique.toLocaleString()} label="uniques" />
         <Tile emoji={kindEmoji('loot')} value={counts.loot.toLocaleString()} label="big hauls" />
         <Tile emoji={kindEmoji('ca')} value={counts.ca.toLocaleString()} label="combat tasks" />
         <Tile emoji="💰" value={`${gp(summary.gpSeen)} gp`} label="value seen" />
+        {totalXp > 0 && <Tile emoji="📈" value={short(totalXp)} label="XP gained" />}
+        {totalKc > 0 && <Tile emoji="🐉" value={totalKc.toLocaleString()} label="boss KC" />}
       </div>
 
       {sides.length > 1 && (
@@ -113,6 +146,12 @@ export default function MomentsSummaryPanel({
                 <SideStat value={side.summary.counts.pet + side.summary.counts.unique} label="uniques" />
                 <SideStat value={side.summary.counts.ca} label="tasks" />
               </div>
+              {(totalXp > 0 || totalKc > 0) && (
+                <div className="mt-2 grid grid-cols-2 gap-2 text-center">
+                  <SideStat value={short(sideGains(side.teamId).xp)} label="XP gained" />
+                  <SideStat value={sideGains(side.teamId).kc} label="boss KC" />
+                </div>
+              )}
               <div className="mt-2 text-center text-xs text-text-muted">
                 <span className="text-gold font-semibold">{gp(side.summary.gpSeen)} gp</span> seen
                 {side.summary.deathBoard[0] && (
@@ -192,16 +231,44 @@ export default function MomentsSummaryPanel({
             </ul>
           </div>
         )}
+
+        {topXp.length > 0 && (
+          <div className="border border-card-border rounded-xl bg-card-bg p-4">
+            <p className="font-semibold mb-2">XP gained per player</p>
+            <ul className="space-y-1 text-sm">
+              {topXp.map((g) => (
+                <li key={g.name} className="flex items-center justify-between gap-2">
+                  <span className="truncate">{g.name}</span>
+                  <span className="tabular-nums text-text-muted">{g.xp.toLocaleString()}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {topKc.length > 0 && (
+          <div className="border border-card-border rounded-xl bg-card-bg p-4">
+            <p className="font-semibold mb-2">Boss KC per player</p>
+            <ul className="space-y-1 text-sm">
+              {topKc.map((g) => (
+                <li key={g.name} className="flex items-center justify-between gap-2">
+                  <span className="truncate">{g.name}</span>
+                  <span className="tabular-nums text-text-muted">{g.kc.toLocaleString()}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 /** One number on a side's card — small, because three of them sit in a row on a phone. */
-function SideStat({ value, label }: { value: number; label: string }) {
+function SideStat({ value, label }: { value: number | string; label: string }) {
   return (
     <div>
-      <div className="text-lg font-extrabold tabular-nums leading-tight">{value.toLocaleString()}</div>
+      <div className="text-lg font-extrabold tabular-nums leading-tight">{typeof value === 'number' ? value.toLocaleString() : value}</div>
       <div className="text-[10px] uppercase tracking-wider text-text-muted">{label}</div>
     </div>
   );
