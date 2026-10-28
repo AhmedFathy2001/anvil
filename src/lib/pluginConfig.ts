@@ -3,7 +3,7 @@ import { getSetting, getSettingText, getSettingMap } from '@/lib/settings';
 import { accounts, clanMemberships, clanStaff, clans, eventCohosts, eventParticipants, eventSignups, events, tiles, users, weeklyCompetitions } from '@/db/schema';
 import { and, count, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { inAcceptedCohostClan, invitedToEvent } from '@/lib/eventAccess';
-import { BOSSES, FUN_DEATH_MESSAGES, weeklyMetricLabel, COUNTER_TARGETS } from '@/lib/constants';
+import { BOSSES, FUN_DEATH_MESSAGES, weeklyMetricLabel, COUNTER_TARGETS, metricKeys } from '@/lib/constants';
 import { DEFAULT_TIER_BANDS, normalizeTierBands, type TierBand } from '@/lib/tileFilter';
 import { bossNotableIds, untradeableUniqueIds } from '@/lib/moments';
 import { getItemMapping } from '@/lib/osrsItems';
@@ -582,7 +582,7 @@ export async function getAlwaysNotifyItemIds(clanId: number, racedBoss?: string 
   //
   // Added FIRST and unconditionally: these are ids, not name patterns, so they bypass the substring
   // matching below entirely.
-  const raced = racedBoss ? [...bossNotableIds(racedBoss)] : [];
+  const raced = racedBoss ? metricKeys(racedBoss).flatMap((k) => [...bossNotableIds(k)]) : [];
   const admin = await getLineSetting(clanId, ALWAYS_NOTIFY_SETTING_KEY);
   const patterns = [...NOTABLE_ITEM_PATTERNS, ...admin.map((s) => s.toLowerCase()).filter(Boolean)];
   const key = patterns.join('');

@@ -5,7 +5,7 @@
 // across one or more whole weeks, the successor starts in the window that contains now, rather than
 // in the past where it would be born already finished.
 
-import { BOSSES, EFFICIENCY_METRICS, SKILL_LABELS } from '@/lib/constants';
+import { EFFICIENCY_METRICS, SKILL_LABELS, bossMetricLabel } from '@/lib/constants';
 
 export interface RepeatConfig {
   /** The metrics to cycle through, in order. Null or empty = repeat the same one every time. */
@@ -30,7 +30,7 @@ export function defaultWeeklyTitle(type: string, metric: string): string {
     type === 'skill'
       ? SKILL_LABELS[metric] ?? metric
       : type === 'boss'
-        ? BOSSES.find((b) => b.key === metric)?.label ?? metric
+        ? bossMetricLabel(metric) || metric
         : EFFICIENCY_METRICS.find((m) => m.key === metric)?.label ?? metric.toUpperCase();
   return `${type === 'boss' ? 'BOTW' : type === 'efficiency' ? 'Efficiency' : 'SOTW'}: ${label}`;
 }

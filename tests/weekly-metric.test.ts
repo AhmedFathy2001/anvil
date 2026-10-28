@@ -10,7 +10,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { readMetricFromSnapshot } from '../src/lib/weeklyMetric.ts';
+import { effectiveMetricValue, liveMetricValue, readMetricFromSnapshot } from '../src/lib/weeklyMetric.ts';
 import type { HiscoresSnapshot } from '../src/lib/hiscores.ts';
 
 /** Just enough snapshot for the metric reader; it looks at one field. */
@@ -82,4 +82,30 @@ test('an efficiency comp needs both halves of the snapshot', () => {
   // small number.
   assert.equal(readMetricFromSnapshot(snap({ skills: undefined }), 'efficiency', 'ehp').kind, 'transient');
   assert.equal(readMetricFromSnapshot(snap({ bosses: undefined }), 'efficiency', 'ehb').kind, 'transient');
+});
+
+const tob = 'theatreOfBlood,theatreOfBloodHardMode';
+const raidSnap = () => snap({ bosses: { theatreOfBlood: { rank: 1, score: 40 }, theatreOfBloodHardMode: { rank: -1, score: -1 } } } as Partial<HiscoresSnapshot>);
+const value = (r: ReturnType<typeof readMetricFromSnapshot>) => (r.kind === 'value' ? r.value : r.kind);
+
+test('a raid across its modes is the sum of them, an unranked mode counting none', () => {
+  assert.equal(value(readMetricFromSnapshot(raidSnap(), 'boss', tob)), 40);
+  assert.equal(value(readMetricFromSnapshot(raidSnap(), 'boss', 'theatreOfBloodHardMode')), 0, 'one mode on its own still works');
+});
+
+test('a raid with a mode the parser doesn’t know is a failed read, not a partial sum', () => {
+  const s = snap({ bosses: { theatreOfBlood: { rank: 1, score: 40 } } } as Partial<HiscoresSnapshot>);
+  assert.equal(readMetricFromSnapshot(s, 'boss', tob).kind, 'transient');
+});
+
+test('the live overlay is folded in per mode, then summed', () => {
+  // Hiscores 40 normal / 0 HM; the plugin has since seen 41 normal and 3 HM.
+  assert.equal(value(effectiveMetricValue(raidSnap(), 'boss', tob, { theatreOfBlood: 41, theatreOfBloodHardMode: 3 })), 44);
+  assert.equal(value(effectiveMetricValue(raidSnap(), 'boss', tob, { theatreOfBloodHardMode: 3 })), 43);
+});
+
+test('a raid’s live value is only whole once every mode has been pushed', () => {
+  assert.equal(liveMetricValue('boss', tob, { theatreOfBlood: 41 }), null);
+  assert.equal(liveMetricValue('boss', tob, { theatreOfBlood: 41, theatreOfBloodHardMode: 3 }), 44);
+  assert.equal(liveMetricValue('skill', 'agility', { agility: 5 }), 5);
 });

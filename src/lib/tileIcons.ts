@@ -4,7 +4,7 @@
 // (the exact sprites the plugin renders in-game); skill icons come from the OSRS wiki. Both are
 // served through our own asset cache (lib/assetUrls, app/img/*), never hotlinked.
 
-import { BOSSES, SKILLS } from './constants';
+import { BOSSES, SKILLS, metricKeys } from './constants';
 import { parsePbActivity } from '@/lib/pbGroups';
 import bossIcons from '@/data/bossIcons.json';
 import bossImages from '@/data/bossImages.json';
@@ -274,7 +274,8 @@ export function competitionIconUrl(type: string, metric: string): string | null 
 export function competitionImageUrl(type: string, metric: string): string | null {
   if (type === 'skill') return skillIconUrl(metric);
   if (type === 'efficiency') return wikiImageUrl('Stats_icon.png');
-  return bossImageForStatKey(metric);
+  // A raid across its modes draws as its first mode.
+  return bossImageForStatKey(metricKeys(metric)[0] ?? metric);
 }
 
 /**

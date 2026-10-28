@@ -2,7 +2,7 @@ import npcDrops from '@/data/npcDrops.json';
 import { clogPageForBoss } from '@/lib/clogKillcounts';
 import skillPets from '@/data/skillPets.json';
 import combatAchievements from '@/data/combatAchievements.json';
-import { BOSSES } from '@/lib/constants';
+import { BOSSES, metricKeys } from '@/lib/constants';
 import { clogPageItems, clogPageNames } from '@/lib/clogDataset';
 
 /**
@@ -660,6 +660,16 @@ export function isEventFeedWorthy(row: { kind: string; itemId?: number | null; v
  */
 function weeklyKindFor(obs: Observation, weekly: WeeklyScope): MomentKind | null {
   if (weekly.type === 'efficiency') return null;
+
+  // A raid across its modes: whatever belongs to any one of them belongs to the week.
+  const keys = weekly.type === 'boss' ? metricKeys(weekly.metric) : [];
+  if (keys.length > 1) {
+    for (const metric of keys) {
+      const kind = weeklyKindFor(obs, { ...weekly, metric });
+      if (kind) return kind;
+    }
+    return null;
+  }
 
   if (obs.kind === 'ca') {
     // A combat task is boss content by definition, so a skill week has nothing to say about it.

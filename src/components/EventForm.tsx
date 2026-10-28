@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { TileCsvRow } from '@/lib/csvTiles';
 import { EVENT_MODES as MODES, type EventMode as Mode } from '@/lib/eventModes';
 import { defaultWeeklyTitle } from '@/lib/weeklyRepeatPlan';
-import { BOSSES, EFFICIENCY_METRICS, SKILLS, SKILL_LABELS } from '@/lib/constants';
+import { BOSSES, EFFICIENCY_METRICS, RAIDS_ANY_MODE, SKILLS, SKILL_LABELS } from '@/lib/constants';
 import type { EventPreset } from '@/lib/eventPresets';
 import Input from '@/components/Input';
 import NumberInput from '@/components/NumberInput';
@@ -242,7 +242,11 @@ export default function EventForm({ presets = [], suggestedName = '', weeklyOnly
     weeklyType === 'skill'
       ? SKILLS.map((k) => ({ value: k, label: SKILL_LABELS[k] ?? k }))
       : weeklyType === 'boss'
-        ? BOSSES.map((b) => ({ value: b.key, label: b.label }))
+        ? [
+            // A raid counted across every mode first; each mode on its own is in the list below.
+            ...RAIDS_ANY_MODE.map((r) => ({ value: r.key, label: r.label, keywords: r.keywords })),
+            ...BOSSES.map((b) => ({ value: b.key, label: b.label, keywords: b.aliases })),
+          ]
         : EFFICIENCY_METRICS.map((m) => ({ value: m.key, label: m.label }));
 
   const isPool = POOL_MODES.includes(mode);

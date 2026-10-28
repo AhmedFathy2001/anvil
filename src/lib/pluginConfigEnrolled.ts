@@ -30,7 +30,7 @@ import {
 } from '@/lib/pluginConfig';
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import { statKeys } from '@/lib/tileKinds';
-import { lapUnitNoun } from '@/lib/constants';
+import { lapUnitNoun, metricKeys } from '@/lib/constants';
 import { ROLL_TABLES, rollItemIds } from '@/lib/rollTables';
 import { computeGain, isIndividualMode, isMilestoneBasis, parseContributionSnapshot } from '@/lib/statTracking';
 import { eligibleSinceReveal, gainSinceReveal, parseRevealStats } from '@/lib/revealStats';
@@ -99,7 +99,7 @@ function generateCodeword(playerId: number, eventId: number): string {
 async function weeklyTrackedNames(clanId: number): Promise<{ kc: string[]; skills: string[] }> {
   const metrics = await getActiveWeeklyMetrics(clanId);
   return {
-    kc: metrics.filter((m) => m.type === 'boss').flatMap((m) => kcNamesForKey(m.metric)),
+    kc: metrics.filter((m) => m.type === 'boss').flatMap((m) => metricKeys(m.metric).flatMap(kcNamesForKey)),
     skills: metrics.filter((m) => m.type === 'skill').map((m) => m.metric),
   };
 }
