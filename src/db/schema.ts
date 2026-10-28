@@ -3547,6 +3547,8 @@ export const clanEvents = pgTable('clan_events', {
   remindedFor: text('reminded_for'),
   /** The occurrence whose "starting now" went out. */
   startedFor: text('started_for'),
+  /** What it switches on beyond "I'm going" — sign-ups, fee, payouts, survey (lib/clanEventModules). Null is none. */
+  modules: jsonb('modules'),
 }, (t) => [index('clan_events_clan_idx').on(t.clanId)]);
 export type ClanEvent = typeof clanEvents.$inferSelect;
 
@@ -3558,6 +3560,84 @@ export const clanEventRsvps = pgTable('clan_event_rsvps', {
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (t) => [uniqueIndex('clan_event_rsvps_unique').on(t.clanEventId, t.occurrence, t.userId)]);
+
+// A clan event's modules (lib/clanEventModules). Their own tables, not the bingo ones: a board's
+// sign-up is a draft-pool seat with a team and a prize place, and sharing the rows would have made
+// every bingo query remember a null event. Each row carries its clan, and `occurrence` is the key it
+// is filed under — a week's ISO start, or 'series'.
+
+/** The host's questions: on the sign-up form, or the survey after. Same shape as survey_questions. */
+export const clanEventQuestions = pgTable('clan_event_questions', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  clanEventId: integer('clan_event_id').notNull().references(() => clanEvents.id, { onDelete: 'cascade' }),
+  /** 'signup' | 'post' */
+  stage: text('stage').notNull(),
+  position: integer('position').notNull().default(0),
+  type: text('type').notNull().default('text'),
+  prompt: text('prompt').notNull(),
+  options: text('options'),
+  required: boolean('required').notNull().default(false),
+}, (t) => [index('clan_event_questions_event_idx').on(t.clanEventId, t.stage)]);
+
+/** A sign-up, and its entry fee when the event charges one (the same states as signup_fees). */
+export const clanEventSignups = pgTable('clan_event_signups', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  clanEventId: integer('clan_event_id').notNull().references(() => clanEvents.id, { onDelete: 'cascade' }),
+  occurrence: text('occurrence').notNull(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  /** The account they signed up as, and its name then — a payout needs someone to trade. */
+  clanMemberId: integer('clan_member_id').references(() => clanMemberships.id, { onDelete: 'set null' }),
+  rsn: text('rsn').notNull(),
+  answers: jsonb('answers').$type<Record<string, number | string | string[]>>(),
+  /** 'pending' | 'approved' | 'rejected' | 'withdrawn' */
+  status: text('status').notNull().default('approved'),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  updatedAt: text('updated_at'),
+  /** Null when no fee; otherwise 'pending' | 'collected' | 'confirmed' | 'disputed' | 'closed' (lib/feeRules). */
+  feeAmount: integer('fee_amount'),
+  feeStatus: text('fee_status'),
+  collectedByUserId: integer('collected_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  collectedAt: text('collected_at'),
+  proofUrl: text('proof_url'),
+  confirmations: jsonb('confirmations').$type<{ userId: number; at: string }[]>(),
+  confirmedByUserId: integer('confirmed_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  confirmedAt: text('confirmed_at'),
+  feeNotes: text('fee_notes'),
+}, (t) => [
+  uniqueIndex('clan_event_signups_unique').on(t.clanEventId, t.occurrence, t.userId),
+  index('clan_event_signups_clan_idx').on(t.clanId),
+]);
+
+/** A winner the host named, and whether they've been paid. */
+export const clanEventPayouts = pgTable('clan_event_payouts', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  clanEventId: integer('clan_event_id').notNull().references(() => clanEvents.id, { onDelete: 'cascade' }),
+  occurrence: text('occurrence').notNull(),
+  rsn: text('rsn').notNull(),
+  amount: integer('amount').notNull(),
+  /** What it was for — "1st", "biggest drop". */
+  note: text('note'),
+  /** 'pending' | 'paid' */
+  status: text('status').notNull().default('pending'),
+  proofUrl: text('proof_url'),
+  paidByUserId: integer('paid_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  paidAt: text('paid_at'),
+  createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (t) => [index('clan_event_payouts_event_idx').on(t.clanEventId, t.occurrence)]);
+
+/** One answer set per person per key. */
+export const clanEventSurveyResponses = pgTable('clan_event_survey_responses', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  clanEventId: integer('clan_event_id').notNull().references(() => clanEvents.id, { onDelete: 'cascade' }),
+  occurrence: text('occurrence').notNull(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  answers: jsonb('answers').$type<Record<string, number | string | string[]>>().notNull(),
+  submittedAt: text('submitted_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (t) => [uniqueIndex('clan_event_survey_unique').on(t.clanEventId, t.occurrence, t.userId)]);
 
 // ── Platform analytics ──────────────────────────────────────────────────────────────────────────
 //

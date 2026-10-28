@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import ClanLink from '@/components/ClanLink';
 import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
 
@@ -19,8 +20,10 @@ interface Ev {
   repeatUntil: string | null;
   ping: boolean;
   occurrence: { start: string; end: string };
-  phase: 'upcoming' | 'soon' | 'live';
+  phase: 'upcoming' | 'soon' | 'live' | 'ended';
   going: number;
+  signup: { cap: number | null } | null;
+  modules: { fee: { on: boolean }; payouts: { on: boolean }; survey: { on: boolean } };
 }
 
 interface Form {
@@ -147,13 +150,18 @@ export default function ClanEventsClient() {
                     {ev.title}
                     {ev.phase === 'live' && <span className="ml-2 rounded bg-accent-green/15 px-1.5 py-0.5 text-xs text-accent-green">Live now</span>}
                     {ev.repeat === 'weekly' && <span className="ml-2 rounded bg-gold/15 px-1.5 py-0.5 text-xs text-gold-light">Weekly</span>}
+                    {ev.phase === 'ended' && <span className="ml-2 rounded bg-text-muted/15 px-1.5 py-0.5 text-xs text-text-muted">Ended</span>}
                   </p>
                   <p className="text-xs text-text-muted">
                     {when(ev.occurrence.start)}
                     {ev.location ? ` · ${ev.location}` : ''}
-                    {ev.world ? ` · W${ev.world}` : ''} · {ev.going} going
+                    {ev.world ? ` · W${ev.world}` : ''} · {ev.signup ? `${ev.going}${ev.signup.cap != null ? `/${ev.signup.cap}` : ''} signed up` : `${ev.going} going`}
+                    {[ev.modules.fee.on && 'fee', ev.modules.payouts.on && 'payouts', ev.modules.survey.on && 'survey'].filter(Boolean).map((x) => ` · ${x}`).join('')}
                   </p>
                 </div>
+                <ClanLink href={`/admin/clan-events/${ev.id}`} className="text-sm text-gold hover:text-gold-light">
+                  Sign-ups &amp; more
+                </ClanLink>
                 <button type="button" onClick={() => edit(ev)} className="text-sm text-gold hover:text-gold-light">
                   Edit
                 </button>

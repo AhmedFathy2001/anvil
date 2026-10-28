@@ -19,6 +19,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const limit = await rateLimitByKey('clan-event-going', String(user.userId), { limit: 20, windowMs: 60_000 });
   if (!limit.ok) return NextResponse.json({ error: 'Slow down a moment.' }, { status: 429 });
   const body = (await request.json().catch(() => ({}))) as { going?: unknown };
-  const view = await setGoing(clan.id, Number((await params).id), user.userId, body.going !== false);
-  return view ? NextResponse.json({ event: view }) : NextResponse.json({ error: 'That event is over.' }, { status: 404 });
+  const who = { userId: user.userId, playerId: user.playerId, displayName: user.username };
+  const r = await setGoing(clan.id, Number((await params).id), who, body.going !== false);
+  return r.ok ? NextResponse.json({ event: r.view }) : NextResponse.json({ error: r.error }, { status: r.status });
 }

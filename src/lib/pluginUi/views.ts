@@ -335,11 +335,12 @@ async function clanEventGoingAct(request: Request, a: Args): Promise<View> {
   const user = await verifyPluginTokenUser(request);
   const clan = await visibleClan(request, a.clan ?? '');
   if (!user || !clan) return message('Sign in to the plugin to say you’re going.');
-  const member = await canSeeClan({ clanId: clan.id, visibility: 'private', playerId: await viewerPlayerId(request), userId: user.userId });
+  const playerId = await viewerPlayerId(request);
+  const member = await canSeeClan({ clanId: clan.id, visibility: 'private', playerId, userId: user.userId });
   if (!member) return message('Only members of this clan can say they’re going.');
   if (!(await rateLimit(request, `plugin-clan-event-going:${user.userId}`, { limit: 20, windowMs: 60_000 })).ok) return back();
-  await setGoing(clan.id, Number(a.id), user.userId, a.going === '1');
-  return back();
+  const r = await setGoing(clan.id, Number(a.id), { userId: user.userId, playerId: playerId ?? null, displayName: null }, a.going === '1');
+  return r.ok ? back() : message(r.error);
 }
 
 /** Your clan's card under its events; the same answer for a few minutes, the clan doesn't change by the second. */

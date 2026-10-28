@@ -39,6 +39,11 @@ const ROOT_TABLES = new Set([
   'tileLibrary',
   'feedback',
   'settings',
+  'clanEvents',
+  'clanEventQuestions',
+  'clanEventSignups',
+  'clanEventPayouts',
+  'clanEventSurveyResponses',
 ]);
 
 // Helpers that ARE a query on a clan-scoped table. Without these the rule would go blind the moment

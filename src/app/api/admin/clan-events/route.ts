@@ -10,7 +10,7 @@ export async function GET() {
   const user = await verifyAdminOrModerator();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const clan = await requireClan();
-  return NextResponse.json({ events: await listClanEvents(clan.id, { userId: user.userId }) });
+  return NextResponse.json({ events: await listClanEvents(clan.id, { userId: user.userId, recentDays: 30 }) });
 }
 
 export async function POST(request: Request) {

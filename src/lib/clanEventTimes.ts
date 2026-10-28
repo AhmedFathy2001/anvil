@@ -72,3 +72,44 @@ export function dueNotice(o: Occurrence, now: number, remindedFor: string | null
   if (phase === 'soon') return remindedFor === o.start ? null : 'reminder';
   return null;
 }
+
+/**
+ * Occurrences that have ended, most recent first, up to `limit` — what payouts and the survey look
+ * back at once the mass is over. A one-off has at most one.
+ */
+export function pastOccurrences(e: ClanEventTiming, now: number, limit = 8): Occurrence[] {
+  const first = Date.parse(e.startsAt);
+  if (!Number.isFinite(first)) return [];
+  const length = Math.max(1, e.durationMin) * MINUTE;
+  const out: Occurrence[] = [];
+  if (e.repeat !== 'weekly') {
+    if (first + length <= now) out.push({ start: new Date(first).toISOString(), end: new Date(first + length).toISOString() });
+    return out;
+  }
+  const until = e.repeatUntil ? Date.parse(e.repeatUntil) : Infinity;
+  // The last week that could have ended, one past for a clock change, then walk back.
+  let n = Math.max(0, Math.floor((now - first) / (7 * 24 * 60 * MINUTE)) + 1);
+  for (; n >= 0 && out.length < limit; n--) {
+    const start = nthStart(e, n);
+    if (start > until || start + length > now) continue;
+    out.push({ start: new Date(start).toISOString(), end: new Date(start + length).toISOString() });
+  }
+  return out;
+}
+
+/** The occurrence a key names (its ISO start), if the event really has one there. */
+export function occurrenceAt(e: ClanEventTiming, start: string): Occurrence | null {
+  const at = Date.parse(start);
+  const first = Date.parse(e.startsAt);
+  if (!Number.isFinite(at) || !Number.isFinite(first) || at < first) return null;
+  const length = Math.max(1, e.durationMin) * MINUTE;
+  const n = e.repeat === 'weekly' ? Math.round((at - first) / (7 * 24 * 60 * MINUTE)) : 0;
+  for (const k of [n - 1, n, n + 1]) {
+    if (k < 0) continue;
+    const s = nthStart(e, k);
+    if (s !== at) continue;
+    if (e.repeat === 'weekly' && e.repeatUntil && s > Date.parse(e.repeatUntil)) return null;
+    return { start: new Date(s).toISOString(), end: new Date(s + length).toISOString() };
+  }
+  return null;
+}

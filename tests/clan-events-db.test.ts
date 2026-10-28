@@ -56,15 +56,21 @@ test('a form is checked before anything is saved', () => {
 test('going is per occurrence: next week asks again', async () => {
   const start = new Date(Date.now() + 3_600_000).toISOString();
   const ev = await CE.createClanEvent(clanId, input(start), meUser);
-  let view = await CE.setGoing(clanId, ev.id, meUser, true);
+  const me = { userId: meUser, playerId: null, displayName: 'Massgoer' };
+  const going = async (on: boolean) => {
+    const r = await CE.setGoing(clanId, ev.id, me, on);
+    assert.ok(r.ok);
+    return r.view;
+  };
+  let view = await going(true);
   assert.equal(view?.going, 1);
   assert.equal(view?.mine, true);
   assert.deepEqual(view?.goingNames, ['Massgoer']);
-  view = await CE.setGoing(clanId, ev.id, meUser, true);
+  view = await going(true);
   assert.equal(view?.going, 1, 'saying it twice is still one');
   const nextWeek = await CE.listClanEvents(clanId, { userId: meUser, now: Date.parse(start) + 8 * 86_400_000 });
   assert.equal(nextWeek.find((x) => x.id === ev.id)?.going, 0);
-  view = await CE.setGoing(clanId, ev.id, meUser, false);
+  view = await going(false);
   assert.equal(view?.going, 0);
   assert.equal((await CE.listClanEvents(clanId, { withinDays: 1 })).some((x) => x.id === ev.id), true);
   assert.equal(await CE.cancelClanEvent(clanId, ev.id), true);
