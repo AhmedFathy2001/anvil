@@ -13,6 +13,7 @@ import {
   RANK_RULES_KEY,
   RANK_RULES_REMOVE_KEY,
   STAFF_LEVELS,
+  STANDARD_RANKS,
   applyRankRules,
   effectiveRankOrder,
   highestRank,
@@ -58,7 +59,9 @@ async function view(clanId: number) {
     if (k) position.set(k, r.position);
   }
   const roster = rankCounts.filter((r) => r.rank).map((r) => ({ rank: r.rank as string, count: Number(r.n) }));
-  const order = effectiveRankOrder(parseRankOrder(orderRaw), roster, (k) => position.get(k) ?? null);
+  // A clan with nothing saved starts from the standard OSRS titles, plus whatever its roster holds.
+  const saved = parseRankOrder(orderRaw);
+  const order = effectiveRankOrder(saved.length > 0 ? saved : STANDARD_RANKS, roster, (k) => position.get(k) ?? null);
 
   // Site-access suggestions: linked members whose highest rank a rule says should have more access
   // than they hold now. Promotions only — a grant made by hand is never second-guessed downward.

@@ -6,6 +6,7 @@ import { events, tileSuggestions, tiles } from '@/db/schema';
 import { verifyTileEditorForEvent } from '@/lib/auth';
 import { assertEventEditable } from '@/lib/eventLock';
 import { eventForRequest } from '@/lib/eventScope';
+import { diffTiles, logTileAudit } from '@/lib/tile-audit';
 
 const MAX_TILES = 500;
 
@@ -53,21 +54,36 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
+  // Once the board is live its tiles are frozen for this path — rewriting one mid-event would move
+  // the goalposts on teams already working it. The tile editor's own live-override is the way in.
+  const started = !!event.startDate && new Date(event.startDate) <= new Date();
   let tileId: number;
   if (overwrite != null) {
-    const [t] = await db
+    if (started) {
+      return NextResponse.json({ error: 'The event has started — tiles can’t be rewritten from a suggestion now.' }, { status: 400 });
+    }
+    const before = await db.query.tiles.findFirst({ where: and(eq(tiles.id, overwrite), eq(tiles.eventId, eventId)) });
+    if (!before) return NextResponse.json({ error: 'That tile is not on this board.' }, { status: 404 });
+    const [after] = await db
       .update(tiles)
       .set({ label: s.title, description: s.details, ...(s.points ? { points: s.points } : {}) })
       .where(and(eq(tiles.id, overwrite), eq(tiles.eventId, eventId)))
-      .returning({ id: tiles.id });
-    if (!t) return NextResponse.json({ error: 'That tile is not on this board.' }, { status: 404 });
-    tileId = t.id;
+      .returning();
+    logTileAudit({
+      eventId,
+      action: 'updated',
+      tileId: after.id,
+      tileLabel: after.label,
+      changedFields: diffTiles(before, after),
+      actorUserId: editor.userId,
+    });
+    tileId = after.id;
   } else {
     const isClassicGrid = (event.format ?? 'bingo') === 'bingo' && (event.scoringMode ?? 'tiles') === 'tiles';
     if (isClassicGrid) {
       return NextResponse.json({ error: 'A classic grid has a fixed size — pick a tile to write this over instead.' }, { status: 400 });
     }
-    if (event.startDate && new Date(event.startDate) <= new Date()) {
+    if (started) {
       return NextResponse.json({ error: 'Tiles cannot be added after the event has started.' }, { status: 400 });
     }
     const existing = await db.select({ position: tiles.position }).from(tiles).where(eq(tiles.eventId, eventId));
@@ -81,6 +97,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
       await tx.update(events).set({ boardSize: existing.length + 1 }).where(eq(events.id, eventId));
       return t.id;
     });
+    logTileAudit({ eventId, action: 'created', tileId, tileLabel: s.title, changedFields: [], actorUserId: editor.userId });
   }
 
   await db
