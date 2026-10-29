@@ -118,7 +118,18 @@ export async function PUT(request: Request) {
     if (Array.isArray(body.rules) && body.rules.length > MAX_RANK_RULES) {
       return NextResponse.json({ error: `At most ${MAX_RANK_RULES} rules.` }, { status: 400 });
     }
-    await setSetting(clan.id, RANK_RULES_KEY, JSON.stringify(parseRankRules(body.rules)));
+    const rules = parseRankRules(body.rules);
+    // Only roles the bot may safely automate (no admin / manage permissions, not bot-managed).
+    const picked = rules.map((r) => r.roleId).filter((id): id is string => !!id);
+    if (picked.length > 0) {
+      const safe = new Set(
+        (await fetchGuildRoles(clan.id)).filter((r) => r.name !== '@everyone' && isSafeAutomatedRole(r, '')).map((r) => r.id),
+      );
+      if (picked.some((id) => !safe.has(id))) {
+        return NextResponse.json({ error: 'That role has powerful permissions, so Anvil won’t hand it out. Pick another.' }, { status: 400 });
+      }
+    }
+    await setSetting(clan.id, RANK_RULES_KEY, JSON.stringify(rules));
   }
   if (body.order !== undefined) await setSetting(clan.id, RANK_ORDER_KEY, JSON.stringify(parseRankOrder(body.order)));
   if (typeof body.remove === 'boolean') await setSetting(clan.id, RANK_RULES_REMOVE_KEY, body.remove ? 'true' : 'false');

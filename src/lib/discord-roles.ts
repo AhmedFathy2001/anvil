@@ -1078,7 +1078,7 @@ export async function syncRolesForClanMember(
   // Rank-rule roles that may be taken back. A guest matches no rule, so a non-kept rule role goes.
   const ruleManaged = new Set<string>();
   if (allGuests && cfg.rankRulesRemove) {
-    for (const r of cfg.rankRules) if (r.roleId && !r.keep) ruleManaged.add(r.roleId);
+    for (const r of cfg.rankRules) if (r.roleId && !r.keep && safeRoleIds.has(r.roleId)) ruleManaged.add(r.roleId);
   }
   if (allGuests) {
     resolvedGuests.forEach((id) => {
@@ -1096,7 +1096,11 @@ export async function syncRolesForClanMember(
       ruled.give.forEach((id) => {
         if (safeRoleIds.has(id)) target.add(id);
       });
-      ruled.managed.forEach((id) => ruleManaged.add(id));
+      // Only roles the bot may safely hand out are ever taken back — a rule naming an administrative
+      // role must not turn sync into a way of stripping it from people.
+      ruled.managed.forEach((id) => {
+        if (safeRoleIds.has(id)) ruleManaged.add(id);
+      });
     }
     const rankKey = normalizeRankKey(highestRank);
     if (rankKey) {
