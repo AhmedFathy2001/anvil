@@ -792,6 +792,13 @@
       "when": 1793350000000,
       "tag": "0156_event_discord_prefs",
       "breakpoints": true
+    },
+    {
+      "idx": 157,
+      "version": "7",
+      "when": 1793350100000,
+      "tag": "0157_discord_broadcasts",
+      "breakpoints": true
     }
   ]
 }
