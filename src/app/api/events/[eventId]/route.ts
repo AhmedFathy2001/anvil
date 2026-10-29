@@ -320,7 +320,7 @@ export async function PATCH(
         ...(await eventBoardSummary(updated)),
       })
         // The rules land right under the start post, in every clan on the board (lib/eventRulesPost).
-        .then(() => (parseEventRules(updated.rules).rulesAtStart ? postEventRules(updated.id, updated.clanId) : null))
+        .then(() => (parseEventRules(updated.rules).rulesAtStart ? postEventRules(updated.id, updated.clanId, { auto: true }) : null))
         .catch(() => {});
     }
 

@@ -140,6 +140,8 @@ export interface SendReport {
   ok: boolean;
   reason?: string;
   messagesSent: number;
+  /** The Discord message ids, in order — what an edit or delete later addresses. */
+  messageIds?: string[];
 }
 
 /** '#rrggbb' → the integer Discord wants for an embed colour. Falls back to a gold accent. */
@@ -198,19 +200,23 @@ async function describeSendError(res: Response): Promise<string> {
  * messages so there's no length cap the admin has to worry about. Returns how many Discord
  * messages were sent, or a human reason on the first failure.
  */
-export async function sendBotMessage(opts: SendOpts): Promise<SendReport> {
-  const creds = await getBotCredentials(opts.clanId);
-  if (!creds) {
-    return {
-      ok: false,
-      reason: 'Discord bot is not configured. Set DISCORD_BOT_TOKEN and the server ID under Integrations.',
-      messagesSent: 0,
-    };
-  }
+/**
+ * Is this channel in the clan's own server? The shared bot sits in many servers, so a channel id
+ * from somewhere else would otherwise let one clan post into (or edit, or delete in) another's.
+ */
+async function channelInGuild(botToken: string, guildId: string, channelId: string): Promise<boolean> {
+  if (!/^\d{5,25}$/.test(channelId)) return false;
+  const res = await discordRest(botToken, `/channels/${channelId}`);
+  if (!res.ok) return false;
+  const ch = (await res.json().catch(() => ({}))) as { guild_id?: string };
+  return ch.guild_id === guildId;
+}
 
+const NOT_YOUR_CHANNEL = 'That channel is not in your server.';
+
+/** The Discord messages one broadcast becomes: long text split across embeds or messages. */
+function buildMessages(opts: Omit<SendOpts, 'clanId' | 'channelId'>, guildId: string): Record<string, unknown>[] {
   const body = (opts.body ?? '').trim();
-  if (!opts.channelId) return { ok: false, reason: 'No channel selected.', messagesSent: 0 };
-  if (!body) return { ok: false, reason: 'The message is empty.', messagesSent: 0 };
 
   // Mention content + allowed_mentions ride on the FIRST message only. @everyone (role id ==
   // guild id) needs the `everyone` parse flag; a normal role needs its id allow-listed, else
@@ -218,7 +224,7 @@ export async function sendBotMessage(opts: SendOpts): Promise<SendReport> {
   let mentionContent = '';
   let allowedMentions: Record<string, unknown> | undefined;
   if (opts.mentionRoleId) {
-    if (opts.mentionRoleId === creds.guildId) {
+    if (opts.mentionRoleId === guildId) {
       mentionContent = '@everyone';
       allowedMentions = { parse: ['everyone'] };
     } else {
@@ -265,8 +271,32 @@ export async function sendBotMessage(opts: SendOpts): Promise<SendReport> {
       });
     });
   }
+  return messages;
+}
 
-  let sent = 0;
+/**
+ * Post a message to a channel as the bot, splitting long text across multiple embeds /
+ * messages so there's no length cap the admin has to worry about. Returns the messages sent
+ * (with their ids, so the post can be edited or deleted later), or a human reason on the first failure.
+ */
+export async function sendBotMessage(opts: SendOpts): Promise<SendReport> {
+  const creds = await getBotCredentials(opts.clanId);
+  if (!creds) {
+    return {
+      ok: false,
+      reason: 'Discord bot is not configured. Set DISCORD_BOT_TOKEN and the server ID under Integrations.',
+      messagesSent: 0,
+    };
+  }
+
+  if (!opts.channelId) return { ok: false, reason: 'No channel selected.', messagesSent: 0 };
+  if (!(opts.body ?? '').trim()) return { ok: false, reason: 'The message is empty.', messagesSent: 0 };
+  if (!(await channelInGuild(creds.botToken, creds.guildId, opts.channelId))) {
+    return { ok: false, reason: NOT_YOUR_CHANNEL, messagesSent: 0 };
+  }
+
+  const messages = buildMessages(opts, creds.guildId);
+  const messageIds: string[] = [];
   for (const msg of messages) {
     const res = await discordRest(creds.botToken, `/channels/${opts.channelId}/messages`, {
       method: 'POST',
@@ -279,12 +309,67 @@ export async function sendBotMessage(opts: SendOpts): Promise<SendReport> {
       log.warn('discord-broadcast.send-fail', { status: res.status, channelId: opts.channelId, detail });
       return {
         ok: false,
-        reason: sent > 0 ? `Sent ${sent} message(s), then failed — ${detail}` : detail,
-        messagesSent: sent,
+        reason: messageIds.length > 0 ? `Sent ${messageIds.length} message(s), then failed — ${detail}` : detail,
+        messagesSent: messageIds.length,
+        messageIds,
       };
     }
-    sent++;
+    const sent = (await res.json().catch(() => ({}))) as { id?: string };
+    if (sent.id) messageIds.push(sent.id);
   }
 
-  return { ok: true, messagesSent: sent };
+  return { ok: true, messagesSent: messageIds.length, messageIds };
+}
+
+/**
+ * Rewrite a broadcast in place: edit the messages it already has, post more if the new text needs
+ * them, delete any it no longer does. An edit never pings again — Discord only pings on a send.
+ */
+export async function editBotMessage(
+  opts: SendOpts & { messageIds: string[] },
+): Promise<SendReport> {
+  const creds = await getBotCredentials(opts.clanId);
+  if (!creds) return { ok: false, reason: 'Discord bot is not configured.', messagesSent: 0 };
+  if (!(opts.body ?? '').trim()) return { ok: false, reason: 'The message is empty.', messagesSent: 0 };
+  if (!(await channelInGuild(creds.botToken, creds.guildId, opts.channelId))) {
+    return { ok: false, reason: NOT_YOUR_CHANNEL, messagesSent: 0, messageIds: opts.messageIds };
+  }
+
+  const messages = buildMessages({ ...opts, mentionRoleId: null }, creds.guildId);
+  const ids: string[] = [];
+  for (let i = 0; i < messages.length; i++) {
+    const existing = opts.messageIds[i];
+    const res = existing
+      ? await discordRest(creds.botToken, `/channels/${opts.channelId}/messages/${existing}`, {
+          method: 'PATCH',
+          body: JSON.stringify(stampEmbeds({ content: null, embeds: [], ...messages[i] })),
+        })
+      : await discordRest(creds.botToken, `/channels/${opts.channelId}/messages`, {
+          method: 'POST',
+          body: JSON.stringify(stampEmbeds(messages[i])),
+        });
+    if (!res.ok) {
+      const detail = await describeSendError(res);
+      log.warn('discord-broadcast.edit-fail', { status: res.status, channelId: opts.channelId, detail });
+      return { ok: false, reason: detail, messagesSent: ids.length, messageIds: [...ids, ...opts.messageIds.slice(i)] };
+    }
+    const body = (await res.json().catch(() => ({}))) as { id?: string };
+    ids.push(body.id ?? existing);
+  }
+  for (const extra of opts.messageIds.slice(messages.length)) {
+    await discordRest(creds.botToken, `/channels/${opts.channelId}/messages/${extra}`, { method: 'DELETE' }).catch(() => null);
+  }
+  return { ok: true, messagesSent: ids.length, messageIds: ids };
+}
+
+/** Delete a broadcast's messages. A message already gone counts as deleted. */
+export async function deleteBotMessages(clanId: number, channelId: string, messageIds: string[]): Promise<{ ok: boolean; reason?: string }> {
+  const creds = await getBotCredentials(clanId);
+  if (!creds) return { ok: false, reason: 'Discord bot is not configured.' };
+  if (!(await channelInGuild(creds.botToken, creds.guildId, channelId))) return { ok: false, reason: NOT_YOUR_CHANNEL };
+  for (const id of messageIds) {
+    const res = await discordRest(creds.botToken, `/channels/${channelId}/messages/${id}`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 404) return { ok: false, reason: await describeSendError(res) };
+  }
+  return { ok: true };
 }

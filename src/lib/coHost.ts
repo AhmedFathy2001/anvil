@@ -9,6 +9,7 @@
 // Idempotent throughout: provisioning reuses an existing team for the (event, clan) pair and never
 // double-grants a staff seat, so a retried accept is safe.
 
+import { parseBoardAccess, staffCanEditFrom, type BoardAccess } from '@/lib/cohostBoardAccess';
 import { and, eq, inArray } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
@@ -59,6 +60,8 @@ export interface CohostRow {
   eventSignupFee: number | null;
   /** The host lets this clan's staff author the board with them. */
   staffCanEditBoard: boolean;
+  /** What this clan may do with the tiles, per action (lib/cohostBoardAccess parseBoardAccess). */
+  boardAccess: Record<string, unknown>;
 }
 
 const hostClan = alias(clans, 'host_clan');
@@ -81,6 +84,7 @@ const COHOST_COLUMNS = {
   eventEndDate: events.endDate,
   eventSignupFee: events.signupFee,
   staffCanEditBoard: eventCohosts.staffCanEditBoard,
+  boardAccess: eventCohosts.boardAccess,
 };
 
 /** Invite a clan to co-host an event. Returns the (possibly pre-existing) co-host row's id. */
@@ -482,10 +486,22 @@ export async function coHostedBoardsForClan(clanId: number, now: Date = new Date
 export async function setCohostStaffCanEditBoard(eventId: number, cohostId: number, allowed: boolean): Promise<boolean> {
   const res = await db
     .update(eventCohosts)
-    .set({ staffCanEditBoard: allowed })
+    // Clearing the per-action access makes it read from this switch again (lib/cohostBoardAccess).
+    .set({ staffCanEditBoard: allowed, boardAccess: {} })
     .where(and(eq(eventCohosts.id, cohostId), eq(eventCohosts.eventId, eventId)))
     .returning({ id: eventCohosts.id });
   return res.length > 0;
+}
+
+/** Host-admin: what a co-host clan may do with the tiles, action by action. */
+export async function setCohostBoardAccess(eventId: number, cohostId: number, raw: unknown): Promise<BoardAccess | null> {
+  const access = parseBoardAccess(raw, false);
+  const res = await db
+    .update(eventCohosts)
+    .set({ boardAccess: access, staffCanEditBoard: staffCanEditFrom(access) })
+    .where(and(eq(eventCohosts.id, cohostId), eq(eventCohosts.eventId, eventId)))
+    .returning({ id: eventCohosts.id });
+  return res.length > 0 ? access : null;
 }
 
 /** A co-hosted board, with where this viewer should be sent for it. */

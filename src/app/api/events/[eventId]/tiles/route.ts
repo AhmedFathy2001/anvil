@@ -60,7 +60,7 @@ export async function PUT(
   if (!(await eventForRequest(request, eId))) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
-  const editor = await verifyTileEditorForEvent(eId);
+  const editor = await verifyTileEditorForEvent(eId, 'edit');
   if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -667,7 +667,7 @@ export async function POST(
   if (!(await eventForRequest(request, eId))) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
-  const editor = await verifyTileEditorForEvent(eId);
+  const editor = await verifyTileEditorForEvent(eId, 'create');
   if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

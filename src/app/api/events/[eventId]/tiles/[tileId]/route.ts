@@ -46,7 +46,7 @@ export async function DELETE(
   if (!(await eventForRequest(request, eId))) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
-  const editor = await verifyTileEditorForEvent(eId);
+  const editor = await verifyTileEditorForEvent(eId, 'delete');
   if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

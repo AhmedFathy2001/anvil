@@ -1,3 +1,5 @@
+import { loadEventRoleSettings } from '@/lib/eventDiscordPrefs';
+import { assignBingoRoleToApprovedSignups } from '@/lib/discord-teams';
 import { NextResponse } from 'next/server';
 import { eventForRequest } from '@/lib/eventScope';
 import { requireClan } from '@/lib/clanContext';
@@ -233,6 +235,13 @@ export async function PATCH(
         // Someone already ON a team is left alone — that placement was a decision too.
         await db.update(eventParticipants).set({ teamId: seatTeamId }).where(eq(eventParticipants.id, existingPlayer.id));
         captureStartingStatsSoon(evtId, [existingPlayer.id]);
+      }
+
+      // Events that hand out the player role on approval (not after the draft) do it now.
+      if (signup.status !== 'approved') {
+        void loadEventRoleSettings(evtId, clan.id)
+          .then((r) => (r.playerRole === 'approve' ? assignBingoRoleToApprovedSignups(evtId, 'all-teams', sigId) : null))
+          .catch(() => {});
       }
 
       // Nudge the approved member to pay their fee (incentive to convert + stay active).

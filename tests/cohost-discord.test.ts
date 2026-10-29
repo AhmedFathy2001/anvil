@@ -117,7 +117,7 @@ test('the rulebook is the HOST clan’s, and the event’s own text wins over it
 test('fan-out: host + accepted co-host only, co-host channel preferred, each pings its own role', async () => {
   const { sendEventBingoWebhook } = await import('../src/lib/discord.ts');
   posts.length = 0;
-  const ok = await sendEventBingoWebhook(hostClan, eventId, { embeds: [{ title: 'Event started' }] }, { ping: true });
+  const ok = await sendEventBingoWebhook(hostClan, eventId, { embeds: [{ title: 'Event started' }] }, { post: 'eventStart' });
   assert.equal(ok, true);
   const byUrl = new Map(posts.map((p) => [p.url, p.body]));
   assert.deepEqual([...byUrl.keys()].sort(), ['https://discord.com/api/webhooks/1/guest-cohost', 'https://discord.com/api/webhooks/1/host-bingo']);
@@ -130,7 +130,7 @@ test('fan-out: a post the CO-HOST raised still reaches the host and the co-host 
   // clan's address, hands the co-host's clan id in as if it were the host. The event decides.
   const { sendEventBingoWebhook } = await import('../src/lib/discord.ts');
   posts.length = 0;
-  const ok = await sendEventBingoWebhook(guestClan, eventId, { embeds: [{ title: 'Tile complete' }] });
+  const ok = await sendEventBingoWebhook(guestClan, eventId, { embeds: [{ title: 'Tile complete' }] }, { post: 'tileComplete' });
   assert.equal(ok, true);
   assert.deepEqual(
     [...new Set(posts.map((p) => p.url))].sort(),
@@ -185,8 +185,36 @@ test('fan-out: a co-host that switched it off gets nothing; the host still posts
   const { sendEventBingoWebhook } = await import('../src/lib/discord.ts');
   await db.insert(s.settings).values({ clanId: guestClan, key: 'discord_cohost_posts_enabled', value: 'false' });
   posts.length = 0;
-  await sendEventBingoWebhook(hostClan, eventId, { embeds: [{ title: 'Tile done' }] });
+  await sendEventBingoWebhook(hostClan, eventId, { embeds: [{ title: 'Tile done' }] }, { post: 'tileComplete' });
   assert.deepEqual(posts.map((p) => p.url), ['https://discord.com/api/webhooks/1/host-bingo']);
+  await db.delete(s.settings).where((await import('drizzle-orm')).and(
+    (await import('drizzle-orm')).eq(s.settings.clanId, guestClan),
+    (await import('drizzle-orm')).eq(s.settings.key, 'discord_cohost_posts_enabled'),
+  ));
+});
+
+test('event settings: an Off post goes nowhere; a pause silences everything; partners pick less', async () => {
+  const { sendEventBingoWebhook } = await import('../src/lib/discord.ts');
+  const { saveEventDiscordPrefs, savePartnerDiscordPrefs } = await import('../src/lib/eventDiscordPrefs.ts');
+  const urls = () => [...new Set(posts.map((p) => p.url))].sort();
+
+  await saveEventDiscordPrefs(eventId, { posts: { tileComplete: 'off' } });
+  await savePartnerDiscordPrefs(eventId, guestClan, { preset: 'big' });
+  posts.length = 0;
+  assert.equal(await sendEventBingoWebhook(hostClan, eventId, { embeds: [{ title: 'Tile' }] }, { post: 'tileComplete' }), false);
+  await sendEventBingoWebhook(hostClan, eventId, { embeds: [{ title: 'Digest' }] }, { post: 'digest' });
+  assert.deepEqual(urls(), ['https://discord.com/api/webhooks/1/host-bingo'], 'a big-moments partner skips the digest');
+  posts.length = 0;
+  await sendEventBingoWebhook(hostClan, eventId, { embeds: [{ title: 'Win' }] }, { post: 'teamWin' });
+  assert.deepEqual(urls(), ['https://discord.com/api/webhooks/1/guest-cohost', 'https://discord.com/api/webhooks/1/host-bingo']);
+
+  await saveEventDiscordPrefs(eventId, { pausedUntil: 'indefinite' });
+  posts.length = 0;
+  await sendEventBingoWebhook(hostClan, eventId, { embeds: [{ title: 'Win' }] }, { post: 'teamWin' });
+  assert.deepEqual(posts, []);
+
+  await saveEventDiscordPrefs(eventId, {});
+  await savePartnerDiscordPrefs(eventId, guestClan, {});
 });
 
 test('rules post targets: host first, then accepted co-hosts; narrowed on request', async () => {

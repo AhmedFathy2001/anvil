@@ -365,6 +365,7 @@ async function digestEvent(event: typeof events.$inferSelect, nowMs: number): Pr
 
   const span = day - fromDay > 1 ? `Days ${fromDay + 1}–${day}` : `Day ${day}`;
   await notifyEventStatsPost({
+    post: 'digest',
     clanId: event.clanId,
     eventId: event.id,
     eventName: event.name,
@@ -422,6 +423,7 @@ export async function runHalfwayReports(nowMs = Date.now()): Promise<void> {
       if (mLine) fields.push(field('🎲 Moments so far', mLine, false));
 
       await notifyEventStatsPost({
+        post: 'halfway',
         clanId: event.clanId,
         eventId: event.id,
         eventName: event.name,

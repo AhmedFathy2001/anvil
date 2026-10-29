@@ -19,6 +19,18 @@ import { boardRevealImageQuery } from '@/lib/boardRevealImage';
 import { db } from '@/db';
 import { acceptedCohostClanIds } from '@/lib/coHost';
 import { ttlMemo } from '@/lib/ttlMemo';
+import { FEEDS_OFF_KEY, parseFeedsOff } from '@/lib/discordFeeds';
+import {
+  clanDefault,
+  decideHostPost,
+  decidePartnerPost,
+  hostShares,
+  postTypeInfo,
+  type DiscordPostType,
+  type PingChoice,
+  type PostDecision,
+} from '@/lib/discordPostPolicy';
+import { loadClanPostDefaults, loadEventDiscordPrefs, loadPartnerDiscordPrefs } from '@/lib/eventDiscordPrefs';
 import { clans, events, teams } from '@/db/schema';
 import {
   EMBED_COLOR,
@@ -69,6 +81,10 @@ const SIGNUP_WEBHOOK_KEY = 'discord_webhook_signups';
 const COFFER_WEBHOOK_KEY = 'discord_webhook_coffer';
 // Clan events (lib/clanEvents): a mass, a hangout. Falls back to the main channel.
 const CLAN_EVENTS_WEBHOOK_KEY = 'discord_webhook_clan_events';
+// Roster-sync summaries, falling back to the main channel.
+const ROSTER_WEBHOOK_KEY = 'discord_webhook_roster';
+// The shared "playing an event right now" role (lib/discord-teams) — a ping choice for event posts.
+const PLAYER_ROLE_KEY = 'discord_bingo_role_id';
 
 // Wraps the shared reader because a notify must never throw on a database hiccup — the post is
 // best-effort, and losing it is better than failing whatever triggered it.
@@ -254,6 +270,19 @@ export async function forwardPluginNotification(
   }
 }
 
+/** The roster-sync summary: its own channel, else the main one. Off when the clan switched it off. */
+export async function sendRosterWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
+  if (await feedOff(clanId, 'roster')) return false;
+  const webhookUrl = await resolveWebhookUrl(clanId, ROSTER_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
+  if (!webhookUrl) return false;
+  return sendToWebhook(webhookUrl, payload, clanId);
+}
+
+/** Has the clan switched this feed off on its Discord page (lib/discordFeeds)? */
+async function feedOff(clanId: number, feedId: string): Promise<boolean> {
+  return parseFeedsOff(await getSettingUrl(clanId, FEEDS_OFF_KEY)).has(feedId);
+}
+
 // General / master channel — clan-roster sync summaries and other non-event posts. This is the
 // webhook every other destination falls back to.
 export async function sendDiscordWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
@@ -394,8 +423,12 @@ export async function upsertBingoWebhookReport(
   clanId: number,
   payload: DiscordWebhookPayload,
   existingMessageId?: string,
+  // An event's own channel, used in place of the clan's bingo channel.
+  overrideUrl?: string | null,
 ): Promise<EditableWebhookResult> {
-  const destination = await resolveWebhookDestination(clanId, BINGO_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
+  const destination = overrideUrl
+    ? { urls: [overrideUrl], cursorKey: `${clanId}:override` }
+    : await resolveWebhookDestination(clanId, BINGO_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!destination) return { status: 'skipped' };
   return upsertWebhookMessage(destination, payload, clanId, existingMessageId);
 }
@@ -405,10 +438,14 @@ export async function upsertCohostWebhook(
   clanId: number,
   payload: DiscordWebhookPayload,
   existingMessageId?: string,
+  // This co-host's own channel for the board, in place of its co-hosted-boards channel.
+  overrideUrl?: string | null,
 ): Promise<EditableWebhookResult> {
   const enabled = (await getSettingUrl(clanId, COHOST_POSTS_KEY))?.trim();
   if (enabled === 'false' || enabled === '0') return { status: 'skipped' };
-  const destination = await resolveWebhookDestination(clanId, COHOST_WEBHOOK_KEY, BINGO_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
+  const destination = overrideUrl
+    ? { urls: [overrideUrl], cursorKey: `${clanId}:override` }
+    : await resolveWebhookDestination(clanId, COHOST_WEBHOOK_KEY, BINGO_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!destination) return { status: 'skipped' };
   return upsertWebhookMessage(destination, payload, clanId, existingMessageId);
 }
@@ -435,18 +472,44 @@ function eventHostClanId(eventId: number): Promise<number | null> {
   ).catch(() => null);
 }
 
+/** The mention a ping choice turns into, in one clan's own server. */
+async function pingFor(clanId: number, choice: PingChoice): Promise<Pick<DiscordWebhookPayload, 'content' | 'allowed_mentions'>> {
+  if (choice === 'none') return {};
+  if (choice === 'members') return memberPing(clanId);
+  const roleId = await getSettingUrl(clanId, PLAYER_ROLE_KEY);
+  return roleId ? { content: `<@&${roleId}>`, allowed_mentions: { parse: [], roles: [roleId] } } : {};
+}
+
+/**
+ * Whether the HOST of `eventId` posts this one, and with which ping — for posts that don't go through
+ * sendEventBingoWebhook (payouts, the start hold, the monthly champion, sign-up approvals).
+ */
+export async function eventPostDecision(
+  hostClanId: number,
+  eventId: number | null | undefined,
+  post: DiscordPostType,
+): Promise<PostDecision> {
+  if (eventId == null) return clanDefault(post, await loadClanPostDefaults(hostClanId));
+  const [clan, prefs] = await Promise.all([loadClanPostDefaults(hostClanId), loadEventDiscordPrefs(eventId)]);
+  return decideHostPost(post, clan, prefs);
+}
+
 export async function sendEventBingoWebhook(
   hostClanId: number,
   eventId: number | null | undefined,
   payload: DiscordWebhookPayload,
-  // `kind` + `teamId` route the post to the event's extra webhooks (lib/eventWebhooks); a post with
-  // no kind reaches only the host and co-hosts, as before.
-  opts: { ping?: boolean; kind?: EventPostKind; teamId?: number | null } = {},
+  // `post` names what this is (lib/discordPostPolicy): it decides, per clan, whether the post goes
+  // out and who it pings, and which extra webhooks (lib/eventWebhooks) want it. `teamId` narrows
+  // those to a team's own hooks.
+  opts: { post: DiscordPostType; teamId?: number | null },
 ): Promise<boolean> {
-  const withPing = async (clanId: number): Promise<DiscordWebhookPayload> =>
-    opts.ping ? { ...(await memberPing(clanId)), ...payload } : payload;
+  const info = postTypeInfo(opts.post);
 
-  if (eventId == null) return withPing(hostClanId).then((p) => sendBingoWebhook(hostClanId, p));
+  if (eventId == null) {
+    const d = clanDefault(opts.post, await loadClanPostDefaults(hostClanId));
+    if (!d.send) return false;
+    return sendBingoWebhook(hostClanId, { ...(await pingFor(hostClanId, d.ping)), ...payload });
+  }
 
   // THE EVENT NAMES ITS HOST, not the caller. Callers pass whichever clan they were working in, and
   // for a co-hosted board that is often the CO-HOST — a live KC push from one of its members, a
@@ -459,20 +522,36 @@ export async function sendEventBingoWebhook(
   // A tile-lab board announces nothing, anywhere — not to co-hosts, not to its extra hooks (lib/lab).
   if (await isLabClan(hostClanId)) return false;
 
-  const hostSend = withPing(hostClanId).then((p) => sendBingoWebhook(hostClanId, p));
+  const [clanDefaults, prefs] = await Promise.all([loadClanPostDefaults(hostClanId), loadEventDiscordPrefs(eventId)]);
+  const hostDecision = decideHostPost(opts.post, clanDefaults, prefs);
+  // Off for the event is off everywhere — the host's server, the co-hosts', the extra hooks.
+  if (!hostDecision.send) return false;
 
-  const cohosts = await acceptedCohostClanIds(eventId).catch(() => [] as number[]);
+  // The event's own channel when it has one, else the clan's bingo channel.
+  const hostSend = pingFor(hostClanId, hostDecision.ping).then((ping) =>
+    prefs.webhookUrl
+      ? sendToWebhook(prefs.webhookUrl, { ...ping, ...payload }, hostClanId)
+      : sendBingoWebhook(hostClanId, { ...ping, ...payload }),
+  );
+
+  const cohosts = hostShares(opts.post, prefs) ? await acceptedCohostClanIds(eventId).catch(() => [] as number[]) : [];
   await Promise.all(
     cohosts
       .filter((id) => id !== hostClanId)
       .map(async (clanId) => {
-        const sent = await sendCohostWebhook(clanId, await withPing(clanId));
+        const partner = await loadPartnerDiscordPrefs(eventId, clanId);
+        const d = decidePartnerPost(opts.post, hostDecision, prefs, partner);
+        if (!d.send) return;
+        const body = { ...(await pingFor(clanId, d.ping)), ...payload };
+        const sent = partner.webhookUrl
+          ? ((await sendToWebhook(partner.webhookUrl, body, clanId)) ? 'sent' : 'failed')
+          : await sendCohostWebhook(clanId, body);
         if (sent === 'failed') log.warn('discord.cohost-fanout-fail', { eventId, clanId });
       }),
   );
-  if (opts.kind) {
+  if (info.hook) {
     // Extra hooks get the post WITHOUT the ping: a clan's role id means nothing in another server.
-    const kind = opts.kind;
+    const kind = info.hook;
     const hooks = await eventHookTargets(eventId, { kind, teamId: opts.teamId ?? null }).catch(() => []);
     await Promise.all(
       hooks.map(async (h) => {
@@ -486,6 +565,7 @@ export async function sendEventBingoWebhook(
 
 // Weekly-competition channel; falls back to the master webhook when no dedicated one is set.
 export async function sendWeeklyWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
+  if (await feedOff(clanId, 'weekly')) return false;
   const webhookUrl = await resolveWebhookUrl(clanId, WEEKLY_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload, clanId);
@@ -496,6 +576,7 @@ export async function sendWeeklyWebhook(clanId: number, payload: DiscordWebhookP
  * false when unconfigured, which every caller treats as "fine, nobody asked for this".
  */
 export async function sendCofferWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
+  if (await feedOff(clanId, 'coffer')) return false;
   const webhookUrl = await resolveWebhookUrl(clanId, COFFER_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload, clanId);
@@ -503,6 +584,7 @@ export async function sendCofferWebhook(clanId: number, payload: DiscordWebhookP
 
 // Sign-up approvals channel; falls back to the master webhook when no dedicated one is set.
 export async function sendSignupWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
+  if (await feedOff(clanId, 'signups')) return false;
   const webhookUrl = await resolveWebhookUrl(clanId, SIGNUP_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload, clanId);
@@ -524,6 +606,7 @@ interface SignupApprovedNotifyParams {
 // entry fee so approvals convert into paid, committed seats. Fire-and-forget from the approve action.
 export async function notifySignupApproved(params: SignupApprovedNotifyParams): Promise<boolean> {
   const { eventId, eventName, displayName, discordId, rsn, feeAmount, feeAlreadyPaid } = params;
+  if (!(await eventPostDecision(params.clanId, eventId, 'signupApproved')).send) return false;
   const base = siteBaseUrl();
   const signupUrl = base ? `${base}/events/${eventId}/signup` : null;
   const hasFee = !!feeAmount && feeAmount > 0;
@@ -737,7 +820,7 @@ export async function notifySubmission(params: SubmissionNotifyParams): Promise<
   if (boardUrl) embed.url = boardUrl;
   if (imageUrl) embed.image = { url: imageUrl };
 
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { kind: 'drops', teamId: params.teamId });
+  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'submissions', teamId: params.teamId });
 }
 
 // Merged/debounced variant of notifySubmission. Several submissions for the same tile+team that
@@ -809,7 +892,7 @@ export async function notifyMergedSubmission(params: MergedSubmissionParams): Pr
   if (boardUrl) embed.url = boardUrl;
   if (imageUrl) embed.image = { url: imageUrl };
 
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { kind: 'drops', teamId: params.teamId });
+  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'submissions', teamId: params.teamId });
 }
 
 interface SubmissionDeletedParams {
@@ -863,7 +946,7 @@ export async function notifySubmissionDeleted(params: SubmissionDeletedParams): 
     fields,
   };
 
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { kind: 'drops', teamId: params.teamId });
+  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'submissionRemoved', teamId: params.teamId });
 }
 
 interface TileCompletionNotifyParams {
@@ -936,7 +1019,7 @@ export async function notifyTileCompletion(params: TileCompletionNotifyParams): 
   const boardUrl = eventId != null ? tileBoardUrl(eventId, tile) : null;
   if (boardUrl) embed.url = boardUrl;
 
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { kind: 'completions', teamId: params.teamId });
+  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'tileComplete', teamId: params.teamId });
 }
 
 interface TilesRevealedNotifyParams {
@@ -1043,7 +1126,7 @@ export async function notifyTilesRevealed(params: TilesRevealedNotifyParams): Pr
     ...(boardUrl ? { url: boardUrl } : {}),
   };
 
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { kind: 'announcements' });
+  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'reveals' });
 }
 
 export interface BoardRevealedNotifyParams {
@@ -1083,7 +1166,7 @@ export async function notifyBoardRevealed(params: BoardRevealedNotifyParams): Pr
   // fan-out, where each receiving clan may independently disable co-host posts.
   return params.test
     ? (await sendBingoWebhookReport(params.clanId, payload)) === 'sent'
-    : sendEventBingoWebhook(params.clanId, params.eventId, payload, { ping: true, kind: 'announcements' });
+    : sendEventBingoWebhook(params.clanId, params.eventId, payload, { post: 'boardRevealed' });
 }
 
 interface BountyClaimNotifyParams {
@@ -1109,7 +1192,7 @@ export async function notifyBountyClaim(params: BountyClaimNotifyParams): Promis
     color: EMBED_COLOR.gold,
     ...(points != null ? { fields: [statField('Points', points)] } : {}),
   };
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { kind: 'announcements' });
+  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'claims' });
 }
 
 interface MissionPrizeNotifyParams {
@@ -1151,7 +1234,7 @@ export async function notifyMissionPrize(params: MissionPrizeNotifyParams): Prom
     color: EMBED_COLOR.gold,
     ...(fields.length ? { fields } : {}),
   };
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { kind: 'announcements' });
+  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'claims' });
 }
 
 interface MonthlyChampionNotifyParams {
@@ -1209,7 +1292,9 @@ export async function notifyMonthlyChampion(params: MonthlyChampionNotifyParams)
     color: EMBED_COLOR.gold,
     fields,
   };
-  return sendBingoWebhook(params.clanId, { embeds: [embed] });
+  const d = await eventPostDecision(params.clanId, params.eventId, 'monthlyChampion');
+  if (!d.send) return false;
+  return sendBingoWebhook(params.clanId, { ...(await pingFor(params.clanId, d.ping)), embeds: [embed] });
 }
 
 interface TeamWithPlayers {
@@ -1250,7 +1335,7 @@ function draftCompletePayload(params: DraftCompleteNotifyParams): DiscordWebhook
 }
 
 export async function notifyDraftComplete(params: DraftCompleteNotifyParams): Promise<boolean> {
-  return sendEventBingoWebhook(params.clanId, params.eventId, draftCompletePayload(params), { kind: 'draft' });
+  return sendEventBingoWebhook(params.clanId, params.eventId, draftCompletePayload(params), { post: 'draftDone' });
 }
 
 /** Manual roster post: the viewing clan posts only into its own chosen event channel. */
@@ -1258,6 +1343,7 @@ export async function notifyDraftCompleteForClan(
   params: DraftCompleteNotifyParams & { cohost: boolean },
 ): Promise<boolean> {
   const payload = draftCompletePayload(params);
+  // A manual re-send from the admin: posts whatever the event's switches say.
   if (!params.cohost) return sendBingoWebhook(params.clanId, payload);
   return (await sendCohostWebhook(params.clanId, payload)) === 'sent';
 }
@@ -1282,7 +1368,7 @@ export async function notifyDraftStart(params: DraftStartNotifyParams): Promise<
   };
 
   // Ping members so captains show up for their picks (same reach as start/finish posts).
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { ping: true, kind: 'draft' });
+  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'draftStart' });
 }
 
 interface TeamWinNotifyParams {
@@ -1307,7 +1393,7 @@ export async function notifyTeamWin(params: TeamWinNotifyParams): Promise<boolea
     color: teamColorToDecimal(teamColor),
   };
 
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { kind: 'win', teamId: params.teamId });
+  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [embed] }, { post: 'teamWin', teamId: params.teamId });
 }
 
 // Role pinged on event start/finish posts so the whole clan is notified. Clan-specific, so it's
@@ -1412,6 +1498,7 @@ const memberPing = async (clanId: number): Promise<Pick<DiscordWebhookPayload, '
 interface EventStartHeldNotifyParams {
   /** The clan this posts for — decides which webhook it lands in. */
   clanId: number;
+  eventId?: number;
   eventName: string;
   /** The start the admins scheduled (reached but not honored). */
   scheduledStart: string;
@@ -1436,7 +1523,9 @@ export async function notifyEventStartHeld(params: EventStartHeldNotifyParams): 
     color: EMBED_COLOR.amber,
   };
 
-  return sendBingoWebhook(params.clanId, { embeds: [embed] });
+  const d = await eventPostDecision(params.clanId, params.eventId, 'startHeld');
+  if (!d.send) return false;
+  return sendBingoWebhook(params.clanId, { ...(await pingFor(params.clanId, d.ping)), embeds: [embed] });
 }
 
 interface EventStartNotifyParams {
@@ -1597,7 +1686,7 @@ export async function notifyEventStart(params: EventStartNotifyParams): Promise<
       : {}),
   };
 
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [await withClanCrest(params.clanId, embed, params.eventId)] }, { ping: true, kind: 'lifecycle' });
+  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [await withClanCrest(params.clanId, embed, params.eventId)] }, { post: 'eventStart' });
 }
 
 interface EventEndNotifyParams {
@@ -1637,7 +1726,7 @@ export async function notifyEventForceEnd(params: EventEndNotifyParams): Promise
   };
 
   // No member ping on an admin force-end (abnormal termination, not a celebratory finish).
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [await withClanCrest(params.clanId, embed, params.eventId)] }, { kind: 'lifecycle' });
+  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [await withClanCrest(params.clanId, embed, params.eventId)] }, { post: 'eventEnd' });
 }
 
 export async function notifyEventEnd(params: EventEndNotifyParams): Promise<boolean> {
@@ -1668,7 +1757,7 @@ export async function notifyEventEnd(params: EventEndNotifyParams): Promise<bool
     fields,
   };
 
-  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [await withClanCrest(params.clanId, embed, params.eventId)] }, { ping: true, kind: 'lifecycle' });
+  return sendEventBingoWebhook(params.clanId, params.eventId, { embeds: [await withClanCrest(params.clanId, embed, params.eventId)] }, { post: 'eventEnd' });
 }
 
 interface PayoutNotifyParams {
@@ -1685,6 +1774,8 @@ interface PayoutNotifyParams {
 interface EventStatsPostParams {
   clanId: number;
   eventId: number;
+  /** Which stats post this is — each can be switched off on its own. */
+  post: 'digest' | 'halfway';
   eventName: string;
   title: string;
   description: string;
@@ -1706,7 +1797,7 @@ export async function notifyEventStatsPost(params: EventStatsPostParams): Promis
     params.clanId,
     params.eventId,
     { embeds: [await withClanCrest(params.clanId, embed, params.eventId)] },
-    { kind: 'lifecycle' },
+    { post: params.post },
   );
 }
 
@@ -1740,7 +1831,9 @@ export async function notifyPayout(params: PayoutNotifyParams): Promise<boolean>
     fields,
   };
 
-  return sendBingoWebhook(params.clanId, { ...(await memberPing(params.clanId)), embeds: [await withClanCrest(params.clanId, embed, eventId)] });
+  const d = await eventPostDecision(params.clanId, eventId, 'payouts');
+  if (!d.send) return false;
+  return sendBingoWebhook(params.clanId, { ...(await pingFor(params.clanId, d.ping)), embeds: [await withClanCrest(params.clanId, embed, eventId)] });
 }
 
 // ---- Weekly competitions (SOTW / BOTW) — post to the dedicated weekly webhook ----
@@ -1770,6 +1863,7 @@ export function clanEventThumbnail(icon: string | null): Pick<DiscordEmbed, 'thu
 
 /** A clan event's announcement, posted once and then edited in place (its id kept by the caller). */
 export async function upsertClanEventPost(clanId: number, embed: DiscordEmbed, existingMessageId?: string): Promise<EditableWebhookResult> {
+  if (await feedOff(clanId, 'clanEvents')) return { status: 'skipped' };
   const destination = await resolveWebhookDestination(clanId, CLAN_EVENTS_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!destination) return { status: 'skipped' };
   return upsertWebhookMessage(destination, { embeds: [await withClanCrest(clanId, embed)] }, clanId, existingMessageId);
@@ -1777,6 +1871,7 @@ export async function upsertClanEventPost(clanId: number, embed: DiscordEmbed, e
 
 /** A clan event's reminder or "starting now": a fresh post, pinging the member role when asked. */
 export async function sendClanEventPost(clanId: number, embed: DiscordEmbed, ping: boolean): Promise<boolean> {
+  if (await feedOff(clanId, 'clanEvents')) return false;
   const url = await resolveWebhookUrl(clanId, CLAN_EVENTS_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!url) return false;
   return sendToWebhook(url, { ...(ping ? await memberPing(clanId) : {}), embeds: [await withClanCrest(clanId, embed)] }, clanId);

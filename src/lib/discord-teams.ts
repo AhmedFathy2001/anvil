@@ -20,6 +20,7 @@
  *
  * Reuses the bot REST helper + credential resolution from lib/discord-roles.ts.
  */
+import { loadEventRoleSettings, readPartnerDiscordPrefs } from '@/lib/eventDiscordPrefs';
 import { db } from '@/db';
 import { getSetting } from '@/lib/settings';
 import { events, teams, eventParticipants, clanRoster, users, eventSignups } from '@/db/schema';
@@ -95,8 +96,18 @@ async function safeAutomatedRoleIds(botToken: string, guildId: string): Promise<
  * Resolve live config. Returns null when the feature is disabled OR the bot
  * credentials are missing — callers treat that as "skip silently".
  */
-export async function loadTeamChannelConfig(clanId: number): Promise<TeamChannelConfig | null> {
-  const enabled = (await getSetting(clanId, 'discord_team_sync_enabled')) === 'true';
+export async function loadTeamChannelConfig(
+  clanId: number,
+  // `eventId`: that event's own team-channel choice decides instead of the clan's switch.
+  // `force`: skip the switch entirely — for undoing what was built (cleanup) and for the player
+  // role, which an event can hand out without team channels.
+  opts: { eventId?: number; force?: boolean } = {},
+): Promise<TeamChannelConfig | null> {
+  const enabled = opts.force
+    ? true
+    : opts.eventId != null
+      ? (await loadEventRoleSettings(opts.eventId, clanId)).teamChannels
+      : (await getSetting(clanId, 'discord_team_sync_enabled')) === 'true';
   if (!enabled) return null;
   const creds = await getBotCredentials(clanId);
   if (!creds) return null;
@@ -129,7 +140,10 @@ interface SharedBingoRoleTarget {
 async function cohostBingoRoleTarget(eventId: number, clanId: number): Promise<SharedBingoRoleTarget | null> {
   const clanIds = await acceptedCohostClanIds(eventId).catch(() => [] as number[]);
   if (!clanIds.includes(clanId)) return null;
-  if ((await getSetting(clanId, 'discord_cohost_role_sync_enabled')) !== 'true') return null;
+  // The co-host's choice for this board wins; without one, its clan-wide switch decides.
+  const own = (await readPartnerDiscordPrefs(eventId, clanId)).playerRole;
+  const enabled = own ?? (await getSetting(clanId, 'discord_cohost_role_sync_enabled')) === 'true';
+  if (!enabled) return null;
   const [creds, bingoRoleId] = await Promise.all([
     getBotCredentials(clanId),
     getSetting(clanId, 'discord_bingo_role_id'),
@@ -395,7 +409,7 @@ export async function provisionTeamDiscord(
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return { ok: false, reason: 'event not found', teams: [], captainsAssigned: 0 };
-  const cfg = await loadTeamChannelConfig(event.clanId);
+  const cfg = await loadTeamChannelConfig(event.clanId, { eventId });
   if (!cfg) return { ok: false, reason: 'team sync disabled or unconfigured', teams: [], captainsAssigned: 0 };
 
   const eventTeams = teamsInScope(
@@ -568,7 +582,7 @@ export async function assignTeamRoles(
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return { ok: false, reason: 'event not found', assigned: 0, skipped: 0 };
-  const cfg = await loadTeamChannelConfig(event.clanId);
+  const cfg = await loadTeamChannelConfig(event.clanId, { eventId });
   if (!cfg) return { ok: false, reason: 'team sync disabled or unconfigured', assigned: 0, skipped: 0 };
   if (!(await eventRostersReadyForAssignment(eventId, event.draftStatus))) {
     return { ok: false, reason: 'rosters are not fully assigned', assigned: 0, skipped: 0 };
@@ -590,6 +604,10 @@ export async function assignTeamRoles(
     .select()
     .from(eventParticipants)
     .where(and(eq(eventParticipants.eventId, eventId), isNotNull(eventParticipants.teamId), isNull(eventParticipants.frozenAt)));
+
+  // The event may hand out the player role on approval instead, or not at all.
+  const roleSettings = await loadEventRoleSettings(eventId, event.clanId);
+  if (roleSettings.playerRole === 'never') cfg.bingoRoleId = null;
 
   const roleServers: NonNullable<AssignReport['roleServers']> = [];
   if (cfg.bingoRoleId) roleServers.push({ clanId: event.clanId, guildId: cfg.guildId, assigned: 0, failed: 0 });
@@ -636,11 +654,13 @@ export async function assignTeamRoles(
 export async function assignBingoRoleToApprovedSignups(
   eventId: number,
   scope: DiscordProvisionScope = 'all-teams',
+  // Just this sign-up — an approval handing out the role as it happens.
+  onlySignupId?: number,
 ): Promise<AssignReport> {
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return { ok: false, reason: 'event not found', assigned: 0, skipped: 0 };
-  const cfg = await loadTeamChannelConfig(event.clanId);
+  const cfg = await loadTeamChannelConfig(event.clanId, { force: true });
   if (!cfg) return { ok: false, reason: 'team sync disabled or unconfigured', assigned: 0, skipped: 0 };
   if (!cfg.bingoRoleId) {
     return {
@@ -654,7 +674,13 @@ export async function assignBingoRoleToApprovedSignups(
   const approved = await db
     .select()
     .from(eventSignups)
-    .where(and(eq(eventSignups.eventId, eventId), eq(eventSignups.status, 'approved')));
+    .where(
+      and(
+        eq(eventSignups.eventId, eventId),
+        eq(eventSignups.status, 'approved'),
+        onlySignupId != null ? eq(eventSignups.id, onlySignupId) : undefined,
+      ),
+    );
 
   const roleServers: NonNullable<AssignReport['roleServers']> = [
     { clanId: event.clanId, guildId: cfg.guildId, assigned: 0, failed: 0 },
@@ -822,7 +848,7 @@ export async function unassignSharedRoles(
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return { ok: false, reason: 'event not found', bingoRemoved: 0, captainRemoved: 0 };
-  const cfg = await loadTeamChannelConfig(event.clanId);
+  const cfg = await loadTeamChannelConfig(event.clanId, { force: true });
   if (!cfg) return { ok: false, reason: 'team sync disabled or unconfigured', bingoRemoved: 0, captainRemoved: 0 };
   if (!cfg.bingoRoleId && !cfg.captainRoleId) {
     return { ok: false, reason: 'No bingo or captain role is configured to remove.', bingoRemoved: 0, captainRemoved: 0 };
@@ -956,7 +982,7 @@ export async function teardownTeamDiscord(eventId: number): Promise<TeardownRepo
   // clan-scope: global -- takes an entity id whose caller has already settled the clan — the 'one hop, never a copy' rule in lib/eventScope. Every route and page that reaches this is verified scoped.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return { ok: false, reason: 'event not found', ...empty };
-  const cfg = await loadTeamChannelConfig(event.clanId);
+  const cfg = await loadTeamChannelConfig(event.clanId, { force: true });
   if (!cfg) {
     return { ok: false, reason: 'team sync disabled or unconfigured', ...empty };
   }

@@ -1,3 +1,4 @@
+import { allows, parseBoardAccess, staffCanEditFrom, type TileAction } from '@/lib/cohostBoardAccess';
 import { db } from '@/db';
 import { clanStaff, eventCohosts, eventEditors, events, platformActAs } from '@/db/schema';
 import { and, eq, gt, inArray, isNull, or, type SQL } from 'drizzle-orm';
@@ -65,17 +66,22 @@ const coHostStaffPredicate = (): SQL =>
  */
 export async function cohostBoardEventIds(
   userId: number,
-  opts: { eventId?: number; hostClanId?: number } = {},
+  // `action` narrows to boards whose host lets this co-host's staff do that (lib/cohostBoardAccess);
+  // without one, any change to the tiles counts — the old "may author this board" question.
+  opts: { eventId?: number; hostClanId?: number; action?: Exclude<TileAction, 'suggest'> } = {},
 ): Promise<number[]> {
+  const permits = (row: { staffCanEditBoard: boolean; boardAccess: unknown }) => {
+    const access = parseBoardAccess(row.boardAccess, row.staffCanEditBoard);
+    return opts.action ? allows(access, opts.action, true) : staffCanEditFrom(access);
+  };
   const rows = await db
-    .select({ eventId: eventCohosts.eventId })
+    .select({ eventId: eventCohosts.eventId, staffCanEditBoard: eventCohosts.staffCanEditBoard, boardAccess: eventCohosts.boardAccess })
     .from(eventCohosts)
     .innerJoin(clanStaff, and(eq(clanStaff.clanId, eventCohosts.clanId), eq(clanStaff.userId, userId)))
     .innerJoin(events, eq(events.id, eventCohosts.eventId))
     .where(
       and(
         eq(eventCohosts.status, 'accepted'),
-        eq(eventCohosts.staffCanEditBoard, true),
         coHostStaffPredicate(),
         opts.eventId != null ? eq(eventCohosts.eventId, opts.eventId) : undefined,
         opts.hostClanId != null ? eq(events.clanId, opts.hostClanId) : undefined,
@@ -85,14 +91,13 @@ export async function cohostBoardEventIds(
   // there (lib/actAs) — the same reach verifyUser gives them at that clan's address. Without this
   // they were admin of the co-host everywhere except on the boards it co-hosts.
   const borrowed = await db
-    .select({ eventId: eventCohosts.eventId })
+    .select({ eventId: eventCohosts.eventId, staffCanEditBoard: eventCohosts.staffCanEditBoard, boardAccess: eventCohosts.boardAccess })
     .from(eventCohosts)
     .innerJoin(platformActAs, and(eq(platformActAs.clanId, eventCohosts.clanId), eq(platformActAs.userId, userId)))
     .innerJoin(events, eq(events.id, eventCohosts.eventId))
     .where(
       and(
         eq(eventCohosts.status, 'accepted'),
-        eq(eventCohosts.staffCanEditBoard, true),
         isNull(platformActAs.revokedAt),
         gt(platformActAs.expiresAt, new Date().toISOString()),
         inArray(platformActAs.role, ['admin', 'moderator']),
@@ -100,7 +105,7 @@ export async function cohostBoardEventIds(
         opts.hostClanId != null ? eq(events.clanId, opts.hostClanId) : undefined,
       ),
     );
-  return [...new Set([...rows, ...borrowed].map((r) => r.eventId))];
+  return [...new Set([...rows, ...borrowed].filter(permits).map((r) => r.eventId))];
 }
 
 /**

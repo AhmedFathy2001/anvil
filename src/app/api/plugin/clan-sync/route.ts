@@ -10,7 +10,7 @@ import { noClanForPlugin } from '@/lib/pluginNoClan';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, users } from '@/db/schema';
 import { and, desc, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm';
 import { isPlausibleRsn, normalizeRsn, pluginClanAuthority, pluginTokenPerson, sanitizeRsn } from '@/lib/auth';
-import { sendDiscordWebhook } from '@/lib/discord';
+import { sendRosterWebhook } from '@/lib/discord';
 import { EMBED_COLOR } from '@/lib/discordEmbeds';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 import { applyRenameToActiveWeeklyParticipants } from '@/lib/weekly';
@@ -747,7 +747,7 @@ export async function POST(request: Request) {
       value: rankChanged.map((c) => `${c.rsn}: ${c.oldRank ?? '—'} → ${c.newRank ?? '—'}`).join('\n').slice(0, 1024),
     });
 
-    sendDiscordWebhook(clan.id, {
+    sendRosterWebhook(clan.id, {
       embeds: [
         {
           author: { name: clanName || 'Clan roster' },

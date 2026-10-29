@@ -672,6 +672,13 @@ export const events = pgTable('events', {
   // One shared event fans out to several clans, so retain one message snowflake per clan id. If a
   // destination webhook changes, editing returns 404 and the post flow replaces this id safely.
   rulesMessageIds: jsonb('rules_message_ids').$type<Record<string, string>>().notNull().default({}),
+  // This event's Discord choices on top of the clan's defaults: per-post on/off/ping, its own
+  // channel, a pause, what co-hosts may show, team-channel and role timing. Empty = follow the clan.
+  // Read and written through lib/discordPostPolicy parseEventDiscordPrefs.
+  discordPrefs: jsonb('discord_prefs').$type<Record<string, unknown>>().notNull().default({}),
+  // How far the end-of-event Discord cleanup (lib/eventDiscordCleanup) has got, so each step runs
+  // once: null = nothing yet · 'roles' = player role taken back · 'all' = team channels and roles gone.
+  discordCleanup: text('discord_cleanup'),
   // Post-finish edit lock override. Finished events (past endDate / force-ended) refuse every
   // event-content mutation (teams, players, draft, tiles, completions, submissions — see
   // lib/eventLock.ts). Setting this ISO stamp re-opens editing for corrections; clearing it locks
@@ -1672,6 +1679,12 @@ export const eventCohosts = pgTable('event_cohosts', {
   // board with them — author tiles, from the host's admin. Off by default: on a clan-v-clan board the
   // other side editing the tiles is a fairness question only the host can answer.
   staffCanEditBoard: boolean('staff_can_edit_board').notNull().default(false),
+  // What this co-host shows of the board in its OWN server (lib/discordPostPolicy
+  // parsePartnerDiscordPrefs) — capped by what the host shares. Empty = everything the host shares.
+  discordPrefs: jsonb('discord_prefs').$type<Record<string, unknown>>().notNull().default({}),
+  // What this co-host may do with the tiles, action by action, and who in it (lib/cohostBoardAccess).
+  // Empty = read from staff_can_edit_board, which every write keeps in step.
+  boardAccess: jsonb('board_access').$type<Record<string, unknown>>().notNull().default({}),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
   decidedAt: text('decided_at'),
 }, (table) => [
@@ -2921,6 +2934,53 @@ export const userWebhooks = pgTable('user_webhooks', {
 // Extra destinations for ONE event's posts (lib/eventWebhooks) — on top of the host's bingo channel
 // and the co-host fan-out, never instead of them. teamId null = the whole event; set = only that
 // team's drops/completions/win (plus any event-wide kinds the hook also asked for).
+/**
+ * Every message an admin posted through Admin → Post to Discord (lib/discord-broadcast), kept so it
+ * can be found, edited and deleted later. `message_ids` are the Discord messages it became (a long
+ * post splits), in order. Deleting removes the messages in Discord and stamps `deleted_at`.
+ */
+export const discordBroadcasts = pgTable('discord_broadcasts', {
+  id: serial('id').primaryKey(),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  channelId: text('channel_id').notNull(),
+  messageIds: jsonb('message_ids').$type<string[]>().notNull().default([]),
+  title: text('title'),
+  body: text('body').notNull(),
+  asEmbed: boolean('as_embed').notNull().default(true),
+  colorHex: text('color_hex'),
+  mentionRoleId: text('mention_role_id'),
+  sentByUserId: integer('sent_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  editedAt: timestamp('edited_at', { withTimezone: true }),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+}, (table) => [
+  index('discord_broadcasts_clan_created_idx').on(table.clanId, table.createdAt),
+]);
+
+/**
+ * A tile a co-host clan suggests for the host's board (lib/cohostBoardAccess 'suggest'). The host
+ * accepts it — which adds it as a tile, or writes it over a placeholder on a fixed grid — or turns
+ * it down with a note.
+ */
+export const tileSuggestions = pgTable('tile_suggestions', {
+  id: serial('id').primaryKey(),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  title: text('title').notNull(),
+  details: text('details'),
+  points: integer('points'),
+  // 'pending' | 'accepted' | 'rejected'
+  status: text('status').notNull().default('pending'),
+  note: text('note'),
+  tileId: integer('tile_id').references(() => tiles.id, { onDelete: 'set null' }),
+  decidedByUserId: integer('decided_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('tile_suggestions_event_status_idx').on(table.eventId, table.status),
+]);
+
 export const eventWebhooks = pgTable('event_webhooks', {
   id: serial('id').primaryKey(),
   eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),

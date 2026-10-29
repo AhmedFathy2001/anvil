@@ -14,6 +14,8 @@ import { getDiscordDict, resolveLocale } from '@/lib/discordI18n';
 import { loadRulesFacts } from '@/lib/eventRulebook';
 import { log } from '@/lib/logger';
 import { buildRulesEmbeds } from '@/lib/rulesMechanics';
+import { decideHostPost, decidePartnerPost } from '@/lib/discordPostPolicy';
+import { loadClanPostDefaults, readEventDiscordPrefs, readPartnerDiscordPrefs } from '@/lib/eventDiscordPrefs';
 import { eventShapeBadge } from '@/lib/utils';
 import { db } from '@/db';
 import { events } from '@/db/schema';
@@ -42,8 +44,15 @@ export async function rulesPostTargets(eventId: number, hostClanId: number, only
 export async function postEventRules(
   eventId: number,
   hostClanId: number,
-  opts: { clanIds?: number[] } = {},
+  // `auto` = the start of the event posting it, which the event's Discord settings can switch off.
+  // A host pressing the button always posts to its own server; co-hosts still get only what they
+  // and the host's share allow.
+  opts: { clanIds?: number[]; auto?: boolean } = {},
 ): Promise<RulesPostResult[]> {
+  const [clanDefaults, prefs] = await Promise.all([loadClanPostDefaults(hostClanId), readEventDiscordPrefs(eventId)]);
+  const decided = decideHostPost('rules', clanDefaults, prefs);
+  if (opts.auto && !decided.send) return [];
+  const hostDecision = { ...decided, send: true };
   const [facts, host, targets, eventRow] = await Promise.all([
     loadRulesFacts(eventId),
     clanContextById(hostClanId),
@@ -80,10 +89,14 @@ export async function postEventRules(
           ],
           footer: contextLine(clan, event, undefined, t),
         });
-        const delivery =
-          clanId === hostClanId
-            ? await upsertBingoWebhookReport(clanId, { embeds }, priorMessageIds[String(clanId)])
-            : await upsertCohostWebhook(clanId, { embeds }, priorMessageIds[String(clanId)]);
+        let delivery;
+        if (clanId === hostClanId) {
+          delivery = await upsertBingoWebhookReport(clanId, { embeds }, priorMessageIds[String(clanId)], prefs.webhookUrl);
+        } else {
+          const partner = await readPartnerDiscordPrefs(eventId, clanId);
+          if (!decidePartnerPost('rules', hostDecision, prefs, partner).send) return { clanId, clanName: clan.name, status: 'skipped' };
+          delivery = await upsertCohostWebhook(clanId, { embeds }, priorMessageIds[String(clanId)], partner.webhookUrl);
+        }
         log.info('event-rules.post', { eventId, clanId, status: delivery.status, action: delivery.action });
         return { clanId, clanName: clan.name, ...delivery };
       } catch (error) {

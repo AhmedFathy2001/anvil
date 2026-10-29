@@ -5,6 +5,7 @@ import { events, tiles, eventParticipants } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import TilesClient from './TilesClient';
+import TileSuggestionsPanel from './TileSuggestionsPanel';
 import { getTierBands } from '@/lib/pluginConfig';
 import { verifyUser } from '@/lib/auth';
 import { eventEditLocked } from '@/lib/eventLock';
@@ -67,7 +68,15 @@ export default async function EventTilesPage({
   // a hope. Only read where missions are actually on offer — every other board pays no gp.
   const coffer = missionsEnabled ? await getCofferBalance(clan.id) : null;
 
+  const fixedGrid = (event.format ?? 'bingo') === 'bingo' && (event.scoringMode ?? 'tiles') === 'tiles';
+
   return (
+    <>
+    <TileSuggestionsPanel
+      eventId={event.id}
+      fixedGrid={fixedGrid}
+      tiles={eventTiles.filter((t) => !t.mission).map((t) => ({ id: t.id, label: t.label }))}
+    />
     <TilesClient
       event={event}
       tiles={withSearchText(eventTiles)}
@@ -81,5 +90,6 @@ export default async function EventTilesPage({
       // Rendering only; the lab API reads the platform role live from the row.
       canLab={hasPlatformRole(user?.platformRole, CAN_WRITE)}
     />
+    </>
   );
 }

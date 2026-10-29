@@ -500,7 +500,8 @@ export async function POST(
   if (!(await eventForRequest(request, eId))) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
-  const editor = await verifyTileEditorForEvent(eId);
+  // An import both adds tiles and rewrites existing ones, so a co-host needs both rights.
+  const editor = (await verifyTileEditorForEvent(eId, 'edit')) && (await verifyTileEditorForEvent(eId, 'create'));
   if (!editor) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

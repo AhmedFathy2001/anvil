@@ -24,6 +24,19 @@ interface Targets {
   channels: Channel[];
   roles: Role[];
 }
+interface Broadcast {
+  id: number;
+  channelId: string;
+  messageIds: string[];
+  title: string | null;
+  body: string;
+  asEmbed: boolean;
+  colorHex: string | null;
+  mentionRoleId: string | null;
+  createdAt: string;
+  editedAt: string | null;
+  deletedAt: string | null;
+}
 
 export default function AnnounceClient() {
   const [targets, setTargets] = useState<Targets | null>(null);
@@ -39,6 +52,14 @@ export default function AnnounceClient() {
   const [busy, setBusy] = useState(false);
   const { confirm } = useDialog();
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  // Editing a past post: its id, while the form holds its text.
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [history, setHistory] = useState<Broadcast[]>([]);
+
+  async function loadHistory() {
+    const res = await clanFetch('/api/admin/discord/broadcast?history=1');
+    if (res.ok) setHistory(((await res.json()) as { history: Broadcast[] }).history ?? []);
+  }
 
   useEffect(() => {
     (async () => {
@@ -49,7 +70,71 @@ export default function AnnounceClient() {
         setLoading(false);
       }
     })();
+    void loadHistory();
   }, []);
+
+  function startEdit(b: Broadcast) {
+    setEditingId(b.id);
+    setChannelId(b.channelId);
+    setTitle(b.title ?? '');
+    setBody(b.body);
+    setAsEmbed(b.asEmbed);
+    if (b.colorHex) setColorHex(b.colorHex);
+    setMentionRoleId(b.mentionRoleId ?? '');
+    setMessage(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function stopEdit() {
+    setEditingId(null);
+    setTitle('');
+    setBody('');
+    setMentionRoleId('');
+  }
+
+  async function saveEdit() {
+    if (editingId == null || !body.trim()) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await clanFetch(`/api/admin/discord/broadcast/${editingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: title.trim() || undefined, body, asEmbed, colorHex }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'The edit did not go through.');
+      setMessage({ type: 'success', text: 'Updated in Discord. ✓' });
+      stopEdit();
+      void loadHistory();
+    } catch (e) {
+      setMessage({ type: 'error', text: (e as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(b: Broadcast) {
+    const ok = await confirm({
+      title: 'Delete this post from Discord?',
+      body: 'It disappears from the channel for everyone. This can’t be undone.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const res = await clanFetch(`/api/admin/discord/broadcast/${b.id}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not delete it.');
+      if (editingId === b.id) stopEdit();
+      void loadHistory();
+    } catch (e) {
+      setMessage({ type: 'error', text: (e as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  }
 
   // Channel + role options for the themed Select. Channels arrive pre-sorted (category, then
   // position), so same-category channels stay grouped; the category rides along as a search keyword.
@@ -88,8 +173,8 @@ export default function AnnounceClient() {
     const ok = await confirm({
       title: `Send to #${channelName}?`,
       body: roleName
-        ? `Everyone with @${roleName} is pinged. A broadcast cannot be unsent.`
-        : 'A broadcast cannot be unsent.',
+        ? `Everyone with @${roleName} is pinged. You can edit or delete it afterwards from the list below.`
+        : 'You can edit or delete it afterwards from the list below.',
       confirmLabel: 'Send',
       tone: 'gold',
     });
@@ -117,6 +202,7 @@ export default function AnnounceClient() {
           type: 'success',
           text: `Sent to #${channelName}${n > 1 ? ` as ${n} messages (long text was split)` : ''}. ✓`,
         });
+        void loadHistory();
       } else {
         setMessage({ type: 'error', text: data.error || 'Send failed' });
       }
@@ -148,8 +234,19 @@ export default function AnnounceClient() {
   const inputClass =
     'w-full bg-brown-dark border border-card-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-gold/50';
 
+  const channelLabel = (id: string) => `#${targets.channels.find((c) => c.id === id)?.name ?? 'deleted channel'}`;
+
   return (
+    <div className="space-y-6">
     <div className="border border-card-border rounded-xl p-5 bg-card-bg space-y-5">
+      {editingId != null && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-gold/30 bg-gold/10 px-3 py-2 text-sm">
+          <span>Editing a post in {channelLabel(channelId)}. Saving updates it in Discord; it won’t ping again.</span>
+          <button type="button" onClick={stopEdit} className="ml-auto text-text-muted hover:text-foreground">
+            Cancel
+          </button>
+        </div>
+      )}
       {/* Channel */}
       <div>
         <label className="block text-sm font-medium mb-1">Channel</label>
@@ -159,6 +256,7 @@ export default function AnnounceClient() {
           options={channelOptions}
           placeholder="Select a channel…"
           ariaLabel="Channel"
+          disabled={editingId != null}
         />
         {targets.channels.length === 0 && (
           <p className="text-xs text-red-400 mt-1">
@@ -221,17 +319,18 @@ export default function AnnounceClient() {
             options={roleOptions}
             ariaLabel="Ping role"
             className="min-w-[10rem]"
+            disabled={editingId != null}
           />
         </div>
       </div>
 
       <div className="flex items-center gap-3 pt-1">
         <button
-          onClick={send}
+          onClick={editingId != null ? saveEdit : send}
           disabled={busy || !channelId || !body.trim()}
           className="text-sm font-medium bg-gold/15 text-gold border border-gold/30 px-5 py-2 rounded-lg hover:bg-gold/25 transition-colors disabled:opacity-50"
         >
-          {busy ? 'Sending…' : 'Send message'}
+          {editingId != null ? (busy ? 'Saving…' : 'Save changes') : busy ? 'Sending…' : 'Send message'}
         </button>
 
         {message && (
@@ -246,6 +345,43 @@ export default function AnnounceClient() {
           </span>
         )}
       </div>
+    </div>
+
+    <section className="space-y-3">
+      <h2 className="flex items-center gap-2 text-lg font-semibold">
+        <span className="h-5 w-1 rounded-full bg-gold" />
+        Sent from here
+      </h2>
+      {history.length === 0 ? (
+        <p className="text-sm text-text-muted">Nothing yet. Everything you send shows up here, ready to edit or delete.</p>
+      ) : (
+        <ul className="divide-y divide-card-border-soft rounded-xl border border-card-border bg-card-bg">
+          {history.map((b) => (
+            <li key={b.id} className={`flex flex-wrap items-start gap-3 px-4 py-3 ${b.deletedAt ? 'opacity-60' : ''}`}>
+              <div className="min-w-0 flex-[1_1_320px]">
+                <div className="text-sm font-medium">{b.title || b.body.split('\n')[0].slice(0, 80) || 'Untitled'}</div>
+                <div className="text-xs text-text-muted">
+                  {channelLabel(b.channelId)} · {new Date(b.createdAt).toLocaleString()}
+                  {b.messageIds.length > 1 ? ` · ${b.messageIds.length} messages` : ''}
+                  {b.editedAt ? ' · edited' : ''}
+                  {b.deletedAt ? ' · deleted' : ''}
+                </div>
+              </div>
+              {!b.deletedAt && (
+                <div className="flex gap-3 text-sm">
+                  <button type="button" disabled={busy} onClick={() => startEdit(b)} className="text-text-muted hover:text-gold disabled:opacity-50">
+                    Edit
+                  </button>
+                  <button type="button" disabled={busy} onClick={() => void remove(b)} className="text-text-muted hover:text-accent-red disabled:opacity-50">
+                    Delete
+                  </button>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
     </div>
   );
 }

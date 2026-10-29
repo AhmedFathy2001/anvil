@@ -7,6 +7,18 @@ import ClanPicker, { type PickedClan } from '@/components/ClanPicker';
 import { clanFetch } from '@/lib/clanFetch';
 import type { CohostRow } from '@/lib/coHost';
 import type { EventSettlement } from '@/lib/coHostSettlement';
+import Select from '@/components/Select';
+import {
+  ACCESS_PRESETS,
+  TILE_ACTIONS,
+  parseBoardAccess,
+  type AccessWho,
+  type BoardAccess,
+  type TileAction,
+} from '@/lib/cohostBoardAccess';
+
+const ACTION_LABEL: Record<TileAction, string> = { suggest: 'Suggest tiles', create: 'Add tiles', edit: 'Edit tiles', delete: 'Delete tiles' };
+const sameAccess = (a: BoardAccess, b: BoardAccess) => TILE_ACTIONS.every((k) => a[k] === b[k]);
 
 /** Compact gp: 3,000,000 → "3M". */
 function gp(n: number): string {
@@ -50,16 +62,18 @@ export default function CoHostPanel({
   // committing to it. `cohosts` holds what's saved; `boardDraft` only the unsaved flips.
   const [savedCash, setSavedCash] = useState(initialCashPolicy);
   const [cashPolicy, setCashPolicy] = useState(initialCashPolicy);
-  const [boardDraft, setBoardDraft] = useState<Record<number, boolean>>({});
+  const [boardDraft, setBoardDraft] = useState<Record<number, BoardAccess>>({});
   const [settlement, setSettlement] = useState(initialSettlement);
+  const [customOpen, setCustomOpen] = useState<Record<number, boolean>>({});
   const [pickedClan, setPickedClan] = useState<PickedClan | null>(null);
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedNote, setSavedNote] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const boardAccess = (c: CohostRow) => boardDraft[c.id] ?? c.staffCanEditBoard;
-  const changedBoard = cohosts.filter((c) => c.id in boardDraft && boardDraft[c.id] !== c.staffCanEditBoard);
+  const savedAccess = (c: CohostRow) => parseBoardAccess(c.boardAccess, c.staffCanEditBoard);
+  const boardAccess = (c: CohostRow) => boardDraft[c.id] ?? savedAccess(c);
+  const changedBoard = cohosts.filter((c) => c.id in boardDraft && !sameAccess(boardDraft[c.id], savedAccess(c)));
   const dirty = cashPolicy !== savedCash || changedBoard.length > 0;
 
   async function save() {
@@ -82,7 +96,7 @@ export default function CoHostPanel({
         setSavedCash(cashPolicy);
       }
       for (const c of changedBoard) {
-        await patch({ cohostId: c.id, staffCanEditBoard: boardDraft[c.id] });
+        await patch({ cohostId: c.id, boardAccess: boardDraft[c.id] });
       }
       setBoardDraft({});
       // The settlement table is computed under the saved policy — re-read it.
@@ -196,23 +210,54 @@ export default function CoHostPanel({
                     {c.status === 'accepted' ? 'Remove' : 'Withdraw'}
                   </button>
                 </div>
-                {c.status !== 'declined' && (
-                  <label className="mt-2 ml-11 flex cursor-pointer items-start gap-2 text-[12.5px]">
-                    <input
-                      type="checkbox"
-                      checked={boardAccess(c)}
-                      onChange={(e) => setBoardDraft((d) => ({ ...d, [c.id]: e.target.checked }))}
-                      className="mt-0.5 h-3.5 w-3.5 accent-gold"
-                    />
-                    <span>
-                      <span className="font-medium">Their staff can edit the board</span>
-                      <span className="block text-text-muted">
-                        {c.clanName}&rsquo;s moderators and up author tiles with you, from their own
-                        admin. Off keeps the board yours alone.
-                      </span>
-                    </span>
-                  </label>
-                )}
+                {c.status !== 'declined' && (() => {
+                  const access = boardAccess(c);
+                  const preset = ACCESS_PRESETS.find((p) => sameAccess(p.access, access))?.id ?? 'custom';
+                  const set = (next: BoardAccess) => setBoardDraft((d) => ({ ...d, [c.id]: next }));
+                  return (
+                    <div className="mt-2 ml-11 space-y-2 text-[12.5px]">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium">Tiles</span>
+                        <Select
+                          className="w-72"
+                          value={preset}
+                          ariaLabel={`What ${c.clanName} may do with the tiles`}
+                          options={[...ACCESS_PRESETS.map((p) => ({ value: p.id, label: p.label })), { value: 'custom', label: 'Custom…' }]}
+                          onChange={(v) => {
+                            const p = ACCESS_PRESETS.find((x) => x.id === v);
+                            if (p) set({ ...p.access });
+                            else set({ ...access });
+                            if (v === 'custom') setCustomOpen((o) => ({ ...o, [c.id]: true }));
+                          }}
+                        />
+                      </div>
+                      {(preset === 'custom' || customOpen[c.id]) && (
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {TILE_ACTIONS.map((a) => (
+                            <label key={a} className="flex items-center justify-between gap-2 text-text-muted">
+                              {ACTION_LABEL[a]}
+                              <Select
+                                className="w-40"
+                                value={access[a]}
+                                ariaLabel={`${ACTION_LABEL[a]}: who`}
+                                options={[
+                                  { value: 'nobody', label: 'Nobody' },
+                                  { value: 'staff', label: 'Their staff' },
+                                  ...(a === 'suggest' ? [{ value: 'players', label: 'Any of their players' }] : []),
+                                ]}
+                                onChange={(v) => set({ ...access, [a]: v as AccessWho })}
+                              />
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                      <p className="text-text-muted">
+                        Their staff means {c.clanName}&rsquo;s moderators and up, and its tile editors. Suggestions wait on your
+                        Tiles tab until you accept them.
+                      </p>
+                    </div>
+                  );
+                })()}
               </li>
             );
           })}
