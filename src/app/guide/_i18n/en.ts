@@ -430,7 +430,7 @@ export const en = {
         },
         {
           term: 'The split feeds',
-          body: 'Bingo, weekly results and sign-ups can split from announcements; rare drops, pets, deaths, collection log, combat achievements, levels, quests, diaries, clips, PvP kills and Leagues can split from the plugin default. Blank split feeds fall back to their parent channel. The coffer is the exception: blank means no money posts at all.',
+          body: 'Bingo, weekly results and sign-ups can split from announcements; rare drops, pets, deaths, collection log, combat achievements, levels, quests, diaries, PvP kills and Leagues can split from the plugin default. Blank split feeds fall back to their parent channel. The coffer is the exception: blank means no money posts at all.',
         },
       ],
       note: {
@@ -918,7 +918,7 @@ export const en = {
     channels: {
       title: 'Split posts across channels',
       body: [
-        'Everything posts to one master announcements channel by default. When that gets noisy, open **Discord → Where posts go** and give the loud categories their own homes — bingo events, weekly competitions, rare drops, deaths, PvP kills, combat achievements, clips. Anything left blank falls back to the master channel, so you can split one category at a time.',
+        'Everything posts to one master announcements channel by default. When that gets noisy, open **Discord → Where posts go** and give the loud categories their own homes — bingo events, weekly competitions, rare drops, deaths, PvP kills, combat achievements. Anything left blank falls back to the master channel, so you can split one category at a time.',
         'With the bot connected you never touch a webhook URL: pick a channel from the dropdown and press **Post here**. On a busy event you can add a second webhook to the same channel — Anvil rotates between them so Discord’s rate limit doesn’t swallow posts.',
       ],
       clipsNote: {

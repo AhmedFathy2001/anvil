@@ -426,7 +426,7 @@ const zhHans: PartialGuideDict = {
         },
         {
           term: '拆分出来的信息流',
-          body: '稀有掉落、宠物、死亡、收集日志、战斗成就、等级、任务、日常、片段、PvP 击杀和 Leagues 各占一个频道。这种拆分，就是一个大家会读的信息流和一个大家会静音的信息流之间的区别。',
+          body: '稀有掉落、宠物、死亡、收集日志、战斗成就、等级、任务、日常、PvP 击杀和 Leagues 各占一个频道。这种拆分，就是一个大家会读的信息流和一个大家会静音的信息流之间的区别。',
         },
       ],
       note: {
@@ -931,7 +931,7 @@ const zhHans: PartialGuideDict = {
     channels: {
       title: '把播报分散到多个频道',
       body: [
-        '默认情况下所有内容都发到一个主公告频道。等它变吵了，打开 **Discord → Where posts go**，给那些吵闹的类别各自安个家 —— 宾果活动、每周竞赛、稀有掉落、死亡、PvP 击杀、combat achievements、片段。任何留空的类别都会回落到主频道，所以你可以一次只分出一个类别。',
+        '默认情况下所有内容都发到一个主公告频道。等它变吵了，打开 **Discord → Where posts go**，给那些吵闹的类别各自安个家 —— 宾果活动、每周竞赛、稀有掉落、死亡、PvP 击杀、combat achievements。任何留空的类别都会回落到主频道，所以你可以一次只分出一个类别。',
         '接上机器人之后你完全不用碰 webhook 网址：从下拉框里选一个频道，按 **Post here**。活动繁忙时你可以给同一个频道再加一个 webhook —— Anvil 会在两者之间轮换，免得 Discord 的限流吞掉播报。',
       ],
       clipsNote: {
@@ -2319,6 +2319,10 @@ const zhHans: PartialGuideDict = {
       setup: {
         examples: ['/setup topic:Plugin setup', '/setup topic:Plugin setup step:5'],
         tip: 'Discord 里的设置指南：步骤列表，或者单独一步并附上直达网站上该步骤的链接。',
+      },
+      guide: {
+        examples: ['/guide guide:ToB 4-man gear'],
+        tip: '公会的一篇游戏指南（团队副本、首领、赚钱等）：开始输入它的名字，然后从列表中选择。',
       },
     },
   },

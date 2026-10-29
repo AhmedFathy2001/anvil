@@ -428,7 +428,7 @@ const fi: PartialGuideDict = {
         },
         {
           term: 'Eriytetyt syötteet',
-          body: 'Harvinaiset dropit, lemmikit, kuolemat, collection log, combat achievementit, tasot, questit, diaryt, klipit, PvP-tapot ja Leagues saavat kukin oman kanavansa. Tuo eriyttäminen on ero syötteen jota luetaan ja syötteen jonka ihmiset mykistävät välillä.',
+          body: 'Harvinaiset dropit, lemmikit, kuolemat, collection log, combat achievementit, tasot, questit, diaryt, PvP-tapot ja Leagues saavat kukin oman kanavansa. Tuo eriyttäminen on ero syötteen jota luetaan ja syötteen jonka ihmiset mykistävät välillä.',
         },
       ],
       note: {
@@ -933,7 +933,7 @@ const fi: PartialGuideDict = {
     channels: {
       title: 'Jaa julkaisut useaan kanavaan',
       body: [
-        'Kaikki julkaistaan oletuksena yhteen pääilmoituskanavaan. Kun se käy meluisaksi, avaa **Discord → Where posts go** ja anna äänekkäille kategorioille omat kotinsa — bingotapahtumat, viikkokilpailut, harvinaiset dropit, kuolemat, PvP-tapot, combat achievementit, leikkeet. Kaikki minkä jätät tyhjäksi putoaa takaisin pääkanavaan, joten voit erottaa yhden kategorian kerrallaan.',
+        'Kaikki julkaistaan oletuksena yhteen pääilmoituskanavaan. Kun se käy meluisaksi, avaa **Discord → Where posts go** ja anna äänekkäille kategorioille omat kotinsa — bingotapahtumat, viikkokilpailut, harvinaiset dropit, kuolemat, PvP-tapot, combat achievementit. Kaikki minkä jätät tyhjäksi putoaa takaisin pääkanavaan, joten voit erottaa yhden kategorian kerrallaan.',
         'Botin ollessa yhdistettynä et koskaan koske webhook-osoitteeseen: valitse kanava valikosta ja paina **Post here**. Kiireisessä tapahtumassa voit lisätä toisen webhookin samaan kanavaan — Anvil vuorottelee niiden välillä, jottei Discordin nopeusraja niele julkaisuja.',
       ],
       clipsNote: {
@@ -2321,6 +2321,10 @@ const fi: PartialGuideDict = {
       setup: {
         examples: ['/setup topic:Plugin setup', '/setup topic:Plugin setup step:5'],
         tip: 'Käyttöönotto-opas Discordissa: vaiheiden lista, tai yksi vaihe linkillä suoraan siihen sivustolla.',
+      },
+      guide: {
+        examples: ['/guide guide:ToB 4-man gear'],
+        tip: 'Yksi klaanin peliohjeista (raidit, bossaus, rahanteko…): ala kirjoittaa sen nimeä ja valitse se listasta.',
       },
     },
   },

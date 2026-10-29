@@ -427,7 +427,7 @@ const sv: PartialGuideDict = {
         },
         {
           term: 'De uppdelade flödena',
-          body: 'Sällsynta drops, pets, dödsfall, collection log, combat achievements, nivåer, quests, diaries, klipp, PvP-kills och Leagues får var sin kanal. Den uppdelningen är skillnaden mellan ett flöde folk läser och ett de tystar.',
+          body: 'Sällsynta drops, pets, dödsfall, collection log, combat achievements, nivåer, quests, diaries, PvP-kills och Leagues får var sin kanal. Den uppdelningen är skillnaden mellan ett flöde folk läser och ett de tystar.',
         },
       ],
       note: {
@@ -932,7 +932,7 @@ const sv: PartialGuideDict = {
     channels: {
       title: 'Sprid inläggen över flera kanaler',
       body: [
-        'Allt postas som standard i en enda huvudkanal för meddelanden. När den blir stökig, öppna **Discord → Where posts go** och ge de högljudda kategorierna egna hem — bingoevent, veckotävlingar, sällsynta drops, dödsfall, PvP-kills, combat achievements, klipp. Allt du lämnar tomt faller tillbaka till huvudkanalen, så du kan flytta en kategori i taget.',
+        'Allt postas som standard i en enda huvudkanal för meddelanden. När den blir stökig, öppna **Discord → Where posts go** och ge de högljudda kategorierna egna hem — bingoevent, veckotävlingar, sällsynta drops, dödsfall, PvP-kills, combat achievements. Allt du lämnar tomt faller tillbaka till huvudkanalen, så du kan flytta en kategori i taget.',
         'Med boten ansluten rör du aldrig en webhook-URL: välj en kanal i listan och tryck **Post here**. Under ett hektiskt event kan du lägga till en andra webhook till samma kanal — Anvil växlar mellan dem så att Discords hastighetsgräns inte sväljer inlägg.',
       ],
       clipsNote: {
@@ -2187,6 +2187,10 @@ const sv: PartialGuideDict = {
       setup: {
         examples: ['/setup topic:Plugin setup', '/setup topic:Plugin setup step:5'],
         tip: 'En installationsguide inne i Discord: listan över steg, eller ett steg med en länk direkt till det på sajten.',
+      },
+      guide: {
+        examples: ['/guide guide:ToB 4-man gear'],
+        tip: 'En av klanens spelguider (raids, bossing, money making…): börja skriv namnet och välj den i listan.',
       },
     },
   },

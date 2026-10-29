@@ -428,7 +428,7 @@ const ptBr: PartialGuideDict = {
         },
         {
           term: 'Os feeds separados',
-          body: 'Drops raros, pets, mortes, collection log, combat achievements, níveis, quests, diaries, clipes, kills de PvP e Leagues ganham cada um seu canal. Essa separação é a diferença entre um feed que as pessoas leem e um que elas silenciam.',
+          body: 'Drops raros, pets, mortes, collection log, combat achievements, níveis, quests, diaries, kills de PvP e Leagues ganham cada um seu canal. Essa separação é a diferença entre um feed que as pessoas leem e um que elas silenciam.',
         },
       ],
       note: {
@@ -925,7 +925,7 @@ const ptBr: PartialGuideDict = {
     channels: {
       title: 'Divida as publicações entre canais',
       body: [
-        'Por padrão tudo cai num único canal principal de anúncios. Quando ele ficar barulhento, abra **Discord → Where posts go** e dê às categorias ruidosas casas próprias —— eventos de bingo, competições semanais, drops raros, mortes, kills de PvP, combat achievements, clipes. Tudo que ficar em branco volta para o canal principal, então dá para separar uma categoria por vez.',
+        'Por padrão tudo cai num único canal principal de anúncios. Quando ele ficar barulhento, abra **Discord → Where posts go** e dê às categorias ruidosas casas próprias —— eventos de bingo, competições semanais, drops raros, mortes, kills de PvP, combat achievements. Tudo que ficar em branco volta para o canal principal, então dá para separar uma categoria por vez.',
         'Com o bot conectado você nunca toca numa URL de webhook: escolhe um canal na lista e aperta **Post here**. Num evento movimentado dá para adicionar um segundo webhook ao mesmo canal —— o Anvil alterna entre eles para o limite de taxa do Discord não engolir publicações.',
       ],
       clipsNote: {
@@ -2169,6 +2169,10 @@ const ptBr: PartialGuideDict = {
       setup: {
         examples: ['/setup topic:Plugin setup', '/setup topic:Plugin setup step:5'],
         tip: 'Um guia de configuração dentro do Discord: a lista de passos, ou um passo com link direto para ele no site.',
+      },
+      guide: {
+        examples: ['/guide guide:ToB 4-man gear'],
+        tip: 'Um dos guias de jogo do clã (raids, bossing, money making…): comece a digitar o nome e escolha-o na lista.',
       },
     },
   },

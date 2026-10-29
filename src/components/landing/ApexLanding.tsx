@@ -152,7 +152,7 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
             />
             <Feature
               title="Moments"
-              body="Pets, uniques and deaths captured as they happen — with a clip if you run OBS."
+              body="Pets, uniques and deaths captured as they happen."
             />
           </div>
         </Section>
@@ -220,7 +220,7 @@ export default function ApexLanding({ stats }: { stats: PlatformStats }) {
             />
             <Feature
               title="Per-channel routing"
-              body="Rare drops, deaths, clips and standings each to their own home."
+              body="Rare drops, deaths and standings each to their own home."
             />
             <Feature
               title="Private team channels"

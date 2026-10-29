@@ -106,9 +106,6 @@ export default async function AdminGuide({ lang }: { lang: string }) {
       {/* ------------------------------------------------------------------ 3 */}
       <Section id="channels" n={3} title={a.channels.title} labels={t.common}>
         {paragraphs(a.channels.body, v)}
-        <Note tag={a.channels.clipsNote.tag}>
-          <p>{rt(a.channels.clipsNote.body, v)}</p>
-        </Note>
       </Section>
 
       {/* ------------------------------------------------------------------ 4 */}

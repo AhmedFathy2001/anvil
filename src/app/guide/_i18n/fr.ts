@@ -429,7 +429,7 @@ const fr: PartialGuideDict = {
         },
         {
           term: 'Les flux séparés',
-          body: 'Drops rares, familiers, morts, collection log, combat achievements, niveaux, quêtes, diaries, clips, kills PvP et Leagues prennent chacun leur salon. Cette séparation fait la différence entre un flux qu’on lit et un qu’on met en sourdine.',
+          body: 'Drops rares, familiers, morts, collection log, combat achievements, niveaux, quêtes, diaries, kills PvP et Leagues prennent chacun leur salon. Cette séparation fait la différence entre un flux qu’on lit et un qu’on met en sourdine.',
         },
       ],
       note: {
@@ -934,7 +934,7 @@ const fr: PartialGuideDict = {
     channels: {
       title: 'Répartir les publications sur plusieurs salons',
       body: [
-        'Par défaut, tout part dans un salon d’annonces principal. Quand il devient bruyant, ouvrez **Discord → Where posts go** et donnez aux catégories bavardes leur propre maison — événements bingo, compétitions hebdomadaires, drops rares, morts, kills PvP, combat achievements, clips. Tout ce que vous laissez vide retombe sur le salon principal, vous pouvez donc détacher une catégorie à la fois.',
+        'Par défaut, tout part dans un salon d’annonces principal. Quand il devient bruyant, ouvrez **Discord → Where posts go** et donnez aux catégories bavardes leur propre maison — événements bingo, compétitions hebdomadaires, drops rares, morts, kills PvP, combat achievements. Tout ce que vous laissez vide retombe sur le salon principal, vous pouvez donc détacher une catégorie à la fois.',
         'Avec le bot connecté, vous ne touchez jamais à une URL de webhook : choisissez un salon dans la liste et appuyez sur **Post here**. Sur un événement chargé, vous pouvez ajouter un second webhook sur le même salon — Anvil alterne entre les deux pour que la limite de débit de Discord n’avale pas de publications.',
       ],
       clipsNote: {
@@ -2189,6 +2189,10 @@ const fr: PartialGuideDict = {
       setup: {
         examples: ['/setup topic:Plugin setup', '/setup topic:Plugin setup step:5'],
         tip: 'Un guide d’installation dans Discord : la liste des étapes, ou une seule étape avec un lien direct vers elle sur le site.',
+      },
+      guide: {
+        examples: ['/guide guide:ToB 4-man gear'],
+        tip: 'Un des guides de jeu du clan (raids, bossing, money making…) : commencez à taper son nom et choisissez-le dans la liste.',
       },
     },
   },

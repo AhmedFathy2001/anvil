@@ -432,7 +432,7 @@ const da: PartialGuideDict = {
         },
         {
           term: 'De opdelte feeds',
-          body: 'Sjældne drops, pets, dødsfald, collection log, combat achievements, levels, quests, diaries, klip, PvP-kills og Leagues får hver sin kanal. Den opdeling er forskellen på en feed folk læser og en, de slår fra.',
+          body: 'Sjældne drops, pets, dødsfald, collection log, combat achievements, levels, quests, diaries, PvP-kills og Leagues får hver sin kanal. Den opdeling er forskellen på en feed folk læser og en, de slår fra.',
         },
       ],
       note: {
@@ -938,7 +938,7 @@ const da: PartialGuideDict = {
     channels: {
       title: 'Fordel opslag på flere kanaler',
       body: [
-        'Alt lander som standard i én hovedkanal til beskeder. Når den bliver larmende, åbner du **Discord → Where posts go** og giver de larmende kategorier deres eget hjem — bingo-events, ugentlige konkurrencer, sjældne drops, dødsfald, PvP-kills, combat achievements, klip. Alt du lader stå tomt falder tilbage til hovedkanalen, så du kan flytte én kategori ad gangen.',
+        'Alt lander som standard i én hovedkanal til beskeder. Når den bliver larmende, åbner du **Discord → Where posts go** og giver de larmende kategorier deres eget hjem — bingo-events, ugentlige konkurrencer, sjældne drops, dødsfald, PvP-kills, combat achievements. Alt du lader stå tomt falder tilbage til hovedkanalen, så du kan flytte én kategori ad gangen.',
         'Med botten forbundet rører du aldrig en webhook-URL: vælg en kanal i menuen og tryk **Post here**. Under et travlt event kan du lægge en webhook nummer to på samme kanal — Anvil skifter mellem dem, så Discords rate limit ikke sluger opslag.',
       ],
       clipsNote: {
@@ -2193,6 +2193,10 @@ const da: PartialGuideDict = {
       setup: {
         examples: ['/setup topic:Plugin setup', '/setup topic:Plugin setup step:5'],
         tip: 'En opsætningsvejledning inde i Discord: listen over trin, eller ét trin med et link direkte til det på siden.',
+      },
+      guide: {
+        examples: ['/guide guide:ToB 4-man gear'],
+        tip: 'En af klanens spilguides (raids, bossing, money making…): begynd at skrive navnet, og vælg den på listen.',
       },
     },
   },

@@ -427,7 +427,7 @@ const ko: PartialGuideDict = {
         },
         {
           term: '나눠둔 피드들',
-          body: '희귀 드롭, 펫, 사망, 컬렉션 로그, 컴뱃 어치브먼트, 레벨, 퀘스트, 다이어리, 클립, PvP 킬, Leagues가 각자 채널을 갖습니다. 이 분리가 사람들이 읽는 피드와 음소거하는 피드의 차이입니다.',
+          body: '희귀 드롭, 펫, 사망, 컬렉션 로그, 컴뱃 어치브먼트, 레벨, 퀘스트, 다이어리, PvP 킬, Leagues가 각자 채널을 갖습니다. 이 분리가 사람들이 읽는 피드와 음소거하는 피드의 차이입니다.',
         },
       ],
       note: {
@@ -932,7 +932,7 @@ const ko: PartialGuideDict = {
     channels: {
       title: '게시물을 여러 채널로 나누기',
       body: [
-        '기본적으로 모든 것이 하나의 공지 채널로 갑니다. 시끄러워지면 **Discord → Where posts go**를 열고 소란스러운 분류에 각자의 집을 주세요 —— 빙고 이벤트, 주간 대회, 희귀 드롭, 사망, PvP 처치, combat achievements, 클립. 비워 둔 항목은 메인 채널로 되돌아가므로 한 번에 한 분류씩 떼어낼 수 있습니다.',
+        '기본적으로 모든 것이 하나의 공지 채널로 갑니다. 시끄러워지면 **Discord → Where posts go**를 열고 소란스러운 분류에 각자의 집을 주세요 —— 빙고 이벤트, 주간 대회, 희귀 드롭, 사망, PvP 처치, combat achievements. 비워 둔 항목은 메인 채널로 되돌아가므로 한 번에 한 분류씩 떼어낼 수 있습니다.',
         '봇을 연결해 두면 웹훅 주소를 만질 일이 없습니다: 목록에서 채널을 고르고 **Post here**을 누르면 됩니다. 바쁜 이벤트라면 같은 채널에 웹훅을 하나 더 둘 수 있습니다 —— Anvil이 둘을 번갈아 쓰므로 Discord의 속도 제한이 게시물을 삼키지 않습니다.',
       ],
       clipsNote: {
@@ -2320,6 +2320,10 @@ const ko: PartialGuideDict = {
       setup: {
         examples: ['/setup topic:Plugin setup', '/setup topic:Plugin setup step:5'],
         tip: 'Discord 안의 설정 가이드: 단계 목록, 또는 사이트의 해당 단계로 바로 가는 링크가 달린 한 단계.',
+      },
+      guide: {
+        examples: ['/guide guide:ToB 4-man gear'],
+        tip: '클랜의 게임 가이드(레이드, 보스, 돈벌이 등) 중 하나: 이름을 입력하기 시작해 목록에서 고르세요.',
       },
     },
   },
