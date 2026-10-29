@@ -1,26 +1,26 @@
-import { and, asc, eq, gte, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { accounts, clanCofferBroadcasts, clanMemberships, clans, cofferEntries, type CofferEntry } from '@/db/schema';
+import { clanCofferBroadcasts, clanCofferSyncEvents, clans, cofferEntries, type CofferEntry } from '@/db/schema';
 import { parseCofferBroadcast, rsnKey, splitDeposit } from '@/lib/cofferBroadcastParse';
-import { CORROBORATION_MAX_GP, memberPersonOfSeat, type Tx } from '@/lib/cofferSync';
+import { memberPersonOfSeat, type Tx } from '@/lib/cofferSync';
 
-// The coffer's clan-chat line as the ledger's source of movements. Every online member's plugin
-// reports the line it saw; reports of the same actor, direction and amount within a couple of minutes
-// are one movement. It books once two different PEOPLE have reported it — one client's word is not
-// money, the same rule as the coffer-screen readings (lib/cofferSync) — and until then its entry waits
-// in the treasurer's queue.
+// The coffer's clan-chat line as the ledger's named record of a movement. Each plugin reports only
+// its own player's line — the hub forbids sending other players' names. The line names who moved the
+// coins; the coffer screen proves they arrived. It books on its own once a coffer reading shows the
+// money: the mover's own reading of that movement (whichever lands first joins the other, so nothing
+// is counted twice), or another member's reading of the same balance afterwards. Up to
+// LINE_AUTO_MAX_GP; past that, or with no reading, a treasurer looks. A line never joins a reading
+// that isn't its reporter's own — matching an amount alone would let anyone claim another member's
+// (or a mobile) deposit.
 //
-// A deposit is credited to the person the line names. A withdrawal is custody: the coins went to that
-// person's bank and the clan still has them. Putting them back is custody coming home, not a donation,
-// so a deposit is first set against what its depositor is holding (splitDeposit).
-
-/** How far apart two people's reports of one line may land. */
-const SAME_LINE_MS = 120_000;
+/** The most a line and a coffer reading may book between them without a treasurer. */
+export const LINE_AUTO_MAX_GP = 50_000_000;
+/** How far apart a line and the mover's reading of the same movement may land. */
+const SAME_MOVEMENT_MS = 120_000;
 export type BroadcastResult =
-  | { ok: true; outcome: 'new' | 'seen' | 'booked' | 'repeat'; booked: CofferEntry[] }
+  | { ok: true; outcome: 'new' | 'booked'; booked: CofferEntry[] }
   | { ok: false; error: string; status: number };
-
 /** Coins this person has taken out of the coffer and not put back (approved custody rows). */
 async function heldBy(tx: Tx, clanId: number, actorKey: string): Promise<number> {
   const [row] = await tx
@@ -37,7 +37,7 @@ async function heldBy(tx: Tx, clanId: number, actorKey: string): Promise<number>
   return -Number(row?.total ?? 0);
 }
 
-async function book(tx: Tx, clanId: number, entry: CofferEntry, how: string, settledByUserId: number | null = null): Promise<CofferEntry[]> {
+export async function book(tx: Tx, clanId: number, entry: CofferEntry, how: string, settledByUserId: number | null = null): Promise<CofferEntry[]> {
   const now = new Date().toISOString();
   const settled = { status: 'approved', settledAt: now, settledByUserId, note: `Seen in clan chat — ${how}` };
   if (entry.kind !== 'donation') {
@@ -62,10 +62,12 @@ async function book(tx: Tx, clanId: number, entry: CofferEntry, how: string, set
   return out;
 }
 
-/** One plugin's report of a coffer line it saw in its clan chat. */
+/** One plugin's report of its own player's coffer line. */
 export async function recordCofferBroadcast(args: { clanId: number; clanMemberId: number; rsn: string; line: string; clanName: string }): Promise<BroadcastResult> {
   const parsed = parseCofferBroadcast(args.line);
   if (!parsed) return { ok: false, error: 'Not a coffer line', status: 400 };
+  if (parsed.actorKey !== rsnKey(args.rsn)) return { ok: false, error: 'Only your own coffer lines are taken', status: 403 };
+  const signed = parsed.direction === 'deposit' ? parsed.amount : -parsed.amount;
 
   return db.transaction(async (tx) => {
     // The same lock as the coffer-screen readings: one clan's coffer is one queue.
@@ -80,84 +82,92 @@ export async function recordCofferBroadcast(args: { clanId: number; clanMemberId
     const me = await memberPersonOfSeat(tx, args.clanMemberId);
     if (me == null) return { ok: false as const, error: 'Only members’ reports count', status: 403 };
 
-    const [same] = await tx
-      .select()
-      .from(clanCofferBroadcasts)
+    const [entry] = await tx
+      .insert(cofferEntries)
+      .values({
+        clanId: args.clanId,
+        kind: parsed.direction === 'deposit' ? 'donation' : 'withdrawal',
+        amount: signed,
+        status: 'pending',
+        clanMemberId: args.clanMemberId,
+        rsn: parsed.actorRsn,
+        note: 'Seen in clan chat',
+      })
+      .returning();
+    await tx.insert(clanCofferBroadcasts).values({
+      clanId: args.clanId,
+      actorRsn: parsed.actorRsn,
+      actorKey: parsed.actorKey,
+      direction: parsed.direction,
+      amount: parsed.amount,
+      reporters: [me],
+      reporterSeats: [args.clanMemberId],
+      cofferEntryId: entry.id,
+    });
+
+    // The mover's own coffer reading of this movement may be in already: the line takes its place.
+    const [reading] = await tx
+      .select({ id: clanCofferSyncEvents.id, entryId: clanCofferSyncEvents.cofferEntryId })
+      .from(clanCofferSyncEvents)
+      .innerJoin(cofferEntries, eq(cofferEntries.id, clanCofferSyncEvents.cofferEntryId))
       .where(
         and(
-          eq(clanCofferBroadcasts.clanId, args.clanId),
-          eq(clanCofferBroadcasts.actorKey, parsed.actorKey),
-          eq(clanCofferBroadcasts.direction, parsed.direction),
-          eq(clanCofferBroadcasts.amount, parsed.amount),
-          gte(clanCofferBroadcasts.createdAt, new Date(Date.now() - SAME_LINE_MS)),
-          // The same seat reporting it again is a second movement (two deposits of 519 in a row).
-          sql`not (${args.clanMemberId} = any(${clanCofferBroadcasts.reporterSeats}))`,
+          eq(clanCofferSyncEvents.clanId, args.clanId),
+          eq(clanCofferSyncEvents.amount, signed),
+          eq(cofferEntries.clanMemberId, args.clanMemberId),
+          gte(clanCofferSyncEvents.createdAt, new Date(Date.now() - SAME_MOVEMENT_MS)),
+          eq(cofferEntries.status, 'pending'),
+          sql`not exists (select 1 from ${clanCofferBroadcasts} b where b.coffer_entry_id = ${cofferEntries.id})`,
         ),
       )
-      .orderBy(asc(clanCofferBroadcasts.id))
+      .orderBy(desc(clanCofferSyncEvents.id))
       .limit(1);
-
-    if (!same) {
-      // Named on the entry by the seat the actor holds in this clan, when they have one.
-      const [seat] = await tx
-        .select({ id: clanMemberships.id })
-        .from(clanMemberships)
-        .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
-        .where(and(eq(clanMemberships.clanId, args.clanId), eq(accounts.rsnNormalized, parsed.actorKey), isNull(clanMemberships.leftAt)))
-        .limit(1);
-      const [entry] = await tx
-        .insert(cofferEntries)
-        .values({
-          clanId: args.clanId,
-          kind: parsed.direction === 'deposit' ? 'donation' : 'withdrawal',
-          amount: parsed.direction === 'deposit' ? parsed.amount : -parsed.amount,
-          status: 'pending',
-          clanMemberId: seat?.id ?? null,
-          rsn: parsed.actorRsn,
-          note: `Seen in clan chat by ${args.rsn}`,
-        })
-        .returning();
-      await tx.insert(clanCofferBroadcasts).values({
-        clanId: args.clanId,
-        actorRsn: parsed.actorRsn,
-        actorKey: parsed.actorKey,
-        direction: parsed.direction,
-        amount: parsed.amount,
-        reporters: [me],
-        reporterSeats: [args.clanMemberId],
-        cofferEntryId: entry?.id ?? null,
-      });
-      return { ok: true as const, outcome: 'new' as const, booked: [] };
-    }
-
-    if (same.reporters.includes(me)) {
-      // The same person's other client: one line, already counted.
+    if (reading) {
       await tx
-        .update(clanCofferBroadcasts)
-        .set({ reporterSeats: [...same.reporterSeats, args.clanMemberId] })
-        .where(eq(clanCofferBroadcasts.id, same.id));
-      return { ok: true as const, outcome: 'repeat' as const, booked: [] };
+        .update(cofferEntries)
+        .set({ status: 'rejected', settledAt: new Date().toISOString(), note: 'Named by its clan-chat line' })
+        .where(eq(cofferEntries.id, reading.entryId!));
+      await tx.update(clanCofferSyncEvents).set({ cofferEntryId: entry.id }).where(eq(clanCofferSyncEvents.id, reading.id));
     }
-
-    await tx
-      .update(clanCofferBroadcasts)
-      .set({ reporters: [...same.reporters, me], reporterSeats: [...same.reporterSeats, args.clanMemberId] })
-      .where(eq(clanCofferBroadcasts.id, same.id));
-    if (same.reporters.length !== 1 || same.cofferEntryId == null || parsed.amount > CORROBORATION_MAX_GP) {
-      return { ok: true as const, outcome: 'seen' as const, booked: [] };
-    }
-    const [entry] = await tx
-      .select()
-      .from(cofferEntries)
-      .where(and(eq(cofferEntries.id, same.cofferEntryId), eq(cofferEntries.status, 'pending')))
-      .limit(1);
-    if (!entry) return { ok: true as const, outcome: 'seen' as const, booked: [] };
-    return { ok: true as const, outcome: 'booked' as const, booked: await book(tx, args.clanId, entry, `corroborated by ${args.rsn}`) };
+    if (!reading || parsed.amount > LINE_AUTO_MAX_GP) return { ok: true as const, outcome: 'new' as const, booked: [] };
+    return { ok: true as const, outcome: 'booked' as const, booked: await book(tx, args.clanId, entry, 'matched their coffer reading') };
   });
 }
 
 /**
- * A treasurer confirming (or rejecting) a clan-chat line only one person reported. Books the same way
+ * This seat's clan-chat line for this coffer movement (booked or waiting) that no reading has joined
+ * yet. The coffer-screen side of the join above, for when the mover's own reading lands second.
+ */
+export async function lineFor(tx: Tx, clanId: number, seatId: number, signedAmount: number): Promise<CofferEntry | null> {
+  const [row] = await tx
+    .select({ entry: cofferEntries })
+    .from(clanCofferBroadcasts)
+    .innerJoin(cofferEntries, eq(cofferEntries.id, clanCofferBroadcasts.cofferEntryId))
+    .where(
+      and(
+        eq(clanCofferBroadcasts.clanId, clanId),
+        // The line's own amount: a booked deposit's entry may have been cut down by custody coming home.
+        eq(clanCofferBroadcasts.direction, signedAmount > 0 ? 'deposit' : 'withdrawal'),
+        eq(clanCofferBroadcasts.amount, Math.abs(signedAmount)),
+        eq(cofferEntries.clanMemberId, seatId),
+        inArray(cofferEntries.status, ['pending', 'approved']),
+        gte(clanCofferBroadcasts.createdAt, new Date(Date.now() - SAME_MOVEMENT_MS)),
+        sql`not exists (select 1 from ${clanCofferSyncEvents} e where e.coffer_entry_id = ${cofferEntries.id})`,
+      ),
+    )
+    .orderBy(asc(clanCofferBroadcasts.id))
+    .limit(1);
+  return row?.entry ?? null;
+}
+
+/** Whether a coffer entry is a clan-chat line's (booked with `book`, not as a reading). */
+export async function isLineEntry(tx: Tx, entryId: number): Promise<boolean> {
+  const [row] = await tx.select({ id: clanCofferBroadcasts.id }).from(clanCofferBroadcasts).where(eq(clanCofferBroadcasts.cofferEntryId, entryId)).limit(1);
+  return !!row;
+}
+
+/**
+ * A treasurer confirming (or rejecting) a clan-chat line no coffer reading confirmed (or over the limit). Books the same way
  * corroboration does, so a deposit still nets off what its depositor was holding. Null when the entry
  * isn't a pending clan-chat line of this clan — the caller then tries the other kinds.
  */

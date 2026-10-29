@@ -1,7 +1,6 @@
 import { db } from '@/db';
 import {
   accounts,
-  clanCofferBroadcasts,
   clanCofferSyncEvents,
   clanCofferSyncState,
   clanMemberships,
@@ -16,6 +15,7 @@ import {
   type CofferObservation,
   type CofferSyncOutcome,
 } from '@/lib/cofferSyncDecision';
+import { LINE_AUTO_MAX_GP, book, isLineEntry, lineFor } from '@/lib/cofferBroadcast';
 
 export interface PhysicalCofferSyncResult {
   duplicateEvent: boolean;
@@ -63,29 +63,6 @@ const CORROBORATION_WINDOW_MS = 15 * 60_000;
 export const CORROBORATION_MAX_GP = 250_000_000;
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
-
-/**
- * Once a clan's plugins report the coffer's clan-chat line (lib/cofferBroadcast), that line is what
- * books movements: it names the person and catches mobile deposits. The coffer screen then only keeps
- * the physical balance — booking from both would count every deposit twice.
- */
-const CHAT_LIVE_MS = 7 * 24 * 3_600_000;
-
-async function chatLive(tx: Tx, clanId: number): Promise<boolean> {
-  const [row] = await tx
-    .select({ id: clanCofferBroadcasts.id })
-    .from(clanCofferBroadcasts)
-    .where(
-      and(
-        eq(clanCofferBroadcasts.clanId, clanId),
-        gte(clanCofferBroadcasts.createdAt, new Date(Date.now() - CHAT_LIVE_MS)),
-        // Only a line two people reported: one member's forged line must not switch the screen off.
-        sql`cardinality(${clanCofferBroadcasts.reporters}) >= 2`,
-      ),
-    )
-    .limit(1);
-  return !!row;
-}
 
 /**
  * The person behind a seat — but only a MEMBER seat (the in-game roster's word), never a guest one.
@@ -275,8 +252,17 @@ export async function syncPhysicalCoffer(args: PhysicalCofferObservation): Promi
     let booked: CofferEntry | null = null;
     let outcome: string = decision.outcome;
 
-    const books = decision.ledgerAmount !== 0 && !(await chatLive(tx, args.clanId));
-    if (books) {
+    // The mover's own clan-chat line may have named this movement already (lib/cofferBroadcast): their
+    // reading joins it rather than filing a second entry, and is the sight of the coins it waited for.
+    const line = decision.ledgerAmount !== 0 && decision.attributeActor
+      ? await lineFor(tx, args.clanId, args.clanMemberId, decision.ledgerAmount)
+      : null;
+    if (line) {
+      pendingEntry = line;
+      if (line.status === 'pending' && Math.abs(decision.ledgerAmount) <= LINE_AUTO_MAX_GP) {
+        booked = (await book(tx, args.clanId, line, 'matched their coffer reading')).at(-1) ?? null;
+      }
+    } else if (decision.ledgerAmount !== 0) {
       const attributed = decision.attributeActor;
       const [row] = await tx
         .insert(cofferEntries)
@@ -297,12 +283,12 @@ export async function syncPhysicalCoffer(args: PhysicalCofferObservation): Promi
         })
         .returning();
       pendingEntry = row ?? null;
-    } else if (decision.outcome === 'duplicate' && !(await chatLive(tx, args.clanId))) {
+    } else if (decision.outcome === 'duplicate') {
       // The same balance from another observer. If a DIFFERENT person's reading of it is waiting,
       // this is the second pair of eyes it needed.
       const me = await memberPersonOfSeat(tx, args.clanMemberId);
       const waiting = await tx
-        .select({ id: clanCofferSyncEvents.id, observer: clanCofferSyncEvents.clanMemberId, amount: cofferEntries.amount })
+        .select({ id: clanCofferSyncEvents.id, observer: clanCofferSyncEvents.clanMemberId, amount: cofferEntries.amount, entry: cofferEntries })
         .from(clanCofferSyncEvents)
         .innerJoin(cofferEntries, eq(cofferEntries.id, clanCofferSyncEvents.cofferEntryId))
         .where(
@@ -319,7 +305,12 @@ export async function syncPhysicalCoffer(args: PhysicalCofferObservation): Promi
         if (Math.abs(Number(w.amount)) > CORROBORATION_MAX_GP) continue;
         const them = await memberPersonOfSeat(tx, w.observer);
         if (me == null || them == null || me === them) continue;
-        booked = await confirmReadingTx(tx, args.clanId, w.id, null, `corroborated by ${args.rsn}`, CORROBORATION_MAX_GP);
+        // A reading that joined its mover's clan-chat line books as that line: named, custody netted.
+        booked = (await isLineEntry(tx, w.entry.id))
+          ? Math.abs(Number(w.amount)) <= LINE_AUTO_MAX_GP
+            ? (await book(tx, args.clanId, w.entry, `corroborated by ${args.rsn}`)).at(-1) ?? null
+            : null
+          : await confirmReadingTx(tx, args.clanId, w.id, null, `corroborated by ${args.rsn}`, CORROBORATION_MAX_GP);
         if (booked) {
           outcome = 'corroborated';
           break;
