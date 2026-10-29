@@ -4,10 +4,11 @@ import { and, desc, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
 import { completions, eventParticipants, labLog, submissions, teams, tiles } from '@/db/schema';
 import { CAN_WRITE, requirePlatformApi } from '@/lib/platformAccess';
-import { forgetLabSessions, labEvent, MAX_LAB_HOURS, resetLabSession, setLabSessionEnd } from '@/lib/lab';
+import { deleteLabSession, forgetLabSessions, labEvent, MAX_LAB_HOURS, resetLabSession, setLabSessionEnd } from '@/lib/lab';
 
 // /api/staff/lab/<id> — one lab session: what is on it, what has been credited, and what its
-// characters pushed that was quarantined. PATCH runs the session controls.
+// characters pushed that was quarantined. PATCH runs the session controls; DELETE removes the session
+// and everything on it (the sweep in lib/lab does the same a week after a session ends).
 
 export async function GET(_request: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const gate = await requirePlatformApi('support');
@@ -121,6 +122,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
     }
     default:
       return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
+  }
+  return NextResponse.json({ ok: true });
+}
+
+export async function DELETE(_request: Request, { params }: { params: Promise<{ eventId: string }> }) {
+  const gate = await requirePlatformApi(CAN_WRITE);
+  if ('response' in gate) return gate.response;
+  if (!(await deleteLabSession(Number((await params).eventId)))) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
   return NextResponse.json({ ok: true });
 }

@@ -47,6 +47,8 @@ import {
   tileClaims,
   tiles,
 } from '@/db/schema';
+import { purgeEventMedia } from '@/lib/eventMediaRetention';
+import { LAB_KEEP_DAYS } from '@/lib/labRules';
 import { log } from '@/lib/logger';
 import { personOf } from '@/lib/roster';
 
@@ -363,6 +365,55 @@ export async function resetLabSession(eventId: number, opts: { keepLog?: boolean
       })
       .where(eq(eventParticipants.eventId, eventId));
   });
+}
+
+export { LAB_KEEP_DAYS };
+
+/** When a session stopped: ended by hand, else its end time. Null while it has no end. */
+function labEndedAt(e: { endDate: string | null; forceEndedAt: string | null }): number | null {
+  const t = Date.parse(e.forceEndedAt ?? e.endDate ?? '');
+  return Number.isFinite(t) ? t : null;
+}
+
+/**
+ * Delete a lab session outright: its stored proof images first (lib/eventMediaRetention — the rows
+ * that name them are about to go, and nothing else would ever find the files), then the event, whose
+ * tiles, team, entrants, credits, snapshots, moments and lab log all cascade with it. False when the
+ * id is not a lab board, so no route or sweep can reach a real event through here.
+ */
+export async function deleteLabSession(eventId: number): Promise<boolean> {
+  const event = await labEvent(eventId);
+  if (!event) return false;
+  await purgeEventMedia(event.id);
+  await db.delete(events).where(eq(events.id, event.id));
+  forgetLabSessions();
+  return true;
+}
+
+/** Delete every lab session that ended more than LAB_KEEP_DAYS ago. Rides the lifecycle tick. */
+export async function sweepEndedLabSessions(now: Date = new Date()): Promise<number> {
+  const labId = await labClanId();
+  if (labId == null) return 0;
+  const cutoff = now.getTime() - LAB_KEEP_DAYS * 86_400_000;
+  // clan-scope: this clan -- the lab clan's own boards, nothing else.
+  const rows = await db
+    .select({ id: events.id, endDate: events.endDate, forceEndedAt: events.forceEndedAt })
+    .from(events)
+    .where(eq(events.clanId, labId));
+  let deleted = 0;
+  for (const row of rows) {
+    // Bounded per tick: a first run over a long backlog finishes over the next few minutes.
+    if (deleted >= 25) break;
+    const ended = labEndedAt(row);
+    if (ended == null || ended > cutoff) continue;
+    try {
+      if (await deleteLabSession(row.id)) deleted++;
+    } catch (err) {
+      log.warn('lab.sweep-delete-failed', { eventId: row.id }, err);
+    }
+  }
+  if (deleted) log.info('lab.sweep', { deleted });
+  return deleted;
 }
 
 /**

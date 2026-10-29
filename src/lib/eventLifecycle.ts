@@ -16,6 +16,7 @@ import { drawStartLocation } from '@/lib/startProof';
 import { log } from '@/lib/logger';
 import { postEventRules } from '@/lib/eventRulesPost';
 import { runDiscordCleanups } from '@/lib/eventDiscordCleanup';
+import { sweepEndedLabSessions } from '@/lib/lab';
 import { clearPreStartEventActivity } from '@/lib/preStartActivity';
 import { track } from '@/lib/analytics';
 import { endOfEventFacts, runDailyDigests, runHalfwayReports } from '@/lib/eventDigest';
@@ -407,4 +408,6 @@ export async function processEventLifecycleNotifications(): Promise<void> {
 
   // Team channels, team roles and the player role the event's settings say to tidy up once it ends.
   await runDiscordCleanups(nowMs).catch((err) => log.warn('event-lifecycle.discord-cleanup-failed', { err: String(err) }));
+  // Lab sessions are scratch boards: deleted a week after they end (lib/lab).
+  await sweepEndedLabSessions(new Date(nowMs)).catch((err) => log.warn('event-lifecycle.lab-sweep-failed', { err: String(err) }));
 }
