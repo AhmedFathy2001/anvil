@@ -18,6 +18,7 @@ import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 import { capMessage, newMemberAllowance, syncCapGrace } from '@/lib/member-cap';
 import { getInGameClanName } from '@/lib/pluginConfig';
 import { log } from '@/lib/logger';
+import { recordJoinDates } from '@/lib/rosterJoinDates';
 import { accountChanged, seatChanged, departureFor, lastSeenIsFresh, rosterReadVerdict } from '@/lib/rosterSync';
 
 interface IncomingMember {
@@ -761,6 +762,10 @@ export async function POST(request: Request) {
     }).catch(() => {});
   }
 
+  // In-game join dates (lib/clanJoinDate). Only seats whose date is new or really moved are written,
+  // in one statement, so a steady roster costs one read here and no writes.
+  await recordJoinDates(clan.id, members, now).catch((err) => log.warn('clan-sync.join-dates-failed', { err: String(err) }));
+
   // The sync itself is never rejected — breaking a paying clan's plugin mid-event would be worse
   // than an overage. Only new-member growth stops, and only after the grace window (see above).
   if (roster.overLimit) {
@@ -884,3 +889,4 @@ export async function GET(request: Request) {
     },
   });
 }
+

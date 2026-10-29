@@ -1,3 +1,4 @@
+import { formatJoinDate } from '@/lib/clanJoinDate';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
@@ -315,6 +316,7 @@ function GameClanChip({ clan }: { clan: CharacterGameClan }) {
       )}
       {clan.name}
       {clan.title && <span className="text-text-dim">· {clan.title}</span>}
+      {clan.joinedOn && <span className="text-text-dim">· since {formatJoinDate(clan.joinedOn)}</span>}
     </>
   );
   if (clan.anvilClanUnlisted) return <span className="flex items-center gap-2">{body}</span>;

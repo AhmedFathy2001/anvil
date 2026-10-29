@@ -1,5 +1,6 @@
 import type { LockerAccount, LockerCareer, LockerConnection } from '@/lib/profileLocker';
 import ClanLink from '@/components/ClanLink';
+import { formatJoinDate } from '@/lib/clanJoinDate';
 
 // The card at the top of the locker: who you are, which accounts are yours, and — once you've
 // played anything — the numbers that make the page feel earned. Before that the same slots render
@@ -130,6 +131,11 @@ export default function PlayerCard({
                     />
                     {a.isPrimary && <span className="text-gold text-[11px]">★</span>}
                     <span className="truncate max-w-[10rem]">{a.rsn}</span>
+                    {a.joinedOn && (
+                      <span className="text-[11px] text-text-muted" title={`Joined the clan in game on ${formatJoinDate(a.joinedOn, true)}`}>
+                        since {formatJoinDate(a.joinedOn)}
+                      </span>
+                    )}
                     {a.playingIn ? (
                       <span className="text-[11px] text-accent-green-light">playing</span>
                     ) : !a.verified ? (

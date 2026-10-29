@@ -1,3 +1,4 @@
+import { formatJoinDate } from '@/lib/clanJoinDate';
 import type { Metadata } from 'next';
 import { requireClan } from '@/lib/clanContext';
 import { getClanDisplayName } from '@/lib/pluginConfig';
@@ -9,6 +10,7 @@ import {
   getActivityStandings,
   getCompetitionHistory,
   getPersona,
+  ingameJoinDates,
   getUpcomingMilestones,
   getDailySeries,
   getMemberProfile,
@@ -161,6 +163,7 @@ export default async function MemberProfilePage({
   // alt; the open internet and search engines can't.
   const viewer = await verifyUser();
 
+  const joinedOn = (await ingameJoinDates([profile.id])).get(profile.id) ?? null;
   const [milestones, records, series, standings, history, persona, collection, activityStandings, progress, questItems, caItems, moments, roster, trackingSince] = await Promise.all([
     // TWO IDS, AND WHICH ONE EACH CALL WANTS IS THE WHOLE POINT. `profile.accountId` is the OSRS
     // character, which is what every stats table is keyed by; `profile.id` is the seat, which is
@@ -298,6 +301,14 @@ export default async function MemberProfilePage({
               )}
               {profile.leftAt && (
                 <span className="text-[11px] px-2 py-0.5 rounded-full bg-red-500/15 text-red-300">left the clan</span>
+              )}
+              {joinedOn && (
+                <span
+                  className="text-[11px] px-2 py-0.5 rounded-full bg-brown-light text-foreground/80"
+                  title="When this character joined the clan in game"
+                >
+                  In the clan since {formatJoinDate(joinedOn, true)}
+                </span>
               )}
             </div>
             <p className="text-xs text-text-muted mt-1">

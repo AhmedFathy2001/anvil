@@ -481,6 +481,9 @@ export const clanMemberships = pgTable('clan_memberships', {
   leftAt: text('left_at'),
   // Bumped on each roster sync that lists this RSN. Per seat: presence on THIS clan's roster.
   lastSeenInClan: text('last_seen_in_clan'),
+  // When the account joined the clan IN GAME ('YYYY-MM-DD'), from the roster sync's join dates
+  // (lib/clanJoinDate). Distinct from joinedAt, which is when Anvil first saw the seat.
+  ingameJoinedOn: text('ingame_joined_on'),
   // This clan's private note about this seat.
   notes: text('notes'),
   // A clan role waiting on a mod's approval before it applies: 'admin' | 'moderator' | null.
