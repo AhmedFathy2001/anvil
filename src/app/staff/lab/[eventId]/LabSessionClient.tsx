@@ -2,8 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { useRouter } from 'next/navigation';
+
 import ClanLink from '@/components/ClanLink';
+import { useDialog } from '@/components/Confirm';
 import LocalTime from '@/components/LocalTime';
+import { LAB_KEEP_DAYS } from '@/lib/labRules';
 
 import { sessionLive } from '../sessionLive';
 
@@ -61,6 +65,8 @@ const utc = (stamp: string) => (stamp.includes('T') ? stamp : `${stamp.replace('
 export default function LabSessionClient({ eventId }: { eventId: number }) {
   const [data, setData] = useState<Detail | null>(null);
   const [busy, setBusy] = useState('');
+  const router = useRouter();
+  const { confirm } = useDialog();
   const [error, setError] = useState('');
   const [openLog, setOpenLog] = useState<number | null>(null);
 
@@ -75,6 +81,24 @@ export default function LabSessionClient({ eventId }: { eventId: number }) {
     const t = setInterval(() => void load(), POLL_MS);
     return () => clearInterval(t);
   }, [load]);
+
+  async function remove() {
+    const ok = await confirm({
+      title: 'Delete this lab session?',
+      body: 'The board, its tiles, everything credited, the uploaded proofs and the log are deleted. This can’t be undone.',
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
+    setBusy('delete');
+    setError('');
+    const res = await fetch(`/api/staff/lab/${eventId}`, { method: 'DELETE' });
+    if (res.ok) {
+      router.push('/staff/lab');
+      return;
+    }
+    setError((await res.json().catch(() => ({}))).error ?? 'That did not work.');
+    setBusy('');
+  }
 
   async function act(action: string, extra: Record<string, unknown> = {}) {
     setBusy(action);
@@ -125,11 +149,20 @@ export default function LabSessionClient({ eventId }: { eventId: number }) {
         )}
         <button type="button" className={btn} disabled={!!busy} onClick={() => act('reset')}>Reset progress</button>
         <button type="button" className={btn} disabled={!!busy} onClick={() => act('clear-log')}>Clear log</button>
+        <button
+          type="button"
+          className="rounded-lg border border-red-400/40 px-3 py-1.5 text-sm text-red-400 hover:border-red-400 disabled:opacity-50"
+          disabled={!!busy}
+          onClick={() => void remove()}
+        >
+          {busy === 'delete' ? 'Deleting…' : 'Delete session'}
+        </button>
       </div>
       {error && <p className="text-sm text-red-400">{error}</p>}
       <p className="text-xs text-text-muted">
         In the plugin, the session is your active board within ~30s (one config poll). Reset keeps the tiles and the
-        characters and wipes everything credited, so the same test can run again.
+        characters and wipes everything credited, so the same test can run again. An ended session is deleted
+        automatically {LAB_KEEP_DAYS} days after it ends.
       </p>
 
       <section>

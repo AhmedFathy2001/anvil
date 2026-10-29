@@ -303,3 +303,32 @@ test('ending the session hands the character back to the real event and stops qu
   assert.equal(await L.labSessionFor(accountId), null);
   assert.equal(await L.labQuarantine(pluginRequest(), accountId, 'notify', {}), null);
 });
+
+test('a lab session is deleted with everything on it; the sweep waits a week after the end; real boards are never reachable', async () => {
+  const { db, schema: s } = await loadDb();
+  const { eq } = await import('drizzle-orm');
+  const labIds = (await db.select({ id: s.events.id }).from(s.events).where(eq(s.events.clanId, (await L.labClanId())!))).map((e) => e.id);
+  assert.ok(labIds.length >= 2, 'the sessions earlier tests made');
+
+  // Ended just now: kept for a look back.
+  assert.equal(await L.sweepEndedLabSessions(new Date()), 0);
+  assert.equal(await L.deleteLabSession(realEvent), false, 'a real event is not a lab session');
+
+  // A week and a day later, gone — tiles, entrants, credits and the log with them.
+  assert.equal(await L.sweepEndedLabSessions(new Date(Date.now() + 8 * 86_400_000)), labIds.length);
+  for (const id of labIds) {
+    assert.equal(await L.labEvent(id), null);
+    assert.equal((await db.select().from(s.tiles).where(eq(s.tiles.eventId, id))).length, 0);
+    assert.equal((await db.select().from(s.eventParticipants).where(eq(s.eventParticipants.eventId, id))).length, 0);
+    assert.equal((await db.select().from(s.labLog).where(eq(s.labLog.eventId, id))).length, 0);
+  }
+  // The real board and its entrant are untouched.
+  assert.ok(await db.query.events.findFirst({ where: eq(s.events.id, realEvent) }));
+  assert.equal((await db.select().from(s.eventParticipants).where(eq(s.eventParticipants.eventId, realEvent))).length, 1);
+
+  // Deleted by hand, live or not.
+  const fresh = await L.createLabSession(userId, { name: 'Throwaway', hours: 1, boardSize: 1, accounts: [{ accountId, name: RSN }] });
+  assert.equal(await L.deleteLabSession(fresh), true);
+  assert.equal(await L.labEvent(fresh), null);
+  assert.equal(await L.labSessionFor(accountId), null, 'the character is handed back at once');
+});
