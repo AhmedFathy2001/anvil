@@ -1,5 +1,6 @@
 'use client';
 
+import { formatJoinDate } from '@/lib/clanJoinDate';
 import { useState } from 'react';
 import type { Persona as PersonaData } from '@/lib/memberProfile';
 import ClanLink from '@/components/ClanLink';
@@ -102,6 +103,11 @@ export default function Persona({
                   <span className={`ml-2 text-[10px] px-1.5 py-0.5 rounded-full ${STATUS[a.status].cls}`}>
                     {STATUS[a.status].label}
                   </span>
+                  {a.joinedOn && (
+                    <span className="ml-2 text-[10px] text-text-muted" title={`Joined the clan in game on ${formatJoinDate(a.joinedOn, true)}`}>
+                      joined {formatJoinDate(a.joinedOn)}
+                    </span>
+                  )}
                   {a.id === currentMemberId && <span className="ml-2 text-[10px] text-text-muted">viewing</span>}
                 </span>
                 <span className="text-right tabular-nums text-text-muted">{a.ehp?.toFixed(1) ?? '—'}</span>

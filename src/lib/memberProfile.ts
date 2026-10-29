@@ -6,7 +6,7 @@
 
 import type { StatDeltas } from '@/lib/statDeltas';
 import { db } from '@/db';
-import { clanAuditLog, clanRoster, events, eventParticipants, users, memberDailyStats, memberMilestones, playerEventFacts, playerSnapshots, weeklyCompetitions, weeklyParticipants, accounts, players } from '@/db/schema';
+import { clanAuditLog, clanRoster, events, eventParticipants, users, memberDailyStats, memberMilestones, playerEventFacts, playerSnapshots, weeklyCompetitions, weeklyParticipants, accounts, players, clanMemberships } from '@/db/schema';
 import { findRosterSeat, statSnapshotOf } from '@/lib/roster';
 import { and, desc, eq, gte, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
@@ -1330,6 +1330,19 @@ export async function getCompetitionHistory(clanMemberId: number, rsn: string): 
   };
 }
 
+// ── In-game clan join dates ──────────────────────────────────────────────────────────────────────
+
+/** Seat id → the day that character joined the clan in game (lib/clanJoinDate), where known. */
+export async function ingameJoinDates(seatIds: number[]): Promise<Map<number, string>> {
+  if (seatIds.length === 0) return new Map();
+  // clan-scope: global -- keyed by seats the caller already holds; each belongs to one clan.
+  const rows = await db
+    .select({ id: clanMemberships.id, d: clanMemberships.ingameJoinedOn })
+    .from(clanMemberships)
+    .where(and(inArray(clanMemberships.id, seatIds), isNotNull(clanMemberships.ingameJoinedOn)));
+  return new Map(rows.map((r) => [r.id, r.d as string]));
+}
+
 // ── Personas (one human, several accounts) ───────────────────────────────────────────────────────
 
 export interface PersonaAccount {
@@ -1346,6 +1359,8 @@ export interface PersonaAccount {
   ehp: number | null;
   ehb: number | null;
   overallXp: number | null;
+  /** When this character joined THIS clan in game ('YYYY-MM-DD'), from the roster sync. */
+  joinedOn: string | null;
 }
 
 export interface Persona {
@@ -1428,6 +1443,7 @@ export async function getPersona(clanMemberId: number): Promise<Persona | null> 
   if (owned.length <= 1) return null;
 
   const statsById = new Map(rows.map((r) => [r.id, r]));
+  const joinedBySeat = await ingameJoinDates(seatsHere.map((x) => x.id));
   const rank = { member: 0, guest: 1, out: 2 } as const;
   const characters: PersonaAccount[] = owned
     .map((o) => {
@@ -1444,6 +1460,7 @@ export async function getPersona(clanMemberId: number): Promise<Persona | null> 
         ehp: stats?.ehp ?? null,
         ehb: stats?.ehb ?? null,
         overallXp: stats?.overallXp ?? o.overallXp ?? null,
+        joinedOn: seat ? (joinedBySeat.get(seat.id) ?? null) : null,
       };
     })
     .sort(

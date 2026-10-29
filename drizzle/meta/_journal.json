@@ -806,6 +806,13 @@
       "when": 1793350200000,
       "tag": "0158_cohost_board_access",
       "breakpoints": true
+    },
+    {
+      "idx": 159,
+      "version": "7",
+      "when": 1793350300000,
+      "tag": "0159_clan_join_dates",
+      "breakpoints": true
     }
   ]
 }
