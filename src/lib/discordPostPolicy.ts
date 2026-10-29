@@ -92,6 +92,8 @@ export interface EventDiscordPrefs {
   pings?: Partial<Record<DiscordPostType, PingChoice>>;
   /** A channel just for this event (a webhook URL). Absent = the clan's bingo channel. */
   webhookUrl?: string | null;
+  /** The Discord channel that webhook posts into, when it was picked from the server (for display). */
+  channelId?: string;
   /** false = keep this event's posts out of the co-hosts' servers. */
   cohosts?: boolean;
   /** ISO time posting resumes, or 'indefinite'. Absent / past = not paused. */
@@ -113,6 +115,7 @@ export interface PartnerDiscordPrefs {
   groupsOff?: PostGroup[];
   ping?: PingChoice;
   webhookUrl?: string | null;
+  channelId?: string;
   playerRole?: boolean;
   teamChannels?: boolean;
 }
@@ -146,6 +149,10 @@ export function parseClanPostDefaults(raw: unknown): ClanPostDefaults {
   return { posts, pings };
 }
 
+function isSnowflake(v: unknown): v is string {
+  return typeof v === 'string' && /^\d{5,25}$/.test(v);
+}
+
 function isHttpsUrl(v: unknown): v is string {
   return typeof v === 'string' && /^https:\/\/\S+$/i.test(v.trim());
 }
@@ -161,6 +168,7 @@ export function parseEventDiscordPrefs(raw: unknown): EventDiscordPrefs {
   for (const [k, val] of Object.entries(rec(o.pings))) if (isDiscordPostType(k) && isPingChoice(val)) pings[k] = val;
   if (Object.keys(pings).length) out.pings = pings;
   if (isHttpsUrl(o.webhookUrl)) out.webhookUrl = o.webhookUrl.trim();
+  if (isSnowflake(o.channelId)) out.channelId = o.channelId;
   if (typeof o.cohosts === 'boolean') out.cohosts = o.cohosts;
   if (o.pausedUntil === 'indefinite' || (typeof o.pausedUntil === 'string' && !Number.isNaN(Date.parse(o.pausedUntil)))) {
     out.pausedUntil = o.pausedUntil;
@@ -187,6 +195,7 @@ export function parsePartnerDiscordPrefs(raw: unknown): PartnerDiscordPrefs {
   }
   if (isPingChoice(o.ping)) out.ping = o.ping;
   if (isHttpsUrl(o.webhookUrl)) out.webhookUrl = o.webhookUrl.trim();
+  if (isSnowflake(o.channelId)) out.channelId = o.channelId;
   if (typeof o.playerRole === 'boolean') out.playerRole = o.playerRole;
   if (typeof o.teamChannels === 'boolean') out.teamChannels = o.teamChannels;
   return out;

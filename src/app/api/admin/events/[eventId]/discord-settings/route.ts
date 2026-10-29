@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { verifyAdminOrModerator } from '@/lib/auth';
 import { requireClan } from '@/lib/clanContext';
 import { eventInClan } from '@/lib/eventScope';
-import { isDiscordWebhookUrl } from '@/lib/discordWebhookUrl';
+import { channelChoices, resolveChannelInput, type ChannelInput } from '@/lib/eventDiscordChannel';
 import { parseEventDiscordPrefs } from '@/lib/discordPostPolicy';
 import {
   loadClanEventRoleDefaults,
@@ -42,9 +42,11 @@ async function view(eventId: number, clanId: number) {
     getSetting(clanId, 'discord_team_sync_enabled'),
   ]);
   const { webhookUrl, ...rest } = prefs;
+  const channels = await channelChoices(clanId);
   return {
     prefs: rest,
     hasOwnChannel: !!webhookUrl,
+    channels,
     clanDefaults: { ...clanPosts, roles: clanRoles, teamChannels: teamSync === 'true' },
     roles,
   };
@@ -57,26 +59,26 @@ export async function GET(_req: Request, { params }: { params: Promise<{ eventId
 }
 
 /**
- * Replaces the event's choices with the body's `prefs`. `webhookUrl`: absent keeps the current
- * channel, null clears it, a string sets it (Discord webhooks only — the server posts to it).
+ * Replaces the event's choices with the body's `prefs`. `channel` (lib/eventDiscordChannel): absent
+ * keeps the event's own channel, null goes back to the clan's, { channelId } or { webhookUrl } sets one.
  */
 export async function PUT(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const s = await scope((await params).eventId);
   if ('error' in s) return s.error;
-  const body = (await request.json().catch(() => ({}))) as { prefs?: unknown; webhookUrl?: unknown };
+  const body = (await request.json().catch(() => ({}))) as { prefs?: unknown; channel?: ChannelInput };
 
   const current = await readEventDiscordPrefs(s.eventId);
   const next = parseEventDiscordPrefs(body.prefs ?? {});
-  if (body.webhookUrl === undefined) {
+  const channel = await resolveChannelInput(s.clanId, body.channel);
+  if (!channel.ok) return NextResponse.json({ error: channel.error }, { status: 400 });
+  delete next.webhookUrl;
+  delete next.channelId;
+  if (channel.keep) {
     if (current.webhookUrl) next.webhookUrl = current.webhookUrl;
-  } else if (body.webhookUrl !== null) {
-    const url = typeof body.webhookUrl === 'string' ? body.webhookUrl.trim() : '';
-    if (!isDiscordWebhookUrl(url)) {
-      return NextResponse.json({ error: 'That is not a Discord webhook URL (https://discord.com/api/webhooks/…).' }, { status: 400 });
-    }
-    next.webhookUrl = url;
-  } else {
-    delete next.webhookUrl;
+    if (current.channelId) next.channelId = current.channelId;
+  } else if (channel.webhookUrl) {
+    next.webhookUrl = channel.webhookUrl;
+    if (channel.channelId) next.channelId = channel.channelId;
   }
 
   await saveEventDiscordPrefs(s.eventId, next);

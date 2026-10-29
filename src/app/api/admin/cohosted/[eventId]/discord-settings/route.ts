@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { verifyUser } from '@/lib/auth';
 import { requireClan } from '@/lib/clanContext';
 import { isAcceptedCohost } from '@/lib/coHost';
-import { isDiscordWebhookUrl } from '@/lib/discordWebhookUrl';
+import { channelChoices, resolveChannelInput, type ChannelInput } from '@/lib/eventDiscordChannel';
 import { parsePartnerDiscordPrefs } from '@/lib/discordPostPolicy';
 import { cohostSignupClanFor } from '@/lib/eventEditors';
 import { readEventDiscordPrefs, readPartnerDiscordPrefs, savePartnerDiscordPrefs } from '@/lib/eventDiscordPrefs';
@@ -30,9 +30,11 @@ async function scope(eventIdRaw: string) {
 async function view(eventId: number, clanId: number) {
   const [prefs, host] = await Promise.all([readPartnerDiscordPrefs(eventId, clanId), readEventDiscordPrefs(eventId)]);
   const { webhookUrl, ...rest } = prefs;
+  const channels = await channelChoices(clanId);
   return {
     prefs: rest,
     hasOwnChannel: !!webhookUrl,
+    channels,
     host: { share: host.cohosts === false ? 'none' : (host.partnerShare ?? 'all') },
   };
 }
@@ -46,20 +48,20 @@ export async function GET(_req: Request, { params }: { params: Promise<{ eventId
 export async function PUT(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
   const s = await scope((await params).eventId);
   if ('error' in s) return s.error;
-  const body = (await request.json().catch(() => ({}))) as { prefs?: unknown; webhookUrl?: unknown };
+  const body = (await request.json().catch(() => ({}))) as { prefs?: unknown; channel?: ChannelInput };
 
   const current = await readPartnerDiscordPrefs(s.eventId, s.clanId);
   const next = parsePartnerDiscordPrefs(body.prefs ?? {});
-  if (body.webhookUrl === undefined) {
+  const channel = await resolveChannelInput(s.clanId, body.channel);
+  if (!channel.ok) return NextResponse.json({ error: channel.error }, { status: 400 });
+  delete next.webhookUrl;
+  delete next.channelId;
+  if (channel.keep) {
     if (current.webhookUrl) next.webhookUrl = current.webhookUrl;
-  } else if (body.webhookUrl !== null) {
-    const url = typeof body.webhookUrl === 'string' ? body.webhookUrl.trim() : '';
-    if (!isDiscordWebhookUrl(url)) {
-      return NextResponse.json({ error: 'That is not a Discord webhook URL (https://discord.com/api/webhooks/…).' }, { status: 400 });
-    }
-    next.webhookUrl = url;
-  } else {
-    delete next.webhookUrl;
+    if (current.channelId) next.channelId = current.channelId;
+  } else if (channel.webhookUrl) {
+    next.webhookUrl = channel.webhookUrl;
+    if (channel.channelId) next.channelId = channel.channelId;
   }
 
   await savePartnerDiscordPrefs(s.eventId, s.clanId, next);

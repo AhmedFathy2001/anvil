@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { requireEventForPage } from '@/lib/eventScope';
-import { events, teams, tiles } from '@/db/schema';
+import { events, tiles } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import { verifyUser } from '@/lib/auth';
@@ -11,8 +11,7 @@ import SaveAsPresetButton from '@/components/SaveAsPresetButton';
 import { atLeast } from '@/lib/clanRoles';
 import AccessPanel from '../teams/AccessPanel';
 import CoHostPanel from '../teams/CoHostPanel';
-import EventWebhooksPanel from '../teams/EventWebhooksPanel';
-import EventDiscordServerPanel from '@/components/EventDiscordServerPanel';
+import ClanLink from '@/components/ClanLink';
 import { cohostsForEvent } from '@/lib/coHost';
 import { settlementForEvent } from '@/lib/coHostSettlement';
 import { getBoard } from '@/lib/libraryBoards';
@@ -49,9 +48,8 @@ export default async function EventSettingsPage({
   const event = await db.query.events.findFirst({ where: eq(events.id, id) });
   if (!event) notFound();
 
-  const [eventTiles, eventTeams, session, clan, cohosts, settlement] = await Promise.all([
+  const [eventTiles, session, clan, cohosts, settlement] = await Promise.all([
     db.select().from(tiles).where(eq(tiles.eventId, id)),
-    db.select({ id: teams.id, name: teams.name, color: teams.color }).from(teams).where(eq(teams.eventId, id)),
     verifyUser(),
     requireClan(),
     cohostsForEvent(id),
@@ -91,8 +89,10 @@ export default async function EventSettingsPage({
       )}
       <AccessPanel eventId={id} />
       <CoHostPanel eventId={id} initial={cohosts} cashPolicy={event.cashPolicy} settlement={settlement} />
-      <EventDiscordServerPanel eventId={id} />
-      <EventWebhooksPanel eventId={id} teams={eventTeams} />
+      <p className="mb-6 text-sm text-text-muted">
+        Where this event posts, who it pings, its team channels and extra webhooks are on the{' '}
+        <ClanLink href={`/admin/events/${id}/discord`} className="text-gold hover:underline">Discord tab</ClanLink>.
+      </p>
 
       <SettingsClient event={event} tiles={eventTiles} canManageEditors={isAdmin} />
       {isAdmin && (

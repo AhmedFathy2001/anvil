@@ -23,6 +23,7 @@ const TABS = [
   { slug: 'signups', label: 'Sign-ups' },
   { slug: 'stats', label: 'Stats' },
   { slug: 'payouts', label: 'Prizes' },
+  { slug: 'discord', label: 'Discord' },
   { slug: 'survey', label: 'Survey' },
 ] as const;
 
