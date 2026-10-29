@@ -200,6 +200,20 @@ async function describeSendError(res: Response): Promise<string> {
  * messages so there's no length cap the admin has to worry about. Returns how many Discord
  * messages were sent, or a human reason on the first failure.
  */
+/**
+ * Is this channel in the clan's own server? The shared bot sits in many servers, so a channel id
+ * from somewhere else would otherwise let one clan post into (or edit, or delete in) another's.
+ */
+async function channelInGuild(botToken: string, guildId: string, channelId: string): Promise<boolean> {
+  if (!/^\d{5,25}$/.test(channelId)) return false;
+  const res = await discordRest(botToken, `/channels/${channelId}`);
+  if (!res.ok) return false;
+  const ch = (await res.json().catch(() => ({}))) as { guild_id?: string };
+  return ch.guild_id === guildId;
+}
+
+const NOT_YOUR_CHANNEL = 'That channel is not in your server.';
+
 /** The Discord messages one broadcast becomes: long text split across embeds or messages. */
 function buildMessages(opts: Omit<SendOpts, 'clanId' | 'channelId'>, guildId: string): Record<string, unknown>[] {
   const body = (opts.body ?? '').trim();
@@ -277,6 +291,9 @@ export async function sendBotMessage(opts: SendOpts): Promise<SendReport> {
 
   if (!opts.channelId) return { ok: false, reason: 'No channel selected.', messagesSent: 0 };
   if (!(opts.body ?? '').trim()) return { ok: false, reason: 'The message is empty.', messagesSent: 0 };
+  if (!(await channelInGuild(creds.botToken, creds.guildId, opts.channelId))) {
+    return { ok: false, reason: NOT_YOUR_CHANNEL, messagesSent: 0 };
+  }
 
   const messages = buildMessages(opts, creds.guildId);
   const messageIds: string[] = [];
@@ -314,6 +331,9 @@ export async function editBotMessage(
   const creds = await getBotCredentials(opts.clanId);
   if (!creds) return { ok: false, reason: 'Discord bot is not configured.', messagesSent: 0 };
   if (!(opts.body ?? '').trim()) return { ok: false, reason: 'The message is empty.', messagesSent: 0 };
+  if (!(await channelInGuild(creds.botToken, creds.guildId, opts.channelId))) {
+    return { ok: false, reason: NOT_YOUR_CHANNEL, messagesSent: 0, messageIds: opts.messageIds };
+  }
 
   const messages = buildMessages({ ...opts, mentionRoleId: null }, creds.guildId);
   const ids: string[] = [];
@@ -346,6 +366,7 @@ export async function editBotMessage(
 export async function deleteBotMessages(clanId: number, channelId: string, messageIds: string[]): Promise<{ ok: boolean; reason?: string }> {
   const creds = await getBotCredentials(clanId);
   if (!creds) return { ok: false, reason: 'Discord bot is not configured.' };
+  if (!(await channelInGuild(creds.botToken, creds.guildId, channelId))) return { ok: false, reason: NOT_YOUR_CHANNEL };
   for (const id of messageIds) {
     const res = await discordRest(creds.botToken, `/channels/${channelId}/messages/${id}`, { method: 'DELETE' });
     if (!res.ok && res.status !== 404) return { ok: false, reason: await describeSendError(res) };
