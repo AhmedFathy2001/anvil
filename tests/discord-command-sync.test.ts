@@ -65,6 +65,24 @@ test('a stale guild that cannot be cleared makes reconciliation fail', async () 
   assert.match(result.reason ?? '', new RegExp(`guild-cleanup-${guild}-403`));
 });
 
+test('a server the bot is no longer in is skipped, not a failure', async () => {
+  const { reconcileDiscordCommands } = await import('../src/lib/discordCommandSync.ts');
+  const gone = '1324522160315961365';
+  const unknown = '1198288863207112785';
+  const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    const method = init?.method ?? 'GET';
+    if (url.endsWith('/applications/@me')) return response({ id: 'app-1' });
+    if (url.endsWith('/applications/app-1/commands') && method === 'PUT') return response([{ name: 'bingo' }]);
+    if (url.endsWith(`/guilds/${gone}/commands`) && method === 'GET') return response({ message: 'Missing Access', code: 50001 }, 403);
+    if (url.endsWith(`/guilds/${unknown}/commands`) && method === 'GET') return response({ message: 'Unknown Guild', code: 10004 }, 404);
+    throw new Error(`unexpected request: ${method} ${url}`);
+  }) as typeof fetch;
+
+  const result = await reconcileDiscordCommands('token', { clearGuildIds: [gone, unknown] }, fetcher);
+  assert.deepEqual(result, { ok: true, scope: 'global', count: 1, clearedGuilds: 0 });
+});
+
 test('a clan-owned bot registers in its guild and never clears that same scope', async () => {
   const { reconcileDiscordCommands } = await import('../src/lib/discordCommandSync.ts');
   const guild = '1324522160315961365';

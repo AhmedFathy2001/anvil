@@ -2318,8 +2318,8 @@ const fi: PartialGuideDict = {
         examples: ['/stats luckboard'],
         tip: 'Klaanin kuivimmat ja onnekkaimmat jäsenet.',
       },
-      guide: {
-        examples: ['/guide topic:Plugin setup', '/guide topic:Plugin setup step:5'],
+      setup: {
+        examples: ['/setup topic:Plugin setup', '/setup topic:Plugin setup step:5'],
         tip: 'Käyttöönotto-opas Discordissa: vaiheiden lista, tai yksi vaihe linkillä suoraan siihen sivustolla.',
       },
     },

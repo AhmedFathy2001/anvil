@@ -2318,8 +2318,8 @@ const nl: PartialGuideDict = {
         examples: ['/stats luckboard'],
         tip: 'De droogste en gelukkigste leden van de clan.',
       },
-      guide: {
-        examples: ['/guide topic:Plugin setup', '/guide topic:Plugin setup step:5'],
+      setup: {
+        examples: ['/setup topic:Plugin setup', '/setup topic:Plugin setup step:5'],
         tip: 'Een installatiehandleiding binnen Discord: de lijst met stappen, of één stap met een link er rechtstreeks naartoe op de site.',
       },
     },

@@ -49,7 +49,8 @@ test('usage lines read the way Discord shows them', () => {
   const byPath = new Map(commands.map((c) => [c.path, c]));
   assert.equal(byPath.get('coffer add')?.usage, '/coffer add <amount> [note]');
   assert.equal(byPath.get('bingo board')?.usage, '/bingo board');
-  assert.equal(byPath.get('guide')?.usage, '/guide <topic> [step] [language]');
+  assert.equal(byPath.get('setup')?.usage, '/setup <topic> [step] [language]');
+  assert.equal(byPath.get('guide')?.usage, '/guide <guide>');
   // Whose stats is one RSN type-ahead (`player`), not Discord's member picker plus an account option.
   const player = byPath.get('stats luck')!.options.find((o) => o.name === 'player')!;
   assert.equal(player.kind, 'search');

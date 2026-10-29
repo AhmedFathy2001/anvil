@@ -229,7 +229,7 @@ const fi: PartialDiscordDict = {
     coffer: 'Klaanikirstu — saldo, lahjoittajat ja staffin lisäys/poisto',
     clog: 'Collection log — jäsenen määrä ja klaanin parhaat keräilijät',
     luck: 'Droppionni — klaanin kuivin ja onnekkain, tai jäsenen',
-    guide: 'Lue asennusopas — yleiskatsaus tai yksi vaihe, linkin kanssa',
+    setup: 'Lue asennusopas — yleiskatsaus tai yksi vaihe, linkin kanssa',
   },
 
   multi: {
@@ -307,7 +307,7 @@ const fi: PartialDiscordDict = {
     noSuchStep: 'Tässä oppaassa on {total} vaihetta — valitse numero väliltä 1–{total}.',
     readFull: '📖 Lue koko opas: {url}',
     openStep: '🔗 Avaa tämä vaihe sivustolla: {url}',
-    jumpHint: '-# Hyppää vaiheeseen: `/guide topic:{topic} step:1`',
+    jumpHint: '-# Hyppää vaiheeseen: `/setup topic:{topic} step:1`',
   },
 };
 

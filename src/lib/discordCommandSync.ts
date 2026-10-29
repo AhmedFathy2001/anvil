@@ -95,6 +95,13 @@ export async function reconcileDiscordCommands(
   const cleanup = await Promise.all(candidates.map(async (guildId) => {
     const guildPath = `/applications/${app.id}/guilds/${guildId}/commands`;
     const current = await request(fetcher, token, guildPath);
+    // 403 Missing Access / 404 Unknown Guild: this application isn't in that server (the bot was
+    // removed, or the clan runs its own). Commands there can't shadow anything for anyone, and one
+    // departed server must not fail every deploy.
+    if (current && (current.status === 403 || current.status === 404)) {
+      log.warn('discord-commands.guild-skipped', { guildId, status: current.status });
+      return { ok: true as const, cleared: false };
+    }
     if (!current?.ok) {
       const detail = current ? await current.text().catch(() => '') : '';
       return { ok: false as const, result: failure(scope, `guild-lookup-${guildId}`, current, detail) };

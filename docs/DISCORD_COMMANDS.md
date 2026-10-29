@@ -38,7 +38,7 @@ The rest answer about the CLAN, and resolve no board:
 ```
 
 The member-facing reference — every command, each option explained, examples, who can use what —
-is the site guide at `/guide/commands` (`/guide topic:Slash commands` in Discord). It is generated from
+is the site guide at `/guide/commands` (`/setup topic:Slash commands` in Discord). It is generated from
 `COMMAND_DEFINITIONS` by `lib/discordCommandGuide.ts`, so a new command or option appears there on its
 own; only its example and tip are written by hand, in `commands.examples` in the guide dictionary
 (`npm run test:commandguide` fails until they are).
@@ -52,11 +52,16 @@ Every answer is **ephemeral** — only the person who ran it sees it. A bot that
 into general every time someone is curious gets muted. (A coffer write also posts to the coffer feed
 channel, the way every coffer movement does.)
 
-`/guide` renders a setup guide in Discord: `/guide topic:plugin` lists its steps, and
-`/guide topic:plugin step:5` shows that one step's text with a deep link straight to it on the site.
+`/setup` renders one of Anvil's setup guides in Discord: `/setup topic:plugin` lists its steps, and
+`/setup topic:plugin step:5` shows that one step's text with a deep link straight to it on the site.
 The whole guide is a web page with figures and callouts an embed can't reproduce, so this is partial
 rendering plus a link — the content comes from the same guide dictionary the website uses, in the
 reader's language.
+
+`/guide` is the clan's game guides (raids, bossing, money making…), the same list its `/guides` page
+shows: its own published guides plus the library guides it hasn't copied. The `guide` option
+autocompletes over that list; the answer is a card (title, summary, cover, category) linking to the
+full guide, since gear blocks and level switches don't fit an embed (lib/discordGameGuides).
 
 ---
 

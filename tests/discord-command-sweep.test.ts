@@ -108,6 +108,10 @@ before(async () => {
   for (let i = 0; i < 9; i++) {
     await db.insert(s.tiles).values({ eventId: event.id, position: i, label: `Tile ${i}` });
   }
+
+  // A published game guide, for /guide.
+  const now = new Date().toISOString();
+  await db.insert(s.guides).values({ clanId: clan.id, slug: 'tob-gear', title: 'ToB 4-man gear', summary: 'What to bring, by role.'.repeat(300), category: 'raids', status: 'published', createdAt: now, updatedAt: now });
 });
 
 after(async () => {
@@ -126,6 +130,7 @@ const SAMPLE: Record<string, (string | number | boolean)[]> = {
   size: [1, 4],
   step: [2],
   topic: ['plugin'],
+  guide: ['tob-gear', 'ToB 4-man gear', 'no such guide'],
   metric: ['ehb'],
 };
 
@@ -205,4 +210,20 @@ test('/stats pbs merges the two spellings of one run and filters by mode and siz
   assert.match(solo, /^• Solo — /m);
   assert.match(solo, /^• Expert mode solo — /m);
   assert.doesNotMatch(solo, /2 players/);
+});
+
+test('/guide finds a game guide by slug or title and autocompletes it; /setup keeps the setup guides', async () => {
+  const run = async (name: string, opts: Opt[]) => {
+    const res = (await C.handleCommand(interaction(name, opts) as never)) as { data?: { embeds?: { title?: string }[]; content?: string } };
+    return res.data?.embeds?.[0]?.title ?? res.data?.content ?? '';
+  };
+  assert.equal(await run('guide', [{ name: 'guide', type: 3, value: 'tob-gear' }]), 'ToB 4-man gear');
+  assert.equal(await run('guide', [{ name: 'guide', type: 3, value: 'tob 4-man GEAR' }]), 'ToB 4-man gear');
+  assert.match(await run('guide', [{ name: 'guide', type: 3, value: 'nope' }]), /can't find/);
+  assert.ok((await run('setup', [{ name: 'topic', type: 3, value: 'plugin' }])).length > 0);
+
+  const ac = (await C.handleAutocomplete(
+    interaction('guide', [{ name: 'guide', type: 3, value: 'tob', focused: true } as Opt], { type: 4 }) as never,
+  )) as { data?: { choices?: { name: string; value: string }[] } };
+  assert.deepEqual(ac.data?.choices, [{ name: 'ToB 4-man gear', value: 'tob-gear' }]);
 });

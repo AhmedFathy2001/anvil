@@ -2316,8 +2316,8 @@ const zhHans: PartialGuideDict = {
         examples: ['/stats luckboard'],
         tip: '氏族里最非和最欧的成员。',
       },
-      guide: {
-        examples: ['/guide topic:Plugin setup', '/guide topic:Plugin setup step:5'],
+      setup: {
+        examples: ['/setup topic:Plugin setup', '/setup topic:Plugin setup step:5'],
         tip: 'Discord 里的设置指南：步骤列表，或者单独一步并附上直达网站上该步骤的链接。',
       },
     },

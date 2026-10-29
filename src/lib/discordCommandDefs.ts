@@ -210,7 +210,7 @@ const CLAN_DEFINITIONS = [
     ],
   },
   {
-    name: 'guide',
+    name: 'setup',
     description: 'Read a setup guide — the overview or one step, with a link',
     contexts: [0],
     options: [
@@ -243,6 +243,22 @@ const CLAN_DEFINITIONS = [
         required: false,
       },
       LANGUAGE_OPTION,
+    ],
+  },
+  {
+    // The clan's game guides (raids, bossing, money making…) — the ones its /guides page shows.
+    // Answered in lib/discordGameGuides; the option autocompletes over that same list.
+    name: 'guide',
+    description: "Read one of the clan's game guides — raids, bossing, money making and more",
+    contexts: [0],
+    options: [
+      {
+        name: 'guide',
+        description: 'Which guide — start typing its name',
+        type: OPTION_TYPE.STRING,
+        required: true,
+        autocomplete: true,
+      },
     ],
   },
 ] as const;

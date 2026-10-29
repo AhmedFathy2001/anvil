@@ -2166,8 +2166,8 @@ const pl: PartialGuideDict = {
         examples: ['/stats luckboard'],
         tip: 'Najbardziej pechowi i najszczęśliwsi członkowie klanu.',
       },
-      guide: {
-        examples: ['/guide topic:Plugin setup', '/guide topic:Plugin setup step:5'],
+      setup: {
+        examples: ['/setup topic:Plugin setup', '/setup topic:Plugin setup step:5'],
         tip: 'Przewodnik konfiguracji w Discordzie: lista kroków albo jeden krok z linkiem prosto do niego na stronie.',
       },
     },

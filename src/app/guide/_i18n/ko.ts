@@ -2317,8 +2317,8 @@ const ko: PartialGuideDict = {
         examples: ['/stats luckboard'],
         tip: '클랜에서 드롭이 가장 안 뜬 멤버와 가장 운 좋은 멤버.',
       },
-      guide: {
-        examples: ['/guide topic:Plugin setup', '/guide topic:Plugin setup step:5'],
+      setup: {
+        examples: ['/setup topic:Plugin setup', '/setup topic:Plugin setup step:5'],
         tip: 'Discord 안의 설정 가이드: 단계 목록, 또는 사이트의 해당 단계로 바로 가는 링크가 달린 한 단계.',
       },
     },

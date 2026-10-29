@@ -234,10 +234,10 @@ test('COMMAND_DEFINITIONS: every clan-wide command the tree advertises has a han
   assert.deepEqual([...advertised].sort(), [...CLAN_COMMAND_NAMES].sort());
 });
 
-test('COMMAND_DEFINITIONS: /guide topic choices are exactly the guide outlines', async () => {
+test('COMMAND_DEFINITIONS: /setup topic choices are exactly the guide outlines', async () => {
   // A choice the outline map doesn't know answers "I don't have a guide by that name"; an outline
   // with no choice can't be reached. They must be the same set.
-  const guide = COMMAND_DEFINITIONS.find((c) => c.name === 'guide');
+  const guide = COMMAND_DEFINITIONS.find((c) => c.name === 'setup');
   const topic = guide?.options?.find((o) => o.name === 'topic') as { choices?: { value: string }[] } | undefined;
   const choiceValues = (topic?.choices ?? []).map((c) => c.value).sort();
   const { GUIDE_TOPICS } = await import('../src/lib/discordGuides.ts');

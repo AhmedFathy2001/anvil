@@ -2300,9 +2300,13 @@ export const en = {
         examples: ['/stats luckboard'],
         tip: 'The clan’s driest and luckiest members.',
       },
-      guide: {
-        examples: ['/guide topic:Plugin setup', '/guide topic:Plugin setup step:5'],
+      setup: {
+        examples: ['/setup topic:Plugin setup', '/setup topic:Plugin setup step:5'],
         tip: 'A setup guide inside Discord: the list of steps, or one step with a link straight to it on the site.',
+      },
+      guide: {
+        examples: ['/guide guide:ToB 4-man gear'],
+        tip: 'One of the clan’s game guides (raids, bossing, money making…): start typing its name and pick it from the list.',
       },
     } as Record<string, { examples: string[]; tip: string }>,
   },

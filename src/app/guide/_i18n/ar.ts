@@ -2184,8 +2184,8 @@ const ar: PartialGuideDict = {
         examples: ['/stats luckboard'],
         tip: 'أنحس أعضاء العشيرة وأسعدهم حظاً.',
       },
-      guide: {
-        examples: ['/guide topic:Plugin setup', '/guide topic:Plugin setup step:5'],
+      setup: {
+        examples: ['/setup topic:Plugin setup', '/setup topic:Plugin setup step:5'],
         tip: 'دليل إعداد داخل ديسكورد: قائمة الخطوات، أو خطوة واحدة مع رابط إليها مباشرة في الموقع.',
       },
     },

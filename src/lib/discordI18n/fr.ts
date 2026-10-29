@@ -229,7 +229,7 @@ const fr: PartialDiscordDict = {
     coffer: 'Le coffre du clan — solde, donateurs et ajout/retrait par le staff',
     clog: 'Journal de collection — le total d’un membre et les meilleurs collectionneurs du clan',
     luck: 'Chance aux drops — les plus secs et chanceux du clan, ou d’un membre',
-    guide: 'Lire un guide d’installation — l’aperçu ou une étape, avec un lien',
+    setup: 'Lire un guide d’installation — l’aperçu ou une étape, avec un lien',
   },
 
   multi: {
@@ -307,7 +307,7 @@ const fr: PartialDiscordDict = {
     noSuchStep: 'Ce guide compte {total} étapes — choisis un nombre de 1 à {total}.',
     readFull: '📖 Lire le guide complet : {url}',
     openStep: '🔗 Ouvrir cette étape sur le site : {url}',
-    jumpHint: '-# Aller à une étape : `/guide topic:{topic} step:1`',
+    jumpHint: '-# Aller à une étape : `/setup topic:{topic} step:1`',
   },
 };
 
