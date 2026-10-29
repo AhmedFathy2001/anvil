@@ -9,7 +9,7 @@ import { db } from '@/db';
 import { events } from '@/db/schema';
 import { cleanupDueAt } from '@/lib/discordPostPolicy';
 import { teardownTeamDiscord, unassignSharedRoles } from '@/lib/discord-teams';
-import { teardownEventServer, usesEventServer } from '@/lib/eventDiscord';
+import { teardownAutoClanChannels, teardownEventServer, usesEventServer } from '@/lib/eventDiscord';
 import { loadEventRoleSettings } from '@/lib/eventDiscordPrefs';
 import { log } from '@/lib/logger';
 
@@ -36,6 +36,8 @@ export async function runDiscordCleanups(nowMs: number = Date.now()): Promise<vo
       if (teardownAt != null && nowMs >= teardownAt) {
         const r = (await usesEventServer(event.id)) ? await teardownEventServer(event.id) : await teardownTeamDiscord(event.id);
         log.info('event-discord-cleanup.teardown', { eventId: event.id, ok: r.ok });
+        // Team channels in the clans' own servers, where each clan let Anvil manage them.
+        await teardownAutoClanChannels(event.id);
         await db.update(events).set({ discordCleanup: 'all' }).where(eq(events.id, event.id));
       } else if (teardownAt == null) {
         // No teardown asked for (the player role, if asked, is done above): settle it so the sweep

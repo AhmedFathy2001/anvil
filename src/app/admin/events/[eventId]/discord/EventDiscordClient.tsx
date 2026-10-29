@@ -22,6 +22,8 @@ import {
   type PingChoice,
   type PostGroup,
 } from '@/lib/discordPostPolicy';
+import type { PartnerReadiness } from '@/lib/partnerDiscordReadiness';
+import { POSTS_LABEL } from '@/lib/partnerReadiness';
 
 interface Channel {
   id: string;
@@ -40,6 +42,7 @@ interface View {
     teamChannels: boolean;
   };
   roles: EventRoleSettings;
+  partners: PartnerReadiness[];
 }
 
 const PING_LABEL: Record<PingChoice, string> = { none: 'Nobody', members: '@Members', players: '@Bingo player' };
@@ -319,6 +322,7 @@ export default function EventDiscordClient({ eventId, hasCohosts }: { eventId: n
                 </label>
               </div>
             )}
+            {view.partners.length > 0 && <PartnerList partners={view.partners} />}
           </div>
         </Section>
 
@@ -569,4 +573,48 @@ function timingLabel(t: 'approve' | 'draft' | 'never'): string {
 
 function cleanupLabel(c: { mode: 'never' | 'end' | 'after'; days?: number }): string {
   return c.mode === 'never' ? 'Never' : c.mode === 'end' ? 'At the end' : `${c.days ?? 7} days after`;
+}
+
+const VERDICT: Record<PartnerReadiness['verdict'], { label: string; cls: string }> = {
+  ready: { label: 'Ready', cls: 'border-accent-green/40 bg-accent-green/10 text-accent-green-light' },
+  partial: { label: 'Something missing', cls: 'border-yellow-400/40 bg-yellow-400/10 text-yellow-300' },
+  nothing: { label: 'Not using Discord', cls: 'border-card-border bg-brown-dark text-text-muted' },
+};
+
+/**
+ * Each co-host's Discord for this board, as facts the host can act on (ask them to set a channel,
+ * build their team channels). Every setting here is theirs to change, on their own co-hosted page.
+ */
+function PartnerList({ partners }: { partners: PartnerReadiness[] }) {
+  return (
+    <div className="space-y-2 border-t border-card-border-soft pt-4">
+      <div className="text-[13px] font-semibold">Your co-hosts’ Discord</div>
+      <p className="text-[12px] text-text-muted">What each partner’s own server does with this board. They change it on their side; this is so you know who to nudge.</p>
+      <ul className="divide-y divide-card-border-soft rounded-lg border border-card-border-soft">
+        {partners.map((p) => {
+          const f = p.facts;
+          const v = VERDICT[p.verdict];
+          const bits = [
+            `Posts: ${POSTS_LABEL[p.posts]}`,
+            f.botConnected ? 'Bot connected' : 'No bot connected',
+            `Player role ${f.playerRoleReady ? 'on' : 'off'}`,
+            f.ownTeams > 0
+              ? `Team channels ${f.teamsBuilt}/${f.ownTeams} built${f.autoTeamChannels ? ' (automatic)' : ''}`
+              : null,
+          ].filter(Boolean);
+          return (
+            <li key={p.clanId} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 text-[13px]">
+              <span className="font-medium">{p.name}</span>
+              {p.pending ? (
+                <span className="rounded-full border border-card-border px-2 py-0.5 text-[11px] text-text-muted">Hasn’t accepted yet</span>
+              ) : (
+                <span className={`rounded-full border px-2 py-0.5 text-[11px] ${v.cls}`}>{v.label}</span>
+              )}
+              {!p.pending && <span className="w-full text-[12px] text-text-muted sm:w-auto">{bits.join(' · ')}</span>}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
 }

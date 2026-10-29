@@ -31,7 +31,7 @@ import { discordRest, getBotCredentials, resolveDiscordIdForMember } from '@/lib
 import { acceptedCohostClanIds } from '@/lib/coHost';
 import { areEventRostersFinal } from '@/lib/eventReadiness';
 import { isSafeAutomatedRole } from '@/lib/discordRoleSafety';
-import { syncEventDiscordFireAndForget, usesEventServer } from '@/lib/eventDiscord';
+import { provisionCohostTeamChannels, syncEventDiscordFireAndForget, usesEventServer } from '@/lib/eventDiscord';
 
 // Discord permission bits (https://discord.com/developers/docs/topics/permissions).
 // All fit comfortably in 32 bits, so plain-number bitwise ops are safe; we serialise the
@@ -134,8 +134,8 @@ interface SharedBingoRoleTarget {
 /**
  * Accepted co-hosts that explicitly allow this event to touch their contestant role. Each target
  * resolves its own bot, guild and pre-selected role; the host never supplies any of those IDs.
- * This intentionally does not create team roles/channels in co-host servers, whose resource IDs
- * would need a separate per-guild mapping rather than the host-only columns on `teams`.
+ * Team roles/channels in a co-host's server are lib/eventDiscord's (team_discord_resources), not
+ * the host-only columns on `teams`.
  */
 async function cohostBingoRoleTarget(eventId: number, clanId: number): Promise<SharedBingoRoleTarget | null> {
   const clanIds = await acceptedCohostClanIds(eventId).catch(() => [] as number[]);
@@ -1064,6 +1064,8 @@ export function syncTeamDiscordOnDraftCompleteFireAndForget(eventId: number): vo
     // the ordering — provision the roles/channels, then hand them out.
     await provisionTeamDiscord(eventId);
     await assignTeamRoles(eventId);
+    // Co-hosts that agreed get their own teams' channels in their own servers, by their own bots.
+    await provisionCohostTeamChannels(eventId);
   })().catch((err) => {
     log.warn('discord-teams.draft-complete-sync-throw', { eventId }, err);
   });

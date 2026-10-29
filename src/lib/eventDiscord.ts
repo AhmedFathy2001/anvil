@@ -47,6 +47,7 @@ import { resolveClanById, originForHost, apexDomain } from '@/lib/clanContext';
 import { joinAccessToken, hasJoinGrant, grantStorageAvailable, dropJoinGrant } from '@/lib/discordUserTokens';
 import { isDiscordOAuthConfigured } from '@/lib/discord-oauth';
 import { cohostBingoRoleReady } from '@/lib/discord-teams';
+import { loadEventRoleSettings, readPartnerDiscordPrefs } from '@/lib/eventDiscordPrefs';
 import {
   buildJoinDm,
   classifyRolePut,
@@ -535,23 +536,36 @@ export interface PlanningResult extends ProvisionResult {
 }
 
 /**
- * One clan's private planning channels in ITS OWN server (joint layout), made with its own bot, and
- * its own team members given the planning role there. Players not in that server are counted, not
- * invited — this is their own clan's server.
+ * One clan's private team channels in ITS OWN server, made with its own bot, and its own team members
+ * given the team role there. Players not in that server are counted, not invited — this is their own
+ * clan's server.
+ *   joint — each clan's planning, beside the shared event server.
+ *   own   — a co-host's own teams, which otherwise only have channels in the host's server.
  */
 export async function provisionClanPlanning(eventId: number, clanId: number): Promise<PlanningResult> {
   const result: PlanningResult = { ok: false, rolesCreated: 0, channelsCreated: 0, failures: [], membersAssigned: 0, membersNotInServer: 0 };
   // clan-scope: global -- clanId is the acting clan, checked by the caller via clanRoleOnEvent.
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) return { ...result, error: 'Event not found.' };
-  if (event.discordLayout !== 'joint') return { ...result, error: 'Planning in your own server is only for the joint layout.' };
+  const layout = (isDiscordLayout(event.discordLayout) ? event.discordLayout : 'own') as DiscordLayout;
+  if (layout === 'single') return { ...result, error: 'This event keeps every team’s channels in its one event server.' };
+  if (layout === 'own' && clanId === event.clanId) {
+    return { ...result, error: 'Your teams’ channels are built on the Teams tab, in your own server already.' };
+  }
   const ctx = await clanServerCtx(clanId);
   if (!ctx) return { ...result, error: 'Connect your clan’s Discord bot and server first (Integrations).' };
 
   const ownTeams = (await db.select().from(teams).where(eq(teams.eventId, eventId))).filter((t) =>
-    planTeamPlacement('joint', t).some((p) => p.server === 'clan' && p.clanId === clanId),
+    planTeamPlacement(layout, t, event.clanId).some((p) => p.server === 'clan' && p.clanId === clanId),
   );
-  if (ownTeams.length === 0) return { ...result, error: 'Your clan has no team of its own on this event.' };
+  if (ownTeams.length === 0) {
+    return {
+      ...result,
+      error: layout === 'own'
+        ? 'Your clan has no team of its own on this board. Drafted teams mix clans, so their channels stay in the host’s server.'
+        : 'Your clan has no team of its own on this event.',
+    };
+  }
 
   // One category per event in this server, shared by this clan's teams.
   const existingCat = await db.query.teamDiscordResources.findFirst({
@@ -564,7 +578,7 @@ export async function provisionClanPlanning(eventId: number, clanId: number): Pr
   });
   let categoryId = existingCat?.categoryId ?? null;
   if (!categoryId) {
-    const c = await createChannel(ctx, { name: `${event.name} planning`, type: CHANNEL_CATEGORY, roleIds: [], allow: '0' });
+    const c = await createChannel(ctx, { name: layout === 'own' ? event.name : `${event.name} planning`, type: CHANNEL_CATEGORY, roleIds: [], allow: '0' });
     if (!c.id) return { ...result, error: `Could not create the category. ${c.error ?? ''}`.trim() };
     categoryId = c.id;
     result.channelsCreated++;
@@ -1164,7 +1178,7 @@ export async function adminStatus(eventId: number, clanId: number): Promise<Admi
     acceptedCohostClanIds(eventId),
     eventServerCtx(event),
     getBotCredentials(clanId),
-    getSetting(clanId, 'discord_team_sync_enabled'),
+    autoTeamChannels(eventId, clanId, event.clanId),
     db.select().from(teams).where(eq(teams.eventId, eventId)),
   ]);
   const teamIds = eventTeams.map((t) => t.id);
@@ -1209,11 +1223,11 @@ export async function adminStatus(eventId: number, clanId: number): Promise<Admi
     cohostRole: role === 'cohost' ? { ready: await cohostBingoRoleReady(eventId, clanId) } : null,
     autoJoinStoresGrants: grantStorageAvailable(),
     ownServerConnected: !!ownCreds,
-    ownTeamSyncEnabled: teamSync === 'true',
+    ownTeamSyncEnabled: teamSync,
     teams: eventTeams.map((t) => {
       const ev = resources.find((r) => r.teamId === t.id && r.purpose === 'event' && r.guildId === event.eventGuildId);
       const plan = resources.find((r) => r.teamId === t.id && r.purpose === 'planning');
-      const planned = planTeamPlacement(layout, t).some((p) => p.server === 'clan');
+      const planned = planTeamPlacement(layout, t, event.clanId).some((p) => p.server === 'clan');
       return {
         id: t.id,
         name: t.name,
@@ -1299,6 +1313,52 @@ export async function teardownClanPlanning(eventId: number, clanId: number): Pro
 }
 
 /**
+ * May Anvil build or remove this clan's team channels in its OWN server for this event without one of
+ * its admins pressing the button? The host's answer is the event's own team-channel choice; a
+ * co-host's is its choice for this board, else its clan-wide team-sync switch.
+ */
+export async function autoTeamChannels(eventId: number, clanId: number, hostClanId: number): Promise<boolean> {
+  if (clanId === hostClanId) return (await loadEventRoleSettings(eventId, clanId)).teamChannels;
+  const own = (await readPartnerDiscordPrefs(eventId, clanId)).teamChannels;
+  return own ?? (await getSetting(clanId, 'discord_team_sync_enabled')) === 'true';
+}
+
+/**
+ * Classic layout, rosters final: each co-host that agreed gets its own teams' channels in its own
+ * server. Never fails the caller.
+ */
+export async function provisionCohostTeamChannels(eventId: number): Promise<void> {
+  // clan-scope: global -- system hook after a roster change on this event.
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { discordLayout: true, clanId: true } });
+  if (!event || event.discordLayout !== 'own') return;
+  for (const clanId of await acceptedCohostClanIds(eventId)) {
+    try {
+      if (!(await autoTeamChannels(eventId, clanId, event.clanId))) continue;
+      const r = await provisionClanPlanning(eventId, clanId);
+      if (!r.ok) log.info('event-discord.cohost-channels-skip', { eventId, clanId, error: r.error });
+    } catch (err) {
+      log.warn('event-discord.cohost-channels-throw', { eventId, clanId }, err);
+    }
+  }
+}
+
+/** Event over: take down the own-server team channels of every clan that let Anvil manage them. */
+export async function teardownAutoClanChannels(eventId: number): Promise<void> {
+  // clan-scope: global -- system hook at the end of this event.
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { clanId: true } });
+  if (!event) return;
+  for (const clanId of [event.clanId, ...(await acceptedCohostClanIds(eventId))]) {
+    try {
+      if (!(await autoTeamChannels(eventId, clanId, event.clanId))) continue;
+      const r = await teardownClanPlanning(eventId, clanId);
+      if (r.deleted || r.failed) log.info('event-discord.clan-channels-teardown', { eventId, clanId, deleted: r.deleted, failed: r.failed });
+    } catch (err) {
+      log.warn('event-discord.clan-channels-teardown-throw', { eventId, clanId }, err);
+    }
+  }
+}
+
+/**
  * Draft complete / rosters final: build the event server and bring everyone in. Each clan's planning
  * runs only where that clan switched team sync on (its own consent to automatic changes in its own
  * server). Fire-and-forget; never fails the caller.
@@ -1313,7 +1373,7 @@ export function syncEventDiscordFireAndForget(eventId: number): void {
     await syncEventServerMembers(eventId);
     if (event.discordLayout === 'joint') {
       for (const clanId of [event.clanId, ...(await acceptedCohostClanIds(eventId))]) {
-        if ((await getSetting(clanId, 'discord_team_sync_enabled')) === 'true') await provisionClanPlanning(eventId, clanId);
+        if (await autoTeamChannels(eventId, clanId, event.clanId)) await provisionClanPlanning(eventId, clanId);
       }
     }
   })().catch((err) => log.warn('event-discord.sync-throw', { eventId }, err));
@@ -1370,7 +1430,7 @@ export async function updateTeamEventDiscordIdentity(teamId: number, actingClanI
     let ctx: ServerCtx | null = null;
     if (row.purpose === 'event') {
       ctx = await eventServerCtx(event);
-    } else if (row.clanId === actingClanId || (await getSetting(row.clanId, 'discord_team_sync_enabled')) === 'true') {
+    } else if (row.clanId === actingClanId || (await autoTeamChannels(event.id, row.clanId, event.clanId))) {
       ctx = await clanServerCtx(row.clanId);
     }
     // The bot must still be driving the very server the row was made in.

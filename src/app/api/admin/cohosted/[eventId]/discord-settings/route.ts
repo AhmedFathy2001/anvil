@@ -29,10 +29,11 @@ async function scope(eventIdRaw: string) {
 }
 
 async function view(eventId: number, clanId: number) {
-  const [prefs, host, roleSync] = await Promise.all([
+  const [prefs, host, roleSync, teamSync] = await Promise.all([
     readPartnerDiscordPrefs(eventId, clanId),
     readEventDiscordPrefs(eventId),
     getSetting(clanId, 'discord_cohost_role_sync_enabled'),
+    getSetting(clanId, 'discord_team_sync_enabled'),
   ]);
   const { webhookUrl, ...rest } = prefs;
   const channels = await channelChoices(clanId);
@@ -43,6 +44,8 @@ async function view(eventId: number, clanId: number) {
     host: { share: host.cohosts === false ? 'none' : (host.partnerShare ?? 'all') },
     // What "give my players the role" is when this board hasn't been set: the clan-wide switch.
     playerRoleDefault: roleSync === 'true',
+    // And "build my own teams' channels automatically": the clan-wide team-sync switch.
+    teamChannelsDefault: teamSync === 'true',
   };
 }
 

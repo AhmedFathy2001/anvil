@@ -13,6 +13,7 @@ import {
   saveEventDiscordPrefs,
 } from '@/lib/eventDiscordPrefs';
 import { getSetting } from '@/lib/settings';
+import { partnerDiscordReadiness } from '@/lib/partnerDiscordReadiness';
 
 /**
  * One event's Discord tab (lib/discordPostPolicy): which posts go out, who they ping, its own
@@ -42,13 +43,15 @@ async function view(eventId: number, clanId: number) {
     getSetting(clanId, 'discord_team_sync_enabled'),
   ]);
   const { webhookUrl, ...rest } = prefs;
-  const channels = await channelChoices(clanId);
+  const [channels, partners] = await Promise.all([channelChoices(clanId), partnerDiscordReadiness(eventId, clanId)]);
   return {
     prefs: rest,
     hasOwnChannel: !!webhookUrl,
     channels,
     clanDefaults: { ...clanPosts, roles: clanRoles, teamChannels: teamSync === 'true' },
     roles,
+    // Each co-host's side, as facts (lib/partnerDiscordReadiness) — never its ids.
+    partners,
   };
 }
 

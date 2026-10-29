@@ -30,6 +30,10 @@ test('single: everything in the one server; own: nothing for this module', () =>
     { purpose: 'event', server: 'event', clanId: null, privateChannels: true },
   ]);
   assert.deepEqual(planTeamPlacement('own', { clanId: 3 }), []);
+  // A co-host's own team: its channels in the co-host's server. The host's teams and drafted teams stay put.
+  assert.deepEqual(planTeamPlacement('own', { clanId: 3 }, 1), [{ purpose: 'planning', server: 'clan', clanId: 3, privateChannels: true }]);
+  assert.deepEqual(planTeamPlacement('own', { clanId: 1 }, 1), []);
+  assert.deepEqual(planTeamPlacement('own', { clanId: null }, 1), []);
 });
 
 test('layout guard', () => {

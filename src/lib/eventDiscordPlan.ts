@@ -40,8 +40,16 @@ export interface TeamPlacement {
  * joint: the team always gets its role in the event server (that role unlocks the shared channels).
  * Its planning goes to its clan's own server — but a DRAFTED team belongs to no clan (teams.clanId is
  * null by design), so its only possible home is the event server, as private channels there.
+ *
+ * own: the host's server holds every team (lib/discord-teams, the columns on `teams`). A co-host's
+ * OWN team — clan-vs-clan, so teams.clanId is that co-host — can also get its role and channels in the
+ * co-host's own server, made by the co-host's bot. Needs `hostClanId` to tell the two apart.
  */
-export function planTeamPlacement(layout: DiscordLayout, team: { clanId: number | null }): TeamPlacement[] {
+export function planTeamPlacement(
+  layout: DiscordLayout,
+  team: { clanId: number | null },
+  hostClanId?: number,
+): TeamPlacement[] {
   if (layout === 'single') {
     return [{ purpose: 'event', server: 'event', clanId: null, privateChannels: true }];
   }
@@ -53,6 +61,9 @@ export function planTeamPlacement(layout: DiscordLayout, team: { clanId: number 
       { purpose: 'event', server: 'event', clanId: null, privateChannels: false },
       { purpose: 'planning', server: 'clan', clanId: team.clanId, privateChannels: true },
     ];
+  }
+  if (team.clanId != null && hostClanId != null && team.clanId !== hostClanId) {
+    return [{ purpose: 'planning', server: 'clan', clanId: team.clanId, privateChannels: true }];
   }
   return [];
 }

@@ -462,3 +462,42 @@ test('co-host sign-up staff: the co-host’s moderators and up, or an operator a
   });
   assert.equal(await cohostSignupClanFor(eventId, hostAdminUser), cohostClan, 'a live act-as grant counts');
 });
+
+test('classic layout: a co-host’s own team gets channels in the co-host’s server; the host sees it in its partner list', async () => {
+  const [ev] = await db.insert(s.events).values({ clanId: hostClan, name: 'Classic', boardSize: 5, teamFormation: 'per_clan' }).returning();
+  await db.insert(s.teams).values({ eventId: ev.id, name: 'Host side', color: '#ff0000', clanId: hostClan });
+  const [theirs] = await db.insert(s.teams).values({ eventId: ev.id, name: 'Their side', color: '#0000ff', clanId: cohostClan }).returning();
+  await db.insert(s.teams).values({ eventId: ev.id, name: 'Drafted', color: '#00ff00', clanId: null });
+  await db.insert(s.eventCohosts).values({ eventId: ev.id, clanId: cohostClan, status: 'accepted', teamId: theirs.id });
+
+  calls.length = 0;
+  const r = await E.provisionClanPlanning(ev.id, cohostClan);
+  assert.ok(r.ok, r.error);
+  assert.ok(calls.filter((c) => c.method === 'POST' && c.path.startsWith('/guilds/')).every((c) => c.path.startsWith(`/guilds/${COHOST_GUILD}/`)));
+  const category = calls.find((c) => c.method === 'POST' && c.body?.type === 4);
+  assert.equal(category?.body.name, 'Classic', 'the board’s own name, not “planning”');
+  const rows = await db.select().from(s.teamDiscordResources).where(eq(s.teamDiscordResources.teamId, theirs.id));
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].guildId, COHOST_GUILD);
+  // The host builds its channels on the Teams tab; this is never the way into its server.
+  assert.equal((await E.provisionClanPlanning(ev.id, hostClan)).ok, false);
+
+  const { partnerDiscordReadiness } = await import('../src/lib/partnerDiscordReadiness.ts');
+  const [partner] = await partnerDiscordReadiness(ev.id, hostClan);
+  assert.equal(partner.clanId, cohostClan);
+  assert.equal(partner.pending, false);
+  assert.equal(partner.facts.ownTeams, 1, 'the drafted team stays in the host’s server');
+  assert.equal(partner.facts.teamsBuilt, 1);
+  assert.equal(partner.facts.botConnected, true);
+
+  // Only a co-host that let Anvil manage them loses them automatically at the end. Its clan-wide
+  // team sync is on (an earlier test), but its choice for this board wins.
+  const { savePartnerDiscordPrefs } = await import('../src/lib/eventDiscordPrefs.ts');
+  await savePartnerDiscordPrefs(ev.id, cohostClan, { teamChannels: false });
+  await E.teardownAutoClanChannels(ev.id);
+  assert.equal((await db.select().from(s.teamDiscordResources).where(eq(s.teamDiscordResources.teamId, theirs.id))).length, 1);
+  await savePartnerDiscordPrefs(ev.id, cohostClan, { teamChannels: true });
+  assert.equal(await E.autoTeamChannels(ev.id, cohostClan, hostClan), true);
+  await E.teardownAutoClanChannels(ev.id);
+  assert.equal((await db.select().from(s.teamDiscordResources).where(eq(s.teamDiscordResources.teamId, theirs.id))).length, 0);
+});

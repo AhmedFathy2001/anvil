@@ -56,7 +56,11 @@ export default function EventDiscordServerPanel({ eventId }: { eventId: number }
   async function run(action: string, extra: Record<string, unknown> = {}, okText?: string) {
     if (action === 'teardown-event-server' || action === 'teardown-planning') {
       const ok = await confirm({
-        title: action === 'teardown-event-server' ? 'Delete the event server’s roles and channels?' : 'Delete your planning channels?',
+        title: action === 'teardown-event-server'
+          ? 'Delete the event server’s roles and channels?'
+          : status?.layout === 'own'
+            ? 'Delete your team channels?'
+            : 'Delete your planning channels?',
         body: 'The channels, their message history and the team roles will be deleted from Discord. You can rebuild them, but the history is gone.',
         confirmLabel: 'Delete',
       });
@@ -197,23 +201,24 @@ export default function EventDiscordServerPanel({ eventId }: { eventId: number }
           </div>
         )}
 
-        {/* Own planning (joint) */}
-        {status.layout === 'joint' && (
+        {/* Own planning (joint), or a co-host's own teams' channels in its own server (own) */}
+        {(status.layout === 'joint' || (status.layout === 'own' && !isHost && ownTeams.length > 0)) && (
           <div className="space-y-2 rounded-lg border border-card-border p-3">
-            <div className="font-semibold">Your private planning channels</div>
+            <div className="font-semibold">{status.layout === 'own' ? 'Your teams’ channels in your server' : 'Your private planning channels'}</div>
             <p className="text-[12px] text-text-muted">
               A private team role plus text and voice channels, created in <em>your own</em> clan server by your own bot. Only your team members get the role. The other clan never sees these channels.
-              {status.ownTeamSyncEnabled ? ' They are also created automatically when the rosters are final.' : ''}
+              {status.layout === 'own' ? ' The host’s server has its own channels for every team; these are for your players in your server.' : ''}
+              {status.ownTeamSyncEnabled ? ' They are also created automatically when the rosters are final, and removed with the host’s at the end.' : ''}
             </p>
             {!status.ownServerConnected ? (
               <p className="text-[12px] text-accent-red">Connect your clan’s bot and server under Integrations first.</p>
             ) : (
               <div className="flex flex-wrap gap-2">
                 <button onClick={() => run('planning')} disabled={!!busy} className="rounded-md border border-card-border px-3 py-1.5 text-[13px] disabled:opacity-50">
-                  {busy === 'planning' ? 'Working…' : 'Create / update my planning channels'}
+                  {busy === 'planning' ? 'Working…' : status.layout === 'own' ? 'Create / update my team channels' : 'Create / update my planning channels'}
                 </button>
                 <button onClick={() => run('teardown-planning')} disabled={!!busy} className="rounded-md border border-accent-red/50 px-3 py-1.5 text-[13px] text-accent-red disabled:opacity-50">
-                  Delete my planning channels
+                  {status.layout === 'own' ? 'Delete my team channels' : 'Delete my planning channels'}
                 </button>
               </div>
             )}
@@ -221,7 +226,9 @@ export default function EventDiscordServerPanel({ eventId }: { eventId: number }
               <ul className="text-[12px] text-text-muted">
                 {ownTeams.map((t) => (
                   <li key={t.id}>
-                    {t.name}: event role {t.eventRole ? '✓' : '—'} · planning {t.planning ? '✓' : '—'}
+                    {status.layout === 'own'
+                      ? `${t.name}: channels in your server ${t.planning ? '✓' : '—'}`
+                      : `${t.name}: event role ${t.eventRole ? '✓' : '—'} · planning ${t.planning ? '✓' : '—'}`}
                   </li>
                 ))}
               </ul>
@@ -311,7 +318,7 @@ function summarise(action: string, report: unknown): string {
     return `${r.joined ?? 0} in the server, ${r.pending ?? 0} still to join${r.dmSent ? `, ${r.dmSent} newly DMed` : ''}.`;
   }
   if (action === 'planning') {
-    return `Planning channels ready. ${r.membersAssigned ?? 0} teammates given the role${r.membersNotInServer ? `, ${r.membersNotInServer} aren’t in your server` : ''}.`;
+    return `Channels ready. ${r.membersAssigned ?? 0} teammates given the role${r.membersNotInServer ? `, ${r.membersNotInServer} aren’t in your server` : ''}.`;
   }
   return 'Done.';
 }

@@ -14,6 +14,7 @@ interface View {
   channels: { enabled: boolean; channels: { id: string; name: string; parentName: string | null }[] };
   host: { share: 'all' | 'big' | 'none' };
   playerRoleDefault: boolean;
+  teamChannelsDefault: boolean;
 }
 
 // Which groups the "big moments" preset still lets through, for the hint beside each.
@@ -21,7 +22,8 @@ const BIG_GROUPS: PostGroup[] = ['life', 'draft', 'board'];
 
 /**
  * A co-host clan's side of a board's Discord: what its own server shows (never more than the host
- * shares), where, who it pings, and whether its bot gives its own players the player role.
+ * shares), where, who it pings, whether its bot gives its own players the player role, and whether it
+ * builds its own teams' channels in its own server (lib/eventDiscord provisionClanPlanning).
  */
 export default function CohostDiscordClient({ eventId, hostName }: { eventId: number; hostName: string }) {
   const [view, setView] = useState<View | null>(null);
@@ -181,13 +183,20 @@ export default function CohostDiscordClient({ eventId, hostName }: { eventId: nu
           )}
         </>
       )}
-      <div className="border-t border-card-border-soft pt-4">
+      <div className="space-y-3 border-t border-card-border-soft pt-4">
         <Checkbox
           checked={prefs.playerRole ?? view.playerRoleDefault}
           onChange={(v) => void save({ ...prefs, playerRole: v })}
           disabled={saving}
           label="Give your players the @Bingo player role"
           description="Your bot hands it out in your server, only to your own members"
+        />
+        <Checkbox
+          checked={prefs.teamChannels ?? view.teamChannelsDefault}
+          onChange={(v) => void save({ ...prefs, teamChannels: v })}
+          disabled={saving}
+          label="Build your own teams’ channels in your server"
+          description="When the rosters are final your bot makes a role, text and voice channel for each of your clan’s teams, and removes them when the event ends. Drafted teams mix clans, so theirs stay in the host’s server."
         />
       </div>
       {error && <p className="text-[13px] text-accent-red">{error}</p>}
