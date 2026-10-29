@@ -217,7 +217,7 @@ const ja: PartialDiscordDict = {
     coffer: 'クランの金庫 —— 残高・寄付者・運営による増減',
     clog: 'コレクションログ —— メンバーの数とクランの上位収集者',
     luck: 'ドロップ運 —— クランで最も渋い人と当たる人、または個人の',
-    guide: 'セットアップガイドを読む —— 概要か 1 ステップ、リンク付き',
+    setup: 'セットアップガイドを読む —— 概要か 1 ステップ、リンク付き',
   },
 
   multi: {
@@ -295,7 +295,7 @@ const ja: PartialDiscordDict = {
     noSuchStep: 'このガイドは {total} ステップです —— 1 から {total} までの番号を選んでください。',
     readFull: '📖 ガイド全文を読む：{url}',
     openStep: '🔗 このステップをサイトで開く：{url}',
-    jumpHint: '-# ステップへジャンプ：`/guide topic:{topic} step:1`',
+    jumpHint: '-# ステップへジャンプ：`/setup topic:{topic} step:1`',
   },
 };
 

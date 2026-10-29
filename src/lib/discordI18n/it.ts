@@ -229,7 +229,7 @@ const it: PartialDiscordDict = {
     coffer: 'La cassa del clan — saldo, donatori e aggiunte/rimozioni dello staff',
     clog: 'Registro di collezione — il conteggio di un membro e i top collezionisti del clan',
     luck: 'Fortuna ai drop — i più sfortunati e fortunati del clan, o di un membro',
-    guide: 'Leggi una guida di configurazione — la panoramica o un passo, con link',
+    setup: 'Leggi una guida di configurazione — la panoramica o un passo, con link',
   },
 
   multi: {
@@ -307,7 +307,7 @@ const it: PartialDiscordDict = {
     noSuchStep: 'Questa guida ha {total} passi — scegli un numero da 1 a {total}.',
     readFull: '📖 Leggi la guida completa: {url}',
     openStep: '🔗 Apri questo passo sul sito: {url}',
-    jumpHint: '-# Vai a un passo: `/guide topic:{topic} step:1`',
+    jumpHint: '-# Vai a un passo: `/setup topic:{topic} step:1`',
   },
 };
 

@@ -82,6 +82,7 @@ import {
   type Interaction,
   type InteractionResponse,
 } from '@/lib/discordInteractions';
+import { suggestGameGuides } from '@/lib/discordGameGuides';
 import { fmt, plural, getDiscordDict, resolveLocale, findDiscordLocale, type DiscordDict } from '@/lib/discordI18n';
 
 // ── Shared embed furniture ──────────────────────────────────────────────────────────────────────
@@ -1210,6 +1211,13 @@ export async function handleAutocomplete(interaction: Interaction): Promise<Inte
   if (!focused) return autocompleteReply([]);
 
   if (focused.name === 'page') return autocompleteReply(suggestClogPages(focused.value));
+
+  if (focused.name === 'guide') {
+    const clan =
+      (await getClanContext(interaction.guild_id ?? null)) ??
+      (interaction.guild_id ? await resolveForeignClan(interaction.guild_id, invokerId(interaction)) : null);
+    return autocompleteReply(clan ? await suggestGameGuides(clan.clanId, focused.value) : []);
+  }
 
   if (focused.name === 'player' || focused.name === 'account') {
     const clan =

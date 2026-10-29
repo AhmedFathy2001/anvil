@@ -229,7 +229,7 @@ const nl: PartialDiscordDict = {
     coffer: 'De clankas — saldo, donateurs, en staff voegt toe/haalt weg',
     clog: 'Collectielogboek — het aantal van een lid en de topverzamelaars van de clan',
     luck: 'Drop-geluk — de droogste en gelukkigste van de clan, of van een lid',
-    guide: 'Lees een instelgids — het overzicht of één stap, met een link',
+    setup: 'Lees een instelgids — het overzicht of één stap, met een link',
   },
 
   multi: {
@@ -307,7 +307,7 @@ const nl: PartialDiscordDict = {
     noSuchStep: 'Deze gids heeft {total} stappen — kies een getal van 1 tot {total}.',
     readFull: '📖 Lees de volledige gids: {url}',
     openStep: '🔗 Open deze stap op de site: {url}',
-    jumpHint: '-# Spring naar een stap: `/guide topic:{topic} step:1`',
+    jumpHint: '-# Spring naar een stap: `/setup topic:{topic} step:1`',
   },
 };
 

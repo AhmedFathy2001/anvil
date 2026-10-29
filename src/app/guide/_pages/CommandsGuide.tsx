@@ -11,7 +11,7 @@ export async function commandsGuideMetadata(lang: string): Promise<Metadata> {
   return guideMetadata(lang, 'commands', t.commands.metaTitle, t.commands.metaDescription);
 }
 
-// Section ids, in page order. lib/discordGuides mirrors this list for `/guide topic:commands`.
+// Section ids, in page order. lib/discordGuides mirrors this list for `/setup topic:commands`.
 export const COMMANDS_SECTIONS = ['using', 'bingo', 'clan', 'options', 'who', 'trouble'] as const;
 
 type Dict = Awaited<ReturnType<typeof getDict>>;

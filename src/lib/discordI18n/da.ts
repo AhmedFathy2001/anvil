@@ -229,7 +229,7 @@ const da: PartialDiscordDict = {
     coffer: 'Klankisten — saldo, donorer, og staff tilføjer/fjerner',
     clog: 'Collection log — et medlems antal og klanens største samlere',
     luck: 'Drop-held — klanens tørreste og heldigste, eller et medlems',
-    guide: 'Læs en opsætningsguide — oversigten eller ét trin, med et link',
+    setup: 'Læs en opsætningsguide — oversigten eller ét trin, med et link',
   },
 
   multi: {
@@ -307,7 +307,7 @@ const da: PartialDiscordDict = {
     noSuchStep: 'Denne guide har {total} trin — vælg et tal fra 1 til {total}.',
     readFull: '📖 Læs hele guiden: {url}',
     openStep: '🔗 Åbn dette trin på siden: {url}',
-    jumpHint: '-# Hop til et trin: `/guide topic:{topic} step:1`',
+    jumpHint: '-# Hop til et trin: `/setup topic:{topic} step:1`',
   },
 };
 

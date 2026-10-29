@@ -2186,8 +2186,8 @@ const fr: PartialGuideDict = {
         examples: ['/stats luckboard'],
         tip: 'Les membres du clan les plus en dry et les plus chanceux.',
       },
-      guide: {
-        examples: ['/guide topic:Plugin setup', '/guide topic:Plugin setup step:5'],
+      setup: {
+        examples: ['/setup topic:Plugin setup', '/setup topic:Plugin setup step:5'],
         tip: 'Un guide d’installation dans Discord : la liste des étapes, ou une seule étape avec un lien direct vers elle sur le site.',
       },
     },

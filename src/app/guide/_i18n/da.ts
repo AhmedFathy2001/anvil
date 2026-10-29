@@ -2190,8 +2190,8 @@ const da: PartialGuideDict = {
         examples: ['/stats luckboard'],
         tip: 'Klanens mest uheldige og mest heldige medlemmer.',
       },
-      guide: {
-        examples: ['/guide topic:Plugin setup', '/guide topic:Plugin setup step:5'],
+      setup: {
+        examples: ['/setup topic:Plugin setup', '/setup topic:Plugin setup step:5'],
         tip: 'En opsætningsvejledning inde i Discord: listen over trin, eller ét trin med et link direkte til det på siden.',
       },
     },

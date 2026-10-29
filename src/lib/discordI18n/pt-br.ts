@@ -229,7 +229,7 @@ const ptBr: PartialDiscordDict = {
     coffer: 'O cofre do clã — saldo, doadores e a staff adiciona/remove',
     clog: 'Collection log — a contagem de um membro e os melhores do clã',
     luck: 'Sorte nos drops — os mais secos e sortudos do clã, ou de um membro',
-    guide: 'Leia um guia de configuração — a visão geral ou um passo, com link',
+    setup: 'Leia um guia de configuração — a visão geral ou um passo, com link',
   },
 
   multi: {
@@ -307,7 +307,7 @@ const ptBr: PartialDiscordDict = {
     noSuchStep: 'Este guia tem {total} passos — escolha um número de 1 a {total}.',
     readFull: '📖 Leia o guia completo: {url}',
     openStep: '🔗 Abra este passo no site: {url}',
-    jumpHint: '-# Pule para um passo: `/guide topic:{topic} step:1`',
+    jumpHint: '-# Pule para um passo: `/setup topic:{topic} step:1`',
   },
 };
 

@@ -55,6 +55,7 @@ import { clanGrant, type ClanGrant } from '@/lib/clanGrants';
 import { atLeast } from '@/lib/clanRoles';
 import { getLuckBoards, getMemberLuck } from '@/lib/clogLuckBoard';
 import { formatCount, formatNet, formatOdds } from '@/lib/clogLuck';
+import { gameGuideCommand } from '@/lib/discordGameGuides';
 import { guideCommand } from '@/lib/discordGuides';
 
 const STATS_ICON = wikiImageUrl('Stats_icon.png');
@@ -75,7 +76,7 @@ export interface ClanCommandCtx {
   /** The invoker's display name, for prose. */
   who: string;
   /** The resolved locale code the answer is in — for commands that read another dictionary in the
-   *  same language (e.g. /guide reads the guide i18n). Matches `t`. */
+   *  same language (e.g. /setup reads the guide i18n). Matches `t`. */
   locale: string;
   /**
    * True when the answer is being posted to the CHANNEL (the Share re-run), false/absent when it is
@@ -1015,7 +1016,8 @@ export const CLAN_COMMANDS: Record<string, ClanCommand> = {
   eff: effResult,
   coffer: cofferResult,
   stats: statsResult,
-  guide: guideCommand,
+  setup: guideCommand,
+  guide: gameGuideCommand,
 };
 
 /** Subcommands that WRITE — never re-run from a Share button, and never advertised as shareable. */

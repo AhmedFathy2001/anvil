@@ -232,7 +232,7 @@ const pl: PartialDiscordDict = {
     coffer: 'Skarbiec klanu — stan, darczyńcy, staff dodaje/odejmuje',
     clog: 'Collection log — liczba osoby i najlepsi zbieracze klanu',
     luck: 'Szczęście w dropach — najbardziej pechowi i szczęśliwi w klanie lub osoba',
-    guide: 'Przeczytaj poradnik — całość lub jeden krok, z linkiem',
+    setup: 'Przeczytaj poradnik — całość lub jeden krok, z linkiem',
   },
 
   multi: {
@@ -310,7 +310,7 @@ const pl: PartialDiscordDict = {
     noSuchStep: 'Ten poradnik ma kroków: {total} — wybierz numer od 1 do {total}.',
     readFull: '📖 Przeczytaj cały poradnik: {url}',
     openStep: '🔗 Otwórz ten krok na stronie: {url}',
-    jumpHint: '-# Przejdź do kroku: `/guide topic:{topic} step:1`',
+    jumpHint: '-# Przejdź do kroku: `/setup topic:{topic} step:1`',
   },
 };
 

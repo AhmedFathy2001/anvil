@@ -135,7 +135,7 @@ test('applyLanguage: an explicit choice wins; blank or unknown falls through', a
   assert.equal((await applyLanguage({ language: 'zh-hans' }, base)).locale, 'zh-hans');
   // The returned dict actually is that language, not English.
   const ar = await applyLanguage({ language: 'ar' }, base);
-  assert.notEqual(ar.t.commands.guide, base.t.commands.guide);
+  assert.notEqual(ar.t.commands.setup, base.t.commands.setup);
 
   // Nothing asked, or a code we don't speak → leave the resolved locale alone.
   assert.equal((await applyLanguage({}, base)).locale, 'en');

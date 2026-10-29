@@ -1,6 +1,6 @@
-// /guide — the setup guides, in Discord. The whole guide is a web page (rich figures, notes, nested
+// /setup — the setup guides, in Discord. The whole guide is a web page (rich figures, notes, nested
 // callouts) that an embed can't reproduce, so this does PARTIAL rendering + a link: the overview
-// lists the guide's steps, and `/guide topic:plugin step:5` shows that one step's text with a deep
+// lists the guide's steps, and `/setup topic:plugin step:5` shows that one step's text with a deep
 // link straight to it on the site. Both in the reader's language — the CONTENT comes from the guide
 // i18n dictionary (already 15 languages), and only the small chrome here lives in the Discord dict.
 //

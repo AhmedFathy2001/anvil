@@ -2317,8 +2317,8 @@ const ja: PartialGuideDict = {
         examples: ['/stats luckboard'],
         tip: 'クランで最もドロップに見放されたメンバーと、最も運の良いメンバー。',
       },
-      guide: {
-        examples: ['/guide topic:Plugin setup', '/guide topic:Plugin setup step:5'],
+      setup: {
+        examples: ['/setup topic:Plugin setup', '/setup topic:Plugin setup step:5'],
         tip: 'Discord の中の設定ガイド：ステップの一覧、またはサイト上のそのステップへ直接飛ぶリンク付きの一つのステップ。',
       },
     },

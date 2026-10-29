@@ -229,7 +229,7 @@ const sv: PartialDiscordDict = {
     coffer: 'Klankistan — saldo, givare och staff lägger till/tar bort',
     clog: 'Collection log — en medlems antal och klanens främsta samlare',
     luck: 'Drop-tur — klanens torraste och tursammaste, eller en medlems',
-    guide: 'Läs en installationsguide — översikten eller ett steg, med en länk',
+    setup: 'Läs en installationsguide — översikten eller ett steg, med en länk',
   },
 
   multi: {
@@ -307,7 +307,7 @@ const sv: PartialDiscordDict = {
     noSuchStep: 'Den här guiden har {total} steg — välj ett tal från 1 till {total}.',
     readFull: '📖 Läs hela guiden: {url}',
     openStep: '🔗 Öppna det här steget på sajten: {url}',
-    jumpHint: '-# Hoppa till ett steg: `/guide topic:{topic} step:1`',
+    jumpHint: '-# Hoppa till ett steg: `/setup topic:{topic} step:1`',
   },
 };
 

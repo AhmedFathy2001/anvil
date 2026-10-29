@@ -250,7 +250,8 @@ export const en = {
     coffer: 'The clan coffer — balance, donors, and staff add/remove',
     clog: "Collection log — a member's count and the clan's top collectors",
     luck: "Drop luck — the clan's driest and luckiest, or a member's",
-    guide: 'Read a setup guide — the overview or one step, with a link',
+    setup: 'Read a setup guide — the overview or one step, with a link',
+    guide: "Read one of the clan's game guides — raids, bossing, money making and more",
     stats: "A player's stats — levels, efficiency, collection log, PBs, luck",
   },
 
@@ -341,7 +342,7 @@ export const en = {
     fromLogs: 'From {n} synced logs.',
   },
 
-  // /guide — the setup guides, rendered in part with a link to the full page (lib/discordGuides).
+  // /setup — the setup guides, rendered in part with a link to the full page (lib/discordGuides).
   guide: {
     notFound: "I don't have a guide by that name.",
     stepsHeading: '**Steps**',
@@ -350,7 +351,16 @@ export const en = {
     noSuchStep: 'This guide has {total} steps — pick a number from 1 to {total}.',
     readFull: '📖 Read the full guide: {url}',
     openStep: '🔗 Open this step on the site: {url}',
-    jumpHint: '-# Jump to a step: `/guide topic:{topic} step:1`',
+    jumpHint: '-# Jump to a step: `/setup topic:{topic} step:1`',
+  },
+
+  // /guide — the clan's game guides (lib/discordGameGuides): a card that links to the full guide.
+  gameGuide: {
+    notFound: "I can't find that guide. Start typing its name and pick one from the list.",
+    none: "This clan hasn't published any guides yet.",
+    read: '📖 Read the full guide: {url}',
+    category: 'Category',
+    updated: 'Updated',
   },
 
   // /stats — the player hub (lib/discordClanCommands statsResult). /stats clog and /stats luck reuse

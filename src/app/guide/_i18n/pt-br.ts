@@ -2166,8 +2166,8 @@ const ptBr: PartialGuideDict = {
         examples: ['/stats luckboard'],
         tip: 'Os membros mais secos e os mais sortudos do clã.',
       },
-      guide: {
-        examples: ['/guide topic:Plugin setup', '/guide topic:Plugin setup step:5'],
+      setup: {
+        examples: ['/setup topic:Plugin setup', '/setup topic:Plugin setup step:5'],
         tip: 'Um guia de configuração dentro do Discord: a lista de passos, ou um passo com link direto para ele no site.',
       },
     },

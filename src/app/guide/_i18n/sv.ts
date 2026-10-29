@@ -2184,8 +2184,8 @@ const sv: PartialGuideDict = {
         examples: ['/stats luckboard'],
         tip: 'Klanens mest otursamma och mest tursamma medlemmar.',
       },
-      guide: {
-        examples: ['/guide topic:Plugin setup', '/guide topic:Plugin setup step:5'],
+      setup: {
+        examples: ['/setup topic:Plugin setup', '/setup topic:Plugin setup step:5'],
         tip: 'En installationsguide inne i Discord: listan över steg, eller ett steg med en länk direkt till det på sajten.',
       },
     },

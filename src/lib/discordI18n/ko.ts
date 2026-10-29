@@ -217,7 +217,7 @@ const ko: PartialDiscordDict = {
     coffer: '클랜 금고 —— 잔액, 기부자, 운영진의 추가/차감',
     clog: '컬렉션 로그 —— 멤버의 수집 수와 클랜 최고 수집가',
     luck: '드롭 운 —— 클랜에서 가장 안 풀린 사람과 가장 잘 풀린 사람, 또는 개인',
-    guide: '설정 가이드 읽기 —— 개요나 한 단계, 링크 포함',
+    setup: '설정 가이드 읽기 —— 개요나 한 단계, 링크 포함',
   },
 
   multi: {
@@ -295,7 +295,7 @@ const ko: PartialDiscordDict = {
     noSuchStep: '이 가이드는 {total}단계입니다 —— 1부터 {total}까지 중에서 번호를 고르세요.',
     readFull: '📖 전체 가이드 읽기: {url}',
     openStep: '🔗 이 단계를 사이트에서 열기: {url}',
-    jumpHint: '-# 특정 단계로 이동: `/guide topic:{topic} step:1`',
+    jumpHint: '-# 특정 단계로 이동: `/setup topic:{topic} step:1`',
   },
 };
 

@@ -216,7 +216,7 @@ const zhHans: PartialDiscordDict = {
     coffer: '家族金库 —— 余额、捐赠者，以及管理组增减',
     clog: '收藏册 —— 成员的收集数与家族顶尖收藏者',
     luck: '掉落运气 —— 家族里最背和最旺的，或某位成员的',
-    guide: '阅读设置指南 —— 概览或某一步，附链接',
+    setup: '阅读设置指南 —— 概览或某一步，附链接',
   },
 
   multi: {
@@ -294,7 +294,7 @@ const zhHans: PartialDiscordDict = {
     noSuchStep: '本指南共有 {total} 步 —— 请从 1 到 {total} 之间选一个数字。',
     readFull: '📖 阅读完整指南：{url}',
     openStep: '🔗 在网站上打开这一步：{url}',
-    jumpHint: '-# 跳转到某一步：`/guide topic:{topic} step:1`',
+    jumpHint: '-# 跳转到某一步：`/setup topic:{topic} step:1`',
   },
 };
 
