@@ -315,6 +315,13 @@ export async function sendCohostWebhook(
   return (await sendToWebhook(url, payload, clanId)) ? 'sent' : 'failed';
 }
 
+/** Would sendCohostWebhook have somewhere to post for this clan? (The host's partner readiness list.) */
+export async function cohostChannelReady(clanId: number): Promise<boolean> {
+  const enabled = (await getSettingUrl(clanId, COHOST_POSTS_KEY))?.trim();
+  if (enabled === 'false' || enabled === '0') return false;
+  return !!(await resolveWebhookUrl(clanId, COHOST_WEBHOOK_KEY, BINGO_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY));
+}
+
 /** A post into a clan's OWN bingo channel, saying why it didn't land. */
 export async function sendBingoWebhookReport(
   clanId: number,

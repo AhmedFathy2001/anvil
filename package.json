@@ -139,7 +139,7 @@
     "test:progress": "node --experimental-strip-types --test tests/member-progress.test.ts && npx tsx --test tests/member-progress-items.test.ts",
     "test:sets": "node --experimental-strip-types --test tests/collection-sets.test.ts && npx tsx --test tests/tile-csv-sets.test.ts",
     "test:eventhooks": "node --experimental-strip-types --test tests/event-webhook-kinds.test.ts",
-    "test:discordpolicy": "node --experimental-strip-types --test tests/discord-post-policy.test.ts tests/rank-rules.test.ts tests/cohost-board-access.test.ts && npx tsx --test tests/discord-feeds.test.ts",
+    "test:discordpolicy": "node --experimental-strip-types --test tests/discord-post-policy.test.ts tests/rank-rules.test.ts tests/cohost-board-access.test.ts && npx tsx --test tests/discord-feeds.test.ts tests/partner-readiness.test.ts",
     "test:coop": "node --experimental-strip-types --test tests/coop-runs.test.ts",
     "test:counters": "npx tsx --test tests/ingame-counters.test.ts",
     "test:boards": "node --experimental-strip-types --test tests/bingo-lines.test.ts",
