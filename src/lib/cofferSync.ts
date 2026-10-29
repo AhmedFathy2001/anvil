@@ -252,16 +252,14 @@ export async function syncPhysicalCoffer(args: PhysicalCofferObservation): Promi
     let booked: CofferEntry | null = null;
     let outcome: string = decision.outcome;
 
-    // The mover's own clan-chat line may have named this movement already: join it rather than file a
-    // second entry, and book it when this reading is a different person's (lib/cofferBroadcast).
-    const line = decision.ledgerAmount !== 0 ? await pendingLineFor(tx, args.clanId, decision.ledgerAmount) : null;
+    // The mover's own clan-chat line may have named this movement already: their own reading joins it
+    // rather than filing a second entry (lib/cofferBroadcast). Still one person's word — it books when
+    // a different member's reading sees the same balance, below.
+    const line = decision.ledgerAmount !== 0 && decision.attributeActor
+      ? await pendingLineFor(tx, args.clanId, args.clanMemberId, decision.ledgerAmount)
+      : null;
     if (line) {
-      pendingEntry = line.entry;
-      const me = await memberPersonOfSeat(tx, args.clanMemberId);
-      if (me != null && line.reporter != null && me !== line.reporter && Math.abs(decision.ledgerAmount) <= CORROBORATION_MAX_GP) {
-        booked = (await book(tx, args.clanId, line.entry, `matched ${args.rsn}’s coffer reading`)).at(-1) ?? null;
-        outcome = 'corroborated';
-      }
+      pendingEntry = line;
     } else if (decision.ledgerAmount !== 0) {
       const attributed = decision.attributeActor;
       const [row] = await tx
