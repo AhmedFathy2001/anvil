@@ -25,6 +25,6 @@ export function joinDateChanged(stored: string | null | undefined, reported: str
 export function formatJoinDate(date: string, exact = false): string {
   const d = new Date(`${date}T12:00:00Z`);
   return exact
-    ? d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
-    : d.toLocaleDateString(undefined, { month: 'short', year: 'numeric', timeZone: 'UTC' });
+    ? d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+    : d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' });
 }

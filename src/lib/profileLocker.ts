@@ -30,6 +30,7 @@ import {
   getMemberProfile,
   getRecords,
   getUpcomingMilestones,
+  ingameJoinDates,
   listMembers,
   type PeriodRecord,
   type UpcomingMilestone,
@@ -90,6 +91,8 @@ export interface LockerAccount {
   accountId: number;
   /** Last plugin push, or null if this account has never talked to us. */
   lastPingAt: string | null;
+  /** When it joined this clan in game ('YYYY-MM-DD'), off the roster sync; null until a sync reports it. */
+  joinedOn: string | null;
 }
 
 export interface LockerConnection {
@@ -215,7 +218,7 @@ export interface LockerData {
   milestones: UpcomingMilestone[];
   /** The account the rail's personal numbers are about — records are per-account, not per-person. */
   focusRsn: string | null;
-  /** Earliest join date across their accounts — how long they've been around. */
+  /** Earliest join date across their accounts — the in-game one where the roster sync reported it. */
   memberSince: string | null;
 }
 
@@ -360,6 +363,7 @@ export async function buildLocker(
     .where(eq(accountsTable.playerId, playerId));
   const sharedByAccount = new Map(allOwnedAccounts.map((a) => [a.id, a.shared === true]));
 
+  const joinedBySeat = await ingameJoinDates(memberRows.map((m) => m.id));
   const accounts: LockerAccount[] = memberRows.map((m) => ({
     id: m.id,
     rsn: m.rsn,
@@ -372,6 +376,7 @@ export async function buildLocker(
     lastPingAt: m.liveStatsAt,
     shared: sharedByAccount.get(m.accountId) === true,
     accountId: m.accountId,
+    joinedOn: joinedBySeat.get(m.id) ?? null,
   }));
 
   // Their accounts that hold no seat in THIS clan.
@@ -787,7 +792,9 @@ export async function buildLocker(
     bests,
     milestones,
     focusRsn,
-    memberSince: memberRows.map((m) => m.joinedAt).sort()[0] ?? null,
+    // The in-game date when the roster sync has reported one: Anvil's own first sight of them is
+    // only when the clan started using Anvil, which for a long-time member is years late.
+    memberSince: memberRows.map((m) => joinedBySeat.get(m.id) ?? m.joinedAt).sort()[0] ?? null,
   };
 }
 
