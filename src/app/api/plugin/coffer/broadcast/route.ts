@@ -9,7 +9,7 @@ import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 /**
  * One plugin's report of its own player's coffer line in clan chat ("Nisbro has deposited 519 coins
  * into the coffer."). The plugin sends the line and the channel's name as it saw them; the site parses
- * it and books it, joined to their own coffer reading of the same movement (lib/cofferBroadcast).
+ * it and books it once a coffer reading shows the money, up to 50m (lib/cofferBroadcast).
  */
 export async function POST(request: Request) {
   const member = await resolvePluginMember(request);

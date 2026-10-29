@@ -1,7 +1,8 @@
 // The coffer's clan-chat line against a real database (lib/cofferBroadcast): a member reports only
-// their own line and it books at once; their own coffer reading of the movement joins it (whichever
-// lands first) rather than counting it twice; it never claims someone else's movement; a withdrawal is
-// custody and putting it back isn't a donation; a huge one waits for a treasurer.
+// their own line; it books once a coffer reading shows the money — their own reading (whichever lands
+// first) or another member's sight of the balance — and never counts a movement twice; it never claims
+// someone else's movement; a withdrawal is custody and putting it back isn't a donation; past 50m, or
+// with no reading, it waits for a treasurer.
 //
 // Run: npx tsx --test tests/coffer-broadcast-db.test.ts
 
@@ -70,20 +71,20 @@ test('only your own line is taken', async () => {
   assert.ok(!r.ok && r.status === 403);
 });
 
-test('your line books at once, and your own reading of it doesn’t count it again', async () => {
+test('your line waits for the coins to show, then your own reading books it — once', async () => {
   await fresh(1_000);
   const line = await report(0, 'Nisbro has deposited 46,203,031 coins into the coffer.');
-  assert.ok(line.ok && line.outcome === 'booked');
-  assert.equal(line.booked[0].kind, 'donation');
-  assert.equal(line.booked[0].rsn, 'Nisbro');
+  assert.ok(line.ok && line.outcome === 'new');
+  assert.equal(await confirmed(), 0, 'a line alone is a claim');
   const r = await obs(0, 'deposit', 1_000, 46_204_031, true);
-  assert.equal(r.ledgerEntry, null, 'nothing more to announce');
+  assert.equal(r.ledgerEntry?.kind, 'donation');
+  assert.equal(r.ledgerEntry?.rsn, 'Nisbro');
   await obs(2, 'snapshot', 46_204_031, 46_204_031);
   assert.equal((await entries()).length, 1, 'one movement, one entry');
   assert.equal(await confirmed(), 46_203_031);
 });
 
-test('your reading first, then your line: the line takes its place', async () => {
+test('your reading first, then your line: the line takes its place and books', async () => {
   await fresh(1_000);
   await obs(3, 'deposit', 1_000, 6_000, true);
   const line = await report(3, 'Drenvox alt has deposited 5,000 coins into the coffer.');
@@ -95,26 +96,34 @@ test('your reading first, then your line: the line takes its place', async () =>
 
 test('a line doesn’t take over someone else’s movement of the same amount', async () => {
   await fresh(1_000);
-  // Nisbro deposits on mobile; Steeldeck's open coffer reads it, unnamed. Drenvox's line is his own.
+  // Nisbro deposits on mobile; Steeldeck's open coffer reads it, unnamed. Drenvox claims it.
   await obs(2, 'deposit', 1_000, 10_001_000);
-  await report(1, 'Drenvox has deposited 10,000,000 coins into the coffer.');
-  const all = await entries();
-  assert.deepEqual(all.map((e) => [e.status, e.rsn]), [['pending', null], ['approved', 'Drenvox']], 'the reading keeps its own entry');
+  const claim = await report(1, 'Drenvox has deposited 10,000,000 coins into the coffer.');
+  assert.ok(claim.ok && claim.outcome === 'new');
+  assert.deepEqual((await entries()).map((e) => [e.status, e.rsn]), [['pending', null], ['pending', 'Drenvox']], 'not joined, nothing booked');
 });
 
 test('a withdrawal is custody, and putting it back is not a donation', async () => {
   await fresh(100_000_000);
-  const out = await report(1, 'Drenvox has withdrawn 50,000,000 coins from the coffer.');
-  assert.ok(out.ok && out.booked[0].kind === 'withdrawal');
-  await obs(1, 'withdrawal', 100_000_000, 50_000_000, true);
+  await report(1, 'Drenvox has withdrawn 20,000,000 coins from the coffer.');
+  const out = await obs(1, 'withdrawal', 100_000_000, 80_000_000, true);
+  assert.equal(out.ledgerEntry?.kind, 'withdrawal');
   assert.equal(await confirmed(), 0, 'the clan still has the gp');
 
-  const back = await report(1, 'Drenvox has deposited 60,000,000 coins into the coffer.');
-  assert.ok(back.ok);
-  assert.deepEqual(back.booked.map((e) => [e.kind, Number(e.amount)]), [['withdrawal', 50_000_000], ['donation', 10_000_000]]);
-  await obs(1, 'deposit', 50_000_000, 110_000_000, true);
+  await report(1, 'Drenvox has deposited 30,000,000 coins into the coffer.');
+  await obs(1, 'deposit', 80_000_000, 110_000_000, true);
+  const booked = (await entries()).filter((e) => e.status === 'approved').map((e) => [e.kind, Number(e.amount)]);
+  assert.deepEqual(booked.sort(), [['donation', 10_000_000], ['withdrawal', -20_000_000], ['withdrawal', 20_000_000]]);
   assert.equal(await confirmed(), 10_000_000);
-  assert.equal((await entries()).filter((e) => e.status === 'pending').length, 0, 'the readings joined, filed nothing');
+});
+
+test('over 50m, a line and its reading wait for a treasurer — so does another member’s sight of it', async () => {
+  await fresh(0);
+  await report(0, 'Nisbro has deposited 60,000,000 coins into the coffer.');
+  await obs(0, 'deposit', 0, 60_000_000, true);
+  await obs(2, 'snapshot', 60_000_000, 60_000_000);
+  assert.equal(await confirmed(), 0);
+  assert.equal((await entries()).filter((e) => e.status === 'pending').length, 1);
 });
 
 test('another clan’s chat, and lines that aren’t coffer lines, are refused', async () => {
@@ -124,10 +133,9 @@ test('another clan’s chat, and lines that aren’t coffer lines, are refused',
   assert.ok(!junk.ok && junk.status === 400);
 });
 
-test('a line over the limit waits for a treasurer, who books it the same way', async () => {
+test('a line no reading confirmed waits for a treasurer, who books it the same way', async () => {
   await fresh(0);
-  const big = await report(2, 'Steeldeck has deposited 300,000,000 coins into the coffer.');
-  assert.ok(big.ok && big.outcome === 'new');
+  await report(2, 'Steeldeck has deposited 1,000 coins into the coffer.');
   const [entry] = await entries();
   assert.equal(entry.status, 'pending');
   const settled = await CB.settleBroadcastEntry({ clanId, entryId: entry.id, approve: true, userId: treasurer });

@@ -3,16 +3,19 @@ import { and, asc, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanCofferBroadcasts, clanCofferSyncEvents, clans, cofferEntries, type CofferEntry } from '@/db/schema';
 import { parseCofferBroadcast, rsnKey, splitDeposit } from '@/lib/cofferBroadcastParse';
-import { CORROBORATION_MAX_GP, memberPersonOfSeat, type Tx } from '@/lib/cofferSync';
+import { memberPersonOfSeat, type Tx } from '@/lib/cofferSync';
 
 // The coffer's clan-chat line as the ledger's named record of a movement. Each plugin reports only
-// its own player's line — the hub forbids sending other players' names. The line is the game's own
-// word that this player moved these coins, so it books at once (up to CORROBORATION_MAX_GP; past that
-// a treasurer looks). The mover's coffer-screen reading of the same movement is that movement again:
-// whichever lands second joins the first instead of filing a second entry. A line never joins a
-// reading that isn't its reporter's own — matching an amount alone would let anyone claim another
-// member's (or a mobile) deposit.
+// its own player's line — the hub forbids sending other players' names. The line names who moved the
+// coins; the coffer screen proves they arrived. It books on its own once a coffer reading shows the
+// money: the mover's own reading of that movement (whichever lands first joins the other, so nothing
+// is counted twice), or another member's reading of the same balance afterwards. Up to
+// LINE_AUTO_MAX_GP; past that, or with no reading, a treasurer looks. A line never joins a reading
+// that isn't its reporter's own — matching an amount alone would let anyone claim another member's
+// (or a mobile) deposit.
 //
+/** The most a line and a coffer reading may book between them without a treasurer. */
+export const LINE_AUTO_MAX_GP = 50_000_000;
 /** How far apart a line and the mover's reading of the same movement may land. */
 const SAME_MOVEMENT_MS = 120_000;
 export type BroadcastResult =
@@ -126,8 +129,8 @@ export async function recordCofferBroadcast(args: { clanId: number; clanMemberId
         .where(eq(cofferEntries.id, reading.entryId!));
       await tx.update(clanCofferSyncEvents).set({ cofferEntryId: entry.id }).where(eq(clanCofferSyncEvents.id, reading.id));
     }
-    if (parsed.amount > CORROBORATION_MAX_GP) return { ok: true as const, outcome: 'new' as const, booked: [] };
-    return { ok: true as const, outcome: 'booked' as const, booked: await book(tx, args.clanId, entry, 'their own line') };
+    if (!reading || parsed.amount > LINE_AUTO_MAX_GP) return { ok: true as const, outcome: 'new' as const, booked: [] };
+    return { ok: true as const, outcome: 'booked' as const, booked: await book(tx, args.clanId, entry, 'matched their coffer reading') };
   });
 }
 
@@ -164,7 +167,7 @@ export async function isLineEntry(tx: Tx, entryId: number): Promise<boolean> {
 }
 
 /**
- * A treasurer confirming (or rejecting) a clan-chat line over the self-booking limit. Books the same way
+ * A treasurer confirming (or rejecting) a clan-chat line no coffer reading confirmed (or over the limit). Books the same way
  * corroboration does, so a deposit still nets off what its depositor was holding. Null when the entry
  * isn't a pending clan-chat line of this clan — the caller then tries the other kinds.
  */

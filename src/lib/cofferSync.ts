@@ -15,7 +15,7 @@ import {
   type CofferObservation,
   type CofferSyncOutcome,
 } from '@/lib/cofferSyncDecision';
-import { book, isLineEntry, lineFor } from '@/lib/cofferBroadcast';
+import { LINE_AUTO_MAX_GP, book, isLineEntry, lineFor } from '@/lib/cofferBroadcast';
 
 export interface PhysicalCofferSyncResult {
   duplicateEvent: boolean;
@@ -252,13 +252,16 @@ export async function syncPhysicalCoffer(args: PhysicalCofferObservation): Promi
     let booked: CofferEntry | null = null;
     let outcome: string = decision.outcome;
 
-    // The mover's own clan-chat line may have recorded this movement already (lib/cofferBroadcast):
-    // their reading joins it rather than filing a second entry. A booked line is already announced.
+    // The mover's own clan-chat line may have named this movement already (lib/cofferBroadcast): their
+    // reading joins it rather than filing a second entry, and is the sight of the coins it waited for.
     const line = decision.ledgerAmount !== 0 && decision.attributeActor
       ? await lineFor(tx, args.clanId, args.clanMemberId, decision.ledgerAmount)
       : null;
     if (line) {
       pendingEntry = line;
+      if (line.status === 'pending' && Math.abs(decision.ledgerAmount) <= LINE_AUTO_MAX_GP) {
+        booked = (await book(tx, args.clanId, line, 'matched their coffer reading')).at(-1) ?? null;
+      }
     } else if (decision.ledgerAmount !== 0) {
       const attributed = decision.attributeActor;
       const [row] = await tx
@@ -304,7 +307,9 @@ export async function syncPhysicalCoffer(args: PhysicalCofferObservation): Promi
         if (me == null || them == null || me === them) continue;
         // A reading that joined its mover's clan-chat line books as that line: named, custody netted.
         booked = (await isLineEntry(tx, w.entry.id))
-          ? (await book(tx, args.clanId, w.entry, `corroborated by ${args.rsn}`)).at(-1) ?? null
+          ? Math.abs(Number(w.amount)) <= LINE_AUTO_MAX_GP
+            ? (await book(tx, args.clanId, w.entry, `corroborated by ${args.rsn}`)).at(-1) ?? null
+            : null
           : await confirmReadingTx(tx, args.clanId, w.id, null, `corroborated by ${args.rsn}`, CORROBORATION_MAX_GP);
         if (booked) {
           outcome = 'corroborated';
