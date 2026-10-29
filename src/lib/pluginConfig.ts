@@ -1,3 +1,4 @@
+import { FEEDS_OFF_KEY, parseFeedsOff } from '@/lib/discordFeeds';
 import { db } from '@/db';
 import { getSetting, getSettingText, getSettingMap } from '@/lib/settings';
 import { accounts, clanMemberships, clanStaff, clans, eventCohosts, eventParticipants, eventSignups, events, tiles, users, weeklyCompetitions } from '@/db/schema';
@@ -499,16 +500,18 @@ export const WEBHOOK_SETTING_KEYS = [
  * the opposite of what setting a base asked for.
  */
 export async function getNotificationWebhooks(clanId: number): Promise<PluginWebhooks> {
-  const map = await getSettingMap(clanId, [...WEBHOOK_SETTING_KEYS]);
+  const map = await getSettingMap(clanId, [...WEBHOOK_SETTING_KEYS, FEEDS_OFF_KEY]);
   const base = map.get(PLUGIN_WEBHOOK_BASE_KEY) || null;
   const own = (channel: NotifyChannel) => map.get(SETTING_KEY[channel]) || null;
+  // Feeds the clan switched off on its Discord page post nowhere, whatever hooks are set.
+  const off = parseFeedsOff(map.get(FEEDS_OFF_KEY));
 
   const resolved = {} as Record<NotifyChannel, string | null>;
   for (const channel of NOTIFY_CHANNELS) {
     const inherited = INHERITS_FROM[channel];
-    resolved[channel] = own(channel) || base || (inherited ? own(inherited) : null);
+    resolved[channel] = off.has(channel) ? null : own(channel) || base || (inherited ? own(inherited) : null);
   }
-  return { ...resolved, leagues: map.get(SETTING_KEY.leagues) || null };
+  return { ...resolved, leagues: off.has('leagues') ? null : map.get(SETTING_KEY.leagues) || null };
 }
 
 // Newline-separated list settings the plugin reads. Edited on Admin → Integrations.

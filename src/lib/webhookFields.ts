@@ -88,6 +88,12 @@ export const WEBHOOK_SECTIONS = [
       },
       {
         kind: 'webhook',
+        key: 'discord_webhook_roster',
+        label: 'Roster changes channel',
+        help: 'Joins, leaves and rank changes from the in-game roster sync. Blank posts them to the main channel.',
+      },
+      {
+        kind: 'webhook',
         key: 'discord_webhook_signups',
         label: 'Sign-up approvals channel',
         help: 'Posts a fee-payment nudge (pinging the member) each time a sign-up is approved.',

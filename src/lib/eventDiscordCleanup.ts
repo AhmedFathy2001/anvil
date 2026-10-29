@@ -37,9 +37,10 @@ export async function runDiscordCleanups(nowMs: number = Date.now()): Promise<vo
         const r = (await usesEventServer(event.id)) ? await teardownEventServer(event.id) : await teardownTeamDiscord(event.id);
         log.info('event-discord-cleanup.teardown', { eventId: event.id, ok: r.ok });
         await db.update(events).set({ discordCleanup: 'all' }).where(eq(events.id, event.id));
-      } else if (teardownAt == null && !roles.removePlayerRoleAtEnd) {
-        // Nothing asked for: settle it so the sweep stops looking. A later change to the event's
-        // settings after it ended is a manual job (the Teams tab still has the buttons).
+      } else if (teardownAt == null) {
+        // No teardown asked for (the player role, if asked, is done above): settle it so the sweep
+        // stops looking. A change to the settings after the event ended is a manual job — the
+        // Teams tab still has the buttons.
         await db.update(events).set({ discordCleanup: 'all' }).where(eq(events.id, event.id));
       }
     } catch (error) {

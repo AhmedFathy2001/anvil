@@ -19,6 +19,7 @@ import { boardRevealImageQuery } from '@/lib/boardRevealImage';
 import { db } from '@/db';
 import { acceptedCohostClanIds } from '@/lib/coHost';
 import { ttlMemo } from '@/lib/ttlMemo';
+import { FEEDS_OFF_KEY, parseFeedsOff } from '@/lib/discordFeeds';
 import {
   clanDefault,
   decideHostPost,
@@ -80,6 +81,8 @@ const SIGNUP_WEBHOOK_KEY = 'discord_webhook_signups';
 const COFFER_WEBHOOK_KEY = 'discord_webhook_coffer';
 // Clan events (lib/clanEvents): a mass, a hangout. Falls back to the main channel.
 const CLAN_EVENTS_WEBHOOK_KEY = 'discord_webhook_clan_events';
+// Roster-sync summaries, falling back to the main channel.
+const ROSTER_WEBHOOK_KEY = 'discord_webhook_roster';
 // The shared "playing an event right now" role (lib/discord-teams) — a ping choice for event posts.
 const PLAYER_ROLE_KEY = 'discord_bingo_role_id';
 
@@ -265,6 +268,19 @@ export async function forwardPluginNotification(
     log.warn('discord.plugin-notify-exception', {}, error);
     return false;
   }
+}
+
+/** The roster-sync summary: its own channel, else the main one. Off when the clan switched it off. */
+export async function sendRosterWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
+  if (await feedOff(clanId, 'roster')) return false;
+  const webhookUrl = await resolveWebhookUrl(clanId, ROSTER_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
+  if (!webhookUrl) return false;
+  return sendToWebhook(webhookUrl, payload, clanId);
+}
+
+/** Has the clan switched this feed off on its Discord page (lib/discordFeeds)? */
+async function feedOff(clanId: number, feedId: string): Promise<boolean> {
+  return parseFeedsOff(await getSettingUrl(clanId, FEEDS_OFF_KEY)).has(feedId);
 }
 
 // General / master channel — clan-roster sync summaries and other non-event posts. This is the
@@ -549,6 +565,7 @@ export async function sendEventBingoWebhook(
 
 // Weekly-competition channel; falls back to the master webhook when no dedicated one is set.
 export async function sendWeeklyWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
+  if (await feedOff(clanId, 'weekly')) return false;
   const webhookUrl = await resolveWebhookUrl(clanId, WEEKLY_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload, clanId);
@@ -559,6 +576,7 @@ export async function sendWeeklyWebhook(clanId: number, payload: DiscordWebhookP
  * false when unconfigured, which every caller treats as "fine, nobody asked for this".
  */
 export async function sendCofferWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
+  if (await feedOff(clanId, 'coffer')) return false;
   const webhookUrl = await resolveWebhookUrl(clanId, COFFER_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload, clanId);
@@ -566,6 +584,7 @@ export async function sendCofferWebhook(clanId: number, payload: DiscordWebhookP
 
 // Sign-up approvals channel; falls back to the master webhook when no dedicated one is set.
 export async function sendSignupWebhook(clanId: number, payload: DiscordWebhookPayload): Promise<boolean> {
+  if (await feedOff(clanId, 'signups')) return false;
   const webhookUrl = await resolveWebhookUrl(clanId, SIGNUP_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!webhookUrl) return false;
   return sendToWebhook(webhookUrl, payload, clanId);
@@ -1844,6 +1863,7 @@ export function clanEventThumbnail(icon: string | null): Pick<DiscordEmbed, 'thu
 
 /** A clan event's announcement, posted once and then edited in place (its id kept by the caller). */
 export async function upsertClanEventPost(clanId: number, embed: DiscordEmbed, existingMessageId?: string): Promise<EditableWebhookResult> {
+  if (await feedOff(clanId, 'clanEvents')) return { status: 'skipped' };
   const destination = await resolveWebhookDestination(clanId, CLAN_EVENTS_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!destination) return { status: 'skipped' };
   return upsertWebhookMessage(destination, { embeds: [await withClanCrest(clanId, embed)] }, clanId, existingMessageId);
@@ -1851,6 +1871,7 @@ export async function upsertClanEventPost(clanId: number, embed: DiscordEmbed, e
 
 /** A clan event's reminder or "starting now": a fresh post, pinging the member role when asked. */
 export async function sendClanEventPost(clanId: number, embed: DiscordEmbed, ping: boolean): Promise<boolean> {
+  if (await feedOff(clanId, 'clanEvents')) return false;
   const url = await resolveWebhookUrl(clanId, CLAN_EVENTS_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!url) return false;
   return sendToWebhook(url, { ...(ping ? await memberPing(clanId) : {}), embeds: [await withClanCrest(clanId, embed)] }, clanId);
