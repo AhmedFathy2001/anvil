@@ -18,6 +18,8 @@
 //     what the invoker's site role is — the board is already visible to every member on the web.
 //     Unrevealed boards are the one exception and stay hidden here too.
 
+import { getSetting } from '@/lib/settings';
+import { COMMANDS_OFF_KEY, parseCommandsOff } from '@/lib/discordCommandToggles';
 import { db } from '@/db';
 import { events, teams, tiles, completions, clanRoster, eventSignups, eventParticipants } from '@/db/schema';
 import { and, desc, eq, inArray, or } from 'drizzle-orm';
@@ -1117,6 +1119,12 @@ export async function handleCommand(interaction: Interaction): Promise<Interacti
   const base = await resolveClan(interaction, locale);
   if (!base.ok) return base.response;
   const { clan, t, locale: dictLocale } = base;
+
+  // The clan switched this command off on its Discord page. Commands are registered once for every
+  // server, so it still shows in the list; it just says so.
+  if (parseCommandsOff(await getSetting(clan.clanId, COMMANDS_OFF_KEY).catch(() => null)).has(name)) {
+    return textReply(fmt(t.errors.commandOff, { clan: clan.name, command: code(`/${name}`) }));
+  }
 
   // /bingo — the board commands, which resolve an event (and every live board) first.
   if (name === COMMAND_NAME) {

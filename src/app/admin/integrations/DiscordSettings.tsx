@@ -23,6 +23,7 @@ import LineListSetting from '@/components/LineListSetting';
 import LevelMilestonesSetting from '@/components/LevelMilestonesSetting';
 import PlainSetting from '@/components/PlainSetting';
 import RoleSetting from '@/components/RoleSetting';
+import DiscordCommandToggles from '@/components/DiscordCommandToggles';
 
 function Field({ title, children, aside }: { title: string; children?: ReactNode; aside?: ReactNode }) {
   return (
@@ -40,14 +41,6 @@ function Divider() {
   return <div className="border-t border-[#2a221b]" />;
 }
 
-const COMMANDS: [string, string][] = [
-  ['/bingo', 'the running board, leaderboard, rules, your team and what’s next'],
-  ['/sotw, /botw', 'this week’s standings'],
-  ['/stats', 'profiles, levels, collection log, PBs and luck'],
-  ['/eff', 'the efficiency leaderboard'],
-  ['/coffer', 'the clan’s balance (treasurers can add and remove)'],
-  ['/guide', 'any setup guide, step by step'],
-];
 
 /**
  * Admin → Discord: everything Anvil does in the clan's server, on one page, each part folded to a
@@ -243,15 +236,8 @@ export default function DiscordSettings({
         </FoldSection>
       )}
 
-      <FoldSection sprite="hammer" title="Commands" summary="Slash commands work by themselves. Nothing to set up.">
-        <ul className="space-y-2">
-          {COMMANDS.map(([cmd, what]) => (
-            <li key={cmd} className="flex gap-3">
-              <code className="text-gold shrink-0 w-28">{cmd}</code>
-              <span className="text-sm text-text-muted">{what}</span>
-            </li>
-          ))}
-        </ul>
+      <FoldSection sprite="hammer" title="Commands" summary="Slash commands work by themselves. Switch off any your server doesn’t need.">
+        <DiscordCommandToggles />
       </FoldSection>
     </div>
   );

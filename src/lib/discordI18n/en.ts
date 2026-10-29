@@ -234,6 +234,7 @@ export const en = {
       'This bot is connected to a different server than **{clan}**’s Anvil. Ask an admin to check the server ID under Integrations.',
     writeAtHome: 'That changes **{clan}**’s coffer, so it only works in {clan}’s own Discord server.',
     unknownCommand: 'Anvil doesn’t answer {command} — try {suggestion}.',
+    commandOff: '**{clan}** has turned {command} off in this server.',
     unknownSub: 'Unknown command. Try {list}.',
     noBoards: '**{clan}** has no boards yet.',
     noBoardsStaff: 'Staff can make one at {url}/admin/events/new.',
