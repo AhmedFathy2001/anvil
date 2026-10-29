@@ -24,6 +24,7 @@ import LevelMilestonesSetting from '@/components/LevelMilestonesSetting';
 import PlainSetting from '@/components/PlainSetting';
 import RoleSetting from '@/components/RoleSetting';
 import DiscordCommandToggles from '@/components/DiscordCommandToggles';
+import RankRulesPanel from '@/components/RankRulesPanel';
 
 function Field({ title, children, aside }: { title: string; children?: ReactNode; aside?: ReactNode }) {
   return (
@@ -221,6 +222,11 @@ export default function DiscordSettings({
           <p className="font-medium mb-1">Roles the sync gives out</p>
           <DiscordAssignedRoles />
         </div>
+        <Divider />
+        <Field title="Rank rules">
+          Give Discord roles from in-game rank, adding up as people climb. Runs with the role sync above, so keep that on.
+        </Field>
+        <RankRulesPanel />
       </FoldSection>
 
       <FoldSection sprite="emblem" title="Team channels" summary="A private channel for each team during an event.">

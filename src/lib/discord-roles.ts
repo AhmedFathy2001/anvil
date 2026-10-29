@@ -10,6 +10,17 @@
  * DISCORD_BOT_TOKEN env must be set. Either missing → all sync calls become
  * no-ops, so this module is safe to deploy before the token is provisioned.
  */
+import {
+  RANK_ORDER_KEY,
+  RANK_RULES_KEY,
+  RANK_RULES_REMOVE_KEY,
+  STANDARD_RANKS,
+  applyRankRules,
+  highestRank as highestRankOnLadder,
+  parseRankOrder,
+  parseRankRules,
+  type RankRule,
+} from '@/lib/rankRules';
 import { db } from '@/db';
 import { getSetting } from '@/lib/settings';
 import { clanAuditLog, clanRoster, detectedAccounts, eventSignups, users } from '@/db/schema';
@@ -148,6 +159,10 @@ interface RoleSyncConfig {
   // everyone's nick pinned to their RSN(s) so name-matching + readability stay correct even after
   // an in-game rename. Gated by `discord_nickname_overwrite`. Off by default (opt-in).
   overwriteNickname: boolean;
+  /** Rank rules (lib/rankRules): roles that add up as people climb the clan's rank ladder. */
+  rankRules: RankRule[];
+  rankOrder: string[];
+  rankRulesRemove: boolean;
 }
 
 /**
@@ -306,6 +321,9 @@ export async function loadRoleSyncConfig(clanId: number): Promise<RoleSyncConfig
     autoMatchRankByName,
     setNicknameOnLink: (await getSetting(clanId, 'discord_nickname_sync_enabled')) === 'true',
     overwriteNickname: (await getSetting(clanId, 'discord_nickname_overwrite')) === 'true',
+    rankRules: parseRankRules(await getSetting(clanId, RANK_RULES_KEY)),
+    rankOrder: parseRankOrder(await getSetting(clanId, RANK_ORDER_KEY)),
+    rankRulesRemove: (await getSetting(clanId, RANK_RULES_REMOVE_KEY)) !== 'false',
   };
 }
 
@@ -404,6 +422,8 @@ export interface DiscordRole {
   position: number;
   managed: boolean;
   permissions: string;
+  /** Integer RGB; 0 = no colour. */
+  color?: number;
 }
 
 export async function fetchGuildRoles(clanId: number): Promise<DiscordRole[]> {
@@ -1055,6 +1075,11 @@ export async function syncRolesForClanMember(
 
   // Target role set
   const target = new Set<string>();
+  // Rank-rule roles that may be taken back. A guest matches no rule, so a non-kept rule role goes.
+  const ruleManaged = new Set<string>();
+  if (allGuests && cfg.rankRulesRemove) {
+    for (const r of cfg.rankRules) if (r.roleId && !r.keep) ruleManaged.add(r.roleId);
+  }
   if (allGuests) {
     resolvedGuests.forEach((id) => {
       if (safeRoleIds.has(id)) target.add(id);
@@ -1063,6 +1088,16 @@ export async function syncRolesForClanMember(
     resolvedDefaults.forEach((id) => {
       if (safeRoleIds.has(id)) target.add(id);
     });
+    // Rank rules: every rule the person's highest rank (on the clan's own ladder) has passed.
+    if (cfg.rankRules.length > 0) {
+      const ladder = cfg.rankOrder.length > 0 ? cfg.rankOrder : STANDARD_RANKS;
+      const top = highestRankOnLadder(ownedRows.filter((r) => r.kind === 'member').map((r) => r.rank), ladder);
+      const ruled = applyRankRules(cfg.rankRules, ladder, top, cfg.rankRulesRemove);
+      ruled.give.forEach((id) => {
+        if (safeRoleIds.has(id)) target.add(id);
+      });
+      ruled.managed.forEach((id) => ruleManaged.add(id));
+    }
     const rankKey = normalizeRankKey(highestRank);
     if (rankKey) {
       // 1) Explicit map override wins
@@ -1086,7 +1121,10 @@ export async function syncRolesForClanMember(
     ...resolvedDefaults,
     ...resolvedGuests,
     ...managedRankRoleIds,
+    ...ruleManaged,
   ]);
+  // A kept rule role is never taken back, even when another source manages the same role.
+  for (const r of cfg.rankRules) if (r.keep && r.roleId && target.has(r.roleId)) managed.delete(r.roleId);
 
   // currentMember was already fetched (and verified in-guild) during resolution above.
   const current = new Set(currentMember.roles);
