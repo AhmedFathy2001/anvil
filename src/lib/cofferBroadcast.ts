@@ -1,23 +1,22 @@
-import { and, asc, desc, eq, gte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanCofferBroadcasts, clanCofferSyncEvents, clans, cofferEntries, type CofferEntry } from '@/db/schema';
 import { parseCofferBroadcast, rsnKey, splitDeposit } from '@/lib/cofferBroadcastParse';
 import { CORROBORATION_MAX_GP, memberPersonOfSeat, type Tx } from '@/lib/cofferSync';
 
-// The coffer's clan-chat line as a name on the coffer's movements. Each plugin reports only its own
-// player's line — the hub forbids sending other players' names — so a line is one client's word, and
-// one client's word is not money (the same rule as lib/cofferSync). The mover's own coffer-screen
-// reading of the movement, which their client already attributed to them, is the same movement: the
-// line joins it instead of filing a second entry, and it books when a DIFFERENT member's reading
-// later sees the same balance. A line never joins a reading that isn't the mover's own — matching an
-// amount alone would let anyone claim another member's (or a mobile) deposit. Anything else waits in
-// the treasurer's queue.
+// The coffer's clan-chat line as the ledger's named record of a movement. Each plugin reports only
+// its own player's line — the hub forbids sending other players' names. The line is the game's own
+// word that this player moved these coins, so it books at once (up to CORROBORATION_MAX_GP; past that
+// a treasurer looks). The mover's coffer-screen reading of the same movement is that movement again:
+// whichever lands second joins the first instead of filing a second entry. A line never joins a
+// reading that isn't its reporter's own — matching an amount alone would let anyone claim another
+// member's (or a mobile) deposit.
 //
 /** How far apart a line and the mover's reading of the same movement may land. */
 const SAME_MOVEMENT_MS = 120_000;
 export type BroadcastResult =
-  | { ok: true; outcome: 'new'; booked: CofferEntry[] }
+  | { ok: true; outcome: 'new' | 'booked'; booked: CofferEntry[] }
   | { ok: false; error: string; status: number };
 /** Coins this person has taken out of the coffer and not put back (approved custody rows). */
 async function heldBy(tx: Tx, clanId: number, actorKey: string): Promise<number> {
@@ -127,15 +126,16 @@ export async function recordCofferBroadcast(args: { clanId: number; clanMemberId
         .where(eq(cofferEntries.id, reading.entryId!));
       await tx.update(clanCofferSyncEvents).set({ cofferEntryId: entry.id }).where(eq(clanCofferSyncEvents.id, reading.id));
     }
-    return { ok: true as const, outcome: 'new' as const, booked: [] };
+    if (parsed.amount > CORROBORATION_MAX_GP) return { ok: true as const, outcome: 'new' as const, booked: [] };
+    return { ok: true as const, outcome: 'booked' as const, booked: await book(tx, args.clanId, entry, 'their own line') };
   });
 }
 
 /**
- * This seat's pending clan-chat line for this coffer movement that no reading has joined yet. The
- * coffer-screen side of the join above, for when the mover's own reading lands second.
+ * This seat's clan-chat line for this coffer movement (booked or waiting) that no reading has joined
+ * yet. The coffer-screen side of the join above, for when the mover's own reading lands second.
  */
-export async function pendingLineFor(tx: Tx, clanId: number, seatId: number, signedAmount: number): Promise<CofferEntry | null> {
+export async function lineFor(tx: Tx, clanId: number, seatId: number, signedAmount: number): Promise<CofferEntry | null> {
   const [row] = await tx
     .select({ entry: cofferEntries })
     .from(clanCofferBroadcasts)
@@ -143,9 +143,11 @@ export async function pendingLineFor(tx: Tx, clanId: number, seatId: number, sig
     .where(
       and(
         eq(clanCofferBroadcasts.clanId, clanId),
-        eq(cofferEntries.amount, signedAmount),
+        // The line's own amount: a booked deposit's entry may have been cut down by custody coming home.
+        eq(clanCofferBroadcasts.direction, signedAmount > 0 ? 'deposit' : 'withdrawal'),
+        eq(clanCofferBroadcasts.amount, Math.abs(signedAmount)),
         eq(cofferEntries.clanMemberId, seatId),
-        eq(cofferEntries.status, 'pending'),
+        inArray(cofferEntries.status, ['pending', 'approved']),
         gte(clanCofferBroadcasts.createdAt, new Date(Date.now() - SAME_MOVEMENT_MS)),
         sql`not exists (select 1 from ${clanCofferSyncEvents} e where e.coffer_entry_id = ${cofferEntries.id})`,
       ),
@@ -162,7 +164,7 @@ export async function isLineEntry(tx: Tx, entryId: number): Promise<boolean> {
 }
 
 /**
- * A treasurer confirming (or rejecting) a clan-chat line no other member's coffer reading has confirmed. Books the same way
+ * A treasurer confirming (or rejecting) a clan-chat line over the self-booking limit. Books the same way
  * corroboration does, so a deposit still nets off what its depositor was holding. Null when the entry
  * isn't a pending clan-chat line of this clan — the caller then tries the other kinds.
  */

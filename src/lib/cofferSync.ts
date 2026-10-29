@@ -15,7 +15,7 @@ import {
   type CofferObservation,
   type CofferSyncOutcome,
 } from '@/lib/cofferSyncDecision';
-import { book, isLineEntry, pendingLineFor } from '@/lib/cofferBroadcast';
+import { book, isLineEntry, lineFor } from '@/lib/cofferBroadcast';
 
 export interface PhysicalCofferSyncResult {
   duplicateEvent: boolean;
@@ -252,11 +252,10 @@ export async function syncPhysicalCoffer(args: PhysicalCofferObservation): Promi
     let booked: CofferEntry | null = null;
     let outcome: string = decision.outcome;
 
-    // The mover's own clan-chat line may have named this movement already: their own reading joins it
-    // rather than filing a second entry (lib/cofferBroadcast). Still one person's word — it books when
-    // a different member's reading sees the same balance, below.
+    // The mover's own clan-chat line may have recorded this movement already (lib/cofferBroadcast):
+    // their reading joins it rather than filing a second entry. A booked line is already announced.
     const line = decision.ledgerAmount !== 0 && decision.attributeActor
-      ? await pendingLineFor(tx, args.clanId, args.clanMemberId, decision.ledgerAmount)
+      ? await lineFor(tx, args.clanId, args.clanMemberId, decision.ledgerAmount)
       : null;
     if (line) {
       pendingEntry = line;

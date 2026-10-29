@@ -151,14 +151,13 @@ players' names) — as it saw it, with the channel's name (the message's sender)
 ```
 
 The site parses the line and refuses one naming someone other than the reporter (403) or from a
-channel that isn't this clan's in-game name (409). The line files a pending, named entry. The
-reporter's own `coffer-sync` reading of the same movement (attributed to them) within two minutes,
-either side, joins it instead of filing a second entry; it books when a different member's reading
-sees the same balance. A line never joins a reading that isn't its reporter's own, so it can't claim
-another member's movement of the same amount. Otherwise it waits for a treasurer. A deposit is
-credited to the person named (net of coins they took out earlier and are putting back); a withdrawal
-is custody. A deposit made where no plugin reports its line (mobile) is still caught by the readings,
-unnamed.
+channel that isn't this clan's in-game name (409). It's the game's word that this player moved these
+coins, so it books at once, named; over 250m it waits for a treasurer. The reporter's own
+`coffer-sync` reading of the same movement (attributed to them) within two minutes, either side,
+joins the line instead of filing a second entry. A line never joins a reading that isn't its
+reporter's own. A deposit is credited to the person named (net of coins they took out earlier and
+are putting back); a withdrawal is custody. A deposit made where no plugin reports its line (mobile)
+is still caught by the readings, unnamed.
 
 ### `mission-prizes`
 
