@@ -143,19 +143,21 @@ plugin does not read the interface or call the endpoint.
 
 Every coffer use posts a line to the whole clan chat, the person who did it included:
 `Nisbro has deposited 519 coins into the coffer.` / `… has withdrawn one coin from the coffer.`
-For each such line in its own clan channel (`CLAN_MESSAGE`), the plugin posts the text as it saw it
-and the channel's name (the message's sender):
+The plugin posts only its own player's line — never another member's (the hub forbids sending other
+players' names) — as it saw it, with the channel's name (the message's sender):
 
 ```json
 { "line": "Nisbro has deposited 519 coins into the coffer.", "clanName": "The AFK Spot" }
 ```
 
-The site parses the line, refuses a channel that isn't this clan's in-game name, and treats reports
-of the same actor, direction and amount within two minutes as one movement. It books once two
-different members have reported it; until then it waits for a treasurer. A deposit is credited to the
-person named (net of coins they took out earlier and are putting back); a withdrawal is custody. Once
-a clan's plugins report these lines, `coffer-sync` readings only track the physical balance and no
-longer book movements, so nothing is counted twice.
+The site parses the line and refuses one naming someone other than the reporter (403) or from a
+channel that isn't this clan's in-game name (409). The line files a pending, named entry. A
+`coffer-sync` reading of the same movement within two minutes, either side, joins it rather than
+filing its own entry; when that reading is a different member's, the line books (a later different
+member's reading of the same balance does too). Otherwise it waits for a treasurer. A deposit is
+credited to the person named (net of coins they took out earlier and are putting back); a withdrawal
+is custody. A deposit made where no plugin reports its line (mobile) is still caught by the readings,
+unnamed.
 
 ### `mission-prizes`
 

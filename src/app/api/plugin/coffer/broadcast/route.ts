@@ -7,9 +7,9 @@ import { labQuarantine } from '@/lib/lab';
 import { rateLimit, rateLimitHeaders } from '@/lib/rate-limit';
 
 /**
- * One plugin's report of the coffer line in its clan chat ("Nisbro has deposited 519 coins into the
- * coffer."). The plugin sends the line and the channel's name as it saw them; the site parses, matches
- * other members' reports of the same line, and books it once two people agree (lib/cofferBroadcast).
+ * One plugin's report of its own player's coffer line in clan chat ("Nisbro has deposited 519 coins
+ * into the coffer."). The plugin sends the line and the channel's name as it saw them; the site parses
+ * it and books it once a different member's coffer reading agrees (lib/cofferBroadcast).
  */
 export async function POST(request: Request) {
   const member = await resolvePluginMember(request);

@@ -3142,9 +3142,9 @@ export const clanCofferSyncEvents = pgTable('clan_coffer_sync_events', {
 export type ClanCofferSyncEvent = typeof clanCofferSyncEvents.$inferSelect;
 
 // The clan-chat line every member sees when someone uses the coffer ("Nisbro has deposited 519 coins
-// into the coffer."), as reported by each plugin that saw it. One row per movement: reports of the same
-// actor, direction and amount close together are the same line seen by different people
-// (lib/cofferBroadcast). `reporters` holds the PEOPLE (players.id) who reported it — two make it money.
+// into the coffer."), as reported by the mover's own plugin — one row per movement (lib/cofferBroadcast).
+// `reporters` holds the PERSON (players.id) who reported it; a different person's coffer reading of the
+// same movement makes it money. (Arrays from when every member's plugin reported every line.)
 export const clanCofferBroadcasts = pgTable('clan_coffer_broadcasts', {
   id: bigserial('id', { mode: 'number' }).primaryKey(),
   clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
@@ -3153,7 +3153,7 @@ export const clanCofferBroadcasts = pgTable('clan_coffer_broadcasts', {
   direction: text('direction').notNull(),
   amount: bigint('amount', { mode: 'number' }).notNull(),
   reporters: integer('reporters').array().notNull().default(sql`'{}'::integer[]`),
-  /** The seats those reports came from: one person's second client seeing the same line is not a second line. */
+  /** The seat the report came from. */
   reporterSeats: integer('reporter_seats').array().notNull().default(sql`'{}'::integer[]`),
   cofferEntryId: integer('coffer_entry_id').references(() => cofferEntries.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
