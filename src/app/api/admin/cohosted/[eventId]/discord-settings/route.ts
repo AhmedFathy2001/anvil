@@ -6,6 +6,7 @@ import { isAcceptedCohost } from '@/lib/coHost';
 import { channelChoices, resolveChannelInput, type ChannelInput } from '@/lib/eventDiscordChannel';
 import { parsePartnerDiscordPrefs } from '@/lib/discordPostPolicy';
 import { cohostSignupClanFor } from '@/lib/eventEditors';
+import { getSetting } from '@/lib/settings';
 import { readEventDiscordPrefs, readPartnerDiscordPrefs, savePartnerDiscordPrefs } from '@/lib/eventDiscordPrefs';
 
 /**
@@ -28,7 +29,11 @@ async function scope(eventIdRaw: string) {
 }
 
 async function view(eventId: number, clanId: number) {
-  const [prefs, host] = await Promise.all([readPartnerDiscordPrefs(eventId, clanId), readEventDiscordPrefs(eventId)]);
+  const [prefs, host, roleSync] = await Promise.all([
+    readPartnerDiscordPrefs(eventId, clanId),
+    readEventDiscordPrefs(eventId),
+    getSetting(clanId, 'discord_cohost_role_sync_enabled'),
+  ]);
   const { webhookUrl, ...rest } = prefs;
   const channels = await channelChoices(clanId);
   return {
@@ -36,6 +41,8 @@ async function view(eventId: number, clanId: number) {
     hasOwnChannel: !!webhookUrl,
     channels,
     host: { share: host.cohosts === false ? 'none' : (host.partnerShare ?? 'all') },
+    // What "give my players the role" is when this board hasn't been set: the clan-wide switch.
+    playerRoleDefault: roleSync === 'true',
   };
 }
 

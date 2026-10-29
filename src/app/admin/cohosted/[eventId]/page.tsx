@@ -11,6 +11,7 @@ import { cohostSignupClanFor } from '@/lib/eventEditors';
 import ClanLink from '@/components/ClanLink';
 import EventDiscordServerPanel from '@/components/EventDiscordServerPanel';
 import CohostSignupsClient from './CohostSignupsClient';
+import CohostDiscordClient from './CohostDiscordClient';
 
 export const dynamic = 'force-dynamic';
 
@@ -98,7 +99,10 @@ export default async function CohostedEventPage({ params }: { params: Promise<{ 
       </section>
 
       {isAdmin ? (
-        <EventDiscordServerPanel eventId={id} />
+        <>
+          <CohostDiscordClient eventId={id} hostName={hostName} />
+          <EventDiscordServerPanel eventId={id} />
+        </>
       ) : (
         <p className="text-sm text-text-muted">Your clan’s admins set up this event’s Discord from here.</p>
       )}
