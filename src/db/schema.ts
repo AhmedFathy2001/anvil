@@ -672,6 +672,13 @@ export const events = pgTable('events', {
   // One shared event fans out to several clans, so retain one message snowflake per clan id. If a
   // destination webhook changes, editing returns 404 and the post flow replaces this id safely.
   rulesMessageIds: jsonb('rules_message_ids').$type<Record<string, string>>().notNull().default({}),
+  // This event's Discord choices on top of the clan's defaults: per-post on/off/ping, its own
+  // channel, a pause, what co-hosts may show, team-channel and role timing. Empty = follow the clan.
+  // Read and written through lib/discordPostPolicy parseEventDiscordPrefs.
+  discordPrefs: jsonb('discord_prefs').$type<Record<string, unknown>>().notNull().default({}),
+  // How far the end-of-event Discord cleanup (lib/eventDiscordCleanup) has got, so each step runs
+  // once: null = nothing yet · 'roles' = player role taken back · 'all' = team channels and roles gone.
+  discordCleanup: text('discord_cleanup'),
   // Post-finish edit lock override. Finished events (past endDate / force-ended) refuse every
   // event-content mutation (teams, players, draft, tiles, completions, submissions — see
   // lib/eventLock.ts). Setting this ISO stamp re-opens editing for corrections; clearing it locks
@@ -1672,6 +1679,9 @@ export const eventCohosts = pgTable('event_cohosts', {
   // board with them — author tiles, from the host's admin. Off by default: on a clan-v-clan board the
   // other side editing the tiles is a fairness question only the host can answer.
   staffCanEditBoard: boolean('staff_can_edit_board').notNull().default(false),
+  // What this co-host shows of the board in its OWN server (lib/discordPostPolicy
+  // parsePartnerDiscordPrefs) — capped by what the host shares. Empty = everything the host shares.
+  discordPrefs: jsonb('discord_prefs').$type<Record<string, unknown>>().notNull().default({}),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
   decidedAt: text('decided_at'),
 }, (table) => [

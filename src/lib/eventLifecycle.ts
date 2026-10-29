@@ -15,6 +15,7 @@ import { scoreTeams } from '@/lib/boardScoring';
 import { drawStartLocation } from '@/lib/startProof';
 import { log } from '@/lib/logger';
 import { postEventRules } from '@/lib/eventRulesPost';
+import { runDiscordCleanups } from '@/lib/eventDiscordCleanup';
 import { clearPreStartEventActivity } from '@/lib/preStartActivity';
 import { track } from '@/lib/analytics';
 import { endOfEventFacts, runDailyDigests, runHalfwayReports } from '@/lib/eventDigest';
@@ -240,6 +241,7 @@ export async function processEventLifecycleNotifications(): Promise<void> {
         log.warn('event-lifecycle.start-held', { eventId: event.id, blockers: readiness.blockers });
         await notifyEventStartHeld({
           clanId: event.clanId,
+          eventId: event.id,
           eventName: event.name,
           scheduledStart: event.startDate,
           blockers: readiness.blockers,
@@ -283,7 +285,7 @@ export async function processEventLifecycleNotifications(): Promise<void> {
       // The rules land right under the start post, in every clan on the board. Behind the same
       // startNotified flip, so they post once.
       if (parseEventRules(event.rules).rulesAtStart) {
-        await postEventRules(event.id, event.clanId).catch((error) =>
+        await postEventRules(event.id, event.clanId, { auto: true }).catch((error) =>
           log.warn('event-lifecycle.rules-post-fail', { eventId: event.id }, error),
         );
       }
@@ -402,4 +404,7 @@ export async function processEventLifecycleNotifications(): Promise<void> {
   // minute costs one settings read per ladder, and a box that was down at midnight still crowns the
   // month when it comes back.
   await settleLadderMonths().catch((err) => log.warn('event-lifecycle.month-failed', { err: String(err) }));
+
+  // Team channels, team roles and the player role the event's settings say to tidy up once it ends.
+  await runDiscordCleanups(nowMs).catch((err) => log.warn('event-lifecycle.discord-cleanup-failed', { err: String(err) }));
 }

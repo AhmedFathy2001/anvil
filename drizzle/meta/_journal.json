@@ -785,6 +785,13 @@
       "when": 1793344563040,
       "tag": "0155_coffer_broadcasts",
       "breakpoints": true
+    },
+    {
+      "idx": 156,
+      "version": "7",
+      "when": 1793350000000,
+      "tag": "0156_event_discord_prefs",
+      "breakpoints": true
     }
   ]
 }
