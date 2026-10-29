@@ -428,7 +428,7 @@ const nl: PartialGuideDict = {
         },
         {
           term: 'De gesplitste feeds',
-          body: 'Zeldzame drops, pets, doden, collection log, combat achievements, levels, quests, diaries, clips, PvP-kills en Leagues krijgen elk een eigen kanaal. Dat splitsen is het verschil tussen een feed die mensen lezen en een die ze dempen.',
+          body: 'Zeldzame drops, pets, doden, collection log, combat achievements, levels, quests, diaries, PvP-kills en Leagues krijgen elk een eigen kanaal. Dat splitsen is het verschil tussen een feed die mensen lezen en een die ze dempen.',
         },
       ],
       note: {
@@ -933,7 +933,7 @@ const nl: PartialGuideDict = {
     channels: {
       title: 'Verdeel de berichten over kanalen',
       body: [
-        'Standaard gaat alles naar één hoofdkanaal voor aankondigingen. Wordt dat rumoerig, open dan **Discord → Where posts go** en geef de luide categorieën hun eigen plek — bingo-events, weekcompetities, zeldzame drops, sterfgevallen, PvP-kills, combat achievements, clips. Alles wat je leeg laat, valt terug op het hoofdkanaal, je kunt dus één categorie tegelijk afsplitsen.',
+        'Standaard gaat alles naar één hoofdkanaal voor aankondigingen. Wordt dat rumoerig, open dan **Discord → Where posts go** en geef de luide categorieën hun eigen plek — bingo-events, weekcompetities, zeldzame drops, sterfgevallen, PvP-kills, combat achievements. Alles wat je leeg laat, valt terug op het hoofdkanaal, je kunt dus één categorie tegelijk afsplitsen.',
         'Met de bot verbonden raak je nooit een webhook-URL aan: kies een kanaal uit de lijst en druk **Post here**. Bij een druk event kun je een tweede webhook op hetzelfde kanaal zetten — Anvil wisselt ertussen zodat de snelheidslimiet van Discord geen berichten opslokt.',
       ],
       clipsNote: {
@@ -2321,6 +2321,10 @@ const nl: PartialGuideDict = {
       setup: {
         examples: ['/setup topic:Plugin setup', '/setup topic:Plugin setup step:5'],
         tip: 'Een installatiehandleiding binnen Discord: de lijst met stappen, of één stap met een link er rechtstreeks naartoe op de site.',
+      },
+      guide: {
+        examples: ['/guide guide:ToB 4-man gear'],
+        tip: 'Een van de spelgidsen van de clan (raids, bossing, money making…): begin de naam te typen en kies hem uit de lijst.',
       },
     },
   },

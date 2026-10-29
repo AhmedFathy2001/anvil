@@ -428,7 +428,7 @@ const it: PartialGuideDict = {
         },
         {
           term: 'I feed separati',
-          body: 'Drop rari, pet, morti, collection log, combat achievement, livelli, quest, diary, clip, kill PvP e Leagues prendono ciascuno il proprio canale. Quella separazione è la differenza tra un feed che la gente legge e uno che silenzia.',
+          body: 'Drop rari, pet, morti, collection log, combat achievement, livelli, quest, diary, kill PvP e Leagues prendono ciascuno il proprio canale. Quella separazione è la differenza tra un feed che la gente legge e uno che silenzia.',
         },
       ],
       note: {
@@ -925,7 +925,7 @@ const it: PartialGuideDict = {
     channels: {
       title: 'Dividi i post su più canali',
       body: [
-        'Di base tutto finisce in un unico canale annunci. Quando diventa rumoroso, apri **Discord → Where posts go** e dai una casa propria alle categorie chiassose —— eventi bingo, competizioni settimanali, drop rari, morti, kill PvP, combat achievement, clip. Tutto ciò che lasci vuoto ricade sul canale principale, quindi puoi separare una categoria alla volta.',
+        'Di base tutto finisce in un unico canale annunci. Quando diventa rumoroso, apri **Discord → Where posts go** e dai una casa propria alle categorie chiassose —— eventi bingo, competizioni settimanali, drop rari, morti, kill PvP, combat achievement. Tutto ciò che lasci vuoto ricade sul canale principale, quindi puoi separare una categoria alla volta.',
         'Con il bot collegato non tocchi mai un URL di webhook: scegli un canale dal menu e premi **Post here**. Su un evento affollato puoi aggiungere un secondo webhook allo stesso canale —— Anvil li alterna così il rate limit di Discord non si mangia i post.',
       ],
       clipsNote: {
@@ -2169,6 +2169,10 @@ const it: PartialGuideDict = {
       setup: {
         examples: ['/setup topic:Plugin setup', '/setup topic:Plugin setup step:5'],
         tip: 'Una guida di configurazione dentro Discord: l’elenco dei passi, o un singolo passo con un link diretto a quel punto sul sito.',
+      },
+      guide: {
+        examples: ['/guide guide:ToB 4-man gear'],
+        tip: 'Una delle guide di gioco del clan (raid, bossing, money making…): inizia a scriverne il nome e sceglila dall’elenco.',
       },
     },
   },

@@ -428,7 +428,7 @@ const pl: PartialGuideDict = {
         },
         {
           term: 'Rozdzielone strumienie',
-          body: 'Rzadkie dropy, pety, śmierci, collection log, combat achievements, poziomy, questy, diaries, klipy, zabójstwa PvP i Leagues dostają każdy swój kanał. To rozdzielenie jest różnicą między strumieniem, który ludzie czytają, a takim, który wyciszają.',
+          body: 'Rzadkie dropy, pety, śmierci, collection log, combat achievements, poziomy, questy, diaries, zabójstwa PvP i Leagues dostają każdy swój kanał. To rozdzielenie jest różnicą między strumieniem, który ludzie czytają, a takim, który wyciszają.',
         },
       ],
       note: {
@@ -925,7 +925,7 @@ const pl: PartialGuideDict = {
     channels: {
       title: 'Rozdziel wpisy na kanały',
       body: [
-        'Domyślnie wszystko trafia na jeden główny kanał ogłoszeń. Gdy zrobi się na nim głośno, otwórz **Discord → Where posts go** i daj hałaśliwym kategoriom własne domy —— wydarzenia bingo, tygodniowe konkursy, rzadkie dropy, śmierci, kille PvP, combat achievements, klipy. Wszystko, co zostawisz puste, spada z powrotem na kanał główny, więc możesz rozdzielać po jednej kategorii.',
+        'Domyślnie wszystko trafia na jeden główny kanał ogłoszeń. Gdy zrobi się na nim głośno, otwórz **Discord → Where posts go** i daj hałaśliwym kategoriom własne domy —— wydarzenia bingo, tygodniowe konkursy, rzadkie dropy, śmierci, kille PvP, combat achievements. Wszystko, co zostawisz puste, spada z powrotem na kanał główny, więc możesz rozdzielać po jednej kategorii.',
         'Z podłączonym botem nigdy nie dotykasz URL-a webhooka: wybierasz kanał z listy i naciskasz **Post here**. Przy ruchliwym wydarzeniu możesz dodać drugi webhook do tego samego kanału —— Anvil przełącza się między nimi, żeby limit Discorda nie połknął wpisów.',
       ],
       clipsNote: {
@@ -2169,6 +2169,10 @@ const pl: PartialGuideDict = {
       setup: {
         examples: ['/setup topic:Plugin setup', '/setup topic:Plugin setup step:5'],
         tip: 'Przewodnik konfiguracji w Discordzie: lista kroków albo jeden krok z linkiem prosto do niego na stronie.',
+      },
+      guide: {
+        examples: ['/guide guide:ToB 4-man gear'],
+        tip: 'Jeden z poradników do gry klanu (rajdy, bossing, zarabianie…): zacznij wpisywać nazwę i wybierz go z listy.',
       },
     },
   },

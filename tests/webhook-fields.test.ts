@@ -34,7 +34,9 @@ const keyOf = (name: string) => ALL_SETTING_FIELDS.find((f) => f.key === name);
 test('every plugin destination has a field on the page', () => {
   // The drift that broke the coffer channel, in the other direction: a channel added to the plugin
   // config with no field is one no clan can point anywhere.
-  const missing = pluginWebhookKeys.filter((k) => !WEBHOOK_PAGE_SETTING_KEYS.includes(k as never));
+  // Clips are hidden on purpose while the feature is off (lib/webhookFields).
+  const hidden = new Set(['webhook_clips']);
+  const missing = pluginWebhookKeys.filter((k) => !hidden.has(k) && !WEBHOOK_PAGE_SETTING_KEYS.includes(k as never));
   assert.deepEqual(missing, [], `plugin webhook keys with no field: ${missing.join(', ')}`);
 });
 

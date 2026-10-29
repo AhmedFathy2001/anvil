@@ -428,7 +428,7 @@ const de: PartialGuideDict = {
         },
         {
           term: 'Die aufgeteilten Feeds',
-          body: 'Seltene Drops, Pets, Tode, Sammlungslog, Combat Achievements, Level, Quests, Diaries, Clips, PvP-Kills und Leagues bekommen je einen eigenen Kanal. Diese Aufteilung ist der Unterschied zwischen einem Feed, den man liest, und einem, den man stummschaltet.',
+          body: 'Seltene Drops, Pets, Tode, Sammlungslog, Combat Achievements, Level, Quests, Diaries, PvP-Kills und Leagues bekommen je einen eigenen Kanal. Diese Aufteilung ist der Unterschied zwischen einem Feed, den man liest, und einem, den man stummschaltet.',
         },
       ],
       note: {
@@ -933,7 +933,7 @@ const de: PartialGuideDict = {
     channels: {
       title: 'Beiträge auf mehrere Kanäle verteilen',
       body: [
-        'Standardmäßig geht alles in einen zentralen Ankündigungskanal. Wenn der laut wird, öffne **Discord → Where posts go** und gib den lauten Kategorien ein eigenes Zuhause — Bingo-Events, Wochenwettbewerbe, seltene Drops, Tode, PvP-Kills, Combat Achievements, Clips. Alles, was du leer lässt, fällt auf den Hauptkanal zurück, du kannst also eine Kategorie nach der anderen abtrennen.',
+        'Standardmäßig geht alles in einen zentralen Ankündigungskanal. Wenn der laut wird, öffne **Discord → Where posts go** und gib den lauten Kategorien ein eigenes Zuhause — Bingo-Events, Wochenwettbewerbe, seltene Drops, Tode, PvP-Kills, Combat Achievements. Alles, was du leer lässt, fällt auf den Hauptkanal zurück, du kannst also eine Kategorie nach der anderen abtrennen.',
         'Mit verbundenem Bot fasst du nie eine Webhook-URL an: wähle einen Kanal aus der Liste und drück **Post here**. Bei einem vollen Event kannst du einen zweiten Webhook auf denselben Kanal legen — Anvil wechselt zwischen ihnen, damit Discords Ratenbegrenzung keine Beiträge verschluckt.',
       ],
       clipsNote: {
@@ -2321,6 +2321,10 @@ const de: PartialGuideDict = {
       setup: {
         examples: ['/setup topic:Plugin setup', '/setup topic:Plugin setup step:5'],
         tip: 'Eine Einrichtungsanleitung direkt in Discord: die Liste der Schritte, oder ein einzelner Schritt mit einem Link direkt dorthin auf der Seite.',
+      },
+      guide: {
+        examples: ['/guide guide:ToB 4-man gear'],
+        tip: 'Eine der Spielanleitungen des Clans (Raids, Bossing, Money Making…): tippe den Namen an und wähle sie aus der Liste.',
       },
     },
   },

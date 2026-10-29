@@ -130,7 +130,7 @@ export const WEBHOOK_SECTIONS = [
     group: 'plugin',
     title: 'Plugin notifications',
     blurb:
-      'One channel for everything the Anvil plugin posts — drops, pets, deaths, CA tiers, levels, quests, diaries, collection log, PvP kills and clips. Set this and you’re done; split whichever ones you want their own channel below. Members fetch these on launch, so remapping takes effect on their next login.',
+      'One channel for everything the Anvil plugin posts — drops, pets, deaths, CA tiers, levels, quests, diaries, collection log and PvP kills. Set this and you’re done; split whichever ones you want their own channel below. Members fetch these on launch, so remapping takes effect on their next login.',
     fields: [
       {
         kind: 'webhook',
@@ -201,12 +201,7 @@ export const WEBHOOK_SECTIONS = [
         label: 'PvP kills channel',
         help: "When 'Notify on PvP kill' is enabled in the plugin, a screenshot of the kill is posted here.",
       },
-      {
-        kind: 'webhook',
-        key: 'webhook_clips',
-        label: 'Clips channel',
-        help: "On-demand OBS replay clips (captured via the plugin's clip hotkey) are posted here when small enough for Discord.",
-      },
+      // Clips (webhook_clips) are hidden while the feature is off; the setting itself is kept.
       {
         kind: 'webhook',
         key: 'webhook_leagues',
