@@ -1,3 +1,5 @@
+import CohostTileSuggest from '@/components/CohostTileSuggest';
+import { parseBoardAccess } from '@/lib/cohostBoardAccess';
 import type { Metadata } from 'next';
 
 import { db } from '@/db';
@@ -12,7 +14,7 @@ import { clanHref } from '@/lib/clanPath';
 import { eventInClan, requireEventForParticipantPage } from '@/lib/eventScope';
 import EventApiHost from '@/components/EventApiHost';
 import { eventIconUrl } from '@/lib/eventImage';
-import { accounts, events, tiles, teams, completions, eventSignups, clanRoster, players, submissions, surveyQuestions, surveyResponses, eventStartProofs, eventParticipants } from '@/db/schema';
+import { accounts, events, tiles, teams, completions, eventSignups, clanRoster, players, submissions, surveyQuestions, surveyResponses, eventStartProofs, eventParticipants, eventCohosts } from '@/db/schema';
 import { and, eq, isNull, inArray, count } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import ScoreboardClient from './ScoreboardClient';
@@ -539,6 +541,16 @@ export default async function EventScoreboardPage({
 
   // The icon falls back to the HOST's logo, even when this page is reached at a co-host's address.
   const hostClan = event.clanId === clan.id ? clan : await resolveClanById(event.clanId);
+  // Suggestions open to every player of this (co-host) clan, before the board starts.
+  const cohostSuggest =
+    event.clanId !== clan.id &&
+    !(event.startDate && new Date(event.startDate) <= new Date()) &&
+    (await db
+      .select({ staffCanEditBoard: eventCohosts.staffCanEditBoard, boardAccess: eventCohosts.boardAccess })
+      .from(eventCohosts)
+      .where(and(eq(eventCohosts.eventId, event.id), eq(eventCohosts.clanId, clan.id), eq(eventCohosts.status, 'accepted')))
+      .limit(1)
+      .then(([seat]) => !!seat && parseBoardAccess(seat.boardAccess, seat.staffCanEditBoard).suggest === 'players'));
   return (
     <>
       <EventApiHost eventId={event.id} prefix={apiPrefix} />
@@ -773,6 +785,14 @@ export default async function EventScoreboardPage({
         />
         {luck && <EventLuck luck={luck} />}
         </>
+      )}
+      {/* A co-host clan's players can suggest tiles when the host opened that to everyone in it. */}
+      {cohostSuggest && (
+        <section className="mx-auto mt-8 max-w-3xl rounded-xl border border-card-border bg-card-bg p-5">
+          <h2 className="mb-1 font-bold">Suggest a tile to {hostClan?.name ?? 'the host'}</h2>
+          <p className="mb-3 text-sm text-text-muted">They decide what goes on the board.</p>
+          <CohostTileSuggest eventId={event.id} hostName={hostClan?.name ?? 'the host'} />
+        </section>
       )}
     </>
   );

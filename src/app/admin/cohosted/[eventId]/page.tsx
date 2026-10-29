@@ -12,6 +12,8 @@ import ClanLink from '@/components/ClanLink';
 import EventDiscordServerPanel from '@/components/EventDiscordServerPanel';
 import CohostSignupsClient from './CohostSignupsClient';
 import CohostDiscordClient from './CohostDiscordClient';
+import CohostTileSuggest from '@/components/CohostTileSuggest';
+import { parseBoardAccess, staffCanEditFrom } from '@/lib/cohostBoardAccess';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,6 +49,7 @@ export default async function CohostedEventPage({ params }: { params: Promise<{ 
     ? await db.select({ id: teams.id, name: teams.name }).from(teams).where(eq(teams.id, seat.teamId)).limit(1)
     : [];
   const isAdmin = atLeast(session.role, 'admin');
+  const access = parseBoardAccess(seat.boardAccess, seat.staffCanEditBoard);
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -67,16 +70,18 @@ export default async function CohostedEventPage({ params }: { params: Promise<{ 
       <section className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-xl border border-card-border bg-card-bg p-5">
           <h2 className="mb-1 font-bold">The board</h2>
-          {seat.staffCanEditBoard ? (
+          {staffCanEditFrom(access) ? (
             <>
-              <p className="mb-3 text-sm text-text-muted">{hostName} lets your staff author the tiles with them.</p>
+              <p className="mb-3 text-sm text-text-muted">
+                {hostName} lets your staff {[access.create !== 'nobody' && 'add', access.edit !== 'nobody' && 'edit', access.delete !== 'nobody' && 'delete'].filter(Boolean).join(', ')} tiles with them.
+              </p>
               <ClanLink href={`/c/${hostSlug}/admin/events/${id}/tiles`} className="text-sm font-semibold text-gold hover:underline">
                 Edit the board →
               </ClanLink>
             </>
           ) : (
             <p className="text-sm text-text-muted">
-              Only {hostName} edits the tiles on this one. They can let your staff in from the board’s Teams tab.
+              Only {hostName} edits the tiles on this one{access.suggest !== 'nobody' ? ', but you can suggest some below' : ''}.
             </p>
           )}
           <div className="mt-2">
@@ -97,6 +102,16 @@ export default async function CohostedEventPage({ params }: { params: Promise<{ 
           )}
         </div>
       </section>
+
+      {access.suggest !== 'nobody' && (
+        <section className="rounded-xl border border-card-border bg-card-bg p-5">
+          <h2 className="mb-1 font-bold">Suggest a tile</h2>
+          <p className="mb-3 text-sm text-text-muted">
+            {hostName} decides. {access.suggest === 'players' ? 'Any of your players can suggest from the board page too.' : ''}
+          </p>
+          <CohostTileSuggest eventId={id} hostName={hostName} />
+        </section>
+      )}
 
       {isAdmin ? (
         <>

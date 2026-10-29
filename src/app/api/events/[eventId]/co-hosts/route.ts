@@ -6,7 +6,7 @@ import { clans, events } from '@/db/schema';
 import { eventForRequest } from '@/lib/eventScope';
 import { verifyUser } from '@/lib/auth';
 import { atLeast } from '@/lib/clanRoles';
-import { cohostsForEvent, inviteCoHost, setCohostStaffCanEditBoard } from '@/lib/coHost';
+import { cohostsForEvent, inviteCoHost, setCohostBoardAccess, setCohostStaffCanEditBoard } from '@/lib/coHost';
 import { settlementForEvent } from '@/lib/coHostSettlement';
 import { clanCan, minPlanNameFor } from '@/lib/entitlements';
 
@@ -47,6 +47,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
   if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const body = await request.json().catch(() => null);
+  if (body && 'boardAccess' in body) {
+    const cohostId = Number(body.cohostId);
+    if (!Number.isInteger(cohostId)) return NextResponse.json({ error: 'cohostId is required' }, { status: 400 });
+    const access = await setCohostBoardAccess(eventId, cohostId, body.boardAccess);
+    if (!access) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    return NextResponse.json({ ok: true, boardAccess: access });
+  }
   if (body && 'staffCanEditBoard' in body) {
     const cohostId = Number(body.cohostId);
     if (!Number.isInteger(cohostId) || typeof body.staffCanEditBoard !== 'boolean') {

@@ -1682,6 +1682,9 @@ export const eventCohosts = pgTable('event_cohosts', {
   // What this co-host shows of the board in its OWN server (lib/discordPostPolicy
   // parsePartnerDiscordPrefs) — capped by what the host shares. Empty = everything the host shares.
   discordPrefs: jsonb('discord_prefs').$type<Record<string, unknown>>().notNull().default({}),
+  // What this co-host may do with the tiles, action by action, and who in it (lib/cohostBoardAccess).
+  // Empty = read from staff_can_edit_board, which every write keeps in step.
+  boardAccess: jsonb('board_access').$type<Record<string, unknown>>().notNull().default({}),
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
   decidedAt: text('decided_at'),
 }, (table) => [
@@ -2952,6 +2955,30 @@ export const discordBroadcasts = pgTable('discord_broadcasts', {
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
 }, (table) => [
   index('discord_broadcasts_clan_created_idx').on(table.clanId, table.createdAt),
+]);
+
+/**
+ * A tile a co-host clan suggests for the host's board (lib/cohostBoardAccess 'suggest'). The host
+ * accepts it — which adds it as a tile, or writes it over a placeholder on a fixed grid — or turns
+ * it down with a note.
+ */
+export const tileSuggestions = pgTable('tile_suggestions', {
+  id: serial('id').primaryKey(),
+  eventId: integer('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }),
+  clanId: integer('clan_id').notNull().references(() => clans.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  title: text('title').notNull(),
+  details: text('details'),
+  points: integer('points'),
+  // 'pending' | 'accepted' | 'rejected'
+  status: text('status').notNull().default('pending'),
+  note: text('note'),
+  tileId: integer('tile_id').references(() => tiles.id, { onDelete: 'set null' }),
+  decidedByUserId: integer('decided_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('tile_suggestions_event_status_idx').on(table.eventId, table.status),
 ]);
 
 export const eventWebhooks = pgTable('event_webhooks', {

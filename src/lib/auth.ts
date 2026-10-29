@@ -326,7 +326,12 @@ export async function verifyAdminOrModerator(): Promise<UserPayload | null> {
 //   • the holder of an event_editors grant for this specific event (any role, incl. a board-scoped
 //     editor or a moderator/treasurer given one board).
 // They still cannot create events or manage teams/signups/players/fees — those stay admin-only.
-export async function verifyTileEditorForEvent(eventId: number): Promise<UserPayload | null> {
+export async function verifyTileEditorForEvent(
+  eventId: number,
+  // What the caller is about to do. Only narrows a CO-HOST's staff, whose host decides per action
+  // (lib/cohostBoardAccess); the host's own editors may do all of it.
+  action?: 'create' | 'edit' | 'delete',
+): Promise<UserPayload | null> {
   const user = await verifyUser();
   if (!user) return null;
   // The capability, held in this clan.
@@ -344,7 +349,7 @@ export async function verifyTileEditorForEvent(eventId: number): Promise<UserPay
   });
   if (grant) return user;
   // Or staff of a co-host clan the host let onto this board.
-  return (await cohostBoardEventIds(user.userId, { eventId })).length > 0 ? user : null;
+  return (await cohostBoardEventIds(user.userId, { eventId, action })).length > 0 ? user : null;
 }
 
 // Non-event authoring gate for the shared tile-editor helper APIs (item/NPC/clog/CA search) that

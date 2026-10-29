@@ -28,7 +28,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ eve
   if (!(await eventForRequest(request, eId))) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
-  const editor = await verifyTileEditorForEvent(eId);
+  const editor = await verifyTileEditorForEvent(eId, 'edit');
   if (!editor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const locked = await assertEventEditable(eId);
