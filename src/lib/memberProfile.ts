@@ -6,7 +6,7 @@
 
 import type { StatDeltas } from '@/lib/statDeltas';
 import { db } from '@/db';
-import { clanAuditLog, clanRoster, events, eventParticipants, users, memberDailyStats, memberMilestones, playerEventFacts, playerSnapshots, weeklyCompetitions, weeklyParticipants, accounts, players, clanMemberships } from '@/db/schema';
+import { clanAuditLog, clanRoster, events, eventParticipants, users, memberDailyStats, memberMilestones, playerEventFacts, playerSnapshots, weeklyCompetitions, weeklyParticipants, accounts, players, clanMemberships, accountGameClans, clans, gameClans } from '@/db/schema';
 import { findRosterSeat, statSnapshotOf } from '@/lib/roster';
 import { and, desc, eq, gte, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { HiscoresSnapshot } from '@/lib/hiscores';
@@ -1332,7 +1332,14 @@ export async function getCompetitionHistory(clanMemberId: number, rsn: string): 
 
 // ── In-game clan join dates ──────────────────────────────────────────────────────────────────────
 
-/** Seat id → the day that character joined the clan in game (lib/clanJoinDate), where known. */
+/**
+ * Seat id → the day that character joined the clan in game (lib/clanJoinDate), where known.
+ *
+ * The roster sync's date first. Without one — a clan whose sync hasn't run since dates were kept —
+ * the date the character's OWN plugin reported (account_game_clans), but only when the clan it
+ * reported is this one: its name matches the clan's VERIFIED in-game name. An unverified clan's name
+ * is a claim nobody checked, and a member who hid their in-game clan has hidden its date too.
+ */
 export async function ingameJoinDates(seatIds: number[]): Promise<Map<number, string>> {
   if (seatIds.length === 0) return new Map();
   // clan-scope: global -- keyed by seats the caller already holds; each belongs to one clan.
@@ -1340,7 +1347,29 @@ export async function ingameJoinDates(seatIds: number[]): Promise<Map<number, st
     .select({ id: clanMemberships.id, d: clanMemberships.ingameJoinedOn })
     .from(clanMemberships)
     .where(and(inArray(clanMemberships.id, seatIds), isNotNull(clanMemberships.ingameJoinedOn)));
-  return new Map(rows.map((r) => [r.id, r.d as string]));
+  const out = new Map(rows.map((r) => [r.id, r.d as string]));
+  const undated = seatIds.filter((id) => !out.has(id));
+  if (undated.length === 0) return out;
+  // clan-scope: global -- the same seats; each is matched only against its own clan's name.
+  const reported = await db
+    .select({ id: clanMemberships.id, d: accountGameClans.joinedOn })
+    .from(clanMemberships)
+    .innerJoin(clans, and(eq(clans.id, clanMemberships.clanId), isNotNull(clans.ingameNameVerifiedAt)))
+    .innerJoin(
+      accountGameClans,
+      and(eq(accountGameClans.accountId, clanMemberships.accountId), isNotNull(accountGameClans.joinedOn), eq(accountGameClans.hidden, false)),
+    )
+    .innerJoin(
+      gameClans,
+      and(
+        eq(gameClans.id, accountGameClans.gameClanId),
+        // lib/gameClanReport gameClanKey, in SQL — the same match lib/gameClans makes.
+        sql`${gameClans.nameKey} = lower(trim(regexp_replace(${clans.inGameName}, '[\\s_\\u00a0]+', ' ', 'g')))`,
+      ),
+    )
+    .where(inArray(clanMemberships.id, undated));
+  for (const r of reported) if (r.d && /^\d{4}-\d{2}-\d{2}$/.test(r.d)) out.set(r.id, r.d);
+  return out;
 }
 
 // ── Personas (one human, several accounts) ───────────────────────────────────────────────────────
