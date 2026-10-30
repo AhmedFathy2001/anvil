@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { overlaySnapshot } from '../src/lib/liveHistory';
+import { overlaySnapshot, scoresMoved } from '../src/lib/liveHistory';
 import { computeDeltas } from '../src/lib/statDeltas';
 import type { HiscoresSnapshot } from '../src/lib/hiscores';
 
@@ -39,4 +39,28 @@ test('a poll after pushes counts only what the plugin did not see', () => {
   const afterPoll = overlaySnapshot(fresh, pushed);
   const d = computeDeltas(beforePoll, afterPoll);
   assert.deepEqual(Object.keys(d.skills ?? {}).filter((k) => k !== 'overall'), ['agility']);
+});
+
+test('a display overlay adds a boss the snapshot lacks; history overlays still ignore it', () => {
+  const s = { skills: { overall: { xp: 1, level: 32, rank: 1 } }, bosses: {} } as unknown as HiscoresSnapshot;
+  const live = { fracturedArchive: 3 };
+  assert.equal(overlaySnapshot(s, live).bosses.fracturedArchive, undefined);
+  assert.equal(overlaySnapshot(s, live, new Set(['fracturedArchive'])).bosses.fracturedArchive?.score, 3);
+  assert.equal(overlaySnapshot(s, live, new Set(['zulrah'])).bosses.fracturedArchive, undefined);
+});
+
+test('scoresMoved: a new boss key or a kill counts; a rank shuffle does not', () => {
+  const base = {
+    skills: { overall: { xp: 10, level: 32, rank: 5 } },
+    bosses: { zulrah: { score: 10, rank: 100 } },
+    clues: { all: { score: 4, rank: 9 } },
+  } as unknown as HiscoresSnapshot;
+  const withRank = { ...base, bosses: { zulrah: { score: 10, rank: 101 } } } as unknown as HiscoresSnapshot;
+  assert.equal(scoresMoved(base, withRank), false);
+  const newBoss = { ...base, bosses: { ...base.bosses, fracturedArchive: { score: 3, rank: -1 } } } as unknown as HiscoresSnapshot;
+  assert.equal(scoresMoved(base, newBoss), true);
+  const kill = { ...base, bosses: { zulrah: { score: 11, rank: 100 } } } as unknown as HiscoresSnapshot;
+  assert.equal(scoresMoved(base, kill), true);
+  const clue = { ...base, clues: { all: { score: 5, rank: 9 } } } as unknown as HiscoresSnapshot;
+  assert.equal(scoresMoved(base, clue), true);
 });

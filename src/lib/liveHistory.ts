@@ -1,4 +1,5 @@
 import type { HiscoresSnapshot } from '@/lib/hiscores';
+import { readAllActivities } from '@/lib/hiscoresActivities';
 import { levelFromXp } from '@/lib/xp';
 
 // THE EFFECTIVE SNAPSHOT: what the hiscores said, raised by what the plugin has pushed since.
@@ -20,9 +21,15 @@ type BossEntry = { score?: number; rank?: number };
  * `snapshot` with every overlay key raised to max(snapshot, overlay). Skills get their level
  * recomputed from the raised XP, and overall is re-totalled when any skill moved — the two things
  * daily XP and "99 Slayer" are read from. Keys the snapshot doesn't carry are ignored: a key is a
- * skill or a boss only because the snapshot says so.
+ * skill or a boss only because the snapshot says so — unless it is in `addBosses`, which display
+ * reads pass so a boss the hiscores don't list yet (too few kills to rank) still shows the plugin's
+ * count. History must not: a boss appearing from nothing would count its whole KC as one day's gain.
  */
-export function overlaySnapshot(snapshot: HiscoresSnapshot, live: Record<string, number>): HiscoresSnapshot {
+export function overlaySnapshot(
+  snapshot: HiscoresSnapshot,
+  live: Record<string, number>,
+  addBosses?: ReadonlySet<string>,
+): HiscoresSnapshot {
   const skills = { ...((snapshot.skills ?? {}) as Record<string, SkillEntry>) };
   const bosses = { ...((snapshot.bosses ?? {}) as Record<string, BossEntry>) };
   let skillMoved = false;
@@ -38,7 +45,7 @@ export function overlaySnapshot(snapshot: HiscoresSnapshot, live: Record<string,
       }
       continue;
     }
-    const boss = bosses[key];
+    const boss = bosses[key] ?? (addBosses?.has(key) ? { rank: -1, score: 0 } : null);
     if (boss != null && (boss.score ?? 0) < v) bosses[key] = { ...boss, score: v };
   }
 
@@ -55,4 +62,26 @@ export function overlaySnapshot(snapshot: HiscoresSnapshot, live: Record<string,
   }
 
   return { ...snapshot, skills, bosses } as HiscoresSnapshot;
+}
+
+/**
+ * Whether any boss or activity SCORE differs between two snapshots, ranks aside. The sweep re-saves
+ * a snapshot when overall XP moves, and that alone missed two real changes: kills or clues that came
+ * with no XP, and a boss the parser learned to read (lib/hiscores EXTRA_HISCORE_BOSSES) — an account
+ * idle since then kept a stored snapshot without the key and showed 0 KC on every card. Ranks are
+ * left out on purpose: they shift on every poll, and saving on them would rewrite every row.
+ */
+export function scoresMoved(previous: HiscoresSnapshot, current: HiscoresSnapshot): boolean {
+  const a = (previous.bosses ?? {}) as Record<string, BossEntry>;
+  const b = (current.bosses ?? {}) as Record<string, BossEntry>;
+  const score = (e: BossEntry | undefined) => Math.max(0, e?.score ?? 0);
+  for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    if (!(key in a) || !(key in b) || score(a[key]) !== score(b[key])) return true;
+  }
+  const before = readAllActivities(previous);
+  const after = readAllActivities(current);
+  for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
+    if ((before[key]?.score ?? 0) !== (after[key]?.score ?? 0)) return true;
+  }
+  return false;
 }
