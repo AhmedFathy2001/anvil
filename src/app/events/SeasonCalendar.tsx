@@ -5,6 +5,10 @@ import { hubKind } from '@/lib/hubKinds';
 import type { CalendarItem } from '@/lib/eventsCalendar';
 import ClanLink from '@/components/ClanLink';
 
+/** A clan event isn't one of the competition kinds, so it brings its own label and colour. */
+const CLAN_EVENT_META = { label: 'Clan event', accent: '#2dd4bf' };
+const metaOf = (i: CalendarItem) => (i.clanEvent ? CLAN_EVENT_META : hubKind(i.kind));
+
 /**
  * The season: boards and weeks on one axis.
  *
@@ -98,10 +102,11 @@ export default function SeasonCalendar({
     };
 
     const lanes = [
-      laneFor('Boards', (i) => hubKind(i.kind).group === 'boards'),
+      laneFor('Boards', (i) => !i.clanEvent && hubKind(i.kind).group === 'boards'),
       laneFor('Skill', (i) => i.kind === 'sotw'),
       laneFor('Boss', (i) => i.kind === 'botw'),
-      laneFor('Other', (i) => i.kind === 'eff'),
+      laneFor('Other', (i) => !i.clanEvent && i.kind === 'eff'),
+      laneFor('Clan events', (i) => !!i.clanEvent),
     ].filter((l) => l.rows.length > 0);
 
     // Weekly ticks close in, monthly when zoomed out — anything else is a picket fence.
@@ -171,7 +176,7 @@ export default function SeasonCalendar({
               <div style={{ height: lane.rows.length * (ROW_H + ROW_GAP) - ROW_GAP }} className="relative">
                 {lane.rows.map((row, ri) =>
                   row.map(({ item, left, width }) => {
-                    const meta = hubKind(item.kind);
+                    const meta = metaOf(item);
                     const wide = (width / 100) * trackPx > 46;
                     return (
                       <ClanLink
@@ -227,6 +232,12 @@ export default function SeasonCalendar({
               </span>
             );
           })}
+          {items.some((i) => i.clanEvent) && (
+            <span className="inline-flex items-center gap-1.5">
+              <span aria-hidden className="h-2 w-2 rounded-sm" style={{ background: CLAN_EVENT_META.accent }} />
+              {CLAN_EVENT_META.label}
+            </span>
+          )}
         </div>
       </div>
 
@@ -241,7 +252,7 @@ export default function SeasonCalendar({
         >
           <b className="block text-[12.5px]">{hover.item.name}</b>
           <span className="text-text-muted">
-            {hubKind(hover.item.kind).label} · {fmt(hover.item.start)} – {hover.item.openEnded ? 'open-ended' : fmt(hover.item.end)}
+            {metaOf(hover.item).label} · {fmt(hover.item.start)} – {hover.item.openEnded ? 'open-ended' : fmt(hover.item.end)}
           </span>
           <span className="mt-1 block text-text-muted">
             {hover.item.state === 'live' ? '🔥 running now' : hover.item.state === 'upcoming' ? '⏳ scheduled' : '✓ finished'}
