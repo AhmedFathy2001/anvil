@@ -15,7 +15,16 @@ import { isManagedMediaUrl } from '@/lib/storage';
  * is allowed for deployments that serve media themselves; a protocol-relative `//host` is not.
  */
 export function isOwnMediaUrl(url: string): boolean {
-  if (url.startsWith('/') && !url.startsWith('//')) return true;
+  // A browser reads `\` as `/` and drops tabs/newlines, so `/\evil.com/x.png` is `//evil.com/x.png`.
+  // Refuse both outright, then resolve the path and require it to have stayed on this origin.
+  if (/[\\\u0000-\u001f\u007f]/.test(url)) return false;
+  if (url.startsWith('/') && !url.startsWith('//')) {
+    try {
+      return new URL(url, 'https://placeholder.invalid').origin === 'https://placeholder.invalid';
+    } catch {
+      return false;
+    }
+  }
   return isManagedMediaUrl(url);
 }
 

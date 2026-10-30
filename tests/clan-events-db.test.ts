@@ -56,6 +56,8 @@ test('a form is checked before anything is saved', () => {
 test('its own picture must be an upload from here, and Discord gets it over the boss icon', () => {
   const base = { title: 'Mass', startsAt: '2026-11-01T20:00:00Z', durationMin: 60 };
   assert.equal((CE.parseClanEventInput({ ...base, imageUrl: 'https://evil.example/x.png' }) as { ok: boolean }).ok, false);
+  // A browser reads `\` as `/`, so this is `//evil.example` — another site, dressed as a path.
+  assert.equal((CE.parseClanEventInput({ ...base, imageUrl: '/\\evil.example/x.png' }) as { ok: boolean }).ok, false);
   const ok = CE.parseClanEventInput({ ...base, imageUrl: '/uploads/mass.png', icon: 'nex' });
   assert.ok(ok.ok && ok.input.imageUrl === '/uploads/mass.png');
   const ev = { title: 'Mass', description: null, location: null, world: null, icon: 'nex', host: null, repeat: 'none', modules: null };
