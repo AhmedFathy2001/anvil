@@ -229,6 +229,32 @@ export async function canEnterEvent(opts: {
   return { outcome: 'outsider', needsApproval: entry === 'approval' || !vouched };
 }
 
+/**
+ * Is this event one of THIS person's — not merely one they may look at? A member seat (a guest seat
+ * is a past visit, not belonging) or a staff grant in the host clan, a member seat in a co-host clan
+ * that accepted, or an invitation. The bar for nudging someone to sign up: a public event in a clan
+ * they've never joined is visible to them, but it isn't theirs.
+ */
+export async function involvedInEvent(opts: { eventId: number; clanId: number; playerId: number }): Promise<boolean> {
+  const seat = await db
+    .select({ id: clanMemberships.id })
+    .from(clanMemberships)
+    .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
+    .where(
+      and(
+        eq(clanMemberships.clanId, opts.clanId),
+        eq(accounts.playerId, opts.playerId),
+        eq(clanMemberships.kind, 'member'),
+        isNull(clanMemberships.leftAt),
+      ),
+    )
+    .limit(1);
+  if (seat.length > 0) return true;
+  if (await hasGrantIn(opts.clanId, opts.playerId)) return true;
+  if (await memberOfAcceptedCohostClan(opts.eventId, opts.playerId)) return true;
+  return invitedToEvent(opts.eventId, opts.playerId);
+}
+
 /** Every event a person may see across the platform — for a cross-clan "what can I enter" list. */
 export async function visibleEventIds(playerId: number | null): Promise<number[]> {
   // clan-scope: global -- "what may this person see anywhere" is the question, and it spans clans by

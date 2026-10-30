@@ -388,3 +388,29 @@ test('the locker says which characters are already waiting at this clan’s door
     false,
   );
 });
+
+// ── Open sign-ups in the locker are this person's clans' only ────────────────────────────────
+//
+// "Live for you" once listed every clan's open sign-ups on the platform. A public event is visible to
+// anyone, but a clan they hold only a guest seat in (bravo) or none at all isn't theirs to be nudged
+// into — and each row has to say whose event it is.
+
+test("the locker's open sign-ups are only the person's own clans' events, named by host", async () => {
+  const { buildLocker } = await import('../src/lib/profileLocker.ts');
+  const { db, schema: s } = await loadDb();
+  const loginId = (await db.query.users.findFirst({ where: eq(s.users.playerId, person) }))!.id;
+
+  const [stranger] = await db.insert(s.clans).values({ slug: 'far-away', name: 'Far Away' }).returning();
+  const start = new Date(Date.now() + 7 * 86_400_000).toISOString();
+  await db.insert(s.events).values([
+    { clanId: alpha, name: 'Alpha Bingo', startDate: start, visibility: 'public', boardSize: 5 },
+    { clanId: bravo, name: 'Bravo Bingo', startDate: start, visibility: 'public', boardSize: 5 },
+    { clanId: stranger.id, name: 'Stranger Bingo', startDate: start, visibility: 'public', boardSize: 5 },
+  ]);
+
+  const locker = await buildLocker(alpha, person, loginId);
+  assert.deepEqual(
+    locker.openSignups.map((e) => [e.name, e.clanName, e.clanSlug]),
+    [['Alpha Bingo', 'Alpha', 'alpha']],
+  );
+});
