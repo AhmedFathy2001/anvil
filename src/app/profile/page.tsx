@@ -44,7 +44,7 @@ export const dynamic = 'force-dynamic';
 export default async function ProfilePage({
   searchParams,
 }: {
-  searchParams: Promise<{ welcome?: string; connect?: string }>;
+  searchParams: Promise<{ welcome?: string; connect?: string; account?: string }>;
 }) {
   // NOT requireClan(). This page is the person's, and a person has no clan on the apex — so the one
   // surface the identity model insists follows you between clans answered 404 there, and a signed-in
@@ -129,14 +129,19 @@ export default async function ProfilePage({
 
   const welcome = params.welcome === '1';
   const [locker, clanName] = await Promise.all([
-    buildLocker(clan.id, session.playerId, session.userId),
+    buildLocker(clan.id, session.playerId, session.userId, new Date(), params.account ?? null),
     getClanDisplayName(clan.id),
   ]);
 
   // Quest points, combat achievements and diaries for the account they play most — the primary one,
   // falling back to the first linked. A person with several accounts sees the one this profile is
   // really about rather than a merge of all of them, which would be true of nobody.
-  const progressAccount = locker.accounts.find((a) => a.isPrimary) ?? locker.accounts[0] ?? null;
+  // The chips at the top switch it (?account=), and the rail follows the same character.
+  const progressAccount =
+    locker.accounts.find((a) => locker.focusRsn != null && a.rsn === locker.focusRsn) ??
+    locker.accounts.find((a) => a.isPrimary) ??
+    locker.accounts[0] ??
+    null;
   const [progress, questItems, caItems] = progressAccount
     ? await Promise.all([
         // The ACCOUNT, not the seat — these read member_progress, which is account-keyed.
@@ -247,6 +252,7 @@ export default async function ProfilePage({
         role={session.role}
         isStaff={isStaff}
         accounts={locker.accounts}
+        focusRsn={locker.focusRsn}
         connection={locker.connection}
         career={locker.career}
         nowMs={nowMs}

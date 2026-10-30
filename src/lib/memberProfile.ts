@@ -24,6 +24,8 @@ import {
 import { SKILLS, SKILL_LABELS, BOSSES, EFFICIENCY_SCALE } from '@/lib/constants';
 import { progressToLevel } from '@/lib/xp';
 import { snapshotFromLiveStats } from '@/lib/liveSnapshot';
+import { overlaySnapshot } from '@/lib/liveHistory';
+import { parsePluginStats } from '@/lib/pluginStats';
 import { isPlausibleRsn, normalizeRsn } from '@/lib/auth';
 
 export interface MemberListRow {
@@ -247,6 +249,9 @@ export async function getAccountProfile(accountId: number): Promise<AccountProfi
   });
 }
 
+/** Every boss the app knows, for the display overlay (lib/liveHistory overlaySnapshot). */
+const BOSS_KEYS: ReadonlySet<string> = new Set(BOSSES.map((b) => b.key));
+
 /** The shared half: everything derivable from an account's last snapshot. */
 async function accountProfileFrom(row: {
   accountId: number;
@@ -263,7 +268,11 @@ async function accountProfileFrom(row: {
   });
   // No hiscores snapshot yet, but the plugin has pushed this character's XP: build the profile from
   // that rather than show dashes beside a "Verified" badge. Only until the sweep lands a real one.
-  const snapshot = last.snapshot ?? snapshotFromLiveStats(row.liveStats);
+  // Raised by what the plugin pushed since, so the card agrees with the game rather than the last
+  // hiscores read — and a boss the hiscores don't rank yet still shows the kills the plugin saw.
+  const snapshot = last.snapshot
+    ? overlaySnapshot(last.snapshot, parsePluginStats(row.liveStats ?? null), BOSS_KEYS)
+    : snapshotFromLiveStats(row.liveStats);
   const at = last.snapshot ? last.at : snapshot ? row.liveStatsAt : null;
 
   const [mode] = await db

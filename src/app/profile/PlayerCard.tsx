@@ -14,6 +14,8 @@ interface Props {
   role: string;
   isStaff: boolean;
   accounts: LockerAccount[];
+  /** The character the page's records and progress are about; its chip is the selected one. */
+  focusRsn: string | null;
   connection: LockerConnection;
   career: LockerCareer | null;
   nowMs: number;
@@ -55,10 +57,13 @@ export default function PlayerCard({
   role,
   isStaff,
   accounts,
+  focusRsn,
   connection,
   career,
   nowMs,
 }: Props) {
+  // With more than one character the chips switch which one the page's records and progress show.
+  const switchable = accounts.length > 1;
   const played = career && career.eventsPlayed > 0;
 
   return (
@@ -118,31 +123,47 @@ export default function PlayerCard({
                   No RuneScape account linked yet
                 </span>
               ) : (
-                accounts.map((a) => (
-                  <span
-                    key={a.id}
-                    className="inline-flex items-center gap-2 rounded-full border border-card-border bg-brown-dark/60 pl-2 pr-3 py-1 text-sm"
-                    title={a.lastPingAt ? `Last plugin ping ${ago(a.lastPingAt, nowMs)}` : 'No plugin ping yet'}
-                  >
+                accounts.map((a) => {
+                  const selected = switchable && a.rsn === focusRsn;
+                  const chip = (
                     <span
-                      className={`w-2 h-2 rounded-full shrink-0 ${
-                        a.lastPingAt ? 'bg-accent-green-light ring-2 ring-accent-green/25' : 'bg-text-muted'
-                      }`}
-                    />
-                    {a.isPrimary && <span className="text-gold text-[11px]">★</span>}
-                    <span className="truncate max-w-[10rem]">{a.rsn}</span>
-                    {a.joinedOn && (
-                      <span className="text-[11px] text-text-muted" title={`Joined the clan in game on ${formatJoinDate(a.joinedOn, true)}`}>
-                        since {formatJoinDate(a.joinedOn)}
-                      </span>
-                    )}
-                    {a.playingIn ? (
-                      <span className="text-[11px] text-accent-green-light">playing</span>
-                    ) : !a.verified ? (
-                      <span className="text-[11px] text-yellow-400">unverified</span>
-                    ) : null}
-                  </span>
-                ))
+                      className={`inline-flex items-center gap-2 rounded-full border bg-brown-dark/60 pl-2 pr-3 py-1 text-sm transition-colors ${
+                        selected ? 'border-gold/60' : 'border-card-border'
+                      } ${switchable && !selected ? 'hover:border-gold/40' : ''}`}
+                      title={a.lastPingAt ? `Last plugin ping ${ago(a.lastPingAt, nowMs)}` : 'No plugin ping yet'}
+                    >
+                      <span
+                        className={`w-2 h-2 rounded-full shrink-0 ${
+                          a.lastPingAt ? 'bg-accent-green-light ring-2 ring-accent-green/25' : 'bg-text-muted'
+                        }`}
+                      />
+                      {a.isPrimary && <span className="text-gold text-[11px]">★</span>}
+                      <span className="truncate max-w-[10rem]">{a.rsn}</span>
+                      {a.joinedOn && (
+                        <span className="text-[11px] text-text-muted" title={`Joined the clan in game on ${formatJoinDate(a.joinedOn, true)}`}>
+                          since {formatJoinDate(a.joinedOn)}
+                        </span>
+                      )}
+                      {a.playingIn ? (
+                        <span className="text-[11px] text-accent-green-light">playing</span>
+                      ) : !a.verified ? (
+                        <span className="text-[11px] text-yellow-400">unverified</span>
+                      ) : null}
+                    </span>
+                  );
+                  return switchable ? (
+                    <ClanLink
+                      key={a.id}
+                      href={`/profile?account=${encodeURIComponent(a.rsn)}`}
+                      aria-current={selected ? 'page' : undefined}
+                      title={`Show ${a.rsn}'s records and progress`}
+                    >
+                      {chip}
+                    </ClanLink>
+                  ) : (
+                    <span key={a.id}>{chip}</span>
+                  );
+                })
               )}
               {/* The chips are where a member looks for their characters, so it's where they look
                   to add one. It lands on the drawer, which is where the token and the by-name path

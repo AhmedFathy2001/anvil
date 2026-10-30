@@ -292,6 +292,21 @@ test("the locker lists a person's accounts that this clan has no seat for", asyn
   );
 });
 
+test("?account= focuses one of the person's own characters here, and nothing else", async () => {
+  const { buildLocker } = await import('../src/lib/profileLocker.ts');
+  const { db, schema: s } = await loadDb();
+  const loginId = (await db.query.users.findFirst({ where: eq(s.users.playerId, person) }))!.id;
+
+  const picked = await buildLocker(alpha, person, loginId, new Date(), 'the main');
+  assert.equal(picked.focusRsn, 'The Main', 'matched by normalized name');
+  // Theirs, but with no seat in alpha: the locker is clan-scoped, so it falls back rather than
+  // reading a character the clan cannot see.
+  const elsewhere = await buildLocker(alpha, person, loginId, new Date(), 'The Alt');
+  assert.equal(elsewhere.focusRsn, 'The Main');
+  const stranger = await buildLocker(alpha, person, loginId, new Date(), 'Not Yours');
+  assert.equal(stranger.focusRsn, 'The Main');
+});
+
 test('but the clan itself still sees only what the rule allows', async () => {
   // The same person, the same clan, asked the other way round. If these two ever agree, the locker
   // has become a leak.

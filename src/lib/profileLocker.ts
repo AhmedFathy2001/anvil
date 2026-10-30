@@ -242,6 +242,8 @@ export async function buildLocker(
   playerId: number,
   userId: number,
   now: Date = new Date(),
+  /** The character the rail's records and milestones are about (?account= on the page), when it's theirs. */
+  wantedRsn: string | null = null,
 ): Promise<LockerData> {
   const nowIso = now.toISOString();
   const nowMs = now.getTime();
@@ -690,7 +692,10 @@ export async function buildLocker(
   // ── The rail's personal numbers ───────────────────────────────────────────────────────────────
   // Records and milestones are per-ACCOUNT — a best week is one account's best week, and summing an
   // alt's XP into it would invent a week nobody played. Focus the account that leads the person.
+  // A character they picked comes first — but only one of their own; anything else falls through.
+  const wanted = wantedRsn ? normalizeRsn(wantedRsn) : null;
   const focus =
+    (wanted ? memberRows.find((m) => normalizeRsn(m.rsn) === wanted) : undefined) ??
     memberRows.find((m) => m.isPrimary === 1) ??
     myRoster.slice().sort((a, b) => (b.overallXp ?? 0) - (a.overallXp ?? 0))[0] ??
     memberRows[0];

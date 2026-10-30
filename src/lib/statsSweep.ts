@@ -27,7 +27,7 @@ import { effectiveMetricValue } from '@/lib/weeklyMetric';
 import { metricKeys } from '@/lib/constants';
 import { detectMilestones, computeDeltas, isDue, nextDueAt, recordDailyStats, recordMilestones } from '@/lib/statHistory';
 import { sweepDue, PLUGIN_UNPUSHABLE_KEYS } from '@/lib/pollLadder';
-import { overlaySnapshot } from '@/lib/liveHistory';
+import { overlaySnapshot, scoresMoved } from '@/lib/liveHistory';
 import { mergeSeatsByAccount } from '@/lib/sweepWork';
 import { normalizeRsn } from '@/lib/auth';
 
@@ -570,7 +570,9 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
       // Written whenever the snapshot is, plus once for a member who predates the column — without
       // that backfill an idle account would sit missing from the clan leaderboards until the day
       // it happened to gain XP, which for some members is never.
-      const writeActivities = changed || !entry.hasActivities;
+      // Kills or clues with no XP, or a boss the parser newly reads, still change what's stored.
+      const scoresChanged = changed || (previous !== null && scoresMoved(previous, snapshot));
+      const writeActivities = scoresChanged || !entry.hasActivities;
 
       // The bookkeeping, every poll — a narrow row now that the snapshot lives elsewhere.
       // Enrolled in something live — a competition row or a stat tile — so the backoff tail is
@@ -585,7 +587,7 @@ export async function runStatsSweep(source: SweepSource = 'site'): Promise<Stats
             });
       // The snapshot, only when it would differ. Its own table (schema accountStatSnapshots) so an
       // idle member's poll no longer copies 1.6 KB of unchanged JSON to say "still nothing".
-      if (changed) await saveStatSnapshot(entry.accountId, snapshotJson);
+      if (scoresChanged) await saveStatSnapshot(entry.accountId, snapshotJson);
       if (writeActivities) entry.hasActivities = true;
 
       if (changed) {
