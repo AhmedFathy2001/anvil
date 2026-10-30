@@ -1,4 +1,5 @@
 import { formatJoinDate } from '@/lib/clanJoinDate';
+import { characterList } from '@/lib/apexHome';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
@@ -156,6 +157,11 @@ export default async function CharacterPage({
     goalRatesFrom(series),
   );
 
+  const clanJoinedOn = character.clan?.joinedOn ?? (seatIsGameClan ? gameClan?.joinedOn ?? null : null);
+  // The owner's other characters, so a person with three accounts can move between them. Only ever
+  // the viewer's OWN list — it says these accounts are one person, which nobody else gets told here.
+  const myCharacters = character.viewerOwns ? await characterList(session?.playerId) : [];
+
   const upcoming = getUpcomingMilestones(profile);
   const ehp = profile.efficiency?.ehp ?? null;
   const ehb = profile.efficiency?.ehb ?? null;
@@ -183,6 +189,8 @@ export default async function CharacterPage({
               <ClanCrest name={character.clan.name} logoUrl={character.clan.logoUrl} size={18} />
               {character.clan.name}
               {seatIsGameClan && gameClan?.title && <span className="text-text-dim">· {gameClan.title}</span>}
+              {/* The roster sync's date, else the one the player's own plugin reported for this clan. */}
+              {clanJoinedOn && <span className="text-text-dim">· since {formatJoinDate(clanJoinedOn)}</span>}
             </ClanLink>
           ) : null}
           {gameClan && !seatIsGameClan && <GameClanChip clan={gameClan} />}
@@ -235,6 +243,30 @@ export default async function CharacterPage({
             Compare ↗
           </ClanLink>
         </div>
+
+        {myCharacters.length > 1 && (
+          <nav aria-label="Your characters" className="mt-3 flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-[11px] uppercase tracking-[0.12em] text-text-dim">Your characters</span>
+            {myCharacters
+              .slice()
+              .sort((a, b) => a.rsn.localeCompare(b.rsn))
+              .map((c) =>
+                c.id === character.accountId ? (
+                  <span key={c.id} aria-current="page" className="rounded-full border border-gold/50 bg-gold/10 px-2.5 py-0.5 text-xs text-gold">
+                    {c.rsn}
+                  </span>
+                ) : (
+                  <ClanLink
+                    key={c.id}
+                    href={`/p/${encodeURIComponent(c.rsn)}`}
+                    className="rounded-full border border-card-border px-2.5 py-0.5 text-xs text-text-muted transition-colors hover:border-gold/40 hover:text-foreground"
+                  >
+                    {c.rsn}
+                  </ClanLink>
+                ),
+              )}
+          </nav>
+        )}
 
         <div className="mt-5 flex flex-wrap gap-x-8 gap-y-4">
           <Figure label="Total level" value={profile.totalLevel > 0 ? profile.totalLevel.toLocaleString() : '—'} />
