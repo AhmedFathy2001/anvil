@@ -23,6 +23,8 @@ import {
 } from '@/lib/killSource';
 import { collectionDisplayTotal, howItCounts } from '@/lib/collectionSets';
 import { ROLL_TABLES } from '@/lib/rollTables';
+import { PET_GROUPS } from '@/lib/petGroups';
+import { MAX_TRACKED_ITEMS } from '@/lib/tileItemLimits';
 import Checkbox from '@/components/Checkbox';
 import { TRIAL_RANK_ACTIVITIES } from '@/lib/barracudaTrials';
 import type { TileConfig, TileMissionRules } from '@/lib/types';
@@ -1363,6 +1365,9 @@ function TileTrackingEditor({
       const amt = parseInt(requiredAmount, 10);
       if (!Number.isInteger(amt) || amt < 1) return 'Set a required amount of at least 1.';
     }
+    if ((kind === 'drop' || kind === 'collection' || kind === 'gain') && trackedItems.length > MAX_TRACKED_ITEMS) {
+      return `A tile can track up to ${MAX_TRACKED_ITEMS} items — this one has ${trackedItems.length}.`;
+    }
     if ((kind === 'drop' || kind === 'collection') && sourcesIncludeRaid(sourceNpcsText) && dropPartySize.trim()) {
       const size = parseInt(dropPartySize, 10);
       if (!Number.isInteger(size) || size < 1 || size > 100) return 'Party size must be between 1 and 100 (or blank for any).';
@@ -1937,10 +1942,15 @@ function TileTrackingEditor({
             <label className="block text-xs text-text-muted mb-1">
               {isCollection ? 'Set Items (count per item)' : 'Tracked Items'}
               <span className="text-text-muted/60 ml-1">(RuneLite plugin auto-detects these drops)</span>
+              {trackedItems.length > 1 && (
+                <span className={`ml-1 ${trackedItems.length > MAX_TRACKED_ITEMS ? 'text-accent-red' : 'text-text-muted/60'}`}>
+                  · {trackedItems.length}/{MAX_TRACKED_ITEMS}
+                </span>
+              )}
             </label>
 
             {trackedItems.length > 0 && (
-              <div className="space-y-1.5 mb-2">
+              <div className="space-y-1.5 mb-2 max-h-80 overflow-y-auto pr-1">
                 {trackedItems.map((item) => (
                   <div
                     key={item.id}
@@ -2186,6 +2196,36 @@ function TileTrackingEditor({
                     search all items
                   </button>
                 </span>
+              )}
+            </div>
+            {/* One click adds a whole family of pets — merged into what's there, so "boss pets" plus a
+                hand-picked skilling pet or two is two steps, not fifty searches. */}
+            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+              <span className="text-[10px] text-text-muted">Add pets:</span>
+              {PET_GROUPS.map((g) => (
+                <button
+                  key={g.key}
+                  type="button"
+                  title={`${g.blurb} Adds ${g.items.length} pets to the list (ones already on it are skipped).`}
+                  onClick={() =>
+                    setTrackedItems((prev) => {
+                      const have = new Set(prev.map((i) => i.id));
+                      return [...prev, ...g.items.filter((i) => !have.has(i.id)).map((i) => ({ ...i, perItemAmount: 1 }))];
+                    })
+                  }
+                  className="text-[10px] px-2 py-1 rounded border border-card-border text-text-muted hover:text-foreground hover:border-gold/40 transition-colors"
+                >
+                  {g.label} <span className="text-text-muted/60">{g.items.length}</span>
+                </button>
+              ))}
+              {trackedItems.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setTrackedItems([])}
+                  className="text-[10px] px-2 py-1 text-text-muted hover:text-accent-red transition-colors"
+                >
+                  Clear all
+                </button>
               )}
             </div>
             {trackedItems.length === 0 && (

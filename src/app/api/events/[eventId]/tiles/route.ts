@@ -13,6 +13,7 @@ import { atLeast } from '@/lib/clanRoles';
 import { isRaidEffortMode, parseTileEffortConfig } from '@/lib/tileEffortConfig';
 import { track } from '@/lib/analytics';
 import { captureRevealStats } from '@/lib/revealStatsCapture';
+import { MAX_TRACKED_ITEMS } from '@/lib/tileItemLimits';
 
 export async function GET(
   request: Request,
@@ -172,14 +173,14 @@ export async function PUT(
   }
 
   if (trackedItemIds !== undefined && trackedItemIds !== null) {
-    if (!Array.isArray(trackedItemIds) || trackedItemIds.length > 50 ||
+    if (!Array.isArray(trackedItemIds) || trackedItemIds.length > MAX_TRACKED_ITEMS ||
         !trackedItemIds.every((id: unknown) => Number.isInteger(id) && (id as number) > 0)) {
-      return NextResponse.json({ error: 'trackedItemIds must be an array of up to 50 positive integers' }, { status: 400 });
+      return NextResponse.json({ error: `trackedItemIds must be an array of up to ${MAX_TRACKED_ITEMS} positive integers` }, { status: 400 });
     }
   }
 
   if (itemRequirements !== undefined && itemRequirements !== null) {
-    if (!Array.isArray(itemRequirements) ||
+    if (!Array.isArray(itemRequirements) || itemRequirements.length > MAX_TRACKED_ITEMS ||
         !itemRequirements.every((r: unknown) => {
           const req = r as { itemId?: unknown; requiredAmount?: unknown; group?: unknown; groupRequire?: unknown };
           const groupOk = req.group == null || (typeof req.group === 'string' && req.group.length <= 30);
@@ -191,7 +192,7 @@ export async function PUT(
           return req && Number.isInteger(req.itemId) && (req.itemId as number) > 0 &&
                  Number.isInteger(req.requiredAmount) && (req.requiredAmount as number) >= 1 && groupOk && requireOk;
         })) {
-      return NextResponse.json({ error: 'Each itemRequirement must have a positive itemId, requiredAmount >= 1, an optional set name (≤30 chars), and an optional groupRequire of 1-100' }, { status: 400 });
+      return NextResponse.json({ error: `Up to ${MAX_TRACKED_ITEMS} items; each itemRequirement must have a positive itemId, requiredAmount >= 1, an optional set name (≤30 chars), and an optional groupRequire of 1-100` }, { status: 400 });
     }
   }
 
