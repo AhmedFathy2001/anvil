@@ -27,6 +27,7 @@ Jagex hiscores. One call is the whole point.
 | `forge-consume` | the Forge data-plane queue |
 | `backup` | the database (`pg_dump` to object storage) |
 | `discord-commands` | the shared bot's global slash-command set — awaited at boot, required after each production deploy, and reconciled daily; also removes old guild-scoped copies that shadow the global set |
+| `billing` | paying clans whose renewal date went by (or was never recorded) — asks Gumroad, and drops to free the ones it no longer runs |
 
 ## Installing / updating on the box
 

@@ -76,6 +76,8 @@ export interface GumroadEvent {
   recurrence: string | null;      // 'monthly' | 'yearly' | ...
   /** When a free trial started by this sale runs out — the first charge is due then. */
   freeTrialEndsAt: string | null;
+  /** When the charge happened (`sale_timestamp`) — a renewal's next due date counts from it. */
+  saleTimestamp: string | null;
   isRecurringCharge: boolean;
   /** Query params we appended to the checkout URL, echoed back (our correlation `ref` lives here). */
   urlParams: Record<string, string>;
@@ -144,6 +146,7 @@ export function parseWebhook(raw: string): GumroadEvent {
     priceCents: priceStr != null ? Number(priceStr) : null,
     recurrence: get('recurrence'),
     freeTrialEndsAt: get('free_trial_ends_at'),
+    saleTimestamp: get('sale_timestamp'),
     isRecurringCharge,
     urlParams,
   };
