@@ -151,7 +151,8 @@ export function planOf(clanPlan: string | null | undefined): Plan {
  */
 export function planForGumroadTier(tier: string | null | undefined): Plan | null {
   if (!tier) return null;
-  const want = tier.trim().toLowerCase();
+  // Gumroad sends the tier's display name, which on the live products is "Anvil Silver".
+  const want = tier.trim().toLowerCase().replace(/^anvil\s+/, '');
   return Object.values(PLANS).find((p) => p.name.toLowerCase() === want) ?? null;
 }
 

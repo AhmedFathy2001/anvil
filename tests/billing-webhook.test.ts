@@ -116,6 +116,8 @@ test('tier names map case-insensitively, since Gumroad sends the display name', 
   assert.equal(planForGumroadTier('gold')?.id, 'gold');
   assert.equal(planForGumroadTier('GOLD')?.id, 'gold');
   assert.equal(planForGumroadTier('  Silver ')?.id, 'silver');
+  assert.equal(planForGumroadTier('Anvil Silver')?.id, 'silver', 'the live products name their tiers "Anvil Silver"');
+  assert.equal(planForGumroadTier('Anvilsilver'), null);
   assert.equal(planForGumroadTier('Titanium'), null);
 });
 
@@ -421,4 +423,102 @@ test('a renewal stamped in the future is dated from now, so it cannot hide a lap
   const after = await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) });
   const days = (Date.parse(after!.currentPeriodEnd!) - Date.now()) / 86_400_000;
   assert.ok(days < 32, `due a month out at most, got ${days}`);
+});
+
+// ── One cart, two tiers; a second free trial ──────────────────────────────────────────────────
+
+/** Gumroad's API, answering for the subscribers given (status + trial end) and confirming every sale. */
+async function withGumroad<T>(subs: Record<string, { status?: string; free_trial_ends_at?: string | null }>, run: () => Promise<T>): Promise<T> {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (url: string | URL) => {
+    const u = String(url);
+    const sub = /\/subscribers\/([^/?]+)/.exec(u)?.[1];
+    if (sub) {
+      const id = decodeURIComponent(sub);
+      return subs[id] ? Response.json({ success: true, subscriber: { id, status: 'alive', ...subs[id] } }) : new Response('{}', { status: 404 });
+    }
+    const sale = /\/sales\/([^/?]+)/.exec(u)?.[1];
+    if (sale) return Response.json({ success: true, sale: { id: decodeURIComponent(sale) } });
+    return new Response('not mocked', { status: 500 });
+  }) as typeof fetch;
+  process.env.GUMROAD_ACCESS_TOKEN = 'test-token';
+  try {
+    return await run();
+  } finally {
+    globalThis.fetch = realFetch;
+    delete process.env.GUMROAD_ACCESS_TOKEN;
+  }
+}
+
+test("a cancel of a stray membership bought through the clan's checkout leaves the kept one alone", async () => {
+  const { db, schema: s } = await loadDb();
+  const [clan] = await db
+    .insert(s.clans)
+    .values({ slug: 'two-carts', name: 'Two Carts', plan: 'silver', memberCap: 300, status: 'active', gumroadRef: 'ref-two', gumroadSubscriptionId: 'sub-kept-silver' })
+    .returning();
+  // Gumroad echoes the clan's ref on every notification for every membership from that checkout.
+  for (const resource_name of ['cancellation', 'subscription_ended', 'refund']) {
+    await postWebhook({ resource_name, subscription_id: 'sub-stray-gold', 'url_params[ref]': 'ref-two' });
+  }
+  const after = await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) });
+  assert.equal(after?.plan, 'silver');
+  assert.equal(after?.status, 'active');
+  assert.equal(after?.cancelAtPeriodEnd, false);
+  assert.equal(after?.gumroadSubscriptionId, 'sub-kept-silver');
+});
+
+test('a clan that had a membership gets no second free trial: the plan waits for the first charge', async () => {
+  const { db, schema: s } = await loadDb();
+  const [clan] = await db
+    .insert(s.clans)
+    .values({ slug: 'second-trial', name: 'Second Trial', plan: 'free', memberCap: 50, status: 'active', gumroadRef: 'ref-second', gumroadSubscriptionId: 'sub-old' })
+    .returning();
+  await db.insert(s.clanAuditLog).values({ clanId: clan.id, eventType: 'billing_ended', newValue: JSON.stringify({ from: 'silver', to: 'free' }) });
+  const trialEnd = new Date(Date.now() + 30 * 86_400_000).toISOString();
+
+  await withGumroad({ 'sub-new': { free_trial_ends_at: trialEnd } }, async () => {
+    await postWebhook({ resource_name: 'sale', sale_id: 'sale-second-1', subscription_id: 'sub-new', 'variants[Tier]': 'Anvil Silver', 'url_params[ref]': 'ref-second' });
+    const held = await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) });
+    assert.equal(held?.plan, 'free', 'no plan for a trial the clan already had');
+    assert.equal(held?.gumroadSubscriptionId, 'sub-new', 'recorded, so its first charge finds the clan');
+    assert.equal(held?.trialEndsAt, trialEnd, "Gumroad's trial end, not a guess");
+
+    await postWebhook({ resource_name: 'sale', is_recurring_charge: 'true', sale_id: 'sale-second-2', subscription_id: 'sub-new', 'variants[Tier]': 'Anvil Silver', recurrence: 'monthly' });
+    const paid = await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) });
+    assert.equal(paid?.plan, 'silver', 'the first charge starts it');
+  });
+});
+
+test("a clan's first membership gets its trial, and a second tier in the same cart is flagged, not applied", async () => {
+  const { db, schema: s } = await loadDb();
+  const [clan] = await db
+    .insert(s.clans)
+    .values({ slug: 'first-trial', name: 'First Trial', status: 'active', gumroadRef: 'ref-first' })
+    .returning();
+  const trialEnd = new Date(Date.now() + 30 * 86_400_000).toISOString();
+  await withGumroad({ 'sub-f-silver': { free_trial_ends_at: trialEnd }, 'sub-f-gold': { free_trial_ends_at: trialEnd } }, async () => {
+    await postWebhook({ resource_name: 'sale', sale_id: 'sale-f1', subscription_id: 'sub-f-silver', 'variants[Tier]': 'Anvil Silver', 'url_params[ref]': 'ref-first' });
+    await postWebhook({ resource_name: 'sale', sale_id: 'sale-f2', subscription_id: 'sub-f-gold', 'variants[Tier]': 'Anvil Gold', 'url_params[ref]': 'ref-first' });
+  });
+  const after = await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) });
+  assert.equal(after?.plan, 'silver');
+  assert.equal(after?.gumroadSubscriptionId, 'sub-f-silver');
+  const dup = await db.query.clanAuditLog.findFirst({ where: eq(s.clanAuditLog.eventType, 'billing_duplicate') });
+  assert.ok(dup && JSON.parse(dup.newValue!).subscription === 'sub-f-gold');
+});
+
+test('a sale Gumroad says has no trial is not shown as one', async () => {
+  const { db, schema: s } = await loadDb();
+  const [clan] = await db
+    .insert(s.clans)
+    .values({ slug: 'no-trial', name: 'No Trial', status: 'active', gumroadRef: 'ref-no-trial' })
+    .returning();
+  await withGumroad({ 'sub-nt': { free_trial_ends_at: null } }, () =>
+    postWebhook({ resource_name: 'sale', sale_id: 'sale-nt', subscription_id: 'sub-nt', 'variants[Tier]': 'Anvil Bronze', recurrence: 'monthly', 'url_params[ref]': 'ref-no-trial' }),
+  );
+  const after = await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) });
+  assert.equal(after?.plan, 'bronze');
+  assert.equal(after?.trialEndsAt, null);
+  const days = (Date.parse(after!.currentPeriodEnd!) - Date.now()) / 86_400_000;
+  assert.ok(days > 27 && days < 32, `due a month out, got ${days}`);
 });

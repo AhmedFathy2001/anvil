@@ -205,15 +205,14 @@ export function nextChargeDue(recurrence: string | null, fromMs: number): string
 
 export type SubscriptionCheck = 'alive' | 'dead' | 'unverified' | 'error';
 
-/**
- * Ask Gumroad whether a membership is running. The restart notification carries no sale to check
- * with checkSaleWithGumroad, so this is what stands between a replayed restart and a free plan.
- * Same contract: no GUMROAD_ACCESS_TOKEN → 'unverified', unreachable → 'error' (caller 503s).
- */
-export async function checkSubscriptionWithGumroad(subscriptionId: string | null): Promise<SubscriptionCheck> {
-  const token = process.env.GUMROAD_ACCESS_TOKEN;
-  if (!token) return 'unverified';
-  if (!subscriptionId) return 'dead';
+interface Subscriber {
+  id?: string;
+  status?: string;
+  free_trial_ends_at?: string | null;
+}
+
+/** Gumroad's record of one membership: the subscriber, null when it has none, 'error' when unreachable. */
+async function fetchSubscriber(token: string, subscriptionId: string): Promise<Subscriber | null | 'error'> {
   let res: Response;
   try {
     res = await fetch(`https://api.gumroad.com/v2/subscribers/${encodeURIComponent(subscriptionId)}`, {
@@ -224,11 +223,39 @@ export async function checkSubscriptionWithGumroad(subscriptionId: string | null
   } catch {
     return 'error';
   }
-  if (res.status === 404) return 'dead';
+  if (res.status === 404) return null;
   if (!res.ok) return 'error';
-  const body = (await res.json().catch(() => null)) as { success?: boolean; subscriber?: { id?: string; status?: string } } | null;
+  const body = (await res.json().catch(() => null)) as { success?: boolean; subscriber?: Subscriber } | null;
   const sub = body?.success ? body.subscriber : null;
-  if (!sub || sub.id !== subscriptionId) return 'dead';
+  return sub && sub.id === subscriptionId ? sub : null;
+}
+
+/**
+ * Ask Gumroad whether a membership is running. The restart notification carries no sale to check
+ * with checkSaleWithGumroad, so this is what stands between a replayed restart and a free plan.
+ * Same contract: no GUMROAD_ACCESS_TOKEN → 'unverified', unreachable → 'error' (caller 503s).
+ */
+export async function checkSubscriptionWithGumroad(subscriptionId: string | null): Promise<SubscriptionCheck> {
+  const token = process.env.GUMROAD_ACCESS_TOKEN;
+  if (!token) return 'unverified';
+  if (!subscriptionId) return 'dead';
+  const sub = await fetchSubscriber(token, subscriptionId);
+  if (sub === 'error') return 'error';
   // 'alive' and 'pending_cancellation' are both running today; every other status is over or failing.
-  return sub.status === 'alive' || sub.status === 'pending_cancellation' ? 'alive' : 'dead';
+  return sub && (sub.status === 'alive' || sub.status === 'pending_cancellation') ? 'alive' : 'dead';
+}
+
+/**
+ * When a membership's free trial ends, by Gumroad's own record — the sale notification does not
+ * reliably carry it, and a trial guessed from our side once told a paying customer they were on one.
+ * Null: no trial (or the sub isn't Gumroad's to answer for). Undefined: we couldn't ask (no token,
+ * unreachable), so the caller falls back to what the notification said.
+ */
+export async function trialEndWithGumroad(subscriptionId: string | null): Promise<string | null | undefined> {
+  const token = process.env.GUMROAD_ACCESS_TOKEN;
+  if (!token || !subscriptionId) return undefined;
+  const sub = await fetchSubscriber(token, subscriptionId);
+  if (sub === 'error' || sub === null) return undefined;
+  const ms = sub.free_trial_ends_at ? Date.parse(sub.free_trial_ends_at) : NaN;
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
 }

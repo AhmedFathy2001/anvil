@@ -142,7 +142,9 @@ export default async function PortalPage() {
       )}
 
       <p className="mt-8 text-center text-[12.5px] text-text-dim">
-        Manage or cancel a subscription with Manage on Gumroad above, or from the receipt Gumroad emailed you.
+        {owned.some((c) => c.subscriptionId)
+          ? 'Manage or cancel a subscription with Manage on Gumroad above, or from the receipt Gumroad emailed you.'
+          : 'Subscriptions are managed on Gumroad, from the receipt it emails you.'}
         Anvil never sees your card — Gumroad is the merchant of record.
       </p>
     </div>
@@ -181,6 +183,9 @@ function ClanBillingCard({
   // (a lapsed Silver clan of 296 dropped to free needs Silver, not the next step, Bronze), else the
   // next tier up.
   const fits = paid.find((p) => p.memberCap! >= members);
+  // A new membership whose free trial is running while the clan stays on free: the trial is once per
+  // clan (webhooks/gumroad), so the plan starts with the first payment, when the trial ends.
+  const held = onTrial && plan.priceUsd === 0 && !!subscriptionId;
   // An overdue clan still on its paid plan renews that plan.
   const renewing = lapsed && plan.priceUsd !== 0 && paid.includes(plan);
   const higher = renewing ? plan : overCap && fits ? fits : paid.find((p) => plan.memberCap != null && p.memberCap! > plan.memberCap);
@@ -195,7 +200,7 @@ function ClanBillingCard({
             <span className="rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-[11px] font-semibold text-gold">
               {plan.name}
             </span>
-            {onTrial && (
+            {onTrial && !held && (
               <span className="rounded-full bg-accent-green/15 px-2 py-0.5 text-[11px] font-medium text-accent-green-light">
                 Trial · {trialDaysLeft}d left
               </span>
@@ -216,6 +221,14 @@ function ClanBillingCard({
         </ClanLink>
       </div>
 
+      {held && (
+        <div className="mt-3 rounded-lg border border-gold/30 bg-gold/10 px-3 py-2 text-[12.5px] text-gold-light">
+          Your new membership starts with its first payment, in {trialDaysLeft} day{trialDaysLeft === 1 ? '' : 's'}.
+          The free trial is once per clan, and this clan has had one. To start now, cancel this one under
+          Manage on Gumroad and ask us for a link without the trial.
+        </div>
+      )}
+
       {lapsed && (
         <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[12.5px] text-red-300">
           {plan.priceUsd === 0
@@ -232,7 +245,7 @@ function ClanBillingCard({
         </div>
       )}
 
-      {higher && (
+      {higher && !held && (
         <div className="mt-3.5 flex items-center gap-2">
           <a
             href={checkoutUrlWithRef(higher, checkoutRef)!}
