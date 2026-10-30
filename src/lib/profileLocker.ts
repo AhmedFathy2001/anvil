@@ -5,6 +5,7 @@ import {
   clanRoster,
   completions,
   eventParticipants,
+  clans,
   eventSignups,
   events,
   memberDailyStats,
@@ -24,6 +25,7 @@ import { getStatStandings, getTeamStandings } from '@/lib/statStandings';
 import { parseContributionSnapshot } from '@/lib/statTracking';
 import { loadPlayerOwners } from '@/lib/draftProfiles';
 import { signupWindowState } from '@/lib/signup';
+import { involvedInEvent } from '@/lib/eventAccess';
 import { competitionImageUrl } from '@/lib/tileIcons';
 import {
   getClanActivityAnalytics,
@@ -158,6 +160,9 @@ export interface LockerSignup {
   closesAt: string | null;
   /** The member's own sign-up, if they already sent one. */
   myStatus: string | null;
+  /** The hosting clan — the locker spans clans, so the row has to say whose event this is. */
+  clanName: string;
+  clanSlug: string;
 }
 
 export interface LockerCaptainSeat {
@@ -294,7 +299,7 @@ export async function buildLocker(
       career: null,
       liveEvents: [],
       liveWeeklies: [],
-      openSignups: await openSignupsFor(userId, nowMs),
+      openSignups: await openSignupsFor(userId, playerId, nowMs),
       captainSeats: await captainSeatsFor(userId, nowIso),
       history: [],
       historyTotals: { events: 0, weeklies: 0 },
@@ -784,7 +789,7 @@ export async function buildLocker(
     career,
     liveEvents,
     liveWeeklies,
-    openSignups: await openSignupsFor(userId, nowMs, new Set(playerRows.map((p) => p.eventId))),
+    openSignups: await openSignupsFor(userId, playerId, nowMs, new Set(playerRows.map((p) => p.eventId))),
     captainSeats: await captainSeatsFor(userId, nowIso),
     history: history.slice(0, HISTORY_LIMIT),
     historyTotals: { events: finishedEvents.length, weeklies: finishedWeeklies.length },
@@ -939,12 +944,13 @@ async function finishedWeekliesFor(memberIdSet: Set<number>, myRsns: Set<string>
 /** Events whose sign-ups are open, with this user's own sign-up state where they've sent one. */
 async function openSignupsFor(
   userId: number,
+  playerId: number,
   nowMs: number,
   alreadyIn: Set<number> = new Set(),
 ): Promise<LockerSignup[]> {
   // clan-scope: global -- the subject is a PERSON, whose seats span clans by design; scoped to their own.
   const all = await db.select().from(events);
-  const open = all.filter((e) => {
+  const openWindows = all.filter((e) => {
     if (e.forceEndedAt) return false;
     if (!e.startDate) return false; // a draft the host is still building isn't public
     if (e.endDate && new Date(e.endDate).getTime() < nowMs) return false;
@@ -953,6 +959,13 @@ async function openSignupsFor(
     if (alreadyIn.has(e.id)) return false;
     return signupWindowState(e).open;
   });
+  // Only events that are this person's to enter — their clans, a co-host clan, or an invitation. A
+  // public event in a clan they've never joined is visible, but "Sign up" for it here is noise
+  // (and every other clan's open sign-ups were landing in everyone's locker).
+  const involved = await Promise.all(
+    openWindows.map((e) => involvedInEvent({ eventId: e.id, clanId: e.clanId, playerId })),
+  );
+  const open = openWindows.filter((_, i) => involved[i]);
   if (open.length === 0) return [];
 
   const mine = await db
@@ -960,6 +973,11 @@ async function openSignupsFor(
     .from(eventSignups)
     .where(and(eq(eventSignups.userId, userId), inArray(eventSignups.eventId, open.map((e) => e.id))));
   const statusByEvent = new Map(mine.map((s) => [s.eventId, s.status]));
+  const hosts = await db
+    .select({ id: clans.id, name: clans.name, slug: clans.slug })
+    .from(clans)
+    .where(inArray(clans.id, [...new Set(open.map((e) => e.clanId))]));
+  const hostById = new Map(hosts.map((c) => [c.id, c]));
 
   return open
     .map((e) => ({
@@ -967,6 +985,8 @@ async function openSignupsFor(
       name: e.name,
       closesAt: e.signupDeadline ?? e.startDate,
       myStatus: statusByEvent.get(e.id) ?? null,
+      clanName: hostById.get(e.clanId)?.name ?? '',
+      clanSlug: hostById.get(e.clanId)?.slug ?? '',
     }))
     .sort((a, b) => (a.closesAt ?? '9999').localeCompare(b.closesAt ?? '9999'));
 }

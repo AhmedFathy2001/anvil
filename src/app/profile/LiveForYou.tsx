@@ -1,6 +1,7 @@
 import TimeLeft from './TimeLeft';
 import type { LockerLiveEvent, LockerLiveWeekly, LockerSignup } from '@/lib/profileLocker';
 import ClanLink from '@/components/ClanLink';
+import { clanHrefFor } from '@/lib/clanScopedPaths';
 
 // What's running for this member right now: their board, their weekly placing, and anything still
 // open to join. Ordered by what they can act on — a sign-up that closes tomorrow matters more than
@@ -194,11 +195,12 @@ function SignupRow({ signup }: { signup: LockerSignup }) {
     <Row>
       <div className="flex items-center gap-2.5 flex-wrap">
         <span className="w-2.5 h-2.5 rounded-sm bg-accent-green-light shrink-0" />
-        <ClanLink href={`/events/${signup.eventId}`} className="font-semibold hover:text-gold-light">
+        <ClanLink href={clanHrefFor(signup.clanSlug, `/events/${signup.eventId}`)} className="font-semibold hover:text-gold-light">
           {signup.name}
         </ClanLink>
         <span className="text-sm text-text-muted">
           ·{' '}
+          {signup.clanName && <>{signup.clanName} ·{' '}</>}
           {joined
             ? signup.myStatus === 'pending'
               ? 'sign-up sent, pending review'
@@ -214,7 +216,7 @@ function SignupRow({ signup }: { signup: LockerSignup }) {
           />
           {!joined && (
             <ClanLink
-              href={`/events/${signup.eventId}/signup`}
+              href={clanHrefFor(signup.clanSlug, `/events/${signup.eventId}/signup`)}
               className="text-xs font-semibold px-3 py-1.5 bg-gold hover:bg-gold-light text-brown-dark rounded-lg transition-colors"
             >
               Sign up
