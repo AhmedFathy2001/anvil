@@ -142,7 +142,9 @@ export default async function PortalPage() {
       )}
 
       <p className="mt-8 text-center text-[12.5px] text-text-dim">
-        Manage or cancel a subscription with Manage on Gumroad above, or from the receipt Gumroad emailed you.
+        {owned.some((c) => c.subscriptionId)
+          ? 'Manage or cancel a subscription with Manage on Gumroad above, or from the receipt Gumroad emailed you.'
+          : 'Subscriptions are managed on Gumroad, from the receipt it emails you.'}
         Anvil never sees your card — Gumroad is the merchant of record.
       </p>
     </div>
