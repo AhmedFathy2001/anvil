@@ -10,6 +10,7 @@ import { clanEventThumbnail, sendClanEventPost, siteBaseUrl, upsertClanEventPost
 import { type DiscordEmbed, EMBED_COLOR, LIMIT, clamp, field } from '@/lib/discordEmbeds';
 import { log } from '@/lib/logger';
 import { isValidTimeZone } from '@/lib/zonedTime';
+import { cleanEventImageUrl, discordIconUrl } from '@/lib/eventImage';
 
 // Clan events: what a clan hosts that nothing tracks — a weekly boss mass, a skilling hangout. Staff
 // schedule one (one-off or weekly, in their own zone); it's announced in Discord and edited in place,
@@ -23,6 +24,8 @@ export interface ClanEventView {
   location: string | null;
   world: number | null;
   icon: string | null;
+  /** An uploaded picture, used over `icon` where a URL can be shown (not in the plugin). */
+  imageUrl: string | null;
   host: string | null;
   repeat: 'none' | 'weekly';
   timezone: string;
@@ -117,6 +120,7 @@ async function withGoing(list: { e: ClanEvent; o: Occurrence }[], userId: number
       location: e.location,
       world: e.world,
       icon: e.icon,
+      imageUrl: e.imageUrl,
       host: e.host,
       repeat: e.repeat === 'weekly' ? 'weekly' : 'none',
       timezone: e.timezone,
@@ -145,6 +149,7 @@ export interface ClanEventInput {
   location?: string | null;
   world?: number | null;
   icon?: string | null;
+  imageUrl?: string | null;
   host?: string | null;
   startsAt: string;
   durationMin: number;
@@ -173,6 +178,8 @@ export function parseClanEventInput(body: Record<string, unknown>): { ok: true; 
   if (world != null && (!Number.isFinite(world) || world < 300 || world > 700)) return { ok: false, error: 'That isn’t a world number.' };
   const timezone = typeof body.timezone === 'string' && isValidTimeZone(body.timezone) ? body.timezone : 'UTC';
   const icon = text(body.icon, 40);
+  const image = cleanEventImageUrl(body.imageUrl);
+  if (!image.ok) return { ok: false, error: image.error };
   return {
     ok: true,
     input: {
@@ -181,6 +188,7 @@ export function parseClanEventInput(body: Record<string, unknown>): { ok: true; 
       location: text(body.location, 80),
       world,
       icon: icon && /^[a-z0-9_]+$/i.test(icon) ? icon : null,
+      imageUrl: image.value,
       host: text(body.host, 40),
       startsAt: new Date(start).toISOString(),
       durationMin,
@@ -198,6 +206,7 @@ const columns = (input: ClanEventInput) => ({
   location: input.location ?? null,
   world: input.world ?? null,
   icon: input.icon ?? null,
+  imageUrl: input.imageUrl ?? null,
   host: input.host ?? null,
   startsAt: input.startsAt,
   durationMin: input.durationMin,
@@ -296,7 +305,7 @@ async function eventLink(clanId: number, id: number): Promise<string | null> {
 const when = (iso: string, style: 'F' | 'R') => `<t:${Math.floor(Date.parse(iso) / 1000)}:${style}>`;
 
 /** The embed for an occurrence: the announcement, the reminder and the start share it. */
-export function clanEventEmbed(e: Pick<ClanEvent, 'title' | 'description' | 'location' | 'world' | 'icon' | 'host' | 'repeat' | 'modules'>, o: Occurrence | null, going: number, link: string | null, kind: 'announce' | 'reminder' | 'start' | 'cancelled'): DiscordEmbed {
+export function clanEventEmbed(e: Pick<ClanEvent, 'title' | 'description' | 'location' | 'world' | 'icon' | 'imageUrl' | 'host' | 'repeat' | 'modules'>, o: Occurrence | null, going: number, link: string | null, kind: 'announce' | 'reminder' | 'start' | 'cancelled'): DiscordEmbed {
   const m = parseModules(e.modules);
   const count = m.signups.on ? `${going}${m.signups.cap != null ? `/${m.signups.cap}` : ''}` : String(going);
   const fee = m.fee.on ? ` · ${m.fee.amount.toLocaleString('en-US')} gp entry` : '';
@@ -312,7 +321,8 @@ export function clanEventEmbed(e: Pick<ClanEvent, 'title' | 'description' | 'loc
   ];
   return {
     author: { name: head },
-    ...clanEventThumbnail(e.icon),
+    // Their own picture when Discord can fetch it (absolute https), else the boss/skill icon.
+    ...(discordIconUrl(e.imageUrl) ? { thumbnail: { url: discordIconUrl(e.imageUrl)! } } : clanEventThumbnail(e.icon)),
     title: clamp(e.title, LIMIT.title),
     ...(e.description && kind !== 'cancelled' ? { description: clamp(e.description, LIMIT.description) } : {}),
     color: kind === 'cancelled' ? EMBED_COLOR.red : kind === 'start' ? EMBED_COLOR.green : EMBED_COLOR.gold,

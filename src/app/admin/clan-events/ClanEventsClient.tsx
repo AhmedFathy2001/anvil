@@ -16,6 +16,7 @@ interface Ev {
   location: string | null;
   world: number | null;
   icon: string | null;
+  imageUrl: string | null;
   host: string | null;
   repeat: 'none' | 'weekly';
   durationMin: number;
@@ -35,15 +36,25 @@ interface Form {
   location: string;
   world: string;
   icon: string;
+  imageUrl: string;
   host: string;
   start: string; // ISO instant
   durationMin: string;
   repeat: 'none' | 'weekly';
   until: string; // YYYY-MM-DD, this browser's zone
   ping: boolean;
+  // New events only — an existing one's sign-ups and fee live on its own page (ClanEventManageClient).
+  signups: boolean;
+  cap: string;
+  approval: boolean;
+  fee: boolean;
+  feeAmount: string;
 }
 
-const BLANK: Form = { title: '', description: '', location: '', world: '', icon: '', host: '', start: '', durationMin: '60', repeat: 'none', until: '', ping: true };
+const BLANK: Form = {
+  title: '', description: '', location: '', world: '', icon: '', imageUrl: '', host: '', start: '', durationMin: '60', repeat: 'none', until: '', ping: true,
+  signups: false, cap: '', approval: false, fee: false, feeAmount: '',
+};
 
 /** An ISO instant as a calendar date in this browser's zone. */
 function localDate(iso: string): string {
@@ -72,6 +83,7 @@ export default function ClanEventsClient() {
   const [editing, setEditing] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const load = useCallback(
     () =>
@@ -90,6 +102,7 @@ export default function ClanEventsClient() {
     e.preventDefault();
     setError(null);
     if (!form.start) return setError('Pick when it starts.');
+    if (!editing && form.signups && form.fee && !(Number(form.feeAmount) > 0)) return setError('Set the entry fee in gp.');
     setBusy(true);
     const body = {
       title: form.title,
@@ -97,6 +110,7 @@ export default function ClanEventsClient() {
       location: form.location,
       world: form.world,
       icon: form.icon,
+      imageUrl: form.imageUrl || null,
       host: form.host,
       startsAt: form.start,
       durationMin: Number(form.durationMin),
@@ -110,8 +124,28 @@ export default function ClanEventsClient() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
+    if (!r.ok) {
+      setBusy(false);
+      return setError(((await r.json().catch(() => ({}))) as { error?: string }).error ?? 'Couldn’t save it.');
+    }
+    if (!editing && form.signups) {
+      // Sign-ups and the fee are the event's modules; the rest of them (payouts, survey, questions)
+      // stay on its own page, where this hands over.
+      const { id } = (await r.json()) as { id: number };
+      const m = await clanFetch(`/api/admin/clan-events/${id}/modules`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scope: 'occurrence',
+          signups: { on: true, cap: form.cap ? Number(form.cap) : null, approval: form.approval, closes: 'start' },
+          fee: { on: form.fee, amount: Number(form.feeAmount) || 0 },
+          payouts: { on: false, addedGp: 0 },
+          survey: { on: false },
+        }),
+      });
+      if (!m.ok) setError('Scheduled, but sign-ups didn’t save — set them from “Sign-ups & more”.');
+    }
     setBusy(false);
-    if (!r.ok) return setError(((await r.json().catch(() => ({}))) as { error?: string }).error ?? 'Couldn’t save it.');
     setForm(BLANK);
     setEditing(null);
     void load();
@@ -126,13 +160,36 @@ export default function ClanEventsClient() {
       location: ev.location ?? '',
       world: ev.world ? String(ev.world) : '',
       icon: ev.icon ?? '',
+      imageUrl: ev.imageUrl ?? '',
       host: ev.host ?? '',
       start: ev.startsAt,
       durationMin: String(ev.durationMin),
       repeat: ev.repeat,
       until: ev.repeatUntil ? localDate(ev.repeatUntil) : '',
       ping: ev.ping,
+      signups: false,
+      cap: '',
+      approval: false,
+      fee: false,
+      feeAmount: '',
     });
+  }
+
+  async function uploadPicture(file: File) {
+    setUploading(true);
+    setError(null);
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const r = await clanFetch('/api/upload', { method: 'POST', body });
+      const data = (await r.json().catch(() => ({}))) as { url?: string; error?: string };
+      if (!r.ok || !data.url) throw new Error(data.error ?? 'That upload didn’t work.');
+      set('imageUrl', data.url);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function cancel(ev: Ev) {
@@ -240,6 +297,37 @@ export default function ClanEventsClient() {
           </div>
         </div>
         <div>
+          <label className={label}>Or your own picture</label>
+          <div className="flex items-center gap-2">
+            {form.imageUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={form.imageUrl} alt="" className="h-10 w-10 rounded border border-card-border object-cover" />
+            )}
+            <label className="inline-flex cursor-pointer items-center rounded border border-card-border px-3 py-1.5 text-xs text-text-muted hover:border-gold/45 hover:text-foreground">
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                className="hidden"
+                disabled={uploading}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = '';
+                  if (f) void uploadPicture(f);
+                }}
+              />
+              {uploading ? 'Uploading…' : form.imageUrl ? 'Replace' : 'Upload'}
+            </label>
+            {form.imageUrl && (
+              <button type="button" onClick={() => set('imageUrl', '')} className="text-xs text-text-muted hover:text-red-400">
+                Remove
+              </button>
+            )}
+          </div>
+          <p className="mt-1 text-[11px] text-text-muted">
+            Shown on the site and in the Discord post. The plugin shows the boss or skill above, since it can&rsquo;t load pictures.
+          </p>
+        </div>
+        <div>
           <label className={label}>Details</label>
           <textarea
             value={form.description}
@@ -250,6 +338,47 @@ export default function ClanEventsClient() {
             className="w-full rounded border border-card-border bg-brown-dark px-3 py-2 text-sm text-foreground placeholder:text-text-muted/60 focus:border-gold focus:outline-none"
           />
         </div>
+        {editing ? (
+          <p className="text-xs text-text-muted">
+            Sign-ups, entry fee, payouts and the survey are on{' '}
+            <ClanLink href={`/admin/clan-events/${editing}`} className="text-gold hover:text-gold-light">
+              its own page
+            </ClanLink>
+            .
+          </p>
+        ) : (
+          <div className="space-y-2 rounded border border-card-border/70 p-3">
+            <label className="flex items-center gap-2 text-sm text-foreground">
+              <input type="checkbox" checked={form.signups} onChange={(e) => set('signups', e.target.checked)} />
+              Take sign-ups <span className="text-xs text-text-muted">(instead of just &ldquo;I&rsquo;m going&rdquo;)</span>
+            </label>
+            {form.signups && (
+              <>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className={label}>Spots (optional)</label>
+                    <Input type="number" min={1} value={form.cap} onChange={(e) => set('cap', e.target.value)} placeholder="No limit" />
+                  </div>
+                  <label className="mt-5 flex items-center gap-2 text-sm text-foreground">
+                    <input type="checkbox" checked={form.approval} onChange={(e) => set('approval', e.target.checked)} />
+                    Approve each one
+                  </label>
+                </div>
+                <label className="flex items-center gap-2 text-sm text-foreground">
+                  <input type="checkbox" checked={form.fee} onChange={(e) => set('fee', e.target.checked)} />
+                  Entry fee
+                </label>
+                {form.fee && (
+                  <div>
+                    <label className={label}>Fee (gp)</label>
+                    <Input type="number" min={1} value={form.feeAmount} onChange={(e) => set('feeAmount', e.target.value)} placeholder="1000000" />
+                  </div>
+                )}
+                <p className="text-[11px] text-text-muted">Sign-up questions, payouts and a survey can be added from the event&rsquo;s page once it&rsquo;s scheduled.</p>
+              </>
+            )}
+          </div>
+        )}
         <label className="flex items-center gap-2 text-sm text-foreground">
           <input type="checkbox" checked={form.ping} onChange={(e) => set('ping', e.target.checked)} />
           Ping the member role on the reminder and the start
