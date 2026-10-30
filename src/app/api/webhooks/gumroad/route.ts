@@ -3,7 +3,7 @@ import { and, desc, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanAuditLog, clans } from '@/db/schema';
-import { checkSaleWithGumroad, checkSubscriptionWithGumroad, nextChargeDue, parseWebhook, verifySeller, verifyWebhookSecret, TRIAL_DAYS } from '@/lib/gumroad';
+import { checkSaleWithGumroad, checkSubscriptionWithGumroad, nextChargeDue, trialEndWithGumroad, parseWebhook, verifySeller, verifyWebhookSecret, TRIAL_DAYS } from '@/lib/gumroad';
 import { endMembership, logBilling } from '@/lib/billingLapse';
 import { PLANS, planForGumroadProduct, planForGumroadTier, planOf, type Plan } from '@/lib/plans';
 
@@ -90,6 +90,25 @@ function trialEndsAtIso(): string {
   return new Date(Date.now() + TRIAL_DAYS * 86400_000).toISOString();
 }
 
+/**
+ * Has this clan had a paid membership before? Gumroad's free trial is once per BUYER, and a buyer is
+ * an email — so a clan that let its membership lapse could subscribe again from a new address and get
+ * another free month (lfl did, the day its Silver ended). The trial is once per CLAN here.
+ */
+async function hadMembership(clanId: number): Promise<boolean> {
+  const [row] = await db
+    .select({ id: clanAuditLog.id })
+    .from(clanAuditLog)
+    .where(
+      and(
+        eq(clanAuditLog.clanId, clanId),
+        inArray(clanAuditLog.eventType, ['billing_subscribed', 'billing_renewed', 'billing_ended', 'billing_restarted']),
+      ),
+    )
+    .limit(1);
+  return !!row;
+}
+
 /** The tier actually bought: membership tier name first, then per-tier product id. */
 function purchasedPlan(ev: ReturnType<typeof parseWebhook>, fallback: Plan): Plan {
   return planForGumroadTier(ev.tier) ?? planForGumroadProduct(ev.productId) ?? fallback;
@@ -98,8 +117,13 @@ function purchasedPlan(ev: ReturnType<typeof parseWebhook>, fallback: Plan): Pla
 /**
  * Find the clan a webhook is about.
  *
- * Two keys, most specific first. `ref` is the token we appended to the checkout URL, so it names
- * the clan that STARTED this purchase; the subscription id names one we have already seen.
+ * A new SALE is matched by `ref` first — the token we appended to the checkout URL, naming the clan
+ * that started this purchase — then by subscription id. EVERYTHING ELSE (a renewal, a cancel, an end,
+ * a refund) is about one particular membership, so it is matched by that membership's id alone. A
+ * clan's ref rides along on every notification for every membership ever bought through its checkout:
+ * lfl bought Silver and Gold in one cart, kept Silver, and a cancel of the stray Gold matched by ref
+ * would have marked Silver as cancelling. A notification about a membership the clan no longer points
+ * at finds no clan and changes nothing.
  *
  * NOT the email any more. `clans.contact_email` is free text a clan owner types and nobody verifies,
  * so matching on it let one clan set its email to a customer's and catch their upgrade — or catch
@@ -107,7 +131,7 @@ function purchasedPlan(ev: ReturnType<typeof parseWebhook>, fallback: Plan): Pla
  * and left for staff, which is the honest answer for a purchase that never came through our checkout.
  */
 async function clanForEvent(ev: ReturnType<typeof parseWebhook>) {
-  if (ev.urlParams.ref) {
+  if (ev.kind === 'sale' && ev.urlParams.ref) {
     const byRef = await db.query.clans.findFirst({ where: eq(clans.gumroadRef, ev.urlParams.ref) });
     if (byRef) return byRef;
   }
@@ -165,23 +189,59 @@ export async function POST(req: NextRequest) {
     // ── Paid, or a free trial started ────────────────────────────────────────────────────────
     case 'sale': {
       const plan = purchasedPlan(ev, current === PLANS.free ? PLANS.bronze : current);
-      const trialEnd = ev.freeTrialEndsAt && !Number.isNaN(Date.parse(ev.freeTrialEndsAt)) ? new Date(ev.freeTrialEndsAt).toISOString() : trialEndsAtIso();
+      // Gumroad's own record says whether this started a trial; the notification often doesn't.
+      // Without a token to ask, the notification's word, and failing that the products' trial.
+      const asked = await trialEndWithGumroad(ev.subscriptionId);
+      const said = ev.freeTrialEndsAt && !Number.isNaN(Date.parse(ev.freeTrialEndsAt)) ? new Date(ev.freeTrialEndsAt).toISOString() : null;
+      const trialEnd = asked !== undefined ? asked : (said ?? trialEndsAtIso());
+      const trialRunning = !!trialEnd && Date.parse(trialEnd) > Date.now();
+      // The first charge falls due when the trial runs out, else a term after this one — and if it
+      // never comes, that date going by is what the daily lapse check asks Gumroad about.
+      const periodEnd = trialRunning ? trialEnd : nextChargeDue(ev.recurrence, chargedAt(ev.saleTimestamp));
+      const ids = {
+        gumroadSaleId: ev.saleId,
+        gumroadSubscriptionId: ev.subscriptionId,
+        gumroadProductId: ev.productId,
+        gumroadProductPermalink: ev.productPermalink,
+      };
+
+      // A second free trial for a clan that has had a membership: recorded, not granted. The plan
+      // starts with the first real charge (the renewal case below), which is Gumroad's at trial end.
+      // Only a trial we KNOW of holds anything: the guessed one (no token, nothing in the notification)
+      // must never keep a paying clan off its plan.
+      const trialKnown = asked !== undefined ? !!asked : !!said;
+      if (trialRunning && trialKnown && (await hadMembership(clan.id))) {
+        if (current !== PLANS.free) {
+          // Already on a paid plan from another membership: that one stays the clan's. This one is a
+          // duplicate purchase (two tiers in one cart) for staff to cancel on Gumroad.
+          await logBilling(clan.id, 'billing_duplicate', { plan: plan.id, subscription: ev.subscriptionId, kept: clan.gumroadSubscriptionId });
+          return Response.json({ received: true, note: 'duplicate membership' });
+        }
+        await db
+          .update(clans)
+          .set({ ...ids, trialEndsAt: trialEnd, currentPeriodEnd: periodEnd, cancelAtPeriodEnd: false })
+          .where(eq(clans.id, clan.id));
+        await logBilling(clan.id, 'billing_subscribed', { plan: plan.id, subscription: ev.subscriptionId, held: 'trial already used' });
+        return Response.json({ received: true, note: 'held until first charge' });
+      }
+
+      // A new membership on a clan that is still paying for another: the new one becomes the clan's,
+      // and the old one keeps charging on Gumroad until someone cancels it ("Move to Gold" is a new
+      // purchase, not an upgrade of the Silver one). Logged so staff see it.
+      if (current !== PLANS.free && clan.gumroadSubscriptionId && clan.gumroadSubscriptionId !== ev.subscriptionId) {
+        await logBilling(clan.id, 'billing_duplicate', { plan: plan.id, subscription: ev.subscriptionId, replaced: clan.gumroadSubscriptionId, replacedPlan: clan.plan });
+      }
       await db
         .update(clans)
         .set({
           plan: plan.id,
           memberCap: plan.memberCap,
-          gumroadSaleId: ev.saleId,
-          gumroadSubscriptionId: ev.subscriptionId,
-          gumroadProductId: ev.productId,
-          gumroadProductPermalink: ev.productPermalink,
+          ...ids,
           // The owner's own address wins: people often pay from a different email than the one they
           // gave Anvil, and the one they gave us is where they expect to hear from us.
           contactEmail: clan.contactEmail ?? ev.email,
-          trialEndsAt: trialEnd,
-          // The first charge falls due when the trial runs out — and if it never comes, that date
-          // going by is what marks the clan overdue (lib/clanBilling).
-          currentPeriodEnd: trialEnd,
+          trialEndsAt: trialRunning ? trialEnd : null,
+          currentPeriodEnd: periodEnd,
           cancelAtPeriodEnd: false,
           // Paying again lifts a suspension only when BILLING put it there (a refund or dispute).
           // A suspension staff applied is a judgement about the clan, and money does not overturn it.
