@@ -190,7 +190,7 @@ test('words: reveal notes, who is on a tile, and the feed', () => {
 
 test('a clan event: a card under Events, and its page says "I\'m going" for the clan it was drawn for', () => {
   const ce = {
-    id: 4, title: 'Nex mass', description: 'Bring a zcb', location: 'Ancient Prison', world: 330, icon: 'nex', imageUrl: null, host: 'Drenvox',
+    id: 4, title: 'Nex mass', description: 'Bring a zcb', location: 'Ancient Prison', world: 330, icon: 'nex', imageUrl: null, channels: null, host: 'Drenvox',
     repeat: 'weekly' as const, timezone: 'Europe/London', durationMin: 90, startsAt: '2026-10-27T20:00:00.000Z', repeatUntil: null, ping: true,
     occurrence: { start: '2026-10-27T20:00:00.000Z', end: '2026-10-27T21:30:00.000Z' }, phase: 'upcoming' as const, going: 2, goingNames: ['A', 'B'], mine: false,
     modules: NO_MODULES, signup: null, surveyOpen: false,

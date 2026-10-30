@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { SERIES, keyFor, parseModules, potGp, recentKeys, signupWindow, surveyKey, validKey } from '../src/lib/clanEventModules';
+import { SERIES, keyFor, parseModules, potGp, recentKeys, signupWindow, surveyKey, takesNames, validKey } from '../src/lib/clanEventModules';
 import { type ClanEventTiming, occurrenceAt, pastOccurrences } from '../src/lib/clanEventTimes';
 
 const timing = (over: Partial<ClanEventTiming> = {}): ClanEventTiming => ({
@@ -25,6 +25,7 @@ test('settings are made whole: junk is off, a fee needs sign-ups, money is clamp
   const m = parseModules({ signups: { on: true, cap: '12', approval: true, closes: 'end' }, fee: { on: true, amount: '1500000.4' }, payouts: { on: true, addedGp: -5 }, survey: { on: 'yes' }, scope: 'series' });
   assert.deepEqual(m, {
     scope: 'series',
+    rsvp: true,
     signups: { on: true, cap: 12, approval: true, closes: 'end' },
     fee: { on: true, amount: 1_500_000 },
     payouts: { on: true, addedGp: 0 },
@@ -33,6 +34,13 @@ test('settings are made whole: junk is off, a fee needs sign-ups, money is clamp
   assert.equal(parseModules({ fee: { on: true, amount: 100 } }).fee.on, false, 'no sign-ups, nothing to charge');
   assert.equal(parseModules({ signups: { on: true }, fee: { on: true, amount: 0 } }).fee.on, false, 'a free fee is no fee');
   assert.equal(parseModules({ signups: { on: true, cap: 0 } }).signups.cap, null, 'zero places is no limit, not a closed door');
+});
+
+test('"I\'m going" stays on for stored events; off makes it information only unless sign-ups are on', () => {
+  assert.equal(parseModules({}).rsvp, true, 'rows from before the switch keep their button');
+  assert.equal(takesNames(parseModules({})), true);
+  assert.equal(takesNames(parseModules({ rsvp: false })), false);
+  assert.equal(takesNames(parseModules({ rsvp: false, signups: { on: true } })), true, 'sign-ups take names whatever the switch says');
 });
 
 test('a week files under its own start; a series under one key; a one-off is its start either way', () => {
@@ -85,4 +93,13 @@ test('staff look at the next week and the recent ones; the survey asks about the
 test('the pot is the added gp plus the fees actually collected', () => {
   assert.equal(potGp(parseModules({ payouts: { on: true, addedGp: 5_000_000 } }), 3_000_000), 8_000_000);
   assert.equal(potGp(parseModules({ payouts: { on: false, addedGp: 5_000_000 } }), 3_000_000), 3_000_000);
+});
+
+test('channels keep only real channel ids, in a fixed order, as Discord mentions', async () => {
+  const { parseChannels, channelMentions } = await import('../src/lib/clanEventChannels');
+  assert.equal(parseChannels(null), null);
+  assert.equal(parseChannels({ chat: { id: 'general', name: 'x' } }), null, 'not a snowflake');
+  const c = parseChannels({ voice: { id: '123456789012345678', name: 'Mass VC\n' }, chat: { id: '223456789012345678', name: '' }, junk: { id: '1' } });
+  assert.deepEqual(c, { chat: { id: '223456789012345678', name: 'channel' }, voice: { id: '123456789012345678', name: 'Mass VC' } });
+  assert.equal(channelMentions(c), 'Chat <#223456789012345678> · Voice <#123456789012345678>');
 });

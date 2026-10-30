@@ -8,7 +8,7 @@ import { loadQuestions } from '@/lib/clanEventQuestions';
 import { liveClanEvent } from '@/lib/clanEventSignups';
 import { getRequiredConfirmations } from '@/lib/feeConfirmations';
 import { idParam } from '@/lib/routeIds';
-import { SURVEY_TEMPLATES } from '@/lib/surveyTemplates';
+import { SIGNUP_TEMPLATES, SURVEY_TEMPLATES } from '@/lib/surveyTemplates';
 
 import ClanEventManageClient from './ClanEventManageClient';
 
@@ -53,6 +53,7 @@ export default async function ClanEventManagePage({ params }: { params: Promise<
         signupQuestions={signupQuestions}
         surveyQuestions={surveyQuestions}
         templates={SURVEY_TEMPLATES.map((t) => ({ id: t.id, name: t.name, description: t.description, questionCount: t.questions.length }))}
+        signupTemplates={SIGNUP_TEMPLATES.map((t) => ({ id: t.id, name: t.name, description: t.description, questionCount: t.questions.length }))}
         viewerRole={user.role}
         viewerId={user.userId}
         confirmationsRequired={confirmationsRequired}

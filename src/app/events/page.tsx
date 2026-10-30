@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 
 import ClanLink from '@/components/ClanLink';
 import { listClanEvents } from '@/lib/clanEvents';
+import { takesNames } from '@/lib/clanEventModules';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { clanSectionMetadata } from '@/lib/seoPages';
 import { loadHubView } from '@/lib/eventsHub';
@@ -186,7 +187,7 @@ export default async function EventsIndexPage({
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-semibold">{ce.title}</span>
                     <span className="block truncate text-[11.5px] text-text-muted">
-                      {[ce.repeat === 'weekly' ? 'Weekly' : 'Clan event', ce.location, ce.world ? `W${ce.world}` : null, `${ce.going} going`].filter(Boolean).join(' · ')}
+                      {[ce.repeat === 'weekly' ? 'Weekly' : 'Clan event', ce.location, ce.world ? `W${ce.world}` : null, takesNames(ce.modules) ? `${ce.going} going` : null].filter(Boolean).join(' · ')}
                     </span>
                   </span>
                   <span className="ml-auto shrink-0 text-[11.5px]">

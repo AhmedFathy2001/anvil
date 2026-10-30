@@ -87,6 +87,37 @@ export async function listBotChannels(clanId: number): Promise<{
   return { enabled: true, channels };
 }
 
+export interface LinkableChannel {
+  id: string;
+  name: string;
+  parentName: string | null;
+  /** Text and announcement channels are 'text'; voice and stage are 'voice'; forum and media are 'forum'. */
+  kind: 'text' | 'voice' | 'forum';
+}
+
+const LINKABLE_KIND: Record<number, LinkableChannel['kind']> = { 0: 'text', 5: 'text', 2: 'voice', 13: 'voice', 15: 'forum', 16: 'forum' };
+
+/**
+ * Every channel a clan event can point people at, voice included — nothing is posted to them, so
+ * unlike listBotChannels this doesn't ask whether the bot could write there. Same degrade-to-empty.
+ */
+export async function listLinkableChannels(clanId: number): Promise<{ enabled: boolean; channels: LinkableChannel[] }> {
+  const creds = await getBotCredentials(clanId);
+  if (!creds) return { enabled: false, channels: [] };
+  const res = await discordRest(creds.botToken, `/guilds/${creds.guildId}/channels`);
+  if (!res.ok) {
+    log.warn('discord-broadcast.list-linkable-fail', { status: res.status });
+    return { enabled: true, channels: [] };
+  }
+  const raw = (await res.json()) as RawChannel[];
+  const categoryNames = new Map(raw.filter((c) => c.type === CHANNEL_CATEGORY).map((c) => [c.id, c.name]));
+  const channels = raw
+    .filter((c) => LINKABLE_KIND[c.type] != null)
+    .sort((a, b) => (categoryNames.get(a.parent_id ?? '') ?? '').localeCompare(categoryNames.get(b.parent_id ?? '') ?? '') || a.position - b.position)
+    .map((c) => ({ id: c.id, name: c.name, parentName: c.parent_id ? categoryNames.get(c.parent_id) ?? null : null, kind: LINKABLE_KIND[c.type] }));
+  return { enabled: true, channels };
+}
+
 /**
  * List the channels the bot can post to + the roles it could ping, for the Announce form.
  * `enabled` is false when the bot isn't configured — the UI then shows a setup hint instead

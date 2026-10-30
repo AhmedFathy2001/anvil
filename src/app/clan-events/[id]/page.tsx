@@ -5,10 +5,12 @@ import LocalTime from '@/components/LocalTime';
 import { verifyUser } from '@/lib/auth';
 import { canSeeClan } from '@/lib/clanAccess';
 import { requireClan } from '@/lib/clanContext';
+import { CHANNEL_SLOT_LABELS, channelList } from '@/lib/clanEventChannels';
 import { keyFor } from '@/lib/clanEventModules';
 import { loadQuestions } from '@/lib/clanEventQuestions';
 import { mySignup, seatsFor } from '@/lib/clanEventSignups';
 import { getClanEvent } from '@/lib/clanEvents';
+import { clanGuildId } from '@/lib/discord-roles';
 import { idParam } from '@/lib/routeIds';
 
 import GoingButton from './GoingButton';
@@ -26,6 +28,9 @@ export default async function ClanEventPage({ params }: { params: Promise<{ id: 
   const member = user != null && (await canSeeClan({ clanId: clan.id, visibility: 'private', playerId: user.playerId, userId: user.userId }));
   const where = [ev.location, ev.world ? `World ${ev.world}` : null].filter(Boolean).join(' · ');
   const m = ev.modules;
+  const channels = channelList(ev.channels);
+  // A channel link needs the server it's in; without one the names still say where to go.
+  const guildId = channels.length ? await clanGuildId(clan.id) : '';
   const key = keyFor(m, ev, ev.occurrence);
   const [questions, seats, mine] = m.signups.on
     ? await Promise.all([
@@ -71,6 +76,25 @@ export default async function ClanEventPage({ params }: { params: Promise<{ id: 
               <dd>{ev.host}</dd>
             </>
           )}
+          {channels.length > 0 && (
+            <>
+              <dt className="text-text-muted">Discord</dt>
+              <dd className="flex flex-wrap gap-x-3 gap-y-1">
+                {channels.map(({ slot, channel }) => (
+                  <a
+                    key={slot}
+                    href={guildId ? `https://discord.com/channels/${guildId}/${channel.id}` : undefined}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-gold hover:text-gold-light"
+                  >
+                    <span className="text-text-muted">{CHANNEL_SLOT_LABELS[slot]}</span> {slot === 'voice' ? '🔊' : '#'}
+                    {channel.name}
+                  </a>
+                ))}
+              </dd>
+            </>
+          )}
           {m.fee.on && (
             <>
               <dt className="text-text-muted">Entry</dt>
@@ -100,7 +124,7 @@ export default async function ClanEventPage({ params }: { params: Promise<{ id: 
               approval={m.signups.approval}
             />
           </>
-        ) : ev.phase !== 'ended' ? (
+        ) : ev.phase !== 'ended' && m.rsvp ? (
           <GoingButton id={ev.id} initialGoing={ev.mine} initialCount={ev.going} canSay={member} signedIn={user != null} />
         ) : null}
         {ev.goingNames.length > 0 && (

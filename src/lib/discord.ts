@@ -1868,12 +1868,17 @@ export function clanEventThumbnail(icon: string | null): Pick<DiscordEmbed, 'thu
   return weeklyThumbnail((SKILLS as readonly string[]).includes(icon) ? 'skill' : 'boss', icon);
 }
 
-/** A clan event's announcement, posted once and then edited in place (its id kept by the caller). */
-export async function upsertClanEventPost(clanId: number, embed: DiscordEmbed, existingMessageId?: string): Promise<EditableWebhookResult> {
+/**
+ * A clan event's announcement, posted once and then edited in place (its id kept by the caller).
+ * The first post pings the member role when asked; an edit leaves the message's content alone, so a
+ * going count ticking up never pings anyone again.
+ */
+export async function upsertClanEventPost(clanId: number, embed: DiscordEmbed, existingMessageId?: string, ping = false): Promise<EditableWebhookResult> {
   if (await feedOff(clanId, 'clanEvents')) return { status: 'skipped' };
   const destination = await resolveWebhookDestination(clanId, CLAN_EVENTS_WEBHOOK_KEY, GENERAL_WEBHOOK_KEY);
   if (!destination) return { status: 'skipped' };
-  return upsertWebhookMessage(destination, { embeds: [await withClanCrest(clanId, embed)] }, clanId, existingMessageId);
+  const mention = ping && !existingMessageId ? await memberPing(clanId) : {};
+  return upsertWebhookMessage(destination, { ...mention, embeds: [await withClanCrest(clanId, embed)] }, clanId, existingMessageId);
 }
 
 /** A clan event's reminder or "starting now": a fresh post, pinging the member role when asked. */
