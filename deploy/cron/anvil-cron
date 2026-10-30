@@ -15,6 +15,7 @@
 #   backup-local         daily          — pg_dump kept on the box, newest 14 (backup-local.sh)
 #   media-retention      daily          — delete event proof images 90 days after the event ends
 #   discord-commands     daily          — reconcile the shared bot's slash commands with the code
+#   billing              daily          — end paid plans Gumroad stopped running (failed card) without telling us
 */15 * * * * root /opt/anvil/cron-anvil.sh stats
 */15 * * * * root /opt/anvil/cron-anvil.sh weekly
 *    * * * * root /opt/anvil/cron-anvil.sh flush-notifications
@@ -32,3 +33,5 @@
 # After both backups. Deletes files: run `/api/cron/media-retention?dryRun=1` and read it before enabling.
 5 5 * * *   root /opt/anvil/cron-anvil.sh media-retention
 40 4 * * *   root /opt/anvil/cron-anvil.sh discord-commands
+# Asks Gumroad about paying clans whose renewal date went by; a no-op without GUMROAD_ACCESS_TOKEN.
+50 4 * * *   root /opt/anvil/cron-anvil.sh billing

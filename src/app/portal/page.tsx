@@ -7,6 +7,7 @@ import { db } from '@/db';
 import { clans, clanMemberships, clanStaff } from '@/db/schema';
 import { isApexHost } from '@/lib/clanContext';
 import { verifyUser } from '@/lib/auth';
+import { billingStatus, subscriptionFacts } from '@/lib/clanBilling';
 import { PLANS, PLAN_IDS, planOf, checkoutUrl, checkoutUrlWithRef, overMemberCap, TRIAL_DAYS, type Plan } from '@/lib/plans';
 import AnvilMark from '@/components/AnvilMark';
 import ClanLink from '@/components/ClanLink';
@@ -46,6 +47,8 @@ export default async function PortalPage() {
       name: clans.name,
       plan: clans.plan,
       trialEndsAt: clans.trialEndsAt,
+      currentPeriodEnd: clans.currentPeriodEnd,
+      cancelAtPeriodEnd: clans.cancelAtPeriodEnd,
       subscriptionId: clans.gumroadSubscriptionId,
       gumroadRef: clans.gumroadRef,
     })
@@ -114,6 +117,10 @@ export default async function PortalPage() {
             const trialMs = c.trialEndsAt ? Date.parse(c.trialEndsAt) : NaN;
             const onTrial = Number.isFinite(trialMs) && trialMs > nowMs;
             const trialDaysLeft = onTrial ? Math.ceil((trialMs - nowMs) / 86_400_000) : 0;
+            const { state } = billingStatus(
+              { plan: c.plan, trialEndsAt: c.trialEndsAt, currentPeriodEnd: c.currentPeriodEnd, cancelAtPeriodEnd: c.cancelAtPeriodEnd, ...subscriptionFacts(c.subscriptionId, c.plan) },
+              nowMs,
+            );
             return (
               <ClanBillingCard
                 key={c.id}
@@ -125,6 +132,8 @@ export default async function PortalPage() {
                 onTrial={onTrial}
                 trialDaysLeft={trialDaysLeft}
                 hasSubscription={!!c.subscriptionId && c.plan !== 'free'}
+                lapsed={state === 'ended' || state === 'lapsed'}
+                subscriptionId={c.subscriptionId}
                 checkoutRef={c.gumroadRef}
               />
             );
@@ -133,7 +142,7 @@ export default async function PortalPage() {
       )}
 
       <p className="mt-8 text-center text-[12.5px] text-text-dim">
-        Manage or cancel a subscription from the receipt Gumroad emailed you, or your Gumroad account.
+        Manage or cancel a subscription with Manage on Gumroad above, or from the receipt Gumroad emailed you.
         Anvil never sees your card — Gumroad is the merchant of record.
       </p>
     </div>
@@ -149,6 +158,8 @@ function ClanBillingCard({
   onTrial,
   trialDaysLeft,
   hasSubscription,
+  lapsed,
+  subscriptionId,
   checkoutRef,
 }: {
   slug: string;
@@ -159,12 +170,20 @@ function ClanBillingCard({
   onTrial: boolean;
   trialDaysLeft: number;
   hasSubscription: boolean;
+  /** Its membership stopped being paid — a failed card or an end — or the renewal is overdue. */
+  lapsed: boolean;
+  /** The Gumroad membership behind it, ended or not — its manage page updates the card, cancels or restarts. */
+  subscriptionId: string | null;
   checkoutRef: string | null;
 }) {
-  // The next tier up that has a checkout URL configured — what "upgrade" points at.
-  const higher = PLAN_IDS.map((id) => PLANS[id]).find(
-    (p) => p.memberCap != null && plan.memberCap != null && p.memberCap > plan.memberCap && checkoutUrl(p),
-  );
+  const paid = PLAN_IDS.map((id) => PLANS[id]).filter((p) => p.memberCap != null && checkoutUrl(p));
+  // What "upgrade" points at: the smallest tier that holds the roster when it has outgrown this one
+  // (a lapsed Silver clan of 296 dropped to free needs Silver, not the next step, Bronze), else the
+  // next tier up.
+  const fits = paid.find((p) => p.memberCap! >= members);
+  // An overdue clan still on its paid plan renews that plan.
+  const renewing = lapsed && plan.priceUsd !== 0 && paid.includes(plan);
+  const higher = renewing ? plan : overCap && fits ? fits : paid.find((p) => plan.memberCap != null && p.memberCap! > plan.memberCap);
   const cap = plan.memberCap == null ? '∞' : plan.memberCap.toLocaleString();
 
   return (
@@ -197,6 +216,15 @@ function ClanBillingCard({
         </ClanLink>
       </div>
 
+      {lapsed && (
+        <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[12.5px] text-red-300">
+          {plan.priceUsd === 0
+            ? 'Your paid membership ended — the last payment didn\u2019t go through.'
+            : 'Your renewal is overdue — the last payment didn\u2019t go through.'}{' '}
+          Nothing is deleted. Update your card under Manage on Gumroad, or subscribe again below.
+        </div>
+      )}
+
       {overCap && (
         <div className="mt-3 rounded-lg border border-orange-500/30 bg-orange-500/10 px-3 py-2 text-[12.5px] text-orange-300">
           This roster is over the {plan.name} cap of {cap}. Nothing breaks and nobody is removed — but
@@ -212,10 +240,26 @@ function ClanBillingCard({
             rel="noopener noreferrer"
             className="rounded-lg bg-gold px-3.5 py-1.5 text-[13px] font-semibold text-brown-dark transition-colors hover:bg-gold-light"
           >
-            {onTrial || !hasSubscription ? `Upgrade to ${higher.name}` : `Move to ${higher.name}`}
+            {renewing ? `Renew ${higher.name}` : lapsed ? `Subscribe to ${higher.name}` : onTrial || !hasSubscription ? `Upgrade to ${higher.name}` : `Move to ${higher.name}`}
           </a>
           <span className="text-[12px] text-text-dim">up to {higher.memberCap?.toLocaleString()} members</span>
         </div>
+      )}
+
+      {subscriptionId && (
+        <p className="mt-3 text-[12.5px] text-text-dim">
+          <a
+            // Gumroad's own page for this membership: card, cancel, restart. It signs the buyer in by
+            // emailing a link to the address they PAID with, which may not be the one Anvil has.
+            href={`https://gumroad.com/subscriptions/${subscriptionId}/manage`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-gold hover:underline"
+          >
+            Manage on Gumroad
+          </a>{' '}
+          — update the card or cancel. Gumroad emails a sign-in link to the address you paid with.
+        </p>
       )}
 
       {!higher && plan.priceUsd === 0 && !onTrial && (

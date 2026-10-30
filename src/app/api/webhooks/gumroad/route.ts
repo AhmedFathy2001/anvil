@@ -4,6 +4,7 @@ import { and, desc, eq, inArray } from 'drizzle-orm';
 import { db } from '@/db';
 import { clanAuditLog, clans } from '@/db/schema';
 import { checkSaleWithGumroad, checkSubscriptionWithGumroad, nextChargeDue, parseWebhook, verifySeller, verifyWebhookSecret, TRIAL_DAYS } from '@/lib/gumroad';
+import { endMembership, logBilling } from '@/lib/billingLapse';
 import { PLANS, planForGumroadProduct, planForGumroadTier, planOf, type Plan } from '@/lib/plans';
 
 // Form-encoded body, and crypto — Node runtime.
@@ -28,20 +29,6 @@ export const runtime = 'nodejs';
  * Always 200 on an authentic event we understood, so Gumroad marks it delivered; only a bad secret
  * 401s and only genuine failures 500 (which Gumroad retries).
  */
-
-async function logBilling(clanId: number, eventType: string, detail: unknown) {
-  await db
-    .insert(clanAuditLog)
-    .values({
-      clanId,
-      eventType,
-      // No actor: this is Gumroad talking, not a person. Leaving it null is more honest than
-      // attributing a machine event to whoever happens to own the clan.
-      newValue: JSON.stringify(detail),
-      notes: 'gumroad webhook',
-    })
-    .catch(() => {});
-}
 
 /**
  * Was this clan's suspension billing's doing? The latest status-bearing entry in its log decides: a
@@ -87,6 +74,16 @@ async function planBeforeEnd(clanId: number): Promise<Plan | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * When a charge happened, by Gumroad's own stamp; now if it sent none or one we can't read. Never
+ * later than now: the stamp is body text, and one dated ahead would push the due date out of reach of
+ * the daily lapse check (lib/billingLapse). Earlier only makes a clan due sooner, which is safe.
+ */
+function chargedAt(stamp: string | null): number {
+  const ms = stamp ? Date.parse(stamp) : NaN;
+  return Number.isFinite(ms) ? Math.min(ms, Date.now()) : Date.now();
 }
 
 function trialEndsAtIso(): string {
@@ -178,7 +175,9 @@ export async function POST(req: NextRequest) {
           gumroadSubscriptionId: ev.subscriptionId,
           gumroadProductId: ev.productId,
           gumroadProductPermalink: ev.productPermalink,
-          contactEmail: ev.email ?? clan.contactEmail,
+          // The owner's own address wins: people often pay from a different email than the one they
+          // gave Anvil, and the one they gave us is where they expect to hear from us.
+          contactEmail: clan.contactEmail ?? ev.email,
           trialEndsAt: trialEnd,
           // The first charge falls due when the trial runs out — and if it never comes, that date
           // going by is what marks the clan overdue (lib/clanBilling).
@@ -205,8 +204,11 @@ export async function POST(req: NextRequest) {
           memberCap: plan.memberCap,
           gumroadSaleId: ev.saleId ?? clan.gumroadSaleId, // each charge has its own id — the replay latch
           // Gumroad never says when the next charge is, only how often they come. Counting it here
-          // is what lets a renewal that never arrives — a failed card — show up as overdue.
-          currentPeriodEnd: nextChargeDue(ev.recurrence, Date.now()),
+          // is what lets a renewal that never arrives — a failed card — show up as overdue. Counted
+          // from the CHARGE, not from now: a notification redelivered weeks late (lfl's September
+          // charge arrived again in late October) otherwise moved the due date a month past a
+          // charge that had already failed.
+          currentPeriodEnd: nextChargeDue(ev.recurrence, chargedAt(ev.saleTimestamp)),
           cancelAtPeriodEnd: false,
           trialEndsAt: null, // a charge means the trial converted
         })
@@ -226,22 +228,7 @@ export async function POST(req: NextRequest) {
 
     // ── The term actually ended ──────────────────────────────────────────────────────────────
     case 'subscription_ended': {
-      await db
-        .update(clans)
-        .set({
-          plan: 'free',
-          memberCap: PLANS.free.memberCap,
-          // KEPT, not cleared. A membership taken up again from Gumroad's side arrives as a restart
-          // naming only this id — clearing it left that notification with no clan to find. A plan
-          // of free is what says "not paying" (lib/platformView `subscribed`); a new checkout
-          // overwrites the id anyway.
-          currentPeriodEnd: null,
-          cancelAtPeriodEnd: false,
-          trialEndsAt: null,
-        })
-        .where(eq(clans.id, clan.id));
-      // Note what is NOT touched: status. The site stays up, the roster stays, the history stays.
-      await logBilling(clan.id, 'billing_ended', { from: clan.plan, to: 'free' });
+      await endMembership(clan);
       return Response.json({ received: true });
     }
 

@@ -318,3 +318,107 @@ test('a renewal records when the next one is due, so a missed one shows as overd
   const days = (Date.parse(after!.currentPeriodEnd!) - Date.now()) / 86_400_000;
   assert.ok(days > 360 && days < 370, `a yearly charge is due in a year, got ${days}`);
 });
+
+test('a renewal redelivered weeks late is dated from its charge, not from its arrival', async () => {
+  const { db, schema: s } = await loadDb();
+  const [clan] = await db
+    .insert(s.clans)
+    .values({ slug: 'late-ping', name: 'Late Ping', plan: 'silver', status: 'active', gumroadSubscriptionId: 'sub-late' })
+    .returning();
+  const charged = new Date(Date.now() - 50 * 86_400_000).toISOString();
+  await postWebhook({ resource_name: 'sale', is_recurring_charge: 'true', sale_id: 'sale-late-1', subscription_id: 'sub-late', recurrence: 'monthly', sale_timestamp: charged });
+  const after = await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) });
+  assert.ok(Date.parse(after!.currentPeriodEnd!) < Date.now(), 'a month after a charge 50 days ago is already behind us');
+});
+
+test('a sale keeps the email the owner gave Anvil', async () => {
+  const { db, schema: s } = await loadDb();
+  const [clan] = await db
+    .insert(s.clans)
+    .values({ slug: 'own-email', name: 'Own Email', contactEmail: 'owner@anvil.test', gumroadRef: 'ref-own-email' })
+    .returning();
+  await postWebhook({ sale_id: 'sale-oe1', 'url_params[ref]': 'ref-own-email', email: 'payer@elsewhere.test' });
+  const after = await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) });
+  assert.notEqual(after?.plan, 'free');
+  assert.equal(after?.contactEmail, 'owner@anvil.test');
+});
+
+// ── Lapses Gumroad never announces ────────────────────────────────────────────────────────────
+
+test('the daily check ends a membership Gumroad stopped running, and a later charge gives it back', async () => {
+  const { db, schema: s } = await loadDb();
+  const { sweepLapsedBilling } = await import('../src/lib/billingLapse.ts');
+  const past = new Date(Date.now() - 10 * 86_400_000).toISOString();
+  const future = new Date(Date.now() + 10 * 86_400_000).toISOString();
+  const [failed, undated, healthy, notDue, comped] = await db
+    .insert(s.clans)
+    .values([
+      // lfl's shape: paid once, the next charge failed, no end ever sent.
+      { slug: 'sweep-failed', name: 'Failed', plan: 'silver', memberCap: 300, status: 'active', gumroadSubscriptionId: 'sub-failed', currentPeriodEnd: past },
+      { slug: 'sweep-undated', name: 'Undated', plan: 'gold', memberCap: 600, status: 'active', gumroadSubscriptionId: 'sub-undated' },
+      { slug: 'sweep-healthy', name: 'Healthy', plan: 'bronze', memberCap: 150, status: 'active', gumroadSubscriptionId: 'sub-healthy' },
+      { slug: 'sweep-notdue', name: 'Not Due', plan: 'silver', memberCap: 300, status: 'active', gumroadSubscriptionId: 'sub-notdue', currentPeriodEnd: future },
+      { slug: 'sweep-comped', name: 'Comped', plan: 'gold', memberCap: 600, status: 'active' },
+    ])
+    .returning();
+
+  const statuses: Record<string, string> = { 'sub-failed': 'failed_payment', 'sub-undated': 'cancelled', 'sub-healthy': 'alive', 'sub-notdue': 'failed_payment' };
+  const asked: string[] = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (url: string | URL) => {
+    const u = String(url);
+    const sub = /\/subscribers\/([^/?]+)/.exec(u)?.[1];
+    if (sub) {
+      const id = decodeURIComponent(sub);
+      asked.push(id);
+      return Response.json({ success: true, subscriber: { id, status: statuses[id] } });
+    }
+    const sale = /\/sales\/([^/?]+)/.exec(u)?.[1];
+    if (sale) return Response.json({ success: true, sale: { id: decodeURIComponent(sale) } });
+    return new Response('not mocked', { status: 500 });
+  }) as typeof fetch;
+  process.env.GUMROAD_ACCESS_TOKEN = 'test-token';
+  try {
+    const result = await sweepLapsedBilling();
+    // Other tests' paying clans share this database; only this test's own rows are asserted on.
+    assert.deepEqual(result.ended.filter((slug) => slug.startsWith('sweep-')).sort(), ['sweep-failed', 'sweep-undated']);
+    assert.ok(!asked.includes('sub-notdue'), 'a clan not due yet is not asked about');
+
+    const get = async (id: number) => db.query.clans.findFirst({ where: eq(s.clans.id, id) });
+    assert.equal((await get(failed.id))?.plan, 'free');
+    assert.equal((await get(failed.id))?.status, 'active', 'a lapse never takes the site down');
+    assert.equal((await get(undated.id))?.plan, 'free');
+    assert.equal((await get(healthy.id))?.plan, 'bronze');
+    assert.equal((await get(notDue.id))?.plan, 'silver', 'not due yet, not asked');
+    assert.equal((await get(comped.id))?.plan, 'gold', 'a comp has no subscription to chase');
+
+    // The card is fixed and Gumroad charges it: the plan that was paid for comes back.
+    await postWebhook({ resource_name: 'sale', is_recurring_charge: 'true', sale_id: 'sale-failed-2', subscription_id: 'sub-failed', recurrence: 'monthly' });
+    const back = await get(failed.id);
+    assert.equal(back?.plan, 'silver');
+    assert.equal(back?.memberCap, PLANS.silver.memberCap);
+  } finally {
+    globalThis.fetch = realFetch;
+    delete process.env.GUMROAD_ACCESS_TOKEN;
+  }
+});
+
+test('without a Gumroad token the daily check asks nobody and ends nothing', async () => {
+  const { sweepLapsedBilling } = await import('../src/lib/billingLapse.ts');
+  const result = await sweepLapsedBilling();
+  assert.equal(result.skipped, 'no-token');
+  assert.deepEqual(result.ended, []);
+});
+
+test('a renewal stamped in the future is dated from now, so it cannot hide a lapse', async () => {
+  const { db, schema: s } = await loadDb();
+  const [clan] = await db
+    .insert(s.clans)
+    .values({ slug: 'future-ping', name: 'Future Ping', plan: 'silver', status: 'active', gumroadSubscriptionId: 'sub-future' })
+    .returning();
+  const ahead = new Date(Date.now() + 5 * 365 * 86_400_000).toISOString();
+  await postWebhook({ resource_name: 'sale', is_recurring_charge: 'true', sale_id: 'sale-future-1', subscription_id: 'sub-future', recurrence: 'monthly', sale_timestamp: ahead });
+  const after = await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) });
+  const days = (Date.parse(after!.currentPeriodEnd!) - Date.now()) / 86_400_000;
+  assert.ok(days < 32, `due a month out at most, got ${days}`);
+});
