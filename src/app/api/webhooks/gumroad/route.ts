@@ -76,10 +76,14 @@ async function planBeforeEnd(clanId: number): Promise<Plan | null> {
   }
 }
 
-/** When a charge happened, by Gumroad's own stamp; now if it sent none or one we can't read. */
+/**
+ * When a charge happened, by Gumroad's own stamp; now if it sent none or one we can't read. Never
+ * later than now: the stamp is body text, and one dated ahead would push the due date out of reach of
+ * the daily lapse check (lib/billingLapse). Earlier only makes a clan due sooner, which is safe.
+ */
 function chargedAt(stamp: string | null): number {
   const ms = stamp ? Date.parse(stamp) : NaN;
-  return Number.isFinite(ms) ? ms : Date.now();
+  return Number.isFinite(ms) ? Math.min(ms, Date.now()) : Date.now();
 }
 
 function trialEndsAtIso(): string {

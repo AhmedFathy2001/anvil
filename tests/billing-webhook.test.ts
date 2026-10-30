@@ -409,3 +409,16 @@ test('without a Gumroad token the daily check asks nobody and ends nothing', asy
   assert.equal(result.skipped, 'no-token');
   assert.deepEqual(result.ended, []);
 });
+
+test('a renewal stamped in the future is dated from now, so it cannot hide a lapse', async () => {
+  const { db, schema: s } = await loadDb();
+  const [clan] = await db
+    .insert(s.clans)
+    .values({ slug: 'future-ping', name: 'Future Ping', plan: 'silver', status: 'active', gumroadSubscriptionId: 'sub-future' })
+    .returning();
+  const ahead = new Date(Date.now() + 5 * 365 * 86_400_000).toISOString();
+  await postWebhook({ resource_name: 'sale', is_recurring_charge: 'true', sale_id: 'sale-future-1', subscription_id: 'sub-future', recurrence: 'monthly', sale_timestamp: ahead });
+  const after = await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) });
+  const days = (Date.parse(after!.currentPeriodEnd!) - Date.now()) / 86_400_000;
+  assert.ok(days < 32, `due a month out at most, got ${days}`);
+});
