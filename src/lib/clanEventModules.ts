@@ -14,6 +14,11 @@ export const SERIES = 'series';
 export interface ClanEventModules {
   /** A weekly event's modules run per week, or once over the whole series. A one-off is one key either way. */
   scope: 'occurrence' | 'series';
+  /**
+   * The "I'm going" button, when sign-ups are off. Off makes the event information only: no button,
+   * no count, anywhere. Stored rows from before the switch have no value and keep the button.
+   */
+  rsvp: boolean;
   signups: {
     on: boolean;
     /** Most sign-ups taken (pending and approved together); null is no limit. */
@@ -30,6 +35,7 @@ export interface ClanEventModules {
 
 export const NO_MODULES: ClanEventModules = {
   scope: 'occurrence',
+  rsvp: true,
   signups: { on: false, cap: null, approval: false, closes: 'start' },
   fee: { on: false, amount: 0 },
   payouts: { on: false, addedGp: 0 },
@@ -60,6 +66,7 @@ export function parseModules(raw: unknown): ClanEventModules {
   const amount = gp(f.amount);
   return {
     scope: m.scope === 'series' ? 'series' : 'occurrence',
+    rsvp: m.rsvp !== false,
     signups: {
       on: signupsOn,
       cap: Number.isFinite(cap) && cap > 0 ? Math.min(cap, 10_000) : null,
@@ -71,6 +78,9 @@ export function parseModules(raw: unknown): ClanEventModules {
     survey: { on: v.on === true },
   };
 }
+
+/** Whether people put their name down at all — sign-ups, or the plain "I'm going". */
+export const takesNames = (m: ClanEventModules) => m.signups.on || m.rsvp;
 
 export const anyModule = (m: ClanEventModules) => m.signups.on || m.payouts.on || m.survey.on;
 

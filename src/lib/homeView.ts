@@ -19,6 +19,8 @@ import { ladderLifecycle } from '@/lib/ladderView';
 import { monthWindow } from '@/lib/ladderInsights';
 import { eventParticipants as playersTable, submissions as submissionsTable } from '@/db/schema';
 import { totalXpLabel } from '@/lib/totalXpMilestones';
+import { listClanEvents } from '@/lib/clanEvents';
+import { takesNames } from '@/lib/clanEventModules';
 
 /**
  * Everything the home page shows, assembled once.
@@ -85,7 +87,27 @@ export interface HomeView {
   /** The two cards at the top: what's live, or (when nothing is) what's next and what just ended. */
   live: { weekly: HomeWeekly | null; event: HomeEvent | null; next: HomeWeekly | null; justFinished: HomeWeekly | null };
   you: HomeYou | null;
+  /** Clan events (a mass, a hangout) in the next fortnight, soonest first. Absent where nobody built them. */
+  clanEvents?: HomeClanEvent[];
 }
+
+/** A clan event on the home page, at its occurrence on now or next. */
+export interface HomeClanEvent {
+  id: number;
+  title: string;
+  weekly: boolean;
+  start: string;
+  end: string;
+  live: boolean;
+  where: string | null;
+  imageUrl: string | null;
+  /** Going, or signed up; null for an information-only event, which counts nobody. */
+  going: number | null;
+  signups: boolean;
+}
+
+/** How many clan events the home page lists; the events hub has the rest. */
+const HOME_CLAN_EVENTS = 4;
 
 const KIND: Record<string, HomeWeekly['kind']> = { skill: 'SOTW', boss: 'BOTW', efficiency: 'EOTW' };
 
@@ -493,6 +515,18 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
 
   const activeWeekly = weeklies.find((w) => w.status === 'active') ?? null;
   const liveEvent = homeEvents.find((e) => e.status === 'live') ?? null;
+  const clanEvents: HomeClanEvent[] = (await listClanEvents(clanId, { withinDays: 14 })).slice(0, HOME_CLAN_EVENTS).map((e) => ({
+    id: e.id,
+    title: e.title,
+    weekly: e.repeat === 'weekly',
+    start: e.occurrence.start,
+    end: e.occurrence.end,
+    live: e.phase === 'live',
+    where: [e.location, e.world ? `W${e.world}` : null].filter(Boolean).join(' · ') || null,
+    imageUrl: e.imageUrl,
+    going: takesNames(e.modules) ? e.going : null,
+    signups: e.modules.signups.on,
+  }));
 
   return {
     clanName,
@@ -514,6 +548,7 @@ export async function buildHomeView(clanId: number, viewerMemberIds: number[] = 
       justFinished: weeklies.find((w) => w.status === 'completed') ?? null,
     },
     you,
+    clanEvents,
   };
 }
 

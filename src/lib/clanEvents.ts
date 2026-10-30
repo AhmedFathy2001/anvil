@@ -2,7 +2,8 @@ import { and, eq, inArray, isNull, or, ne, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanEventRsvps, clanEvents, clans, users, type ClanEvent } from '@/db/schema';
-import { type ClanEventModules, anyModule, keyFor, parseModules, signupWindow, surveyKey } from '@/lib/clanEventModules';
+import { type ClanEventChannels, channelMentions, parseChannels } from '@/lib/clanEventChannels';
+import { type ClanEventModules, anyModule, keyFor, parseModules, signupWindow, surveyKey, takesNames } from '@/lib/clanEventModules';
 import { loadQuestions } from '@/lib/clanEventQuestions';
 import { activeCount, activeNames, mySignup, signUp, withdraw } from '@/lib/clanEventSignups';
 import { type Occurrence, currentOccurrence, dueNotice, pastOccurrences, phaseOf } from '@/lib/clanEventTimes';
@@ -26,6 +27,8 @@ export interface ClanEventView {
   icon: string | null;
   /** An uploaded picture, used over `icon` where a URL can be shown (not in the plugin). */
   imageUrl: string | null;
+  /** Discord channels it points at (lib/clanEventChannels). */
+  channels: ClanEventChannels | null;
   host: string | null;
   repeat: 'none' | 'weekly';
   timezone: string;
@@ -121,6 +124,7 @@ async function withGoing(list: { e: ClanEvent; o: Occurrence }[], userId: number
       world: e.world,
       icon: e.icon,
       imageUrl: e.imageUrl,
+      channels: e.channels ?? null,
       host: e.host,
       repeat: e.repeat === 'weekly' ? 'weekly' : 'none',
       timezone: e.timezone,
@@ -150,6 +154,7 @@ export interface ClanEventInput {
   world?: number | null;
   icon?: string | null;
   imageUrl?: string | null;
+  channels?: ClanEventChannels | null;
   host?: string | null;
   startsAt: string;
   durationMin: number;
@@ -189,6 +194,7 @@ export function parseClanEventInput(body: Record<string, unknown>): { ok: true; 
       world,
       icon: icon && /^[a-z0-9_]+$/i.test(icon) ? icon : null,
       imageUrl: image.value,
+      channels: parseChannels(body.channels),
       host: text(body.host, 40),
       startsAt: new Date(start).toISOString(),
       durationMin,
@@ -207,6 +213,7 @@ const columns = (input: ClanEventInput) => ({
   world: input.world ?? null,
   icon: input.icon ?? null,
   imageUrl: input.imageUrl ?? null,
+  channels: input.channels ?? null,
   host: input.host ?? null,
   startsAt: input.startsAt,
   durationMin: input.durationMin,
@@ -261,6 +268,7 @@ export async function setGoing(
   const userId = who.userId;
   const view = await getClanEvent(clanId, id, userId);
   if (!view || view.phase === 'ended') return { ok: false, error: 'That event is over.', status: 404 };
+  if (!takesNames(view.modules)) return { ok: false, error: 'This event is just for information — there’s nothing to sign.', status: 400 };
   if (view.modules.signups.on) {
     const r = going ? await signUp(clanId, id, who, {}) : await withdraw(clanId, id, userId);
     if (!r.ok) return r;
@@ -305,7 +313,7 @@ async function eventLink(clanId: number, id: number): Promise<string | null> {
 const when = (iso: string, style: 'F' | 'R') => `<t:${Math.floor(Date.parse(iso) / 1000)}:${style}>`;
 
 /** The embed for an occurrence: the announcement, the reminder and the start share it. */
-export function clanEventEmbed(e: Pick<ClanEvent, 'title' | 'description' | 'location' | 'world' | 'icon' | 'imageUrl' | 'host' | 'repeat' | 'modules'>, o: Occurrence | null, going: number, link: string | null, kind: 'announce' | 'reminder' | 'start' | 'cancelled'): DiscordEmbed {
+export function clanEventEmbed(e: Pick<ClanEvent, 'title' | 'description' | 'location' | 'world' | 'icon' | 'imageUrl' | 'host' | 'repeat' | 'modules'> & { channels?: ClanEventChannels | null }, o: Occurrence | null, going: number, link: string | null, kind: 'announce' | 'reminder' | 'start' | 'cancelled'): DiscordEmbed {
   const m = parseModules(e.modules);
   const count = m.signups.on ? `${going}${m.signups.cap != null ? `/${m.signups.cap}` : ''}` : String(going);
   const fee = m.fee.on ? ` · ${m.fee.amount.toLocaleString('en-US')} gp entry` : '';
@@ -315,7 +323,9 @@ export function clanEventEmbed(e: Pick<ClanEvent, 'title' | 'description' | 'loc
     ...(o && kind !== 'cancelled' ? [field(kind === 'start' ? 'Until' : 'When', kind === 'start' ? when(o.end, 'F') : `${when(o.start, 'F')}\n${when(o.start, 'R')}`)] : []),
     ...(where ? [field('Where', where)] : []),
     ...(e.host ? [field('Host', e.host)] : []),
-    ...(kind !== 'cancelled'
+    ...(kind !== 'cancelled' && channelMentions(e.channels) ? [field('Channels', channelMentions(e.channels)!)] : []),
+    // Information only (no sign-ups, no "I'm going"): no count to show and nothing to press.
+    ...(kind !== 'cancelled' && takesNames(m)
       ? [field(m.signups.on ? 'Signed up' : 'Going', link ? `${count}${fee} · [${m.signups.on ? 'Sign up' : "I'm going"} →](${link})` : `${count}${fee}`)]
       : []),
   ];
@@ -343,7 +353,7 @@ async function announce(e: ClanEvent): Promise<void> {
   if (!o && !prior) return; // over before anyone heard of it
   const going = o ? await goingCount(e, o) : 0;
   const embed = clanEventEmbed(e, o, going, await eventLink(e.clanId, e.id), e.cancelledAt || !o ? 'cancelled' : 'announce');
-  const result = await upsertClanEventPost(e.clanId, embed, prior);
+  const result = await upsertClanEventPost(e.clanId, embed, prior, e.ping === 1 && !e.cancelledAt);
   if (result.status !== 'sent' || !result.messageId) return;
   const next = { [MESSAGE]: result.messageId, [ANNOUNCED_FOR]: o?.start ?? '' };
   await db.update(clanEvents).set({ discordMessageIds: next }).where(eq(clanEvents.id, e.id));

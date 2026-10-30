@@ -68,6 +68,28 @@ test('its own picture must be an upload from here, and Discord gets it over the 
   assert.equal(absolute.thumbnail?.url, 'https://media.anvilosrs.com/mass.png');
 });
 
+test('an information-only event has no count in Discord and refuses "I\'m going"', async () => {
+  const ev = { title: 'Drop party', description: null, location: null, world: null, icon: null, imageUrl: null, host: null, repeat: 'none', modules: { rsvp: false } };
+  const embed = CE.clanEventEmbed(ev, null, 0, 'https://x.test/e', 'announce');
+  assert.equal(embed.fields?.some((f) => f.name === 'Going'), false);
+  const start = new Date(Date.now() + 3_600_000).toISOString();
+  const created = await CE.createClanEvent(clanId, input(start), meUser);
+  await CE.setClanEventModules(clanId, created.id, { rsvp: false });
+  const r = await CE.setGoing(clanId, created.id, { userId: meUser, playerId: null, displayName: 'Info' }, true);
+  assert.equal(r.ok, false);
+});
+
+test('picked channels are stored and posted as mentions', async () => {
+  const start = new Date(Date.now() + 3_600_000).toISOString();
+  const parsed = CE.parseClanEventInput({ ...input(start), channels: { voice: { id: '123456789012345678', name: 'Mass VC' } } } as unknown as Record<string, unknown>);
+  assert.ok(parsed.ok);
+  const ev = await CE.createClanEvent(clanId, parsed.input, meUser);
+  const view = await CE.getClanEvent(clanId, ev.id, null);
+  assert.deepEqual(view?.channels, { voice: { id: '123456789012345678', name: 'Mass VC' } });
+  const embed = CE.clanEventEmbed(ev, null, 0, null, 'announce');
+  assert.equal(embed.fields?.find((f) => f.name === 'Channels')?.value, 'Voice <#123456789012345678>');
+});
+
 test('going is per occurrence: next week asks again', async () => {
   const start = new Date(Date.now() + 3_600_000).toISOString();
   const ev = await CE.createClanEvent(clanId, input(start), meUser);

@@ -4,7 +4,8 @@ import CompetitionCard, { WeekGlyph, boardGlyphFor } from '@/components/events/C
 import { hubKind } from '@/lib/hubKinds';
 import { totalDays } from '@/lib/competitionInsights';
 import type { HubKind } from '@/lib/eventsHub';
-import type { HomeEvent, HomeView, HomeWeekly, HomeYou } from '@/lib/homeView';
+import type { HomeClanEvent, HomeEvent, HomeView, HomeWeekly, HomeYou } from '@/lib/homeView';
+import LocalTime from '@/components/LocalTime';
 import AnvilMark from '@/components/AnvilMark';
 import ClanCrest from '@/components/ClanCrest';
 import ClanLink from '@/components/ClanLink';
@@ -296,6 +297,50 @@ export function LiveNow({ view }: { view: HomeView }) {
         )}
       </div>
     </>
+  );
+}
+
+/** The clan's own events (a mass, a hangout) coming up — they aren't competitions, so they get a row of their own. */
+export function ClanEvents({ view }: { view: HomeView }) {
+  const list = view.clanEvents ?? [];
+  if (list.length === 0) return null;
+  return (
+    <>
+      <SectionHead title="Clan events" note="masses, hangouts and the like" more={{ href: '/events', label: 'All events' }} />
+      <div className="mb-9 grid gap-3 sm:grid-cols-2">
+        {list.map((e) => (
+          <ClanEventCard key={e.id} e={e} />
+        ))}
+      </div>
+    </>
+  );
+}
+
+function ClanEventCard({ e }: { e: HomeClanEvent }) {
+  return (
+    <ClanLink
+      href={`/clan-events/${e.id}`}
+      className={`flex items-center gap-3 rounded-xl border bg-card-bg px-4 py-3 transition-colors hover:border-gold/50 ${e.live ? 'border-accent-green/40' : 'border-card-border'}`}
+    >
+      {e.imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={e.imageUrl} alt="" className="h-10 w-10 shrink-0 rounded-lg border border-card-border object-cover" />
+      ) : (
+        <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-teal-400" />
+      )}
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2">
+          {e.live && <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-accent-green-light">Live</span>}
+          <span className="truncate font-semibold">{e.title}</span>
+        </span>
+        <span className="block truncate text-[12px] text-text-muted">
+          <LocalTime date={e.start} />
+          {e.weekly ? ' · weekly' : ''}
+          {e.where ? ` · ${e.where}` : ''}
+          {e.going != null ? ` · ${e.going} ${e.signups ? 'signed up' : 'going'}` : ''}
+        </span>
+      </span>
+    </ClanLink>
   );
 }
 

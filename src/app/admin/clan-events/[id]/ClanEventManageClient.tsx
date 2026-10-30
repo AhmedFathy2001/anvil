@@ -54,6 +54,7 @@ interface Props {
   signupQuestions: SurveyQuestionView[];
   surveyQuestions: SurveyQuestionView[];
   templates: { id: string; name: string; description: string; questionCount: number }[];
+  signupTemplates: { id: string; name: string; description: string; questionCount: number }[];
   viewerRole: string;
   viewerId: number;
   confirmationsRequired: number;
@@ -116,6 +117,8 @@ export default function ClanEventManageClient(props: Props) {
         <div className="grid gap-5 md:grid-cols-2">
           <div className="space-y-3">
             {toggle(m.signups.on, (on) => setM({ ...m, signups: { ...m.signups, on }, fee: on ? m.fee : { ...m.fee, on: false } }), 'Sign-ups', 'People put their name down on the site (or in the plugin), answering your questions.')}
+            {!m.signups.on &&
+              toggle(m.rsvp, (rsvp) => setM({ ...m, rsvp }), '“I’m going” button', 'Off makes it information only — no button and no count, on the site, in the plugin or in Discord.')}
             {m.signups.on && (
               <div className="ml-6 grid grid-cols-2 gap-2">
                 <div>
@@ -183,7 +186,7 @@ export default function ClanEventManageClient(props: Props) {
             stage="signup"
             initialQuestions={props.signupQuestions}
             responseCount={0}
-            templates={[]}
+            templates={props.signupTemplates}
             apiBase={`/api/admin/clan-events/${id}/survey`}
             intro={<>Asked when someone signs up. Leave it empty and signing up is one tap — in the plugin too.</>}
           />

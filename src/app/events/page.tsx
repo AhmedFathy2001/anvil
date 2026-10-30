@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 
 import ClanLink from '@/components/ClanLink';
 import { listClanEvents } from '@/lib/clanEvents';
+import { takesNames } from '@/lib/clanEventModules';
 import { getClanDisplayName } from '@/lib/pluginConfig';
 import { clanSectionMetadata } from '@/lib/seoPages';
 import { loadHubView } from '@/lib/eventsHub';
@@ -86,6 +87,30 @@ export default async function EventsIndexPage({
 
   const more = view.record.pastTotal - view.record.items.length;
 
+  // Clan events (a mass, a hangout) aren't competitions, but "nothing is on" is wrong while one is —
+  // and so is a timeline that leaves them off.
+  const liveClanEvent = clanEvents.find((ce) => ce.phase === 'live') ?? null;
+  const nextClanEvent = clanEvents.find((ce) => ce.phase !== 'live' && ce.phase !== 'ended') ?? null;
+  const nextAny =
+    nextClanEvent && (!nextUp[0]?.startDate || nextClanEvent.occurrence.start < nextUp[0].startDate)
+      ? { name: nextClanEvent.title, startDate: nextClanEvent.occurrence.start as string | null }
+      : nextUp[0] ?? null;
+  const calendarItems = [
+    ...calendar.items,
+    ...clanEvents.map((ce) => ({
+      key: `c${ce.id}`,
+      kind: 'classic' as const,
+      name: ce.title,
+      shortName: ce.title,
+      href: `/clan-events/${ce.id}`,
+      start: ce.occurrence.start,
+      end: ce.occurrence.end,
+      openEnded: false,
+      state: ce.phase === 'live' ? ('live' as const) : ('upcoming' as const),
+      clanEvent: true,
+    })),
+  ];
+
   return (
     <div>
       <header className="mb-6">
@@ -110,13 +135,17 @@ export default async function EventsIndexPage({
 
       {liveCount === 0 ? (
         <div className="rounded-xl border border-dashed border-card-border p-6 text-sm text-text-muted">
-          {nextUp.length > 0 ? (
+          {liveClanEvent ? (
             <>
-              Nothing is running. Next up is <b className="text-foreground">{nextUp[0].name}</b>
-              {nextUp[0].startDate && (
+              No competition is running, but <b className="text-foreground">{liveClanEvent.title}</b> is on now — see Clan events below.
+            </>
+          ) : nextAny ? (
+            <>
+              Nothing is running. Next up is <b className="text-foreground">{nextAny.name}</b>
+              {nextAny.startDate && (
                 <>
                   {' '}
-                  on <LocalTime date={nextUp[0].startDate} format="date" />
+                  on <LocalTime date={nextAny.startDate} format="date" />
                 </>
               )}
               .
@@ -186,7 +215,7 @@ export default async function EventsIndexPage({
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-semibold">{ce.title}</span>
                     <span className="block truncate text-[11.5px] text-text-muted">
-                      {[ce.repeat === 'weekly' ? 'Weekly' : 'Clan event', ce.location, ce.world ? `W${ce.world}` : null, `${ce.going} going`].filter(Boolean).join(' · ')}
+                      {[ce.repeat === 'weekly' ? 'Weekly' : 'Clan event', ce.location, ce.world ? `W${ce.world}` : null, takesNames(ce.modules) ? `${ce.going} going` : null].filter(Boolean).join(' · ')}
                     </span>
                   </span>
                   <span className="ml-auto shrink-0 text-[11.5px]">
@@ -238,7 +267,7 @@ export default async function EventsIndexPage({
       {calendar.items.length > 1 && (
         <>
           <SectionHead title="The season" note="everything on one axis" />
-          <SeasonCalendar items={calendar.items} />
+          <SeasonCalendar items={calendarItems} />
         </>
       )}
 

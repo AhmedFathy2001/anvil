@@ -17,6 +17,7 @@ import {
   primaryKey,
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
+import type { ClanEventChannels } from '../lib/clanEventChannels';
 import { sql } from 'drizzle-orm';
 
 /**
@@ -3611,6 +3612,8 @@ export const clanEvents = pgTable('clan_events', {
   icon: text('icon'),
   /** An uploaded picture (our own media only — lib/eventImage), used over `icon` on the site and in Discord. The plugin keeps `icon`. */
   imageUrl: text('image_url'),
+  /** Discord channels it points at — chat, guide, voice (lib/clanEventChannels). */
+  channels: jsonb('channels').$type<ClanEventChannels>(),
   host: text('host'),
   /** The first occurrence's start, ISO UTC. */
   startsAt: text('starts_at').notNull(),

@@ -32,6 +32,8 @@ export interface CalendarItem {
   end: string;
   openEnded: boolean;
   state: 'live' | 'upcoming' | 'past';
+  /** A clan event (a mass, a hangout) rather than a competition: its own lane, its own colour. `kind` is unused then. */
+  clanEvent?: boolean;
 }
 
 export interface CalendarWindow {

@@ -19,7 +19,7 @@ import MemberCapNotice from '@/components/MemberCapNotice';
 import { rosterCapStatus } from '@/lib/member-cap';
 import { pendingRequestCount } from '@/lib/guestAdmission';
 import { pendingCoHostInvites } from '@/lib/coHost';
-import { listEventIndex, type EventIndexItem } from '@/lib/eventIndex';
+import { listClanEventItems, listEventIndex, type ScheduleItem } from '@/lib/eventIndex';
 import { attentionQueue, openCount, type AttentionItem, type Severity } from '@/lib/adminAttention';
 import { addDays, dayOf, daysBetween, findGaps, packLanes } from '@/lib/scheduleLanes';
 import { dayKey, daysSince, parseStamp } from '@/lib/dbTime';
@@ -94,6 +94,7 @@ export default async function AdminDashboardPage() {
     accountChangeCount,
     pendingSignupEvents,
     flaggedProofEvents,
+    clanEventItems,
   ] = await Promise.all([
     listEventIndex(clan.id),
     db.select().from(events).where(eq(events.clanId, clan.id)).orderBy(desc(events.createdAt)),
@@ -297,6 +298,7 @@ export default async function AdminDashboardPage() {
     flaggedProofBoards(clan.id, now).then((rows) =>
       rows.map((r) => ({ name: r.name, count: r.count, href: '/admin/proofs' })),
     ),
+    listClanEventItems(clan.id),
   ]);
 
   // What somebody already said they know about. Per clan, so the whole staff sees one answer.
@@ -313,8 +315,11 @@ export default async function AdminDashboardPage() {
     .filter((i) => i.kind === 'board' && !i.startDate && i.status !== 'ended')
     .map((i) => ({ id: i.id, name: i.title, href: i.href }));
 
-  const running = dated.filter((i) => i.status === 'running');
-  const nextUp = dated
+  // What's on and coming up includes clan events (a mass, a hangout), as the schedule page does. The
+  // gap below doesn't: an hour-long mass isn't a season, so it never hides a fortnight of nothing.
+  const onCalendar: ScheduleItem[] = [...dated, ...clanEventItems];
+  const running = onCalendar.filter((i) => i.status === 'running');
+  const nextUp = onCalendar
     .filter((i) => Date.parse(i.startDate!) > now)
     .sort((a, b) => Date.parse(a.startDate!) - Date.parse(b.startDate!))[0];
 
@@ -503,7 +508,7 @@ export default async function AdminDashboardPage() {
 
       <div className="grid gap-8 lg:grid-cols-3 mt-8">
         <div className="lg:col-span-2 space-y-8">
-          <Runway items={dated} today={today} weeks={RUNWAY_WEEKS} />
+          <Runway items={onCalendar} today={today} weeks={RUNWAY_WEEKS} />
           <Activity rows={recentAudit} now={now} />
         </div>
 
@@ -531,8 +536,8 @@ function NowBar({
   now,
   canReach,
 }: {
-  running: EventIndexItem[];
-  nextUp: EventIndexItem | undefined;
+  running: ScheduleItem[];
+  nextUp: ScheduleItem | undefined;
   now: number;
   /** A moderator reads the same strip but cannot open an event, so titles stop being links. */
   canReach: (href: string) => boolean;
@@ -635,7 +640,7 @@ function NowBar({
  * The last day an item covers. An open-ended board (no end date) runs until someone ends it, so it
  * reaches `horizon` — the far edge of whatever window is being drawn.
  */
-function endDayOf(item: EventIndexItem, horizon: Date): Date {
+function endDayOf(item: ScheduleItem, horizon: Date): Date {
   return item.endDate ? dayOf(item.endDate) : horizon;
 }
 
@@ -796,7 +801,7 @@ const RUNWAY_ROW = 30;
 /** A one-day event is a hairline at six weeks' zoom; give every bar something to grab. */
 const MIN_BAR_WIDTH = 2.5;
 
-function Runway({ items, today, weeks }: { items: EventIndexItem[]; today: Date; weeks: number }) {
+function Runway({ items, today, weeks }: { items: ScheduleItem[]; today: Date; weeks: number }) {
   const from = today;
   const to = addDays(today, weeks * 7);
   const total = daysBetween(from, to) + 1;
@@ -927,7 +932,9 @@ function Runway({ items, today, weeks }: { items: EventIndexItem[]; today: Date;
                   : l.item.status === 'upcoming'
                     ? l.item.kind === 'board'
                       ? 'bg-gold/20 text-gold-light border-gold/50'
-                      : 'bg-blue-500/20 text-blue-300 border-blue-500/50'
+                      : l.item.kind === 'clanevent'
+                        ? 'bg-teal-400/15 text-teal-300 border-teal-400/50'
+                        : 'bg-blue-500/20 text-blue-300 border-blue-500/50'
                     : 'bg-text-muted/10 text-text-muted border-text-muted/30';
               const inside = width / 100 >= LABEL_INSIDE_MIN;
               return (
@@ -1098,7 +1105,7 @@ function Snapshot({
   feeCounts,
   unscheduled,
 }: {
-  running: EventIndexItem[];
+  running: ScheduleItem[];
   activeMembers: number;
   provisionalCount: number;
   feeCounts: { owed: number; toSign: number };

@@ -820,6 +820,13 @@
       "when": 1793350400000,
       "tag": "0160_clan_event_image",
       "breakpoints": true
+    },
+    {
+      "idx": 161,
+      "version": "7",
+      "when": 1793436800000,
+      "tag": "0161_clan_event_channels",
+      "breakpoints": true
     }
   ]
 }

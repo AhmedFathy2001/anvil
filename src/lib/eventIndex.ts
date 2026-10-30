@@ -14,6 +14,8 @@ import { count, desc, eq } from 'drizzle-orm';
 import { eventShapeBadge } from '@/lib/utils';
 import { eventStage } from '@/lib/eventStage';
 import { weeklyStage, WEEKLY_BADGE } from '@/lib/weeklyStage';
+import { listClanEvents } from '@/lib/clanEvents';
+import { takesNames } from '@/lib/clanEventModules';
 
 export type IndexKind = 'board' | 'weekly';
 
@@ -98,4 +100,29 @@ export async function listEventIndex(clanId: number): Promise<EventIndexItem[]> 
   });
 
   return [...boardItems, ...weeklyItems].sort((a, b) => (a.sortAt < b.sortAt ? 1 : -1));
+}
+
+/** A row on a calendar: a board, a weekly, or a clan event (a mass, a hangout) at its next occurrence. */
+export type ScheduleItem = Omit<EventIndexItem, 'kind'> & { kind: IndexKind | 'clanevent' };
+
+/**
+ * The clan's events as calendar rows, at the occurrence on now or next — a weekly one shows its next
+ * week, the one there is anything left to plan around. Shared by the schedule and the dashboard, so
+ * the two cannot disagree about what's coming up.
+ */
+export async function listClanEventItems(clanId: number): Promise<ScheduleItem[]> {
+  const list = await listClanEvents(clanId);
+  return list.map((e) => ({
+    kind: 'clanevent' as const,
+    id: e.id,
+    title: e.title,
+    badge: e.repeat === 'weekly' ? 'Weekly' : 'Clan event',
+    status: e.phase === 'live' ? ('running' as const) : ('upcoming' as const),
+    startDate: e.occurrence.start,
+    endDate: e.occurrence.end,
+    href: '/admin/clan-events',
+    publicHref: `/clan-events/${e.id}`,
+    headline: takesNames(e.modules) ? `${e.going} ${e.signup ? 'signed up' : 'going'}` : 'Clan event',
+    sortAt: e.occurrence.start,
+  }));
 }

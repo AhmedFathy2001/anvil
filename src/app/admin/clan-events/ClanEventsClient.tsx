@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import ClanLink from '@/components/ClanLink';
+import ClanLink, { useClanUrl } from '@/components/ClanLink';
 import DateTimePicker from '@/components/DateTimePicker';
 import Input from '@/components/Input';
 import Select, { type SelectOption } from '@/components/Select';
 import { BOSSES, SKILLS, SKILL_LABELS } from '@/lib/constants';
+import { CHANNEL_SLOTS, CHANNEL_SLOT_LABELS, type ChannelSlot, type ClanEventChannels } from '@/lib/clanEventChannels';
 import { clanFetch } from '@/lib/clanFetch';
+import { SIGNUP_TEMPLATES, surveyTemplateById } from '@/lib/surveyTemplates';
 
 interface Ev {
   id: number;
@@ -17,6 +19,7 @@ interface Ev {
   world: number | null;
   icon: string | null;
   imageUrl: string | null;
+  channels: ClanEventChannels | null;
   host: string | null;
   repeat: 'none' | 'weekly';
   durationMin: number;
@@ -37,6 +40,7 @@ interface Form {
   world: string;
   icon: string;
   imageUrl: string;
+  channels: ClanEventChannels;
   host: string;
   start: string; // ISO instant
   durationMin: string;
@@ -44,7 +48,10 @@ interface Form {
   until: string; // YYYY-MM-DD, this browser's zone
   ping: boolean;
   // New events only — an existing one's sign-ups and fee live on its own page (ClanEventManageClient).
-  signups: boolean;
+  /** Information only, the plain "I'm going" button, or sign-ups. */
+  attend: 'info' | 'going' | 'signups';
+  /** With sign-ups: no form, a starter template's id, or 'own' (built on its page next). */
+  questions: string;
   cap: string;
   approval: boolean;
   fee: boolean;
@@ -52,9 +59,21 @@ interface Form {
 }
 
 const BLANK: Form = {
-  title: '', description: '', location: '', world: '', icon: '', imageUrl: '', host: '', start: '', durationMin: '60', repeat: 'none', until: '', ping: true,
-  signups: false, cap: '', approval: false, fee: false, feeAmount: '',
+  title: '', description: '', location: '', world: '', icon: '', imageUrl: '', channels: {}, host: '', start: '', durationMin: '60', repeat: 'none', until: '', ping: true,
+  attend: 'going', questions: 'none', cap: '', approval: false, fee: false, feeAmount: '',
 };
+
+const ATTEND: { value: Form['attend']; title: string; hint: string }[] = [
+  { value: 'info', title: 'Just information', hint: 'No button, no count' },
+  { value: 'going', title: '“I’m going”', hint: 'One tap, shows a count' },
+  { value: 'signups', title: 'Sign-ups', hint: 'Spots, questions, a fee' },
+];
+
+const QUESTION_OPTIONS: SelectOption[] = [
+  { value: 'none', label: 'No questions' },
+  ...SIGNUP_TEMPLATES.map((t) => ({ value: t.id, label: `Template: ${t.name}` })),
+  { value: 'own', label: 'Write my own' },
+];
 
 /** An ISO instant as a calendar date in this browser's zone. */
 function localDate(iso: string): string {
@@ -75,15 +94,29 @@ const ICON_OPTIONS: SelectOption[] = [
   ...BOSSES.map((b) => ({ value: b.key, label: b.label, keywords: b.aliases })),
 ];
 
+interface LinkableChannel {
+  id: string;
+  name: string;
+  parentName: string | null;
+  kind: 'text' | 'voice' | 'forum';
+}
+
+// Which channels each slot offers: a guide can live in a forum, a voice slot only takes voice.
+const SLOT_KINDS: Record<ChannelSlot, LinkableChannel['kind'][]> = { chat: ['text', 'forum'], guide: ['text', 'forum'], voice: ['voice'] };
+const SLOT_HINTS: Record<ChannelSlot, string> = { chat: 'Where to talk about it', guide: 'Its guide or info', voice: 'Where to meet' };
+
 const when = (iso: string) => new Date(iso).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 export default function ClanEventsClient() {
+  const clanUrl = useClanUrl();
   const [events, setEvents] = useState<Ev[] | null>(null);
   const [form, setForm] = useState<Form>(BLANK);
   const [editing, setEditing] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // The server's channels for the pickers; null while loading, and `enabled` false without a bot.
+  const [discord, setDiscord] = useState<{ enabled: boolean; channels: LinkableChannel[] } | null>(null);
 
   const load = useCallback(
     () =>
@@ -95,6 +128,33 @@ export default function ClanEventsClient() {
   useEffect(() => {
     void load();
   }, [load]);
+  useEffect(() => {
+    clanFetch('/api/admin/clan-events/channels')
+      .then((r) => (r.ok ? r.json() : { enabled: false, channels: [] }))
+      .then((d: { enabled?: boolean; channels?: LinkableChannel[] }) => setDiscord({ enabled: !!d.enabled, channels: d.channels ?? [] }))
+      .catch(() => setDiscord({ enabled: false, channels: [] }));
+  }, []);
+
+  function pickChannel(slot: ChannelSlot, id: string) {
+    const picked = discord?.channels.find((c) => c.id === id);
+    setForm((f) => {
+      const channels = { ...f.channels };
+      if (picked) channels[slot] = { id: picked.id, name: picked.name };
+      else delete channels[slot];
+      return { ...f, channels };
+    });
+  }
+
+  function channelOptions(slot: ChannelSlot): SelectOption[] {
+    const current = form.channels[slot];
+    const listed = (discord?.channels ?? []).filter((c) => SLOT_KINDS[slot].includes(c.kind));
+    return [
+      { value: '', label: 'None' },
+      // A channel picked before that the list no longer has (deleted, or Discord unreachable) still shows.
+      ...(current && !listed.some((c) => c.id === current.id) ? [{ value: current.id, label: `#${current.name}` }] : []),
+      ...listed.map((c) => ({ value: c.id, label: `${slot === 'voice' ? '🔊 ' : '#'}${c.name}${c.parentName ? ` · ${c.parentName}` : ''}`, keywords: c.parentName ? [c.parentName.toLowerCase()] : [] })),
+    ];
+  }
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -102,7 +162,7 @@ export default function ClanEventsClient() {
     e.preventDefault();
     setError(null);
     if (!form.start) return setError('Pick when it starts.');
-    if (!editing && form.signups && form.fee && !(Number(form.feeAmount) > 0)) return setError('Set the entry fee in gp.');
+    if (!editing && form.attend === 'signups' && form.fee && !(Number(form.feeAmount) > 0)) return setError('Set the entry fee in gp.');
     setBusy(true);
     const body = {
       title: form.title,
@@ -111,6 +171,7 @@ export default function ClanEventsClient() {
       world: form.world,
       icon: form.icon,
       imageUrl: form.imageUrl || null,
+      channels: form.channels,
       host: form.host,
       startsAt: form.start,
       durationMin: Number(form.durationMin),
@@ -128,22 +189,40 @@ export default function ClanEventsClient() {
       setBusy(false);
       return setError(((await r.json().catch(() => ({}))) as { error?: string }).error ?? 'Couldn’t save it.');
     }
-    if (!editing && form.signups) {
-      // Sign-ups and the fee are the event's modules; the rest of them (payouts, survey, questions)
+    if (!editing && form.attend !== 'going') {
+      // Sign-ups, the fee and the "I'm going" switch are the event's modules; payouts and the survey
       // stay on its own page, where this hands over.
       const { id } = (await r.json()) as { id: number };
+      const signups = form.attend === 'signups';
       const m = await clanFetch(`/api/admin/clan-events/${id}/modules`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           scope: 'occurrence',
-          signups: { on: true, cap: form.cap ? Number(form.cap) : null, approval: form.approval, closes: 'start' },
-          fee: { on: form.fee, amount: Number(form.feeAmount) || 0 },
+          rsvp: form.attend !== 'info',
+          signups: { on: signups, cap: form.cap ? Number(form.cap) : null, approval: form.approval, closes: 'start' },
+          fee: { on: signups && form.fee, amount: Number(form.feeAmount) || 0 },
           payouts: { on: false, addedGp: 0 },
           survey: { on: false },
         }),
       });
-      if (!m.ok) setError('Scheduled, but sign-ups didn’t save — set them from “Sign-ups & more”.');
+      if (!m.ok) {
+        setError('Scheduled, but sign-ups didn’t save — set them from “Sign-ups & more”.');
+      } else if (signups && form.questions === 'own') {
+        // Their own questions are built where the rest of the form lives.
+        window.location.assign(clanUrl(`/admin/clan-events/${id}`));
+        return;
+      } else if (signups && form.questions !== 'none') {
+        const template = surveyTemplateById(form.questions);
+        const q = template
+          ? await clanFetch(`/api/admin/clan-events/${id}/survey/questions`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ stage: 'signup', questions: template.questions }),
+            })
+          : null;
+        if (q && !q.ok) setError('Scheduled, but the questions didn’t save — add them from “Sign-ups & more”.');
+      }
     }
     setBusy(false);
     setForm(BLANK);
@@ -161,13 +240,15 @@ export default function ClanEventsClient() {
       world: ev.world ? String(ev.world) : '',
       icon: ev.icon ?? '',
       imageUrl: ev.imageUrl ?? '',
+      channels: ev.channels ?? {},
       host: ev.host ?? '',
       start: ev.startsAt,
       durationMin: String(ev.durationMin),
       repeat: ev.repeat,
       until: ev.repeatUntil ? localDate(ev.repeatUntil) : '',
       ping: ev.ping,
-      signups: false,
+      attend: 'going',
+      questions: 'none',
       cap: '',
       approval: false,
       fee: false,
@@ -286,18 +367,21 @@ export default function ClanEventsClient() {
             <Input type="number" min={300} max={700} value={form.world} onChange={(e) => set('world', e.target.value)} placeholder="330" />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className={form.imageUrl ? '' : 'grid grid-cols-2 gap-2'}>
           <div>
             <label className={label}>Host</label>
             <Input value={form.host} onChange={(e) => set('host', e.target.value)} placeholder="Your RSN" maxLength={40} />
           </div>
-          <div>
-            <label className={label}>Boss or skill (picture)</label>
-            <Select value={form.icon} onChange={(v) => set('icon', v)} options={ICON_OPTIONS} placeholder="No picture" ariaLabel="Picture" searchable />
-          </div>
+          {/* Their own picture replaces the boss/skill one, so only one picker shows at a time. */}
+          {!form.imageUrl && (
+            <div>
+              <label className={label}>Boss or skill (picture)</label>
+              <Select value={form.icon} onChange={(v) => set('icon', v)} options={ICON_OPTIONS} placeholder="No picture" ariaLabel="Picture" searchable />
+            </div>
+          )}
         </div>
         <div>
-          <label className={label}>Or your own picture</label>
+          <label className={label}>{form.imageUrl ? 'Your picture' : 'Or your own picture'}</label>
           <div className="flex items-center gap-2">
             {form.imageUrl && (
               // eslint-disable-next-line @next/next/no-img-element
@@ -324,7 +408,9 @@ export default function ClanEventsClient() {
             )}
           </div>
           <p className="mt-1 text-[11px] text-text-muted">
-            Shown on the site and in the Discord post. The plugin shows the boss or skill above, since it can&rsquo;t load pictures.
+            {form.imageUrl
+              ? 'Shown on the site and in the Discord post. Remove it to pick a boss or skill instead.'
+              : 'Shown on the site and in the Discord post. The plugin shows the boss or skill above, since it can’t load pictures.'}
           </p>
         </div>
         <div>
@@ -348,11 +434,22 @@ export default function ClanEventsClient() {
           </p>
         ) : (
           <div className="space-y-2 rounded border border-card-border/70 p-3">
-            <label className="flex items-center gap-2 text-sm text-foreground">
-              <input type="checkbox" checked={form.signups} onChange={(e) => set('signups', e.target.checked)} />
-              Take sign-ups <span className="text-xs text-text-muted">(instead of just &ldquo;I&rsquo;m going&rdquo;)</span>
-            </label>
-            {form.signups && (
+            <span className={label}>Who&rsquo;s coming</span>
+            <div role="radiogroup" aria-label="Who's coming" className="grid gap-1.5 sm:grid-cols-3">
+              {ATTEND.map((o) => (
+                <label
+                  key={o.value}
+                  className={`cursor-pointer rounded border px-2.5 py-2 text-sm transition-colors ${
+                    form.attend === o.value ? 'border-gold/60 bg-gold/5 text-foreground' : 'border-card-border text-text-muted hover:border-gold/30'
+                  }`}
+                >
+                  <input type="radio" name="attend" value={o.value} checked={form.attend === o.value} onChange={() => set('attend', o.value)} className="sr-only" />
+                  <span className="block font-medium text-foreground">{o.title}</span>
+                  <span className="block text-[11px]">{o.hint}</span>
+                </label>
+              ))}
+            </div>
+            {form.attend === 'signups' && (
               <>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
@@ -374,14 +471,56 @@ export default function ClanEventsClient() {
                     <Input type="number" min={1} value={form.feeAmount} onChange={(e) => set('feeAmount', e.target.value)} placeholder="1000000" />
                   </div>
                 )}
-                <p className="text-[11px] text-text-muted">Sign-up questions, payouts and a survey can be added from the event&rsquo;s page once it&rsquo;s scheduled.</p>
+                <div>
+                  <label className={label}>Questions</label>
+                  <Select value={form.questions} onChange={(v) => set('questions', v)} options={QUESTION_OPTIONS} ariaLabel="Sign-up questions" />
+                  <p className="mt-1 text-[11px] text-text-muted">
+                    {form.questions === 'own'
+                      ? 'You’ll land on its page to write them once it’s scheduled.'
+                      : form.questions === 'none'
+                        ? 'Signing up is one tap — in the plugin too.'
+                        : `${SIGNUP_TEMPLATES.find((t) => t.id === form.questions)?.description ?? ''} Editable on its page afterwards.`}
+                  </p>
+                </div>
+                <p className="text-[11px] text-text-muted">Payouts and a survey can be added from the event&rsquo;s page once it&rsquo;s scheduled.</p>
               </>
             )}
           </div>
         )}
+        <div>
+          <label className={label}>Discord channels (optional)</label>
+          {discord && !discord.enabled ? (
+            <p className="text-[11px] text-text-muted">
+              Connect the clan&rsquo;s Discord bot in{' '}
+              <ClanLink href="/admin/integrations" className="text-gold hover:text-gold-light">
+                Discord settings
+              </ClanLink>{' '}
+              to point this event at a chat, guide or voice channel.
+            </p>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-3">
+              {CHANNEL_SLOTS.map((slot) => (
+                <div key={slot}>
+                  <Select
+                    value={form.channels[slot]?.id ?? ''}
+                    onChange={(v) => pickChannel(slot, v)}
+                    options={channelOptions(slot)}
+                    placeholder={discord ? CHANNEL_SLOT_LABELS[slot] : 'Loading…'}
+                    ariaLabel={`${CHANNEL_SLOT_LABELS[slot]} channel`}
+                    disabled={!discord}
+                    searchable
+                  />
+                  <span className="mt-0.5 block text-[11px] text-text-muted">
+                    {CHANNEL_SLOT_LABELS[slot]} · {SLOT_HINTS[slot]}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <label className="flex items-center gap-2 text-sm text-foreground">
           <input type="checkbox" checked={form.ping} onChange={(e) => set('ping', e.target.checked)} />
-          Ping the member role on the reminder and the start
+          Ping the member role on the announcement, the reminder and the start
         </label>
         {error && <p className="text-sm text-red-400">{error}</p>}
         <div className="flex gap-2">

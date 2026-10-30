@@ -25,7 +25,7 @@ import { viewerMemberIds } from '@/lib/competitionView';
 import { clanHallView, hallConfig } from '@/lib/clanHall';
 import ClanHall from '@/components/ClanHall';
 import { countLiveTeamInvolvements } from '@/lib/myTeamNav';
-import { ClanWeek, Competitions, Hero, LiveNow, YouStrip } from '@/components/home/HomeSections';
+import { ClanEvents, ClanWeek, Competitions, Hero, LiveNow, YouStrip } from '@/components/home/HomeSections';
 import ClanLink from '@/components/ClanLink';
 
 export const dynamic = 'force-dynamic';
@@ -226,6 +226,7 @@ export default async function HomePage() {
       {hall && <ClanHall initial={hall} src="home" />}
       <YouStrip you={view.you} signedIn={!!session?.userId} discordInvite={view.discordInvite} />
       <LiveNow view={view} />
+      <ClanEvents view={view} />
       <Competitions view={view} />
       <ClanWeek view={view} />
 

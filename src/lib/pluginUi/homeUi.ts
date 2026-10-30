@@ -1,5 +1,7 @@
 import type { ActivityEntry } from '@/lib/pluginActivity';
 import type { ClanEventView } from '@/lib/clanEvents';
+import { CHANNEL_SLOT_LABELS, channelList } from '@/lib/clanEventChannels';
+import { takesNames } from '@/lib/clanEventModules';
 import { SKILLS } from '@/lib/constants';
 import type { PanelActive, PanelTile } from '@/lib/pluginPanel';
 import type { ScheduleBingo, ScheduleWeekly } from '@/lib/pluginConfig';
@@ -390,7 +392,7 @@ function clanEventLines(ce: ClanEventView): Node[] {
     text(ce.repeat === 'weekly' ? 'Clan event · weekly' : 'Clan event', LIGHT),
     clanEventWhen(ce),
     ...(where(ce) ? [muted(clip(where(ce), 30))] : []),
-    muted(`${goingLabel(ce)}${ce.mine ? ' · you too' : ''}`, ce.mine ? { color: 'brand' } : {}),
+    ...(takesNames(ce.modules) ? [muted(`${goingLabel(ce)}${ce.mine ? ' · you too' : ''}`, ce.mine ? { color: 'brand' } : {})] : []),
   ];
 }
 
@@ -409,7 +411,10 @@ function clanEventPage(d: HomeData, ce: ClanEventView): Node[] {
   ];
   if (where(ce)) parts.push(text(where(ce), 'text', { wrap: true }));
   if (ce.host) parts.push(muted(`Hosted by ${ce.host}`));
+  for (const { slot, channel } of channelList(ce.channels)) parts.push(muted(`${CHANNEL_SLOT_LABELS[slot]}: ${slot === 'voice' ? '' : '#'}${channel.name} on Discord`, { wrap: true }));
   if (ce.description) parts.push(gap(6), text(ce.description, 'muted', { wrap: true }));
+  // Information only: the details above are the whole page.
+  if (!takesNames(ce.modules)) return parts;
   parts.push(...heading(ce.signup ? `Signed up · ${ce.going}${ce.signup.cap != null ? `/${ce.signup.cap}` : ''}` : `Going · ${ce.going}`));
   if (ce.modules.fee.on) parts.push(muted(`Entry ${ce.modules.fee.amount.toLocaleString('en-US')} gp`));
   if (ce.goingNames.length) parts.push(muted(ce.goingNames.join(', ') + (ce.going > ce.goingNames.length ? ` +${ce.going - ce.goingNames.length}` : ''), { wrap: true }), gap(6));
