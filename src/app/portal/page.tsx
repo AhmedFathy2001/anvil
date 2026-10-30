@@ -133,6 +133,7 @@ export default async function PortalPage() {
                 trialDaysLeft={trialDaysLeft}
                 hasSubscription={!!c.subscriptionId && c.plan !== 'free'}
                 lapsed={state === 'ended' || state === 'lapsed'}
+                subscriptionId={c.subscriptionId}
                 checkoutRef={c.gumroadRef}
               />
             );
@@ -141,7 +142,7 @@ export default async function PortalPage() {
       )}
 
       <p className="mt-8 text-center text-[12.5px] text-text-dim">
-        Manage or cancel a subscription from the receipt Gumroad emailed you, or your Gumroad account.
+        Manage or cancel a subscription with Manage on Gumroad above, or from the receipt Gumroad emailed you.
         Anvil never sees your card — Gumroad is the merchant of record.
       </p>
     </div>
@@ -158,6 +159,7 @@ function ClanBillingCard({
   trialDaysLeft,
   hasSubscription,
   lapsed,
+  subscriptionId,
   checkoutRef,
 }: {
   slug: string;
@@ -170,6 +172,8 @@ function ClanBillingCard({
   hasSubscription: boolean;
   /** Its membership stopped being paid — a failed card or an end — or the renewal is overdue. */
   lapsed: boolean;
+  /** The Gumroad membership behind it, ended or not — its manage page updates the card, cancels or restarts. */
+  subscriptionId: string | null;
   checkoutRef: string | null;
 }) {
   const paid = PLAN_IDS.map((id) => PLANS[id]).filter((p) => p.memberCap != null && checkoutUrl(p));
@@ -217,8 +221,7 @@ function ClanBillingCard({
           {plan.priceUsd === 0
             ? 'Your paid membership ended — the last payment didn\u2019t go through.'
             : 'Your renewal is overdue — the last payment didn\u2019t go through.'}{' '}
-          Nothing is deleted. Update your card from Gumroad&rsquo;s receipt email (it goes to the address you
-          paid with), or subscribe again below.
+          Nothing is deleted. Update your card under Manage on Gumroad, or subscribe again below.
         </div>
       )}
 
@@ -241,6 +244,22 @@ function ClanBillingCard({
           </a>
           <span className="text-[12px] text-text-dim">up to {higher.memberCap?.toLocaleString()} members</span>
         </div>
+      )}
+
+      {subscriptionId && (
+        <p className="mt-3 text-[12.5px] text-text-dim">
+          <a
+            // Gumroad's own page for this membership: card, cancel, restart. It signs the buyer in by
+            // emailing a link to the address they PAID with, which may not be the one Anvil has.
+            href={`https://gumroad.com/subscriptions/${subscriptionId}/manage`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-gold hover:underline"
+          >
+            Manage on Gumroad
+          </a>{' '}
+          — update the card or cancel. Gumroad emails a sign-in link to the address you paid with.
+        </p>
       )}
 
       {!higher && plan.priceUsd === 0 && !onTrial && (
