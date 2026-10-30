@@ -47,7 +47,13 @@ export default async function ClanEventPage({ params }: { params: Promise<{ id: 
           {ev.phase === 'live' && <span className="ml-2 rounded bg-accent-green/15 px-1.5 py-0.5 normal-case text-accent-green">Live now</span>}
           {ev.phase === 'ended' && <span className="ml-2 rounded bg-text-muted/15 px-1.5 py-0.5 normal-case text-text-muted">Ended</span>}
         </p>
-        <h1 className="mb-4 text-2xl font-bold text-gold">{ev.title}</h1>
+        <div className="mb-4 flex items-center gap-3">
+          {ev.imageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={ev.imageUrl} alt="" className="h-14 w-14 shrink-0 rounded-lg border border-card-border object-cover" />
+          )}
+          <h1 className="text-2xl font-bold text-gold">{ev.title}</h1>
+        </div>
         <dl className="mb-4 grid grid-cols-[90px_1fr] gap-y-2 text-sm">
           <dt className="text-text-muted">When</dt>
           <dd>

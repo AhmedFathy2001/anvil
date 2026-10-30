@@ -813,6 +813,13 @@
       "when": 1793350300000,
       "tag": "0159_clan_join_dates",
       "breakpoints": true
+    },
+    {
+      "idx": 160,
+      "version": "7",
+      "when": 1793350400000,
+      "tag": "0160_clan_event_image",
+      "breakpoints": true
     }
   ]
 }

@@ -3609,6 +3609,8 @@ export const clanEvents = pgTable('clan_events', {
   world: integer('world'),
   /** A hiscores boss or skill key for its picture (game ids only — never a URL). */
   icon: text('icon'),
+  /** An uploaded picture (our own media only — lib/eventImage), used over `icon` on the site and in Discord. The plugin keeps `icon`. */
+  imageUrl: text('image_url'),
   host: text('host'),
   /** The first occurrence's start, ISO UTC. */
   startsAt: text('starts_at').notNull(),
