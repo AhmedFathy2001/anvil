@@ -99,7 +99,9 @@ export async function POST(request: Request) {
   // clan: being an admin of one confers nothing in another, which is the single most important
   // thing for a deployment that serves all of them to get right.
   if (!(await pluginClanAuthority(clan.id, auth.userId, 'admin'))) {
-    await recordRefusal(clan.id, auth.userId, 'notClanAdmin', clanName);
+    // The server log, NOT the clan's audit log: a request can address any clan by its URL, so this
+    // caller may have no relationship with it, and must not be able to write into its record.
+    log.info('clan-sync.refused', { clanId: clan.id, userId: auth.userId, reason: 'notClanAdmin' });
     return NextResponse.json(
       {
         error: 'notClanAdmin',
@@ -914,7 +916,8 @@ export async function GET(request: Request) {
  * for weeks while the data said only "never synced". Written to the clan's audit log, where its
  * admins see it in the activity feed and the operator can count it.
  *
- * At most once an hour per person and reason: the plugin retries, and the record is for the fact
+ * Only ever called once the caller is an admin of this clan, so nobody writes into a clan they do
+ * not run. At most once an hour per person and reason: the plugin retries, and the record is for the fact
  * of the refusal, not every repeat. Best-effort: recording it must never change the answer.
  */
 async function recordRefusal(clanId: number, userId: number, reason: string, reportedClanName: string): Promise<void> {
@@ -938,7 +941,8 @@ async function recordRefusal(clanId: number, userId: number, reason: string, rep
       clanId,
       eventType: 'roster_sync_refused',
       oldValue: reason,
-      newValue: JSON.stringify({ reason, reportedClanName }),
+      // Client-supplied: control characters out, capped well past any real OSRS clan name (12).
+      newValue: JSON.stringify({ reason, reportedClanName: reportedClanName.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 40) }),
       actorUserId: userId,
       notes: REFUSAL_NOTE[reason] ?? `Roster sync refused (${reason}).`,
     });
@@ -948,7 +952,6 @@ async function recordRefusal(clanId: number, userId: number, reason: string, rep
 }
 
 const REFUSAL_NOTE: Record<string, string> = {
-  notClanAdmin: 'Roster sync refused: the person syncing is not an admin of this clan on Anvil.',
   noCharacterLinked: 'Roster sync refused: the person syncing has no RuneScape character linked to their Anvil account.',
   accountNotVerified: 'Roster sync refused: the syncing character is in the clan but not verified on Anvil.',
   notInRoster: 'Roster sync refused: none of the syncing person\'s characters are in the in-game member list.',
