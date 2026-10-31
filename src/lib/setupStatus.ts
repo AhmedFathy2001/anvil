@@ -47,6 +47,10 @@ export interface SetupStatus {
     pluginWebhook: string;
     rareDrops: string;
     deaths: string;
+    /** Has a roster push proved this is the in-game clan it names (lib/clanVerification)? */
+    verified: boolean;
+    /** Live member seats. The owner alone is 1, so "loaded" means more than that. */
+    memberCount: number;
   };
 }
 
@@ -75,7 +79,7 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
   // saving that empty box would have been believed.
   const row = await db.query.clans.findFirst({
     where: eq(clans.id, clanId),
-    columns: { name: true, inGameName: true },
+    columns: { name: true, inGameName: true, ingameNameVerifiedAt: true },
   });
   const clanName = row?.name?.trim() || get('clan_name');
   const inGameClanName = row?.inGameName?.trim() || get('clan_ingame_name');
@@ -123,9 +127,11 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
     {
       key: 'members',
       label: 'Load your members',
-      hint: 'Sync your member list from the Anvil plugin in game — one button. Sign-ups need it.',
+      hint: 'Install the Anvil RuneLite plugin, open your clan window and press the Anvil button. Sign-ups need it.',
       done: (mc?.c ?? 0) > 1,
-      href: '/admin/people',
+      // The wizard, not the roster page: the roster page shows an empty list and no way to fill it,
+      // while the wizard opens at its in-game step with the three things to do.
+      href: '/admin/setup',
     },
     {
       key: 'event',
@@ -175,6 +181,8 @@ export async function getSetupStatus(clanId: number): Promise<SetupStatus> {
       pluginWebhook: get('webhook_plugin_default'),
       rareDrops: get('webhook_rare_drops'),
       deaths: get('webhook_deaths'),
+      verified: row?.ingameNameVerifiedAt != null,
+      memberCount: mc?.c ?? 0,
     },
   };
 }

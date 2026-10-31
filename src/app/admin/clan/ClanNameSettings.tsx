@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 
 import Input from '@/components/Input';
 import { clanFetch } from '@/lib/clanFetch';
+import ClanLink from '@/components/ClanLink';
 
 /**
  * What the clan is called — on the site, and in the game.
@@ -114,11 +115,15 @@ export default function ClanNameSettings() {
                 <>✓ Verified as &ldquo;{verification.inGameName}&rdquo; in game.</>
               ) : (
                 <>
-                  Not verified yet — this clan can&apos;t sync its roster. Open the clan tab in OSRS
-                  and press Sync from an account with an <strong>Owner</strong> or{' '}
-                  <strong>Deputy Owner</strong> rank; that proves the clan is yours and only has to
-                  happen once. If your clan renamed those ranks, get in touch and we&apos;ll verify
-                  it by hand.
+                  {/* Any rank: lib/clanVerification dropped the owner-tier rule, and this line
+                      still asking for Owner or Deputy Owner turned away admins setting a clan up. */}
+                  Not verified yet: this clan can&apos;t load its member list until it is. With the
+                  Anvil RuneLite plugin signed in, open your clan window in OSRS and press the{' '}
+                  <strong>Anvil</strong> button in its title bar. Any rank works, as long as you are
+                  in the clan, and it only has to happen once.{' '}
+                  <ClanLink href="/admin/setup" className="underline">
+                    Step-by-step
+                  </ClanLink>
                 </>
               )}
             </p>

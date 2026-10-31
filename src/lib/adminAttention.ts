@@ -347,9 +347,11 @@ export function attentionQueue(facts: AttentionFacts): AttentionItem[] {
       snoozable: false,
       severity: 'warn',
       title: 'Your member list is empty',
-      detail: 'Members can’t sign up for events until they’re on it. Sync it from the Anvil plugin in game — one button.',
-      href: '/admin/people',
-      action: 'Load members',
+      detail: 'Members can’t sign up for events until they’re on it. Install the Anvil RuneLite plugin, open your clan window and press the Anvil button. About two minutes.',
+      // The setup wizard's in-game step, not the roster page: that page shows the empty list and
+      // nothing about how to fill it, which is where four of October's eight new clans stopped.
+      href: '/admin/setup',
+      action: 'Show me how',
       at: 0,
     });
   }

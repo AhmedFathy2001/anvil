@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Input from '@/components/Input';
 import ConnectDiscordStep from './ConnectDiscordStep';
+import InGameStep from './InGameStep';
 import type { BroadcastChannel } from '@/lib/discord-broadcast';
 import { clanFetch, clanUrl } from '@/lib/clanFetch';
 import ClanLink from '@/components/ClanLink';
@@ -17,6 +18,8 @@ interface Props {
     pluginWebhook: string;
     rareDrops: string;
     deaths: string;
+    verified: boolean;
+    memberCount: number;
   };
   // Listable channels for the paste-a-link fallback; the bot status itself is read by the step.
   channels: BroadcastChannel[];
@@ -28,9 +31,15 @@ interface Props {
 
 type Msg = { type: 'success' | 'error'; text: string } | null;
 
-// 2 input steps + a Done screen. Step 1 batch-saves its keys on Continue; step 2 (Discord) saves as
-// it goes — the bot's one-press setup, or a pasted link — so Finish only marks setup complete.
-const TOTAL_STEPS = 2;
+// 3 steps + a Done screen. Step 1 batch-saves its keys on Continue; step 2 (Discord) saves as it
+// goes — the bot's one-press setup, or a pasted link; step 3 (in game) has nothing to save, it
+// watches for the roster arriving. Finish only marks setup complete.
+const TOTAL_STEPS = 3;
+
+// The owner alone is a roster of one — the same line the checklist and dashboard draw.
+function rosterDone(initial: Props['initial']): boolean {
+  return initial.memberCount > 1;
+}
 
 // A step whose fields are already satisfied is skipped at open (Back still reaches it, prefilled).
 // Step 1's invite is optional — a set clan name alone satisfies it (managed sign-up asked for the
@@ -46,16 +55,17 @@ function discordDone(initial: Props['initial']): boolean {
 }
 
 function firstIncompleteStep(initial: Props['initial']): number {
-  const done = [!!initial.clanName.trim(), discordDone(initial)];
+  const done = [!!initial.clanName.trim(), discordDone(initial), rosterDone(initial)];
   const first = done.indexOf(false);
   return first === -1 ? TOTAL_STEPS : first; // everything done → straight to the Done screen
 }
 
 // Names only what is really filled in. It used to say "your clan name and Discord details are
-// already filled in" while the very step under it asked to connect Discord. The notice only ever
-// shows on the Discord step (it is the one step that can follow a skip), so the skipped step is the
-// clan one, and Discord is by definition not done yet.
-function skippedNotice(initial: Props['initial'], provisioned: boolean): string {
+// already filled in" while the very step under it asked to connect Discord. Opened at the Discord
+// step, the skipped one is the clan step and Discord is by definition not done yet; opened at the
+// in-game step, both earlier ones are done.
+function skippedNotice(initial: Props['initial'], provisioned: boolean, openedAt: number): string {
+  if (openedAt >= 2) return 'Your clan name and Discord are already set up, so we started at the last step.';
   const filled = initial.inviteUrl.trim() ? 'Your clan name and Discord invite link are' : 'Your clan name is';
   return `${filled} already filled in${provisioned ? ' from when you created the clan' : ''}, so we started at Discord.`;
 }
@@ -130,11 +140,13 @@ export default function SetupWizardClient({ initial, channels, provisioned }: Pr
     <div className="max-w-xl mx-auto">
       <header className="mb-6">
         <h1 className="text-2xl sm:text-3xl font-bold text-gold mb-1">
-          {isDone ? "You're all set 🎉" : 'Set up Anvil'}
+          {isDone ? (rosterDone(initial) ? "You're all set 🎉" : 'Almost there') : 'Set up Anvil'}
         </h1>
         <p className="text-text-muted text-sm">
           {isDone
-            ? 'Your clan is ready to run its first bingo.'
+            ? rosterDone(initial)
+              ? 'Your clan is ready to run its first bingo.'
+              : 'One thing left: load your member list from the plugin. Nobody can sign up for an event until it is in.'
             : 'A few quick questions to get your clan running. You can change any of this later.'}
         </p>
       </header>
@@ -150,7 +162,7 @@ export default function SetupWizardClient({ initial, channels, provisioned }: Pr
               ✓
             </span>
             <p className="text-sm text-text-muted leading-relaxed">
-              {skippedNotice(initial, provisioned)} Change it later in the{' '}
+              {skippedNotice(initial, provisioned, initialStep)} Change it later in the{' '}
               <ClanLink href="/admin/clan" className="text-gold hover:underline">
                 Clan profile
               </ClanLink>
@@ -206,6 +218,20 @@ export default function SetupWizardClient({ initial, channels, provisioned }: Pr
               alreadyDone={discordDone(initial)}
               channels={channels}
               onDone={() => setDiscordReady(true)}
+            />
+          </StepShell>
+        )}
+
+        {/* Step 3 — In game: plugin, sign in, sync */}
+        {step === 2 && (
+          <StepShell
+            title="Bring your members in"
+            subtitle="Your member list comes straight from the game. Sign-ups, boards and Discord roles all run off it. About two minutes."
+          >
+            <InGameStep
+              inGameClanName={initial.inGameClanName}
+              verified={initial.verified}
+              memberCount={initial.memberCount}
             />
           </StepShell>
         )}
@@ -289,8 +315,19 @@ export default function SetupWizardClient({ initial, channels, provisioned }: Pr
                 </PrimaryBtn>
               )}
               {step === 1 && (
+                <PrimaryBtn
+                  disabled={saving}
+                  onClick={() => {
+                    setMsg(null);
+                    setStep(2);
+                  }}
+                >
+                  {discordReady ? 'Continue' : 'Skip for now'}
+                </PrimaryBtn>
+              )}
+              {step === 2 && (
                 <PrimaryBtn disabled={saving} onClick={finish}>
-                  {saving ? 'Saving…' : discordReady ? 'Finish' : 'Skip for now'}
+                  {saving ? 'Saving…' : rosterDone(initial) ? 'Finish' : 'I’ll do this later'}
                 </PrimaryBtn>
               )}
             </div>

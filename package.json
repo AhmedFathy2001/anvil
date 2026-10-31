@@ -34,6 +34,7 @@
     "test:roster": "npx tsx --test tests/roster-read-verdict.test.ts tests/roster-sync-diff.test.ts tests/roster-shape.test.ts",
     "test:joindates": "node --experimental-strip-types --test tests/clan-join-date.test.ts && npx tsx --test tests/roster-join-dates.test.ts",
     "test:leads": "npx tsx --test tests/leads-digest.test.ts",
+    "test:nudge": "npx tsx --test tests/onboarding-nudge.test.ts",
     "test:quicksetup": "npx tsx --test tests/discord-quick-setup.test.ts",
     "test:acctchange": "npx tsx --test tests/account-change-rules.test.ts tests/account-change-queue.test.ts",
     "test:roles": "npx tsx --test tests/clan-roles.test.ts",
