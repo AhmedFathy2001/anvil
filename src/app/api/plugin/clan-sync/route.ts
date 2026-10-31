@@ -8,7 +8,7 @@ import { getSetting, setSetting } from '@/lib/settings';
 import { resolvePluginClan } from '@/lib/auth';
 import { noClanForPlugin } from '@/lib/pluginNoClan';
 import { accounts, clanAuditLog, clanMemberships, clanRoster, users } from '@/db/schema';
-import { and, desc, eq, inArray, isNull, ne, notInArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, ne, notInArray, sql } from 'drizzle-orm';
 import { isPlausibleRsn, normalizeRsn, pluginClanAuthority, pluginTokenPerson, sanitizeRsn } from '@/lib/auth';
 import { sendRosterWebhook } from '@/lib/discord';
 import { EMBED_COLOR } from '@/lib/discordEmbeds';
@@ -99,6 +99,7 @@ export async function POST(request: Request) {
   // clan: being an admin of one confers nothing in another, which is the single most important
   // thing for a deployment that serves all of them to get right.
   if (!(await pluginClanAuthority(clan.id, auth.userId, 'admin'))) {
+    await recordRefusal(clan.id, auth.userId, 'notClanAdmin', clanName);
     return NextResponse.json(
       {
         error: 'notClanAdmin',
@@ -171,10 +172,24 @@ export async function POST(request: Request) {
                   error: 'accountNotVerified',
                   message: `You are in the ${clanName} member list, but that character is not verified on Anvil yet. Verify it on your profile, then sync again — a clan name is claimed by a proven account, so the claim can be traced to a real one.`,
                 }
-              : {
-                  error: 'notInRoster',
-                  message: `You do not appear in the ${clanName} member list, so this clan cannot be verified from your account.`,
-                };
+              : mine.length === 0
+                // NOTHING LINKED, which is not the same as "not in the list". The match runs on the
+                // characters linked to this login, so with none linked every roster misses — and
+                // this used to say "you do not appear in the member list" to owners who were
+                // standing in it. Linking is what fixes it, so that is what it says.
+                ? {
+                    error: 'noCharacterLinked',
+                    message: `Your Anvil account has no RuneScape character linked yet, so we can't find you in the ${clanName} member list. Link the character you are logged in on from your Anvil profile, then sync again.`,
+                  }
+                : {
+                    error: 'notInRoster',
+                    message: `None of the characters on your Anvil account (${mine
+                      .map((a) => a.rsnNormalized)
+                      .slice(0, 5)
+                      .join(', ')}) is in the ${clanName} member list. Sync from a character that is in the clan, or link it on your Anvil profile first.`,
+                  };
+      // 'taken' is already on record — claimFromRoster writes it, for the platform to arbitrate.
+      if (claim.outcome !== 'taken') await recordRefusal(clan.id, auth.userId, detail.error, clanName);
       return NextResponse.json(detail, { status: 403 });
     }
   }
@@ -183,6 +198,7 @@ export async function POST(request: Request) {
   // site rename must not start rejecting the roster sync.
   const expectedClanName = await getInGameClanName(clan.id);
   if (expectedClanName && clanName.toLowerCase() !== expectedClanName.toLowerCase()) {
+    await recordRefusal(clan.id, auth.userId, 'clanMismatch', clanName);
     return NextResponse.json(
       { error: 'clanMismatch', serverClanName: expectedClanName, reportedClanName: clanName },
       { status: 409 },
@@ -890,3 +906,51 @@ export async function GET(request: Request) {
   });
 }
 
+/**
+ * A refused sync, on the clan's record.
+ *
+ * Only 'taken' used to leave a trace. Every other refusal was a 403 to the plugin and nothing else,
+ * and the automatic sync on login is silent in game, so an owner could be refused on every login
+ * for weeks while the data said only "never synced". Written to the clan's audit log, where its
+ * admins see it in the activity feed and the operator can count it.
+ *
+ * At most once an hour per person and reason: the plugin retries, and the record is for the fact
+ * of the refusal, not every repeat. Best-effort: recording it must never change the answer.
+ */
+async function recordRefusal(clanId: number, userId: number, reason: string, reportedClanName: string): Promise<void> {
+  try {
+    // Same text format as the column default writes, so the comparison is like for like (lib/dbTime).
+    const recent = await db
+      .select({ id: clanAuditLog.id })
+      .from(clanAuditLog)
+      .where(
+        and(
+          eq(clanAuditLog.clanId, clanId),
+          eq(clanAuditLog.eventType, 'roster_sync_refused'),
+          eq(clanAuditLog.actorUserId, userId),
+          eq(clanAuditLog.oldValue, reason),
+          sql`${clanAuditLog.occurredAt} >= to_char(now() at time zone 'utc' - interval '1 hour', 'YYYY-MM-DD HH24:MI:SS')`,
+        ),
+      )
+      .limit(1);
+    if (recent.length > 0) return;
+    await db.insert(clanAuditLog).values({
+      clanId,
+      eventType: 'roster_sync_refused',
+      oldValue: reason,
+      newValue: JSON.stringify({ reason, reportedClanName }),
+      actorUserId: userId,
+      notes: REFUSAL_NOTE[reason] ?? `Roster sync refused (${reason}).`,
+    });
+  } catch (err) {
+    log.warn('clan-sync.refusal-record-failed', { clanId, reason, error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+const REFUSAL_NOTE: Record<string, string> = {
+  notClanAdmin: 'Roster sync refused: the person syncing is not an admin of this clan on Anvil.',
+  noCharacterLinked: 'Roster sync refused: the person syncing has no RuneScape character linked to their Anvil account.',
+  accountNotVerified: 'Roster sync refused: the syncing character is in the clan but not verified on Anvil.',
+  notInRoster: 'Roster sync refused: none of the syncing person\'s characters are in the in-game member list.',
+  clanMismatch: 'Roster sync refused: the in-game clan name does not match the one set on Anvil.',
+};

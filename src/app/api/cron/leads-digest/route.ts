@@ -8,6 +8,7 @@ import { timingSafeStrEqual } from '@/lib/auth';
 import { dayKey } from '@/lib/dbTime';
 import { buildLeadsDigest, type DayCounts, type LeadRow, type StalledPerson } from '@/lib/leadsDigest';
 import { sendOpsWebhook } from '@/lib/opsWebhook';
+import { sendOnboardingNudges, type NudgeOutcome } from '@/lib/onboardingNudge';
 import { log } from '@/lib/logger';
 
 // The clans that signed up and never got going.
@@ -94,6 +95,17 @@ export async function GET(request: Request) {
     ownerEmail: r.ownerEmail,
   }));
 
+  // THE OWNER'S COPY OF THE SAME LIST. The digest tells the operator a clan stalled; this tells the
+  // one person who can unstall it, once (lib/onboardingNudge). Before the digest's quiet return, and
+  // never allowed to fail it: a Discord hiccup must not cost the operator their morning list.
+  const dryRun = new URL(request.url).searchParams.get('dry') === '1';
+  let nudges: NudgeOutcome[] = [];
+  try {
+    nudges = await sendOnboardingNudges(leads, Date.now(), { dryRun });
+  } catch (err) {
+    log.warn('onboarding-nudge.failed', { error: err instanceof Error ? err.message : String(err) });
+  }
+
   // YESTERDAY IN NUMBERS, which is what replaced a Discord post per sign-in. A first sign-in has
   // nothing to act on — no character, no clan, nothing to say — so interrupting for one was noise
   // that would have buried the clan posts under any kind of launch. The count is the part worth
@@ -144,10 +156,10 @@ export async function GET(request: Request) {
   const embed = buildLeadsDigest({ clans: leads, counts, people }, Date.now());
   if (!embed) {
     log.info('leads-digest.quiet', { clans: leads.length });
-    return NextResponse.json({ posted: false, clans: leads.length });
+    return NextResponse.json({ posted: false, clans: leads.length, nudges });
   }
 
   const posted = await sendOpsWebhook(embed);
-  log.info('leads-digest.sent', { posted, ...counts, people: people.length });
-  return NextResponse.json({ posted, ...counts, people: people.length });
+  log.info('leads-digest.sent', { posted, ...counts, people: people.length, nudges: nudges.length });
+  return NextResponse.json({ posted, ...counts, people: people.length, nudges });
 }
