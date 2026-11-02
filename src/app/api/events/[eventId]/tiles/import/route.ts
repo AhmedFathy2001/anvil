@@ -349,8 +349,8 @@ function validateRowKind(
   if (effThreshold && !isTimed && !isLms && !isDeathless && !isDrop) {
     return `Row ${i + 1}: only timed (time cap), LMS (placement cap), deathless (party size), or drop (raid party size) tiles can carry a threshold.`;
   }
-  if (effRequiredAmount != null && !isDrop && !isKill && !isLap && !isPvp && !isGain && !isDiary && !isCa && !isLms && !isValue && !isDeathless) {
-    return `Row ${i + 1}: only drop, kill, lap, PvP, gain, diary, CA, LMS, value, or deathless tiles can have a required amount.`;
+  if (effRequiredAmount != null && !isDrop && !isKill && !isLap && !isPvp && !isGain && !isDiary && !isCa && !isLms && !isValue && !isDeathless && !isTimed) {
+    return `Row ${i + 1}: only drop, kill, lap, PvP, gain, diary, CA, LMS, value, deathless, or timed (trial runs) tiles can have a required amount.`;
   }
   return null;
 }

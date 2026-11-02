@@ -30,6 +30,7 @@ import {
 } from '@/lib/pluginConfig';
 import { notableItemFor, bossItemForStatKey } from '@/lib/tileIcons';
 import { statKeys } from '@/lib/tileKinds';
+import { parseTrialRankTile } from '@/lib/barracudaTrials';
 import { lapUnitNoun, metricKeys } from '@/lib/constants';
 import { ROLL_TABLES, rollItemIds } from '@/lib/rollTables';
 import { computeGain, isIndividualMode, isMilestoneBasis, parseContributionSnapshot } from '@/lib/statTracking';
@@ -1108,6 +1109,11 @@ export async function buildEnrolledConfig(args: { eventId: number; teamId: numbe
         // Signature reward of the timed activity (Colosseum → Dizana's quiver) — the clog
         // accordion's icon; -1 falls back to the book sprite.
         itemId: notableItemFor(t.timedActivity) ?? -1,
+        // Barracuda Trials rank tiles count runs: the server completes them at requiredAmount
+        // qualifying runs, and `completed` stays false until then so the plugin keeps submitting.
+        // Normal timed tiles are one clear under the cap (requiredAmount 1).
+        requiredAmount: parseTrialRankTile(t.timedActivity) ? Math.max(1, t.requiredAmount ?? 1) : 1,
+        currentAmount: parseTrialRankTile(t.timedActivity) ? currentFor(t) : 0,
         completed: completedTileIdSet.has(t.id),
       })),
 

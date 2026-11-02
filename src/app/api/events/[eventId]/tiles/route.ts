@@ -596,8 +596,9 @@ export async function PUT(
   if (merged.timeThresholdSeconds != null && !isTimed && !isLms && !isDeathless && !isDrop) {
     return NextResponse.json({ error: 'Only timed (time cap), LMS (placement cap), deathless (party size), or drop (raid party size) tiles can carry a threshold.' }, { status: 400 });
   }
-  if (hasRequiredAmount && !isDrop && !isKill && !isLap && !isPvp && !isGain && !isDiary && !isCa && !isLms && !isValue && !isDeathless) {
-    return NextResponse.json({ error: 'Only drop, kill, lap, PvP, gain, diary, CA, LMS, value, or deathless tiles can have a required amount.' }, { status: 400 });
+  // Timed tiles carry one only as a Barracuda Trials rank tile's runs-needed (lib/submissions).
+  if (hasRequiredAmount && !isDrop && !isKill && !isLap && !isPvp && !isGain && !isDiary && !isCa && !isLms && !isValue && !isDeathless && !isTimed) {
+    return NextResponse.json({ error: 'Only drop, kill, lap, PvP, gain, diary, CA, LMS, value, deathless, or timed (trial runs) tiles can have a required amount.' }, { status: 400 });
   }
 
   // CONVERTING an existing board tile into a mission.

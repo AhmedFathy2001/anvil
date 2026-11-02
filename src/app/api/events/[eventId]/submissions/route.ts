@@ -368,7 +368,9 @@ export async function POST(
   // forged ping could claim the 10,000-kill ceiling and finish any kill tile in one request. Clamped,
   // and flagged so staff can see the claim — not refused, because a refused ping is requeued by the
   // plugin and would come straight back.
-  let creditedAmount: number = amount || 1;
+  // A timed clear is one run whatever amount the caller sent — Barracuda Trials rank tiles count
+  // runs toward requiredAmount, so a stray amount must never stand in for several runs.
+  let creditedAmount: number = tile.tileType === 'timed' ? 1 : amount || 1;
   let creditNote: string | null = note || null;
   if (isPluginKillPing && !imageUrlValue && PING_CAPPED_KINDS.has(tile.tileType) && creditedAmount > MAX_PING_AMOUNT) {
     creditNote = `${creditNote ? `${creditNote} ` : ''}[claimed ${creditedAmount} without a screenshot]`.slice(0, 500);

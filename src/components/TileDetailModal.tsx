@@ -25,6 +25,7 @@ import ProofGallery, { type ProofShot } from './ProofGallery';
 import { isManualTile } from '@/lib/clogManual';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { clanFetch } from '@/lib/clanFetch';
+import { parseTrialRankTile } from '@/lib/barracudaTrials';
 
 // mm:ss / h:mm:ss / bare-seconds → seconds. Returns null for unparseable input.
 function clockToSeconds(value: string): number | null {
@@ -265,7 +266,7 @@ export default function TileDetailModal({
   const needsItem = isCollection || isDistinctPool;
   const isStatTile = !!tile.trackedStat;
   // Noun used in the count-based submission form copy ("drop" vs "kill" vs "completion" vs "item").
-  const countNoun = isKill || isPvp ? 'kill' : isLap ? lapUnitNoun(parseJsonArray<string>(tile.targetNpcs)) : isDiary || isCa ? 'completion' : isGain ? 'item' : isDeathless ? 'run' : isLms ? 'game' : 'drop';
+  const countNoun = isKill || isPvp ? 'kill' : isLap ? lapUnitNoun(parseJsonArray<string>(tile.targetNpcs)) : isDiary || isCa ? 'completion' : isGain ? 'item' : isDeathless || isTimed ? 'run' : isLms ? 'game' : 'drop';
   // The same names the board's badges and filters use (lib/tileKinds), bar the Sepulchre's own.
   // Both engines behind "Kills" (hiscores boss tile, plugin kill tile) wear one badge: "Kills · 50".
   // Which engine counts it is the how-it-counts line below.
@@ -614,7 +615,12 @@ export default function TileDetailModal({
                     Goal: {tile.requiredAmount.toLocaleString()} {countNoun}{tile.requiredAmount !== 1 ? 's' : ''}
                   </span>
                 )}
-                {isTimed && tile.timeThresholdSeconds && (
+                {isTimed && parseTrialRankTile(tile.timedActivity) && (
+                  <span className="text-xs text-text-muted">
+                    Goal: {(tile.requiredAmount ?? 1).toLocaleString()} run{(tile.requiredAmount ?? 1) !== 1 ? 's' : ''} · {tile.timedActivity}
+                  </span>
+                )}
+                {isTimed && tile.timeThresholdSeconds && !parseTrialRankTile(tile.timedActivity) && (
                   <span className="text-xs text-text-muted">
                     Cap: ≤ {secondsToClock(tile.timeThresholdSeconds)}
                     {tile.timedActivity ? ` · ${tile.timedActivity}` : ''}

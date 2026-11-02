@@ -21,6 +21,7 @@ import { raidSourcesByItem, raidUniqueChances } from '@/lib/raidLuck';
 import { expectedCollectionHours, type DropEffortAction, type DropEffortRequirement } from '@/lib/dropEffort';
 import { parseTileEffortConfig, type TileRaidEffortConfig } from '@/lib/tileEffortConfig';
 import { isMissionTile } from '@/lib/eventRules';
+import { trialRankLevel } from '@/lib/barracudaTrials';
 
 export type Triplet = [number, number, number]; // fast, average, slow
 export type Floor = 'anyone' | 'mid' | 'high' | 'elite';
@@ -740,6 +741,16 @@ function estimateTile(
   }
 
   if (type === 'timed') {
+    // Barracuda Trials rank tile: no run-time model yet, but the course's Sailing unlock level is
+    // the real barrier to who can touch it — price the floor off that.
+    const trialLevel = trialRankLevel(tile.timedActivity);
+    if (trialLevel != null && !activityFor(rates, tile.timedActivity)) {
+      return {
+        hours: null,
+        floor: trialLevel >= 70 ? 'high' : trialLevel >= 50 ? 'mid' : 'anyone',
+        note: `Barracuda Trials — needs Sailing ${trialLevel}; no run-time model`,
+      };
+    }
     const act = activityFor(rates, tile.timedActivity);
     const cap = tile.timeThresholdSeconds ?? null;
     // Attempts multiplier from how tight the cap sits against a band's typical time:

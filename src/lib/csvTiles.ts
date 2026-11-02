@@ -26,7 +26,7 @@
 //                       several (e.g. "Inferno, PvM" — quote the cell)
 //   optional            true/false — doesn't count toward the total
 //   requiredAmount      integer — drop tiles (item count), kill tiles (kill count), lap tiles (laps),
-//                       lms tiles (qualifying games),
+//                       lms tiles (qualifying games), timed Barracuda Trials rank tiles (runs needed),
 //                       value tiles (gp threshold one haul must meet; "valuetotal" sums hauls toward it)
 //   trackedStat         skill/boss key for a stat-tracked tile (e.g. "mining", "zulrah")
 //   statType            "skill" | "boss"
@@ -42,7 +42,8 @@
 //                       ca tiles — Combat Achievement task names or "Any <Tier>" wildcards,
 //                       pipe-separated ONLY (task names contain commas: "Nylocas, On the Rocks");
 //                       pvp tiles — "any" (any player), "team:other" (any rival team member) or "rsn:<name>" bounties
-//   timedActivity       timed tiles — activity to time (e.g. "Inferno")
+//   timedActivity       timed tiles — activity to time (e.g. "Inferno"), or a Barracuda Trials
+//                       course + rank ("Gwenith Glide — Marlin": no time cap, requiredAmount = runs)
 //   timeThresholdSeconds timed tiles — completion-time cap in seconds (e.g. 1800 for 30:00);
 //                       lms tiles — placement cap instead (1 = win, 3 = top-3)
 //   revealAt            scheduled reveal time (Showdown boards — events whose rules use the

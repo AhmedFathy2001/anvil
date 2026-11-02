@@ -278,6 +278,7 @@ export const COUNTER_TARGETS: { name: string; group: string; note: string }[] = 
   // Own line shapes, parsed separately plugin-side (AnvilPlugin.HUNTER_RUMOUR_PATTERN / EGG_OFFERING_PATTERN).
   { name: 'Hunter Rumours', group: 'Skilling', note: 'Counts rumours handed in at the Hunter Guild' },
   { name: "Bird's egg offerings", group: 'Skilling', note: 'Bird’s eggs offered at the Woodcutting Guild shrine' },
+  { name: 'Doom of Mokhaiotl delves', group: 'Combat', note: 'Every delve completed, any level (repeats count) — "Delve level: N duration"' },
   // Chests are credited off the LOOT EVENT (one event per open), NOT off the game's "You have
   // opened the crystal chest N times." line — that one is a query response (it has a "never
   // opened" form), so counting occurrences of it would credit nothing for a real open and

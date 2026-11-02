@@ -6,6 +6,7 @@ import { parseJsonArray } from '@/lib/tileKinds';
 import { AGILITY_COURSES, SEPULCHRE_TARGETS, lapUnitNoun } from '@/lib/constants';
 import { clanFetch } from '@/lib/clanFetch';
 import { howItCounts } from '@/lib/collectionSets';
+import { parseTrialRankTile, trialRankLevel } from '@/lib/barracudaTrials';
 
 // Structural tile shape — the board clients each carry their own narrowed Tile interface.
 export interface TileTargetsLike {
@@ -197,7 +198,18 @@ export default function TileTargets({ tile, hideItems }: Props) {
     rows.push(<Row key="tasks" label="Tasks"><NameChips names={targetNpcs} /></Row>);
   }
 
-  if (kind === 'timed' && tile.timedActivity) {
+  if (kind === 'timed' && tile.timedActivity && parseTrialRankTile(tile.timedActivity)) {
+    // Barracuda Trials rank tile: gated on the exact rank, counted in runs — no time cap.
+    const runs = tile.requiredAmount && tile.requiredAmount > 1 ? tile.requiredAmount : 1;
+    const level = trialRankLevel(tile.timedActivity);
+    rows.push(
+      <Row key="timed" label="Trial">
+        {tile.timedActivity}
+        {` — ${runs} run${runs !== 1 ? 's' : ''} at this rank`}
+        {level ? ` · Sailing ${level}` : ''}
+      </Row>,
+    );
+  } else if (kind === 'timed' && tile.timedActivity) {
     rows.push(
       <Row key="timed" label="Activity">
         {tile.timedActivity}

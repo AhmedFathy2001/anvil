@@ -7,6 +7,8 @@
 //
 // Pure and dependency-free so tests/board-misconfig.test.ts can run it with Node type-stripping.
 
+import { parseTrialRankTile } from './barracudaTrials.ts';
+
 export interface MisconfigTile {
   id: number;
   position: number;
@@ -23,6 +25,7 @@ export interface MisconfigTile {
   optional?: number | null;
   autoTrackDisabled?: number | null;
   timeThresholdSeconds?: number | null;
+  timedActivity?: string | null;
 }
 
 export type MisconfigSeverity = 'broken' | 'check';
@@ -87,7 +90,8 @@ export function findBoardProblems(tiles: MisconfigTile[], opts: { pointsMode: bo
         }
         break;
       case 'timed':
-        if (!manual && !tile.timeThresholdSeconds) {
+        // A Barracuda Trials rank tile is gated on the rank the game reports, never a time cap.
+        if (!manual && !tile.timeThresholdSeconds && !parseTrialRankTile(tile.timedActivity)) {
           push('broken', 'No time to beat is set', 'Set the time that counts as a clear.');
         }
         break;
