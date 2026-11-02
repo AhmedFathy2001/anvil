@@ -159,3 +159,17 @@ test('clan sales still reach the clan path', async () => {
   const after = await db.query.clans.findFirst({ where: eq(s.clans.id, clan.id) });
   assert.equal(after?.plan, 'silver');
 });
+
+test('a sale with no subscription grants nothing, so nothing is left a refund cannot reach', async () => {
+  const u = await makeUser('ref-ns');
+  const res = await post({ sale_id: 'sale-ns1', 'url_params[ref]': 'ref-ns', 'variants[Tier]': 'Patron' });
+  assert.deepEqual(await res.json(), { received: true, note: 'not a subscription' });
+  assert.equal((await rowsFor(u.id)).length, 0);
+});
+
+test('a refund that names only the sale still ends the membership', async () => {
+  const u = await makeUser('ref-so');
+  await post({ sale_id: 'sale-so1', subscription_id: 'sub-so', 'url_params[ref]': 'ref-so', 'variants[Tier]': 'Champion' });
+  await post({ sale_id: 'sale-so1', refunded: 'true' });
+  assert.equal(await stateFor(u.id), null);
+});

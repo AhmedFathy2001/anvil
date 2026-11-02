@@ -38,9 +38,12 @@ const ok = (body: Record<string, unknown> = {}): Result => ({ status: 200, body:
 
 /** Apply one Supporter notification. Returns what the route should answer. */
 export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
+  // By subscription, else by the sale itself: a refund or replay must always find what it grants.
   const row = ev.subscriptionId
     ? await db.query.supporterSubscriptions.findFirst({ where: eq(supporterSubscriptions.gumroadSubscriptionId, ev.subscriptionId) })
-    : undefined;
+    : ev.saleId
+      ? await db.query.supporterSubscriptions.findFirst({ where: eq(supporterSubscriptions.gumroadSaleId, ev.saleId) })
+      : undefined;
 
   // Anything that grants must name a sale Gumroad stands behind, and one not already applied.
   if (ev.kind === 'sale' || ev.kind === 'recurring_charge') {
@@ -52,6 +55,12 @@ export async function handleSupporterEvent(ev: GumroadEvent): Promise<Result> {
 
   switch (ev.kind) {
     case 'sale': {
+      // Supporter is only sold as a subscription. A sale without one could never be ended or
+      // revoked by a later notification, so it grants nothing.
+      if (!ev.subscriptionId) {
+        console.warn('[supporter] sale without a subscription', ev.saleId);
+        return ok({ note: 'not a subscription' });
+      }
       const tier = supporterTierForGumroad(ev.tier);
       if (!tier) {
         console.warn('[supporter] sale with unknown tier', ev.tier, ev.subscriptionId);
