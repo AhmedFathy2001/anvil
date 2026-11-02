@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { CAN_WRITE, requirePlatformApi } from '@/lib/platformAccess';
 import { listCharacterReports, resolveCharacterReport, settleRenameRequests } from '@/lib/characterReports';
+import { revertCharacterReport } from '@/lib/characterReportActions';
 import { db } from '@/db';
 import { characterReports } from '@/db/schema';
 import { eq } from 'drizzle-orm';
@@ -14,15 +15,24 @@ export async function GET(request: Request) {
   return NextResponse.json({ items: await listCharacterReports({ status }) });
 }
 
-/** Close a report — resolved (something was done) or dismissed (nothing needed doing). */
+/**
+ * Close a report — resolved (something was done; for one a clan owner already applied, "approved"),
+ * dismissed (nothing needed doing), or reverted (undo what a clan owner applied — idempotent, and
+ * recorded with who did it; lib/characterReportActions).
+ */
 export async function PATCH(request: Request) {
   const gate = await requirePlatformApi(CAN_WRITE);
   if ('response' in gate) return gate.response;
   const body = await request.json().catch(() => null);
   const id = Number(body?.id);
   const status = body?.status;
-  if (!Number.isInteger(id) || (status !== 'resolved' && status !== 'dismissed')) {
-    return NextResponse.json({ error: 'id and status (resolved | dismissed) are required' }, { status: 400 });
+  if (!Number.isInteger(id) || (status !== 'resolved' && status !== 'dismissed' && status !== 'reverted')) {
+    return NextResponse.json({ error: 'id and status (resolved | dismissed | reverted) are required' }, { status: 400 });
+  }
+  if (status === 'reverted') {
+    const res = await revertCharacterReport(id, gate.actor.user.userId, typeof body?.resolution === 'string' ? body.resolution : null);
+    if (!res.ok) return NextResponse.json({ error: res.error }, { status: 409 });
+    return NextResponse.json({ ok: true, already: res.already });
   }
   const ok = await resolveCharacterReport(id, gate.actor.user.userId, status, typeof body?.resolution === 'string' ? body.resolution : null);
   if (!ok) return NextResponse.json({ error: 'That report is not open.' }, { status: 409 });

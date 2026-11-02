@@ -7,6 +7,7 @@ import { findOrCreateAccount, findOrCreateSeat, findRosterSeat } from '@/lib/ros
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { normalizeRsn } from '@/lib/auth';
 import { atLeast } from '@/lib/clanRoles';
+import { latestClanReportByAccount } from '@/lib/characterReports';
 
 // GET — list all clan members (active + departed) for the admin roster view.
 export async function GET(request: Request) {
@@ -74,6 +75,10 @@ export async function GET(request: Request) {
   const effectiveDiscordId = (r: (typeof rows)[number]): string | null =>
     (r.playerId != null ? userDiscordId.get(r.playerId) : null) ?? r.discordId ?? null;
 
+  // Where each character this clan reported to Anvil stands (waiting / done / reverted …) — this
+  // clan's own reports only (lib/characterReports clanReports).
+  const reports = await latestClanReportByAccount(clan.id, [...new Set(rows.map((r) => r.accountId))]);
+
   return NextResponse.json(
     rows.map((r) => {
       const did = effectiveDiscordId(r);
@@ -87,6 +92,7 @@ export async function GET(request: Request) {
         userBanned: r.playerId != null && bannedIds.has(r.playerId),
         userRole: r.playerId != null ? userRole.get(r.playerId) ?? null : null,
         effectiveDiscordId: did,
+        anvilReport: reports.get(r.accountId) ?? null,
       };
     }),
   );

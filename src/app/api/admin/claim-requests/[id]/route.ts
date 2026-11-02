@@ -2,13 +2,14 @@ import { NextResponse } from 'next/server';
 
 import { requireClan } from '@/lib/clanContext';
 import { verifyAdminOrModerator } from '@/lib/auth';
-import { forwardClaimRequest, rejectClaimRequest } from '@/lib/claimRequests';
+import { rejectClaimRequest, vouchForClaim } from '@/lib/claimRequests';
 
 // POST /api/admin/claim-requests/[id] { action: 'forward' | 'reject', note? }
 //
-// 'forward' sends the mod's vouch to Anvil (lib/characterReports); platform staff make the link. A
-// clan no longer binds a character to a person itself — that would change the person in every clan.
-// 'approve' is accepted as an alias of 'forward' for a client that has not reloaded.
+// 'forward' is the clan's "yes, that's them" (lib/claimRequests vouchForClaim): a character only ever
+// on this clan's roster is linked right away by an admin; a clan owner's vouch is linked at once and
+// filed with Anvil to double-check; anyone else's goes to Anvil to decide. The response says which,
+// so the page can tell them. 'approve' is accepted as an alias of 'forward'.
 //
 // A moderator vouching that a person really is the member they claim to be — the human half of the
 // takeover fix. Auto-claim by public RSN is gone; the two ways left are the member proving control
@@ -38,9 +39,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ ok: true, action: 'reject' });
   }
 
-  const res = await forwardClaimRequest(clan.id, id, session.userId, typeof body?.note === 'string' ? body.note : null);
+  if (!(session.userId > 0)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const res = await vouchForClaim(
+    clan.id,
+    id,
+    { userId: session.userId, role: session.role },
+    typeof body?.note === 'string' ? body.note : null,
+  );
   if (!res.ok) {
     return NextResponse.json({ error: res.error }, { status: res.code === 'not_found' ? 404 : 400 });
   }
-  return NextResponse.json({ ok: true, action: 'forward', reportId: res.reportId });
+  return NextResponse.json({ ...res, action: 'forward' });
 }
