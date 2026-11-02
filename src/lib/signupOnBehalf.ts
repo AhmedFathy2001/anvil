@@ -17,6 +17,7 @@ import { enrolParticipant, participantForSeat } from '@/lib/participants';
 import { findRosterSeat, loginOf } from '@/lib/roster';
 import { sanitizeProfile, serializeProfile } from '@/lib/signup';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
+import { standardFeeForAccount } from '@/lib/entryFee';
 
 export type SignupRow = typeof eventSignups.$inferSelect;
 
@@ -25,7 +26,7 @@ export type OnBehalfResult =
   | { ok: false; status: 404 | 409; error: string };
 
 export async function signUpOnBehalf(input: {
-  event: { id: number; clanId: number; signupFee: number | null; maxAccountsPerPerson: number | null };
+  event: { id: number; clanId: number; signupFee: number | null; guestSignupFee?: number | null; maxAccountsPerPerson: number | null };
   clanMemberId: number;
   profile: Record<string, unknown>;
   status: 'pending' | 'approved';
@@ -140,10 +141,12 @@ export async function signUpOnBehalf(input: {
 
   // Mirror the self-serve side effects (see /api/events/[eventId]/signup POST): a fee row only when
   // the board charges one, the draft-pool row idempotently.
-  if (event.signupFee && event.signupFee > 0) {
+  // Member or guest fee, by the character's seats (lib/entryFee).
+  const feeAmount = await standardFeeForAccount(event, account.accountId);
+  if (feeAmount && feeAmount > 0) {
     const existingFee = await db.query.signupFees.findFirst({ where: eq(signupFees.signupId, signup.id) });
     if (!existingFee) {
-      await db.insert(signupFees).values({ signupId: signup.id, amount: event.signupFee, status: 'pending' });
+      await db.insert(signupFees).values({ signupId: signup.id, amount: feeAmount, status: 'pending' });
     }
   }
 

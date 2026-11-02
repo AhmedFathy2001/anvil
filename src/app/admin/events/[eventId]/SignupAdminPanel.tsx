@@ -49,6 +49,8 @@ interface SignupRow {
     role: string;
   } | null;
   account: { id: number; rsn: string };
+  /** Pays the guest fee: no member seat in a clan running the board. Null when guests pay the same. */
+  guest?: boolean | null;
   /**
    * The character the board is actually following, when an admin has swapped it to a different one
    * of theirs. Null on the ordinary board where it is simply the account they signed up with.
@@ -69,6 +71,7 @@ interface SignupRow {
     confirmedAt: string | null;
     confirmationsCount: number;
     notes: string | null;
+    customAmount?: boolean;
   } | null;
 }
 
@@ -119,6 +122,10 @@ export default function SignupAdminPanel({
   const isAdmin = atLeast(viewerRole, 'admin');
   const [feeInput, setFeeInput] = useState<string>(
     event.signupFee != null ? String(event.signupFee) : '',
+  );
+  // Blank = guests pay the member fee.
+  const [guestFeeInput, setGuestFeeInput] = useState<string>(
+    event.guestSignupFee != null ? String(event.guestSignupFee) : '',
   );
   const [addedPrizeInput, setAddedPrizeInput] = useState<string>(
     event.addedPrizePool != null ? String(event.addedPrizePool) : '',
@@ -372,6 +379,10 @@ export default function SignupAdminPanel({
       if (parsedFee !== null && (!Number.isFinite(parsedFee) || parsedFee < 0)) {
         throw new Error('Fee must be a non-negative number, or blank for free.');
       }
+      const parsedGuestFee = guestFeeInput.trim() === '' ? null : Number(guestFeeInput);
+      if (parsedGuestFee !== null && (!Number.isFinite(parsedGuestFee) || parsedGuestFee < 0)) {
+        throw new Error('Guest fee must be a non-negative number, or blank to match the member fee.');
+      }
       const parsedAddedPrize = addedPrizeInput.trim() === '' ? null : Number(addedPrizeInput);
       if (parsedAddedPrize !== null && (!Number.isFinite(parsedAddedPrize) || parsedAddedPrize < 0)) {
         throw new Error('Added prize pool must be a non-negative number, or blank.');
@@ -381,6 +392,7 @@ export default function SignupAdminPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           signupFee: parsedFee,
+          guestSignupFee: parsedGuestFee,
           addedPrizePool: parsedAddedPrize,
           signupOpensAt: opensAt || null,
           signupDeadline: signupDeadline || null,
@@ -399,6 +411,8 @@ export default function SignupAdminPanel({
       const updated: Event = await res.json();
       onEventUpdated(updated);
       setConfigSaved(true);
+      // A fee change re-prices unpaid entries server-side; show the new amounts on their rows.
+      load();
       router.refresh();
     } catch (err) {
       setConfigError(err instanceof Error ? err.message : 'Failed to save');
@@ -503,11 +517,12 @@ export default function SignupAdminPanel({
     return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
   }, [signups]);
 
-  // Live preview of the public prize pool: added bonus + entry fee × approved entries.
-  // Mirrors lib/prizePool.ts (approved entries count regardless of fee payment).
-  const approvedSignupCount = signups.filter((s) => s.status === 'approved' && !s.excludeFromPrizePool).length;
-  const livePrizePool =
-    (Number(addedPrizeInput) || 0) + (Number(feeInput) || 0) * approvedSignupCount;
+  // Live preview of the prize pool: added bonus + what each approved entry owes. Summed from the
+  // entries' own fee rows, so guest fees and hand-set amounts count at what they really are.
+  const approvedEntries = signups.filter((s) => s.status === 'approved' && !s.excludeFromPrizePool);
+  const approvedSignupCount = approvedEntries.length;
+  const approvedFeesGp = approvedEntries.reduce((sum, s) => sum + (s.fee?.amount ?? 0), 0);
+  const livePrizePool = (Number(addedPrizeInput) || 0) + approvedFeesGp;
 
   return (
     <div className="space-y-6">
@@ -534,7 +549,24 @@ export default function SignupAdminPanel({
               placeholder="0 = free"
               className="w-full mt-1 px-2 py-1.5 rounded-lg bg-brown-dark border border-card-border text-sm focus:outline-none focus:border-gold/60"
             />
-            <p className="text-xs text-text-muted mt-1">Leave blank for a free event.</p>
+            <p className="text-xs text-text-muted mt-1">What clan members pay. Leave blank for a free event.</p>
+          </label>
+
+          <label className="block">
+            <span className="text-xs text-text-muted">Guest fee (gp)</span>
+            <Input
+              type="number"
+              min={0}
+              step={1000}
+              value={guestFeeInput}
+              onChange={(e) => setGuestFeeInput(e.target.value)}
+              placeholder="Same as members"
+              className="w-full mt-1 px-2 py-1.5 rounded-lg bg-brown-dark border border-card-border text-sm focus:outline-none focus:border-gold/60"
+            />
+            <p className="text-xs text-text-muted mt-1">
+              For players who aren&apos;t members of a clan running this board. Unpaid entries move to the new
+              fee when you save; change one player&apos;s fee on their row below.
+            </p>
           </label>
 
           <label className="block">
@@ -629,8 +661,8 @@ export default function SignupAdminPanel({
           {addedPrizeInput.trim() ? `${(Number(addedPrizeInput) || 0).toLocaleString()} gp added` : 'No bonus'}
           {' + '}
           {approvedSignupCount} approved {approvedSignupCount === 1 ? 'entry' : 'entries'}
-          {feeInput.trim() ? ` × ${(Number(feeInput) || 0).toLocaleString()} gp` : ' (free)'}
-          . Approved entries count even if the fee isn&apos;t paid yet. Save to publish.
+          {approvedFeesGp > 0 ? ` owing ${approvedFeesGp.toLocaleString()} gp` : ' (free)'}
+          . Approved entries count even if the fee isn&apos;t paid yet; fee changes show here once saved.
         </p>
 
         {configError && (
@@ -862,6 +894,14 @@ export default function SignupAdminPanel({
                           ) : (
                             <span className="text-[10px] uppercase tracking-wide text-text-muted ml-2 px-1 py-0.5 rounded border border-card-border">
                               guest · no Discord
+                            </span>
+                          )}
+                          {s.guest && (
+                            <span
+                              title="Not a member of a clan running this board, so they owe the guest fee"
+                              className="text-[10px] uppercase tracking-wide text-gold/80 ml-2 px-1 py-0.5 rounded border border-gold/30"
+                            >
+                              guest fee
                             </span>
                           )}
                         </div>

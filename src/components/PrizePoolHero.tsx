@@ -1,16 +1,22 @@
 // Big, bold "total prize pool so far" banner. Pure presentational server component —
 // the pool is computed upstream (lib/prizePool.ts). Renders nothing when the pool is 0
 // so free events with no host bonus don't show an empty "0 gp" hero.
+import { paidEntriesLabel } from '@/lib/entryFeeMath';
+
 export default function PrizePoolHero({
   prizePool,
   signupFee,
   addedPrizePool,
   approvedCount,
+  paidFeesGp,
 }: {
   prizePool: number;
   signupFee: number | null;
   addedPrizePool: number | null;
   approvedCount: number;
+  /** The fees actually in. Members, guests and hand-priced entries pay different amounts, so the
+   *  breakdown only says "× fee" when that multiplication is true. */
+  paidFeesGp?: number;
 }) {
   if (prizePool <= 0) return null;
 
@@ -19,9 +25,8 @@ export default function PrizePoolHero({
 
   // Breakdown line: "12 paid entries × 5,000,000 gp + 50,000,000 gp added". Only fees actually in count.
   const parts: string[] = [];
-  if (fee > 0) {
-    parts.push(`${approvedCount} paid ${approvedCount === 1 ? 'entry' : 'entries'} × ${fee.toLocaleString()} gp`);
-  }
+  const feesIn = paidFeesGp ?? fee * approvedCount;
+  if (feesIn > 0) parts.push(paidEntriesLabel(approvedCount, feesIn, signupFee));
   if (added > 0) parts.push(`${added.toLocaleString()} gp added`);
 
   return (

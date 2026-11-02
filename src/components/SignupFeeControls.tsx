@@ -15,6 +15,8 @@ export interface SignupFee {
   confirmedAt: string | null;
   confirmationsCount: number;
   notes: string | null;
+  /** Priced by hand (an invite discount, a comp) — fee changes on the board leave it alone. */
+  customAmount?: boolean;
 }
 
 interface Props {
@@ -55,6 +57,9 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
   const { confirm } = useDialog();
   const [err, setErr] = useState<string | null>(null);
   const [attaching, setAttaching] = useState(false);
+  // Pricing this one entry by hand. Only board fees have the route for it.
+  const [editingAmount, setEditingAmount] = useState(false);
+  const [amountInput, setAmountInput] = useState(String(fee.amount));
 
   // atLeast, not equality: an owner outranks admin, and `=== 'admin'` left them unable to settle.
   const isAdmin = atLeast(viewerRole, 'admin');
@@ -62,6 +67,7 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
   const canConfirm = isAdmin;
   const canDispute = isAdmin || ['treasurer', 'moderator', 'editor'].includes(viewerRole);
   const canReset = isAdmin;
+  const canPrice = isAdmin && apiBase === '/api/admin/fees';
 
   const b = bucket(fee.status);
   const isPaid = fee.status === 'collected';
@@ -76,7 +82,7 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
   // "you collected this — needs another admin" would be a dead end rather than a control.
   const needsSecondSignature = confirmationsRequired > 0;
 
-  async function act(url: string, key: string, body?: unknown) {
+  async function act(url: string, key: string, body?: unknown): Promise<boolean> {
     setBusy(key);
     setErr(null);
     try {
@@ -88,11 +94,13 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setErr(data.error || 'Action failed.');
-        return;
+        return false;
       }
       onChanged();
+      return true;
     } catch {
       setErr('Network error.');
+      return false;
     } finally {
       setBusy(null);
     }
@@ -132,6 +140,11 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
       <div className="flex items-center gap-2 flex-wrap text-xs">
         <span className="text-text-muted uppercase tracking-wide">Fee</span>
         <span className="font-medium">{fee.amount.toLocaleString()} gp</span>
+        {fee.customAmount && (
+          <span className="text-text-muted" title="Set by hand for this player; board fee changes leave it alone">
+            (custom)
+          </span>
+        )}
         <span className={`px-1.5 py-0.5 rounded-full border font-medium ${b.cls}`}>{b.label}</span>
         {isPaid && confirmationsRequired > 1 && (
           <span className="text-text-muted">
@@ -246,6 +259,66 @@ export default function SignupFeeControls({ fee, viewerRole, viewerId, confirmat
           </button>
         )}
       </div>
+
+      {canPrice && !isClosed && !editingAmount && (
+        <button
+          onClick={() => {
+            setAmountInput(String(fee.amount));
+            setEditingAmount(true);
+          }}
+          className="text-xs text-text-muted underline decoration-card-border underline-offset-2 hover:text-gold"
+        >
+          Change this player&apos;s fee
+        </button>
+      )}
+
+      {editingAmount && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-brown-dark p-2">
+          <input
+            type="number"
+            min={0}
+            step={100000}
+            value={amountInput}
+            onChange={(e) => setAmountInput(e.target.value)}
+            aria-label="Fee for this player in gp"
+            className="w-36 px-2 py-1 rounded bg-card-bg border border-card-border text-xs focus:outline-none focus:border-gold/60"
+          />
+          <span className="text-xs text-text-muted">gp</span>
+          <button
+            onClick={async () => {
+              const n = Number(amountInput);
+              if (amountInput.trim() === '' || !Number.isInteger(n) || n < 0) {
+                setErr('Enter a whole number of gp.');
+                return;
+              }
+              if (await act(`${apiBase}/${fee.id}/amount`, 'amount', { amount: n })) setEditingAmount(false);
+            }}
+            disabled={busy !== null}
+            className="text-xs font-medium px-3 py-1 rounded border border-gold/40 text-gold hover:bg-gold/10 transition-colors disabled:opacity-50"
+          >
+            {busy === 'amount' ? 'Saving…' : 'Save'}
+          </button>
+          {fee.customAmount && (
+            <button
+              onClick={async () => {
+                if (await act(`${apiBase}/${fee.id}/amount`, 'standard', { amount: null })) setEditingAmount(false);
+              }}
+              disabled={busy !== null}
+              title="Back to the member or guest fee, and back under board fee changes"
+              className="text-xs font-medium px-3 py-1 rounded border border-card-border text-text-muted hover:text-foreground transition-colors disabled:opacity-50"
+            >
+              {busy === 'standard' ? '…' : 'Use standard fee'}
+            </button>
+          )}
+          <button
+            onClick={() => setEditingAmount(false)}
+            disabled={busy !== null}
+            className="text-xs text-text-muted hover:text-foreground"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
 
       {attaching && (
         <div className="flex items-center gap-2 rounded-lg bg-brown-dark p-2">

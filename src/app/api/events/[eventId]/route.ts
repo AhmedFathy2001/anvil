@@ -24,6 +24,7 @@ import { track } from '@/lib/analytics';
 import { standingsScopeForRequest } from '@/lib/standingsAccess';
 import { filterToVisibleTeams, standingsHidden } from '@/lib/standingsVisibility';
 import { forgetLinkCards } from '@/lib/ogKit';
+import { repriceStandardFees } from '@/lib/entryFee';
 
 export async function GET(
   request: Request,
@@ -518,6 +519,13 @@ export async function PATCH(
     }
     updates.signupFee = body.signupFee;
   }
+  // What guests pay instead (lib/entryFee). Null = the same as members.
+  if ('guestSignupFee' in body) {
+    if (body.guestSignupFee !== null && (typeof body.guestSignupFee !== 'number' || !Number.isFinite(body.guestSignupFee) || body.guestSignupFee < 0)) {
+      return NextResponse.json({ error: 'guestSignupFee must be a non-negative number or null' }, { status: 400 });
+    }
+    updates.guestSignupFee = body.guestSignupFee;
+  }
   if ('addedPrizePool' in body) {
     if (body.addedPrizePool !== null && (typeof body.addedPrizePool !== 'number' || !Number.isFinite(body.addedPrizePool) || body.addedPrizePool < 0)) {
       return NextResponse.json({ error: 'addedPrizePool must be a non-negative number or null' }, { status: 400 });
@@ -619,6 +627,15 @@ export async function PATCH(
     .set(updates)
     .where(eq(events.id, id))
     .returning();
+
+  // A changed fee moves the entries nobody has paid or priced by hand onto it — a guest who entered
+  // at the member fee before the guest fee existed owes the guest fee now, not forever the old one.
+  if (
+    (updated.signupFee ?? null) !== (existing.signupFee ?? null) ||
+    (updated.guestSignupFee ?? null) !== (existing.guestSignupFee ?? null)
+  ) {
+    await repriceStandardFees(updated);
+  }
 
   // A manual 0→1 reveal is the same audience event as a scheduled reveal. Announce only after the
   // row is committed so Discord's image proxy can immediately fetch the newly-visible board. Hiding

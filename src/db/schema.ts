@@ -563,6 +563,9 @@ export const events = pgTable('events', {
   // Sign-up flow. signupFee is in gp; null = free event. Deadlines are ISO UTC strings;
   // null = signups open as soon as the event exists / no captain-selection cutoff.
   signupFee: integer('signup_fee'),
+  // What a GUEST pays instead — an entrant with no member seat in the host or an accepted co-host
+  // clan (lib/entryFee). Null = guests pay signupFee like everyone else.
+  guestSignupFee: integer('guest_signup_fee'),
   // Host-added bonus to the prize pool, in gp; null = nothing added. The displayed
   // total pool is this plus signupFee × (count of approved signups) — see lib/prizePool.ts.
   addedPrizePool: integer('added_prize_pool'),
@@ -1922,6 +1925,9 @@ export const signupFees = pgTable('signup_fees', {
   id: serial('id').primaryKey(),
   signupId: integer('signup_id').notNull().references(() => eventSignups.id, { onDelete: 'cascade' }),
   amount: integer('amount').notNull(),
+  // A staff member set this amount by hand (an invite discount, a comp). Fee changes on the event
+  // re-price untouched pending rows to the new member/guest fee, and leave these alone.
+  customAmount: boolean('custom_amount').notNull().default(false),
   status: text('status').notNull().default('pending'),
   // Mod/admin who claims they collected the fee. Site role (moderator/admin) is what
   // grants this ability — clan rank is irrelevant.
