@@ -5,11 +5,14 @@
 // that person already said who they paid, and a "you haven't paid" DM to them is wrong and rude.
 // `disputed` is a staff problem, not the player's to fix from a DM.
 //
-// THE STAMP GOES IN FIRST. The cooldown row is written before any DM is sent and filled in with the
-// outcome after, so two treasurers pressing the button at once can't both get through the check
-// and message everyone twice.
+// THE STAMP IS ATOMIC WITH THE CHECK. Check-then-insert alone lets two clicks (two treasurers, or
+// one double-click) both read "no reminder yet" and both message everyone. So the cooldown read and
+// the stamp insert run in ONE transaction holding a per-event advisory lock
+// (pg_advisory_xact_lock(hashtext('fee-reminder'), eventId)): the second caller waits for the first
+// to commit, re-reads, sees the stamp and is refused. DMs go out only after the stamp is committed,
+// and the row is filled in with the outcome afterwards.
 
-import { and, desc, eq, gte, notInArray } from 'drizzle-orm';
+import { and, desc, eq, gte, notInArray, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { clanAuditLog, eventSignups, signupFees, users } from '@/db/schema';
@@ -48,9 +51,16 @@ function sqlUtc(ms: number): string {
   return new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
 }
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 /** When this event was last reminded (within the cooldown window), or null. */
-export async function lastFeeReminder(clanId: number, eventId: number, now: number): Promise<string | null> {
-  const rows = await db
+export async function lastFeeReminder(
+  clanId: number,
+  eventId: number,
+  now: number,
+  exec: typeof db | Tx = db,
+): Promise<string | null> {
+  const rows = await exec
     .select({ at: clanAuditLog.occurredAt, value: clanAuditLog.newValue })
     .from(clanAuditLog)
     .where(
@@ -94,12 +104,19 @@ export async function remindUnpaidFees(p: {
   event: { id: number; name: string };
   actorUserId: number;
   now?: number;
+  /** Seams for tests: the bot token lookup and the DM itself. */
+  deps?: {
+    botToken?: (clanId: number) => Promise<string | null>;
+    send?: (botToken: string, discordId: string, body: Record<string, unknown>) => Promise<boolean>;
+  };
 }): Promise<RemindResult> {
   const now = p.now ?? Date.now();
-  const waitMs = cooldownRemainingMs(await lastFeeReminder(p.clan.id, p.event.id, now), now);
-  if (waitMs > 0) {
-    return { ok: false, status: 429, error: 'This event was reminded recently.', waitMs };
-  }
+  const botToken = p.deps?.botToken ?? (async (id: number) => (await getBotTokenOnly(id).catch(() => null))?.token ?? null);
+  const send = p.deps?.send ?? sendDm;
+
+  // Cheap early answer for the common case; the authoritative check is inside the lock below.
+  const early = cooldownRemainingMs(await lastFeeReminder(p.clan.id, p.event.id, now), now);
+  if (early > 0) return { ok: false, status: 429, error: 'This event was reminded recently.', waitMs: early };
 
   const { recipients, unreachable } = await unpaidFeeRecipients(p.event.id);
   if (recipients.length === 0) {
@@ -112,22 +129,34 @@ export async function remindUnpaidFees(p: {
     };
   }
 
-  const bot = await getBotTokenOnly(p.clan.id).catch(() => null);
-  if (!bot) {
+  const token = await botToken(p.clan.id);
+  if (!token) {
     return { ok: false, status: 409, error: 'Connect your Discord bot first (Settings → Discord).' };
   }
 
-  // The stamp, before anything is sent (see the header).
-  const [stamp] = await db
-    .insert(clanAuditLog)
-    .values({
-      clanId: p.clan.id,
-      eventType: FEE_REMIND_EVENT,
-      actorUserId: p.actorUserId > 0 ? p.actorUserId : null,
-      newValue: JSON.stringify({ eventId: p.event.id, pending: recipients.length }),
-      notes: `Started reminding ${recipients.length} unpaid on ${p.event.name}.`,
-    })
-    .returning({ id: clanAuditLog.id });
+  // Check + stamp, atomically (see the header).
+  const claim = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('fee-reminder'), ${p.event.id})`);
+    const waitMs = cooldownRemainingMs(await lastFeeReminder(p.clan.id, p.event.id, now, tx), now);
+    if (waitMs > 0) return { waitMs } as const;
+    const [stamp] = await tx
+      .insert(clanAuditLog)
+      .values({
+        clanId: p.clan.id,
+        eventType: FEE_REMIND_EVENT,
+        actorUserId: p.actorUserId > 0 ? p.actorUserId : null,
+        // The stamp's own time, in the SQL default's format, so the in-lock re-read always sees it
+        // as inside the window whatever `now` the caller passed.
+        occurredAt: sqlUtc(now),
+        newValue: JSON.stringify({ eventId: p.event.id, pending: recipients.length }),
+        notes: `Started reminding ${recipients.length} unpaid on ${p.event.name}.`,
+      })
+      .returning({ id: clanAuditLog.id });
+    return { stampId: stamp.id } as const;
+  });
+  if ('waitMs' in claim) {
+    return { ok: false, status: 429, error: 'This event was reminded recently.', waitMs: claim.waitMs };
+  }
 
   const url = absoluteUrl(clanCanonicalPath(p.clan.slug, `/events/${p.event.id}/signup`));
   let sent = 0;
@@ -135,7 +164,7 @@ export async function remindUnpaidFees(p: {
   // One at a time: Discord rate-limits DM channel creation, and a clan's unpaid list is short.
   for (const r of recipients) {
     const embed = feeReminderEmbed({ clanName: p.clan.name, eventName: p.event.name, amount: r.amount, fees: r.fees, url });
-    if (await sendDm(bot.token, r.discordId, { embeds: [embed] }).catch(() => false)) sent++;
+    if (await send(token, r.discordId, { embeds: [embed] }).catch(() => false)) sent++;
     else failed++;
   }
 
@@ -145,7 +174,7 @@ export async function remindUnpaidFees(p: {
       newValue: JSON.stringify({ eventId: p.event.id, sent, failed, unreachable }),
       notes: `Reminded ${sent} unpaid on ${p.event.name} by Discord DM${failed ? ` (${failed} could not be reached)` : ''}.`,
     })
-    .where(eq(clanAuditLog.id, stamp.id));
+    .where(eq(clanAuditLog.id, claim.stampId));
   log.info('fee-reminders.sent', { clanId: p.clan.id, eventId: p.event.id, sent, failed, unreachable });
 
   return { ok: true, sent, failed, unreachable };
