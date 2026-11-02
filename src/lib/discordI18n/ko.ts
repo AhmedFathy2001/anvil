@@ -160,6 +160,7 @@ const ko: PartialDiscordDict = {
     opensIn: '{when} 열립니다.',
     fee: '참가비는 {amount}입니다 —— 어디로 보낼지는 운영진이 알려 줍니다.',
     feePerAccount: '참가비는 계정당 {amount}입니다 —— 어디로 보낼지는 운영진이 알려 줍니다.',
+    feeSplit: '클랜원 {member}, 게스트 {guest}',
     signUpAt: '**신청하기:** {url}',
     noAccountUrl:
       '-# Anvil이 아직 당신의 계정을 모릅니다. 먼저 {url}/profile 에서 RSN을 연결하세요 —— 신청은 Discord 이름이 아니라 계정에 붙습니다.',

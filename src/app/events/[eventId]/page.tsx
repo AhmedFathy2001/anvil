@@ -1,3 +1,4 @@
+import { feeLabel, paidEntriesLabel, standardFee } from '@/lib/entryFeeMath';
 import CohostTileSuggest from '@/components/CohostTileSuggest';
 import { parseBoardAccess } from '@/lib/cohostBoardAccess';
 import type { Metadata } from 'next';
@@ -468,10 +469,9 @@ export default async function EventScoreboardPage({
   const placementPrizes = placementAmounts(event, prizePool);
 
   const prizeBreakdownParts: string[] = [];
-  if ((event.signupFee ?? 0) > 0) {
-    prizeBreakdownParts.push(
-      `${approvedCount} paid ${approvedCount === 1 ? 'entry' : 'entries'} × ${event.signupFee!.toLocaleString()} gp`,
-    );
+  // Members, guests and hand-priced entries pay different amounts — "× fee" only when that's true.
+  if (paid.gp > 0) {
+    prizeBreakdownParts.push(paidEntriesLabel(approvedCount, paid.gp, event.signupFee));
   }
   if ((event.addedPrizePool ?? 0) > 0) {
     prizeBreakdownParts.push(`${event.addedPrizePool!.toLocaleString()} gp added`);
@@ -702,7 +702,7 @@ export default async function EventScoreboardPage({
         </div>
       )}
       {isOutsider ? (
-        <EnterEvent eventId={event.id} signupFee={event.signupFee} signupsOpen={window.open} />
+        <EnterEvent eventId={event.id} signupFee={standardFee(event, true)} signupsOpen={window.open} />
       ) : (
       <SignupBanner
         eventId={event.id}
@@ -713,7 +713,7 @@ export default async function EventScoreboardPage({
         hasVerifiedAccount={hasVerifiedAccount}
         windowOpen={window.open}
         windowReason={window.reason}
-        signupFee={event.signupFee}
+        feeText={feeLabel(event)}
         signupClosesAt={event.signupDeadline ?? event.startDate}
       />
       )}
@@ -852,7 +852,7 @@ function SignupBanner({
   hasVerifiedAccount,
   windowOpen,
   windowReason,
-  signupFee,
+  feeText,
   signupClosesAt,
   signupReturn,
 }: {
@@ -863,7 +863,8 @@ function SignupBanner({
   hasVerifiedAccount: boolean;
   windowOpen: boolean;
   windowReason: string | null;
-  signupFee: number | null;
+  /** The fee(s) in words — lib/entryFeeMath feeLabel. Null = free. */
+  feeText: string | null;
   /** Explicit deadline when set; otherwise the event start is the final sign-up cutoff. */
   signupClosesAt: string | null;
   /** Where login should come back to — clan-prefixed, because `/login` is on the apex. */
@@ -905,7 +906,7 @@ function SignupBanner({
     tone = 'muted';
   } else if (!loggedIn) {
     title = 'Sign-ups are open';
-    body = signupFee ? `Sign-up fee: ${signupFee.toLocaleString()} gp.` : 'No sign-up fee.';
+    body = feeText ? `Sign-up fee: ${feeText}.` : 'No sign-up fee.';
     ctaText = 'Sign in to sign up';
     // Prefixed. `/login` is a platform path so ClanLink leaves it alone — which is right, and is
     // also why the return inside it has to arrive already carrying the clan.
@@ -918,7 +919,7 @@ function SignupBanner({
     ctaText = 'Sign up';
   } else {
     title = 'Sign-ups are open';
-    body = signupFee ? `Sign-up fee: ${signupFee.toLocaleString()} gp.` : 'No sign-up fee.';
+    body = feeText ? `Sign-up fee: ${feeText}.` : 'No sign-up fee.';
     ctaText = 'Sign up';
   }
 

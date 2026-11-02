@@ -33,6 +33,8 @@ export interface RulesFacts {
   rules: EventRules;
   pool: number;
   fee: number | null;
+  /** What guests pay instead (events.guestSignupFee). Absent/null = the same as members. */
+  guestFee?: number | null;
   missionCounts: { total: number; announced: number };
   /** Board tiles only (missions excluded) — how credit reaches them. */
   boardTiles: { trackedStat: string | null }[];
@@ -68,6 +70,16 @@ export function pickRulebook(
   return { text: null, url: null, source: 'none', hostClanName };
 }
 
+/**
+ * The entry fee as the {amount} of a sentence: "`5M`", or "`5M` for clan members, `10M` for guests"
+ * when guests pay differently. Null when nobody pays anything.
+ */
+export function feeAmountText(t: DiscordDict, fee: number | null, guestFee: number | null = null): string | null {
+  const member = fee ?? 0;
+  if (guestFee == null || guestFee === member) return member > 0 ? code(formatGp(member)) : null;
+  return fmt(t.apply.feeSplit, { member: code(formatGp(member)), guest: code(formatGp(guestFee)) });
+}
+
 /** Sentences describing how the board scores and opens. One bullet per rule that is actually on. */
 export function mechanicsLines(
   t: DiscordDict,
@@ -76,6 +88,7 @@ export function mechanicsLines(
   pool: number,
   fee: number | null,
   missionCounts: { total: number; announced: number },
+  guestFee: number | null = null,
 ): string[] {
   const out: string[] = [];
 
@@ -146,7 +159,8 @@ export function mechanicsLines(
   if (rules.teamChoice) out.push(t.rules.teamChoice);
   else if (rules.captainInvites) out.push(t.rules.captainInvites);
 
-  if (event.playerCount > 0 && fee) out.push(fmt(t.rules.entryFee, { amount: code(formatGp(fee)) }));
+  const feeText = feeAmountText(t, fee, guestFee);
+  if (event.playerCount > 0 && feeText) out.push(fmt(t.rules.entryFee, { amount: feeText }));
   if (pool > 0) out.push(fmt(t.rules.prizePool, { amount: code(formatGp(pool)) }));
 
   return out;
@@ -194,7 +208,7 @@ export function trackingLines(
 /** The editable first-embed draft, before its per-clan context footer is added. */
 export function defaultRulesMessage(t: DiscordDict, facts: RulesFacts, origin: string | null): string {
   return [
-    ...mechanicsLines(t, facts.event, facts.rules, facts.pool, facts.fee, facts.missionCounts),
+    ...mechanicsLines(t, facts.event, facts.rules, facts.pool, facts.fee, facts.missionCounts, facts.guestFee ?? null),
     // Tile names stay hidden on an unrevealed board, but HOW tracking works is not a spoiler.
     ...trackingLines(t, origin, facts.boardTiles),
   ].join('\n');

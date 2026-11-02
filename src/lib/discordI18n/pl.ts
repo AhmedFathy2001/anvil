@@ -174,6 +174,7 @@ const pl: PartialDiscordDict = {
     opensIn: 'Otwierają się {when}.',
     fee: 'Wejście kosztuje {amount} — staff powie ci, gdzie to wysłać.',
     feePerAccount: 'Wejście kosztuje {amount} za konto — staff powie ci, gdzie to wysłać.',
+    feeSplit: '{member} dla członków klanu, {guest} dla gości',
     signUpAt: '**Zapisz się:** {url}',
     noAccountUrl:
       '-# Anvil nie zna jeszcze twojego konta. Najpierw podepnij swój RSN na {url}/profile — zapisy wiszą na koncie, a nie na nazwie z Discorda.',

@@ -848,6 +848,13 @@
       "when": 1793629396799,
       "tag": "0166_plugin_links_token_nullable",
       "breakpoints": true
+    },
+    {
+      "idx": 168,
+      "version": "7",
+      "when": 1793629500000,
+      "tag": "0168_guest_entry_fee",
+      "breakpoints": true
     }
   ]
 }

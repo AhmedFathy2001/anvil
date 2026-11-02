@@ -39,6 +39,8 @@ interface Pool {
   /** Entries whose fee is actually in, and the gp — the only fees the pot counts. */
   paidCount: number;
   paidFeesGp: number;
+  /** What approved entries still owe, at each entry's own fee (guest and hand-set fees included). */
+  owedFeesGp?: number;
 }
 
 interface Payload {
@@ -343,7 +345,7 @@ export default function PayoutsClient({ eventId, viewerRole }: Props) {
             {pool.paidFeesGp.toLocaleString()} in fees from {pool.paidCount} paid entr
             {pool.paidCount === 1 ? 'y' : 'ies'}
             {pool.approvedCount > pool.paidCount &&
-              ` · ${((pool.approvedCount - pool.paidCount) * pool.signupFee).toLocaleString()} still owed by ${pool.approvedCount - pool.paidCount}`}
+              ` · ${(pool.owedFeesGp ?? (pool.approvedCount - pool.paidCount) * pool.signupFee).toLocaleString()} still owed by ${pool.approvedCount - pool.paidCount}`}
           </div>
         </div>
 

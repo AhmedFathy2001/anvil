@@ -1,3 +1,4 @@
+import { feeLabel } from '@/lib/entryFeeMath';
 import LocalTime from '@/components/LocalTime';
 
 /**
@@ -21,13 +22,14 @@ export interface EventBriefingProps {
   tileCount: number;
   teamCount: number;
   signupFee: number | null;
+  /** What guests pay instead. Absent/null = the same as members. */
+  guestSignupFee?: number | null;
   cashPolicy: string;
   weCollect: boolean;
 }
 
 /** How the money works, in a sentence — rather than a policy name nobody chose the words for. */
-function cashLine(fee: number, policy: string, weCollect: boolean): string {
-  const gp = `${fee.toLocaleString()} gp`;
+function cashLine(gp: string, policy: string, weCollect: boolean): string {
   if (weCollect && policy === 'each-settles') {
     return `${gp} per player, and each clan keeps and settles its own entries.`;
   }
@@ -36,6 +38,7 @@ function cashLine(fee: number, policy: string, weCollect: boolean): string {
 }
 
 export default function EventBriefing(p: EventBriefingProps) {
+  const feeText = feeLabel({ signupFee: p.signupFee, guestSignupFee: p.guestSignupFee });
   const facts: [string, React.ReactNode][] = [
     ['Board', `${p.format}${p.scoringMode ? ` · ${p.scoringMode}` : ''}`],
     ['Tiles', p.tileCount.toLocaleString()],
@@ -76,10 +79,10 @@ export default function EventBriefing(p: EventBriefingProps) {
         </div>
       </dl>
 
-      {p.signupFee != null && p.signupFee > 0 && (
+      {feeText && (
         <p className="mt-3 border-t border-card-border pt-2.5 text-[13px] text-text-muted">
           <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-dim">Entry</span>{' '}
-          {cashLine(p.signupFee, p.cashPolicy, p.weCollect)}
+          {cashLine(feeText, p.cashPolicy, p.weCollect)}
         </p>
       )}
     </div>

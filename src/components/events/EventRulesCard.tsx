@@ -12,7 +12,7 @@ import { mechanicsLines, trackingLines, type RulesFacts } from '@/lib/rulesMecha
  */
 export default function EventRulesCard({ facts, defaultOpen = false }: { facts: RulesFacts; defaultOpen?: boolean }) {
   const mechanics = [
-    ...mechanicsLines(en, facts.event, facts.rules, facts.pool, facts.fee, facts.missionCounts),
+    ...mechanicsLines(en, facts.event, facts.rules, facts.pool, facts.fee, facts.missionCounts, facts.guestFee ?? null),
     ...trackingLines(en, null, facts.boardTiles),
   ].join('\n');
   const book = facts.rulebook;
