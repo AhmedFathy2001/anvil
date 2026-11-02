@@ -85,3 +85,35 @@ test('a mode nobody catalogued is remembered once and listed after the catalogue
   await settings.setSetting(clanId, 'webhook_mode_echo-rush', HOOK('echo'));
   assert.equal(await route('echo-rush', 'rareDrops'), HOOK('echo'));
 });
+
+test('easy tasks stay quiet until a clan turns them on; a saved list is the whole answer', async () => {
+  const fresh = await store.getModeRouting(clanId, 'grid-master', null);
+  assert.ok(fresh.kindsOff.has('modeTaskMinor'), 'default: easy tasks off');
+  assert.ok(!fresh.kindsOff.has('modeRelic'));
+  await settings.setSetting(clanId, modes.modeKindsOffKey('grid-master'), JSON.stringify([]));
+  assert.equal((await store.getModeRouting(clanId, 'grid-master', null)).kindsOff.size, 0, 'turned on');
+});
+
+test('the review queue counts a wording once, newest line kept, capped per mode', async () => {
+  const lines = await import('../src/lib/modeLineStore.ts');
+  await lines.recordSample('leagues', 'You have 12 of 40 echoes.', false);
+  await lines.recordSample('leagues', 'You have 13 of 40 echoes.', true);
+  await lines.recordSample('deadman', 'You have 13 of 40 echoes.', false);
+  const rows = await lines.listSamples();
+  const lg = rows.find((r) => r.modeKey === 'leagues')!;
+  assert.equal(lg.count, 2);
+  assert.equal(lg.sample, 'You have 13 of 40 echoes.');
+  assert.equal(lg.autoPosted, true);
+  assert.equal(rows.filter((r) => r.modeKey === 'deadman').length, 1, 'modes queue separately');
+
+  const { db, schema: s } = await loadDb();
+  // Digit-free names: the queue blanks numbers, so "t3" would be queued as "t#".
+  const name = (i: number) => [...i.toString(26)].map((c) => String.fromCharCode(97 + parseInt(c, 26))).join('');
+  await db.insert(s.modeLineSamples).values(
+    Array.from({ length: lines.MAX_SAMPLES_PER_MODE }, (_, i) => ({ modeKey: 'beta', template: name(i), sample: name(i) })),
+  );
+  await lines.recordSample('beta', 'A brand new line', false);
+  assert.equal((await lines.listSamples(5000)).filter((r) => r.modeKey === 'beta').length, lines.MAX_SAMPLES_PER_MODE);
+  await lines.recordSample('beta', name(3), false);
+  assert.equal((await lines.listSamples(5000)).find((r) => r.template === name(3))!.count, 2, 'a queued one still counts');
+});
