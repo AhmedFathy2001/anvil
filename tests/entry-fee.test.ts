@@ -6,6 +6,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { feeLabel, paidEntriesLabel, standardFee } from '../src/lib/entryFeeMath.ts';
+import { feeAmountText } from '../src/lib/rulesMechanics.ts';
+import { en } from '../src/lib/discordI18n/index.ts';
 
 const board = { signupFee: 5_000_000, guestSignupFee: 10_000_000 };
 
@@ -35,4 +37,11 @@ test('"× fee" only when every paid entry paid exactly that', () => {
   // Two members and one guest: 5 + 5 + 10.
   assert.equal(paidEntriesLabel(3, 20_000_000, 5_000_000), '3 paid entries · 20,000,000 gp');
   assert.equal(paidEntriesLabel(1, 2_500_000, 5_000_000), '1 paid entry · 2,500,000 gp');
+});
+
+test('Discord names both fees only when guests pay differently', () => {
+  assert.equal(feeAmountText(en, 5_000_000, null), '`5m`');
+  assert.equal(feeAmountText(en, 5_000_000, 5_000_000), '`5m`');
+  assert.equal(feeAmountText(en, 5_000_000, 10_000_000), '`5m` for clan members, `10m` for guests');
+  assert.equal(feeAmountText(en, null, null), null);
 });

@@ -197,6 +197,8 @@ export const en = {
     opensIn: 'They open {when}.',
     fee: 'Entry is {amount} — staff will tell you where to send it.',
     feePerAccount: 'Entry is {amount} per account — staff will tell you where to send it.',
+    /** The {amount} in fee/feePerAccount/rules.entryFee when guests pay a different fee. */
+    feeSplit: '{member} for clan members, {guest} for guests',
     signUpAt: '**Sign up:** {url}',
     noAccountUrl:
       '-# Anvil doesn’t know your account yet. Link your RSN first at {url}/profile — sign-ups attach to an account, not a Discord name.',

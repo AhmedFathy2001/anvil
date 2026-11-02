@@ -1,8 +1,8 @@
+import { paidEntriesLabel } from '@/lib/entryFeeMath';
+
 // Big, bold "total prize pool so far" banner. Pure presentational server component —
 // the pool is computed upstream (lib/prizePool.ts). Renders nothing when the pool is 0
 // so free events with no host bonus don't show an empty "0 gp" hero.
-import { paidEntriesLabel } from '@/lib/entryFeeMath';
-
 export default function PrizePoolHero({
   prizePool,
   signupFee,

@@ -171,6 +171,7 @@ const no: PartialDiscordDict = {
     opensIn: 'Den åpner {when}.',
     fee: 'Det koster {amount} — staff sier hvor du sender det.',
     feePerAccount: 'Det koster {amount} per konto — staff sier hvor du sender det.',
+    feeSplit: '{member} for klanmedlemmer, {guest} for gjester',
     signUpAt: '**Meld deg på:** {url}',
     noAccountUrl:
       '-# Anvil kjenner ikke kontoen din ennå. Koble RSN-en din først på {url}/profile — påmeldinger henger på en konto, ikke på et Discord-navn.',
