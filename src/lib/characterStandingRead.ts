@@ -9,6 +9,14 @@ import { clanMemberships, clans } from '@/db/schema';
 import { getSetting } from '@/lib/settings';
 import { standingLine, type StandingSeat } from '@/lib/characterStanding';
 
+/** accountId's live seats as the clan choices "Wrong clan? Tell Anvil" offers — member first. */
+export function clanOptionsFor(seats: StandingSeat[], accountId: number): { clanId: number; name: string; kind: 'member' | 'guest' }[] {
+  return seats
+    .filter((s) => s.accountId === accountId)
+    .sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'member' ? -1 : 1))
+    .map((s) => ({ clanId: s.clanId, name: s.clanName, kind: s.kind }));
+}
+
 export interface CharacterStandings {
   /** Every live seat on these characters, newest clan name order. */
   seats: StandingSeat[];

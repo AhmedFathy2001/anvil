@@ -30,6 +30,7 @@ export const CLAN_REPORT_KIND_LABEL: Record<string, string> = {
   merge: 'Duplicate',
   claim_review: 'Disputed link',
   claim_request: 'Vouched for a claim',
+  wrong_clan: 'Player says they belong in your clan',
   other: 'Report',
 };
 

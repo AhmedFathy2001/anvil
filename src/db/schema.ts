@@ -1562,7 +1562,8 @@ export const platformActAs = pgTable('platform_act_as', {
  * here and decided by platform staff in /staff/reports.
  *
  * `kind`: 'wrong_owner' | 'rename' | 'merge' | 'claim_review' (a plugin/XP link a mod disputes) |
- * 'claim_request' (someone asked the clan to vouch for them) | 'other'.
+ * 'claim_request' (someone asked the clan to vouch for them) | 'wrong_clan' (the player says their
+ * character is a member of the wrong clan; clan_id = the clan they're really in) | 'other'.
  */
 export const characterReports = pgTable('character_reports', {
   id: serial('id').primaryKey(),

@@ -8,6 +8,7 @@ import type { MyClan } from '@/lib/myClans';
 import type { EmissionSettingsView } from '@/lib/emissionSettings';
 import DetectedAccountsClient from '@/app/profile/DetectedAccountsClient';
 import GuestSeatsClient, { type GuestSeatRow } from '@/app/profile/GuestSeatsClient';
+import WrongClanReport, { type WrongClanOption } from '@/app/profile/WrongClanReport';
 
 export interface PersonCharacter {
   id: number;
@@ -15,6 +16,8 @@ export interface PersonCharacter {
   shared: boolean;
   /** Where it stands with the clans — lib/characterStanding. */
   standing?: string;
+  /** The clans that have it on their list — what "Wrong clan? Tell Anvil" offers (lib/wrongClan). */
+  clanOptions?: WrongClanOption[];
 }
 
 /**
@@ -183,6 +186,9 @@ export default function PersonProfile({
                     {/* Which clan this character puts you in, and as what — the answer to most
                         "why can't I enter?" questions, which the page used to leave to guesswork. */}
                     {a.standing && <span className="block text-xs text-text-muted">{a.standing}</span>}
+                    {a.clanOptions && a.clanOptions.length > 0 && (
+                      <WrongClanReport accountId={a.id} rsn={a.rsn} options={a.clanOptions} />
+                    )}
                   </span>
                   {/* Sharing is per character, not per person, so "my main is public and my ironman is
                       nobody's business" is a thing you can actually say — and it is settable HERE,
