@@ -171,6 +171,7 @@ const ptBr: PartialDiscordDict = {
     opensIn: 'Abrem {when}.',
     fee: 'A entrada custa {amount} — a staff diz para onde mandar.',
     feePerAccount: 'A entrada custa {amount} por conta — a staff diz para onde mandar.',
+    feeSplit: '{member} para membros do clã, {guest} para convidados',
     signUpAt: '**Inscreva-se:** {url}',
     noAccountUrl:
       '-# O Anvil ainda não conhece sua conta. Vincule seu RSN primeiro em {url}/profile — inscrições ficam presas a uma conta, não a um nome do Discord.',

@@ -12,6 +12,7 @@ import { parseEventRules } from '@/lib/eventRules';
 import { enrolParticipant, participantForSeat, removeParticipantForWithdrawnSeat } from '@/lib/participants';
 import { track } from '@/lib/analytics';
 import { captureStartingStatsSoon } from '@/lib/startingStats';
+import { standardFeeForAccount } from '@/lib/entryFee';
 
 export async function GET(
   request: Request,
@@ -354,11 +355,13 @@ export async function POST(
       captureStartingStatsSoon(existingPlayer.eventId, [existingPlayer.id]);
     }
 
-    if (event.signupFee && event.signupFee > 0) {
+    // Member or guest fee, by whether this character holds a member seat in a clan running the board.
+    const feeAmount = await standardFeeForAccount(event, account.accountId);
+    if (feeAmount && feeAmount > 0) {
       const owesFee = feePerAccount || account.id === primaryId;
       const existingFee = await db.query.signupFees.findFirst({ where: eq(signupFees.signupId, row.id) });
       if (owesFee && !existingFee) {
-        await db.insert(signupFees).values({ signupId: row.id, amount: event.signupFee, status: 'pending' });
+        await db.insert(signupFees).values({ signupId: row.id, amount: feeAmount, status: 'pending' });
       } else if (!owesFee && existingFee && existingFee.status === 'pending') {
         // per-person mode: a sibling account shouldn't carry a fee — clear an untouched leftover.
         await db.delete(signupFees).where(eq(signupFees.id, existingFee.id));

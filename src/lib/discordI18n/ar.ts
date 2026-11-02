@@ -166,6 +166,7 @@ const ar: PartialDiscordDict = {
     opensIn: 'يُفتح {when}.',
     fee: 'الدخول بـ {amount} — سيدلّك المشرفون على وجهة الإرسال.',
     feePerAccount: 'الدخول بـ {amount} لكل حساب — سيدلّك المشرفون على وجهة الإرسال.',
+    feeSplit: '{member} لأعضاء العشيرة، و{guest} للضيوف',
     signUpAt: '**سجّل هنا:** {url}',
     noAccountUrl:
       '-# لا يعرف Anvil حسابك بعد. اربط اسمك في اللعبة أولًا على {url}/profile — التسجيل يتعلّق بحساب لا باسم Discord.',

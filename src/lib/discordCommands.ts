@@ -38,7 +38,7 @@ import {
 import { signupWindowState } from '@/lib/signup';
 import { formatGp } from '@/lib/adminEventsFormat';
 import { loadRulesFacts } from '@/lib/eventRulebook';
-import { buildRulesEmbeds } from '@/lib/rulesMechanics';
+import { buildRulesEmbeds, feeAmountText } from '@/lib/rulesMechanics';
 import { eventShapeBadge } from '@/lib/utils';
 import {
   EMBED_COLOR,
@@ -657,12 +657,10 @@ async function applyEmbed(
   if (!already && !onTeam && window.open) {
     const deadline = relativeTs(row?.signupDeadline ?? null);
     if (deadline) body.push(fmt(t.apply.closesIn, { when: deadline }));
-    if (row?.signupFee) {
-      body.push(
-        fmt(row.feeMode === 'per-account' ? t.apply.feePerAccount : t.apply.fee, {
-          amount: code(formatGp(row.signupFee)),
-        }),
-      );
+    // Members and guests can owe different fees; the phrase names both when they do.
+    const feeText = row ? feeAmountText(t, row.signupFee, row.guestSignupFee) : null;
+    if (feeText) {
+      body.push(fmt(row?.feeMode === 'per-account' ? t.apply.feePerAccount : t.apply.fee, { amount: feeText }));
     }
     if (clan.origin) body.push('', fmt(t.apply.signUpAt, { url: `${clan.origin}/events/${event.id}` }));
   } else if (!already && !onTeam && window.reason === 'not_open_yet') {
