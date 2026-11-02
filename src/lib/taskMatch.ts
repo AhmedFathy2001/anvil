@@ -761,14 +761,18 @@ function itemCandidates(q: ParsedQuery, ctx: MatchContext): TaskCandidate[] {
     if (!q.tokens.some((t) => lower.includes(t))) continue;
     const s = scoreNamed(q, { names: [it.name] });
     if (!s.matched || !s.nameCovered) continue;
-    const k = lower;
+    // "Hallowed mark" and "Hallowed marks" are two catalogue rows for one thing.
+    const k = tokens(it.name).join(' ');
     if (seen.has(k)) continue;
     seen.add(k);
     hits.push({ it, s });
   }
   hits.sort((a, b) => b.s.score - a.s.score || a.it.name.length - b.it.name.length);
   const out: TaskCandidate[] = [];
-  for (const { it, s } of hits.slice(0, 3)) {
+  for (const { it, s: raw } of hits.slice(0, 3)) {
+    // An item is more often an accidental match than the task itself ("herbi" is also the pet), so
+    // a counter or boss of the same strength wins.
+    const s = { ...raw, score: raw.score - 0.5 };
     const monster = ctx.itemIsMonsterDrop?.(it.id) ?? false;
     const base = {
       titleTemplate: `{n} × ${it.name}`,
@@ -807,8 +811,13 @@ function itemCandidates(q: ParsedQuery, ctx: MatchContext): TaskCandidate[] {
   return out;
 }
 
+// A collection-log page is only what the task means when it talks about rewards ("GOTR rare reward",
+// "any Barrows unique") — "golden nuggets at Motherlode Mine" names the page but means the nuggets.
+const REWARD_WORDS = ['rare', 'reward', 'unique', 'clog', 'collection', 'log', 'pet', 'item', 'drop', 'any'];
+
 function clogCandidates(q: ParsedQuery, ctx: MatchContext): TaskCandidate[] {
   const out: TaskCandidate[] = [];
+  if (!REWARD_WORDS.some((w) => q.all.includes(w))) return out;
   for (const page of ctx.clogPages ?? []) {
     const s = scoreNamed(q, { names: [page.name], aliases: ['collection', 'log', 'clog', 'rare', 'reward', 'unique'] });
     if (!s.matched || !s.nameCovered) continue;
@@ -907,7 +916,12 @@ export function matchTasks(query: string, ctx: MatchContext = {}): TaskCandidate
     out.push(finish(d, q, { ...s, score: s.score + (SOURCE_BONUS[d.source] ?? 0) }));
   }
 
-  out.push(...itemCandidates(q, ctx));
+  // An item that is just the name of a counter or boss already offered ("Herbiboar") is noise.
+  const named = new Set(out.filter((c) => ['counter', 'boss', 'activity', 'lap'].includes(c.source)).map((c) => tokens(c.noun).join(' ')));
+  for (const c of itemCandidates(q, ctx)) {
+    const itemName = tokens(c.titleOne ?? c.title).join(' ');
+    out.push(named.has(itemName) ? { ...c, score: c.score - 3, confident: false } : c);
+  }
   out.push(...clogCandidates(q, ctx));
 
   out.sort((a, b) => b.score - a.score);

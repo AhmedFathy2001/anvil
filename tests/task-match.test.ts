@@ -272,3 +272,18 @@ test('a draft becomes an import row the bulk importer understands', () => {
   assert.equal(raid.statType, 'boss');
   assert.equal(raid.statGoal, 5);
 });
+
+test('real catalogue noise: an item named like the counter, or a plural twin, does not make it ambiguous', () => {
+  const noisy: MatchContext = {
+    ...ctx,
+    items: [...items, { id: 1, name: 'Herbiboar' }, { id: 2, name: 'Herbi' }, { id: 3, name: 'Hallowed marks' }],
+    clogPages: [...(ctx.clogPages ?? []), { name: 'Motherlode Mine', items: [{ id: 12012, name: 'Golden nugget' }] }],
+  };
+  assert.equal(best('150 herbiboars harvested', noisy).verdict.status, 'ready');
+  assert.equal(best('150 herbi', noisy).top.source, 'counter');
+  assert.equal(best('150 Hallowed marks earned in Sepulchre', noisy).verdict.status, 'ready');
+  // A clog page is only offered when the task talks about rewards.
+  const nuggets = best('100 golden nuggets earned at Motherlode Mine', noisy);
+  assert.equal(nuggets.top.config.tileType, 'gain');
+  assert.ok(!nuggets.cands.some((c) => c.source === 'clog'));
+});

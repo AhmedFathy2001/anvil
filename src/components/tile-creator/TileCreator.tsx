@@ -260,7 +260,7 @@ export default function TileCreator(props: TileCreatorProps) {
           </div>
           {starters.length > 0 && (
             <div className="mt-5">
-              <Eyebrow>From your clan&apos;s past boards</Eyebrow>
+              <Eyebrow>{starters.some((s) => s.key.startsWith('library-')) ? 'From your clan’s past boards' : 'Ready-made tasks'}</Eyebrow>
               <div className="flex flex-wrap gap-2">
                 {starters.map((s) => (
                   <button

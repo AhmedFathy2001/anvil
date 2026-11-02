@@ -293,7 +293,7 @@ export default function BulkQuickAdd({
                         </span>
                         <span role="cell" className={`text-xs flex items-start gap-1 ${how?.engine === 'screenshot' ? 'text-amber-200' : 'text-accent-green-light'}`}>
                           {how && how.engine !== 'screenshot' && <CheckIcon className="mt-0.5 shrink-0" />}
-                          {how ? (how.engine === 'hiscores' ? 'Hiscores' : how.engine === 'plugin' ? `Plugin${c?.source === 'gain' ? ', inventory' : c?.source === 'counter' ? ', chat line' : ''}` : 'Staff approve a screenshot') : ''}
+                          {how ? (how.engine === 'hiscores' ? 'Hiscores' : how.engine === 'plugin' ? `Plugin${c?.source === 'gain' ? ', inventory' : c?.source === 'counter' ? ', chat line' : c?.source === 'trial' ? ', rank line' : ''}` : 'Staff approve a screenshot') : ''}
                         </span>
                         <span role="cell" className="text-right text-sm">{pointsMode ? pts : ''}</span>
                       </div>

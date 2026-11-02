@@ -11,6 +11,7 @@ import { isPointsMode } from '@/lib/utils';
 import { BALANCE_RATES_SETTING_KEY } from '@/lib/balanceRates';
 import { RAID_LUCK_SETTING_KEY } from '@/lib/raidLuck';
 import type { Tile } from '@/lib/types';
+import { isPlaceholderTile } from '@/lib/placeholderTile';
 
 // POST /api/admin/events/<id>/balance/draft { tileId?, tile } → what the effort model says about ONE
 // tile the creator is about to add: its suggested points on this board and its expected hours.
@@ -73,9 +74,14 @@ export async function POST(
   });
   const mine = report.perTile.find((t) => t.tileId === -1);
   const avg = mine?.hours?.[1];
+  // Suggested points split the board's own budget, so they mean nothing until the board HAS one: a
+  // fresh board of 1-point placeholders would suggest 1 for everything. And a generic fallback rate
+  // (an unknown "monster" timed like a cow) is not an estimate worth showing as hours.
+  const priced = eventTiles.filter((t) => t.id !== replaceId && !isPlaceholderTile(t) && (t.points ?? 1) > 1).length >= 3;
+  const generic = /generic|fallback/i.test(mine?.note ?? '');
   return NextResponse.json({
-    suggestedPoints: mine?.suggestedPoints ?? null,
-    averageHours: avg != null && Number.isFinite(avg) ? Math.round(avg * 10) / 10 : null,
+    suggestedPoints: priced && !generic ? mine?.suggestedPoints ?? null : null,
+    averageHours: !generic && avg != null && Number.isFinite(avg) ? Math.round(avg * 10) / 10 : null,
     pClass: mine?.pClass ?? null,
     note: mine?.note ?? null,
   });

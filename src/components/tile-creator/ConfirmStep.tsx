@@ -76,7 +76,8 @@ export default function ConfirmStep({
   const [label, setLabel] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [trackingMode, setTrackingMode] = useState<'team' | 'individual'>('team');
-  const [points, setPoints] = useState<number | null>(candidate.points ?? initialPoints ?? (pointsMode ? null : 1));
+  // A points board starts with no tier picked (a placeholder's 1 point is not a choice anyone made).
+  const [points, setPoints] = useState<number | null>(candidate.points ?? (pointsMode ? null : initialPoints ?? 1));
   const [capText, setCapText] = useState(clockText(candidate.config.timeThresholdSeconds));
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
 
@@ -146,11 +147,12 @@ export default function ConfirmStep({
     goal == null ? null
     : config.statType === 'skill' ? `0 / ${goal.toLocaleString('en-US')} XP`
     : config.statType === 'boss' ? `0 / ${goal.toLocaleString('en-US')} KC`
+    : candidate.source === 'counter' ? `0 / ${goal.toLocaleString('en-US')}`
     : `0 / ${formatTileAmount({ tileType: config.tileType, targetNpcs: config.targetNpcs ?? null }, goal)}`;
 
   return (
     <div>
-      <StepHeader title={detached ? 'Edit this line' : 'New tile'} onBack={onBack} />
+      <StepHeader title={detached ? 'Edit this line' : 'Check and add'} onBack={onBack} />
 
       <Eyebrow>Players must</Eyebrow>
       <div className="flex flex-wrap items-center gap-2 text-base mb-3">
@@ -210,6 +212,9 @@ export default function ConfirmStep({
           <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
             <label htmlFor="pts" className="text-text-muted">Points</label>
             <AmountField id="pts" value={points} onChange={setPoints} label="Points" />
+            {!suggestedBand && suggestion?.averageHours != null && (
+              <span className="text-xs text-text-muted">About {suggestion.averageHours} h for an average player (effort model).</span>
+            )}
             {suggestedBand && suggestion?.suggestedPoints != null && (
               <button
                 type="button"
@@ -250,7 +255,7 @@ export default function ConfirmStep({
               <p className="text-sm font-semibold break-words">{effectiveLabel}</p>
             )}
             <p className="text-xs text-text-muted">
-              {[progress, pointsMode ? `${draft.points ?? 1} pts` : null].filter(Boolean).join(' · ')}
+              {[progress, pointsMode ? (points != null ? `${points} pts` : 'pick a tier') : null].filter(Boolean).join(' · ')}
             </p>
           </div>
           {!renaming && (
