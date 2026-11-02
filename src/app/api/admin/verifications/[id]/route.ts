@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { seatForRequest } from '@/lib/roster';
 import { db } from '@/db';
-import { clanAuditLog } from '@/db/schema';
+import { clanAuditLog, clanMemberships } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 import { updateAccountOfSeat } from '@/lib/roster';
 import { raiseCharacterReport } from '@/lib/characterReportActions';
 import { atLeast } from '@/lib/clanRoles';
@@ -9,12 +10,15 @@ import { verifyAdminOrModerator } from '@/lib/auth';
 import { applyPendingRole } from '@/lib/pending-role';
 import { syncRolesForClanMemberFireAndForget } from '@/lib/discord-roles';
 
-// POST /api/admin/verifications/[id] { action: 'approve' | 'reject', note? }
+// POST /api/admin/verifications/[id] { action: 'approve' | 'reject' | 'not_member', note? }
 // Approve clears the review flag — nothing about the account changes but that.
 // Reject REPORTS the link to Anvil (lib/characterReports); only platform staff take a character off
 // someone — except that the clan OWNER's report is carried out at once and waits on /staff as
 // "applied" for staff to approve or revert (lib/characterReportActions). Both actions log to
 // clan_audit_log.
+// Not our member ends THIS clan's guest seat for the character — the clan's own call (clans own seats)
+// — and marks it manual so playing doesn't put it back. The character stays linked to whoever owns it:
+// "someone else played my uncle's RuneLite" is a clan saying "not ours", not an ownership dispute.
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -37,8 +41,8 @@ export async function POST(
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  if (body.action !== 'approve' && body.action !== 'reject') {
-    return NextResponse.json({ error: "action must be 'approve' or 'reject'" }, { status: 400 });
+  if (body.action !== 'approve' && body.action !== 'reject' && body.action !== 'not_member') {
+    return NextResponse.json({ error: "action must be 'approve', 'reject' or 'not_member'" }, { status: 400 });
   }
 
   const member = await seatForRequest(request, memberId);
@@ -80,6 +84,34 @@ export async function POST(
       .catch(() => {});
 
     return NextResponse.json({ success: true, status: 'approved' });
+  }
+
+  if (body.action === 'not_member') {
+    if (member.leftAt) return NextResponse.json({ error: 'Already off your roster' }, { status: 400 });
+    // The in-game roster put a member here, and the next sync would put them straight back.
+    if (member.kind === 'member' && member.source === 'roster') {
+      return NextResponse.json(
+        { error: 'They’re on your in-game clan roster — remove them in game, or Report to Anvil if the character isn’t theirs.' },
+        { status: 400 },
+      );
+    }
+    // clan-scope: global -- the seat was resolved inside this clan by seatForRequest above.
+    await db
+      .update(clanMemberships)
+      .set({ leftAt: new Date().toISOString(), source: 'manual' })
+      .where(eq(clanMemberships.id, memberId));
+    db.insert(clanAuditLog)
+      .values({
+        clanId: member.clanId,
+        clanMemberId: memberId,
+        eventType: 'mod_not_member',
+        oldValue: JSON.stringify({ provisional: member.provisional, kind: member.kind, source: member.source }),
+        newValue: JSON.stringify({ left: true }),
+        actorUserId: session.userId > 0 ? session.userId : null,
+        notes: body.note || null,
+      })
+      .catch(() => {});
+    return NextResponse.json({ success: true, status: 'removed' });
   }
 
   // REPORT, not reject. Rejecting took the character off the person — an ownership change that holds

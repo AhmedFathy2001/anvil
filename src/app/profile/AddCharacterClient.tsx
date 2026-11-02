@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import ClanLink from '@/components/ClanLink';
 import NewPluginToken from '@/components/NewPluginToken';
@@ -15,6 +15,24 @@ import LinkAccountClient from './LinkAccountClient';
 //
 // So this leads with the token and "play once", watches for the first login the way ConnectCard
 // does, and folds the by-name path away behind a disclosure for the people who actually need it.
+//
+// EXCEPT ON A PHONE. There is no RuneLite on a phone, so a plugin-first card there is a page of
+// instructions for somewhere else, a token button and "Waiting for RuneLite…" — and the one path
+// that works hidden under it. A clan's sign-up link opened from Discord on a phone is exactly where
+// a brand-new member lands, and "can't fill out the sign-up form" was what they saw. On a touch
+// screen the by-name path leads and the plugin folds away instead.
+
+const COARSE = '(pointer: coarse)';
+const subscribeCoarse = (cb: () => void) => {
+  const m = window.matchMedia(COARSE);
+  m.addEventListener('change', cb);
+  return () => m.removeEventListener('change', cb);
+};
+/** True on a touch-first device. False on the server and on the first paint, then corrected. */
+function useTouchFirst(): boolean {
+  return useSyncExternalStore(subscribeCoarse, () => window.matchMedia(COARSE).matches, () => false);
+}
+
 export default function AddCharacterClient({
   first = false,
   suggestedRsn = '',
@@ -36,6 +54,8 @@ export default function AddCharacterClient({
 }) {
   const router = useRouter();
   const [showManual, setShowManual] = useState(Boolean(suggestedRsn));
+  const touchFirst = useTouchFirst();
+  const [showPlugin, setShowPlugin] = useState(false);
   const [heard, setHeard] = useState(false);
   // Both outcomes count. A safe first-use play becomes linked immediately; a protected roster row
   // becomes a detected account that needs the XP/mod check. Watching only `linked` made the latter
@@ -104,6 +124,36 @@ export default function AddCharacterClient({
     };
   }, [heard, router]);
 
+  const byName = <LinkAccountClient manualReview={false} initialRsn={suggestedRsn} />;
+
+  if (touchFirst && !suggestedRsn) {
+    return (
+      <div>
+        <p className="mb-3 max-w-[62ch] text-sm text-text-muted">
+          On your phone? Type your character&apos;s name below. We take a snapshot of its hiscores, ask you to
+          gain a little XP in one skill, and then it&apos;s yours — no PC needed.
+        </p>
+        {byName}
+        <div className="mt-4 border-t border-card-border pt-3">
+          {!showPlugin ? (
+            <button type="button" onClick={() => setShowPlugin(true)} className="text-sm text-gold hover:text-gold-light">
+              Play on PC with RuneLite? Link it with the plugin instead →
+            </button>
+          ) : (
+            <p className="max-w-[62ch] text-sm text-text-muted">
+              Install <b className="text-foreground">Anvil</b> from the RuneLite Plugin Hub on your PC, click{' '}
+              <b className="text-foreground">Sign in with Discord</b> in its panel and play the account — it shows up
+              here on its own.{' '}
+              <ClanLink href="/guide/plugin" className="text-gold hover:text-gold-light">
+                Setup guide →
+              </ClanLink>
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <p className="mb-3 max-w-[62ch] text-sm text-text-muted">
@@ -152,7 +202,7 @@ export default function AddCharacterClient({
               No plugin — prove it is yours by training. We snapshot the hiscores, pick a skill, and verify the
               XP you gain in it.
             </p>
-            <LinkAccountClient manualReview={false} initialRsn={suggestedRsn} />
+            {byName}
           </div>
         )}
       </div>
