@@ -1,7 +1,10 @@
 import { headers } from 'next/headers';
+import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 
+import { db } from '@/db';
+import { users } from '@/db/schema';
 import { isApexHost } from '@/lib/clanContext';
 import { verifyUser } from '@/lib/auth';
 import { ensureSupporterRef, supporterCheckoutUrl, supporterForUser } from '@/lib/supporter';
@@ -25,7 +28,8 @@ type Cell = string | { text: string; soon?: boolean };
  */
 const ROWS: { label: string; cells: [Cell, Cell, Cell, Cell] }[] = [
   { label: 'Name flair on Anvil', cells: ['—', 'Gold name + star', 'Gradient name', 'Animated gradient'] },
-  { label: 'Flair in the plugin panel and on Discord', cells: ['—', { text: 'Yes', soon: true }, { text: 'Yes', soon: true }, { text: 'Yes', soon: true }] },
+  { label: 'Flair in the plugin panel and on Discord', cells: ['—', 'Gold name + star', 'Gradient name + star', 'Gradient name + star'] },
+  { label: 'Gold GZ on clanmates’ drops (plugin)', cells: ['GZ', 'Gold GZ', 'Gold GZ', 'Gold GZ'] },
   { label: 'Animated avatar and banner', cells: ['—', '—', { text: 'Yes', soon: true }, { text: 'Yes', soon: true }] },
   { label: 'Display case of your best drops', cells: ['—', { text: '4 slots', soon: true }, { text: '8 slots', soon: true }, { text: '12 slots', soon: true }] },
   { label: 'Host friend events', cells: ['Join only', { text: '1 · 10 players', soon: true }, { text: '3 · 25 players', soon: true }, { text: 'Unlimited · 50', soon: true }] },
@@ -40,6 +44,10 @@ export default async function SupporterPage() {
   const session = await verifyUser();
   const current = session ? await supporterForUser(session.userId) : null;
   const checkout = session ? supporterCheckoutUrl(await ensureSupporterRef(session.userId)) : null;
+  // The name people see on their card, for the preview (the session's username is a login handle).
+  const me = session
+    ? (await db.query.users.findFirst({ where: eq(users.id, session.userId), columns: { displayName: true } }))?.displayName ?? null
+    : null;
   const configured = !!process.env.GUMROAD_URL_SUPPORTER;
 
   return (
@@ -64,7 +72,7 @@ export default async function SupporterPage() {
         </p>
         {current && (
           <p className="relative mx-auto mt-4 w-fit rounded-full border border-gold/40 bg-gold/10 px-3 py-1 text-[13px]">
-            You&rsquo;re an <SupporterName name={`Anvil ${current.tier.name}`} tier={current.tier.id} className="font-semibold" />.
+            You&rsquo;re an <SupporterName name={`Anvil ${current.tier.name}`} tier={current.tier.id} className="font-semibold" plain />.
             Thank you.
           </p>
         )}
@@ -77,6 +85,7 @@ export default async function SupporterPage() {
             id={id}
             current={current?.tier.id === id}
             signedIn={!!session}
+            me={me}
             checkout={configured ? checkout : null}
           />
         ))}
@@ -132,11 +141,14 @@ function TierCard({
   id,
   current,
   signedIn,
+  me,
   checkout,
 }: {
   id: SupporterTierId;
   current: boolean;
   signedIn: boolean;
+  /** The viewer's own name, previewed in this tier's flair. */
+  me: string | null;
   checkout: string | null;
 }) {
   const t = SUPPORTER_TIERS[id];
@@ -144,12 +156,18 @@ function TierCard({
     <div
       className={`flex flex-col gap-3 rounded-xl border p-5 ${current ? 'border-gold/60 bg-gold/[0.06]' : 'border-card-border bg-card-bg'}`}
     >
-      <SupporterName name={t.name} tier={id} className="text-lg font-bold" />
+      <SupporterName name={t.name} tier={id} className="text-lg font-bold" plain />
       <div>
         <span className="font-mono text-3xl font-bold tabular-nums">${t.yearlyUsd}</span>
         <span className="ml-1 text-sm text-text-muted">a year</span>
         <p className="mt-0.5 text-[13px] text-text-dim">or ${t.monthlyUsd} a month</p>
       </div>
+      {me && (
+        <div className="rounded-lg border border-card-border bg-background/40 px-3 py-2">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-dim">On your card</p>
+          <SupporterName name={me} tier={id} className="mt-1 max-w-full font-semibold" plain />
+        </div>
+      )}
       {current ? (
         <span className="mt-auto rounded-lg border border-gold/40 px-3 py-2 text-center text-sm font-medium text-gold">
           Your tier

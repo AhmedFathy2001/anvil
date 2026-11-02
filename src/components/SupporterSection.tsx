@@ -68,7 +68,7 @@ export default function SupporterSection({ supporter }: { supporter: SupporterVi
       <h2 className="mb-3 text-lg font-semibold">Anvil Supporter</h2>
       <div className="rounded-xl border border-gold/40 bg-gold/[0.05] p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <SupporterName name={`Anvil ${supporter.tierName}`} tier={supporter.tier} className="text-lg font-bold" />
+          <SupporterName name={`Anvil ${supporter.tierName}`} tier={supporter.tier} className="text-lg font-bold" plain />
           <span className="text-sm text-text-muted">
             Since {day(supporter.since)}
             {supporter.months > 0 && <> · {supporter.months} month{supporter.months === 1 ? '' : 's'}</>}

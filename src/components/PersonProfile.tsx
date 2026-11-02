@@ -78,7 +78,7 @@ export default function PersonProfile({
         <span className="w-1 h-8 bg-gold rounded-full" />
         <div>
           <h1 className="text-3xl font-bold text-gold">
-            <SupporterName name={displayName} tier={supporter?.tier} />
+            <SupporterName name={displayName} tier={supporter?.tier} plain />
           </h1>
           <p className="text-sm text-text-muted">
             Your account across Anvil — your characters and your clans. Everything about a clan&rsquo;s

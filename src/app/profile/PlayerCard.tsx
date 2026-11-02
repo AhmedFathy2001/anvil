@@ -106,7 +106,7 @@ export default function PlayerCard({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-2xl font-bold tracking-tight truncate">
-                <SupporterName name={displayName} tier={supporterTier} />
+                <SupporterName name={displayName} tier={supporterTier} plain />
               </h2>
               <span className="text-[10px] uppercase tracking-wider font-bold bg-gold/15 text-gold-light border border-gold/40 px-2 py-0.5 rounded-full">
                 {role}
