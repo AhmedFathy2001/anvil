@@ -29,7 +29,9 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const seatId = Number(body?.seatId);
   if (!Number.isInteger(seatId) || seatId <= 0) return NextResponse.json({ error: 'seatId is required' }, { status: 400 });
-  const kind = isReportKind(body?.kind) ? body.kind : 'other';
+  // 'wrong_clan' is the player's own report (lib/wrongClan) — a clan saying "they're ours" would be
+  // a clan pulling members off another, so a clan can't file one.
+  const kind = isReportKind(body?.kind) && body.kind !== 'wrong_clan' ? body.kind : 'other';
   const text = typeof body?.body === 'string' ? body.body.trim() : '';
   if (!text) return NextResponse.json({ error: 'Say what is wrong, so Anvil can act on it.' }, { status: 400 });
 

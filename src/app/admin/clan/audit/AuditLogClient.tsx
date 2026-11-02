@@ -75,6 +75,9 @@ const EVENT_LABELS: Record<string, { label: string; color: string }> = {
   claim_request_rejected: { label: 'Claim turned down', color: 'text-red-400' },
   character_report_applied: { label: "Owner's report done", color: 'text-gold' },
   character_report_reverted: { label: 'Reverted by Anvil', color: 'text-red-400' },
+  member_chose_this_clan: { label: 'Made this their clan', color: 'text-accent-green-light' },
+  member_left_for_another_clan: { label: 'Moved to another clan', color: 'text-yellow-400' },
+  roster_memberships_released: { label: 'Members released by Anvil', color: 'text-red-400' },
 };
 
 export default function AuditLogClient({

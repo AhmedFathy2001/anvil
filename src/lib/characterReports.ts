@@ -12,7 +12,9 @@ import { db } from '@/db';
 import { accounts, characterReports, clanAuditLog, clans, detectedAccounts, players, users } from '@/db/schema';
 import { claimAccountForPerson } from '@/lib/accountClaim';
 
-export const REPORT_KINDS = ['wrong_owner', 'rename', 'merge', 'claim_review', 'claim_request', 'other'] as const;
+// 'wrong_clan' is the PLAYER's own report (lib/wrongClan): their character is a member of the wrong
+// clan. Its clan_id is the clan they say they're really in, not a clan that raised it.
+export const REPORT_KINDS = ['wrong_owner', 'rename', 'merge', 'claim_review', 'claim_request', 'wrong_clan', 'other'] as const;
 export type ReportKind = (typeof REPORT_KINDS)[number];
 
 /**
@@ -225,7 +227,7 @@ export interface CharacterReportView {
   createdAt: string;
   resolvedAt: string | null;
   account: { id: number; rsn: string; playerId: number; ownerName: string | null; claimed: boolean; verificationMethod: string | null; provisional: boolean };
-  clan: { name: string; slug: string } | null;
+  clan: { id: number; name: string; slug: string } | null;
   reporter: string | null;
   claimant: { id: number; name: string } | null;
 }
@@ -279,7 +281,7 @@ export async function listCharacterReports(opts: { status?: 'open' | 'all' } = {
       verificationMethod: x.verificationMethod,
       provisional: x.provisional === 1,
     },
-    clan: x.clanSlug ? { name: x.clanName ?? x.clanSlug, slug: x.clanSlug } : null,
+    clan: x.clanSlug && x.r.clanId != null ? { id: x.r.clanId, name: x.clanName ?? x.clanSlug, slug: x.clanSlug } : null,
     reporter: x.reporter,
     claimant: x.r.claimantPlayerId != null ? { id: x.r.claimantPlayerId, name: claimantName.get(x.r.claimantPlayerId) ?? `#${x.r.claimantPlayerId}` } : null,
   }));

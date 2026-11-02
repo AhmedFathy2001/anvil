@@ -5,7 +5,8 @@ import { accounts, clanAuditLog, clanMemberships, detectedAccounts, users } from
 import { avatarUrl } from '@/lib/discord-oauth';
 import { claimAccountForPerson } from '@/lib/accountClaim';
 import { fileCharacterReport } from '@/lib/characterReports';
-import { applyCharacterReport, noteNotApplied, seatedOnlyInClan } from '@/lib/characterReportActions';
+import { applyCharacterReport, CLAN_UNVERIFIED_WHY, noteNotApplied, seatedOnlyInClan } from '@/lib/characterReportActions';
+import { verificationOf } from '@/lib/clanVerification';
 import { atLeast } from '@/lib/clanRoles';
 
 /**
@@ -231,8 +232,10 @@ export type VouchOutcome =
 
 /**
  * "Yes, that's them" — decided by who is asking and whose character it is:
- *   - only ever on THIS clan's roster, nobody's yet → an admin links it directly (approveClaimRequest),
- *     logged in the clan's history; nobody else has a say in it.
+ *   - only ever on THIS clan's roster, nobody's yet, and the clan is VERIFIED (synced from the game or
+ *     verified by Anvil staff — verificationOf, the same check ownerApplyBlocked makes) → an admin
+ *     links it directly (approveClaimRequest), logged in the clan's history; nobody else has a say in
+ *     it. An unverified clan is anyone's to make, so its say-so goes to Anvil instead.
  *   - otherwise the clan OWNER's vouch is carried out at once and filed with Anvil as applied, so
  *     staff can undo it — only where this clan alone has a stake (characterReportActions
  *     ownerApplyBlocked: verified clan, no other clan's seats, no self-dealing);
@@ -254,7 +257,9 @@ export async function vouchForClaim(
     .where(eq(detectedAccounts.id, requestId));
   const selfDealing = own?.userId === actor.userId;
 
-  if (!selfDealing && atLeast(actor.role, 'admin') && (await characterOnlyInClan(req.accountId, clanId))) {
+  const singleClan = !selfDealing && atLeast(actor.role, 'admin') && (await characterOnlyInClan(req.accountId, clanId));
+  const clanVerified = singleClan ? (await verificationOf(clanId)).verified : false;
+  if (singleClan && clanVerified) {
     const res = await approveClaimRequest(clanId, requestId, actor.userId, 'approved by the clan — only ever on this clan');
     if (res.ok) return { ok: true, outcome: 'linked', accountId: res.accountId };
     if (res.code !== 'owned_by_other') return res;
@@ -268,7 +273,11 @@ export async function vouchForClaim(
       ok: true,
       outcome: 'sent',
       reportId: fwd.reportId,
-      why: atLeast(actor.role, 'admin') ? 'This character is also in another clan, so Anvil makes the link.' : null,
+      why: singleClan && !clanVerified
+        ? CLAN_UNVERIFIED_WHY
+        : atLeast(actor.role, 'admin')
+          ? 'This character is also in another clan, so Anvil makes the link.'
+          : null,
     };
   }
   const applied = await applyCharacterReport(fwd.reportId, actor.userId);

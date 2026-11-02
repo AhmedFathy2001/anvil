@@ -112,6 +112,10 @@ async function personSeatedElsewhere(playerId: number, clanId: number): Promise<
   return rows.length > 0;
 }
 
+/** Why an unverified clan's call waits for Anvil — plain words for the clan. Shared with lib/claimRequests. */
+export const CLAN_UNVERIFIED_WHY =
+  "Your clan hasn't been verified yet (sync your member list from the plugin), so Anvil checks this first.";
+
 /**
  * WHO MAY SKIP THE QUEUE. Anyone can make a clan and own it, so "the owner said so" is only enough
  * where that clan is the only one with a stake — otherwise a throwaway clan's owner could take any
@@ -128,7 +132,7 @@ async function ownerApplyBlocked(
 ): Promise<string | null> {
   if (report.clanId == null) return 'Anvil looks at this one by hand.';
   if (!(await verificationOf(report.clanId)).verified) {
-    return "Your clan hasn't proven its in-game name yet, so Anvil checks this first.";
+    return CLAN_UNVERIFIED_WHY;
   }
   if (!(await seatedOnlyInClan(account.id, report.clanId))) {
     return "This character is also on another clan's roster, so Anvil decides.";

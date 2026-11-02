@@ -29,7 +29,7 @@ import { emissionSettingsView } from '@/lib/emissionSettings';
 import { atLeast } from '@/lib/clanRoles';
 import ClanLink from '@/components/ClanLink';
 import { onboardingNext } from '@/lib/firstLogin';
-import { characterStandings } from '@/lib/characterStandingRead';
+import { characterStandings, clanOptionsFor } from '@/lib/characterStandingRead';
 
 export const dynamic = 'force-dynamic';
 
@@ -126,6 +126,7 @@ export default async function ProfilePage({
           rsn: a.rsn,
           shared: !!a.shared,
           standing: standings.lineByAccount.get(a.id),
+          clanOptions: clanOptionsFor(standings.seats, a.id),
         }))}
         guestSeats={standings.seats
           .filter((s) => s.kind === 'guest')
@@ -396,6 +397,7 @@ export default async function ProfilePage({
                   accountId: a.accountId,
                   alsoPlayedFrom: alsoPlayedFrom.get(a.accountId),
                   standing: lockerStandings.lineByAccount.get(a.accountId),
+                  clanOptions: clanOptionsFor(lockerStandings.seats, a.accountId),
                 }))}
               />
             )}
