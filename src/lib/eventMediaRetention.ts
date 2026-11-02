@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, ne } from 'drizzle-orm';
 import { db } from '@/db';
 import { eventSignups, eventStartProofs, events, payouts, signupFees, submissionAttachments, submissions, tiles } from '@/db/schema';
 import { del, isManagedMediaUrl } from '@/lib/storage';
@@ -119,10 +119,15 @@ export async function purgeEventMedia(eventId: number, opts: { dryRun?: boolean 
     await tx.update(events).set({ mediaPurgedAt: new Date().toISOString() }).where(eq(events.id, eventId));
   });
 
-  // Only files we stored ourselves: an external link someone pasted is not ours to delete.
-  const urls = [...media.submissions, ...media.fees, ...media.payouts, ...media.startProofs, ...media.attachments]
+  // Only files we stored ourselves: an external link someone pasted is not ours to delete. And only
+  // files no OTHER event still points at: a proof URL is something a client sent, so one row naming
+  // another event's (or clan's) file must not get that file deleted along with this event's.
+  const ours = [...new Set([...media.submissions, ...media.fees, ...media.payouts, ...media.startProofs, ...media.attachments]
     .map((r) => r.url)
-    .filter((u) => isManagedMediaUrl(u));
+    .filter((u) => isManagedMediaUrl(u)))];
+  const shared = await urlsUsedElsewhere(eventId, ours);
+  if (shared.size) log.warn('media-retention.shared-files-kept', { eventId, count: shared.size });
+  const urls = ours.filter((u) => !shared.has(u));
   for (let i = 0; i < urls.length; i += 100) {
     await del(urls.slice(i, i + 100)).catch((e) =>
       log.warn('media-retention.delete-failed', { eventId, error: (e as Error).message }),
@@ -154,4 +159,29 @@ export async function eventsDueForPurge(now: Date, limit = 20): Promise<{ id: nu
     .map((r) => ({ id: r.id, name: r.name, purgeAt: effectivePurgeAt(r, now)! }))
     .sort((a, b) => a.purgeAt.getTime() - b.purgeAt.getTime())
     .slice(0, limit);
+}
+
+/** Of these URLs, the ones some OTHER event's proof, fee, payout, start shot or attachment names. */
+async function urlsUsedElsewhere(eventId: number, urls: string[]): Promise<Set<string>> {
+  const out = new Set<string>();
+  for (let i = 0; i < urls.length; i += 500) {
+    const chunk = urls.slice(i, i + 500);
+    // clan-scope: global -- the point is to look across every clan's events for these exact URLs.
+    const found = await Promise.all([
+      db.select({ url: submissions.imageUrl }).from(submissions).innerJoin(tiles, eq(tiles.id, submissions.tileId))
+        .where(and(ne(tiles.eventId, eventId), inArray(submissions.imageUrl, chunk))),
+      db.select({ url: submissions.cleanImageUrl }).from(submissions).innerJoin(tiles, eq(tiles.id, submissions.tileId))
+        .where(and(ne(tiles.eventId, eventId), inArray(submissions.cleanImageUrl, chunk))),
+      db.select({ url: submissionAttachments.url }).from(submissionAttachments).innerJoin(tiles, eq(tiles.id, submissionAttachments.tileId))
+        .where(and(ne(tiles.eventId, eventId), inArray(submissionAttachments.url, chunk))),
+      db.select({ url: eventStartProofs.imageUrl }).from(eventStartProofs)
+        .where(and(ne(eventStartProofs.eventId, eventId), inArray(eventStartProofs.imageUrl, chunk))),
+      db.select({ url: signupFees.proofBlobUrl }).from(signupFees).innerJoin(eventSignups, eq(eventSignups.id, signupFees.signupId))
+        .where(and(ne(eventSignups.eventId, eventId), inArray(signupFees.proofBlobUrl, chunk))),
+      db.select({ url: payouts.proofBlobUrl }).from(payouts)
+        .where(and(ne(payouts.eventId, eventId), inArray(payouts.proofBlobUrl, chunk))),
+    ]);
+    for (const rows of found) for (const r of rows) if (r.url) out.add(r.url);
+  }
+  return out;
 }

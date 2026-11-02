@@ -391,6 +391,20 @@ export async function POST(
   const upload = imageUrlValue
     ? await db.query.proofUploads.findFirst({ where: eq(proofUploads.url, imageUrlValue) })
     : null;
+  // SOMEONE ELSE'S FILE IS REFUSED, not just flagged. The 90-day media purge deletes a proof's file
+  // with its event, so a proof pointing at another person's upload (another clan's proof, a banner)
+  // would get that file deleted. Web: the picture must be this person's own upload. Plugin: an upload
+  // on record as another person's never comes from an honest plugin, which uploads its own frame
+  // first; a missing record stays a flag below (honest retries from before provenance existed).
+  if (imageUrlValue && !pluginAuth) {
+    const webUserId = (await verifyUser())?.userId ?? null;
+    if (!upload || upload.via !== 'web' || (upload.userId ?? null) !== webUserId) {
+      return NextResponse.json({ error: 'Upload the screenshot here yourself, then submit it' }, { status: 400 });
+    }
+  }
+  if (pluginAuth && upload && upload.userId != null && upload.userId !== pluginAuth.userId) {
+    return NextResponse.json({ error: 'That screenshot was uploaded by someone else' }, { status: 403 });
+  }
   const claims = pluginAuth && imageUrlValue ? parseProofClaims(proof) : null;
   if (pluginAuth && imageUrlValue) {
     const foreign = upload
