@@ -308,6 +308,35 @@ export function altGoalProgressNote(goal: AltGoal, current: number): string {
   return `or ${fmt(Math.min(current, goal.amount))}/${fmt(goal.amount)} ${altGoalUnit(goal)}`;
 }
 
+/** What a tile title gains from its alternative: " or 100 searches", " or 50 Chicken kills". */
+export function altTitleSuffix(goal: AltGoal | null | undefined): string {
+  if (!goal) return '';
+  const unit = altGoalUnitSingular(goal) === 'kill' ? `${goal.targets.join(' / ')} kills` : altGoalUnit(goal);
+  return ` or ${fmt(goal.amount)} ${unit}`;
+}
+
+/** "Get" → "gets", "Do" → "does", "Catch" → "catches" — the creator's verbs, third person. */
+function thirdPerson(verb: string): string {
+  const v = verb.toLowerCase();
+  if (/(o|s|x|z|ch|sh)$/.test(v)) return `${v}es`;
+  if (/[^aeiou]y$/.test(v)) return `${v.slice(0, -1)}ies`;
+  return `${v}s`;
+}
+
+/**
+ * The creator's one-sentence summary of an either/or tile: "Done when the team gets any GOTR rare
+ * reward — or does 100 reward searches paid for with energy earned during the event."
+ */
+export function eitherOrSentence(
+  task: { verb: string; noun: string; amount: number | null },
+  goal: AltGoal,
+  solo = false,
+): string {
+  const who = solo ? 'one player' : 'the team';
+  const what = task.amount != null ? `${fmt(task.amount)} ${task.noun}` : task.noun;
+  return `Done when ${who} ${thirdPerson(task.verb)} ${what} — or does ${altGoalPhrase(goal)}.`;
+}
+
 /** The plugin's label for a virtual entry: "<tile> — or 100 searches" / "<tile> — GOTR elemental energy". */
 export function altEntryLabel(parentLabel: string, goal: AltGoal, slot: number): string {
   if (slot === 0) return `${parentLabel} — or ${fmt(goal.amount)} ${altGoalUnit(goal)}`;

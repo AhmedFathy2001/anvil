@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { draftToCsvRow, howItCountsLine, type TileDraft } from '@/lib/tileCreatorConfig';
+import { altGoalPhrase } from '@/lib/altGoal';
 import type { TaskCandidate } from '@/lib/taskMatch';
 import type { BulkLineResult } from '@/lib/taskSuggest';
 import type { TierBand } from '@/lib/tileFilter';
@@ -259,6 +260,10 @@ export default function BulkQuickAdd({
                             title="Open in the single-tile editor"
                           >
                             <span className="block font-medium break-words">{r.draft?.label ?? r.text}</span>
+                            {/* Either/or tile (lib/altGoal): the other way to finish, spelled out. */}
+                            {r.draft?.config.altGoal && (
+                              <span className="block text-xs text-text-muted">Or: {altGoalPhrase(r.draft.config.altGoal)}</span>
+                            )}
                             {r.status === 'pick' && !r.draft && <span className="block text-xs text-gold">Which one did you mean?</span>}
                           </button>
                           {r.status === 'pick' && (

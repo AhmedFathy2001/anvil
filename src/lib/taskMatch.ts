@@ -29,6 +29,7 @@ import {
 import { HISCORES_ACTIVITIES } from '@/lib/hiscoresActivities';
 import { chooseKillSource, hiscoresKeyForMonster } from '@/lib/killSource';
 import type { TileConfig } from '@/lib/types';
+import { altGoalEligible, altGoalPhrase, altTitleSuffix, GOTR_ENERGY_CAPS, GOTR_SEARCHES, type AltGoal } from '@/lib/altGoal';
 import {
   RAID_OPTIONS,
   TRIAL_COURSE_OPTIONS,
@@ -1017,12 +1018,43 @@ function monsterCandidates(q: ParsedQuery, ctx: MatchContext): TaskCandidate[] {
 // "any Barrows unique") — "golden nuggets at Motherlode Mine" names the page but means the nuggets.
 const REWARD_WORDS = ['rare', 'reward', 'unique', 'clog', 'collection', 'log', 'pet', 'item', 'drop', 'any'];
 
+// "A GOTR rare reward": the page's notable uniques, not everything on it. Guardians of the Rift: the
+// reward guardian's rare rolls (Abyssal needle, Abyssal lantern, the three Abyssal dyes) and the pet.
+// Left out on purpose: Abyssal pearls (the minigame's currency), the Raiments of the Eye, Ring of the
+// elements and Guardian's eye (all bought with pearls), and the common-to-uncommon search loot
+// (Catalytic talisman, Intricate pouch, Tarnished locket, Lost bag) — a 100-search tile turns those up.
+export const RARE_REWARDS: Record<string, { short: string; items: string[] }> = {
+  'Guardians of the Rift': {
+    short: 'GOTR',
+    items: ['Abyssal needle', 'Abyssal lantern', 'Abyssal green dye', 'Abyssal blue dye', 'Abyssal red dye', 'Abyssal protector'],
+  },
+};
+
 function clogCandidates(q: ParsedQuery, ctx: MatchContext): TaskCandidate[] {
   const out: TaskCandidate[] = [];
   if (!REWARD_WORDS.some((w) => q.all.includes(w))) return out;
   for (const page of ctx.clogPages ?? []) {
     const s = scoreNamed(q, { names: [page.name], aliases: ['collection', 'log', 'clog', 'rare', 'reward', 'unique'] });
     if (!s.matched || !s.nameCovered) continue;
+    const rare = RARE_REWARDS[page.name];
+    const rareItems = rare ? page.items.filter((i) => rare.items.some((n) => n.toLowerCase() === i.name.toLowerCase())) : [];
+    if (rareItems.length > 0 && ['rare', 'unique'].some((w) => q.all.includes(w))) {
+      // A drop tile over the page's rares (the plugin credits the loot event — the pet included).
+      out.push(finish({
+        key: `clog-rare-${page.name}`,
+        source: 'clog',
+        badge: 'Drop',
+        titleTemplate: `Any ${rare!.short} rare reward`,
+        verb: 'Get',
+        noun: `any ${rare!.short} rare reward`,
+        amountField: null,
+        defaultAmount: null,
+        config: { tileType: 'drop', trackedItemIds: rareItems.map((i) => i.id), requiredAmount: 1 },
+        flow: 'items',
+        seed: { items: rareItems, how: 'drop' },
+        category: 'items',
+      }, q, { ...s, confident: false, score: s.score - 0.2 }));
+    }
     const ids = page.items.map((i) => i.id);
     out.push(finish({
       key: `clog-${page.name}`,
@@ -1094,6 +1126,9 @@ export function libraryCandidate(t: NonNullable<MatchContext['library']>[number]
  * rest are "also matches". Empty when nothing covers the query — the caller offers a screenshot tile.
  */
 export function matchTasks(query: string, ctx: MatchContext = {}): TaskCandidate[] {
+  // "X or N Y": one tile that finishes either way, when both halves resolve (see eitherOr).
+  const either = eitherOr(query, ctx);
+  if (either) return either;
   const exact = matchExact(query, ctx);
   const fix = correctQueryDetail(query, ctx);
   if (fix == null) return exact;
@@ -1115,6 +1150,86 @@ export function matchTasks(query: string, ctx: MatchContext = {}): TaskCandidate
     if (!prev || f.score > prev.score) merged.set(c.key, f);
   }
   return [...merged.values()].sort((a, b) => b.score - a.score).slice(0, 12);
+}
+
+// ─── Either / or ─────────────────────────────────────────────────────────────────────────────
+
+// "…with event-earned energy", "…using energy earned during the event", "paid for with event energy".
+const ENERGY_RE = /\s*\b(?:(?:paid\s+(?:for\s+)?)?(?:with|using|from|via|by)\s+)?(?:(?:the\s+)?event[-\s]?earned\s+energy|energy\s+(?:earned|gained|attuned|made|collected)\s+(?:during|in|over|throughout)\s+(?:the\s+)?event|(?:the\s+)?event(?:'s)?\s+energy)\b/i;
+const GOTR_RE = /\b(?:gotr|guardians?\s+of\s+the\s+rift)\b/i;
+
+/** Where a task splits into "primary or alternative": a standalone "or" followed by an amount. */
+export function splitEitherOr(query: string): { primary: string; alt: string } | null {
+  const re = /\s+or\s+/gi;
+  let at: { index: number; len: number } | null = null;
+  for (let m = re.exec(query); m; m = re.exec(query)) {
+    const right = query.slice(m.index + m[0].length);
+    if (/^\d/.test(right.trim())) at = { index: m.index, len: m[0].length };
+  }
+  if (!at) return null;
+  const primary = query.slice(0, at.index).trim();
+  const alt = query.slice(at.index + at.len).trim();
+  return primary && alt ? { primary, alt } : null;
+}
+
+/**
+ * "A GOTR rare reward OR 100 searches with event-earned energy" → ONE tile: the first half is the
+ * tile, the second its alternative (lib/altGoal). Only when both halves resolve and the second is
+ * something the plugin counts like a kill (a counter, a monster, a course) — "gauntlet or cg" and
+ * "callisto or artio" stay one kills tile, since an alternative needs its own amount.
+ */
+function eitherOr(query: string, ctx: MatchContext): TaskCandidate[] | null {
+  const split = splitEitherOr(query);
+  if (!split) return null;
+  let altText = split.alt;
+  const energy = ENERGY_RE.test(altText);
+  altText = altText.replace(ENERGY_RE, ' ').replace(/\s+/g, ' ').trim();
+  // A GOTR search said any way ("reward searches", "searches in GOTR") is the searches counter.
+  if (/\bsearch(?:es)?\b/i.test(altText) && (GOTR_RE.test(query) || /\brift\b/i.test(query))) {
+    altText = altText
+      .replace(/\b(?:(?:in|at|from)\s+)?(?:the\s+)?(?:gotr|guardians?\s+of\s+the\s+rift)\b/gi, ' ')
+      .replace(/\b(?:reward\s+)?(?:guardian\s+)?search(?:es)?\b/i, GOTR_SEARCHES)
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+  const altVerdict = classifyMatches(matchTasks(altText, ctx));
+  const alt = altVerdict.status === 'ready' ? altVerdict.choices[0] : null;
+  const targets = alt?.config.targetNpcs ?? [];
+  if (!alt || (alt.config.tileType !== 'kill' && alt.config.tileType !== 'lap') || targets.length === 0) return null;
+  const amount = alt.amount ?? parseTaskQuery(altText).amount;
+  if (!amount) return null;
+
+  const primaryCands = matchTasks(split.primary, ctx);
+  const verdict = classifyMatches(primaryCands);
+  const primary = verdict.status === 'ready'
+    ? verdict.choices[0]
+    : primaryCands.find((c) => c.key.startsWith('clog-rare-')) ?? null;
+  if (!primary || !['confirm', 'items'].includes(primary.flow) || !altGoalEligible({ tileType: primary.config.tileType, trackedStat: primary.config.trackedStat })) return null;
+
+  const gotr = targets.length === 1 && targets[0] === GOTR_SEARCHES;
+  const goal: AltGoal = { targets, amount, ...(energy && gotr ? { capBy: [...GOTR_ENERGY_CAPS] } : {}) };
+  const suffix = altTitleSuffix(goal);
+  const config = { ...primary.config, altGoal: goal };
+  const combined: TaskCandidate = {
+    ...primary,
+    key: `either-${primary.key}|${alt.key}`,
+    // A rare-rewards page pick is a finished drop tile once it has its alternative.
+    source: primary.source === 'clog' ? 'drop' : primary.source,
+    title: primary.title + suffix,
+    titleTemplate: primary.titleTemplate + suffix,
+    ...(primary.titleOne ? { titleOne: primary.titleOne + suffix } : {}),
+    hint: `${howItCountsLine(config).text} Or instead: ${altGoalPhrase(goal)}.`,
+    config,
+    // The items are already chosen — straight to the one-sentence confirm.
+    flow: 'confirm',
+    seed: undefined,
+    score: Math.max(primary.score, alt.score) + 3,
+    confident: true,
+    fuzzy: primary.fuzzy || alt.fuzzy,
+  };
+  // The plain first half stays on offer, a step below, for "no, just the first part".
+  const rest = primaryCands.slice(0, 3).map((c) => ({ ...c, confident: false, score: Math.min(c.score, combined.score - 2) }));
+  return [combined, ...rest];
 }
 
 // ─── Typo tolerance ──────────────────────────────────────────────────────────────────────────

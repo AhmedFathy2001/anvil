@@ -45,6 +45,7 @@ import ClanLink from '@/components/ClanLink';
 import { useDialog } from '@/components/Confirm';
 import GuideLink from '@/components/GuideLink';
 import { parseTileEffortConfig } from '@/lib/tileEffortConfig';
+import { parseAltGoal } from '@/lib/altGoal';
 
 // Map a stored Tile to TileTrackingConfig's `initial` shape. Shared by the drawer (Cards view)
 // and the Quick Build two-pane editor so both drive the exact same complete config form.
@@ -72,6 +73,7 @@ function tileToTrackingInitial(tile: Tile) {
     setsRequired: tile.setsRequired ?? null,
     countMode: tile.countMode ?? null,
     perKillCap: tile.perKillCap ?? null,
+    altGoal: parseAltGoal(tile.altGoal),
     coopCredit: tile.coopCredit ?? null,
     coopMinMembers: tile.coopMinMembers ?? null,
     points: tile.points ?? 1,

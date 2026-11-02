@@ -34,6 +34,8 @@ import TaskFinder from '@/components/TaskFinder';
 import { AuthoringApiContext } from '@/components/AuthoringApi';
 import NumberInput from '@/components/NumberInput';
 import { clanFetch } from '@/lib/clanFetch';
+import AltGoalField from '@/components/AltGoalField';
+import { parseAltGoal, type AltGoal } from '@/lib/altGoal';
 import { RAID_EFFORT_MODES, parseTileEffortConfig } from '@/lib/tileEffortConfig';
 
 interface Props {
@@ -600,6 +602,7 @@ function TrackingModeField({
 // cleared, so picking "Zulrah kills" on a tile that was a drop doesn't leave its items behind.
 const KIND_FIELDS_CLEARED: Partial<TileConfig> = {
   tileType: 'standard',
+  altGoal: null,
   requiredAmount: null,
   trackedStat: null,
   statType: null,
@@ -704,6 +707,8 @@ function TileTrackingEditor({
   const [lottery, setLottery] = useState<boolean>(initial.lottery || false);
   // Admin kill-switch: when on, the site won't auto-credit this tile — it's completed manually.
   const [autoTrackDisabled, setAutoTrackDisabled] = useState<boolean>(initial.autoTrackDisabled || false);
+  // Either/or tiles (lib/altGoal): the other way to finish this tile, if any.
+  const [altGoal, setAltGoal] = useState<AltGoal | null>(initial.altGoal ?? null);
   const [points, setPoints] = useState<string>(initial.points != null ? initial.points.toString() : "1");
   const [category, setCategory] = useState<string>(initial.category || "");
   // Balance-only calibration. These values never alter plugin matching or completion; they only
@@ -1046,6 +1051,8 @@ function TileTrackingEditor({
   const isValue = kind === 'value';
   const isDiary = kind === 'diary';
   const isCa = kind === 'ca';
+  // Kinds that complete from submissions — the ones an "or …" alternative can ride (lib/altGoal).
+  const altEligible = isDrop || isKill || isLap || isPvp || isGain || isTimed || isDeathless || isLms || isValue || isDiary || isCa;
 
   // Load the CA task list the first time the CA kind is shown; filter locally as the admin types.
   useEffect(() => {
@@ -1533,6 +1540,8 @@ function TileTrackingEditor({
           } : {}),
         },
         category: category.trim() || null,
+        // Either/or alternative — only on a kind that completes from submissions; cleared otherwise.
+        altGoal: altEligible ? altGoal : null,
         // Mission flag + per-mission scoring (assembled below; null-rules on a normal tile).
         mission,
         missionRules: buildMissionRules(),
@@ -1736,6 +1745,7 @@ function TileTrackingEditor({
           partyTeamOnly: !!updated.partyTeamOnly,
           mission: !!updated.mission,
           missionRules: updated.rules ? parseTileMissionRules(updated.rules) : null,
+          altGoal: parseAltGoal(updated.altGoal),
           updatedAt: updated.updatedAt ?? null,
         });
       } else {
@@ -3553,6 +3563,14 @@ function TileTrackingEditor({
               NPC/chest name. Leave blank to accept a qualifying haul from anywhere.
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Either/or: a second way to finish a submission-backed tile ("a GOTR rare reward OR 100
+          searches with event-earned energy"). Frozen with the rest of the rules once the event runs. */}
+      {altEligible && (
+        <div>
+          <AltGoalField value={altGoal} onChange={setAltGoal} npcSearchUrl={`${lookupApi}/npc-search`} disabled={locked} />
         </div>
       )}
 

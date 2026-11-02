@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { clanFetch } from '@/lib/clanFetch';
 import { applyAmount, killCandidate, titleAt, type TaskCandidate } from '@/lib/taskMatch';
 import KillPicksField from './KillPicksField';
+import AltGoalField from '@/components/AltGoalField';
+import { altGoalEligible, altTitleSuffix, eitherOrSentence, type AltGoal } from '@/lib/altGoal';
 import {
   draftKindFields,
   howItCountsLine,
@@ -90,11 +92,20 @@ export default function ConfirmStep({
 
   const isTimedCap = candidate.config.tileType === 'timed' && candidate.source !== 'trial';
   const current = applyAmount(candidate, amount);
+  // Either/or (lib/altGoal): "… or 100 searches". Editable here; removing it drops it from the title too.
+  const [altGoal, setAltGoal] = useState<AltGoal | null>(original.config.altGoal ?? null);
+  const altAllowed = altGoalEligible({ tileType: current.config.tileType, trackedStat: current.config.trackedStat });
+  const effectiveAlt = altAllowed ? altGoal : null;
   const config = useMemo(
-    () => (isTimedCap ? { ...current.config, timeThresholdSeconds: clockSeconds(capText) } : current.config),
-    [current.config, isTimedCap, capText],
+    () => ({
+      ...(isTimedCap ? { ...current.config, timeThresholdSeconds: clockSeconds(capText) } : current.config),
+      altGoal: effectiveAlt,
+    }),
+    [current.config, isTimedCap, capText, effectiveAlt],
   );
-  const autoLabel = titleAt(candidate, amount);
+  const matchedSuffix = altTitleSuffix(original.config.altGoal);
+  const plainTitle = titleAt(candidate, amount);
+  const autoLabel = (matchedSuffix && plainTitle.endsWith(matchedSuffix) ? plainTitle.slice(0, -matchedSuffix.length) : plainTitle) + altTitleSuffix(effectiveAlt);
   const effectiveLabel = (label ?? autoLabel).trim() || autoLabel;
   const how = howItCountsLine(config);
   const showTracking = teamPlay && supportsTrackingMode(config);
@@ -175,6 +186,16 @@ export default function ConfirmStep({
         </button>
       </div>
       {killable && <KillPicksField picks={picks} onChange={setPicks} />}
+      {effectiveAlt && (
+        <p className="text-sm text-foreground/85 mb-3" data-testid="either-or-sentence">
+          {eitherOrSentence({ verb: candidate.verb, noun: candidate.noun, amount: candidate.amountField ? amount : null }, effectiveAlt, trackingMode === 'individual' && supportsTrackingMode(config))}
+        </p>
+      )}
+      {altAllowed && (
+        <div className="mb-3">
+          <AltGoalField value={altGoal} onChange={setAltGoal} />
+        </div>
+      )}
       {isTimedCap && (
         <div className="flex flex-wrap items-center gap-2 text-sm mb-3">
           <label htmlFor="cap" className="text-text-muted">In under</label>

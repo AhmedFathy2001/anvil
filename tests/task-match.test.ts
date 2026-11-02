@@ -16,8 +16,10 @@ import {
   parseBulkLine,
   parseTaskQuery,
   screenshotCandidate,
+  splitEitherOr,
   type MatchContext,
 } from '../src/lib/taskMatch.ts';
+import { eitherOrSentence, GOTR_ENERGY_CAPS, GOTR_SEARCHES } from '../src/lib/altGoal.ts';
 import {
   BOSS_FAMILIES,
   RAID_OPTIONS,
@@ -485,4 +487,63 @@ test('monsters: not the cowhide, not a variant, and bosses / counters / raids st
   assert.equal(h.top.source, 'counter');
   // Typos reach monsters too, under the usual rules.
   assert.deepEqual(best('100 gargoyls', monsterCtx).top.config.targetNpcs, ['Gargoyle']);
+});
+
+// ─── Either / or (lib/altGoal) ───────────────────────────────────────────────────────────────
+
+test('the clan’s GOTR line is ONE ready tile: rare rewards, or 100 searches paid with event energy', () => {
+  const { top, verdict } = best('A GOTR rare reward OR 100 searches with event-earned energy');
+  assert.equal(verdict.status, 'ready');
+  assert.equal(top.config.tileType, 'drop');
+  assert.deepEqual(top.config.trackedItemIds, [26813, 26901]); // the rares this test page carries
+  assert.equal(top.config.requiredAmount, 1);
+  assert.deepEqual(top.config.altGoal, { targets: [GOTR_SEARCHES], amount: 100, capBy: [...GOTR_ENERGY_CAPS] });
+  assert.equal(top.flow, 'confirm');
+  assert.equal(top.title, 'Any GOTR rare reward or 100 searches');
+  assert.equal(
+    eitherOrSentence({ verb: top.verb, noun: top.noun, amount: top.amountField ? top.amount : null }, top.config.altGoal!),
+    'Done when the team gets any GOTR rare reward — or does 100 reward searches paid for with energy earned during the event.',
+  );
+  // Saved as-is by both write paths.
+  const draft = { label: top.title, config: top.config, points: 5, trackingMode: 'team' as const };
+  assert.deepEqual(draftPayload(draft, 1, null).altGoal, top.config.altGoal);
+  assert.deepEqual(draftToCsvRow(draft).altGoal, top.config.altGoal);
+});
+
+test('either/or: other spellings of the energy cap, and no cap when it isn’t said', () => {
+  const long = best('A Guardians of the Rift rare reward OR 100 reward searches using energy earned during the event').top;
+  assert.deepEqual(long.config.altGoal?.capBy, [...GOTR_ENERGY_CAPS]);
+  assert.equal(long.config.altGoal?.amount, 100);
+  const plain = best('GOTR rare reward or 150 searches').top;
+  assert.deepEqual(plain.config.altGoal, { targets: [GOTR_SEARCHES], amount: 150 });
+  // The bare first half still asks which items (unchanged), with the rares on offer.
+  const bare = best('GOTR rare reward').verdict;
+  assert.equal(bare.status, 'pick');
+  assert.ok(bare.choices.some((c) => c.key === 'clog-rare-Guardians of the Rift'));
+});
+
+test('either/or: "X or N Y" for other kinds', () => {
+  const withMonsters: MatchContext = { ...ctx, monsters: ['Cow', 'Chicken', 'Cow calf'] };
+  const kills = best('100 cows or 50 chickens', withMonsters);
+  assert.equal(kills.verdict.status, 'ready');
+  assert.deepEqual(kills.top.config.targetNpcs, ['Cow']);
+  assert.equal(kills.top.config.requiredAmount, 100);
+  assert.deepEqual(kills.top.config.altGoal, { targets: ['Chicken'], amount: 50 });
+  assert.equal(kills.top.title, '100 Cow kills or 50 Chicken kills');
+
+  const shard = best('Zenyte shard or 25 Hunter rumours');
+  assert.equal(shard.verdict.status, 'ready');
+  assert.equal(shard.top.config.tileType, 'drop');
+  assert.deepEqual(shard.top.config.trackedItemIds, [19529]);
+  assert.deepEqual(shard.top.config.altGoal, { targets: ['Hunter Rumours'], amount: 25 });
+});
+
+test('either/or never splits a kills list, and needs a tile that completes from submissions', () => {
+  // No amount after "or": one tile counting both.
+  assert.equal(best('gauntlet or cg').top.config.altGoal, undefined);
+  assert.equal(best('25 callisto or artio').top.config.altGoal, undefined);
+  // A hiscores KC tile can't carry an alternative.
+  for (const c of best('100 zulrah or 50 herbiboar').cands) assert.equal(c.config.altGoal, undefined);
+  assert.deepEqual(splitEitherOr('A GOTR rare reward OR 100 searches'), { primary: 'A GOTR rare reward', alt: '100 searches' });
+  assert.equal(splitEitherOr('gauntlet or cg'), null);
 });
