@@ -29,7 +29,7 @@ test('every entry is well-formed', () => {
 });
 
 test('plugin wire shape carries exactly what GameValueCounters.Entry reads', () => {
-  const allowed = new Set(['name', 'sources', 'direction', 'confirmed', 'maxDelta', 'changes', 'unless']);
+  const allowed = new Set(['name', 'sources', 'direction', 'confirmed', 'maxDelta', 'balance', 'changes', 'unless']);
   const wire = pluginGameCounters();
   assert.equal(wire.length, GAME_COUNTERS.length);
   for (const w of wire) {
@@ -67,5 +67,19 @@ test('new chat counters have their patterns in the site copy of the catalog', ()
   const keys = new Set(catalog.patterns.map((p) => p.key));
   for (const k of ['counter.gotr_energy', 'counter.reward_search', 'counter.vale_offerings', 'counter.sunstone_golem', 'counter.doom_delve']) {
     assert.ok(keys.has(k), k);
+  }
+});
+
+test('every entry has a per-action ceiling; balances never on resetting counters', () => {
+  for (const c of GAME_COUNTERS) {
+    // The ceiling is what stops a var that arrives late after login from crediting the whole value.
+    assert.ok(c.maxDelta != null && c.maxDelta > 0 && c.maxDelta <= 200, `${c.name} needs a real-action maxDelta`);
+    if (c.balance) assert.notEqual(c.direction, 'decrease', `${c.name}: balance guard is for earned points`);
+  }
+  for (const n of ['Tithe Farm points', "Giants' Foundry reputation"]) {
+    assert.equal(GAME_COUNTERS.find((c) => c.name === n)?.balance, true, n);
+  }
+  for (const c of GAME_COUNTERS.filter((c) => c.name.startsWith('Slayer') || c.name.startsWith('Wintertodt'))) {
+    assert.ok(!c.balance, `${c.name} legitimately rises from 0`);
   }
 });

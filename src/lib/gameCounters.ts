@@ -31,8 +31,18 @@ export type GameCounter = {
   direction?: 'increase' | 'decrease';
   /** False until checked in game: credits flagged 'unverified_counter', chip marked beta. */
   confirmed: boolean;
-  /** Largest single per-source jump credited; bigger is a resync, re-baselined. Plugin default 1000. */
+  /**
+   * Largest single per-source jump credited; bigger is a resync, re-baselined. Plugin default 1000.
+   * Set it to ONE real action's ceiling: it is also what keeps a var that arrives late after login
+   * (0, then the whole balance) from being credited.
+   */
   maxDelta?: number;
+  /**
+   * A points balance: a rise FROM 0 is the value arriving late, not points earned, so it re-baselines.
+   * Costs a player sitting on exactly 0 their first action; never set it where 0 → small is normal
+   * (streaks that reset, a reward pool that empties).
+   */
+  balance?: boolean;
   /** Count 1 per tick on which any source moved (one task bumping two streak vars counts once). */
   changes?: boolean;
   /** Skip a tick on which any of these moved the same way. */
@@ -55,12 +65,16 @@ const DOOM_LEVELS: { label: string; source: GameValueSource }[] = [
 
 export const GAME_COUNTERS: GameCounter[] = [
   // Points balances: every rise is points earned; buying from the shop lowers it and is ignored.
-  { name: 'Tithe Farm points', group: 'Skilling', note: 'Tithe Farm reward points earned (the HUD balance; spending doesn’t subtract)', sources: [varbit(4893)], confirmed: true },
-  { name: "Giants' Foundry reputation", group: 'Skilling', note: 'Giants’ Foundry reputation earned (spending doesn’t subtract)', sources: [varp(3436)], confirmed: true },
+  // Ceilings (wiki): a sack takes at most 100 fruit per deposit at 1 point per 3 fruit + 2 for the
+  // 100th → 35; Foundry reputation per sword = its final quality, at most 199.
+  { name: 'Tithe Farm points', group: 'Skilling', note: 'Tithe Farm reward points earned (the HUD balance; spending doesn’t subtract)', sources: [varbit(4893)], maxDelta: 40, balance: true, confirmed: true },
+  { name: "Giants' Foundry reputation", group: 'Skilling', note: 'Giants’ Foundry reputation earned (spending doesn’t subtract)', sources: [varp(3436)], maxDelta: 200, balance: true, confirmed: true },
   // WINT_REWARD_POOL: rewards banked in the cart. A big search claims 5 at once, which is why the
   // loot line can't count claims.
-  { name: 'Wintertodt rewards earned', group: 'Skilling', note: 'Reward rolls banked in the Wintertodt reward cart', sources: [varbit(11435)], confirmed: false },
-  { name: 'Wintertodt rewards claimed', group: 'Skilling', note: 'Reward rolls taken out of the Wintertodt reward cart (a big search takes 5)', sources: [varbit(11435)], direction: 'decrease', confirmed: false },
+  // A round owes 2 rewards at 500 points plus 1 per further 500 (wiki); ~13,500 points is a very high
+  // solo round → ~28, so 30. A big search takes 5. NOT a balance: the cart emptying to 0 is normal.
+  { name: 'Wintertodt rewards earned', group: 'Skilling', note: 'Reward rolls banked in the Wintertodt reward cart', sources: [varbit(11435)], maxDelta: 30, confirmed: false },
+  { name: 'Wintertodt rewards claimed', group: 'Skilling', note: 'Reward rolls taken out of the Wintertodt reward cart (a big search takes 5)', sources: [varbit(11435)], direction: 'decrease', maxDelta: 5, confirmed: false },
   // Slayer: one completion per tick. A Mortimer or Krystilia task may or may not ALSO bump the main
   // streak — "other masters" excludes a tick where either of theirs moved, so it is right either way.
   // A streak reset (Turael/Spria skip) drops a value to 0 and is ignored like any spend.
@@ -84,6 +98,7 @@ export type PluginGameCounter = {
   direction: 'increase' | 'decrease';
   confirmed: boolean;
   maxDelta?: number;
+  balance?: boolean;
   changes?: boolean;
   unless?: GameValueSource[];
 };
@@ -95,6 +110,7 @@ export function pluginGameCounters(): PluginGameCounter[] {
     direction: c.direction ?? 'increase',
     confirmed: c.confirmed,
     ...(c.maxDelta != null ? { maxDelta: c.maxDelta } : {}),
+    ...(c.balance ? { balance: true } : {}),
     ...(c.changes ? { changes: true } : {}),
     ...(c.unless?.length ? { unless: c.unless } : {}),
   }));
