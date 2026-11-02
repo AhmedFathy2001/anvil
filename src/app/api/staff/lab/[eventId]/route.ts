@@ -5,6 +5,7 @@ import { db } from '@/db';
 import { completions, eventParticipants, labLog, submissions, teams, tiles } from '@/db/schema';
 import { CAN_WRITE, requirePlatformApi } from '@/lib/platformAccess';
 import { deleteLabSession, forgetLabSessions, labEvent, MAX_LAB_HOURS, resetLabSession, setLabSessionEnd } from '@/lib/lab';
+import { addLabTeam, labTeams, moveLabParticipant, setLabTeamRole, type TeamRole } from '@/lib/labTeams';
 
 // /api/staff/lab/<id> — one lab session: what is on it, what has been credited, and what its
 // characters pushed that was quarantined. PATCH runs the session controls; DELETE removes the session
@@ -79,6 +80,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ eve
     completions: done.map((c) => ({ tileId: c.tileId, completedAt: c.completedAt })),
     submissions: subs,
     log: logRows,
+    teams: await labTeams(event.id, gate.actor.user.userId),
   });
 }
 
@@ -87,7 +89,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
   if ('response' in gate) return gate.response;
   const event = await labEvent(Number((await params).eventId));
   if (!event) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  let body: { action?: unknown; hours?: unknown; participantId?: unknown };
+  let body: { action?: unknown; hours?: unknown; participantId?: unknown; teamId?: unknown; players?: unknown; role?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -118,6 +120,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ev
         .delete(eventParticipants)
         .where(and(eq(eventParticipants.id, body.participantId as number), eq(eventParticipants.eventId, event.id)));
       forgetLabSessions();
+      break;
+    }
+    case 'add-team':
+      await addLabTeam(gate.actor.user.userId, event.id, typeof body.players === 'number' ? body.players : 3);
+      break;
+    case 'move': {
+      const teamId = body.teamId === null ? null : Number.isInteger(body.teamId) ? (body.teamId as number) : undefined;
+      if (!Number.isInteger(body.participantId) || teamId === undefined) return NextResponse.json({ error: 'participantId, teamId' }, { status: 400 });
+      if (!(await moveLabParticipant(event.id, body.participantId as number, teamId))) return NextResponse.json({ error: 'Not on this board' }, { status: 400 });
+      break;
+    }
+    case 'team-role': {
+      const role = (['captain', 'staff', 'member'] as TeamRole[]).find((r) => r === body.role);
+      if (!Number.isInteger(body.teamId) || !role) return NextResponse.json({ error: 'teamId, role' }, { status: 400 });
+      if (!(await setLabTeamRole(event.id, gate.actor.user.userId, body.teamId as number, role))) return NextResponse.json({ error: 'Not on this board' }, { status: 400 });
       break;
     }
     default:

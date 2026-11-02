@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { safeReturnPath } from '@/lib/safe-redirect';
 import { originForHost, resolveClanFromRequest, sessionCookieDomain } from '@/lib/clanContext';
 import { publicOrigin } from '@/lib/request-origin';
+import { LAB_VIEW_AS_COOKIE } from '@/lib/auth';
 
 const SESSION_COOKIE = 'admin_session';
 
@@ -29,6 +30,8 @@ async function clear(request: Request) {
   const res = NextResponse.redirect(new URL(safeReturn, origin));
   const domain = sessionCookieDomain();
   res.cookies.set(SESSION_COOKIE, '', { path: '/', maxAge: 0, ...(domain ? { domain } : {}) });
+  // And any "view as a lab test user" riding on it (lib/auth).
+  res.cookies.set(LAB_VIEW_AS_COOKIE, '', { path: '/', maxAge: 0, ...(domain ? { domain } : {}) });
   return res;
 }
 

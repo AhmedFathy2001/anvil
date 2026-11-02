@@ -23,6 +23,7 @@ import { getClanDisplayName, getDiscordInviteUrl } from "@/lib/pluginConfig";
 import AnalyticsBeacon from "@/components/AnalyticsBeacon";
 import NumberInputGuard from "@/components/NumberInputGuard";
 import SiteNav from "@/components/SiteNav";
+import LabViewAsBanner from "@/components/LabViewAsBanner";
 import ShellGuard from "@/components/ShellGuard";
 import { countLiveTeamInvolvements } from "@/lib/myTeamNav";
 import { clanHasCoffer } from "@/lib/coffer";
@@ -280,6 +281,8 @@ export default async function RootLayout({
         <DialogProvider>
         {/* Catches a shell left over from the clan you were in a moment ago — see ShellGuard. */}
         <ShellGuard prefix={prefix} />
+        {/* Staff viewing as a lab test user: said on every page, with the way back. */}
+        {session?.labViewAs && <LabViewAsBanner name={session.labViewAs.name} />}
         {/* ONE NAV PER PLACE. The apex gets a rail of what the PLATFORM has; a clan keeps the top
             nav it always had. They were the same component until now, which is why the apex offered
             Events and Members — clan pages that 404 there because the apex has no roster. */}
