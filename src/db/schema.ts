@@ -3895,3 +3895,33 @@ export const momentReactions = pgTable('moment_reactions', {
   kind: text('kind').notNull(), // 'gz' | 'gold'
   createdAt: text('created_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
 }, (table) => [uniqueIndex('moment_reactions_one_each').on(table.momentId, table.userId, table.kind)]);
+
+// Game-mode event lines (lib/modeLines). Staff patterns that turn a game-mode world's chat line into
+// a post ("Relic unlocked: …"), tried before the built-ins, and the queue of lines no pattern knew,
+// one row per numbers-blanked template, counted, so the ones worth a pattern rise to the top.
+export const modeLinePatterns = pgTable('mode_line_patterns', {
+  id: serial('id').primaryKey(),
+  /** Null = every game mode. */
+  modeKey: text('mode_key'),
+  kind: text('kind').notNull(),
+  regex: text('regex').notNull(),
+  title: text('title').notNull().default(''),
+  note: text('note'),
+  updatedBy: integer('updated_by').references(() => users.id, { onDelete: 'set null' }),
+  updatedAt: text('updated_at').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+});
+
+export const modeLineSamples = pgTable('mode_line_samples', {
+  id: serial('id').primaryKey(),
+  modeKey: text('mode_key').notNull(),
+  template: text('template').notNull(),
+  /** The most recent real line with this template. */
+  sample: text('sample').notNull(),
+  count: integer('count').notNull().default(1),
+  /** It went out as a generic milestone post (lib/modeLines). */
+  autoPosted: boolean('auto_posted').notNull().default(false),
+  firstSeen: text('first_seen').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+  lastSeen: text('last_seen').default(sql`to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS')`).notNull(),
+}, (t) => [
+  uniqueIndex('mode_line_samples_mode_template_unique').on(t.modeKey, t.template),
+]);
