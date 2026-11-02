@@ -10,6 +10,8 @@ import { weeklyMetricLabel } from '@/lib/constants';
 // Returns the ranked standings for a weekly competition (the active one when no id is given),
 // for the RuneLite plugin's Anvil tab. Unauthenticated — leaderboards are public within a clan.
 // Capped at the top 50 to keep the payload small; the plugin highlights the local player by RSN.
+// `?rsn=` adds that player's own row as `you`, wherever they rank: a big week has more players than
+// the cap, and someone on +0 sorted past it read as "not on the board" when they were.
 //
 // "Public" meant something narrower when a deployment was one clan. Both lookups here are now
 // scoped to the clan the request names: `?id=` was a plain IDOR — any competition id on the
@@ -58,14 +60,19 @@ export async function GET(request: Request) {
   }
 
   const board = computeLeaderboard([...byRsn.values()]);
-  const entries = board.slice(0, MAX_ENTRIES).map((e, i) => ({
+  const row = (e: (typeof board)[number], i: number) => ({
     rank: i + 1,
     rsn: e.rsn,
     // Clamp to >= 0: a not-yet-fetched / unranked participant has currentValue null, which
     // computeLeaderboard treats as 0, yielding a spurious negative gain (0 - baseline). You
     // can't lose KC/XP, so floor it at 0.
     gained: Math.max(0, e.gained),
-  }));
+  });
+  const entries = board.slice(0, MAX_ENTRIES).map(row);
+  const norm = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase();
+  const wanted = norm(searchParams.get('rsn') ?? '');
+  const at = wanted ? board.findIndex((e) => norm(e.rsn ?? '') === wanted) : -1;
+  const you = at >= 0 ? row(board[at], at) : null;
 
   return NextResponse.json({
     competition: {
@@ -81,5 +88,6 @@ export async function GET(request: Request) {
     },
     total: board.length,
     entries,
+    you,
   });
 }
