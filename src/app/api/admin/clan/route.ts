@@ -11,7 +11,9 @@ import { atLeast } from '@/lib/clanRoles';
 // GET — list all clan members (active + departed) for the admin roster view.
 export async function GET(request: Request) {
   const user = await verifyUser();
-  if (!user || (!atLeast(user.role, 'admin') && user.role !== 'moderator')) {
+  // Moderator tier and up. Treasurer TIES with moderator in lib/clanRoles but is money-only, and
+  // this is a moderation surface, so it stays out — explicitly, as it always was.
+  if (!user || !atLeast(user.role, 'moderator') || user.role === 'treasurer') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

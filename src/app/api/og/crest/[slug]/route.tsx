@@ -1,6 +1,7 @@
 import { resolveClanBySlug } from '@/lib/clanContext';
 import { getClanDisplayName } from '@/lib/pluginConfig';
-import { clanMark } from '@/lib/crestImage';
+import { clanMark, markRateLimited } from '@/lib/crestImage';
+import { cardParam } from '@/lib/ogKit';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,9 +12,12 @@ export const dynamic = 'force-dynamic';
  * /api/og/clan/[slug]. An unknown slug falls back to a neutral Anvil mark rather than 404ing, so an
  * embed pointing here never shows a broken image.
  */
-export async function GET(_request: Request, { params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  const clan = await resolveClanBySlug(slug);
+export async function GET(request: Request, { params }: { params: Promise<{ slug: string }> }) {
+  const limited = await markRateLimited(request, 'crest-slug');
+  if (limited) return limited;
+  // A slug is short; anything longer is not one, and is not worth a lookup.
+  const slug = cardParam((await params).slug, 64);
+  const clan = slug ? await resolveClanBySlug(slug) : null;
   const name = clan ? await getClanDisplayName(clan.id, clan.name) : 'Anvil';
   return clanMark(name, clan?.logoUrl ?? null);
 }

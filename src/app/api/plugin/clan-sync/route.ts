@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { findOrCreateAccount, findOrCreateSeat, updateAccountOfSeat } from '@/lib/roster';
 import { isBannedFromClan } from '@/lib/clanBans';
 import { memberSeatElsewhere } from '@/lib/guestAdmission';
-import { claimFromRoster, verificationOf } from '@/lib/clanVerification';
+import { claimFromRoster, confirmOwnerTier, isOwnerTierRank, verificationOf } from '@/lib/clanVerification';
 import { db } from '@/db';
 import { getSetting, setSetting } from '@/lib/settings';
 import { resolvePluginClan } from '@/lib/auth';
@@ -19,7 +19,7 @@ import { capMessage, newMemberAllowance, syncCapGrace } from '@/lib/member-cap';
 import { getInGameClanName } from '@/lib/pluginConfig';
 import { log } from '@/lib/logger';
 import { recordJoinDates } from '@/lib/rosterJoinDates';
-import { accountChanged, seatChanged, departureFor, lastSeenIsFresh, rosterReadVerdict } from '@/lib/rosterSync';
+import { accountChanged, seatChanged, departureFor, lastSeenIsFresh, returnFields, rosterReadVerdict } from '@/lib/rosterSync';
 
 interface IncomingMember {
   rsn: string;
@@ -115,15 +115,28 @@ export async function POST(request: Request) {
   //
   // The roster payload is self-attesting: the plugin reads the member list out of the game, and the
   // person pushing it is IN that list with their rank. So the server can ask a question only a real
-  // member passes — "are you in the roster you just sent, holding an owner-tier rank?" — using
-  // nothing the client did not already have.
+  // member passes — "are you in the roster you just sent?" (any rank; an owner-tier rank also
+  // outranks a lower-rank verification elsewhere when the holder's own roster corroborates it, see
+  // lib/clanVerification) — using nothing the client did not already have.
   //
   // The pusher is identified by their TOKEN, which names a person, and matched against the roster by
   // their accounts. The payload does not carry the local player's account hash today; when the
   // plugin sends it, that becomes the stronger match.
   const verification = await verificationOf(clan.id);
 
-  if (!verification.verified) {
+  if (verification.verified) {
+    // An owner-tier sync CONFIRMS a verification a lower rank made, so the name stops being open to
+    // an owner-tier takeover from another Anvil clan (lib/clanVerification). Cheap and idempotent:
+    // it writes only the first time an owner or deputy owner syncs a lower-rank-verified clan.
+    const byRsn = new Map(members.map((m) => [normalizeRsn(m.rsn ?? ''), m.rank ?? null]));
+    const mine = await db
+      .select({ rsnNormalized: accounts.rsnNormalized, id: accounts.id, verifiedAt: accounts.verifiedAt })
+      .from(accounts)
+      .innerJoin(users, eq(users.playerId, accounts.playerId))
+      .where(eq(users.id, auth.userId));
+    const owner = mine.find((a) => a.verifiedAt && isOwnerTierRank(byRsn.get(a.rsnNormalized)));
+    if (owner) await confirmOwnerTier(clan.id, byRsn.get(owner.rsnNormalized) ?? null, owner.id).catch(() => {});
+  } else {
     // VERIFIED ACCOUNTS ONLY may claim a clan name.
     //
     // The proof here is practical, not cryptographic — a modified client can send any roster it
@@ -755,12 +768,13 @@ export async function POST(request: Request) {
     const fields: { name: string; value: string }[] = [];
     if (joined.length) fields.push({ name: `Joined (${joined.length})`, value: joined.map((c) => c.rsn).join(', ').slice(0, 1024) });
     if (left.length) fields.push({ name: `Left (${left.length})`, value: left.map((c) => c.rsn).join(', ').slice(0, 1024) });
-    if (returned.length) fields.push({ name: `Returned (${returned.length})`, value: returned.map((c) => c.rsn).join(', ').slice(0, 1024) });
+    // Rejoined-and-re-ranked members are folded into Returned (lib/rosterSync returnFields).
+    const { returnedField, rankChanged } = returnFields(returned, changes.filter((c) => c.type === 'rank_changed'));
+    if (returnedField) fields.push(returnedField);
     if (renamed.length) fields.push({
       name: `Renamed (${renamed.length})`,
       value: renamed.map((c) => `${c.oldRsn ?? '?'} → ${c.rsn}`).join('\n').slice(0, 1024),
     });
-    const rankChanged = changes.filter((c) => c.type === 'rank_changed');
     if (rankChanged.length) fields.push({
       name: `Rank changed (${rankChanged.length})`,
       value: rankChanged.map((c) => `${c.rsn}: ${c.oldRank ?? '—'} → ${c.newRank ?? '—'}`).join('\n').slice(0, 1024),

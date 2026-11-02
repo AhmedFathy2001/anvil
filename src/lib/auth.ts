@@ -23,6 +23,8 @@ import { noteNetwork } from '@/lib/integrityNetwork';
 import { notePluginVersion } from '@/lib/pluginSeen';
 import { lastSeenIsFresh } from '@/lib/rosterSync';
 import { labParticipantScope } from '@/lib/lab';
+import { admit } from '@/lib/guestAdmission';
+import { isBannedFromClan } from '@/lib/clanBans';
 
 const ADMIN_SESSION_SECRET = requireSecret('ADMIN_SESSION_SECRET', 'dev-admin-secret');
 const CAPTAIN_SESSION_SECRET = requireSecret('CAPTAIN_SESSION_SECRET', 'dev-captain-secret');
@@ -888,13 +890,20 @@ export function autoClaimAllowed(
 }
 
 /**
- * The owner of this character is playing, pointed at this clan. Make sure the clan can see that.
+ * The owner of this character is playing, pointed at this clan. Make sure the clan can see that —
+ * without this becoming a side door onto the roster.
  *
- * A live seat is stamped and left alone — a member stays a member, and a guest stays a guest. A
- * DEPARTED seat comes back as a guest rather than as whatever it was: the in-game roster dropped
- * them, so member is exactly what they are not, and reviving the old kind would quietly re-admit
- * somebody the clan removed. No seat at all becomes a guest, the same state the unclaimed path
- * already creates for a character it links here.
+ * - A LIVE seat is stamped and left alone — a member stays a member, and a guest stays a guest.
+ * - A DEPARTED seat comes back as a guest rather than as whatever it was (the in-game roster dropped
+ *   them, so member is exactly what they are not) — and only when the person is not BANNED from the
+ *   clan. A ban empties a person's seats; reviving one because they logged in would undo it.
+ * - NO seat: only in the person's HOME clan, i.e. where they already hold a live member seat on
+ *   another character — their alts do turn up there. Even then it goes through `admit()`, the one
+ *   door onto a roster, so the clan's guest policy and bans apply; under `approval` nothing is filed
+ *   from a background play (no request spam) and the alt simply is not seated. In a clan where the
+ *   person is only a guest, or not seated at all, a play never seats another character. That used
+ *   to happen via findOrCreateSeat directly, bypassing policy and bans for whatever clan the plugin
+ *   resolved.
  *
  * `source: 'admin'` and `source: 'manual'` seats are left alone entirely, in both directions. An
  * admin placed that seat by hand, including the decision to end it, and `manual` is the mark a
@@ -905,7 +914,12 @@ export function autoClaimAllowed(
 /** How stale `last_seen_in_clan` may get before a plugin play restamps it. */
 export const LAST_SEEN_REFRESH_MS = 15 * 60_000;
 
-async function seatOwnedCharacterAsGuest(clanId: number, accountId: number, nowIso: string): Promise<void> {
+async function seatOwnedCharacterAsGuest(
+  clanId: number,
+  accountId: number,
+  playerId: number,
+  nowIso: string,
+): Promise<void> {
   const [seat] = await db
     .select({
       id: clanMemberships.id,
@@ -919,8 +933,25 @@ async function seatOwnedCharacterAsGuest(clanId: number, accountId: number, nowI
     .limit(1);
 
   if (!seat) {
-    const seatId = await findOrCreateSeat(clanId, accountId, { kind: 'guest' });
-    await db.update(clanMemberships).set({ lastSeenInClan: nowIso }).where(eq(clanMemberships.id, seatId));
+    // Home clan only: a live MEMBER seat on another of this person's characters.
+    const [home] = await db
+      .select({ id: clanMemberships.id })
+      .from(clanMemberships)
+      .innerJoin(accounts, eq(accounts.id, clanMemberships.accountId))
+      .where(
+        and(
+          eq(clanMemberships.clanId, clanId),
+          eq(accounts.playerId, playerId),
+          eq(clanMemberships.kind, 'member'),
+          isNull(clanMemberships.leftAt),
+        ),
+      )
+      .limit(1);
+    if (!home) return;
+    const admission = await admit({ clanId, accountId, source: 'plugin', fileRequest: false });
+    if (admission.outcome === 'seated') {
+      await db.update(clanMemberships).set({ lastSeenInClan: nowIso }).where(eq(clanMemberships.id, admission.seatId));
+    }
     return;
   }
   if (seat.source === 'admin' || seat.source === 'manual') return;
@@ -933,6 +964,7 @@ async function seatOwnedCharacterAsGuest(clanId: number, accountId: number, nowI
     }
     return;
   }
+  if (await isBannedFromClan(clanId, playerId)) return;
   await db
     .update(clanMemberships)
     .set({ kind: 'guest', leftAt: null, lastSeenInClan: nowIso })
@@ -1015,12 +1047,13 @@ async function autoLinkOrSuggestOnPlay(
     // the clan's surfaces and the clan had no way to tell they were still around.
     //
     // Seating them as a guest is the honest record of what just happened. Only for the owner — a
-    // character somebody else claimed is not this login's to seat anywhere — and never as a member,
-    // which stays the in-game roster's word. See seatOwnedCharacterAsGuest.
+    // character somebody else claimed is not this login's to seat anywhere — never as a member,
+    // which stays the in-game roster's word, and never past a ban or the clan's guest policy. A new
+    // seat only in their home clan. See seatOwnedCharacterAsGuest.
     if (ownedByRsn?.claimedAt != null) {
       const mine = await personOf(userId);
       if (mine != null && ownedByRsn.playerId === mine) {
-        await seatOwnedCharacterAsGuest(clanId, ownedByRsn.id, nowIso);
+        await seatOwnedCharacterAsGuest(clanId, ownedByRsn.id, mine, nowIso);
       } else if (accountHash && ownedByRsn.accountHash === accountHash) {
         // SOMEBODY ELSE'S, really logged in through this login's plugin — siblings on one RuneLite, a
         // friend at this PC, or a wrong link. Ownership stays put; the sighting is what lets the owner

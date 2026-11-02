@@ -50,8 +50,9 @@ export type AdmitResult =
   | { outcome: 'requested'; requestId: number }
   /** Already asked; still waiting. */
   | { outcome: 'pending'; requestId: number }
-  /** The clan takes no guests, or has barred this person. */
-  | { outcome: 'refused'; reason: 'closed' | 'banned' };
+  /** The clan takes no guests, or has barred this person — or (`fileRequest: false`) it would
+   *  need a join request that the caller chose not to file. */
+  | { outcome: 'refused'; reason: 'closed' | 'banned' | 'approval' };
 
 /**
  * Get this account a seat in this clan, or a request for one, or neither.
@@ -69,6 +70,12 @@ export async function admit(opts: {
   accountId: number;
   source?: 'web' | 'plugin';
   message?: string | null;
+  /**
+   * False for BACKGROUND callers (a plugin play seating an alt): under `approval` they get
+   * `refused/approval` instead of a join request nobody asked for — staff would otherwise see a
+   * request every time somebody logged in a character.
+   */
+  fileRequest?: boolean;
 }): Promise<AdmitResult> {
   const { clanId, accountId } = opts;
 
@@ -118,6 +125,7 @@ export async function admit(opts: {
   }
 
   // approval — a request, and only one.
+  if (opts.fileRequest === false) return { outcome: 'refused', reason: 'approval' };
   const live = await db.query.clanJoinRequests.findFirst({
     where: and(
       eq(clanJoinRequests.clanId, clanId),

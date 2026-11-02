@@ -8,11 +8,13 @@ import { listBoards, publishFromEvent } from '@/lib/libraryBoards';
 export const dynamic = 'force-dynamic';
 
 // The board library: Anvil's boards and every published community board, plus this clan's own
-// (hidden ones included, so it can republish). Read by anyone who can make events.
+// (hidden ones included, so it can republish). Read by anyone who can make events — admins
+// (POST /api/events is verifyAdmin; the picker and the settings panel are admin-only). An explicit
+// allow, not a deny-list of 'member', which let every other role string through.
 
 export async function GET() {
   const session = await verifyUser();
-  if (!session || session.role === 'member') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!session || !atLeast(session.role, 'admin')) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const clan = await requireClan();
   const [published, mine] = await Promise.all([listBoards(), listBoards({ includeHidden: true, clanId: clan.id })]);
   const seen = new Set(published.map((b) => b.id));
