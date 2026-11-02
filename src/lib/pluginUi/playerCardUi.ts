@@ -47,6 +47,16 @@ const CLUE_ITEMS: Record<string, number> = {
   cluesBeginner: 23182, cluesEasy: 2677, cluesMedium: 2801, cluesHard: 2722, cluesElite: 12073, cluesMaster: 19835,
 };
 
+/**
+ * Activities whose site key the plugin can't fold onto RuneLite's hiscore entry ("bhHunter" is not
+ * "Bounty Hunter - Hunter"), so the card names the entry outright. The legacy ladders share the
+ * current ones' emblem — RuneLite has no separate sprite for them.
+ */
+const HISCORE_NAMES: Record<string, string> = {
+  bhHunter: 'Bounty Hunter - Hunter', bhHunterLegacy: 'Bounty Hunter - Hunter',
+  bhRogue: 'Bounty Hunter - Rogue', bhRogueLegacy: 'Bounty Hunter - Rogue',
+};
+
 /** A picture per log category — the thing people think of when they think of that shelf. */
 const CATEGORY_ITEMS: Record<string, number> = {
   Bosses: 11832, // Bandos chestplate
@@ -151,7 +161,7 @@ export function playerCardUi(c: PlayerCard, opts: CardOptions): Node {
   if (c.activities.length) {
     const cells = c.activities.map((a) => {
       const name = a.shortLabel || a.label;
-      const pic = CLUE_ITEMS[a.key] ? icon({ item: CLUE_ITEMS[a.key] }) : icon({ boss: a.key });
+      const pic = CLUE_ITEMS[a.key] ? icon({ item: CLUE_ITEMS[a.key] }) : icon({ boss: HISCORE_NAMES[a.key] ?? a.key });
       return countCell(pic, name, a.score, `${a.label} — ${fmt(a.score)}`, opens(cluePage(a.key)));
     });
     sections.push({ label: 'Clues', c: card([{ t: 'grid', cols: 3, gap: 2, vgap: 2, c: cells }]) });
