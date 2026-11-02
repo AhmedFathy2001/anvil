@@ -1577,7 +1577,7 @@ export const characterReports = pgTable('character_reports', {
   // For a 'rename': the name the character should take. Staff apply it in one click
   // (lib/characterRename, which also absorbs a duplicate a roster sync made under that name).
   requestedRsn: text('requested_rsn'),
-  status: text('status').notNull().default('open'), // 'open' | 'resolved' | 'dismissed'
+  status: text('status').notNull().default('open'), // 'open' | 'applied' | 'resolved' | 'dismissed' | 'reverted' (lib/characterReports)
   resolution: text('resolution'),
   resolvedByUserId: integer('resolved_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   resolvedAt: text('resolved_at'),

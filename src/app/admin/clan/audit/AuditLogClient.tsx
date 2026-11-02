@@ -70,6 +70,11 @@ const EVENT_LABELS: Record<string, { label: string; color: string }> = {
   fee_confirmed: { label: 'Fee confirmed', color: 'text-accent-green-light' },
   feature_toggled: { label: 'Feature switched', color: 'text-gold' },
   settings_changed: { label: 'Settings changed', color: 'text-text-muted' },
+  claim_request_approved: { label: 'Claim linked', color: 'text-accent-green-light' },
+  claim_request_forwarded: { label: 'Claim sent to Anvil', color: 'text-gold' },
+  claim_request_rejected: { label: 'Claim turned down', color: 'text-red-400' },
+  character_report_applied: { label: "Owner's report done", color: 'text-gold' },
+  character_report_reverted: { label: 'Reverted by Anvil', color: 'text-red-400' },
 };
 
 export default function AuditLogClient({

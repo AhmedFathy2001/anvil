@@ -10,6 +10,9 @@ import Checkbox from '@/components/Checkbox';
 import { useDialog } from '@/components/Confirm';
 import GuideLink from '@/components/GuideLink';
 import { ROLE_BLURB } from '@/lib/clanRoles';
+import type { ClanReportView } from '@/lib/characterReports';
+
+import AnvilReportStatus from './AnvilReportStatus';
 
 /**
  * A way to actually reach this person.
@@ -66,6 +69,8 @@ interface ClanMember {
   effectiveDiscordId?: string | null;
   provisional: number;
   pendingRole: PendingRole | null;
+  /** The newest report this clan sent Anvil about the character, and where it stands. */
+  anvilReport?: ClanReportView | null;
 }
 
 // Staff roles that can be pre-assigned to a roster member (applied when they verify). Mirrors the
@@ -608,24 +613,60 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
   }
 
   // "Report to Anvil" — the one thing a clan can do about a CHARACTER a player owns (wrong owner, a
-  // rename or duplicate to merge). Who owns a character is the platform's call: it is that player's in
-  // every clan they play in, so one clan's staff do not get to rewrite it (lib/characterReports).
-  async function reportToAnvil(member: ClanMember) {
-    const text = await ask({
-      title: `Report ${member.rsn} to Anvil`,
-      label: 'What is wrong? (wrong owner, renamed, duplicate of another entry…)',
-      required: true,
-      multiline: true,
-      confirmLabel: 'Send to Anvil',
-    });
-    if (!text) return;
+  // rename, a duplicate). Who owns a character is the platform's call: it is that player's in every
+  // clan they play in (lib/characterReports). From the clan OWNER the change is made at once and
+  // Anvil double-checks it (lib/characterReportActions); the server says which happened.
+  async function reportToAnvil(member: ClanMember, kind: 'wrong_owner' | 'rename' | 'merge' | 'other') {
+    let requestedRsn: string | undefined;
+    let text: string | null;
+    if (kind === 'rename') {
+      const name = await ask({
+        title: `${member.rsn} was renamed in game`,
+        body: 'Their history, events and roster entry carry over to the new name.',
+        label: 'The new name',
+        required: true,
+        confirmLabel: 'Send',
+      });
+      if (!name) return;
+      requestedRsn = name.trim();
+      text = `Renamed in game to ${requestedRsn}.`;
+    } else {
+      text = await ask({
+        title:
+          kind === 'wrong_owner'
+            ? `${member.rsn} is linked to the wrong person`
+            : kind === 'merge'
+              ? `${member.rsn} is a duplicate`
+              : `Report ${member.rsn} to Anvil`,
+        body:
+          kind === 'wrong_owner'
+            ? 'The character is taken off them. Whoever really plays it can then link it.'
+            : undefined,
+        label:
+          kind === 'merge'
+            ? 'Which other entry is the same character?'
+            : kind === 'wrong_owner'
+              ? 'Why is it not theirs?'
+              : 'What is wrong?',
+        required: true,
+        multiline: true,
+        confirmLabel: 'Send',
+      });
+      if (!text) return;
+    }
     const res = await clanFetch('/api/admin/character-reports', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ seatId: member.id, kind: 'other', body: text }),
+      body: JSON.stringify({ seatId: member.id, kind, body: text, requestedRsn }),
     });
-    if (res.ok) notify(`Sent to Anvil. Staff will look at ${member.rsn}.`);
-    else notify((await res.json().catch(() => ({}))).error || 'Could not send the report', 'error');
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      notify(data.error || 'Could not send the report', 'error');
+      return;
+    }
+    if (data.applied) notify(`Done. Anvil will double-check ${member.rsn} and can undo it if something is wrong.`);
+    else notify(`Sent to Anvil.${data.why ? ` ${data.why}` : ` Staff will look at ${member.rsn}.`}`);
+    fetchAll();
   }
 
   async function removeMember(member: ClanMember) {
@@ -768,10 +809,29 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
       onClick: () => togglePromote(m),
     });
     items.push({ label: 'Remove from roster', onClick: () => removeMember(m), variant: 'danger' });
+    // Only a character someone has linked can have a wrong owner, and only a linked one needs Anvil
+    // to rename it (an unlinked entry is renamed with Rename above).
+    if (m.userId) {
+      items.push({
+        label: 'Report: wrong owner',
+        onClick: () => reportToAnvil(m, 'wrong_owner'),
+        title: 'Linked to the wrong person — the character is taken off them',
+      });
+      items.push({
+        label: 'Report: renamed in game',
+        onClick: () => reportToAnvil(m, 'rename'),
+        title: 'The character changed its name — history carries over to the new one',
+      });
+    }
     items.push({
-      label: 'Report to Anvil',
-      onClick: () => reportToAnvil(m),
-      title: 'Wrong owner, a rename or a duplicate — Anvil staff fix the character itself',
+      label: 'Report: duplicate',
+      onClick: () => reportToAnvil(m, 'merge'),
+      title: 'Two roster entries are the same character — Anvil joins them',
+    });
+    items.push({
+      label: 'Report something else',
+      onClick: () => reportToAnvil(m, 'other'),
+      title: 'Anything else about the character itself — Anvil staff look at it',
     });
     if (isAdmin && m.userId) {
       items.push({
@@ -1109,6 +1169,11 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
                         <PendingRoleBadge m={m} />
                       </div>
                     )}
+                    {m.anvilReport && (
+                      <div className="mt-1">
+                        <AnvilReportStatus report={m.anvilReport} showKind />
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-text-muted">{m.rank || '—'}</td>
                   <td className="px-4 py-3"><StatusBadge m={m} /></td>
@@ -1167,6 +1232,11 @@ export default function ClanRosterClient({ isAdmin }: { isAdmin: boolean }) {
                   {m.pendingRole && (
                     <div className="mt-1">
                       <PendingRoleBadge m={m} />
+                    </div>
+                  )}
+                  {m.anvilReport && (
+                    <div className="mt-1">
+                      <AnvilReportStatus report={m.anvilReport} showKind />
                     </div>
                   )}
                 </div>

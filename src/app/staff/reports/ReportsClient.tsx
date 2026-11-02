@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import ClanLink from '@/components/ClanLink';
+import { useDialog } from '@/components/Confirm';
 import LocalTime from '@/components/LocalTime';
 import { clanFetch } from '@/lib/clanFetch';
 import type { PersonHit } from '@/lib/platformView';
@@ -17,6 +18,7 @@ interface Report {
   status: string;
   resolution: string | null;
   createdAt: string;
+  resolvedAt: string | null;
   account: { id: number; rsn: string; playerId: number; ownerName: string | null; claimed: boolean; verificationMethod: string | null; provisional: boolean };
   clan: { name: string; slug: string } | null;
   reporter: string | null;
@@ -36,9 +38,16 @@ const STATUS_CLS: Record<string, string> = {
   open: 'bg-gold/15 text-gold',
   resolved: 'bg-accent-green/15 text-accent-green-light',
   dismissed: 'bg-brown-light text-text-muted',
+  applied: 'bg-sky-500/15 text-sky-300',
+  reverted: 'bg-red-500/15 text-red-400',
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  applied: 'applied — awaiting review',
 };
 
 export default function ReportsClient() {
+  const { confirm } = useDialog();
   const [items, setItems] = useState<Report[]>([]);
   const [filter, setFilter] = useState<'open' | 'all'>('open');
   const [loading, setLoading] = useState(true);
@@ -106,7 +115,9 @@ export default function ReportsClient() {
                 <span className="rounded-full bg-brown-light px-2 py-0.5 text-[10px] font-medium text-text-muted">
                   {KIND_LABEL[r.kind] ?? r.kind}
                 </span>
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_CLS[r.status] ?? ''}`}>{r.status}</span>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_CLS[r.status] ?? ''}`}>
+                  {STATUS_LABEL[r.status] ?? r.status}
+                </span>
               </div>
               <div className="mt-0.5 text-xs text-text-muted">
                 {r.account.claimed ? (
@@ -130,6 +141,55 @@ export default function ReportsClient() {
               </div>
               {r.body && <p className="mt-2 whitespace-pre-wrap text-sm text-text-muted">{r.body}</p>}
               {r.resolution && <p className="mt-2 text-xs text-accent-green-light">Outcome: {r.resolution}</p>}
+
+              {/* A clan OWNER's report, already carried out (lib/characterReportActions). Approve
+                  keeps it; Revert puts the character back exactly as it was. */}
+              {r.status === 'applied' && (
+                <div className="mt-3 space-y-2">
+                  <p className="text-xs text-sky-300">
+                    The clan owner&rsquo;s request was applied
+                    {r.resolvedAt ? (
+                      <>
+                        {' on '}
+                        <LocalTime date={r.resolvedAt} format="date" />
+                      </>
+                    ) : null}
+                    . Approve it, or revert to put the character back as it was.
+                  </p>
+                  <textarea
+                    id={`note-${r.id}`}
+                    rows={2}
+                    placeholder="Note for the clan (shown to them)…"
+                    className="w-full resize-y rounded border border-card-border bg-brown-dark px-2 py-1.5 text-xs focus:border-gold/40 focus:outline-none"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      disabled={busy === r.id}
+                      onClick={() => act(r, { id: r.id, status: 'resolved', resolution: note(r) || 'Approved' }, '/api/staff/character-reports', 'PATCH')}
+                      className="rounded-lg border border-accent-green/40 bg-accent-green/15 px-3 py-1.5 text-sm text-accent-green-light hover:bg-accent-green/25 disabled:opacity-50"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      disabled={busy === r.id}
+                      onClick={async () => {
+                        const text = note(r);
+                        const ok = await confirm({
+                          title: `Revert the change to ${r.account.rsn}?`,
+                          body: 'The character goes back to exactly how it was before the clan owner’s change. The clan sees it was reverted, with your note.',
+                          confirmLabel: 'Revert',
+                          tone: 'danger',
+                        });
+                        if (!ok) return;
+                        void act(r, { id: r.id, status: 'reverted', resolution: text || 'Reverted by Anvil staff' }, '/api/staff/character-reports', 'PATCH');
+                      }}
+                      className="rounded-lg border border-red-500/40 px-3 py-1.5 text-sm text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+                    >
+                      Revert
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {r.status === 'open' && (
                 <div className="mt-3 space-y-2">
