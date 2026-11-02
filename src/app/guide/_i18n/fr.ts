@@ -53,6 +53,12 @@ const fr: PartialGuideDict = {
       clear: 'Effacer la recherche',
     },
     cards: {
+      tiles: {
+        eyebrow: 'Pour les joueurs',
+        title: 'Règles et limites des cases',
+        blurb: 'Ce qu’une case attend de vous avant de commencer (un réglage du jeu, le plugin, un journal synchronisé, un classement aux hiscores) et ce qu’elle ne peut pas suivre.',
+        minutes: '~4 min',
+      },
       discord: {
         eyebrow: 'Pour qui gère le serveur',
         title: 'Anvil dans Discord',
@@ -2328,6 +2334,19 @@ const fr: PartialGuideDict = {
         },
       ],
     },
+  },
+
+  tiles: {
+    metaTitle: 'Règles et limites des cases — Anvil',
+    metaDescription:
+      'Ce que chaque type de case de bingo attend de vous (réglages du jeu, plugin RuneLite, collection log synchronisé, classement aux hiscores) et les limites de ce qu’elle peut suivre.',
+    eyebrow: 'Anvil · pour les joueurs',
+    title: 'Règles et limites des cases',
+    dek: 'Chaque case indique ce qu’elle attend de vous et ce qu’elle ne sait pas faire. Cette page explique chaque ligne ; les liens **Why?** d’une case mènent ici.',
+    needs: 'Requis',
+    limit: 'Bon à savoir',
+    checked: 'La case le vérifie pour vous',
+    englishOnly: 'Les règles ci-dessous sont en anglais pour l’instant, afin de toujours correspondre à ce que le site fait réellement.',
   },
 };
 

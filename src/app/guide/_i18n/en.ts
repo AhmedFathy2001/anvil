@@ -138,6 +138,13 @@ export const en = {
           'Clan-v-clan without collecting a single RSN by hand: one invite link per team, and a seat that lets their moderator run their own half.',
         minutes: '~5 min per team',
       },
+      tiles: {
+        eyebrow: 'For players',
+        title: 'Tile rules and limitations',
+        blurb:
+          'What a tile needs from you before you start (a game setting, the plugin, a synced log, a hiscores rank) and what it can’t track.',
+        minutes: '~4 min',
+      },
       commands: {
         eyebrow: 'For every member',
         title: 'Slash commands',
@@ -2309,6 +2316,22 @@ export const en = {
         tip: 'One of the clan’s game guides (raids, bossing, money making…): start typing its name and pick it from the list.',
       },
     } as Record<string, { examples: string[]; tip: string }>,
+  },
+
+  // /guide/tiles. Only the page's frame lives here: the entries themselves come from the registry
+  // the tiles read (lib/tileRequirements), in English, so the guide can never say something the
+  // site doesn't enforce. Each entry's anchor is its registry id — the tile's "Why?" links.
+  tiles: {
+    metaTitle: 'Tile rules and limitations — Anvil',
+    metaDescription:
+      'What each kind of bingo tile needs from you (game settings, the RuneLite plugin, a synced collection log, a hiscores rank) and the limits of what it can track.',
+    eyebrow: 'Anvil · for players',
+    title: 'Tile rules and limitations',
+    dek: 'Every tile lists what it needs from you and what it can’t do. This page explains each line; the **Why?** links on a tile land here.',
+    needs: 'Needs',
+    limit: 'Good to know',
+    checked: 'The tile checks this for you',
+    englishOnly: 'The rules below are in English for now, so they always match what the site actually does.',
   },
 };
 

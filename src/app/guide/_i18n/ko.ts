@@ -51,6 +51,12 @@ const ko: PartialGuideDict = {
       clear: '검색 지우기',
     },
     cards: {
+      tiles: {
+        eyebrow: '플레이어용',
+        title: '칸 규칙과 제한',
+        blurb: '시작하기 전에 칸이 필요로 하는 것(게임 설정, 플러그인, 동기화된 로그, 하이스코어 순위)과 추적할 수 없는 것.',
+        minutes: '약 4분',
+      },
       discord: {
         eyebrow: '서버를 운영하는 분께',
         title: 'Discord 속 Anvil',
@@ -2326,6 +2332,19 @@ const ko: PartialGuideDict = {
         tip: '클랜의 게임 가이드(레이드, 보스, 돈벌이 등) 중 하나: 이름을 입력하기 시작해 목록에서 고르세요.',
       },
     },
+  },
+
+  tiles: {
+    metaTitle: '칸 규칙과 제한 — Anvil',
+    metaDescription:
+      '빙고 칸 종류마다 필요한 것(게임 설정, RuneLite 플러그인, 동기화된 컬렉션 로그, 하이스코어 순위)과 추적할 수 있는 범위의 한계.',
+    eyebrow: 'Anvil · 플레이어용',
+    title: '칸 규칙과 제한',
+    dek: '모든 칸에는 필요한 것과 할 수 없는 것이 표시됩니다. 이 페이지는 각 항목을 설명하며, 칸의 **Why?** 링크가 여기로 연결됩니다.',
+    needs: '필요',
+    limit: '알아둘 점',
+    checked: '칸이 대신 확인해 줍니다',
+    englishOnly: '아래 규칙은 사이트의 실제 동작과 항상 일치하도록 당분간 영어로만 제공됩니다.',
   },
 };
 

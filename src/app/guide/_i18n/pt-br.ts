@@ -52,6 +52,12 @@ const ptBr: PartialGuideDict = {
       clear: 'Limpar a busca',
     },
     cards: {
+      tiles: {
+        eyebrow: 'Para jogadores',
+        title: 'Regras e limites das casas',
+        blurb: 'O que uma casa precisa de você antes de começar (uma configuração do jogo, o plugin, um log sincronizado, uma posição nos hiscores) e o que ela não consegue acompanhar.',
+        minutes: '~4 min',
+      },
       discord: {
         eyebrow: 'Para quem cuida do servidor',
         title: 'Anvil no Discord',
@@ -2308,6 +2314,19 @@ const ptBr: PartialGuideDict = {
         },
       ],
     },
+  },
+
+  tiles: {
+    metaTitle: 'Regras e limites das casas — Anvil',
+    metaDescription:
+      'O que cada tipo de casa do bingo precisa de você (configurações do jogo, o plugin do RuneLite, um collection log sincronizado, uma posição nos hiscores) e os limites do que ela consegue acompanhar.',
+    eyebrow: 'Anvil · para jogadores',
+    title: 'Regras e limites das casas',
+    dek: 'Cada casa mostra o que precisa de você e o que não consegue fazer. Esta página explica cada linha; os links **Why?** de uma casa levam para cá.',
+    needs: 'Precisa',
+    limit: 'Bom saber',
+    checked: 'A casa confere isso para você',
+    englishOnly: 'As regras abaixo estão em inglês por enquanto, para sempre baterem com o que o site realmente faz.',
   },
 };
 

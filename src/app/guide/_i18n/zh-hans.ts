@@ -50,6 +50,12 @@ const zhHans: PartialGuideDict = {
       clear: '清除搜索',
     },
     cards: {
+      tiles: {
+        eyebrow: '面向玩家',
+        title: '格子规则与限制',
+        blurb: '开始前格子需要你做什么（游戏设置、插件、已同步的收藏日志、高分榜排名），以及它无法追踪什么。',
+        minutes: '约 4 分钟',
+      },
       discord: {
         eyebrow: '给管理服务器的人',
         title: 'Discord 里的 Anvil',
@@ -2325,6 +2331,19 @@ const zhHans: PartialGuideDict = {
         tip: '公会的一篇游戏指南（团队副本、首领、赚钱等）：开始输入它的名字，然后从列表中选择。',
       },
     },
+  },
+
+  tiles: {
+    metaTitle: '格子规则与限制 — Anvil',
+    metaDescription:
+      '每种宾果格子需要你做什么（游戏设置、RuneLite 插件、已同步的收藏日志、高分榜排名），以及它能追踪的范围。',
+    eyebrow: 'Anvil · 面向玩家',
+    title: '格子规则与限制',
+    dek: '每个格子都会列出它需要你做什么、以及它做不到什么。本页解释每一条；格子上的 **Why?** 链接会跳到这里。',
+    needs: '需要',
+    limit: '须知',
+    checked: '格子会替你检查这一项',
+    englishOnly: '以下规则暂时只有英文版，以确保始终与网站的实际行为一致。',
   },
 };
 

@@ -52,6 +52,12 @@ const nl: PartialGuideDict = {
       clear: 'Zoekopdracht wissen',
     },
     cards: {
+      tiles: {
+        eyebrow: 'Voor spelers',
+        title: 'Regels en beperkingen van vakjes',
+        blurb: 'Wat een vakje van je nodig heeft voordat je begint (een game-instelling, de plugin, een gesynchroniseerde log, een hiscores-rang) en wat het niet kan bijhouden.',
+        minutes: '~4 min',
+      },
       discord: {
         eyebrow: 'Voor wie de server beheert',
         title: 'Anvil in Discord',
@@ -2327,6 +2333,19 @@ const nl: PartialGuideDict = {
         tip: 'Een van de spelgidsen van de clan (raids, bossing, money making…): begin de naam te typen en kies hem uit de lijst.',
       },
     },
+  },
+
+  tiles: {
+    metaTitle: 'Regels en beperkingen van vakjes — Anvil',
+    metaDescription:
+      'Wat elk soort bingovakje van je nodig heeft (game-instellingen, de RuneLite-plugin, een gesynchroniseerde collection log, een hiscores-rang) en waar de grenzen liggen van wat het kan bijhouden.',
+    eyebrow: 'Anvil · voor spelers',
+    title: 'Regels en beperkingen van vakjes',
+    dek: 'Elk vakje laat zien wat het van je nodig heeft en wat het niet kan. Deze pagina legt elke regel uit; de **Why?**-links op een vakje komen hier uit.',
+    needs: 'Nodig',
+    limit: 'Goed om te weten',
+    checked: 'Het vakje controleert dit voor je',
+    englishOnly: 'De regels hieronder zijn voorlopig in het Engels, zodat ze altijd kloppen met wat de site echt doet.',
   },
 };
 

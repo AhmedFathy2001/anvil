@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo, useContext } from "react";
 import LapCounterTip from "@/components/LapCounterTip";
+import TileBeforeYouStart from "@/components/TileBeforeYouStart";
 import { SKILLS, SKILL_LABELS, SKILL_ALIASES, BOSSES, DIARY_AREAS, DIARY_TIERS, CA_TIERS, RAID_MODE_VARIANTS, AGILITY_COURSES, SEPULCHRE_TARGETS, COUNTER_TARGETS, lapUnitNoun, canonicalAgilityCourse } from "@/lib/constants";
 import { HISCORES_ACTIVITIES } from "@/lib/hiscoresActivities";
 import Select from '@/components/Select';
@@ -4078,6 +4079,10 @@ function TileTrackingEditor({
         </div>
       </details>
       )}
+
+      {/* What players will need for this tile, as saved (lib/tileRequirements) — the same list the
+          member viewer shows. A part's needs are listed under its combo. */}
+      {!asPart && <TileBeforeYouStart tile={initial} compact label="What players will need (saved settings)" />}
 
       {error && <p className="text-xs text-red-400">{error}</p>}
 

@@ -56,6 +56,12 @@ const da: PartialGuideDict = {
       clear: 'Ryd søgningen',
     },
     cards: {
+      tiles: {
+        eyebrow: 'Til spillere',
+        title: 'Feltregler og begrænsninger',
+        blurb: 'Hvad et felt kræver af dig, før du går i gang (en spilindstilling, pluginnet, en synkroniseret log, en hiscores-placering), og hvad det ikke kan spore.',
+        minutes: '~4 min',
+      },
       discord: {
         eyebrow: 'Til den der styrer serveren',
         title: 'Anvil i Discord',
@@ -2332,6 +2338,19 @@ const da: PartialGuideDict = {
         },
       ],
     },
+  },
+
+  tiles: {
+    metaTitle: 'Feltregler og begrænsninger — Anvil',
+    metaDescription:
+      'Hvad hver slags bingofelt kræver af dig (spilindstillinger, RuneLite-pluginnet, en synkroniseret collection log, en hiscores-placering), og hvor grænserne går for, hvad det kan spore.',
+    eyebrow: 'Anvil · til spillere',
+    title: 'Feltregler og begrænsninger',
+    dek: 'Hvert felt viser, hvad det kræver af dig, og hvad det ikke kan. Denne side forklarer hver linje; feltets **Why?**-links lander her.',
+    needs: 'Kræver',
+    limit: 'Godt at vide',
+    checked: 'Feltet tjekker det for dig',
+    englishOnly: 'Reglerne nedenfor er på engelsk indtil videre, så de altid passer med det, sitet faktisk gør.',
   },
 };
 
